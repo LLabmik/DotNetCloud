@@ -367,4 +367,81 @@ public sealed class CalendarGrpcService : Protos.CalendarGrpcService.CalendarGrp
 
     private static string? NullIfEmpty(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value;
+
+    /// <inheritdoc />
+    public override async Task GetSearchableDocuments(
+        GetSearchableDocumentsRequest request,
+        IServerStreamWriter<SearchableDocument> responseStream,
+        ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.UserId, out var userId))
+            return;
+
+        var caller = new CallerContext(userId, ["user"], CallerType.User);
+
+        var calendars = await _calendarService.ListCalendarsAsync(caller, context.CancellationToken);
+
+        foreach (var calendar in calendars)
+        {
+            var events = await _eventService.ListEventsAsync(
+                calendar.Id, caller, from: null, to: null, skip: 0, take: int.MaxValue,
+                context.CancellationToken);
+
+            foreach (var evt in events)
+            {
+                var doc = MapEventToSearchableDocument(evt, calendar.Name);
+                await responseStream.WriteAsync(doc, context.CancellationToken);
+            }
+        }
+    }
+
+    /// <inheritdoc />
+    public override async Task<SearchableDocumentResponse> GetSearchableDocument(
+        GetSearchableDocumentRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.EntityId, out var entityId))
+            return new SearchableDocumentResponse { Found = false };
+
+        var evt = await _eventService.GetEventAsync(
+            entityId,
+            new CallerContext(Guid.Empty, ["system"], CallerType.System),
+            context.CancellationToken);
+
+        if (evt is null)
+            return new SearchableDocumentResponse { Found = false };
+
+        return new SearchableDocumentResponse
+        {
+            Found = true,
+            Document = MapEventToSearchableDocument(evt, null)
+        };
+    }
+
+    private static SearchableDocument MapEventToSearchableDocument(CalendarEventDto evt, string? calendarName)
+    {
+        var contentParts = new List<string>();
+        if (!string.IsNullOrEmpty(evt.Description)) contentParts.Add(evt.Description);
+        if (!string.IsNullOrEmpty(evt.Location)) contentParts.Add(evt.Location);
+
+        var doc = new SearchableDocument
+        {
+            ModuleId = "calendar",
+            EntityId = evt.Id.ToString(),
+            EntityType = "CalendarEvent",
+            Title = evt.Title,
+            Content = string.Join(" ", contentParts),
+            Summary = evt.Location ?? string.Empty,
+            OwnerId = evt.CreatedByUserId.ToString(),
+            CreatedAt = evt.CreatedAt.ToString("O"),
+            UpdatedAt = evt.UpdatedAt.ToString("O")
+        };
+
+        doc.Metadata["StartUtc"] = evt.StartUtc.ToString("O");
+        doc.Metadata["EndUtc"] = evt.EndUtc.ToString("O");
+        doc.Metadata["CalendarId"] = evt.CalendarId.ToString();
+        if (calendarName is not null)
+            doc.Metadata["CalendarName"] = calendarName;
+
+        return doc;
+    }
 }

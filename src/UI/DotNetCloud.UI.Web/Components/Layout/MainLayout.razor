@@ -1,16 +1,21 @@
 @inherits LayoutComponentBase
+@using System.Security.Claims
+@using DotNetCloud.Core.DTOs
+@using DotNetCloud.Core.Services
+@using DotNetCloud.Modules.Music.UI
+@inject IUserSettingsService UserSettingsService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject PersistentComponentState PersistentState
+@inject MusicPlaybackState MusicPlayback
+@implements IDisposable
 
-<div class="app-container">
+<div class="app-container @(MusicPlayback.NowPlaying is not null ? "has-global-player" : "")">
     <nav class="sidebar @(_collapsed ? "collapsed" : "")">
         <div class="sidebar-header">
             <a href="/" class="brand">
-                <span class="brand-icon">☁</span>
-                @if (!_collapsed)
-                {
-                    <span class="brand-text">DotNetCloud</span>
-                }
+                <img class="brand-logo" src="/_content/DotNetCloud.UI.Web/logo.png" alt="DotNetCloud" />
             </a>
-            <button class="sidebar-toggle" @onclick="ToggleSidebar" title="Toggle sidebar">
+            <button class="sidebar-toggle" @onclick="ToggleSidebarAsync" title="Toggle sidebar">
                 <span class="toggle-icon">@(_collapsed ? "▶" : "◀")</span>
             </button>
         </div>
@@ -21,6 +26,13 @@
         <header class="topbar">
             <div class="topbar-left">
                 <h1 class="page-title">@_pageTitle</h1>
+            </div>
+            <div class="topbar-center">
+                <AuthorizeView>
+                    <Authorized>
+                        <GlobalSearchBar @rendermode="InteractiveServer" />
+                    </Authorized>
+                </AuthorizeView>
             </div>
             <div class="topbar-right">
                 <CultureSelector @rendermode="InteractiveAuto" />
@@ -36,7 +48,7 @@
                 <AuthorizeView>
                     <Authorized>
                         <div class="user-menu">
-                            <span class="user-name">@context.User.Identity?.Name</span>
+                            <a href="profile" class="user-name-link">@context.User.Identity?.Name</a>
                             <a href="auth/logout" class="btn btn-sm btn-outline">Logout</a>
                         </div>
                     </Authorized>
@@ -58,15 +70,103 @@
         </main>
 
         <ToastContainer />
+        <GlobalMusicPlaybar @rendermode="InteractiveServer" />
     </div>
 </div>
 
 @code {
+    private const string UiSettingsModule = "dotnetcloud.ui";
+    private const string NavbarCollapsedKey = "navbar.collapsed";
+
     private bool _collapsed;
     private string _pageTitle = "DotNetCloud";
     private ErrorBoundary? _errorBoundary;
+    private PersistingComponentStateSubscription _persistingSubscription;
 
-    private void ToggleSidebar() => _collapsed = !_collapsed;
+    protected override async Task OnInitializedAsync()
+    {
+        _persistingSubscription = PersistentState.RegisterOnPersisting(PersistState);
+
+        if (PersistentState.TryTakeFromJson<bool>(NavbarCollapsedKey, out var restored))
+        {
+            _collapsed = restored;
+        }
+        else
+        {
+            await LoadSidebarPreferenceAsync();
+        }
+    }
+
+    private Task PersistState()
+    {
+        PersistentState.PersistAsJson(NavbarCollapsedKey, _collapsed);
+        return Task.CompletedTask;
+    }
+
+    private async Task ToggleSidebarAsync()
+    {
+        _collapsed = !_collapsed;
+        await SaveSidebarPreferenceAsync();
+    }
+
+    private async Task LoadSidebarPreferenceAsync()
+    {
+        var userId = await GetAuthenticatedUserIdAsync();
+        if (userId is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var setting = await UserSettingsService.GetSettingAsync(userId.Value, UiSettingsModule, NavbarCollapsedKey);
+            _collapsed = setting is not null && bool.TryParse(setting.Value, out var isCollapsed) && isCollapsed;
+        }
+        catch
+        {
+            _collapsed = false;
+        }
+    }
+
+    private async Task SaveSidebarPreferenceAsync()
+    {
+        var userId = await GetAuthenticatedUserIdAsync();
+        if (userId is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await UserSettingsService.UpsertSettingAsync(
+                userId.Value,
+                UiSettingsModule,
+                NavbarCollapsedKey,
+                new UpsertUserSettingDto
+                {
+                    Value = _collapsed.ToString().ToLowerInvariant(),
+                    Description = "Whether the user prefers the left navigation collapsed.",
+                    IsSensitive = false,
+                });
+        }
+        catch
+        {
+            // Intentionally ignored so the UI remains responsive if preference persistence fails.
+        }
+    }
+
+    private async Task<Guid?> GetAuthenticatedUserIdAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        var claimValue = user.FindFirst(ClaimTypes.NameIdentifier)?.Value
+            ?? user.FindFirst("sub")?.Value;
+
+        return Guid.TryParse(claimValue, out var userId) ? userId : null;
+    }
 
     private void RecoverError() => _errorBoundary?.Recover();
+
+    public void Dispose() => _persistingSubscription.Dispose();
 }

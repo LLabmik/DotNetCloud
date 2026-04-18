@@ -58,6 +58,19 @@ public class ChannelListTests
         Assert.AreEqual("is-drop-target", testList.DragClass(secondId));
     }
 
+    [TestMethod]
+    public async Task HandleNewDmClick_InvokesOnNewDmCallback()
+    {
+        var testList = CreateChannelList();
+        var receiver = new object();
+        var invoked = false;
+        testList.OnNewDm = EventCallback.Factory.Create(receiver, () => invoked = true);
+
+        await testList.InvokeNewDmClickAsync();
+
+        Assert.IsTrue(invoked);
+    }
+
     private static TestableChannelList CreateChannelList()
     {
         var firstPinnedId = Guid.NewGuid();
@@ -102,6 +115,11 @@ public class ChannelListTests
         public string DragClass(Guid channelId)
         {
             return GetPinnedDragClass(channelId);
+        }
+
+        public Task InvokeNewDmClickAsync()
+        {
+            return HandleNewDmClick();
         }
     }
 }

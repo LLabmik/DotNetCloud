@@ -41,7 +41,7 @@ public class DatabaseSetupHelperTests
             "localhost", "dotnetcloud", null, null, trustedConnection: true);
 
         Assert.AreEqual(
-            "Server=localhost;Database=dotnetcloud;Trusted_Connection=True;TrustServerCertificate=True",
+            "Server=localhost;Database=dotnetcloud;Trusted_Connection=True;TrustServerCertificate=True;MultipleActiveResultSets=True",
             result);
     }
 
@@ -63,7 +63,7 @@ public class DatabaseSetupHelperTests
             "sql.example.com", "dotnetcloud", "sa", "MyP@ss", trustedConnection: false);
 
         Assert.AreEqual(
-            "Server=sql.example.com;Database=dotnetcloud;User Id=sa;Password=MyP@ss;TrustServerCertificate=True",
+            "Server=sql.example.com;Database=dotnetcloud;User Id=sa;Password=MyP@ss;TrustServerCertificate=True;MultipleActiveResultSets=True",
             result);
     }
 

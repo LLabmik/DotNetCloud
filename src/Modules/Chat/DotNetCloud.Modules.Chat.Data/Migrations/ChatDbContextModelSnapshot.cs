@@ -98,6 +98,61 @@ namespace DotNetCloud.Modules.Chat.Data.Migrations
                     b.ToTable("AnnouncementAcknowledgements");
                 });
 
+            modelBuilder.Entity("DotNetCloud.Modules.Chat.Models.CallParticipant", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("HasAudio")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("HasScreenShare")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("HasVideo")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("InvitedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("JoinedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<DateTime?>("LeftAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<int>("State")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("VideoCallId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_chat_call_participants_user_id");
+
+                    b.HasIndex("UserId", "JoinedAtUtc")
+                        .HasDatabaseName("ix_chat_call_participants_user_joined");
+
+                    b.HasIndex("VideoCallId", "UserId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_chat_call_participants_call_user");
+
+                    b.ToTable("CallParticipants");
+                });
+
             modelBuilder.Entity("DotNetCloud.Modules.Chat.Models.Channel", b =>
                 {
                     b.Property<Guid>("Id")
@@ -465,6 +520,85 @@ namespace DotNetCloud.Modules.Chat.Data.Migrations
                     b.ToTable("PinnedMessages");
                 });
 
+            modelBuilder.Entity("DotNetCloud.Modules.Chat.Models.VideoCall", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ChannelId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("EndReason")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime?>("EndedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("HostUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("InitiatorUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsGroupCall")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("LiveKitRoomId")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int>("MaxParticipants")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("MediaType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime?>("StartedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAtUtc")
+                        .HasDatabaseName("ix_chat_video_calls_created_at");
+
+                    b.HasIndex("HostUserId")
+                        .HasDatabaseName("ix_chat_video_calls_host_user_id");
+
+                    b.HasIndex("InitiatorUserId")
+                        .HasDatabaseName("ix_chat_video_calls_initiator_user_id");
+
+                    b.HasIndex("IsDeleted")
+                        .HasDatabaseName("ix_chat_video_calls_is_deleted");
+
+                    b.HasIndex("State")
+                        .HasDatabaseName("ix_chat_video_calls_state");
+
+                    b.HasIndex("ChannelId", "State")
+                        .HasDatabaseName("ix_chat_video_calls_channel_state");
+
+                    b.ToTable("VideoCalls");
+                });
+
             modelBuilder.Entity("DotNetCloud.Modules.Chat.Models.AnnouncementAcknowledgement", b =>
                 {
                     b.HasOne("DotNetCloud.Modules.Chat.Models.Announcement", "Announcement")
@@ -474,6 +608,17 @@ namespace DotNetCloud.Modules.Chat.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Announcement");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Chat.Models.CallParticipant", b =>
+                {
+                    b.HasOne("DotNetCloud.Modules.Chat.Models.VideoCall", "VideoCall")
+                        .WithMany("Participants")
+                        .HasForeignKey("VideoCallId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("VideoCall");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Chat.Models.ChannelInvite", b =>
@@ -568,6 +713,17 @@ namespace DotNetCloud.Modules.Chat.Data.Migrations
                     b.Navigation("Message");
                 });
 
+            modelBuilder.Entity("DotNetCloud.Modules.Chat.Models.VideoCall", b =>
+                {
+                    b.HasOne("DotNetCloud.Modules.Chat.Models.Channel", "Channel")
+                        .WithMany()
+                        .HasForeignKey("ChannelId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Channel");
+                });
+
             modelBuilder.Entity("DotNetCloud.Modules.Chat.Models.Announcement", b =>
                 {
                     b.Navigation("Acknowledgements");
@@ -591,6 +747,11 @@ namespace DotNetCloud.Modules.Chat.Data.Migrations
                     b.Navigation("Mentions");
 
                     b.Navigation("Reactions");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Chat.Models.VideoCall", b =>
+                {
+                    b.Navigation("Participants");
                 });
 #pragma warning restore 612, 618
         }

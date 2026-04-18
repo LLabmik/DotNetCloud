@@ -1,0 +1,7 @@
+@page "/apps/photos"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@attribute [Authorize]
+
+<PageTitle>Photos - DotNetCloud</PageTitle>
+
+<ModulePageHost RouteKey="photos.page" />

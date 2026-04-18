@@ -6,6 +6,7 @@ using IEventBus = DotNetCloud.Core.Events.IEventBus;
 using DotNetCloud.Modules.Tracks.Data;
 using DotNetCloud.Modules.Tracks.Data.Services;
 using DotNetCloud.Modules.Tracks.Models;
+using DotNetCloud.Modules.Tracks.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
@@ -21,7 +22,7 @@ public class TracksPerformanceTests
 {
     private TracksDbContext _db = null!;
     private BoardService _boardService = null!;
-    private ListService _listService = null!;
+    private SwimlaneService _swimlaneService = null!;
     private CardService _cardService = null!;
     private LabelService _labelService = null!;
     private DependencyService _dependencyService = null!;
@@ -53,7 +54,7 @@ public class TracksPerformanceTests
         _teamService = new TeamService(_db, _eventBusMock.Object, NullLogger<TeamService>.Instance,
             _teamDirectoryMock.Object, _teamManagerMock.Object);
         _boardService = new BoardService(_db, _eventBusMock.Object, _activityService, _teamService, NullLogger<BoardService>.Instance);
-        _listService = new ListService(_db, _boardService, _activityService, NullLogger<ListService>.Instance);
+        _swimlaneService = new SwimlaneService(_db, _boardService, _activityService, NullLogger<SwimlaneService>.Instance);
         _cardService = new CardService(_db, _boardService, _activityService, _eventBusMock.Object, NullLogger<CardService>.Instance);
         _labelService = new LabelService(_db, _boardService, _activityService, NullLogger<LabelService>.Instance);
         _dependencyService = new DependencyService(_db, _boardService, _activityService, NullLogger<DependencyService>.Instance);
@@ -70,15 +71,15 @@ public class TracksPerformanceTests
     {
         var board = await _boardService.CreateBoardAsync(
             new CreateBoardDto { Title = "Large Board" }, _caller);
-        var list = await _listService.CreateListAsync(board.Id,
-            new CreateBoardListDto { Title = "Backlog" }, _caller);
+        var list = await _swimlaneService.CreateSwimlaneAsync(board.Id,
+            new CreateBoardSwimlaneDto { Title = "Backlog" }, _caller);
 
         // Seed 100 cards via direct DB insert for speed
         for (var i = 0; i < 100; i++)
         {
             _db.Cards.Add(new Card
             {
-                ListId = list.Id,
+                SwimlaneId = list.Id,
                 Title = $"Card {i + 1}",
                 Position = (i + 1) * 1000.0,
                 CreatedByUserId = _caller.UserId
@@ -100,14 +101,14 @@ public class TracksPerformanceTests
         // Create 10 lists, each with 50 cards = 500 total
         for (var listNum = 0; listNum < 10; listNum++)
         {
-            var list = await _listService.CreateListAsync(board.Id,
-                new CreateBoardListDto { Title = $"List {listNum + 1}" }, _caller);
+            var list = await _swimlaneService.CreateSwimlaneAsync(board.Id,
+                new CreateBoardSwimlaneDto { Title = $"List {listNum + 1}" }, _caller);
 
             for (var cardNum = 0; cardNum < 50; cardNum++)
             {
                 _db.Cards.Add(new Card
                 {
-                    ListId = list.Id,
+                    SwimlaneId = list.Id,
                     Title = $"Card {listNum}-{cardNum}",
                     Position = (cardNum + 1) * 1000.0,
                     CreatedByUserId = _caller.UserId
@@ -119,7 +120,7 @@ public class TracksPerformanceTests
         // Getting board should complete without error
         var result = await _boardService.GetBoardAsync(board.Id, _caller);
         Assert.IsNotNull(result);
-        Assert.AreEqual(10, result.Lists.Count);
+        Assert.AreEqual(10, result.Swimlanes.Count);
     }
 
     // ─── Reorder Operations ──────────────────────────────────────────
@@ -133,17 +134,17 @@ public class TracksPerformanceTests
         var listIds = new List<Guid>();
         for (var i = 0; i < 20; i++)
         {
-            var list = await _listService.CreateListAsync(board.Id,
-                new CreateBoardListDto { Title = $"List {i + 1}" }, _caller);
+            var list = await _swimlaneService.CreateSwimlaneAsync(board.Id,
+                new CreateBoardSwimlaneDto { Title = $"List {i + 1}" }, _caller);
             listIds.Add(list.Id);
         }
 
         // Reverse the order
         listIds.Reverse();
-        await _listService.ReorderListsAsync(board.Id, listIds, _caller);
+        await _swimlaneService.ReorderSwimlanesAsync(board.Id, listIds, _caller);
 
         // Verify positions are correct
-        var lists = await _listService.GetListsAsync(board.Id, _caller);
+        var lists = await _swimlaneService.GetSwimlanesAsync(board.Id, _caller);
         Assert.AreEqual(20, lists.Count);
 
         // First list in reordered array should have lowest position
@@ -161,17 +162,17 @@ public class TracksPerformanceTests
     {
         var board = await _boardService.CreateBoardAsync(
             new CreateBoardDto { Title = "Dense Board" }, _caller);
-        var sourceList = await _listService.CreateListAsync(board.Id,
-            new CreateBoardListDto { Title = "Source" }, _caller);
-        var targetList = await _listService.CreateListAsync(board.Id,
-            new CreateBoardListDto { Title = "Target" }, _caller);
+        var sourceList = await _swimlaneService.CreateSwimlaneAsync(board.Id,
+            new CreateBoardSwimlaneDto { Title = "Source" }, _caller);
+        var targetList = await _swimlaneService.CreateSwimlaneAsync(board.Id,
+            new CreateBoardSwimlaneDto { Title = "Target" }, _caller);
 
         // Fill target with 50 cards
         for (var i = 0; i < 50; i++)
         {
             _db.Cards.Add(new Card
             {
-                ListId = targetList.Id,
+                SwimlaneId = targetList.Id,
                 Title = $"Target Card {i + 1}",
                 Position = (i + 1) * 1000.0,
                 CreatedByUserId = _caller.UserId
@@ -185,10 +186,10 @@ public class TracksPerformanceTests
 
         // Move to middle of target list
         await _cardService.MoveCardAsync(card.Id,
-            new MoveCardDto { TargetListId = targetList.Id, Position = 25000 }, _caller);
+            new MoveCardDto { TargetSwimlaneId = targetList.Id, Position = 25000 }, _caller);
 
         var movedCard = await _cardService.GetCardAsync(card.Id, _caller);
-        Assert.AreEqual(targetList.Id, movedCard!.ListId);
+        Assert.AreEqual(targetList.Id, movedCard!.SwimlaneId);
     }
 
     // ─── Team with Many Members ──────────────────────────────────────
@@ -259,7 +260,7 @@ public class TracksPerformanceTests
     public async Task DependencyChain_20Deep_NoCycleDetected()
     {
         var board = await TestHelpers.SeedBoardAsync(_db, _caller.UserId, "Chain Board");
-        var list = await TestHelpers.SeedListAsync(_db, board.Id);
+        var list = await TestHelpers.SeedSwimlaneAsync(_db, board.Id);
 
         // Create a chain of 20 cards: A → B → C → ... → T
         var cards = new List<Card>();
@@ -278,5 +279,87 @@ public class TracksPerformanceTests
         // Getting dependencies for first card should complete
         var deps = await _dependencyService.GetDependenciesAsync(cards[0].Id, _caller);
         Assert.AreEqual(1, deps.Count);
+    }
+
+    // ─── Sprint Plan Performance (Phase C) ───────────────────────────
+
+    [TestMethod]
+    public async Task SprintPlan_52Sprints_CreatesAndReturnsOverview()
+    {
+        var board = await TestHelpers.SeedBoardAsync(_db, _caller.UserId, "Year Plan Board");
+        board.Mode = BoardMode.Team;
+        _db.Update(board);
+        await _db.SaveChangesAsync();
+
+        var planningService = new SprintPlanningService(_db, _boardService, _activityService, NullLogger<SprintPlanningService>.Instance);
+        var dto = new CreateSprintPlanDto
+        {
+            StartDate = new DateTime(2026, 1, 5, 0, 0, 0, DateTimeKind.Utc),
+            SprintCount = 52,
+            DefaultDurationWeeks = 1
+        };
+
+        var result = await planningService.CreateYearPlanAsync(board.Id, dto, _caller);
+
+        Assert.AreEqual(52, result.Sprints.Count);
+        Assert.AreEqual(52, result.TotalWeeks);
+    }
+
+    [TestMethod]
+    public async Task SprintPlan_AdjustWithCascade_52Sprints()
+    {
+        var board = await TestHelpers.SeedBoardAsync(_db, _caller.UserId, "Cascade Board");
+        board.Mode = BoardMode.Team;
+        _db.Update(board);
+        await _db.SaveChangesAsync();
+
+        var planningService = new SprintPlanningService(_db, _boardService, _activityService, NullLogger<SprintPlanningService>.Instance);
+        var dto = new CreateSprintPlanDto
+        {
+            StartDate = new DateTime(2026, 1, 5, 0, 0, 0, DateTimeKind.Utc),
+            SprintCount = 52,
+            DefaultDurationWeeks = 1
+        };
+        var plan = await planningService.CreateYearPlanAsync(board.Id, dto, _caller);
+
+        // Adjust first sprint to 2 weeks — should cascade all 51 subsequent sprints
+        var adjustDto = new AdjustSprintDto { DurationWeeks = 2 };
+        var result = await planningService.AdjustSprintAsync(plan.Sprints[0].Id, adjustDto, _caller);
+
+        Assert.AreEqual(52, result.Sprints.Count);
+        Assert.AreEqual(2, result.Sprints[0].DurationWeeks);
+    }
+
+    // ─── Review Session Performance (Phase B/D) ──────────────────────
+
+    [TestMethod]
+    public async Task ReviewSession_20Participants_JoinAndLeave()
+    {
+        var board = await TestHelpers.SeedBoardAsync(_db, _caller.UserId, "Review Board");
+        board.Mode = BoardMode.Team;
+        _db.Update(board);
+        await _db.SaveChangesAsync();
+
+        var realtimeService = new NullTracksRealtimeService();
+        var pokerService = new PokerService(_db, _boardService, _activityService, realtimeService, NullLogger<PokerService>.Instance);
+        var reviewService = new ReviewSessionService(_db, _boardService, pokerService, realtimeService, NullLogger<ReviewSessionService>.Instance);
+
+        // Start session as owner (Admin)
+        var session = await reviewService.StartSessionAsync(board.Id, _caller);
+
+        // Have 20 members join
+        for (var i = 0; i < 20; i++)
+        {
+            var memberId = Guid.NewGuid();
+            await TestHelpers.AddMemberAsync(_db, board.Id, memberId, BoardMemberRole.Member);
+            var memberCaller = TestHelpers.CreateCaller(memberId);
+            await reviewService.JoinSessionAsync(session.Id, memberCaller);
+        }
+
+        // Get state should include all participants
+        var state = await reviewService.GetSessionStateAsync(session.Id, _caller);
+        Assert.IsNotNull(state);
+        // Host + 20 members = 21 participants
+        Assert.AreEqual(21, state.Participants.Count);
     }
 }

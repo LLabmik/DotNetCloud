@@ -15,18 +15,18 @@ public sealed class BoardTemplateService
 {
     private readonly TracksDbContext _db;
     private readonly BoardService _boardService;
-    private readonly ListService _listService;
+    private readonly SwimlaneService _swimlaneService;
     private readonly LabelService _labelService;
     private readonly ILogger<BoardTemplateService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="BoardTemplateService"/> class.
     /// </summary>
-    public BoardTemplateService(TracksDbContext db, BoardService boardService, ListService listService, LabelService labelService, ILogger<BoardTemplateService> logger)
+    public BoardTemplateService(TracksDbContext db, BoardService boardService, SwimlaneService swimlaneService, LabelService labelService, ILogger<BoardTemplateService> logger)
     {
         _db = db;
         _boardService = boardService;
-        _listService = listService;
+        _swimlaneService = swimlaneService;
         _labelService = labelService;
         _logger = logger;
     }
@@ -105,11 +105,12 @@ public sealed class BoardTemplateService
         {
             foreach (var listDef in definition.Lists)
             {
-                await _listService.CreateListAsync(board.Id, new CreateBoardListDto
+                await _swimlaneService.CreateSwimlaneAsync(board.Id, new CreateBoardSwimlaneDto
                 {
                     Title = listDef.Title,
                     Color = listDef.Color,
-                    CardLimit = listDef.CardLimit
+                    CardLimit = listDef.CardLimit,
+                    IsDone = listDef.IsDone
                 }, caller, cancellationToken);
             }
         }
@@ -133,14 +134,14 @@ public sealed class BoardTemplateService
 
         var board = await _db.Boards
             .AsNoTracking()
-            .Include(b => b.Lists.OrderBy(l => l.Position))
+            .Include(b => b.Swimlanes.OrderBy(l => l.Position))
             .Include(b => b.Labels)
             .FirstOrDefaultAsync(b => b.Id == boardId && !b.IsDeleted, cancellationToken)
             ?? throw new ValidationException(ErrorCodes.BoardNotFound, "Board not found.");
 
         var definition = new TemplateDefinition
         {
-            Lists = board.Lists.Select(l => new TemplateListDefinition
+            Lists = board.Swimlanes.Select(l => new TemplateListDefinition
             {
                 Title = l.Title,
                 Color = l.Color,
@@ -227,7 +228,7 @@ public sealed class BoardTemplateService
                         new() { Title = "To Do" },
                         new() { Title = "In Progress", CardLimit = 5 },
                         new() { Title = "Review" },
-                        new() { Title = "Done" }
+                        new() { Title = "Done", IsDone = true }
                     ],
                     Labels =
                     [
@@ -253,7 +254,7 @@ public sealed class BoardTemplateService
                         new() { Title = "In Development", CardLimit = 3 },
                         new() { Title = "Code Review" },
                         new() { Title = "QA Testing" },
-                        new() { Title = "Done" }
+                        new() { Title = "Done", IsDone = true }
                     ],
                     Labels =
                     [
@@ -280,7 +281,7 @@ public sealed class BoardTemplateService
                         new() { Title = "In Progress", CardLimit = 4 },
                         new() { Title = "Fixed" },
                         new() { Title = "Verified" },
-                        new() { Title = "Closed" }
+                        new() { Title = "Closed", IsDone = true }
                     ],
                     Labels =
                     [
@@ -306,7 +307,7 @@ public sealed class BoardTemplateService
                         new() { Title = "Ideas" },
                         new() { Title = "To Do" },
                         new() { Title = "Doing", CardLimit = 3 },
-                        new() { Title = "Done" }
+                        new() { Title = "Done", IsDone = true }
                     ],
                     Labels =
                     [
@@ -365,6 +366,9 @@ internal sealed class TemplateListDefinition
 
     /// <summary>Optional WIP limit.</summary>
     public int? CardLimit { get; set; }
+
+    /// <summary>Whether this is a done column.</summary>
+    public bool IsDone { get; set; }
 }
 
 /// <summary>

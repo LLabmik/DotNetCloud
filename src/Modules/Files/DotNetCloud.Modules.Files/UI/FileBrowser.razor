@@ -159,9 +159,9 @@ else
     {
         <div class="files-actions">
             <button class="btn btn-primary btn-sm" @onclick="ShowCreateFolderDialog">New Folder</button>
-            @if (CanCreateCollaboraDocument)
+            @if (CanCreateNewFile)
             {
-                <button class="btn btn-primary btn-sm" @onclick="ShowCreateDocumentDialog">New Document</button>
+                <button class="btn btn-primary btn-sm" @onclick="ShowCreateDocumentDialog">New File</button>
             }
             <button class="btn btn-primary btn-sm" @onclick="ShowUploadDialog">Upload</button>
         </div>
@@ -216,17 +216,31 @@ else
 
     @if (IsShowCreateDocument)
     {
-        <div class="create-folder-dialog">
-            <input type="text" @bind="NewDocumentName" placeholder="Document name"
-                   @onkeydown="HandleCreateDocumentKeyDown" autofocus />
-            <select @bind="SelectedDocumentExtension">
-                @foreach (var extension in SupportedNewDocumentExtensions)
-                {
-                    <option value="@extension">.@extension</option>
-                }
-            </select>
-            <button class="btn btn-primary btn-sm" @onclick="CreateDocumentAsync">Create</button>
-            <button class="btn btn-sm" @onclick="HideCreateDocumentDialog">Cancel</button>
+        <div class="create-file-dialog">
+            @if (CollaboraNewFileExtensions.Count > 0)
+            {
+                <div class="create-file-row">
+                    <span class="create-file-label">Document</span>
+                    <input type="text" @bind="NewDocumentName" placeholder="Document name"
+                           @onkeydown="HandleCreateDocumentKeyDown" autofocus />
+                    <select @bind="SelectedDocumentExtension">
+                        @foreach (var extension in CollaboraNewFileExtensions)
+                        {
+                            <option value="@extension">.@extension</option>
+                        }
+                    </select>
+                    <button class="btn btn-primary btn-sm" @onclick="CreateDocumentAsync">Create</button>
+                </div>
+            }
+            <div class="create-file-row">
+                <span class="create-file-label">File</span>
+                <input type="text" @bind="FreeformFileName" placeholder="filename.txt"
+                       @onkeydown="HandleFreeformFileKeyDown" @ref="_freeformInput" />
+                <button class="btn btn-primary btn-sm" @onclick="CreateFreeformFileAsync">Create</button>
+            </div>
+            <div class="create-file-actions">
+                <button class="btn btn-sm" @onclick="HideCreateDocumentDialog">Cancel</button>
+            </div>
         </div>
     }
 
@@ -252,9 +266,9 @@ else
             <p class="text-muted empty-state-hint">You can also drag and drop files anywhere on this page.</p>
             <div class="empty-state-actions">
                 <button class="btn btn-primary btn-sm" @onclick="ShowCreateFolderDialog">New Folder</button>
-                @if (CanCreateCollaboraDocument)
+                @if (CanCreateNewFile)
                 {
-                    <button class="btn btn-primary btn-sm" @onclick="ShowCreateDocumentDialog">New Document</button>
+                    <button class="btn btn-primary btn-sm" @onclick="ShowCreateDocumentDialog">New File</button>
                 }
                 <button class="btn btn-primary btn-sm" @onclick="ShowUploadDialog">Upload</button>
             </div>

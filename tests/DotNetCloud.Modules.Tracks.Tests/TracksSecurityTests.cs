@@ -1,11 +1,13 @@
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs;
+using DotNetCloud.Core.Errors;
 using DotNetCloud.Core.Events;
 using IEventBus = DotNetCloud.Core.Events.IEventBus;
 using DotNetCloud.Modules.Tracks.Data;
 using DotNetCloud.Modules.Tracks.Data.Services;
 using DotNetCloud.Modules.Tracks.Models;
+using DotNetCloud.Modules.Tracks.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
@@ -22,7 +24,7 @@ public class TracksSecurityTests
     private TracksDbContext _db = null!;
     private BoardService _boardService = null!;
     private CardService _cardService = null!;
-    private ListService _listService = null!;
+    private SwimlaneService _swimlaneService = null!;
     private CommentService _commentService = null!;
     private LabelService _labelService = null!;
     private SprintService _sprintService = null!;
@@ -35,7 +37,7 @@ public class TracksSecurityTests
     private CallerContext _viewer = null!;
     private CallerContext _outsider = null!;
     private Board _board = null!;
-    private BoardList _list = null!;
+    private BoardSwimlane _swimlane = null!;
 
     [TestInitialize]
     public async Task Setup()
@@ -45,7 +47,7 @@ public class TracksSecurityTests
         var activityService = new ActivityService(_db, NullLogger<ActivityService>.Instance);
         _teamService = new TeamService(_db, _eventBusMock.Object, NullLogger<TeamService>.Instance);
         _boardService = new BoardService(_db, _eventBusMock.Object, activityService, _teamService, NullLogger<BoardService>.Instance);
-        _listService = new ListService(_db, _boardService, activityService, NullLogger<ListService>.Instance);
+        _swimlaneService = new SwimlaneService(_db, _boardService, activityService, NullLogger<SwimlaneService>.Instance);
         _cardService = new CardService(_db, _boardService, activityService, _eventBusMock.Object, NullLogger<CardService>.Instance);
         _commentService = new CommentService(_db, _boardService, activityService, _eventBusMock.Object, NullLogger<CommentService>.Instance);
         _labelService = new LabelService(_db, _boardService, activityService, NullLogger<LabelService>.Instance);
@@ -66,7 +68,7 @@ public class TracksSecurityTests
         await TestHelpers.AddMemberAsync(_db, _board.Id, _viewer.UserId, BoardMemberRole.Viewer);
 
         // Seed a list and card for tests
-        _list = await TestHelpers.SeedListAsync(_db, _board.Id);
+        _swimlane = await TestHelpers.SeedSwimlaneAsync(_db, _board.Id);
     }
 
     [TestCleanup]
@@ -152,15 +154,15 @@ public class TracksSecurityTests
     public async Task CreateList_ByViewer_Throws()
     {
         await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
-            () => _listService.CreateListAsync(_board.Id,
-                new CreateBoardListDto { Title = "Blocked" }, _viewer));
+            () => _swimlaneService.CreateSwimlaneAsync(_board.Id,
+                new CreateBoardSwimlaneDto { Title = "Blocked" }, _viewer));
     }
 
     [TestMethod]
     public async Task CreateList_ByMember_Succeeds()
     {
-        var result = await _listService.CreateListAsync(_board.Id,
-            new CreateBoardListDto { Title = "Allowed" }, _member);
+        var result = await _swimlaneService.CreateSwimlaneAsync(_board.Id,
+            new CreateBoardSwimlaneDto { Title = "Allowed" }, _member);
 
         Assert.IsNotNull(result);
         Assert.AreEqual("Allowed", result.Title);
@@ -170,8 +172,8 @@ public class TracksSecurityTests
     public async Task CreateList_ByOutsider_Throws()
     {
         await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
-            () => _listService.CreateListAsync(_board.Id,
-                new CreateBoardListDto { Title = "No Access" }, _outsider));
+            () => _swimlaneService.CreateSwimlaneAsync(_board.Id,
+                new CreateBoardSwimlaneDto { Title = "No Access" }, _outsider));
     }
 
     // ─── Card Role Authorization ─────────────────────────────────────
@@ -180,14 +182,14 @@ public class TracksSecurityTests
     public async Task CreateCard_ByViewer_Throws()
     {
         await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
-            () => _cardService.CreateCardAsync(_list.Id,
+            () => _cardService.CreateCardAsync(_swimlane.Id,
                 new CreateCardDto { Title = "Blocked" }, _viewer));
     }
 
     [TestMethod]
     public async Task CreateCard_ByMember_Succeeds()
     {
-        var result = await _cardService.CreateCardAsync(_list.Id,
+        var result = await _cardService.CreateCardAsync(_swimlane.Id,
             new CreateCardDto { Title = "Allowed" }, _member);
 
         Assert.IsNotNull(result);
@@ -198,19 +200,19 @@ public class TracksSecurityTests
     public async Task CreateCard_ByOutsider_Throws()
     {
         await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
-            () => _cardService.CreateCardAsync(_list.Id,
+            () => _cardService.CreateCardAsync(_swimlane.Id,
                 new CreateCardDto { Title = "Blocked" }, _outsider));
     }
 
     [TestMethod]
     public async Task MoveCard_ByViewer_Throws()
     {
-        var card = await TestHelpers.SeedCardAsync(_db, _list.Id, _member.UserId);
-        var targetList = await TestHelpers.SeedListAsync(_db, _board.Id, "Target");
+        var card = await TestHelpers.SeedCardAsync(_db, _swimlane.Id, _member.UserId);
+        var targetList = await TestHelpers.SeedSwimlaneAsync(_db, _board.Id, "Target");
 
         await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
             () => _cardService.MoveCardAsync(card.Id,
-                new MoveCardDto { TargetListId = targetList.Id, Position = 1000 }, _viewer));
+                new MoveCardDto { TargetSwimlaneId = targetList.Id, Position = 1000 }, _viewer));
     }
 
     // ─── Comment Authorization ───────────────────────────────────────
@@ -218,7 +220,7 @@ public class TracksSecurityTests
     [TestMethod]
     public async Task AddComment_ByViewer_Throws()
     {
-        var card = await TestHelpers.SeedCardAsync(_db, _list.Id, _member.UserId);
+        var card = await TestHelpers.SeedCardAsync(_db, _swimlane.Id, _member.UserId);
 
         await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
             () => _commentService.CreateCommentAsync(card.Id, "Blocked", _viewer));
@@ -227,7 +229,7 @@ public class TracksSecurityTests
     [TestMethod]
     public async Task AddComment_ByMember_Succeeds()
     {
-        var card = await TestHelpers.SeedCardAsync(_db, _list.Id, _member.UserId);
+        var card = await TestHelpers.SeedCardAsync(_db, _swimlane.Id, _member.UserId);
 
         var result = await _commentService.CreateCommentAsync(card.Id, "Allowed", _member);
 
@@ -238,7 +240,7 @@ public class TracksSecurityTests
     [TestMethod]
     public async Task AddComment_ByOutsider_Throws()
     {
-        var card = await TestHelpers.SeedCardAsync(_db, _list.Id, _member.UserId);
+        var card = await TestHelpers.SeedCardAsync(_db, _swimlane.Id, _member.UserId);
 
         await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
             () => _commentService.CreateCommentAsync(card.Id, "Blocked", _outsider));
@@ -313,10 +315,10 @@ public class TracksSecurityTests
     public async Task AddDependency_DeepCycle_Throws()
     {
         // A → B → C → D → A should fail (4-node cycle)
-        var cardA = await TestHelpers.SeedCardAsync(_db, _list.Id, _owner.UserId, "A");
-        var cardB = await TestHelpers.SeedCardAsync(_db, _list.Id, _owner.UserId, "B");
-        var cardC = await TestHelpers.SeedCardAsync(_db, _list.Id, _owner.UserId, "C");
-        var cardD = await TestHelpers.SeedCardAsync(_db, _list.Id, _owner.UserId, "D");
+        var cardA = await TestHelpers.SeedCardAsync(_db, _swimlane.Id, _owner.UserId, "A");
+        var cardB = await TestHelpers.SeedCardAsync(_db, _swimlane.Id, _owner.UserId, "B");
+        var cardC = await TestHelpers.SeedCardAsync(_db, _swimlane.Id, _owner.UserId, "C");
+        var cardD = await TestHelpers.SeedCardAsync(_db, _swimlane.Id, _owner.UserId, "D");
 
         await _dependencyService.AddDependencyAsync(cardA.Id, cardB.Id, CardDependencyType.BlockedBy, _owner);
         await _dependencyService.AddDependencyAsync(cardB.Id, cardC.Id, CardDependencyType.BlockedBy, _owner);
@@ -330,8 +332,8 @@ public class TracksSecurityTests
     public async Task AddDependency_DirectCycle_Throws()
     {
         // A → B, then B → A should fail
-        var cardA = await TestHelpers.SeedCardAsync(_db, _list.Id, _owner.UserId, "A");
-        var cardB = await TestHelpers.SeedCardAsync(_db, _list.Id, _owner.UserId, "B");
+        var cardA = await TestHelpers.SeedCardAsync(_db, _swimlane.Id, _owner.UserId, "A");
+        var cardB = await TestHelpers.SeedCardAsync(_db, _swimlane.Id, _owner.UserId, "B");
 
         await _dependencyService.AddDependencyAsync(cardA.Id, cardB.Id, CardDependencyType.BlockedBy, _owner);
 
@@ -416,7 +418,7 @@ public class TracksSecurityTests
     public async Task CreateCard_WithScriptTag_StoresContent()
     {
         var xssContent = "<script>alert('xss')</script>";
-        var card = await _cardService.CreateCardAsync(_list.Id,
+        var card = await _cardService.CreateCardAsync(_swimlane.Id,
             new CreateCardDto { Title = "XSS Card", Description = xssContent }, _owner);
 
         var retrieved = await _cardService.GetCardAsync(card.Id, _owner);
@@ -428,7 +430,7 @@ public class TracksSecurityTests
     [TestMethod]
     public async Task AddComment_WithScriptTag_StoresContent()
     {
-        var card = await TestHelpers.SeedCardAsync(_db, _list.Id, _owner.UserId);
+        var card = await TestHelpers.SeedCardAsync(_db, _swimlane.Id, _owner.UserId);
         var xssContent = "<script>document.cookie</script>";
 
         var comment = await _commentService.CreateCommentAsync(card.Id, xssContent, _owner);
@@ -441,7 +443,7 @@ public class TracksSecurityTests
     public async Task CreateCard_WithImgOnError_StoresContent()
     {
         var xssContent = "<img src=x onerror=alert('xss')>";
-        var card = await _cardService.CreateCardAsync(_list.Id,
+        var card = await _cardService.CreateCardAsync(_swimlane.Id,
             new CreateCardDto { Title = "Img XSS", Description = xssContent }, _owner);
 
         var retrieved = await _cardService.GetCardAsync(card.Id, _owner);
@@ -453,7 +455,7 @@ public class TracksSecurityTests
     [TestMethod]
     public async Task AddComment_WithIframe_StoresContent()
     {
-        var card = await TestHelpers.SeedCardAsync(_db, _list.Id, _owner.UserId);
+        var card = await TestHelpers.SeedCardAsync(_db, _swimlane.Id, _owner.UserId);
         var xssContent = "<iframe src='https://evil.example.com'></iframe>";
 
         var comment = await _commentService.CreateCommentAsync(card.Id, xssContent, _owner);
@@ -466,7 +468,7 @@ public class TracksSecurityTests
     public async Task CreateCard_WithJavascriptUrl_StoresContent()
     {
         var xssContent = "[click](javascript:alert('xss'))";
-        var card = await _cardService.CreateCardAsync(_list.Id,
+        var card = await _cardService.CreateCardAsync(_swimlane.Id,
             new CreateCardDto { Title = "JS URL", Description = xssContent }, _owner);
 
         var retrieved = await _cardService.GetCardAsync(card.Id, _owner);
@@ -478,21 +480,21 @@ public class TracksSecurityTests
     // ─── Cross-Board Isolation ───────────────────────────────────────
 
     [TestMethod]
-    public async Task MoveCard_ToOtherBoardList_OwnerNotMemberOfTarget_Succeeds()
+    public async Task MoveCard_ToOtherBoardSwimlane_OwnerNotMemberOfTarget_Succeeds()
     {
         // Note: MoveCardAsync moves by target list ID. If the caller is a member
         // of the card's current board, the operation proceeds. Cross-board moves
         // are permitted at the service layer — board membership check is on the source board.
         var otherBoard = await TestHelpers.SeedBoardAsync(_db, _outsider.UserId, "Other Board");
-        var otherList = await TestHelpers.SeedListAsync(_db, otherBoard.Id, "Other List");
-        var card = await TestHelpers.SeedCardAsync(_db, _list.Id, _owner.UserId);
+        var otherList = await TestHelpers.SeedSwimlaneAsync(_db, otherBoard.Id, "Other List");
+        var card = await TestHelpers.SeedCardAsync(_db, _swimlane.Id, _owner.UserId);
 
         // Move succeeds because owner is a member of the card's source board
         var moved = await _cardService.MoveCardAsync(card.Id,
-            new MoveCardDto { TargetListId = otherList.Id, Position = 1000 }, _owner);
+            new MoveCardDto { TargetSwimlaneId = otherList.Id, Position = 1000 }, _owner);
 
         Assert.IsNotNull(moved);
-        Assert.AreEqual(otherList.Id, moved.ListId);
+        Assert.AreEqual(otherList.Id, moved.SwimlaneId);
     }
 
     [TestMethod]
@@ -500,12 +502,130 @@ public class TracksSecurityTests
     {
         // Labels from board A cannot be applied to cards on board B
         var otherBoard = await TestHelpers.SeedBoardAsync(_db, _owner.UserId, "Board B");
-        var otherList = await TestHelpers.SeedListAsync(_db, otherBoard.Id, "B List");
+        var otherList = await TestHelpers.SeedSwimlaneAsync(_db, otherBoard.Id, "B List");
         var boardBCard = await TestHelpers.SeedCardAsync(_db, otherList.Id, _owner.UserId);
         var boardALabel = await _labelService.CreateLabelAsync(_board.Id,
             new CreateLabelDto { Title = "Board A Label", Color = "#000000" }, _owner);
 
         await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
             () => _labelService.AddLabelToCardAsync(boardBCard.Id, boardALabel.Id, _owner));
+    }
+
+    // ─── Board Mode Enforcement (Phase A) ────────────────────────────
+
+    [TestMethod]
+    public async Task SprintPlanning_PersonalBoard_Throws()
+    {
+        // Sprint planning requires Team mode
+        var activityService = new ActivityService(_db, NullLogger<ActivityService>.Instance);
+        var planningService = new SprintPlanningService(_db, _boardService, activityService, NullLogger<SprintPlanningService>.Instance);
+
+        var dto = new CreateSprintPlanDto
+        {
+            StartDate = DateTime.UtcNow,
+            SprintCount = 4,
+            DefaultDurationWeeks = 2
+        };
+
+        // Default board is Personal mode
+        await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
+            () => planningService.CreateYearPlanAsync(_board.Id, dto, _owner));
+    }
+
+    [TestMethod]
+    public async Task SprintPlanning_TeamBoard_Succeeds()
+    {
+        _board.Mode = BoardMode.Team;
+        _db.Update(_board);
+        await _db.SaveChangesAsync();
+
+        var activityService = new ActivityService(_db, NullLogger<ActivityService>.Instance);
+        var planningService = new SprintPlanningService(_db, _boardService, activityService, NullLogger<SprintPlanningService>.Instance);
+
+        var dto = new CreateSprintPlanDto
+        {
+            StartDate = DateTime.UtcNow,
+            SprintCount = 2,
+            DefaultDurationWeeks = 2
+        };
+
+        var result = await planningService.CreateYearPlanAsync(_board.Id, dto, _owner);
+        Assert.IsNotNull(result);
+        Assert.AreEqual(2, result.Sprints.Count);
+    }
+
+    // ─── Review Session Authorization (Phase B) ──────────────────────
+
+    [TestMethod]
+    public async Task ReviewSession_PersonalBoard_Throws()
+    {
+        // Default board is Personal mode; review sessions require Team mode
+        var activityService = new ActivityService(_db, NullLogger<ActivityService>.Instance);
+        var realtimeMock = new DotNetCloud.Modules.Tracks.Tests.NullTracksRealtimeService();
+        var pokerService = new PokerService(_db, _boardService, activityService, realtimeMock, NullLogger<PokerService>.Instance);
+        var reviewService = new ReviewSessionService(_db, _boardService, pokerService, realtimeMock, NullLogger<ReviewSessionService>.Instance);
+
+        await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
+            () => reviewService.StartSessionAsync(_board.Id, _owner));
+    }
+
+    [TestMethod]
+    public async Task ReviewSession_NonHost_CannotSetCard()
+    {
+        _board.Mode = BoardMode.Team;
+        _db.Update(_board);
+        await _db.SaveChangesAsync();
+
+        var activityService = new ActivityService(_db, NullLogger<ActivityService>.Instance);
+        var realtimeMock = new DotNetCloud.Modules.Tracks.Tests.NullTracksRealtimeService();
+        var pokerService = new PokerService(_db, _boardService, activityService, realtimeMock, NullLogger<PokerService>.Instance);
+        var reviewService = new ReviewSessionService(_db, _boardService, pokerService, realtimeMock, NullLogger<ReviewSessionService>.Instance);
+
+        var session = await reviewService.StartSessionAsync(_board.Id, _owner);
+        await reviewService.JoinSessionAsync(session.Id, _member);
+
+        var card = await TestHelpers.SeedCardAsync(_db, _swimlane.Id, _owner.UserId);
+
+        // Member (non-host) cannot set current card
+        var ex = await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
+            () => reviewService.SetCurrentCardAsync(session.Id, card.Id, _member));
+        Assert.IsTrue(ex.Errors.ContainsKey(ErrorCodes.ReviewSessionNotHost));
+    }
+
+    [TestMethod]
+    public async Task ReviewSession_NonHost_CannotEndSession()
+    {
+        _board.Mode = BoardMode.Team;
+        _db.Update(_board);
+        await _db.SaveChangesAsync();
+
+        var activityService = new ActivityService(_db, NullLogger<ActivityService>.Instance);
+        var realtimeMock = new DotNetCloud.Modules.Tracks.Tests.NullTracksRealtimeService();
+        var pokerService = new PokerService(_db, _boardService, activityService, realtimeMock, NullLogger<PokerService>.Instance);
+        var reviewService = new ReviewSessionService(_db, _boardService, pokerService, realtimeMock, NullLogger<ReviewSessionService>.Instance);
+
+        var session = await reviewService.StartSessionAsync(_board.Id, _owner);
+        await reviewService.JoinSessionAsync(session.Id, _member);
+
+        var ex = await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
+            () => reviewService.EndSessionAsync(session.Id, _member));
+        Assert.IsTrue(ex.Errors.ContainsKey(ErrorCodes.ReviewSessionNotHost));
+    }
+
+    [TestMethod]
+    public async Task ReviewSession_NonAdmin_CannotStart()
+    {
+        _board.Mode = BoardMode.Team;
+        _db.Update(_board);
+        await _db.SaveChangesAsync();
+
+        var activityService = new ActivityService(_db, NullLogger<ActivityService>.Instance);
+        var realtimeMock = new DotNetCloud.Modules.Tracks.Tests.NullTracksRealtimeService();
+        var pokerService = new PokerService(_db, _boardService, activityService, realtimeMock, NullLogger<PokerService>.Instance);
+        var reviewService = new ReviewSessionService(_db, _boardService, pokerService, realtimeMock, NullLogger<ReviewSessionService>.Instance);
+
+        // Member (non-Admin) cannot start a review session
+        await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
+            () => reviewService.StartSessionAsync(_board.Id, _member));
     }
 }

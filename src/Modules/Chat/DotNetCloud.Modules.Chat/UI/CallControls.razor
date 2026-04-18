@@ -1,0 +1,67 @@
+@namespace DotNetCloud.Modules.Chat.UI
+
+@*
+    Call controls toolbar - Mute, camera, screen share, hang up, participant count, timer.
+    Code-behind: CallControls.razor.cs
+*@
+
+<div class="call-controls">
+    <div class="call-controls-left">
+        <span class="call-timer">@FormattedDuration</span>
+        <span class="participant-count" title="Participants in call">👥 @ParticipantCount</span>
+    </div>
+
+    <div class="call-controls-center">
+        <button class="control-btn @(IsMuted ? "control-active" : "")"
+                @onclick="HandleToggleMute"
+                title="@(IsMuted ? "Unmute microphone" : "Mute microphone")"
+                disabled="@IsDisabled">
+            <span class="control-icon">@(IsMuted ? "🔇" : "🎤")</span>
+            <span class="control-label">@(IsMuted ? "Unmute" : "Mute")</span>
+        </button>
+
+        <button class="control-btn @(IsCameraOff ? "control-active" : "")"
+                @onclick="HandleToggleCamera"
+                title="@(IsCameraOff ? "Turn on camera" : "Turn off camera")"
+                disabled="@IsDisabled">
+            <span class="control-icon">@(IsCameraOff ? "📷" : "📹")</span>
+            <span class="control-label">@(IsCameraOff ? "Start Video" : "Stop Video")</span>
+        </button>
+
+        <button class="control-btn @(IsScreenSharing ? "control-active screen-share-active" : "")"
+                @onclick="HandleToggleScreenShare"
+                title="@(IsScreenSharing ? "Stop sharing screen" : "Share your screen")"
+                disabled="@IsDisabled">
+            <span class="control-icon">🖥️</span>
+            <span class="control-label">@(IsScreenSharing ? "Stop Share" : "Share Screen")</span>
+        </button>
+
+        @if (CanAddPeople)
+        {
+            <button class="control-btn"
+                    @onclick="HandleAddPeople"
+                    title="Invite more people to this call"
+                    disabled="@IsDisabled">
+                <span class="control-icon">👥</span>
+                <span class="control-label">Add People</span>
+            </button>
+        }
+
+        <button class="control-btn control-hangup"
+                @onclick="HandleHangUp"
+                title="Leave call"
+            disabled="@IsHangUpDisabled">
+            <span class="control-icon">📞</span>
+            <span class="control-label">Hang Up</span>
+        </button>
+    </div>
+
+    <div class="call-controls-right">
+        @if (!string.IsNullOrEmpty(ConnectionQuality))
+        {
+            <span class="connection-quality quality-@ConnectionQuality.ToLowerInvariant()" title="Connection quality: @ConnectionQuality">
+                @GetQualityIndicator()
+            </span>
+        }
+    </div>
+</div>

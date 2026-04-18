@@ -1,0 +1,72 @@
+@namespace DotNetCloud.Modules.Chat.UI
+
+@*
+    Incoming call notification - Toast overlay when receiving a call.
+    Shows caller info with accept/reject buttons and auto-dismiss ring timeout.
+    Code-behind: IncomingCallNotification.razor.cs
+*@
+
+@if (IsVisible)
+{
+    <div class="incoming-call-overlay">
+        <div class="incoming-call-card @(IsRinging ? "ringing" : "")">
+            <div class="incoming-call-header">
+                @if (IsMidCallInvite)
+                {
+                    <span class="incoming-call-type">@(MediaType == "Video" ? "📹 Join Video Call" : "📞 Join Audio Call")</span>
+                }
+                else
+                {
+                    <span class="incoming-call-type">@(MediaType == "Video" ? "📹 Incoming Video Call" : "📞 Incoming Audio Call")</span>
+                }
+                @if (RemainingSeconds > 0)
+                {
+                    <span class="ring-timer">@RemainingSeconds s</span>
+                }
+            </div>
+
+            <div class="incoming-call-body">
+                <div class="caller-avatar">
+                    <div class="avatar-circle">@GetInitials(CallerName)</div>
+                </div>
+                <div class="caller-info">
+                    @if (IsMidCallInvite)
+                    {
+                        <span class="caller-name">@CallerName invited you</span>
+                        <span class="caller-channel">to join an ongoing call in #@ChannelName</span>
+                        @if (ParticipantCount > 0)
+                        {
+                            <span class="participant-count">@ParticipantCount participant@(ParticipantCount != 1 ? "s" : "") in call</span>
+                        }
+                    }
+                    else
+                    {
+                        <span class="caller-name">@CallerName</span>
+                        <span class="caller-channel">in #@ChannelName</span>
+                    }
+                </div>
+            </div>
+
+            <div class="incoming-call-actions">
+                <button class="call-action-btn accept-video"
+                        @onclick="HandleAcceptVideo"
+                        title="Accept with video">
+                    <span class="action-icon">📹</span>
+                    <span class="action-label">Video</span>
+                </button>
+                <button class="call-action-btn accept-audio"
+                        @onclick="HandleAcceptAudio"
+                        title="Accept with audio only">
+                    <span class="action-icon">📞</span>
+                    <span class="action-label">Audio</span>
+                </button>
+                <button class="call-action-btn reject"
+                        @onclick="HandleReject"
+                        title="Reject call">
+                    <span class="action-icon">✕</span>
+                    <span class="action-label">Reject</span>
+                </button>
+            </div>
+        </div>
+    </div>
+}

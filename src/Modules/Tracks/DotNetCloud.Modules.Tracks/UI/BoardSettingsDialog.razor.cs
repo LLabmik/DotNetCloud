@@ -27,6 +27,7 @@ public partial class BoardSettingsDialog : ComponentBase
     private string _transferError = "";
     private bool _showArchiveConfirm;
     private bool _showDeleteConfirm;
+    private bool _lockSwimlanes;
 
     private static readonly string[] _colors =
     [
@@ -46,6 +47,7 @@ public partial class BoardSettingsDialog : ComponentBase
         _title = Board.Title;
         _description = Board.Description ?? "";
         _color = Board.Color ?? "#3b82f6";
+        _lockSwimlanes = Board.LockSwimlanes;
     }
 
     private async Task SaveGeneralAsync()
@@ -55,6 +57,17 @@ public partial class BoardSettingsDialog : ComponentBase
             Title = _title.Trim(),
             Description = string.IsNullOrWhiteSpace(_description) ? null : _description.Trim(),
             Color = _color
+        });
+
+        if (updated is not null) await OnBoardUpdated.InvokeAsync(updated);
+    }
+
+    private async Task ToggleLockSwimlanesAsync(ChangeEventArgs e)
+    {
+        _lockSwimlanes = e.Value is true;
+        var updated = await ApiClient.UpdateBoardAsync(Board.Id, new UpdateBoardDto
+        {
+            LockSwimlanes = _lockSwimlanes
         });
 
         if (updated is not null) await OnBoardUpdated.InvokeAsync(updated);

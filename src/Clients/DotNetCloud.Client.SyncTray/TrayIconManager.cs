@@ -6,6 +6,8 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Threading;
+using DotNetCloud.Client.Core.Services;
+using DotNetCloud.Client.SyncTray.Services;
 using DotNetCloud.Client.SyncTray.ViewModels;
 using DotNetCloud.Client.SyncTray.Views;
 using Microsoft.Extensions.DependencyInjection;
@@ -32,6 +34,7 @@ public sealed class TrayIconManager : IDisposable
 
     private TrayIcon? _trayIcon;
     private SettingsWindow? _settingsWindow;
+    private SyncProgressWindow? _syncProgressWindow;
     private QuickReplyWindow? _quickReplyWindow;
 
     // Menu items that need dynamic updates.
@@ -41,6 +44,7 @@ public sealed class TrayIconManager : IDisposable
     private NativeMenuItem? _syncNowItem;
     private NativeMenuItem? _pauseResumeItem;
     private NativeMenuItem? _quickReplyItem;
+    private NativeMenuItem? _updateItem;
 
     /// <summary>Initializes a new <see cref="TrayIconManager"/>.</summary>
     public TrayIconManager(TrayViewModel trayVm, IServiceProvider services, ILogger<TrayIconManager> logger)
@@ -68,6 +72,7 @@ public sealed class TrayIconManager : IDisposable
         {
             _logger.LogDebug("Tray icon clicked. Menu items: {Count}", menu.Items.Count);
             _ = _trayVm.RefreshAccountsAsync();
+            Dispatcher.UIThread.Post(OpenSyncProgressWindow);
         };
 
         _trayVm.PropertyChanged += OnTrayViewModelChanged;
@@ -116,15 +121,10 @@ public sealed class TrayIconManager : IDisposable
         openFolderItem.Click += OnOpenSyncFolderClicked;
         menu.Items.Add(openFolderItem);
 
-        // Open sync service logs
-        var openServiceLogsItem = new NativeMenuItem("Open sync service logs");
-        openServiceLogsItem.Click += OnOpenServiceLogsClicked;
-        menu.Items.Add(openServiceLogsItem);
-
-        // Open tray app logs
-        var openTrayLogsItem = new NativeMenuItem("Open tray logs");
-        openTrayLogsItem.Click += OnOpenTrayLogsClicked;
-        menu.Items.Add(openTrayLogsItem);
+        // Open sync logs
+        var openLogsItem = new NativeMenuItem("Open Sync Logs");
+        openLogsItem.Click += OnOpenLogsClicked;
+        menu.Items.Add(openLogsItem);
 
         // Open in browser
         var openBrowserItem = new NativeMenuItem("Open DotNetCloud in browser");
@@ -137,6 +137,11 @@ public sealed class TrayIconManager : IDisposable
         menu.Items.Add(_quickReplyItem);
 
         menu.Items.Add(new NativeMenuItemSeparator());
+
+        // Check for updates
+        _updateItem = new NativeMenuItem("Check for Updates…");
+        _updateItem.Click += (_, _) => Dispatcher.UIThread.Post(OpenUpdateDialog);
+        menu.Items.Add(_updateItem);
 
         // Settings
         var settingsItem = new NativeMenuItem("Settings…");
@@ -187,7 +192,8 @@ public sealed class TrayIconManager : IDisposable
             {
                 if (_pauseResumeItem is not null)
                     _pauseResumeItem.Header = _trayVm.IsPaused ? "Resume syncing" : "Pause syncing";
-            }            else if (e.PropertyName is nameof(TrayViewModel.ConflictCount) or nameof(TrayViewModel.HasConflicts))
+            }
+            else if (e.PropertyName is nameof(TrayViewModel.ConflictCount) or nameof(TrayViewModel.HasConflicts))
             {
                 if (_conflictsItem is not null)
                 {
@@ -201,6 +207,15 @@ public sealed class TrayIconManager : IDisposable
             {
                 if (_quickReplyItem is not null)
                     _quickReplyItem.IsEnabled = _trayVm.ChatUnreadCount > 0;
+            }
+            else if (e.PropertyName is nameof(TrayViewModel.IsUpdateAvailable))
+            {
+                if (_updateItem is not null)
+                {
+                    _updateItem.Header = _trayVm.IsUpdateAvailable
+                        ? $"Update Available ({_trayVm.UpdateVersion})…"
+                        : "Check for Updates…";
+                }
             }
         });
     }
@@ -218,41 +233,30 @@ public sealed class TrayIconManager : IDisposable
     private void OnOpenSyncFolderClicked(object? sender, EventArgs e)
     {
         var firstAccount = _trayVm.Accounts.FirstOrDefault();
-        if (firstAccount is null) return;
+        if (firstAccount is null)
+            return;
 
         OpenFolderInExplorer(firstAccount.LocalFolderPath);
     }
 
-    private void OnOpenServiceLogsClicked(object? sender, EventArgs e)
+    private void OnOpenLogsClicked(object? sender, EventArgs e)
     {
         try
         {
-            var logDirectory = GetSyncServiceLogDirectory();
+            var logDirectory = GetLogDirectory();
             OpenFolderInExplorer(logDirectory);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to open sync service logs folder from tray menu.");
-        }
-    }
-
-    private void OnOpenTrayLogsClicked(object? sender, EventArgs e)
-    {
-        try
-        {
-            var logDirectory = GetTrayLogDirectory();
-            OpenFolderInExplorer(logDirectory);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to open tray logs folder from tray menu.");
+            _logger.LogWarning(ex, "Failed to open sync logs folder from tray menu.");
         }
     }
 
     private void OnOpenBrowserClicked(object? sender, EventArgs e)
     {
         var firstAccount = _trayVm.Accounts.FirstOrDefault();
-        if (firstAccount is null) return;
+        if (firstAccount is null)
+            return;
 
         try
         {
@@ -351,6 +355,34 @@ public sealed class TrayIconManager : IDisposable
         _settingsWindow = new SettingsWindow(settingsVm);
         _settingsWindow.Closed += (_, _) => _settingsWindow = null;
         _settingsWindow.Show();
+    }
+
+    private void OpenSyncProgressWindow()
+    {
+        if (_syncProgressWindow is not null)
+        {
+            _syncProgressWindow.Activate();
+            return;
+        }
+
+        var vm = new SyncProgressViewModel(_trayVm);
+        _syncProgressWindow = new SyncProgressWindow(vm);
+        _syncProgressWindow.Closed += (_, _) =>
+        {
+            vm.Dispose();
+            _syncProgressWindow = null;
+        };
+        _syncProgressWindow.Show();
+    }
+
+    private void OpenUpdateDialog()
+    {
+        var updateService = _services.GetRequiredService<IClientUpdateService>();
+        var backgroundService = _services.GetRequiredService<UpdateCheckBackgroundService>();
+        var loggerFactory = _services.GetRequiredService<ILoggerFactory>();
+        var vm = new UpdateViewModel(updateService, backgroundService, loggerFactory.CreateLogger<UpdateViewModel>());
+        var dialog = new UpdateDialog(vm);
+        dialog.Show();
     }
 
     private void OnQuitClicked(object? sender, EventArgs e)
@@ -515,12 +547,24 @@ public sealed class TrayIconManager : IDisposable
     {
         switch (state)
         {
-            case TrayState.Idle:     DrawCheckmark(pixels, size, centre, radius); break;
-            case TrayState.Syncing:  DrawSyncArrows(pixels, size, centre, radius); break;
-            case TrayState.Paused:   DrawPauseBars(pixels, size, centre, radius); break;
-            case TrayState.Error:    DrawXMark(pixels, size, centre, radius); break;
-            case TrayState.Conflict: DrawExclamation(pixels, size, centre, radius); break;
-            case TrayState.Offline:  DrawDash(pixels, size, centre, radius); break;
+            case TrayState.Idle:
+                DrawCheckmark(pixels, size, centre, radius);
+                break;
+            case TrayState.Syncing:
+                DrawSyncArrows(pixels, size, centre, radius);
+                break;
+            case TrayState.Paused:
+                DrawPauseBars(pixels, size, centre, radius);
+                break;
+            case TrayState.Error:
+                DrawXMark(pixels, size, centre, radius);
+                break;
+            case TrayState.Conflict:
+                DrawExclamation(pixels, size, centre, radius);
+                break;
+            case TrayState.Offline:
+                DrawDash(pixels, size, centre, radius);
+                break;
         }
     }
 
@@ -588,13 +632,16 @@ public sealed class TrayIconManager : IDisposable
     /// </summary>
     private static void SetWhitePixel(byte[] pixels, int size, int px, int py, float alpha, float centre, float radius)
     {
-        if ((uint)px >= (uint)size || (uint)py >= (uint)size) return;
-        if (alpha <= 0f) return;
+        if ((uint)px >= (uint)size || (uint)py >= (uint)size)
+            return;
+        if (alpha <= 0f)
+            return;
 
         // Only draw inside circle bounds.
         float dx = px - centre;
         float dy = py - centre;
-        if (MathF.Sqrt(dx * dx + dy * dy) > radius) return;
+        if (MathF.Sqrt(dx * dx + dy * dy) > radius)
+            return;
 
         alpha = Math.Clamp(alpha, 0f, 1f);
         int idx = (py * size + px) * 4;
@@ -694,25 +741,15 @@ public sealed class TrayIconManager : IDisposable
 
     // ── Helpers ───────────────────────────────────────────────────────────
 
-    private static string GetSyncServiceLogDirectory()
+    private static string GetLogDirectory()
     {
-        var serviceLogs = OperatingSystem.IsWindows()
-            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "DotNetCloud", "Sync", "logs")
-            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "share", "DotNetCloud", "logs");
-
-        Directory.CreateDirectory(serviceLogs);
-        return serviceLogs;
-    }
-
-    private static string GetTrayLogDirectory()
-    {
-        var trayLogs = Path.Combine(
+        var logDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "DotNetCloud",
             "logs");
 
-        Directory.CreateDirectory(trayLogs);
-        return trayLogs;
+        Directory.CreateDirectory(logDir);
+        return logDir;
     }
 
     private static void OpenFolderInExplorer(string path)

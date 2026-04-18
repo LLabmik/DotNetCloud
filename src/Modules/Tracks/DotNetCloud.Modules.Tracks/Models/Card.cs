@@ -3,7 +3,7 @@ using DotNetCloud.Core.DTOs;
 namespace DotNetCloud.Modules.Tracks.Models;
 
 /// <summary>
-/// Represents a work item (card) within a board list.
+/// Represents a work item (card) within a board swimlane.
 /// Cards are the primary unit of work in Tracks.
 /// </summary>
 public sealed class Card
@@ -11,8 +11,8 @@ public sealed class Card
     /// <summary>Unique identifier.</summary>
     public Guid Id { get; set; } = Guid.NewGuid();
 
-    /// <summary>The list this card belongs to.</summary>
-    public Guid ListId { get; set; }
+    /// <summary>The swimlane this card belongs to.</summary>
+    public Guid SwimlaneId { get; set; }
 
     /// <summary>Human-readable sequential card number, unique per board (e.g. #1, #2, …).</summary>
     public int CardNumber { get; set; }
@@ -23,7 +23,7 @@ public sealed class Card
     /// <summary>Markdown description body.</summary>
     public string? Description { get; set; }
 
-    /// <summary>Position within the list for ordering. Uses gap-based positioning.</summary>
+    /// <summary>Position within the swimlane for ordering. Uses gap-based positioning.</summary>
     public double Position { get; set; }
 
     /// <summary>Optional due date (UTC).</summary>
@@ -56,8 +56,8 @@ public sealed class Card
     /// <summary>Timestamp when the card was last modified (UTC).</summary>
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
-    /// <summary>Navigation property to the list.</summary>
-    public BoardList? List { get; set; }
+    /// <summary>Navigation property to the swimlane.</summary>
+    public BoardSwimlane? Swimlane { get; set; }
 
     /// <summary>Users assigned to this card.</summary>
     public ICollection<CardAssignment> Assignments { get; set; } = new List<CardAssignment>();

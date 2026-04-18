@@ -30,6 +30,10 @@ public partial class MessageComposer : ComponentBase, IAsyncDisposable
     [Parameter]
     public string? ChannelName { get; set; }
 
+    /// <summary>The channel type (Public, Private, DirectMessage, Group).</summary>
+    [Parameter]
+    public string? ChannelType { get; set; }
+
     /// <summary>Message being replied to (null if not replying).</summary>
     [Parameter]
     public MessageViewModel? ReplyToMessage { get; set; }
@@ -265,8 +269,11 @@ public partial class MessageComposer : ComponentBase, IAsyncDisposable
     /// <summary>Gets placeholder text for the editor.</summary>
     protected string GetPlaceholder()
     {
-        return string.IsNullOrEmpty(ChannelName)
-            ? "Type a message..."
+        if (string.IsNullOrEmpty(ChannelName))
+            return "Type a message...";
+
+        return ChannelType is "DirectMessage" or "Group"
+            ? $"Message @{ChannelName}"
             : $"Message #{ChannelName}";
     }
 

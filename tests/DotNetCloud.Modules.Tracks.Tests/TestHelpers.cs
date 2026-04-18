@@ -2,9 +2,33 @@ using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Modules.Tracks.Data;
 using DotNetCloud.Modules.Tracks.Models;
+using DotNetCloud.Modules.Tracks.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace DotNetCloud.Modules.Tracks.Tests;
+
+/// <summary>
+/// No-op implementation of <see cref="ITracksRealtimeService"/> for unit tests.
+/// </summary>
+internal sealed class NullTracksRealtimeService : ITracksRealtimeService
+{
+    public Task BroadcastCardActionAsync(Guid boardId, Guid cardId, string action, Guid? fromSwimlaneId = null, Guid? toSwimlaneId = null, Guid? targetUserId = null, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    public Task BroadcastSwimlaneActionAsync(Guid boardId, Guid swimlaneId, string action, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    public Task BroadcastCommentActionAsync(Guid boardId, Guid cardId, Guid commentId, string action, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    public Task BroadcastSprintActionAsync(Guid boardId, Guid sprintId, string action, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    public Task BroadcastActivityAsync(Guid boardId, Guid userId, string activityAction, string entityType, Guid entityId, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    public Task BroadcastBoardMemberActionAsync(Guid boardId, Guid userId, string action, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    public Task BroadcastTeamActionAsync(Guid teamId, string action, Guid? targetUserId = null, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    public Task BroadcastReviewCardChangedAsync(Guid sessionId, Guid boardId, Guid cardId, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    public Task BroadcastReviewSessionStateAsync(Guid sessionId, Guid boardId, string action, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    public Task BroadcastPokerVoteStatusAsync(Guid sessionId, Guid pokerId, Guid userId, bool hasVoted, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    public Task BroadcastReviewPokerStateAsync(Guid sessionId, Guid pokerId, Guid boardId, string action, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    public Task BroadcastReviewParticipantChangedAsync(Guid sessionId, Guid userId, string action, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    public Task AddUserToBoardGroupAsync(Guid userId, Guid boardId, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    public Task RemoveUserFromBoardGroupAsync(Guid userId, Guid boardId, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    public Task AddUserToReviewGroupAsync(Guid userId, Guid sessionId, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    public Task RemoveUserFromReviewGroupAsync(Guid userId, Guid sessionId, CancellationToken cancellationToken = default) => Task.CompletedTask;
+}
 
 /// <summary>
 /// Shared helpers for Tracks service tests.
@@ -56,26 +80,26 @@ internal static class TestHelpers
     }
 
     /// <summary>Seeds a list on a board.</summary>
-    public static async Task<BoardList> SeedListAsync(TracksDbContext db, Guid boardId, string title = "Test List", int? cardLimit = null)
+    public static async Task<BoardSwimlane> SeedSwimlaneAsync(TracksDbContext db, Guid boardId, string title = "Test List", int? cardLimit = null)
     {
-        var list = new BoardList
+        var list = new BoardSwimlane
         {
             BoardId = boardId,
             Title = title,
             Position = 1000.0,
             CardLimit = cardLimit
         };
-        db.BoardLists.Add(list);
+        db.BoardSwimlanes.Add(list);
         await db.SaveChangesAsync();
         return list;
     }
 
-    /// <summary>Seeds a card in a list.</summary>
-    public static async Task<Card> SeedCardAsync(TracksDbContext db, Guid listId, Guid createdByUserId, string title = "Test Card")
+    /// <summary>Seeds a card in a swimlane.</summary>
+    public static async Task<Card> SeedCardAsync(TracksDbContext db, Guid swimlaneId, Guid createdByUserId, string title = "Test Card")
     {
         var card = new Card
         {
-            ListId = listId,
+            SwimlaneId = swimlaneId,
             Title = title,
             Position = 1000.0,
             CreatedByUserId = createdByUserId

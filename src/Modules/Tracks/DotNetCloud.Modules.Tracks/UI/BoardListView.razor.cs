@@ -24,6 +24,7 @@ public partial class BoardListView : ComponentBase
     private bool _showCreateDialog;
     private bool _isCreating;
     private string _createTeamId = "";
+    private BoardMode _createMode = BoardMode.Personal;
 
     private readonly CreateBoardModel _createModel = new();
 
@@ -75,10 +76,20 @@ public partial class BoardListView : ComponentBase
         _createModel.Description = "";
         _createModel.Color = _boardColors[0];
         _createTeamId = "";
+        _createMode = BoardMode.Personal;
         _showCreateDialog = true;
     }
 
     private void CloseCreateDialog() => _showCreateDialog = false;
+
+    private void SetCreateMode(BoardMode mode)
+    {
+        _createMode = mode;
+        if (mode == BoardMode.Personal)
+        {
+            _createTeamId = "";
+        }
+    }
 
     private async Task CreateBoardAsync()
     {
@@ -93,7 +104,8 @@ public partial class BoardListView : ComponentBase
                 Title = _createModel.Title.Trim(),
                 Description = string.IsNullOrWhiteSpace(_createModel.Description) ? null : _createModel.Description.Trim(),
                 Color = _createModel.Color,
-                TeamId = teamId
+                TeamId = _createMode == BoardMode.Team ? teamId : null,
+                Mode = _createMode
             };
 
             var board = await ApiClient.CreateBoardAsync(dto);

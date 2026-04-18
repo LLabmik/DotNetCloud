@@ -42,6 +42,14 @@ public sealed class ResponseEnvelopeOptions
 /// </summary>
 public sealed class ResponseEnvelopeMiddleware
 {
+    /// <summary>
+    /// Key for <see cref="HttpContext.Items"/> that, when present, tells the middleware
+    /// to pass the response through without enveloping. Set this in any action that
+    /// returns raw file content (e.g. file downloads/previews) so that JSON files are
+    /// not accidentally wrapped in the standard API envelope.
+    /// </summary>
+    public const string SkipEnvelopeKey = "SkipResponseEnvelope";
+
     private readonly RequestDelegate _next;
     private readonly ResponseEnvelopeOptions _options;
     private readonly ILogger<ResponseEnvelopeMiddleware> _logger;
@@ -93,6 +101,14 @@ public sealed class ResponseEnvelopeMiddleware
         await _next(context);
 
         context.Response.Body = originalBodyStream;
+
+        // Allow individual actions to opt out of enveloping (e.g. raw file content).
+        if (context.Items.ContainsKey(SkipEnvelopeKey))
+        {
+            memoryStream.Position = 0;
+            await memoryStream.CopyToAsync(originalBodyStream);
+            return;
+        }
 
         var bufferedBytes = memoryStream.ToArray();
 

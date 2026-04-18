@@ -2,6 +2,7 @@ using System.Text.Json;
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Events.Search;
 using DotNetCloud.Modules.Files.DTOs;
 using DotNetCloud.Modules.Files.Events;
 using DotNetCloud.Modules.Files.Models;
@@ -68,12 +69,28 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
         if (!await _quotaService.TryReserveQuotaAsync(caller.UserId, dto.TotalSize, cancellationToken))
             throw new Core.Errors.ValidationException("Quota", "Insufficient storage quota for this upload.");
 
-        // Identify which chunks already exist (dedup)
-        var existingHashes = await _db.FileChunks
+        // Identify which chunks already exist (dedup) — verify BOTH the DB record
+        // AND that the blob actually exists on disk to prevent "ghost chunk" scenarios
+        // where the record exists but the data was lost/never written.
+        var candidateChunks = await _db.FileChunks
             .AsNoTracking()
             .Where(c => dto.ChunkHashes.Contains(c.ChunkHash))
-            .Select(c => c.ChunkHash)
+            .Select(c => new { c.ChunkHash, c.StoragePath })
             .ToListAsync(cancellationToken);
+
+        var existingHashes = new List<string>();
+        foreach (var candidate in candidateChunks)
+        {
+            if (await _storageEngine.ExistsAsync(candidate.StoragePath, cancellationToken))
+            {
+                existingHashes.Add(candidate.ChunkHash);
+            }
+            else
+            {
+                _logger.LogWarning("Ghost chunk detected: hash {ChunkHash} exists in DB but blob missing on disk. Will re-request upload.",
+                    candidate.ChunkHash[..12]);
+            }
+        }
 
         var existingSet = new HashSet<string>(existingHashes);
         var missingHashes = dto.ChunkHashes.Where(h => !existingSet.Contains(h)).ToList();
@@ -84,7 +101,7 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
             TargetParentId = dto.ParentId,
             FileName = dto.FileName,
             TotalSize = dto.TotalSize,
-            MimeType = dto.MimeType,
+            MimeType = dto.MimeType ?? GuessMimeTypeFromFileName(dto.FileName),
             TotalChunks = dto.ChunkHashes.Count,
             ReceivedChunks = existingHashes.Count,
             ChunkManifest = JsonSerializer.Serialize(dto.ChunkHashes),
@@ -153,6 +170,12 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
                 ReferenceCount = 0 // Will be incremented on CompleteUpload
             });
         }
+        else if (!await _storageEngine.ExistsAsync(existingChunk.StoragePath, cancellationToken))
+        {
+            // Ghost chunk: DB record exists but blob is missing on disk. Re-write it.
+            _logger.LogWarning("Re-writing ghost chunk blob for hash {ChunkHash}", chunkHash[..12]);
+            await _storageEngine.WriteChunkAsync(existingChunk.StoragePath, data, cancellationToken);
+        }
 
         session.ReceivedChunks++;
         session.UpdatedAt = DateTime.UtcNow;
@@ -202,8 +225,22 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
         var contentHash = ContentHasher.ComputeManifestHash(manifest);
         var storagePath = ContentHasher.GetFileStoragePath(contentHash);
 
-        FileNode fileNode;
-        long quotaDelta;
+        FileNode fileNode = null!;
+        long quotaDelta = 0;
+
+        // Wrap DB mutations in an execution-strategy-aware transaction to ensure
+        // FileNode/FileVersion/FileVersionChunks are atomic.  NpgsqlRetryingExecutionStrategy
+        // does not allow bare BeginTransactionAsync — the whole unit must be wrapped in
+        // CreateExecutionStrategy().ExecuteAsync() so EF can replay on transient failures.
+        // InMemory provider does not support transactions, so skip in test scenarios.
+        var useTransaction = !ChunkReferenceHelper.IsInMemoryProvider(_db);
+
+        async Task ExecuteTransactionBody()
+        {
+            var transaction = useTransaction ? await _db.Database.BeginTransactionAsync(cancellationToken) : null;
+            try
+            {
+
         if (session.TargetFileNodeId.HasValue)
         {
             fileNode = await _db.FileNodes.FindAsync([session.TargetFileNodeId.Value], cancellationToken)
@@ -326,7 +363,9 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
         for (var i = 0; i < manifest.Count; i++)
         {
             var chunk = await _db.FileChunks
-                .FirstAsync(c => c.ChunkHash == manifest[i], cancellationToken);
+                .FirstOrDefaultAsync(c => c.ChunkHash == manifest[i], cancellationToken)
+                ?? throw new Core.Errors.ValidationException("Chunks",
+                    $"Chunk '{manifest[i][..12]}…' was removed during completion. Retry the upload.");
 
             var chunkSize = chunkSizes?[i] ?? chunk.Size;
 
@@ -371,7 +410,28 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
             throw new Core.Errors.ValidationException("Name", $"A node named '{session.FileName}' already exists in {scope}.");
         }
 
-        // Update quota usage in real time
+        if (transaction is not null)
+            await transaction.CommitAsync(cancellationToken);
+
+            } // end transaction try
+            finally
+            {
+                if (transaction is not null)
+                    await transaction.DisposeAsync();
+            }
+        } // end ExecuteTransactionBody
+
+        if (useTransaction)
+        {
+            var strategy = _db.Database.CreateExecutionStrategy();
+            await strategy.ExecuteAsync(ExecuteTransactionBody);
+        }
+        else
+        {
+            await ExecuteTransactionBody();
+        }
+
+        // Update quota usage in real time (outside transaction — idempotent)
         if (quotaDelta != 0)
             await _quotaService.AdjustUsedBytesAsync(caller.UserId, quotaDelta, cancellationToken);
 
@@ -384,7 +444,17 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
             Size = fileNode.Size,
             MimeType = fileNode.MimeType,
             ParentId = fileNode.ParentId,
-            UploadedByUserId = caller.UserId
+            UploadedByUserId = caller.UserId,
+            StoragePath = storagePath
+        }, caller, cancellationToken);
+
+        await _eventBus.PublishAsync(new SearchIndexRequestEvent
+        {
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            ModuleId = "files",
+            EntityId = fileNode.Id.ToString(),
+            Action = SearchIndexAction.Index
         }, caller, cancellationToken);
 
         _logger.LogInformation("Upload session {SessionId} completed. File {FileNodeId} '{FileName}' created/updated.",
@@ -406,6 +476,46 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
             UpdatedAt = fileNode.UpdatedAt,
             PosixMode = fileNode.PosixMode,
             PosixOwnerHint = fileNode.PosixOwnerHint
+        };
+    }
+
+    /// <summary>
+    /// Guesses a MIME type from a file name's extension when the client sends null.
+    /// </summary>
+    private static string? GuessMimeTypeFromFileName(string fileName)
+    {
+        var ext = Path.GetExtension(fileName);
+        if (string.IsNullOrEmpty(ext)) return null;
+        return ext.ToLowerInvariant() switch
+        {
+            // Audio
+            ".mp3" => "audio/mpeg",
+            ".flac" => "audio/flac",
+            ".ogg" or ".oga" => "audio/ogg",
+            ".opus" => "audio/opus",
+            ".aac" => "audio/aac",
+            ".m4a" => "audio/mp4",
+            ".wav" => "audio/wav",
+            ".wma" => "audio/x-ms-wma",
+            ".aiff" or ".aif" => "audio/aiff",
+            // Video
+            ".mp4" or ".m4v" => "video/mp4",
+            ".mkv" => "video/x-matroska",
+            ".avi" => "video/x-msvideo",
+            ".mov" => "video/quicktime",
+            ".webm" => "video/webm",
+            // Images
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".png" => "image/png",
+            ".gif" => "image/gif",
+            ".webp" => "image/webp",
+            ".svg" => "image/svg+xml",
+            // Documents
+            ".pdf" => "application/pdf",
+            ".txt" => "text/plain",
+            ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            ".xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            _ => null,
         };
     }
 

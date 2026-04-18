@@ -8,7 +8,10 @@
 <div class="member-list-panel">
     <div class="member-panel-header">
         <h3>Members (@Members.Count)</h3>
-        <button class="btn btn-sm member-close-btn" @onclick="() => OnClose.InvokeAsync()" title="Close">✕</button>
+        <div class="member-panel-actions">
+            <button class="btn btn-sm member-add-btn" @onclick="AddPeople" title="Add people to this conversation">+ Add</button>
+            <button class="btn btn-sm member-close-btn" @onclick="() => OnClose.InvokeAsync()" title="Close">✕</button>
+        </div>
     </div>
 
     @if (Members.Count == 0)
@@ -40,6 +43,14 @@
                         @if (member.Role is "Owner" or "Admin")
                         {
                             <span class="member-role @(member.Role == "Owner" ? "member-role-owner" : "member-role-admin")">@member.Role</span>
+                        }
+
+                        @if (member.UserId != CurrentUserId)
+                        {
+                            <div class="member-call-actions">
+                                <button class="btn btn-sm btn-icon" @onclick="() => OnAudioCallUser.InvokeAsync(member.UserId)" title="Audio call @member.DisplayName">📞</button>
+                                <button class="btn btn-sm btn-icon" @onclick="() => OnVideoCallUser.InvokeAsync(member.UserId)" title="Video call @member.DisplayName">📹</button>
+                            </div>
                         }
 
                         @if (CanManageMembers)
@@ -81,6 +92,14 @@
                             <span class="member-avatar-placeholder">@GetInitials(member.DisplayName)</span>
                         }
                         <button class="member-name-button" @onclick="() => ShowProfile(member)">@member.DisplayName</button>
+
+                        @if (member.UserId != CurrentUserId)
+                        {
+                            <div class="member-call-actions">
+                                <button class="btn btn-sm btn-icon" @onclick="() => OnAudioCallUser.InvokeAsync(member.UserId)" title="Audio call @member.DisplayName">📞</button>
+                                <button class="btn btn-sm btn-icon" @onclick="() => OnVideoCallUser.InvokeAsync(member.UserId)" title="Video call @member.DisplayName">📹</button>
+                            </div>
+                        }
 
                         @if (CanManageMembers && member.Role != "Owner")
                         {

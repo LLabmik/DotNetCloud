@@ -1,0 +1,189 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:DotNetCloud.Client.SyncTray.ViewModels"
+        x:Class="DotNetCloud.Client.SyncTray.Views.UpdateDialog"
+        Title="DotNetCloud — Software Update"
+        Width="480"
+        Height="420"
+        MinWidth="400"
+        MinHeight="320"
+        WindowStartupLocation="CenterScreen"
+        RequestedThemeVariant="Dark"
+        Background="#0D1118"
+        Foreground="#E6ECF5"
+        CanResize="True">
+
+    <Window.Styles>
+        <Style Selector="Border.card">
+            <Setter Property="Background" Value="#151C29" />
+            <Setter Property="BorderBrush" Value="#263247" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="16" />
+        </Style>
+
+        <Style Selector="Button">
+            <Setter Property="Background" Value="#243146" />
+            <Setter Property="BorderBrush" Value="#334663" />
+            <Setter Property="Foreground" Value="#EFF4FF" />
+            <Setter Property="Padding" Value="14,8" />
+            <Setter Property="CornerRadius" Value="6" />
+        </Style>
+
+        <Style Selector="Button:pointerover">
+            <Setter Property="Background" Value="#2D3E58" />
+        </Style>
+
+        <Style Selector="Button:pressed">
+            <Setter Property="Background" Value="#1D2A3D" />
+        </Style>
+
+        <Style Selector="Button.primary">
+            <Setter Property="Background" Value="#0E6CB8" />
+            <Setter Property="BorderBrush" Value="#2193E6" />
+        </Style>
+
+        <Style Selector="Button.primary:pointerover">
+            <Setter Property="Background" Value="#1A7FD1" />
+        </Style>
+
+        <Style Selector="Border.badge-uptodate">
+            <Setter Property="Background" Value="#1A3D24" />
+            <Setter Property="BorderBrush" Value="#2D6B3D" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="8,4" />
+        </Style>
+
+        <Style Selector="Border.badge-available">
+            <Setter Property="Background" Value="#3D2F1A" />
+            <Setter Property="BorderBrush" Value="#6B5A2D" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="8,4" />
+        </Style>
+    </Window.Styles>
+
+    <DockPanel Margin="16">
+
+        <!-- Title -->
+        <StackPanel DockPanel.Dock="Top" Spacing="4" Margin="0,0,0,16">
+            <TextBlock Text="Software Update"
+                       FontSize="20" FontWeight="Bold" />
+            <TextBlock Text="Check for new versions of DotNetCloud."
+                       FontSize="12" Foreground="#8A9AB5" />
+        </StackPanel>
+
+        <!-- Bottom buttons -->
+        <StackPanel DockPanel.Dock="Bottom"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Spacing="8"
+                    Margin="0,16,0,0">
+            <Button Content="Check Now"
+                    Command="{Binding CheckForUpdatesCommand}"
+                    IsEnabled="{Binding !IsChecking}" />
+            <Button Content="View Release"
+                    Command="{Binding OpenReleasePageCommand}"
+                    IsVisible="{Binding IsUpdateAvailable}" />
+            <Button Content="Download"
+                    Classes="primary"
+                    Command="{Binding DownloadUpdateCommand}"
+                    IsVisible="{Binding IsUpdateAvailable}"
+                    IsEnabled="{Binding !IsDownloading}" />
+            <Button Content="Close"
+                    Command="{Binding CloseCommand}" />
+        </StackPanel>
+
+        <!-- Main content -->
+        <ScrollViewer>
+            <StackPanel Spacing="12">
+
+                <!-- Version info card -->
+                <Border Classes="card">
+                    <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" RowSpacing="8">
+                        <StackPanel Grid.Row="0" Grid.Column="0" Spacing="2">
+                            <TextBlock Text="Current Version"
+                                       FontSize="11" Foreground="#7A8BA4" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding CurrentVersion}"
+                                       FontSize="16" FontWeight="Bold" />
+                        </StackPanel>
+                        <StackPanel Grid.Row="0" Grid.Column="1" Spacing="2">
+                            <TextBlock Text="Latest Version"
+                                       FontSize="11" Foreground="#7A8BA4" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding LatestVersion}"
+                                       FontSize="16" FontWeight="Bold" />
+                        </StackPanel>
+
+                        <!-- Status badge -->
+                        <Border Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
+                                Classes="badge-uptodate"
+                                IsVisible="{Binding !IsUpdateAvailable}">
+                            <TextBlock Text="✓ You are running the latest version."
+                                       FontSize="12" Foreground="#5CBA6F" />
+                        </Border>
+                        <Border Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
+                                Classes="badge-available"
+                                IsVisible="{Binding IsUpdateAvailable}">
+                            <TextBlock FontSize="12" Foreground="#D4A543">
+                                <TextBlock.Text>
+                                    <MultiBinding StringFormat="⬆ Version {0} is available for download.">
+                                        <Binding Path="LatestVersion" />
+                                    </MultiBinding>
+                                </TextBlock.Text>
+                            </TextBlock>
+                        </Border>
+                    </Grid>
+                </Border>
+
+                <!-- Published date -->
+                <TextBlock FontSize="11" Foreground="#6B7D96"
+                           IsVisible="{Binding PublishedAt, Converter={x:Static ObjectConverters.IsNotNull}}">
+                    <TextBlock.Text>
+                        <MultiBinding StringFormat="Published: {0:MMMM d, yyyy}">
+                            <Binding Path="PublishedAt" />
+                        </MultiBinding>
+                    </TextBlock.Text>
+                </TextBlock>
+
+                <!-- Release notes -->
+                <Border Classes="card"
+                        IsVisible="{Binding ReleaseNotes, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="Release Notes"
+                                   FontSize="13" FontWeight="SemiBold" Foreground="#A4B6D0" />
+                        <TextBlock Text="{Binding ReleaseNotes}"
+                                   TextWrapping="Wrap"
+                                   FontSize="12"
+                                   Foreground="#C8D4E8"
+                                   MaxHeight="200" />
+                    </StackPanel>
+                </Border>
+
+                <!-- Download progress -->
+                <Border Classes="card" IsVisible="{Binding IsDownloading}">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="{Binding StatusMessage}"
+                                   FontSize="12" Foreground="#A4B6D0" />
+                        <ProgressBar Value="{Binding DownloadProgress}"
+                                     Minimum="0" Maximum="100"
+                                     Height="8" />
+                    </StackPanel>
+                </Border>
+
+                <!-- Status message (when not downloading) -->
+                <TextBlock Text="{Binding StatusMessage}"
+                           FontSize="12" Foreground="#8A9AB5"
+                           IsVisible="{Binding !IsDownloading}"
+                           TextWrapping="Wrap" />
+
+                <!-- Checking spinner -->
+                <ProgressBar IsIndeterminate="True"
+                             Height="4"
+                             IsVisible="{Binding IsChecking}" />
+
+            </StackPanel>
+        </ScrollViewer>
+
+    </DockPanel>
+</Window>

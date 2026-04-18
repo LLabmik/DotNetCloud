@@ -170,7 +170,7 @@ internal static class SetupCommand
                     var defaultConnStr = config.DatabaseProvider switch
                     {
                         "PostgreSQL" => "Host=localhost;Database=dotnetcloud;Username=dotnetcloud;Password=yourpassword",
-                        "SqlServer" => "Server=localhost;Database=dotnetcloud;Trusted_Connection=True;TrustServerCertificate=True",
+                        "SqlServer" => "Server=localhost;Database=dotnetcloud;Trusted_Connection=True;TrustServerCertificate=True;MultipleActiveResultSets=True",
                         "MariaDB" => "Server=localhost;Database=dotnetcloud;User=dotnetcloud;Password=yourpassword",
                         _ => ""
                     };
@@ -563,8 +563,8 @@ internal static class SetupCommand
                     var collaboraChoice = ConsoleOutput.PromptChoice(
                         "Collabora Online installation:",
                         [
-                            "Install built-in Collabora CODE automatically (recommended for small instances)",
-                            "Connect to an existing Collabora Online server (for large deployments)"
+                            "Install built-in Collabora CODE (free, ~20 concurrent editors)",
+                            "Connect to an external Collabora Online server (paid/unlimited users)"
                         ],
                         defaultIndex: previousCollaboraIndex);
 
@@ -572,6 +572,8 @@ internal static class SetupCommand
                     {
                         config.CollaboraMode = "BuiltIn";
                         ConsoleOutput.WriteSuccess("Collabora CODE will be installed automatically.");
+                        ConsoleOutput.WriteInfo("CODE supports ~10-20 concurrent editors. Need more? Upgrade to a");
+                        ConsoleOutput.WriteInfo("paid Collabora Online license and switch to External mode later.");
                         ConsoleOutput.WriteInfo("If installation fails later, you can retry with:");
                         Console.WriteLine("    sudo dotnetcloud collabora-install");
                         ConsoleOutput.WriteInfo("Or skip it entirely — document editing is optional.");

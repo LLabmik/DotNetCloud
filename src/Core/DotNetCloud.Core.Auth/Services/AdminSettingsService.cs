@@ -31,7 +31,7 @@ public sealed class AdminSettingsService : IAdminSettingsService
 
         if (!string.IsNullOrWhiteSpace(module))
         {
-            query = query.Where(s => s.Module == module);
+            query = query.Where(s => s.Module.Contains(module));
         }
 
         var settings = await query

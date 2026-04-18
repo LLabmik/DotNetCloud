@@ -26,7 +26,15 @@
                     }
                 </div>
             </div>
-            <button class="btn btn-primary" @onclick="SaveGeneralAsync">Save Changes</button>
+            <button class="btn btn-primary" @onclick="SaveGeneralAsync">Save General Info</button>
+            <div class="form-group tracks-checkbox-group">
+                <label>
+                    <input type="checkbox" checked="@_lockSwimlanes"
+                           @onchange="ToggleLockSwimlanesAsync" />
+                    Lock Swimlanes
+                </label>
+                <span class="tracks-setting-hint">Prevent adding new swimlanes to this board.</span>
+            </div>
         </div>
 
         @* ── Members ── *@

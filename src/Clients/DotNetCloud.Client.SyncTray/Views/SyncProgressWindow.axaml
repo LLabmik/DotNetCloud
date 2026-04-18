@@ -1,0 +1,178 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:DotNetCloud.Client.SyncTray.ViewModels"
+        x:Class="DotNetCloud.Client.SyncTray.Views.SyncProgressWindow"
+        Title="DotNetCloud Sync — Progress"
+        Width="400"
+        Height="360"
+        MinWidth="320"
+        MinHeight="200"
+        WindowStartupLocation="CenterScreen"
+        RequestedThemeVariant="Dark"
+        Background="#0D1118"
+        Foreground="#E6ECF5"
+        CanResize="True"
+        SystemDecorations="Full"
+        ShowInTaskbar="True">
+
+    <Window.Styles>
+        <!-- Header text -->
+        <Style Selector="TextBlock.header">
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="#F4F7FF" />
+        </Style>
+
+        <!-- Summary label -->
+        <Style Selector="TextBlock.summary">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="#8B9DC3" />
+        </Style>
+
+        <!-- Transfer item card -->
+        <Style Selector="Border.transfer-item">
+            <Setter Property="Background" Value="#151C29" />
+            <Setter Property="BorderBrush" Value="#263247" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="10,8" />
+            <Setter Property="Margin" Value="0,0,0,6" />
+        </Style>
+
+        <!-- Active transfer highlight -->
+        <Style Selector="Border.transfer-item-active">
+            <Setter Property="Background" Value="#141E2D" />
+            <Setter Property="BorderBrush" Value="#2F86CE" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="10,8" />
+            <Setter Property="Margin" Value="0,0,0,6" />
+        </Style>
+
+        <!-- Progress bar styling -->
+        <Style Selector="ProgressBar">
+            <Setter Property="Foreground" Value="#2F86CE" />
+            <Setter Property="Background" Value="#1A2333" />
+        </Style>
+    </Window.Styles>
+
+    <DockPanel Margin="12">
+
+        <!-- Header -->
+        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+            <TextBlock Classes="header"
+                       Text="Sync Progress"
+                       VerticalAlignment="Center" />
+            <TextBlock Classes="summary"
+                       Text="{Binding SyncSummary}"
+                       HorizontalAlignment="Right"
+                       VerticalAlignment="Center" />
+        </DockPanel>
+
+        <!-- Pending queue summary -->
+        <Border DockPanel.Dock="Top"
+                Background="#111823"
+                CornerRadius="6"
+                Padding="10,6"
+                Margin="0,0,0,10"
+                IsVisible="{Binding HasPendingItems}">
+            <StackPanel Orientation="Horizontal" Spacing="16">
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                    <TextBlock Text="↑" FontSize="13" Foreground="#4CAF50" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding TotalPendingUploads, StringFormat='{}{0} pending'}"
+                               FontSize="11" Foreground="#8B9DC3" VerticalAlignment="Center" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                    <TextBlock Text="↓" FontSize="13" Foreground="#2196F3" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding TotalPendingDownloads, StringFormat='{}{0} pending'}"
+                               FontSize="11" Foreground="#8B9DC3" VerticalAlignment="Center" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- Empty state -->
+        <StackPanel VerticalAlignment="Center"
+                    HorizontalAlignment="Center"
+                    IsVisible="{Binding !HasActiveTransfers}">
+            <TextBlock Text="No active transfers"
+                       FontSize="14"
+                       Foreground="#556688"
+                       HorizontalAlignment="Center" />
+            <TextBlock Text="Everything is up to date."
+                       FontSize="11"
+                       Foreground="#3D4F6B"
+                       HorizontalAlignment="Center"
+                       Margin="0,4,0,0" />
+        </StackPanel>
+
+        <!-- Transfer list -->
+        <ScrollViewer IsVisible="{Binding HasActiveTransfers}">
+            <ItemsControl ItemsSource="{Binding ActiveTransfers}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="vm:ActiveTransferViewModel">
+                        <Border Classes.transfer-item="{Binding IsComplete}"
+                                Classes.transfer-item-active="{Binding !IsComplete}">
+                            <Grid ColumnDefinitions="Auto,*,Auto"
+                                  RowDefinitions="Auto,Auto,Auto"
+                                  RowSpacing="4">
+
+                                <!-- Direction glyph -->
+                                <TextBlock Grid.Row="0" Grid.Column="0"
+                                           Text="{Binding DirectionGlyph}"
+                                           FontSize="16"
+                                           Foreground="#64B5F6"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,8,0" />
+
+                                <!-- File name -->
+                                <TextBlock Grid.Row="0" Grid.Column="1"
+                                           Text="{Binding FileName}"
+                                           FontWeight="SemiBold"
+                                           FontSize="12"
+                                           TextTrimming="CharacterEllipsis"
+                                           VerticalAlignment="Center" />
+
+                                <!-- Speed or Done -->
+                                <TextBlock Grid.Row="0" Grid.Column="2"
+                                           Text="{Binding SpeedLabel}"
+                                           FontSize="11"
+                                           Foreground="#64B5F6"
+                                           IsVisible="{Binding !IsComplete}"
+                                           HorizontalAlignment="Right"
+                                           VerticalAlignment="Center" />
+                                <TextBlock Grid.Row="0" Grid.Column="2"
+                                           Text="✓ Done"
+                                           FontSize="11"
+                                           Foreground="#4CAF50"
+                                           IsVisible="{Binding IsComplete}"
+                                           HorizontalAlignment="Right"
+                                           VerticalAlignment="Center" />
+
+                                <!-- Progress bar -->
+                                <ProgressBar Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3"
+                                             Value="{Binding PercentComplete}"
+                                             Minimum="0" Maximum="100"
+                                             Height="6"
+                                             IsVisible="{Binding !IsComplete}" />
+
+                                <!-- Bytes / ETA -->
+                                <TextBlock Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2"
+                                           Text="{Binding BytesLabel}"
+                                           FontSize="10"
+                                           Foreground="#6B7FA0"
+                                           IsVisible="{Binding !IsComplete}" />
+                                <TextBlock Grid.Row="2" Grid.Column="2"
+                                           Text="{Binding Eta}"
+                                           FontSize="10"
+                                           Foreground="#6B7FA0"
+                                           IsVisible="{Binding !IsComplete}"
+                                           HorizontalAlignment="Right" />
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+
+    </DockPanel>
+</Window>

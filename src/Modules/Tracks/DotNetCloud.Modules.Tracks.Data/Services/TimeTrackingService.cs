@@ -36,11 +36,11 @@ public sealed class TimeTrackingService
         ArgumentNullException.ThrowIfNull(dto);
 
         var card = await _db.Cards
-            .Include(c => c.List)
+            .Include(c => c.Swimlane)
             .FirstOrDefaultAsync(c => c.Id == cardId && !c.IsDeleted, cancellationToken)
             ?? throw new ValidationException(ErrorCodes.CardNotFound, "Card not found.");
 
-        await _boardService.EnsureBoardRoleAsync(card.List!.BoardId, caller.UserId, BoardMemberRole.Member, cancellationToken);
+        await _boardService.EnsureBoardRoleAsync(card.Swimlane!.BoardId, caller.UserId, BoardMemberRole.Member, cancellationToken);
 
         // Calculate duration
         int durationMinutes;
@@ -80,7 +80,7 @@ public sealed class TimeTrackingService
         _logger.LogInformation("Time entry {EntryId} ({Duration}m) created on card {CardId} by user {UserId}",
             entry.Id, durationMinutes, cardId, caller.UserId);
 
-        await _activityService.LogAsync(card.List.BoardId, caller.UserId, "time.logged", "TimeEntry", entry.Id,
+        await _activityService.LogAsync(card.Swimlane.BoardId, caller.UserId, "time.logged", "TimeEntry", entry.Id,
             $"{{\"durationMinutes\":{durationMinutes},\"cardId\":\"{cardId}\"}}", cancellationToken);
 
         return MapToDto(entry);
@@ -92,11 +92,11 @@ public sealed class TimeTrackingService
     public async Task<TimeEntryDto> StartTimerAsync(Guid cardId, CallerContext caller, CancellationToken cancellationToken = default)
     {
         var card = await _db.Cards
-            .Include(c => c.List)
+            .Include(c => c.Swimlane)
             .FirstOrDefaultAsync(c => c.Id == cardId && !c.IsDeleted, cancellationToken)
             ?? throw new ValidationException(ErrorCodes.CardNotFound, "Card not found.");
 
-        await _boardService.EnsureBoardRoleAsync(card.List!.BoardId, caller.UserId, BoardMemberRole.Member, cancellationToken);
+        await _boardService.EnsureBoardRoleAsync(card.Swimlane!.BoardId, caller.UserId, BoardMemberRole.Member, cancellationToken);
 
         // Check if user already has a running timer on this card
         var runningTimer = await _db.TimeEntries
@@ -127,11 +127,11 @@ public sealed class TimeTrackingService
     public async Task<TimeEntryDto> StopTimerAsync(Guid cardId, CallerContext caller, CancellationToken cancellationToken = default)
     {
         var card = await _db.Cards
-            .Include(c => c.List)
+            .Include(c => c.Swimlane)
             .FirstOrDefaultAsync(c => c.Id == cardId && !c.IsDeleted, cancellationToken)
             ?? throw new ValidationException(ErrorCodes.CardNotFound, "Card not found.");
 
-        await _boardService.EnsureBoardRoleAsync(card.List!.BoardId, caller.UserId, BoardMemberRole.Member, cancellationToken);
+        await _boardService.EnsureBoardRoleAsync(card.Swimlane!.BoardId, caller.UserId, BoardMemberRole.Member, cancellationToken);
 
         var entry = await _db.TimeEntries
             .FirstOrDefaultAsync(t => t.CardId == cardId && t.UserId == caller.UserId && t.EndTime == null, cancellationToken)
@@ -148,7 +148,7 @@ public sealed class TimeTrackingService
         _logger.LogInformation("Timer stopped on card {CardId} by user {UserId}. Duration: {Duration}m",
             cardId, caller.UserId, entry.DurationMinutes);
 
-        await _activityService.LogAsync(card.List.BoardId, caller.UserId, "time.logged", "TimeEntry", entry.Id,
+        await _activityService.LogAsync(card.Swimlane.BoardId, caller.UserId, "time.logged", "TimeEntry", entry.Id,
             $"{{\"durationMinutes\":{entry.DurationMinutes},\"cardId\":\"{cardId}\"}}", cancellationToken);
 
         return MapToDto(entry);
@@ -161,11 +161,11 @@ public sealed class TimeTrackingService
     {
         var card = await _db.Cards
             .AsNoTracking()
-            .Include(c => c.List)
+            .Include(c => c.Swimlane)
             .FirstOrDefaultAsync(c => c.Id == cardId && !c.IsDeleted, cancellationToken)
             ?? throw new ValidationException(ErrorCodes.CardNotFound, "Card not found.");
 
-        await _boardService.EnsureBoardMemberAsync(card.List!.BoardId, caller.UserId, cancellationToken);
+        await _boardService.EnsureBoardMemberAsync(card.Swimlane!.BoardId, caller.UserId, cancellationToken);
 
         var entries = await _db.TimeEntries
             .AsNoTracking()

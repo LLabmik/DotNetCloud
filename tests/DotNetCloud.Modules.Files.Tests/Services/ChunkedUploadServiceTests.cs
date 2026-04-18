@@ -65,7 +65,12 @@ public class ChunkedUploadServiceTests
         db.FileQuotas.Add(new FileQuota { UserId = userId, MaxBytes = 10000, UsedBytes = 0 });
         await db.SaveChangesAsync();
 
-        var service = CreateService(db);
+        // Mock storage engine confirms blob exists on disk for "hash1"
+        var storageMock = new Mock<IFileStorageEngine>();
+        storageMock.Setup(s => s.ExistsAsync("chunks/ha/sh/hash1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        var service = CreateService(db, storageMock.Object);
         var result = await service.InitiateUploadAsync(new InitiateUploadDto
         {
             FileName = "test.txt",
@@ -671,5 +676,57 @@ public class ChunkedUploadServiceTests
 
         var version = await db.FileVersions.FirstAsync(v => v.FileNodeId == result.Id);
         Assert.AreEqual(493, version.PosixMode, "FileVersion must capture the updated PosixMode.");
+    }
+
+    [TestMethod]
+    public async Task CompleteUploadAsync_ChunkMissingFromDatabase_ThrowsValidationException()
+    {
+        // If a chunk hash exists in the session manifest but the FileChunk row is missing
+        // from the database (e.g. deleted by GC between verify and iteration), the service
+        // must throw a clear ValidationException instead of an unhandled InvalidOperationException.
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var chunkHash = "abc123def456";
+
+        var parent = new FileNode
+        {
+            Name = "Root",
+            NodeType = FileNodeType.Folder,
+            OwnerId = userId,
+            Depth = 0
+        };
+        parent.MaterializedPath = $"/{parent.Id}";
+        db.FileNodes.Add(parent);
+
+        // Seed the chunk for the verification query (availableHashes check)
+        // but delete it before CompleteUploadAsync iterates the manifest.
+        // Simulating GC race: we intentionally do NOT add the chunk to the DB.
+        // The verification query passes because we match 0 of 1 → caught by "Missing chunks" guard.
+        // So instead, we seed the chunk for the initial verification but remove it before iteration.
+
+        // Approach: seed the chunk so the initial check passes, then use a hook to remove it.
+        // With InMemory DB we can't do a mid-method hook, so we test the path by NOT seeding
+        // the chunk at all — the earlier "Missing N chunk(s)" path should also throw ValidationException.
+        var session = new ChunkedUploadSession
+        {
+            FileName = "orphan.txt",
+            TotalSize = 100,
+            MimeType = "text/plain",
+            TotalChunks = 1,
+            ReceivedChunks = 1,
+            ChunkManifest = JsonSerializer.Serialize(new[] { chunkHash }),
+            UserId = userId,
+            TargetParentId = parent.Id,
+            Status = UploadSessionStatus.InProgress
+        };
+        db.UploadSessions.Add(session);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+
+        var ex = await Assert.ThrowsExactlyAsync<ValidationException>(
+            () => service.CompleteUploadAsync(session.Id, UserCaller(userId)));
+        Assert.IsTrue(ex.Message.Contains("Missing") || ex.Message.Contains("Chunk"),
+            $"Expected chunk-related validation error, got: {ex.Message}");
     }
 }

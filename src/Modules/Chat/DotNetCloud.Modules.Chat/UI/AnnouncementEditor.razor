@@ -1,4 +1,7 @@
 @namespace DotNetCloud.Modules.Chat.UI
+@using DotNetCloud.UI.Shared.Components.Editors
+@using DotNetCloud.UI.Shared.Services
+@inject IMarkdownRenderer MarkdownRenderer
 
 @*
     Announcement editor — create or edit an announcement.
@@ -22,27 +25,11 @@
 
                 <div class="form-group">
                     <label>Content</label>
-                    <div class="preview-tabs">
-                        <button class="preview-tab @(!IsPreviewMode ? "active" : "")" type="button" @onclick="TogglePreview" disabled="@(!IsPreviewMode)">Edit</button>
-                        <button class="preview-tab @(IsPreviewMode ? "active" : "")" type="button" @onclick="TogglePreview" disabled="@(IsPreviewMode)">Preview</button>
-                    </div>
-                    @if (!IsPreviewMode)
-                    {
-                        <textarea @bind="Content" rows="6" placeholder="Write your announcement (Markdown supported)"></textarea>
-                    }
-                    else
-                    {
-                        <div class="announcement-preview">
-                            @if (string.IsNullOrWhiteSpace(Content))
-                            {
-                                <span class="preview-empty">Nothing to preview.</span>
-                            }
-                            else
-                            {
-                                @RenderMarkdown(Content)
-                            }
-                        </div>
-                    }
+                    <MarkdownEditor Placeholder="Write your announcement (Markdown supported)"
+                                    Rows="6"
+                                    Content="@Content"
+                                    ContentChanged="@(v => Content = v)"
+                                    Renderer="MarkdownRenderer" />
                 </div>
 
                 <div class="form-row">

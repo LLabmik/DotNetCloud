@@ -36,11 +36,11 @@ public sealed class AttachmentService
         ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
 
         var card = await _db.Cards
-            .Include(c => c.List)
+            .Include(c => c.Swimlane)
             .FirstOrDefaultAsync(c => c.Id == cardId && !c.IsDeleted, cancellationToken)
             ?? throw new ValidationException(ErrorCodes.CardNotFound, "Card not found.");
 
-        await _boardService.EnsureBoardRoleAsync(card.List!.BoardId, caller.UserId, BoardMemberRole.Member, cancellationToken);
+        await _boardService.EnsureBoardRoleAsync(card.Swimlane!.BoardId, caller.UserId, BoardMemberRole.Member, cancellationToken);
 
         var attachment = new CardAttachment
         {
@@ -58,7 +58,7 @@ public sealed class AttachmentService
         _logger.LogInformation("Attachment {AttachmentId} '{FileName}' added to card {CardId} by user {UserId}",
             attachment.Id, fileName, cardId, caller.UserId);
 
-        await _activityService.LogAsync(card.List.BoardId, caller.UserId, "attachment.added", "CardAttachment", attachment.Id,
+        await _activityService.LogAsync(card.Swimlane.BoardId, caller.UserId, "attachment.added", "CardAttachment", attachment.Id,
             $"{{\"fileName\":\"{fileName}\",\"cardId\":\"{cardId}\"}}", cancellationToken);
 
         return MapToDto(attachment);
@@ -71,11 +71,11 @@ public sealed class AttachmentService
     {
         var card = await _db.Cards
             .AsNoTracking()
-            .Include(c => c.List)
+            .Include(c => c.Swimlane)
             .FirstOrDefaultAsync(c => c.Id == cardId && !c.IsDeleted, cancellationToken)
             ?? throw new ValidationException(ErrorCodes.CardNotFound, "Card not found.");
 
-        await _boardService.EnsureBoardMemberAsync(card.List!.BoardId, caller.UserId, cancellationToken);
+        await _boardService.EnsureBoardMemberAsync(card.Swimlane!.BoardId, caller.UserId, cancellationToken);
 
         var attachments = await _db.CardAttachments
             .AsNoTracking()
@@ -92,11 +92,11 @@ public sealed class AttachmentService
     public async Task RemoveAttachmentAsync(Guid attachmentId, CallerContext caller, CancellationToken cancellationToken = default)
     {
         var attachment = await _db.CardAttachments
-            .Include(a => a.Card).ThenInclude(c => c!.List)
+            .Include(a => a.Card).ThenInclude(c => c!.Swimlane)
             .FirstOrDefaultAsync(a => a.Id == attachmentId, cancellationToken)
             ?? throw new ValidationException(ErrorCodes.CardNotFound, "Attachment not found.");
 
-        await _boardService.EnsureBoardRoleAsync(attachment.Card!.List!.BoardId, caller.UserId, BoardMemberRole.Member, cancellationToken);
+        await _boardService.EnsureBoardRoleAsync(attachment.Card!.Swimlane!.BoardId, caller.UserId, BoardMemberRole.Member, cancellationToken);
 
         _db.CardAttachments.Remove(attachment);
         attachment.Card.UpdatedAt = DateTime.UtcNow;
@@ -105,7 +105,7 @@ public sealed class AttachmentService
         _logger.LogInformation("Attachment {AttachmentId} removed from card {CardId} by user {UserId}",
             attachmentId, attachment.CardId, caller.UserId);
 
-        await _activityService.LogAsync(attachment.Card.List.BoardId, caller.UserId, "attachment.removed", "CardAttachment", attachmentId,
+        await _activityService.LogAsync(attachment.Card.Swimlane.BoardId, caller.UserId, "attachment.removed", "CardAttachment", attachmentId,
             $"{{\"fileName\":\"{attachment.FileName}\"}}", cancellationToken);
     }
 

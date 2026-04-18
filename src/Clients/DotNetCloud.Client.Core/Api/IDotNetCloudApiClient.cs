@@ -62,7 +62,10 @@ public interface IDotNetCloudApiClient
     Task<Stream> DownloadVersionAsync(Guid nodeId, int versionNumber, CancellationToken cancellationToken = default);
 
     /// <summary>Downloads a single chunk by its SHA-256 hash.</summary>
-    Task<Stream> DownloadChunkByHashAsync(string chunkHash, CancellationToken cancellationToken = default);
+    /// <param name="chunkHash">The SHA-256 hash of the chunk.</param>
+    /// <param name="useConditional">When <c>true</c>, sends <c>If-None-Match</c> with the chunk hash to elide re-downloads for already-cached chunks.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task<Stream> DownloadChunkByHashAsync(string chunkHash, bool useConditional = true, CancellationToken cancellationToken = default);
 
     /// <summary>Gets the chunk manifest for the current version of a file.</summary>
     Task<ChunkManifestResponse> GetChunkManifestAsync(Guid nodeId, CancellationToken cancellationToken = default);

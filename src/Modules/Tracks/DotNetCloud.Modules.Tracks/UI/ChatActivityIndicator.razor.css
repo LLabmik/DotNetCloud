@@ -1,0 +1,139 @@
+/* ============================================================
+   ChatActivityIndicator — Compact chat status + toast widget
+   displayed within the Tracks board view. Matches TracksPage
+   design tokens and uses chat-complementary accent colors.
+   ============================================================ */
+
+.chat-activity-indicator {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px 12px;
+    border-top: 1px solid var(--color-border, #e2e8f0);
+    background: var(--color-surface, #ffffff);
+}
+
+/* --- Toast (new message notification) --- */
+
+.chat-activity-toast {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    background: rgba(59, 130, 246, 0.06);
+    border: 1px solid rgba(59, 130, 246, 0.15);
+    border-radius: 6px;
+    transition: opacity 200ms ease;
+}
+
+.chat-activity-toast.animating {
+    animation: chat-toast-slide-in 250ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.chat-activity-toast-icon {
+    font-size: 14px;
+    flex-shrink: 0;
+}
+
+.chat-activity-toast-text {
+    flex: 1;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-primary, #3b82f6);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.chat-activity-toast-time {
+    font-size: 11px;
+    color: var(--color-muted, #94a3b8);
+    white-space: nowrap;
+}
+
+/* --- Channel Event --- */
+
+.chat-activity-channel-event {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    background: rgba(34, 197, 94, 0.06);
+    border: 1px solid rgba(34, 197, 94, 0.15);
+    border-radius: 6px;
+}
+
+.chat-channel-event-icon {
+    font-size: 12px;
+    flex-shrink: 0;
+}
+
+.chat-channel-event-text {
+    flex: 1;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--color-text, #1e293b);
+}
+
+.chat-channel-event-dismiss {
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-size: 15px;
+    line-height: 1;
+    padding: 2px 4px;
+    border-radius: 4px;
+    color: var(--color-text-secondary, #64748b);
+    transition: all 120ms ease;
+}
+
+.chat-channel-event-dismiss:hover {
+    background: rgba(34, 197, 94, 0.12);
+    color: var(--color-text, #1e293b);
+}
+
+/* --- Status Dot --- */
+
+.chat-activity-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 0;
+}
+
+.chat-status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #22c55e;
+    box-shadow: 0 0 4px rgba(34, 197, 94, 0.4);
+    animation: chat-pulse 2s ease-in-out infinite;
+}
+
+.chat-status-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--color-text-secondary, #64748b);
+}
+
+@keyframes chat-toast-slide-in {
+    0% {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes chat-pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}

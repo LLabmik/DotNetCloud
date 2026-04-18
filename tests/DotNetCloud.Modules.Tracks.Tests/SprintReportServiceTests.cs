@@ -18,7 +18,7 @@ public class SprintReportServiceTests
     private SprintService _sprintService = null!;
     private CallerContext _caller;
     private Board _board = null!;
-    private BoardList _list = null!;
+    private BoardSwimlane _swimlane = null!;
 
     [TestInitialize]
     public async Task Setup()
@@ -32,7 +32,7 @@ public class SprintReportServiceTests
         _service = new SprintReportService(_db, boardService, NullLogger<SprintReportService>.Instance);
         _sprintService = new SprintService(_db, boardService, activityService, mock.Object, NullLogger<SprintService>.Instance);
         _board = await TestHelpers.SeedBoardAsync(_db, _caller.UserId);
-        _list = await TestHelpers.SeedListAsync(_db, _board.Id);
+        _swimlane = await TestHelpers.SeedSwimlaneAsync(_db, _board.Id);
     }
 
     [TestCleanup]
@@ -75,7 +75,7 @@ public class SprintReportServiceTests
         }, _caller);
 
         // Add a card to the sprint via SprintCard junction
-        var card = await TestHelpers.SeedCardAsync(_db, _list.Id, _caller.UserId, "Feature");
+        var card = await TestHelpers.SeedCardAsync(_db, _swimlane.Id, _caller.UserId, "Feature");
         card.StoryPoints = 5;
         _db.SprintCards.Add(new SprintCard { SprintId = sprint.Id, CardId = card.Id });
         await _db.SaveChangesAsync();

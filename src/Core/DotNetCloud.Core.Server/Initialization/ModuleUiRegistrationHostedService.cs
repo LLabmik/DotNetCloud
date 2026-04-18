@@ -61,7 +61,40 @@ internal sealed class ModuleUiRegistrationHostedService : BackgroundService
             Icon: "📊",
             SortOrder: 60,
             RouteKey: "tracks.page",
-            ComponentType: typeof(DotNetCloud.Modules.Tracks.UI.TracksPage))
+            ComponentType: typeof(DotNetCloud.Modules.Tracks.UI.TracksPage),
+            AdditionalPages: [("tracks.card", typeof(DotNetCloud.Modules.Tracks.UI.CardFullscreenPage))]),
+        new(
+            ModuleId: "dotnetcloud.photos",
+            Label: "Photos",
+            Href: "/apps/photos",
+            Icon: "🖼️",
+            SortOrder: 70,
+            RouteKey: "photos.page",
+            ComponentType: typeof(DotNetCloud.Modules.Photos.UI.PhotosPage)),
+        new(
+            ModuleId: "dotnetcloud.music",
+            Label: "Music",
+            Href: "/apps/music",
+            Icon: "🎵",
+            SortOrder: 80,
+            RouteKey: "music.page",
+            ComponentType: typeof(DotNetCloud.Modules.Music.UI.MusicPage)),
+        new(
+            ModuleId: "dotnetcloud.video",
+            Label: "Video",
+            Href: "/apps/video",
+            Icon: "🎬",
+            SortOrder: 90,
+            RouteKey: "video.page",
+            ComponentType: typeof(DotNetCloud.Modules.Video.UI.VideoPage)),
+        new(
+            ModuleId: "dotnetcloud.ai",
+            Label: "AI Assistant",
+            Href: "/apps/ai",
+            Icon: "🤖",
+            SortOrder: 100,
+            RouteKey: "ai.page",
+            ComponentType: typeof(DotNetCloud.Modules.AI.UI.AiChatPage))
     ];
 
     private readonly IServiceScopeFactory _scopeFactory;
@@ -135,6 +168,11 @@ internal sealed class ModuleUiRegistrationHostedService : BackgroundService
                 descriptor.SortOrder);
 
             _moduleUiRegistry.RegisterPage(descriptor.RouteKey, descriptor.ComponentType);
+
+            foreach (var (additionalRouteKey, additionalComponentType) in descriptor.AdditionalPages)
+            {
+                _moduleUiRegistry.RegisterPage(additionalRouteKey, additionalComponentType);
+            }
         }
 
         _lastInstalledModuleStatuses = installedModuleStatuses;
@@ -217,5 +255,12 @@ internal sealed class ModuleUiRegistrationHostedService : BackgroundService
         string Icon,
         int SortOrder,
         string RouteKey,
-        Type ComponentType);
+        Type ComponentType,
+        (string RouteKey, Type ComponentType)[] AdditionalPages = default!)
+    {
+        /// <summary>
+        /// Additional page registrations for this module beyond the primary page.
+        /// </summary>
+        public (string RouteKey, Type ComponentType)[] AdditionalPages { get; init; } = AdditionalPages ?? [];
+    }
 }

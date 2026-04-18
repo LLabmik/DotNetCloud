@@ -1,0 +1,172 @@
+@namespace DotNetCloud.Modules.Chat.UI
+
+@*
+    Video call dialog - Main call window with video grid, controls, and participant overlays.
+    Supports 1×1, 2×1, and 2×2 layouts with picture-in-picture local video.
+    Code-behind: VideoCallDialog.razor.cs
+*@
+
+@if (IsVisible)
+{
+    <div class="video-call-overlay">
+        <div class="video-call-dialog @LayoutClass">
+            <div class="video-call-header">
+                <div class="call-header-info">
+                    <span class="call-channel-name">@ChannelName</span>
+                    <span class="call-state-badge state-@CallState.ToLowerInvariant()">@FormatCallState(CallState)</span>
+                </div>
+                @if (CallState is "Active" or "Connecting")
+                {
+                    <button class="btn-minimize" @onclick="HandleMinimize" title="Minimize call">
+                        ⊟
+                    </button>
+                }
+            </div>
+
+            <div class="video-grid video-grid-@GridLayoutName">
+                @if (RemoteParticipants.Count == 0)
+                {
+                    <div class="video-tile video-tile-solo">
+                        <div class="video-placeholder">
+                            <div class="placeholder-avatar">@GetInitials(LocalDisplayName)</div>
+                            <span class="placeholder-name">@LocalDisplayName</span>
+                            <span class="placeholder-status">@GetWaitingMessage()</span>
+                        </div>
+                        <video id="local-video-main" class="video-element video-local-main" autoplay muted playsinline></video>
+                    </div>
+                }
+                else
+                {
+                    @foreach (var participant in RemoteParticipants)
+                    {
+                        <div class="video-tile" id="video-tile-@participant.UserId">
+                            <video id="remote-video-@participant.UserId" class="video-element" autoplay playsinline></video>
+                            <div class="video-tile-overlay">
+                                <span class="participant-name">@(participant.DisplayName ?? "Unknown")</span>
+                                <div class="participant-indicators">
+                                    @if (!participant.HasAudio)
+                                    {
+                                        <span class="indicator-icon" title="Muted">🔇</span>
+                                    }
+                                    @if (!participant.HasVideo)
+                                    {
+                                        <span class="indicator-icon" title="Camera off">📷</span>
+                                    }
+                                    @if (participant.HasScreenShare)
+                                    {
+                                        <span class="indicator-icon" title="Sharing screen">🖥️</span>
+                                    }
+                                </div>
+                            </div>
+                            <button class="btn-fullscreen" onclick="dotnetcloudVideoCall.toggleFullscreen('video-tile-@participant.UserId')" title="Toggle fullscreen">
+                                <span class="fullscreen-icon">⛶</span>
+                            </button>
+                            @if (!participant.HasVideo && !participant.HasScreenShare)
+                            {
+                                <div class="video-placeholder">
+                                    <div class="placeholder-avatar">@GetInitials(participant.DisplayName)</div>
+                                    <span class="placeholder-name">@(participant.DisplayName ?? "Unknown")</span>
+                                </div>
+                            }
+                        </div>
+                    }
+                }
+
+                @* Picture-in-picture local video (shown when remote participants exist) *@
+                @if (RemoteParticipants.Count > 0)
+                {
+                    <div class="video-pip" @onclick="HandlePipClick" title="Your video">
+                        <video id="local-video-pip" class="video-element video-pip-element" autoplay muted playsinline></video>
+                        @if (IsCameraOff)
+                        {
+                            <div class="pip-placeholder">
+                                <div class="placeholder-avatar placeholder-avatar-sm">@GetInitials(LocalDisplayName)</div>
+                            </div>
+                        }
+                        <span class="pip-label">You</span>
+                    </div>
+                }
+
+                <div class="call-participant-panel">
+                    <div class="call-participant-panel-header">Participants (@TotalParticipantCount)</div>
+
+                    <div class="call-participant-row @(HostUserId == CurrentUserId ? "host" : string.Empty)">
+                        <div class="call-participant-name">@LocalDisplayName (You)</div>
+                        @if (HostUserId == CurrentUserId)
+                        {
+                            <span class="host-badge">Host</span>
+                        }
+                    </div>
+
+                    @foreach (var participant in RemoteParticipants)
+                    {
+                        <div class="call-participant-row @(participant.UserId == HostUserId ? "host" : string.Empty)">
+                            <div class="call-participant-name">@(participant.DisplayName ?? "Unknown")</div>
+                            @if (participant.UserId == HostUserId)
+                            {
+                                <span class="host-badge">Host</span>
+                            }
+                            else if (IsCurrentUserHost)
+                            {
+                                <button class="btn-transfer-host" @onclick="() => HandleTransferHost(participant.UserId)">Make Host</button>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <CallControls IsMuted="@IsMuted"
+                          IsCameraOff="@IsCameraOff"
+                          IsScreenSharing="@IsScreenSharing"
+                          ParticipantCount="@TotalParticipantCount"
+                          DurationSeconds="@DurationSeconds"
+                          ConnectionQuality="@ConnectionQuality"
+                          IsDisabled="@AreControlsDisabled"
+                          IsHangUpDisabled="@IsHangUpDisabled"
+                          CanAddPeople="@IsCurrentUserHost"
+                          OnToggleMute="@HandleToggleMute"
+                          OnToggleCamera="@HandleToggleCamera"
+                          OnToggleScreenShare="@HandleToggleScreenShare"
+                          OnAddPeople="@HandleAddPeople"
+                          OnHangUp="@HandleHangUp" />
+        </div>
+
+        @if (ShowAddPeoplePicker)
+        {
+            <div class="call-add-people-overlay" @onclick="HandleCloseAddPeoplePicker">
+                <div class="call-add-people-dialog" @onclick:stopPropagation="true">
+                    <div class="call-add-people-header">
+                        <h3>Add People to Call</h3>
+                        <button class="btn btn-sm" @onclick="HandleCloseAddPeoplePicker">✕</button>
+                    </div>
+                    <input class="call-add-people-input"
+                           value="@AddPeopleSearchTerm"
+                           @oninput="HandleAddPeopleSearchInput"
+                           placeholder="Search users by name or email..." />
+
+                    @if (IsAddPeopleSearching)
+                    {
+                        <div class="call-add-people-empty">Searching...</div>
+                    }
+                    else if (AddPeopleSearchResults.Count > 0)
+                    {
+                        <div class="call-add-people-results">
+                            @foreach (var user in AddPeopleSearchResults)
+                            {
+                                <button class="call-add-people-result"
+                                        @onclick="() => HandleInviteToCall(user.UserId)">
+                                    <span class="call-add-people-name">@user.DisplayName</span>
+                                    <span class="call-add-people-email">@user.Email</span>
+                                </button>
+                            }
+                        </div>
+                    }
+                    else if (!string.IsNullOrWhiteSpace(AddPeopleSearchTerm))
+                    {
+                        <div class="call-add-people-empty">No users found.</div>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+}

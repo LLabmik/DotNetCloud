@@ -3,7 +3,7 @@ using Microsoft.Maui.ApplicationModel;
 
 namespace DotNetCloud.Client.Android.Views;
 
-/// <summary>Settings screen — shows account info, file sync settings, battery optimization, and log out.</summary>
+/// <summary>Settings screen — shows account info, file sync settings, battery optimization, updates, and log out.</summary>
 public partial class SettingsPage : ContentPage
 {
     private readonly SettingsViewModel _vm;
@@ -21,6 +21,9 @@ public partial class SettingsPage : ContentPage
     {
         base.OnAppearing();
         _vm.RefreshBatteryStatus();
+
+        // Fire-and-forget: check for updates on page load (once-per-day throttled).
+        _ = _vm.CheckForUpdateOnLaunchAsync();
     }
 
     private async void OnLoggedOut(object? sender, EventArgs e)

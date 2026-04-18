@@ -18,15 +18,21 @@ public sealed class ChatGrpcService : ChatService.ChatServiceBase
 {
     private readonly ChatDbContext _db;
     private readonly IChannelService _channelService;
+    private readonly IVideoCallService _videoCallService;
     private readonly ILogger<ChatGrpcService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ChatGrpcService"/> class.
     /// </summary>
-    public ChatGrpcService(ChatDbContext db, IChannelService channelService, ILogger<ChatGrpcService> logger)
+    public ChatGrpcService(
+        ChatDbContext db,
+        IChannelService channelService,
+        IVideoCallService videoCallService,
+        ILogger<ChatGrpcService> logger)
     {
         _db = db;
         _channelService = channelService;
+        _videoCallService = videoCallService;
         _logger = logger;
     }
 
@@ -332,6 +338,173 @@ public sealed class ChatGrpcService : ChatService.ChatServiceBase
         return Task.FromResult(new TypingResponse { Success = true });
     }
 
+    // ── Video Call gRPC Methods ─────────────────────────────────────
+
+    /// <inheritdoc />
+    public override async Task<VideoCallResponse> InitiateVideoCall(
+        InitiateVideoCallRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.ChannelId, out var channelId) ||
+            !Guid.TryParse(request.UserId, out var userId))
+        {
+            return new VideoCallResponse { Success = false, ErrorMessage = "Invalid ID format." };
+        }
+
+        try
+        {
+            var caller = new CallerContext(userId, ["user"], CallerType.User);
+            var callDto = await _videoCallService.InitiateCallAsync(
+                channelId,
+                new StartCallRequest { MediaType = request.MediaType },
+                caller,
+                context.CancellationToken);
+
+            return new VideoCallResponse { Success = true, Call = ToVideoCallMessage(callDto) };
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or UnauthorizedAccessException)
+        {
+            return new VideoCallResponse { Success = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    /// <inheritdoc />
+    public override async Task<VideoCallResponse> JoinVideoCall(
+        JoinVideoCallRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.CallId, out var callId) ||
+            !Guid.TryParse(request.UserId, out var userId))
+        {
+            return new VideoCallResponse { Success = false, ErrorMessage = "Invalid ID format." };
+        }
+
+        try
+        {
+            var caller = new CallerContext(userId, ["user"], CallerType.User);
+            var callDto = await _videoCallService.JoinCallAsync(
+                callId,
+                new JoinCallRequest { WithAudio = request.WithAudio, WithVideo = request.WithVideo },
+                caller,
+                context.CancellationToken);
+
+            return new VideoCallResponse { Success = true, Call = ToVideoCallMessage(callDto) };
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or UnauthorizedAccessException)
+        {
+            return new VideoCallResponse { Success = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    /// <inheritdoc />
+    public override async Task<VideoCallOperationResponse> LeaveVideoCall(
+        LeaveVideoCallRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.CallId, out var callId) ||
+            !Guid.TryParse(request.UserId, out var userId))
+        {
+            return new VideoCallOperationResponse { Success = false, ErrorMessage = "Invalid ID format." };
+        }
+
+        try
+        {
+            var caller = new CallerContext(userId, ["user"], CallerType.User);
+            await _videoCallService.LeaveCallAsync(callId, caller, context.CancellationToken);
+            return new VideoCallOperationResponse { Success = true };
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or UnauthorizedAccessException)
+        {
+            return new VideoCallOperationResponse { Success = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    /// <inheritdoc />
+    public override async Task<VideoCallOperationResponse> EndVideoCall(
+        EndVideoCallRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.CallId, out var callId) ||
+            !Guid.TryParse(request.UserId, out var userId))
+        {
+            return new VideoCallOperationResponse { Success = false, ErrorMessage = "Invalid ID format." };
+        }
+
+        try
+        {
+            var caller = new CallerContext(userId, ["user"], CallerType.User);
+            await _videoCallService.EndCallAsync(callId, caller, context.CancellationToken);
+            return new VideoCallOperationResponse { Success = true };
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or UnauthorizedAccessException)
+        {
+            return new VideoCallOperationResponse { Success = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    /// <inheritdoc />
+    public override async Task<VideoCallOperationResponse> RejectVideoCall(
+        RejectVideoCallRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.CallId, out var callId) ||
+            !Guid.TryParse(request.UserId, out var userId))
+        {
+            return new VideoCallOperationResponse { Success = false, ErrorMessage = "Invalid ID format." };
+        }
+
+        try
+        {
+            var caller = new CallerContext(userId, ["user"], CallerType.User);
+            await _videoCallService.RejectCallAsync(callId, caller, context.CancellationToken);
+            return new VideoCallOperationResponse { Success = true };
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or UnauthorizedAccessException)
+        {
+            return new VideoCallOperationResponse { Success = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    /// <inheritdoc />
+    public override async Task<GetCallHistoryResponse> GetCallHistory(
+        GetCallHistoryRequest request, ServerCallContext context)
+    {
+        var response = new GetCallHistoryResponse();
+
+        if (!Guid.TryParse(request.ChannelId, out var channelId) ||
+            !Guid.TryParse(request.UserId, out var userId))
+        {
+            return response;
+        }
+
+        var caller = new CallerContext(userId, ["user"], CallerType.User);
+        var history = await _videoCallService.GetCallHistoryAsync(
+            channelId, request.Skip, request.Take, caller, context.CancellationToken);
+
+        foreach (var entry in history)
+        {
+            response.Calls.Add(ToCallHistoryMessage(entry));
+        }
+
+        return response;
+    }
+
+    /// <inheritdoc />
+    public override async Task<VideoCallResponse> GetActiveCall(
+        GetActiveCallRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.ChannelId, out var channelId) ||
+            !Guid.TryParse(request.UserId, out var userId))
+        {
+            return new VideoCallResponse { Success = false, ErrorMessage = "Invalid ID format." };
+        }
+
+        var caller = new CallerContext(userId, ["user"], CallerType.User);
+        var call = await _videoCallService.GetActiveCallAsync(channelId, caller, context.CancellationToken);
+
+        if (call is null)
+        {
+            return new VideoCallResponse { Success = true }; // No active call, but not an error
+        }
+
+        return new VideoCallResponse { Success = true, Call = ToVideoCallMessage(call) };
+    }
+
     private static ChannelMessage ToChannelMessage(ChannelDto dto)
     {
         return new ChannelMessage
@@ -397,5 +570,120 @@ public sealed class ChatGrpcService : ChatService.ChatServiceBase
         }
 
         return msg;
+    }
+
+    /// <inheritdoc />
+    public override async Task GetSearchableDocuments(
+        GetSearchableDocumentsRequest request,
+        IServerStreamWriter<SearchableDocument> responseStream,
+        ServerCallContext context)
+    {
+        var messages = await _db.Messages
+            .Include(m => m.Channel)
+            .Where(m => !m.IsDeleted)
+            .OrderBy(m => m.Id)
+            .ToListAsync(context.CancellationToken);
+
+        foreach (var message in messages)
+        {
+            var doc = MapToSearchableDocument(message);
+            await responseStream.WriteAsync(doc, context.CancellationToken);
+        }
+    }
+
+    /// <inheritdoc />
+    public override async Task<SearchableDocumentResponse> GetSearchableDocument(
+        GetSearchableDocumentRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.EntityId, out var entityId))
+            return new SearchableDocumentResponse { Found = false };
+
+        var message = await _db.Messages
+            .Include(m => m.Channel)
+            .FirstOrDefaultAsync(m => m.Id == entityId && !m.IsDeleted, context.CancellationToken);
+
+        if (message is null)
+            return new SearchableDocumentResponse { Found = false };
+
+        return new SearchableDocumentResponse
+        {
+            Found = true,
+            Document = MapToSearchableDocument(message)
+        };
+    }
+
+    private static SearchableDocument MapToSearchableDocument(Message message)
+    {
+        var doc = new SearchableDocument
+        {
+            ModuleId = "chat",
+            EntityId = message.Id.ToString(),
+            EntityType = "Message",
+            Title = message.Channel?.Name ?? "Direct Message",
+            Content = message.Content,
+            Summary = message.Content.Length > 200
+                ? message.Content[..200] + "..."
+                : message.Content,
+            OwnerId = message.SenderUserId.ToString(),
+            CreatedAt = message.SentAt.ToString("O"),
+            UpdatedAt = (message.EditedAt ?? message.SentAt).ToString("O")
+        };
+
+        doc.Metadata["ChannelId"] = message.ChannelId.ToString();
+        doc.Metadata["SenderId"] = message.SenderUserId.ToString();
+        doc.Metadata["MessageType"] = message.Type.ToString();
+
+        return doc;
+    }
+
+    private static VideoCallMessage ToVideoCallMessage(VideoCallDto dto)
+    {
+        var msg = new VideoCallMessage
+        {
+            Id = dto.Id.ToString(),
+            ChannelId = dto.ChannelId.ToString(),
+            InitiatorUserId = dto.InitiatorUserId.ToString(),
+            State = dto.State,
+            MediaType = dto.MediaType,
+            IsGroupCall = dto.IsGroupCall,
+            StartedAtUtc = dto.StartedAtUtc?.ToString("O") ?? string.Empty,
+            EndedAtUtc = dto.EndedAtUtc?.ToString("O") ?? string.Empty,
+            EndReason = dto.EndReason ?? string.Empty,
+            MaxParticipants = dto.MaxParticipants,
+            CreatedAtUtc = dto.CreatedAtUtc.ToString("O")
+        };
+
+        foreach (var participant in dto.Participants)
+        {
+            msg.Participants.Add(new CallParticipantMessage
+            {
+                Id = participant.Id.ToString(),
+                UserId = participant.UserId.ToString(),
+                Role = participant.Role,
+                JoinedAtUtc = participant.JoinedAtUtc.ToString("O"),
+                LeftAtUtc = participant.LeftAtUtc?.ToString("O") ?? string.Empty,
+                HasAudio = participant.HasAudio,
+                HasVideo = participant.HasVideo,
+                HasScreenShare = participant.HasScreenShare
+            });
+        }
+
+        return msg;
+    }
+
+    private static CallHistoryMessage ToCallHistoryMessage(CallHistoryDto dto)
+    {
+        return new CallHistoryMessage
+        {
+            Id = dto.Id.ToString(),
+            ChannelId = dto.ChannelId.ToString(),
+            InitiatorUserId = dto.InitiatorUserId.ToString(),
+            State = dto.State,
+            MediaType = dto.MediaType,
+            EndReason = dto.EndReason ?? string.Empty,
+            DurationSeconds = dto.DurationSeconds ?? 0,
+            ParticipantCount = dto.ParticipantCount,
+            CreatedAtUtc = dto.CreatedAtUtc.ToString("O")
+        };
     }
 }

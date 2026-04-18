@@ -26,9 +26,9 @@ public class BoardTemplateServiceTests
         var activityService = new ActivityService(_db, NullLogger<ActivityService>.Instance);
         var teamService = new TeamService(_db, mock.Object, NullLogger<TeamService>.Instance);
         var boardService = new BoardService(_db, mock.Object, activityService, teamService, NullLogger<BoardService>.Instance);
-        var listService = new ListService(_db, boardService, activityService, NullLogger<ListService>.Instance);
+        var swimlaneService = new SwimlaneService(_db, boardService, activityService, NullLogger<SwimlaneService>.Instance);
         var labelService = new LabelService(_db, boardService, activityService, NullLogger<LabelService>.Instance);
-        _service = new BoardTemplateService(_db, boardService, listService, labelService, NullLogger<BoardTemplateService>.Instance);
+        _service = new BoardTemplateService(_db, boardService, swimlaneService, labelService, NullLogger<BoardTemplateService>.Instance);
         await _service.SeedBuiltInTemplatesAsync();
     }
 

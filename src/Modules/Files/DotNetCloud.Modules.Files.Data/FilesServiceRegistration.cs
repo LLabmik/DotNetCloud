@@ -1,5 +1,7 @@
+using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Files.Data.Services;
 using DotNetCloud.Modules.Files.Data.Services.Background;
+using DotNetCloud.Modules.Files.Events;
 using DotNetCloud.Modules.Files.Options;
 using DotNetCloud.Modules.Files.Services;
 using System.Net.Http;
@@ -61,6 +63,11 @@ public static class FilesServiceRegistration
         services.AddSingleton<IVideoFrameExtractor, FfmpegVideoFrameExtractor>();
         services.AddSingleton<IPdfPageRenderer, PdftoppmPdfPageRenderer>();
         services.AddSingleton<IThumbnailService, ThumbnailService>();
+
+        // Event-driven thumbnail generation for uploaded images
+        services.AddSingleton<FileUploadedThumbnailHandler>();
+        services.AddSingleton<IEventHandler<FileUploadedEvent>>(sp =>
+            sp.GetRequiredService<FileUploadedThumbnailHandler>());
 
         // WOPI / Collabora services (Scoped for DB access)
         services.AddScoped<IWopiService, WopiService>();

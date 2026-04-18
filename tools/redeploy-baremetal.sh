@@ -1,12 +1,16 @@
 #!/usr/bin/env bash
 # DotNetCloud bare-metal redeploy helper.
-# Publishes the server, restarts dotnetcloud.service, and verifies /health/live.
+# Publishes the server AND CLI, restarts dotnetcloud.service, and verifies /health/live.
+# The CLI sets env vars (Collabora proxy config, etc.) that the server reads at startup,
+# so both must be deployed together.
 
 set -euo pipefail
 
 SERVICE_NAME="${SERVICE_NAME:-dotnetcloud.service}"
 PROJECT_PATH="${PROJECT_PATH:-src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj}"
+CLI_PROJECT_PATH="${CLI_PROJECT_PATH:-src/CLI/DotNetCloud.CLI/DotNetCloud.CLI.csproj}"
 OUTPUT_DIR="${OUTPUT_DIR:-artifacts/publish/server-baremetal}"
+CLI_OUTPUT_DIR="${CLI_OUTPUT_DIR:-artifacts/publish/cli-linux-x64}"
 CONFIGURATION="${CONFIGURATION:-Release}"
 HEALTH_URL="${HEALTH_URL:-}"
 HEALTH_RETRIES="${HEALTH_RETRIES:-15}"
@@ -23,9 +27,11 @@ Usage:
 Environment overrides:
   SERVICE_NAME         systemd unit name (default: dotnetcloud.service)
   PROJECT_PATH         server csproj path (default: src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj)
-  OUTPUT_DIR           publish output directory (default: artifacts/publish/server-baremetal)
+  CLI_PROJECT_PATH     CLI csproj path (default: src/CLI/DotNetCloud.CLI/DotNetCloud.CLI.csproj)
+  OUTPUT_DIR           server publish output directory (default: artifacts/publish/server-baremetal)
+  CLI_OUTPUT_DIR       CLI publish output directory (default: artifacts/publish/cli-linux-x64)
   CONFIGURATION        dotnet publish configuration (default: Release)
-    HEALTH_URL           single liveness URL override (default: auto-try https://localhost:5443/health/live then http://localhost:5080/health/live)
+  HEALTH_URL           single liveness URL override (default: auto-try https://localhost:5443/health/live then http://localhost:5080/health/live)
   HEALTH_RETRIES       retry attempts for health probe (default: 15)
   HEALTH_DELAY_SECONDS delay between retries (default: 2)
 EOF
@@ -56,15 +62,26 @@ if [[ ! -f "$PROJECT_PATH" ]]; then
     exit 1
 fi
 
+if [[ ! -f "$CLI_PROJECT_PATH" ]]; then
+    error "CLI project not found: $CLI_PROJECT_PATH"
+    exit 1
+fi
+
 # Acquire sudo upfront so later commands don't prompt mid-deploy.
 sudo -v || { error "sudo authentication failed."; exit 1; }
 
 info "Publishing server to $OUTPUT_DIR..."
 dotnet publish "$PROJECT_PATH" --configuration "$CONFIGURATION" --output "$OUTPUT_DIR"
 
-# Copy published output to the installed server locations.
-# The systemd service runs the binary from /opt/dotnetcloud/cli/server/
-# with WorkingDirectory /opt/dotnetcloud/server/.
+info "Publishing CLI to $CLI_OUTPUT_DIR (framework-dependent, portable)..."
+dotnet publish "$CLI_PROJECT_PATH" --configuration "$CONFIGURATION" \
+    --self-contained false --output "$CLI_OUTPUT_DIR"
+
+# Copy published output to the installed locations.
+# The systemd service runs /opt/dotnetcloud/dotnetcloud start which:
+#   1. The CLI at /opt/dotnetcloud/cli/ reads config and sets env vars
+#   2. Then launches the server from /opt/dotnetcloud/cli/server/
+INSTALL_CLI_ROOT="/opt/dotnetcloud/cli"
 INSTALL_CLI_DIR="/opt/dotnetcloud/cli/server"
 INSTALL_SERVER_DIR="/opt/dotnetcloud/server"
 
@@ -82,13 +99,23 @@ if ! stop_service; then
     exit 1
 fi
 
+# Deploy CLI (framework-dependent binary that sets Collabora proxy config, etc.)
+if [[ -d "$INSTALL_CLI_ROOT" ]]; then
+    info "Deploying CLI to $INSTALL_CLI_ROOT..."
+    # Clean stale files (e.g., leftover runtime DLLs from previous self-contained
+    # publish) but preserve the server/ subdirectory which is deployed separately.
+    find "$INSTALL_CLI_ROOT" -maxdepth 1 -type f -exec sudo rm -f {} +
+    sudo cp -r "$CLI_OUTPUT_DIR"/* "$INSTALL_CLI_ROOT/"
+fi
+
+# Deploy server
 if [[ -d "$INSTALL_CLI_DIR" ]]; then
-    info "Deploying to $INSTALL_CLI_DIR..."
+    info "Deploying server to $INSTALL_CLI_DIR..."
     sudo cp -r "$OUTPUT_DIR"/* "$INSTALL_CLI_DIR/"
 fi
 
 if [[ -d "$INSTALL_SERVER_DIR" ]]; then
-    info "Deploying to $INSTALL_SERVER_DIR..."
+    info "Deploying server to $INSTALL_SERVER_DIR..."
     sudo cp -r "$OUTPUT_DIR"/* "$INSTALL_SERVER_DIR/"
 fi
 

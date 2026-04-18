@@ -56,7 +56,7 @@ public class ChunkedTransferClientTests
 
         var result = await client.UploadAsync(null, "test.txt", data, null);
 
-        Assert.AreEqual(nodeId, result);
+        Assert.AreEqual(nodeId, result.NodeId);
         apiMock.Verify(a => a.UploadChunkAsync(sessionId, 0, It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>(), It.IsAny<string?>()), Times.Once);
         apiMock.Verify(a => a.CompleteUploadAsync(sessionId, It.IsAny<CancellationToken>()), Times.Once);
     }
@@ -134,7 +134,7 @@ public class ChunkedTransferClientTests
 
         var result = await client.UploadAsync(null, "file.txt", data, null);
 
-        Assert.AreEqual(nodeId, result);
+        Assert.AreEqual(nodeId, result.NodeId);
         // Should have been called twice (one failure + one success)
         apiMock.Verify(a => a.UploadChunkAsync(sessionId, 0, It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>(), It.IsAny<string?>()), Times.Exactly(2));
     }
@@ -160,7 +160,8 @@ public class ChunkedTransferClientTests
         using var data = new MemoryStream(new byte[512]);
 
         HttpRequestException? caught = null;
-        try { await client.UploadAsync(null, "file.txt", data, null); }
+        try
+        { await client.UploadAsync(null, "file.txt", data, null); }
         catch (HttpRequestException ex) { caught = ex; }
         Assert.IsNotNull(caught, "Expected HttpRequestException but none was thrown.");
 
@@ -189,7 +190,8 @@ public class ChunkedTransferClientTests
         using var data = new MemoryStream(new byte[512]);
 
         HttpRequestException? caught = null;
-        try { await client.UploadAsync(null, "file.txt", data, null); }
+        try
+        { await client.UploadAsync(null, "file.txt", data, null); }
         catch (HttpRequestException ex) { caught = ex; }
         Assert.IsNotNull(caught, "Expected HttpRequestException but none was thrown.");
 
@@ -235,7 +237,7 @@ public class ChunkedTransferClientTests
                 Chunks = [new ChunkManifestEntry { Index = 0, Hash = chunkHash, Size = chunkData.Length }],
             });
 
-        apiMock.Setup(a => a.DownloadChunkByHashAsync(chunkHash, It.IsAny<CancellationToken>()))
+        apiMock.Setup(a => a.DownloadChunkByHashAsync(chunkHash, It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new MemoryStream(chunkData));
 
         var client = CreateClient(apiMock.Object);
@@ -244,7 +246,7 @@ public class ChunkedTransferClientTests
 
         Assert.IsNotNull(result);
         Assert.AreEqual(chunkData.Length, result.Length);
-        apiMock.Verify(a => a.DownloadChunkByHashAsync(chunkHash, It.IsAny<CancellationToken>()), Times.Once);
+        apiMock.Verify(a => a.DownloadChunkByHashAsync(chunkHash, It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [TestMethod]
@@ -267,7 +269,7 @@ public class ChunkedTransferClientTests
 
         // First call returns corrupt data, second returns correct data
         var callCount = 0;
-        apiMock.Setup(a => a.DownloadChunkByHashAsync(chunkHash, It.IsAny<CancellationToken>()))
+        apiMock.Setup(a => a.DownloadChunkByHashAsync(chunkHash, It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(() =>
             {
                 callCount++;
@@ -280,7 +282,7 @@ public class ChunkedTransferClientTests
 
         Assert.IsNotNull(result);
         Assert.AreEqual(chunkData.Length, result.Length);
-        apiMock.Verify(a => a.DownloadChunkByHashAsync(chunkHash, It.IsAny<CancellationToken>()), Times.Exactly(2));
+        apiMock.Verify(a => a.DownloadChunkByHashAsync(chunkHash, It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Exactly(2));
     }
 
     [TestMethod]
@@ -299,19 +301,20 @@ public class ChunkedTransferClientTests
                 Chunks = [new ChunkManifestEntry { Index = 0, Hash = chunkHash, Size = corruptData.Length }],
             });
 
-        apiMock.Setup(a => a.DownloadChunkByHashAsync(chunkHash, It.IsAny<CancellationToken>()))
+        apiMock.Setup(a => a.DownloadChunkByHashAsync(chunkHash, It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(() => new MemoryStream(corruptData));
 
         var client = CreateClient(apiMock.Object);
 
         ChunkIntegrityException? caught = null;
-        try { await client.DownloadAsync(nodeId); }
+        try
+        { await client.DownloadAsync(nodeId); }
         catch (ChunkIntegrityException ex) { caught = ex; }
 
         Assert.IsNotNull(caught, "Expected ChunkIntegrityException but none was thrown.");
 
         // Should have retried 3 times
-        apiMock.Verify(a => a.DownloadChunkByHashAsync(chunkHash, It.IsAny<CancellationToken>()), Times.Exactly(3));
+        apiMock.Verify(a => a.DownloadChunkByHashAsync(chunkHash, It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Exactly(3));
     }
 
     // ── CDC chunking ────────────────────────────────────────────────────────
@@ -438,7 +441,7 @@ public class ChunkedTransferClientTests
 
         var result = await client.UploadAsync(null, "big.bin", data, null);
 
-        Assert.AreEqual(nodeId, result);
+        Assert.AreEqual(nodeId, result.NodeId);
         Assert.IsNotNull(capturedHashes);
         // All chunks should have been uploaded (none pre-existing)
         Assert.AreEqual(capturedHashes!.Count, uploadCallCount,
@@ -471,9 +474,9 @@ public class ChunkedTransferClientTests
                 ],
             });
 
-        apiMock.Setup(a => a.DownloadChunkByHashAsync(hash0, It.IsAny<CancellationToken>()))
+        apiMock.Setup(a => a.DownloadChunkByHashAsync(hash0, It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(() => new MemoryStream(chunk0));
-        apiMock.Setup(a => a.DownloadChunkByHashAsync(hash1, It.IsAny<CancellationToken>()))
+        apiMock.Setup(a => a.DownloadChunkByHashAsync(hash1, It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(() => new MemoryStream(chunk1));
 
         var client = CreateClient(apiMock.Object);
@@ -491,8 +494,8 @@ public class ChunkedTransferClientTests
         CollectionAssert.AreEqual(chunk0, assembled[..512], "First chunk content mismatch.");
         CollectionAssert.AreEqual(chunk1, assembled[512..], "Second chunk content mismatch.");
 
-        apiMock.Verify(a => a.DownloadChunkByHashAsync(hash0, It.IsAny<CancellationToken>()), Times.Once);
-        apiMock.Verify(a => a.DownloadChunkByHashAsync(hash1, It.IsAny<CancellationToken>()), Times.Once);
+        apiMock.Verify(a => a.DownloadChunkByHashAsync(hash0, It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Once);
+        apiMock.Verify(a => a.DownloadChunkByHashAsync(hash1, It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     // ── Session Persistence (Task 3.2) ─────────────────────────────────────
@@ -592,7 +595,7 @@ public class ChunkedTransferClientTests
                 It.IsAny<Stream>(), It.IsAny<CancellationToken>(), It.IsAny<string?>()), Times.Never);
             // Complete called with the resumed session ID
             apiMock.Verify(a => a.CompleteUploadAsync(sessionId, It.IsAny<CancellationToken>()), Times.Once);
-            Assert.AreEqual(nodeId, result);
+            Assert.AreEqual(nodeId, result.NodeId);
         }
         finally
         {
@@ -723,7 +726,7 @@ public class ChunkedTransferClientTests
                 TotalSize = chunkData.Length,
                 Chunks = [new ChunkManifestEntry { Index = 0, Hash = chunkHash, Size = chunkData.Length }],
             });
-        apiMock.Setup(a => a.DownloadChunkByHashAsync(chunkHash, It.IsAny<CancellationToken>()))
+        apiMock.Setup(a => a.DownloadChunkByHashAsync(chunkHash, It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new MemoryStream(chunkData));
 
         var client = CreateClient(apiMock.Object);
@@ -731,7 +734,7 @@ public class ChunkedTransferClientTests
         using var result = await client.DownloadAsync(nodeId);
 
         // API was called exactly once (cache was empty)
-        apiMock.Verify(a => a.DownloadChunkByHashAsync(chunkHash, It.IsAny<CancellationToken>()), Times.Once);
+        apiMock.Verify(a => a.DownloadChunkByHashAsync(chunkHash, It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Once);
         // Cache file was created
         var cacheFile = Path.Combine(_testCacheDir, chunkHash);
         Assert.IsTrue(File.Exists(cacheFile), "Chunk should have been written to cache.");
@@ -764,7 +767,7 @@ public class ChunkedTransferClientTests
         using var result = await client.DownloadAsync(nodeId);
 
         // API should NOT have been called — data came from cache
-        apiMock.Verify(a => a.DownloadChunkByHashAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        apiMock.Verify(a => a.DownloadChunkByHashAsync(It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Never);
         Assert.IsNotNull(result);
         Assert.AreEqual(chunkData.Length, result.Length);
     }
@@ -843,7 +846,7 @@ public class ChunkedTransferClientTests
 
         var result = await client.UploadAsync(null, "file.txt", data, null);
 
-        Assert.AreEqual(nodeId, result);
+        Assert.AreEqual(nodeId, result.NodeId);
         // Should have been called twice (one timeout + one success)
         apiMock.Verify(a => a.UploadChunkAsync(sessionId, 0, It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>(), It.IsAny<string?>()), Times.Exactly(2));
     }
@@ -866,8 +869,8 @@ public class ChunkedTransferClientTests
             });
 
         // First call throws timeout, second returns data
-        apiMock.Setup(a => a.DownloadChunkByHashAsync(chunkHash, It.IsAny<CancellationToken>()))
-            .Returns<string, CancellationToken>((_, _) =>
+        apiMock.Setup(a => a.DownloadChunkByHashAsync(chunkHash, It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .Returns<string, bool, CancellationToken>((_, _, _) =>
             {
                 callCount++;
                 if (callCount == 1)
@@ -881,7 +884,7 @@ public class ChunkedTransferClientTests
 
         Assert.IsNotNull(result);
         Assert.AreEqual(chunkData.Length, result.Length);
-        apiMock.Verify(a => a.DownloadChunkByHashAsync(chunkHash, It.IsAny<CancellationToken>()), Times.Exactly(2));
+        apiMock.Verify(a => a.DownloadChunkByHashAsync(chunkHash, It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Exactly(2));
     }
 
     // ── Session resume window (Issue #61) ───────────────────────────────────
@@ -938,7 +941,7 @@ public class ChunkedTransferClientTests
                 It.IsAny<IReadOnlyList<int>?>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<string?>(),
                 It.IsAny<CancellationToken>()), Times.Never);
             apiMock.Verify(a => a.CompleteUploadAsync(sessionId, It.IsAny<CancellationToken>()), Times.Once);
-            Assert.AreEqual(nodeId, result);
+            Assert.AreEqual(nodeId, result.NodeId);
         }
         finally
         {

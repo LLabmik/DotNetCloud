@@ -73,7 +73,7 @@ public sealed class DueDateReminderService : BackgroundService
         // Find non-archived, non-deleted cards with due dates in the next 24 hours
         var dueCards = await db.Cards
             .AsNoTracking()
-            .Include(c => c.List)
+            .Include(c => c.Swimlane)
             .Include(c => c.Assignments)
             .Where(c => !c.IsDeleted
                         && !c.IsArchived
@@ -92,7 +92,7 @@ public sealed class DueDateReminderService : BackgroundService
         foreach (var card in dueCards)
         {
             // Get board ID for action URL
-            var boardId = card.List?.BoardId ?? Guid.Empty;
+            var boardId = card.Swimlane?.BoardId ?? Guid.Empty;
             var assignees = card.Assignments.Select(a => a.UserId).ToList();
 
             foreach (var assigneeId in assignees)

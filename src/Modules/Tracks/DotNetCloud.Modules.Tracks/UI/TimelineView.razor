@@ -1,0 +1,167 @@
+@namespace DotNetCloud.Modules.Tracks.UI
+
+<div class="tracks-timeline">
+    @* ── Header ── *@
+    <div class="tracks-timeline-header">
+        <div class="tracks-timeline-title-area">
+            <h2>📅 Year Timeline</h2>
+            @if (_planOverview is not null)
+            {
+                <div class="tracks-timeline-stats">
+                    <span class="tracks-timeline-stat">@_planOverview.Sprints.Count sprints</span>
+                    <span class="tracks-timeline-stat">@_planOverview.TotalWeeks weeks</span>
+                    @if (_planOverview.PlanStartDate.HasValue && _planOverview.PlanEndDate.HasValue)
+                    {
+                        <span class="tracks-timeline-stat">
+                            @_planOverview.PlanStartDate.Value.ToString("MMM d, yyyy") — @_planOverview.PlanEndDate.Value.ToString("MMM d, yyyy")
+                        </span>
+                    }
+                </div>
+            }
+        </div>
+        <div class="tracks-timeline-toolbar">
+            <button class="btn btn-sm btn-outline" @onclick="RefreshAsync" disabled="@_isLoading">↻ Refresh</button>
+        </div>
+    </div>
+
+    @* ── Content ── *@
+    @if (_isLoading)
+    {
+        <div class="tracks-timeline-loading">
+            <DncLoadingIndicator />
+        </div>
+    }
+    else if (_errorMessage is not null)
+    {
+        <DncErrorDisplay Message="@_errorMessage" />
+    }
+    else if (_planOverview is null || _planOverview.Sprints.Count == 0)
+    {
+        <div class="tracks-timeline-empty">
+            <div class="tracks-timeline-empty-icon">📅</div>
+            <h3>No sprint plan</h3>
+            <p>Create a sprint plan using the Year Plan Wizard to see the timeline view.</p>
+            <button class="btn btn-primary" @onclick="() => OnOpenWizard.InvokeAsync()">Open Year Plan Wizard</button>
+        </div>
+    }
+    else
+    {
+        @* ── Timeline Chart ── *@
+        <div class="tracks-timeline-chart" @ref="_chartContainer">
+            @* ── Month / Quarter Headers ── *@
+            <div class="tracks-timeline-months" style="@GetMonthsGridStyle()">
+                @foreach (var month in _monthLabels)
+                {
+                    <div class="tracks-timeline-month @(month.IsQuarterStart ? "quarter-start" : "")"
+                         style="grid-column: @month.StartDay / @(month.EndDay + 1);">
+                        <span class="tracks-timeline-month-label">@month.Label</span>
+                        @if (month.IsQuarterStart)
+                        {
+                            <span class="tracks-timeline-quarter-label">@month.QuarterLabel</span>
+                        }
+                    </div>
+                }
+            </div>
+
+            @* ── Sprint Rows ── *@
+            <div class="tracks-timeline-rows" style="@GetMonthsGridStyle()">
+                @* ── Today Marker ── *@
+                @if (_todayColumn > 0 && _todayColumn <= _totalDays)
+                {
+                    <div class="tracks-timeline-today-marker"
+                         style="grid-column: @_todayColumn / @(_todayColumn + 1); grid-row: 1 / @(_planOverview.Sprints.Count + 1);">
+                        <div class="tracks-timeline-today-line"></div>
+                        <span class="tracks-timeline-today-label">Today</span>
+                    </div>
+                }
+
+                @foreach (var sprint in _planOverview.Sprints)
+                {
+                    var blockInfo = GetSprintBlockInfo(sprint);
+                    @if (blockInfo.StartDay > 0 && blockInfo.EndDay > 0)
+                    {
+                        <div class="tracks-timeline-sprint-row @GetSprintStatusClass(sprint.Status)"
+                             style="grid-column: @blockInfo.StartDay / @(blockInfo.EndDay + 1); grid-row: @blockInfo.Row;"
+                             @onclick="() => HandleSprintClick(sprint)"
+                             title="@GetSprintTooltip(sprint)">
+                            <div class="tracks-timeline-sprint-bar">
+                                @if (sprint.TotalStoryPoints > 0)
+                                {
+                                    <div class="tracks-timeline-sprint-progress"
+                                         style="width: @GetProgressPercent(sprint)%;"></div>
+                                }
+                                <div class="tracks-timeline-sprint-content">
+                                    <span class="tracks-timeline-sprint-name">@sprint.Title</span>
+                                    <span class="tracks-timeline-sprint-meta">
+                                        @(sprint.DurationWeeks ?? 0)w · @sprint.CardCount cards
+                                        @if (sprint.TotalStoryPoints > 0)
+                                        {
+                                            <text> · @sprint.CompletedStoryPoints/@sprint.TotalStoryPoints SP</text>
+                                        }
+                                    </span>
+                                </div>
+                            </div>
+                            @* ── Drag Handles ── *@
+                            <div class="tracks-timeline-drag-start"
+                                 @onmousedown="(e) => StartDrag(sprint, DragEdge.Start, e)"
+                                 @onmousedown:preventDefault
+                                 title="Drag to adjust start date"></div>
+                            <div class="tracks-timeline-drag-end"
+                                 @onmousedown="(e) => StartDrag(sprint, DragEdge.End, e)"
+                                 @onmousedown:preventDefault
+                                 title="Drag to adjust duration"></div>
+                        </div>
+                    }
+                }
+            </div>
+        </div>
+
+        @* ── Legend ── *@
+        <div class="tracks-timeline-legend">
+            <div class="tracks-timeline-legend-item">
+                <span class="tracks-timeline-legend-dot status-planning"></span>
+                <span>Planning</span>
+            </div>
+            <div class="tracks-timeline-legend-item">
+                <span class="tracks-timeline-legend-dot status-active"></span>
+                <span>Active</span>
+            </div>
+            <div class="tracks-timeline-legend-item">
+                <span class="tracks-timeline-legend-dot status-completed"></span>
+                <span>Completed</span>
+            </div>
+            <div class="tracks-timeline-legend-item">
+                <span class="tracks-timeline-today-line-sm"></span>
+                <span>Today</span>
+            </div>
+        </div>
+
+        @* ── Adjustment Dialog ── *@
+        @if (_adjustingSprint is not null)
+        {
+            <div class="tracks-timeline-adjust-overlay" @onclick="CancelAdjust">
+                <div class="tracks-timeline-adjust-dialog" @onclick:stopPropagation>
+                    <h4>Adjust @_adjustingSprint.Title</h4>
+                    <div class="tracks-form-group">
+                        <label>Duration (weeks)</label>
+                        <select class="form-control" @bind="_adjustDurationWeeks">
+                            @for (var w = 1; w <= 16; w++)
+                            {
+                                <option value="@w">@w week@(w != 1 ? "s" : "")</option>
+                            }
+                        </select>
+                    </div>
+                    <p class="tracks-timeline-adjust-note">
+                        Subsequent sprint dates will cascade automatically.
+                    </p>
+                    <div class="tracks-timeline-adjust-actions">
+                        <button class="btn btn-sm btn-outline" @onclick="CancelAdjust" disabled="@_isAdjusting">Cancel</button>
+                        <button class="btn btn-sm btn-primary" @onclick="ConfirmAdjust" disabled="@_isAdjusting">
+                            @(_isAdjusting ? "Adjusting..." : "Apply")
+                        </button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+</div>

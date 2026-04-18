@@ -196,6 +196,9 @@ public partial class FilePreview : ComponentBase, IAsyncDisposable
         }
     }
 
+    /// <summary>Handles image load errors gracefully (broken image fallback handled via CSS).</summary>
+    protected void HandleImageError() { /* Graceful fallback — CSS hides broken image icon */ }
+
     // ── MIME type checks ────────────────────────────────────────────────────────
 
     /// <summary>True when the file is a raster or vector image.</summary>
@@ -219,9 +222,10 @@ public partial class FilePreview : ComponentBase, IAsyncDisposable
         DisplayNode?.Name?.EndsWith(".md", StringComparison.OrdinalIgnoreCase) == true ||
         DisplayNode?.Name?.EndsWith(".markdown", StringComparison.OrdinalIgnoreCase) == true;
 
-    /// <summary>True when the file is source code or another text/* sub-type.</summary>
+    /// <summary>True when the file is source code, another text/* sub-type, or a structured text format (JSON, XML).</summary>
     protected bool IsCode =>
-        DisplayNode?.MimeType?.StartsWith("text/") == true && !IsText && !IsMarkdown;
+        (DisplayNode?.MimeType?.StartsWith("text/") == true && !IsText && !IsMarkdown) ||
+        DisplayNode?.MimeType is "application/json" or "application/xml";
 
     /// <summary>True when the file is an editable office document (handled by Collabora).</summary>
     protected bool IsDocument =>
@@ -363,12 +367,14 @@ public partial class FilePreview : ComponentBase, IAsyncDisposable
 
     /// <summary>
     /// Constructs the API URL for streaming the current file's content inline.
+    /// Includes a version query parameter for cache-busting when the file is updated.
     /// </summary>
     protected string GetContentUrl()
     {
         if (DisplayNode is null) return "#";
         var base_ = string.IsNullOrEmpty(ApiBaseUrl) ? string.Empty : ApiBaseUrl.TrimEnd('/');
-        return $"{base_}/api/v1/files/{DisplayNode.Id}/content";
+        var version = DisplayNode.CurrentVersion > 0 ? DisplayNode.CurrentVersion : 1;
+        return $"{base_}/api/v1/files/{DisplayNode.Id}/content?v={version}";
     }
 
     // ── Formatting ──────────────────────────────────────────────────────────────

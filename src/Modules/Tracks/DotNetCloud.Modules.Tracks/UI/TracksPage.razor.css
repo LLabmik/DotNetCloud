@@ -21,11 +21,61 @@
     background: var(--color-surface);
     border-right: 1px solid var(--color-border);
     overflow-y: auto;
+    transition: width 200ms ease;
+}
+
+.tracks-sidebar.collapsed {
+    width: 52px;
+    overflow: hidden;
 }
 
 .tracks-sidebar-header {
-    padding: 16px 16px 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 12px 8px;
     border-bottom: 1px solid var(--color-border);
+    min-height: 48px;
+}
+
+.tracks-sidebar.collapsed .tracks-sidebar-header {
+    justify-content: center;
+    padding: 16px 6px 8px;
+}
+
+.tracks-sidebar-toggle {
+    background: none;
+    border: none;
+    color: var(--color-muted);
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: var(--radius);
+    font-size: 11px;
+    line-height: 1;
+    flex-shrink: 0;
+    transition: background var(--transition), color var(--transition);
+}
+
+.tracks-sidebar-toggle:hover {
+    background: var(--color-bg);
+    color: var(--color-text);
+}
+
+/* Hide nav text in collapsed state */
+.tracks-sidebar.collapsed .tracks-nav-text,
+.tracks-sidebar.collapsed .tracks-sidebar-section-header {
+    display: none;
+}
+
+/* Center icons when collapsed */
+.tracks-sidebar.collapsed .tracks-nav-item {
+    justify-content: center;
+    padding: 8px;
+}
+
+.tracks-sidebar.collapsed .tracks-nav-icon,
+.tracks-sidebar.collapsed .tracks-board-dot {
+    margin: 0;
 }
 
 ::deep .tracks-sidebar-header h3 {
@@ -299,6 +349,77 @@
     font-weight: 600;
 }
 
+/* ─────────── Board Mode Badge ─────────── */
+
+::deep .tracks-board-mode-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 100px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+::deep .tracks-board-mode-badge.personal {
+    background: color-mix(in srgb, #10b981 12%, transparent);
+    color: #059669;
+}
+
+::deep .tracks-board-mode-badge.team {
+    background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+    color: var(--color-primary);
+}
+
+/* ─────────── Mode Selector (Create Dialog) ─────────── */
+
+::deep .tracks-mode-selector {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+::deep .tracks-mode-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 16px 12px;
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-surface);
+    cursor: pointer;
+    transition: all var(--transition);
+    text-align: center;
+}
+
+::deep .tracks-mode-btn:hover {
+    border-color: color-mix(in srgb, var(--color-primary) 40%, var(--color-border));
+    background: color-mix(in srgb, var(--color-primary) 4%, var(--color-surface));
+}
+
+::deep .tracks-mode-btn.active {
+    border-color: var(--color-primary);
+    background: color-mix(in srgb, var(--color-primary) 8%, var(--color-surface));
+    box-shadow: 0 0 0 1px var(--color-primary);
+}
+
+::deep .tracks-mode-icon {
+    font-size: 24px;
+}
+
+::deep .tracks-mode-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+::deep .tracks-mode-desc {
+    font-size: 11px;
+    color: var(--color-text-secondary);
+    line-height: 1.3;
+}
+
 /* ─────────── Empty State ─────────── */
 
 ::deep .tracks-empty-state {
@@ -485,14 +606,16 @@
     background: var(--color-surface);
     border: 1px solid var(--color-border);
     border-radius: var(--radius);
-    padding: 10px 12px;
+    padding: 0;
     cursor: pointer;
     transition: box-shadow var(--transition), transform var(--transition);
     user-select: none;
+    overflow: hidden;
 }
 
 ::deep .tracks-kanban-card:hover {
-    box-shadow: 0 2px 8px rgba(0,0,0,.08);
+    box-shadow: 0 3px 12px rgba(0,0,0,.12);
+    border-color: color-mix(in srgb, var(--color-primary) 40%, var(--color-border));
 }
 
 ::deep .tracks-kanban-card.dragging {
@@ -500,101 +623,218 @@
     transform: rotate(2deg);
 }
 
-::deep .tracks-kanban-card-labels {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    margin-bottom: 6px;
-}
-
-::deep .tracks-label-chip {
-    height: 6px;
-    width: 32px;
-    border-radius: 3px;
-}
-
-::deep .tracks-kanban-card-title {
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--color-text);
-    margin: 0 0 6px;
-    line-height: 1.35;
-    word-break: break-word;
-}
-
-::deep .tracks-kanban-card-footer {
+/* ── Card Header (board-colored strip) ── */
+::deep .tracks-card-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 8px;
-    margin-top: 6px;
-}
-
-::deep .tracks-kanban-card-icons {
-    display: flex;
-    align-items: center;
-    gap: 6px;
+    padding: 5px 10px;
     font-size: 11px;
-    color: var(--color-muted);
+    font-weight: 700;
+    letter-spacing: 0.02em;
 }
 
-::deep .tracks-kanban-card-icons span {
+::deep .tracks-card-header .tracks-card-number {
+    opacity: 0.85;
+    font-weight: 700;
+    color: inherit;
+    margin-right: 0;
+}
+
+::deep .tracks-card-header .tracks-card-priority-badge {
+    font-size: 12px;
+    line-height: 1;
+}
+
+::deep .tracks-card-header-actions {
     display: flex;
     align-items: center;
-    gap: 2px;
+    gap: 4px;
 }
 
-::deep .tracks-priority-icon {
-    font-size: 12px;
+/* ── Open in New Tab Button (card header) ── */
+::deep .tracks-open-newtab-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 3px;
+    font-size: 11px;
+    line-height: 1;
+    color: inherit;
+    opacity: 0.45;
+    text-decoration: none;
+    transition: opacity 150ms, background 150ms;
+    cursor: pointer;
 }
 
-::deep .tracks-due-badge {
+::deep .tracks-open-newtab-btn:hover {
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.25);
+}
+
+/* ── Card Body ── */
+::deep .tracks-card-body {
+    padding: 8px 10px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+/* ── Card Title ── */
+::deep .tracks-card-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text);
+    line-height: 1.4;
+    word-break: break-word;
+}
+
+/* ── Labels (colored pills with text) ── */
+::deep .tracks-card-labels {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+::deep .tracks-card-label-pill {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 100px;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1.6;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ── Metadata Badges ── */
+::deep .tracks-card-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 5px;
+    margin-top: 2px;
+}
+
+::deep .tracks-card-badge {
     display: inline-flex;
     align-items: center;
     gap: 3px;
-    font-size: 11px;
     padding: 1px 6px;
     border-radius: 100px;
+    font-size: 11px;
     font-weight: 500;
+    color: var(--color-muted);
+    background: color-mix(in srgb, var(--color-muted) 8%, transparent);
+    line-height: 1.5;
 }
 
-::deep .tracks-due-badge.overdue {
+::deep .tracks-card-badge.overdue {
     background: color-mix(in srgb, var(--color-danger) 12%, transparent);
     color: var(--color-danger);
+    font-weight: 600;
 }
 
-::deep .tracks-due-badge.due-soon {
-    background: color-mix(in srgb, var(--color-warning) 15%, transparent);
+::deep .tracks-card-badge.due-soon {
+    background: color-mix(in srgb, var(--color-warning) 14%, transparent);
     color: var(--color-warning);
 }
 
-::deep .tracks-due-badge.on-track {
-    color: var(--color-muted);
+::deep .tracks-card-badge.complete {
+    background: color-mix(in srgb, var(--color-success, #22c55e) 12%, transparent);
+    color: var(--color-success, #22c55e);
+}
+
+/* ── Card Footer (assignees) ── */
+::deep .tracks-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    margin-top: 2px;
 }
 
 ::deep .tracks-card-assignees {
     display: flex;
     align-items: center;
-    gap: -4px;
 }
 
-::deep .tracks-avatar-xs {
+::deep .tracks-card-avatar {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     width: 22px;
     height: 22px;
     border-radius: 50%;
-    background: color-mix(in srgb, var(--color-primary) 15%, transparent);
+    background: color-mix(in srgb, var(--color-primary) 18%, transparent);
     color: var(--color-primary);
     font-size: 9px;
     font-weight: 700;
     border: 2px solid var(--color-surface);
-    margin-left: -4px;
+    margin-left: -5px;
 }
 
-::deep .tracks-avatar-xs:first-child {
+::deep .tracks-card-avatar:first-child {
     margin-left: 0;
+}
+
+::deep .tracks-card-avatar-more {
+    background: var(--color-border);
+    color: var(--color-muted);
+    font-size: 9px;
+}
+
+::deep .tracks-card-avatar-img {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid var(--color-surface);
+    margin-left: -5px;
+}
+
+::deep .tracks-card-avatar-img:first-child {
+    margin-left: 0;
+}
+
+::deep .tracks-card-assignee-name {
+    font-size: 11px;
+    color: var(--color-muted);
+    margin-left: 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 120px;
+}
+
+/* ── Priority left-border accent ── */
+::deep .tracks-kanban-card.priority-urgent {
+    border-left: 3px solid #ef4444;
+}
+
+::deep .tracks-kanban-card.priority-high {
+    border-left: 3px solid #f97316;
+}
+
+::deep .tracks-kanban-card.priority-medium {
+    border-left: 3px solid #eab308;
+}
+
+::deep .tracks-kanban-card.priority-low {
+    border-left: 3px solid #22c55e;
+}
+
+::deep .tracks-kanban-card.archived {
+    opacity: 0.6;
+}
+
+::deep .tracks-kanban-card.drop-target {
+    border-top: 2px solid var(--color-primary);
+    margin-top: -1px;
 }
 
 ::deep .tracks-checklist-progress {
@@ -632,7 +872,7 @@
 }
 
 ::deep .tracks-add-card-btn,
-::deep .tracks-add-list-btn {
+::deep .tracks-add-swimlane-btn {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -649,13 +889,13 @@
 }
 
 ::deep .tracks-add-card-btn:hover,
-::deep .tracks-add-list-btn:hover {
+::deep .tracks-add-swimlane-btn:hover {
     background: var(--color-bg);
     color: var(--color-text);
 }
 
-/* Add list column */
-::deep .tracks-add-list-column {
+/* Add swimlane column */
+::deep .tracks-add-swimlane-column {
     flex-shrink: 0;
     width: 300px;
     display: flex;
@@ -725,6 +965,56 @@
     border-bottom: 1px solid var(--color-border);
     flex-shrink: 0;
     gap: 12px;
+}
+
+::deep .tracks-panel-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+::deep .tracks-open-newtab-btn.panel {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius, 6px);
+    font-size: 16px;
+    line-height: 1;
+    color: var(--color-text-secondary, #64748b);
+    opacity: 0.7;
+    text-decoration: none;
+    transition: opacity 150ms, background 150ms, color 150ms;
+    cursor: pointer;
+}
+
+::deep .tracks-open-newtab-btn.panel:hover {
+    opacity: 1;
+    background: var(--color-hover, rgba(0, 0, 0, 0.06));
+    color: var(--color-primary, #3b82f6);
+}
+
+::deep .tracks-close-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border: none;
+    background: transparent;
+    color: var(--color-text-secondary, #64748b);
+    border-radius: var(--radius, 6px);
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    transition: background 150ms, color 150ms;
+}
+
+::deep .tracks-close-btn:hover {
+    background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+    color: var(--color-danger);
 }
 
 ::deep .tracks-card-panel-header h2 {
@@ -1007,7 +1297,9 @@
 ::deep .tracks-comment-list {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 16px;
+    max-height: 350px;
+    overflow-y: auto;
 }
 
 ::deep .tracks-comment {
@@ -1042,15 +1334,59 @@
 ::deep .tracks-comment-body {
     font-size: 13px;
     color: var(--color-text);
-    line-height: 1.5;
-    white-space: pre-wrap;
+    line-height: 1.4;
     word-break: break-word;
+}
+
+::deep .tracks-comment-body p {
+    margin: 0 0 0.35em;
+}
+
+::deep .tracks-comment-body p:last-child {
+    margin-bottom: 0;
+}
+
+::deep .tracks-comment-body ul,
+::deep .tracks-comment-body ol {
+    margin: 0.25em 0;
+    padding-left: 1.5em;
+}
+
+::deep .tracks-comment-body li {
+    margin-bottom: 0.15em;
+}
+
+::deep .tracks-comment-body blockquote {
+    margin: 0.35em 0;
+    padding: 0.2em 0.75em;
+    border-left: 3px solid var(--color-border);
+    color: var(--color-muted);
+}
+
+::deep .tracks-comment-body code {
+    font-size: 12px;
+    padding: 0.15em 0.35em;
+    background: var(--color-bg);
+    border-radius: 3px;
+}
+
+::deep .tracks-comment-body pre {
+    margin: 0.35em 0;
+    padding: 0.5em;
+    background: var(--color-bg);
+    border-radius: var(--radius);
+    overflow-x: auto;
+}
+
+::deep .tracks-comment-body pre code {
+    padding: 0;
+    background: none;
 }
 
 ::deep .tracks-comment-add {
     display: flex;
+    flex-direction: column;
     gap: 8px;
-    align-items: flex-start;
     margin-top: 8px;
 }
 
@@ -1103,6 +1439,7 @@
 }
 
 ::deep .tracks-time-total {
+    display: block;
     font-size: 14px;
     font-weight: 700;
     color: var(--color-text);
@@ -1171,6 +1508,468 @@
     padding: 16px 20px;
     border-top: 1px solid var(--color-border);
     flex-shrink: 0;
+}
+
+/* Card panel sidebar sections */
+::deep .tracks-card-sidebar-section {
+    margin-bottom: 16px;
+}
+
+::deep .tracks-card-sidebar-section > label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--color-muted);
+    margin-bottom: 6px;
+}
+
+::deep .tracks-assignee-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 0;
+    font-size: 13px;
+    color: var(--color-text);
+}
+
+::deep .tracks-avatar-sm {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--color-primary);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+::deep .tracks-avatar-sm-img {
+    object-fit: cover;
+    background: none;
+}
+
+::deep .tracks-assign-input {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 4px;
+}
+
+::deep .tracks-label-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: 100px;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+::deep .tracks-label-remove {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    border: none;
+    background: rgba(255,255,255,0.3);
+    color: #fff;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 10px;
+    padding: 0;
+}
+
+::deep .tracks-label-remove:hover {
+    background: rgba(255,255,255,0.5);
+}
+
+::deep .tracks-label-picker {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 4px;
+}
+
+::deep .tracks-label-option {
+    display: block;
+    width: 100%;
+    padding: 5px 10px;
+    border: none;
+    border-radius: var(--radius);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: left;
+    transition: opacity var(--transition);
+}
+
+::deep .tracks-label-option:hover {
+    opacity: 0.85;
+}
+
+::deep .tracks-link-btn {
+    background: none;
+    border: none;
+    color: var(--color-muted);
+    font-size: 12px;
+    cursor: pointer;
+    padding: 4px 0;
+    text-align: left;
+}
+
+::deep .tracks-link-btn:hover {
+    color: var(--color-text);
+}
+
+::deep .tracks-muted {
+    font-size: 12px;
+    color: var(--color-muted);
+}
+
+::deep .tracks-attachment-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--color-text);
+    padding: 3px 0;
+}
+
+::deep .tracks-attachment-add {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 4px;
+}
+
+::deep .tracks-dependency-row {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 12px;
+    color: var(--color-text);
+    padding: 4px 0;
+    border-bottom: 1px solid var(--color-border);
+}
+
+::deep .tracks-dependency-row:last-of-type {
+    border-bottom: none;
+}
+
+::deep .tracks-dep-type {
+    font-weight: 600;
+    font-size: 11px;
+    white-space: nowrap;
+    opacity: 0.7;
+}
+
+::deep .tracks-dep-target {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding-left: 4px;
+}
+
+::deep .tracks-dep-target > span {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+::deep .tracks-dependency-add {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+::deep .tracks-dep-actions {
+    display: flex;
+    gap: 6px;
+}
+
+::deep .tracks-confirm-action {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px;
+    margin-top: 4px;
+    background: var(--color-bg);
+    border-radius: var(--radius);
+    border: 1px solid var(--color-border);
+}
+
+::deep .tracks-confirm-msg {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+::deep .tracks-confirm-buttons {
+    display: flex;
+    gap: 6px;
+}
+
+::deep .tracks-card-description {
+    cursor: pointer;
+    padding: 8px 10px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    font-size: 13px;
+    color: var(--color-text);
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+    min-height: 40px;
+}
+
+::deep .tracks-card-description:hover {
+    background: var(--color-bg);
+}
+
+::deep .tracks-card-description.empty {
+    color: var(--color-muted);
+    font-style: italic;
+}
+
+::deep .tracks-card-section-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+::deep .tracks-desc-editor {
+    background: var(--color-surface);
+    color: var(--color-text);
+    border-color: var(--color-border);
+}
+
+::deep .tracks-card-number {
+    color: var(--color-muted);
+    font-weight: 400;
+    margin-right: 6px;
+}
+
+::deep .tracks-card-swimlane-name {
+    font-size: 13px;
+    color: var(--color-muted);
+}
+
+::deep .tracks-comment-actions {
+    margin-top: 4px;
+}
+
+::deep .tracks-progress-bar {
+    width: 100%;
+    height: 4px;
+    background: var(--color-border);
+    border-radius: 2px;
+    margin-bottom: 8px;
+    overflow: hidden;
+}
+
+::deep .tracks-progress-fill {
+    height: 100%;
+    background: var(--color-success);
+    border-radius: 2px;
+    transition: width 300ms ease;
+}
+
+::deep .tracks-checklist-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+}
+
+::deep .tracks-activity-date {
+    font-size: 11px;
+    color: var(--color-muted);
+    margin-left: auto;
+}
+
+/* ─────────── Confirmation Modal ─────────── */
+
+::deep .tracks-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    animation: tracks-modal-fade-in 150ms ease;
+}
+
+@keyframes tracks-modal-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+::deep .tracks-modal {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    width: 420px;
+    max-width: 90vw;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+    animation: tracks-modal-slide-in 150ms ease;
+}
+
+@keyframes tracks-modal-slide-in {
+    from {
+        opacity: 0;
+        transform: translateY(-12px) scale(0.97);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+::deep .tracks-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px 12px;
+    border-bottom: 1px solid var(--color-border);
+}
+
+::deep .tracks-modal-header h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+::deep .tracks-modal-body {
+    padding: 16px 20px;
+}
+
+::deep .tracks-modal-body p {
+    margin: 0 0 8px;
+    font-size: 14px;
+    color: var(--color-text);
+    line-height: 1.5;
+}
+
+::deep .tracks-modal-body p:last-child {
+    margin-bottom: 0;
+}
+
+::deep .tracks-modal-warning {
+    color: var(--color-danger) !important;
+    font-size: 13px !important;
+    font-weight: 600;
+}
+
+::deep .tracks-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 12px 20px 16px;
+    border-top: 1px solid var(--color-border);
+}
+
+/* ─────────── Create Label ─────────── */
+
+::deep .tracks-create-label {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 6px;
+    padding: 8px;
+    background: var(--color-bg);
+    border-radius: var(--radius);
+    border: 1px solid var(--color-border);
+}
+
+::deep .tracks-color-presets {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
+::deep .tracks-color-swatch {
+    width: 22px;
+    height: 22px;
+    border-radius: 4px;
+    border: 2px solid transparent;
+    cursor: pointer;
+    padding: 0;
+    transition: border-color 150ms ease, transform 150ms ease;
+}
+
+::deep .tracks-color-swatch:hover {
+    transform: scale(1.15);
+}
+
+::deep .tracks-color-swatch.active {
+    border-color: #fff;
+    box-shadow: 0 0 0 2px var(--color-primary);
+}
+
+::deep .tracks-create-label-actions {
+    display: flex;
+    gap: 6px;
+}
+
+/* ─────────── File Upload ─────────── */
+
+::deep .tracks-file-upload {
+    position: relative;
+}
+
+::deep .tracks-file-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    overflow: hidden;
+}
+
+::deep .tracks-file-label {
+    display: block;
+    text-align: center;
+    cursor: pointer;
+    width: 100%;
+}
+
+::deep .tracks-attachment-divider {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 2px 0;
+}
+
+::deep .tracks-attachment-divider::before,
+::deep .tracks-attachment-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--color-border);
+}
+
+::deep .tracks-attachment-divider span {
+    font-size: 11px;
+    color: var(--color-muted);
+    white-space: nowrap;
+}
+
+::deep .tracks-attachment-actions {
+    display: flex;
+    gap: 6px;
 }
 
 /* ─────────── Sprint Panel ─────────── */
@@ -1358,6 +2157,26 @@
 /* Settings sections */
 ::deep .tracks-settings-section {
     margin-bottom: 24px;
+}
+
+::deep .tracks-checkbox-group {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+::deep .tracks-checkbox-group label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+::deep .tracks-setting-hint {
+    font-size: 11px;
+    color: var(--color-muted);
+    margin-left: 24px;
 }
 
 ::deep .tracks-settings-section h4 {
@@ -1833,6 +2652,477 @@
     background: rgba(255,255,255,0.15);
 }
 
+/* ─────────── Sprint Planning View ─────────── */
+
+::deep .tracks-sprint-planning {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 16px 20px;
+    height: 100%;
+    overflow-y: auto;
+}
+
+::deep .tracks-sprint-planning-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+::deep .tracks-sprint-planning-header h2 {
+    margin: 0;
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+::deep .tracks-sprint-planning-summary {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--color-text-secondary);
+    font-size: 0.85rem;
+}
+
+/* ── Capacity Bar ── */
+
+::deep .tracks-sprint-capacity {
+    background: var(--color-surface-elevated, var(--color-surface));
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: 10px 14px;
+}
+
+::deep .tracks-capacity-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.85rem;
+    color: var(--color-text-secondary);
+    margin-bottom: 6px;
+}
+
+::deep .tracks-capacity-header .overcommitted {
+    color: var(--color-danger, #dc3545);
+    font-weight: 600;
+}
+
+::deep .tracks-target-input {
+    width: 70px;
+    display: inline-block;
+}
+
+::deep .tracks-capacity-bar {
+    height: 8px;
+    background: var(--color-border);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+::deep .tracks-capacity-fill {
+    height: 100%;
+    background: var(--color-primary);
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+
+::deep .tracks-capacity-fill.over {
+    background: var(--color-danger, #dc3545);
+}
+
+/* ── Two-Panel Layout ── */
+
+::deep .tracks-planning-panels {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    flex: 1;
+    min-height: 0;
+}
+
+::deep .tracks-planning-panel {
+    display: flex;
+    flex-direction: column;
+    background: var(--color-surface-elevated, var(--color-surface));
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+
+::deep .tracks-planning-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--color-border);
+}
+
+::deep .tracks-planning-panel-header h3 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+::deep .tracks-planning-panel > input {
+    margin: 8px 14px;
+    flex-shrink: 0;
+}
+
+::deep .tracks-planning-card-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 6px 10px;
+    min-height: 120px;
+}
+
+::deep .tracks-planning-priority-group {
+    margin-bottom: 8px;
+}
+
+::deep .tracks-planning-group-header {
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--color-text-secondary);
+    padding: 6px 4px 4px;
+    border-bottom: 1px solid var(--color-border-light, var(--color-border));
+    margin-bottom: 4px;
+}
+
+::deep .tracks-planning-group-header.needs-estimate {
+    color: var(--color-warning, #f0ad4e);
+}
+
+::deep .tracks-planning-card {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: calc(var(--radius) - 2px);
+    cursor: pointer;
+    transition: background 0.15s ease;
+    font-size: 0.85rem;
+}
+
+::deep .tracks-planning-card:hover {
+    background: var(--color-hover);
+}
+
+::deep .tracks-planning-card.completed {
+    opacity: 0.6;
+}
+
+::deep .tracks-planning-card.needs-estimate {
+    border-left: 3px solid var(--color-warning, #f0ad4e);
+}
+
+::deep .tracks-planning-card-title {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--color-text);
+}
+
+::deep .tracks-sprint-card-sp {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 10px;
+    background: var(--color-primary-light, rgba(79, 138, 247, 0.12));
+    color: var(--color-primary);
+    white-space: nowrap;
+}
+
+::deep .tracks-sprint-card-sp.no-estimate {
+    background: rgba(240, 173, 78, 0.12);
+    color: var(--color-warning, #f0ad4e);
+}
+
+::deep .tracks-sprint-card-status {
+    font-size: 0.8rem;
+    flex-shrink: 0;
+}
+
+::deep .tracks-add-btn,
+::deep .tracks-remove-btn {
+    background: none;
+    border: 1px solid var(--color-border);
+    border-radius: calc(var(--radius) - 2px);
+    padding: 2px 8px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    color: var(--color-text-secondary);
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+}
+
+::deep .tracks-add-btn:hover {
+    background: var(--color-primary);
+    color: #fff;
+    border-color: var(--color-primary);
+}
+
+::deep .tracks-remove-btn:hover {
+    background: var(--color-danger, #dc3545);
+    color: #fff;
+    border-color: var(--color-danger, #dc3545);
+}
+
+::deep .tracks-link-btn {
+    background: none;
+    border: none;
+    color: var(--color-primary);
+    cursor: pointer;
+    font-size: 0.8rem;
+    padding: 0 4px;
+}
+
+::deep .tracks-link-btn:hover {
+    text-decoration: underline;
+}
+
+/* ── Member Workload ── */
+
+::deep .tracks-member-workload {
+    border-top: 1px solid var(--color-border);
+    margin-top: 12px;
+    padding-top: 8px;
+}
+
+::deep .tracks-workload-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 4px 8px;
+    font-size: 0.82rem;
+}
+
+::deep .tracks-workload-name {
+    width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--color-text);
+}
+
+::deep .tracks-workload-bar-container {
+    flex: 1;
+    height: 6px;
+    background: var(--color-border);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+::deep .tracks-workload-bar {
+    height: 100%;
+    background: var(--color-primary);
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+
+::deep .tracks-workload-sp {
+    font-size: 0.75rem;
+    color: var(--color-text-secondary);
+    white-space: nowrap;
+}
+
+/* ── Charts Section ── */
+
+::deep .tracks-planning-charts {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+::deep .tracks-burndown-chart,
+::deep .tracks-velocity-chart {
+    background: var(--color-surface-elevated, var(--color-surface));
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: 14px;
+}
+
+::deep .tracks-chart-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+::deep .tracks-chart-header h4 {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+::deep .tracks-burndown-svg,
+::deep .tracks-velocity-svg {
+    width: 100%;
+    height: auto;
+}
+
+/* ── Sprint Badge on Kanban Cards ── */
+
+::deep .tracks-card-sprint-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 0.7rem;
+    padding: 1px 6px;
+    border-radius: 8px;
+    background: rgba(79, 138, 247, 0.1);
+    color: var(--color-primary);
+    white-space: nowrap;
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ── Sprint Backlog (in SprintPanel) ── */
+
+::deep .tracks-sprint-backlog {
+    border-top: 1px solid var(--color-border);
+    padding-top: 8px;
+    margin-top: 8px;
+}
+
+::deep .tracks-sprint-card-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 6px;
+    border-radius: calc(var(--radius) - 2px);
+    font-size: 0.82rem;
+}
+
+::deep .tracks-sprint-card-item:hover {
+    background: var(--color-hover, rgba(0,0,0,0.04));
+}
+
+::deep .tracks-sprint-card-summary {
+    font-size: 0.78rem;
+    color: var(--color-text-secondary);
+    padding: 6px 4px;
+    border-top: 1px solid var(--color-border-light, var(--color-border));
+    margin-top: 6px;
+}
+
+::deep .tracks-sprint-remove-btn {
+    background: none;
+    border: none;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    padding: 2px 4px;
+    font-size: 0.75rem;
+    opacity: 0.5;
+    transition: opacity 0.15s;
+}
+
+::deep .tracks-sprint-remove-btn:hover {
+    opacity: 1;
+    color: var(--color-danger, #dc3545);
+}
+
+/* ── Card Picker Dialog ── */
+
+::deep .tracks-card-picker {
+    max-height: 350px;
+    overflow-y: auto;
+    padding: 8px;
+}
+
+::deep .tracks-card-picker-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: calc(var(--radius) - 2px);
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+::deep .tracks-card-picker-item:hover {
+    background: var(--color-hover);
+}
+
+::deep .tracks-card-picker-item input[type="checkbox"] {
+    accent-color: var(--color-primary);
+}
+
+/* ── Sprint Completion Dialog ── */
+
+::deep .tracks-sprint-completion {
+    width: 560px;
+}
+
+::deep .tracks-completion-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+::deep .tracks-completion-stat {
+    background: var(--color-surface-elevated, var(--color-surface));
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: 10px 14px;
+    text-align: center;
+}
+
+::deep .tracks-completion-label {
+    display: block;
+    font-size: 0.78rem;
+    color: var(--color-text-secondary);
+    margin-bottom: 4px;
+}
+
+::deep .tracks-completion-value {
+    display: block;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+::deep .tracks-completion-incomplete {
+    margin-top: 16px;
+}
+
+::deep .tracks-completion-incomplete h4 {
+    margin: 0 0 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+::deep .tracks-completion-move-options {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--color-border);
+}
+
+::deep .tracks-completion-move-options h4 {
+    margin: 0 0 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+::deep .tracks-radio {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+::deep .tracks-radio input[type="radio"] {
+    accent-color: var(--color-primary);
+}
+
 /* ─────────── Responsive ─────────── */
 
 @media (max-width: 900px) {
@@ -1861,6 +3151,14 @@
 
     ::deep .tracks-sprint-panel {
         width: 260px;
+    }
+
+    ::deep .tracks-planning-panels {
+        grid-template-columns: 1fr;
+    }
+
+    ::deep .tracks-planning-charts {
+        grid-template-columns: 1fr;
     }
 }
 
@@ -1898,4 +3196,1789 @@
         max-height: 100%;
         border-radius: 0;
     }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Sprint Planning Wizard
+   ═══════════════════════════════════════════════════════════ */
+
+::deep .tracks-wizard {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 24px 32px;
+    overflow-y: auto;
+}
+
+/* ── Progress Steps ── */
+
+::deep .tracks-wizard-progress {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin-bottom: 32px;
+    padding: 0 12px;
+}
+
+::deep .tracks-wizard-step {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 8px 12px;
+    border-radius: var(--radius);
+    transition: all var(--transition);
+    white-space: nowrap;
+    color: var(--color-muted);
+}
+
+::deep .tracks-wizard-step:hover:not(:disabled) {
+    background: var(--color-bg);
+}
+
+::deep .tracks-wizard-step:disabled {
+    cursor: default;
+    opacity: 0.6;
+}
+
+::deep .tracks-wizard-step.active {
+    color: var(--color-primary);
+}
+
+::deep .tracks-wizard-step.completed {
+    color: var(--color-success, #10b981);
+}
+
+::deep .tracks-wizard-step-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    font-size: 13px;
+    font-weight: 700;
+    border: 2px solid var(--color-border);
+    flex-shrink: 0;
+    transition: all var(--transition);
+}
+
+::deep .tracks-wizard-step.active .tracks-wizard-step-number {
+    border-color: var(--color-primary);
+    background: var(--color-primary);
+    color: #fff;
+}
+
+::deep .tracks-wizard-step.completed .tracks-wizard-step-number {
+    border-color: var(--color-success, #10b981);
+    background: var(--color-success, #10b981);
+    color: #fff;
+}
+
+::deep .tracks-wizard-step-label {
+    font-size: 13px;
+    font-weight: 600;
+}
+
+::deep .tracks-wizard-step-connector {
+    flex: 1;
+    height: 2px;
+    min-width: 16px;
+    background: var(--color-border);
+    transition: background var(--transition);
+}
+
+::deep .tracks-wizard-step-connector.completed {
+    background: var(--color-success, #10b981);
+}
+
+/* ── Content Area ── */
+
+::deep .tracks-wizard-content {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+::deep .tracks-wizard-step-content {
+    max-width: 720px;
+}
+
+::deep .tracks-wizard-step-content h3 {
+    margin: 0 0 4px;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+::deep .tracks-wizard-step-desc {
+    margin: 0 0 20px;
+    font-size: 13px;
+    color: var(--color-text-secondary);
+    line-height: 1.5;
+}
+
+/* ── Form Elements ── */
+
+::deep .tracks-wizard-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+::deep .tracks-wizard-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+::deep .tracks-form-hint {
+    display: block;
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--color-muted);
+}
+
+/* ── Summary Box ── */
+
+::deep .tracks-wizard-summary-box {
+    display: flex;
+    gap: 24px;
+    padding: 12px 16px;
+    background: color-mix(in srgb, var(--color-primary) 6%, var(--color-surface));
+    border: 1px solid color-mix(in srgb, var(--color-primary) 18%, var(--color-border));
+    border-radius: var(--radius);
+}
+
+::deep .tracks-wizard-summary-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+::deep .tracks-wizard-summary-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--color-text-secondary);
+}
+
+::deep .tracks-wizard-summary-value {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+/* ── Swimlane Definition ── */
+
+::deep .tracks-wizard-swimlanes {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+::deep .tracks-wizard-swimlane-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    background: var(--color-surface-elevated, var(--color-surface));
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+}
+
+::deep .tracks-wizard-swimlane-grip {
+    color: var(--color-muted);
+    cursor: grab;
+    user-select: none;
+    font-size: 14px;
+    flex-shrink: 0;
+}
+
+::deep .tracks-wizard-swimlane-row .form-control {
+    flex: 1;
+}
+
+::deep .tracks-wizard-swimlane-done {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+::deep .tracks-wizard-swimlane-done input[type="checkbox"] {
+    margin: 0;
+    cursor: pointer;
+}
+
+::deep .tracks-wizard-add-btn {
+    align-self: flex-start;
+    margin-top: 4px;
+}
+
+/* ── Sprint Schedule Table ── */
+
+::deep .tracks-wizard-schedule {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    max-height: 420px;
+    overflow-y: auto;
+}
+
+::deep .tracks-wizard-schedule-header {
+    display: grid;
+    grid-template-columns: 40px 1fr 120px 120px 100px;
+    gap: 8px;
+    padding: 10px 14px;
+    background: var(--color-bg);
+    border-bottom: 1px solid var(--color-border);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--color-text-secondary);
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+::deep .tracks-wizard-schedule-row {
+    display: grid;
+    grid-template-columns: 40px 1fr 120px 120px 100px;
+    gap: 8px;
+    padding: 8px 14px;
+    align-items: center;
+    border-bottom: 1px solid var(--color-border-light, var(--color-border));
+    font-size: 13px;
+    color: var(--color-text);
+    transition: background var(--transition);
+}
+
+::deep .tracks-wizard-schedule-row:last-child {
+    border-bottom: none;
+}
+
+::deep .tracks-wizard-schedule-row:hover {
+    background: var(--color-bg);
+}
+
+::deep .tracks-wizard-col-order {
+    color: var(--color-muted);
+    font-size: 12px;
+    font-weight: 600;
+    text-align: center;
+}
+
+::deep .tracks-wizard-col-name {
+    font-weight: 600;
+}
+
+::deep .tracks-wizard-col-start,
+::deep .tracks-wizard-col-end {
+    color: var(--color-text-secondary);
+    font-size: 12px;
+}
+
+::deep .tracks-wizard-duration-select {
+    width: 80px;
+    padding: 4px 6px;
+    font-size: 12px;
+}
+
+/* ── Review & Create ── */
+
+::deep .tracks-wizard-review {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+::deep .tracks-wizard-review-section {
+    background: var(--color-surface-elevated, var(--color-surface));
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+}
+
+::deep .tracks-wizard-review-section h4 {
+    margin: 0 0 12px;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+::deep .tracks-wizard-review-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 24px;
+}
+
+::deep .tracks-wizard-review-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+::deep .tracks-wizard-review-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--color-text-secondary);
+}
+
+::deep .tracks-wizard-review-item > span:last-child {
+    font-size: 14px;
+    color: var(--color-text);
+}
+
+::deep .tracks-wizard-review-swimlanes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+::deep .tracks-wizard-review-swimlane {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    font-size: 13px;
+    color: var(--color-text);
+}
+
+/* ── Mini Timeline ── */
+
+::deep .tracks-wizard-mini-timeline {
+    display: flex;
+    gap: 2px;
+    border-radius: var(--radius);
+    overflow: hidden;
+    height: 36px;
+}
+
+::deep .tracks-wizard-mini-block {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-primary);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    min-width: 24px;
+    cursor: default;
+    transition: opacity var(--transition);
+}
+
+::deep .tracks-wizard-mini-block:nth-child(even) {
+    background: color-mix(in srgb, var(--color-primary) 80%, #000);
+}
+
+::deep .tracks-wizard-mini-block:hover {
+    opacity: 0.85;
+}
+
+/* ── Error ── */
+
+::deep .tracks-wizard-error {
+    padding: 10px 14px;
+    background: color-mix(in srgb, var(--color-danger, #dc3545) 10%, var(--color-surface));
+    border: 1px solid color-mix(in srgb, var(--color-danger, #dc3545) 30%, var(--color-border));
+    border-radius: var(--radius);
+    color: var(--color-danger, #dc3545);
+    font-size: 13px;
+    margin-top: 12px;
+}
+
+/* ── Footer ── */
+
+::deep .tracks-wizard-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 16px;
+    margin-top: 16px;
+    border-top: 1px solid var(--color-border);
+}
+
+::deep .tracks-wizard-footer-right {
+    display: flex;
+    gap: 8px;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Sprint Tabs (Phase G — Step 28)
+   ═══════════════════════════════════════════════════════════════ */
+
+::deep .tracks-sprint-tabs {
+    display: flex;
+    gap: 2px;
+    padding: 0 16px 12px;
+    border-bottom: 1px solid var(--color-border);
+    overflow-x: auto;
+    scrollbar-width: thin;
+}
+
+::deep .tracks-sprint-tab {
+    padding: 6px 14px;
+    border: 1px solid var(--color-border);
+    border-bottom: 2px solid transparent;
+    border-radius: var(--radius) var(--radius) 0 0;
+    background: transparent;
+    color: var(--color-text-muted);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+}
+
+::deep .tracks-sprint-tab:hover {
+    background: color-mix(in srgb, var(--color-primary) 8%, var(--color-surface));
+    color: var(--color-text);
+}
+
+::deep .tracks-sprint-tab.active {
+    background: color-mix(in srgb, var(--color-primary) 12%, var(--color-surface));
+    border-bottom-color: var(--color-primary);
+    color: var(--color-primary);
+    font-weight: 600;
+}
+
+::deep .tracks-sprint-tab.sprint-active {
+    border-color: color-mix(in srgb, var(--color-primary) 30%, var(--color-border));
+}
+
+::deep .tracks-sprint-tab-indicator {
+    color: var(--color-success, #28a745);
+    font-size: 8px;
+    margin-left: 4px;
+    vertical-align: middle;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Backlog View (Phase G — Step 27)
+   ═══════════════════════════════════════════════════════════════ */
+
+::deep .tracks-backlog {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+}
+
+::deep .tracks-backlog-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--color-border);
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+::deep .tracks-backlog-title-area {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+::deep .tracks-backlog-title-area h2 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+::deep .tracks-backlog-stats {
+    display: flex;
+    gap: 10px;
+}
+
+::deep .tracks-backlog-stat {
+    padding: 3px 10px;
+    background: color-mix(in srgb, var(--color-primary) 10%, var(--color-surface));
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-primary);
+}
+
+::deep .tracks-backlog-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+::deep .tracks-backlog-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+::deep .tracks-backlog-bulk {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+::deep .tracks-backlog-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+}
+
+::deep .tracks-backlog-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    color: var(--color-text-muted);
+    text-align: center;
+}
+
+::deep .tracks-backlog-empty-icon {
+    font-size: 48px;
+    margin-bottom: 12px;
+}
+
+::deep .tracks-backlog-empty h3 {
+    margin: 0 0 6px;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+::deep .tracks-backlog-empty p {
+    margin: 0;
+    font-size: 13px;
+}
+
+::deep .tracks-backlog-select-all {
+    padding: 8px 20px;
+    border-bottom: 1px solid var(--color-border);
+    background: color-mix(in srgb, var(--color-surface-alt, var(--color-surface)) 60%, var(--color-surface));
+}
+
+::deep .tracks-backlog-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--color-text-muted);
+    cursor: pointer;
+}
+
+::deep .tracks-backlog-checkbox-label input[type="checkbox"] {
+    accent-color: var(--color-primary);
+}
+
+::deep .tracks-backlog-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 4px 0;
+}
+
+::deep .tracks-backlog-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 20px;
+    border-bottom: 1px solid color-mix(in srgb, var(--color-border) 50%, transparent);
+    cursor: pointer;
+    transition: background 0.12s ease;
+}
+
+::deep .tracks-backlog-card:hover {
+    background: color-mix(in srgb, var(--color-primary) 5%, var(--color-surface));
+}
+
+::deep .tracks-backlog-card.selected {
+    background: color-mix(in srgb, var(--color-primary) 10%, var(--color-surface));
+}
+
+::deep .tracks-backlog-card.priority-urgent {
+    border-left: 3px solid var(--color-danger, #dc3545);
+}
+
+::deep .tracks-backlog-card.priority-high {
+    border-left: 3px solid #fd7e14;
+}
+
+::deep .tracks-backlog-card.priority-medium {
+    border-left: 3px solid #ffc107;
+}
+
+::deep .tracks-backlog-card.priority-low {
+    border-left: 3px solid var(--color-success, #28a745);
+}
+
+::deep .tracks-backlog-card-check {
+    flex-shrink: 0;
+}
+
+::deep .tracks-backlog-card-check input[type="checkbox"] {
+    accent-color: var(--color-primary);
+    width: 16px;
+    height: 16px;
+}
+
+::deep .tracks-backlog-card-content {
+    flex: 1;
+    min-width: 0;
+}
+
+::deep .tracks-backlog-card-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+::deep .tracks-backlog-card-number {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    flex-shrink: 0;
+}
+
+::deep .tracks-backlog-card-title {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--color-text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+::deep .tracks-backlog-card-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+::deep .tracks-backlog-card-assign {
+    flex-shrink: 0;
+}
+
+::deep .tracks-backlog-sprint-select {
+    padding: 4px 8px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-size: 12px;
+    cursor: pointer;
+}
+
+::deep .tracks-backlog-sprint-select:focus {
+    border-color: var(--color-primary);
+    outline: none;
+}
+
+/* ── Backlog Add Card ── */
+
+::deep .tracks-backlog-add-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--color-border);
+    background: color-mix(in srgb, var(--color-primary) 3%, var(--color-surface));
+}
+
+::deep .tracks-backlog-add-card-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+::deep .tracks-backlog-add-title {
+    flex: 1;
+    min-width: 200px;
+}
+
+::deep .tracks-backlog-add-card-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Timeline / Gantt View (Phase H)
+   ═══════════════════════════════════════════════════════════ */
+
+::deep .tracks-timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 24px;
+    height: 100%;
+}
+
+/* ── Header ── */
+
+::deep .tracks-timeline-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+::deep .tracks-timeline-title-area {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+::deep .tracks-timeline-title-area h2 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+::deep .tracks-timeline-stats {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+::deep .tracks-timeline-stat {
+    font-size: 13px;
+    color: var(--color-text-muted);
+    background: var(--color-surface);
+    padding: 2px 10px;
+    border-radius: var(--radius);
+    border: 1px solid var(--color-border);
+}
+
+::deep .tracks-timeline-toolbar {
+    display: flex;
+    gap: 8px;
+}
+
+/* ── Loading / Empty ── */
+
+::deep .tracks-timeline-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 200px;
+}
+
+::deep .tracks-timeline-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 300px;
+    text-align: center;
+    color: var(--color-text-muted);
+}
+
+::deep .tracks-timeline-empty-icon {
+    font-size: 48px;
+    margin-bottom: 8px;
+}
+
+::deep .tracks-timeline-empty h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+::deep .tracks-timeline-empty p {
+    margin: 0;
+    font-size: 14px;
+    max-width: 360px;
+}
+
+/* ── Chart Container ── */
+
+::deep .tracks-timeline-chart {
+    flex: 1;
+    overflow-x: auto;
+    overflow-y: auto;
+    min-width: 0;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-surface);
+}
+
+/* ── Month Headers ── */
+
+::deep .tracks-timeline-months {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--color-bg);
+    border-bottom: 2px solid var(--color-border);
+    min-height: 44px;
+}
+
+::deep .tracks-timeline-month {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 4px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    border-right: 1px solid color-mix(in srgb, var(--color-border) 50%, transparent);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+::deep .tracks-timeline-month.quarter-start {
+    border-left: 2px solid var(--color-primary);
+}
+
+::deep .tracks-timeline-month-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+::deep .tracks-timeline-quarter-label {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--color-primary);
+    background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+    padding: 1px 5px;
+    border-radius: 3px;
+}
+
+/* ── Sprint Rows ── */
+
+::deep .tracks-timeline-rows {
+    position: relative;
+    min-height: 200px;
+    padding: 8px 0;
+}
+
+/* ── Today Marker ── */
+
+::deep .tracks-timeline-today-marker {
+    position: relative;
+    z-index: 1;
+    pointer-events: none;
+}
+
+::deep .tracks-timeline-today-line {
+    position: absolute;
+    top: -8px;
+    bottom: -8px;
+    left: 50%;
+    width: 2px;
+    background: var(--color-danger, #dc3545);
+    transform: translateX(-50%);
+}
+
+::deep .tracks-timeline-today-label {
+    position: absolute;
+    top: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 9px;
+    font-weight: 700;
+    color: #fff;
+    background: var(--color-danger, #dc3545);
+    padding: 1px 4px;
+    border-radius: 2px;
+    white-space: nowrap;
+}
+
+/* ── Sprint Bars ── */
+
+::deep .tracks-timeline-sprint-row {
+    position: relative;
+    margin: 3px 0;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: transform 0.1s ease, box-shadow 0.15s ease;
+    min-height: 40px;
+    display: flex;
+    align-items: stretch;
+}
+
+::deep .tracks-timeline-sprint-row:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    z-index: 2;
+}
+
+::deep .tracks-timeline-sprint-bar {
+    position: relative;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    padding: 6px 10px;
+    border-radius: 6px;
+    overflow: hidden;
+    min-width: 0;
+}
+
+::deep .tracks-timeline-sprint-progress {
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    opacity: 0.25;
+    border-radius: 6px 0 0 6px;
+    transition: width 0.3s ease;
+}
+
+::deep .tracks-timeline-sprint-content {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    flex: 1;
+}
+
+::deep .tracks-timeline-sprint-name {
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+::deep .tracks-timeline-sprint-meta {
+    font-size: 10px;
+    opacity: 0.8;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ── Sprint Status Colors ── */
+
+::deep .tracks-timeline-sprint-row.sprint-planning .tracks-timeline-sprint-bar {
+    background: color-mix(in srgb, var(--color-text-muted) 20%, var(--color-surface));
+    border: 1px solid color-mix(in srgb, var(--color-text-muted) 35%, var(--color-border));
+    color: var(--color-text);
+}
+
+::deep .tracks-timeline-sprint-row.sprint-planning .tracks-timeline-sprint-progress {
+    background: var(--color-text-muted);
+}
+
+::deep .tracks-timeline-sprint-row.sprint-active .tracks-timeline-sprint-bar {
+    background: color-mix(in srgb, var(--color-primary) 18%, var(--color-surface));
+    border: 1px solid color-mix(in srgb, var(--color-primary) 45%, var(--color-border));
+    color: var(--color-text);
+}
+
+::deep .tracks-timeline-sprint-row.sprint-active .tracks-timeline-sprint-progress {
+    background: var(--color-primary);
+}
+
+::deep .tracks-timeline-sprint-row.sprint-completed .tracks-timeline-sprint-bar {
+    background: color-mix(in srgb, var(--color-success, #28a745) 18%, var(--color-surface));
+    border: 1px solid color-mix(in srgb, var(--color-success, #28a745) 45%, var(--color-border));
+    color: var(--color-text);
+}
+
+::deep .tracks-timeline-sprint-row.sprint-completed .tracks-timeline-sprint-progress {
+    background: var(--color-success, #28a745);
+}
+
+/* ── Drag Handles ── */
+
+::deep .tracks-timeline-drag-start,
+::deep .tracks-timeline-drag-end {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 8px;
+    cursor: col-resize;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    z-index: 3;
+}
+
+::deep .tracks-timeline-sprint-row:hover .tracks-timeline-drag-start,
+::deep .tracks-timeline-sprint-row:hover .tracks-timeline-drag-end {
+    opacity: 1;
+}
+
+::deep .tracks-timeline-drag-start {
+    left: 0;
+    border-radius: 6px 0 0 6px;
+    background: linear-gradient(to right, rgba(0,0,0,0.15), transparent);
+}
+
+::deep .tracks-timeline-drag-end {
+    right: 0;
+    border-radius: 0 6px 6px 0;
+    background: linear-gradient(to left, rgba(0,0,0,0.15), transparent);
+}
+
+/* ── Legend ── */
+
+::deep .tracks-timeline-legend {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 8px 0;
+    flex-wrap: wrap;
+}
+
+::deep .tracks-timeline-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--color-text-muted);
+}
+
+::deep .tracks-timeline-legend-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+}
+
+::deep .tracks-timeline-legend-dot.status-planning {
+    background: color-mix(in srgb, var(--color-text-muted) 40%, var(--color-surface));
+    border: 1px solid var(--color-text-muted);
+}
+
+::deep .tracks-timeline-legend-dot.status-active {
+    background: color-mix(in srgb, var(--color-primary) 40%, var(--color-surface));
+    border: 1px solid var(--color-primary);
+}
+
+::deep .tracks-timeline-legend-dot.status-completed {
+    background: color-mix(in srgb, var(--color-success, #28a745) 40%, var(--color-surface));
+    border: 1px solid var(--color-success, #28a745);
+}
+
+::deep .tracks-timeline-today-line-sm {
+    width: 12px;
+    height: 2px;
+    background: var(--color-danger, #dc3545);
+    border-radius: 1px;
+}
+
+/* ── Adjustment Dialog ── */
+
+::deep .tracks-timeline-adjust-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+}
+
+::deep .tracks-timeline-adjust-dialog {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 20px 24px;
+    min-width: 320px;
+    max-width: 420px;
+    box-shadow: var(--shadow, 0 8px 32px rgba(0,0,0,0.2));
+}
+
+::deep .tracks-timeline-adjust-dialog h4 {
+    margin: 0 0 16px;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+::deep .tracks-timeline-adjust-note {
+    font-size: 12px;
+    color: var(--color-text-muted);
+    margin: 8px 0 16px;
+}
+
+::deep .tracks-timeline-adjust-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Phase I: Live Review Session
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Review Landing (no active session) ── */
+
+::deep .review-landing {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 80px 24px;
+    gap: 12px;
+}
+
+::deep .review-landing-icon {
+    font-size: 48px;
+    margin-bottom: 8px;
+}
+
+::deep .review-landing h3 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+::deep .review-landing p {
+    max-width: 480px;
+    font-size: 14px;
+    color: var(--color-text-muted);
+    line-height: 1.5;
+    margin: 4px 0 16px;
+}
+
+::deep .review-landing-actions {
+    display: flex;
+    gap: 12px;
+}
+
+/* ── Review Session Layout ── */
+
+::deep .review-session {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+}
+
+::deep .review-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-surface);
+    flex-shrink: 0;
+}
+
+::deep .review-header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+::deep .review-header-left h2 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+::deep .review-header-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+::deep .review-participant-count {
+    font-size: 14px;
+    color: var(--color-text-muted);
+    font-weight: 500;
+}
+
+::deep .review-status-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+::deep .review-status-badge.status-active {
+    background: #dcfce7;
+    color: #166534;
+}
+
+::deep .review-status-badge.status-paused {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+::deep .review-status-badge.status-ended {
+    background: #f3f4f6;
+    color: #6b7280;
+}
+
+/* ── Review Body: Card Area + Sidebar ── */
+
+::deep .review-body {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    flex: 1;
+    overflow: hidden;
+}
+
+::deep .review-card-area {
+    display: flex;
+    flex-direction: column;
+    padding: 20px 24px;
+    overflow-y: auto;
+    gap: 16px;
+}
+
+::deep .review-sidebar {
+    display: flex;
+    flex-direction: column;
+    border-left: 1px solid var(--color-border);
+    background: var(--color-surface-alt, var(--color-surface));
+    overflow-y: auto;
+}
+
+/* ── Card Navigator ── */
+
+::deep .review-card-nav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 12px 0;
+}
+
+::deep .review-card-counter {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-text);
+    min-width: 120px;
+    text-align: center;
+}
+
+/* ── Following Indicator ── */
+
+::deep .review-following-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 16px;
+    background: #eff6ff;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #1d4ed8;
+}
+
+/* ── Card Detail in Review ── */
+
+::deep .review-card-detail {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+::deep .review-card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+::deep .review-card-number {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    background: var(--color-surface-alt, #f3f4f6);
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+
+::deep .review-card-title {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--color-text);
+    flex: 1;
+}
+
+::deep .review-card-points {
+    font-size: 14px;
+    font-weight: 700;
+    color: #7c3aed;
+    background: #ede9fe;
+    padding: 2px 10px;
+    border-radius: 12px;
+    white-space: nowrap;
+}
+
+::deep .review-card-priority {
+    display: inline-flex;
+    align-self: flex-start;
+    padding: 2px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+::deep .review-card-priority.priority-critical { background: #fef2f2; color: #991b1b; }
+::deep .review-card-priority.priority-high { background: #fff7ed; color: #9a3412; }
+::deep .review-card-priority.priority-medium { background: #fefce8; color: #854d0e; }
+::deep .review-card-priority.priority-low { background: #f0fdf4; color: #166534; }
+
+::deep .review-card-description {
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--color-text-muted);
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+::deep .review-card-labels {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+::deep .review-label {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 4px;
+    color: #fff;
+}
+
+::deep .review-card-assignments {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+::deep .review-assignments-label {
+    font-size: 12px;
+    color: var(--color-text-muted);
+    font-weight: 600;
+}
+
+::deep .review-assignee {
+    font-size: 12px;
+    background: var(--color-surface-alt, #f3f4f6);
+    padding: 2px 8px;
+    border-radius: 4px;
+    color: var(--color-text);
+}
+
+::deep .review-card-due {
+    font-size: 13px;
+    color: var(--color-text-muted);
+}
+
+::deep .review-card-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 24px;
+    text-align: center;
+    color: var(--color-text-muted);
+    font-size: 14px;
+}
+
+/* ── Sprint Selector ── */
+
+::deep .review-sprint-selector {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 0;
+}
+
+::deep .review-sprint-selector label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    white-space: nowrap;
+}
+
+::deep .review-sprint-selector select {
+    flex: 1;
+    padding: 6px 10px;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    font-size: 13px;
+    background: var(--color-surface);
+    color: var(--color-text);
+}
+
+/* ── Participants Panel ── */
+
+::deep .review-participants {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--color-border);
+}
+
+::deep .review-participants h4 {
+    margin: 0 0 12px;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+::deep .review-participant-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+::deep .review-participant {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+}
+
+::deep .review-participant.connected {
+    color: var(--color-text);
+}
+
+::deep .review-participant.disconnected {
+    opacity: 0.5;
+    color: var(--color-text-muted);
+}
+
+::deep .review-participant-status {
+    font-size: 10px;
+    flex-shrink: 0;
+}
+
+::deep .review-participant-name {
+    flex: 1;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+::deep .review-host-badge {
+    font-size: 10px;
+    font-weight: 700;
+    background: #dbeafe;
+    color: #1e40af;
+    padding: 1px 6px;
+    border-radius: 4px;
+    margin-left: 4px;
+}
+
+::deep .review-vote-indicator {
+    font-size: 14px;
+    font-weight: 700;
+    flex-shrink: 0;
+    min-width: 20px;
+    text-align: center;
+    color: #059669;
+}
+
+/* ── Poker Panel ── */
+
+::deep .review-poker {
+    padding: 16px 20px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+::deep .review-poker h4 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+::deep .review-poker-hint {
+    font-size: 13px;
+    color: var(--color-text-muted);
+    font-style: italic;
+}
+
+::deep .review-poker-start {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+::deep .review-poker-scale-select {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+::deep .review-poker-scale-select label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text-muted);
+}
+
+::deep .review-poker-scale-select select {
+    flex: 1;
+    padding: 6px 10px;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    font-size: 13px;
+    background: var(--color-surface);
+    color: var(--color-text);
+}
+
+::deep .review-poker-active {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+::deep .review-poker-status-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+::deep .review-poker-status {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 4px;
+    text-transform: uppercase;
+}
+
+::deep .review-poker-status.poker-voting { background: #dbeafe; color: #1e40af; }
+::deep .review-poker-status.poker-revealed { background: #fef3c7; color: #92400e; }
+::deep .review-poker-status.poker-completed { background: #dcfce7; color: #166534; }
+::deep .review-poker-status.poker-cancelled { background: #f3f4f6; color: #6b7280; }
+
+::deep .review-poker-round {
+    font-size: 12px;
+    color: var(--color-text-muted);
+    font-weight: 500;
+}
+
+::deep .review-poker-vote-overview {
+    font-size: 13px;
+    color: var(--color-text-muted);
+    font-weight: 500;
+}
+
+/* ── Poker Cards (Scale Options) ── */
+
+::deep .review-poker-scale-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+::deep .review-poker-card {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 40px;
+    height: 48px;
+    padding: 4px 8px;
+    border: 2px solid var(--color-border);
+    border-radius: 8px;
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+::deep .review-poker-card:hover {
+    border-color: #3b82f6;
+    background: #eff6ff;
+}
+
+::deep .review-poker-card.selected {
+    border-color: #2563eb;
+    background: #2563eb;
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+}
+
+/* ── Host Vote (inside poker) ── */
+
+::deep .review-poker-host-vote {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+::deep .review-poker-controls {
+    display: flex;
+    gap: 8px;
+}
+
+/* ── Vote Results (revealed) ── */
+
+::deep .review-poker-results {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+::deep .review-poker-result {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 10px;
+    border-radius: 6px;
+    background: var(--color-surface-alt, #f3f4f6);
+}
+
+::deep .review-poker-voter {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-text);
+}
+
+::deep .review-poker-estimate {
+    font-size: 16px;
+    font-weight: 700;
+    color: #2563eb;
+    min-width: 32px;
+    text-align: center;
+}
+
+/* ── Accept Estimate ── */
+
+::deep .review-poker-accept {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+::deep .review-poker-accept label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+::deep .review-poker-accept-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+/* ── Poker Waiting State ── */
+
+::deep .review-poker-waiting {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 20px 0;
+    text-align: center;
+}
+
+::deep .review-poker-waiting-icon {
+    font-size: 32px;
+}
+
+::deep .review-poker-waiting p {
+    font-size: 14px;
+    color: var(--color-text-muted);
+    margin: 0;
+}
+
+::deep .review-poker-your-vote {
+    font-size: 13px;
+    font-weight: 600;
+    background: #ede9fe;
+    color: #7c3aed;
+    padding: 4px 12px;
+    border-radius: 6px;
+}
+
+/* ── Poker Vote Area ── */
+
+::deep .review-poker-vote-area {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+::deep .review-poker-vote-area p {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text);
+    margin: 0;
+}
+
+/* ── Poker Completed ── */
+
+::deep .review-poker-completed {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 16px 0;
+    text-align: center;
+}
+
+::deep .review-poker-accepted {
+    font-size: 18px;
+    font-weight: 700;
+    color: #059669;
+    background: #dcfce7;
+    padding: 6px 16px;
+    border-radius: 8px;
+}
+
+::deep .review-poker-completed p {
+    font-size: 13px;
+    color: var(--color-text-muted);
+    margin: 0;
+}
+
+/* ── Error Message ── */
+
+::deep .review-error {
+    padding: 10px 24px;
+    background: #fef2f2;
+    color: #991b1b;
+    font-size: 13px;
+    border-top: 1px solid #fecaca;
 }

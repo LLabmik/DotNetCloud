@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DotNetCloud.Client.Android.Auth;
 using DotNetCloud.Client.Android.Services;
+using DotNetCloud.Core.DTOs;
 using Microsoft.Extensions.Logging;
 
 namespace DotNetCloud.Client.Android.ViewModels;
@@ -20,6 +21,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     private readonly IMediaAutoUploadService _mediaUploadService;
     private readonly IBatteryOptimizationService _batteryService;
     private readonly IAppPreferences _preferences;
+    private readonly IAndroidUpdateService _updateService;
     private readonly ILogger<SettingsViewModel> _logger;
 
     /// <summary>Raised when the user logs out and the app should return to login.</summary>
@@ -32,6 +34,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         IMediaAutoUploadService mediaUploadService,
         IBatteryOptimizationService batteryService,
         IAppPreferences preferences,
+        IAndroidUpdateService updateService,
         ILogger<SettingsViewModel> logger)
     {
         _serverStore = serverStore;
@@ -39,6 +42,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         _mediaUploadService = mediaUploadService;
         _batteryService = batteryService;
         _preferences = preferences;
+        _updateService = updateService;
         _logger = logger;
 
         var active = serverStore.GetActive();
@@ -232,5 +236,111 @@ public sealed partial class SettingsViewModel : ObservableObject
         IsBatteryOptimized = !exempt;
         BatteryStatusText = exempt ? "Unrestricted" : "Restricted — tap to fix";
         BatteryStatusColor = exempt ? Color.FromArgb("#22C55E") : Color.FromArgb("#F59E0B");
+    }
+
+    // ── Update notification ──────────────────────────────────────────
+
+    /// <summary>App version display string (e.g. "DotNetCloud for Android v0.1.7").</summary>
+    public string AppVersionText { get; } = $"DotNetCloud for Android v{GetAppVersion()}";
+
+    /// <summary>Whether an update notification banner should be shown.</summary>
+    [ObservableProperty]
+    private bool _isUpdateAvailable;
+
+    /// <summary>The latest available version string (e.g. "0.2.0").</summary>
+    [ObservableProperty]
+    private string _updateVersion = string.Empty;
+
+    /// <summary>Brief release notes for the available update.</summary>
+    [ObservableProperty]
+    private string _updateReleaseNotes = string.Empty;
+
+    /// <summary>Release URL for the update (fallback for store link).</summary>
+    [ObservableProperty]
+    private string? _updateReleaseUrl;
+
+    /// <summary>Whether a manual update check is in progress.</summary>
+    [ObservableProperty]
+    private bool _isCheckingForUpdate;
+
+    /// <summary>Status message after a manual update check.</summary>
+    [ObservableProperty]
+    private string _updateCheckStatus = string.Empty;
+
+    /// <summary>Checks for updates on page load (respects once-per-day and dismiss).</summary>
+    public async Task CheckForUpdateOnLaunchAsync(CancellationToken ct = default)
+    {
+        var result = await _updateService.CheckOnLaunchAsync(ct);
+        if (result is not null)
+            ShowUpdateBanner(result);
+    }
+
+    /// <summary>Manually triggers an update check, bypassing once-per-day throttle.</summary>
+    [RelayCommand]
+    private async Task CheckForUpdateAsync(CancellationToken ct)
+    {
+        IsCheckingForUpdate = true;
+        UpdateCheckStatus = string.Empty;
+        try
+        {
+            // Clear the last-check date to force a fresh check.
+            _preferences.Set(AndroidUpdateService.PrefLastCheckDate, string.Empty);
+            var result = await _updateService.CheckOnLaunchAsync(ct);
+            if (result is not null)
+            {
+                ShowUpdateBanner(result);
+            }
+            else
+            {
+                IsUpdateAvailable = false;
+                UpdateCheckStatus = "You're up to date!";
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Manual update check failed.");
+            UpdateCheckStatus = "Check failed — try again later.";
+        }
+        finally
+        {
+            IsCheckingForUpdate = false;
+        }
+    }
+
+    /// <summary>Opens the store listing or release page for the available update.</summary>
+    [RelayCommand]
+    private async Task OpenUpdateAsync()
+    {
+        await _updateService.OpenStoreListingAsync(UpdateReleaseUrl);
+    }
+
+    /// <summary>Dismisses the update banner for the current latest version.</summary>
+    [RelayCommand]
+    private void DismissUpdate()
+    {
+        if (!string.IsNullOrEmpty(UpdateVersion))
+            _updateService.DismissVersion(UpdateVersion);
+        IsUpdateAvailable = false;
+    }
+
+    private void ShowUpdateBanner(UpdateCheckResult result)
+    {
+        IsUpdateAvailable = true;
+        UpdateVersion = result.LatestVersion;
+        UpdateReleaseUrl = result.ReleaseUrl;
+
+        // Show first ~200 chars of release notes as summary.
+        var notes = result.ReleaseNotes ?? string.Empty;
+        UpdateReleaseNotes = notes.Length > 200 ? notes[..200] + "…" : notes;
+    }
+
+    private static string GetAppVersion()
+    {
+        var attr = System.Reflection.CustomAttributeExtensions
+            .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>(
+                System.Reflection.Assembly.GetEntryAssembly()!);
+        var version = attr?.InformationalVersion ?? "0.0.0";
+        var plusIdx = version.IndexOf('+');
+        return plusIdx >= 0 ? version[..plusIdx] : version;
     }
 }

@@ -3,6 +3,7 @@ using DotNetCloud.Modules.Tracks.Data;
 using DotNetCloud.Modules.Tracks.Data.Services;
 using DotNetCloud.Modules.Tracks.Host.Protos;
 using DotNetCloud.Modules.Tracks.Host.Services;
+using DotNetCloud.Modules.Tracks.Services;
 using Grpc.Core;
 using Grpc.Core.Testing;
 using Microsoft.Extensions.Logging;
@@ -30,15 +31,19 @@ public class TracksGrpcServiceTests
         var activityService = new ActivityService(_db, new Mock<ILogger<ActivityService>>().Object);
         var teamService = new TeamService(_db, eventBus.Object, new Mock<ILogger<TeamService>>().Object);
         var boardService = new BoardService(_db, eventBus.Object, activityService, teamService, new Mock<ILogger<BoardService>>().Object);
-        var listService = new ListService(_db, boardService, activityService, new Mock<ILogger<ListService>>().Object);
+        var swimlaneService = new SwimlaneService(_db, boardService, activityService, new Mock<ILogger<SwimlaneService>>().Object);
         var cardService = new CardService(_db, boardService, activityService, eventBus.Object, new Mock<ILogger<CardService>>().Object);
-        var pokerService = new PokerService(_db, boardService, activityService, new Mock<ILogger<PokerService>>().Object);
+        var pokerService = new PokerService(_db, boardService, activityService, new NullTracksRealtimeService(), new Mock<ILogger<PokerService>>().Object);
+        var sprintPlanningService = new SprintPlanningService(_db, boardService, activityService, new Mock<ILogger<SprintPlanningService>>().Object);
+        var reviewSessionService = new ReviewSessionService(_db, boardService, pokerService, new NullTracksRealtimeService(), new Mock<ILogger<ReviewSessionService>>().Object);
 
         _grpcService = new GrpcTracksService(
             boardService,
-            listService,
+            swimlaneService,
             cardService,
             pokerService,
+            sprintPlanningService,
+            reviewSessionService,
             new Mock<ILogger<GrpcTracksService>>().Object);
     }
 
@@ -120,21 +125,21 @@ public class TracksGrpcServiceTests
     }
 
     [TestMethod]
-    public async Task CreateList_ReturnsSuccess()
+    public async Task CreateSwimlane_ReturnsSuccess()
     {
         var ctx = CreateContext();
         var board = await _grpcService.CreateBoard(
             new CreateBoardRequest { UserId = _userId.ToString(), Title = "Board" }, ctx);
 
-        var request = new CreateListRequest
+        var request = new CreateSwimlaneRequest
         {
             BoardId = board.Board.Id,
             UserId = _userId.ToString(),
             Title = "To Do"
         };
-        var response = await _grpcService.CreateList(request, ctx);
+        var response = await _grpcService.CreateSwimlane(request, ctx);
         Assert.IsTrue(response.Success);
-        Assert.AreEqual("To Do", response.List.Title);
+        Assert.AreEqual("To Do", response.Swimlane.Title);
     }
 
     [TestMethod]
@@ -143,12 +148,12 @@ public class TracksGrpcServiceTests
         var ctx = CreateContext();
         var board = await _grpcService.CreateBoard(
             new CreateBoardRequest { UserId = _userId.ToString(), Title = "Board" }, ctx);
-        var list = await _grpcService.CreateList(
-            new CreateListRequest { BoardId = board.Board.Id, UserId = _userId.ToString(), Title = "Todo" }, ctx);
+        var swimlane = await _grpcService.CreateSwimlane(
+            new CreateSwimlaneRequest { BoardId = board.Board.Id, UserId = _userId.ToString(), Title = "Todo" }, ctx);
 
         var request = new CreateCardRequest
         {
-            ListId = list.List.Id,
+            SwimlaneId = swimlane.Swimlane.Id,
             UserId = _userId.ToString(),
             Title = "My Card",
             Priority = "Medium"
@@ -177,7 +182,7 @@ public class TracksGrpcServiceTests
         {
             CardId = Guid.NewGuid().ToString(),
             UserId = _userId.ToString(),
-            TargetListId = Guid.NewGuid().ToString(),
+            TargetSwimlaneId = Guid.NewGuid().ToString(),
             Position = 1000
         };
         var response = await _grpcService.MoveCard(request, CreateContext());

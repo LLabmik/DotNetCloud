@@ -27,6 +27,10 @@ public sealed class ChatModule : IModuleLifecycle
     private IEventBus? _eventBus;
     private MessageSentEventHandler? _messageSentHandler;
     private ChannelCreatedEventHandler? _channelCreatedHandler;
+    private TracksActivityChatHandler? _tracksActivityHandler;
+    private IEventHandler<VideoCallInitiatedEvent>? _callNotificationInitiatedHandler;
+    private IEventHandler<VideoCallMissedEvent>? _callNotificationMissedHandler;
+    private IEventHandler<VideoCallEndedEvent>? _callNotificationEndedHandler;
     private ILogger<ChatModule>? _logger;
     private bool _initialized;
     private bool _running;
@@ -56,8 +60,37 @@ public sealed class ChatModule : IModuleLifecycle
             channelCreatedLogger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<ChannelCreatedEventHandler>.Instance);
         await _eventBus.SubscribeAsync(_channelCreatedHandler, cancellationToken);
 
+        // Register cross-module Tracks activity handler
+        var broadcaster = context.Services.GetService<Core.Capabilities.IRealtimeBroadcaster>();
+        _tracksActivityHandler = new TracksActivityChatHandler(
+            context.Services.GetService<ILogger<TracksActivityChatHandler>>()
+                ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<TracksActivityChatHandler>.Instance,
+            broadcaster);
+        await _eventBus.SubscribeAsync<CardCreatedEvent>(_tracksActivityHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<CardMovedEvent>(_tracksActivityHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<CardUpdatedEvent>(_tracksActivityHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<CardDeletedEvent>(_tracksActivityHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<CardAssignedEvent>(_tracksActivityHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<CardCommentAddedEvent>(_tracksActivityHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<SprintStartedEvent>(_tracksActivityHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<SprintCompletedEvent>(_tracksActivityHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<BoardCreatedEvent>(_tracksActivityHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<BoardDeletedEvent>(_tracksActivityHandler, cancellationToken);
+
+        // Register call notification push handlers
+        var callNotificationHandler = context.Services.GetService<Services.ICallNotificationHandler>();
+        if (callNotificationHandler is not null)
+        {
+            _callNotificationInitiatedHandler = callNotificationHandler;
+            _callNotificationMissedHandler = callNotificationHandler;
+            _callNotificationEndedHandler = callNotificationHandler;
+            await _eventBus.SubscribeAsync<VideoCallInitiatedEvent>(_callNotificationInitiatedHandler, cancellationToken);
+            await _eventBus.SubscribeAsync<VideoCallMissedEvent>(_callNotificationMissedHandler, cancellationToken);
+            await _eventBus.SubscribeAsync<VideoCallEndedEvent>(_callNotificationEndedHandler, cancellationToken);
+        }
+
         _initialized = true;
-        _logger?.LogInformation("Chat module initialized successfully");
+        _logger?.LogInformation("Chat module initialized successfully with Tracks integration");
     }
 
     /// <inheritdoc />
@@ -90,6 +123,27 @@ public sealed class ChatModule : IModuleLifecycle
             {
                 await _eventBus.UnsubscribeAsync(_channelCreatedHandler, cancellationToken);
             }
+
+            if (_tracksActivityHandler is not null)
+            {
+                await _eventBus.UnsubscribeAsync<CardCreatedEvent>(_tracksActivityHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<CardMovedEvent>(_tracksActivityHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<CardUpdatedEvent>(_tracksActivityHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<CardDeletedEvent>(_tracksActivityHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<CardAssignedEvent>(_tracksActivityHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<CardCommentAddedEvent>(_tracksActivityHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<SprintStartedEvent>(_tracksActivityHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<SprintCompletedEvent>(_tracksActivityHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<BoardCreatedEvent>(_tracksActivityHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<BoardDeletedEvent>(_tracksActivityHandler, cancellationToken);
+            }
+
+            if (_callNotificationInitiatedHandler is not null)
+                await _eventBus.UnsubscribeAsync<VideoCallInitiatedEvent>(_callNotificationInitiatedHandler, cancellationToken);
+            if (_callNotificationMissedHandler is not null)
+                await _eventBus.UnsubscribeAsync<VideoCallMissedEvent>(_callNotificationMissedHandler, cancellationToken);
+            if (_callNotificationEndedHandler is not null)
+                await _eventBus.UnsubscribeAsync<VideoCallEndedEvent>(_callNotificationEndedHandler, cancellationToken);
         }
 
         _logger?.LogInformation("Chat module stopped");

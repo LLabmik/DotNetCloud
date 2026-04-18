@@ -351,7 +351,7 @@ public class SyncEngineTests
             .Setup(t => t.UploadAsync(
                 It.IsAny<Guid?>(), filePath, It.IsAny<Stream>(), It.IsAny<IProgress<TransferProgress>?>(),
                 It.IsAny<CancellationToken>(), It.IsAny<string?>(), It.IsAny<int?>(), It.IsAny<string?>()))
-            .ReturnsAsync(expectedNodeId);
+            .ReturnsAsync(new UploadResult(expectedNodeId, null));
 
         _stateDbMock.Setup(db => db.RemoveOperationAsync(
                 It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
@@ -412,7 +412,7 @@ public class SyncEngineTests
             .Setup(t => t.UploadAsync(
                 It.IsAny<Guid?>(), filePath, It.IsAny<Stream>(), It.IsAny<IProgress<TransferProgress>?>(),
                 It.IsAny<CancellationToken>(), It.IsAny<string?>(), It.IsAny<int?>(), It.IsAny<string?>()))
-            .ReturnsAsync(expectedNodeId);
+            .ReturnsAsync(new UploadResult(expectedNodeId, null));
 
         _stateDbMock.Setup(db => db.RemoveOperationAsync(
                 It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
@@ -614,7 +614,7 @@ public class SyncEngineTests
                 It.IsAny<Guid?>(), filePath, It.IsAny<Stream>(),
                 It.IsAny<IProgress<TransferProgress>>(), It.IsAny<CancellationToken>(),
                 It.IsAny<string?>(), It.IsAny<int?>()))
-            .ReturnsAsync(expectedNodeId);
+            .ReturnsAsync(new UploadResult(expectedNodeId, null));
 
         var pendingOp = new PendingUpload { Id = 101, LocalPath = filePath, RetryCount = 0 };
         _stateDbMock
@@ -663,9 +663,9 @@ public class SyncEngineTests
             .Setup(t => t.UploadAsync(
                 It.IsAny<Guid?>(), filePath, It.IsAny<Stream>(),
                 It.IsNotNull<IProgress<TransferProgress>>(),
-                It.IsAny<CancellationToken>(), It.IsAny<string?>(), It.IsAny<int?>(), It.IsAny<string?>()))
-            .Callback<Guid?, string, Stream, IProgress<TransferProgress>?, CancellationToken, string?, int?, string?>(
-                (_, _, _, progress, _, _, _, _) =>
+                It.IsAny<CancellationToken>(), It.IsAny<string?>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<Guid?>()))
+            .Callback<Guid?, string, Stream, IProgress<TransferProgress>?, CancellationToken, string?, int?, string?, Guid?>(
+                (_, _, _, progress, _, _, _, _, _) =>
                 {
                     // Simulate one progress callback before completing.
                     progress?.Report(new TransferProgress
@@ -676,7 +676,7 @@ public class SyncEngineTests
                         TotalChunks = 2,
                     });
                 })
-            .ReturnsAsync(expectedNodeId);
+            .ReturnsAsync(new UploadResult(expectedNodeId, null));
 
         _stateDbMock.Setup(db => db.RemoveOperationAsync(
                 It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
@@ -736,7 +736,7 @@ public class SyncEngineTests
             .Setup(t => t.UploadAsync(
                 It.IsAny<Guid?>(), filePath, It.IsAny<Stream>(), It.IsAny<IProgress<TransferProgress>?>(),
                 It.IsAny<CancellationToken>(), It.IsAny<string?>(), It.IsAny<int?>(), It.IsAny<string?>()))
-            .ReturnsAsync(Guid.NewGuid());
+            .ReturnsAsync(new UploadResult(Guid.NewGuid(), null));
 
         _stateDbMock.Setup(db => db.RemoveOperationAsync(
                 It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
@@ -989,10 +989,23 @@ public class SyncEngineTests
         var content = "already-synced content"u8.ToArray();
         await File.WriteAllBytesAsync(filePath, content);
         var hash = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(content));
+        var fileMtime = new FileInfo(filePath).LastWriteTimeUtc;
 
         var existingNodeId = Guid.NewGuid();
         _apiMock.Setup(a => a.GetNodeAsync(existingNodeId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new FileNodeResponse { Id = existingNodeId, Name = "idempotent.txt", NodeType = "File", ContentHash = hash });
+
+        // The idempotency check now compares the locally-stored content hash against the server hash,
+        // but only if the file's mtime hasn't changed since the hash was recorded.
+        _stateDbMock.Setup(db => db.GetFileRecordAsync(It.IsAny<string>(), filePath, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new LocalFileRecord
+            {
+                LocalPath = filePath,
+                NodeId = existingNodeId,
+                ContentHash = hash,
+                LocalModifiedAt = fileMtime,
+                LastSyncedAt = DateTime.UtcNow.AddMinutes(-5),
+            });
 
         var transferMock = new Mock<IChunkedTransferClient>();
         _stateDbMock.Setup(db => db.RemoveOperationAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
@@ -1038,7 +1051,7 @@ public class SyncEngineTests
         transferMock.Setup(t => t.UploadAsync(
                 It.IsAny<Guid?>(), filePath, It.IsAny<Stream>(), It.IsAny<IProgress<TransferProgress>?>(),
                 It.IsAny<CancellationToken>(), It.IsAny<string?>(), It.IsAny<int?>(), It.IsAny<string?>()))
-            .ReturnsAsync(uploadedNodeId);
+            .ReturnsAsync(new UploadResult(uploadedNodeId, null));
 
         _stateDbMock.Setup(db => db.RemoveOperationAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
@@ -1072,7 +1085,7 @@ public class SyncEngineTests
         transferMock.Setup(t => t.UploadAsync(
                 null, filePath, It.IsAny<Stream>(), It.IsAny<IProgress<TransferProgress>?>(),
                 It.IsAny<CancellationToken>(), It.IsAny<string?>(), It.IsAny<int?>(), It.IsAny<string?>()))
-            .ReturnsAsync(Guid.NewGuid());
+            .ReturnsAsync(new UploadResult(Guid.NewGuid(), null));
 
         _stateDbMock.Setup(db => db.RemoveOperationAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
@@ -1241,7 +1254,8 @@ public class SyncEngineTests
     [TestMethod]
     public async Task SyncAsync_Download_AppliesPosixModeOnLinux()
     {
-        if (!OperatingSystem.IsLinux()) return;
+        if (!OperatingSystem.IsLinux())
+            return;
 
         var localPath = Path.Combine(_tempDir, "posix-file.txt");
         var nodeId = Guid.NewGuid();
@@ -1271,7 +1285,8 @@ public class SyncEngineTests
     [TestMethod]
     public async Task SyncAsync_Download_NullPosixMode_AppliesDefault644OnLinux()
     {
-        if (!OperatingSystem.IsLinux()) return;
+        if (!OperatingSystem.IsLinux())
+            return;
 
         var localPath = Path.Combine(_tempDir, "default-mode-file.txt");
         var nodeId = Guid.NewGuid();
@@ -1555,6 +1570,16 @@ public class SyncEngineTests
             .Setup(db => db.QueueOperationAsync(It.IsAny<string>(), It.IsAny<PendingOperationRecord>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
+        // The file still exists on the server — server tree includes this node.
+        _apiMock.Setup(a => a.GetFolderTreeAsync(It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SyncTreeNodeResponse
+            {
+                NodeId = Guid.Empty,
+                Name = "/",
+                NodeType = "Folder",
+                Children = [new SyncTreeNodeResponse { NodeId = nodeId, Name = "modified-file.txt", NodeType = "File", ContentHash = "oldhash" }],
+            });
+
         // Act
         await _engine.StartAsync(_context);
         await _engine.SyncAsync(_context);
@@ -1764,7 +1789,9 @@ public class SyncEngineTests
 
         var serverTree = new SyncTreeNodeResponse
         {
-            NodeId = Guid.Empty, Name = "/", NodeType = "Folder",
+            NodeId = Guid.Empty,
+            Name = "/",
+            NodeType = "Folder",
             Children =
             [
                 new SyncTreeNodeResponse
@@ -1834,7 +1861,9 @@ public class SyncEngineTests
         // Directory does NOT exist (user deleted it).
         var serverTree = new SyncTreeNodeResponse
         {
-            NodeId = Guid.Empty, Name = "/", NodeType = "Folder",
+            NodeId = Guid.Empty,
+            Name = "/",
+            NodeType = "Folder",
             Children =
             [
                 new SyncTreeNodeResponse
@@ -1923,6 +1952,272 @@ public class SyncEngineTests
         _stateDbMock.Verify(db => db.MoveToFailedAsync(
             It.IsAny<string>(), It.IsAny<PendingOperationRecord>(),
             It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // ── Remote folder deletion (change feed) ────────────────────────────────
+
+    [TestMethod]
+    public async Task SyncAsync_RemoteFolderDeletion_DeletesLocalDirectory()
+    {
+        // Arrange: a folder "Music/Tool" exists locally with a tracked file inside it.
+        // The change feed reports IsDeleted for the folder node.
+        var musicFolderNodeId = Guid.NewGuid();
+        var folderNodeId = Guid.NewGuid();
+        var fileNodeId = Guid.NewGuid();
+        var folderPath = Path.Combine(_tempDir, "Music", "Tool");
+        var filePath = Path.Combine(folderPath, "track.mp3");
+        Directory.CreateDirectory(folderPath);
+        File.WriteAllText(filePath, "audio-content");
+
+        var trackedRecord = new LocalFileRecord
+        {
+            LocalPath = filePath,
+            NodeId = fileNodeId,
+            ContentHash = "abc123",
+            LastSyncedAt = DateTime.UtcNow.AddHours(1), // Synced "after" file mtime so not locally modified.
+            LocalModifiedAt = File.GetLastWriteTimeUtc(filePath),
+        };
+
+        _stateDbMock.Setup(db => db.GetAllFileRecordsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([trackedRecord]);
+
+        // Tree still has Music folder but Tool subfolder is gone.
+        _apiMock.Setup(a => a.GetFolderTreeAsync(It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SyncTreeNodeResponse
+            {
+                NodeId = Guid.Empty,
+                Name = "/",
+                NodeType = "Folder",
+                Children =
+                [
+                    new SyncTreeNodeResponse { NodeId = musicFolderNodeId, Name = "Music", NodeType = "Folder" },
+                ],
+            });
+
+        // Change feed reports a folder deletion. ParentId points to Music so path resolves to Music/Tool.
+        _apiMock.Setup(a => a.GetChangesSinceAsync(It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PagedSyncChangesResponse
+            {
+                Changes =
+                [
+                    new SyncChangeResponse
+                    {
+                        NodeId = folderNodeId,
+                        Name = "Tool",
+                        NodeType = "Folder",
+                        IsDeleted = true,
+                        ParentId = musicFolderNodeId,
+                    },
+                ],
+                NextCursor = "cursor-1",
+                HasMore = false,
+            });
+
+        _stateDbMock.Setup(db => db.GetFileRecordByNodeIdAsync(It.IsAny<string>(), folderNodeId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((LocalFileRecord?)null);
+        _stateDbMock.Setup(db => db.RemoveFileRecordsUnderPathAsync(
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        await _engine.StartAsync(_context);
+
+        // Act
+        await _engine.SyncAsync(_context);
+        await _engine.StopAsync();
+
+        // Assert: local directory was deleted.
+        Assert.IsFalse(Directory.Exists(folderPath), "Folder should have been deleted locally after remote deletion.");
+
+        // Assert: child records were cleaned up.
+        _stateDbMock.Verify(db => db.RemoveFileRecordsUnderPathAsync(
+            _context.StateDatabasePath,
+            It.Is<string>(p => p.Contains("Tool")),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    // ── Reverse reconciliation (tracked file absent from server tree) ───────
+
+    [TestMethod]
+    public async Task SyncAsync_ReverseReconciliation_TrackedFileAbsentFromServerTree_DeletesLocally()
+    {
+        // Arrange: a tracked file exists locally but its NodeId is NOT in the server tree.
+        // The change feed returns no changes (cursor already past deletion).
+        var nodeId = Guid.NewGuid();
+        var filePath = Path.Combine(_tempDir, "old-file.txt");
+        File.WriteAllText(filePath, "some content");
+
+        var trackedRecord = new LocalFileRecord
+        {
+            LocalPath = filePath,
+            NodeId = nodeId,
+            ContentHash = "hash123",
+            LastSyncedAt = DateTime.UtcNow.AddHours(1), // Synced "after" file mtime so not locally modified.
+            LocalModifiedAt = File.GetLastWriteTimeUtc(filePath),
+        };
+
+        _stateDbMock.Setup(db => db.GetAllFileRecordsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([trackedRecord]);
+
+        // Server tree is empty — file was deleted remotely.
+        _apiMock.Setup(a => a.GetFolderTreeAsync(It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SyncTreeNodeResponse
+            {
+                NodeId = Guid.Empty,
+                Name = "/",
+                NodeType = "Folder",
+            });
+
+        _stateDbMock.Setup(db => db.RemoveFileRecordAsync(
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        await _engine.StartAsync(_context);
+
+        // Act
+        await _engine.SyncAsync(_context);
+        await _engine.StopAsync();
+
+        // Assert: local file was deleted.
+        Assert.IsFalse(File.Exists(filePath), "Local file should have been deleted when absent from server tree.");
+
+        // Assert: tracking record was removed.
+        _stateDbMock.Verify(db => db.RemoveFileRecordAsync(
+            _context.StateDatabasePath,
+            filePath,
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [TestMethod]
+    public async Task SyncAsync_ReverseReconciliation_LocallyModifiedFile_KeepsAndReUploads()
+    {
+        // Arrange: a tracked file exists locally but its NodeId is NOT in the server tree.
+        // However, the local file was modified since last sync — conflict resolution keeps local.
+        var nodeId = Guid.NewGuid();
+        var filePath = Path.Combine(_tempDir, "modified-file.txt");
+        File.WriteAllText(filePath, "original content");
+
+        var lastSyncTime = DateTime.UtcNow.AddMinutes(-10);
+        var trackedRecord = new LocalFileRecord
+        {
+            LocalPath = filePath,
+            NodeId = nodeId,
+            ContentHash = "old-hash",
+            LastSyncedAt = lastSyncTime,
+            LocalModifiedAt = lastSyncTime.AddMinutes(-1), // Record says file was synced at earlier mtime.
+        };
+
+        // Now modify the file so its mtime is newer than the record.
+        File.WriteAllText(filePath, "modified content");
+
+        _stateDbMock.Setup(db => db.GetAllFileRecordsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([trackedRecord]);
+
+        // Server tree is empty — file was deleted remotely.
+        _apiMock.Setup(a => a.GetFolderTreeAsync(It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SyncTreeNodeResponse
+            {
+                NodeId = Guid.Empty,
+                Name = "/",
+                NodeType = "Folder",
+            });
+
+        _stateDbMock.Setup(db => db.QueueOperationAsync(
+                It.IsAny<string>(), It.IsAny<PendingOperationRecord>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        await _engine.StartAsync(_context);
+
+        // Act
+        await _engine.SyncAsync(_context);
+        await _engine.StopAsync();
+
+        // Assert: local file was NOT deleted.
+        Assert.IsTrue(File.Exists(filePath), "Locally-modified file should be kept even when absent from server tree.");
+
+        // Assert: a PendingUpload was queued (stale NodeId cleared, so new upload without old NodeId).
+        _stateDbMock.Verify(db => db.QueueOperationAsync(
+            _context.StateDatabasePath,
+            It.Is<PendingUpload>(u => u.LocalPath == filePath),
+            It.IsAny<CancellationToken>()), Times.AtLeastOnce);
+
+        // Assert: stale tracking record WAS removed (NodeId no longer on server, content genuinely changed).
+        _stateDbMock.Verify(db => db.RemoveFileRecordAsync(
+            _context.StateDatabasePath,
+            filePath,
+            It.IsAny<CancellationToken>()), Times.AtLeastOnce);
+    }
+
+    // ── Untracked files not on server are always uploaded ──────────────────
+
+    [TestMethod]
+    public async Task SyncAsync_UntrackedFilesNotOnServer_QueuedForUpload()
+    {
+        // Arrange: "Music/Tool" exists locally with untracked files (no state.db records).
+        // The folder does NOT exist on the server tree. A checkpoint exists.
+        // These files should be uploaded as new files — never deleted based on timestamps.
+        var musicNodeId = Guid.NewGuid();
+        var toolDir = Path.Combine(_tempDir, "Music", "Tool");
+        Directory.CreateDirectory(toolDir);
+        var file1 = Path.Combine(toolDir, "track1.mp3");
+        var file2 = Path.Combine(toolDir, "track2.mp3");
+        File.WriteAllText(file1, "audio1");
+        File.WriteAllText(file2, "audio2");
+
+        // Set file timestamps to well before the checkpoint — this should NOT matter.
+        // Untracked files are always uploaded regardless of filesystem timestamps.
+        var oldTime = DateTime.UtcNow.AddDays(-7);
+        File.SetCreationTimeUtc(file1, oldTime);
+        File.SetCreationTimeUtc(file2, oldTime);
+        File.SetLastWriteTimeUtc(file1, oldTime);
+        File.SetLastWriteTimeUtc(file2, oldTime);
+
+        // No tracked records — state.db was already cleaned up.
+        _stateDbMock.Setup(db => db.GetAllFileRecordsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+
+        // Checkpoint exists (we have synced before).
+        _stateDbMock.Setup(db => db.GetCheckpointAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(DateTime.UtcNow.AddHours(-1));
+
+        // Server tree has Music but NOT Tool subfolder.
+        _apiMock.Setup(a => a.GetFolderTreeAsync(It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SyncTreeNodeResponse
+            {
+                NodeId = Guid.Empty,
+                Name = "/",
+                NodeType = "Folder",
+                Children =
+                [
+                    new SyncTreeNodeResponse { NodeId = musicNodeId, Name = "Music", NodeType = "Folder" },
+                ],
+            });
+
+        _stateDbMock.Setup(db => db.QueueOperationAsync(
+                It.IsAny<string>(), It.IsAny<PendingOperationRecord>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        await _engine.StartAsync(_context);
+
+        // Act
+        await _engine.SyncAsync(_context);
+        await _engine.StopAsync();
+
+        // Assert: files still exist locally (NOT deleted).
+        Assert.IsTrue(File.Exists(file1), "Untracked local file should not be deleted.");
+        Assert.IsTrue(File.Exists(file2), "Untracked local file should not be deleted.");
+
+        // Assert: both files were queued for upload.
+        _stateDbMock.Verify(db => db.QueueOperationAsync(
+            _context.StateDatabasePath,
+            It.Is<PendingUpload>(u => u.LocalPath == file1),
+            It.IsAny<CancellationToken>()), Times.Once);
+        _stateDbMock.Verify(db => db.QueueOperationAsync(
+            _context.StateDatabasePath,
+            It.Is<PendingUpload>(u => u.LocalPath == file2),
+            It.IsAny<CancellationToken>()), Times.Once);
+
+        // Music folder should still exist.
+        Assert.IsTrue(Directory.Exists(Path.Combine(_tempDir, "Music")), "Parent folder on server should be kept.");
     }
 
     private sealed class DiskFullIOException : IOException

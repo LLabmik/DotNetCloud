@@ -182,3 +182,69 @@
     color: #68d391;
     border: 1px solid rgba(72, 187, 120, 0.2);
 }
+
+/* --- User Picker Dialogs (New DM / Add People) --- */
+
+.dm-user-picker-dialog {
+    width: min(560px, 92vw);
+    max-height: min(76vh, 680px);
+}
+
+.dm-user-results {
+    margin-top: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 360px;
+    overflow-y: auto;
+}
+
+.dm-user-result-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    border: 1px solid var(--color-border, #2d3748);
+    border-radius: 8px;
+    padding: 9px 10px;
+    background: rgba(255, 255, 255, 0.03);
+    cursor: pointer;
+}
+
+.dm-user-result-item:hover {
+    border-color: var(--color-primary, #3b82f6);
+    background: rgba(59, 130, 246, 0.1);
+}
+
+.dm-user-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.dm-user-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-text, #e2e8f0);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dm-user-email {
+    font-size: 12px;
+    color: var(--color-text-secondary, #a0aec0);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dm-user-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.btn-icon {
+    min-width: 32px;
+}

@@ -1,0 +1,238 @@
+/* ── Update stat-card icon colors ──────────────────────────────────── */
+.update-icon-current    { background: #dbeafe; color: #2563eb; }
+.update-icon-available  { background: #fef3c7; color: #d97706; }
+.update-icon-uptodate   { background: #dcfce7; color: #16a34a; }
+.update-icon-published  { background: #ede9fe; color: #7c3aed; }
+.update-icon-runtime    { background: #e0e7ff; color: #4f46e5; }
+
+:global(.dark-mode) .update-icon-current    { background: #1e3a5f; color: #60a5fa; }
+:global(.dark-mode) .update-icon-available  { background: #451a03; color: #fbbf24; }
+:global(.dark-mode) .update-icon-uptodate   { background: #14532d; color: #4ade80; }
+:global(.dark-mode) .update-icon-published  { background: #2e1065; color: #a78bfa; }
+:global(.dark-mode) .update-icon-runtime    { background: #1e1b4b; color: #818cf8; }
+
+/* ── Version display ──────────────────────────────────────────────── */
+.update-version-value {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+}
+
+.update-date-value {
+    font-size: 18px;
+}
+
+.update-runtime-value {
+    font-size: 14px;
+}
+
+/* ── Update badge ─────────────────────────────────────────────────── */
+.update-badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-top: 4px;
+}
+
+.update-badge-available {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.update-badge-current {
+    background: #dcfce7;
+    color: #166534;
+}
+
+:global(.dark-mode) .update-badge-available {
+    background: #451a03;
+    color: #fbbf24;
+}
+
+:global(.dark-mode) .update-badge-current {
+    background: #14532d;
+    color: #4ade80;
+}
+
+/* ── Section layout ───────────────────────────────────────────────── */
+.update-section {
+    margin-bottom: 28px;
+}
+
+.update-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+}
+
+.update-section-header h2 {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0;
+}
+
+/* ── Downloads card ───────────────────────────────────────────────── */
+.update-downloads-card {
+    background: var(--color-surface);
+    border-radius: var(--radius);
+    padding: 24px;
+    box-shadow: var(--shadow);
+    margin-bottom: 16px;
+}
+
+.update-downloads-card h3 {
+    font-size: 15px;
+    font-weight: 600;
+    margin: 0 0 16px 0;
+}
+
+.update-asset-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.update-asset-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    background: var(--color-bg);
+    border-radius: var(--radius);
+    border: 1px solid var(--color-border);
+}
+
+.update-asset-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+    min-width: 0;
+}
+
+.update-asset-name {
+    font-family: var(--font-mono, monospace);
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.update-asset-platform {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: var(--color-primary-bg, #dbeafe);
+    color: var(--color-primary, #2563eb);
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.update-asset-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+}
+
+.update-asset-size {
+    font-size: 13px;
+    color: var(--color-text-secondary);
+    white-space: nowrap;
+}
+
+/* ── Release notes card ───────────────────────────────────────────── */
+.update-notes-card {
+    background: var(--color-surface);
+    border-radius: var(--radius);
+    padding: 24px;
+    box-shadow: var(--shadow);
+}
+
+.update-notes-card h3 {
+    font-size: 15px;
+    font-weight: 600;
+    margin: 0 0 16px 0;
+}
+
+.update-notes-content {
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: 16px;
+    font-size: 13px;
+    line-height: 1.6;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    margin: 0;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.update-notes-inline {
+    max-height: 250px;
+}
+
+/* ── Release notes expanded row ───────────────────────────────────── */
+.release-notes-row td {
+    padding: 0 16px 16px !important;
+    border-top: none !important;
+}
+
+/* ── Instructions card ────────────────────────────────────────────── */
+.update-instructions-card {
+    background: var(--color-surface);
+    border-radius: var(--radius);
+    padding: 24px;
+    box-shadow: var(--shadow);
+}
+
+.update-steps {
+    margin: 0 0 16px 0;
+    padding-left: 20px;
+}
+
+.update-steps li {
+    padding: 6px 0;
+    line-height: 1.5;
+}
+
+.update-steps code {
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 13px;
+}
+
+/* ── Responsive ───────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+    .update-stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .update-asset-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+
+    .update-asset-meta {
+        width: 100%;
+        justify-content: space-between;
+    }
+}
+
+@media (max-width: 500px) {
+    .update-stats {
+        grid-template-columns: 1fr;
+    }
+}

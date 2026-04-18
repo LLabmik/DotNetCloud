@@ -1,6 +1,7 @@
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Events.Search;
 using DotNetCloud.Modules.Contacts.Models;
 using DotNetCloud.Modules.Contacts.Services;
 using Microsoft.EntityFrameworkCore;
@@ -107,6 +108,15 @@ public sealed class ContactService : IContactService
             ContactId = contact.Id,
             DisplayName = contact.DisplayName,
             OwnerId = caller.UserId
+        }, caller, cancellationToken);
+
+        await _eventBus.PublishAsync(new SearchIndexRequestEvent
+        {
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            ModuleId = "contacts",
+            EntityId = contact.Id.ToString(),
+            Action = SearchIndexAction.Index
         }, caller, cancellationToken);
 
         return MapToDto(contact);
@@ -221,6 +231,15 @@ public sealed class ContactService : IContactService
             UpdatedByUserId = caller.UserId
         }, caller, cancellationToken);
 
+        await _eventBus.PublishAsync(new SearchIndexRequestEvent
+        {
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            ModuleId = "contacts",
+            EntityId = contactId.ToString(),
+            Action = SearchIndexAction.Index
+        }, caller, cancellationToken);
+
         return MapToDto(contact);
     }
 
@@ -247,6 +266,15 @@ public sealed class ContactService : IContactService
             ContactId = contactId,
             DeletedByUserId = caller.UserId,
             IsPermanent = false
+        }, caller, cancellationToken);
+
+        await _eventBus.PublishAsync(new SearchIndexRequestEvent
+        {
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            ModuleId = "contacts",
+            EntityId = contactId.ToString(),
+            Action = SearchIndexAction.Remove
         }, caller, cancellationToken);
     }
 

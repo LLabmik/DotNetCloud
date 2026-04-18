@@ -18,7 +18,7 @@ public class CardTemplateServiceTests
     private Mock<IEventBus> _eventBusMock = null!;
     private CallerContext _caller;
     private Board _board = null!;
-    private BoardList _list = null!;
+    private BoardSwimlane _swimlane = null!;
     private Card _card = null!;
 
     [TestInitialize]
@@ -33,8 +33,8 @@ public class CardTemplateServiceTests
         var cardService = new CardService(_db, boardService, activityService, _eventBusMock.Object, NullLogger<CardService>.Instance);
         _service = new CardTemplateService(_db, boardService, cardService, NullLogger<CardTemplateService>.Instance);
         _board = await TestHelpers.SeedBoardAsync(_db, _caller.UserId);
-        _list = await TestHelpers.SeedListAsync(_db, _board.Id);
-        _card = await TestHelpers.SeedCardAsync(_db, _list.Id, _caller.UserId, "Source Card");
+        _swimlane = await TestHelpers.SeedSwimlaneAsync(_db, _board.Id);
+        _card = await TestHelpers.SeedCardAsync(_db, _swimlane.Id, _caller.UserId, "Source Card");
     }
 
     [TestCleanup]
@@ -108,6 +108,7 @@ public class CardTemplateServiceTests
 
         var result = await _service.GetTemplateAsync(saved.Id, _caller);
 
+        Assert.IsNotNull(result);
         Assert.AreEqual("Template X", result.Name);
     }
 
@@ -121,7 +122,7 @@ public class CardTemplateServiceTests
         var saved = await _service.SaveCardAsTemplateAsync(_card.Id, new SaveCardAsTemplateDto { Name = "Bug Template" }, _caller);
         var dto = new CreateCardFromTemplateDto { Title = "New Bug Card" };
 
-        var result = await _service.CreateCardFromTemplateAsync(saved.Id, _list.Id, dto, _caller);
+        var result = await _service.CreateCardFromTemplateAsync(saved.Id, _swimlane.Id, dto, _caller);
 
         Assert.IsNotNull(result);
         Assert.AreEqual("New Bug Card", result.Title);

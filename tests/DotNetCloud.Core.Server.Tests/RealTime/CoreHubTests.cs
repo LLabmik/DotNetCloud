@@ -256,7 +256,7 @@ public class CoreHubTests
             typingService,
             realtimeService,
             NullLogger<CoreHub>.Instance,
-            eventBus);
+            eventBus: eventBus);
 
         hub.Context = new TestHubCallerContext(userId, "conn-chat");
         hub.Clients = new Mock<IHubCallerClients>().Object;

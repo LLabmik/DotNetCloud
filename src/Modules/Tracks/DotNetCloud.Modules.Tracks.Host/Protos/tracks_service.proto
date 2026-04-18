@@ -16,16 +16,16 @@ service TracksGrpcService {
   // Lists boards for a user.
   rpc ListBoards (ListBoardsRequest) returns (ListBoardsResponse);
 
-  // Creates a new list in a board.
-  rpc CreateList (CreateListRequest) returns (ListResponse);
+  // Creates a new swimlane in a board.
+  rpc CreateSwimlane (CreateSwimlaneRequest) returns (SwimlaneResponse);
 
-  // Creates a new card in a list.
+  // Creates a new card in a swimlane.
   rpc CreateCard (CreateCardRequest) returns (CardResponse);
 
   // Gets a card by ID.
   rpc GetCard (GetCardRequest) returns (CardResponse);
 
-  // Moves a card to a different list or position.
+  // Moves a card to a different swimlane or position.
   rpc MoveCard (MoveCardRequest) returns (CardResponse);
 
   // Starts a planning poker session for a card.
@@ -39,6 +39,39 @@ service TracksGrpcService {
 
   // Accepts an estimate and completes a poker session.
   rpc AcceptPokerEstimate (AcceptPokerEstimateRequest) returns (PokerSessionResponse);
+
+  // Creates a sprint year plan for a team board.
+  rpc CreateSprintPlan (CreateSprintPlanRequest) returns (SprintPlanResponse);
+
+  // Gets the sprint plan overview for a board.
+  rpc GetSprintPlan (GetSprintPlanRequest) returns (SprintPlanResponse);
+
+  // Adjusts a sprint's duration and cascades date changes.
+  rpc AdjustSprint (AdjustSprintRequest) returns (SprintPlanResponse);
+
+  // Starts a review session on a board.
+  rpc StartReviewSession (StartReviewSessionRequest) returns (ReviewSessionResponse);
+
+  // Gets a review session by ID.
+  rpc GetReviewSession (GetReviewSessionRequest) returns (ReviewSessionResponse);
+
+  // Joins an existing review session.
+  rpc JoinReviewSession (JoinReviewSessionRequest) returns (ReviewSessionResponse);
+
+  // Sets the current card in a review session.
+  rpc SetReviewCurrentCard (SetReviewCurrentCardRequest) returns (ReviewSessionResponse);
+
+  // Ends a review session.
+  rpc EndReviewSession (EndReviewSessionRequest) returns (ReviewSessionResponse);
+
+  // Gets poker vote status (voted/not-voted per participant).
+  rpc GetPokerVoteStatus (GetPokerVoteStatusRequest) returns (PokerVoteStatusResponse);
+
+  // Returns all searchable documents for full reindex (streaming).
+  rpc GetSearchableDocuments (GetSearchableDocumentsRequest) returns (stream SearchableDocument);
+
+  // Returns a single searchable document by entity ID.
+  rpc GetSearchableDocument (GetSearchableDocumentRequest) returns (SearchableDocumentResponse);
 }
 
 // --- CreateBoard ---
@@ -48,6 +81,7 @@ message CreateBoardRequest {
   string title = 2;
   string description = 3;
   string color = 4;
+  string mode = 5;             // Personal or Team
 }
 
 message BoardResponse {
@@ -78,25 +112,25 @@ message ListBoardsResponse {
   repeated BoardMessage boards = 3;
 }
 
-// --- CreateList ---
+// --- CreateSwimlane ---
 
-message CreateListRequest {
+message CreateSwimlaneRequest {
   string board_id = 1;
   string user_id = 2;
   string title = 3;
   string color = 4;
 }
 
-message ListResponse {
+message SwimlaneResponse {
   bool success = 1;
   string error_message = 2;
-  BoardListMessage list = 3;
+  BoardSwimlaneMessage swimlane = 3;
 }
 
 // --- CreateCard ---
 
 message CreateCardRequest {
-  string list_id = 1;
+  string swimlane_id = 1;
   string user_id = 2;
   string title = 3;
   string description = 4;
@@ -123,7 +157,7 @@ message GetCardRequest {
 message MoveCardRequest {
   string card_id = 1;
   string user_id = 2;
-  string target_list_id = 3;
+  string target_swimlane_id = 3;
   double position = 4;
 }
 
@@ -139,12 +173,13 @@ message BoardMessage {
   string etag = 7;
   string created_at = 8;      // ISO 8601 timestamp
   string updated_at = 9;
-  int32 list_count = 10;
+  int32 swimlane_count = 10;
   int32 card_count = 11;
   int32 member_count = 12;
+  string mode = 13;            // Personal or Team
 }
 
-message BoardListMessage {
+message BoardSwimlaneMessage {
   string id = 1;
   string board_id = 2;
   string title = 3;
@@ -159,7 +194,7 @@ message BoardListMessage {
 
 message CardMessage {
   string id = 1;
-  string list_id = 2;
+  string swimlane_id = 2;
   string title = 3;
   string description = 4;
   double position = 5;
@@ -232,4 +267,152 @@ message PokerVoteMessage {
   string estimate = 2;        // Empty until revealed
   int32 round = 3;
   string voted_at = 4;
+}
+
+// --- Sprint Plan ---
+
+message CreateSprintPlanRequest {
+  string board_id = 1;
+  string user_id = 2;
+  string start_date = 3;       // ISO 8601 date
+  int32 sprint_count = 4;
+  int32 default_duration_weeks = 5;
+}
+
+message GetSprintPlanRequest {
+  string board_id = 1;
+  string user_id = 2;
+}
+
+message AdjustSprintRequest {
+  string sprint_id = 1;
+  string user_id = 2;
+  int32 duration_weeks = 3;
+  string start_date = 4;       // Optional, ISO 8601
+}
+
+message SprintPlanResponse {
+  bool success = 1;
+  string error_message = 2;
+  SprintPlanOverviewMessage overview = 3;
+}
+
+message SprintPlanOverviewMessage {
+  string board_id = 1;
+  repeated SprintPlanItemMessage sprints = 2;
+  int32 total_weeks = 3;
+  string plan_start_date = 4;
+  string plan_end_date = 5;
+}
+
+message SprintPlanItemMessage {
+  string id = 1;
+  string title = 2;
+  string start_date = 3;
+  string end_date = 4;
+  string status = 5;
+  int32 duration_weeks = 6;
+  int32 planned_order = 7;
+  int32 card_count = 8;
+  int32 total_story_points = 9;
+}
+
+// --- Review Session ---
+
+message StartReviewSessionRequest {
+  string board_id = 1;
+  string user_id = 2;
+}
+
+message GetReviewSessionRequest {
+  string session_id = 1;
+  string user_id = 2;
+}
+
+message JoinReviewSessionRequest {
+  string session_id = 1;
+  string user_id = 2;
+}
+
+message SetReviewCurrentCardRequest {
+  string session_id = 1;
+  string user_id = 2;
+  string card_id = 3;
+}
+
+message EndReviewSessionRequest {
+  string session_id = 1;
+  string user_id = 2;
+}
+
+message ReviewSessionResponse {
+  bool success = 1;
+  string error_message = 2;
+  ReviewSessionMessage session = 3;
+}
+
+message ReviewSessionMessage {
+  string id = 1;
+  string board_id = 2;
+  string host_user_id = 3;
+  string current_card_id = 4;
+  string status = 5;
+  string created_at = 6;
+  string ended_at = 7;
+  repeated ReviewParticipantMessage participants = 8;
+  PokerSessionMessage active_poker_session = 9;
+}
+
+message ReviewParticipantMessage {
+  string id = 1;
+  string user_id = 2;
+  string joined_at = 3;
+  bool is_connected = 4;
+}
+
+// --- Poker Vote Status ---
+
+message GetPokerVoteStatusRequest {
+  string session_id = 1;
+  string user_id = 2;
+}
+
+message PokerVoteStatusResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated PokerVoteStatusItem statuses = 3;
+}
+
+message PokerVoteStatusItem {
+  string user_id = 1;
+  bool has_voted = 2;
+}
+
+// --- Search Integration ---
+
+message GetSearchableDocumentsRequest {
+  string user_id = 1;
+}
+
+message GetSearchableDocumentRequest {
+  string entity_id = 1;
+}
+
+message SearchableDocumentResponse {
+  bool found = 1;
+  SearchableDocument document = 2;
+}
+
+message SearchableDocument {
+  string module_id = 1;
+  string entity_id = 2;
+  string entity_type = 3;
+  string title = 4;
+  string content = 5;
+  string summary = 6;
+  string owner_id = 7;
+  string organization_id = 8;
+  string created_at = 9;
+  string updated_at = 10;
+  map<string, string> metadata = 11;
 }

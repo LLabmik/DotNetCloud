@@ -1,0 +1,922 @@
+@namespace DotNetCloud.Modules.Music.UI
+
+@using DotNetCloud.Core.DTOs
+@using DotNetCloud.Core.Authorization
+@using DotNetCloud.Modules.Music.Services
+@inject IArtistService ArtistService
+@inject IMusicAlbumService AlbumService
+@inject ITrackService TrackService
+@inject Music.Services.IPlaylistService PlaylistService
+@inject IPlaybackService PlaybackService
+@inject IRecommendationService RecommendationService
+@inject IMusicStreamingService StreamingService
+@inject DotNetCloud.Modules.Music.Events.IMusicIndexingCallback MusicIndexingCallback
+@inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthenticationStateProvider
+@inject DotNetCloud.Core.Services.IUserSettingsService UserSettingsService
+@inject DotNetCloud.Core.Services.IMediaLibraryScanner MediaLibraryScanner
+@inject DotNetCloud.Modules.Files.Services.IFileService FileService
+@inject Microsoft.AspNetCore.Components.NavigationManager Navigation
+@inject IJSRuntime Js
+@inject Microsoft.Extensions.Logging.ILogger<MusicPage> Logger
+@inject MusicPlaybackState Playback
+@inject ScanProgressState ScanProgress
+@inject IMetadataEnrichmentService EnrichmentService
+
+<div class="music-layout">
+    @* ─── Sidebar ─── *@
+    <aside class="music-sidebar">
+        <div class="music-sidebar-header">
+            <h2>Music</h2>
+        </div>
+
+        <nav class="music-nav">
+            <button class="music-nav-item @(_section == Section.Library ? "active" : "")"
+                    @onclick="() => SwitchSection(Section.Library)">
+                <span class="nav-icon">🎵</span><span>Library</span>
+            </button>
+            <button class="music-nav-item @(_section == Section.Artists ? "active" : "")"
+                    @onclick="() => SwitchSection(Section.Artists)">
+                <span class="nav-icon">🎤</span><span>Artists</span>
+            </button>
+            <button class="music-nav-item @(_section == Section.Albums ? "active" : "")"
+                    @onclick="() => SwitchSection(Section.Albums)">
+                <span class="nav-icon">💿</span><span>Albums</span>
+            </button>
+            <button class="music-nav-item @(_section == Section.Genres ? "active" : "")"
+                    @onclick="() => SwitchSection(Section.Genres)">
+                <span class="nav-icon">🏷</span><span>Genres</span>
+            </button>
+        </nav>
+
+        <div class="music-nav-separator"></div>
+
+        <nav class="music-nav">
+            <button class="music-nav-item @(_section == Section.Playlists ? "active" : "")"
+                    @onclick="() => SwitchSection(Section.Playlists)">
+                <span class="nav-icon">📃</span><span>Playlists</span>
+            </button>
+            <button class="music-nav-item @(_section == Section.Favorites ? "active" : "")"
+                    @onclick="() => SwitchSection(Section.Favorites)">
+                <span class="nav-icon">⭐</span><span>Favorites</span>
+            </button>
+            <button class="music-nav-item @(_section == Section.RecentlyPlayed ? "active" : "")"
+                    @onclick="() => SwitchSection(Section.RecentlyPlayed)">
+                <span class="nav-icon">🕐</span><span>Recently Played</span>
+            </button>
+        </nav>
+
+        <div class="music-nav-separator"></div>
+        <nav class="music-nav">
+            <button class="music-nav-item @(_section == Section.Settings ? "active" : "")"
+                    @onclick="() => SwitchSection(Section.Settings)">
+                <span class="nav-icon">⚙</span><span>Library Settings</span>
+            </button>
+        </nav>
+
+        @* Playlists in sidebar *@
+        @if (_section == Section.Playlists || _playlists.Count > 0)
+        {
+            <div class="sidebar-playlist-list">
+                <div class="sidebar-playlist-header">
+                    <span class="playlist-label">Your Playlists</span>
+                    <button class="btn-icon" @onclick="BeginCreatePlaylist" title="New Playlist">+</button>
+                </div>
+                @foreach (var pl in _playlists)
+                {
+                    <button class="sidebar-playlist-item @(_selectedPlaylistId == pl.Id ? "active" : "")"
+                            @onclick="() => SelectPlaylistAsync(pl.Id)">
+                        <span class="playlist-icon">♫</span>
+                        <span class="playlist-name">@pl.Name</span>
+                        <span class="playlist-count">@pl.TrackCount</span>
+                    </button>
+                }
+            </div>
+        }
+    </aside>
+
+    @* ─── Main Content ─── *@
+    <main class="music-main @(Playback.NowPlaying is not null ? "has-player" : "")">
+        @* Toolbar *@
+        <div class="music-toolbar">
+            <div class="toolbar-left">
+                @if (_breadcrumb.Count > 0)
+                {
+                    @foreach (var crumb in _breadcrumb)
+                    {
+                        <button class="breadcrumb-item" @onclick="crumb.Action">@crumb.Label</button>
+                        <span class="breadcrumb-sep">›</span>
+                    }
+                }
+                <h3 class="section-title">@GetSectionTitle()</h3>
+            </div>
+            <div class="toolbar-right">
+                @if (Playback.NowPlaying is not null)
+                {
+                    <button class="toolbar-btn visualizer-toggle @(_visualizerEnabled ? "active" : "")"
+                            @onclick="ToggleVisualizerAsync" title="Toggle Visualizer">
+                        🎆 Visualizer
+                    </button>
+                }
+                <div class="search-box">
+                    <input type="text" placeholder="Search music…"
+                           @bind="_searchQuery" @bind:event="oninput"
+                           @onkeyup="HandleSearchKeyUp" />
+                </div>
+            </div>
+        </div>
+
+        @* ─── Visualizer Overlay ─── *@
+        @if (_visualizerEnabled)
+        {
+            <div class="visualizer-container @(_showVisualizer ? "" : "visualizer-hidden")">
+                <canvas id="dnc-visualizer-canvas" class="visualizer-canvas"></canvas>
+                @if (_showVisualizer)
+                {
+                <div class="visualizer-controls">
+                    <div class="vis-controls-left">
+                        <select class="vis-preset-select" value="@_selectedVisualizerPreset"
+                                @onchange="async (e) => await ChangeVisualizerPresetAsync(e.Value?.ToString() ?? string.Empty)">
+                            @foreach (var preset in _visualizerPresets)
+                            {
+                                <option value="@preset" selected="@(preset == _selectedVisualizerPreset)">@preset</option>
+                            }
+                        </select>
+                        <button class="vis-btn" @onclick="RandomVisualizerPresetAsync" title="Random Preset">🎲</button>
+                        @if (!_allPresetsLoaded)
+                        {
+                            <button class="vis-btn vis-btn-load" @onclick="LoadAllVisualizerPresetsAsync" disabled="@_loadingAllPresets">
+                                @if (_loadingAllPresets)
+                                {
+                                    <span class="vis-spinner"></span>
+                                }
+                                else
+                                {
+                                    <span>Load All Presets</span>
+                                }
+                            </button>
+                        }
+                    </div>
+                    <div class="vis-controls-right">
+                        <button class="vis-btn @(_autoCyclePresets ? "active-control" : "")"
+                                @onclick="ToggleAutoCyclePresetsAsync" title="Auto-cycle presets">🔄</button>
+                        <button class="vis-btn" @onclick="ToggleVisualizerFullscreenAsync" title="Fullscreen">⛶</button>
+                        <button class="vis-btn" @onclick="HideVisualizerOverlay" title="Hide visualizer overlay">✕</button>
+                    </div>
+                </div>
+                }
+                @if (!_visualizerSupported)
+                {
+                    <div class="vis-unsupported">
+                        <p>WebGL2 is not supported in this browser. The visualizer requires a browser with WebGL2 support.</p>
+                    </div>
+                }
+            </div>
+        }
+
+        @if (_loading)
+        {
+            <div class="music-loading">
+                <div class="loading-spinner"></div>
+                <p>Loading…</p>
+            </div>
+        }
+        else if (_errorMessage is not null)
+        {
+            <div class="music-error">
+                <p>@_errorMessage</p>
+                <button class="btn-retry" @onclick="LoadCurrentSectionAsync">Retry</button>
+            </div>
+        }
+        else
+        {
+            @* ─── Library / Recently Played ─── *@
+            @if (_section == Section.Library)
+            {
+                <div class="library-overview">
+                    @if (_recentAlbums.Count > 0)
+                    {
+                        <section class="library-section">
+                            <h4>Recently Added Albums</h4>
+                            <div class="albums-row">
+                                @foreach (var album in _recentAlbums.Take(8))
+                                {
+                                    <div class="album-card" @onclick="() => OpenAlbumDetail(album)">
+                                        <div class="album-art">
+                                            @if (album.HasCoverArt)
+                                            {
+                                                <img src="@GetAlbumArtUrl(album.Id)" alt="@album.Title" loading="lazy" />
+                                            }
+                                            else
+                                            {
+                                                <div class="album-art-placeholder">♫</div>
+                                            }
+                                            <button class="play-overlay" @onclick:stopPropagation="true"
+                                                    @onclick="() => PlayAlbumAsync(album.Id)">▶</button>
+                                        </div>
+                                        <div class="album-card-info">
+                                            <span class="album-card-title">@album.Title</span>
+                                            <span class="album-card-artist">@album.ArtistName</span>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </section>
+                    }
+
+                    @if (_newTracks.Count > 0)
+                    {
+                        <section class="library-section">
+                            <h4>New Additions</h4>
+                            <div class="track-list">
+                                @foreach (var (track, index) in _newTracks.Take(10).Select((t, i) => (t, i)))
+                                {
+                                    <div class="track-row @(Playback.NowPlaying?.Id == track.Id ? "playing" : "")"
+                                         @ondblclick="() => PlayTrackAsync(track)">
+                                        <span class="track-num">@(index + 1)</span>
+                                        <div class="track-info">
+                                            <span class="track-title">@track.Title</span>
+                                            <span class="track-artist">@track.ArtistName — <a class="album-link" @onclick="() => NavigateToAlbumAsync(track.AlbumId)" @onclick:stopPropagation="true">@track.AlbumTitle</a></span>
+                                        </div>
+                                        <span class="track-duration">@FormatDuration(track.Duration)</span>
+                                        <button class="track-action" @onclick="() => ToggleStarTrackAsync(track)" title="Star">
+                                            @(track.IsStarred ? "★" : "☆")
+                                        </button>
+                                    </div>
+                                }
+                            </div>
+                        </section>
+                    }
+
+                    @if (_recommendations.Count > 0)
+                    {
+                        <section class="library-section">
+                            <h4>Recommended for You</h4>
+                            <div class="track-list">
+                                @foreach (var (track, index) in _recommendations.Take(10).Select((t, i) => (t, i)))
+                                {
+                                    <div class="track-row @(Playback.NowPlaying?.Id == track.Id ? "playing" : "")"
+                                         @ondblclick="() => PlayTrackAsync(track)">
+                                        <span class="track-num">@(index + 1)</span>
+                                        <div class="track-info">
+                                            <span class="track-title">@track.Title</span>
+                                            <span class="track-artist">@track.ArtistName — <a class="album-link" @onclick="() => NavigateToAlbumAsync(track.AlbumId)" @onclick:stopPropagation="true">@track.AlbumTitle</a></span>
+                                        </div>
+                                        <span class="track-duration">@FormatDuration(track.Duration)</span>
+                                    </div>
+                                }
+                            </div>
+                        </section>
+                    }
+
+                    @if (_recentAlbums.Count == 0 && _newTracks.Count == 0)
+                    {
+                        <div class="music-empty">
+                            <div class="empty-icon">🎵</div>
+                            <h4>Your music library is empty</h4>
+                            <p>Upload audio files through the Files module. Supported formats: MP3, FLAC, OGG, AAC, OPUS, WAV, WMA.</p>
+                        </div>
+                    }
+                </div>
+            }
+
+            @* ─── Artists Grid ─── *@
+            @if (_section == Section.Artists && _selectedArtist is null)
+            {
+                <div class="artists-grid">
+                    @foreach (var artist in _artists)
+                    {
+                        <div class="artist-card" @onclick="() => OpenArtistDetail(artist)">
+                            <div class="artist-avatar">@GetInitials(artist.Name)</div>
+                            <span class="artist-name">@artist.Name</span>
+                            <span class="artist-meta">@artist.AlbumCount albums · @artist.TrackCount tracks</span>
+                        </div>
+                    }
+                </div>
+            }
+
+            @* ─── Artist Detail ─── *@
+            @if (_section == Section.Artists && _selectedArtist is not null)
+            {
+                <div class="artist-detail">
+                    <div class="artist-detail-header">
+                        @if (_artistBio?.ImageUrl is not null)
+                        {
+                            <div class="artist-detail-image">
+                                <img src="@_artistBio.ImageUrl" alt="@_selectedArtist.Name" />
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="artist-detail-avatar">@GetInitials(_selectedArtist.Name)</div>
+                        }
+                        <div class="artist-detail-info">
+                            <h3>@_selectedArtist.Name</h3>
+                            <span>@_selectedArtist.AlbumCount albums · @_selectedArtist.TrackCount tracks</span>
+                            <div class="artist-detail-actions">
+                                @if (_artistBio?.WikipediaUrl is not null)
+                                {
+                                    <a href="@_artistBio.WikipediaUrl" target="_blank" rel="noopener noreferrer"
+                                       class="artist-link" title="Wikipedia">
+                                        <span class="link-icon">📖</span> Wikipedia
+                                    </a>
+                                }
+                                @if (_artistBio?.DiscogsUrl is not null)
+                                {
+                                    <a href="@_artistBio.DiscogsUrl" target="_blank" rel="noopener noreferrer"
+                                       class="artist-link" title="Discogs">
+                                        <span class="link-icon">💿</span> Discogs
+                                    </a>
+                                }
+                                @if (_artistBio?.OfficialUrl is not null)
+                                {
+                                    <a href="@_artistBio.OfficialUrl" target="_blank" rel="noopener noreferrer"
+                                       class="artist-link" title="Official Website">
+                                        <span class="link-icon">🌐</span> Website
+                                    </a>
+                                }
+                                @if (_artistBio is null || _artistBio.LastEnrichedAt is null)
+                                {
+                                    <button class="btn-fetch-info"
+                                            @onclick="() => EnrichArtistAsync(_selectedArtist.Id)"
+                                            disabled="@(_enrichingArtist && _enrichingArtistId == _selectedArtist.Id)">
+                                        @if (_enrichingArtist && _enrichingArtistId == _selectedArtist.Id)
+                                        {
+                                            <span class="enrich-spinner"></span>
+                                            <span>Fetching…</span>
+                                        }
+                                        else
+                                        {
+                                            <span>🔍 Fetch Info</span>
+                                        }
+                                    </button>
+                                }
+                            </div>
+                        </div>
+                    </div>
+
+                    @if (_artistBio?.Biography is not null)
+                    {
+                        <div class="artist-biography">
+                            <h4 class="section-subhead">Biography</h4>
+                            <p>@_artistBio.Biography</p>
+                        </div>
+                    }
+
+                    @if (_artistAlbums.Count > 0)
+                    {
+                        <h4 class="section-subhead">Discography</h4>
+                        <div class="albums-row">
+                            @foreach (var album in _artistAlbums)
+                            {
+                                <div class="album-card" @onclick="() => OpenAlbumDetail(album)">
+                                    <div class="album-art">
+                                        @if (album.HasCoverArt)
+                                        {
+                                            <img src="@GetAlbumArtUrl(album.Id)" alt="@album.Title" loading="lazy" />
+                                        }
+                                        else
+                                        {
+                                            <div class="album-art-placeholder">♫</div>
+                                        }
+                                        <button class="play-overlay" @onclick:stopPropagation="true"
+                                                @onclick="() => PlayAlbumAsync(album.Id)">▶</button>
+                                    </div>
+                                    <div class="album-card-info">
+                                        <span class="album-card-title">@album.Title</span>
+                                        <span class="album-card-year">@album.Year</span>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+
+            @* ─── Albums Grid ─── *@
+            @if (_section == Section.Albums && _selectedAlbum is null)
+            {
+                <div class="albums-grid">
+                    @foreach (var album in _albums)
+                    {
+                        <div class="album-card" @onclick="() => OpenAlbumDetail(album)">
+                            <div class="album-art">
+                                @if (album.HasCoverArt)
+                                {
+                                    <img src="@GetAlbumArtUrl(album.Id)" alt="@album.Title" loading="lazy" />
+                                }
+                                else
+                                {
+                                    <div class="album-art-placeholder">♫</div>
+                                }
+                                <button class="play-overlay" @onclick:stopPropagation="true"
+                                        @onclick="() => PlayAlbumAsync(album.Id)">▶</button>
+                            </div>
+                            <div class="album-card-info">
+                                <span class="album-card-title">@album.Title</span>
+                                <span class="album-card-artist">@album.ArtistName</span>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+
+            @* ─── Album Detail ─── *@
+            @if (_section == Section.Albums && _selectedAlbum is not null)
+            {
+                <div class="album-detail">
+                    <div class="album-detail-header">
+                        <div class="album-detail-art">
+                            @if (_selectedAlbum.HasCoverArt)
+                            {
+                                <img src="@GetAlbumArtUrl(_selectedAlbum.Id)" alt="@_selectedAlbum.Title" />
+                            }
+                            else
+                            {
+                                <div class="album-art-placeholder large">
+                                    <span>♫</span>
+                                    <button class="btn-fetch-art"
+                                            @onclick="() => EnrichAlbumAsync(_selectedAlbum.Id)"
+                                            disabled="@(_enrichingAlbum && _enrichingAlbumId == _selectedAlbum.Id)"
+                                            title="Fetch cover art from MusicBrainz">
+                                        @if (_enrichingAlbum && _enrichingAlbumId == _selectedAlbum.Id)
+                                        {
+                                            <span class="enrich-spinner"></span>
+                                        }
+                                        else
+                                        {
+                                            <span>Fetch Art</span>
+                                        }
+                                    </button>
+                                </div>
+                            }
+                        </div>
+                        <div class="album-detail-info">
+                            <span class="badge-album">ALBUM</span>
+                            <h3>@_selectedAlbum.Title</h3>
+                            <span class="album-detail-meta">
+                                @_selectedAlbum.ArtistName · @_selectedAlbum.Year · @_selectedAlbum.TrackCount tracks · @FormatDuration(_selectedAlbum.TotalDuration)
+                            </span>
+                            <div class="album-detail-actions">
+                                <button class="btn-play" @onclick="() => PlayAlbumAsync(_selectedAlbum.Id)">▶ Play</button>
+                                <button class="btn-icon-action" @onclick="() => ToggleStarAlbumAsync(_selectedAlbum)" title="Star">
+                                    @(_selectedAlbum.IsStarred ? "★" : "☆")
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="track-list album-tracks">
+                        @foreach (var (track, index) in _albumTracks.Select((t, i) => (t, i)))
+                        {
+                            <div class="track-row @(Playback.NowPlaying?.Id == track.Id ? "playing" : "")"
+                                 @ondblclick="() => PlayTrackAsync(track)">
+                                <span class="track-num">@(track.TrackNumber > 0 ? track.TrackNumber : index + 1)</span>
+                                <div class="track-info">
+                                    <span class="track-title">@track.Title</span>
+                                    @if (track.ArtistName != _selectedAlbum.ArtistName)
+                                    {
+                                        <span class="track-artist">@track.ArtistName</span>
+                                    }
+                                </div>
+                                <span class="track-duration">@FormatDuration(track.Duration)</span>
+                                <button class="track-action" @onclick="() => ToggleStarTrackAsync(track)" title="Star">
+                                    @(track.IsStarred ? "★" : "☆")
+                                </button>
+                                <div class="track-menu">
+                                    <button class="btn-icon" @onclick="() => ShowTrackMenu(track)">⋯</button>
+                                    @if (_trackMenuId == track.Id)
+                                    {
+                                        <div class="track-dropdown">
+                                            <button @onclick="() => AddToQueue(track)">Add to Queue</button>
+                                            @foreach (var pl in _playlists)
+                                            {
+                                                <button @onclick="() => AddToPlaylistAsync(pl.Id, track.Id)">Add to @pl.Name</button>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
+            @* ─── Genres ─── *@
+            @if (_section == Section.Genres)
+            {
+                <div class="genres-grid">
+                    @foreach (var genre in _genres)
+                    {
+                        <button class="genre-chip @(_selectedGenre == genre ? "active" : "")"
+                                @onclick="() => SelectGenreAsync(genre)">
+                            @genre
+                        </button>
+                    }
+                </div>
+
+                @if (_selectedGenre is not null && _genreTracks.Count > 0)
+                {
+                    <div class="track-list" style="margin-top: 16px;">
+                        @foreach (var (track, index) in _genreTracks.Select((t, i) => (t, i)))
+                        {
+                            <div class="track-row @(Playback.NowPlaying?.Id == track.Id ? "playing" : "")"
+                                 @ondblclick="() => PlayTrackAsync(track)">
+                                <span class="track-num">@(index + 1)</span>
+                                <div class="track-info">
+                                    <span class="track-title">@track.Title</span>
+                                    <span class="track-artist">@track.ArtistName — @track.AlbumTitle</span>
+                                </div>
+                                <span class="track-duration">@FormatDuration(track.Duration)</span>
+                            </div>
+                        }
+                    </div>
+                }
+            }
+
+            @* ─── Playlists ─── *@
+            @if (_section == Section.Playlists && _selectedPlaylist is not null)
+            {
+                <div class="playlist-detail">
+                    <div class="playlist-detail-header">
+                        <h3>@_selectedPlaylist.Name</h3>
+                        <span class="playlist-meta">@_selectedPlaylist.TrackCount tracks · @FormatDuration(_selectedPlaylist.TotalDuration)</span>
+                        <div class="playlist-actions">
+                            <button class="btn-play" @onclick="() => PlayPlaylistAsync(_selectedPlaylist.Id)">▶ Play</button>
+                            <button class="btn-icon-action" @onclick="() => _showEditPlaylistDialog = true" title="Edit">✎</button>
+                            <button class="btn-icon-action danger" @onclick="() => DeletePlaylistAsync(_selectedPlaylist.Id)" title="Delete">🗑</button>
+                        </div>
+                    </div>
+                    <div class="track-list">
+                        @foreach (var (track, index) in _playlistTracks.Select((t, i) => (t, i)))
+                        {
+                            <div class="track-row @(Playback.NowPlaying?.Id == track.Id ? "playing" : "")"
+                                 @ondblclick="() => PlayTrackAsync(track)">
+                                <span class="track-num">@(index + 1)</span>
+                                <div class="track-info">
+                                    <span class="track-title">@track.Title</span>
+                                    <span class="track-artist">@track.ArtistName — @track.AlbumTitle</span>
+                                </div>
+                                <span class="track-duration">@FormatDuration(track.Duration)</span>
+                                <button class="track-action danger" @onclick="() => RemoveFromPlaylistAsync(_selectedPlaylist.Id, track.Id)" title="Remove">✕</button>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
+            @* ─── Favorites ─── *@
+            @if (_section == Section.Favorites)
+            {
+                @if (_starredAlbums.Count == 0 && _starredTracks.Count == 0)
+                {
+                    <div class="music-empty">
+                        <div class="empty-icon">⭐</div>
+                        <h4>No favorites yet</h4>
+                        <p>Star tracks, albums, or artists to see them here.</p>
+                    </div>
+                }
+
+                @if (_starredAlbums.Count > 0)
+                {
+                    <h4 class="favorites-section-header">Albums</h4>
+                    <div class="albums-grid">
+                        @foreach (var album in _starredAlbums)
+                        {
+                            <div class="album-card" @onclick="() => OpenAlbumDetail(album)">
+                                <div class="album-art">
+                                    @if (album.HasCoverArt)
+                                    {
+                                        <img src="@GetAlbumArtUrl(album.Id)" alt="@album.Title" loading="lazy" />
+                                    }
+                                    else
+                                    {
+                                        <div class="album-art-placeholder">♫</div>
+                                    }
+                                    <button class="play-overlay" @onclick:stopPropagation="true"
+                                            @onclick="() => PlayAlbumAsync(album.Id)">▶</button>
+                                </div>
+                                <div class="album-card-info">
+                                    <span class="album-card-title">@album.Title</span>
+                                    <span class="album-card-artist">@album.ArtistName</span>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+
+                @if (_starredTracks.Count > 0)
+                {
+                    <h4 class="favorites-section-header">Tracks</h4>
+                    <div class="track-list">
+                        @foreach (var (track, index) in _starredTracks.Select((t, i) => (t, i)))
+                        {
+                            <div class="track-row @(Playback.NowPlaying?.Id == track.Id ? "playing" : "")"
+                                 @ondblclick="() => PlayTrackAsync(track)">
+                                <span class="track-num">@(index + 1)</span>
+                                <div class="track-info">
+                                    <span class="track-title">@track.Title</span>
+                                    <span class="track-artist">@track.ArtistName — @track.AlbumTitle</span>
+                                </div>
+                                <span class="track-duration">@FormatDuration(track.Duration)</span>
+                                <button class="track-action" @onclick="() => ToggleStarTrackAsync(track)" title="Unstar">★</button>
+                            </div>
+                        }
+                    </div>
+                }
+            }
+
+            @* ─── Recently Played ─── *@
+            @if (_section == Section.RecentlyPlayed)
+            {
+                <div class="track-list">
+                    @if (_recentlyPlayed.Count == 0)
+                    {
+                        <div class="music-empty">
+                            <div class="empty-icon">🕐</div>
+                            <h4>No play history</h4>
+                            <p>Play some music and it will appear here.</p>
+                        </div>
+                    }
+                    @foreach (var (track, index) in _recentlyPlayed.Select((t, i) => (t, i)))
+                    {
+                        <div class="track-row @(Playback.NowPlaying?.Id == track.Id ? "playing" : "")"
+                             @ondblclick="() => PlayTrackAsync(track)">
+                            <span class="track-num">@(index + 1)</span>
+                            <div class="track-info">
+                                <span class="track-title">@track.Title</span>
+                                <span class="track-artist">@track.ArtistName — @track.AlbumTitle</span>
+                            </div>
+                            <span class="track-duration">@FormatDuration(track.Duration)</span>
+                        </div>
+                    }
+                </div>
+            }
+
+            @* ─── Search Results ─── *@
+            @if (_searchResults is not null)
+            {
+                <div class="search-results">
+                    <h4>Search Results for "@_searchQuery"</h4>
+                    <div class="track-list">
+                        @foreach (var (track, index) in _searchResults.Select((t, i) => (t, i)))
+                        {
+                            <div class="track-row @(Playback.NowPlaying?.Id == track.Id ? "playing" : "")"
+                                 @ondblclick="() => PlayTrackAsync(track)">
+                                <span class="track-num">@(index + 1)</span>
+                                <div class="track-info">
+                                    <span class="track-title">@track.Title</span>
+                                    <span class="track-artist">@track.ArtistName — @track.AlbumTitle</span>
+                                </div>
+                                <span class="track-duration">@FormatDuration(track.Duration)</span>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
+            @* ─── Library Settings ─── *@
+            @if (_section == Section.Settings)
+            {
+                <div class="module-settings-section">
+                    <div class="settings-card">
+                        <h4>Music Library</h4>
+                        <p class="hint">Configure the local directory path for your music library. DotNetCloud will scan
+                            this directory and import audio files (MP3, FLAC, OGG, Opus, AAC, M4A, WAV, and more).</p>
+                        <div class="form-group">
+                            <label>Directory Path</label>
+                            <div class="input-with-browse">
+                                <input type="text" class="input" @bind="_libraryPath"
+                                       placeholder="/home/user/Music" />
+                                <button class="btn btn-outline btn-sm" @onclick="OpenDirectoryBrowser">Browse…</button>
+                            </div>
+                        </div>
+                        <div class="settings-actions">
+                            <button class="btn btn-primary btn-sm" @onclick="SaveLibraryPathAsync"
+                                    disabled="@_settingsSaving">
+                                @(_settingsSaving ? "Saving..." : "Save Path")
+                            </button>
+                            @if (ScanProgress.IsScanning)
+                            {
+                                <button class="btn btn-outline btn-sm btn-cancel-scan" @onclick="CancelScan">
+                                    Cancel Scan
+                                </button>
+                            }
+                            else
+                            {
+                                <button class="btn btn-outline btn-sm" @onclick="ScanLibraryAsync"
+                                        disabled="@(_settingsScanning || string.IsNullOrWhiteSpace(_libraryPath))">
+                                    @(_settingsScanning ? "Scanning..." : "Scan Now")
+                                </button>
+                            }
+                        </div>
+
+                        @* ─── Scan Progress Panel ─── *@
+                        @if (ScanProgress.IsScanning)
+                        {
+                            var p = ScanProgress.CurrentProgress;
+                            <div class="scan-progress-panel">
+                                @if (p is not null)
+                                {
+                                    <div class="scan-progress-header">
+                                        <span class="scan-phase">@p.Phase</span>
+                                        <span class="scan-elapsed">@FormatElapsed(p.ElapsedTime)</span>
+                                    </div>
+                                    <div class="scan-progress-bar">
+                                        <div class="scan-progress-fill" style="width: @(p.PercentComplete)%"></div>
+                                    </div>
+                                    <div class="scan-progress-detail">
+                                        @if (!string.IsNullOrEmpty(p.CurrentFile))
+                                        {
+                                            <span class="scan-current-file" title="@p.CurrentFile">@TruncateFileName(p.CurrentFile, 60)</span>
+                                        }
+                                        <div class="scan-counts">
+                                            <span class="scan-count added">+@p.TracksAdded added</span>
+                                            <span class="scan-count updated">↻@p.TracksUpdated updated</span>
+                                            <span class="scan-count skipped">→@p.TracksSkipped skipped</span>
+                                            @if (p.TracksFailed > 0)
+                                            {
+                                                <span class="scan-count failed">✕@p.TracksFailed failed</span>
+                                            }
+                                            @if (p.AlbumArtFetched > 0)
+                                            {
+                                                <span class="scan-count art">🎨@p.AlbumArtFetched covers</span>
+                                            }
+                                        </div>
+                                        @if (p.TotalFiles > 0)
+                                        {
+                                            <span class="scan-file-count">@p.FilesProcessed / @p.TotalFiles files (@p.PercentComplete%)</span>
+                                        }
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="scan-progress-header">
+                                        <span class="scan-phase">Discovering files…</span>
+                                    </div>
+                                    <div class="scan-progress-bar">
+                                        <div class="scan-progress-fill indeterminate"></div>
+                                    </div>
+                                }
+                            </div>
+                        }
+
+                        @* ─── Enrichment Settings ─── *@
+                        <div class="enrichment-settings" style="margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--color-border, rgba(255,255,255,0.08));">
+                            <h5 style="margin-bottom: 10px;">MusicBrainz Enrichment</h5>
+                            <p class="hint" style="margin-bottom: 12px;">Automatically fetch metadata and cover art from MusicBrainz and Cover Art Archive during library scans.</p>
+                            <label class="toggle-label">
+                                <input type="checkbox" @bind="_autoFetchMetadata" @bind:after="SaveEnrichmentSettingsAsync" />
+                                <span>Auto-fetch metadata from MusicBrainz during scan</span>
+                            </label>
+                            <label class="toggle-label">
+                                <input type="checkbox" @bind="_autoFetchAlbumArt" @bind:after="SaveEnrichmentSettingsAsync" />
+                                <span>Auto-fetch missing album art from Cover Art Archive</span>
+                            </label>
+                        </div>
+
+                        <div class="settings-danger-zone" style="margin-top: 24px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.08);">
+                            <h5 style="color: var(--color-danger, #e55); margin-bottom: 8px;">Reset Collection</h5>
+                            <p class="hint" style="margin-bottom: 8px;">Deletes all indexed music metadata (tracks, albums, artists, play history, playlists).
+                                Your actual audio files are NOT affected. After resetting, click Scan Now to rebuild from scratch.</p>
+                            @if (_showResetConfirm)
+                            {
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <span style="color: var(--color-danger, #e55); font-size: 13px;">Are you sure?</span>
+                                    <button class="btn btn-sm" style="background: var(--color-danger, #e55); color: #fff;"
+                                            @onclick="ResetCollectionAsync" disabled="@_settingsResetting">
+                                        @(_settingsResetting ? "Resetting..." : "Yes, Reset")
+                                    </button>
+                                    <button class="btn btn-outline btn-sm" @onclick="() => _showResetConfirm = false">Cancel</button>
+                                </div>
+                            }
+                            else
+                            {
+                                <button class="btn btn-outline btn-sm" style="border-color: var(--color-danger, #e55); color: var(--color-danger, #e55);"
+                                        @onclick="() => _showResetConfirm = true">
+                                    Reset Collection
+                                </button>
+                            }
+                        </div>
+                        @if (_scanResult is not null)
+                        {
+                            <div class="scan-result-banner">
+                                Found @_scanResult.TotalFound · Imported @_scanResult.Imported · Skipped @_scanResult.Skipped
+                                @if (_scanResult.Failed > 0)
+                                {
+                                    <span class="text-danger"> · Failed @_scanResult.Failed</span>
+                                }
+                            </div>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(_settingsError))
+                        {
+                            <div class="alert alert-danger" style="margin-top: 12px; font-size: 13px;">@_settingsError</div>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(_settingsSuccess))
+                        {
+                            <div class="alert alert-success" style="margin-top: 12px; font-size: 13px;">@_settingsSuccess</div>
+                        }
+                    </div>
+                </div>
+            }
+
+            @* ─── Directory Browser Dialog ─── *@
+            @if (_showDirBrowser)
+            {
+                <div class="folder-picker-overlay" @onclick="HideDirectoryBrowser">
+                    <div class="folder-picker-dialog" @onclick:stopPropagation>
+                        <div class="folder-picker-header">
+                            <h3>Select Folder</h3>
+                            <button class="btn-icon" @onclick="HideDirectoryBrowser" title="Close">✕</button>
+                        </div>
+
+                        <nav class="folder-picker-breadcrumbs">
+                            <button class="btn btn-sm" @onclick="DirBrowserNavigateToRoot">
+                                Home
+                            </button>
+                            @for (int i = 0; i < _dirBrowserBreadcrumbs.Count; i++)
+                            {
+                                var idx = i;
+                                <span class="separator">/</span>
+                                <button class="btn btn-sm" @onclick="() => DirBrowserNavigateToCrumb(idx)">@_dirBrowserBreadcrumbs[idx].Name</button>
+                            }
+                        </nav>
+
+                        <div class="folder-picker-current-path">
+                            <span class="path-label">Path:</span> @GetDirBrowserPath()
+                        </div>
+
+                        <div class="folder-picker-list">
+                            @if (_dirBrowserBreadcrumbs.Count > 0)
+                            {
+                                <button class="folder-picker-item" @onclick="DirBrowserGoUp">
+                                    📁 ..
+                                </button>
+                            }
+                            @if (!string.IsNullOrEmpty(_dirBrowserError))
+                            {
+                                <p class="text-muted folder-picker-empty">@_dirBrowserError</p>
+                            }
+                            else if (_dirBrowserFolders.Count == 0)
+                            {
+                                <p class="text-muted folder-picker-empty">No subfolders</p>
+                            }
+                            else
+                            {
+                                @foreach (var folder in _dirBrowserFolders)
+                                {
+                                    <button class="folder-picker-item" @onclick="() => DirBrowserNavigate(folder.Id, folder.Name)">
+                                        📁 @folder.Name
+                                    </button>
+                                }
+                            }
+                        </div>
+
+                        <div class="folder-picker-actions">
+                            <button class="btn btn-primary btn-sm" @onclick="ConfirmDirectoryBrowser">
+                                Select this folder
+                            </button>
+                            <button class="btn btn-sm" @onclick="HideDirectoryBrowser">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            }
+        }
+    </main>
+
+    @* ─── Create/Edit Playlist Dialog ─── *@
+    @if (_showCreatePlaylistDialog || _showEditPlaylistDialog)
+    {
+        <div class="dialog-overlay" @onclick="ClosePlaylistDialog">
+            <div class="dialog-panel" @onclick:stopPropagation="true">
+                <h4>@(_showEditPlaylistDialog ? "Edit Playlist" : "Create Playlist")</h4>
+                <div class="dialog-form">
+                    <label>Name
+                        <input type="text" @bind="_playlistName" placeholder="Playlist name" />
+                    </label>
+                    <label>Description
+                        <textarea @bind="_playlistDescription" placeholder="Optional description" rows="2"></textarea>
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" @bind="_playlistPublic" />
+                        <span>Public playlist</span>
+                    </label>
+                </div>
+                <div class="dialog-actions">
+                    <button class="btn-cancel" @onclick="ClosePlaylistDialog">Cancel</button>
+                    <button class="btn-primary" @onclick="SavePlaylistAsync">
+                        @(_showEditPlaylistDialog ? "Save" : "Create")
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+
+    @* ─── Enrichment Toast ─── *@
+    @if (_enrichmentToast is not null)
+    {
+        <div class="enrichment-toast">
+            <span>@_enrichmentToast</span>
+            <button class="toast-dismiss" @onclick="DismissEnrichmentToast">✕</button>
+        </div>
+    }
+</div>

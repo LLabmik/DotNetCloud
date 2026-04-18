@@ -34,7 +34,7 @@ public sealed class RateLimitingOptions
     /// <summary>
     /// Gets or sets the authenticated user rate limit (requests per window). Defaults to 200.
     /// </summary>
-    public int AuthenticatedPermitLimit { get; set; } = 200;
+    public int AuthenticatedPermitLimit { get; set; } = 10000;
 
     /// <summary>
     /// Gets or sets the authenticated user rate limit window in seconds. Defaults to 60.

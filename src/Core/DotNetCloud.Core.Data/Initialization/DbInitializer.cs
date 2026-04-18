@@ -348,14 +348,6 @@ public class DbInitializer
     {
         _logger.LogInformation("Seeding default system settings...");
 
-        // Check if settings already exist
-        var existingSettingsCount = await _context.SystemSettings.CountAsync(cancellationToken);
-        if (existingSettingsCount > 0)
-        {
-            _logger.LogInformation("System settings already exist. Skipping settings seeding.");
-            return;
-        }
-
         var defaultSettings = new[]
         {
             // Core system settings
@@ -527,13 +519,80 @@ public class DbInitializer
                 Key = "EnableWebAuthn",
                 Value = "true",
                 Description = "Enable WebAuthn/Passkey support"
+            },
+
+            // AI Assistant module settings
+            new SystemSetting
+            {
+                Module = "dotnetcloud.ai",
+                Key = "Provider",
+                Value = "ollama",
+                Description = "LLM provider type (ollama, openai, anthropic)"
+            },
+            new SystemSetting
+            {
+                Module = "dotnetcloud.ai",
+                Key = "ApiBaseUrl",
+                Value = "http://localhost:11434/",
+                Description = "Base URL of the LLM API endpoint"
+            },
+            new SystemSetting
+            {
+                Module = "dotnetcloud.ai",
+                Key = "ApiKey",
+                Value = "",
+                Description = "API key for cloud LLM providers (OpenAI, Anthropic). Not required for local Ollama."
+            },
+            new SystemSetting
+            {
+                Module = "dotnetcloud.ai",
+                Key = "OrganizationId",
+                Value = "",
+                Description = "Optional organization ID for providers that support it (e.g. OpenAI)"
+            },
+            new SystemSetting
+            {
+                Module = "dotnetcloud.ai",
+                Key = "DefaultModel",
+                Value = "gpt-oss:20b",
+                Description = "Default LLM model for new conversations"
+            },
+            new SystemSetting
+            {
+                Module = "dotnetcloud.ai",
+                Key = "MaxTokens",
+                Value = "0",
+                Description = "Maximum tokens per response (0 = provider default)"
+            },
+            new SystemSetting
+            {
+                Module = "dotnetcloud.ai",
+                Key = "RequestTimeoutSeconds",
+                Value = "300",
+                Description = "Request timeout in seconds for LLM API calls"
             }
         };
 
-        await _context.SystemSettings.AddRangeAsync(defaultSettings, cancellationToken);
+        // Load existing setting keys to avoid duplicates
+        var existingKeys = await _context.SystemSettings
+            .Select(s => s.Module + "|" + s.Key)
+            .ToHashSetAsync(cancellationToken);
+
+        var newSettings = defaultSettings
+            .Where(s => !existingKeys.Contains(s.Module + "|" + s.Key))
+            .ToArray();
+
+        if (newSettings.Length == 0)
+        {
+            _logger.LogInformation("All default system settings already exist. Nothing to seed.");
+            return;
+        }
+
+        await _context.SystemSettings.AddRangeAsync(newSettings, cancellationToken);
         await _context.SaveChangesAsync(cancellationToken);
 
-        _logger.LogInformation("Seeded {Count} default system settings.", defaultSettings.Length);
+        _logger.LogInformation("Seeded {Count} new system settings ({Existing} already existed).",
+            newSettings.Length, defaultSettings.Length - newSettings.Length);
     }
 
     /// <summary>

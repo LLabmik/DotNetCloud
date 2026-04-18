@@ -1,0 +1,54 @@
+@namespace DotNetCloud.Modules.Chat.UI
+
+@*
+    Tracks activity feed — displays a live stream of Tracks board activity
+    inside the Chat sidebar. Gracefully hidden when the Tracks module is not installed.
+    Code-behind: TracksActivityFeed.razor.cs
+*@
+
+@if (!IsTracksAvailable)
+{
+    return;
+}
+
+<div class="tracks-activity-feed">
+    <div class="tracks-activity-header">
+        <span class="tracks-activity-icon">&#9776;</span>
+        <span class="tracks-activity-title">Board Activity</span>
+        @if (_activities.Count > 0)
+        {
+            <span class="tracks-activity-count">@_activities.Count</span>
+        }
+    </div>
+
+    @if (_activities.Count == 0)
+    {
+        <div class="tracks-activity-empty">
+            <span class="tracks-activity-empty-text">No recent board activity</span>
+        </div>
+    }
+    else
+    {
+        <div class="tracks-activity-list">
+            @foreach (var item in _activities)
+            {
+                <div class="tracks-activity-item @(item.IsNew ? "is-new" : "")">
+                    <span class="tracks-activity-action-icon">@GetActionIcon(item.Action)</span>
+                    <div class="tracks-activity-content">
+                        <span class="tracks-activity-action-text">@GetActionText(item.Action)</span>
+                        <span class="tracks-activity-time">@FormatTime(item.Timestamp)</span>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
+    @if (_assignmentAlert is not null)
+    {
+        <div class="tracks-assignment-alert">
+            <span class="tracks-assignment-icon">&#128204;</span>
+            <span class="tracks-assignment-text">You were assigned to a card</span>
+            <button class="tracks-assignment-dismiss" @onclick="DismissAssignment">&times;</button>
+        </div>
+    }
+</div>

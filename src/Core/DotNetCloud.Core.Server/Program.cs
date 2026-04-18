@@ -17,8 +17,14 @@ using DotNetCloud.Modules.Calendar.Data;
 using DotNetCloud.Modules.Chat.Data;
 using DotNetCloud.Modules.Contacts.Data;
 using DotNetCloud.Modules.Files.Data;
+using DotNetCloud.Modules.Music.Data;
 using DotNetCloud.Modules.Notes.Data;
+using DotNetCloud.Modules.Photos.Data;
 using DotNetCloud.Modules.Tracks.Data;
+using DotNetCloud.Modules.Video.Data;
+using DotNetCloud.Modules.AI.Data;
+using DotNetCloud.Modules.Search;
+using DotNetCloud.Modules.Search.Data;
 using DotNetCloud.Modules.Files.Services;
 using DotNetCloud.UI.Web.Client.Services;
 using DotNetCloud.UI.Web.Services;
@@ -106,7 +112,8 @@ public class Program
                         await EnsureModuleTablesCreatedAsync(filesDbContext, "FileNodes", logger);
 
                         var chatDbContext = scope.ServiceProvider.GetRequiredService<ChatDbContext>();
-                        await EnsureModuleTablesCreatedAsync(chatDbContext, "Channels", logger);
+                        await chatDbContext.Database.MigrateAsync();
+                        logger.LogInformation("Chat module database migrated");
 
                         var contactsDbContext = scope.ServiceProvider.GetRequiredService<ContactsDbContext>();
                         await EnsureModuleTablesCreatedAsync(contactsDbContext, "Contacts", logger);
@@ -118,7 +125,25 @@ public class Program
                         await EnsureModuleTablesCreatedAsync(notesDbContext, "Notes", logger);
 
                         var tracksDbContext = scope.ServiceProvider.GetRequiredService<TracksDbContext>();
-                        await EnsureModuleTablesCreatedAsync(tracksDbContext, "Boards", logger);
+                        await TracksDbInitializer.InitializeAsync(tracksDbContext, logger);
+
+                        var photosDbContext = scope.ServiceProvider.GetRequiredService<PhotosDbContext>();
+                        await photosDbContext.Database.MigrateAsync();
+                        logger.LogInformation("Photos module database migrated");
+
+                        var musicDbContext = scope.ServiceProvider.GetRequiredService<MusicDbContext>();
+                        await musicDbContext.Database.MigrateAsync();
+                        logger.LogInformation("Music module database migrated");
+
+                        var videoDbContext = scope.ServiceProvider.GetRequiredService<VideoDbContext>();
+                        await videoDbContext.Database.MigrateAsync();
+                        logger.LogInformation("Video module database migrated");
+
+                        var aiDbContext = scope.ServiceProvider.GetRequiredService<AiDbContext>();
+                        await EnsureModuleTablesCreatedAsync(aiDbContext, "Conversations", logger);
+
+                        var searchDbContext = scope.ServiceProvider.GetRequiredService<SearchDbContext>();
+                        await EnsureModuleTablesCreatedAsync(searchDbContext, "SearchIndexEntries", logger);
                     }
                     catch (InvalidOperationException ex)
                     {
@@ -133,7 +158,8 @@ public class Program
                     await EnsureModuleTablesCreatedAsync(filesDbContext, "FileNodes", logger);
 
                     var chatDbContext = scope.ServiceProvider.GetRequiredService<ChatDbContext>();
-                    await EnsureModuleTablesCreatedAsync(chatDbContext, "Channels", logger);
+                    await chatDbContext.Database.MigrateAsync();
+                    logger.LogInformation("Chat module database migrated");
 
                     var contactsDbContext = scope.ServiceProvider.GetRequiredService<ContactsDbContext>();
                     await EnsureModuleTablesCreatedAsync(contactsDbContext, "Contacts", logger);
@@ -145,7 +171,25 @@ public class Program
                     await EnsureModuleTablesCreatedAsync(notesDbContext, "Notes", logger);
 
                     var tracksDbContext = scope.ServiceProvider.GetRequiredService<TracksDbContext>();
-                    await EnsureModuleTablesCreatedAsync(tracksDbContext, "Boards", logger);
+                    await TracksDbInitializer.InitializeAsync(tracksDbContext, logger);
+
+                    var photosDbContext = scope.ServiceProvider.GetRequiredService<PhotosDbContext>();
+                    await photosDbContext.Database.MigrateAsync();
+                    logger.LogInformation("Photos module database migrated");
+
+                    var musicDbContext = scope.ServiceProvider.GetRequiredService<MusicDbContext>();
+                    await musicDbContext.Database.MigrateAsync();
+                    logger.LogInformation("Music module database migrated");
+
+                    var videoDbContext = scope.ServiceProvider.GetRequiredService<VideoDbContext>();
+                    await videoDbContext.Database.MigrateAsync();
+                    logger.LogInformation("Video module database migrated");
+
+                    var aiDbContext = scope.ServiceProvider.GetRequiredService<AiDbContext>();
+                    await EnsureModuleTablesCreatedAsync(aiDbContext, "Conversations", logger);
+
+                    var searchDbContext = scope.ServiceProvider.GetRequiredService<SearchDbContext>();
+                    await EnsureModuleTablesCreatedAsync(searchDbContext, "SearchIndexEntries", logger);
                 }
 
                 // Mark the application as ready for traffic now that DB is initialized
@@ -237,17 +281,47 @@ public class Program
             ConfigureModuleDbContext(options, provider, connectionString));
         builder.Services.AddDbContext<TracksDbContext>(options =>
             ConfigureModuleDbContext(options, provider, connectionString));
+        builder.Services.AddDbContext<PhotosDbContext>(options =>
+            ConfigureModuleDbContext(options, provider, connectionString));
+        builder.Services.AddDbContext<MusicDbContext>(options =>
+            ConfigureModuleDbContext(options, provider, connectionString));
+        builder.Services.AddDbContext<VideoDbContext>(options =>
+            ConfigureModuleDbContext(options, provider, connectionString));
+        builder.Services.AddDbContext<AiDbContext>(options =>
+            ConfigureModuleDbContext(options, provider, connectionString));
+        builder.Services.AddDbContext<SearchDbContext>(options =>
+            ConfigureModuleDbContext(options, provider, connectionString));
         builder.Services.AddFilesServices(builder.Configuration);
         builder.Services.AddChatServices(builder.Configuration);
         builder.Services.AddContactsServices(builder.Configuration);
         builder.Services.AddCalendarServices(builder.Configuration);
         builder.Services.AddNotesServices(builder.Configuration);
         builder.Services.AddTracksServices(builder.Configuration);
+        builder.Services.AddPhotosServices(builder.Configuration);
+        builder.Services.AddMusicServices(builder.Configuration);
+        builder.Services.AddVideoServices(builder.Configuration);
+        builder.Services.AddAiServices(builder.Configuration);
+        builder.Services.AddSearchServices(builder.Configuration);
+        // Register ISearchableModule implementations for search indexing
+        builder.Services.AddScoped<DotNetCloud.Core.Capabilities.ISearchableModule, DotNetCloud.Modules.Files.Data.Services.FilesSearchableModule>();
+        builder.Services.AddScoped<DotNetCloud.Core.Capabilities.ISearchableModule, DotNetCloud.Modules.Notes.Data.Services.NotesSearchableModule>();
+        builder.Services.AddScoped<DotNetCloud.Core.Capabilities.ISearchableModule, DotNetCloud.Modules.Calendar.Data.Services.CalendarSearchableModule>();
         builder.Services.AddSingleton<IEventBus, InProcessEventBus>();
         builder.Services.AddSingleton<DotNetCloud.Core.Capabilities.ICrossModuleLinkResolver, CrossModuleLinkResolver>();
+
+        // Update service — queries GitHub Releases API with caching
+        builder.Services.AddMemoryCache();
+        builder.Services.AddHttpClient("GitHubReleases", client =>
+        {
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("DotNetCloud-UpdateChecker/1.0");
+        });
+        builder.Services.AddSingleton<DotNetCloud.Core.Services.IUpdateService, DotNetCloud.Core.Server.Services.GitHubUpdateService>();
         builder.Services.AddScoped<DotNetCloud.Core.Capabilities.INotificationService, NotificationService>();
         builder.Services.AddScoped<DotNetCloud.Modules.Files.Services.IUserOrganizationResolver, UserOrganizationResolver>();
         builder.Services.AddScoped<DotNetCloud.Core.Import.IImportPipeline, ImportPipelineService>();
+        builder.Services.AddScoped<DotNetCloud.Core.Server.Services.MediaFolderImportService>();
+        builder.Services.AddScoped<DotNetCloud.Core.Services.IMediaLibraryScanner>(sp =>
+            sp.GetRequiredService<DotNetCloud.Core.Server.Services.MediaFolderImportService>());
 
         var filesStoragePath = builder.Configuration.GetValue<string>("Files:StoragePath");
         var dataDirForStorage = Environment.GetEnvironmentVariable("DOTNETCLOUD_DATA_DIR");
@@ -257,6 +331,12 @@ public class Program
                 ? Path.Combine(dataDirForStorage, "storage")
                 : Path.Combine(builder.Environment.ContentRootPath, "storage");
         }
+
+        // Propagate the resolved storage path so all services reading
+        // "Files:Storage:RootPath" use the persistent location instead of
+        // falling back to Path.GetTempPath() (which is ephemeral under
+        // systemd PrivateTmp=true).
+        builder.Configuration["Files:Storage:RootPath"] = filesStoragePath;
 
         // Create the server-owned temp directory with restricted permissions (700).
         var tmpDir = !string.IsNullOrWhiteSpace(dataDirForStorage)
@@ -288,7 +368,10 @@ public class Program
 
         // Add Blazor (InteractiveAuto = Server + WebAssembly)
         builder.Services.AddRazorComponents()
-            .AddInteractiveServerComponents()
+            .AddInteractiveServerComponents(options =>
+            {
+                options.DetailedErrors = true;
+            })
             .AddInteractiveWebAssemblyComponents()
             .AddAuthenticationStateSerialization();
 
@@ -296,6 +379,7 @@ public class Program
 
         // Blazor UI services (server-side prerendering needs these too)
         builder.Services.AddSingleton<ModuleUiRegistry>();
+        builder.Services.AddScoped<DotNetCloud.UI.Shared.Services.BrowserTimeProvider>();
         builder.Services.AddScoped<ToastService>();
         builder.Services.AddTransient<DotNetCloud.Core.Server.Middleware.CookieForwardingHandler>();
         builder.Services.AddScoped(sp =>
@@ -393,6 +477,7 @@ public class Program
         builder.Services.AddScoped<OidcClientSeeder>();
         builder.Services.AddHostedService<ModuleUiRegistrationHostedService>();
         builder.Services.AddHostedService<NotificationEventSubscriber>();
+        builder.Services.AddHostedService<SearchEventSubscriber>();
 
         // Configure forwarded headers for reverse proxy support.
         // SECURITY: Only trust forwarded headers from known proxies to prevent IP spoofing.
@@ -550,7 +635,7 @@ public class Program
 
             var collaboraOrigin = collaboraUri.GetLeftPart(UriPartial.Authority);
             headers.ContentSecurityPolicy =
-                $"default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' ws: wss:; frame-src 'self' {collaboraOrigin}; child-src 'self' {collaboraOrigin}; frame-ancestors 'self';";
+                $"default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' ws: wss:; frame-src 'self' {collaboraOrigin}; child-src 'self' {collaboraOrigin}; frame-ancestors 'self';";
         });
 
         // Map health checks
@@ -567,12 +652,16 @@ public class Program
 
         // Response envelope middleware (wraps API responses in standard format).
         // WOPI file protocol endpoints must remain unwrapped for Collabora compatibility.
+        // Video/music stream endpoints return raw binary data that must not be buffered
+        // into a MemoryStream (which overflows at 2 GB for large files).
         app.UseResponseEnvelope(options =>
         {
             options.ExcludePaths =
             [
                 .. options.ExcludePaths,
                 "/api/v1/wopi/files/",
+                "/api/v1/videos/",
+                "/api/v1/music/",
             ];
         });
 
@@ -619,7 +708,17 @@ public class Program
         app.MapRazorComponents<DotNetCloud.UI.Web.Components.App>()
             .AddInteractiveServerRenderMode()
             .AddInteractiveWebAssemblyRenderMode()
-            .AddAdditionalAssemblies(typeof(DotNetCloud.UI.Web.Client._Imports).Assembly);
+            .AddAdditionalAssemblies(
+                typeof(DotNetCloud.UI.Web.Client._Imports).Assembly,
+                typeof(DotNetCloud.Modules.Video.UI.VideoPage).Assembly,
+                typeof(DotNetCloud.Modules.Photos.UI.PhotosPage).Assembly,
+                typeof(DotNetCloud.Modules.Music.UI.MusicPage).Assembly,
+                typeof(DotNetCloud.Modules.Chat.UI.ChatPageLayout).Assembly,
+                typeof(DotNetCloud.Modules.Notes.UI.NotesPage).Assembly,
+                typeof(DotNetCloud.Modules.Calendar.UI.CalendarPage).Assembly,
+                typeof(DotNetCloud.Modules.Contacts.UI.ContactsPage).Assembly,
+                typeof(DotNetCloud.Modules.Tracks.UI.TracksPage).Assembly,
+                typeof(DotNetCloud.Modules.Files.UI.FileBrowser).Assembly);
     }
 
     private static void MapCollaboraReverseProxy(WebApplication app)

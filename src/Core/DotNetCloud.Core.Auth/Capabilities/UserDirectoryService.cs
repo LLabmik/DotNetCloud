@@ -53,6 +53,25 @@ public sealed class UserDirectoryService : IUserDirectory
     }
 
     /// <inheritdoc />
+    public async Task<IReadOnlyDictionary<Guid, string>> GetAvatarUrlsAsync(
+        IEnumerable<Guid> userIds, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(userIds);
+
+        var idList = userIds.Distinct().ToList();
+        if (idList.Count == 0)
+            return new Dictionary<Guid, string>();
+
+        var results = await _dbContext.Users
+            .AsNoTracking()
+            .Where(u => idList.Contains(u.Id) && u.AvatarUrl != null)
+            .Select(u => new { u.Id, u.AvatarUrl })
+            .ToListAsync(cancellationToken);
+
+        return results.ToDictionary(u => u.Id, u => u.AvatarUrl!);
+    }
+
+    /// <inheritdoc />
     public async Task<IReadOnlyList<UserSearchResult>> SearchUsersAsync(string searchTerm, int maxResults = 20, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(searchTerm))

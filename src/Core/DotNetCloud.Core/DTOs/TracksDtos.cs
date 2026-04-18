@@ -21,6 +21,11 @@ public sealed record BoardDto
     public Guid? TeamId { get; init; }
 
     /// <summary>
+    /// Board operating mode — Personal (simple kanban) or Team (full project management).
+    /// </summary>
+    public BoardMode Mode { get; init; }
+
+    /// <summary>
     /// Board title.
     /// </summary>
     public required string Title { get; init; }
@@ -34,6 +39,11 @@ public sealed record BoardDto
     /// Hex color code for UI display.
     /// </summary>
     public string? Color { get; init; }
+
+    /// <summary>
+    /// Whether adding new swimlanes is locked.
+    /// </summary>
+    public bool LockSwimlanes { get; init; }
 
     /// <summary>
     /// Whether the board has been archived.
@@ -66,9 +76,9 @@ public sealed record BoardDto
     public IReadOnlyList<BoardMemberDto> Members { get; init; } = [];
 
     /// <summary>
-    /// Lists (columns) in this board.
+    /// Swimlanes (columns) in this board.
     /// </summary>
-    public IReadOnlyList<BoardListDto> Lists { get; init; } = [];
+    public IReadOnlyList<BoardSwimlaneDto> Swimlanes { get; init; } = [];
 
     /// <summary>
     /// Labels available on this board.
@@ -92,7 +102,7 @@ public enum BoardMemberRole
     /// <summary>Can create, edit, and move cards.</summary>
     Member,
 
-    /// <summary>Can manage lists, labels, and members.</summary>
+    /// <summary>Can manage swimlanes, labels, and members.</summary>
     Admin,
 
     /// <summary>Full control including board deletion.</summary>
@@ -128,7 +138,7 @@ public sealed record BoardMemberDto
 /// <summary>
 /// Represents a column (list) within a board.
 /// </summary>
-public sealed record BoardListDto
+public sealed record BoardSwimlaneDto
 {
     /// <summary>
     /// Unique identifier for the list.
@@ -159,6 +169,11 @@ public sealed record BoardListDto
     /// Maximum number of cards allowed (WIP limit). Null means unlimited.
     /// </summary>
     public int? CardLimit { get; init; }
+
+    /// <summary>
+    /// Whether this is a "done" column — cards here count as completed for sprint tracking.
+    /// </summary>
+    public bool IsDone { get; init; }
 
     /// <summary>
     /// Current number of cards in this list.
@@ -210,7 +225,7 @@ public sealed record CardDto
     /// <summary>
     /// The list this card is in.
     /// </summary>
-    public required Guid ListId { get; init; }
+    public required Guid SwimlaneId { get; init; }
 
     /// <summary>
     /// The board this card belongs to (denormalized for convenience).
@@ -311,6 +326,21 @@ public sealed record CardDto
     /// ETag for conflict detection.
     /// </summary>
     public string? ETag { get; init; }
+
+    /// <summary>
+    /// Current sprint assignment (null if unassigned).
+    /// </summary>
+    public Guid? SprintId { get; init; }
+
+    /// <summary>
+    /// Title of the assigned sprint (null if unassigned).
+    /// </summary>
+    public string? SprintTitle { get; init; }
+
+    /// <summary>
+    /// Whether this card is in a swimlane marked as "done" — used for sprint completion tracking.
+    /// </summary>
+    public bool IsInDoneSwimlane { get; init; }
 }
 
 /// <summary>
@@ -327,6 +357,11 @@ public sealed record CardAssignmentDto
     /// The assigned user's display name.
     /// </summary>
     public string? DisplayName { get; init; }
+
+    /// <summary>
+    /// The assigned user's avatar URL, if set.
+    /// </summary>
+    public string? AvatarUrl { get; init; }
 
     /// <summary>
     /// Timestamp when the user was assigned.
@@ -553,6 +588,18 @@ public enum SprintStatus
 }
 
 /// <summary>
+/// Board operating mode — determines which features are available.
+/// </summary>
+public enum BoardMode
+{
+    /// <summary>Simple multi-board kanban without sprints, teams, or planning overhead.</summary>
+    Personal,
+
+    /// <summary>Full project management with sprint planning, backlog, timeline, and review sessions.</summary>
+    Team
+}
+
+/// <summary>
 /// Represents a time-boxed sprint on a board.
 /// </summary>
 public sealed record SprintDto
@@ -606,6 +653,21 @@ public sealed record SprintDto
     /// Story points completed in this sprint.
     /// </summary>
     public int CompletedStoryPoints { get; init; }
+
+    /// <summary>
+    /// Target story points for capacity planning.
+    /// </summary>
+    public int? TargetStoryPoints { get; init; }
+
+    /// <summary>
+    /// Duration of this sprint in weeks (1–16). Used by the planning wizard.
+    /// </summary>
+    public int? DurationWeeks { get; init; }
+
+    /// <summary>
+    /// Planned order within the year plan (1-based sequential).
+    /// </summary>
+    public int? PlannedOrder { get; init; }
 
     /// <summary>
     /// Timestamp when the sprint was created.
@@ -748,6 +810,11 @@ public sealed record CreateBoardDto
     /// Optional team ID. When set, the board is owned by the team.
     /// </summary>
     public Guid? TeamId { get; init; }
+
+    /// <summary>
+    /// Board operating mode. Defaults to Personal.
+    /// </summary>
+    public BoardMode Mode { get; init; } = BoardMode.Personal;
 }
 
 /// <summary>
@@ -775,12 +842,17 @@ public sealed record UpdateBoardDto
     /// Updated archived state.
     /// </summary>
     public bool? IsArchived { get; init; }
+
+    /// <summary>
+    /// Updated lock-swimlanes state.
+    /// </summary>
+    public bool? LockSwimlanes { get; init; }
 }
 
 /// <summary>
 /// Request DTO for creating a new list on a board.
 /// </summary>
-public sealed record CreateBoardListDto
+public sealed record CreateBoardSwimlaneDto
 {
     /// <summary>
     /// List title.
@@ -796,13 +868,18 @@ public sealed record CreateBoardListDto
     /// Maximum number of cards (WIP limit). Null means unlimited.
     /// </summary>
     public int? CardLimit { get; init; }
+
+    /// <summary>
+    /// Whether this is a "done" column — cards here count as completed for sprint tracking.
+    /// </summary>
+    public bool IsDone { get; init; }
 }
 
 /// <summary>
 /// Request DTO for updating a list.
 /// Only non-null fields are applied.
 /// </summary>
-public sealed record UpdateBoardListDto
+public sealed record UpdateBoardSwimlaneDto
 {
     /// <summary>
     /// Updated title.
@@ -818,6 +895,11 @@ public sealed record UpdateBoardListDto
     /// Updated WIP limit.
     /// </summary>
     public int? CardLimit { get; init; }
+
+    /// <summary>
+    /// Updated done-column flag.
+    /// </summary>
+    public bool? IsDone { get; init; }
 }
 
 /// <summary>
@@ -906,7 +988,7 @@ public sealed record MoveCardDto
     /// <summary>
     /// Target list ID.
     /// </summary>
-    public required Guid TargetListId { get; init; }
+    public required Guid TargetSwimlaneId { get; init; }
 
     /// <summary>
     /// Target position within the list.
@@ -971,6 +1053,16 @@ public sealed record CreateSprintDto
     /// Planned end date.
     /// </summary>
     public DateTime? EndDate { get; init; }
+
+    /// <summary>
+    /// Target story points for capacity planning.
+    /// </summary>
+    public int? TargetStoryPoints { get; init; }
+
+    /// <summary>
+    /// Duration of this sprint in weeks (1–16). Used by the planning wizard.
+    /// </summary>
+    public int? DurationWeeks { get; init; }
 }
 
 /// <summary>
@@ -998,6 +1090,27 @@ public sealed record UpdateSprintDto
     /// Updated end date.
     /// </summary>
     public DateTime? EndDate { get; init; }
+
+    /// <summary>
+    /// Updated target story points.
+    /// </summary>
+    public int? TargetStoryPoints { get; init; }
+
+    /// <summary>
+    /// Updated duration in weeks (1–16).
+    /// </summary>
+    public int? DurationWeeks { get; init; }
+}
+
+/// <summary>
+/// Request to batch-add cards to a sprint.
+/// </summary>
+public sealed record BatchAddSprintCardsDto
+{
+    /// <summary>
+    /// The card IDs to add to the sprint.
+    /// </summary>
+    public required List<Guid> CardIds { get; init; }
 }
 
 /// <summary>
@@ -1064,6 +1177,21 @@ public enum PokerScale
 
     /// <summary>Custom scale defined by the session creator.</summary>
     Custom
+}
+
+/// <summary>
+/// Status of a live review session.
+/// </summary>
+public enum ReviewSessionStatus
+{
+    /// <summary>Session is active — host is navigating cards and participants are following.</summary>
+    Active,
+
+    /// <summary>Session has been paused by the host.</summary>
+    Paused,
+
+    /// <summary>Session has ended.</summary>
+    Ended
 }
 
 /// <summary>
@@ -1207,6 +1335,146 @@ public sealed record AcceptPokerEstimateDto
 }
 
 // ─────────────────────────────────────────────
+// Review Sessions
+// ─────────────────────────────────────────────
+
+/// <summary>
+/// Represents a live review session where a host navigates cards
+/// and all participants follow in real-time.
+/// </summary>
+public sealed record ReviewSessionDto
+{
+    /// <summary>Unique identifier for the review session.</summary>
+    public required Guid Id { get; init; }
+
+    /// <summary>The board this session is on.</summary>
+    public required Guid BoardId { get; init; }
+
+    /// <summary>The user hosting this session.</summary>
+    public required Guid HostUserId { get; init; }
+
+    /// <summary>The card currently being reviewed.</summary>
+    public Guid? CurrentCardId { get; init; }
+
+    /// <summary>Current session status.</summary>
+    public required ReviewSessionStatus Status { get; init; }
+
+    /// <summary>Timestamp when the session was created.</summary>
+    public required DateTime CreatedAt { get; init; }
+
+    /// <summary>Timestamp when the session ended.</summary>
+    public DateTime? EndedAt { get; init; }
+
+    /// <summary>Participants in this session.</summary>
+    public IReadOnlyList<ReviewSessionParticipantDto> Participants { get; init; } = [];
+
+    /// <summary>Active poker session within this review, if any.</summary>
+    public PokerSessionDto? ActivePokerSession { get; init; }
+}
+
+/// <summary>
+/// Represents a participant in a review session.
+/// </summary>
+public sealed record ReviewSessionParticipantDto
+{
+    /// <summary>Unique identifier.</summary>
+    public required Guid Id { get; init; }
+
+    /// <summary>The user ID.</summary>
+    public required Guid UserId { get; init; }
+
+    /// <summary>Display name of the participant.</summary>
+    public string? DisplayName { get; init; }
+
+    /// <summary>Timestamp when the user joined.</summary>
+    public required DateTime JoinedAt { get; init; }
+
+    /// <summary>Whether the user is currently connected.</summary>
+    public bool IsConnected { get; init; }
+}
+
+/// <summary>
+/// Vote status for a single participant (does not reveal the actual vote value).
+/// </summary>
+public sealed record PokerVoteStatusDto
+{
+    /// <summary>The user who voted (or hasn't).</summary>
+    public required Guid UserId { get; init; }
+
+    /// <summary>Whether this user has submitted a vote.</summary>
+    public required bool HasVoted { get; init; }
+}
+
+/// <summary>
+/// Request DTO for setting the current card in a review session.
+/// </summary>
+public sealed record SetReviewCurrentCardDto
+{
+    /// <summary>The card ID to navigate to.</summary>
+    public required Guid CardId { get; init; }
+}
+
+/// <summary>
+/// Request DTO for starting a poker session within a review.
+/// </summary>
+public sealed record StartReviewPokerDto
+{
+    /// <summary>The estimation scale to use.</summary>
+    public PokerScale Scale { get; init; } = PokerScale.Fibonacci;
+
+    /// <summary>Custom scale values when Scale is Custom.</summary>
+    public string? CustomScaleValues { get; init; }
+}
+
+/// <summary>
+/// Request DTO for creating a year-long sprint plan.
+/// </summary>
+public sealed record CreateSprintPlanDto
+{
+    /// <summary>Start date for the first sprint.</summary>
+    public required DateTime StartDate { get; init; }
+
+    /// <summary>Number of sprints to create.</summary>
+    public required int SprintCount { get; init; }
+
+    /// <summary>Default duration per sprint in weeks (1–16).</summary>
+    public required int DefaultDurationWeeks { get; init; }
+}
+
+/// <summary>
+/// Request DTO for adjusting a sprint's duration with cascading date updates.
+/// </summary>
+public sealed record AdjustSprintDto
+{
+    /// <summary>New duration in weeks (1–16).</summary>
+    public required int DurationWeeks { get; init; }
+
+    /// <summary>Optional new start date override.</summary>
+    public DateTime? StartDate { get; init; }
+}
+
+/// <summary>
+/// Overview of a sprint plan for timeline display.
+/// </summary>
+public sealed record SprintPlanOverviewDto
+{
+    /// <summary>The board this plan belongs to.</summary>
+    public required Guid BoardId { get; init; }
+
+    /// <summary>All sprints in the plan, ordered by PlannedOrder.</summary>
+    public IReadOnlyList<SprintDto> Sprints { get; init; } = [];
+
+    /// <summary>Total planned duration in weeks.</summary>
+    public int TotalWeeks { get; init; }
+
+    /// <summary>Plan start date (first sprint's start).</summary>
+    public DateTime? PlanStartDate { get; init; }
+
+    /// <summary>Plan end date (last sprint's end).</summary>
+    public DateTime? PlanEndDate { get; init; }
+}
+
+// ─────────────────────────────────────────────
 // Board & Card Templates
 // ─────────────────────────────────────────────
 
@@ -1233,7 +1501,7 @@ public sealed record BoardTemplateDto
     /// <summary>The user who created this template. Null for built-in templates.</summary>
     public Guid? CreatedByUserId { get; init; }
 
-    /// <summary>JSON-serialized template definition (lists, labels, default cards).</summary>
+    /// <summary>JSON-serialized template definition (swimlanes, labels, default cards).</summary>
     public required string DefinitionJson { get; init; }
 
     /// <summary>Timestamp when the template was created.</summary>
@@ -1491,7 +1759,7 @@ public sealed record BulkMoveCardsDto
     public required IReadOnlyList<Guid> CardIds { get; init; }
 
     /// <summary>Target list to move cards to.</summary>
-    public required Guid TargetListId { get; init; }
+    public required Guid TargetSwimlaneId { get; init; }
 }
 
 /// <summary>

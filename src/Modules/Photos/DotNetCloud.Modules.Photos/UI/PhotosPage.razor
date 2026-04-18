@@ -1,0 +1,597 @@
+@namespace DotNetCloud.Modules.Photos.UI
+
+@using DotNetCloud.Core.DTOs
+@using DotNetCloud.Core.Authorization
+@using DotNetCloud.Modules.Photos.Services
+@inject IPhotoService PhotoService
+@inject IAlbumService AlbumService
+@inject IPhotoEditService EditService
+@inject ISlideshowService SlideshowService
+@inject IPhotoGeoService GeoService
+@inject IPhotoShareService ShareService
+@inject IPhotoThumbnailService ThumbnailService
+@inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthenticationStateProvider
+@inject DotNetCloud.Core.Services.IUserSettingsService UserSettingsService
+@inject DotNetCloud.Core.Services.IMediaLibraryScanner MediaLibraryScanner
+@inject DotNetCloud.Modules.Files.Services.IFileService FileService
+@inject Microsoft.AspNetCore.Components.NavigationManager Navigation
+@inject IJSRuntime Js
+@inject Microsoft.Extensions.Logging.ILogger<PhotosPage> Logger
+
+<div class="photos-layout">
+    @* ─── Sidebar ─── *@
+    <aside class="photos-sidebar @(_sidebarCollapsed ? "collapsed" : "")">
+        <div class="photos-sidebar-header">
+            <h2>Photos</h2>
+            <button class="sidebar-toggle" @onclick="() => _sidebarCollapsed = !_sidebarCollapsed" title="Toggle sidebar">
+                @(_sidebarCollapsed ? "▸" : "◂")
+            </button>
+        </div>
+
+        @if (!_sidebarCollapsed)
+        {
+            <nav class="photos-nav">
+                <button class="photos-nav-item @(_section == Section.Gallery ? "active" : "")"
+                        @onclick="() => SwitchSection(Section.Gallery)">
+                    <span class="nav-icon">🖼</span><span class="nav-label">Gallery</span>
+                </button>
+                <button class="photos-nav-item @(_section == Section.Albums ? "active" : "")"
+                        @onclick="() => SwitchSection(Section.Albums)">
+                    <span class="nav-icon">📁</span><span class="nav-label">Albums</span>
+                </button>
+                <button class="photos-nav-item @(_section == Section.Timeline ? "active" : "")"
+                        @onclick="() => SwitchSection(Section.Timeline)">
+                    <span class="nav-icon">📅</span><span class="nav-label">Timeline</span>
+                </button>
+                <button class="photos-nav-item @(_section == Section.Favorites ? "active" : "")"
+                        @onclick="() => SwitchSection(Section.Favorites)">
+                    <span class="nav-icon">⭐</span><span class="nav-label">Favorites</span>
+                </button>
+                <button class="photos-nav-item @(_section == Section.Map ? "active" : "")"
+                        @onclick="() => SwitchSection(Section.Map)">
+                    <span class="nav-icon">🗺</span><span class="nav-label">Map</span>
+                </button>
+                <button class="photos-nav-item @(_section == Section.Shared ? "active" : "")"
+                        @onclick="() => SwitchSection(Section.Shared)">
+                    <span class="nav-icon">🤝</span><span class="nav-label">Shared</span>
+                </button>
+            </nav>
+
+            <div class="photos-nav-separator"></div>
+            <nav class="photos-nav">
+                <button class="photos-nav-item @(_section == Section.Settings ? "active" : "")"
+                        @onclick="() => SwitchSection(Section.Settings)">
+                    <span class="nav-icon">⚙</span><span class="nav-label">Library Settings</span>
+                </button>
+            </nav>
+
+            @* Album list when in Albums section *@
+            @if (_section == Section.Albums)
+            {
+                <div class="album-sidebar-list">
+                    <button class="btn-create-album" @onclick="BeginCreateAlbum">
+                        <span>+</span> New Album
+                    </button>
+                    @foreach (var album in _albums)
+                    {
+                        <button class="album-sidebar-item @(_selectedAlbumId == album.Id ? "active" : "")"
+                                @onclick="() => SelectAlbumAsync(album.Id)">
+                            <span class="album-thumb">📁</span>
+                            <div class="album-sidebar-info">
+                                <span class="album-sidebar-name">@album.Title</span>
+                                <span class="album-sidebar-count">@album.PhotoCount photos</span>
+                            </div>
+                        </button>
+                    }
+                </div>
+            }
+        }
+    </aside>
+
+    @* ─── Main Content ─── *@
+    <main class="photos-main">
+        @* Toolbar *@
+        <div class="photos-toolbar">
+            <div class="toolbar-left">
+                <h3 class="section-title">@GetSectionTitle()</h3>
+                @if (_selectedAlbum is not null)
+                {
+                    <span class="breadcrumb-sep">›</span>
+                    <span class="album-title">@_selectedAlbum.Title</span>
+                }
+            </div>
+            <div class="toolbar-right">
+                <div class="search-box">
+                    <input type="text" placeholder="Search photos…"
+                           @bind="_searchQuery" @bind:event="oninput"
+                           @onkeyup="HandleSearchKeyUp" />
+                </div>
+                <div class="view-toggle">
+                    <button class="@(_viewMode == ViewMode.Grid ? "active" : "")"
+                            @onclick="() => _viewMode = ViewMode.Grid" title="Grid view">⊞</button>
+                    <button class="@(_viewMode == ViewMode.List ? "active" : "")"
+                            @onclick="() => _viewMode = ViewMode.List" title="List view">☰</button>
+                </div>
+            </div>
+        </div>
+
+        @* Loading state *@
+        @if (_loading)
+        {
+            <div class="photos-loading">
+                <div class="loading-spinner"></div>
+                <p>Loading photos…</p>
+            </div>
+        }
+        else if (_errorMessage is not null)
+        {
+            <div class="photos-error">
+                <p>@_errorMessage</p>
+                <button class="btn-retry" @onclick="LoadCurrentSectionAsync">Retry</button>
+            </div>
+        }
+        else
+        {
+            @* ─── Gallery / Search Results Grid ─── *@
+            @if (_section is Section.Gallery or Section.Favorites or Section.Shared ||
+                 (_section == Section.Albums && _selectedAlbum is not null) ||
+                 _searchResults is not null)
+            {
+                var photos = _searchResults ?? _currentPhotos;
+                @if (photos.Count == 0)
+                {
+                    <div class="photos-empty">
+                        <div class="empty-icon">📷</div>
+                        <h4>@GetEmptyMessage()</h4>
+                        <p>Upload images through the Files module to see them here.</p>
+                    </div>
+                }
+                else
+                {
+                    <div class="photos-grid @(_viewMode == ViewMode.List ? "list-view" : "")">
+                        @foreach (var photo in photos)
+                        {
+                            <div class="photo-card @(_selectedPhotoIds.Contains(photo.Id) ? "selected" : "")"
+                                 @onclick="e => HandlePhotoClick(photo, e)"
+                                 @ondblclick="() => OpenLightboxAsync(photo)">
+                                <div class="photo-card-img">
+                                    <img src="@GetThumbnailUrl(photo.Id, "grid")" alt="@photo.FileName"
+                                         loading="lazy" @onerror="HandleImageError" />
+                                    @if (photo.IsFavorite)
+                                    {
+                                        <span class="favorite-badge">★</span>
+                                    }
+                                    @if (photo.HasEdits)
+                                    {
+                                        <span class="edited-badge">✎</span>
+                                    }
+                                </div>
+                                @if (_viewMode == ViewMode.List)
+                                {
+                                    <div class="photo-card-info">
+                                        <span class="photo-name">@photo.FileName</span>
+                                        <span class="photo-date">@FormatDate(photo.TakenAt)</span>
+                                        <span class="photo-size">@FormatSize(photo.SizeBytes)</span>
+                                        <span class="photo-dimensions">@(photo.Width)×@(photo.Height)</span>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+
+                    @* Pagination *@
+                    @if (_totalPhotos > _pageSize)
+                    {
+                        <div class="photos-pagination">
+                            <button disabled="@(_page == 0)" @onclick="PrevPage">← Previous</button>
+                            <span class="page-info">Page @(_page + 1) of @TotalPages</span>
+                            <button disabled="@(_page >= TotalPages - 1)" @onclick="NextPage">Next →</button>
+                        </div>
+                    }
+                }
+            }
+
+            @* ─── Albums Grid (no album selected) ─── *@
+            @if (_section == Section.Albums && _selectedAlbum is null)
+            {
+                <div class="albums-grid">
+                    @if (_albums.Count == 0)
+                    {
+                        <div class="photos-empty">
+                            <div class="empty-icon">📁</div>
+                            <h4>No albums yet</h4>
+                            <p>Create your first album to organize your photos.</p>
+                            <button class="btn-primary" @onclick="BeginCreateAlbum">Create Album</button>
+                        </div>
+                    }
+                    else
+                    {
+                        @foreach (var album in _albums)
+                        {
+                            <div class="album-card" @onclick="() => SelectAlbumAsync(album.Id)">
+                                <div class="album-card-cover">
+                                    @if (album.CoverPhotoId.HasValue)
+                                    {
+                                        <img src="@GetThumbnailUrl(album.CoverPhotoId.Value, "grid")" alt="@album.Title" loading="lazy" />
+                                    }
+                                    else
+                                    {
+                                        <div class="album-card-placeholder">📁</div>
+                                    }
+                                </div>
+                                <div class="album-card-info">
+                                    <h4>@album.Title</h4>
+                                    <span>@album.PhotoCount photos</span>
+                                </div>
+                            </div>
+                        }
+                    }
+                </div>
+            }
+
+            @* ─── Timeline View ─── *@
+            @if (_section == Section.Timeline)
+            {
+                <div class="timeline-view">
+                    @if (_timelineGroups.Count == 0)
+                    {
+                        <div class="photos-empty">
+                            <div class="empty-icon">📅</div>
+                            <h4>No photos in timeline</h4>
+                        </div>
+                    }
+                    else
+                    {
+                        @foreach (var group in _timelineGroups)
+                        {
+                            <div class="timeline-group">
+                                <h4 class="timeline-date">@group.Key</h4>
+                                <div class="photos-grid compact">
+                                    @foreach (var photo in group.Value)
+                                    {
+                                        <div class="photo-card" @ondblclick="() => OpenLightboxAsync(photo)">
+                                            <div class="photo-card-img">
+                                                <img src="@GetThumbnailUrl(photo.Id, "grid")" alt="@photo.FileName" loading="lazy" />
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    }
+                </div>
+            }
+
+            @* ─── Map Placeholder ─── *@
+            @if (_section == Section.Map)
+            {
+                <div class="map-view">
+                    <div class="map-container" id="photos-map">
+                        @if (_geoClusters.Count == 0)
+                        {
+                            <div class="photos-empty">
+                                <div class="empty-icon">🗺</div>
+                                <h4>No geotagged photos</h4>
+                                <p>Photos with GPS data will appear on the map.</p>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="map-placeholder">
+                                <p>Map with @_geoClusters.Count location clusters</p>
+                                <div class="geo-cluster-list">
+                                    @foreach (var cluster in _geoClusters)
+                                    {
+                                        <div class="geo-cluster-item">
+                                            <span class="geo-coords">@cluster.Latitude.ToString("F4")°, @cluster.Longitude.ToString("F4")°</span>
+                                            <span class="geo-count">@cluster.PhotoCount photos</span>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
+            @* ─── Library Settings ─── *@
+            @if (_section == Section.Settings)
+            {
+                <div class="module-settings-section">
+                    <div class="settings-card">
+                        <h4>Photos Library</h4>
+                        <p class="hint">Configure the local directory path for your photos library. DotNetCloud will scan
+                            this directory and import photos (JPEG, PNG, GIF, WebP, HEIC, TIFF, RAW, and more).</p>
+                        <div class="form-group">
+                            <label>Directory Path</label>
+                            <div class="input-with-browse">
+                                <input type="text" class="input" @bind="_libraryPath"
+                                       placeholder="/home/user/Pictures" />
+                                <button class="btn btn-outline btn-sm" @onclick="OpenDirectoryBrowser">Browse…</button>
+                            </div>
+                        </div>
+                        <div class="settings-actions">
+                            <button class="btn btn-primary btn-sm" @onclick="SaveLibraryPathAsync"
+                                    disabled="@_settingsSaving">
+                                @(_settingsSaving ? "Saving..." : "Save Path")
+                            </button>
+                            <button class="btn btn-outline btn-sm" @onclick="ScanLibraryAsync"
+                                    disabled="@(_settingsScanning || string.IsNullOrWhiteSpace(_libraryPath))">
+                                @(_settingsScanning ? "Scanning..." : "Scan Now")
+                            </button>
+                        </div>
+                        @if (_scanResult is not null)
+                        {
+                            <div class="scan-result-banner">
+                                Found @_scanResult.TotalFound · Imported @_scanResult.Imported · Skipped @_scanResult.Skipped
+                                @if (_scanResult.Failed > 0)
+                                {
+                                    <span class="text-danger"> · Failed @_scanResult.Failed</span>
+                                }
+                            </div>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(_settingsError))
+                        {
+                            <div class="alert alert-danger" style="margin-top: 12px; font-size: 13px;">@_settingsError</div>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(_settingsSuccess))
+                        {
+                            <div class="alert alert-success" style="margin-top: 12px; font-size: 13px;">@_settingsSuccess</div>
+                        }
+                    </div>
+                </div>
+            }
+
+            @* ─── Directory Browser Dialog ─── *@
+            @if (_showDirBrowser)
+            {
+                <div class="folder-picker-overlay" @onclick="HideDirectoryBrowser">
+                    <div class="folder-picker-dialog" @onclick:stopPropagation>
+                        <div class="folder-picker-header">
+                            <h3>Select Folder</h3>
+                            <button class="btn-icon" @onclick="HideDirectoryBrowser" title="Close">✕</button>
+                        </div>
+
+                        <nav class="folder-picker-breadcrumbs">
+                            <button class="btn btn-sm" @onclick="DirBrowserNavigateToRoot">
+                                Home
+                            </button>
+                            @for (int i = 0; i < _dirBrowserBreadcrumbs.Count; i++)
+                            {
+                                var idx = i;
+                                <span class="separator">/</span>
+                                <button class="btn btn-sm" @onclick="() => DirBrowserNavigateToCrumb(idx)">@_dirBrowserBreadcrumbs[idx].Name</button>
+                            }
+                        </nav>
+
+                        <div class="folder-picker-current-path">
+                            <span class="path-label">Path:</span> @GetDirBrowserPath()
+                        </div>
+
+                        <div class="folder-picker-list">
+                            @if (_dirBrowserBreadcrumbs.Count > 0)
+                            {
+                                <button class="folder-picker-item" @onclick="DirBrowserGoUp">
+                                    📁 ..
+                                </button>
+                            }
+                            @if (!string.IsNullOrEmpty(_dirBrowserError))
+                            {
+                                <p class="text-muted folder-picker-empty">@_dirBrowserError</p>
+                            }
+                            else if (_dirBrowserFolders.Count == 0)
+                            {
+                                <p class="text-muted folder-picker-empty">No subfolders</p>
+                            }
+                            else
+                            {
+                                @foreach (var folder in _dirBrowserFolders)
+                                {
+                                    <button class="folder-picker-item" @onclick="() => DirBrowserNavigate(folder.Id, folder.Name)">
+                                        📁 @folder.Name
+                                    </button>
+                                }
+                            }
+                        </div>
+
+                        <div class="folder-picker-actions">
+                            <button class="btn btn-primary btn-sm" @onclick="ConfirmDirectoryBrowser">
+                                Select this folder
+                            </button>
+                            <button class="btn btn-sm" @onclick="HideDirectoryBrowser">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            }
+        }
+
+        @* ─── Lightbox Overlay ─── *@
+        @if (_lightboxPhoto is not null)
+        {
+            <div class="lightbox-overlay" @onclick="CloseLightbox" @onkeydown="HandleLightboxKeyDown" tabindex="0">
+                <div class="lightbox-content" @onclick:stopPropagation="true">
+                    <div class="lightbox-header">
+                        <h4>@_lightboxPhoto.FileName</h4>
+                        <div class="lightbox-actions">
+                            <button class="lb-btn" @onclick="() => ToggleFavoriteAsync(_lightboxPhoto)" title="Favorite">
+                                @(_lightboxPhoto.IsFavorite ? "★" : "☆")
+                            </button>
+                            <button class="lb-btn" @onclick="() => _showEditPanel = !_showEditPanel" title="Edit">✎</button>
+                            <button class="lb-btn" @onclick="() => _showInfoPanel = !_showInfoPanel" title="Info">ⓘ</button>
+                            <button class="lb-btn" @onclick="() => BeginSlideshow()" title="Slideshow">▶</button>
+                            <button class="lb-btn" @onclick="() => BeginShare(_lightboxPhoto)" title="Share">↗</button>
+                            <button class="lb-btn danger" @onclick="() => DeletePhotoAsync(_lightboxPhoto)" title="Delete">🗑</button>
+                            <button class="lb-btn close" @onclick="CloseLightbox" title="Close">✕</button>
+                        </div>
+                    </div>
+
+                    <div class="lightbox-body">
+                        <button class="lb-nav lb-prev" @onclick="LightboxPrevAsync" disabled="@(!CanLightboxPrev)">‹</button>
+                        <div class="lightbox-image-wrap">
+                            <img src="@GetThumbnailUrl(_lightboxPhoto.Id, "detail")" alt="@_lightboxPhoto.FileName"
+                                 style="@GetEditImageStyle()" />
+                        </div>
+                        <button class="lb-nav lb-next" @onclick="LightboxNextAsync" disabled="@(!CanLightboxNext)">›</button>
+
+                        @* Info Panel *@
+                        @if (_showInfoPanel)
+                        {
+                            <aside class="lightbox-info-panel">
+                                <h5>Details</h5>
+                                <dl>
+                                    <dt>File</dt><dd>@_lightboxPhoto.FileName</dd>
+                                    <dt>Size</dt><dd>@FormatSize(_lightboxPhoto.SizeBytes)</dd>
+                                    <dt>Dimensions</dt><dd>@(_lightboxPhoto.Width)×@(_lightboxPhoto.Height)</dd>
+                                    <dt>Taken</dt><dd>@FormatDate(_lightboxPhoto.TakenAt)</dd>
+                                    @if (_lightboxPhoto.Metadata is not null)
+                                    {
+                                        @if (!string.IsNullOrEmpty(_lightboxPhoto.Metadata.CameraMake))
+                                        {
+                                            <dt>Camera</dt><dd>@_lightboxPhoto.Metadata.CameraMake @_lightboxPhoto.Metadata.CameraModel</dd>
+                                        }
+                                        @if (!string.IsNullOrEmpty(_lightboxPhoto.Metadata.LensModel))
+                                        {
+                                            <dt>Lens</dt><dd>@_lightboxPhoto.Metadata.LensModel</dd>
+                                        }
+                                        @if (_lightboxPhoto.Metadata.FocalLengthMm.HasValue)
+                                        {
+                                            <dt>Focal</dt><dd>@(_lightboxPhoto.Metadata.FocalLengthMm)mm</dd>
+                                        }
+                                        @if (_lightboxPhoto.Metadata.Aperture.HasValue)
+                                        {
+                                            <dt>Aperture</dt><dd>f/@_lightboxPhoto.Metadata.Aperture</dd>
+                                        }
+                                        @if (!string.IsNullOrEmpty(_lightboxPhoto.Metadata.ShutterSpeed))
+                                        {
+                                            <dt>Shutter</dt><dd>@_lightboxPhoto.Metadata.ShutterSpeed</dd>
+                                        }
+                                        @if (_lightboxPhoto.Metadata.Iso.HasValue)
+                                        {
+                                            <dt>ISO</dt><dd>@_lightboxPhoto.Metadata.Iso</dd>
+                                        }
+                                        @if (_lightboxPhoto.Metadata.Location is not null)
+                                        {
+                                            <dt>Location</dt>
+                                            <dd>@_lightboxPhoto.Metadata.Location.Latitude.ToString("F4")°, @_lightboxPhoto.Metadata.Location.Longitude.ToString("F4")°</dd>
+                                        }
+                                    }
+                                </dl>
+                            </aside>
+                        }
+
+                        @* Edit Panel *@
+                        @if (_showEditPanel)
+                        {
+                            <aside class="lightbox-edit-panel">
+                                <h5>Edit</h5>
+                                <div class="edit-controls">
+                                    <button class="edit-btn" @onclick="() => ApplyEditAsync(PhotoEditType.Rotate, 90)">↻ Rotate 90°</button>
+                                    <button class="edit-btn" @onclick="() => ApplyEditAsync(PhotoEditType.Rotate, 180)">↻ Rotate 180°</button>
+                                    <button class="edit-btn" @onclick="() => ApplyEditAsync(PhotoEditType.Rotate, 270)">↻ Rotate 270°</button>
+                                    <button class="edit-btn" @onclick="() => ApplyEditAsync(PhotoEditType.Flip, 0)">↔ Flip H</button>
+                                    <button class="edit-btn" @onclick="() => ApplyEditAsync(PhotoEditType.Flip, 1)">↕ Flip V</button>
+                                    <div class="edit-separator"></div>
+                                    <label class="edit-slider-label">Brightness
+                                        <input type="range" min="-100" max="100" value="@_editState.Brightness"
+                                               @onchange="@(e => ApplyEditAsync(PhotoEditType.Brightness, int.Parse(e.Value?.ToString() ?? "0")))" />
+                                    </label>
+                                    <label class="edit-slider-label">Contrast
+                                        <input type="range" min="-100" max="100" value="@_editState.Contrast"
+                                               @onchange="@(e => ApplyEditAsync(PhotoEditType.Contrast, int.Parse(e.Value?.ToString() ?? "0")))" />
+                                    </label>
+                                    <label class="edit-slider-label">Saturation
+                                        <input type="range" min="-100" max="100" value="@_editState.Saturation"
+                                               @onchange="@(e => ApplyEditAsync(PhotoEditType.Saturation, int.Parse(e.Value?.ToString() ?? "0")))" />
+                                    </label>
+                                    <div class="edit-separator"></div>
+                                    <button class="edit-btn" @onclick="() => ApplyEditAsync(PhotoEditType.Sharpen, 50)">Sharpen</button>
+                                    <button class="edit-btn" @onclick="() => ApplyEditAsync(PhotoEditType.Blur, 5)">Blur</button>
+                                    <div class="edit-separator"></div>
+                                    <button class="edit-btn undo" @onclick="UndoEditAsync">↩ Undo</button>
+                                    <button class="edit-btn danger" @onclick="RevertAllEditsAsync">⟲ Revert All</button>
+                                    <div class="edit-separator"></div>
+                                    <button class="edit-btn save" @onclick="SaveEditsToThumbnailsAsync" disabled="@_editSaving">
+                                        @(_editSaving ? "Saving…" : "💾 Save Edits")
+                                    </button>
+                                    @if (_editSaveMessage is not null)
+                                    {
+                                        <div class="edit-save-msg @(_editSaveSuccess ? "success" : "error")">@_editSaveMessage</div>
+                                    }
+                                </div>
+                            </aside>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+
+        @* ─── Slideshow Overlay ─── *@
+        @if (_slideshowActive && _slideshowPhotos.Count > 0)
+        {
+            <div class="slideshow-overlay" @onclick="StopSlideshow" @onkeydown="HandleSlideshowKeyDown" tabindex="0">
+                <div class="slideshow-content" @onclick:stopPropagation="true">
+                    <img src="@GetThumbnailUrl(_slideshowPhotos[_slideshowIndex].Id, "detail")"
+                         alt="@_slideshowPhotos[_slideshowIndex].FileName"
+                         class="slideshow-image @(_slideshowTransitioning ? "transitioning" : "")" />
+                    <div class="slideshow-controls">
+                        <button @onclick="SlideshowPrev" disabled="@(_slideshowIndex == 0)">‹</button>
+                        <button @onclick="ToggleSlideshowPause">@(_slideshowPaused ? "▶" : "⏸")</button>
+                        <span class="slideshow-counter">@(_slideshowIndex + 1) / @_slideshowPhotos.Count</span>
+                        <button @onclick="SlideshowNext" disabled="@(_slideshowIndex >= _slideshowPhotos.Count - 1)">›</button>
+                        <button @onclick="StopSlideshow" class="slideshow-close">✕</button>
+                    </div>
+                </div>
+            </div>
+        }
+
+        @* ─── Album Create/Edit Dialog ─── *@
+        @if (_showAlbumDialog)
+        {
+            <div class="dialog-overlay" @onclick="() => _showAlbumDialog = false">
+                <div class="dialog-panel" @onclick:stopPropagation="true">
+                    <h4>@(_editingAlbumId.HasValue ? "Edit Album" : "Create Album")</h4>
+                    <div class="dialog-form">
+                        <label>Title
+                            <input type="text" @bind="_albumTitle" placeholder="Album title" />
+                        </label>
+                        <label>Description
+                            <textarea @bind="_albumDescription" placeholder="Optional description" rows="3"></textarea>
+                        </label>
+                    </div>
+                    <div class="dialog-actions">
+                        <button class="btn-cancel" @onclick="() => _showAlbumDialog = false">Cancel</button>
+                        <button class="btn-primary" @onclick="SaveAlbumAsync">
+                            @(_editingAlbumId.HasValue ? "Save" : "Create")
+                        </button>
+                    </div>
+                </div>
+            </div>
+        }
+
+        @* ─── Share Dialog ─── *@
+        @if (_showShareDialog && _shareTargetPhotoId.HasValue)
+        {
+            <div class="dialog-overlay" @onclick="() => _showShareDialog = false">
+                <div class="dialog-panel" @onclick:stopPropagation="true">
+                    <h4>Share Photo</h4>
+                    <div class="dialog-form">
+                        <label>Share with (User ID)
+                            <input type="text" @bind="_shareUserId" placeholder="User ID" />
+                        </label>
+                        <label>Permission
+                            <select @bind="_sharePermission">
+                                <option value="@PhotoSharePermission.ReadOnly">View only</option>
+                                <option value="@PhotoSharePermission.Download">Download</option>
+                                <option value="@PhotoSharePermission.Contribute">Contribute</option>
+                            </select>
+                        </label>
+                    </div>
+                    <div class="dialog-actions">
+                        <button class="btn-cancel" @onclick="() => _showShareDialog = false">Cancel</button>
+                        <button class="btn-primary" @onclick="SaveShareAsync">Share</button>
+                    </div>
+                </div>
+            </div>
+        }
+    </main>
+</div>

@@ -54,6 +54,7 @@ public sealed class BoardService
             Description = dto.Description,
             Color = dto.Color,
             TeamId = dto.TeamId,
+            Mode = dto.Mode,
             OwnerId = caller.UserId
         };
 
@@ -104,7 +105,7 @@ public sealed class BoardService
     /// <summary>
     /// Lists all boards the caller is a member of.
     /// </summary>
-    public async Task<IReadOnlyList<BoardDto>> ListBoardsAsync(CallerContext caller, bool includeArchived = false, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<BoardDto>> ListBoardsAsync(CallerContext caller, bool includeArchived = false, BoardMode? modeFilter = null, CancellationToken cancellationToken = default)
     {
         // Direct board memberships
         var directBoardIds = await _db.BoardMembers
@@ -131,19 +132,22 @@ public sealed class BoardService
             .AsNoTracking()
             .Include(b => b.Members)
             .Include(b => b.Labels)
-            .Include(b => b.Lists)
+            .Include(b => b.Swimlanes)
             .Where(b => allBoardIds.Contains(b.Id) && !b.IsDeleted);
 
         if (!includeArchived)
             query = query.Where(b => !b.IsArchived);
+
+        if (modeFilter.HasValue)
+            query = query.Where(b => b.Mode == modeFilter.Value);
 
         var boards = await query
             .OrderByDescending(b => b.UpdatedAt)
             .ToListAsync(cancellationToken);
 
         // Compute card counts for all active lists across all boards in a single query
-        var allListIds = boards.SelectMany(b => b.Lists.Where(l => !l.IsArchived).Select(l => l.Id)).ToList();
-        var cardCounts = await GetCardCountsByListAsync(allListIds, cancellationToken);
+        var allSwimlaneIds = boards.SelectMany(b => b.Swimlanes.Where(l => !l.IsArchived).Select(l => l.Id)).ToList();
+        var cardCounts = await GetCardCountsByListAsync(allSwimlaneIds, cancellationToken);
 
         var memberIds = boards.SelectMany(b => b.Members.Select(m => m.UserId)).Distinct().ToList();
         var displayNames = await ResolveDisplayNamesAsync(memberIds, cancellationToken);
@@ -168,6 +172,7 @@ public sealed class BoardService
         if (dto.Description is not null) board.Description = dto.Description;
         if (dto.Color is not null) board.Color = dto.Color;
         if (dto.IsArchived.HasValue) board.IsArchived = dto.IsArchived.Value;
+        if (dto.LockSwimlanes.HasValue) board.LockSwimlanes = dto.LockSwimlanes.Value;
 
         board.UpdatedAt = DateTime.UtcNow;
         board.ETag = Guid.NewGuid().ToString("N");
@@ -334,24 +339,80 @@ public sealed class BoardService
         await EnsureBoardRoleAsync(boardId, userId, BoardMemberRole.Viewer, cancellationToken);
     }
 
+    /// <summary>
+    /// Ensures the board is in Team mode. Throws if Personal.
+    /// </summary>
+    internal async Task EnsureTeamModeAsync(Guid boardId, CancellationToken cancellationToken = default)
+    {
+        var mode = await _db.Boards
+            .Where(b => b.Id == boardId && !b.IsDeleted)
+            .Select(b => b.Mode)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (mode != BoardMode.Team)
+            throw new ValidationException(ErrorCodes.TeamModeRequired, "This operation is only available on Team-mode boards.");
+    }
+
     private async Task<BoardDto?> GetBoardDtoAsync(Guid boardId, CancellationToken cancellationToken)
     {
         var board = await _db.Boards
             .AsNoTracking()
             .Include(b => b.Members)
             .Include(b => b.Labels)
-            .Include(b => b.Lists)
+            .Include(b => b.Swimlanes)
             .FirstOrDefaultAsync(b => b.Id == boardId && !b.IsDeleted, cancellationToken);
 
         if (board is null) return null;
 
-        var listIds = board.Lists.Where(l => !l.IsArchived).Select(l => l.Id).ToList();
+        var listIds = board.Swimlanes.Where(l => !l.IsArchived).Select(l => l.Id).ToList();
         var cardCounts = await GetCardCountsByListAsync(listIds, cancellationToken);
 
-        var memberIds = board.Members.Select(m => m.UserId).Distinct().ToList();
-        var displayNames = await ResolveDisplayNamesAsync(memberIds, cancellationToken);
+        var directMemberIds = board.Members.Select(m => m.UserId).Distinct().ToHashSet();
+        var allMemberIds = new List<Guid>(directMemberIds);
 
-        return MapToDto(board, cardCounts, displayNames);
+        // For team-owned boards, include team members who don't have direct board membership
+        List<BoardMemberDto>? teamDerivedMembers = null;
+        if (board.TeamId.HasValue)
+        {
+            var teamRoles = await _db.TeamRoles
+                .AsNoTracking()
+                .Where(r => r.CoreTeamId == board.TeamId.Value)
+                .ToListAsync(cancellationToken);
+
+            teamDerivedMembers = teamRoles
+                .Where(r => !directMemberIds.Contains(r.UserId))
+                .Select(r => new BoardMemberDto
+                {
+                    UserId = r.UserId,
+                    Role = r.Role switch
+                    {
+                        TracksTeamMemberRole.Owner => BoardMemberRole.Owner,
+                        TracksTeamMemberRole.Manager => BoardMemberRole.Admin,
+                        TracksTeamMemberRole.Member => BoardMemberRole.Member,
+                        _ => BoardMemberRole.Viewer
+                    },
+                    JoinedAt = r.AssignedAt
+                })
+                .ToList();
+
+            allMemberIds.AddRange(teamDerivedMembers.Select(m => m.UserId));
+        }
+
+        var displayNames = await ResolveDisplayNamesAsync(allMemberIds.Distinct().ToList(), cancellationToken);
+
+        var dto = MapToDto(board, cardCounts, displayNames);
+
+        // Append team-derived members with resolved display names
+        if (teamDerivedMembers is { Count: > 0 })
+        {
+            var resolved = teamDerivedMembers.Select(m => m with
+            {
+                DisplayName = displayNames.TryGetValue(m.UserId, out var name) ? name : null
+            }).ToList();
+            dto = dto with { Members = [.. dto.Members, .. resolved] };
+        }
+
+        return dto;
     }
 
     private async Task<Dictionary<Guid, int>> GetCardCountsByListAsync(IReadOnlyList<Guid> listIds, CancellationToken cancellationToken)
@@ -359,10 +420,10 @@ public sealed class BoardService
         if (listIds.Count == 0) return new Dictionary<Guid, int>();
 
         return await _db.Cards
-            .Where(c => listIds.Contains(c.ListId) && !c.IsDeleted && !c.IsArchived)
-            .GroupBy(c => c.ListId)
-            .Select(g => new { ListId = g.Key, Count = g.Count() })
-            .ToDictionaryAsync(x => x.ListId, x => x.Count, cancellationToken);
+            .Where(c => listIds.Contains(c.SwimlaneId) && !c.IsDeleted && !c.IsArchived)
+            .GroupBy(c => c.SwimlaneId)
+            .Select(g => new { SwimlaneId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.SwimlaneId, x => x.Count, cancellationToken);
     }
 
     private async Task<IReadOnlyDictionary<Guid, string>> ResolveDisplayNamesAsync(IReadOnlyList<Guid> userIds, CancellationToken cancellationToken)
@@ -378,9 +439,11 @@ public sealed class BoardService
         Id = b.Id,
         OwnerId = b.OwnerId,
         TeamId = b.TeamId,
+        Mode = b.Mode,
         Title = b.Title,
         Description = b.Description,
         Color = b.Color,
+        LockSwimlanes = b.LockSwimlanes,
         IsArchived = b.IsArchived,
         IsDeleted = b.IsDeleted,
         DeletedAt = b.DeletedAt,
@@ -394,7 +457,7 @@ public sealed class BoardService
             Role = m.Role,
             JoinedAt = m.JoinedAt
         }).ToList(),
-        Lists = b.Lists.Where(l => !l.IsArchived).OrderBy(l => l.Position).Select(l => new BoardListDto
+        Swimlanes = b.Swimlanes.Where(l => !l.IsArchived).OrderBy(l => l.Position).Select(l => new BoardSwimlaneDto
         {
             Id = l.Id,
             BoardId = l.BoardId,
@@ -402,6 +465,7 @@ public sealed class BoardService
             Color = l.Color,
             Position = (int)l.Position,
             CardLimit = l.CardLimit,
+            IsDone = l.IsDone,
             CardCount = cardCounts is not null && cardCounts.TryGetValue(l.Id, out var count) ? count : 0,
             CreatedAt = l.CreatedAt,
             UpdatedAt = l.UpdatedAt

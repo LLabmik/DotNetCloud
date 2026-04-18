@@ -9,6 +9,60 @@
     <ScrollView>
         <VerticalStackLayout Padding="12,12" Spacing="8">
 
+            <!-- ═══ Update Available Banner ═══ -->
+            <Border
+                BackgroundColor="#422006"
+                Stroke="#F59E0B"
+                StrokeThickness="1"
+                StrokeShape="RoundRectangle 16"
+                Padding="20,16"
+                IsVisible="{Binding IsUpdateAvailable}">
+
+                <VerticalStackLayout Spacing="10">
+                    <HorizontalStackLayout Spacing="10">
+                        <Label
+                            FontSize="20"
+                            VerticalOptions="Center"
+                            Text="🔔" />
+                        <VerticalStackLayout VerticalOptions="Center" Spacing="2">
+                            <Label
+                                FontAttributes="Bold"
+                                FontSize="15"
+                                TextColor="#F59E0B"
+                                Text="{Binding UpdateVersion, StringFormat='Version {0} Available'}" />
+                            <Label
+                                FontSize="12"
+                                TextColor="#FDE68A"
+                                LineBreakMode="TailTruncation"
+                                MaxLines="2"
+                                Text="{Binding UpdateReleaseNotes}" />
+                        </VerticalStackLayout>
+                    </HorizontalStackLayout>
+
+                    <HorizontalStackLayout Spacing="10" HorizontalOptions="End">
+                        <Border
+                            BackgroundColor="Transparent"
+                            StrokeThickness="0"
+                            Padding="14,8">
+                            <Label FontSize="13" TextColor="#94A3B8" Text="Dismiss" />
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding DismissUpdateCommand}" />
+                            </Border.GestureRecognizers>
+                        </Border>
+                        <Border
+                            BackgroundColor="#F59E0B"
+                            StrokeThickness="0"
+                            StrokeShape="RoundRectangle 8"
+                            Padding="16,8">
+                            <Label FontSize="13" FontAttributes="Bold" TextColor="#0F172A" Text="Update" />
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding OpenUpdateCommand}" />
+                            </Border.GestureRecognizers>
+                        </Border>
+                    </HorizontalStackLayout>
+                </VerticalStackLayout>
+            </Border>
+
             <!-- Account card -->
             <Border
                 BackgroundColor="#1E293B"
@@ -348,6 +402,62 @@
                 </VerticalStackLayout>
             </Border>
 
+            <!-- ═══ Updates card ═══ -->
+            <Border
+                BackgroundColor="#1E293B"
+                StrokeThickness="0"
+                StrokeShape="RoundRectangle 16"
+                Padding="20,20">
+
+                <VerticalStackLayout Spacing="4">
+                    <Label
+                        FontAttributes="Bold"
+                        FontSize="12"
+                        TextColor="#64748B"
+                        Text="UPDATES"
+                        TextTransform="Uppercase"
+                        Margin="0,0,0,12" />
+
+                    <!-- Check for updates button -->
+                    <Border
+                        BackgroundColor="#334155"
+                        StrokeThickness="0"
+                        StrokeShape="RoundRectangle 12"
+                        Padding="0"
+                        HeightRequest="44">
+                        <Grid>
+                            <Label
+                                FontSize="15"
+                                HorizontalOptions="Center"
+                                VerticalOptions="Center"
+                                TextColor="#0EA5E9"
+                                IsVisible="{Binding IsCheckingForUpdate, Converter={StaticResource InvertBool}}"
+                                Text="Check for Updates" />
+                            <ActivityIndicator
+                                IsRunning="{Binding IsCheckingForUpdate}"
+                                IsVisible="{Binding IsCheckingForUpdate}"
+                                Color="#0EA5E9"
+                                HeightRequest="24"
+                                WidthRequest="24"
+                                HorizontalOptions="Center"
+                                VerticalOptions="Center" />
+                        </Grid>
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding CheckForUpdateCommand}" />
+                        </Border.GestureRecognizers>
+                    </Border>
+
+                    <!-- Status message after manual check -->
+                    <Label
+                        FontSize="13"
+                        HorizontalOptions="Center"
+                        TextColor="#22C55E"
+                        Margin="0,6,0,0"
+                        IsVisible="{Binding UpdateCheckStatus, Converter={StaticResource IsNotNullOrEmpty}}"
+                        Text="{Binding UpdateCheckStatus}" />
+                </VerticalStackLayout>
+            </Border>
+
             <!-- Actions card (Log Out) -->
             <Border
                 BackgroundColor="#1E293B"
@@ -375,7 +485,7 @@
                 HorizontalTextAlignment="Center"
                 TextColor="#475569"
                 Margin="0,20,0,0"
-                Text="DotNetCloud for Android" />
+                Text="{Binding AppVersionText}" />
 
         </VerticalStackLayout>
     </ScrollView>

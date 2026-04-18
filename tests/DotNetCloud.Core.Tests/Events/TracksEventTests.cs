@@ -56,7 +56,7 @@ public class TracksEventTests
             CardId = Guid.NewGuid(),
             Title = "Fix login",
             BoardId = Guid.NewGuid(),
-            ListId = Guid.NewGuid(),
+            SwimlaneId = Guid.NewGuid(),
             CreatedByUserId = Guid.NewGuid()
         };
 
@@ -67,21 +67,21 @@ public class TracksEventTests
     [TestMethod]
     public void CardMovedEvent_ImplementsIEvent()
     {
-        var fromList = Guid.NewGuid();
-        var toList = Guid.NewGuid();
+        var fromSwimlane = Guid.NewGuid();
+        var toSwimlane = Guid.NewGuid();
         var e = new CardMovedEvent
         {
             EventId = Guid.NewGuid(),
             CreatedAt = DateTime.UtcNow,
             CardId = Guid.NewGuid(),
             BoardId = Guid.NewGuid(),
-            FromListId = fromList,
-            ToListId = toList,
+            FromSwimlaneId = fromSwimlane,
+            ToSwimlaneId = toSwimlane,
             MovedByUserId = Guid.NewGuid()
         };
 
         Assert.IsInstanceOfType(e, typeof(IEvent));
-        Assert.AreNotEqual(e.FromListId, e.ToListId);
+        Assert.AreNotEqual(e.FromSwimlaneId, e.ToSwimlaneId);
     }
 
     [TestMethod]
@@ -199,7 +199,7 @@ public class TracksEventTests
         var events = new IEvent[]
         {
             new BoardCreatedEvent { EventId = Guid.NewGuid(), CreatedAt = DateTime.UtcNow, BoardId = Guid.NewGuid(), Title = "A", OwnerId = Guid.NewGuid() },
-            new CardCreatedEvent { EventId = Guid.NewGuid(), CreatedAt = DateTime.UtcNow, CardId = Guid.NewGuid(), Title = "B", BoardId = Guid.NewGuid(), ListId = Guid.NewGuid(), CreatedByUserId = Guid.NewGuid() },
+            new CardCreatedEvent { EventId = Guid.NewGuid(), CreatedAt = DateTime.UtcNow, CardId = Guid.NewGuid(), Title = "B", BoardId = Guid.NewGuid(), SwimlaneId = Guid.NewGuid(), CreatedByUserId = Guid.NewGuid() },
             new SprintStartedEvent { EventId = Guid.NewGuid(), CreatedAt = DateTime.UtcNow, SprintId = Guid.NewGuid(), BoardId = Guid.NewGuid(), Title = "C", StartedByUserId = Guid.NewGuid() }
         };
 

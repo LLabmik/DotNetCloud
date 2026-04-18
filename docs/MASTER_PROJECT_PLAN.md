@@ -14,90 +14,98 @@
 
 ## Quick Status Summary
 
-| Phase | Steps | Completed | In Progress | Pending |
-|-------|-------|-----------|-------------|---------|
-| Pre-Implementation | 2 | 2 | 0 | 0 |
-| Phase 0.1 | 11 | 11 | 0 | 0 |
-| Phase 0.2 | 12 | 12 | 0 | 0 |
-| Phase 0.3 | 8 | 8 | 0 | 0 |
-| Phase 0.4 | 20 | 20 | 0 | 0 |
-| Phase 0.5 | 9 | 9 | 0 | 0 |
-| Phase 0.6 | 14 | 14 | 0 | 0 |
-| Phase 0.7 | 16 | 16 | 0 | 0 |
-| Phase 0.8 | 11 | 11 | 0 | 0 |
-| Phase 0.9 | 13 | 13 | 0 | 0 |
-| Phase 0.10 | 11 | 11 | 0 | 0 |
-| Phase 0.11 | 18 | 18 | 0 | 0 |
-| Phase 0.12 | 25 | 25 | 0 | 0 |
-| Phase 0.13 | 20 | 20 | 0 | 0 |
-| Phase 0.14 | 18 | 18 | 0 | 0 |
-| Phase 0.15 | 12 | 12 | 0 | 0 |
-| Phase 0.16 | 12 | 12 | 0 | 0 |
-| Phase 0.17 | 10 | 10 | 0 | 0 |
-| Phase 0.18 | 8 | 8 | 0 | 0 |
-| Phase 0.19 | 11 | 11 | 0 | 0 |
-| Phase 1.1 | 6 | 6 | 0 | 0 |
-| Phase 1.2 | 5 | 5 | 0 | 0 |
-| Phase 1.3 | 15 | 15 | 0 | 0 |
-| Phase 1.4 | 15 | 15 | 0 | 0 |
-| Phase 1.5 | 10 | 10 | 0 | 0 |
-| Phase 1.6 | 9 | 9 | 0 | 0 |
-| Phase 1.7 | 11 | 11 | 0 | 0 |
-| Phase 1.8 | 8 | 8 | 0 | 0 |
-| Phase 1.9 | 14 | 14 | 0 | 0 |
-| Phase 1.10 | 24 | 24 | 0 | 0 |
-| Phase 1.11 | 8 | 8 | 0 | 0 |
-| Phase 1.12 | 17 | 17 | 0 | 0 |
-| Phase 1.13 | 4 | 4 | 0 | 0 |
-| Phase 1.14 | 32 | 32 | 0 | 0 |
-| Phase 1.15 | 25 | 25 | 0 | 0 |
-| Phase 1.16 | 20 | 20 | 0 | 0 |
-| Phase 1.17 | 25 | 25 | 0 | 0 |
-| Phase 1.18 | 6 | 6 | 0 | 0 |
-| Phase 1.19 | 20 | 20 | 0 | 0 |
-| Phase 1.20 | 20 | 20 | 0 | 0 |
-| Phase 2.1 | 6 | 6 | 0 | 0 |
-| Phase 2.2 | 4 | 4 | 0 | 0 |
-| Phase 2.3 | 7 | 7 | 0 | 0 |
-| Phase 2.4 | 5 | 5 | 0 | 0 |
-| Phase 2.5 | 4 | 4 | 0 | 0 |
-| Phase 2.6 | 4 | 4 | 0 | 0 |
-| Phase 2.7 | 4 | 4 | 0 | 0 |
-| Phase 2.8 | 11 | 11 | 0 | 0 |
-| Phase 2.9 | 3 | 3 | 0 | 0 |
-| Phase 2.10 | 10 | 10 | 0 | 0 |
-| Phase 2.11 | 3 | 3 | 0 | 0 |
-| Phase 2.12 | 2 | 2 | 0 | 0 |
-| Phase 2.13 | 3 | 3 | 0 | 0 |
-| Integration Testing Sprint | 3 | 3 | 0 | 0 |
-| Sync Batch 1 | 10 | 10 | 0 | 0 |
-| Sync Batch 2 | 6 | 6 | 0 | 0 |
-| Sync Batch 3 | 6 | 6 | 0 | 0 |
-| Sync Batch 4 | 5 | 5 | 0 | 0 |
-| Sync Batch 5 | 2 | 2 | 0 | 0 |
-| Sync Verification | 1 | 1 | 0 | 0 |
-| Sync Hardening P0 | 3 | 3 | 0 | 0 |
-| Sync Hardening P1–P2 | 6 | 6 | 0 | 0 |
-| Client Security Remediation | 1 | 1 | 0 | 0 |
-| Phase 3.1 | 4 | 4 | 0 | 0 |
-| Phase 3.2 | 6 | 6 | 0 | 0 |
-| Phase 3.3 | 6 | 6 | 0 | 0 |
-| Phase 3.4 | 6 | 6 | 0 | 0 |
-| Phase 3.5 | 4 | 4 | 0 | 0 |
-| Phase 3.6 | 4 | 4 | 0 | 0 |
-| Phase 3.7 | 5 | 5 | 0 | 0 |
-| Phase 3.8 | 4 | 4 | 0 | 0 |
-| Phase 4.1 | 11 | 11 | 0 | 0 |
-| Phase 4.2 | 7 | 7 | 0 | 0 |
-| Phase 4.3 | 21 | 21 | 0 | 0 |
-| Phase 4.4 | 17 | 17 | 0 | 0 |
-| Phase 4.5 | 9 | 9 | 0 | 0 |
-| Phase 4.6 | 4 | 4 | 0 | 0 |
-| Phase 4.7 | 6 | 6 | 0 | 0 |
-| Phase 4.8 | 8 | 8 | 0 | 0 |
-| Phase 5-9 | Summary | 0 | 0 | 1 |
-| Infrastructure | Summary | 0 | 0 | 1 |
-| Documentation | Summary | 0 | 0 | 1 |
+| Phase                       | Steps   | Completed | In Progress | Pending |
+| --------------------------- | ------- | --------- | ----------- | ------- |
+| Pre-Implementation          | 2       | 2         | 0           | 0       |
+| Phase 0.1                   | 11      | 11        | 0           | 0       |
+| Phase 0.2                   | 12      | 12        | 0           | 0       |
+| Phase 0.3                   | 8       | 8         | 0           | 0       |
+| Phase 0.4                   | 20      | 20        | 0           | 0       |
+| Phase 0.5                   | 9       | 9         | 0           | 0       |
+| Phase 0.6                   | 14      | 14        | 0           | 0       |
+| Phase 0.7                   | 16      | 16        | 0           | 0       |
+| Phase 0.8                   | 11      | 11        | 0           | 0       |
+| Phase 0.9                   | 13      | 13        | 0           | 0       |
+| Phase 0.10                  | 11      | 11        | 0           | 0       |
+| Phase 0.11                  | 18      | 18        | 0           | 0       |
+| Phase 0.12                  | 25      | 25        | 0           | 0       |
+| Phase 0.13                  | 20      | 20        | 0           | 0       |
+| Phase 0.14                  | 18      | 18        | 0           | 0       |
+| Phase 0.15                  | 12      | 12        | 0           | 0       |
+| Phase 0.16                  | 12      | 12        | 0           | 0       |
+| Phase 0.17                  | 10      | 10        | 0           | 0       |
+| Phase 0.18                  | 8       | 8         | 0           | 0       |
+| Phase 0.19                  | 11      | 11        | 0           | 0       |
+| Phase 1.1                   | 6       | 6         | 0           | 0       |
+| Phase 1.2                   | 5       | 5         | 0           | 0       |
+| Phase 1.3                   | 15      | 15        | 0           | 0       |
+| Phase 1.4                   | 15      | 15        | 0           | 0       |
+| Phase 1.5                   | 10      | 10        | 0           | 0       |
+| Phase 1.6                   | 9       | 9         | 0           | 0       |
+| Phase 1.7                   | 11      | 11        | 0           | 0       |
+| Phase 1.8                   | 8       | 8         | 0           | 0       |
+| Phase 1.9                   | 14      | 14        | 0           | 0       |
+| Phase 1.10                  | 24      | 24        | 0           | 0       |
+| Phase 1.11                  | 8       | 8         | 0           | 0       |
+| Phase 1.12                  | 17      | 17        | 0           | 0       |
+| Phase 1.13                  | 4       | 4         | 0           | 0       |
+| Phase 1.14                  | 32      | 32        | 0           | 0       |
+| Phase 1.15                  | 25      | 25        | 0           | 0       |
+| Phase 1.16                  | 20      | 20        | 0           | 0       |
+| Phase 1.17                  | 25      | 25        | 0           | 0       |
+| Phase 1.18                  | 6       | 6         | 0           | 0       |
+| Phase 1.19                  | 20      | 20        | 0           | 0       |
+| Phase 1.20                  | 20      | 20        | 0           | 0       |
+| Phase 2.1                   | 6       | 6         | 0           | 0       |
+| Phase 2.2                   | 4       | 4         | 0           | 0       |
+| Phase 2.3                   | 7       | 7         | 0           | 0       |
+| Phase 2.4                   | 5       | 5         | 0           | 0       |
+| Phase 2.5                   | 4       | 4         | 0           | 0       |
+| Phase 2.6                   | 4       | 4         | 0           | 0       |
+| Phase 2.7                   | 4       | 4         | 0           | 0       |
+| Phase 2.8                   | 11      | 11        | 0           | 0       |
+| Phase 2.9                   | 3       | 3         | 0           | 0       |
+| Phase 2.10                  | 10      | 10        | 0           | 0       |
+| Phase 2.11                  | 3       | 3         | 0           | 0       |
+| Phase 2.12                  | 2       | 2         | 0           | 0       |
+| Phase 2.13                  | 3       | 3         | 0           | 0       |
+| Integration Testing Sprint  | 3       | 3         | 0           | 0       |
+| Sync Batch 1                | 10      | 10        | 0           | 0       |
+| Sync Batch 2                | 6       | 6         | 0           | 0       |
+| Sync Batch 3                | 6       | 6         | 0           | 0       |
+| Sync Batch 4                | 5       | 5         | 0           | 0       |
+| Sync Batch 5                | 2       | 2         | 0           | 0       |
+| Sync Verification           | 1       | 1         | 0           | 0       |
+| Sync Hardening P0           | 3       | 3         | 0           | 0       |
+| Sync Hardening P1–P2        | 6       | 6         | 0           | 0       |
+| Client Security Remediation | 1       | 1         | 0           | 0       |
+| Phase 3.1                   | 4       | 4         | 0           | 0       |
+| Phase 3.2                   | 6       | 6         | 0           | 0       |
+| Phase 3.3                   | 6       | 6         | 0           | 0       |
+| Phase 3.4                   | 6       | 6         | 0           | 0       |
+| Phase 3.5                   | 4       | 4         | 0           | 0       |
+| Phase 3.6                   | 4       | 4         | 0           | 0       |
+| Phase 3.7                   | 5       | 5         | 0           | 0       |
+| Phase 3.8                   | 4       | 4         | 0           | 0       |
+| Phase 4.1                   | 11      | 11        | 0           | 0       |
+| Phase 4.2                   | 7       | 7         | 0           | 0       |
+| Phase 4.3                   | 21      | 21        | 0           | 0       |
+| Phase 4.4                   | 17      | 17        | 0           | 0       |
+| Phase 4.5                   | 9       | 9         | 0           | 0       |
+| Phase 4.6                   | 4       | 4         | 0           | 0       |
+| Phase 4.7                   | 6       | 6         | 0           | 0       |
+| Phase 4.8                   | 8       | 8         | 0           | 0       |
+| Phase 4.9                   | 42      | 42        | 0           | 0       |
+| Phase 5-8                   | Summary | 10        | 0           | 0       |
+| Phase 8 (Full-Text Search)  | 18      | 18        | 0           | 0       |
+| Phase 7 (Video Calling)     | 11      | 11        | 0           | 0       |
+| Phase 9                     | 7       | 5         | 0           | 2       |
+| Phase 11 (Auto-Updates)     | 16      | 7         | 0           | 9       |
+| DM & Host Calls — Phase A   | 3       | 3         | 0           | 0       |
+| DM & Host Calls — Phase B   | 2       | 0         | 0           | 2       |
+| DM & Host Calls — Phase C–G | 10      | 1         | 1           | 8       |
+| Infrastructure              | Summary | 0         | 0           | 1       |
+| Documentation               | Summary | 0         | 0           | 1       |
 
 Maintenance note: local install/setup health verification now follows configured Kestrel ports and accepts self-signed local HTTPS during startup checks. Fresh Linux installs now invoke `dotnetcloud setup --beginner` by default, which auto-selects the recommended local PostgreSQL path and then branches cleanly between the three real deployment shapes: private/local test, public behind a reverse proxy, and public served directly by DotNetCloud itself. The local branch uses self-signed HTTPS on DotNetCloud directly. The reverse-proxy public branch keeps DotNetCloud on local HTTP and ends with explicit reverse-proxy/TLS guidance instead of pretending automatic public-certificate setup exists; it now also points beginners to a dedicated Apache-first reverse-proxy guide with a Caddy alternative. The public-direct branch lets the user point DotNetCloud at an existing public certificate file and explains the extra tradeoffs, while still explicitly recommending a reverse proxy for most public installs because it simplifies ports 80/443, TLS renewal, and future services on the same machine. All branches print explicit direct local access URLs and health probe URLs and end with a plain-language summary of the selected defaults plus the beginner user's next steps. Upgrade runs now also end with a plain-language summary that confirms existing data/configuration were preserved, states clearly whether a one-time setup review is still required, and re-shows the access URLs plus the user's next step. This also clarifies the internal app defaults HTTP `5080` / HTTPS `5443` versus reverse-proxy/public HTTPS ports such as `15443`. Windows now has a separate IIS-first installation path via `tools/install-windows.ps1`, with IIS reverse proxying to `http://localhost:5080`, a beginner-focused IIS guide, a dedicated architecture rationale note, native Windows Service hosting support in the core server, and machine-level config/data environment propagation during setup and service runtime so Windows self-hosters do not need to follow the Linux installer path.
 
@@ -106,20 +114,23 @@ Maintenance note: local install/setup health verification now follows configured
 ## Pre-Implementation Setup
 
 ### Step: pre-impl-1 - Repository & Project Structure Setup
+
 **Status:** completed  
 **Duration:** ~1-2 hours  
 **Description:** Establish the foundational monorepo structure and configuration files
 
 **Recommended Prompt:**
+
 ```
-Execute phase pre-impl-1: Set up the repository structure and foundational configuration files. 
-Create the solution file, directory structure (src/Core/, src/Modules/, src/UI/, src/Clients/, 
-tests/, tools/, docs/), and configuration files (.gitignore, global.json, .editorconfig, 
-Directory.Build.props, Directory.Build.targets, NuGet.config). Also create LICENSE (AGPL-3.0), 
+Execute phase pre-impl-1: Set up the repository structure and foundational configuration files.
+Create the solution file, directory structure (src/Core/, src/Modules/, src/UI/, src/Clients/,
+tests/, tools/, docs/), and configuration files (.gitignore, global.json, .editorconfig,
+Directory.Build.props, Directory.Build.targets, NuGet.config). Also create LICENSE (AGPL-3.0),
 README.md, CONTRIBUTING.md, and copilot instructions file.
 ```
 
 **Tasks:**
+
 - ✓ Initialize Git repository (if not already done)
 - ✓ Create `.gitignore` for .NET projects
 - ✓ Create solution file: `DotNetCloud.sln`
@@ -136,18 +147,21 @@ README.md, CONTRIBUTING.md, and copilot instructions file.
 ---
 
 ### Step: pre-impl-2 - Development Environment Setup
+
 **Status:** completed  
 **Duration:** ~1-2 hours  
 **Description:** Set up local development environment and tools
 
 **Recommended Prompt:**
+
 ```
-Execute phase pre-impl-2: Set up the development environment. Install required tools (Visual Studio, .NET SDK, PostgreSQL, Docker), clone the repository, and build the solution. 
-Ensure all development dependencies are installed and configured (EF Core tools, Docker support, etc.). 
+Execute phase pre-impl-2: Set up the development environment. Install required tools (Visual Studio, .NET SDK, PostgreSQL, Docker), clone the repository, and build the solution.
+Ensure all development dependencies are installed and configured (EF Core tools, Docker support, etc.).
 Create a sample appsettings.Development.json for local configuration.
 ```
 
 **Tasks:**
+
 - ✓ Install Visual Studio 2022 (or later)
 - ✓ Install .NET 10 SDK
 - ✓ Install PostgreSQL 14 (or later)
@@ -165,12 +179,14 @@ Create a sample appsettings.Development.json for local configuration.
 ---
 
 ### Step: pre-impl-2 - Development Environment Documentation & Setup
+
 **Status:** completed  
 **Duration:** ~3-4 hours  
 **Description:** Create comprehensive development environment guides and documentation
 
 **Completed Deliverables:**
 ✅ **docs/development/IDE_SETUP.md** (1,800+ lines)
+
 - Visual Studio 2022 installation, configuration, debugging, testing
 - VS Code setup with C# Dev Kit and extensions
 - JetBrains Rider setup and features
@@ -178,6 +194,7 @@ Create a sample appsettings.Development.json for local configuration.
 - Troubleshooting for IntelliSense, breakpoints, debugging
 
 ✅ **docs/development/DATABASE_SETUP.md** (1,600+ lines)
+
 - PostgreSQL setup (Windows, Linux, macOS)
 - SQL Server setup and configuration
 - MariaDB setup and configuration
@@ -187,6 +204,7 @@ Create a sample appsettings.Development.json for local configuration.
 - Comprehensive troubleshooting guide
 
 ✅ **docs/development/DOCKER_SETUP.md** (1,400+ lines)
+
 - Docker Desktop installation for all platforms
 - docker-compose.yml configuration for all three databases
 - Running databases in containers
@@ -196,7 +214,8 @@ Create a sample appsettings.Development.json for local configuration.
 - Container debugging and troubleshooting
 
 ✅ **docs/development/DEVELOPMENT_WORKFLOW.md** (1,200+ lines)
-- Git Flow branching strategy (main, develop, feature/*, bugfix/*, release/*)
+
+- Git Flow branching strategy (main, develop, feature/_, bugfix/_, release/\*)
 - Conventional Commits format with examples
 - Pull request process and templates
 - Code review standards and comment guidelines
@@ -206,6 +225,7 @@ Create a sample appsettings.Development.json for local configuration.
 - Release process with semantic versioning
 
 ✅ **docs/development/README.md** (Index & Quick Start)
+
 - Navigation guide linking all development docs
 - Quick decision tree for getting started
 - Common workflows and scripts
@@ -214,6 +234,7 @@ Create a sample appsettings.Development.json for local configuration.
 - Key configuration files
 
 **Tasks Completed:**
+
 - ✓ Create comprehensive IDE setup guide (Visual Studio, VS Code, Rider)
 - ✓ Create local development database setup guide (PostgreSQL, SQL Server, MariaDB)
 - ✓ Document Docker setup for local testing and multi-database CI/CD
@@ -232,9 +253,11 @@ Create a sample appsettings.Development.json for local configuration.
 ## Phase 0: Foundation
 
 ### Section: Phase 0.1 - Core Abstractions & Interfaces
+
 **STATUS:** ✅ COMPLETED (11/11 steps)
 **DURATION:** ~11 hours
 **DELIVERABLES:**
+
 - ✓ Capability system with tier enforcement (ICapabilityInterface, CapabilityTier enum, public/restricted/privileged tier interfaces, forbidden interfaces list)
 - ✓ Authorization context and models (CallerContext, CallerType, CapabilityRequest)
 - ✓ Module system interfaces (IModuleManifest, IModule, IModuleLifecycle, ModuleInitializationContext)
@@ -246,20 +269,23 @@ Create a sample appsettings.Development.json for local configuration.
 ---
 
 #### Step: phase-0.1.1 - Capability System Interfaces
+
 **Status:** completed
 **Duration:** ~2-3 hours  
 **Description:** Create the capability tier system and public/restricted/privileged interfaces
 
 **Recommended Prompt:**
+
 ```
-Execute phase-0.1.1: Create the DotNetCloud.Core project with the capability system. 
-Implement ICapabilityInterface marker interface, CapabilityTier enum (Public, Restricted, Privileged, Forbidden), 
-and these interfaces: IUserDirectory, ICurrentUserContext, INotificationService, IEventBus (public tier); 
-IStorageProvider, IModuleSettings, ITeamDirectory (restricted tier); IUserManager, IBackupProvider (privileged tier). 
+Execute phase-0.1.1: Create the DotNetCloud.Core project with the capability system.
+Implement ICapabilityInterface marker interface, CapabilityTier enum (Public, Restricted, Privileged, Forbidden),
+and these interfaces: IUserDirectory, ICurrentUserContext, INotificationService, IEventBus (public tier);
+IStorageProvider, IModuleSettings, ITeamDirectory (restricted tier); IUserManager, IBackupProvider (privileged tier).
 Include XML documentation for all types. Location: src/Core/DotNetCloud.Core/Capabilities/
 ```
 
 **Deliverables:**
+
 - ✓ `ICapabilityInterface` marker interface
 - ✓ `CapabilityTier` enum (Public, Restricted, Privileged, Forbidden)
 - ✓ Public tier interfaces:
@@ -283,19 +309,22 @@ Include XML documentation for all types. Location: src/Core/DotNetCloud.Core/Cap
 ---
 
 #### Step: phase-0.1.2 - Context & Authorization Models
+
 **Status:** completed
 **Duration:** ~1.5 hours  
 **Description:** Create CallerContext, CallerType, and CapabilityRequest models
 
 **Recommended Prompt:**
+
 ```
-Execute phase-0.1.2: Create authorization context and models. Implement CallerContext record 
-(UserId, Roles, Type properties) with validation logic, CallerType enum (User, System, Module), 
-and CapabilityRequest model (capability name, required tier, optional description). 
+Execute phase-0.1.2: Create authorization context and models. Implement CallerContext record
+(UserId, Roles, Type properties) with validation logic, CallerType enum (User, System, Module),
+and CapabilityRequest model (capability name, required tier, optional description).
 Location: src/Core/DotNetCloud.Core/Authorization/
 ```
 
 **Deliverables:**
+
 - ✓ `CallerContext` record with:
   - ✓ `Guid UserId` property
   - ✓ `IReadOnlyList<string> Roles` property
@@ -312,11 +341,13 @@ Location: src/Core/DotNetCloud.Core/Authorization/
 ---
 
 #### Step: phase-0.1.3 - Module System Interfaces
+
 **Status:** completed
 **Duration:** ~1.5 hours  
 **Description:** Create IModuleManifest and IModule interfaces
 
 **Deliverables:**
+
 - ✓ `IModuleManifest` interface with properties: Id, Name, Version, RequiredCapabilities, PublishedEvents, SubscribedEvents
 - ✓ `IModule` base interface with: Manifest property, InitializeAsync(), StartAsync(), StopAsync()
 - ✓ `IModuleLifecycle` interface with: InitializeAsync(), StartAsync(), StopAsync(), DisposeAsync()
@@ -330,20 +361,23 @@ Location: src/Core/DotNetCloud.Core/Authorization/
 ---
 
 #### Step: phase-0.1.4 - Event System Interfaces
+
 **Status:** completed
 **Duration:** ~1.5 hours  
 **Description:** Create IEvent, IEventHandler, and IEventBus interfaces
 
 **Recommended Prompt:**
+
 ```
-Execute phase-0.1.4: Create event system interfaces. Implement IEvent base interface, 
-IEventHandler<TEvent> generic interface with Task HandleAsync(TEvent @event) method, 
-and IEventBus interface with methods: Task PublishAsync<TEvent>, Task SubscribeAsync<TEvent>, 
+Execute phase-0.1.4: Create event system interfaces. Implement IEvent base interface,
+IEventHandler<TEvent> generic interface with Task HandleAsync(TEvent @event) method,
+and IEventBus interface with methods: Task PublishAsync<TEvent>, Task SubscribeAsync<TEvent>,
 Task UnsubscribeAsync<TEvent>. Also create event subscription model.
 Location: src/Core/DotNetCloud.Core/Events/
 ```
 
 **Deliverables:**
+
 - ✓ `IEvent` base interface
 - ✓ `IEventHandler<TEvent>` interface with `Task HandleAsync(TEvent @event)` method
 - ✓ `IEventBus` interface with: PublishAsync, SubscribeAsync, UnsubscribeAsync
@@ -357,20 +391,23 @@ Location: src/Core/DotNetCloud.Core/Events/
 ---
 
 #### Step: phase-0.1.5 - Data Transfer Objects (DTOs)
+
 **Status:** completed
 **Duration:** ~2 hours  
 **Description:** Create DTO classes for all core domain entities
 
 **Recommended Prompt:**
+
 ```
-Execute phase-0.1.5: Create data transfer object classes. Implement User DTOs (UserDto, CreateUserDto, 
-UpdateUserDto), Organization DTOs, Team DTOs, Permission DTOs (PermissionDto, RoleDto), Module DTOs 
-(ModuleDto, InstalledModuleDto), Device DTOs, and Settings DTOs (SystemSettingDto, OrganizationSettingDto, 
+Execute phase-0.1.5: Create data transfer object classes. Implement User DTOs (UserDto, CreateUserDto,
+UpdateUserDto), Organization DTOs, Team DTOs, Permission DTOs (PermissionDto, RoleDto), Module DTOs
+(ModuleDto, InstalledModuleDto), Device DTOs, and Settings DTOs (SystemSettingDto, OrganizationSettingDto,
 UserSettingDto). All should have proper properties and JSON serialization attributes.
 Location: src/Core/DotNetCloud.Core/DTOs/
 ```
 
 **Deliverables:**
+
 - ✓ User DTOs: UserDto, CreateUserDto, UpdateUserDto
 - ✓ Organization DTOs: OrganizationDto, CreateOrganizationDto, UpdateOrganizationDto
 - ✓ Team DTOs: TeamDto, CreateTeamDto, UpdateTeamDto, TeamMemberDto, AddTeamMemberDto
@@ -387,20 +424,23 @@ Location: src/Core/DotNetCloud.Core/DTOs/
 ---
 
 #### Step: phase-0.1.6 - Error Handling & Exceptions
+
 **Status:** completed
 **Duration:** ~1 hour  
 **Description:** Create standardized exception types and error response models
 
 **Recommended Prompt:**
+
 ```
-Execute phase-0.1.6: Create exception hierarchy and error models. Define error code constants class, 
-implement exception types (CapabilityNotGrantedException, ModuleNotFoundException, UnauthorizedException, 
-ValidationException, ForbiddenException, NotFoundException, ConcurrencyException), and create API error response models 
+Execute phase-0.1.6: Create exception hierarchy and error models. Define error code constants class,
+implement exception types (CapabilityNotGrantedException, ModuleNotFoundException, UnauthorizedException,
+ValidationException, ForbiddenException, NotFoundException, ConcurrencyException), and create API error response models
 with code, message, and details properties. Include XML documentation.
 Location: src/Core/DotNetCloud.Core/Errors/
 ```
 
 **Deliverables:**
+
 - ✓ Error code constants class (70+ error codes)
 - ✓ Exception types:
   - ✓ `CapabilityNotGrantedException`
@@ -423,19 +463,22 @@ Location: src/Core/DotNetCloud.Core/Errors/
 ---
 
 #### Step: phase-0.1.7 - Core Abstractions Unit Tests
+
 **Status:** completed
 **Duration:** ~2 hours  
 **Description:** Create comprehensive unit test suite for all Phase 0.1 interfaces
 
 **Recommended Prompt:**
+
 ```
-Execute phase-0.1.7: Create comprehensive unit tests for Phase 0.1. Write tests for capability 
-tier enforcement, CallerContext validation, module manifest validation, event bus interface contracts, 
+Execute phase-0.1.7: Create comprehensive unit tests for Phase 0.1. Write tests for capability
+tier enforcement, CallerContext validation, module manifest validation, event bus interface contracts,
 and exception creation. Aim for 80%+ code coverage. Use MSTEST and Moq.
 Location: tests/DotNetCloud.Core.Tests/
 ```
 
 **Deliverables:**
+
 - ✓ Capability system tests
 - ✓ CallerContext validation tests
 - ✓ Module manifest validation tests
@@ -450,9 +493,11 @@ Location: tests/DotNetCloud.Core.Tests/
 ---
 
 #### Step: phase-0.1.8 - Document Core Abstractions
+
 **Status:** completed ✅
 **Duration:** ~2 hours
 **Deliverables:**
+
 - ✓ `docs/architecture/core-abstractions.md` created with comprehensive documentation
   - ✓ Capability system design with all four tiers (Public, Restricted, Privileged, Forbidden)
   - ✓ Real-world capability examples and usage patterns
@@ -487,6 +532,7 @@ Location: tests/DotNetCloud.Core.Tests/
   - ✓ Links to related documentation
 
 **Quality Metrics:**
+
 - All public types have comprehensive XML documentation (300+ lines added)
 - Build passes with no compiler warnings
 - Documentation includes 15+ code examples
@@ -500,11 +546,13 @@ Location: tests/DotNetCloud.Core.Tests/
 ### Section: Phase 0.2 - Database & Data Access Layer
 
 #### Step: phase-0.2.1 - Multi-Database Provider Strategy
+
 **Status:** completed ✅
 **Duration:** ~1.5 hours  
 **Description:** Design and implement multi-database support abstraction
 
 **Deliverables:**
+
 - ✓ `IDbContextFactory<CoreDbContext>` abstraction
 - ✓ `ITableNamingStrategy` interface
 - ✓ `DatabaseProvider` enum (PostgreSQL, SqlServer, MariaDB)
@@ -526,6 +574,7 @@ Location: tests/DotNetCloud.Core.Tests/
 - ✓ Comprehensive README with usage examples
 
 **Quality Metrics:**
+
 - All classes have XML documentation
 - Provider detection supports all three database types
 - Factory pattern enables easy context creation
@@ -540,20 +589,23 @@ Location: tests/DotNetCloud.Core.Tests/
 ---
 
 #### Step: phase-0.2.2 - Identity Models (ASP.NET Core Identity)
+
 **Status:** completed ✅  
 **Duration:** ~2 hours  
 **Description:** Create ApplicationUser and ApplicationRole entities
 
 **Recommended Prompt:**
+
 ```
-Execute phase-0.2.2: Create ASP.NET Core Identity models. Implement ApplicationUser entity extending 
-IdentityUser<Guid> with properties: DisplayName, AvatarUrl, Locale, Timezone, CreatedAt, LastLoginAt, 
-IsActive. Implement ApplicationRole extending IdentityRole<Guid> with properties: Description, 
+Execute phase-0.2.2: Create ASP.NET Core Identity models. Implement ApplicationUser entity extending
+IdentityUser<Guid> with properties: DisplayName, AvatarUrl, Locale, Timezone, CreatedAt, LastLoginAt,
+IsActive. Implement ApplicationRole extending IdentityRole<Guid> with properties: Description,
 IsSystemRole. Configure Identity relationships. Use fluent API configuration.
 Location: src/Core/DotNetCloud.Core.Data/Entities/Identity/
 ```
 
 **Deliverables:**
+
 - ✓ `ApplicationUser` entity extending `IdentityUser<Guid>`:
   - ✓ DisplayName (required, max 200 chars)
   - ✓ AvatarUrl (optional, max 500 chars)
@@ -582,6 +634,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Identity/
   - ✓ Test project created: DotNetCloud.Core.Data.Tests
 
 **File Locations:**
+
 - `src/Core/DotNetCloud.Core.Data/Entities/Identity/ApplicationUser.cs`
 - `src/Core/DotNetCloud.Core.Data/Entities/Identity/ApplicationRole.cs`
 - `src/Core/DotNetCloud.Core.Data/Configuration/Identity/ApplicationUserConfiguration.cs`
@@ -598,21 +651,24 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Identity/
 ---
 
 #### Step: phase-0.2.3 - Organization Hierarchy Models
+
 **Status:** completed ✅
 **Duration:** ~2.5 hours  
 **Description:** Create Organization, Team, and related hierarchy entities
 
 **Recommended Prompt:**
+
 ```
-Execute phase-0.2.3: Create organization hierarchy entities. Implement Organization entity (Name, 
-Description, CreatedAt, soft-delete with IsDeleted/DeletedAt), Team entity (OrganizationId FK, 
-Name, soft-delete), TeamMember entity (TeamId, UserId, RoleIds), Group entity (OrganizationId, 
-Name), GroupMember entity (GroupId, UserId), and OrganizationMember entity (OrganizationId, UserId, 
+Execute phase-0.2.3: Create organization hierarchy entities. Implement Organization entity (Name,
+Description, CreatedAt, soft-delete with IsDeleted/DeletedAt), Team entity (OrganizationId FK,
+Name, soft-delete), TeamMember entity (TeamId, UserId, RoleIds), Group entity (OrganizationId,
+Name), GroupMember entity (GroupId, UserId), and OrganizationMember entity (OrganizationId, UserId,
 RoleIds). Include all relationships and foreign keys. Add unit tests for relationships.
 Location: src/Core/DotNetCloud.Core.Data/Entities/Organizations/
 ```
 
 **Deliverables:**
+
 - ✓ `Organization` entity with:
   - ✓ Name, Description, CreatedAt properties
   - ✓ Soft-delete support (IsDeleted, DeletedAt)
@@ -663,6 +719,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Organizations/
   - ✓ OrganizationMemberTests (12 tests)
 
 **Quality Metrics:**
+
 - All entities have comprehensive XML documentation
 - All navigation properties properly configured
 - Composite keys correctly defined
@@ -673,6 +730,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Organizations/
 - Follows established naming conventions
 
 **File Locations:**
+
 - `src/Core/DotNetCloud.Core.Data/Entities/Organizations/*.cs` (6 entity files)
 - `src/Core/DotNetCloud.Core.Data/Configuration/Organizations/*.cs` (6 configuration files)
 - `tests/DotNetCloud.Core.Data.Tests/Entities/Organizations/*.cs` (6 test files)
@@ -685,11 +743,13 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Organizations/
 ---
 
 #### Step: phase-0.2.4 - Permissions System Models
+
 **Status:** completed ✅
 **Duration:** ~1.5 hours  
 **Description:** Create Permission, Role, and RolePermission junction entities
 
 **Completed Deliverables:**
+
 - ✓ `Permission` entity with Code, DisplayName, Description properties
   - Unique constraint on Code (hierarchical naming convention like "files.upload")
   - Navigation property to RolePermission collection
@@ -705,6 +765,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Organizations/
   - Fluent API configuration with constraint naming
 
 **Configurations Implemented:**
+
 - ✓ `PermissionConfiguration` class (IEntityTypeConfiguration<Permission>)
 - ✓ `RoleConfiguration` class (IEntityTypeConfiguration<Role>)
 - ✓ `RolePermissionConfiguration` class (IEntityTypeConfiguration<RolePermission>)
@@ -719,11 +780,13 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Organizations/
 ---
 
 #### Step: phase-0.2.5 - Settings Models (Three Scopes)
+
 **Status:** completed ✅
 **Duration:** ~1.5 hours  
 **Description:** Create SystemSetting, OrganizationSetting, UserSetting entities for three-level configuration hierarchy
 
 **Completed Deliverables:**
+
 - ✓ `SystemSetting` entity with:
   - ✓ `string Module` property (composite key part 1, max 100 chars)
   - ✓ `string Key` property (composite key part 2, max 200 chars)
@@ -757,6 +820,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Organizations/
   - ✓ Comprehensive XML documentation
 
 **EF Core Configurations:**
+
 - ✓ `SystemSettingConfiguration` (IEntityTypeConfiguration<SystemSetting>)
   - ✓ Composite primary key configuration
   - ✓ Column naming (snake_case)
@@ -777,6 +841,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Organizations/
   - ✓ Column naming and defaults
 
 **CoreDbContext Updates:**
+
 - ✓ Added DbSet<SystemSetting> with XML documentation
 - ✓ Added DbSet<OrganizationSetting> with XML documentation
 - ✓ Added DbSet<UserSetting> with XML documentation
@@ -784,6 +849,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Organizations/
 - ✓ Added using statements for Settings entities and configurations
 
 **Quality Metrics:**
+
 - ✓ All entities have comprehensive XML documentation (900+ lines total)
 - ✓ All configurations follow established EF Core patterns
 - ✓ Build successful with no compiler errors or warnings
@@ -796,6 +862,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Organizations/
 - ✓ Encryption support flagged for UserSetting sensitive data
 
 **File Locations:**
+
 - `src/Core/DotNetCloud.Core.Data/Entities/Settings/SystemSetting.cs`
 - `src/Core/DotNetCloud.Core.Data/Entities/Settings/OrganizationSetting.cs`
 - `src/Core/DotNetCloud.Core.Data/Entities/Settings/UserSetting.cs`
@@ -812,20 +879,23 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Organizations/
 ---
 
 #### Step: phase-0.2.6 - Device & Module Registry Models
+
 **Status:** completed ✅
 **Duration:** ~1.5 hours  
 **Description:** Create UserDevice, InstalledModule, and ModuleCapabilityGrant entities
 
 **Recommended Prompt:**
+
 ```
-Execute phase-0.2.6: Create device and module registry entities. Implement UserDevice entity 
-(UserId, Name, DeviceType, PushToken, LastSeenAt), InstalledModule entity (ModuleId PK, Version, 
-Status, InstalledAt), and ModuleCapabilityGrant entity (ModuleId FK, CapabilityName, GrantedAt, 
+Execute phase-0.2.6: Create device and module registry entities. Implement UserDevice entity
+(UserId, Name, DeviceType, PushToken, LastSeenAt), InstalledModule entity (ModuleId PK, Version,
+Status, InstalledAt), and ModuleCapabilityGrant entity (ModuleId FK, CapabilityName, GrantedAt,
 GrantedByUserId). Include all relationships and indexes for efficient querying.
 Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 ```
 
 **Completed Deliverables:**
+
 - ✓ `UserDevice` entity with:
   - ✓ `Guid Id` primary key (auto-generated)
   - ✓ `Guid UserId` FK to ApplicationUser
@@ -879,6 +949,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
   - ✓ Using statements for Modules entities and configurations
 
 **Quality Metrics:**
+
 - ✓ All entities have comprehensive XML documentation (2,000+ lines total)
 - ✓ All configurations follow established EF Core patterns
 - ✓ Build successful with no compiler errors or warnings
@@ -890,6 +961,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ Unique constraint prevents duplicate capability grants per module
 
 **File Locations:**
+
 - `src/Core/DotNetCloud.Core.Data/Entities/Modules/UserDevice.cs`
 - `src/Core/DotNetCloud.Core.Data/Entities/Modules/InstalledModule.cs`
 - `src/Core/DotNetCloud.Core.Data/Entities/Modules/ModuleCapabilityGrant.cs`
@@ -906,11 +978,13 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 ---
 
 #### Step: phase-0.2.7 - CoreDbContext Configuration
+
 **Status:** completed ✅  
 **Duration:** ~3 hours  
 **Description:** Create CoreDbContext class and configure all relationships
 
 **Deliverables:**
+
 - ✓ `CoreDbContext` class extending `IdentityDbContext<ApplicationUser, ApplicationRole, Guid>`
 - ✓ DbSet properties for all entities (17 entity types)
 - ✓ Fluent API configuration for all relationships
@@ -920,6 +994,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 **File Location:** `src/Core/DotNetCloud.Core.Data/CoreDbContext.cs`  
 **Implementation Details:**
+
 - Created `TimestampInterceptor` class that automatically sets CreatedAt/UpdatedAt timestamps
 - Configured `OnConfiguring` to register the timestamp interceptor
 - All 17 entity configurations properly integrated into `OnModelCreating`
@@ -934,11 +1009,13 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 ---
 
 #### Step: phase-0.2.8 - Database Initialization (DbInitializer)
+
 **Status:** completed ✅
 **Duration:** ~2 hours  
 **Description:** Create DbInitializer for seeding default data
 
 **Completed Deliverables:**
+
 - ✓ `DbInitializer` class created with comprehensive functionality:
   - ✓ Database creation and migration logic with `EnsureDatabaseAsync()` method
   - ✓ Supports both relational databases (PostgreSQL, SQL Server) and in-memory databases
@@ -978,6 +1055,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
   - ✓ Existing data skip tests (3 tests)
 
 **Quality Metrics:**
+
 - ✓ All 14 integration tests passing (100% pass rate)
 - ✓ Comprehensive XML documentation on all public methods
 - ✓ Build successful with no compiler errors or warnings
@@ -987,6 +1065,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ Extensive logging for initialization steps
 
 **File Locations:**
+
 - `src/Core/DotNetCloud.Core.Data/Initialization/DbInitializer.cs`
 - `tests/DotNetCloud.Core.Data.Tests/Initialization/DbInitializerTests.cs`
 
@@ -998,11 +1077,13 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 ---
 
 #### Step: phase-0.2.9 - EF Core Migrations (PostgreSQL)
+
 **Status:** completed ✅
 **Duration:** ~1.5 hours  
 **Description:** Create initial EF Core migrations for PostgreSQL
 
 **Deliverables:**
+
 - ✓ Initial migration file (`20260302195528_InitialCreate.cs`)
 - ✓ Schema creation (all 22 core tables)
 - ✓ Index creation (strategic indexes for performance)
@@ -1019,11 +1100,13 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 ---
 
 #### Step: phase-0.2.10 - EF Core Migrations (SQL Server)
+
 **Status:** completed ✅
 **Duration:** ~1.5 hours
 **Description:** Create initial EF Core migrations for SQL Server
 
 **Deliverables:**
+
 - ✓ Initial migration file (`20260302203100_InitialCreate_SqlServer.cs`)
 - ✓ Designer file for snapshot tracking
 - ✓ Schema creation (all 22 core tables with SQL Server-specific data types)
@@ -1040,11 +1123,13 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 ---
 
 #### Step: phase-0.2.11 - EF Core Migrations (MariaDB)
+
 **Status:** completed ✅
 **Duration:** ~1.5 hours
 **Description:** Create initial EF Core migrations for MariaDB
 
 **Deliverables:**
+
 - ✓ Initial migration file (`20260302203200_InitialCreate_MariaDb.cs`)
 - ✓ Designer file for snapshot tracking
 - ✓ Schema creation (all 22 core tables with MariaDB-specific data types)
@@ -1062,11 +1147,13 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 ---
 
 #### Step: phase-0.2.12 - Data Access Layer Unit & Integration Tests
+
 **Status:** completed ✅
 **Duration:** ~2.5 hours  
 **Description:** Create comprehensive tests for data models and DbContext
 
 **Completed Deliverables:**
+
 - ✓ **Soft-Delete Query Filter Tests (`SoftDeleteTests.cs`)** - 7 test methods
   - ✓ Organization soft-delete filtering (excluded from queries)
   - ✓ Team soft-delete filtering
@@ -1176,6 +1263,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
   - ✓ Full end-to-end flow (create→message→react→pin→read)
 
 **File Locations:**
+
 - `tests/DotNetCloud.Core.Tests/` (dotnet test -v diag --filter "FullyQualifiedName~Tests")
 - `tests/DotNetCloud.Client.Core.Tests/` (dotnet test -v diag --filter "FullyQualifiedName~Tests")
 - `tests/DotNetCloud.Client.SyncService.Tests/` (dotnet test -v diag --filter "FullyQualifiedName~Tests")
@@ -1199,17 +1287,20 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 **Sub-phases:** Phase 1.1-1.20 (see Quick Status Summary table above)
 
 **Detailed tracking:**
+
 - Task-level checklist: `docs/IMPLEMENTATION_CHECKLIST.md` (Phase 1.1-1.16 sections)
 - Completion verification plan: `docs/PHASE_1_COMPLETION_PLAN.md`
 
-**Notes:** All Files endpoints functional, upload/download/sync verified across 3 machines (mint22, Windows11-TestDNC, mint-dnc-client). Collabora/WOPI integration operational. Desktop sync clients working on Windows (service + SyncTray) and Linux. Share notifications (public link access, expiry warnings) and sync debounce all implemented. 644 Files module tests + 182 Client.Core tests + 27 SyncService tests + 77 SyncTray tests = 930 tests covering Files/Sync.
+**Notes:** All Files endpoints functional, upload/download/sync verified across 3 machines (mint22, Windows11-TestDNC, mint-dnc-client). Collabora/WOPI integration operational. Desktop sync clients now ship as SyncTray-owned single-process installs on Linux and Windows, with bundle installers cleaning up stale SyncService artifacts during upgrades and avoiding Linux self-copy failures when fixing executable permissions. Share notifications (public link access, expiry warnings) and sync debounce all implemented. 644 Files module tests + 182 Client.Core tests + 27 SyncService tests + 77 SyncTray tests = 930 tests covering Files/Sync.
 
 ### Step: client-security-remediation-2026-03-22 - Client Security Audit Follow-up
+
 **Status:** completed ✅
 **Duration:** ~1 hour
 **Description:** Implemented and validated client-side fixes from the cross-machine security audit handoff.
 
 **Deliverables:**
+
 - ✓ SyncTray default add-account server URL changed from hardcoded development host to empty value
 - ✓ SyncService Unix socket listener now forces socket file permissions to owner-only read/write (`0600`) after bind
 - ✓ SyncEngine now blocks symlink materialization when resolved link targets escape the sync root
@@ -1233,11 +1324,13 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 ---
 
 ### Step: phase-2.1 - Chat Core Abstractions & Data Models
+
 **Status:** completed ✅
 **Duration:** ~1 week (actual)
 **Description:** Create Chat module projects, domain models (Channel, ChannelMember, Message, MessageAttachment, Reaction, Mention, PinnedMessage), DTOs, events, and ChatModuleManifest.
 
 **Deliverables:**
+
 - ✓ Create project structure (Chat, Chat.Data, Chat.Host, Chat.Tests) — 4 projects added to solution
 - ✓ Create ChatModuleManifest implementing IModuleManifest
 - ✓ Create domain models (Channel, ChannelMember, Message, MessageAttachment, Reaction, Mention, PinnedMessage) — 7 entities
@@ -1251,11 +1344,13 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 ---
 
 ### Step: phase-2.2 - Chat Database & Data Access Layer
+
 **Status:** completed ✅
 **Duration:** ~1 week
 **Description:** Create ChatDbContext, entity configurations, migrations, and database initialization.
 
 **Deliverables:**
+
 - ✓ Create entity configurations for all 9 entities with indexes, FKs, query filters
 - ✓ Create ChatDbContext with all DbSets and naming strategy
 - ✓ Create migrations (PostgreSQL `InitialCreate` + SQL Server `InitialCreate_SqlServer`) with `ChatDbContextDesignTimeFactory`
@@ -1268,11 +1363,13 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 ---
 
 ### Step: phase-2.10 - Android MAUI App
+
 **Status:** completed ✅
 **Duration:** ~3-4 weeks (actual)
 **Description:** Create Android MAUI app with authentication, chat UI, SignalR real-time, push notifications, offline support, and photo auto-upload.
 
 **Deliverables:**
+
 - ✓ Create DotNetCloud.Clients.Android MAUI project (build flavors: googleplay/fdroid)
 - ✓ Authentication: OAuth2/OIDC with PKCE, Android Keystore token storage, token refresh, multi-server support
 - ✓ Android OAuth callback chooser hardening: removed duplicate `oauth2redirect` intent registration and set explicit `DotNetCloud` activity labels for browser return flow
@@ -1285,7 +1382,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ Photo auto-upload: IPhotoAutoUploadService + PhotoAutoUploadService; MediaStore query, 4 MB chunked upload, WiFi-only + enabled preference, progress notification
 - ✓ File browser: IFileRestClient + HttpFileRestClient (chunked upload, envelope unwrapping, download streaming), FileBrowserViewModel (folder navigation, file picker upload, camera photo/video capture, download-and-open, delete, quota), FileBrowserPage.xaml + code-behind, Files tab in AppShell
 - ✓ Media auto-upload (photos + videos): IMediaAutoUploadService + MediaAutoUploadService; scans MediaStore for both photos and videos, uploads into InstantUpload/YYYY/MM folder hierarchy (auto-created, Nextcloud-style), configurable folder name, uses IFileRestClient for chunked upload with parentId, ChannelIdMediaUpload notification channel
-- ✓ Distribution signing: Release PropertyGroup with AndroidKeyStore/KEYSTORE_* env vars, AndroidUseAapt2=true for F-Droid reproducibility
+- ✓ Distribution signing: Release PropertyGroup with AndroidKeyStore/KEYSTORE\_\* env vars, AndroidUseAapt2=true for F-Droid reproducibility
 - ✓ Direct APK download option documented
 - ✓ App store listing description written
 
@@ -1301,20 +1398,24 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 > **Detailed plan:** `docs/PHASE_3_IMPLEMENTATION_PLAN.md`
 
 ### Section: Phase 3.1 - Architecture And Contracts
+
 **STATUS:** completed ✅
 **DELIVERABLES:**
+
 - ✓ Core DTOs and contracts for Contacts, Calendar, Notes
 - ✓ Event contracts (Created/Updated/Deleted events for each domain)
 - ✓ Capability interfaces and tier mapping
 - ✓ Validation and error code extensions
 
-**Notes:** All Phase 3.1 contracts added to DotNetCloud.Core. DTOs: ContactDtos.cs, CalendarDtos.cs, NoteDtos.cs. Events: ContactEvents.cs, CalendarEvents.cs, NoteEvents.cs. Capabilities: IContactDirectory, ICalendarDirectory, INoteDirectory (all Public tier). Error codes added for CONTACT_, CALENDAR_, NOTE_ domains. 197/197 Core tests pass. Ready for phase-3.2 (Contacts Module).
+**Notes:** All Phase 3.1 contracts added to DotNetCloud.Core. DTOs: ContactDtos.cs, CalendarDtos.cs, NoteDtos.cs. Events: ContactEvents.cs, CalendarEvents.cs, NoteEvents.cs. Capabilities: IContactDirectory, ICalendarDirectory, INoteDirectory (all Public tier). Error codes added for CONTACT*, CALENDAR*, NOTE\_ domains. 197/197 Core tests pass. Ready for phase-3.2 (Contacts Module).
 
 ---
 
 ### Section: Phase 3.2 - Contacts Module
+
 **STATUS:** completed ✅
 **DELIVERABLES:**
+
 - ✓ Module projects (Contacts, Contacts.Data, Contacts.Host)
 - ✓ Data model + EF configurations (8 entities, 8 configs)
 - ✓ REST API endpoints (CRUD, bulk import/export, search)
@@ -1327,8 +1428,10 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 ---
 
 ### Section: Phase 3.3 - Calendar Module
+
 **STATUS:** completed ✅
 **DELIVERABLES:**
+
 - ✓ Module projects (Calendar, Calendar.Data, Calendar.Host)
 - ✓ Data model (calendars, events, attendees, recurrence, reminders, shares)
 - ✓ REST API endpoints (CRUD, RSVP, sharing, search/filter)
@@ -1344,8 +1447,10 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 ---
 
 ### Section: Phase 3.4 - Notes Module
+
 **STATUS:** completed ✅
 **DELIVERABLES:**
+
 - ✓ Module projects (Notes, Notes.Data, Notes.Host)
 - ✓ Data model (notes, versions, folders, tags, links, sharing — 6 entities, 6 EF configurations)
 - ✓ REST API endpoints (~25 endpoints: CRUD, tagging, search, version history, folders, sharing)
@@ -1362,8 +1467,10 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 ---
 
 ### Section: Phase 3.5 - Cross-Module Integration
+
 **STATUS:** completed ✅
 **DELIVERABLES:**
+
 - ✓ Unified navigation + module registration in Blazor shell (Contacts 👤, Calendar 📅, Notes 📝 with stub pages)
 - ✓ Shared notification patterns (ResourceShared, UserMentioned, ReminderTriggered events + handlers + push integration)
 - ✓ Cross-module link resolution (ICrossModuleLinkResolver with Contact/CalendarEvent/Note/File support, batch resolve)
@@ -1378,8 +1485,10 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 ---
 
 ### Section: Phase 3.6 - Migration Foundation
+
 **STATUS:** completed ✅
 **DELIVERABLES:**
+
 - ✓ Import contract interfaces and pipeline architecture
 - ✓ vCard and iCalendar migration parsers/transformers
 - ✓ Notes import adapter (markdown/plain exports)
@@ -1390,8 +1499,10 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 ---
 
 ### Section: Phase 3.7 - Testing And Quality Gates
+
 **STATUS:** completed ✅
 **DELIVERABLES:**
+
 - ✓ Unit test suites for all three modules (ContactShareServiceTests, CalendarShareServiceTests, NoteSecurityTests)
 - ✓ Integration tests for REST and DAV endpoints (CardDavInteropTests, CalDavInteropTests)
 - ✓ CardDAV and CalDAV compatibility test matrix (vCard 3.0 round-trip, iCal RFC 5545 round-trip, timezone/RRULE/VALARM/all-day handling)
@@ -1403,8 +1514,10 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 ---
 
 ### Section: Phase 3.8 - Documentation And Release Readiness
+
 **STATUS:** completed ✅
 **DELIVERABLES:**
+
 - ✓ Admin docs for Contacts, Calendar, Notes — `docs/admin/PIM_MODULES.md`
 - ✓ User guides for import, sharing, sync, troubleshooting — `docs/user/CONTACTS.md`, `docs/user/CALENDAR.md`, `docs/user/NOTES.md`
 - ✓ API docs for REST and DAV endpoints — `docs/api/CONTACTS.md`, `docs/api/CALENDAR.md`, `docs/api/NOTES.md`
@@ -1421,8 +1534,10 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 > **Detailed plan:** `docs/PHASE_4_IMPLEMENTATION_PLAN.md`
 
 ### Section: Phase 4.1 - Architecture And Contracts
+
 **STATUS:** completed ✅
 **DELIVERABLES:**
+
 - ✓ `TracksDtos.cs` — 21 DTO records: BoardDto, BoardMemberDto, BoardListDto, CardDto, CardAssignmentDto, LabelDto, CardCommentDto, CardAttachmentDto, CardChecklistDto, ChecklistItemDto, CardDependencyDto, SprintDto, TimeEntryDto, BoardActivityDto + 7 request DTOs (Create/Update Board/Card/List/Label/Sprint/TimeEntry, MoveCard) + 4 enums (BoardMemberRole, CardPriority, CardDependencyType, SprintStatus)
 - ✓ `TracksEvents.cs` — 10 domain events: BoardCreatedEvent, BoardDeletedEvent, CardCreatedEvent, CardMovedEvent, CardUpdatedEvent, CardDeletedEvent, CardAssignedEvent, CardCommentAddedEvent, SprintStartedEvent, SprintCompletedEvent
 - ✓ `ITracksDirectory` capability interface (Public tier) with board/card lookup + CardSummary record
@@ -1439,8 +1554,10 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 ---
 
 ### Section: Phase 4.2 - Data Model And Module Scaffold
+
 **STATUS:** completed ✅
 **DELIVERABLES:**
+
 - ✓ `DotNetCloud.Modules.Tracks/` — Module library (TracksModule.cs, TracksModuleManifest.cs, manifest.json, 16 entity models + PokerSession + PokerVote)
 - ✓ `DotNetCloud.Modules.Tracks.Data/` — TracksDbContext (18 DbSets), 18 EF configurations, design-time factory, db initializer, service registration
 - ✓ `DotNetCloud.Modules.Tracks.Host/` — gRPC host scaffold (Program.cs, TracksGrpcService with 11 RPCs incl. 4 poker RPCs, TracksLifecycleService, TracksHealthCheck, InProcessEventBus, TracksControllerBase, tracks_service.proto)
@@ -1454,8 +1571,10 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 ---
 
 ### Section: Phase 4.3 - Core Services And Business Logic
+
 **STATUS:** completed ✅
 **DELIVERABLES:**
+
 - ✓ `BoardService` — CRUD boards, manage members/roles, archive/unarchive
 - ✓ `ListService` — CRUD lists, reorder (gap-based positioning), WIP limit enforcement
 - ✓ `CardService` — CRUD cards, move between lists, assign/unassign users, priority, due dates, archive
@@ -1484,8 +1603,10 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 ---
 
 ### Section: Phase 4.4 - REST API And gRPC Service
+
 **STATUS:** completed ✅
 **DELIVERABLES:**
+
 - ✓ `BoardsController` — 15 endpoints: CRUD boards, activity, members (CRUD + role), labels (CRUD), export/import
 - ✓ `ListsController` — 5 endpoints: CRUD lists, reorder
 - ✓ `CardsController` — 10 endpoints: CRUD cards, move, assign/unassign, labels add/remove, activity
@@ -1506,12 +1627,25 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 ---
 
 ### Section: Phase 4.5 - Web UI (Blazor)
+
 **STATUS:** completed ✅
 **DELIVERABLES:**
+
 - ✓ Board list page — Grid/list of boards, create board dialog
 - ✓ Board view — Full kanban with drag-and-drop cards between lists
 - ✓ Card detail panel — Slide-out with description, assignments, labels, checklists, comments, attachments, time, dependencies, activity
 - ✓ Sprint management — Planning view, backlog → sprint, progress indicators
+- ✓ Sprint Planning Workflow UX — Full sprint planning experience:
+  - ✓ Sprint selector in card detail sidebar (assign/remove cards from sprints)
+  - ✓ Sprint backlog view (expandable card list per sprint in SprintPanel)
+  - ✓ Quick-add cards to sprint (card picker dialog with multi-select, search, batch add)
+  - ✓ Sprint filter on kanban board (filter cards by sprint)
+  - ✓ Sprint badge on kanban cards (🏃 sprint title)
+  - ✓ Sprint Planning View (side-by-side product backlog/sprint backlog, capacity bar, member workload, priority groups)
+  - ✓ Burndown chart (SVG-based SprintBurndownChart.razor, ideal vs actual remaining SP)
+  - ✓ Velocity chart (SVG-based VelocityChart.razor, committed vs completed across sprints)
+  - ✓ Sprint completion dialog (summary stats, incomplete card handling — move to next sprint or backlog)
+  - ✓ Sprint report API client methods (GetSprintReportAsync, GetBoardVelocityAsync)
 - ✓ Board settings — Members, labels, archive management
 - ✓ Team management — Create/edit teams, member roles, board transfer
 - ✓ Filters and search — Filter by label, assignee, due date, priority
@@ -1522,13 +1656,15 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ Module UI registration in ModuleUiRegistrationHostedService
 - ✓ tracks-kanban.js drag-drop JS interop
 
-**Notes:** Full Blazor UI: TracksPage (sidebar layout), BoardListView, KanbanBoard (HTML5 drag-drop), CardDetailPanel (slide-out), SprintPanel, BoardSettingsDialog, TeamManagement. Comprehensive CSS with ::deep scoping and responsive breakpoints. Real-time event subscriptions integrated in Phase 4.6.
+**Notes:** Full Blazor UI: TracksPage (sidebar layout), BoardListView, KanbanBoard (HTML5 drag-drop), CardDetailPanel (slide-out), SprintPanel, BoardSettingsDialog, TeamManagement. Comprehensive CSS with ::deep scoping and responsive breakpoints. Real-time event subscriptions integrated in Phase 4.6. Sprint Planning Workflow UX added: SprintPlanningView (side-by-side planning), SprintBurndownChart + VelocityChart (SVG-based, code-behind rendering to avoid Razor <text> conflicts), SprintCompletionDialog (incomplete card handling), sprint filter/badge on kanban, card picker dialog. ~470 lines of new CSS. TargetStoryPoints added to Sprint model/DTOs. BatchAddSprintCardsDto for multi-card sprint assignment. 5 new API client methods.
 
 ---
 
 ### Section: Phase 4.6 - Real-time And Notifications
+
 **STATUS:** completed ✅
 **DELIVERABLES:**
+
 - ✓ `TracksRealtimeService` + `ITracksSignalRService` — Real-time board state sync via `IRealtimeBroadcaster`
 - ✓ Notification integration — Card assignment, @mention, sprint start/complete, team membership via `TracksNotificationService`
 - ✓ Activity feed — Per-board real-time stream via `BroadcastActivityAsync`, Blazor auto-refresh
@@ -1539,8 +1675,10 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 ---
 
 ### Section: Phase 4.7 - Advanced Features
+
 **STATUS:** completed ✅
 **DELIVERABLES:**
+
 - ✓ Board templates — `BoardTemplateService` with 4 built-in templates (Kanban, Scrum, Bug Tracking, Personal TODO); `BoardTemplatesController` (5 endpoints); seeded on startup
 - ✓ Card templates — `CardTemplateService`: save/list/get/delete/create from template; `CardTemplatesController` (4 endpoints)
 - ✓ Due date reminders — `DueDateReminderService` (IHostedService): hourly background scan, notifies cards due within 24h
@@ -1556,8 +1694,10 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 ---
 
 ### Section: Phase 4.8 - Testing Documentation And Release
+
 **STATUS:** completed ✅
 **DELIVERABLES:**
+
 - ✓ Unit tests — Full service coverage, authorization, cycle detection (existing 291 tests from phases 4.1–4.7)
 - ✓ Integration tests — REST API endpoint tests (12 tests: BoardsController, CardsController, SprintsController, CommentsController, ChecklistsController, TeamsController, TimeEntriesController, end-to-end workflows, gRPC, multi-user concurrent ops)
 - ✓ Security tests — Board role authorization (5 role levels × 6 operations), team role escalation prevention, tenant isolation, Markdown XSS prevention (script, img onerror, iframe, javascript URL)
@@ -1568,6 +1708,462 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ README roadmap status update — Tracks marked ✅ Phase 4 in feature table and ✅ Complete in roadmap table
 
 **Notes:** 344 total Tracks tests pass (291 existing + 53 new: 30 security, 12 integration, 11 performance). Phase 4 complete.
+
+---
+
+### Section: Phase 4.9 - Dual-Mode Rework (Personal + Team)
+
+**STATUS:** completed ✅
+**DELIVERABLES:**
+
+- ✓ Phase A: Data Model & Mode System — `BoardMode` enum, `ReviewSession`/`ReviewSessionParticipant` entities, sprint planning fields, EF configs
+- ✓ Phase B: Service Layer — Mode-aware `BoardService`, `SprintPlanningService`, `ReviewSessionService`, backlog/sprint filter, poker vote status
+- ✓ Phase C: API Layer — Board mode parameter, sprint wizard endpoints, backlog endpoints, `ReviewSessionController`, poker vote status endpoint, gRPC updates
+- ✓ Phase D: Real-Time / SignalR — Review session broadcasts, client-side SignalR events
+- ✓ Phase E: UI — Personal Mode Simplification — Mode selector in create dialog, mode badge in board list, conditional sidebar for Personal/Team, sprint controls hidden for Personal boards, 35 Phase E tests
+- ✓ Phase F: UI — Sprint Planning Wizard — 4-step wizard (Plan Basics → Swimlanes → Schedule → Review), TracksPage integration with Year Plan nav, 61 Phase F tests
+- ✓ Phase G: UI — Backlog & Sprint Views — BacklogView component (filter/multi-select/bulk assign), sprint tabs in KanbanBoard, Backlog TracksView in sidebar, 47 Phase G tests
+- ✓ Phase H: UI — Year Timeline / Gantt View — TimelineView.razor with sprint Gantt bars, drag-resize, today marker, responsive zoom, 54 Phase H tests
+- ✓ Phase I: UI — Live Review Mode — ReviewSessionPanel.razor, participant management, poker voting integration, host controls, 42 Phase I tests
+- ✓ Phase J: Comprehensive Tests — 62 new tests covering data model validation, mode-aware services, sprint planning edge cases, review session edge cases, poker vote status, controller integration, security, and performance
+
+**Notes:** All 10 phases (A–J) complete. 801 total Tracks tests passing. Dual-mode rework fully implemented: personal boards (simplified kanban) and team boards (sprints, backlog, planning wizard, review sessions, poker voting, timeline view). No remaining work.
+
+---
+
+## Phase 5: Photos Module (Sub-Phase B)
+
+### Section: Phase 5.3 - Photos Architecture & Contracts
+
+#### Step: phase-5.3 - Photos Architecture & Contracts
+
+**Status:** completed ✅
+**Deliverables:**
+
+- ✓ `IPhotoDirectory` capability interface
+- ✓ `PhotosDtos.cs` — PhotoDto, AlbumDto, PhotoMetadataDto, PhotoEditOperationDto, GeoClusterDto, PhotoShareDto, SlideshowDto + enums
+- ✓ `PhotoEvents.cs` — PhotoUploadedEvent, PhotoDeletedEvent, AlbumCreatedEvent, AlbumSharedEvent, PhotoEditedEvent
+- ✓ `PhotosModuleManifest.cs` — module manifest with capabilities, published/subscribed events
+- ✓ `PhotosModule.cs` — IModuleLifecycle implementation with initialize/start/stop/dispose
+- ✓ `FileUploadedPhotoHandler.cs` — event handler for image uploads
+
+**Notes:** Foundation contracts and module scaffolding complete. Ready for data model.
+
+---
+
+### Section: Phase 5.4 - Photos Data Model
+
+#### Step: phase-5.4 - Photos Data Model & Migrations
+
+**Status:** completed ✅
+**Deliverables:**
+
+- ✓ 7 entity models: Photo, Album, AlbumPhoto, PhotoMetadata, PhotoTag, PhotoShare, PhotoEditRecord
+- ✓ 7 EF Core configurations with indexes and soft-delete query filters
+- ✓ `PhotosDbContext` with all DbSets
+- ✓ `PhotosDbContextDesignTimeFactory` for EF Core tooling
+- ✓ InitialCreate migration (7 tables)
+
+**Notes:** Full data model with soft delete, geo-indexing, edit history tracking, and initial migration.
+
+---
+
+### Section: Phase 5.5 - Photos Core Services
+
+#### Step: phase-5.5 - Photos Core Services
+
+**Status:** completed ✅
+**Deliverables:**
+
+- ✓ `PhotoService` — CRUD, timeline, favorites, search, soft delete
+- ✓ `AlbumService` — album CRUD, photo management, sorting
+- ✓ `PhotoMetadataService` — EXIF extraction and storage
+- ✓ `PhotoGeoService` — geo-tagged photo queries and clustering
+- ✓ `PhotoShareService` — photo/album sharing with permission levels
+- ✓ `PhotoThumbnailService` — photo-specific sizes (grid 300px, detail 1200px, full), ImageSharp-based, two-level cache
+- ✓ `PhotoIndexingBackgroundService` — periodic scan for unindexed image files
+
+**Notes:** All core services implemented with CallerContext authorization. Thumbnail and background indexing services added.
+
+---
+
+### Section: Phase 5.6 - Photo Editing & Slideshow
+
+#### Step: phase-5.6 - Photo Editing & Slideshow
+
+**Status:** completed ✅
+**Deliverables:**
+
+- ✓ `PhotoEditService` — non-destructive editing with validation (rotate, crop, flip, brightness, contrast, saturation, sharpen, blur)
+- ✓ `SlideshowService` — slideshow creation from albums or photo selections
+- ✓ `PhotosServiceRegistration` — DI registration for all Photos services
+
+**Notes:** Edit stack with undo/revert-all. Validation rules per edit type.
+
+---
+
+### Section: Phase 5.7 - Photos API & Web UI
+
+#### Step: phase-5.7 - Photos API, gRPC & Host
+
+**Status:** completed ✅
+**Deliverables:**
+
+- ✓ `photos_service.proto` — full gRPC contract
+- ✓ `PhotosController` — REST API for photos, timeline, metadata, geo, editing, sharing, slideshow
+- ✓ `AlbumsController` — REST API for album CRUD, photo management, sharing
+- ✓ `PhotosGrpcServiceImpl` — gRPC service implementation
+- ✓ `PhotosHealthCheck` — module health check
+- ✓ `Program.cs` — host application builder
+- ✓ 95 comprehensive tests (all passing) — PhotoService, AlbumService, PhotoEditService, PhotoGeoService, PhotoShareService, SlideshowService, PhotoMetadataService, PhotosModule
+
+**Notes:** Sub-Phase B (Photos Module) fully complete. All 3 projects compile, solution/CI updated, 119 tests passing.
+
+---
+
+## Phase 5: Music Module (Sub-Phase C)
+
+### Section: Phase 5.8 - Music Architecture & Contracts
+
+#### Step: phase-5.8 - Music Architecture & Contracts
+
+**Status:** completed ✅
+**Deliverables:**
+
+- ✓ `IMusicDirectory` capability interface (Public tier)
+- ✓ Music DTOs: ArtistDto, MusicAlbumDto, TrackDto, PlaylistDto, NowPlayingDto, EqPresetDto, LibraryScanResultDto
+- ✓ Music events: TrackPlayedEvent, PlaylistCreatedEvent, LibraryScanCompletedEvent, TrackScrobbledEvent
+- ✓ `MusicModuleManifest` and `MusicModule` lifecycle
+- ✓ Module project scaffolding (5 projects + test project)
+
+---
+
+### Section: Phase 5.9 - Music Data Model
+
+#### Step: phase-5.9 - Music Data Model & Migrations
+
+**Status:** completed ✅
+**Deliverables:**
+
+- ✓ 13 entity models: Artist, MusicAlbum, Track, TrackArtist, Genre, TrackGenre, Playlist, PlaylistTrack, PlaybackHistory, EqPreset, UserMusicPreference, ScrobbleRecord, StarredItem
+- ✓ 13 EF Core configurations with indexes
+- ✓ `MusicDbContext` with 13 DbSets
+- ✓ `MusicDbContextDesignTimeFactory` for EF Core tooling
+- ✓ InitialCreate migration (13 tables)
+
+---
+
+### Section: Phase 5.10 - Music Library Scanning
+
+#### Step: phase-5.10 - Music Library Scanning & Metadata
+
+**Status:** completed ✅
+**Deliverables:**
+
+- ✓ `LibraryScanService` — scans user files for audio MIME types, builds Artist→Album→Track hierarchy
+- ✓ `MusicMetadataService` — tag reading/writing via TagLibSharp
+- ✓ `AlbumArtService` — embedded art extraction, folder art fallback, thumbnail caching
+- ✓ Supported formats: MP3, FLAC, OGG, AAC/M4A, OPUS, WAV, WMA
+
+---
+
+### Section: Phase 5.11 - Music Core Services
+
+#### Step: phase-5.11 - Music Core Services
+
+**Status:** completed ✅
+**Deliverables:**
+
+- ✓ `ArtistService` — browse, search, discography
+- ✓ `MusicAlbumService` — browse, search, album tracks, album art
+- ✓ `TrackService` — search, starred/favorites, recently added
+- ✓ `PlaylistService` — CRUD, reorder, sharing
+- ✓ `PlaybackService` — play history, scrobble recording, queue management
+- ✓ `RecommendationService` — recently played, most played, similar, new additions
+- ✓ `EqPresetService` — CRUD for equalizer presets
+
+---
+
+### Section: Phase 5.12 - Music Streaming
+
+#### Step: phase-5.12 - Music Streaming Service
+
+**Status:** completed ✅
+**Deliverables:**
+
+- ✓ `MusicStreamingService` — HTTP Range streaming, auth token generation/validation, concurrent stream limiting
+- ✓ Gapless playback metadata, stream URL generation with time-limited tokens
+- ✓ 15 streaming tests passing
+
+---
+
+### Section: Phase 5.13 - Subsonic API
+
+#### Step: phase-5.13 - Subsonic API Compatibility
+
+**Status:** completed ✅
+**Deliverables:**
+
+- ✓ `SubsonicController` — ~25 Subsonic REST API v1.16 endpoints
+- ✓ `SubsonicAuth` — MD5 token+salt authentication
+- ✓ System, browsing, search, media retrieval, playlist, user interaction endpoints
+- ✓ XML + JSON response format support
+
+---
+
+### Section: Phase 5.14 - Music API & gRPC
+
+#### Step: phase-5.14 - Music REST API, gRPC & Host
+
+**Status:** completed ✅
+**Deliverables:**
+
+- ✓ `MusicController` — ~30 REST endpoints
+- ✓ `MusicGrpcServiceImpl` + `music_service.proto`
+- ✓ Music Host project (Kestrel, gRPC, health checks)
+- ✓ 156 tests passing across all music services
+- ✓ Blazor UI — full music player (library, albums, artists, genres, playlists, favorites, recently played, now-playing bar, equalizer, search)
+
+**Notes:** Sub-Phase C (Music Module) fully complete including Blazor UI. Starring/favorites with optimistic UI updates, album art, playback controls, play bar with album navigation.
+
+---
+
+## Phase 5: MusicBrainz Metadata Enrichment (Sub-Phase C.1)
+
+### Section: Phase A - Data Model Changes (Migration)
+
+#### Step: phase-5-mb-A - MusicBrainz Data Model Changes
+
+**Status:** completed ✅
+**Deliverables:**
+
+- ✓ Artist model: `MusicBrainzId`, `Biography`, `ImageUrl`, `WikipediaUrl`, `DiscogsUrl`, `OfficialUrl`, `LastEnrichedAt`
+- ✓ MusicAlbum model: `MusicBrainzReleaseGroupId`, `MusicBrainzReleaseId`, `LastEnrichedAt`
+- ✓ Track model: `MusicBrainzRecordingId`, `LastEnrichedAt`
+- ✓ EF Core configurations updated with max lengths and indexes (ix_artists_musicbrainz_id, ix_music_albums_musicbrainz_release_group_id, ix_tracks_musicbrainz_recording_id)
+- ✓ `AddMusicBrainzEnrichment` migration created
+- ✓ 250 existing Music tests still passing
+
+**Notes:** Phase A complete. All enrichment fields added as nullable columns — no breaking changes. Ready for Phase B (MusicBrainz + Cover Art Archive service clients).
+
+---
+
+### Section: Phase B - MusicBrainz + Cover Art Archive Services
+
+#### Step: phase-5-mb-B - MusicBrainz + Cover Art Archive Services
+
+**Status:** completed ✅
+**Deliverables:**
+
+- ✓ `IMusicBrainzClient` interface — search artists, release groups, recordings; get artist/release group/recording details
+- ✓ `MusicBrainzClient` implementation — typed HttpClient, rate-limited (shared `MusicBrainzRateLimiter`), JSON deserialization of MB API v2 responses
+- ✓ `ICoverArtArchiveClient` interface — get front cover, get cover list, fallback through releases
+- ✓ `CoverArtArchiveClient` implementation — typed HttpClient, rate-limited, release fallback logic, MIME type detection
+- ✓ `MusicBrainzRateLimiter` — shared `SemaphoreSlim`-based rate limiter (1 req/sec) for both MB and CAA clients
+- ✓ `IMetadataEnrichmentService` interface — enrich album/artist/track, batch enrich missing art, batch enrich all
+- ✓ `MetadataEnrichmentService` implementation — orchestrates MB lookups + CAA art fetching, score threshold ≥90, 30-day cooldown, force flag override, progress reporting
+- ✓ `EnrichmentProgress` DTO added to `MusicDtos.cs`
+- ✓ Full solution build: 0 errors
+- ✓ 250 existing Music tests still passing
+
+**Notes:** Phase B complete. All MusicBrainz and Cover Art Archive service interfaces and implementations created. Rate limiting shared between clients via singleton `MusicBrainzRateLimiter`. Service registration (DI + HttpClient configuration) deferred to Phase F. Ready for Phase C (scan progress infrastructure).
+
+---
+
+### Section: Phase C - Scan Progress Infrastructure
+
+#### Step: phase-5-mb-C - Scan Progress Infrastructure
+
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `LibraryScanProgress` DTO — real-time progress record with phase, file counts, track stats, percentage, elapsed time
+- ✓ `LibraryScanService` updated — accepts `IProgress<LibraryScanProgress>?`, reports per-file progress, runs enrichment phase (auto-fetch art + auto-enrich artists) controlled by configuration
+- ✓ `ScanProgressState` — scoped Blazor state service bridging `IProgress<T>` callbacks to `StateHasChanged()` via `OnProgressChanged` event
+- ✓ `ScanProgressState` registered as scoped in `MusicServiceRegistration`
+- ✓ `IMetadataEnrichmentService?` injected into `LibraryScanService` as optional dependency
+- ✓ Configuration-driven enrichment: `Music:Enrichment:Enabled`, `AutoFetchArt`, `AutoEnrichArtists`
+- ✓ Full solution build: 0 errors, 250 existing tests passing
+
+**Notes:** Phase C complete. Scan progress infrastructure in place. `ScanLibraryAsync` now reports real-time progress through all phases (metadata extraction → enrichment → complete) and supports cancellation. Enrichment runs automatically after scan if configured. The `ScanProgressState` service enables Blazor components to subscribe to progress updates. Ready for Phase D (API endpoints).
+
+---
+
+### Section: Phase D - API Endpoints
+
+#### Step: phase-5-mb-D - Enrichment & Scan Progress API Endpoints
+
+**Status:** completed ✅
+**Deliverables:**
+
+- ✓ `POST /api/v1/music/enrich/album/{albumId}` — enrich single album (MusicBrainz metadata + Cover Art Archive cover art)
+- ✓ `POST /api/v1/music/enrich/artist/{artistId}` — enrich single artist (biography, external links)
+- ✓ `POST /api/v1/music/enrich/all` — batch enrich all unenriched items for user
+- ✓ `POST /api/v1/music/enrich/missing-art` — batch enrich only albums missing cover art
+- ✓ `GET /api/v1/music/artists/{artistId}/bio` — get artist biography and external links
+- ✓ `GET /api/v1/music/scan/progress` — current scan progress for authenticated user
+- ✓ `ArtistBioDto` — new DTO with biography, image URL, Wikipedia/Discogs/official links, MusicBrainz ID
+- ✓ `IArtistService.GetArtistBioAsync()` — new interface method + implementation
+- ✓ `IMetadataEnrichmentService` and `ScanProgressState` injected into `MusicController`
+- ✓ Full solution build: 0 errors, 250 tests passing
+
+**Notes:** Phase D complete. All enrichment and scan progress REST API endpoints added to `MusicController`. Single-item enrichment endpoints support `?force=true` query parameter to bypass 30-day cooldown. Artist bio endpoint returns enriched data including biography, external links, and enrichment timestamp. Scan progress endpoint returns current `ScanProgressState` for non-Blazor clients. Ready for Phase E (Blazor UI updates).
+
+---
+
+### Section: Phase E - Blazor UI Updates
+
+#### Step: phase-5-mb-E - Blazor UI Updates
+
+**Status:** completed ✅
+**Deliverables:**
+
+- ✓ E1: Scan progress UI overhaul — progress bar, phase indicator, file counts (added/updated/skipped/failed/art), elapsed time, cancel button hooked to CancellationTokenSource
+- ✓ E2: Album enrichment UI — "Fetch Cover Art" button on albums without art, spinner during enrichment, toast notification on success
+- ✓ E3: Artist enrichment UI — biography section, external links (Wikipedia/Discogs/Website), artist image, "Fetch Info" button with spinner
+- ✓ E4: Settings enrichment toggles — auto-fetch metadata and auto-fetch album art checkboxes, persisted via UserSettingsService
+- ✓ ~300 lines of scoped CSS for all new UI elements (progress bar, artist bio, toggles, toast animations)
+- ✓ Full solution build: 0 errors, 250 tests passing
+
+**Notes:** Phase E complete. All Blazor UI components for MusicBrainz enrichment are in place. Scan progress panel shows real-time progress with cancel support. Album and artist detail views have contextual enrichment buttons. Settings section includes enrichment toggle controls. Ready for Phase G (comprehensive unit tests).
+
+---
+
+### Section: Phase F - Service Registration + Configuration
+
+#### Step: phase-5-mb-F - Service Registration + Configuration
+
+**Status:** completed ✅
+**Deliverables:**
+
+- ✓ `MusicBrainzRateLimiter` registered as singleton in `MusicServiceRegistration.cs`
+- ✓ `AddHttpClient<IMusicBrainzClient, MusicBrainzClient>` — base URL `https://musicbrainz.org/ws/2/`, Accept + User-Agent headers
+- ✓ `AddHttpClient<ICoverArtArchiveClient, CoverArtArchiveClient>` — base URL `https://coverartarchive.org/`
+- ✓ `MetadataEnrichmentService` registered as scoped with interface forward-registration
+- ✓ `Microsoft.Extensions.Http` package reference added to `DotNetCloud.Modules.Music.Data.csproj`
+- ✓ Rate limit configurable via `Music:Enrichment:RateLimitMs` (default 1100ms)
+- ✓ Full solution build: 0 errors, 250 tests passing
+
+**Notes:** Phase F complete. All MusicBrainz enrichment services registered in DI. HTTP clients configured with proper base URLs, headers, and shared rate limiting. Done as a dependency of Phase E (UI needs injected services). Ready for Phase G (comprehensive unit tests).
+
+---
+
+### Section: Phase G - Comprehensive Unit Tests
+
+#### Step: phase-5-mb-G - Comprehensive Unit Tests
+
+**Status:** completed ✅
+**Deliverables:**
+
+- ✓ `MockHttpMessageHandler.cs` — shared reusable HTTP mock infrastructure (ForJson, ForBytes, ForStatus, ForSequence, ForNetworkError, ForTimeout, ForRoutes, ForException)
+- ✓ `MusicBrainzClientTests.cs` — 23 tests: URL construction, JSON deserialization, rate limiting, error handling
+- ✓ `CoverArtArchiveClientTests.cs` — 15 tests: image fetching, release fallback, MIME types, error handling
+- ✓ `MetadataEnrichmentServiceTests.cs` — 30 tests: album/artist/track enrichment, batch operations, progress, caching, cooldown
+- ✓ `LibraryScanProgressTests.cs` — 12 tests: progress reporting, enrichment integration, cancellation
+- ✓ `ScanProgressStateTests.cs` — 8 tests: Blazor scoped state, event notifications, multiple subscribers
+- ✓ `TestHelpers.cs` updated — `SeedAlbumWithoutArtAsync`, `SeedEnrichedArtistAsync`, `CreateMockMusicBrainzArtistJson`
+- ✓ `DotNetCloud.Modules.Music.Tests.csproj` — added `Microsoft.Extensions.Configuration` package
+- ✓ Full test suite: 338 tests passing (88 new + 250 existing)
+
+**Notes:** Phase G complete. All MusicBrainz enrichment plan phases (A–G) now fully implemented. 88 new unit tests covering all service clients, enrichment orchestration, scan progress, and Blazor state. No existing tests broken.
+
+---
+
+## Phase 5: Video Module (Sub-Phase D)
+
+### Section: Phase 5.15 - Video Contracts & Data
+
+#### Step: phase-5.15 - Video Architecture, Contracts & Data Model
+
+**Status:** completed ✅
+**Deliverables:**
+
+- ✓ `IVideoDirectory` capability interface
+- ✓ Video DTOs and events
+- ✓ `VideoModuleManifest` and `VideoModule` lifecycle
+- ✓ 8 entity models with EF configurations
+- ✓ `VideoDbContext` with 8 DbSets
+- ✓ `VideoDbContextDesignTimeFactory` for EF Core tooling
+- ✓ InitialCreate migration (8 tables)
+
+---
+
+### Section: Phase 5.16 - Video Core Services
+
+#### Step: phase-5.16 - Video Core Services
+
+**Status:** completed ✅
+**Deliverables:**
+
+- ✓ `VideoService` — CRUD, search, recently watched, favorites
+- ✓ `VideoMetadataService` — metadata persistence
+- ✓ `VideoCollectionService` — collections/series management
+- ✓ `SubtitleService` — SRT/VTT upload, parsing, association
+- ✓ `WatchProgressService` — watch position tracking, resume playback
+- ✓ `FileUploadedVideoHandler` — event handler for 12 video MIME types
+- ✓ 74 tests passing
+
+---
+
+### Section: Phase 5.17 - Video Streaming & API
+
+#### Step: phase-5.17 - Video Streaming & API
+
+**Status:** completed ✅
+**Deliverables:**
+
+- ✓ `VideoStreamingService` — token-based streaming URL generation/validation
+- ✓ `VideoController` — ~20 REST endpoints
+- ✓ `VideoGrpcServiceImpl` + `video_service.proto` (12 RPCs)
+- ✓ Video Host project (Kestrel, gRPC, health checks)
+
+---
+
+### Section: Phase 5.18 - Video Web UI
+
+#### Step: phase-5.18 - Video Web UI
+
+**Status:** completed ✅
+**Notes:** Sub-Phase D (Video Module) fully complete. All projects compile, 105 tests passing. Video is a separate process-isolated module.
+
+---
+
+### Section: Phase 5.19 - Cross-Module Integration
+
+#### Step: phase-5.19 - Cross-Module Integration (Photos ↔ Music ↔ Video ↔ Files)
+
+**Status:** completed ✅
+**Deliverables:**
+
+- ✓ `FileUploadedPhotoHandler` with `IPhotoIndexingCallback` — 9 image MIME types, callback pattern
+- ✓ `FileUploadedMusicHandler` with `IMusicIndexingCallback` — 15 audio MIME types
+- ✓ `FileUploadedVideoHandler` with `IVideoIndexingCallback` — 12 video MIME types
+- ✓ `IMediaSearchService` + `MediaSearchResultDto` — cross-module search aggregation
+- ✓ `AlbumSharedNotificationHandler`, `PlaylistSharedNotificationHandler`, `VideoSharedNotificationHandler`
+- ✓ `MediaDashboardDto`, `VideoContinueWatchingDto`, `RecentMediaItemDto` — dashboard widgets
+- ✓ 8 new `CrossModuleLinkType` enum values for navigation integration
+- ✓ `PhotoIndexingCallback`, `MusicIndexingCallback`, `VideoIndexingCallback` — Data layer bridges
+- ✓ `VideoService.CreateVideoAsync` — duplicate detection + VideoAddedEvent publishing
+- ✓ All service registrations updated (3 handlers, 3 callbacks, 3 notification handlers)
+
+**Notes:** Used callback interface pattern to avoid Module→Data circular dependency. All projects build clean (0 errors).
+
+---
+
+### Section: Phase 5.20 - Testing & Documentation
+
+#### Step: phase-5.20 - Comprehensive Test Suites
+
+**Status:** completed ✅ (test suites — security/perf/docs deferred)
+**Deliverables:**
+
+- ✓ Photos: 119 tests total (24 new: 12 handler + 6 notification + 6 callback)
+- ✓ Music: 156 tests total (25 new: 12 handler + 9 notification + 4 callback)
+- ✓ Video: 105 tests total (31 new: 12 handler + 9 notification + 10 service + 5 callback)
+- ✓ Core: 410 tests total (16 new cross-module DTO tests)
+- ✓ All 790 tests passing across 4 projects
+- ☐ Security tests, performance tests, admin/user/API docs — deferred
+
+**Notes:** Sub-Phase E complete. All test targets exceeded (Photos 119≥80, Music 156≥100, Video 105≥60). Phase 5 integration code done.
 
 ---
 
@@ -1591,11 +2187,13 @@ Allow users to sync multiple local folders (e.g. Documents, Pictures, Desktop) t
 ### What's Needed
 
 #### Server-Side
+
 - ☐ API for managing per-device sync root mappings (`POST /api/v1/sync/roots`, `GET /api/v1/sync/roots`)
 - ☐ Each root maps a server folder ID to a client-chosen local path label
 - ☐ SSE stream scoped per root (or multiplexed with root ID in event payload)
 
 #### Client-Side
+
 - ☐ `SyncContextRegistration` gains a `ServerFolderId` (nullable `Guid?`) — when set, the engine passes it to `sync/changes` and `sync/tree`
 - ☐ `SyncEngine` passes `folderId` query param to API calls when `ServerFolderId` is set
 - ☐ Settings UI: "Add Sync Folder" button under the account — opens a server folder picker + local folder chooser
@@ -1604,6 +2202,7 @@ Allow users to sync multiple local folders (e.g. Documents, Pictures, Desktop) t
 - ☐ Tray menu shows per-root "Open Folder" entries
 
 #### UX Flow
+
 1. User connects account (as today — creates a default "all files" root)
 2. User clicks "Add Sync Folder" in Settings
 3. Server folder picker shows top-level server folders (Documents, Photos, etc.)
@@ -1611,8 +2210,637 @@ Allow users to sync multiple local folders (e.g. Documents, Pictures, Desktop) t
 5. New sync context starts for that root pair
 
 ### Workaround (Available Today)
+
 Power users can create directory junctions inside the sync folder:
+
 ```powershell
 New-Item -ItemType Junction -Path "C:\Users\benk\synctray\Documents" -Target "C:\Users\benk\Documents"
 ```
+
 The sync engine follows junction contents transparently. Caveat: deleting the junction server-side could affect real local files.
+
+---
+
+## Phase 9: AI Assistant
+
+### Section: Phase 9.1 — Core AI Interfaces & Module Scaffold
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `ILlmProvider` capability interface (Restricted tier) in `DotNetCloud.Core/Capabilities/`
+- ✓ Core DTOs: `LlmRequest`, `LlmResponse`, `LlmResponseChunk`, `LlmModelInfo`, `LlmMessage` in `DotNetCloud.Core/AI/`
+- ✓ `AiModule` (IModuleLifecycle) and `AiModuleManifest` (IModuleManifest)
+- ✓ Domain models: `Conversation`, `ConversationMessage`
+- ✓ Events: `ConversationCreatedEvent`, `ConversationMessageEvent`
+- ✓ Service interfaces: `IAiChatService`, `IOllamaClient`
+- ✓ Module manifest (`manifest.json`)
+
+**Notes:** Foundation layer complete. ILlmProvider follows the existing capability tier model.
+
+### Section: Phase 9.2 — Data Layer & Ollama Provider
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `AiDbContext` with EF Core entity configurations
+- ✓ `ConversationConfiguration` / `ConversationMessageConfiguration` with soft-delete, indexes
+- ✓ `OllamaClient` — Full Ollama REST API client (chat, streaming NDJSON, model listing, health check)
+- ✓ `AiChatService` — Conversation CRUD, history-aware LLM requests, message persistence
+- ✓ `AiServiceRegistration` — DI with `HttpClientFactory`, configurable base URL
+- ✓ `IAiSettingsProvider` / `AiSettingsProvider` — DB-backed settings with IConfiguration fallback
+
+**Notes:** Default Ollama URL `http://localhost:11434/` for fresh installs, configurable via admin settings. Default model `gpt-oss:20b`. InMemory DB for dev.
+
+### Section: Phase 9.3 — Module Host & REST API
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `DotNetCloud.Modules.AI.Host` — Standalone web host (`Program.cs`)
+- ✓ `AiChatController` — REST API endpoints:
+  - POST `/api/ai/conversations` — Create conversation
+  - GET `/api/ai/conversations` — List conversations
+  - GET `/api/ai/conversations/{id}` — Get conversation with messages
+  - DELETE `/api/ai/conversations/{id}` — Soft-delete conversation
+  - POST `/api/ai/conversations/{id}/messages` — Send message (full response)
+  - POST `/api/ai/conversations/{id}/messages/stream` — Send message (SSE streaming)
+  - GET `/api/ai/models` — List available models
+  - GET `/api/ai/health/ollama` — Ollama health check
+- ✓ `AiHealthCheck` — Ollama connectivity health check
+- ✓ `InProcessEventBus` — Standalone operation event bus
+
+**Notes:** All projects registered in DotNetCloud.sln. Build succeeds with 0 warnings.
+
+### Section: Phase 9.4 — Unit Tests
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `AiModuleTests` — 7 lifecycle tests (init, start, stop, event sub/unsub)
+- ✓ `AiChatServiceTests` — 11 tests (CRUD, ownership, message sending, model listing)
+- ✓ `OllamaClientTests` — 10 tests (health, chat, models, system prompt, error handling)
+- ✓ All 28 tests passing
+
+**Notes:** Tests use InMemory EF Core and mocked HttpMessageHandler — no Ollama instance required.
+
+### Section: Phase 9.5 — Blazor UI Chat Panel
+**Status:** pending ☐
+**Deliverables:**
+- ☐ Chat-style AI assistant panel component
+- ☐ Streaming response rendering via SSE
+- ☐ Model selector dropdown
+- ☐ Conversation history sidebar
+
+### Section: Phase 9.6 — Admin Settings & Multi-Provider Support
+**Status:** in-progress 🔄
+**Deliverables:**
+- ✓ `AiAdminSettingsViewModel` — Settings model (Provider, ApiBaseUrl, ApiKey, OrgId, DefaultModel, MaxTokens, Timeout)
+- ✓ `AiAdminSettings.razor` / `.razor.cs` — Blazor admin UI with provider-aware sections
+- ✓ `IAiSettingsProvider` / `AiSettingsProvider` — DB-first settings with IConfiguration fallback
+- ✓ `OllamaClient` dynamic base URL from settings (live reconfiguration, no restart)
+- ✓ DB seed: 7 AI settings via `DbInitializer` with backfill for existing databases
+- ✓ Provider selection: Ollama (local), OpenAI, Anthropic — auth fields shown/hidden per provider
+- ☐ Full OpenAI-compatible request routing (Authorization header, API paths)
+- ☐ Full Anthropic-compatible request routing (x-api-key header, Messages API)
+- ☐ Per-user API key storage (encrypted)
+- ☐ Rate limiting per user
+
+**Notes:** Admin settings infrastructure complete. Ollama fully working via DB settings. OpenAI/Anthropic provider routing pending.
+
+### Section: Phase 9.7 — Module Integration
+**Status:** pending ☐
+**Deliverables:**
+- ☐ Notes module integration (summarize, expand, translate)
+- ☐ Chat module integration (message summarization, smart replies)
+- ☐ Files module integration (content summarization, document Q&A)
+
+---
+
+## Phase 8: Full-Text Search Module
+
+**Reference:** `docs/FULL_TEXT_SEARCH_IMPLEMENTATION_PLAN.md`
+
+### Section: Phase 8.2 — Search Module Scaffold
+**Status:** completed ✅
+**Duration:** ~3 hours
+**Deliverables:**
+- ✓ `DotNetCloud.Modules.Search/` — Business logic project (services, extractors, event handler, module lifecycle)
+- ✓ `DotNetCloud.Modules.Search.Data/` — EF Core data project (SearchDbContext, SearchIndexEntry, IndexingJob, configurations)
+- ✓ `DotNetCloud.Modules.Search.Host/` — gRPC host + REST controllers (search_service.proto, SearchGrpcService, SearchController, Program.cs)
+- ✓ 3 provider-specific ISearchProvider implementations (PostgreSQL, SQL Server, MariaDB)
+- ✓ 5 content extractors (PlainText, Markdown, PDF via PdfPig, DOCX, XLSX via OpenXml)
+- ✓ SearchModule + SearchModuleManifest (IModuleLifecycle, event subscription)
+- ✓ SearchIndexingService (Channel-based background queue), SearchQueryService, ContentExtractionService, SearchReindexBackgroundService
+- ✓ InProcessEventBus for standalone module operation
+- ✓ REST endpoints: GET /search, GET /suggest, GET /stats, POST /admin/reindex, POST /admin/reindex/{moduleId}
+- ✓ `DotNetCloud.Modules.Search.Tests` — 116 tests, all passing (12 test files covering providers, services, extractors, module lifecycle, DbContext)
+
+**Notes:** Phase 2 complete. Search module scaffold fully operational with EF Core InMemory. Phase 1 interfaces/DTOs (in DotNetCloud.Core) were already in place.
+
+### Section: Phase 8.3 — Module Search API Integration
+**Status:** completed ✅
+**Duration:** ~4 hours
+**Deliverables:**
+- ✓ Search RPCs added to all 9 module protos (Files, Chat, Notes, Contacts, Calendar, Photos, Music, Video, Tracks)
+- ✓ `GetSearchableDocuments` (server streaming) + `GetSearchableDocument` (unary) + `SearchableDocument` message per module
+- ✓ gRPC service implementations mapping domain entities to SearchableDocument in all 9 modules
+- ✓ `SearchIndexRequestEvent` publishing on CRUD operations in 10 service files across 9 modules
+- ✓ 8 new test files with 23 SearchIndex tests — all passing
+- ✓ Zero regressions across full test suite
+
+**Notes:** Phase 3 complete. All modules now expose searchable data via gRPC and publish SearchIndexRequestEvent on CRUD operations. AI module excluded (REST only, no proto/gRPC). Next: Phase 4 — Indexing Engine (event-driven + scheduled reindex).
+
+### Section: Phase 8.4 — Indexing Engine
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `SearchIndexingService` upgraded — Channel-based queue with Start/Stop lifecycle, module lookup, content extraction pipeline
+- ✓ `SearchReindexBackgroundService` — Full reindex, per-module reindex, batch processing (200 default), IndexingJob tracking
+- ✓ `SearchIndexRequestEventHandler` — Routes Index → indexing service, Remove → provider directly
+- ✓ Orphaned entry cleanup for unregistered modules
+- ✓ 43 Phase 4 tests in 5 test files (IndexingService, EventHandler, ReindexService, ContentExtraction, IntegrationPipeline)
+- ✓ 212 total search tests passing
+
+**Notes:** Phase 4 complete. Background indexing pipeline processes events asynchronously via channel queue. Full and per-module reindex with batch processing and job tracking.
+
+### Section: Phase 8.5 — Search Query Engine
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `SearchQueryParser` — Parses user input into structured `ParsedSearchQuery` (keywords, phrases, in:module, type:value, -exclusion)
+- ✓ `ParsedSearchQuery` with provider-specific query string builders (PostgreSQL tsquery, SQL Server CONTAINS, MariaDB BOOLEAN MODE)
+- ✓ `SnippetGenerator` — HTML-safe snippet generation with `<mark>` highlighting and XSS prevention
+- ✓ `SearchQueryService` upgraded — Parser integration, filter extraction from query syntax, empty/filter-only short-circuit
+- ✓ All 3 providers (PostgreSQL, SQL Server, MariaDB) upgraded — parsed query support, exclusion WHERE clauses, relevance scoring, title/snippet highlighting, facet queries
+- ✓ 6 new test files with ~125 Phase 5 tests (Parser, ParsedQuery, Snippet, Integration, Aggregation, ServicePhase5)
+- ✓ 343 total search tests passing
+
+**Notes:** Phase 5 complete. Full query engine with advanced syntax parsing, provider-specific query translation, relevance scoring, and highlighted snippets. Next: Phase 6 — REST + gRPC API integration.
+
+### Section: Phase 8.6 — REST + gRPC API
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `DotNetCloud.Modules.Search.Client` project — shared gRPC client library
+- ✓ `ISearchFtsClient` interface with IsAvailable + SearchAsync
+- ✓ `SearchFtsClient` — lazy GrpcChannel, Unix socket support, timeout config, graceful degradation
+- ✓ `SearchFtsClientOptions` — SearchModuleAddress + Timeout configuration
+- ✓ `SearchClientServiceExtensions` — AddSearchFtsClient DI registration
+- ✓ Files, Chat, Notes controllers updated — FTS first, fallback to LIKE
+- ✓ 7 new test files with 89 Phase 6 tests (Controller, gRPC, FtsClient, Options, Extensions, EnhancedModule, Integration)
+- ✓ 432 total search tests passing
+
+**Notes:** Phase 6 complete. Search module client library with graceful degradation. Module controllers upgraded with FTS-first search. Next: Phase 7 — Blazor UI.
+
+### Section: Phase 8.7 — Blazor UI
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `GlobalSearchBar.razor` — Modal search overlay with Ctrl+K/Cmd+K shortcut, debounced suggestions, keyboard navigation, recent searches (localStorage)
+- ✓ `SearchResults.razor` — Full results page at `/search?q=...` with faceted sidebar, pagination, sort (relevance/date)
+- ✓ `SearchResultCard.razor` — Per-module result card with XSS-safe highlight, module-specific metadata rendering (10 modules)
+- ✓ `global-search.js` — JS interop for keyboard shortcut registration and localStorage management
+- ✓ Scoped CSS for all 3 components (responsive, dark mode support)
+- ✓ `DotNetCloudApiClient` — SearchAsync + SearchSuggestAsync methods added
+- ✓ MainLayout integration (topbar-center), _Imports.razor, App.razor script tag
+- ✓ 6 new test files with 159 Phase 7 tests (URLs, Sanitizer, Display, QueryBuilder, Metadata, Sort/EdgeCases)
+- ✓ 591 total search tests passing
+
+**Notes:** Phase 7 complete. Full Blazor search UI with global search bar (Ctrl+K), results page with facets and pagination, and per-module rich result cards. All 8 FTS implementation phases (2-7 + testing) are now complete.
+
+### Section: Phase 8.8 — Testing & Documentation
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `PermissionScopingTests` — 10 tests (user isolation across providers, facet/filter/pagination scoping)
+- ✓ `EndToEndIndexingTests` — 12 tests (full pipeline: event → handler → indexing → provider → query)
+- ✓ `MultiDatabaseProviderTests` — 10 tests (SqlServer/MariaDb behavioral consistency)
+- ✓ `PerformanceBenchmarkTests` — 8 tests (indexing throughput, query latency p50/p95, concurrent searches)
+- ✓ `docs/modules/SEARCH.md` — Module documentation (architecture, features, services, extractors, providers, schema, configuration, admin operations, test matrix)
+- ✓ `docs/api/search.md` — API reference (REST endpoints, gRPC RPCs, advanced query syntax, client library, permission model)
+- ✓ `docs/architecture/ARCHITECTURE.md` — Section 25: Full-Text Search Architecture (indexing pipeline, query engine, API surface, content extraction)
+- ✓ 631 total search tests passing (40 Phase 8 + 591 previous)
+
+**Notes:** Phase 8 complete. Testing & documentation finalize the full-text search module. All 8 implementation phases delivered: module scaffold, module API integration, indexing engine, query engine, REST/gRPC API, Blazor UI, testing & documentation. 631 tests across all phases.
+
+---
+
+## Phase 7: Video Calling & Screen Sharing
+
+### Step: phase-7.1 — Architecture & Contracts
+
+**Status:** completed ✅
+**Depends on:** Chat module (Phase 2, complete)
+**Deliverables:**
+- ✓ `VideoCallState` enum (`Ringing`, `Connecting`, `Active`, `OnHold`, `Ended`, `Missed`, `Rejected`, `Failed`)
+- ✓ `VideoCallEndReason` enum (`Normal`, `Rejected`, `Missed`, `TimedOut`, `Failed`, `Cancelled`)
+- ✓ `CallParticipantRole` enum (`Initiator`, `Participant`)
+- ✓ `CallMediaType` enum (`Audio`, `Video`, `ScreenShare`)
+- ✓ DTOs: `VideoCallDto`, `CallParticipantDto`, `CallSignalDto`, `StartCallRequest`, `JoinCallRequest`, `CallHistoryDto`
+- ✓ Events: `VideoCallInitiatedEvent`, `VideoCallAnsweredEvent`, `VideoCallEndedEvent`, `VideoCallMissedEvent`, `ParticipantJoinedCallEvent`, `ParticipantLeftCallEvent`, `ScreenShareStartedEvent`, `ScreenShareEndedEvent`
+- ✓ Service interface: `IVideoCallService` (7 methods)
+- ✓ Service interface: `ICallSignalingService` (4 methods)
+- ✓ `ChatModuleManifest.cs` updated with 8 new published events
+
+**Notes:** Phase 7.1 complete. All contracts, enums, DTOs, events, and service interfaces defined. Chat module builds cleanly (0 warnings, 0 errors). All 323 existing Chat tests pass. Ready for phase-7.2 (Data Model & Migration).
+
+### Step: phase-7.2 — Data Model & Migration
+
+**Status:** completed ✅
+**Depends on:** 7.1
+**Deliverables:**
+- ✓ `VideoCall` entity — Id, ChannelId (FK → Channel), InitiatorUserId, State, MediaType, StartedAtUtc, EndedAtUtc, EndReason, MaxParticipants, IsGroupCall, LiveKitRoomId, CreatedAtUtc, soft-delete
+- ✓ `CallParticipant` entity — Id, VideoCallId (FK → VideoCall), UserId, Role, JoinedAtUtc, LeftAtUtc, HasAudio, HasVideo, HasScreenShare
+- ✓ `VideoCallConfiguration.cs` — Enum-to-string conversions, soft-delete query filter, indexes (ChannelId+State, InitiatorUserId, CreatedAtUtc, State, IsDeleted)
+- ✓ `CallParticipantConfiguration.cs` — Unique composite index (VideoCallId+UserId), indexes (UserId+JoinedAtUtc, UserId), cascade delete
+- ✓ `ChatDbContext` — Added `DbSet<VideoCall>` and `DbSet<CallParticipant>`
+- ✓ EF migration `AddVideoCalling` (creates VideoCalls + CallParticipants tables with all indexes and FKs)
+- ✓ 65 comprehensive tests (20 VideoCall model, 14 CallParticipant model, 31 EF/DB integration)
+
+**Notes:** Phase 7.2 complete. Data model follows existing Chat patterns (soft-delete, enum-to-string, cascade FKs). All 65 new tests pass. Ready for phase-7.3 (Call Management Service).
+
+### Step: phase-7.3 — Call Management Service
+
+**Status:** completed ✅
+**Depends on:** 7.2
+**Deliverables:**
+- ✓ `VideoCallService` — full `IVideoCallService` implementation (InitiateCallAsync, JoinCallAsync, LeaveCallAsync, EndCallAsync, RejectCallAsync, GetCallHistoryAsync, GetActiveCallAsync)
+- ✓ `CallStateValidator` — static state machine enforcement with valid transitions, terminal state detection
+- ✓ Call timeout — `HandleRingTimeoutsAsync` transitions Ringing calls to Missed after 30s
+- ✓ DI registration in `ChatServiceRegistration.cs` (scoped)
+- ✓ 110 comprehensive tests (39 CallStateValidator + 71 VideoCallService)
+
+**Notes:** Call management service complete. State machine: Ringing → Connecting/Active/Ended/Missed/Rejected/Failed. Auto-end on last participant leave. Group calls allow rejection without ending. Ready for phase-7.4 (WebRTC Signaling).
+
+### Step: phase-7.4 — WebRTC Signaling over SignalR
+
+**Status:** completed ✅
+**Depends on:** 7.3
+**Deliverables:**
+- ✓ `CallSignalingService` — server-side signaling coordinator with SDP/ICE relay, call state validation, participant membership enforcement
+- ✓ `CoreHub` signaling methods — `SendCallOfferAsync`, `SendCallAnswerAsync`, `SendIceCandidateAsync`, `SendMediaStateChangeAsync`, `JoinCallGroupAsync`, `LeaveCallGroupAsync`
+- ✓ Call-scoped SignalR groups (`call-{callId}`)
+- ✓ Input validation (SDP max 64KB, ICE max 4KB, UTF-8 byte counting)
+- ✓ 85 unit tests (62 CallSignalingService + 23 CoreHub signaling)
+
+**Notes:** WebRTC signaling complete. Media state changes update DB (HasAudio/HasVideo/HasScreenShare). Screen share toggles publish events via IEventBus. Ready for phase-7.5 (Client-Side WebRTC Engine).
+
+### Step: phase-7.5 — Client-Side WebRTC Engine (JS Interop)
+
+**Status:** completed ✅
+**Depends on:** 7.4
+**Deliverables:**
+- ✓ `video-call.js` — Full WebRTC engine (P2P mesh, SDP negotiation, ICE handling, adaptive bitrate)
+- ✓ `IWebRtcInteropService` + `WebRtcInteropService` — C# Blazor ↔ JS interop with input validation
+- ✓ `WebRtcDtos.cs` — `IceServerDto`, `WebRtcCallConfig`, `WebRtcCallState`, `WebRtcPeerState`, `WebRtcMediaState`
+- ✓ P2P mesh topology for 2-3 participants (one RTCPeerConnection per peer, max 3)
+- ✓ STUN/TURN configuration injection from server ICE config
+- ✓ Adaptive bitrate: connection stats monitoring + automatic video quality adjustment (good/fair/poor)
+- ✓ Screen share with browser-native stop detection and track replacement
+- ✓ DI registration in `ChatServiceRegistration.cs`
+- ✓ Script reference in `App.razor`
+- ✓ 111 comprehensive tests (82 WebRtcInteropService + 29 WebRtcDto)
+
+**Notes:** Client-side WebRTC engine complete. JS follows existing IIFE namespace pattern (`window.dotnetcloudVideoCall`). C# interop service validates SDP (64KB max), ICE candidates (4KB max), peer IDs, element IDs, stream types, and ICE config before delegating to JS. Ready for phase-7.6 (Blazor UI) and phase-7.8 (STUN/TURN config).
+
+### Step: phase-7.6 — Blazor UI Components
+
+**Status:** completed ✅
+**Depends on:** 7.5
+**Deliverables:**
+- ✓ `VideoCallDialog.razor` — main call window with adaptive grid layout (solo/pair/trio/grid)
+- ✓ `CallControls.razor` — bottom toolbar with mute, camera, screen share, hang up, timer, participant count
+- ✓ `IncomingCallNotification.razor` — incoming call toast with accept (audio/video) and reject
+- ✓ `CallHistoryPanel.razor` — call history sidebar with outcome formatting, duration, callback
+- ✓ Extended `ChannelHeader.razor` with audio/video call buttons, join active call, call history toggle
+- ✓ Scoped CSS for all 4 new components + ChannelHeader extensions
+- ✓ All components wired into `ChatPageLayout.razor` with state fields and handlers
+- ✓ 118 unit tests passing (5 test files)
+
+**Notes:** All Blazor UI components complete. Fields for SignalR-driven state (call state, participants, etc.) are declared with CS0649 pragma — will be assigned when Phase 7.9 (SignalR wiring) is implemented.
+
+### Step: phase-7.7 — LiveKit Integration (Optional SFU)
+
+**Status:** completed ✅
+**Depends on:** 7.4
+**Deliverables:**
+- ✓ `ILiveKitService` interface (CreateRoomAsync, GenerateToken, DeleteRoomAsync, GetRoomParticipantsAsync)
+- ✓ `LiveKitService` implementation with JWT token generation (HMAC-SHA256) and LiveKit Twirp API
+- ✓ `LiveKitOptions` configuration class (Enabled, ServerUrl, ApiKey, ApiSecret, MaxP2PParticipants)
+- ✓ `NullLiveKitService` — graceful degradation when LiveKit not configured
+- ✓ Auto-escalation in VideoCallService.JoinCallAsync (P2P ≤3 → LiveKit SFU 4+)
+- ✓ LiveKit room cleanup on call end
+- ✓ DI registration with conditional factory (LiveKitService vs NullLiveKitService)
+- ✓ `appsettings.json` configuration section
+- ✓ 86 new tests (LiveKitServiceTests, LiveKitOptionsTests, NullLiveKitServiceTests, auto-escalation tests)
+
+**Notes:** LiveKit integration complete. Zero additional NuGet dependencies — JWT generation uses System.Security.Cryptography HMAC-SHA256. Process supervisor integration (managed component pattern like Collabora) deferred to deployment phase. All 864 Chat module tests pass.
+
+### Step: phase-7.8 — STUN/TURN Configuration
+
+**Status:** completed ✅
+**Depends on:** 7.5
+**Deliverables:**
+- ✓ `IceServerOptions` configuration class (built-in STUN, additional STUN, TURN with static/ephemeral credentials)
+- ✓ Built-in STUN server (`StunServer` BackgroundService) — RFC 5389 Binding Response, dual-stack IPv4/IPv6, UDP 3478
+- ✓ `IIceServerService` interface + `IceServerService` with HMAC-SHA1 coturn-compatible ephemeral credentials
+- ✓ API endpoint: `GET /api/v1/chat/ice-servers`
+- ✓ `appsettings.json` Chat:IceServers configuration section
+- ✓ Removed Google STUN fallback from video-call.js
+- ✓ 73 new tests (IceServerOptionsTests, IceServerServiceTests, StunServerTests)
+
+**Notes:** Privacy-first: self-hosted STUN by default, no Google dependency. Firewall must allow UDP 3478 inbound. Admin settings UI deferred to Phase 7.11.
+
+### Step: phase-7.9 — REST API & gRPC Updates
+
+**Status:** completed ✅
+**Depends on:** 7.3
+**Deliverables:**
+- ✓ 9 REST API endpoints in ChatController (initiate, join, leave, end, reject, history, get call, active call, ICE servers)
+- ✓ 7 gRPC RPCs + 12 message types in chat_service.proto
+- ✓ ChatGrpcService implementation with IVideoCallService injection
+- ✓ Rate limiting: 1 call initiation per 5 seconds per user
+- ✓ Authorization via CallerContext + channel membership checks
+- ✓ GetCallByIdAsync added to IVideoCallService interface + implementation
+- ✓ 62 comprehensive tests (34 controller + 28 gRPC)
+
+**Notes:** All call lifecycle operations available via both REST and gRPC. Error handling follows existing patterns (ArgumentException→BadRequest, InvalidOperationException→NotFound/Conflict, UnauthorizedAccessException→Forbid). Ready for phase-7.10 (Push Notifications).
+
+### Step: phase-7.10 — Push Notifications for Calls
+
+**Status:** completed ✅
+**Depends on:** 7.3
+**Deliverables:**
+- ✓ `NotificationCategory.IncomingCall` — high-priority push for incoming calls (bypasses online presence suppression)
+- ✓ `NotificationCategory.MissedCall` — normal-priority push for missed calls
+- ✓ `NotificationCategory.CallEnded` — push for disconnected participants when call ends
+- ✓ `CallNotificationEventHandler` — handles `VideoCallInitiatedEvent`, `VideoCallMissedEvent`, `VideoCallEndedEvent`
+- ✓ `ICallNotificationHandler` interface in Chat project for cross-project DI resolution
+- ✓ `NotificationRouter.CanSendPushAsync` — IncomingCall bypasses online presence suppression
+- ✓ Event bus subscription/unsubscription in `ChatModule` lifecycle
+- ✓ DI registration in `ChatServiceRegistration`
+- ✓ 37 comprehensive tests (`CallNotificationEventHandlerTests.cs`)
+
+**Notes:** Push notifications for video calls complete. Incoming calls always ring on all devices (bypass presence). DND still respected. Channel muting does not affect call notifications. Ready for phase-7.11 (Testing & Documentation).
+
+### Step: phase-7.11 — Testing & Documentation
+
+**Status:** completed ✅
+**Depends on:** 7.1–7.10
+**Deliverables:**
+- ✓ Unit tests: 678 video-call-specific tests across 20 test files (target was 120+)
+- ✓ Integration tests: full call lifecycle tests (initiate → join → leave → end) in `VideoCallServiceTests.cs`
+- ✓ All 1027 Chat module tests pass
+- ✓ Admin guide: `docs/admin/VIDEO_CALLING.md` — STUN/TURN configuration, coturn setup, LiveKit setup
+- ✓ Updated `docs/modules/chat/README.md` — video calling features, enums, events, test count
+- ✓ Updated `docs/modules/chat/API.md` — 9 REST endpoints + 7 gRPC RPCs documented
+- ✓ User documentation: `docs/user/VIDEO_CALLS.md` — how to make calls, screen share, call history
+
+**Notes:** Phase 7 (Video Calling & Screen Sharing) is now fully complete. All 11 steps delivered: contracts, data model, call service, SignalR signaling, JS WebRTC engine, Blazor UI, LiveKit SFU, STUN/TURN, REST/gRPC API, push notifications, testing & documentation.
+
+---
+
+## Phase 11: Auto-Updates
+
+### Section: Phase 11 — Phase A: Core Update Infrastructure (Server-Side)
+
+#### Step: phase-11.1 — IUpdateService Interface & DTOs
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `IUpdateService` interface with `CheckForUpdateAsync`, `GetLatestReleaseAsync`, `GetRecentReleasesAsync`
+- ✓ `UpdateCheckResult` record (IsUpdateAvailable, CurrentVersion, LatestVersion, ReleaseUrl, ReleaseNotes, PublishedAt, Assets)
+- ✓ `ReleaseInfo` record (Version, TagName, ReleaseNotes, PublishedAt, IsPreRelease, Assets)
+- ✓ `ReleaseAsset` record (Name, DownloadUrl, Size, ContentType, Platform)
+
+**Notes:** DTOs shared by both server and client via DotNetCloud.Core package.
+
+#### Step: phase-11.2 — GitHubUpdateService Implementation
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `GitHubUpdateService` — queries GitHub Releases API with MemoryCache (1-hour TTL)
+- ✓ Semantic version comparison with pre-release support
+- ✓ Platform asset matching from release filenames
+- ✓ DI registration in `SupervisorServiceExtensions`
+
+**Notes:** Public GitHub API (60 req/hr); caching prevents rate limit issues.
+
+#### Step: phase-11.3 — Update Check API Endpoint
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `UpdateController` with `GET /api/v1/core/updates/check`, `/releases`, `/releases/latest`
+- ✓ Public endpoints (no auth required for client update checks)
+
+**Notes:** Response wraps in standard `{ success: true, data: {...} }` format.
+
+#### Step: phase-11.4 — CLI `dotnetcloud update` Implementation
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `dotnetcloud update --check` (display update status, exit code 0/1)
+- ✓ `dotnetcloud update` (check + download tarball)
+
+**Notes:** Server self-apply deferred for safety; download-only for now.
+
+#### Step: phase-11.5 — Admin UI Updates Page
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `Updates.razor` at `/admin/updates` with version card, latest release, history, settings
+
+**Notes:** Integrated into admin sidebar navigation.
+
+#### Step: phase-11.6 — Unit Tests (Server-Side)
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `GitHubUpdateServiceTests` (mock HTTP, version comparison, caching, asset matching)
+- ✓ `UpdateControllerTests` (response format, edge cases)
+
+**Notes:** Phase A complete. All server-side update infrastructure in place.
+
+### Section: Phase 11 — Phase B: Desktop Client Auto-Update (SyncTray)
+
+#### Step: phase-11.7 — IClientUpdateService Interface
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `IClientUpdateService` interface (`CheckForUpdateAsync`, `DownloadUpdateAsync`, `ApplyUpdateAsync`, `UpdateAvailable` event)
+- ✓ Reuses `UpdateCheckResult` and `ReleaseAsset` from `DotNetCloud.Core.DTOs`
+
+**Notes:** Client.Core now references DotNetCloud.Core for shared DTOs.
+
+#### Step: phase-11.8 — ClientUpdateService Implementation
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `ClientUpdateService` — server endpoint check with GitHub Releases API fallback
+- ✓ Streaming download with `IProgress<double>` progress reporting
+- ✓ Version comparison logic (semver + pre-release split)
+- ✓ DI registration via `ClientCoreServiceExtensions.AddHttpClient<IClientUpdateService, ClientUpdateService>()`
+
+**Notes:** Falls back to direct GitHub API if server unreachable or no base address configured.
+
+#### Step: phase-11.9 — Background Update Checker (SyncTray)
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `UpdateCheckBackgroundService` — periodic timer (30s initial delay, 24h interval, configurable)
+- ✓ `UpdateAvailable` event wired to `TrayViewModel.OnUpdateAvailable`
+- ✓ Tray context menu "Check for Updates…" item (updates text when update available)
+- ✓ System notification on update found
+
+**Notes:** Integrated into App.axaml.cs lifecycle (start after tray init, dispose on shutdown).
+
+#### Step: phase-11.10 — SyncTray Update UI
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `UpdateDialog.axaml` — dark themed 480×420 Avalonia window with version cards, status badges (green/amber), release notes, download progress bar, action buttons
+- ✓ `UpdateViewModel` — check/download commands, platform asset matching, `ShouldClose` property
+- ✓ Settings "Updates" tab — current version display, update available/up-to-date banners, auto-check toggle
+- ✓ `SettingsViewModel` — `CurrentClientVersion`, `AutoCheckForUpdates` (persisted to local settings)
+
+**Notes:** Follows existing dark theme and AddAccountDialog patterns.
+
+#### Step: phase-11.11 — Desktop Client Update Tests
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `ClientUpdateServiceTests` — 10 tests (server check, no-update, GitHub fallback, no base address skip, event firing, download with progress, null/missing/empty path errors)
+- ✓ `UpdateCheckBackgroundServiceTests` — 8 tests (update event, no-update silence, error resilience, result storage, start/stop lifecycle, double dispose, enabled/interval defaults)
+- ✓ All 18 Phase B tests passing
+
+**Notes:** Phase B complete. Desktop client auto-update fully implemented with background checking, tray integration, update dialog, settings tab. Ready for Phase C (Android) or Phase D (documentation).
+
+### Section: Phase 11 — Phase C: Android Client Update Notification
+
+#### Step: phase-11.12 — Android Update Check Service
+**Status:** pending
+**Deliverables:**
+- ☐ Android-specific update service checking server endpoint
+- ☐ Play Store / APK link handling
+
+#### Step: phase-11.13 — Android Update UI
+**Status:** pending
+**Deliverables:**
+- ☐ Update notification in Android app
+- ☐ Settings page update preferences
+
+#### Step: phase-11.14 — Android Update Tests
+**Status:** pending
+**Deliverables:**
+- ☐ Android update service unit tests
+
+### Section: Phase 11 — Phase D: Documentation & Integration
+
+#### Step: phase-11.15 — Auto-Update Documentation
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `docs/modules/AUTO_UPDATES.md` — feature documentation (architecture, API reference, configuration)
+- ✓ `docs/user/AUTO_UPDATES.md` — user-facing update configuration guide
+- ✓ Architecture doc updated — Phase 8 split into Phase 8 (Search) + Phase 11 (Auto-Updates)
+- ✓ README.md roadmap table updated with Phase 11 row
+
+**Notes:** All documentation covering server, CLI, desktop, and Android update flows. User guide covers configuration for all surfaces.
+
+#### Step: phase-11.16 — Integration Testing
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `UpdateEndpointTests.cs` — 6 integration tests covering check, releases, latest, version param, count clamping, graceful degradation
+- ✓ Uses `DotNetCloudWebApplicationFactory` in-memory test infrastructure
+- ✓ Verifies standard API envelope format (`{ success: true, data: {...} }`)
+
+**Notes:** Phase D complete. All documentation and integration tests in place. Remaining Phase 11 work: Phase C (Android).
+
+---
+
+## Direct Messaging, Direct Calls & Host-Based Call Management
+
+Reference plan: `docs/DIRECT_MESSAGING_AND_HOST_CALLS_PLAN.md`
+
+### Section: Phase A — Database & Model Changes
+
+#### Step: dm-host-A1 — Rename CallParticipantRole.Initiator → Host
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `CallParticipantRole.cs` — enum value renamed from `Initiator` to `Host`
+- ✓ `VideoCallService.cs` — all references updated
+- ✓ `ChatDtos.cs` — `CallParticipantDto.Role` comment updated
+- ✓ All test files updated (VideoCallServiceTests, CallSignalingServiceTests, VideoCallDataModelTests, VideoCallGrpcServiceTests)
+- ✓ EF migration data update: stored `"Initiator"` → `"Host"` in CallParticipants table
+
+**Notes:** Clean rename across 7 files. All 375+ chat tests pass.
+
+#### Step: dm-host-A2 — Add HostUserId to VideoCall Entity
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `VideoCall.cs` — `Guid HostUserId` property added
+- ✓ `VideoCallConfiguration.cs` — index `ix_chat_video_calls_host_user_id` added
+- ✓ `VideoCallDto` — `HostUserId` field added to DTO
+- ✓ `VideoCallService.cs` — `ToVideoCallDto` mapper includes `HostUserId`; `InitiateCallAsync` sets `HostUserId = caller.UserId`
+- ✓ EF migration `AddCallHostUserId` — adds column, backfills from `InitiatorUserId`
+
+**Notes:** HostUserId enables transferable call authority separate from the historical initiator.
+
+#### Step: dm-host-A3 — DM → Group Auto-Conversion
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `ChannelMemberService.AddMemberAsync` — detects 3rd member added to DirectMessage channel
+- ✓ Auto-converts `Channel.Type` from `DirectMessage` to `Group`
+- ✓ No schema change needed (existing `Type` column supports `Group`)
+
+**Notes:** Phase A complete. Foundation for Host role system and mid-call participant management. Next: Phase B (Direct DM & Call Initiation).
+
+### Section: Phase B — Service Layer: Direct DM & Call Initiation
+
+#### Step: dm-host-B1 — Wire Global User Search for DM Creation
+**Status:** pending
+**Deliverables:**
+- ☐ `ChatPageLayout.razor.cs` — `SearchUsersForDmAsync` method
+- ☐ `ChatPageLayout.razor` — integrate user picker dialog
+
+#### Step: dm-host-B2 — Direct Call Initiation by User ID
+**Status:** pending
+**Deliverables:**
+- ☐ `IVideoCallService.InitiateDirectCallAsync` interface method
+- ☐ `VideoCallService` implementation
+- ☐ `ChatController` — `POST /api/v1/chat/calls/direct/{targetUserId}` endpoint
+
+### Section: Phase C — Mid-Call Participant Addition
+
+#### Step: dm-host-C1 — InviteToCallAsync Service Method
+**Status:** pending
+
+#### Step: dm-host-C2 — SignalR Notification for Mid-Call Invite
+**Status:** pending
+
+### Section: Phase D — Host Transfer
+
+#### Step: dm-host-D1 — TransferHostAsync Service Method
+**Status:** pending
+
+#### Step: dm-host-D2 — Auto-Transfer Host on Leave
+**Status:** pending
+
+#### Step: dm-host-D3 — End-Call Permission Enforcement
+**Status:** pending
+
+#### Step: dm-host-D4 — CallHostTransferredEvent
+**Status:** pending
+
+### Section: Phase E — UI Integration
+
+#### Step: dm-host-E — UI Integration (6 sub-items)
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `ChannelList.razor(.cs/.css)` — Direct Messages header now has a dedicated "+" action wired to `OnNewDm` and the DM user picker flow
+- ✓ `ChatPageLayout.razor(.cs/.css)` — wired New DM, channel add-people picker, call add-people picker, direct member call actions, and host/invite state tracking
+- ✓ `MemberListPanel.razor(.cs/.css)` — per-member audio/video call actions plus channel-level add-people action in panel header
+- ✓ `ChannelHeader.razor(.cs)` — added "Add People" action for DM/Group channels
+- ✓ `CallControls.razor(.cs)` — host-only "Add People" call control
+- ✓ `VideoCallDialog.razor(.cs/.css)` — participant panel with Host badge, transfer-host actions, and add-people invite picker overlay
+- ✓ `IncomingCallNotification` integration in `ChatPageLayout.razor` now passes mid-call invite fields (`IsMidCallInvite`, `ParticipantCount`)
+
+**Notes:** Phase E UI behavior is now fully wired for DM creation, direct calls, call host controls, and DM/group member expansion workflows.
+
+### Section: Phase F — SignalR Hub Updates
+
+#### Step: dm-host-F — SignalR Hub Updates
+**Status:** pending
+
+### Section: Phase G — Tests
+
+#### Step: dm-host-G — Unit & Integration Tests
+**Status:** in-progress
+**Deliverables:**
+- ✓ Added/expanded unit coverage for new Phase E behavior:
+- ✓ `ChannelListTests.cs` — New DM callback path
+- ✓ `ChannelHeaderCallButtonTests.cs` — Add People callback path
+- ✓ `MemberListPanelTests.cs` — add-people/member action callbacks and profile behavior
+- ✓ `CallControlsTests.cs` — host add-people control callback
+- ✓ `VideoCallDialogTests.cs` — host-state detection and add-people/transfer-host/invite callbacks
+- ✓ `IncomingCallNotificationTests.cs` — mid-call invite parameter coverage
+- ✓ Full Chat test suite executed: `dotnet test tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj --no-restore` (1176 passed, 0 failed)
+- ☐ Integration / E2E scenarios for invite + host transfer lifecycle remain pending
+
+**Notes:** Unit-level validation is comprehensive for the Phase E UI additions. Next step is dedicated end-to-end flow verification for multi-user call lifecycles.

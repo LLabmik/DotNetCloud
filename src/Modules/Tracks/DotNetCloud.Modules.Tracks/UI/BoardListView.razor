@@ -51,12 +51,15 @@
                                 <span class="tracks-badge tracks-badge--muted">Archived</span>
                             }
                         </div>
+                        <span class="tracks-board-mode-badge @(board.Mode == BoardMode.Team ? "team" : "personal")">
+                            @(board.Mode == BoardMode.Team ? "👥 Team" : "📋 Personal")
+                        </span>
                         @if (board.TeamId.HasValue)
                         {
                             var team = Teams.FirstOrDefault(t => t.Id == board.TeamId.Value);
                             @if (team is not null)
                             {
-                                <span class="tracks-team-badge">👥 @team.Name</span>
+                                        <span class="tracks-team-badge">👥 @team.Name</span>
                             }
                         }
                         @if (!string.IsNullOrEmpty(board.Description))
@@ -70,7 +73,7 @@
                             </span>
                             <span class="tracks-board-meta">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-                                @board.Lists.Count list@(board.Lists.Count != 1 ? "s" : "")
+                                @board.Swimlanes.Count swimlane@(board.Swimlanes.Count != 1 ? "s" : "")
                             </span>
                         </div>
                     </div>
@@ -85,6 +88,25 @@
 {
     <DncModal Title="Create Board" StartVisible OnClose="CloseCreateDialog">
         <EditForm Model="_createModel" OnValidSubmit="CreateBoardAsync">
+            <div class="form-group">
+                <label>Board Type</label>
+                <div class="tracks-mode-selector">
+                    <button type="button"
+                            class="tracks-mode-btn @(_createMode == BoardMode.Personal ? "active" : "")"
+                            @onclick="() => SetCreateMode(BoardMode.Personal)">
+                        <span class="tracks-mode-icon">📋</span>
+                        <span class="tracks-mode-label">Personal</span>
+                        <span class="tracks-mode-desc">Simple kanban boards</span>
+                    </button>
+                    <button type="button"
+                            class="tracks-mode-btn @(_createMode == BoardMode.Team ? "active" : "")"
+                            @onclick="() => SetCreateMode(BoardMode.Team)">
+                        <span class="tracks-mode-icon">👥</span>
+                        <span class="tracks-mode-label">Team</span>
+                        <span class="tracks-mode-desc">Sprints, planning &amp; reviews</span>
+                    </button>
+                </div>
+            </div>
             <div class="form-group">
                 <label>Title</label>
                 <InputText class="form-control" @bind-Value="_createModel.Title" placeholder="Board title" />
@@ -107,12 +129,12 @@
                     }
                 </div>
             </div>
-            @if (Teams.Count > 0)
+            @if (_createMode == BoardMode.Team && Teams.Count > 0)
             {
                 <div class="form-group">
-                    <label>Team (optional)</label>
+                    <label>Team</label>
                     <select class="form-control" @bind="_createTeamId">
-                        <option value="">Personal board</option>
+                        <option value="">Select a team…</option>
                         @foreach (var team in Teams)
                         {
                             <option value="@team.Id">@team.Name</option>

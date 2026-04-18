@@ -2,8 +2,10 @@
 
 @using DotNetCloud.Core.DTOs
 @using DotNetCloud.Modules.Calendar.Services
+@using Microsoft.AspNetCore.WebUtilities
 @inject ICalendarApiClient ApiClient
 @inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager Navigation
 
 <div class="calendar-page-layout">
     <div class="calendar-sidebar">
@@ -358,6 +360,38 @@
     {
         await ResolveCurrentUserAsync();
         await ReloadCalendarsAsync();
+        await TryOpenEventFromQueryAsync();
+    }
+
+    private async Task TryOpenEventFromQueryAsync()
+    {
+        var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+        if (!QueryHelpers.ParseQuery(uri.Query).TryGetValue("eventId", out var eventIdValue))
+            return;
+        if (!Guid.TryParse(eventIdValue, out var eventId))
+            return;
+
+        try
+        {
+            var evt = await ApiClient.GetEventAsync(eventId);
+            if (evt is null) return;
+
+            // Select the calendar that owns this event
+            var calendar = _calendars.FirstOrDefault(c => c.Id == evt.CalendarId);
+            if (calendar is not null)
+            {
+                _selectedCalendar = calendar;
+                _anchorDate = evt.StartUtc.ToLocalTime();
+                await ReloadEventsAsync();
+            }
+
+            // Open the event editor
+            BeginEditEvent(evt);
+        }
+        catch
+        {
+            // Event not found or access denied — ignore
+        }
     }
 
     private async Task ResolveCurrentUserAsync()

@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Modules;
 using DotNetCloud.Modules.Chat.Events;
 
@@ -35,12 +36,30 @@ public sealed class ChatModuleManifest : IModuleManifest
         nameof(ChannelDeletedEvent),
         nameof(UserJoinedChannelEvent),
         nameof(UserLeftChannelEvent),
-        nameof(PresenceChangedEvent)
+        nameof(PresenceChangedEvent),
+        nameof(VideoCallInitiatedEvent),
+        nameof(VideoCallAnsweredEvent),
+        nameof(VideoCallEndedEvent),
+        nameof(VideoCallMissedEvent),
+        nameof(ParticipantJoinedCallEvent),
+        nameof(ParticipantLeftCallEvent),
+        nameof(ScreenShareStartedEvent),
+        nameof(ScreenShareEndedEvent)
     };
 
     /// <inheritdoc />
     public IReadOnlyCollection<string> SubscribedEvents => new[]
     {
-        "FileUploadedEvent"
+        "FileUploadedEvent",
+        nameof(CardCreatedEvent),
+        nameof(CardMovedEvent),
+        nameof(CardUpdatedEvent),
+        nameof(CardDeletedEvent),
+        nameof(CardAssignedEvent),
+        nameof(CardCommentAddedEvent),
+        nameof(SprintStartedEvent),
+        nameof(SprintCompletedEvent),
+        nameof(BoardCreatedEvent),
+        nameof(BoardDeletedEvent)
     };
 }

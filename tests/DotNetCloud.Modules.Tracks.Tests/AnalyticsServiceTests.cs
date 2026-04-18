@@ -16,7 +16,7 @@ public class AnalyticsServiceTests
     private AnalyticsService _service = null!;
     private CallerContext _caller;
     private Board _board = null!;
-    private BoardList _list = null!;
+    private BoardSwimlane _swimlane = null!;
 
     [TestInitialize]
     public async Task Setup()
@@ -29,7 +29,7 @@ public class AnalyticsServiceTests
         var boardService = new BoardService(_db, mock.Object, activityService, teamService, NullLogger<BoardService>.Instance);
         _service = new AnalyticsService(_db, boardService, NullLogger<AnalyticsService>.Instance);
         _board = await TestHelpers.SeedBoardAsync(_db, _caller.UserId);
-        _list = await TestHelpers.SeedListAsync(_db, _board.Id);
+        _swimlane = await TestHelpers.SeedSwimlaneAsync(_db, _board.Id);
     }
 
     [TestCleanup]
@@ -50,9 +50,9 @@ public class AnalyticsServiceTests
     [TestMethod]
     public async Task GetBoardAnalytics_WithCards_ReturnsCounts()
     {
-        await TestHelpers.SeedCardAsync(_db, _list.Id, _caller.UserId, "Card 1");
-        await TestHelpers.SeedCardAsync(_db, _list.Id, _caller.UserId, "Card 2");
-        var archived = await TestHelpers.SeedCardAsync(_db, _list.Id, _caller.UserId, "Done Card");
+        await TestHelpers.SeedCardAsync(_db, _swimlane.Id, _caller.UserId, "Card 1");
+        await TestHelpers.SeedCardAsync(_db, _swimlane.Id, _caller.UserId, "Card 2");
+        var archived = await TestHelpers.SeedCardAsync(_db, _swimlane.Id, _caller.UserId, "Done Card");
         archived.IsArchived = true;
         await _db.SaveChangesAsync();
 
@@ -74,7 +74,7 @@ public class AnalyticsServiceTests
     [TestMethod]
     public async Task GetBoardAnalytics_WithCardsAndDates_ReturnsCompletionTrend()
     {
-        var card = await TestHelpers.SeedCardAsync(_db, _list.Id, _caller.UserId);
+        var card = await TestHelpers.SeedCardAsync(_db, _swimlane.Id, _caller.UserId);
         card.IsArchived = true;
         card.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();

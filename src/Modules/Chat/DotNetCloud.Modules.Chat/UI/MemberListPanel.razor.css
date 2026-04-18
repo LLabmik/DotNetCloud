@@ -34,6 +34,26 @@
     margin: 0;
 }
 
+.member-panel-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.member-add-btn {
+    border: 1px solid var(--color-border, #2d3748);
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--color-text, #e2e8f0);
+    border-radius: 6px;
+    padding: 3px 8px;
+    font-size: 11px;
+    cursor: pointer;
+}
+
+.member-add-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+}
+
 .member-close-btn {
     border: none;
     background: transparent;
@@ -190,6 +210,11 @@
 
 .member-item:hover .member-actions {
     opacity: 1;
+}
+
+.member-call-actions {
+    display: inline-flex;
+    gap: 4px;
 }
 
 /* --- Profile Popup --- */

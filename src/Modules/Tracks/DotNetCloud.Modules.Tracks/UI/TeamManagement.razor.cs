@@ -1,4 +1,5 @@
 using DotNetCloud.Core.DTOs;
+using DotNetCloud.UI.Shared.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 
@@ -11,6 +12,9 @@ public sealed partial class TeamManagement : ComponentBase
 {
     [Inject]
     private Services.ITracksApiClient Api { get; set; } = default!;
+
+    [Inject]
+    private BrowserTimeProvider TimeProvider { get; set; } = default!;
 
     /// <summary>
     /// List of teams to display.
@@ -49,6 +53,16 @@ public sealed partial class TeamManagement : ComponentBase
     private Guid _selectedUserId;
     private IReadOnlyList<UserSearchResultDto> _searchResults = [];
     private System.Timers.Timer? _searchDebounce;
+
+    /// <inheritdoc />
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await TimeProvider.EnsureInitializedAsync();
+            StateHasChanged();
+        }
+    }
 
     /// <inheritdoc />
     protected override void OnParametersSet()

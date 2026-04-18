@@ -286,7 +286,7 @@ public static class ErrorCodes
     public const string BoardNotFound = "TRACKS_BOARD_NOT_FOUND";
 
     /// <summary>Error code for board list not found.</summary>
-    public const string BoardListNotFound = "TRACKS_LIST_NOT_FOUND";
+    public const string BoardSwimlaneNotFound = "TRACKS_SWIMLANE_NOT_FOUND";
 
     /// <summary>Error code for card not found.</summary>
     public const string CardNotFound = "TRACKS_CARD_NOT_FOUND";
@@ -366,6 +366,27 @@ public static class ErrorCodes
     /// <summary>Error code for bulk operation with no valid card IDs.</summary>
     public const string BulkOperationEmpty = "TRACKS_BULK_OPERATION_EMPTY";
 
+    /// <summary>Error code for team-only operation attempted on a personal board.</summary>
+    public const string TeamModeRequired = "TRACKS_TEAM_MODE_REQUIRED";
+
+    /// <summary>Error code for review session not found.</summary>
+    public const string ReviewSessionNotFound = "TRACKS_REVIEW_SESSION_NOT_FOUND";
+
+    /// <summary>Error code for board already having an active review session.</summary>
+    public const string ReviewSessionAlreadyActive = "TRACKS_REVIEW_SESSION_ALREADY_ACTIVE";
+
+    /// <summary>Error code for action restricted to the review session host.</summary>
+    public const string ReviewSessionNotHost = "TRACKS_REVIEW_SESSION_NOT_HOST";
+
+    /// <summary>Error code for review session already ended.</summary>
+    public const string ReviewSessionEnded = "TRACKS_REVIEW_SESSION_ENDED";
+
+    /// <summary>Error code for active poker in review session (must finish first).</summary>
+    public const string ReviewPokerStillActive = "TRACKS_REVIEW_POKER_STILL_ACTIVE";
+
+    /// <summary>Error code for invalid sprint duration (must be 1–16 weeks).</summary>
+    public const string InvalidSprintDuration = "TRACKS_INVALID_SPRINT_DURATION";
+
     // Import / Migration
     /// <summary>Error code for unsupported import data type.</summary>
     public const string ImportUnsupportedDataType = "IMPORT_UNSUPPORTED_DATA_TYPE";
@@ -381,6 +402,81 @@ public static class ErrorCodes
 
     /// <summary>Error code for import target container not found.</summary>
     public const string ImportTargetNotFound = "IMPORT_TARGET_NOT_FOUND";
+
+    // Photos
+    /// <summary>Error code for photo not found.</summary>
+    public const string PhotoNotFound = "PHOTO_NOT_FOUND";
+
+    /// <summary>Error code for album not found.</summary>
+    public const string AlbumNotFound = "PHOTO_ALBUM_NOT_FOUND";
+
+    /// <summary>Error code for photo share not found.</summary>
+    public const string PhotoShareNotFound = "PHOTO_SHARE_NOT_FOUND";
+
+    /// <summary>Error code for invalid photo edit operation.</summary>
+    public const string InvalidPhotoEdit = "PHOTO_INVALID_EDIT";
+
+    /// <summary>Error code for duplicate photo in album.</summary>
+    public const string PhotoAlreadyInAlbum = "PHOTO_ALREADY_IN_ALBUM";
+
+    /// <summary>Error code for photo access denied.</summary>
+    public const string PhotoAccessDenied = "PHOTO_ACCESS_DENIED";
+
+    // Music
+    /// <summary>Error code for artist not found.</summary>
+    public const string ArtistNotFound = "MUSIC_ARTIST_NOT_FOUND";
+
+    /// <summary>Error code for music album not found.</summary>
+    public const string MusicAlbumNotFound = "MUSIC_ALBUM_NOT_FOUND";
+
+    /// <summary>Error code for track not found.</summary>
+    public const string TrackNotFound = "MUSIC_TRACK_NOT_FOUND";
+
+    /// <summary>Error code for playlist not found.</summary>
+    public const string PlaylistNotFound = "MUSIC_PLAYLIST_NOT_FOUND";
+
+    /// <summary>Error code for music access denied.</summary>
+    public const string MusicAccessDenied = "MUSIC_ACCESS_DENIED";
+
+    /// <summary>Error code for track already in playlist.</summary>
+    public const string TrackAlreadyInPlaylist = "MUSIC_TRACK_ALREADY_IN_PLAYLIST";
+
+    /// <summary>Error code for EQ preset not found.</summary>
+    public const string EqPresetNotFound = "MUSIC_EQ_PRESET_NOT_FOUND";
+
+    /// <summary>Error code for library scan already running.</summary>
+    public const string LibraryScanInProgress = "MUSIC_LIBRARY_SCAN_IN_PROGRESS";
+
+    /// <summary>Error code for invalid stream token.</summary>
+    public const string InvalidStreamToken = "MUSIC_INVALID_STREAM_TOKEN";
+
+    /// <summary>Error code for concurrent stream limit exceeded.</summary>
+    public const string StreamLimitExceeded = "MUSIC_STREAM_LIMIT_EXCEEDED";
+
+    // Video
+    /// <summary>Error code for video not found.</summary>
+    public const string VideoNotFound = "VIDEO_NOT_FOUND";
+
+    /// <summary>Error code for video collection not found.</summary>
+    public const string VideoCollectionNotFound = "VIDEO_COLLECTION_NOT_FOUND";
+
+    /// <summary>Error code for subtitle not found.</summary>
+    public const string SubtitleNotFound = "VIDEO_SUBTITLE_NOT_FOUND";
+
+    /// <summary>Error code for video access denied.</summary>
+    public const string VideoAccessDenied = "VIDEO_ACCESS_DENIED";
+
+    /// <summary>Error code for video already in collection.</summary>
+    public const string VideoAlreadyInCollection = "VIDEO_ALREADY_IN_COLLECTION";
+
+    /// <summary>Error code for invalid subtitle format.</summary>
+    public const string InvalidSubtitleFormat = "VIDEO_INVALID_SUBTITLE_FORMAT";
+
+    /// <summary>Error code for invalid video stream token.</summary>
+    public const string InvalidVideoStreamToken = "VIDEO_INVALID_STREAM_TOKEN";
+
+    /// <summary>Error code for video concurrent stream limit exceeded.</summary>
+    public const string VideoStreamLimitExceeded = "VIDEO_STREAM_LIMIT_EXCEEDED";
 
     // General
     /// <summary>Error code for unknown error.</summary>

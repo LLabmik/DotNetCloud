@@ -177,7 +177,9 @@ internal sealed class NotificationRouter : IPushNotificationService
             return false;
         }
 
-        if (_presenceTracker is not null && await _presenceTracker.IsOnlineAsync(userId))
+        if (_presenceTracker is not null
+            && notification.Category != NotificationCategory.IncomingCall
+            && await _presenceTracker.IsOnlineAsync(userId))
         {
             _logger.LogDebug("User {UserId} is online; suppressing push notification", userId);
             return false;

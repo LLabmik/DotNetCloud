@@ -1,8 +1,11 @@
 using DotNetCloud.Core.Capabilities;
+using DotNetCloud.Core.DTOs.Search;
 using DotNetCloud.Modules.Chat.DTOs;
 using DotNetCloud.Modules.Chat.Models;
 using DotNetCloud.Modules.Chat.Services;
+using DotNetCloud.Modules.Search.Client;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 using ValidationException = DotNetCloud.Core.Errors.ValidationException;
 
@@ -28,7 +31,10 @@ public class ChatController : ChatControllerBase
     private readonly IChatMessageNotifier _chatMessageNotifier;
     private readonly IPushNotificationService _pushNotificationService;
     private readonly INotificationPreferenceStore _notificationPreferenceStore;
+    private readonly IIceServerService _iceServerService;
+    private readonly IVideoCallService _videoCallService;
     private readonly ILogger<ChatController> _logger;
+    private readonly ISearchFtsClient? _searchFtsClient;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ChatController"/> class.
@@ -47,7 +53,10 @@ public class ChatController : ChatControllerBase
         IChatMessageNotifier chatMessageNotifier,
         IPushNotificationService pushNotificationService,
         INotificationPreferenceStore notificationPreferenceStore,
-        ILogger<ChatController> logger)
+        IIceServerService iceServerService,
+        IVideoCallService videoCallService,
+        ILogger<ChatController> logger,
+        ISearchFtsClient? searchFtsClient = null)
     {
         _channelService = channelService;
         _memberService = memberService;
@@ -62,7 +71,10 @@ public class ChatController : ChatControllerBase
         _chatMessageNotifier = chatMessageNotifier;
         _pushNotificationService = pushNotificationService;
         _notificationPreferenceStore = notificationPreferenceStore;
+        _iceServerService = iceServerService;
+        _videoCallService = videoCallService;
         _logger = logger;
+        _searchFtsClient = searchFtsClient;
     }
 
     // ── Channel Endpoints ───────────────────────────────────────────
@@ -404,7 +416,7 @@ public class ChatController : ChatControllerBase
         }
     }
 
-    /// <summary>Searches messages in a channel.</summary>
+    /// <summary>Searches messages in a channel using full-text search when available.</summary>
     [HttpGet("channels/{channelId:guid}/messages/search")]
     public async Task<IActionResult> SearchMessagesAsync(
         Guid channelId,
@@ -415,7 +427,36 @@ public class ChatController : ChatControllerBase
         if (string.IsNullOrWhiteSpace(q))
             return BadRequest(ErrorEnvelope("VALIDATION_ERROR", "Search query is required."));
 
-        var result = await _messageService.SearchMessagesAsync(channelId, q, page, pageSize, GetAuthenticatedCaller());
+        var caller = GetAuthenticatedCaller();
+
+        // Try FTS via Search module gRPC when available
+        if (_searchFtsClient is { IsAvailable: true })
+        {
+            var ftsResult = await _searchFtsClient.SearchAsync(
+                q, moduleFilter: "chat", entityTypeFilter: "Message",
+                userId: caller.UserId, page: page, pageSize: pageSize);
+
+            if (ftsResult is not null)
+            {
+                return Ok(new
+                {
+                    success = true,
+                    data = ftsResult.Items,
+                    pagination = new
+                    {
+                        page = ftsResult.Page,
+                        pageSize = ftsResult.PageSize,
+                        totalItems = ftsResult.TotalCount,
+                        totalPages = ftsResult.TotalCount > 0
+                            ? (int)Math.Ceiling((double)ftsResult.TotalCount / ftsResult.PageSize)
+                            : 0
+                    }
+                });
+            }
+        }
+
+        // Fallback to LIKE-based search
+        var result = await _messageService.SearchMessagesAsync(channelId, q, page, pageSize, caller);
         return Ok(new
         {
             success = true,
@@ -872,6 +913,261 @@ public class ChatController : ChatControllerBase
         });
 
         return Ok(Envelope(new { updated = true }));
+    }
+
+    // ── Video Call Endpoints ──────────────────────────────────────
+
+    /// <summary>Initiates a new video call in a channel.</summary>
+    [HttpPost("channels/{channelId:guid}/calls")]
+    [EnableRateLimiting("module-video-call-initiate")]
+    public async Task<IActionResult> InitiateCallAsync(Guid channelId, [FromBody] StartCallRequest request)
+    {
+        try
+        {
+            var call = await _videoCallService.InitiateCallAsync(channelId, request, GetAuthenticatedCaller());
+            return CreatedAtAction("GetCall", new { callId = call.Id }, Envelope(call));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ErrorEnvelope("VALIDATION_ERROR", ex.Message));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(ErrorEnvelope("CALL_ALREADY_ACTIVE", ex.Message));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+    }
+
+    /// <summary>Initiates a direct call to a specific user by creating/reusing a DM channel.</summary>
+    [HttpPost("calls/direct/{targetUserId:guid}")]
+    [EnableRateLimiting("module-video-call-initiate")]
+    public async Task<IActionResult> InitiateDirectCallAsync(Guid targetUserId, [FromBody] StartCallRequest request)
+    {
+        try
+        {
+            var call = await _videoCallService.InitiateDirectCallAsync(targetUserId, request, GetAuthenticatedCaller());
+            return CreatedAtAction("GetCall", new { callId = call.Id }, Envelope(call));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ErrorEnvelope("VALIDATION_ERROR", ex.Message));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(ErrorEnvelope("CALL_ALREADY_ACTIVE", ex.Message));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+    }
+
+    /// <summary>Joins an active video call.</summary>
+    [HttpPost("calls/{callId:guid}/join")]
+    public async Task<IActionResult> JoinCallAsync(Guid callId, [FromBody] JoinCallRequest request)
+    {
+        try
+        {
+            var call = await _videoCallService.JoinCallAsync(callId, request, GetAuthenticatedCaller());
+            return Ok(Envelope(call));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ErrorEnvelope("VALIDATION_ERROR", ex.Message));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(ErrorEnvelope("CALL_NOT_FOUND", ex.Message));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+    }
+
+    /// <summary>Leaves an active video call.</summary>
+    [HttpPost("calls/{callId:guid}/leave")]
+    public async Task<IActionResult> LeaveCallAsync(Guid callId)
+    {
+        try
+        {
+            await _videoCallService.LeaveCallAsync(callId, GetAuthenticatedCaller());
+            return Ok(Envelope(new { left = true }));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(ErrorEnvelope("CALL_NOT_FOUND", ex.Message));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+    }
+
+    /// <summary>Ends a video call for all participants.</summary>
+    [HttpPost("calls/{callId:guid}/end")]
+    public async Task<IActionResult> EndCallAsync(Guid callId)
+    {
+        try
+        {
+            await _videoCallService.EndCallAsync(callId, GetAuthenticatedCaller());
+            return Ok(Envelope(new { ended = true }));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(ErrorEnvelope("CALL_NOT_FOUND", ex.Message));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+    }
+
+    /// <summary>Rejects an incoming video call.</summary>
+    [HttpPost("calls/{callId:guid}/reject")]
+    public async Task<IActionResult> RejectCallAsync(Guid callId)
+    {
+        try
+        {
+            await _videoCallService.RejectCallAsync(callId, GetAuthenticatedCaller());
+            return Ok(Envelope(new { rejected = true }));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(ErrorEnvelope("CALL_NOT_FOUND", ex.Message));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+    }
+
+    /// <summary>Invites a user to join an active call. Only the call Host can invite participants.</summary>
+    [HttpPost("calls/{callId:guid}/invite")]
+    public async Task<IActionResult> InviteToCallAsync(Guid callId, [FromBody] InviteToCallRequest request)
+    {
+        try
+        {
+            await _videoCallService.InviteToCallAsync(callId, request.UserId, GetAuthenticatedCaller());
+            return Ok(Envelope(new { invited = true }));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ErrorEnvelope("VALIDATION_ERROR", ex.Message));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(ErrorEnvelope("INVITE_ERROR", ex.Message));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+    }
+
+    /// <summary>Transfers the host role of an active call to another participant. Only the current Host can transfer.</summary>
+    [HttpPost("calls/{callId:guid}/transfer-host")]
+    public async Task<IActionResult> TransferHostAsync(Guid callId, [FromBody] TransferHostRequest request)
+    {
+        try
+        {
+            await _videoCallService.TransferHostAsync(callId, request.UserId, GetAuthenticatedCaller());
+            return Ok(Envelope(new { transferred = true }));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ErrorEnvelope("VALIDATION_ERROR", ex.Message));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(ErrorEnvelope("TRANSFER_ERROR", ex.Message));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+    }
+
+    /// <summary>Gets paginated call history for a channel.</summary>
+    [HttpGet("channels/{channelId:guid}/calls")]
+    public async Task<IActionResult> GetCallHistoryAsync(
+        Guid channelId, [FromQuery] int skip = 0, [FromQuery] int take = 20)
+    {
+        try
+        {
+            take = Math.Clamp(take, 1, 100);
+            skip = Math.Max(0, skip);
+            var history = await _videoCallService.GetCallHistoryAsync(channelId, skip, take, GetAuthenticatedCaller());
+            return Ok(Envelope(history));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+    }
+
+    /// <summary>Gets details for a specific video call.</summary>
+    [HttpGet("calls/{callId:guid}", Name = "GetCall")]
+    public async Task<IActionResult> GetCallAsync(Guid callId)
+    {
+        try
+        {
+            // Use the active call lookup by checking all channels; the service validates membership
+            var caller = GetAuthenticatedCaller();
+            var call = await _videoCallService.GetCallByIdAsync(callId, caller);
+            if (call is null)
+                return NotFound(ErrorEnvelope("CALL_NOT_FOUND", "Video call not found."));
+
+            return Ok(Envelope(call));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+    }
+
+    /// <summary>Gets the active video call in a channel, if any.</summary>
+    [HttpGet("channels/{channelId:guid}/calls/active")]
+    public async Task<IActionResult> GetActiveCallAsync(Guid channelId)
+    {
+        try
+        {
+            var call = await _videoCallService.GetActiveCallAsync(channelId, GetAuthenticatedCaller());
+            if (call is null)
+                return Ok(new { success = true, data = (object?)null });
+
+            return Ok(Envelope(call));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+    }
+
+    // ── ICE Server Configuration ────────────────────────────────────
+
+    /// <summary>
+    /// Returns ICE server configuration for WebRTC connections.
+    /// Includes the built-in STUN server, any additional STUN servers,
+    /// and TURN servers with ephemeral credentials when configured.
+    /// </summary>
+    [HttpGet("ice-servers")]
+    public IActionResult GetIceServers()
+    {
+        GetAuthenticatedCaller(); // Ensure authenticated
+
+        var publicHost = Request.Host.Host;
+        var iceServers = _iceServerService.GetIceServers(publicHost);
+        var transportPolicy = _iceServerService.IceTransportPolicy;
+
+        return Ok(Envelope(new
+        {
+            iceServers,
+            iceTransportPolicy = transportPolicy
+        }));
     }
 }
 

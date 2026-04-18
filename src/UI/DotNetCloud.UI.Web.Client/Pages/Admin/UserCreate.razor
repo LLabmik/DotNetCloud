@@ -39,6 +39,10 @@
         <div class="form-group">
             <label for="timezone">Timezone</label>
             <InputText id="timezone" class="input" @bind-Value="_model.Timezone" />
+            <span class="hint">e.g., UTC, America/New_York, Europe/London</span>
+            <button type="button" class="btn btn-sm btn-outline" style="margin-top: 6px;" @onclick="DetectTimezoneAsync" disabled="@_detectingTimezone">
+                @(_detectingTimezone ? "Detecting..." : "Update based on current location")
+            </button>
         </div>
 
         @if (!string.IsNullOrWhiteSpace(_errorMessage))
@@ -58,9 +62,11 @@
     [Inject] private DotNetCloudApiClient Api { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
     [Inject] private NavigationManager Nav { get; set; } = default!;
+    [Inject] private IJSRuntime JS { get; set; } = default!;
 
     private RegisterRequest _model = new() { Locale = "en-US", Timezone = "UTC" };
     private bool _submitting;
+    private bool _detectingTimezone;
     private string? _errorMessage;
 
     private async Task SubmitAsync()
@@ -87,6 +93,28 @@
         finally
         {
             _submitting = false;
+        }
+    }
+
+    private async Task DetectTimezoneAsync()
+    {
+        _detectingTimezone = true;
+        try
+        {
+            var tz = await JS.InvokeAsync<string>("dotnetcloud.getTimezone");
+            if (!string.IsNullOrWhiteSpace(tz))
+            {
+                _model.Timezone = tz;
+                Toast.ShowSuccess($"Timezone detected: {tz}");
+            }
+        }
+        catch
+        {
+            Toast.ShowError("Could not detect timezone.");
+        }
+        finally
+        {
+            _detectingTimezone = false;
         }
     }
 }

@@ -32,114 +32,195 @@
                         }
                     </select>
                 }
+                @if (Board.Mode == BoardMode.Team && Sprints is not null && Sprints.Count > 0 && Sprints.Count > 8)
+                {
+                    <select class="tracks-filter-select" @bind="_sprintFilter">
+                        <option value="">All cards</option>
+                        @foreach (var sprint in Sprints.Where(s => s.Status != SprintStatus.Completed))
+                        {
+                            <option value="@sprint.Id">@sprint.Title @(sprint.Status == SprintStatus.Active ? "✓" : "")</option>
+                        }
+                        <option value="none">Backlog</option>
+                    </select>
+                }
             </div>
             <button class="btn btn-sm btn-outline" @onclick="() => OnRefreshRequested.InvokeAsync()">↻ Refresh</button>
         </div>
     </div>
 
+    @* ── Sprint Tabs (Team mode, ≤8 sprints) ── *@
+    @if (Board.Mode == BoardMode.Team && Sprints is not null && Sprints.Count > 0 && Sprints.Count <= 8)
+    {
+        <div class="tracks-sprint-tabs">
+            <button class="tracks-sprint-tab @(string.IsNullOrEmpty(_sprintFilter) ? "active" : "")"
+                    @onclick='() => _sprintFilter = ""'>
+                All
+            </button>
+            @foreach (var sprint in Sprints.Where(s => s.Status != SprintStatus.Completed))
+            {
+                var sid = sprint.Id.ToString();
+                <button class="tracks-sprint-tab @(_sprintFilter == sid ? "active" : "") @(sprint.Status == SprintStatus.Active ? "sprint-active" : "")"
+                        @onclick="() => _sprintFilter = sid">
+                    @sprint.Title
+                    @if (sprint.Status == SprintStatus.Active)
+                    {
+                        <span class="tracks-sprint-tab-indicator">●</span>
+                    }
+                </button>
+            }
+            <button class="tracks-sprint-tab @(_sprintFilter == "none" ? "active" : "")"
+                    @onclick='() => _sprintFilter = "none"'>
+                📋 Backlog
+            </button>
+        </div>
+    }
+
     @* ── Board Columns ── *@
     <div class="tracks-kanban-columns" id="tracks-kanban-columns">
-        @foreach (var list in Lists)
+        @foreach (var swimlane in Swimlanes)
         {
-            var listCards = GetFilteredCards(list.Id);
-            var isWipExceeded = list.CardLimit.HasValue && listCards.Count >= list.CardLimit.Value;
+            var swimlaneCards = GetFilteredCards(swimlane.Id);
+            var isWipExceeded = swimlane.CardLimit.HasValue && swimlaneCards.Count >= swimlane.CardLimit.Value;
 
             <div class="tracks-kanban-column"
-                 data-list-id="@list.Id"
-                 @ondragover="HandleDragOver"
-                 @ondragover:preventDefault
-                 @ondrop="() => HandleDropOnList(list.Id)">
+                 data-swimlane-id="@swimlane.Id">
                 <div class="tracks-kanban-column-header">
                     <div class="tracks-kanban-column-title">
-                        @if (!string.IsNullOrEmpty(list.Color))
+                        @if (!string.IsNullOrEmpty(swimlane.Color))
                         {
-                            <span class="tracks-column-dot" style="background: @list.Color;"></span>
+                            <span class="tracks-column-dot" style="background: @swimlane.Color;"></span>
                         }
-                        <span>@list.Title</span>
+                        <span>@swimlane.Title</span>
                         <span class="tracks-card-count @(isWipExceeded ? "wip-exceeded" : "")">
-                            @listCards.Count@(list.CardLimit.HasValue ? $"/{list.CardLimit}" : "")
+                            @swimlaneCards.Count@(swimlane.CardLimit.HasValue ? $"/{swimlane.CardLimit}" : "")
                         </span>
                     </div>
                     <div class="tracks-kanban-column-actions">
                         <button class="tracks-icon-btn" title="Add card"
-                                @onclick="() => BeginAddCard(list.Id)">+</button>
-                        <button class="tracks-icon-btn" title="Delete list"
-                                @onclick="() => DeleteListAsync(list.Id)">×</button>
+                                @onclick="() => BeginAddCard(swimlane.Id)">+</button>
+                        <button class="tracks-icon-btn" title="Delete swimlane"
+                                @onclick="() => DeleteSwimlaneAsync(swimlane.Id)">×</button>
                     </div>
                 </div>
 
-                <div class="tracks-kanban-cards">
-                    @foreach (var card in listCards)
+                <div class="tracks-kanban-cards"
+                     @ondragover="HandleDragOver"
+                     @ondragover:preventDefault
+                     @ondrop="() => HandleDropOnSwimlane(swimlane.Id)">
+                    @foreach (var card in swimlaneCards)
                     {
-                        <div class="tracks-kanban-card @(card.IsArchived ? "archived" : "") @GetPriorityClass(card.Priority)"
+                        <div class="tracks-kanban-card @(card.IsArchived ? "archived" : "") @GetPriorityClass(card.Priority) @(_dropTargetCardId == card.Id ? "drop-target" : "")"
                              draggable="true"
                              data-card-id="@card.Id"
                              @ondragstart="() => HandleDragStart(card)"
+                             @ondragenter="() => HandleDragEnterCard(card.Id)"
                              @onclick="() => OnCardSelected.InvokeAsync(card.Id)">
-                            @if (card.Labels.Count > 0)
-                            {
-                                <div class="tracks-card-labels">
-                                    @foreach (var label in card.Labels)
+
+                            @* ── Card Header (board-colored) ── *@
+                            <div class="tracks-card-header" style="@GetCardHeaderStyle()">
+                                <span class="tracks-card-number">#@card.CardNumber</span>
+                                <div class="tracks-card-header-actions">
+                                    @if (card.Priority != CardPriority.None)
                                     {
-                                        <span class="tracks-card-label" style="background: @label.Color;"
-                                              title="@label.Title"></span>
+                                        <span class="tracks-card-priority-badge" title="@card.Priority">@GetPriorityIcon(card.Priority)</span>
                                     }
+                                    <a href="/apps/tracks/card/@card.CardNumber" target="_blank" class="tracks-open-newtab-btn"
+                                       title="Open in new tab" @onclick:stopPropagation>⧉</a>
                                 </div>
-                            }
-                            <div class="tracks-card-title"><span class="tracks-card-number">#@card.CardNumber</span> @card.Title</div>
-                            <div class="tracks-card-meta">
-                                @if (card.Priority != CardPriority.None)
+                            </div>
+
+                            @* ── Card Body ── *@
+                            <div class="tracks-card-body">
+                                <div class="tracks-card-title">@card.Title</div>
+
+                                @* ── Labels ── *@
+                                @if (card.Labels.Count > 0)
                                 {
-                                    <span class="tracks-card-priority" title="@card.Priority">@GetPriorityIcon(card.Priority)</span>
+                                    <div class="tracks-card-labels">
+                                        @foreach (var label in card.Labels)
+                                        {
+                                            <span class="tracks-card-label-pill"
+                                                  style="background: @label.Color; color: @GetContrastTextColor(label.Color);">@label.Title</span>
+                                        }
+                                    </div>
                                 }
-                                @if (card.DueDate.HasValue)
-                                {
-                                    <span class="tracks-card-due @(IsOverdue(card.DueDate.Value) ? "overdue" : "")">
-                                        📅 @card.DueDate.Value.ToLocalTime().ToString("MMM d")
-                                    </span>
+
+                                @* ── Metadata badges ── *@
+                                @{
+                                    var hasMeta = card.DueDate.HasValue || card.StoryPoints.HasValue ||
+                                                  card.Checklists.Count > 0 || card.CommentCount > 0 || card.AttachmentCount > 0;
                                 }
-                                @if (card.StoryPoints.HasValue)
+                                @if (hasMeta)
                                 {
-                                    <span class="tracks-card-points">@card.StoryPoints SP</span>
+                                    <div class="tracks-card-meta">
+                                        @if (card.DueDate.HasValue)
+                                        {
+                                            <span class="tracks-card-badge @(IsOverdue(card.DueDate.Value) ? "overdue" : IsDueSoon(card.DueDate.Value) ? "due-soon" : "")">
+                                                📅 @TimeProvider.ToLocal(card.DueDate.Value).ToString("MMM d")
+                                            </span>
+                                        }
+                                        @if (card.StoryPoints.HasValue)
+                                        {
+                                            <span class="tracks-card-badge">@card.StoryPoints SP</span>
+                                        }
+                                        @if (card.Checklists.Count > 0)
+                                        {
+                                            var totalItems = card.Checklists.Sum(c => c.Items.Count);
+                                            var doneItems = card.Checklists.Sum(c => c.Items.Count(i => i.IsCompleted));
+                                            <span class="tracks-card-badge @(doneItems == totalItems && totalItems > 0 ? "complete" : "")">
+                                                ☑ @doneItems/@totalItems
+                                            </span>
+                                        }
+                                        @if (card.CommentCount > 0)
+                                        {
+                                            <span class="tracks-card-badge">💬 @card.CommentCount</span>
+                                        }
+                                        @if (card.AttachmentCount > 0)
+                                        {
+                                            <span class="tracks-card-badge">📎 @card.AttachmentCount</span>
+                                        }
+                                    </div>
                                 }
-                                @if (card.Checklists.Count > 0)
+
+                                @* ── Sprint Badge (Team mode only) ── *@
+                                @if (Board.Mode == BoardMode.Team && !string.IsNullOrEmpty(card.SprintTitle) && string.IsNullOrEmpty(_sprintFilter))
                                 {
-                                    var totalItems = card.Checklists.Sum(c => c.Items.Count);
-                                    var doneItems = card.Checklists.Sum(c => c.Items.Count(i => i.IsCompleted));
-                                    <span class="tracks-card-checklist @(doneItems == totalItems && totalItems > 0 ? "complete" : "")">
-                                        ☑ @doneItems/@totalItems
-                                    </span>
+                                    <div class="tracks-card-sprint-badge">🏃 @card.SprintTitle</div>
                                 }
-                                @if (card.CommentCount > 0)
+
+                                @* ── Footer: Assignees ── *@
+                                @if (card.Assignments.Count > 0)
                                 {
-                                    <span class="tracks-card-comments">💬 @card.CommentCount</span>
-                                }
-                                @if (card.AttachmentCount > 0)
-                                {
-                                    <span class="tracks-card-attachments">📎 @card.AttachmentCount</span>
+                                    <div class="tracks-card-footer">
+                                        <div class="tracks-card-assignees">
+                                            @foreach (var assign in card.Assignments.Take(3))
+                                            {
+                                                @if (!string.IsNullOrEmpty(assign.AvatarUrl))
+                                                {
+                                                    <img class="tracks-card-avatar-img" src="@assign.AvatarUrl" alt="@(assign.DisplayName ?? "User")" title="@(assign.DisplayName ?? "User")" />
+                                                }
+                                                else
+                                                {
+                                                    <span class="tracks-card-avatar" title="@(assign.DisplayName ?? "User")">
+                                                        @GetInitials(assign.DisplayName)
+                                                    </span>
+                                                }
+                                            }
+                                            @if (card.Assignments.Count > 3)
+                                            {
+                                                <span class="tracks-card-avatar tracks-card-avatar-more">
+                                                    +@(card.Assignments.Count - 3)
+                                                </span>
+                                            }
+                                            <span class="tracks-card-assignee-name">@string.Join(", ", card.Assignments.Select(a => a.DisplayName ?? "User"))</span>
+                                        </div>
+                                    </div>
                                 }
                             </div>
-                            @if (card.Assignments.Count > 0)
-                            {
-                                <div class="tracks-card-assignees">
-                                    @foreach (var assign in card.Assignments.Take(3))
-                                    {
-                                        <span class="tracks-avatar-sm" title="@(assign.DisplayName ?? "User")">
-                                            @GetInitials(assign.DisplayName)
-                                        </span>
-                                    }
-                                    @if (card.Assignments.Count > 3)
-                                    {
-                                        <span class="tracks-avatar-sm tracks-avatar-more">
-                                            +@(card.Assignments.Count - 3)
-                                        </span>
-                                    }
-                                </div>
-                            }
                         </div>
                     }
 
-                    @if (_addingCardToList == list.Id)
+                    @if (_addingCardToSwimlane == swimlane.Id)
                     {
                         <div class="tracks-kanban-card-add">
                             <input type="text" class="form-control" placeholder="Card title..."
@@ -155,26 +236,29 @@
             </div>
         }
 
-        @* ── Add List Column ── *@
-        <div class="tracks-kanban-add-list">
-            @if (_showAddList)
+        @* ── Add Swimlane Column ── *@
+        @if (!Board.LockSwimlanes)
+        {
+        <div class="tracks-kanban-add-swimlane">
+            @if (_showAddSwimlane)
             {
-                <div class="tracks-add-list-form">
-                    <input type="text" class="form-control" placeholder="List title..."
-                           @bind="_newListTitle" @bind:event="oninput"
-                           @onkeydown="HandleAddListKeyDown" />
+                <div class="tracks-add-swimlane-form">
+                    <input type="text" class="form-control" placeholder="Swimlane title..."
+                           @bind="_newSwimlaneTitle" @bind:event="oninput"
+                           @onkeydown="HandleAddSwimlaneKeyDown" />
                     <div class="tracks-card-add-actions">
-                        <button class="btn btn-sm btn-primary" @onclick="SubmitNewListAsync">Add</button>
-                        <button class="btn btn-sm btn-secondary" @onclick="() => _showAddList = false">Cancel</button>
+                        <button class="btn btn-sm btn-primary" @onclick="SubmitNewSwimlaneAsync">Add</button>
+                        <button class="btn btn-sm btn-secondary" @onclick="() => _showAddSwimlane = false">Cancel</button>
                     </div>
                 </div>
             }
             else
             {
-                <button class="tracks-add-list-btn" @onclick="() => _showAddList = true">
-                    + Add list
+                <button class="tracks-add-swimlane-btn" @onclick="() => _showAddSwimlane = true">
+                    + Add Swimlane
                 </button>
             }
         </div>
+        }
     </div>
 </div>

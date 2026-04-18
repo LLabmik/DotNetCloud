@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
@@ -6,9 +7,11 @@ using DotNetCloud.Client.Core;
 using DotNetCloud.Client.Core.Api;
 using DotNetCloud.Client.Core.Auth;
 using DotNetCloud.Client.Core.SelectiveSync;
+using DotNetCloud.Client.Core.Services;
 using DotNetCloud.Client.Core.Sync;
 using DotNetCloud.Client.Core.SyncIgnore;
 using DotNetCloud.Client.SyncTray.Notifications;
+using DotNetCloud.Client.SyncTray.Services;
 using DotNetCloud.Client.SyncTray.Startup;
 using DotNetCloud.Client.SyncTray.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
@@ -26,7 +29,13 @@ public partial class App : Application
     private IServiceProvider? _services;
     private TrayIconManager? _trayIconManager;
     private ISyncContextManager? _syncManager;
+    private UpdateCheckBackgroundService? _updateChecker;
     private CancellationTokenSource? _cts;
+    private int _shutdownRequested;
+    private int _cleanupDone;
+
+    // Must be kept alive for the lifetime of the process — GC kills the handlers otherwise.
+    private readonly List<PosixSignalRegistration> _signalRegistrations = [];
 
     /// <inheritdoc/>
     public override void Initialize() => AvaloniaXamlLoader.Load(this);
@@ -51,10 +60,20 @@ public partial class App : Application
             _trayIconManager.Initialize();
             logger.LogInformation("Tray icon manager initialized");
 
+            // Start background update checker.
+            _updateChecker = _services.GetRequiredService<UpdateCheckBackgroundService>();
+            var trayViewModel = _services.GetRequiredService<TrayViewModel>();
+            _updateChecker.UpdateAvailable += trayViewModel.OnUpdateAvailable;
+            _updateChecker.Start();
+
             // Load persisted sync contexts and start engines.
             _ = StartSyncManagerAsync(logger, _cts.Token);
 
             desktop.Exit += OnExit;
+
+            // Handle POSIX signals so the process shuts down cleanly
+            // when the desktop session ends (logout / shutdown).
+            RegisterPosixShutdownSignals(desktop);
         }
 
         base.OnFrameworkInitializationCompleted();
@@ -74,6 +93,7 @@ public partial class App : Application
 
         Log.Logger = new LoggerConfiguration()
             .MinimumLevel.Information()
+            .MinimumLevel.Override("System.Net.Http.HttpClient", Serilog.Events.LogEventLevel.Warning)
             .WriteTo.Console()
             .WriteTo.File(
                 Path.Combine(logDir, "sync-tray.log"),
@@ -118,6 +138,9 @@ public partial class App : Application
         services.AddSingleton<INotificationService>(static sp =>
             NotificationServiceFactory.Create(sp.GetRequiredService<ILogger<INotificationService>>()));
 
+        // Background update checker.
+        services.AddSingleton<UpdateCheckBackgroundService>();
+
         return services.BuildServiceProvider();
     }
 
@@ -158,25 +181,94 @@ public partial class App : Application
 
     // ── Shutdown ──────────────────────────────────────────────────────────
 
+    private void RegisterPosixShutdownSignals(IClassicDesktopStyleApplicationLifetime desktop)
+    {
+        void HandleSignal(PosixSignalContext ctx)
+        {
+            ctx.Cancel = true; // Prevent immediate termination; we shut down gracefully.
+            if (Interlocked.CompareExchange(ref _shutdownRequested, 1, 0) == 0)
+            {
+                // Fast-path shutdown: cancel background tasks, flush logs, exit.
+                // Avoid Avalonia UI-thread work (tray icon, windows) — the
+                // session is tearing down and the display may already be gone.
+                _ = Task.Run(() =>
+                {
+                    try
+                    { _cts?.Cancel(); }
+                    catch { }
+                    try
+                    { _syncManager?.StopAllAsync(CancellationToken.None).Wait(TimeSpan.FromSeconds(3)); }
+                    catch { }
+                    Log.CloseAndFlush();
+                    Environment.Exit(0);
+                });
+            }
+        }
+
+        _signalRegistrations.Add(PosixSignalRegistration.Create(PosixSignal.SIGTERM, HandleSignal));
+        _signalRegistrations.Add(PosixSignalRegistration.Create(PosixSignal.SIGINT, HandleSignal));
+        _signalRegistrations.Add(PosixSignalRegistration.Create(PosixSignal.SIGHUP, HandleSignal));
+    }
+
     private void OnExit(object? sender, ControlledApplicationLifetimeExitEventArgs e)
     {
-        _cts?.Cancel();
-        _trayIconManager?.Dispose();
+        // Run heavy cleanup on a background thread so the XSMP session
+        // management response can return to the session manager immediately.
+        // Without this, RunShutdownCleanup blocks the UI thread and the
+        // session manager times out → "unknown program blocking logout".
+        _ = Task.Run(() =>
+        {
+            RunShutdownCleanup();
+            Environment.Exit(0);
+        });
+    }
+
+    private void RunShutdownCleanup()
+    {
+        // Guard against being called twice (OnExit + fallback timer).
+        if (Interlocked.CompareExchange(ref _cleanupDone, 1, 0) != 0)
+            return;
+
+        try
+        { _cts?.Cancel(); }
+        catch { /* best-effort */ }
+
+        try
+        { _trayIconManager?.Dispose(); }
+        catch { /* best-effort */ }
+
+        try
+        { _updateChecker?.Dispose(); }
+        catch { /* best-effort */ }
 
         // Stop all sync engines gracefully.
         if (_syncManager is not null)
         {
-            _syncManager.StopAllAsync().GetAwaiter().GetResult();
+            try
+            { _syncManager.StopAllAsync().GetAwaiter().GetResult(); }
+            catch { /* best-effort */ }
         }
 
         if (_services is IAsyncDisposable asyncServices)
         {
-            asyncServices.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            try
+            { asyncServices.DisposeAsync().AsTask().GetAwaiter().GetResult(); }
+            catch { /* best-effort */ }
         }
         else
         {
-            (_services as IDisposable)?.Dispose();
+            try
+            { (_services as IDisposable)?.Dispose(); }
+            catch { /* best-effort */ }
         }
+
+        foreach (var reg in _signalRegistrations)
+        {
+            try
+            { reg.Dispose(); }
+            catch { /* best-effort */ }
+        }
+
         Log.CloseAndFlush();
     }
 }

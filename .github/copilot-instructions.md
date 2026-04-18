@@ -496,3 +496,20 @@ If `.github/copilot-instructions.md` or any instruction/configuration file shows
 ## Android MAUI App Work
 
 **IMPORTANT:** On monolith (Windows 11), only do Android MAUI app work. Server-side code changes must be handed off to mint22 via the CLIENT_SERVER_MEDIATION_HANDOFF.md document. Respect the role separation defined in the Environment table of the handoff document.
+
+---
+
+## Client Version Numbers (MANDATORY)
+
+**After rebuilding the desktop client (SyncTray, AppImage, or any client bundle), always update the client version numbers.**
+
+Version is centralized in `/Directory.Build.props` under the `<!-- Versioning -->` property group:
+- `MajorVersion`, `MinorVersion`, `PatchVersion`, `PreReleaseVersion`
+- These flow into `Version`, `AssemblyVersion`, `FileVersion`, and `InformationalVersion` for all projects.
+
+Additionally, the Android client has its own `ApplicationDisplayVersion` in `/src/Clients/DotNetCloud.Client.Android/DotNetCloud.Client.Android.csproj`.
+
+**When bumping versions, update ALL locations:**
+1. `/Directory.Build.props` — central version properties
+2. `/src/Clients/DotNetCloud.Client.Android/DotNetCloud.Client.Android.csproj` — `ApplicationDisplayVersion`
+3. Any packaging scripts that hard-code a default version (e.g., `build-desktop-client-bundles.ps1`, `build-desktop-client-appimage.sh` — their `$Version` / `$VERSION` defaults)

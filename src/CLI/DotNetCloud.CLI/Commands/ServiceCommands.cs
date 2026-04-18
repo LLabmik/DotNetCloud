@@ -123,14 +123,31 @@ internal static class ServiceCommands
                 psi.Environment["Kestrel__CertificatePassword"] = "";
             }
 
-            // Bridge Collabora CLI config to server configuration
+            // Derive the public hostname from TLS config so URLs work from remote machines.
+            // Used for both Collabora ServerUrl (iframe src) and WopiBaseUrl (callback).
+            var scheme = config.EnableHttps ? "https" : "http";
+            var port = config.EnableHttps ? config.HttpsPort : config.HttpPort;
+            var host = config.SelfSignedTlsHost
+                       ?? config.LetsEncryptDomain
+                       ?? Environment.MachineName
+                       ?? "localhost";
+
+            // Bridge Collabora CLI config to server configuration.
+            // For BuiltIn mode, ServerUrl is the PUBLIC origin (same as WopiBaseUrl) so
+            // discovery URLs are rewritten to the DotNetCloud port — the built-in YARP
+            // reverse proxy forwards /browser, /cool, /hosting, /lool to Collabora.
+            // ProxyUpstreamUrl tells the proxy where coolwsd actually listens (localhost:9980).
+            var publicOrigin = $"{scheme}://{host}:{port}";
+
             if (string.Equals(config.CollaboraMode, "BuiltIn", StringComparison.OrdinalIgnoreCase))
             {
                 psi.Environment["Files__Collabora__Enabled"] = "true";
-                // BuiltIn means coolwsd is installed via APT and runs as a system service.
-                // DotNetCloud does NOT need to spawn/manage the process — just connect to it.
                 psi.Environment["Files__Collabora__UseBuiltInCollabora"] = "false";
-                psi.Environment["Files__Collabora__ServerUrl"] = "https://localhost:9980";
+                // Public-facing URL: discovery URLs get rewritten to this origin,
+                // so the browser iframe goes through the DotNetCloud reverse proxy.
+                psi.Environment["Files__Collabora__ServerUrl"] = publicOrigin;
+                // Internal upstream: coolwsd on localhost — only the proxy connects here.
+                psi.Environment["Files__Collabora__ProxyUpstreamUrl"] = "https://localhost:9980";
                 psi.Environment["Files__Collabora__AllowInsecureTls"] = "true";
             }
             else if (string.Equals(config.CollaboraMode, "External", StringComparison.OrdinalIgnoreCase)
@@ -152,17 +169,7 @@ internal static class ServiceCommands
                     ConsoleOutput.WriteInfo("Generated WOPI token signing key.");
                 }
                 psi.Environment["Files__Collabora__TokenSigningKey"] = config.WopiTokenSigningKey;
-
-                // Derive WopiBaseUrl from server's own HTTPS/HTTP address
-                // Use the configured TLS hostname (e.g. "mint22") so the URL matches
-                // Collabora's alias_groups; fall back to machine hostname then localhost.
-                var scheme = config.EnableHttps ? "https" : "http";
-                var port = config.EnableHttps ? config.HttpsPort : config.HttpPort;
-                var host = config.SelfSignedTlsHost
-                           ?? config.LetsEncryptDomain
-                           ?? Environment.MachineName
-                           ?? "localhost";
-                psi.Environment["Files__Collabora__WopiBaseUrl"] = $"{scheme}://{host}:{port}";
+                psi.Environment["Files__Collabora__WopiBaseUrl"] = publicOrigin;
             }
 
             var process = Process.Start(psi);

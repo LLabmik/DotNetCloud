@@ -480,3 +480,184 @@ public sealed record CreateChannelInviteDto
     /// <summary>Optional message to include with the invitation.</summary>
     public string? Message { get; init; }
 }
+
+// ───────────────────────────────────────────────────────────────
+// Video Calling DTOs
+// ───────────────────────────────────────────────────────────────
+
+/// <summary>
+/// Response DTO representing a video call.
+/// </summary>
+public sealed record VideoCallDto
+{
+    /// <summary>Video call ID.</summary>
+    public required Guid Id { get; init; }
+
+    /// <summary>Channel the call belongs to.</summary>
+    public required Guid ChannelId { get; init; }
+
+    /// <summary>User who initiated the call.</summary>
+    public required Guid InitiatorUserId { get; init; }
+
+    /// <summary>Display name of the initiator.</summary>
+    public string? InitiatorDisplayName { get; init; }
+
+    /// <summary>Current host of the call (has control authority).</summary>
+    public Guid HostUserId { get; init; }
+
+    /// <summary>Current call state.</summary>
+    public required string State { get; init; }
+
+    /// <summary>Type of media (Audio, Video).</summary>
+    public required string MediaType { get; init; }
+
+    /// <summary>Whether this is a group call.</summary>
+    public bool IsGroupCall { get; init; }
+
+    /// <summary>When the call started (UTC).</summary>
+    public DateTime? StartedAtUtc { get; init; }
+
+    /// <summary>When the call ended (UTC).</summary>
+    public DateTime? EndedAtUtc { get; init; }
+
+    /// <summary>Reason the call ended.</summary>
+    public string? EndReason { get; init; }
+
+    /// <summary>Maximum number of concurrent participants during the call.</summary>
+    public int MaxParticipants { get; init; }
+
+    /// <summary>Current participants in the call.</summary>
+    public IReadOnlyList<CallParticipantDto> Participants { get; init; } = [];
+
+    /// <summary>When the call record was created (UTC).</summary>
+    public DateTime CreatedAtUtc { get; init; }
+}
+
+/// <summary>
+/// Response DTO representing a participant in a video call.
+/// </summary>
+public sealed record CallParticipantDto
+{
+    /// <summary>Participant record ID.</summary>
+    public required Guid Id { get; init; }
+
+    /// <summary>User ID of the participant.</summary>
+    public required Guid UserId { get; init; }
+
+    /// <summary>Display name of the participant.</summary>
+    public string? DisplayName { get; init; }
+
+    /// <summary>Role in the call (Host, Participant).</summary>
+    public required string Role { get; init; }
+
+    /// <summary>When the participant joined (UTC).</summary>
+    public DateTime JoinedAtUtc { get; init; }
+
+    /// <summary>When the participant left (UTC), null if still in the call.</summary>
+    public DateTime? LeftAtUtc { get; init; }
+
+    /// <summary>Whether the participant has audio enabled.</summary>
+    public bool HasAudio { get; set; }
+
+    /// <summary>Whether the participant has video enabled.</summary>
+    public bool HasVideo { get; set; }
+
+    /// <summary>Whether the participant is sharing their screen.</summary>
+    public bool HasScreenShare { get; set; }
+}
+
+/// <summary>
+/// DTO for WebRTC signaling data (SDP offers, answers, and ICE candidates).
+/// </summary>
+public sealed record CallSignalDto
+{
+    /// <summary>The video call ID this signal belongs to.</summary>
+    public required Guid CallId { get; init; }
+
+    /// <summary>The user sending the signal.</summary>
+    public required Guid FromUserId { get; init; }
+
+    /// <summary>The target user for the signal.</summary>
+    public required Guid ToUserId { get; init; }
+
+    /// <summary>Signal type: "offer", "answer", or "ice-candidate".</summary>
+    public required string Type { get; init; }
+
+    /// <summary>The SDP or ICE candidate payload.</summary>
+    public required string Payload { get; init; }
+}
+
+/// <summary>
+/// Request DTO for initiating a video call in a channel.
+/// </summary>
+public sealed record StartCallRequest
+{
+    /// <summary>Type of media for the call (Audio, Video).</summary>
+    public required string MediaType { get; init; }
+}
+
+/// <summary>
+/// Request DTO for joining an active video call.
+/// </summary>
+public sealed record JoinCallRequest
+{
+    /// <summary>Whether to join with audio enabled.</summary>
+    public bool WithAudio { get; init; } = true;
+
+    /// <summary>Whether to join with video enabled.</summary>
+    public bool WithVideo { get; init; }
+}
+
+/// <summary>
+/// Response DTO for call history entries.
+/// </summary>
+public sealed record CallHistoryDto
+{
+    /// <summary>Video call ID.</summary>
+    public required Guid Id { get; init; }
+
+    /// <summary>Channel the call belonged to.</summary>
+    public required Guid ChannelId { get; init; }
+
+    /// <summary>User who initiated the call.</summary>
+    public required Guid InitiatorUserId { get; init; }
+
+    /// <summary>Display name of the initiator.</summary>
+    public string? InitiatorDisplayName { get; init; }
+
+    /// <summary>Final state of the call.</summary>
+    public required string State { get; init; }
+
+    /// <summary>Type of media (Audio, Video).</summary>
+    public required string MediaType { get; init; }
+
+    /// <summary>Reason the call ended.</summary>
+    public string? EndReason { get; init; }
+
+    /// <summary>Call duration in seconds, null if call was never connected.</summary>
+    public int? DurationSeconds { get; init; }
+
+    /// <summary>Number of participants who joined the call.</summary>
+    public int ParticipantCount { get; init; }
+
+    /// <summary>When the call was created (UTC).</summary>
+    public DateTime CreatedAtUtc { get; init; }
+}
+
+/// <summary>
+/// Request DTO for inviting a user to an active call.
+/// </summary>
+public sealed record InviteToCallRequest
+{
+    /// <summary>The user ID to invite to the call.</summary>
+    public Guid UserId { get; init; }
+}
+
+/// <summary>
+/// Request DTO for transferring the host role of a call to another participant.
+/// </summary>
+public sealed record TransferHostRequest
+{
+    /// <summary>The user ID to transfer host role to.</summary>
+    public Guid UserId { get; init; }
+}

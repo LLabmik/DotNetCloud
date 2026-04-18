@@ -2,6 +2,7 @@ using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Notes;
 using DotNetCloud.Modules.Notes.Data;
 using DotNetCloud.Modules.Notes.Host.Services;
+using DotNetCloud.Modules.Search.Client;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -15,6 +16,9 @@ builder.Services.AddDbContext<NotesDbContext>(options =>
 
 // In-process event bus for standalone operation
 builder.Services.AddSingleton<IEventBus, InProcessEventBus>();
+
+// Search FTS client for full-text search via Search module gRPC
+builder.Services.AddSearchFtsClient(builder.Configuration);
 
 // Register all business-logic services
 builder.Services.AddNotesServices(builder.Configuration);

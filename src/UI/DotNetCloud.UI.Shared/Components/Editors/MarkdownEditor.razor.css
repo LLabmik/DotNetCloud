@@ -146,12 +146,118 @@
     display: none;
 }
 
+/* ── Compact mode ────────────────────────────────────────── */
+
+.markdown-editor.compact {
+    min-height: unset;
+    overflow: visible;
+}
+
+.markdown-editor.compact .markdown-editor-toolbar {
+    padding: 4px 8px;
+    gap: 1px;
+    position: relative;
+    border-radius: 8px 8px 0 0;
+}
+
+.markdown-editor.compact .toolbar-btn {
+    min-width: 28px;
+    height: 26px;
+    padding: 1px 6px;
+    font-size: 12px;
+}
+
+.markdown-editor.compact .toolbar-separator {
+    height: 16px;
+    margin: 0 4px;
+}
+
+.markdown-editor.compact .editor-pane {
+    min-height: unset;
+}
+
+.markdown-editor.compact .editor-textarea {
+    min-height: unset;
+    padding: 10px 12px;
+    font-size: 0.8125rem;
+}
+
+.markdown-editor.compact .preview-pane {
+    min-height: unset;
+}
+
+.markdown-editor.compact .preview-content {
+    padding: 10px 12px;
+    font-size: 0.8125rem;
+}
+
+/* ── Compact more menu (hamburger dropdown) ──────────────── */
+
+.compact-more-group {
+    position: relative;
+}
+
+.compact-more-btn {
+    font-size: 14px !important;
+    letter-spacing: 1px;
+}
+
+.compact-more-menu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    z-index: 50;
+    min-width: 180px;
+    margin-top: 4px;
+    padding: 4px 0;
+    background: var(--color-surface, #fff);
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+.compact-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 6px 12px;
+    border: none;
+    background: transparent;
+    color: var(--color-text, #1e293b);
+    font-size: 13px;
+    cursor: pointer;
+    text-align: left;
+    white-space: nowrap;
+    transition: background-color 0.12s;
+}
+
+.compact-menu-item:hover {
+    background: var(--color-bg, #f5f7fa);
+}
+
+.compact-menu-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-text-secondary, #64748b);
+}
+
+.compact-menu-divider {
+    height: 1px;
+    margin: 4px 8px;
+    background: var(--color-border, #e2e8f0);
+}
+
 /* ── Markdown body styles (rendered HTML) ────────────────── */
 
 .markdown-body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     font-size: 0.9375rem;
-    line-height: 1.7;
+    line-height: 1.0;
     color: var(--color-text, #1e293b);
     word-wrap: break-word;
 }

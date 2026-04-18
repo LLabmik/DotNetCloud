@@ -14,6 +14,7 @@ public interface ICalendarApiClient
     Task<IReadOnlyList<CalendarEventDto>> ListEventsAsync(Guid calendarId, DateTime? startUtc, DateTime? endUtc, CancellationToken cancellationToken = default);
     Task<CalendarEventDto?> CreateEventAsync(CreateCalendarEventDto dto, CancellationToken cancellationToken = default);
     Task<CalendarEventDto?> UpdateEventAsync(Guid eventId, UpdateCalendarEventDto dto, CancellationToken cancellationToken = default);
+    Task<CalendarEventDto?> GetEventAsync(Guid eventId, CancellationToken cancellationToken = default);
     Task DeleteEventAsync(Guid eventId, CancellationToken cancellationToken = default);
 
     // RSVP

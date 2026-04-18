@@ -1,0 +1,567 @@
+/* ============================================================
+   VideoCallDialog — Main video call window with grid layout,
+   participant overlays, and picture-in-picture local video.
+   ============================================================ */
+
+/* --- Full-screen overlay --- */
+
+.video-call-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: rgba(0, 0, 0, 0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 200ms ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* --- Dialog Container --- */
+
+.video-call-dialog {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    max-width: 1280px;
+    max-height: 780px;
+    background: #0f0f23;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+}
+
+/* --- Header --- */
+
+.video-call-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    background: rgba(255, 255, 255, 0.04);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    flex-shrink: 0;
+}
+
+.call-header-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.call-channel-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.call-state-badge {
+    font-size: 12px;
+    font-weight: 500;
+    padding: 3px 10px;
+    border-radius: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.state-ringing {
+    background: rgba(251, 191, 36, 0.15);
+    color: #fbbf24;
+}
+
+.state-connecting {
+    background: rgba(59, 130, 246, 0.15);
+    color: #60a5fa;
+}
+
+.state-active {
+    background: rgba(34, 197, 94, 0.15);
+    color: #4ade80;
+}
+
+.state-onhold {
+    background: rgba(251, 191, 36, 0.15);
+    color: #fbbf24;
+}
+
+.state-ended,
+.state-missed,
+.state-rejected,
+.state-failed {
+    background: rgba(239, 68, 68, 0.15);
+    color: #f87171;
+}
+
+.btn-minimize {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 16px;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 150ms ease;
+}
+
+.btn-minimize:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: rgba(255, 255, 255, 0.9);
+}
+
+/* --- Video Grid --- */
+
+.video-grid {
+    flex: 1;
+    display: grid;
+    gap: 4px;
+    padding: 4px;
+    position: relative;
+    min-height: 0;
+    background: #0a0a1a;
+    align-items: center;
+}
+
+.video-grid-1x1 {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr;
+}
+
+.video-grid-2x1 {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr;
+}
+
+.video-grid-2x1-pip {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr;
+}
+
+.video-grid-2x2 {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+}
+
+/* --- Video Tiles --- */
+
+.video-tile {
+    position: relative;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #16162a;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+}
+
+.video-element {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+    background: #000;
+}
+
+.video-local-main {
+    transform: scaleX(-1);
+}
+
+/* --- Tile Overlay (name + indicators) --- */
+
+.video-tile-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
+    pointer-events: none;
+}
+
+.participant-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: #ffffff;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+.participant-indicators {
+    display: flex;
+    gap: 6px;
+}
+
+.indicator-icon {
+    font-size: 14px;
+    opacity: 0.9;
+}
+
+/* --- Fullscreen Toggle Button --- */
+
+.btn-fullscreen {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 5;
+    width: 36px;
+    height: 36px;
+    border: none;
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.55);
+    color: #ffffff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.7;
+    transition: opacity 0.2s ease, background 0.15s ease;
+    pointer-events: auto;
+}
+
+.video-tile:hover .btn-fullscreen {
+    opacity: 1;
+}
+
+.btn-fullscreen:hover {
+    background: rgba(59, 130, 246, 0.8);
+}
+
+.fullscreen-icon {
+    font-size: 20px;
+    line-height: 1;
+}
+
+/* Fullscreen state: fill the screen, dark background */
+
+.video-tile:fullscreen {
+    background: #000;
+    border-radius: 0;
+}
+
+.video-tile:fullscreen .video-element {
+    object-fit: contain;
+}
+
+.video-tile:fullscreen .btn-fullscreen {
+    opacity: 1;
+    top: 16px;
+    right: 16px;
+    width: 44px;
+    height: 44px;
+}
+
+.video-tile:fullscreen .fullscreen-icon {
+    font-size: 24px;
+}
+
+/* --- Avatar Placeholder (camera off) --- */
+
+.video-placeholder {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    background: #16162a;
+    z-index: 1;
+}
+
+.placeholder-avatar {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: 1px;
+}
+
+.placeholder-avatar-sm {
+    width: 40px;
+    height: 40px;
+    font-size: 14px;
+}
+
+.placeholder-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.placeholder-status {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+/* --- Picture-in-Picture (local video inset) --- */
+
+.video-pip {
+    position: absolute;
+    bottom: 16px;
+    right: 16px;
+    width: 192px;
+    height: 108px;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    background: #16162a;
+    cursor: pointer;
+    z-index: 10;
+    transition: transform 150ms ease, box-shadow 150ms ease;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.video-pip:hover {
+    transform: scale(1.04);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.video-pip-element {
+    transform: scaleX(-1);
+}
+
+.pip-placeholder {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #16162a;
+    z-index: 1;
+}
+
+.pip-label {
+    position: absolute;
+    bottom: 4px;
+    left: 8px;
+    font-size: 11px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.7);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+    pointer-events: none;
+}
+
+/* --- Participant Panel --- */
+
+.call-participant-panel {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 240px;
+    max-height: 48%;
+    overflow-y: auto;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 10px;
+    background: rgba(8, 8, 22, 0.86);
+    backdrop-filter: blur(4px);
+    z-index: 11;
+}
+
+.call-participant-panel-header {
+    padding: 10px 12px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+    color: rgba(255, 255, 255, 0.9);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.call-participant-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 9px 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.call-participant-row:last-child {
+    border-bottom: 0;
+}
+
+.call-participant-row.host {
+    background: rgba(245, 158, 11, 0.12);
+}
+
+.call-participant-name {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.92);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.host-badge {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: #fbbf24;
+    border: 1px solid rgba(251, 191, 36, 0.35);
+    border-radius: 999px;
+    padding: 2px 8px;
+}
+
+.btn-transfer-host {
+    border: 1px solid rgba(96, 165, 250, 0.45);
+    background: rgba(59, 130, 246, 0.14);
+    color: #93c5fd;
+    border-radius: 6px;
+    padding: 3px 8px;
+    font-size: 11px;
+    cursor: pointer;
+}
+
+.btn-transfer-host:hover {
+    background: rgba(59, 130, 246, 0.24);
+}
+
+/* --- Add People Picker --- */
+
+.call-add-people-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 1050;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.call-add-people-dialog {
+    width: min(460px, calc(100vw - 24px));
+    max-height: min(70vh, 560px);
+    overflow: hidden;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: #13132a;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+}
+
+.call-add-people-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.call-add-people-header h3 {
+    margin: 0;
+    color: rgba(255, 255, 255, 0.94);
+    font-size: 16px;
+}
+
+.call-add-people-input {
+    width: 100%;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.95);
+    padding: 9px 11px;
+    font-size: 13px;
+    outline: none;
+}
+
+.call-add-people-input:focus {
+    border-color: rgba(96, 165, 250, 0.9);
+}
+
+.call-add-people-results {
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.call-add-people-result {
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 9px 10px;
+    color: rgba(255, 255, 255, 0.95);
+    text-align: left;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.call-add-people-result:hover {
+    border-color: rgba(96, 165, 250, 0.62);
+    background: rgba(59, 130, 246, 0.12);
+}
+
+.call-add-people-name {
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.call-add-people-email {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.66);
+}
+
+.call-add-people-empty {
+    padding: 10px 2px;
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+/* --- Responsive --- */
+
+@media (max-width: 768px) {
+    .video-call-dialog {
+        border-radius: 0;
+        max-width: 100%;
+        max-height: 100%;
+    }
+
+    .video-grid-2x1,
+    .video-grid-2x1-pip {
+        grid-template-columns: 1fr;
+        grid-template-rows: 1fr 1fr;
+    }
+
+    .video-pip {
+        width: 144px;
+        height: 81px;
+        bottom: 8px;
+        right: 8px;
+    }
+
+    .placeholder-avatar {
+        width: 60px;
+        height: 60px;
+        font-size: 22px;
+    }
+}
+
+@media (max-width: 480px) {
+    .video-grid-2x2 {
+        grid-template-columns: 1fr;
+        grid-template-rows: repeat(4, 1fr);
+    }
+
+    .video-pip {
+        width: 112px;
+        height: 63px;
+    }
+}

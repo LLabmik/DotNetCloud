@@ -130,6 +130,33 @@ public class BoardsControllerTests
         Assert.IsInstanceOfType<CreatedResult>(result);
     }
 
+    // ─── Board Mode (Phase A) ────────────────────────────────────────
+
+    [TestMethod]
+    public async Task CreateBoard_TeamMode_ReturnsCreated()
+    {
+        var dto = new CreateBoardDto { Title = "Team Board", Mode = BoardMode.Team };
+        var result = await _controller.CreateBoardAsync(dto);
+        Assert.IsInstanceOfType<CreatedResult>(result);
+    }
+
+    [TestMethod]
+    public async Task ListBoards_WithModeFilter_ReturnsFilteredResults()
+    {
+        var caller = TestHelpers.CreateCaller(_userId);
+        await _boardService.CreateBoardAsync(new CreateBoardDto { Title = "Personal" }, caller);
+        await _boardService.CreateBoardAsync(new CreateBoardDto { Title = "Team", Mode = BoardMode.Team }, caller);
+
+        // ListBoardsAsync doesn't take mode filter through the controller in existing code,
+        // but we can test the service directly since the controller delegates
+        var allBoards = await _boardService.ListBoardsAsync(caller);
+        Assert.AreEqual(2, allBoards.Count);
+
+        var teamOnly = await _boardService.ListBoardsAsync(caller, modeFilter: BoardMode.Team);
+        Assert.AreEqual(1, teamOnly.Count);
+        Assert.AreEqual("Team", teamOnly[0].Title);
+    }
+
     internal static void SetupControllerContext(ControllerBase controller, Guid userId)
     {
         var claims = new[]

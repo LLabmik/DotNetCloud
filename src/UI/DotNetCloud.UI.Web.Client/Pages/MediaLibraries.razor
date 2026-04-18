@@ -1,0 +1,223 @@
+@page "/settings/media-libraries"
+@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveAutoRenderMode(prerender: false))
+@attribute [Authorize]
+
+<PageTitle>Media Libraries - DotNetCloud</PageTitle>
+
+@if (_loading)
+{
+    <LoadingIndicator Message="Loading media library settings..." />
+}
+else
+{
+    <div class="page-header">
+        <h1>Media Libraries</h1>
+    </div>
+
+    <p class="text-muted">
+        Configure local directory paths for your media libraries. DotNetCloud will scan these
+        directories and import photos, music, and videos into your account.
+    </p>
+
+    <div class="profile-layout">
+        @* ── Photos Library ── *@
+        <section class="profile-card">
+            <h2>📷 Photos Library</h2>
+            <div class="form-group">
+                <label>Directory Path</label>
+                <input type="text" class="input" @bind="_photosPath"
+                       placeholder="/home/user/Pictures" />
+                <span class="hint">
+                    Absolute path to a directory containing photos. Supports JPEG, PNG, GIF, WebP,
+                    HEIC, TIFF, RAW, and more. Subdirectories are included.
+                </span>
+            </div>
+            <div class="media-scan-actions">
+                <button class="btn btn-sm btn-outline" @onclick='() => ScanAsync("Photos")'
+                        disabled="@(_scanning || string.IsNullOrWhiteSpace(_photosPath))">
+                    @(_scanningType == "Photos" ? "Scanning..." : "Scan Now")
+                </button>
+                @if (_lastPhotoResult is not null)
+                {
+                    <span class="scan-result">@FormatResult(_lastPhotoResult)</span>
+                }
+            </div>
+        </section>
+
+        @* ── Music Library ── *@
+        <section class="profile-card">
+            <h2>🎵 Music Library</h2>
+            <div class="form-group">
+                <label>Directory Path</label>
+                <input type="text" class="input" @bind="_musicPath"
+                       placeholder="/home/user/Music" />
+                <span class="hint">
+                    Absolute path to a directory containing music. Supports MP3, FLAC, OGG, Opus,
+                    AAC, M4A, WAV, AIFF, WavPack, and more. Subdirectories are included.
+                </span>
+            </div>
+            <div class="media-scan-actions">
+                <button class="btn btn-sm btn-outline" @onclick='() => ScanAsync("Music")'
+                        disabled="@(_scanning || string.IsNullOrWhiteSpace(_musicPath))">
+                    @(_scanningType == "Music" ? "Scanning..." : "Scan Now")
+                </button>
+                @if (_lastMusicResult is not null)
+                {
+                    <span class="scan-result">@FormatResult(_lastMusicResult)</span>
+                }
+            </div>
+        </section>
+
+        @* ── Video Library ── *@
+        <section class="profile-card">
+            <h2>🎬 Video Library</h2>
+            <div class="form-group">
+                <label>Directory Path</label>
+                <input type="text" class="input" @bind="_videoPath"
+                       placeholder="/home/user/Videos" />
+                <span class="hint">
+                    Absolute path to a directory containing videos. Supports MP4, MKV, AVI, MOV,
+                    WebM, WMV, MPEG, and more. Subdirectories are included.
+                </span>
+            </div>
+            <div class="media-scan-actions">
+                <button class="btn btn-sm btn-outline" @onclick='() => ScanAsync("Video")'
+                        disabled="@(_scanning || string.IsNullOrWhiteSpace(_videoPath))">
+                    @(_scanningType == "Video" ? "Scanning..." : "Scan Now")
+                </button>
+                @if (_lastVideoResult is not null)
+                {
+                    <span class="scan-result">@FormatResult(_lastVideoResult)</span>
+                }
+            </div>
+        </section>
+
+        @* ── Save ── *@
+        <div class="form-actions">
+            <button class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">
+                @(_saving ? "Saving..." : "Save Paths")
+            </button>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="alert alert-danger" style="margin-top: 16px;">@_error</div>
+    }
+}
+
+@code {
+    [Inject] private DotNetCloudApiClient Api { get; set; } = default!;
+    [Inject] private ToastService Toast { get; set; } = default!;
+
+    private bool _loading = true;
+    private bool _saving;
+    private bool _scanning;
+    private string? _scanningType;
+    private string? _error;
+
+    private string _photosPath = string.Empty;
+    private string _musicPath = string.Empty;
+    private string _videoPath = string.Empty;
+
+    private MediaScanResultResponse? _lastPhotoResult;
+    private MediaScanResultResponse? _lastMusicResult;
+    private MediaScanResultResponse? _lastVideoResult;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var paths = await Api.GetMediaLibraryPathsAsync();
+            if (paths is not null)
+            {
+                _photosPath = paths.PhotosPath;
+                _musicPath = paths.MusicPath;
+                _videoPath = paths.VideoPath;
+            }
+        }
+        catch
+        {
+            Toast.ShowError("Failed to load media library settings.");
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        _error = null;
+        try
+        {
+            var success = await Api.UpdateMediaLibraryPathsAsync(new MediaLibraryPathsResponse
+            {
+                PhotosPath = _photosPath.Trim(),
+                MusicPath = _musicPath.Trim(),
+                VideoPath = _videoPath.Trim(),
+            });
+
+            if (success)
+                Toast.ShowSuccess("Media library paths saved.");
+            else
+                Toast.ShowError("Failed to save — check that paths exist on the server.");
+        }
+        catch (Exception ex)
+        {
+            _error = $"Save failed: {ex.Message}";
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task ScanAsync(string mediaType)
+    {
+        // Save paths first so the scan endpoint reads the latest values
+        await SaveAsync();
+        if (_error is not null) return;
+
+        _scanning = true;
+        _scanningType = mediaType;
+        _error = null;
+        StateHasChanged();
+
+        try
+        {
+            var result = await Api.ScanMediaLibraryAsync(mediaType);
+
+            switch (mediaType)
+            {
+                case "Photos": _lastPhotoResult = result; break;
+                case "Music": _lastMusicResult = result; break;
+                case "Video": _lastVideoResult = result; break;
+            }
+
+            if (result is not null && result.Failed > 0)
+            {
+                Toast.ShowWarning($"Scan complete with {result.Failed} errors. {result.Imported} files imported.");
+            }
+            else if (result is not null)
+            {
+                Toast.ShowSuccess($"Scan complete: {result.Imported} imported, {result.Skipped} already up to date.");
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = $"Scan failed: {ex.Message}";
+            Toast.ShowError("Media library scan failed.");
+        }
+        finally
+        {
+            _scanning = false;
+            _scanningType = null;
+        }
+    }
+
+    private static string FormatResult(MediaScanResultResponse r) =>
+        $"Found {r.TotalFound} · Imported {r.Imported} · Skipped {r.Skipped}" +
+        (r.Failed > 0 ? $" · Failed {r.Failed}" : string.Empty);
+}

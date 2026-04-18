@@ -1,0 +1,178 @@
+@namespace DotNetCloud.Modules.AI.UI
+
+@*
+    AI module admin settings page.
+    Covers LLM provider selection, API endpoint, authentication,
+    default model, and request limits.
+    Code-behind: AiAdminSettings.razor.cs
+*@
+
+<div class="admin-settings-page">
+    <div class="page-header">
+        <h1>AI Assistant — Admin Settings</h1>
+    </div>
+
+    @if (IsSaved)
+    {
+        <div class="alert alert-success" role="alert">
+            Settings saved successfully.
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(ErrorMessage))
+    {
+        <div class="alert alert-danger" role="alert">
+            @ErrorMessage
+        </div>
+    }
+
+    <form @onsubmit="SaveSettings" @onsubmit:preventDefault>
+
+        @* ── Provider Selection ────────────────────────────────────────── *@
+        <section class="settings-section">
+            <h2 class="settings-section-title">LLM Provider</h2>
+
+            <div class="form-group">
+                <label for="aiProvider" class="form-label">Provider</label>
+                <p class="form-hint">
+                    Choose the LLM backend. Local Ollama requires no API key.
+                    Cloud providers (OpenAI, Anthropic) require a valid API key.
+                </p>
+                <select id="aiProvider" class="form-control" @bind="Settings.Provider">
+                    <option value="ollama">Ollama (local)</option>
+                    <option value="openai">OpenAI</option>
+                    <option value="anthropic">Anthropic</option>
+                </select>
+            </div>
+        </section>
+
+        @* ── API Endpoint ─────────────────────────────────────────────── *@
+        <section class="settings-section">
+            <h2 class="settings-section-title">API Endpoint</h2>
+
+            <div class="form-group">
+                <label for="apiBaseUrl" class="form-label">API base URL</label>
+                <p class="form-hint">
+                    @if (Settings.Provider == "ollama")
+                    {
+                        <span>The URL of your Ollama instance (e.g. <code>http://localhost:11434/</code>).</span>
+                    }
+                    else if (Settings.Provider == "openai")
+                    {
+                        <span>OpenAI API endpoint (default: <code>https://api.openai.com/</code>). Change for OpenAI-compatible proxies.</span>
+                    }
+                    else
+                    {
+                        <span>Anthropic API endpoint (default: <code>https://api.anthropic.com/</code>).</span>
+                    }
+                </p>
+                <input id="apiBaseUrl" type="url" class="form-control"
+                       placeholder="@GetUrlPlaceholder()"
+                       @bind="Settings.ApiBaseUrl" />
+            </div>
+        </section>
+
+        @* ── Authentication ───────────────────────────────────────────── *@
+        @if (Settings.Provider is "openai" or "anthropic")
+        {
+            <section class="settings-section">
+                <h2 class="settings-section-title">Authentication</h2>
+
+                <div class="form-group">
+                    <label for="apiKey" class="form-label">API key</label>
+                    <p class="form-hint">
+                        @if (Settings.Provider == "openai")
+                        {
+                            <span>Your OpenAI API key (starts with <code>sk-</code>).</span>
+                        }
+                        else
+                        {
+                            <span>Your Anthropic API key.</span>
+                        }
+                        This value is stored encrypted.
+                    </p>
+                    <input id="apiKey" type="password" class="form-control"
+                           placeholder="Enter API key"
+                           @bind="Settings.ApiKey" />
+                </div>
+
+                @if (Settings.Provider == "openai")
+                {
+                    <div class="form-group">
+                        <label for="orgId" class="form-label">Organization ID (optional)</label>
+                        <p class="form-hint">
+                            If your OpenAI account belongs to multiple organizations,
+                            specify the organization ID to use for billing.
+                        </p>
+                        <input id="orgId" type="text" class="form-control"
+                               placeholder="org-..."
+                               @bind="Settings.OrganizationId" />
+                    </div>
+                }
+            </section>
+        }
+
+        @* ── Model Configuration ──────────────────────────────────────── *@
+        <section class="settings-section">
+            <h2 class="settings-section-title">Model Configuration</h2>
+
+            <div class="form-group">
+                <label for="defaultModel" class="form-label">Default model</label>
+                <p class="form-hint">
+                    The model used for new conversations when the user does not specify one.
+                    @if (Settings.Provider == "ollama")
+                    {
+                        <span>Must match a model name available on your Ollama instance (e.g. <code>gpt-oss:20b</code>, <code>llama3:8b</code>).</span>
+                    }
+                    else if (Settings.Provider == "openai")
+                    {
+                        <span>e.g. <code>gpt-4o</code>, <code>gpt-4o-mini</code>, <code>o3-mini</code>.</span>
+                    }
+                    else
+                    {
+                        <span>e.g. <code>claude-sonnet-4-20250514</code>, <code>claude-3-5-haiku-20241022</code>.</span>
+                    }
+                </p>
+                <input id="defaultModel" type="text" class="form-control"
+                       placeholder="@GetModelPlaceholder()"
+                       @bind="Settings.DefaultModel" />
+            </div>
+
+            <div class="form-group">
+                <label for="maxTokens" class="form-label">Max tokens per response</label>
+                <p class="form-hint">
+                    Maximum number of tokens the model may generate per response.
+                    Set to 0 to use the provider's default limit.
+                </p>
+                <input id="maxTokens" type="number" class="form-control"
+                       min="0" max="1000000" step="256"
+                       @bind="Settings.MaxTokens" />
+            </div>
+        </section>
+
+        @* ── Request Limits ───────────────────────────────────────────── *@
+        <section class="settings-section">
+            <h2 class="settings-section-title">Request Limits</h2>
+
+            <div class="form-group">
+                <label for="requestTimeout" class="form-label">Request timeout (seconds)</label>
+                <p class="form-hint">
+                    How long to wait for a response from the LLM provider before timing out.
+                    Larger models or longer prompts may need higher values.
+                </p>
+                <input id="requestTimeout" type="number" class="form-control"
+                       min="10" max="3600" step="10"
+                       @bind="Settings.RequestTimeoutSeconds" />
+            </div>
+        </section>
+
+        <div class="settings-footer">
+            <button type="submit" class="btn btn-primary" disabled="@IsSaving">
+                @(IsSaving ? "Saving…" : "Save Settings")
+            </button>
+            <button type="button" class="btn" @onclick="ResetToDefaults">
+                Reset to Defaults
+            </button>
+        </div>
+    </form>
+</div>

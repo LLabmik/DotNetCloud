@@ -8,7 +8,7 @@
     and a split-pane view with live-rendered preview.
 *@
 
-<div class="markdown-editor @(PreviewOnly ? "preview-only" : "")">
+<div class="markdown-editor @(PreviewOnly ? "preview-only" : "") @(Compact ? "compact" : "")">
     <div class="markdown-editor-toolbar">
         <div class="toolbar-group">
             <button type="button" class="toolbar-btn" title="Bold (Ctrl+B)" @onclick="InsertBold">
@@ -22,6 +22,8 @@
             </button>
         </div>
         <div class="toolbar-separator"></div>
+        @if (!Compact)
+        {
         <div class="toolbar-group">
             <button type="button" class="toolbar-btn" title="Heading 1" @onclick="() => InsertHeading(1)">
                 H1
@@ -34,28 +36,37 @@
             </button>
         </div>
         <div class="toolbar-separator"></div>
+        }
         <div class="toolbar-group">
             <button type="button" class="toolbar-btn" title="Unordered list" @onclick="InsertUnorderedList">
                 &bull; List
             </button>
+            @if (!Compact)
+            {
             <button type="button" class="toolbar-btn" title="Ordered list" @onclick="InsertOrderedList">
                 1. List
             </button>
             <button type="button" class="toolbar-btn" title="Task list" @onclick="InsertTaskList">
                 ☑ Task
             </button>
+            }
         </div>
         <div class="toolbar-separator"></div>
         <div class="toolbar-group">
             <button type="button" class="toolbar-btn" title="Link" @onclick="InsertLink">
                 🔗
             </button>
+            @if (!Compact)
+            {
             <button type="button" class="toolbar-btn" title="Image" @onclick="InsertImage">
                 🖼
             </button>
+            }
             <button type="button" class="toolbar-btn" title="Code block" @onclick="InsertCodeBlock">
                 &lt;/&gt;
             </button>
+            @if (!Compact)
+            {
             <button type="button" class="toolbar-btn" title="Blockquote" @onclick="InsertBlockquote">
                 ❝
             </button>
@@ -65,7 +76,50 @@
             <button type="button" class="toolbar-btn" title="Table" @onclick="InsertTable">
                 ⊞
             </button>
+            }
         </div>
+        @if (Compact)
+        {
+        <div class="toolbar-group compact-more-group">
+            <button type="button" class="toolbar-btn compact-more-btn" title="More formatting" @onclick="ToggleCompactMenu">
+                ☰
+            </button>
+            @if (_showCompactMenu)
+            {
+            <div class="compact-more-menu">
+                <button type="button" class="compact-menu-item" @onclick="() => { InsertHeading(1); _showCompactMenu = false; }">
+                    <span class="compact-menu-icon">H1</span> Heading 1
+                </button>
+                <button type="button" class="compact-menu-item" @onclick="() => { InsertHeading(2); _showCompactMenu = false; }">
+                    <span class="compact-menu-icon">H2</span> Heading 2
+                </button>
+                <button type="button" class="compact-menu-item" @onclick="() => { InsertHeading(3); _showCompactMenu = false; }">
+                    <span class="compact-menu-icon">H3</span> Heading 3
+                </button>
+                <div class="compact-menu-divider"></div>
+                <button type="button" class="compact-menu-item" @onclick="() => { InsertOrderedList(); _showCompactMenu = false; }">
+                    <span class="compact-menu-icon">1.</span> Ordered List
+                </button>
+                <button type="button" class="compact-menu-item" @onclick="() => { InsertTaskList(); _showCompactMenu = false; }">
+                    <span class="compact-menu-icon">☑</span> Task List
+                </button>
+                <div class="compact-menu-divider"></div>
+                <button type="button" class="compact-menu-item" @onclick="() => { InsertImage(); _showCompactMenu = false; }">
+                    <span class="compact-menu-icon">🖼</span> Image
+                </button>
+                <button type="button" class="compact-menu-item" @onclick="() => { InsertBlockquote(); _showCompactMenu = false; }">
+                    <span class="compact-menu-icon">❝</span> Blockquote
+                </button>
+                <button type="button" class="compact-menu-item" @onclick="() => { InsertHorizontalRule(); _showCompactMenu = false; }">
+                    <span class="compact-menu-icon">―</span> Horizontal Rule
+                </button>
+                <button type="button" class="compact-menu-item" @onclick="() => { InsertTable(); _showCompactMenu = false; }">
+                    <span class="compact-menu-icon">⊞</span> Table
+                </button>
+            </div>
+            }
+        </div>
+        }
         <div class="toolbar-separator"></div>
         <div class="toolbar-group toolbar-group-right">
             <button type="button"
@@ -74,12 +128,15 @@
                     @onclick="() => SetView(EditorView.Edit)">
                 ✏ Edit
             </button>
+            @if (!Compact)
+            {
             <button type="button"
                     class="toolbar-btn @(_activeView == EditorView.Split ? "active" : "")"
                     title="Split view"
                     @onclick="() => SetView(EditorView.Split)">
                 ⬓ Split
             </button>
+            }
             <button type="button"
                     class="toolbar-btn @(_activeView == EditorView.Preview ? "active" : "")"
                     title="Preview"
@@ -95,7 +152,8 @@
             <div class="editor-pane">
                 <textarea @ref="_textareaRef"
                           class="editor-textarea"
-                          placeholder="Write your note in Markdown…"
+                          placeholder="@(Placeholder ?? "Write your note in Markdown…")"
+                          rows="@Rows"
                           @bind="Content"
                           @bind:event="oninput"
                           @bind:after="OnContentChanged"
@@ -117,6 +175,7 @@
     private string _renderedHtml = string.Empty;
     private EditorView _activeView = EditorView.Split;
     private ElementReference _textareaRef;
+    private bool _showCompactMenu;
 
     /// <summary>
     /// The raw Markdown content being edited.
@@ -149,6 +208,25 @@
     [Parameter]
     public bool StartInPreview { get; set; }
 
+    /// <summary>
+    /// When true, renders a compact toolbar with essential formatting buttons only.
+    /// Hides headings, tables, images, blockquotes, horizontal rules, and split view.
+    /// </summary>
+    [Parameter]
+    public bool Compact { get; set; }
+
+    /// <summary>
+    /// Custom placeholder text for the editor textarea.
+    /// </summary>
+    [Parameter]
+    public string? Placeholder { get; set; }
+
+    /// <summary>
+    /// Number of visible rows in the editor textarea. Defaults to 0 (auto/flex).
+    /// </summary>
+    [Parameter]
+    public int Rows { get; set; }
+
     private bool _viewInitialized;
 
     /// <inheritdoc />
@@ -158,7 +236,7 @@
         {
             _activeView = PreviewOnly || StartInPreview
                 ? EditorView.Preview
-                : EditorView.Split;
+                : Compact ? EditorView.Edit : EditorView.Split;
             _viewInitialized = true;
         }
         else if (PreviewOnly)
@@ -173,10 +251,16 @@
     {
         if (PreviewOnly) return;
         _activeView = view;
+        _showCompactMenu = false;
         if (view != EditorView.Edit)
         {
             RenderPreview();
         }
+    }
+
+    private void ToggleCompactMenu()
+    {
+        _showCompactMenu = !_showCompactMenu;
     }
 
     private async Task OnContentChanged()

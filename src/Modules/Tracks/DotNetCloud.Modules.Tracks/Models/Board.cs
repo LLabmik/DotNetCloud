@@ -1,5 +1,7 @@
 namespace DotNetCloud.Modules.Tracks.Models;
 
+using DotNetCloud.Core.DTOs;
+
 /// <summary>
 /// Represents a project board — the top-level container for lists, cards, and team collaboration.
 /// </summary>
@@ -20,8 +22,14 @@ public sealed class Board
     /// <summary>Optional Core team ID that owns this board. Null for personal boards.</summary>
     public Guid? TeamId { get; set; }
 
+    /// <summary>Board operating mode — Personal (simple kanban) or Team (full project management).</summary>
+    public BoardMode Mode { get; set; } = BoardMode.Personal;
+
     /// <summary>Hex color code for UI display (e.g., "#3B82F6").</summary>
     public string? Color { get; set; }
+
+    /// <summary>Whether adding new swimlanes is locked.</summary>
+    public bool LockSwimlanes { get; set; }
 
     /// <summary>Whether the board has been archived.</summary>
     public bool IsArchived { get; set; }
@@ -42,7 +50,7 @@ public sealed class Board
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
     /// <summary>Lists (columns) belonging to this board.</summary>
-    public ICollection<BoardList> Lists { get; set; } = new List<BoardList>();
+    public ICollection<BoardSwimlane> Swimlanes { get; set; } = new List<BoardSwimlane>();
 
     /// <summary>Members who have access to this board.</summary>
     public ICollection<BoardMember> Members { get; set; } = new List<BoardMember>();
@@ -58,4 +66,7 @@ public sealed class Board
 
     /// <summary>Planning poker sessions on this board's cards.</summary>
     public ICollection<PokerSession> PokerSessions { get; set; } = new List<PokerSession>();
+
+    /// <summary>Live review sessions on this board.</summary>
+    public ICollection<ReviewSession> ReviewSessions { get; set; } = new List<ReviewSession>();
 }

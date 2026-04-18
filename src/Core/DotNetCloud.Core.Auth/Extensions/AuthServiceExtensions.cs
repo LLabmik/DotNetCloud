@@ -197,6 +197,7 @@ public static class AuthServiceExtensions
         services.AddScoped<IDeviceService, DeviceService>();
         services.AddScoped<IUserManagementService, UserManagementService>();
         services.AddScoped<IAdminSettingsService, AdminSettingsService>();
+        services.AddScoped<IUserSettingsService, UserSettingsService>();
 
         // -----------------------------------------------------------------
         // Capability implementations

@@ -38,11 +38,11 @@ public sealed class ChecklistService
         ArgumentException.ThrowIfNullOrWhiteSpace(title);
 
         var card = await _db.Cards
-            .Include(c => c.List)
+            .Include(c => c.Swimlane)
             .FirstOrDefaultAsync(c => c.Id == cardId && !c.IsDeleted, cancellationToken)
             ?? throw new ValidationException(ErrorCodes.CardNotFound, "Card not found.");
 
-        await _boardService.EnsureBoardRoleAsync(card.List!.BoardId, caller.UserId, BoardMemberRole.Member, cancellationToken);
+        await _boardService.EnsureBoardRoleAsync(card.Swimlane!.BoardId, caller.UserId, BoardMemberRole.Member, cancellationToken);
 
         var maxPos = await _db.CardChecklists
             .Where(ch => ch.CardId == cardId)
@@ -62,7 +62,7 @@ public sealed class ChecklistService
         _logger.LogInformation("Checklist {ChecklistId} '{Title}' created on card {CardId} by user {UserId}",
             checklist.Id, title, cardId, caller.UserId);
 
-        await _activityService.LogAsync(card.List.BoardId, caller.UserId, "checklist.created", "CardChecklist", checklist.Id,
+        await _activityService.LogAsync(card.Swimlane.BoardId, caller.UserId, "checklist.created", "CardChecklist", checklist.Id,
             $"{{\"title\":\"{title}\",\"cardId\":\"{cardId}\"}}", cancellationToken);
 
         return MapToDto(checklist);
@@ -75,11 +75,11 @@ public sealed class ChecklistService
     {
         var card = await _db.Cards
             .AsNoTracking()
-            .Include(c => c.List)
+            .Include(c => c.Swimlane)
             .FirstOrDefaultAsync(c => c.Id == cardId && !c.IsDeleted, cancellationToken)
             ?? throw new ValidationException(ErrorCodes.CardNotFound, "Card not found.");
 
-        await _boardService.EnsureBoardMemberAsync(card.List!.BoardId, caller.UserId, cancellationToken);
+        await _boardService.EnsureBoardMemberAsync(card.Swimlane!.BoardId, caller.UserId, cancellationToken);
 
         var checklists = await _db.CardChecklists
             .AsNoTracking()
@@ -98,11 +98,11 @@ public sealed class ChecklistService
     {
         var checklist = await _db.CardChecklists
             .Include(ch => ch.Items)
-            .Include(ch => ch.Card).ThenInclude(c => c!.List)
+            .Include(ch => ch.Card).ThenInclude(c => c!.Swimlane)
             .FirstOrDefaultAsync(ch => ch.Id == checklistId, cancellationToken)
             ?? throw new ValidationException(ErrorCodes.ChecklistNotFound, "Checklist not found.");
 
-        await _boardService.EnsureBoardRoleAsync(checklist.Card!.List!.BoardId, caller.UserId, BoardMemberRole.Member, cancellationToken);
+        await _boardService.EnsureBoardRoleAsync(checklist.Card!.Swimlane!.BoardId, caller.UserId, BoardMemberRole.Member, cancellationToken);
 
         _db.ChecklistItems.RemoveRange(checklist.Items);
         _db.CardChecklists.Remove(checklist);
@@ -120,11 +120,11 @@ public sealed class ChecklistService
         ArgumentException.ThrowIfNullOrWhiteSpace(title);
 
         var checklist = await _db.CardChecklists
-            .Include(ch => ch.Card).ThenInclude(c => c!.List)
+            .Include(ch => ch.Card).ThenInclude(c => c!.Swimlane)
             .FirstOrDefaultAsync(ch => ch.Id == checklistId, cancellationToken)
             ?? throw new ValidationException(ErrorCodes.ChecklistNotFound, "Checklist not found.");
 
-        await _boardService.EnsureBoardRoleAsync(checklist.Card!.List!.BoardId, caller.UserId, BoardMemberRole.Member, cancellationToken);
+        await _boardService.EnsureBoardRoleAsync(checklist.Card!.Swimlane!.BoardId, caller.UserId, BoardMemberRole.Member, cancellationToken);
 
         var maxPos = await _db.ChecklistItems
             .Where(i => i.ChecklistId == checklistId)
@@ -149,11 +149,11 @@ public sealed class ChecklistService
     public async Task<ChecklistItemDto> ToggleItemAsync(Guid itemId, CallerContext caller, CancellationToken cancellationToken = default)
     {
         var item = await _db.ChecklistItems
-            .Include(i => i.Checklist).ThenInclude(ch => ch!.Card).ThenInclude(c => c!.List)
+            .Include(i => i.Checklist).ThenInclude(ch => ch!.Card).ThenInclude(c => c!.Swimlane)
             .FirstOrDefaultAsync(i => i.Id == itemId, cancellationToken)
             ?? throw new ValidationException(ErrorCodes.ChecklistNotFound, "Checklist item not found.");
 
-        await _boardService.EnsureBoardRoleAsync(item.Checklist!.Card!.List!.BoardId, caller.UserId, BoardMemberRole.Member, cancellationToken);
+        await _boardService.EnsureBoardRoleAsync(item.Checklist!.Card!.Swimlane!.BoardId, caller.UserId, BoardMemberRole.Member, cancellationToken);
 
         item.IsCompleted = !item.IsCompleted;
         item.UpdatedAt = DateTime.UtcNow;
@@ -169,11 +169,11 @@ public sealed class ChecklistService
     public async Task DeleteItemAsync(Guid itemId, CallerContext caller, CancellationToken cancellationToken = default)
     {
         var item = await _db.ChecklistItems
-            .Include(i => i.Checklist).ThenInclude(ch => ch!.Card).ThenInclude(c => c!.List)
+            .Include(i => i.Checklist).ThenInclude(ch => ch!.Card).ThenInclude(c => c!.Swimlane)
             .FirstOrDefaultAsync(i => i.Id == itemId, cancellationToken)
             ?? throw new ValidationException(ErrorCodes.ChecklistNotFound, "Checklist item not found.");
 
-        await _boardService.EnsureBoardRoleAsync(item.Checklist!.Card!.List!.BoardId, caller.UserId, BoardMemberRole.Member, cancellationToken);
+        await _boardService.EnsureBoardRoleAsync(item.Checklist!.Card!.Swimlane!.BoardId, caller.UserId, BoardMemberRole.Member, cancellationToken);
 
         _db.ChecklistItems.Remove(item);
         await _db.SaveChangesAsync(cancellationToken);

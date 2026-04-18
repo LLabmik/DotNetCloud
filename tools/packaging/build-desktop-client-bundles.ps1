@@ -15,7 +15,7 @@
 # =============================================================================
 
 param(
-    [string]$Version = "0.1.0-alpha",
+    [string]$Version = "0.1.7-alpha",
     [string]$Configuration = "Release",
     [string]$OutputDir = "./artifacts/installers",
     [switch]$BuildMsix
@@ -32,17 +32,14 @@ $SolutionRoot = (Resolve-Path "$PSScriptRoot/../..").Path
 $OutputRoot = (Resolve-Path (New-Item -ItemType Directory -Force -Path $OutputDir)).Path
 $StagingRoot = Join-Path (Join-Path $SolutionRoot "artifacts/desktop-client-staging") $Version
 
-$SyncServiceProject = Join-Path $SolutionRoot "src/Clients/DotNetCloud.Client.SyncService/DotNetCloud.Client.SyncService.csproj"
 $SyncTrayProject = Join-Path $SolutionRoot "src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj"
 
 $LinuxRoot = Join-Path $StagingRoot "linux-x64"
 $LinuxPayload = Join-Path $LinuxRoot "payload"
-$LinuxServicePublish = Join-Path $LinuxPayload "SyncService"
 $LinuxTrayPublish = Join-Path $LinuxPayload "SyncTray"
 
 $WindowsRoot = Join-Path $StagingRoot "win-x64"
 $WindowsPayload = Join-Path $WindowsRoot "payload"
-$WindowsServicePublish = Join-Path $WindowsPayload "SyncService"
 $WindowsTrayPublish = Join-Path $WindowsPayload "SyncTray"
 
 $LinuxArchive = Join-Path $OutputRoot "dotnetcloud-desktop-client-linux-x64-$Version.tar.gz"
@@ -53,18 +50,10 @@ if (Test-Path $StagingRoot)
     Remove-Item -Path $StagingRoot -Recurse -Force
 }
 
-New-Item -ItemType Directory -Force -Path $LinuxServicePublish | Out-Null
 New-Item -ItemType Directory -Force -Path $LinuxTrayPublish | Out-Null
-New-Item -ItemType Directory -Force -Path $WindowsServicePublish | Out-Null
 New-Item -ItemType Directory -Force -Path $WindowsTrayPublish | Out-Null
 
-Write-Host "`n[1/6] Publishing Linux self-contained binaries..." -ForegroundColor Yellow
-
-dotnet publish $SyncServiceProject `
-    --configuration $Configuration `
-    --runtime linux-x64 `
-    --self-contained true `
-    --output $LinuxServicePublish
+Write-Host "`n[1/6] Publishing Linux SyncTray self-contained binaries..." -ForegroundColor Yellow
 
 dotnet publish $SyncTrayProject `
     --configuration $Configuration `
@@ -72,13 +61,7 @@ dotnet publish $SyncTrayProject `
     --self-contained true `
     --output $LinuxTrayPublish
 
-Write-Host "[2/6] Publishing Windows self-contained binaries..." -ForegroundColor Yellow
-
-dotnet publish $SyncServiceProject `
-    --configuration $Configuration `
-    --runtime win-x64 `
-    --self-contained true `
-    --output $WindowsServicePublish
+Write-Host "[2/6] Publishing Windows SyncTray self-contained binaries..." -ForegroundColor Yellow
 
 dotnet publish $SyncTrayProject `
     --configuration $Configuration `
@@ -102,47 +85,107 @@ $LinuxInstallScript = @(
         'SERVICE_NAME="dotnetcloud-sync"',
         'SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"',
         'LAUNCHER="/usr/local/bin/dotnetcloud-sync-tray"',
+        'APPLICATIONS_DIR="/usr/local/share/applications"',
+        'DESKTOP_FILE="$APPLICATIONS_DIR/dotnetcloud-sync-tray.desktop"',
+        'ICON_SOURCE="$INSTALL_DIR/SyncTray/Assets/dotnetcloud-sync-cloud.svg"',
+        'ICON_THEME_DIR="/usr/share/icons/hicolor/scalable/apps"',
+        'ICON_NAME="dotnetcloud-sync-tray"',
+        'ICON_INSTALLED="$ICON_THEME_DIR/${ICON_NAME}.svg"',
+        'LEGACY_SERVICE_DIR="$INSTALL_DIR/SyncService"',
         '',
         'mkdir -p "$INSTALL_DIR"',
         '',
-        '# Upgrade-safe replacement: stop running service before replacing binaries.',
-        'if systemctl list-unit-files | grep -q "^${SERVICE_NAME}\.service"; then',
-        '    systemctl stop "$SERVICE_NAME" || true',
+        '# Upgrade-safe cleanup: remove legacy service artifacts from pre-merge installers.',
+        'if command -v systemctl >/dev/null 2>&1; then',
+        '    if systemctl list-unit-files 2>/dev/null | grep -q "^${SERVICE_NAME}\.service"; then',
+        '        systemctl stop "$SERVICE_NAME" 2>/dev/null || true',
+        '        systemctl disable "$SERVICE_NAME" 2>/dev/null || true',
+        '    fi',
         'fi',
         '',
+        'rm -rf "$LEGACY_SERVICE_DIR"',
         'cp -a "$SCRIPT_DIR/payload/." "$INSTALL_DIR/"',
         '',
-        'install -m 0755 "$INSTALL_DIR/SyncService/dotnetcloud-sync-service" "$INSTALL_DIR/SyncService/dotnetcloud-sync-service"',
-        'install -m 0755 "$INSTALL_DIR/SyncTray/dotnetcloud-sync-tray" "$INSTALL_DIR/SyncTray/dotnetcloud-sync-tray"',
+        'chmod 0755 "$INSTALL_DIR/SyncTray/dotnetcloud-sync-tray"',
         '',
-        'cat > "$SERVICE_FILE" <<EOF',
-        '[Unit]',
-        'Description=DotNetCloud Sync Service',
-        'After=network.target',
-        '',
-        '[Service]',
-        'Type=notify',
-        'ExecStart=$INSTALL_DIR/SyncService/dotnetcloud-sync-service',
-        'Restart=on-failure',
-        'RestartSec=10',
-        '',
-        '[Install]',
-        'WantedBy=multi-user.target',
-        'EOF',
+        'rm -f "$SERVICE_FILE"',
         '',
         'cat > "$LAUNCHER" <<EOF',
         '#!/usr/bin/env bash',
-        'exec "$INSTALL_DIR/SyncTray/dotnetcloud-sync-tray" "\$@"',
+        '# Detach from terminal so the tray app survives terminal close.',
+        'if [ -t 0 ]; then',
+        '    nohup "$INSTALL_DIR/SyncTray/dotnetcloud-sync-tray" "\$@" >/dev/null 2>&1 &',
+        '    echo "DotNetCloud Sync Client started (PID \$!)"',
+        'else',
+        '    exec "$INSTALL_DIR/SyncTray/dotnetcloud-sync-tray" "\$@"',
+        'fi',
         'EOF',
         'chmod 0755 "$LAUNCHER"',
         '',
-        'systemctl daemon-reload',
-        'systemctl enable --now "$SERVICE_NAME"',
+        'mkdir -p "$APPLICATIONS_DIR"',
+        '# Install icon into the hicolor theme so desktop environments can find it.',
+        'mkdir -p "$ICON_THEME_DIR"',
+        'if [[ -f "$ICON_SOURCE" ]]; then',
+        '    cp -f "$ICON_SOURCE" "$ICON_INSTALLED"',
+        '    chmod 0644 "$ICON_INSTALLED"',
+        'fi',
+        'if command -v gtk-update-icon-cache >/dev/null 2>&1; then',
+        '    gtk-update-icon-cache -f -t /usr/share/icons/hicolor 2>/dev/null || true',
+        'fi',
+        'cat > "$DESKTOP_FILE" <<EOF',
+        '[Desktop Entry]',
+        'Type=Application',
+        'Version=1.0',
+        'Name=DotNetCloud Sync Client',
+        'Comment=Open DotNetCloud SyncTray',
+        'Exec=$LAUNCHER',
+        'Icon=$ICON_NAME',
+        'Terminal=false',
+        'StartupNotify=true',
+        'Categories=Network;Utility;',
+        'Keywords=DotNetCloud;Sync;Client;',
+        'EOF',
+        'chmod 0644 "$DESKTOP_FILE"',
+        'if command -v update-desktop-database >/dev/null 2>&1; then',
+        '    update-desktop-database "$APPLICATIONS_DIR" || true',
+        'fi',
+        '',
+        'if command -v systemctl >/dev/null 2>&1; then',
+        '    systemctl daemon-reload 2>/dev/null || true',
+        'fi',
+        '',
+        '# Refresh the desktop environment so the new icon and menu entry appear immediately.',
+        'if [[ -n "${SUDO_USER:-}" ]]; then',
+        '    REAL_UID=$(id -u "$SUDO_USER")',
+        '    DBUS_ADDR="unix:path=/run/user/${REAL_UID}/bus"',
+        'else',
+        '    DBUS_ADDR="${DBUS_SESSION_BUS_ADDRESS:-}"',
+        'fi',
+        'if [[ -n "$DBUS_ADDR" ]]; then',
+        '    # Cinnamon: ask the shell to restart so it picks up the new icon theme cache.',
+        '    DBUS_SESSION_BUS_ADDRESS="$DBUS_ADDR" dbus-send --session \',
+        '        --dest=org.Cinnamon --type=method_call /org/Cinnamon \',
+        '        org.Cinnamon.Eval "string:Main.reexec_self()" 2>/dev/null || true',
+        '    # GNOME Shell: similar restart trigger.',
+        '    DBUS_SESSION_BUS_ADDRESS="$DBUS_ADDR" dbus-send --session \',
+        '        --dest=org.gnome.Shell --type=method_call /org/gnome/Shell \',
+        '        org.gnome.Shell.Eval "string:Meta.restart(\"Refreshing\")" 2>/dev/null || true',
+        '    # KDE Plasma: rebuild the Sys-tray/menu cache.',
+        '    DBUS_SESSION_BUS_ADDRESS="$DBUS_ADDR" dbus-send --session \',
+        '        --dest=org.kde.KSplash --type=method_call /KSplash \',
+        '        org.kde.KSplash.setStage "string:desktop" 2>/dev/null || true',
+        '    # xfce: reload its panel so it picks up the new .desktop file.',
+        '    DBUS_SESSION_BUS_ADDRESS="$DBUS_ADDR" xfce4-panel --restart 2>/dev/null || true',
+        'fi',
         '',
         'echo',
-        'echo "Install complete."',
-        'echo "Service status: systemctl status ${SERVICE_NAME} --no-pager"',
-        'echo "Run tray as desktop user: dotnetcloud-sync-tray"'
+        'echo "========================================"',
+        'echo " DotNetCloud Sync Client installed!"',
+        'echo "========================================"',
+        'echo',
+        'echo "Find it in your application menu under Internet/Network,"',
+        'echo "or run from terminal: dotnetcloud-sync-tray"',
+        'echo'
 ) -join [Environment]::NewLine
 Set-Content -Path (Join-Path $LinuxRoot "install.sh") -Value $LinuxInstallScript
 
@@ -159,16 +202,30 @@ $LinuxUninstallScript = @(
         'SERVICE_NAME="dotnetcloud-sync"',
         'SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"',
         'LAUNCHER="/usr/local/bin/dotnetcloud-sync-tray"',
+        'DESKTOP_FILE="/usr/local/share/applications/dotnetcloud-sync-tray.desktop"',
+        'ICON_INSTALLED="/usr/share/icons/hicolor/scalable/apps/dotnetcloud-sync-tray.svg"',
         '',
-        'systemctl stop "$SERVICE_NAME" || true',
-        'systemctl disable "$SERVICE_NAME" || true',
+        'if command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files 2>/dev/null | grep -q "^${SERVICE_NAME}\.service"; then',
+        '  systemctl stop "$SERVICE_NAME" 2>/dev/null || true',
+        '  systemctl disable "$SERVICE_NAME" 2>/dev/null || true',
+        'fi',
         'rm -f "$SERVICE_FILE"',
         'rm -f "$LAUNCHER"',
+        'rm -f "$DESKTOP_FILE"',
+        'rm -f "$ICON_INSTALLED"',
+        'if command -v gtk-update-icon-cache >/dev/null 2>&1; then',
+        '  gtk-update-icon-cache -f -t /usr/share/icons/hicolor 2>/dev/null || true',
+        'fi',
+        'if command -v update-desktop-database >/dev/null 2>&1; then',
+        '  update-desktop-database /usr/local/share/applications || true',
+        'fi',
         'rm -rf "$INSTALL_DIR"',
         '',
-        'systemctl daemon-reload',
+        'if command -v systemctl >/dev/null 2>&1; then',
+        '  systemctl daemon-reload 2>/dev/null || true',
+        'fi',
         '',
-        'echo "Uninstall complete."'
+        'echo "DotNetCloud Sync Client has been uninstalled."'
 ) -join [Environment]::NewLine
 Set-Content -Path (Join-Path $LinuxRoot "uninstall.sh") -Value $LinuxUninstallScript
 
@@ -197,27 +254,20 @@ $WindowsInstallScript = @(
     'New-Item -ItemType Directory -Force -Path $InstallPath | Out-Null',
     '',
     '$existingService = Get-Service -Name "DotNetCloudSync" -ErrorAction SilentlyContinue',
-    'if ($null -ne $existingService -and $existingService.Status -ne ''Stopped'') {',
-    '    sc.exe stop DotNetCloudSync | Out-Null',
-    '    Start-Sleep -Seconds 2',
+    'if ($null -ne $existingService) {',
+    '    if ($existingService.Status -ne ''Stopped'') {',
+    '        sc.exe stop DotNetCloudSync | Out-Null',
+    '        Start-Sleep -Seconds 2',
+    '    }',
+    '    sc.exe delete DotNetCloudSync | Out-Null',
     '}',
     '',
     'Copy-Item -Path (Join-Path $payloadPath "*") -Destination $InstallPath -Recurse -Force',
     '',
-    '$serviceExe = Join-Path $InstallPath "SyncService\dotnetcloud-sync-service.exe"',
-    'if (-not (Test-Path $serviceExe)) {',
-    '    throw "Sync service executable not found: $serviceExe"',
+    '$legacyServicePath = Join-Path $InstallPath "SyncService"',
+    'if (Test-Path $legacyServicePath) {',
+    '    Remove-Item $legacyServicePath -Recurse -Force',
     '}',
-    '',
-    '$service = Get-Service -Name "DotNetCloudSync" -ErrorAction SilentlyContinue',
-    'if ($null -eq $service) {',
-    '    sc.exe create DotNetCloudSync binPath= "`"$serviceExe`"" start= auto | Out-Null',
-    '}',
-    'else {',
-    '    sc.exe config DotNetCloudSync binPath= "`"$serviceExe`"" start= auto | Out-Null',
-    '}',
-    '',
-    'sc.exe start DotNetCloudSync | Out-Null',
     '',
     '$startup = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup"',
     'New-Item -ItemType Directory -Force -Path $startup | Out-Null',
@@ -230,8 +280,7 @@ $WindowsInstallScript = @(
     '$shortcut.Save()',
     '',
     'Write-Host "Install complete."',
-    'Write-Host "Service status:" -ForegroundColor Cyan',
-    'Get-Service DotNetCloudSync',
+    'Write-Host "Legacy SyncService removed if previously installed."' ,
     'Write-Host "Launch tray: $trayExe"'
 ) -join [Environment]::NewLine
 Set-Content -Path (Join-Path $WindowsRoot "Install-DesktopClient.ps1") -Value $WindowsInstallScript
@@ -249,8 +298,11 @@ $WindowsUninstallScript = @(
     '    throw "Run this uninstaller from an elevated PowerShell window."',
     '}',
     '',
-    'sc.exe stop DotNetCloudSync | Out-Null',
-    'sc.exe delete DotNetCloudSync | Out-Null',
+    '$service = Get-Service -Name "DotNetCloudSync" -ErrorAction SilentlyContinue',
+    'if ($null -ne $service) {',
+    '    sc.exe stop DotNetCloudSync | Out-Null',
+    '    sc.exe delete DotNetCloudSync | Out-Null',
+    '}',
     '',
     '$startupShortcut = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup\DotNetCloud SyncTray.lnk"',
     'if (Test-Path $startupShortcut) {',
@@ -280,7 +332,6 @@ $WindowsInstallCmd = @(
     'set "PAYLOAD_DIR=%SCRIPT_DIR%payload"',
     'set "INSTALL_PATH=%ProgramFiles%\DotNetCloud\DesktopClient"',
     'set "SERVICE_NAME=DotNetCloudSync"',
-    'set "SERVICE_EXE=%INSTALL_PATH%\SyncService\dotnetcloud-sync-service.exe"',
     'set "TRAY_EXE=%INSTALL_PATH%\SyncTray\dotnetcloud-sync-tray.exe"',
     '',
     'if not exist "%PAYLOAD_DIR%" (',
@@ -290,6 +341,7 @@ $WindowsInstallCmd = @(
     '',
     'mkdir "%INSTALL_PATH%" 2>nul',
     'sc query "%SERVICE_NAME%" >nul 2>&1 && sc stop "%SERVICE_NAME%" >nul 2>&1',
+    'sc query "%SERVICE_NAME%" >nul 2>&1 && sc delete "%SERVICE_NAME%" >nul 2>&1',
     '',
     'robocopy "%PAYLOAD_DIR%" "%INSTALL_PATH%" /E /R:1 /W:1 /NFL /NDL /NJH /NJS >nul',
     'if %errorlevel% GEQ 8 (',
@@ -297,28 +349,18 @@ $WindowsInstallCmd = @(
     '  exit /b 1',
     ')',
     '',
-    'if not exist "%SERVICE_EXE%" (',
-    '  echo Sync service executable not found: "%SERVICE_EXE%"',
-    '  exit /b 1',
+    'if exist "%INSTALL_PATH%\SyncService" (',
+    '  rmdir /s /q "%INSTALL_PATH%\SyncService"',
     ')',
-    '',
-    'sc query "%SERVICE_NAME%" >nul 2>&1',
-    'if %errorlevel%==0 (',
-    '  sc config "%SERVICE_NAME%" binPath= "\"%SERVICE_EXE%\"" start= auto >nul',
-    ') else (',
-    '  sc create "%SERVICE_NAME%" binPath= "\"%SERVICE_EXE%\"" start= auto >nul',
-    ')',
-    '',
-    'sc start "%SERVICE_NAME%" >nul',
     '',
     'if exist "%TRAY_EXE%" (',
     '  reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v DotNetCloudSyncTray /t REG_SZ /d "\"%TRAY_EXE%\"" /f >nul',
     ')',
     '',
     'echo Install complete.',
-    'sc query "%SERVICE_NAME%"',
+    'echo Legacy SyncService removed if previously installed.',
     'if exist "%TRAY_EXE%" (',
-    '  start "" "%TRAY_EXE%"',
+    '  echo Launch tray: "%TRAY_EXE%"',
     ')',
     'endlocal'
 ) -join [Environment]::NewLine

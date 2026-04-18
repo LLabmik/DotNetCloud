@@ -30,4 +30,7 @@ public sealed record FileUploadedEvent : IEvent
 
     /// <summary>The user who uploaded the file.</summary>
     public required Guid UploadedByUserId { get; init; }
+
+    /// <summary>Relative content-addressable storage path (for media indexing). May be null for legacy events.</summary>
+    public string? StoragePath { get; init; }
 }

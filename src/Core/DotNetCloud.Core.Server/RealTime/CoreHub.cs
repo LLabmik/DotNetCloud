@@ -28,7 +28,10 @@ internal sealed class CoreHub : Hub
     private readonly IReactionService? _reactionService;
     private readonly ITypingIndicatorService? _typingIndicatorService;
     private readonly IChatRealtimeService? _chatRealtimeService;
+    private readonly ICallSignalingService? _callSignalingService;
+    private readonly IVideoCallService? _videoCallService;
     private readonly IEventBus? _eventBus;
+    private readonly IChatMessageNotifier? _chatMessageNotifier;
     private readonly ILogger<CoreHub> _logger;
 
     public CoreHub(
@@ -40,7 +43,10 @@ internal sealed class CoreHub : Hub
         ITypingIndicatorService? typingIndicatorService,
         IChatRealtimeService? chatRealtimeService,
         ILogger<CoreHub> logger,
-        IEventBus? eventBus = null)
+        ICallSignalingService? callSignalingService = null,
+        IVideoCallService? videoCallService = null,
+        IEventBus? eventBus = null,
+        IChatMessageNotifier? chatMessageNotifier = null)
     {
         _connectionTracker = connectionTracker;
         _presenceService = presenceService;
@@ -49,7 +55,10 @@ internal sealed class CoreHub : Hub
         _reactionService = reactionService;
         _typingIndicatorService = typingIndicatorService;
         _chatRealtimeService = chatRealtimeService;
+        _callSignalingService = callSignalingService;
+        _videoCallService = videoCallService;
         _eventBus = eventBus;
+        _chatMessageNotifier = chatMessageNotifier;
         _logger = logger;
     }
 
@@ -71,12 +80,20 @@ internal sealed class CoreHub : Hub
             await Groups.AddToGroupAsync(connectionId, group);
         }
 
+        // Auto-join the cross-module tracks-activity broadcast group so all
+        // connected users receive live Tracks ↔ Chat integration events.
+        await Groups.AddToGroupAsync(connectionId, "tracks-activity");
+
         if (isFirstConnection)
         {
             await _presenceService.UserConnectedAsync(userId, connectionId);
 
             // Notify other clients that this user is now online
             await Clients.Others.SendAsync("UserOnline", new { UserId = userId, Timestamp = DateTime.UtcNow });
+
+            // Notify in-process subscribers (Blazor circuits)
+            _chatMessageNotifier?.NotifyUserPresenceChanged(
+                new UserPresenceChangedNotification(userId, IsOnline: true));
         }
 
         await base.OnConnectedAsync();
@@ -102,6 +119,10 @@ internal sealed class CoreHub : Hub
 
                 // Notify other clients that this user is now offline
                 await Clients.Others.SendAsync("UserOffline", new { UserId = userId, Timestamp = DateTime.UtcNow });
+
+                // Notify in-process subscribers (Blazor circuits)
+                _chatMessageNotifier?.NotifyUserPresenceChanged(
+                    new UserPresenceChangedNotification(userId, IsOnline: false));
             }
         }
 
@@ -171,6 +192,52 @@ internal sealed class CoreHub : Hub
         _logger.LogDebug(
             "User {UserId} left group {Group} via connection {ConnectionId}",
             GetUserId(), channelId, Context.ConnectionId);
+    }
+
+    /// <summary>
+    /// Joins the calling user to a board-scoped chat group for receiving
+    /// Tracks ↔ Chat integration events scoped to a specific board.
+    /// </summary>
+    /// <param name="boardId">The board ID to subscribe to chat activity for.</param>
+    public async Task JoinBoardChatGroupAsync(string boardId)
+    {
+        if (string.IsNullOrWhiteSpace(boardId))
+        {
+            throw new HubException("Board ID cannot be empty.");
+        }
+
+        if (!Guid.TryParse(boardId, out _))
+        {
+            throw new HubException("Invalid board ID format.");
+        }
+
+        var groupName = $"tracks-board-chat-{boardId}";
+        await Groups.AddToGroupAsync(Context.ConnectionId, groupName);
+        _connectionTracker.AddGroupMembership(GetUserId(), groupName);
+
+        _logger.LogDebug(
+            "User {UserId} joined board-chat group {Group} via connection {ConnectionId}",
+            GetUserId(), groupName, Context.ConnectionId);
+    }
+
+    /// <summary>
+    /// Removes the calling user from a board-scoped chat group.
+    /// </summary>
+    /// <param name="boardId">The board ID to unsubscribe from.</param>
+    public async Task LeaveBoardChatGroupAsync(string boardId)
+    {
+        if (string.IsNullOrWhiteSpace(boardId))
+        {
+            throw new HubException("Board ID cannot be empty.");
+        }
+
+        var groupName = $"tracks-board-chat-{boardId}";
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, groupName);
+        _connectionTracker.RemoveGroupMembership(GetUserId(), groupName);
+
+        _logger.LogDebug(
+            "User {UserId} left board-chat group {Group} via connection {ConnectionId}",
+            GetUserId(), groupName, Context.ConnectionId);
     }
 
     /// <summary>
@@ -389,6 +456,178 @@ internal sealed class CoreHub : Hub
         }
     }
 
+    // ── Video Call Signaling ────────────────────────────────────────────
+
+    /// <summary>
+    /// Relays an SDP offer to a target participant for WebRTC peer connection establishment.
+    /// </summary>
+    /// <param name="callId">The video call ID.</param>
+    /// <param name="targetUserId">The user to send the offer to.</param>
+    /// <param name="sdpOffer">The SDP offer payload.</param>
+    public async Task SendCallOfferAsync(Guid callId, Guid targetUserId, string sdpOffer)
+    {
+        EnsureCallSignalingAvailable();
+
+        try
+        {
+            var caller = CreateUserCaller();
+            await _callSignalingService!.SendOfferAsync(
+                callId, targetUserId, sdpOffer, caller, Context.ConnectionAborted);
+        }
+        catch (Exception ex) when (TryConvertToHubException(ex, out var hubException))
+        {
+            throw hubException;
+        }
+    }
+
+    /// <summary>
+    /// Relays an SDP answer back to the caller who sent the offer.
+    /// </summary>
+    /// <param name="callId">The video call ID.</param>
+    /// <param name="targetUserId">The user to send the answer to.</param>
+    /// <param name="sdpAnswer">The SDP answer payload.</param>
+    public async Task SendCallAnswerAsync(Guid callId, Guid targetUserId, string sdpAnswer)
+    {
+        EnsureCallSignalingAvailable();
+
+        try
+        {
+            var caller = CreateUserCaller();
+            await _callSignalingService!.SendAnswerAsync(
+                callId, targetUserId, sdpAnswer, caller, Context.ConnectionAborted);
+        }
+        catch (Exception ex) when (TryConvertToHubException(ex, out var hubException))
+        {
+            throw hubException;
+        }
+    }
+
+    /// <summary>
+    /// Relays an ICE candidate to a target participant for NAT traversal.
+    /// </summary>
+    /// <param name="callId">The video call ID.</param>
+    /// <param name="targetUserId">The user to send the candidate to.</param>
+    /// <param name="candidate">The ICE candidate payload.</param>
+    public async Task SendIceCandidateAsync(Guid callId, Guid targetUserId, string candidate)
+    {
+        EnsureCallSignalingAvailable();
+
+        try
+        {
+            var caller = CreateUserCaller();
+            await _callSignalingService!.SendIceCandidateAsync(
+                callId, targetUserId, candidate, caller, Context.ConnectionAborted);
+        }
+        catch (Exception ex) when (TryConvertToHubException(ex, out var hubException))
+        {
+            throw hubException;
+        }
+    }
+
+    /// <summary>
+    /// Notifies call participants of a media state change (mute/unmute, camera on/off, screen share).
+    /// </summary>
+    /// <param name="callId">The video call ID.</param>
+    /// <param name="mediaType">The media type that changed (Audio, Video, ScreenShare).</param>
+    /// <param name="enabled">Whether the media is now enabled.</param>
+    public async Task SendMediaStateChangeAsync(Guid callId, string mediaType, bool enabled)
+    {
+        EnsureCallSignalingAvailable();
+
+        try
+        {
+            var caller = CreateUserCaller();
+            await _callSignalingService!.SendMediaStateChangeAsync(
+                callId, mediaType, enabled, caller, Context.ConnectionAborted);
+        }
+        catch (Exception ex) when (TryConvertToHubException(ex, out var hubException))
+        {
+            throw hubException;
+        }
+    }
+
+    /// <summary>
+    /// Joins the caller's connection to a call-scoped SignalR group for receiving broadcast signals.
+    /// </summary>
+    /// <param name="callId">The video call ID.</param>
+    public async Task JoinCallGroupAsync(Guid callId)
+    {
+        var groupName = $"call-{callId}";
+        await Groups.AddToGroupAsync(Context.ConnectionId, groupName);
+        _connectionTracker.AddGroupMembership(GetUserId(), groupName);
+
+        _logger.LogDebug(
+            "User {UserId} joined call group {Group} via connection {ConnectionId}",
+            GetUserId(), groupName, Context.ConnectionId);
+    }
+
+    /// <summary>
+    /// Removes the caller's connection from a call-scoped SignalR group.
+    /// </summary>
+    /// <param name="callId">The video call ID.</param>
+    public async Task LeaveCallGroupAsync(Guid callId)
+    {
+        var groupName = $"call-{callId}";
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, groupName);
+        _connectionTracker.RemoveGroupMembership(GetUserId(), groupName);
+
+        _logger.LogDebug(
+            "User {UserId} left call group {Group} via connection {ConnectionId}",
+            GetUserId(), groupName, Context.ConnectionId);
+    }
+
+    // ── Video Call Management (Host / Invite) ───────────────────
+
+    /// <summary>
+    /// Invites a user to join an active call. Only the call Host may invite participants.
+    /// Relays to <see cref="IVideoCallService.InviteToCallAsync"/>.
+    /// </summary>
+    /// <param name="callId">The active call to invite the user to.</param>
+    /// <param name="targetUserId">The user to invite.</param>
+    public async Task InviteToCallAsync(Guid callId, Guid targetUserId)
+    {
+        EnsureVideoCallServiceAvailable();
+
+        try
+        {
+            var caller = CreateUserCaller();
+            await _videoCallService!.InviteToCallAsync(callId, targetUserId, caller, Context.ConnectionAborted);
+
+            _logger.LogInformation(
+                "User {UserId} invited {TargetUserId} to call {CallId}",
+                caller.UserId, targetUserId, callId);
+        }
+        catch (Exception ex) when (TryConvertToHubException(ex, out var hubException))
+        {
+            throw hubException;
+        }
+    }
+
+    /// <summary>
+    /// Transfers the host role of an active call to another participant.
+    /// Only the current host may transfer. Relays to <see cref="IVideoCallService.TransferHostAsync"/>.
+    /// </summary>
+    /// <param name="callId">The active call.</param>
+    /// <param name="newHostUserId">The participant to become the new host.</param>
+    public async Task TransferHostAsync(Guid callId, Guid newHostUserId)
+    {
+        EnsureVideoCallServiceAvailable();
+
+        try
+        {
+            var caller = CreateUserCaller();
+            await _videoCallService!.TransferHostAsync(callId, newHostUserId, caller, Context.ConnectionAborted);
+
+            _logger.LogInformation(
+                "User {UserId} transferred host of call {CallId} to {NewHostUserId}",
+                caller.UserId, callId, newHostUserId);
+        }
+        catch (Exception ex) when (TryConvertToHubException(ex, out var hubException))
+        {
+            throw hubException;
+        }
+    }
+
     private Guid GetUserId()
     {
         var nameIdentifier = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value
@@ -440,6 +679,22 @@ internal sealed class CoreHub : Hub
             || _chatRealtimeService is null)
         {
             throw new HubException("Chat services are not available.");
+        }
+    }
+
+    private void EnsureCallSignalingAvailable()
+    {
+        if (_callSignalingService is null)
+        {
+            throw new HubException("Call signaling services are not available.");
+        }
+    }
+
+    private void EnsureVideoCallServiceAvailable()
+    {
+        if (_videoCallService is null)
+        {
+            throw new HubException("Video call services are not available.");
         }
     }
 }

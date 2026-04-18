@@ -47,7 +47,31 @@ public enum CrossModuleLinkType
     Contact,
 
     /// <summary>Link to a note in the Notes module.</summary>
-    Note
+    Note,
+
+    /// <summary>Link to a photo in the Photos module.</summary>
+    Photo,
+
+    /// <summary>Link to a photo album in the Photos module.</summary>
+    PhotoAlbum,
+
+    /// <summary>Link to a music track in the Music module.</summary>
+    MusicTrack,
+
+    /// <summary>Link to a music album in the Music module.</summary>
+    MusicAlbum,
+
+    /// <summary>Link to a music artist in the Music module.</summary>
+    MusicArtist,
+
+    /// <summary>Link to a playlist in the Music module.</summary>
+    Playlist,
+
+    /// <summary>Link to a video in the Video module.</summary>
+    Video,
+
+    /// <summary>Link to a video collection in the Video module.</summary>
+    VideoCollection
 }
 
 /// <summary>

@@ -9,7 +9,7 @@
     @if (Channel is not null)
     {
         <div class="channel-info">
-            <span class="channel-icon">@(Channel.Type == "Private" ? "🔒" : "#")</span>
+            <span class="channel-icon">@(Channel.Type == "Private" ? "🔒" : Channel.Type is "DirectMessage" or "Group" ? "💬" : "#")</span>
             <h2 class="channel-name">@Channel.Name</h2>
             @if (!string.IsNullOrEmpty(Channel.Topic))
             {
@@ -37,15 +37,39 @@
                     ➕ Invite
                 </button>
             }
+            @if (Channel!.Type is "DirectMessage" or "Group")
+            {
+                <button class="btn btn-sm" @onclick="OnAddPeopleClick" title="Add people to this conversation">
+                    👥 Add People
+                </button>
+            }
+            <button class="btn btn-sm btn-call" @onclick="OnAudioCallClick" title="Start audio call">
+                📞 Call
+            </button>
+            <button class="btn btn-sm btn-call" @onclick="OnVideoCallClick" title="Start video call">
+                📹 Video
+            </button>
+            @if (HasActiveCall)
+            {
+                <button class="btn btn-sm btn-call-active" @onclick="OnJoinCallClick" title="Join active call">
+                    🟢 Join Call
+                </button>
+            }
+            <button class="btn btn-sm" @onclick="OnCallHistoryClick" title="View call history">
+                📋 Calls
+            </button>
             <button class="btn btn-sm" @onclick="OnSearchClick" title="Search messages in this channel">
                 🔍
             </button>
             <button class="btn btn-sm" @onclick="ToggleMemberList" title="View and manage channel members">
                 👤 Members
             </button>
-            <button class="btn btn-sm btn-danger" @onclick="OnLeaveClick" title="Leave this channel">
-                Leave
-            </button>
+            @if (!string.Equals(Channel!.Name, "Public", StringComparison.OrdinalIgnoreCase))
+            {
+                <button class="btn btn-sm btn-danger" @onclick="OnLeaveClick" title="Leave this channel">
+                    Leave
+                </button>
+            }
 
             <div class="help-wrapper">
                 <button class="btn btn-sm btn-help" @onclick="ToggleHelp" title="What do these buttons do?">
@@ -67,7 +91,13 @@
                             <dd>Change the channel name, topic, and settings.</dd>
                             <dt>🔍 Search</dt>
                             <dd>Search through messages in this channel.</dd>
-                            <dt>👤 Members</dt>
+                            <dt>👥 Add People</dt>
+                            <dd>Add more users to a DM or group conversation.</dd>
+                            <dt>� Call / 📹 Video</dt>
+                            <dd>Start an audio or video call with channel members.</dd>
+                            <dt>📋 Calls</dt>
+                            <dd>View the call history for this channel.</dd>
+                            <dt>�👤 Members</dt>
                             <dd>View who's in this channel and manage membership.</dd>
                             <dt>Leave</dt>
                             <dd>Leave this channel. You can rejoin later.</dd>

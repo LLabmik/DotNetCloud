@@ -1,0 +1,45 @@
+@page "/apps/music"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Components
+
+<PageTitle>Music - DotNetCloud</PageTitle>
+
+<ModulePageHost RouteKey="music.page" Parameters="_parameters" />
+
+@code {
+    [SupplyParameterFromQuery(Name = "fileId")]
+    public string? FileId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "_nav")]
+    public string? Nav { get; set; }
+
+    [SupplyParameterFromQuery(Name = "playing")]
+    public string? Playing { get; set; }
+
+    private Dictionary<string, object>? _parameters;
+
+    protected override void OnParametersSet()
+    {
+        var hasParams = false;
+        _parameters = new Dictionary<string, object>();
+
+        if (!string.IsNullOrEmpty(FileId))
+        {
+            _parameters["FileId"] = FileId;
+            _parameters["FileIdNav"] = Nav ?? string.Empty;
+            hasParams = true;
+        }
+
+        if (string.Equals(Playing, "true", StringComparison.OrdinalIgnoreCase))
+        {
+            _parameters["ScrollToPlaying"] = "true";
+            hasParams = true;
+        }
+
+        if (!hasParams)
+        {
+            _parameters = null;
+        }
+    }
+}

@@ -19,7 +19,7 @@ public static class TracksServiceRegistration
         services.AddScoped<ActivityService>();
         services.AddScoped<TeamService>();
         services.AddScoped<BoardService>();
-        services.AddScoped<ListService>();
+        services.AddScoped<SwimlaneService>();
         services.AddScoped<CardService>();
         services.AddScoped<LabelService>();
         services.AddScoped<CommentService>();
@@ -36,15 +36,21 @@ public static class TracksServiceRegistration
         services.AddScoped<SprintReportService>();
         services.AddScoped<BulkOperationService>();
         services.AddScoped<PokerService>();
+        services.AddScoped<SprintPlanningService>();
+        services.AddScoped<ReviewSessionService>();
         services.AddHostedService<DueDateReminderService>();
 
         // Real-time & notification services (Phase 4.6)
+        services.AddSingleton<TracksInProcessSignalRService>();
         services.AddSingleton<ITracksRealtimeService, TracksRealtimeService>();
-        services.AddSingleton<ITracksNotificationService, TracksNotificationService>();
-        services.AddSingleton<ITracksSignalRService, NullTracksSignalRService>();
+        services.AddScoped<ITracksNotificationService, TracksNotificationService>();
+        services.AddSingleton<ITracksSignalRService>(sp => sp.GetRequiredService<TracksInProcessSignalRService>());
 
         // Cross-module cleanup services
         services.AddScoped<ICardAttachmentCleanupService, CardAttachmentCleanupService>();
+
+        // Cross-module Chat activity display (null-object when Chat not installed)
+        services.AddSingleton<IChatActivitySignalRService, NullChatActivitySignalRService>();
 
         return services;
     }

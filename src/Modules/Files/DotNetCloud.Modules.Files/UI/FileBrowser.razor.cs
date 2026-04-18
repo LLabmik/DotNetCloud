@@ -45,6 +45,12 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     /// <summary>Base URL for the Files API (e.g., "https://cloud.example.com"), used for the document editor.</summary>
     [Parameter] public string ApiBaseUrl { get; set; } = string.Empty;
 
+    /// <summary>Optional file ID to navigate to on load (deep-link from search results).</summary>
+    [Parameter] public string? FileId { get; set; }
+
+    /// <summary>Navigation nonce — changes each time a search result is clicked, even for the same file.</summary>
+    [Parameter] public string? FileIdNav { get; set; }
+
     private FileSidebarSection _activeSection = FileSidebarSection.AllFiles;
     private int _trashItemCount;
     private long _trashBytes;
@@ -109,10 +115,29 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     private string _newFolderName = string.Empty;
     private string _newDocumentName = "Untitled";
     private string _selectedDocumentExtension = "docx";
+    private string _customExtension = string.Empty;
+    private bool _useCustomExtension;
+    private string _freeformFileName = string.Empty;
     private bool _isCollaboraAvailable;
     private bool _isCollaboraConfigured;
     private HashSet<string> _collaboraEditableExtensions = new(StringComparer.OrdinalIgnoreCase);
-    private List<string> _supportedNewDocumentExtensions = [];
+    private List<string> _supportedNewFileExtensions = [];
+    private List<string> _collaboraNewFileExtensions = [];
+    private ElementReference _freeformInput;
+
+    /// <summary>Extensions that should always open in native editors, never in Collabora.</summary>
+    private static readonly HashSet<string> NativeEditorExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "txt", "md", "markdown", "json", "xml", "yaml", "yml", "csv", "log",
+        "html", "htm", "css", "js", "ts", "cs", "py", "sh", "bash",
+        "sql", "ini", "toml", "cfg", "conf", "env"
+    };
+
+    /// <summary>Base file extensions always available in the New File dialog, regardless of Collabora.</summary>
+    private static readonly string[] BaseFileExtensions =
+    [
+        "txt", "md", "json", "html", "xml", "csv", "yaml", "css", "js", "py", "sh"
+    ];
     private FileNodeViewModel? _shareTargetNode;
     private FileNodeViewModel? _previewNode;
     private FileNodeViewModel? _editorNode;
@@ -167,6 +192,7 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     private string? _commentsFileName;
     private List<FileCommentViewModel> _commentItems = [];
     private Guid _currentUserId;
+    private string? _lastHandledNav;
 
     protected override async Task OnInitializedAsync()
     {
@@ -177,6 +203,25 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         await LoadTrashCountAsync();
         await LoadQuotaAsync();
         await LoadUserTagsAsync();
+
+        // Deep-link: navigate to a specific file (e.g., from search results)
+        if (Guid.TryParse(FileId, out var fileId))
+        {
+            _lastHandledNav = FileIdNav;
+            await NavigateToFileAsync(fileId);
+        }
+    }
+
+    /// <inheritdoc />
+    protected override async Task OnParametersSetAsync()
+    {
+        // Handle FileId changes when already on the page (same-page navigation).
+        // FileIdNav is a timestamp nonce that changes on every click, even for the same file.
+        if (!string.IsNullOrEmpty(FileId) && FileIdNav != _lastHandledNav && Guid.TryParse(FileId, out var fileId))
+        {
+            _lastHandledNav = FileIdNav;
+            await NavigateToFileAsync(fileId);
+        }
     }
 
     /// <summary>Handles sidebar section navigation.</summary>
@@ -328,8 +373,12 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     protected bool IsShowDocumentEditor => _showDocumentEditor;
     protected bool IsShowCreateDocument => _showCreateDocument;
     protected bool IsCollaboraAvailable => _isCollaboraAvailable;
-    protected bool CanCreateCollaboraDocument => _isCollaboraConfigured && _supportedNewDocumentExtensions.Count > 0;
-    protected IReadOnlyList<string> SupportedNewDocumentExtensions => _supportedNewDocumentExtensions;
+    protected bool CanCreateNewFile => _supportedNewFileExtensions.Count > 0;
+    protected IReadOnlyList<string> SupportedNewFileExtensions => _supportedNewFileExtensions;
+    protected string CustomExtension { get => _customExtension; set => _customExtension = value; }
+    protected bool UseCustomExtension { get => _useCustomExtension; set => _useCustomExtension = value; }
+    protected string FreeformFileName { get => _freeformFileName; set => _freeformFileName = value; }
+    protected IReadOnlyList<string> CollaboraNewFileExtensions => _collaboraNewFileExtensions;
     protected bool IsShowBulkTagAdd => _showBulkTagAdd;
     protected FileTagViewModel? ActiveTag => _activeTag;
     protected IReadOnlyList<FileNodeViewModel> TaggedNodes => _taggedNodes;
@@ -398,6 +447,60 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         }
 
         _ = LoadCurrentFolderAsync();
+    }
+
+    /// <summary>
+    /// Navigates to a specific file by ID: loads its parent folder, builds breadcrumbs,
+    /// then opens the file in preview. Used for deep-linking from search results.
+    /// </summary>
+    private async Task NavigateToFileAsync(Guid fileId)
+    {
+        try
+        {
+            var caller = await GetCallerContextAsync();
+            var node = await FileService.GetNodeAsync(fileId, caller);
+            if (node is null)
+            {
+                Logger.LogWarning("Deep-link file {FileId} not found", fileId);
+                return;
+            }
+
+            // Navigate to the file's parent folder
+            if (node.ParentId.HasValue)
+            {
+                // Build breadcrumb trail by walking up the folder tree
+                var ancestors = new List<(Guid Id, string Name)>();
+                var currentId = node.ParentId;
+                while (currentId.HasValue)
+                {
+                    var folder = await FileService.GetNodeAsync(currentId.Value, caller);
+                    if (folder is null) break;
+                    ancestors.Add((folder.Id, folder.Name));
+                    currentId = folder.ParentId;
+                }
+
+                _breadcrumbs.Clear();
+                ancestors.Reverse();
+                foreach (var ancestor in ancestors)
+                {
+                    _breadcrumbs.Add(new BreadcrumbItem(ancestor.Id, ancestor.Name));
+                }
+
+                _currentFolderId = node.ParentId;
+                _currentPage = 1;
+                _selectedNodes.Clear();
+                await LoadCurrentFolderAsync();
+            }
+
+            // Open the file (preview or editor)
+            var vm = ToViewModel(node);
+            await HandleNodeDoubleClick(vm);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to navigate to file {FileId}", fileId);
+        }
     }
 
     protected void HandleNodeClick(FileNodeViewModel node)
@@ -525,14 +628,15 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
 
     protected void ShowCreateDocumentDialog()
     {
-        if (!CanCreateCollaboraDocument)
-            return;
-
         _showCreateDocument = true;
         _newDocumentName = "Untitled";
+        _freeformFileName = string.Empty;
+        _customExtension = string.Empty;
+        _useCustomExtension = false;
 
-        if (!_supportedNewDocumentExtensions.Contains(_selectedDocumentExtension, StringComparer.OrdinalIgnoreCase))
-            _selectedDocumentExtension = _supportedNewDocumentExtensions[0];
+        if (_collaboraNewFileExtensions.Count > 0 &&
+            !_collaboraNewFileExtensions.Contains(_selectedDocumentExtension, StringComparer.OrdinalIgnoreCase))
+            _selectedDocumentExtension = _collaboraNewFileExtensions[0];
     }
 
     protected void HideCreateDocumentDialog() => _showCreateDocument = false;
@@ -546,11 +650,17 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
             _showCreateDocument = false;
     }
 
+    protected async Task HandleFreeformFileKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+            await CreateFreeformFileAsync();
+
+        if (e.Key == "Escape")
+            _showCreateDocument = false;
+    }
+
     protected async Task CreateDocumentAsync()
     {
-        if (!CanCreateCollaboraDocument)
-            return;
-
         var caller = await GetCallerContextAsync();
         var extension = NormalizeExtension(_selectedDocumentExtension);
         var requestedName = string.IsNullOrWhiteSpace(_newDocumentName) ? "Untitled" : _newDocumentName.Trim();
@@ -570,9 +680,46 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         _showCreateDocument = false;
         await LoadCurrentFolderAsync();
 
+        var viewModel = ToViewModel(created);
         if (CanOpenInDocumentEditor(created.Name))
         {
-            ShowDocumentEditor(ToViewModel(created));
+            ShowDocumentEditor(viewModel);
+        }
+        else if (CanOpenInNativePreview(viewModel))
+        {
+            ShowPreview(viewModel);
+        }
+    }
+
+    protected async Task CreateFreeformFileAsync()
+    {
+        var raw = string.IsNullOrWhiteSpace(_freeformFileName) ? "Untitled.txt" : _freeformFileName.Trim();
+        var extension = NormalizeExtension(Path.GetExtension(raw));
+        var fileName = EnsureUniqueFileName(raw);
+
+        var caller = await GetCallerContextAsync();
+        var session = await UploadService.InitiateUploadAsync(new InitiateUploadDto
+        {
+            FileName = fileName,
+            ParentId = _currentFolderId,
+            TotalSize = 0,
+            MimeType = GetMimeType(extension),
+            ChunkHashes = []
+        }, caller);
+
+        var created = await UploadService.CompleteUploadAsync(session.SessionId, caller);
+
+        _showCreateDocument = false;
+        await LoadCurrentFolderAsync();
+
+        var viewModel = ToViewModel(created);
+        if (CanOpenInDocumentEditor(created.Name))
+        {
+            ShowDocumentEditor(viewModel);
+        }
+        else if (CanOpenInNativePreview(viewModel))
+        {
+            ShowPreview(viewModel);
         }
     }
 
@@ -1843,52 +1990,62 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         _isCollaboraConfigured = options.Enabled &&
                                 (!string.IsNullOrWhiteSpace(options.ServerUrl) || options.UseBuiltInCollabora);
 
-        var preferredOrder = new[] { "docx", "xlsx", "pptx", "odt", "ods", "odp", "txt", "csv", "rtf" };
+        var preferredOrder = new[] { "docx", "xlsx", "pptx", "odt", "ods", "odp" };
 
-        if (!_isCollaboraConfigured)
+        if (_isCollaboraConfigured)
+        {
+            try
+            {
+                var discovery = await CollaboraDiscoveryService.DiscoverAsync();
+                _isCollaboraAvailable = discovery.IsAvailable;
+
+                if (_isCollaboraAvailable)
+                {
+                    _collaboraEditableExtensions = discovery.Actions
+                        .Where(a => string.Equals(a.Action, "edit", StringComparison.OrdinalIgnoreCase)
+                                    || string.Equals(a.Action, "view", StringComparison.OrdinalIgnoreCase))
+                        .Select(a => NormalizeExtension(a.Extension))
+                        .Where(ext => !string.IsNullOrWhiteSpace(ext))
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                    // Remove extensions that have native editors — native always wins
+                    _collaboraEditableExtensions.ExceptWith(NativeEditorExtensions);
+                }
+                else
+                {
+                    _collaboraEditableExtensions = preferredOrder.ToHashSet(StringComparer.OrdinalIgnoreCase);
+                }
+            }
+            catch
+            {
+                _isCollaboraAvailable = false;
+                _collaboraEditableExtensions = preferredOrder.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            }
+        }
+        else
         {
             _isCollaboraAvailable = false;
             _collaboraEditableExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            _supportedNewDocumentExtensions = [];
-            return;
         }
 
-        try
-        {
-            var discovery = await CollaboraDiscoveryService.DiscoverAsync();
-            _isCollaboraAvailable = discovery.IsAvailable;
+        // Build the New File extension list: Collabora-supported (preferred order) + base text extensions
+        var ordered = preferredOrder
+            .Where(ext => _collaboraEditableExtensions.Contains(ext))
+            .Concat(_collaboraEditableExtensions
+                .Where(ext => !preferredOrder.Contains(ext, StringComparer.OrdinalIgnoreCase))
+                .OrderBy(ext => ext, StringComparer.OrdinalIgnoreCase))
+            .Concat(BaseFileExtensions
+                .Where(ext => !_collaboraEditableExtensions.Contains(ext)));
 
-            if (_isCollaboraAvailable)
-            {
-                _collaboraEditableExtensions = discovery.Actions
-                    .Where(a => string.Equals(a.Action, "edit", StringComparison.OrdinalIgnoreCase)
-                                || string.Equals(a.Action, "view", StringComparison.OrdinalIgnoreCase))
-                    .Select(a => NormalizeExtension(a.Extension))
-                    .Where(ext => !string.IsNullOrWhiteSpace(ext))
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        _supportedNewFileExtensions = [.. ordered.Distinct(StringComparer.OrdinalIgnoreCase)];
 
-                var ordered = preferredOrder
-                    .Where(ext => _collaboraEditableExtensions.Contains(ext))
-                    .Concat(_collaboraEditableExtensions.Where(ext => !preferredOrder.Contains(ext, StringComparer.OrdinalIgnoreCase)).OrderBy(ext => ext, StringComparer.OrdinalIgnoreCase));
+        // Collabora-only extensions for the document row (excludes base text types)
+        _collaboraNewFileExtensions = [.. _supportedNewFileExtensions
+            .Where(ext => _collaboraEditableExtensions.Contains(ext))];
 
-                _supportedNewDocumentExtensions = [.. ordered];
-            }
-            else
-            {
-                _collaboraEditableExtensions = preferredOrder.ToHashSet(StringComparer.OrdinalIgnoreCase);
-                _supportedNewDocumentExtensions = [.. preferredOrder];
-            }
-        }
-        catch
-        {
-            _isCollaboraAvailable = false;
-            _collaboraEditableExtensions = preferredOrder.ToHashSet(StringComparer.OrdinalIgnoreCase);
-            _supportedNewDocumentExtensions = [.. preferredOrder];
-        }
-
-        if (_supportedNewDocumentExtensions.Count > 0 && !_supportedNewDocumentExtensions.Contains(_selectedDocumentExtension, StringComparer.OrdinalIgnoreCase))
-            _selectedDocumentExtension = _supportedNewDocumentExtensions[0];
+        if (_collaboraNewFileExtensions.Count > 0 && !_collaboraNewFileExtensions.Contains(_selectedDocumentExtension, StringComparer.OrdinalIgnoreCase))
+            _selectedDocumentExtension = _collaboraNewFileExtensions[0];
     }
 
     private string EnsureUniqueFileName(string fileName)
@@ -1932,15 +2089,30 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         return NormalizeExtension(extension) switch
         {
             "docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "docm" => "application/vnd.ms-word.document.macroEnabled.12",
             "odt" => "application/vnd.oasis.opendocument.text",
             "rtf" => "application/rtf",
-            "txt" => "text/plain",
+            "txt" or "log" or "ini" or "cfg" or "conf" or "env" => "text/plain",
+            "md" or "markdown" => "text/markdown",
+            "json" => "application/json",
+            "xml" => "application/xml",
+            "html" or "htm" => "text/html",
+            "css" => "text/css",
+            "js" => "text/javascript",
+            "ts" => "text/typescript",
+            "cs" => "text/x-csharp",
+            "py" => "text/x-python",
+            "sh" or "bash" => "text/x-shellscript",
+            "sql" => "text/x-sql",
+            "yaml" or "yml" => "text/yaml",
+            "toml" => "text/toml",
             "xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "xlsm" => "application/vnd.ms-excel.sheet.macroEnabled.12",
             "ods" => "application/vnd.oasis.opendocument.spreadsheet",
             "csv" => "text/csv",
             "pptx" => "application/vnd.openxmlformats-officedocument.presentationml.presentation",
             "odp" => "application/vnd.oasis.opendocument.presentation",
-            _ => "application/octet-stream"
+            _ => "text/plain"
         };
     }
 
@@ -1997,6 +2169,7 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
             ParentId = dto.ParentId,
             IsFavorite = dto.IsFavorite,
             UpdatedAt = dto.UpdatedAt,
+            CurrentVersion = dto.CurrentVersion,
             Tags = dto.Tags.Select(t => new FileTagViewModel
             {
                 Id = t.Id,

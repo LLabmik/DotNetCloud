@@ -120,7 +120,10 @@
         @if (FilteredChannels.Any(c => c.Type is "DirectMessage" or "Group"))
         {
             <div class="channel-group">
-                <h3>Direct Messages</h3>
+                <div class="channel-group-header">
+                    <h3>Direct Messages</h3>
+                    <button class="btn btn-sm btn-new-dm" @onclick="HandleNewDmClick" title="New direct message" aria-label="Start a new direct message">+</button>
+                </div>
                 @foreach (var channel in FilteredChannels.Where(c => c.Type is "DirectMessage" or "Group" && !c.IsPinned))
                 {
                     <div class="channel-item @(channel.IsActive ? "active" : "")"

@@ -23,7 +23,10 @@
     <ProjectReference Include="..\..\Modules\Chat\DotNetCloud.Modules.Chat\DotNetCloud.Modules.Chat.csproj" />
     <ProjectReference Include="..\..\Modules\Contacts\DotNetCloud.Modules.Contacts\DotNetCloud.Modules.Contacts.csproj" />
     <ProjectReference Include="..\..\Modules\Files\DotNetCloud.Modules.Files\DotNetCloud.Modules.Files.csproj" />
+    <ProjectReference Include="..\..\Modules\Music\DotNetCloud.Modules.Music\DotNetCloud.Modules.Music.csproj" />
     <ProjectReference Include="..\..\Modules\Notes\DotNetCloud.Modules.Notes\DotNetCloud.Modules.Notes.csproj" />
+    <ProjectReference Include="..\..\Modules\Photos\DotNetCloud.Modules.Photos\DotNetCloud.Modules.Photos.csproj" />
+    <ProjectReference Include="..\..\Modules\Video\DotNetCloud.Modules.Video\DotNetCloud.Modules.Video.csproj" />
     <ProjectReference Include="..\DotNetCloud.UI.Web.Client\DotNetCloud.UI.Web.Client.csproj" />
     <ProjectReference Include="..\DotNetCloud.UI.Shared\DotNetCloud.UI.Shared.csproj" />
   </ItemGroup>

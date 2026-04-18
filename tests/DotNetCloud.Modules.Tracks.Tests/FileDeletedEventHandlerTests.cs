@@ -87,7 +87,7 @@ public class CardAttachmentCleanupServiceTests
         var db = TestHelpers.CreateDb();
         var caller = TestHelpers.CreateCaller();
         var board = await TestHelpers.SeedBoardAsync(db, caller.UserId);
-        var list = await TestHelpers.SeedListAsync(db, board.Id);
+        var list = await TestHelpers.SeedSwimlaneAsync(db, board.Id);
         var card = await TestHelpers.SeedCardAsync(db, list.Id, caller.UserId);
 
         var fileNodeId = Guid.NewGuid();
@@ -120,7 +120,7 @@ public class CardAttachmentCleanupServiceTests
         var db = TestHelpers.CreateDb();
         var caller = TestHelpers.CreateCaller();
         var board = await TestHelpers.SeedBoardAsync(db, caller.UserId);
-        var list = await TestHelpers.SeedListAsync(db, board.Id);
+        var list = await TestHelpers.SeedSwimlaneAsync(db, board.Id);
         var card = await TestHelpers.SeedCardAsync(db, list.Id, caller.UserId);
 
         db.CardAttachments.Add(new CardAttachment
@@ -151,7 +151,7 @@ public class CardAttachmentCleanupServiceTests
         var db = TestHelpers.CreateDb();
         var caller = TestHelpers.CreateCaller();
         var board = await TestHelpers.SeedBoardAsync(db, caller.UserId);
-        var list = await TestHelpers.SeedListAsync(db, board.Id);
+        var list = await TestHelpers.SeedSwimlaneAsync(db, board.Id);
         var card1 = await TestHelpers.SeedCardAsync(db, list.Id, caller.UserId, "Card 1");
         var card2 = await TestHelpers.SeedCardAsync(db, list.Id, caller.UserId, "Card 2");
 

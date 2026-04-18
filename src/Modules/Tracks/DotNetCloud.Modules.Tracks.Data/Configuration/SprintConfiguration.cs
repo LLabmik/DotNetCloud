@@ -26,6 +26,10 @@ public sealed class SprintConfiguration : IEntityTypeConfiguration<Sprint>
             .HasConversion<string>()
             .HasMaxLength(20);
 
+        builder.Property(s => s.DurationWeeks);
+
+        builder.Property(s => s.PlannedOrder);
+
         builder.Property(s => s.CreatedAt)
             .IsRequired()
             .HasDefaultValueSql("CURRENT_TIMESTAMP");

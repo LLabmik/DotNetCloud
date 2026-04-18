@@ -20,41 +20,44 @@ DotNetCloud gives you full control of your data by running your own cloud server
 
 ### Features (Planned)
 
-| Feature | Description | Status |
-|---|---|---|
-| 📁 **Files** | File sync and sharing with desktop client, browser UI with context menus, drag-drop move, upload queue management, and paste-to-upload | ✅ Phase 1 |
-| 📝 **Document Editing** | Browser-based editing via Collabora Online (LibreOffice-based) | ✅ Phase 1 |
-| 💬 **Chat** | Real-time messaging, channels, direct messages | ✅ Phase 2 |
-| 📱 **Android App** | Mobile client with photo auto-upload | ✅ Phase 2 |
-| 👤 **Contacts** | Contact management with CardDAV support | ✅ Phase 3 |
-| 📅 **Calendar** | Events, scheduling, CalDAV support | ✅ Phase 3 |
-| 📝 **Notes** | Markdown-based note taking | ✅ Phase 3 |
-| 📋 **Tracks** | Kanban boards and project management | ✅ Phase 4 |
-| 🖼️ **Photos** | Photo/video library and management | Phase 5 |
-| 🎵 **Music** | Music player with equalizer and playlists | Phase 5 |
-| 📧 **Email** | Integrated email client (SMTP/IMAP/Gmail) | Phase 6 |
-| 🔖 **Bookmarks** | Browser bookmark sync via extension | Phase 6 |
-| 📹 **Video Calls** | WebRTC video calling and screen sharing | Phase 7 |
-| 🔍 **Search** | Full-text search across all modules | Phase 8 |
-| 🔒 **E2EE** | Optional zero-knowledge encryption | Phase 8 |
-| 🤖 **AI Assistant** | LLM-powered assistant via Ollama (local) or Claude/OpenAI (cloud) | Phase 9 |
+| Feature                 | Description                                                                                                                            | Status            |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
+| 📁 **Files**            | File sync and sharing with desktop client, browser UI with context menus, drag-drop move, upload queue management, and paste-to-upload | ✅ Phase 1        |
+| 📝 **Document Editing** | Browser-based editing via Collabora Online (LibreOffice-based)                                                                         | ✅ Phase 1        |
+| 💬 **Chat**             | Real-time messaging, channels, direct messages                                                                                         | ✅ Phase 2        |
+| 📱 **Android App**      | Mobile client with photo auto-upload                                                                                                   | ✅ Phase 2        |
+| 👤 **Contacts**         | Contact management with CardDAV support                                                                                                | ✅ Phase 3        |
+| 📅 **Calendar**         | Events, scheduling, CalDAV support                                                                                                     | ✅ Phase 3        |
+| 📝 **Notes**            | Markdown-based note taking                                                                                                             | ✅ Phase 3        |
+| 📋 **Tracks**           | Kanban boards and project management                                                                                                   | 🔄 Rearchitecting |
+| 🖼️ **Photos**           | Photo library, albums, geo-clustering, slideshow, editing                                                                              | ✅ Phase 5        |
+| 🎵 **Music**            | Music player with equalizer, playlists, favorites, Subsonic API                                                                        | ✅ Phase 5        |
+| 🎬 **Video**            | Video library, collections, subtitles, watch progress, streaming                                                                       | ✅ Phase 5        |
+| 📧 **Email**            | Integrated email client (SMTP/IMAP/Gmail)                                                                                              | Phase 6           |
+| 🔖 **Bookmarks**        | Browser bookmark sync via extension                                                                                                    | Phase 6           |
+| 📹 **Video Calls**      | WebRTC video calling and screen sharing                                                                                                | 🔄 In Progress   |
+| 🔍 **Search**           | Full-text search across all modules                                                                                                    | ✅ Phase 8        |
+| 🤖 **AI Assistant**     | LLM-powered assistant via Ollama (local) or Claude/OpenAI (cloud)                                                                      | ✅ Phase 9        |
+| 🔒 **E2EE**             | Optional zero-knowledge encryption                                                                                                     | Phase 10          |
 
 ### Roadmap
 
 See [MASTER_PROJECT_PLAN.md](docs/MASTER_PROJECT_PLAN.md) for the full phased implementation plan with detailed status tracking.
 
-| Phase | Milestone | Status |
-|---|---|---|
-| **Phase 0** | Foundation — core platform, auth, module system, CLI, web shell, observability | ✅ Complete |
-| **Phase 1** | Files + Desktop Sync Client — file browser, upload/download, sharing, Collabora editing, bulk operations, trash, tags, versioning, Windows & Linux sync | ✅ Complete |
-| **Phase 2** | Chat + Notifications + Android — real-time messaging, push notifications, Android MAUI client | ✅ Complete |
-| **Phase 3** | Contacts + Calendar + Notes + NextCloud Migration | ✅ Complete |
-| **Phase 4** | Project Management (Tracks) | ✅ Complete |
-| **Phase 5** | Photos + Music | ⬜ Planned |
-| **Phase 6** | Email + Bookmarks | ⬜ Planned |
-| **Phase 7** | Video Calling + Screen Sharing | ⬜ Planned |
-| **Phase 8** | Search + Auto-Updates + E2EE | ⬜ Planned |
-| **Phase 9** | AI Assistant | ⬜ Planned |
+| Phase        | Milestone                                                                                                                                               | Status            |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
+| **Phase 0**  | Foundation — core platform, auth, module system, CLI, web shell, observability                                                                          | ✅ Complete       |
+| **Phase 1**  | Files + Desktop Sync Client — file browser, upload/download, sharing, Collabora editing, bulk operations, trash, tags, versioning, Windows & Linux sync | ✅ Complete       |
+| **Phase 2**  | Chat + Notifications + Android — real-time messaging, push notifications, Android MAUI client                                                           | ✅ Complete       |
+| **Phase 3**  | Contacts + Calendar + Notes + NextCloud Migration                                                                                                       | ✅ Complete       |
+| **Phase 4**  | Project Management (Tracks)                                                                                                                             | 🔄 Rearchitecting |
+| **Phase 5**  | Photos + Music + Video                                                                                                                                  | ✅ Complete       |
+| **Phase 6**  | Email + Bookmarks                                                                                                                                       | ⬜ Planned        |
+| **Phase 7**  | Video Calling + Screen Sharing                                                                                                                          | 🔄 In Progress   |
+| **Phase 8**  | Search                                                                                                                                                  | ✅ Complete       |
+| **Phase 9**  | AI Assistant                                                                                                                                            | ✅ Complete       |
+| **Phase 10** | End-to-End Encryption (E2EE)                                                                                                                            | ⬜ Planned        |
+| **Phase 11** | Auto-Updates — server, CLI, admin UI, desktop, Android                                                                                                  | ✅ Complete       |
 
 ---
 
@@ -123,12 +126,163 @@ DotNetCloud uses a **modular monolith with process-isolated modules** architectu
 - **Reliability** — A crashed module doesn't take down the whole system
 - **Extensibility** — Third-party modules use the exact same architecture as first-party ones
 
-```
-dotnetcloud (core process — supervisor)
-├── dotnetcloud-module files      (gRPC)
-├── dotnetcloud-module chat       (gRPC)
-├── dotnetcloud-module calendar   (gRPC)
-└── livekit                       (optional, video calling)
+```mermaid
+graph TB
+    %% ── Clients ──────────────────────────────────────────────
+    subgraph Clients["Clients"]
+        direction LR
+        BlazorUI["🌐 Blazor Web UI<br/><small>Interactive Server + WASM</small>"]
+        Desktop["🖥️ Desktop Sync Client<br/><small>Avalonia · Windows &amp; Linux</small>"]
+        Android["📱 Android App<br/><small>.NET MAUI</small>"]
+        CLI["⌨️ CLI<br/><small>dotnetcloud setup / serve / …</small>"]
+    end
+
+    %% ── Core Process ─────────────────────────────────────────
+    subgraph Core["DotNetCloud Core Process (Supervisor)"]
+        direction TB
+
+        subgraph CoreServices["Core Services"]
+            direction LR
+            Supervisor["Process<br/>Supervisor"]
+            AuthServer["OpenIddict<br/>OAuth2 / OIDC"]
+            Identity["ASP.NET Core<br/>Identity + MFA"]
+            SignalR["SignalR Hub<br/><small>Real-time · Presence</small>"]
+            CapSystem["Capability<br/>System"]
+            EventBus["Event Bus<br/><small>Pub / Sub</small>"]
+        end
+
+        subgraph Infra["Shared Infrastructure"]
+            direction LR
+            Serilog["Serilog<br/><small>Structured Logging</small>"]
+            OTel["OpenTelemetry<br/><small>Metrics · Traces</small>"]
+            HealthChecks["Health Checks<br/><small>/health · /ready · /live</small>"]
+            SecurityMW["Security<br/>Middleware<br/><small>CSP · HSTS · Headers</small>"]
+        end
+
+        RESTAPI["REST API  ·  gRPC Host"]
+    end
+
+    %% ── Module Processes ─────────────────────────────────────
+    subgraph Modules["Module Processes (Process-Isolated)"]
+        direction LR
+
+        subgraph FilesM["📁 Files Module"]
+            direction TB
+            FilesLogic["Files · Sharing<br/>Trash · Versions<br/>Chunked Upload"]
+            FilesWOPI["WOPI Host"]
+            FilesDB[("Files DB<br/><small>files.*</small>")]
+            FilesLogic --- FilesDB
+        end
+
+        subgraph ChatM["💬 Chat Module"]
+            direction TB
+            ChatLogic["Channels · DMs<br/>Reactions · Typing"]
+            ChatDB[("Chat DB<br/><small>chat.*</small>")]
+            ChatLogic --- ChatDB
+        end
+
+        subgraph CalM["📅 Calendar Module"]
+            direction TB
+            CalLogic["Events · Recurring<br/>CalDAV"]
+            CalDB[("Calendar DB<br/><small>calendar.*</small>")]
+            CalLogic --- CalDB
+        end
+
+        subgraph ConM["👤 Contacts Module"]
+            direction TB
+            ConLogic["vCard · Groups<br/>CardDAV"]
+            ConDB[("Contacts DB<br/><small>contacts.*</small>")]
+            ConLogic --- ConDB
+        end
+
+        subgraph NotesM["📝 Notes Module"]
+            direction TB
+            NotesLogic["Markdown · Tags<br/>Folders · Search"]
+            NotesDB[("Notes DB<br/><small>notes.*</small>")]
+            NotesLogic --- NotesDB
+        end
+
+        subgraph TracksM["📋 Tracks Module"]
+            direction TB
+            TracksLogic["Boards · Cards<br/>Sprints · Time"]
+            TracksDB[("Tracks DB<br/><small>tracks.*</small>")]
+            TracksLogic --- TracksDB
+        end
+
+        subgraph PhotosM["🖼️ Photos Module"]
+            direction TB
+            PhotosLogic["Library · Albums<br/>Geo · Slideshow"]
+            PhotosDB[("Photos DB<br/><small>photos.*</small>")]
+            PhotosLogic --- PhotosDB
+        end
+
+        subgraph MusicM["🎵 Music Module"]
+            direction TB
+            MusicLogic["Library · Playlists<br/>Streaming · Subsonic"]
+            MusicDB[("Music DB<br/><small>music.*</small>")]
+            MusicLogic --- MusicDB
+        end
+
+        subgraph VideoM["🎬 Video Module"]
+            direction TB
+            VideoLogic["Library · Collections<br/>Subtitles · Streaming"]
+            VideoDB[("Video DB<br/><small>video.*</small>")]
+            VideoLogic --- VideoDB
+        end
+    end
+
+    %% ── External / Managed Components ────────────────────────
+    subgraph Managed["Managed Components (Optional)"]
+        direction LR
+        Collabora["📄 Collabora CODE<br/><small>Document Editing · WOPI</small>"]
+        LiveKit["📹 LiveKit<br/><small>WebRTC SFU · Video Calls</small>"]
+    end
+
+    %% ── Core Database ────────────────────────────────────────
+    CoreDB[("Core Database<br/><small>PostgreSQL · SQL Server · MariaDB</small><br/><small>Users · Roles · Teams · Orgs<br/>Permissions · Settings · Modules</small>")]
+
+    %% ── Connections: Clients → Core ──────────────────────────
+    BlazorUI -- "HTTP · SignalR<br/>WebSocket" --> RESTAPI
+    Desktop -- "REST API<br/>OAuth2 PKCE" --> RESTAPI
+    Android -- "REST API · SignalR<br/>OAuth2 PKCE" --> RESTAPI
+    CLI -- "HTTP" --> RESTAPI
+
+    %% ── Connections: Core ↔ Modules (gRPC) ───────────────────
+    RESTAPI -- "gRPC<br/><small>Unix Socket / Named Pipe</small>" --> FilesLogic
+    RESTAPI -- "gRPC<br/><small>Unix Socket / Named Pipe</small>" --> ChatLogic
+    RESTAPI -- "gRPC<br/><small>Unix Socket / Named Pipe</small>" --> CalLogic
+    RESTAPI -- "gRPC<br/><small>Unix Socket / Named Pipe</small>" --> ConLogic
+    RESTAPI -- "gRPC<br/><small>Unix Socket / Named Pipe</small>" --> NotesLogic
+    RESTAPI -- "gRPC<br/><small>Unix Socket / Named Pipe</small>" --> TracksLogic
+    RESTAPI -- "gRPC<br/><small>Unix Socket / Named Pipe</small>" --> PhotosLogic
+    RESTAPI -- "gRPC<br/><small>Unix Socket / Named Pipe</small>" --> MusicLogic
+    RESTAPI -- "gRPC<br/><small>Unix Socket / Named Pipe</small>" --> VideoLogic
+
+    %% ── Connections: Core → Database ─────────────────────────
+    CoreServices --> CoreDB
+
+    %% ── Connections: Managed Components ──────────────────────
+    FilesWOPI <-- "WOPI Protocol" --> Collabora
+    SignalR -. "WebRTC Signaling" .-> LiveKit
+
+    %% ── Desktop Sync Detail ──────────────────────────────────
+    Desktop -. "IPC" .-> SyncService["🔄 Sync Service<br/><small>Background Daemon<br/>Windows Service / systemd</small>"]
+    SyncService -- "REST API<br/>Chunked Upload" --> RESTAPI
+
+    %% ── Styling ──────────────────────────────────────────────
+    classDef clientNode fill:#4a90d9,stroke:#2c5f8a,color:#fff
+    classDef coreNode fill:#2ecc71,stroke:#1a9c54,color:#fff
+    classDef moduleNode fill:#e67e22,stroke:#c0651a,color:#fff
+    classDef dbNode fill:#9b59b6,stroke:#7d3c98,color:#fff
+    classDef managedNode fill:#95a5a6,stroke:#7f8c8d,color:#fff
+    classDef infraNode fill:#1abc9c,stroke:#148f77,color:#fff
+
+    class BlazorUI,Desktop,Android,CLI,SyncService clientNode
+    class Supervisor,AuthServer,Identity,SignalR,CapSystem,EventBus,RESTAPI coreNode
+    class Serilog,OTel,HealthChecks,SecurityMW infraNode
+    class FilesLogic,FilesWOPI,ChatLogic,CalLogic,ConLogic,NotesLogic,TracksLogic,PhotosLogic,MusicLogic,VideoLogic moduleNode
+    class CoreDB,FilesDB,ChatDB,CalDB,ConDB,NotesDB,TracksDB,PhotosDB,MusicDB,VideoDB dbNode
+    class Collabora,LiveKit managedNode
 ```
 
 For full details, see the [Architecture Document](docs/architecture/ARCHITECTURE.md).
@@ -137,30 +291,30 @@ For full details, see the [Architecture Document](docs/architecture/ARCHITECTURE
 
 ## Platform Support
 
-| Platform | Server | Desktop Client | Mobile Client |
-|---|---|---|---|
-| **Windows** | ✅ | ✅ (Avalonia) | — |
-| **Linux (Debian-derived)** | ✅ | ✅ (Avalonia) | — |
-| **Android** | — | — | ✅ (.NET MAUI) |
-| **macOS** | 🔜 Future | 🔜 Future | — |
-| **iOS** | — | — | 🔜 Future |
+| Platform                   | Server    | Desktop Client | Mobile Client  |
+| -------------------------- | --------- | -------------- | -------------- |
+| **Windows**                | ✅        | ✅ (Avalonia)  | —              |
+| **Linux (Debian-derived)** | ✅        | ✅ (Avalonia)  | —              |
+| **Android**                | —         | —              | ✅ (.NET MAUI) |
+| **macOS**                  | 🔜 Future | 🔜 Future      | —              |
+| **iOS**                    | —         | —              | 🔜 Future      |
 
 ### Deployment Options
 
-| Option | Reverse Proxy |
-|---|---|
+| Option                                   | Reverse Proxy                         |
+| ---------------------------------------- | ------------------------------------- |
 | Bare metal (built-in process supervisor) | IIS, Apache, nginx, or direct Kestrel |
-| Docker Compose | Any |
-| Kubernetes (Helm chart) | Any |
+| Docker Compose                           | Any                                   |
+| Kubernetes (Helm chart)                  | Any                                   |
 
 ### Database Support
 
-| Database | Status |
-|---|---|
+| Database   | Status       |
+| ---------- | ------------ |
 | PostgreSQL | ✅ Supported |
 | SQL Server | ✅ Supported |
-| MariaDB | ✅ Supported |
-| Oracle | 🔜 Future |
+| MariaDB    | ✅ Supported |
+| Oracle     | 🔜 Future    |
 
 ---
 
@@ -243,20 +397,20 @@ Imports users, files, calendars, contacts, and bookmarks.
 
 ## Technology Stack
 
-| Component | Technology |
-|---|---|
-| Server | ASP.NET Core (.NET 10) |
-| Web UI | Blazor |
-| Desktop Client | Avalonia |
-| Mobile Client | .NET MAUI (Android) |
-| Database ORM | Entity Framework Core |
-| Auth | ASP.NET Core Identity + OpenIddict (OAuth2/OIDC) |
-| Real-time | SignalR |
-| Module IPC | gRPC |
-| Video (optional) | LiveKit (Apache 2.0) |
-| Document Editing (optional) | Collabora CODE / Collabora Online (MPL-2.0) |
-| Logging | Serilog |
-| Telemetry | OpenTelemetry |
+| Component                   | Technology                                       |
+| --------------------------- | ------------------------------------------------ |
+| Server                      | ASP.NET Core (.NET 10)                           |
+| Web UI                      | Blazor                                           |
+| Desktop Client              | Avalonia                                         |
+| Mobile Client               | .NET MAUI (Android)                              |
+| Database ORM                | Entity Framework Core                            |
+| Auth                        | ASP.NET Core Identity + OpenIddict (OAuth2/OIDC) |
+| Real-time                   | SignalR                                          |
+| Module IPC                  | gRPC                                             |
+| Video (optional)            | LiveKit (Apache 2.0)                             |
+| Document Editing (optional) | Collabora CODE / Collabora Online (MPL-2.0)      |
+| Logging                     | Serilog                                          |
+| Telemetry                   | OpenTelemetry                                    |
 
 All dependencies are open source with permissive licenses. Zero cost. See the [full dependency list](docs/architecture/ARCHITECTURE.md#21-dependencies).
 

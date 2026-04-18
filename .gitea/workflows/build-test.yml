@@ -159,7 +159,7 @@ jobs:
           - database: sqlserver
             db_image: mcr.microsoft.com/mssql/server:2022-latest
             db_port: 1433
-            connection_string: "Server=localhost,1433;Database=dotnetcloud_integration;User Id=sa;Password=TestPassword123!;TrustServerCertificate=true"
+            connection_string: "Server=localhost,1433;Database=dotnetcloud_integration;User Id=sa;Password=TestPassword123!;TrustServerCertificate=true;MultipleActiveResultSets=true"
 
     services:
       database:

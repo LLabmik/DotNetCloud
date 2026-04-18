@@ -28,6 +28,11 @@ The Chat module provides real-time messaging for DotNetCloud organizations. It s
 | **Push Notifications** | FCM (Google Play) and UnifiedPush (F-Droid/self-hosted) with retry queue |
 | **Unread Counts** | Per-channel unread message and mention counts |
 | **Message Search** | Full-text search within channels |
+| **Video/Audio Calls** | WebRTC-based 1:1 and group calls from any channel type |
+| **Screen Sharing** | Browser-native screen sharing during calls |
+| **Call History** | Per-channel call history with pagination |
+| **LiveKit SFU** | Optional SFU for group calls with 4+ participants |
+| **STUN/TURN** | Built-in STUN server, configurable coturn TURN relay |
 
 ## Architecture
 
@@ -45,7 +50,7 @@ src/Modules/Chat/
 The `ChatModuleManifest` declares:
 
 - **Required Capabilities:** `INotificationService`, `IUserDirectory`, `ICurrentUserContext`, `IRealtimeBroadcaster`
-- **Published Events:** `MessageSentEvent`, `ChannelCreatedEvent`, `ChannelDeletedEvent`, `UserJoinedChannelEvent`, `UserLeftChannelEvent`, `PresenceChangedEvent`
+- **Published Events:** `MessageSentEvent`, `ChannelCreatedEvent`, `ChannelDeletedEvent`, `UserJoinedChannelEvent`, `UserLeftChannelEvent`, `PresenceChangedEvent`, `VideoCallInitiatedEvent`, `VideoCallAnsweredEvent`, `VideoCallEndedEvent`, `VideoCallMissedEvent`, `ParticipantJoinedCallEvent`, `ParticipantLeftCallEvent`, `ScreenShareStartedEvent`, `ScreenShareEndedEvent`
 - **Subscribed Events:** `FileUploadedEvent` (from Files module — for file sharing integration)
 
 ### Data Flow
@@ -114,6 +119,10 @@ The `ChatModule` class implements `IModuleLifecycle`:
 | `MessageType` | `Text`, `System`, `Notification` | Message category |
 | `MentionType` | `User`, `Channel`, `All` | @mention scope |
 | `AnnouncementPriority` | `Normal`, `Important`, `Urgent` | Announcement urgency |
+| `VideoCallState` | `Ringing`, `Connecting`, `Active`, `OnHold`, `Ended`, `Missed`, `Rejected`, `Failed` | Call lifecycle state |
+| `VideoCallEndReason` | `Normal`, `Rejected`, `Missed`, `TimedOut`, `Failed`, `Cancelled` | Why a call ended |
+| `CallParticipantRole` | `Initiator`, `Participant` | Role in a call |
+| `CallMediaType` | `Audio`, `Video`, `ScreenShare` | Media type |
 
 ## Related Documentation
 
@@ -121,10 +130,12 @@ The `ChatModule` class implements `IModuleLifecycle`:
 - [Architecture & Data Model](ARCHITECTURE.md)
 - [Real-Time Events (SignalR)](REALTIME.md)
 - [Push Notifications](PUSH.md)
+- [Chat ↔ Tracks Integration](../CHAT_TRACKS_INTEGRATION.md)
+- [Video Calling Admin Guide](../../admin/VIDEO_CALLING.md)
 
 ## Test Coverage
 
 | Test Project | Tests | Description |
 |---|---|---|
-| `DotNetCloud.Modules.Chat.Tests` | 263 | Unit tests for all services, models, events, and controllers |
+| `DotNetCloud.Modules.Chat.Tests` | 1027 | Unit tests for all services, models, events, controllers, and video calling |
 | `DotNetCloud.Integration.Tests` | 47 | REST API integration tests via `ChatHostWebApplicationFactory` |

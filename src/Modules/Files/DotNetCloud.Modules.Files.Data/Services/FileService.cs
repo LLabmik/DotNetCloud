@@ -1,6 +1,7 @@
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Events.Search;
 using DotNetCloud.Modules.Files.Data;
 using DotNetCloud.Modules.Files.DTOs;
 using DotNetCloud.Modules.Files.Events;
@@ -122,6 +123,15 @@ internal sealed class FileService : IFileService
         _logger.LogInformation("Folder '{Name}' created by {UserId} under {ParentId}",
             dto.Name, caller.UserId, dto.ParentId);
 
+        await _eventBus.PublishAsync(new SearchIndexRequestEvent
+        {
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            ModuleId = "files",
+            EntityId = folder.Id.ToString(),
+            Action = SearchIndexAction.Index
+        }, caller, cancellationToken);
+
         return ToDto(folder);
     }
 
@@ -212,6 +222,15 @@ internal sealed class FileService : IFileService
 
         _logger.LogInformation("Node {NodeId} renamed to '{Name}' by {UserId}", nodeId, dto.Name, caller.UserId);
 
+        await _eventBus.PublishAsync(new SearchIndexRequestEvent
+        {
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            ModuleId = "files",
+            EntityId = nodeId.ToString(),
+            Action = SearchIndexAction.Index
+        }, caller, cancellationToken);
+
         return ToDto(node);
     }
 
@@ -295,6 +314,15 @@ internal sealed class FileService : IFileService
             PreviousParentId = previousParentId,
             NewParentId = dto.TargetParentId,
             MovedByUserId = caller.UserId
+        }, caller, cancellationToken);
+
+        await _eventBus.PublishAsync(new SearchIndexRequestEvent
+        {
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            ModuleId = "files",
+            EntityId = nodeId.ToString(),
+            Action = SearchIndexAction.Index
         }, caller, cancellationToken);
 
         _logger.LogInformation("Node {NodeId} moved to parent {ParentId} by {UserId}",
@@ -425,6 +453,15 @@ internal sealed class FileService : IFileService
             FileName = node.Name,
             DeletedByUserId = caller.UserId,
             IsPermanent = false
+        }, caller, cancellationToken);
+
+        await _eventBus.PublishAsync(new SearchIndexRequestEvent
+        {
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            ModuleId = "files",
+            EntityId = nodeId.ToString(),
+            Action = SearchIndexAction.Remove
         }, caller, cancellationToken);
 
         _logger.LogInformation("Node {NodeId} soft-deleted by {UserId}", nodeId, caller.UserId);
@@ -706,6 +743,15 @@ internal sealed class FileService : IFileService
                 "Name",
                 $"Filename '{name}' is a reserved device name on Windows ('{baseName}') and cannot be synced to Windows clients. Please choose a different name.");
         }
+    }
+
+    /// <inheritdoc />
+    public async Task<string?> GetStoragePathAsync(Guid fileNodeId, CancellationToken cancellationToken = default)
+    {
+        return await _db.FileNodes.IgnoreQueryFilters()
+            .Where(n => n.Id == fileNodeId && n.NodeType == FileNodeType.File)
+            .Select(n => n.StoragePath)
+            .FirstOrDefaultAsync(cancellationToken);
     }
 
 }

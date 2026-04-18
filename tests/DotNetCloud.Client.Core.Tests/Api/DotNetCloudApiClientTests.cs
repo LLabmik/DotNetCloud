@@ -346,7 +346,8 @@ public class DotNetCloudApiClientTests
         var apiClient = new DotNetCloudApiClient(client, NullLogger<DotNetCloudApiClient>.Instance);
 
         NameConflictException? caught = null;
-        try { await apiClient.CreateFolderAsync("Reports", null); }
+        try
+        { await apiClient.CreateFolderAsync("Reports", null); }
         catch (NameConflictException ex) { caught = ex; }
 
         Assert.IsNotNull(caught, "Expected NameConflictException but none was thrown.");
@@ -364,7 +365,8 @@ public class DotNetCloudApiClientTests
         var apiClient = new DotNetCloudApiClient(client, NullLogger<DotNetCloudApiClient>.Instance);
 
         NameConflictException? caught = null;
-        try { await apiClient.InitiateUploadAsync("report.pdf", null, 100, null, ["hash1"]); }
+        try
+        { await apiClient.InitiateUploadAsync("report.pdf", null, 100, null, ["hash1"]); }
         catch (NameConflictException ex) { caught = ex; }
 
         Assert.IsNotNull(caught, "Expected NameConflictException but none was thrown.");
@@ -383,7 +385,8 @@ public class DotNetCloudApiClientTests
 
         // Should throw HttpRequestException (from EnsureSuccessStatusCode), not NameConflictException.
         HttpRequestException? caught = null;
-        try { await apiClient.CreateFolderAsync("test", null); }
+        try
+        { await apiClient.CreateFolderAsync("test", null); }
         catch (HttpRequestException ex) { caught = ex; }
 
         Assert.IsNotNull(caught, "Expected HttpRequestException but none was thrown.");
@@ -421,40 +424,17 @@ public class DotNetCloudApiClientTests
     // ── ETag / If-None-Match (Issue #49) ────────────────────────────────────
 
     [TestMethod]
-    public async Task DownloadChunkByHashAsync_304NotModified_RetriesWithoutConditionalAndReturnsStream()
+    public async Task DownloadChunkByHashAsync_304NotModified_ReturnsStreamNull()
     {
-        string? firstIfNoneMatch = null;
-        string? secondIfNoneMatch = null;
-        var callCount = 0;
-        var rawBytes = new byte[] { 9, 8, 7, 6 };
-
         var client = CreateMockHttpClient(req =>
         {
-            callCount++;
-
-            if (callCount == 1)
-            {
-                firstIfNoneMatch = req.Headers.IfNoneMatch.FirstOrDefault()?.Tag;
-                return new HttpResponseMessage(HttpStatusCode.NotModified);
-            }
-
-            secondIfNoneMatch = req.Headers.IfNoneMatch.FirstOrDefault()?.Tag;
-            return new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = new ByteArrayContent(rawBytes),
-            };
+            return new HttpResponseMessage(HttpStatusCode.NotModified);
         });
         var apiClient = new DotNetCloudApiClient(client, NullLogger<DotNetCloudApiClient>.Instance);
 
-        var result = await apiClient.DownloadChunkByHashAsync("abc123hash");
+        var result = await apiClient.DownloadChunkByHashAsync("abc123hash", useConditional: true);
 
-        Assert.AreEqual(2, callCount, "304 response should trigger one unconditional retry.");
-        Assert.AreEqual("\"abc123hash\"", firstIfNoneMatch, "First request should use If-None-Match with the chunk hash.");
-        Assert.IsNull(secondIfNoneMatch, "Retry request should omit If-None-Match.");
-
-        using var ms = new MemoryStream();
-        await result.CopyToAsync(ms);
-        CollectionAssert.AreEqual(rawBytes, ms.ToArray(), "Retry response content should be returned to caller.");
+        Assert.AreSame(Stream.Null, result, "304 response should return Stream.Null to the caller.");
     }
 
     [TestMethod]
@@ -479,6 +459,27 @@ public class DotNetCloudApiClientTests
         using var ms = new MemoryStream();
         await result.CopyToAsync(ms);
         CollectionAssert.AreEqual(rawBytes, ms.ToArray());
+    }
+
+    [TestMethod]
+    public async Task DownloadChunkByHashAsync_UnconditionalRequest_OmitsIfNoneMatch()
+    {
+        string? capturedIfNoneMatch = null;
+        var rawBytes = new byte[] { 1, 2, 3 };
+        var client = CreateMockHttpClient(req =>
+        {
+            capturedIfNoneMatch = req.Headers.IfNoneMatch.FirstOrDefault()?.Tag;
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent(rawBytes),
+            };
+        });
+        var apiClient = new DotNetCloudApiClient(client, NullLogger<DotNetCloudApiClient>.Instance);
+
+        var result = await apiClient.DownloadChunkByHashAsync("somehash", useConditional: false);
+
+        Assert.IsNull(capturedIfNoneMatch, "If-None-Match should NOT be sent when useConditional is false.");
+        Assert.AreNotSame(Stream.Null, result);
     }
 
     // ── Compression skip (Issue #50) ────────────────────────────────────────

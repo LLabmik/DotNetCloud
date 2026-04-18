@@ -1,0 +1,27 @@
+@namespace DotNetCloud.Modules.Tracks.UI
+
+<div class="tracks-burndown-chart">
+    <div class="tracks-chart-header">
+        <h4>📉 Burndown Chart</h4>
+        @if (_report is not null)
+        {
+            <span class="tracks-muted">
+                @_report.CompletedPoints / @_report.TotalPoints SP ·
+                @_report.CompletedCards / @_report.TotalCards cards
+            </span>
+        }
+    </div>
+
+    @if (_isLoading)
+    {
+        <p class="tracks-muted">Loading chart data...</p>
+    }
+    else if (_report is null || _report.BurndownData.Count == 0)
+    {
+        <p class="tracks-muted">No burndown data available. Sprint needs start/end dates and story points.</p>
+    }
+    else
+    {
+        @((MarkupString)BuildBurndownSvg())
+    }
+</div>

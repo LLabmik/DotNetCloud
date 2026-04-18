@@ -56,21 +56,21 @@ DotNetCloud is a self-hosted, open-source cloud platform built on .NET 10/C#. It
 
 ### Target Features
 
-| Feature | Inspired By |
-|---|---|
-| File sync & sharing | NextCloud Files |
-| Online document editing | Collabora Online (LibreOffice-based) |
-| Chat & video calls | NextCloud Talk |
-| Project management | NextCloud Deck + Jira |
-| Calendar & contacts | CalDAV/CardDAV |
-| Email client | SMTP/IMAP/Gmail |
-| Notes | Markdown-based |
-| Music player & library | With equalizer, playlists, recommendations |
-| Photo & video management | Auto-upload, albums, editing |
-| Browser bookmark sync | Browser extensions |
-| Announcements | User/group/org broadcasts |
-| Full-text search | Across all modules |
-| AI assistant | Local (Ollama) or cloud LLM (Claude, etc.) |
+| Feature                  | Inspired By                                |
+| ------------------------ | ------------------------------------------ |
+| File sync & sharing      | NextCloud Files                            |
+| Online document editing  | Collabora Online (LibreOffice-based)       |
+| Chat & video calls       | NextCloud Talk                             |
+| Project management       | NextCloud Deck + Jira                      |
+| Calendar & contacts      | CalDAV/CardDAV                             |
+| Email client             | SMTP/IMAP/Gmail                            |
+| Notes                    | Markdown-based                             |
+| Music player & library   | With equalizer, playlists, recommendations |
+| Photo & video management | Auto-upload, albums, editing               |
+| Browser bookmark sync    | Browser extensions                         |
+| Announcements            | User/group/org broadcasts                  |
+| Full-text search         | Across all modules                         |
+| AI assistant             | Local (Ollama) or cloud LLM (Claude, etc.) |
 
 ---
 
@@ -102,11 +102,11 @@ dotnetcloud (core process — supervisor)
 
 ### Process Communication
 
-| Platform | Transport |
-|---|---|
-| Linux | Unix domain sockets (`/run/dotnetcloud/*.sock`) |
-| Windows | Named Pipes |
-| Docker/Kubernetes | TCP localhost (fallback) |
+| Platform          | Transport                                       |
+| ----------------- | ----------------------------------------------- |
+| Linux             | Unix domain sockets (`/run/dotnetcloud/*.sock`) |
+| Windows           | Named Pipes                                     |
+| Docker/Kubernetes | TCP localhost (fallback)                        |
 
 ### Process Supervisor Responsibilities
 
@@ -125,22 +125,22 @@ dotnetcloud (core process — supervisor)
 
 ### Supported Database Engines
 
-| Engine | Status | EF Core Provider |
-|---|---|---|
-| PostgreSQL | ✅ Initial release | Npgsql (PostgreSQL License) |
+| Engine     | Status             | EF Core Provider                              |
+| ---------- | ------------------ | --------------------------------------------- |
+| PostgreSQL | ✅ Initial release | Npgsql (PostgreSQL License)                   |
 | SQL Server | ✅ Initial release | Microsoft.EntityFrameworkCore.SqlServer (MIT) |
-| MariaDB | ✅ Initial release | Pomelo.EntityFrameworkCore.MySql (MIT) |
-| Oracle | 🔜 Future | Oracle.EntityFrameworkCore |
+| MariaDB    | ✅ Initial release | Pomelo.EntityFrameworkCore.MySql (MIT)        |
+| Oracle     | 🔜 Future          | Oracle.EntityFrameworkCore                    |
 
 ### Schema Isolation
 
 Each module owns its own `DbContext` with its own tables. Modules never share database tables or access other modules' data directly.
 
-| Approach | Database support |
-|---|---|
-| PostgreSQL | Separate schemas (`files.*`, `chat.*`) |
-| SQL Server | Separate schemas (`files.Documents`, `chat.Messages`) |
-| MariaDB | Table name prefixes (`Files_Documents`, `Chat_Messages`) |
+| Approach   | Database support                                         |
+| ---------- | -------------------------------------------------------- |
+| PostgreSQL | Separate schemas (`files.*`, `chat.*`)                   |
+| SQL Server | Separate schemas (`files.Documents`, `chat.Messages`)    |
+| MariaDB    | Table name prefixes (`Files_Documents`, `Chat_Messages`) |
 
 A configurable table naming strategy defaults to prefixes for universal compatibility, with real schemas on Postgres/SQL Server.
 
@@ -162,12 +162,12 @@ A configurable table naming strategy defaults to prefixes for universal compatib
 
 ### Stack
 
-| Layer | Technology | Purpose |
-|---|---|---|
-| User/role storage | ASP.NET Core Identity | User management, password hashing, MFA TOTP, lockout, email confirmation |
-| OAuth2/OIDC server | OpenIddict (Apache 2.0) | Issues access/refresh/ID tokens, authorization code + PKCE, client credentials |
-| Federation | ASP.NET Core External Authentication | Sign in with Google/Microsoft/GitHub, enterprise SAML/OIDC |
-| MFA | Identity TOTP + Fido2NetLib (MIT) | Authenticator apps + hardware keys/passkeys |
+| Layer              | Technology                           | Purpose                                                                        |
+| ------------------ | ------------------------------------ | ------------------------------------------------------------------------------ |
+| User/role storage  | ASP.NET Core Identity                | User management, password hashing, MFA TOTP, lockout, email confirmation       |
+| OAuth2/OIDC server | OpenIddict (Apache 2.0)              | Issues access/refresh/ID tokens, authorization code + PKCE, client credentials |
+| Federation         | ASP.NET Core External Authentication | Sign in with Google/Microsoft/GitHub, enterprise SAML/OIDC                     |
+| MFA                | Identity TOTP + Fido2NetLib (MIT)    | Authenticator apps + hardware keys/passkeys                                    |
 
 ### Why OpenIddict Over Duende
 
@@ -175,13 +175,13 @@ OpenIddict is Apache 2.0 (free for all uses). Duende IdentityServer requires a p
 
 ### Auth Flows by Client
 
-| Client | Flow |
-|---|---|
-| Blazor UI | Cookie-based session via OpenIddict |
+| Client           | Flow                                                    |
+| ---------------- | ------------------------------------------------------- |
+| Blazor UI        | Cookie-based session via OpenIddict                     |
 | Avalonia Desktop | OAuth2 Authorization Code + PKCE (opens system browser) |
-| Android MAUI | OAuth2 Authorization Code + PKCE (Chrome Custom Tab) |
-| Sync Service | Refresh token (long-lived, initial auth via PKCE) |
-| Third-party apps | OAuth2 Client Credentials or Auth Code |
+| Android MAUI     | OAuth2 Authorization Code + PKCE (Chrome Custom Tab)    |
+| Sync Service     | Refresh token (long-lived, initial auth via PKCE)       |
+| Third-party apps | OAuth2 Client Credentials or Auth Code                  |
 
 ### What This Replaces
 
@@ -201,7 +201,7 @@ public class ChatModuleManifest : IModuleManifest
     public string Id => "dotnetcloud.chat";
     public string Name => "Chat & Video";
     public Version Version => new(1, 0, 0);
-    
+
     public IReadOnlyList<CapabilityRequest> RequiredCapabilities => [ ... ];
     public IReadOnlyList<string> PublishedEvents => [ ... ];
     public IReadOnlyList<string> SubscribedEvents => [ ... ];
@@ -210,12 +210,12 @@ public class ChatModuleManifest : IModuleManifest
 
 ### Capability Interface Tiers
 
-| Tier | Examples | Access |
-|---|---|---|
-| **Public** | `IUserDirectory`, `ICurrentUserContext`, `INotificationService`, `IEventBus` | Auto-granted |
-| **Restricted** | `IStorageProvider` (scoped), `IModuleSettings`, `ITeamDirectory` | Admin must approve |
-| **Privileged** | `IUserManager` (create/disable users) | Admin must approve, flagged as sensitive |
-| **Forbidden** | `CoreDbContext`, `IConfiguration` | Never injected into modules |
+| Tier           | Examples                                                                     | Access                                   |
+| -------------- | ---------------------------------------------------------------------------- | ---------------------------------------- |
+| **Public**     | `IUserDirectory`, `ICurrentUserContext`, `INotificationService`, `IEventBus` | Auto-granted                             |
+| **Restricted** | `IStorageProvider` (scoped), `IModuleSettings`, `ITeamDirectory`             | Admin must approve                       |
+| **Privileged** | `IUserManager` (create/disable users)                                        | Admin must approve, flagged as sensitive |
+| **Forbidden**  | `CoreDbContext`, `IConfiguration`                                            | Never injected into modules              |
 
 ### Security Principles
 
@@ -252,16 +252,17 @@ public record CallerContext
 
 ### Trust Levels
 
-| Level | Who | Treatment |
-|---|---|---|
-| Core | DotNetCloud platform | Full access |
-| First-Party Modules | Official modules (Files, Chat, etc.) | Same sandbox as third-party (dog-fooding) |
-| Third-Party Verified | Reviewed & signed community modules | Full sandbox, all capabilities available |
-| Third-Party Unverified | Unreviewed modules | Warning shown, Privileged capabilities blocked |
+| Level                  | Who                                  | Treatment                                      |
+| ---------------------- | ------------------------------------ | ---------------------------------------------- |
+| Core                   | DotNetCloud platform                 | Full access                                    |
+| First-Party Modules    | Official modules (Files, Chat, etc.) | Same sandbox as third-party (dog-fooding)      |
+| Third-Party Verified   | Reviewed & signed community modules  | Full sandbox, all capabilities available       |
+| Third-Party Unverified | Unreviewed modules                   | Warning shown, Privileged capabilities blocked |
 
 ### Zero-Knowledge Encryption (E2EE)
 
 Optional, not default. When enabled per-user or per-folder:
+
 - Server stores ciphertext only — admin cannot read user data
 - Client-side encryption/decryption (Avalonia/MAUI via WebCrypto or .NET crypto APIs)
 - Server-side features (search, thumbnails, analysis) do not work on encrypted content
@@ -273,12 +274,12 @@ Optional, not default. When enabled per-user or per-folder:
 
 ### Stack
 
-| Layer | Technology | License |
-|---|---|---|
-| Chat, presence, notifications | SignalR (.NET) | MIT |
-| WebRTC signaling | SIPSorcery (.NET) | BSD-3-Clause |
-| P2P calls (1-3 people) | WebRTC peer-to-peer (browser-native) | N/A |
-| Group calls / SFU (4+ people) | LiveKit (optional, Go) | Apache 2.0 |
+| Layer                         | Technology                           | License      |
+| ----------------------------- | ------------------------------------ | ------------ |
+| Chat, presence, notifications | SignalR (.NET)                       | MIT          |
+| WebRTC signaling              | SIPSorcery (.NET)                    | BSD-3-Clause |
+| P2P calls (1-3 people)        | WebRTC peer-to-peer (browser-native) | N/A          |
+| Group calls / SFU (4+ people) | LiveKit (optional, Go)               | Apache 2.0   |
 
 ### Architecture
 
@@ -298,10 +299,10 @@ User sends message → SignalR hub (core) → Chat module (gRPC) → validates, 
 
 ### Push Notifications (Android)
 
-| Method | For whom |
-|---|---|
+| Method                         | For whom                                              |
+| ------------------------------ | ----------------------------------------------------- |
 | FCM (Firebase Cloud Messaging) | Regular Android (free, Google Play Services required) |
-| UnifiedPush | De-Googled Android (open-source, self-hostable) |
+| UnifiedPush                    | De-Googled Android (open-source, self-hostable)       |
 
 App detects available push method at startup. Build flavors: `googleplay` (FCM) and `fdroid` (UnifiedPush only).
 
@@ -370,11 +371,11 @@ User opens document → Blazor UI loads Collabora iframe
 
 #### Deployment Modes
 
-| Mode | Component | For whom |
-|---|---|---|
-| **Built-in (CODE)** | Collabora CODE (Development Edition) | Small instances, home users, development. Auto-installed by `dotnetcloud setup`. |
-| **External** | Collabora Online (full) | Organizations needing higher capacity. Admin points DotNetCloud at an external Collabora Online server. |
-| **Docker** | Collabora CODE container | Docker Compose deployments. Included in auto-generated `docker-compose.yml`. |
+| Mode                | Component                            | For whom                                                                                                |
+| ------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------- |
+| **Built-in (CODE)** | Collabora CODE (Development Edition) | Small instances, home users, development. Auto-installed by `dotnetcloud setup`.                        |
+| **External**        | Collabora Online (full)              | Organizations needing higher capacity. Admin points DotNetCloud at an external Collabora Online server. |
+| **Docker**          | Collabora CODE container             | Docker Compose deployments. Included in auto-generated `docker-compose.yml`.                            |
 
 #### Collabora CODE (Built-In)
 
@@ -402,12 +403,12 @@ The Files module implements a **WOPI host** endpoint:
 
 #### Supported Formats
 
-| Category | Formats |
-|---|---|
-| Documents | .docx, .odt, .doc, .rtf |
-| Spreadsheets | .xlsx, .ods, .xls, .csv |
-| Presentations | .pptx, .odp, .ppt |
-| Other | .txt, .html (basic) |
+| Category      | Formats                 |
+| ------------- | ----------------------- |
+| Documents     | .docx, .odt, .doc, .rtf |
+| Spreadsheets  | .xlsx, .ods, .xls, .csv |
+| Presentations | .pptx, .odp, .ppt       |
+| Other         | .txt, .html (basic)     |
 
 #### Collaborative Editing
 
@@ -493,12 +494,12 @@ public interface ILlmProvider
 
 ### Provider Strategy
 
-| Provider | Transport | Models | License | Cost |
-|---|---|---|---|---|
-| Ollama (local/LAN) | HTTP to `localhost:11434` or LAN IP | Llama, Mistral, Phi, Gemma, etc. | MIT | Free (self-hosted) |
-| Anthropic Claude | HTTPS API | Claude 4 Sonnet, Opus, Haiku | Proprietary | Pay-per-token |
-| OpenAI | HTTPS API | GPT-4o, GPT-4.1, etc. | Proprietary | Pay-per-token |
-| Azure OpenAI | HTTPS API | Same as OpenAI, Azure-hosted | Proprietary | Pay-per-token |
+| Provider           | Transport                           | Models                           | License     | Cost               |
+| ------------------ | ----------------------------------- | -------------------------------- | ----------- | ------------------ |
+| Ollama (local/LAN) | HTTP to `localhost:11434` or LAN IP | Llama, Mistral, Phi, Gemma, etc. | MIT         | Free (self-hosted) |
+| Anthropic Claude   | HTTPS API                           | Claude 4 Sonnet, Opus, Haiku     | Proprietary | Pay-per-token      |
+| OpenAI             | HTTPS API                           | GPT-4o, GPT-4.1, etc.            | Proprietary | Pay-per-token      |
+| Azure OpenAI       | HTTPS API                           | Same as OpenAI, Azure-hosted     | Proprietary | Pay-per-token      |
 
 Admin configures one or more providers during `dotnetcloud setup` or via admin UI. Users can select their preferred provider/model per-session if multiple are configured.
 
@@ -522,13 +523,13 @@ Admin configures one or more providers during `dotnetcloud setup` or via admin U
 
 Other modules can leverage AI through the `ILlmProvider` capability:
 
-| Module | AI Use Case |
-|---|---|
-| Notes | Summarize, expand, translate, grammar check |
-| Chat | Message summarization, smart replies |
-| Email | Draft replies, summarize threads |
-| Files | Content summarization, document Q&A |
-| Search | Semantic search, natural language queries |
+| Module | AI Use Case                                  |
+| ------ | -------------------------------------------- |
+| Notes  | Summarize, expand, translate, grammar check  |
+| Chat   | Message summarization, smart replies         |
+| Email  | Draft replies, summarize threads             |
+| Files  | Content summarization, document Q&A          |
+| Search | Semantic search, natural language queries    |
 | Tracks | Generate card descriptions, sprint summaries |
 
 ### Privacy & Data Sovereignty
@@ -628,13 +629,13 @@ Monorepo now (single Git repo), designed for easy split later. When split, modul
 
 ## 10. Platform Support
 
-| Platform | Status | Notes |
-|---|---|---|
-| Windows | ✅ Initial release | Primary development platform |
-| Linux (Debian-derived) | ✅ Initial release | Linux Mint, Ubuntu, Debian. APT packages. |
-| Android | ✅ Initial release | .NET MAUI. Play Store + F-Droid + direct APK. |
-| macOS | 🔜 Future | Architecture supports it. Avalonia runs on macOS. |
-| iOS | 🔜 Future | Requires Mac to build. |
+| Platform               | Status             | Notes                                             |
+| ---------------------- | ------------------ | ------------------------------------------------- |
+| Windows                | ✅ Initial release | Primary development platform                      |
+| Linux (Debian-derived) | ✅ Initial release | Linux Mint, Ubuntu, Debian. APT packages.         |
+| Android                | ✅ Initial release | .NET MAUI. Play Store + F-Droid + direct APK.     |
+| macOS                  | 🔜 Future          | Architecture supports it. Avalonia runs on macOS. |
+| iOS                    | 🔜 Future          | Requires Mac to build.                            |
 
 ---
 
@@ -642,17 +643,17 @@ Monorepo now (single Git repo), designed for easy split later. When split, modul
 
 ### Three Desktop Components (Option D)
 
-| Component | Technology | Purpose |
-|---|---|---|
+| Component                        | Technology          | Purpose                                                                               |
+| -------------------------------- | ------------------- | ------------------------------------------------------------------------------------- |
 | `DotNetCloud.Client.SyncService` | .NET Worker Service | Background file sync. Runs as Windows Service / systemd unit. No UI. Survives logout. |
-| `DotNetCloud.Client.SyncTray` | Avalonia tray app | Tray icon, sync status, settings window. Communicates with SyncService via IPC. |
-| `DotNetCloud.Client.Desktop` | Avalonia full app | Chat, music, notes, calendar UI. Rich windowed application. |
+| `DotNetCloud.Client.SyncTray`    | Avalonia tray app   | Tray icon, sync status, settings window. Communicates with SyncService via IPC.       |
+| `DotNetCloud.Client.Desktop`     | Avalonia full app   | Chat, music, notes, calendar UI. Rich windowed application.                           |
 
 ### Android
 
-| Component | Technology | Purpose |
-|---|---|---|
-| `DotNetCloud.Client.Mobile` | .NET MAUI | File browsing, photo auto-upload, chat, notifications |
+| Component                   | Technology | Purpose                                               |
+| --------------------------- | ---------- | ----------------------------------------------------- |
+| `DotNetCloud.Client.Mobile` | .NET MAUI  | File browsing, photo auto-upload, chat, notifications |
 
 ### Shared Library
 
@@ -684,13 +685,13 @@ SyncService (system service, one process)
 
 #### Data Isolation
 
-| Concern | Approach |
-|---|---|
-| Configuration | Stored under OS user profile (`%LOCALAPPDATA%\DotNetCloud\` / `~/.local/share/dotnetcloud/`) |
-| SQLite state DBs | One per account, under the OS user's profile directory |
-| Sync folders | Default under OS user's home directory; user-configurable per account |
-| Auth tokens | Encrypted per-context, stored in OS user's profile; inaccessible to other OS users via filesystem permissions |
-| Selective sync | Configured independently per account |
+| Concern          | Approach                                                                                                      |
+| ---------------- | ------------------------------------------------------------------------------------------------------------- |
+| Configuration    | Stored under OS user profile (`%LOCALAPPDATA%\DotNetCloud\` / `~/.local/share/dotnetcloud/`)                  |
+| SQLite state DBs | One per account, under the OS user's profile directory                                                        |
+| Sync folders     | Default under OS user's home directory; user-configurable per account                                         |
+| Auth tokens      | Encrypted per-context, stored in OS user's profile; inaccessible to other OS users via filesystem permissions |
+| Selective sync   | Configured independently per account                                                                          |
 
 OS-level filesystem permissions ensure one OS user cannot access another's sync data, tokens, or state databases.
 
@@ -710,14 +711,14 @@ On multi-user Linux systems the `SyncService` systemd unit runs as root (or a de
 
 ### Android Specifics
 
-| Concern | Approach |
-|---|---|
-| Background sync | Android WorkManager |
-| Photo auto-upload | MediaStore content observer |
-| Push notifications | FCM (default) + UnifiedPush (de-Googled) |
-| Distribution | Google Play Store + F-Droid + direct APK |
-| Build flavors | `googleplay` (FCM) / `fdroid` (UnifiedPush only) |
-| Battery | Respect Doze mode, batch uploads on WiFi + charging |
+| Concern            | Approach                                            |
+| ------------------ | --------------------------------------------------- |
+| Background sync    | Android WorkManager                                 |
+| Photo auto-upload  | MediaStore content observer                         |
+| Push notifications | FCM (default) + UnifiedPush (de-Googled)            |
+| Distribution       | Google Play Store + F-Droid + direct APK            |
+| Build flavors      | `googleplay` (FCM) / `fdroid` (UnifiedPush only)    |
+| Battery            | Respect Doze mode, batch uploads on WiFi + charging |
 
 ---
 
@@ -754,31 +755,32 @@ Disabled modules return `404` for their entire namespace.
 
 ```json
 {
-    "success": true,
-    "data": { },
-    "pagination": {
-        "page": 1,
-        "pageSize": 50,
-        "totalItems": 1234,
-        "totalPages": 25
-    }
+  "success": true,
+  "data": {},
+  "pagination": {
+    "page": 1,
+    "pageSize": 50,
+    "totalItems": 1234,
+    "totalPages": 25
+  }
 }
 ```
 
 ```json
 {
-    "success": false,
-    "error": {
-        "code": "FILES_QUOTA_EXCEEDED",
-        "message": "Storage quota exceeded.",
-        "details": { }
-    }
+  "success": false,
+  "error": {
+    "code": "FILES_QUOTA_EXCEEDED",
+    "message": "Storage quota exceeded.",
+    "details": {}
+  }
 }
 ```
 
 ### Bulk Operations
 
 Supported from day one for file operations and batch notifications:
+
 - `POST /api/v1/files/bulk/move`
 - `POST /api/v1/files/bulk/delete`
 - `POST /api/v1/files/bulk/copy`
@@ -794,10 +796,10 @@ Configurable rate limiting with generous defaults. Admins can tighten per-module
 
 ### Identity (ASP.NET Core Identity)
 
-| Entity | Extends | Key additions |
-|---|---|---|
+| Entity            | Extends              | Key additions                                                              |
+| ----------------- | -------------------- | -------------------------------------------------------------------------- |
 | `ApplicationUser` | `IdentityUser<Guid>` | DisplayName, AvatarUrl, Locale, Timezone, CreatedAt, LastLoginAt, IsActive |
-| `ApplicationRole` | `IdentityRole<Guid>` | Description, IsSystemRole |
+| `ApplicationRole` | `IdentityRole<Guid>` | Description, IsSystemRole                                                  |
 
 ### Organization Hierarchy
 
@@ -836,20 +838,20 @@ Three scopes: `SystemSetting`, `OrganizationSetting`, `UserSetting`. Each keyed 
 
 ### Deployment Modes
 
-| Mode | Description |
-|---|---|
-| Bare metal | Built-in process supervisor. Single install, single command. |
-| Docker Compose | Auto-generated `docker-compose.yml`. One command. |
-| Kubernetes | Helm chart. Each module is a pod. |
+| Mode           | Description                                                  |
+| -------------- | ------------------------------------------------------------ |
+| Bare metal     | Built-in process supervisor. Single install, single command. |
+| Docker Compose | Auto-generated `docker-compose.yml`. One command.            |
+| Kubernetes     | Helm chart. Each module is a pod.                            |
 
 ### Reverse Proxy Support
 
-| Server | Platform | Integration |
-|---|---|---|
-| IIS | Windows | ASP.NET Core Module (ANCM), auto-generated `web.config` |
-| Apache | Linux/macOS | `mod_proxy` + `mod_proxy_wstunnel`, auto-generated config |
-| nginx | Linux/macOS | Auto-generated config |
-| Direct Kestrel | Any | Dev/small installs |
+| Server         | Platform    | Integration                                               |
+| -------------- | ----------- | --------------------------------------------------------- |
+| IIS            | Windows     | ASP.NET Core Module (ANCM), auto-generated `web.config`   |
+| Apache         | Linux/macOS | `mod_proxy` + `mod_proxy_wstunnel`, auto-generated config |
+| nginx          | Linux/macOS | Auto-generated config                                     |
+| Direct Kestrel | Any         | Dev/small installs                                        |
 
 ### TLS / Let's Encrypt
 
@@ -858,6 +860,7 @@ Three scopes: `SystemSetting`, `OrganizationSetting`, `UserSetting`. Each keyed 
 ### Linux Installation
 
 Three paths:
+
 1. **One-line install script:** `curl -fsSL https://raw.githubusercontent.com/LLabmik/DotNetCloud/main/tools/install.sh | bash`
 2. **Native package manager:** `apt install dotnetcloud` (requires adding APT repo)
 3. **Unattended/headless:** `dotnetcloud setup --unattended` with all flags for automation (Ansible, Terraform, cloud-init)
@@ -923,12 +926,12 @@ dotnetcloud backup --schedule daily --keep 30 --output /backups/
 
 ## 16. Logging & Observability
 
-| Concern | Technology | License |
-|---|---|---|
-| Structured logging | Serilog | Apache 2.0 |
-| Health checks | ASP.NET Core health checks | MIT |
-| Metrics | OpenTelemetry .NET SDK | Apache 2.0 |
-| Tracing | OpenTelemetry distributed tracing | Apache 2.0 |
+| Concern            | Technology                        | License    |
+| ------------------ | --------------------------------- | ---------- |
+| Structured logging | Serilog                           | Apache 2.0 |
+| Health checks      | ASP.NET Core health checks        | MIT        |
+| Metrics            | OpenTelemetry .NET SDK            | Apache 2.0 |
+| Tracing            | OpenTelemetry distributed tracing | Apache 2.0 |
 
 - Per-module configurable log levels
 - `/health` endpoint per module process
@@ -952,18 +955,18 @@ dotnetcloud backup --schedule daily --keep 30 --output /backups/
 
 ### Dual Pipeline
 
-| Environment | Platform | Purpose |
-|---|---|---|
-| GitHub | GitHub Actions | Primary public repository, community contributions, PRs, CI |
+| Environment | Platform       | Purpose                                                     |
+| ----------- | -------------- | ----------------------------------------------------------- |
+| GitHub      | GitHub Actions | Primary public repository, community contributions, PRs, CI |
 
 ### Pipeline Stages
 
-| Stage | What |
-|---|---|
-| Build | `dotnet build` all projects |
-| Test | Unit tests + integration tests against PostgreSQL, SQL Server, MariaDB (Docker containers) |
-| Package | Build `.deb`, `.rpm`, Windows MSI, Docker images, Android APK (both flavors) |
-| Publish | Push to APT repo, Docker Hub, Google Play Store, F-Droid |
+| Stage   | What                                                                                       |
+| ------- | ------------------------------------------------------------------------------------------ |
+| Build   | `dotnet build` all projects                                                                |
+| Test    | Unit tests + integration tests against PostgreSQL, SQL Server, MariaDB (Docker containers) |
+| Package | Build `.deb`, `.rpm`, Windows MSI, Docker images, Android APK (both flavors)               |
+| Publish | Push to APT repo, Docker Hub, Google Play Store, F-Droid                                   |
 
 ---
 
@@ -985,22 +988,22 @@ Imports: users, files, calendars, contacts, bookmarks.
 
 ## 20. Privacy & GDPR
 
-| Requirement | Implementation |
-|---|---|
-| Data export | `Settings → Privacy → Export My Data` (downloads all user data) |
-| Account deletion | User can fully delete their account and all associated data |
-| Data location | Clearly documented where all data is stored |
-| Consent | Cookie consent, privacy policy template |
+| Requirement      | Implementation                                                  |
+| ---------------- | --------------------------------------------------------------- |
+| Data export      | `Settings → Privacy → Export My Data` (downloads all user data) |
+| Account deletion | User can fully delete their account and all associated data     |
+| Data location    | Clearly documented where all data is stored                     |
+| Consent          | Cookie consent, privacy policy template                         |
 
 ---
 
 ## 21. Licensing
 
-| Component | License | Reason |
-|---|---|---|
-| Core server + first-party modules | AGPL-3.0 | Prevents cloud providers from hosting without contributing back. Same model as NextCloud. |
-| `DotNetCloud.Core` SDK (interfaces) | Apache 2.0 | Third-party developers can build proprietary modules if desired. |
-| Documentation | CC BY-SA 4.0 | Standard open-source documentation license. |
+| Component                           | License      | Reason                                                                                    |
+| ----------------------------------- | ------------ | ----------------------------------------------------------------------------------------- |
+| Core server + first-party modules   | AGPL-3.0     | Prevents cloud providers from hosting without contributing back. Same model as NextCloud. |
+| `DotNetCloud.Core` SDK (interfaces) | Apache 2.0   | Third-party developers can build proprietary modules if desired.                          |
+| Documentation                       | CC BY-SA 4.0 | Standard open-source documentation license.                                               |
 
 ---
 
@@ -1008,32 +1011,33 @@ Imports: users, files, calendars, contacts, bookmarks.
 
 All dependencies are open source with permissive or compatible licenses. Zero cost. .NET-preferred.
 
-| Dependency | Purpose | License | .NET? |
-|---|---|---|---|
-| ASP.NET Core | Web framework, Kestrel, SignalR | MIT | ✅ |
-| EF Core | Database ORM | MIT | ✅ |
-| Avalonia | Cross-platform desktop UI | MIT | ✅ |
-| .NET MAUI | Android mobile UI | MIT | ✅ |
-| OpenIddict | OAuth2/OIDC server | Apache 2.0 | ✅ |
-| ASP.NET Core Identity | User management | MIT | ✅ |
-| Fido2NetLib | WebAuthn/passkey MFA | MIT | ✅ |
-| SignalR | Real-time messaging | MIT | ✅ |
-| gRPC for .NET | Module process communication | Apache 2.0 | ✅ |
-| SIPSorcery | WebRTC signaling | BSD-3-Clause | ✅ |
-| Serilog | Structured logging | Apache 2.0 | ✅ |
-| OpenTelemetry .NET | Metrics & tracing | Apache 2.0 | ✅ |
-| Npgsql | PostgreSQL provider | PostgreSQL License | ✅ |
-| Pomelo.EntityFrameworkCore.MySql | MariaDB provider | MIT | ✅ |
-| Microsoft.EntityFrameworkCore.SqlServer | SQL Server provider | MIT | ✅ |
-| LiveKit | Video SFU (optional external) | Apache 2.0 | ❌ (Go) |
-| Collabora CODE | Online document editing (optional, built-in) | MPL-2.0 | ❌ (C++/JS) |
-| Collabora Online | Online document editing (optional, external) | MPL-2.0 | ❌ (C++/JS) |
-| Microsoft.Extensions.AI | LLM abstraction layer | MIT | ✅ |
-| Microsoft.Extensions.AI.Ollama | Ollama IChatClient | MIT | ✅ |
-| Microsoft.Extensions.AI.OpenAI | OpenAI/Azure OpenAI IChatClient | MIT | ✅ |
-| Ollama | Local LLM inference (optional external) | MIT | ❌ (Go) |
+| Dependency                              | Purpose                                      | License            | .NET?       |
+| --------------------------------------- | -------------------------------------------- | ------------------ | ----------- |
+| ASP.NET Core                            | Web framework, Kestrel, SignalR              | MIT                | ✅          |
+| EF Core                                 | Database ORM                                 | MIT                | ✅          |
+| Avalonia                                | Cross-platform desktop UI                    | MIT                | ✅          |
+| .NET MAUI                               | Android mobile UI                            | MIT                | ✅          |
+| OpenIddict                              | OAuth2/OIDC server                           | Apache 2.0         | ✅          |
+| ASP.NET Core Identity                   | User management                              | MIT                | ✅          |
+| Fido2NetLib                             | WebAuthn/passkey MFA                         | MIT                | ✅          |
+| SignalR                                 | Real-time messaging                          | MIT                | ✅          |
+| gRPC for .NET                           | Module process communication                 | Apache 2.0         | ✅          |
+| SIPSorcery                              | WebRTC signaling                             | BSD-3-Clause       | ✅          |
+| Serilog                                 | Structured logging                           | Apache 2.0         | ✅          |
+| OpenTelemetry .NET                      | Metrics & tracing                            | Apache 2.0         | ✅          |
+| Npgsql                                  | PostgreSQL provider                          | PostgreSQL License | ✅          |
+| Pomelo.EntityFrameworkCore.MySql        | MariaDB provider                             | MIT                | ✅          |
+| Microsoft.EntityFrameworkCore.SqlServer | SQL Server provider                          | MIT                | ✅          |
+| LiveKit                                 | Video SFU (optional external)                | Apache 2.0         | ❌ (Go)     |
+| Collabora CODE                          | Online document editing (optional, built-in) | MPL-2.0            | ❌ (C++/JS) |
+| Collabora Online                        | Online document editing (optional, external) | MPL-2.0            | ❌ (C++/JS) |
+| Microsoft.Extensions.AI                 | LLM abstraction layer                        | MIT                | ✅          |
+| Microsoft.Extensions.AI.Ollama          | Ollama IChatClient                           | MIT                | ✅          |
+| Microsoft.Extensions.AI.OpenAI          | OpenAI/Azure OpenAI IChatClient              | MIT                | ✅          |
+| Ollama                                  | Local LLM inference (optional external)      | MIT                | ❌ (Go)     |
 
 **Rules:**
+
 - All dependencies must be open source with zero-cost licensing
 - .NET-based solutions preferred; non-.NET only when no viable .NET alternative exists
 - No NPM dependencies
@@ -1132,16 +1136,31 @@ All dependencies are open source with permissive or compatible licenses. Zero co
 
 **Milestone:** Video calls and screen sharing from Chat.
 
-### Phase 8: Search, Auto-Updates & Polish
+### Phase 8: Search & Polish
 
-**Goal:** Cross-module search, automated updates, encryption, production hardening.
+**Goal:** Cross-module search and production hardening.
 
 - Full-text search across all modules via `ISearchProvider`
-- Auto-update CLI + admin UI + desktop client auto-update
-- Zero-knowledge encryption (E2EE) — optional per-user/per-folder
 - Performance optimization, security audit
 
-**Milestone:** Feature-complete platform.
+**Milestone:** Feature-complete search across all modules.
+
+> **Note:** Auto-updates were moved to [Phase 11](#phase-11-auto-updates) as a dedicated effort.
+
+### Phase 11: Auto-Updates
+
+**Goal:** Automated update checking, notification, and self-update across all DotNetCloud surfaces.
+
+- GitHub Releases API as the single source of truth (public, no auth required)
+- Server-side `IUpdateService` / `GitHubUpdateService` with 1-hour memory cache to respect rate limits
+- Public API endpoints: `GET /api/v1/core/updates/check`, `/releases`, `/releases/latest`
+- CLI: `dotnetcloud update [--check]` — check for updates, download tarball (manual apply for server safety)
+- Admin UI: `/admin/updates` page with version cards, release notes, download links, settings
+- Desktop SyncTray: `UpdateCheckBackgroundService` (24h periodic check), tray notification, `UpdateDialog` with download/apply flow
+- Android: update notification with Play Store / F-Droid / APK link (no in-app install for security)
+- SHA256 checksum verification on downloaded assets
+
+**Milestone:** All surfaces automatically detect and notify about available updates. Desktop clients can self-update.
 
 ### Phase 9: AI Assistant
 
@@ -1157,6 +1176,18 @@ All dependencies are open source with permissive or compatible licenses. Zero co
 - Admin controls: provider configuration, rate limiting, usage tracking, audit log
 
 **Milestone:** Ask the AI assistant a question, get a streaming response from Ollama or Claude. Modules leverage AI for smart features.
+
+### Phase 10: End-to-End Encryption (E2EE)
+
+**Goal:** Optional zero-knowledge encryption for maximum privacy.
+
+- Zero-knowledge encryption (E2EE) — optional per-user/per-folder
+- Client-side encryption/decryption (Avalonia/MAUI via .NET crypto APIs)
+- Server stores ciphertext only — admin cannot read user data
+- Key management, recovery options, and key-loss warnings
+- E2EE-incompatible features (search, thumbnails, online editing, AI) gracefully degrade
+
+**Milestone:** Users can enable per-folder encryption with true zero-knowledge guarantees.
 
 ---
 
@@ -1177,26 +1208,116 @@ This section summarizes the March 2026 hardening pass focused on Files module te
 - gRPC request-user validation (`request.user_id` must match authenticated claim)
 - Owner-scoped lookups for sensitive node/share/trash/version operations
 - Upload security gates:
-    - active session required
-    - session owner required
-    - chunk hash must be present in manifest
-    - uploaded bytes must match declared chunk hash (SHA-256)
+  - active session required
+  - session owner required
+  - chunk hash must be present in manifest
+  - uploaded bytes must match declared chunk hash (SHA-256)
 - Service-layer permission checks expanded for comments, tags, versions, share enumeration, and chunk-hash retrieval
 
 ### Verification Artifacts
 
 - Unit/security tests:
-    - `tests/DotNetCloud.Modules.Files.Tests/Host/FilesGrpcServiceSecurityTests.cs`
+  - `tests/DotNetCloud.Modules.Files.Tests/Host/FilesGrpcServiceSecurityTests.cs`
 - Integration tests (Files Host):
-    - `tests/DotNetCloud.Integration.Tests/Api/FilesGrpcIsolationIntegrationTests.cs`
-    - `tests/DotNetCloud.Integration.Tests/Api/FilesRestIsolationIntegrationTests.cs`
-    - `tests/DotNetCloud.Integration.Tests/Infrastructure/FilesHostWebApplicationFactory.cs`
+  - `tests/DotNetCloud.Integration.Tests/Api/FilesGrpcIsolationIntegrationTests.cs`
+  - `tests/DotNetCloud.Integration.Tests/Api/FilesRestIsolationIntegrationTests.cs`
+  - `tests/DotNetCloud.Integration.Tests/Infrastructure/FilesHostWebApplicationFactory.cs`
 
 ### Status
 
 - gRPC isolation integration coverage: passing
 - REST isolation integration coverage: passing
 - Broader Files integration matrix remains tracked under `phase-1.19.2` in `docs/MASTER_PROJECT_PLAN.md`
+
+---
+
+## 25. Full-Text Search Architecture
+
+The Search module provides cross-module full-text search with a three-layer architecture: **indexing pipeline**, **query engine**, and **API surface**.
+
+### Design Goals
+
+1. **Multi-database** — PostgreSQL (`tsvector`/`tsquery`), SQL Server (`FREETEXT`), MariaDB (`MATCH AGAINST`) with a single `ISearchProvider` interface.
+2. **Event-driven indexing** — Modules publish `SearchIndexRequestEvent` on CRUD; search indexes incrementally via a bounded `Channel<T>` queue.
+3. **Permission-scoped** — Every query is filtered by `OwnerId`. Users only see their own content.
+4. **Module-agnostic** — Any module implementing `ISearchableModule` is automatically searchable. No compile-time dependency between modules.
+
+### Module Structure
+
+```
+src/Modules/Search/
+├── DotNetCloud.Modules.Search/           # Services, extractors, query parser, events
+├── DotNetCloud.Modules.Search.Data/      # SearchDbContext, SearchIndexEntry, IndexingJob
+├── DotNetCloud.Modules.Search.Host/      # REST + gRPC host (SearchController, SearchGrpcService)
+└── DotNetCloud.Modules.Search.Client/    # gRPC client library (ISearchFtsClient)
+```
+
+### Indexing Pipeline
+
+```
+Module CRUD operation
+  → Publishes SearchIndexRequestEvent (ModuleId, EntityId, Action)
+  → SearchIndexRequestEventHandler routes to:
+      Remove → ISearchProvider.RemoveDocumentAsync() (immediate)
+      Index  → SearchIndexingService channel queue (bounded, 1000 capacity)
+                → Fetches SearchDocument from ISearchableModule
+                → ContentExtractionService extracts text (PDF, DOCX, XLSX, MD, plain text)
+                → ISearchProvider.IndexDocumentAsync() (upsert by ModuleId + EntityId)
+```
+
+A `SearchReindexBackgroundService` runs scheduled full reindexes (default: 24 hours) and supports on-demand triggers via admin API. Batch size: 200 documents. Orphaned entries for unregistered modules are cleaned up automatically.
+
+### Query Engine
+
+`SearchQueryParser` parses user input into `ParsedSearchQuery`:
+
+| Input | Parsed As |
+|---|---|
+| `quarterly report` | Terms: [quarterly, report] |
+| `"project plan"` | Phrases: [project plan] |
+| `in:notes` | ModuleFilter: notes |
+| `type:pdf` | TypeFilter: pdf |
+| `-draft` | Exclusions: [draft] |
+
+`ParsedSearchQuery` generates provider-specific query strings:
+
+| Provider | Format |
+|---|---|
+| PostgreSQL | `to_tsquery('quarterly & report & !draft')` |
+| SQL Server | `CONTAINS(*, '"quarterly" AND "report" AND NOT "draft"')` |
+| MariaDB | `MATCH() AGAINST('+quarterly +report -draft' IN BOOLEAN MODE)` |
+
+`SnippetGenerator` produces XSS-safe highlighted snippets using `<mark>` tags with ~60 characters of context around matches.
+
+### API Surface
+
+**REST** (`/api/v1/search`): GET `/search`, GET `/suggest`, GET `/stats`, POST `/admin/reindex`, POST `/admin/reindex/{moduleId}`.
+
+**gRPC** (`SearchService`): `Search`, `IndexDocument`, `RemoveDocument`, `ReindexModule`, `GetIndexStats`.
+
+**Client library** (`ISearchFtsClient`): Lazy gRPC channel with graceful degradation. When unavailable, module controllers fall back to LIKE-based queries.
+
+### Searchable Modules
+
+Files, Notes, Chat, Contacts, Calendar, Photos, Music, Video, and Tracks all implement `ISearchableModule` and publish search index events on CRUD operations.
+
+### Content Extraction
+
+| Extractor | MIME Types | Library |
+|---|---|---|
+| PlainText | `text/plain`, `text/csv` | Built-in |
+| Markdown | `text/markdown` | Regex-based |
+| PDF | `application/pdf` | UglyToad.PdfPig |
+| DOCX | `application/vnd.openxmlformats-officedocument.wordprocessingml.document` | DocumentFormat.OpenXml |
+| XLSX | `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` | DocumentFormat.OpenXml |
+
+Max extracted content: 100KB per document.
+
+### Test Coverage
+
+631 tests across 8 implementation phases covering providers, services, extractors, query parsing, snippet generation, API endpoints, UI logic, permission scoping, multi-database consistency, and performance benchmarks.
+
+**Reference:** [docs/modules/SEARCH.md](../modules/SEARCH.md) | [docs/api/search.md](../api/search.md)
 
 ---
 

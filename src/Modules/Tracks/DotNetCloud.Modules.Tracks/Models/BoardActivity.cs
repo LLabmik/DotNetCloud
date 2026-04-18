@@ -14,10 +14,10 @@ public sealed class BoardActivity
     /// <summary>The user who performed the action.</summary>
     public Guid UserId { get; set; }
 
-    /// <summary>Action performed (e.g., "card.created", "card.moved", "list.created").</summary>
+    /// <summary>Action performed (e.g., "card.created", "card.moved", "swimlane.created").</summary>
     public required string Action { get; set; }
 
-    /// <summary>Type of entity affected (e.g., "Card", "BoardList", "Label").</summary>
+    /// <summary>Type of entity affected (e.g., "Card", "BoardSwimlane", "Label").</summary>
     public required string EntityType { get; set; }
 
     /// <summary>ID of the entity affected.</summary>

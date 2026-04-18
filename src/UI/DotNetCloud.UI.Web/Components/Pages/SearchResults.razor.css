@@ -1,0 +1,315 @@
+/* ────────────────────────────────────────────────────────────
+   SearchResults — full results page with facets and pagination
+   ──────────────────────────────────────────────────────────── */
+
+.search-results-page {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 20px;
+}
+
+/* ── Header / Input ─────────────────────────────────────── */
+
+.search-results-header {
+    margin-bottom: 24px;
+}
+
+.search-results-input-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 12px;
+}
+
+.search-results-input-wrapper {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    transition: border-color 200ms ease, box-shadow 200ms ease;
+}
+
+.search-results-input-wrapper:focus-within {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.search-results-input-icon {
+    font-size: 18px;
+    flex-shrink: 0;
+    color: var(--color-text-secondary);
+}
+
+.search-results-input {
+    flex: 1;
+    border: none;
+    outline: none;
+    background: transparent;
+    font-size: 16px;
+    color: var(--color-text);
+    font-family: inherit;
+}
+
+.search-results-input::placeholder {
+    color: var(--color-muted);
+}
+
+.search-results-clear {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border: none;
+    border-radius: 50%;
+    background: var(--color-bg);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    font-size: 12px;
+    flex-shrink: 0;
+    transition: background 150ms ease;
+}
+
+.search-results-clear:hover {
+    background: var(--color-border);
+}
+
+.search-results-sort {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.sort-label {
+    font-size: 13px;
+    color: var(--color-text-secondary);
+    white-space: nowrap;
+}
+
+.sort-select {
+    padding: 8px 12px;
+    font-size: 13px;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    background: var(--color-surface);
+    color: var(--color-text);
+    cursor: pointer;
+}
+
+.search-results-count {
+    font-size: 14px;
+    color: var(--color-text-secondary);
+    margin: 0;
+}
+
+/* ── Layout ─────────────────────────────────────────────── */
+
+.search-results-layout {
+    display: flex;
+    gap: 24px;
+}
+
+/* ── Facets Sidebar ─────────────────────────────────────── */
+
+.search-facets {
+    flex-shrink: 0;
+    width: 200px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.facet-header {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-muted);
+    padding: 0 8px 8px;
+}
+
+.facet-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    cursor: pointer;
+    text-align: left;
+    color: var(--color-text);
+    font-size: 13px;
+    transition: background 100ms ease;
+    width: 100%;
+}
+
+.facet-item:hover {
+    background: var(--color-bg);
+}
+
+.facet-item.active {
+    background: var(--color-selected-bg);
+    color: var(--color-primary);
+    font-weight: 500;
+}
+
+.facet-icon {
+    font-size: 16px;
+    flex-shrink: 0;
+    width: 20px;
+    text-align: center;
+}
+
+.facet-label {
+    flex: 1;
+}
+
+.facet-count {
+    flex-shrink: 0;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: var(--color-bg);
+    color: var(--color-text-secondary);
+}
+
+.facet-item.active .facet-count {
+    background: rgba(59, 130, 246, 0.15);
+    color: var(--color-primary);
+}
+
+/* ── Main Results ───────────────────────────────────────── */
+
+.search-results-main {
+    flex: 1;
+    min-width: 0;
+}
+
+.search-results-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* Loading */
+.search-results-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 48px 20px;
+    color: var(--color-text-secondary);
+    font-size: 14px;
+}
+
+.results-spinner {
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--color-border);
+    border-top-color: var(--color-primary);
+    border-radius: 50%;
+    animation: results-spin 600ms linear infinite;
+}
+
+@keyframes results-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Empty */
+.search-results-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 64px 20px;
+    text-align: center;
+    color: var(--color-text-secondary);
+}
+
+.empty-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+    opacity: 0.4;
+}
+
+.search-results-empty h3 {
+    margin: 0 0 8px;
+    font-size: 18px;
+    color: var(--color-text);
+}
+
+.search-results-empty p {
+    margin: 0;
+    font-size: 14px;
+}
+
+/* ── Pagination ─────────────────────────────────────────── */
+
+.search-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 24px 0;
+}
+
+.pagination-btn {
+    padding: 8px 16px;
+    font-size: 13px;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    background: var(--color-surface);
+    color: var(--color-text);
+    cursor: pointer;
+    transition: all 150ms ease;
+}
+
+.pagination-btn:hover:not(:disabled) {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+}
+
+.pagination-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.pagination-info {
+    font-size: 13px;
+    color: var(--color-text-secondary);
+}
+
+/* ── Responsive ─────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+    .search-results-layout {
+        flex-direction: column;
+    }
+
+    .search-facets {
+        width: 100%;
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 4px;
+    }
+
+    .facet-header {
+        width: 100%;
+    }
+
+    .search-results-input-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .search-results-sort {
+        align-self: flex-end;
+    }
+}

@@ -1,0 +1,25 @@
+@namespace DotNetCloud.Modules.Tracks.UI
+
+<div class="tracks-velocity-chart">
+    <div class="tracks-chart-header">
+        <h4>📊 Velocity Chart</h4>
+        @if (_velocityData.Count > 0)
+        {
+            var avgVelocity = _velocityData.Average(v => v.CompletedPoints);
+            <span class="tracks-muted">Avg: @avgVelocity.ToString("F0") SP/sprint</span>
+        }
+    </div>
+
+    @if (_isLoading)
+    {
+        <p class="tracks-muted">Loading velocity data...</p>
+    }
+    else if (_velocityData.Count == 0)
+    {
+        <p class="tracks-muted">No completed sprints yet. Complete a sprint to see velocity data.</p>
+    }
+    else
+    {
+        @((MarkupString)BuildVelocitySvg())
+    }
+</div>

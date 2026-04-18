@@ -27,7 +27,7 @@ public sealed class AnalyticsService
     }
 
     /// <summary>
-    /// Gets analytics for a board: card counts, cycle time, per-list and per-user distribution, completion trend.
+    /// Gets analytics for a board: card counts, cycle time, per-swimlane and per-user distribution, completion trend.
     /// </summary>
     public async Task<BoardAnalyticsDto> GetBoardAnalyticsAsync(Guid boardId, CallerContext caller, int daysBack = 30, CancellationToken cancellationToken = default)
     {
@@ -40,9 +40,9 @@ public sealed class AnalyticsService
         // All cards (including archived for metrics)
         var allCards = await _db.Cards
             .AsNoTracking()
-            .Include(c => c.List)
+            .Include(c => c.Swimlane)
             .Include(c => c.Assignments)
-            .Where(c => c.List!.BoardId == boardId && !c.IsDeleted)
+            .Where(c => c.Swimlane!.BoardId == boardId && !c.IsDeleted)
             .ToListAsync(cancellationToken);
 
         var totalCards = allCards.Count;
@@ -58,18 +58,18 @@ public sealed class AnalyticsService
                 .Average(c => (c.UpdatedAt - c.CreatedAt).TotalHours);
         }
 
-        // Cards per list
-        var lists = await _db.BoardLists
+        // Cards per swimlane
+        var swimlanes = await _db.BoardSwimlanes
             .AsNoTracking()
             .Where(l => l.BoardId == boardId && !l.IsArchived)
             .OrderBy(l => l.Position)
             .ToListAsync(cancellationToken);
 
         var cardsByList = new Dictionary<string, int>();
-        foreach (var list in lists)
+        foreach (var swimlane in swimlanes)
         {
-            var count = allCards.Count(c => c.ListId == list.Id && !c.IsArchived);
-            cardsByList[list.Title] = count;
+            var count = allCards.Count(c => c.SwimlaneId == swimlane.Id && !c.IsArchived);
+            cardsByList[swimlane.Title] = count;
         }
 
         // Cards per assignee
@@ -125,9 +125,9 @@ public sealed class AnalyticsService
 
         var allCards = await _db.Cards
             .AsNoTracking()
-            .Include(c => c.List)
+            .Include(c => c.Swimlane)
             .Include(c => c.Assignments)
-            .Where(c => teamBoards.Contains(c.List!.BoardId) && !c.IsDeleted)
+            .Where(c => teamBoards.Contains(c.Swimlane!.BoardId) && !c.IsDeleted)
             .ToListAsync(cancellationToken);
 
         var cardsByMember = allCards

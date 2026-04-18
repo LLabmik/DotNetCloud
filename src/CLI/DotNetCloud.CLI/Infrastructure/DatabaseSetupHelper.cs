@@ -102,10 +102,10 @@ internal static class DatabaseSetupHelper
     {
         if (trustedConnection)
         {
-            return $"Server={server};Database={database};Trusted_Connection=True;TrustServerCertificate=True";
+            return $"Server={server};Database={database};Trusted_Connection=True;TrustServerCertificate=True;MultipleActiveResultSets=True";
         }
 
-        return $"Server={server};Database={database};User Id={username};Password={password};TrustServerCertificate=True";
+        return $"Server={server};Database={database};User Id={username};Password={password};TrustServerCertificate=True;MultipleActiveResultSets=True";
     }
 
     /// <summary>

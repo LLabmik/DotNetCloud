@@ -33,7 +33,7 @@ public sealed class SprintReportService
     {
         var sprint = await _db.Sprints
             .AsNoTracking()
-            .Include(s => s.SprintCards).ThenInclude(sc => sc.Card)
+            .Include(s => s.SprintCards).ThenInclude(sc => sc.Card).ThenInclude(c => c!.Swimlane)
             .FirstOrDefaultAsync(s => s.Id == sprintId, cancellationToken)
             ?? throw new ValidationException(ErrorCodes.SprintNotFound, "Sprint not found.");
 
@@ -45,9 +45,9 @@ public sealed class SprintReportService
             .ToList();
 
         var totalCards = cards.Count;
-        var completedCards = cards.Count(c => c!.IsArchived);
+        var completedCards = cards.Count(c => c!.IsArchived || (c.Swimlane?.IsDone ?? false));
         var totalPoints = cards.Sum(c => c!.StoryPoints ?? 0);
-        var completedPoints = cards.Where(c => c!.IsArchived).Sum(c => c!.StoryPoints ?? 0);
+        var completedPoints = cards.Where(c => c!.IsArchived || (c.Swimlane?.IsDone ?? false)).Sum(c => c!.StoryPoints ?? 0);
 
         var burndown = BuildBurndownData(sprint, cards!);
 
@@ -73,7 +73,7 @@ public sealed class SprintReportService
 
         var sprints = await _db.Sprints
             .AsNoTracking()
-            .Include(s => s.SprintCards).ThenInclude(sc => sc.Card)
+            .Include(s => s.SprintCards).ThenInclude(sc => sc.Card).ThenInclude(c => c!.Swimlane)
             .Where(s => s.BoardId == boardId && s.Status == SprintStatus.Completed)
             .OrderBy(s => s.EndDate)
             .ToListAsync(cancellationToken);
@@ -87,8 +87,8 @@ public sealed class SprintReportService
                 Title = s.Title,
                 CommittedCards = cards.Count,
                 CommittedPoints = cards.Sum(c => c!.StoryPoints ?? 0),
-                CompletedCards = cards.Count(c => c!.IsArchived),
-                CompletedPoints = cards.Where(c => c!.IsArchived).Sum(c => c!.StoryPoints ?? 0)
+                CompletedCards = cards.Count(c => c!.IsArchived || (c.Swimlane?.IsDone ?? false)),
+                CompletedPoints = cards.Where(c => c!.IsArchived || (c.Swimlane?.IsDone ?? false)).Sum(c => c!.StoryPoints ?? 0)
             };
         }).ToList();
     }
@@ -111,9 +111,9 @@ public sealed class SprintReportService
         {
             var date = DateOnly.FromDateTime(startDate.AddDays(day));
 
-            // Remaining points = total - points on cards archived on or before this date
+            // Remaining points = total - points on cards completed (archived or in done column) on or before this date
             var completedByDate = cards
-                .Where(c => c.IsArchived && DateOnly.FromDateTime(c.UpdatedAt) <= date)
+                .Where(c => (c.IsArchived || (c.Swimlane?.IsDone ?? false)) && DateOnly.FromDateTime(c.UpdatedAt) <= date)
                 .Sum(c => c.StoryPoints ?? 0);
 
             var remaining = Math.Max(0, totalPoints - completedByDate);

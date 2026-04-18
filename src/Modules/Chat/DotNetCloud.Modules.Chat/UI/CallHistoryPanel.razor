@@ -1,0 +1,65 @@
+@namespace DotNetCloud.Modules.Chat.UI
+
+@*
+    Call history panel - Shows past calls in the channel sidebar.
+    Displays call list with duration, participants, outcome, and callback option.
+    Code-behind: CallHistoryPanel.razor.cs
+*@
+
+<div class="call-history-panel">
+    <div class="call-history-header">
+        <h3 class="call-history-title">📞 Call History</h3>
+        <button class="btn-close-panel" @onclick="HandleClose" title="Close call history">✕</button>
+    </div>
+
+    <div class="call-history-list">
+        @if (IsLoading)
+        {
+            <div class="call-history-loading">Loading call history...</div>
+        }
+        else if (Calls.Count == 0)
+        {
+            <div class="call-history-empty">
+                <span class="empty-icon">📞</span>
+                <span class="empty-text">No calls yet</span>
+            </div>
+        }
+        else
+        {
+            @foreach (var call in Calls)
+            {
+                <div class="call-history-item @GetOutcomeClass(call.State)">
+                    <div class="call-item-icon">
+                        @GetCallIcon(call)
+                    </div>
+                    <div class="call-item-details">
+                        <div class="call-item-header-row">
+                            <span class="call-initiator">@(call.InitiatorDisplayName ?? "Unknown")</span>
+                            <span class="call-outcome">@FormatOutcome(call.State)</span>
+                        </div>
+                        <div class="call-item-meta">
+                            <span class="call-time">@FormatCallTime(call.CreatedAtUtc)</span>
+                            @if (call.DurationSeconds.HasValue && call.DurationSeconds > 0)
+                            {
+                                <span class="call-duration">· @FormatDuration(call.DurationSeconds.Value)</span>
+                            }
+                            <span class="call-participants">· 👥 @call.ParticipantCount</span>
+                        </div>
+                    </div>
+                    <button class="btn-callback"
+                            @onclick="() => HandleCallBack(call)"
+                            title="@(call.MediaType == "Video" ? "Start video call" : "Start audio call")">
+                        @(call.MediaType == "Video" ? "📹" : "📞")
+                    </button>
+                </div>
+            }
+
+            @if (HasMore)
+            {
+                <button class="btn-load-more" @onclick="HandleLoadMore" disabled="@IsLoadingMore">
+                    @(IsLoadingMore ? "Loading..." : "Load more")
+                </button>
+            }
+        }
+    </div>
+</div>

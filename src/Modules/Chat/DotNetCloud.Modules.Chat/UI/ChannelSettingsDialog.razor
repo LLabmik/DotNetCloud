@@ -1,4 +1,7 @@
 @namespace DotNetCloud.Modules.Chat.UI
+@using DotNetCloud.UI.Shared.Components.Editors
+@using DotNetCloud.UI.Shared.Services
+@inject IMarkdownRenderer MarkdownRenderer
 
 @*
     Channel settings dialog — edit channel metadata, manage members, notifications, archive/delete.
@@ -27,7 +30,19 @@
 
                 <div class="settings-section">
                     <label>Description</label>
-                    <textarea @bind="EditDescription" rows="3" placeholder="Describe this channel" disabled="@(!CanManageChannel)"></textarea>
+                    @if (CanManageChannel)
+                    {
+                        <MarkdownEditor Compact
+                                        Placeholder="Describe this channel"
+                                        Rows="3"
+                                        Content="@EditDescription"
+                                        ContentChanged="@(v => EditDescription = v)"
+                                        Renderer="MarkdownRenderer" />
+                    }
+                    else
+                    {
+                        <div class="description-display"><div class="markdown-body">@((MarkupString)MarkdownRenderer.RenderToHtml(EditDescription ?? string.Empty))</div></div>
+                    }
                 </div>
 
                 <div class="settings-section">

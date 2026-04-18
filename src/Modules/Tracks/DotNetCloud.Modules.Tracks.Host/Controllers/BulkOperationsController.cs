@@ -35,8 +35,8 @@ public class BulkOperationsController : TracksControllerBase
         }
         catch (ValidationException ex)
         {
-            return ex.Errors.ContainsKey(ErrorCodes.BoardListNotFound)
-                ? NotFound(ErrorEnvelope(ErrorCodes.BoardListNotFound, ex.Message))
+            return ex.Errors.ContainsKey(ErrorCodes.BoardSwimlaneNotFound)
+                ? NotFound(ErrorEnvelope(ErrorCodes.BoardSwimlaneNotFound, ex.Message))
                 : BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
         }
     }

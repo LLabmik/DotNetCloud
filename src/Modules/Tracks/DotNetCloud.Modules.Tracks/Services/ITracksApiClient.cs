@@ -9,7 +9,7 @@ public interface ITracksApiClient
 {
     // ── Boards ──────────────────────────────────────────────
 
-    Task<IReadOnlyList<BoardDto>> ListBoardsAsync(bool includeArchived = false, CancellationToken ct = default);
+    Task<IReadOnlyList<BoardDto>> ListBoardsAsync(bool includeArchived = false, BoardMode? mode = null, CancellationToken ct = default);
     Task<BoardDto?> GetBoardAsync(Guid boardId, CancellationToken ct = default);
     Task<BoardDto?> CreateBoardAsync(CreateBoardDto dto, CancellationToken ct = default);
     Task<BoardDto?> UpdateBoardAsync(Guid boardId, UpdateBoardDto dto, CancellationToken ct = default);
@@ -29,19 +29,20 @@ public interface ITracksApiClient
     Task<LabelDto?> UpdateLabelAsync(Guid boardId, Guid labelId, UpdateLabelDto dto, CancellationToken ct = default);
     Task DeleteLabelAsync(Guid boardId, Guid labelId, CancellationToken ct = default);
 
-    // ── Lists ───────────────────────────────────────────────
+    // ── Swimlanes ───────────────────────────────────────────
 
-    Task<IReadOnlyList<BoardListDto>> ListListsAsync(Guid boardId, CancellationToken ct = default);
-    Task<BoardListDto?> CreateListAsync(Guid boardId, CreateBoardListDto dto, CancellationToken ct = default);
-    Task<BoardListDto?> UpdateListAsync(Guid boardId, Guid listId, UpdateBoardListDto dto, CancellationToken ct = default);
-    Task DeleteListAsync(Guid boardId, Guid listId, CancellationToken ct = default);
-    Task ReorderListsAsync(Guid boardId, IReadOnlyList<Guid> listIds, CancellationToken ct = default);
+    Task<IReadOnlyList<BoardSwimlaneDto>> ListSwimlanesAsync(Guid boardId, CancellationToken ct = default);
+    Task<BoardSwimlaneDto?> CreateSwimlaneAsync(Guid boardId, CreateBoardSwimlaneDto dto, CancellationToken ct = default);
+    Task<BoardSwimlaneDto?> UpdateSwimlaneAsync(Guid boardId, Guid swimlaneId, UpdateBoardSwimlaneDto dto, CancellationToken ct = default);
+    Task DeleteSwimlaneAsync(Guid boardId, Guid swimlaneId, CancellationToken ct = default);
+    Task ReorderSwimlanesAsync(Guid boardId, IReadOnlyList<Guid> swimlaneIds, CancellationToken ct = default);
 
     // ── Cards ───────────────────────────────────────────────
 
-    Task<IReadOnlyList<CardDto>> ListCardsAsync(Guid listId, bool includeArchived = false, CancellationToken ct = default);
+    Task<IReadOnlyList<CardDto>> ListCardsAsync(Guid swimlaneId, bool includeArchived = false, CancellationToken ct = default);
     Task<CardDto?> GetCardAsync(Guid cardId, CancellationToken ct = default);
-    Task<CardDto?> CreateCardAsync(Guid listId, CreateCardDto dto, CancellationToken ct = default);
+    Task<CardDto?> GetCardByNumberAsync(int cardNumber, CancellationToken ct = default);
+    Task<CardDto?> CreateCardAsync(Guid swimlaneId, CreateCardDto dto, CancellationToken ct = default);
     Task<CardDto?> UpdateCardAsync(Guid cardId, UpdateCardDto dto, CancellationToken ct = default);
     Task DeleteCardAsync(Guid cardId, CancellationToken ct = default);
     Task<CardDto?> MoveCardAsync(Guid cardId, MoveCardDto dto, CancellationToken ct = default);
@@ -89,6 +90,14 @@ public interface ITracksApiClient
     Task<SprintDto?> CompleteSprintAsync(Guid boardId, Guid sprintId, CancellationToken ct = default);
     Task AddCardToSprintAsync(Guid boardId, Guid sprintId, Guid cardId, CancellationToken ct = default);
     Task RemoveCardFromSprintAsync(Guid boardId, Guid sprintId, Guid cardId, CancellationToken ct = default);
+    Task<IReadOnlyList<CardDto>> GetSprintCardsAsync(Guid boardId, Guid sprintId, CancellationToken ct = default);
+    Task<IReadOnlyList<CardDto>> GetBacklogCardsAsync(Guid boardId, CancellationToken ct = default);
+    Task BatchAddCardsToSprintAsync(Guid boardId, Guid sprintId, List<Guid> cardIds, CancellationToken ct = default);
+
+    // ── Sprint Reports ──────────────────────────────────────
+
+    Task<SprintReportDto?> GetSprintReportAsync(Guid sprintId, CancellationToken ct = default);
+    Task<IReadOnlyList<SprintVelocityDto>> GetBoardVelocityAsync(Guid boardId, CancellationToken ct = default);
 
     // ── Time Entries ────────────────────────────────────────
 
@@ -120,4 +129,30 @@ public interface ITracksApiClient
     // ── User Search ─────────────────────────────────────────
 
     Task<IReadOnlyList<UserSearchResultDto>> SearchUsersAsync(string searchTerm, CancellationToken ct = default);
+
+    // ── Sprint Plan ─────────────────────────────────────────
+
+    Task<SprintPlanOverviewDto?> CreateSprintPlanAsync(Guid boardId, CreateSprintPlanDto dto, CancellationToken ct = default);
+    Task<SprintPlanOverviewDto?> GetSprintPlanAsync(Guid boardId, CancellationToken ct = default);
+    Task<SprintPlanOverviewDto?> AdjustSprintAsync(Guid sprintId, AdjustSprintDto dto, CancellationToken ct = default);
+
+    // ── Review Sessions ─────────────────────────────────────
+
+    Task<ReviewSessionDto?> StartReviewSessionAsync(Guid boardId, CancellationToken ct = default);
+    Task<ReviewSessionDto?> GetActiveReviewSessionAsync(Guid boardId, CancellationToken ct = default);
+    Task<ReviewSessionDto?> GetReviewSessionAsync(Guid sessionId, CancellationToken ct = default);
+    Task<ReviewSessionDto?> JoinReviewSessionAsync(Guid sessionId, CancellationToken ct = default);
+    Task LeaveReviewSessionAsync(Guid sessionId, CancellationToken ct = default);
+    Task<ReviewSessionDto?> SetReviewCurrentCardAsync(Guid sessionId, Guid cardId, CancellationToken ct = default);
+    Task<ReviewSessionDto?> StartReviewPokerAsync(Guid sessionId, StartReviewPokerDto dto, CancellationToken ct = default);
+    Task EndReviewSessionAsync(Guid sessionId, CancellationToken ct = default);
+
+    // ── Planning Poker ─────────────────────────────────────
+
+    Task<PokerSessionDto?> GetPokerSessionAsync(Guid sessionId, CancellationToken ct = default);
+    Task<PokerSessionDto?> SubmitPokerVoteAsync(Guid sessionId, SubmitPokerVoteDto dto, CancellationToken ct = default);
+    Task<PokerSessionDto?> RevealPokerSessionAsync(Guid sessionId, CancellationToken ct = default);
+    Task<PokerSessionDto?> AcceptPokerEstimateAsync(Guid sessionId, AcceptPokerEstimateDto dto, CancellationToken ct = default);
+    Task<PokerSessionDto?> StartNewPokerRoundAsync(Guid sessionId, CancellationToken ct = default);
+    Task<IReadOnlyList<PokerVoteStatusDto>> GetPokerVoteStatusAsync(Guid sessionId, CancellationToken ct = default);
 }

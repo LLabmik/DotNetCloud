@@ -1,6 +1,7 @@
 using DotNetCloud.Client.Android.Auth;
 using DotNetCloud.Client.Android.Services;
 using DotNetCloud.Client.Android.ViewModels;
+using DotNetCloud.Core.DTOs;
 using Microsoft.Extensions.Logging;
 using Moq;
 
@@ -14,6 +15,7 @@ public sealed class SettingsViewModelTests
     private Mock<IMediaAutoUploadService> _mediaUploadService = null!;
     private Mock<IBatteryOptimizationService> _batteryService = null!;
     private Mock<IAppPreferences> _preferences = null!;
+    private Mock<IAndroidUpdateService> _updateService = null!;
     private Mock<ILogger<SettingsViewModel>> _logger = null!;
 
     [TestInitialize]
@@ -24,6 +26,7 @@ public sealed class SettingsViewModelTests
         _mediaUploadService = new Mock<IMediaAutoUploadService>();
         _batteryService = new Mock<IBatteryOptimizationService>();
         _preferences = new Mock<IAppPreferences>();
+        _updateService = new Mock<IAndroidUpdateService>();
         _logger = new Mock<ILogger<SettingsViewModel>>();
     }
 
@@ -324,6 +327,7 @@ public sealed class SettingsViewModelTests
             _mediaUploadService.Object,
             _batteryService.Object,
             _preferences.Object,
+            _updateService.Object,
             _logger.Object);
     }
 }

@@ -442,7 +442,7 @@ public sealed class TeamService
             .AsNoTracking()
             .Include(b => b.Members)
             .Include(b => b.Labels)
-            .Include(b => b.Lists)
+            .Include(b => b.Swimlanes)
             .Where(b => b.TeamId == coreTeamId && !b.IsDeleted);
 
         if (!includeArchived)
@@ -472,7 +472,7 @@ public sealed class TeamService
                 Role = m.Role,
                 JoinedAt = m.JoinedAt
             }).ToList(),
-            Lists = b.Lists.Where(l => !l.IsArchived).OrderBy(l => l.Position).Select(l => new BoardListDto
+            Swimlanes = b.Swimlanes.Where(l => !l.IsArchived).OrderBy(l => l.Position).Select(l => new BoardSwimlaneDto
             {
                 Id = l.Id,
                 BoardId = l.BoardId,

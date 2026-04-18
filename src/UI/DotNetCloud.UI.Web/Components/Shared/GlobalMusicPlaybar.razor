@@ -1,0 +1,607 @@
+@using DotNetCloud.Core.Authorization
+@using DotNetCloud.Core.DTOs
+@using DotNetCloud.Core.Services
+@using DotNetCloud.Modules.Music.UI
+@using DotNetCloud.UI.Web.Services
+@using Microsoft.Extensions.Logging
+@using System.Text.Json
+@inject MusicPlaybackState Playback
+@inject ModuleUiRegistry ModuleRegistry
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IUserSettingsService UserSettingsService
+@inject IJSRuntime Js
+@inject ILogger<GlobalMusicPlaybar> Logger
+@implements IAsyncDisposable
+
+@if (_musicModuleEnabled && Playback.NowPlaying is not null)
+{
+    <div class="global-music-playbar">
+        <div class="gmp-track-info">
+            <div class="gmp-art">
+                @if (Playback.NowPlaying.AlbumId.HasValue)
+                {
+                    <img src="@MusicPlaybackState.GetAlbumArtUrl(Playback.NowPlaying.AlbumId.Value)" alt=""
+                         onerror="this.style.display='none';this.nextElementSibling.style.display='block'" />
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none" style="display:none;width:100%;height:100%">
+                        <defs><linearGradient id="gmpbg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#cbd5e1"/><stop offset="100%" stop-color="#94a3b8"/></linearGradient></defs>
+                        <rect width="200" height="200" rx="12" fill="url(#gmpbg)"/>
+                        <circle cx="100" cy="96" r="56" fill="#475569" opacity="0.55"/>
+                        <circle cx="100" cy="96" r="12" fill="#cbd5e1"/>
+                        <circle cx="100" cy="96" r="4" fill="#475569"/>
+                    </svg>
+                }
+                else
+                {
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none" style="width:100%;height:100%">
+                        <defs><linearGradient id="gmpbg2" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#cbd5e1"/><stop offset="100%" stop-color="#94a3b8"/></linearGradient></defs>
+                        <rect width="200" height="200" rx="12" fill="url(#gmpbg2)"/>
+                        <circle cx="100" cy="96" r="56" fill="#475569" opacity="0.55"/>
+                        <circle cx="100" cy="96" r="12" fill="#cbd5e1"/>
+                        <circle cx="100" cy="96" r="4" fill="#475569"/>
+                    </svg>
+                }
+            </div>
+            <div class="gmp-text">
+                <a class="gmp-title" href="" @onclick="NavigateToMusicPage" @onclick:preventDefault>@Playback.NowPlaying.Title</a>
+                <span class="gmp-artist-album">
+                    <span>@Playback.NowPlaying.ArtistName</span>
+                    @if (!string.IsNullOrEmpty(Playback.NowPlaying.AlbumTitle))
+                    {
+                        <span class="gmp-separator"> · </span>
+                        <span>@Playback.NowPlaying.AlbumTitle</span>
+                    }
+                </span>
+            </div>
+            <button class="gmp-star" @onclick="ToggleStarAsync">
+                @(Playback.NowPlaying.IsStarred ? "★" : "☆")
+            </button>
+        </div>
+
+        <div class="gmp-controls">
+            <div class="gmp-buttons">
+                <button class="gmp-btn" @onclick="ToggleShuffleAsync" title="Shuffle">
+                    <span class="@(Playback.Shuffle ? "active-control" : "")">⇄</span>
+                </button>
+                <button class="gmp-btn" @onclick="PlayPreviousAsync" title="Previous">⏮</button>
+                <button class="gmp-btn gmp-play-pause" @onclick="TogglePlayPauseAsync" title="@(Playback.IsPlaying ? "Pause" : "Play")">
+                    @(Playback.IsPlaying ? "⏸" : "▶")
+                </button>
+                <button class="gmp-btn" @onclick="PlayNextAsync" title="Next">⏭</button>
+                <button class="gmp-btn" @onclick="CycleRepeatAsync" title="Repeat">
+                    <span class="@(Playback.Repeat != RepeatMode.Off ? "active-control" : "")">
+                        @(Playback.Repeat == RepeatMode.One ? "🔂" : "🔁")
+                    </span>
+                </button>
+                <span class="gmp-repeat-label">@(Playback.Repeat == RepeatMode.Off ? "Off" : Playback.Repeat == RepeatMode.All ? "All" : "One")</span>
+            </div>
+            <div class="gmp-progress">
+                <span class="gmp-time">@MusicPlaybackState.FormatDuration(Playback.PlaybackPosition)</span>
+                <div class="gmp-progress-bar" @onclick="SeekAsync">
+                    <div class="gmp-progress-fill" style="width: @Playback.GetProgressPercent()%"></div>
+                </div>
+                <span class="gmp-time">@MusicPlaybackState.FormatDuration(Playback.NowPlaying.Duration)</span>
+            </div>
+        </div>
+
+        <div class="gmp-extras">
+            <button class="gmp-btn" @onclick="Playback.ToggleQueue" title="Queue">
+                <span class="@(Playback.ShowQueue ? "active-control" : "")">☰</span>
+            </button>
+            <button class="gmp-btn" @onclick="ToggleEqualizerAsync" title="Equalizer">
+                <span class="@(Playback.ShowEqualizer ? "active-control" : "")">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+                        <line x1="3" y1="14" x2="3" y2="5"/><line x1="8" y1="14" x2="8" y2="3"/><line x1="13" y1="14" x2="13" y2="7"/>
+                        <circle cx="3" cy="5" r="1.5" fill="currentColor" stroke="none"/><circle cx="8" cy="3" r="1.5" fill="currentColor" stroke="none"/><circle cx="13" cy="7" r="1.5" fill="currentColor" stroke="none"/>
+                    </svg>
+                </span>
+            </button>
+            <div class="gmp-volume">
+                <button class="gmp-btn" @onclick="ToggleMuteAsync" title="Volume">
+                    @(Playback.Muted ? "🔇" : Playback.Volume > 50 ? "🔊" : "🔉")
+                </button>
+                <input type="range" min="0" max="100" value="@Playback.Volume"
+                       @oninput="OnVolumeChangedAsync" class="gmp-volume-slider" />
+            </div>
+            <button class="gmp-btn gmp-close-btn" @onclick="StopAsync" title="Stop">✕</button>
+        </div>
+    </div>
+
+    @* ─── Queue Slide-Out Panel ─── *@
+    @if (Playback.ShowQueue)
+    {
+        <aside class="gmp-queue-panel">
+            <div class="gmp-panel-header">
+                <h4>Play Queue</h4>
+                <button class="btn-icon" @onclick="Playback.ToggleQueue">✕</button>
+            </div>
+            <div class="gmp-queue-list">
+                @if (Playback.Queue.Count == 0)
+                {
+                    <p class="gmp-queue-empty">Queue is empty</p>
+                }
+                @foreach (var (track, index) in Playback.Queue.Select((t, i) => (t, i)))
+                {
+                    <div class="gmp-queue-item @(Playback.NowPlaying?.Id == track.Id ? "playing" : "")">
+                        <span class="gmp-queue-num">@(index + 1)</span>
+                        <div class="gmp-queue-info" @onclick="() => Playback.PlayQueueAt(index)" style="cursor:pointer">
+                            <span>@track.Title</span>
+                            <span class="gmp-queue-artist">@track.ArtistName</span>
+                        </div>
+                        <button class="gmp-queue-remove" @onclick="() => Playback.RemoveFromQueue(index)">✕</button>
+                    </div>
+                }
+            </div>
+        </aside>
+    }
+
+    @* ─── Equalizer Slide-Out Panel ─── *@
+    @if (Playback.ShowEqualizer)
+    {
+        <aside class="gmp-eq-panel">
+            <div class="gmp-panel-header">
+                <h4>Equalizer</h4>
+                <div class="gmp-eq-header-actions">
+                    <button class="btn-icon btn-small" title="Reset to flat" @onclick="ResetEqAsync">⟲</button>
+                    <button class="btn-icon btn-small" title="Save as preset" @onclick="Playback.ToggleSavePresetDialog">💾</button>
+                    <button class="btn-icon" @onclick="Playback.ToggleEqualizer">✕</button>
+                </div>
+            </div>
+            <div class="gmp-eq-presets">
+                @foreach (var preset in Playback.EqPresets)
+                {
+                    <button class="gmp-eq-preset-btn @(Playback.ActivePresetId == preset.Id ? "active" : "")"
+                            @onclick="() => ApplyPresetAsync(preset)">@preset.Name</button>
+                }
+            </div>
+            <div class="gmp-eq-bands">
+                @for (int i = 0; i < Playback.EqBands.Length; i++)
+                {
+                    var bandIndex = i;
+                    <div class="gmp-eq-band">
+                        <input type="range" min="-12" max="12" step="0.5"
+                               value="@Playback.EqBands[bandIndex]"
+                               @oninput="(e) => OnEqBandChangedAsync(bandIndex, e)"
+                               orient="vertical" class="gmp-eq-slider" />
+                        <span class="gmp-eq-label">@MusicPlaybackState.BandLabels[bandIndex]</span>
+                    </div>
+                }
+            </div>
+        </aside>
+    }
+
+    @* ─── Save EQ Preset Dialog ─── *@
+    @if (Playback.ShowSavePresetDialog)
+    {
+        <div class="gmp-dialog-overlay" @onclick="Playback.ToggleSavePresetDialog">
+            <div class="gmp-dialog-panel" @onclick:stopPropagation="true">
+                <h4>Save EQ Preset</h4>
+                <div class="gmp-dialog-form">
+                    <label>Preset Name
+                        <input type="text" @bind="_newPresetName" placeholder="My Custom Preset" />
+                    </label>
+                </div>
+                <div class="gmp-dialog-actions">
+                    <button class="btn-secondary" @onclick="Playback.ToggleSavePresetDialog">Cancel</button>
+                    <button class="btn-primary" @onclick="SavePresetAsync" disabled="@string.IsNullOrWhiteSpace(_newPresetName)">Save</button>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    private bool _musicModuleEnabled;
+    private bool _jsInitialized;
+    private DotNetObjectReference<GlobalMusicPlaybar>? _dotNetRef;
+    private string _newPresetName = string.Empty;
+
+    // ── Settings persistence ──
+    private const string SettingsModule = "dotnetcloud.music";
+    private const string VolumeKey = "player.volume";
+    private const string MutedKey = "player.muted";
+    private const string ShuffleKey = "player.shuffle";
+    private const string RepeatKey = "player.repeat";
+    private const string EqBandsKey = "player.eq-bands";
+    private bool _settingsLoaded;
+    private CancellationTokenSource? _saveCts;
+
+    protected override void OnInitialized()
+    {
+        _musicModuleEnabled = ModuleRegistry.NavItems.Any(n =>
+            string.Equals(n.ModuleId, "dotnetcloud.music", StringComparison.OrdinalIgnoreCase));
+
+        Playback.OnChange += OnPlaybackStateChanged;
+        Playback.OnTrackChanged += OnTrackChanged;
+        ModuleRegistry.OnChange += OnModuleRegistryChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_musicModuleEnabled && Playback.NowPlaying is not null && !_jsInitialized)
+        {
+            try
+            {
+                _dotNetRef = DotNetObjectReference.Create(this);
+                await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.init", _dotNetRef);
+                _jsInitialized = true;
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Failed to initialize global music player JS interop");
+            }
+        }
+    }
+
+    private void OnPlaybackStateChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void OnModuleRegistryChanged()
+    {
+        _musicModuleEnabled = ModuleRegistry.NavItems.Any(n =>
+            string.Equals(n.ModuleId, "dotnetcloud.music", StringComparison.OrdinalIgnoreCase));
+        InvokeAsync(StateHasChanged);
+    }
+
+    // ── Playback JS interop ──
+
+    private async Task TogglePlayPauseAsync()
+    {
+        Playback.TogglePlayPause();
+        if (_jsInitialized)
+        {
+            if (Playback.IsPlaying)
+                await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.resume");
+            else
+                await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.pause");
+        }
+    }
+
+    private void PlayNextAsync()
+    {
+        Playback.PlayNext();
+        // JS audio is triggered by OnTrackChanged event
+    }
+
+    private void PlayPreviousAsync()
+    {
+        Playback.PlayPrevious();
+        // JS audio is triggered by OnTrackChanged event
+    }
+
+    private async Task StopAsync()
+    {
+        Playback.Stop();
+        if (_jsInitialized)
+        {
+            await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.stop");
+        }
+    }
+
+    private async Task ToggleShuffleAsync()
+    {
+        Playback.ToggleShuffle();
+        await SaveSettingImmediateAsync(ShuffleKey, Playback.Shuffle.ToString().ToLowerInvariant());
+    }
+
+    private async Task CycleRepeatAsync()
+    {
+        Playback.CycleRepeat();
+        await SaveSettingImmediateAsync(RepeatKey, Playback.Repeat.ToString());
+    }
+
+    private async Task ToggleMuteAsync()
+    {
+        Playback.ToggleMute();
+        if (_jsInitialized)
+        {
+            await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.setMuted", Playback.Muted);
+        }
+        await SaveSettingImmediateAsync(MutedKey, Playback.Muted.ToString().ToLowerInvariant());
+    }
+
+    private async Task OnVolumeChangedAsync(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var vol))
+        {
+            Playback.SetVolume(vol);
+            if (_jsInitialized)
+            {
+                await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.setVolume", Playback.Muted ? 0 : Playback.Volume);
+            }
+            SaveSettingDebounced(VolumeKey, Playback.Volume.ToString());
+        }
+    }
+
+    private async Task SeekAsync(MouseEventArgs e)
+    {
+        if (Playback.NowPlaying is null) return;
+        var fraction = Math.Clamp(e.OffsetX / 400.0, 0, 1);
+        var seekPos = TimeSpan.FromTicks((long)(Playback.NowPlaying.Duration.Ticks * fraction));
+        Playback.Seek(seekPos);
+        if (_jsInitialized)
+        {
+            await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.seek", seekPos.TotalSeconds);
+        }
+    }
+
+    // ── Equalizer JS interop ──
+
+    private async Task ToggleEqualizerAsync()
+    {
+        if (!Playback.EqPresetsLoaded)
+        {
+            var caller = await GetCallerAsync();
+            await Playback.LoadEqPresetsAsync(caller);
+        }
+        Playback.ToggleEqualizer();
+    }
+
+    private async Task ApplyPresetAsync(EqPresetDto preset)
+    {
+        Playback.ApplyPreset(preset);
+        if (_jsInitialized)
+        {
+            await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.setEqBands", Playback.EqBands);
+        }
+        SaveSettingDebounced(EqBandsKey, JsonSerializer.Serialize(Playback.EqBands));
+    }
+
+    private async Task OnEqBandChangedAsync(int bandIndex, ChangeEventArgs e)
+    {
+        if (double.TryParse(e.Value?.ToString(), out var gain))
+        {
+            Playback.SetEqBand(bandIndex, gain);
+            if (_jsInitialized)
+            {
+                await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.setEqBand", bandIndex, gain);
+            }
+            SaveSettingDebounced(EqBandsKey, JsonSerializer.Serialize(Playback.EqBands));
+        }
+    }
+
+    private async Task ResetEqAsync()
+    {
+        Playback.ResetEqBands();
+        if (_jsInitialized)
+        {
+            await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.setEqBands", Playback.EqBands);
+        }
+        await SaveSettingImmediateAsync(EqBandsKey, JsonSerializer.Serialize(Playback.EqBands));
+    }
+
+    private async Task SavePresetAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_newPresetName)) return;
+        try
+        {
+            var caller = await GetCallerAsync();
+            await Playback.SavePresetAsync(_newPresetName, caller);
+            _newPresetName = string.Empty;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to save EQ preset");
+        }
+    }
+
+    // ── Star toggle ──
+
+    private async Task ToggleStarAsync()
+    {
+        try
+        {
+            var caller = await GetCallerAsync();
+            await Playback.ToggleStarNowPlayingAsync(caller);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to toggle star");
+        }
+    }
+
+    // ── Navigation ──
+
+    private void NavigateToMusicPage()
+    {
+        Navigation.NavigateTo("/apps/music?playing=true");
+    }
+
+    // ── JS Interop callbacks (invoked from music-player.js) ──
+
+    [JSInvokable]
+    public void OnJsTimeUpdate(double currentTime, double duration)
+    {
+        Playback.UpdatePosition(TimeSpan.FromSeconds(currentTime));
+        InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public Task OnJsTrackEnded()
+    {
+        InvokeAsync(() => { PlayNextAsync(); StateHasChanged(); });
+        return Task.CompletedTask;
+    }
+
+    [JSInvokable]
+    public void OnJsPlaybackError(string message)
+    {
+        Logger.LogWarning("Audio playback error: {Message}", message);
+        Playback.SetPlaying(false);
+        InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public void OnJsMetadataLoaded(double duration)
+    {
+        Playback.UpdateDurationFromMetadata(duration);
+        InvokeAsync(StateHasChanged);
+    }
+
+    // ── Track change handler (triggered by MusicPlaybackState when a new track starts) ──
+
+    private void OnTrackChanged(TrackDto track)
+    {
+        InvokeAsync(async () => await StartPlaybackJsAsync(track));
+    }
+
+    /// <summary>
+    /// Initializes JS audio playback for a track. Called when MusicPlaybackState fires OnTrackChanged.
+    /// </summary>
+    private async Task StartPlaybackJsAsync(TrackDto track)
+    {
+        if (!_settingsLoaded)
+        {
+            await LoadPersistedSettingsAsync();
+        }
+
+        if (!_jsInitialized)
+        {
+            try
+            {
+                _dotNetRef = DotNetObjectReference.Create(this);
+                await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.init", _dotNetRef);
+                _jsInitialized = true;
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Failed to initialize JS audio for playback");
+                return;
+            }
+        }
+
+        if (track.FileNodeId != Guid.Empty)
+        {
+            await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.play", MusicPlaybackState.GetAudioUrl(track));
+            await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.setVolume", Playback.Muted ? 0 : Playback.Volume);
+            await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.setEqBands", Playback.EqBands);
+        }
+
+        await RecordPlaySafeAsync();
+    }
+
+    // ── Helpers ──
+
+    private async Task<CallerContext> GetCallerAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var userId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                     ?? throw new UnauthorizedAccessException("Not authenticated.");
+        var roles = authState.User.FindAll(System.Security.Claims.ClaimTypes.Role).Select(c => c.Value).ToList();
+        return new CallerContext(Guid.Parse(userId), roles, CallerType.User);
+    }
+
+    private async Task RecordPlaySafeAsync()
+    {
+        try
+        {
+            var caller = await GetCallerAsync();
+            await Playback.RecordPlayAsync(caller);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error recording play");
+        }
+    }
+
+    // ── Settings persistence ──
+
+    private async Task LoadPersistedSettingsAsync()
+    {
+        if (_settingsLoaded) return;
+        _settingsLoaded = true;
+        try
+        {
+            var userId = await GetUserIdAsync();
+            if (userId is null) return;
+
+            var volSetting = await UserSettingsService.GetSettingAsync(userId.Value, SettingsModule, VolumeKey);
+            if (volSetting is not null && int.TryParse(volSetting.Value, out var vol))
+                Playback.SetVolume(vol);
+
+            var muteSetting = await UserSettingsService.GetSettingAsync(userId.Value, SettingsModule, MutedKey);
+            if (muteSetting is not null && bool.TryParse(muteSetting.Value, out var muted) && muted != Playback.Muted)
+                Playback.ToggleMute();
+
+            var shuffleSetting = await UserSettingsService.GetSettingAsync(userId.Value, SettingsModule, ShuffleKey);
+            if (shuffleSetting is not null && bool.TryParse(shuffleSetting.Value, out var shuffle) && shuffle != Playback.Shuffle)
+                Playback.ToggleShuffle();
+
+            var repeatSetting = await UserSettingsService.GetSettingAsync(userId.Value, SettingsModule, RepeatKey);
+            if (repeatSetting is not null && Enum.TryParse<RepeatMode>(repeatSetting.Value, out var repeat))
+                while (Playback.Repeat != repeat) Playback.CycleRepeat();
+
+            var eqSetting = await UserSettingsService.GetSettingAsync(userId.Value, SettingsModule, EqBandsKey);
+            if (eqSetting is not null)
+            {
+                var bands = JsonSerializer.Deserialize<double[]>(eqSetting.Value);
+                if (bands is { Length: 10 })
+                    for (int i = 0; i < 10; i++) Playback.SetEqBand(i, bands[i]);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to load persisted music player settings");
+        }
+    }
+
+    private async Task SaveSettingImmediateAsync(string key, string value)
+    {
+        try
+        {
+            var userId = await GetUserIdAsync();
+            if (userId is null) return;
+            await UserSettingsService.UpsertSettingAsync(userId.Value, SettingsModule, key,
+                new UpsertUserSettingDto { Value = value });
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to save music setting {Key}", key);
+        }
+    }
+
+    private void SaveSettingDebounced(string key, string value)
+    {
+        _saveCts?.Cancel();
+        _saveCts = new CancellationTokenSource();
+        var token = _saveCts.Token;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(1000, token);
+                if (token.IsCancellationRequested) return;
+                await InvokeAsync(async () => await SaveSettingImmediateAsync(key, value));
+            }
+            catch (OperationCanceledException) { }
+        }, token);
+    }
+
+    private async Task<Guid?> GetUserIdAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var claim = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        return claim is not null && Guid.TryParse(claim, out var id) ? id : null;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        Playback.OnChange -= OnPlaybackStateChanged;
+        Playback.OnTrackChanged -= OnTrackChanged;
+        ModuleRegistry.OnChange -= OnModuleRegistryChanged;
+        _saveCts?.Cancel();
+        _saveCts?.Dispose();
+        if (_jsInitialized)
+        {
+            try
+            {
+                // Detach rather than dispose — keep audio playing if circuit is still alive
+                await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.detach");
+            }
+            catch (JSDisconnectedException) { }
+        }
+        _dotNetRef?.Dispose();
+    }
+}

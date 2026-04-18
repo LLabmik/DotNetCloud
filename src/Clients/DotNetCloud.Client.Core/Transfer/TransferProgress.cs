@@ -1,10 +1,25 @@
 namespace DotNetCloud.Client.Core.Transfer;
 
 /// <summary>
+/// Indicates the current phase of a chunked transfer operation.
+/// </summary>
+public enum TransferPhase
+{
+    /// <summary>Computing chunk hashes (pre-upload scan).</summary>
+    Hashing,
+
+    /// <summary>Uploading or downloading chunk data.</summary>
+    Transferring,
+}
+
+/// <summary>
 /// Reports progress for a chunked transfer operation.
 /// </summary>
 public sealed class TransferProgress
 {
+    /// <summary>Current phase of the transfer.</summary>
+    public TransferPhase Phase { get; init; } = TransferPhase.Transferring;
+
     /// <summary>Bytes transferred so far.</summary>
     public long BytesTransferred { get; init; }
 

@@ -1,0 +1,415 @@
+@page "/admin/search"
+@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveAutoRenderMode(prerender: false))
+@attribute [Authorize(Policy = "RequireAdmin")]
+@implements IDisposable
+
+<PageTitle>Search Engine - DotNetCloud</PageTitle>
+
+<div class="page-header">
+    <h1>Search Engine</h1>
+    <button class="btn btn-outline" @onclick="RefreshAsync" disabled="@_loading">Refresh</button>
+</div>
+
+@if (_loading && _status is null)
+{
+    <LoadingIndicator Message="Loading search status..." />
+}
+else if (_status is null)
+{
+    <div class="empty-state">
+        <p>Unable to retrieve search engine status.</p>
+    </div>
+}
+else
+{
+    @* ── Top Stat Cards ─────────────────────────────────────── *@
+    <div class="dash-stats search-stats">
+        <div class="dash-stat-card">
+            <div class="dash-stat-icon dash-stat-icon--search-indexed">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            </div>
+            <div class="dash-stat-body">
+                <span class="dash-stat-label">Indexed Documents</span>
+                <span class="dash-stat-value">@_status.TotalDocuments.ToString("N0")</span>
+            </div>
+        </div>
+
+        <div class="dash-stat-card">
+            <div class="dash-stat-icon dash-stat-icon--search-pending">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+            <div class="dash-stat-body">
+                <span class="dash-stat-label">Pending Queue</span>
+                <span class="dash-stat-value">@_status.PendingQueueCount.ToString("N0")</span>
+            </div>
+        </div>
+
+        <div class="dash-stat-card">
+            <div class="dash-stat-icon dash-stat-icon--search-processed">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
+            <div class="dash-stat-body">
+                <span class="dash-stat-label">Realtime Processed</span>
+                <span class="dash-stat-value">@_status.RealtimeProcessed.ToString("N0")</span>
+                @if (_status.RealtimeFailed > 0)
+                {
+                    <span class="dash-stat-sub search-failed">@_status.RealtimeFailed.ToString("N0") failed</span>
+                }
+            </div>
+        </div>
+
+        <div class="dash-stat-card">
+            <div class="dash-stat-icon dash-stat-icon--search-last">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            </div>
+            <div class="dash-stat-body">
+                <span class="dash-stat-label">Last Full Index</span>
+                <span class="dash-stat-value search-stat-value-sm">@FormatLastReindex()</span>
+                @if (_status.LastFullReindexJob is not null && _status.LastFullReindexJob.DurationSeconds.HasValue)
+                {
+                    <span class="dash-stat-sub">@FormatDuration(_status.LastFullReindexJob.DurationSeconds.Value) &middot; @_status.LastFullReindexJob.DocumentsProcessed.ToString("N0") docs</span>
+                }
+            </div>
+        </div>
+    </div>
+
+    @* ── Reindex Controls ───────────────────────────────────── *@
+    <div class="search-admin-section">
+        <div class="search-admin-section-header">
+            <h2>Full Reindex</h2>
+        </div>
+
+        @if (_status.IsReindexing && _status.ReindexProgress is not null)
+        {
+            <div class="reindex-progress-card">
+                <div class="reindex-progress-header">
+                    <span class="reindex-progress-status">
+                        <span class="reindex-spinner"></span>
+                        Reindexing in progress…
+                    </span>
+                    @if (_status.ReindexProgress.StartedAt.HasValue)
+                    {
+                        <span class="reindex-progress-elapsed">Started @FormatTimeAgo(_status.ReindexProgress.StartedAt.Value)</span>
+                    }
+                </div>
+
+                @if (!string.IsNullOrEmpty(_status.ReindexProgress.CurrentModule))
+                {
+                    <div class="reindex-progress-module">
+                        Currently indexing: <strong>@_status.ReindexProgress.CurrentModule</strong>
+                    </div>
+                }
+
+                <div class="reindex-progress-bar-wrapper">
+                    <div class="reindex-progress-bar">
+                        <div class="reindex-progress-bar-fill" style="width: @ProgressPercent()%"></div>
+                    </div>
+                    <span class="reindex-progress-counts">
+                        @_status.ReindexProgress.DocumentsProcessed.ToString("N0") / @_status.ReindexProgress.DocumentsTotal.ToString("N0")
+                    </span>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="reindex-controls">
+                <p class="text-muted">
+                    A full reindex rebuilds the search index for all modules. This runs in the background
+                    and does not affect normal search operations.
+                </p>
+                <button class="btn btn-primary" @onclick="TriggerFullReindexAsync" disabled="@_reindexTriggered">
+                    @if (_reindexTriggered)
+                    {
+                        <span>Reindex Queued…</span>
+                    }
+                    else
+                    {
+                        <span>Start Full Reindex</span>
+                    }
+                </button>
+            </div>
+        }
+    </div>
+
+    @* ── Module Breakdown ───────────────────────────────────── *@
+    <div class="search-admin-section">
+        <div class="search-admin-section-header">
+            <h2>Index by Module</h2>
+        </div>
+
+        @if (_status.DocumentsPerModule.Count == 0)
+        {
+            <p class="text-muted">No modules have been indexed yet.</p>
+        }
+        else
+        {
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Module</th>
+                            <th class="text-right">Documents</th>
+                            <th class="text-right">Share</th>
+                            <th style="width: 200px">Distribution</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var kvp in _status.DocumentsPerModule.OrderByDescending(kvp => kvp.Value))
+                        {
+                            var pct = _status.TotalDocuments > 0
+                                ? (double)kvp.Value / _status.TotalDocuments * 100
+                                : 0;
+                            <tr>
+                                <td><strong>@FormatModuleName(kvp.Key)</strong></td>
+                                <td class="text-right">@kvp.Value.ToString("N0")</td>
+                                <td class="text-right">@pct.ToString("F1")%</td>
+                                <td>
+                                    <div class="module-bar">
+                                        <div class="module-bar-fill" style="width: @pct.ToString("F1")%"></div>
+                                    </div>
+                                </td>
+                                <td class="actions">
+                                    <button class="btn btn-sm btn-outline"
+                                            @onclick="() => TriggerModuleReindexAsync(kvp.Key)"
+                                            disabled="@(_status.IsReindexing || _reindexTriggered)">
+                                        Reindex
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+
+    @* ── Last Job Details ───────────────────────────────────── *@
+    @if (_status.LastJob is not null)
+    {
+        <div class="search-admin-section">
+            <div class="search-admin-section-header">
+                <h2>Last Indexing Job</h2>
+            </div>
+
+            <div class="last-job-card">
+                <div class="last-job-row">
+                    <span class="last-job-label">Type</span>
+                    <span>@_status.LastJob.Type</span>
+                </div>
+                <div class="last-job-row">
+                    <span class="last-job-label">Status</span>
+                    <span class="badge badge-@GetJobBadgeClass(_status.LastJob.Status)">@_status.LastJob.Status</span>
+                </div>
+                @if (!string.IsNullOrEmpty(_status.LastJob.ModuleId))
+                {
+                    <div class="last-job-row">
+                        <span class="last-job-label">Module</span>
+                        <span>@FormatModuleName(_status.LastJob.ModuleId)</span>
+                    </div>
+                }
+                <div class="last-job-row">
+                    <span class="last-job-label">Started</span>
+                    <span>@(_status.LastJob.StartedAt?.ToString("yyyy-MM-dd HH:mm:ss") ?? "—")</span>
+                </div>
+                <div class="last-job-row">
+                    <span class="last-job-label">Completed</span>
+                    <span>@(_status.LastJob.CompletedAt?.ToString("yyyy-MM-dd HH:mm:ss") ?? "—")</span>
+                </div>
+                <div class="last-job-row">
+                    <span class="last-job-label">Documents</span>
+                    <span>@_status.LastJob.DocumentsProcessed.ToString("N0") / @_status.LastJob.DocumentsTotal.ToString("N0")</span>
+                </div>
+                @if (!string.IsNullOrEmpty(_status.LastJob.ErrorMessage))
+                {
+                    <div class="last-job-row last-job-error">
+                        <span class="last-job-label">Error</span>
+                        <span>@_status.LastJob.ErrorMessage</span>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+}
+
+@code {
+    [Inject] private DotNetCloudApiClient Api { get; set; } = default!;
+    [Inject] private ToastService Toast { get; set; } = default!;
+
+    private bool _loading = true;
+    private bool _reindexTriggered;
+    private SearchAdminStatusDto? _status;
+    private System.Threading.Timer? _pollTimer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshAsync();
+    }
+
+    private async Task RefreshAsync()
+    {
+        _loading = true;
+        try
+        {
+            _status = await Api.GetSearchAdminStatusAsync();
+            UpdatePolling();
+        }
+        catch
+        {
+            Toast.ShowError("Failed to load search engine status.");
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task TriggerFullReindexAsync()
+    {
+        _reindexTriggered = true;
+        try
+        {
+            var success = await Api.TriggerSearchReindexAsync();
+            if (success)
+            {
+                Toast.ShowSuccess("Full reindex started.");
+                // Brief delay to let the service start, then refresh
+                await Task.Delay(1000);
+                await RefreshAsync();
+            }
+            else
+            {
+                Toast.ShowError("Failed to trigger reindex.");
+                _reindexTriggered = false;
+            }
+        }
+        catch
+        {
+            Toast.ShowError("Failed to trigger reindex.");
+            _reindexTriggered = false;
+        }
+    }
+
+    private async Task TriggerModuleReindexAsync(string moduleId)
+    {
+        try
+        {
+            var success = await Api.TriggerSearchModuleReindexAsync(moduleId);
+            if (success)
+            {
+                Toast.ShowSuccess($"Reindex triggered for {FormatModuleName(moduleId)}.");
+            }
+            else
+            {
+                Toast.ShowError($"Failed to reindex {FormatModuleName(moduleId)}.");
+            }
+        }
+        catch
+        {
+            Toast.ShowError($"Failed to reindex {FormatModuleName(moduleId)}.");
+        }
+    }
+
+    /// <summary>
+    /// Starts/stops a polling timer when a reindex is running so the UI stays updated.
+    /// </summary>
+    private void UpdatePolling()
+    {
+        // Always clear the queued button state once we have a valid status refresh
+        _reindexTriggered = false;
+
+        if (_status?.IsReindexing == true)
+        {
+            _pollTimer ??= new System.Threading.Timer(async _ =>
+            {
+                try
+                {
+                    _status = await Api.GetSearchAdminStatusAsync();
+                    await InvokeAsync(StateHasChanged);
+
+                    // Stop polling when reindex finishes
+                    if (_status?.IsReindexing != true)
+                    {
+                        StopPolling();
+                    }
+                }
+                catch
+                {
+                    // Ignore poll failures
+                }
+            }, null, TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(2));
+        }
+        else
+        {
+            StopPolling();
+        }
+    }
+
+    private void StopPolling()
+    {
+        _pollTimer?.Dispose();
+        _pollTimer = null;
+    }
+
+    private string FormatLastReindex()
+    {
+        if (_status?.LastFullReindexAt is null && _status?.LastFullReindexJob?.CompletedAt is null)
+            return "Never";
+
+        var dt = _status.LastFullReindexJob?.CompletedAt ?? _status.LastFullReindexAt;
+        return dt.HasValue ? FormatTimeAgo(dt.Value) : "Never";
+    }
+
+    private static string FormatTimeAgo(DateTimeOffset dt)
+    {
+        var span = DateTimeOffset.UtcNow - dt;
+        if (span.TotalMinutes < 1) return "just now";
+        if (span.TotalMinutes < 60) return $"{(int)span.TotalMinutes}m ago";
+        if (span.TotalHours < 24) return $"{(int)span.TotalHours}h ago";
+        if (span.TotalDays < 7) return $"{(int)span.TotalDays}d ago";
+        return dt.ToString("yyyy-MM-dd HH:mm");
+    }
+
+    private static string FormatDuration(double seconds)
+    {
+        if (seconds < 60) return $"{seconds:F1}s";
+        var minutes = (int)(seconds / 60);
+        var secs = seconds % 60;
+        return $"{minutes}m {secs:F0}s";
+    }
+
+    private string ProgressPercent()
+    {
+        if (_status?.ReindexProgress is null || _status.ReindexProgress.DocumentsTotal == 0)
+            return "0";
+        var pct = (double)_status.ReindexProgress.DocumentsProcessed / _status.ReindexProgress.DocumentsTotal * 100;
+        return Math.Min(pct, 100).ToString("F1");
+    }
+
+    private static string FormatModuleName(string moduleId) => moduleId switch
+    {
+        "files" => "Files",
+        "notes" => "Notes",
+        "calendar" => "Calendar",
+        "contacts" => "Contacts",
+        "chat" => "Chat",
+        "music" => "Music",
+        "photos" => "Photos",
+        "tracks" => "Tracks",
+        _ => moduleId
+    };
+
+    private static string GetJobBadgeClass(string status) => status switch
+    {
+        "Completed" => "success",
+        "Running" => "warning",
+        "Pending" => "muted",
+        "Failed" => "danger",
+        _ => "muted"
+    };
+
+    public void Dispose()
+    {
+        StopPolling();
+    }
+}

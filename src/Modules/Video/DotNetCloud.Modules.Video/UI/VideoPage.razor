@@ -1,0 +1,665 @@
+@namespace DotNetCloud.Modules.Video.UI
+
+@using DotNetCloud.Core.DTOs
+@using DotNetCloud.Core.Authorization
+@using DotNetCloud.Modules.Video.Services
+@using Microsoft.JSInterop
+@inject IVideoService VideoService
+@inject IVideoCollectionService CollectionService
+@inject ISubtitleService SubtitleService
+@inject IWatchProgressService WatchProgressService
+@inject IVideoStreamingService StreamingService
+@inject IVideoMetadataService MetadataService
+@inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthenticationStateProvider
+@inject DotNetCloud.Core.Services.IUserSettingsService UserSettingsService
+@inject DotNetCloud.Core.Services.IMediaLibraryScanner MediaLibraryScanner
+@inject DotNetCloud.Modules.Files.Services.IFileService FileService
+@inject Microsoft.AspNetCore.Components.NavigationManager Navigation
+@inject DotNetCloud.Modules.Video.Events.IVideoIndexingCallback VideoIndexingCallback
+@inject IJSRuntime Js
+@inject Microsoft.Extensions.Logging.ILogger<VideoPage> Logger
+
+<div class="video-layout">
+    @* ─── Sidebar ─── *@
+    <aside class="video-sidebar">
+        <div class="video-sidebar-header">
+            <h2>Video</h2>
+        </div>
+
+        <nav class="video-nav">
+            <button class="video-nav-item @(_section == Section.Home ? "active" : "")"
+                    @onclick="() => SwitchSection(Section.Home)">
+                <span class="nav-icon">🏠</span><span>Home</span>
+            </button>
+            <button class="video-nav-item @(_section == Section.Library ? "active" : "")"
+                    @onclick="() => SwitchSection(Section.Library)">
+                <span class="nav-icon">🎬</span><span>Library</span>
+            </button>
+            <button class="video-nav-item @(_section == Section.Collections ? "active" : "")"
+                    @onclick="() => SwitchSection(Section.Collections)">
+                <span class="nav-icon">📁</span><span>Collections</span>
+            </button>
+            <button class="video-nav-item @(_section == Section.Favorites ? "active" : "")"
+                    @onclick="() => SwitchSection(Section.Favorites)">
+                <span class="nav-icon">⭐</span><span>Favorites</span>
+            </button>
+        </nav>
+
+        <div class="video-nav-separator"></div>
+        <nav class="video-nav">
+            <button class="video-nav-item @(_section == Section.Settings ? "active" : "")"
+                    @onclick="() => SwitchSection(Section.Settings)">
+                <span class="nav-icon">⚙</span><span>Library Settings</span>
+            </button>
+        </nav>
+
+        @* ── Collections in sidebar ── *@
+        @if (_collections.Count > 0)
+        {
+            <div class="video-nav-separator"></div>
+            <div class="sidebar-collections">
+                <div class="sidebar-collections-header">
+                    <span class="label-muted">Collections</span>
+                    <button class="btn-icon" @onclick="BeginCreateCollection" title="New Collection">+</button>
+                </div>
+                @foreach (var coll in _collections)
+                {
+                    var capturedColl = coll;
+                    <button class="sidebar-collection-item @(_selectedCollectionId == capturedColl.Id ? "active" : "")"
+                            @onclick="() => SelectCollectionAsync(capturedColl.Id)">
+                        <span class="coll-icon">📂</span>
+                        <span class="coll-name">@capturedColl.Name</span>
+                        <span class="coll-count">@capturedColl.VideoCount</span>
+                    </button>
+                }
+            </div>
+        }
+    </aside>
+
+    @* ─── Main Content ─── *@
+    <main class="video-main">
+        @* Toolbar *@
+        <div class="video-toolbar">
+            <div class="toolbar-left">
+                @if (_breadcrumb.Count > 0)
+                {
+                    @foreach (var crumb in _breadcrumb)
+                    {
+                        <button type="button" class="breadcrumb-item" @onclick="crumb.Action">@crumb.Label</button>
+                        <span class="breadcrumb-sep">›</span>
+                    }
+                }
+                <h3 class="section-title">@GetSectionTitle()</h3>
+            </div>
+            <div class="toolbar-right">
+                <div class="search-box">
+                    <input type="text" placeholder="Search videos…"
+                           @bind="_searchQuery" @bind:event="oninput"
+                           @onkeyup="HandleSearchKeyUp" />
+                </div>
+            </div>
+        </div>
+
+        @if (_loading)
+        {
+            <div class="video-loading">
+                <div class="loading-spinner"></div>
+                <p>Loading…</p>
+            </div>
+        }
+        else if (_errorMessage is not null)
+        {
+            <div class="video-error">
+                <p>@_errorMessage</p>
+                <button class="btn-retry" @onclick="LoadCurrentSectionAsync">Retry</button>
+            </div>
+        }
+        else
+        {
+            @* ─── Home ─── *@
+            @if (_section == Section.Home && !_playerOpen)
+            {
+                <div class="home-content">
+                    @if (_continueWatching.Count > 0)
+                    {
+                        <section class="video-section">
+                            <h4>Continue Watching</h4>
+                            <div class="video-carousel">
+                                @foreach (var wp in _continueWatching)
+                                {
+                                    var capturedWp = wp;
+                                    <div class="video-card continue-card"
+                                         @onclick="() => OpenPlayerForContinueAsync(capturedWp)">
+                                        <div class="video-thumb">
+                                            <img src="@GetThumbnailUrl(capturedWp.VideoId)" alt="@capturedWp.VideoTitle" loading="lazy" />
+                                            <div class="video-progress-bar">
+                                                <div class="video-progress-fill" style="width: @capturedWp.ProgressPercent%"></div>
+                                            </div>
+                                            <span class="thumb-overlay-play">▶</span>
+                                        </div>
+                                        <div class="video-card-info">
+                                            <span class="video-card-title">@capturedWp.VideoTitle</span>
+                                            <span class="video-card-meta">@((int)capturedWp.ProgressPercent)% watched</span>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </section>
+                    }
+
+                    @if (_recentVideos.Count > 0)
+                    {
+                        <section class="video-section">
+                            <h4>Recently Added</h4>
+                            <div class="video-grid">
+                                @foreach (var video in _recentVideos)
+                                {
+                                    var capturedVideo = video;
+                                    <div class="video-card"
+                                         @onclick="() => OpenVideoDetailAsync(capturedVideo)">
+                                        <div class="video-thumb">
+                                            <img src="@GetThumbnailUrl(capturedVideo.Id)" alt="@capturedVideo.Title" loading="lazy" />
+                                            <span class="thumb-duration">@FormatDuration(capturedVideo.Duration)</span>
+                                            <span class="thumb-overlay-play">▶</span>
+                                        </div>
+                                        <div class="video-card-info">
+                                            <span class="video-card-title">@capturedVideo.Title</span>
+                                            <span class="video-card-meta">@FormatFileSize(capturedVideo.SizeBytes) · @FormatResolution(capturedVideo.Width, capturedVideo.Height)</span>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </section>
+                    }
+
+                    @if (_continueWatching.Count == 0 && _recentVideos.Count == 0)
+                    {
+                        <div class="video-empty">
+                            <div class="empty-icon">🎬</div>
+                            <h4>No videos in your library</h4>
+                            <p>Upload video files through the Files module. Supported formats: MP4, MKV, AVI, MOV, WEBM, FLV.</p>
+                        </div>
+                    }
+                </div>
+            }
+
+            @* ─── Library (full grid) ─── *@
+            @if (_section == Section.Library && !_playerOpen)
+            {
+                @if (_videos.Count == 0)
+                {
+                    <div class="video-empty">
+                        <div class="empty-icon">🎬</div>
+                        <h4>Your video library is empty</h4>
+                        <p>Upload video files through the Files module, then configure a library path in Settings.</p>
+                    </div>
+                }
+                else
+                {
+                    <div class="video-grid padded">
+                        @foreach (var video in _videos)
+                        {
+                            var capturedVideo = video;
+                            <div class="video-card"
+                                 @onclick="() => OpenVideoDetailAsync(capturedVideo)">
+                                <div class="video-thumb">
+                                    <img src="@GetThumbnailUrl(capturedVideo.Id)" alt="@capturedVideo.Title" loading="lazy" />
+                                    <span class="thumb-duration">@FormatDuration(capturedVideo.Duration)</span>
+                                    @if (capturedVideo.WatchPositionTicks.HasValue && capturedVideo.Duration.Ticks > 0)
+                                    {
+                                        <div class="video-progress-bar">
+                                            <div class="video-progress-fill" style="width: @GetWatchPercent(capturedVideo)%"></div>
+                                        </div>
+                                    }
+                                    <span class="thumb-overlay-play">▶</span>
+                                </div>
+                                <div class="video-card-info">
+                                    <span class="video-card-title">@capturedVideo.Title</span>
+                                    <span class="video-card-meta">
+                                        @FormatFileSize(capturedVideo.SizeBytes)
+                                        @if (capturedVideo.ViewCount > 0)
+                                        {
+                                            <text> · @capturedVideo.ViewCount views</text>
+                                        }
+                                    </span>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            }
+
+            @* ─── Collections list ─── *@
+            @if (_section == Section.Collections && _selectedCollection is null && !_playerOpen)
+            {
+                <div class="collections-grid">
+                    @foreach (var coll in _collections)
+                    {
+                        var capturedColl = coll;
+                        <div class="collection-card"
+                             @onclick="() => SelectCollectionAsync(capturedColl.Id)">
+                            <div class="collection-card-icon">📁</div>
+                            <div class="collection-card-info">
+                                <span class="collection-card-title">@capturedColl.Name</span>
+                                <span class="collection-card-meta">@capturedColl.VideoCount videos · @FormatDuration(capturedColl.TotalDuration)</span>
+                                @if (!string.IsNullOrWhiteSpace(capturedColl.Description))
+                                {
+                                    <span class="collection-card-desc">@capturedColl.Description</span>
+                                }
+                            </div>
+                            <div class="collection-card-actions" @onclick:stopPropagation="true">
+                                <button type="button" class="btn-icon-action" @onclick="() => BeginEditCollection(capturedColl)" title="Edit">✎</button>
+                                <button type="button" class="btn-icon-action danger" @onclick="() => DeleteCollectionAsync(capturedColl.Id)" title="Delete">🗑</button>
+                            </div>
+                        </div>
+                    }
+                    @if (_collections.Count == 0)
+                    {
+                        <div class="video-empty">
+                            <div class="empty-icon">📁</div>
+                            <h4>No collections yet</h4>
+                            <p>Create a collection to organize your videos.</p>
+                            <button type="button" class="btn-primary" @onclick="BeginCreateCollection" style="margin-top:12px">Create Collection</button>
+                        </div>
+                    }
+                </div>
+            }
+
+            @* ─── Collection detail ─── *@
+            @if (_section == Section.Collections && _selectedCollection is not null && !_playerOpen)
+            {
+                <div class="collection-detail">
+                    <div class="collection-detail-header">
+                        <div>
+                            <h3>@_selectedCollection.Name</h3>
+                            @if (!string.IsNullOrWhiteSpace(_selectedCollection.Description))
+                            {
+                                <p class="collection-desc">@_selectedCollection.Description</p>
+                            }
+                            <span class="collection-meta-detail">@_selectedCollection.VideoCount videos · @FormatDuration(_selectedCollection.TotalDuration)</span>
+                        </div>
+                    </div>
+
+                    <div class="video-grid">
+                        @foreach (var video in _collectionVideos)
+                        {
+                            var capturedVideo = video;
+                            <div class="video-card"
+                                 @onclick="() => OpenVideoDetailAsync(capturedVideo)">
+                                <div class="video-thumb">
+                                    <img src="@GetThumbnailUrl(capturedVideo.Id)" alt="@capturedVideo.Title" loading="lazy" />
+                                    <span class="thumb-duration">@FormatDuration(capturedVideo.Duration)</span>
+                                    <span class="thumb-overlay-play">▶</span>
+                                </div>
+                                <div class="video-card-info">
+                                    <span class="video-card-title">@capturedVideo.Title</span>
+                                    <span class="video-card-meta">@FormatFileSize(capturedVideo.SizeBytes)</span>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
+            @* ─── Favorites ─── *@
+            @if (_section == Section.Favorites && !_playerOpen)
+            {
+                @if (_favoriteVideos.Count == 0)
+                {
+                    <div class="video-empty">
+                        <div class="empty-icon">⭐</div>
+                        <h4>No favorites yet</h4>
+                        <p>Favorite videos to see them here.</p>
+                    </div>
+                }
+                else
+                {
+                    <div class="video-grid padded">
+                        @foreach (var video in _favoriteVideos)
+                        {
+                            var capturedVideo = video;
+                            <div class="video-card"
+                                 @onclick="() => OpenVideoDetailAsync(capturedVideo)">
+                                <div class="video-thumb">
+                                    <img src="@GetThumbnailUrl(capturedVideo.Id)" alt="@capturedVideo.Title" loading="lazy" />
+                                    <span class="thumb-duration">@FormatDuration(capturedVideo.Duration)</span>
+                                    <span class="thumb-overlay-play">▶</span>
+                                </div>
+                                <div class="video-card-info">
+                                    <span class="video-card-title">@capturedVideo.Title</span>
+                                    <span class="video-card-meta">@FormatFileSize(capturedVideo.SizeBytes) · @capturedVideo.ViewCount views</span>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            }
+
+            @* ─── Search Results ─── *@
+            @if (_searchResults is not null && !_playerOpen)
+            {
+                <div class="search-results">
+                    <h4>Results for "@_searchQuery"</h4>
+                    <div class="video-grid padded">
+                        @foreach (var video in _searchResults)
+                        {
+                            var capturedVideo = video;
+                            <div class="video-card"
+                                 @onclick="() => OpenVideoDetailAsync(capturedVideo)">
+                                <div class="video-thumb">
+                                    <img src="@GetThumbnailUrl(capturedVideo.Id)" alt="@capturedVideo.Title" loading="lazy" />
+                                    <span class="thumb-duration">@FormatDuration(capturedVideo.Duration)</span>
+                                    <span class="thumb-overlay-play">▶</span>
+                                </div>
+                                <div class="video-card-info">
+                                    <span class="video-card-title">@capturedVideo.Title</span>
+                                    <span class="video-card-meta">@FormatFileSize(capturedVideo.SizeBytes)</span>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
+            @* ─── Library Settings ─── *@
+            @if (_section == Section.Settings)
+            {
+                <div class="module-settings-section">
+                    <div class="settings-card">
+                        <h4>Video Library</h4>
+                        <p class="hint">Configure the local directory path for your video library. DotNetCloud will scan
+                            this directory and import videos (MP4, MKV, AVI, MOV, WebM, WMV, MPEG, and more).</p>
+                        <div class="form-group">
+                            <label>Directory Path</label>
+                            <div class="input-with-browse">
+                                <input type="text" class="input" @bind="_libraryPath"
+                                       placeholder="/home/user/Videos" />
+                                <button type="button" class="btn btn-outline btn-sm" @onclick="OpenDirectoryBrowser">Browse…</button>
+                            </div>
+                        </div>
+                        <div class="settings-actions">
+                            <button type="button" class="btn btn-primary btn-sm" @onclick="SaveLibraryPathAsync"
+                                    disabled="@_settingsSaving">
+                                @(_settingsSaving ? "Saving..." : "Save Path")
+                            </button>
+                            <button type="button" class="btn btn-outline btn-sm" @onclick="ScanLibraryAsync"
+                                    disabled="@(_settingsScanning || string.IsNullOrWhiteSpace(_libraryPath))">
+                                @(_settingsScanning ? "Scanning..." : "Scan Now")
+                            </button>
+                        </div>
+                        @if (_scanResult is not null)
+                        {
+                            <div class="scan-result-banner">
+                                Found @_scanResult.TotalFound · Imported @_scanResult.Imported · Skipped @_scanResult.Skipped
+                                @if (_scanResult.Failed > 0)
+                                {
+                                    <span class="text-danger"> · Failed @_scanResult.Failed</span>
+                                }
+                            </div>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(_settingsError))
+                        {
+                            <div class="alert alert-danger" style="margin-top: 12px; font-size: 13px;">@_settingsError</div>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(_settingsSuccess))
+                        {
+                            <div class="alert alert-success" style="margin-top: 12px; font-size: 13px;">@_settingsSuccess</div>
+                        }
+
+                        <div class="settings-danger-zone" style="margin-top: 24px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.08);">
+                            <h5 style="color: var(--color-danger, #e55); margin-bottom: 8px;">Reset Collection</h5>
+                            <p class="hint" style="margin-bottom: 8px;">Deletes all indexed video metadata (videos, collections, subtitles, watch progress, watch history, shares).
+                                Your actual video files are NOT affected. After resetting, click Scan Now to rebuild from scratch.</p>
+                            @if (_showResetConfirm)
+                            {
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <span style="color: var(--color-danger, #e55); font-size: 13px;">Are you sure?</span>
+                                    <button class="btn btn-sm" style="background: var(--color-danger, #e55); color: #fff;"
+                                            @onclick="ResetCollectionAsync" disabled="@_settingsResetting">
+                                        @(_settingsResetting ? "Resetting..." : "Yes, Reset")
+                                    </button>
+                                    <button class="btn btn-outline btn-sm" @onclick="() => _showResetConfirm = false">Cancel</button>
+                                </div>
+                            }
+                            else
+                            {
+                                <button class="btn btn-outline btn-sm" style="border-color: var(--color-danger, #e55); color: var(--color-danger, #e55);"
+                                        @onclick="() => _showResetConfirm = true">
+                                    Reset Collection
+                                </button>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+
+            @* ─── Directory Browser Dialog ─── *@
+            @if (_showDirBrowser)
+            {
+                <div class="folder-picker-overlay" @onclick="HideDirectoryBrowser">
+                    <div class="folder-picker-dialog" @onclick:stopPropagation>
+                        <div class="folder-picker-header">
+                            <h3>Select Folder</h3>
+                            <button type="button" class="btn-icon" @onclick="HideDirectoryBrowser" title="Close">✕</button>
+                        </div>
+
+                        <nav class="folder-picker-breadcrumbs">
+                            <button type="button" class="btn btn-sm" @onclick="DirBrowserNavigateToRoot">
+                                Home
+                            </button>
+                            @for (int i = 0; i < _dirBrowserBreadcrumbs.Count; i++)
+                            {
+                                var idx = i;
+                                <span class="separator">/</span>
+                                <button type="button" class="btn btn-sm" @onclick="() => DirBrowserNavigateToCrumb(idx)">@_dirBrowserBreadcrumbs[idx].Name</button>
+                            }
+                        </nav>
+
+                        <div class="folder-picker-current-path">
+                            <span class="path-label">Path:</span> @GetDirBrowserPath()
+                        </div>
+
+                        <div class="folder-picker-list">
+                            @if (_dirBrowserBreadcrumbs.Count > 0)
+                            {
+                                <button type="button" class="folder-picker-item" @onclick="DirBrowserGoUp">
+                                    📁 ..
+                                </button>
+                            }
+                            @if (!string.IsNullOrEmpty(_dirBrowserError))
+                            {
+                                <p class="text-muted folder-picker-empty">@_dirBrowserError</p>
+                            }
+                            else if (_dirBrowserFolders.Count == 0)
+                            {
+                                <p class="text-muted folder-picker-empty">No subfolders</p>
+                            }
+                            else
+                            {
+                                @foreach (var folder in _dirBrowserFolders)
+                                {
+                                    var capturedFolder = folder;
+                                    <button type="button" class="folder-picker-item"
+                                            @onclick="() => DirBrowserNavigate(capturedFolder.Id, capturedFolder.Name)">
+                                        📁 @capturedFolder.Name
+                                    </button>
+                                }
+                            }
+                        </div>
+
+                        <div class="folder-picker-actions">
+                            <button type="button" class="btn btn-primary btn-sm" @onclick="ConfirmDirectoryBrowser">
+                                Select this folder
+                            </button>
+                            <button type="button" class="btn btn-sm" @onclick="HideDirectoryBrowser">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            @* ─── Video Player ─── *@
+            @if (_playerOpen && _playerVideo is not null)
+            {
+                <div class="player-view">
+                    <div id="player-container" class="player-container">
+                        <video id="video-player"
+                               class="video-player"
+                               src="@GetStreamUrl(_playerVideo.Id)"
+                               controls
+                               autoplay
+                               preload="auto">
+                            @if (_playerSubtitles.Count > 0)
+                            {
+                                @foreach (var sub in _playerSubtitles)
+                                {
+                                    <track kind="subtitles" label="@(sub.Label ?? sub.Language)"
+                                           srclang="@sub.Language"
+                                           src="@GetSubtitleUrl(sub.Id)"
+                                           default="@sub.IsDefault" />
+                                }
+                            }
+                        </video>
+
+                        @if (_codecErrorMessage is not null)
+                        {
+                            <div class="codec-error-overlay">
+                                <div class="codec-error-card">
+                                    <div class="codec-error-icon">⚠️</div>
+                                    <h4>Video Cannot Be Played</h4>
+                                    <p>Your browser was unable to play this video. This can happen if the video uses an unsupported codec or if the file failed to load.</p>
+                                    <div class="codec-error-instructions">
+                                        <strong>Suggestions:</strong>
+                                        <ul style="margin: 8px 0 0 0; padding-left: 20px; text-align: left;">
+                                            <li>Try refreshing the page</li>
+                                            <li>Try <strong>Microsoft Edge</strong>, which supports the widest range of video and audio codecs on Windows</li>
+                                            <li>On Edge, install the free
+                                                <a href="ms-windows-store://pdp/?productid=9n4wgh0z6vhq" target="_blank" rel="noopener">HEVC Video Extensions</a>
+                                                from the Microsoft Store for H.265 video support</li>
+                                        </ul>
+                                    </div>
+                                    <p class="codec-error-alt">Server-side transcoding is planned for a future release.</p>
+                                </div>
+                            </div>
+                        }
+
+                        @if (_noAudioDetected)
+                        {
+                            <div class="no-audio-banner">
+                                <span class="no-audio-icon">🔇</span>
+                                <span>
+                                    <strong>No audio:</strong> This video uses a Dolby Digital (AC-3/EAC-3) audio track
+                                    that your browser cannot decode. For full audio support, open this page in
+                                    <strong>Microsoft Edge</strong>.
+                                    Server-side audio transcoding is planned for a future release.
+                                </span>
+                            </div>
+                        }
+                    </div>
+
+                    <div class="player-info-panel">
+                        <div class="player-info-header">
+                            <div class="player-title-section">
+                                <h3>@_playerVideo.Title</h3>
+                                <span class="player-meta">
+                                    @FormatResolution(_playerVideo.Width, _playerVideo.Height) ·
+                                    @FormatFileSize(_playerVideo.SizeBytes) ·
+                                    @_playerVideo.ViewCount views
+                                </span>
+                            </div>
+                            <div class="player-actions">
+                                <button type="button" class="btn-icon-action" @onclick="ToggleFavoriteAsync"
+                                        title="@(_playerVideo.IsFavorite ? "Remove from favorites" : "Add to favorites")">
+                                    @(_playerVideo.IsFavorite ? "★" : "☆")
+                                </button>
+                                <button type="button" class="btn-icon-action" @onclick="() => _showAddToCollection = true" title="Add to collection">📁</button>
+                                <button type="button" class="btn-close-player" @onclick="ClosePlayer">✕ Close</button>
+                            </div>
+                        </div>
+
+                        @* Metadata *@
+                        @if (_playerMetadata is not null)
+                        {
+                            <div class="metadata-grid">
+                                <div class="metadata-item">
+                                    <span class="metadata-label">Codec</span>
+                                    <span class="metadata-value">@_playerMetadata.VideoCodec / @_playerMetadata.AudioCodec</span>
+                                </div>
+                                <div class="metadata-item">
+                                    <span class="metadata-label">Framerate</span>
+                                    <span class="metadata-value">@_playerMetadata.FrameRate fps</span>
+                                </div>
+                                <div class="metadata-item">
+                                    <span class="metadata-label">Bitrate</span>
+                                    <span class="metadata-value">@FormatBitrate(_playerMetadata.Bitrate)</span>
+                                </div>
+                                <div class="metadata-item">
+                                    <span class="metadata-label">Container</span>
+                                    <span class="metadata-value">@_playerMetadata.ContainerFormat</span>
+                                </div>
+                                <div class="metadata-item">
+                                    <span class="metadata-label">Audio Tracks</span>
+                                    <span class="metadata-value">@_playerMetadata.AudioTrackCount</span>
+                                </div>
+                                <div class="metadata-item">
+                                    <span class="metadata-label">Subtitles</span>
+                                    <span class="metadata-value">@_playerSubtitles.Count available</span>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        }
+    </main>
+
+    @* ─── Add to Collection Dialog ─── *@
+    @if (_showAddToCollection)
+    {
+        <div class="dialog-overlay" @onclick="() => _showAddToCollection = false">
+            <div class="dialog-panel" @onclick:stopPropagation="true">
+                <h4>Add to Collection</h4>
+                <div class="collection-select-list">
+                    @foreach (var coll in _collections)
+                    {
+                        var capturedColl = coll;
+                        <button type="button" class="collection-select-item"
+                                @onclick="() => AddToCollectionAsync(capturedColl.Id)">
+                            <span>📂</span> @capturedColl.Name
+                        </button>
+                    }
+                    @if (_collections.Count == 0)
+                    {
+                        <p class="empty-hint">No collections yet. Create one first.</p>
+                    }
+                </div>
+                <div class="dialog-actions">
+                    <button type="button" class="btn-cancel" @onclick="() => _showAddToCollection = false">Cancel</button>
+                </div>
+            </div>
+        </div>
+    }
+
+    @* ─── Create/Edit Collection Dialog ─── *@
+    @if (_showCreateCollectionDialog || _showEditCollectionDialog)
+    {
+        <div class="dialog-overlay" @onclick="CloseCollectionDialog">
+            <div class="dialog-panel" @onclick:stopPropagation="true">
+                <h4>@(_showEditCollectionDialog ? "Edit Collection" : "Create Collection")</h4>
+                <div class="dialog-form">
+                    <label>Name
+                        <input type="text" @bind="_collectionName" placeholder="Collection name" />
+                    </label>
+                    <label>Description
+                        <textarea @bind="_collectionDescription" placeholder="Optional description" rows="2"></textarea>
+                    </label>
+                </div>
+                <div class="dialog-actions">
+                    <button type="button" class="btn-cancel" @onclick="CloseCollectionDialog">Cancel</button>
+                    <button type="button" class="btn-primary" @onclick="SaveCollectionAsync">
+                        @(_showEditCollectionDialog ? "Save" : "Create")
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+</div>

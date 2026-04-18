@@ -78,6 +78,11 @@ public sealed class CalendarApiClient : ICalendarApiClient
         return await ReadDataAsync<CalendarEventDto>(response, cancellationToken);
     }
 
+    public async Task<CalendarEventDto?> GetEventAsync(Guid eventId, CancellationToken cancellationToken = default)
+    {
+        return await ReadDataAsync<CalendarEventDto>($"api/v1/calendars/events/{eventId}", cancellationToken);
+    }
+
     public async Task DeleteEventAsync(Guid eventId, CancellationToken cancellationToken = default)
     {
         var response = await _httpClient.DeleteAsync($"api/v1/calendars/events/{eventId}", cancellationToken);

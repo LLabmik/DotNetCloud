@@ -1,4 +1,7 @@
 @namespace DotNetCloud.Modules.Files.UI
+@using DotNetCloud.UI.Shared.Components.Editors
+@using DotNetCloud.UI.Shared.Services
+@inject IMarkdownRenderer MarkdownRenderer
 
 @*
     Comments side panel — displays threaded comments on a file.
@@ -17,21 +20,27 @@
     </div>
 
     <div class="comments-panel-compose">
-        <textarea class="comments-compose-input"
-                  placeholder="Add a comment…"
-                  @bind="_newCommentText"
-                  @bind:event="oninput"
-                  @onkeydown="HandleNewCommentKeyDown"
-                  rows="2"
-                  maxlength="5000"
-                  aria-label="New comment"></textarea>
-        <div class="comments-compose-actions">
-            <button class="btn btn-primary btn-sm"
-                    disabled="@(string.IsNullOrWhiteSpace(_newCommentText) || _isSubmitting)"
-                    @onclick="SubmitNewComment">
-                @(_isSubmitting ? "Posting…" : "Post")
-            </button>
-        </div>
+        @if (_showComposer)
+        {
+            <MarkdownEditor Compact
+                            Placeholder="Add a comment…"
+                            Rows="2"
+                            Content="@_newCommentText"
+                            ContentChanged="@(v => _newCommentText = v)"
+                            Renderer="MarkdownRenderer" />
+            <div class="comments-compose-actions">
+                <button class="btn btn-sm" @onclick="HideComposer">Cancel</button>
+                <button class="btn btn-primary btn-sm"
+                        disabled="@(string.IsNullOrWhiteSpace(_newCommentText) || _isSubmitting)"
+                        @onclick="SubmitNewComment">
+                    @(_isSubmitting ? "Posting…" : "Post")
+                </button>
+            </div>
+        }
+        else
+        {
+            <button class="btn btn-sm btn-primary" @onclick="ShowComposer">+ Add Comment</button>
+        }
     </div>
 
     @if (IsLoading)
@@ -67,12 +76,11 @@
                     @if (_editingCommentId == comment.Id)
                     {
                         <div class="comment-edit-form">
-                            <textarea class="comments-compose-input"
-                                      @bind="_editCommentText"
-                                      @bind:event="oninput"
-                                      @onkeydown="HandleEditKeyDown"
-                                      rows="2"
-                                      maxlength="5000"></textarea>
+                            <MarkdownEditor Compact
+                                            Rows="2"
+                                            Content="@_editCommentText"
+                                            ContentChanged="@(v => _editCommentText = v)"
+                                            Renderer="MarkdownRenderer" />
                             <div class="comment-edit-actions">
                                 <button class="btn btn-primary btn-sm"
                                         disabled="@(string.IsNullOrWhiteSpace(_editCommentText) || _isSubmitting)"
@@ -83,7 +91,7 @@
                     }
                     else
                     {
-                        <div class="comment-body">@comment.Content</div>
+                        <div class="comment-body markdown-body">@((MarkupString)MarkdownRenderer.RenderToHtml(comment.Content))</div>
                     }
 
                     <div class="comment-actions">
@@ -105,13 +113,12 @@
                     @if (_replyingToId == comment.Id)
                     {
                         <div class="comment-reply-form">
-                            <textarea class="comments-compose-input"
-                                      placeholder="Write a reply…"
-                                      @bind="_replyText"
-                                      @bind:event="oninput"
-                                      @onkeydown="HandleReplyKeyDown"
-                                      rows="2"
-                                      maxlength="5000"></textarea>
+                            <MarkdownEditor Compact
+                                            Placeholder="Write a reply…"
+                                            Rows="2"
+                                            Content="@_replyText"
+                                            ContentChanged="@(v => _replyText = v)"
+                                            Renderer="MarkdownRenderer" />
                             <div class="comment-edit-actions">
                                 <button class="btn btn-primary btn-sm"
                                         disabled="@(string.IsNullOrWhiteSpace(_replyText) || _isSubmitting)"
@@ -141,12 +148,11 @@
                                 @if (_editingCommentId == reply.Id)
                                 {
                                     <div class="comment-edit-form">
-                                        <textarea class="comments-compose-input"
-                                                  @bind="_editCommentText"
-                                                  @bind:event="oninput"
-                                                  @onkeydown="HandleEditKeyDown"
-                                                  rows="2"
-                                                  maxlength="5000"></textarea>
+                                        <MarkdownEditor Compact
+                                                        Rows="2"
+                                                        Content="@_editCommentText"
+                                                        ContentChanged="@(v => _editCommentText = v)"
+                                                        Renderer="MarkdownRenderer" />
                                         <div class="comment-edit-actions">
                                             <button class="btn btn-primary btn-sm"
                                                     disabled="@(string.IsNullOrWhiteSpace(_editCommentText) || _isSubmitting)"
@@ -157,7 +163,7 @@
                                 }
                                 else
                                 {
-                                    <div class="comment-body">@reply.Content</div>
+                                    <div class="comment-body markdown-body">@((MarkupString)MarkdownRenderer.RenderToHtml(reply.Content))</div>
                                 }
 
                                 <div class="comment-actions">

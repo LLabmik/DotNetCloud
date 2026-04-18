@@ -497,4 +497,47 @@ public class DownloadServiceTests
         concat.ReadExactly(buf, 0, 4);
         Assert.AreEqual(4, concat.Position);
     }
+
+    [TestMethod]
+    public async Task DownloadZipAsync_MissingChunkBlob_ThrowsNotFoundException()
+    {
+        // When a chunk blob is missing from storage during ZIP assembly, the service
+        // must throw NotFoundException — not silently skip the chunk and produce a truncated file.
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+
+        var node = new FileNode { Name = "report.pdf", NodeType = FileNodeType.File, OwnerId = userId, Size = 1024 };
+        db.FileNodes.Add(node);
+
+        var chunk = new FileChunk { ChunkHash = "deadbeef1234", StoragePath = "chunks/de/ad/deadbeef1234", Size = 1024 };
+        db.FileChunks.Add(chunk);
+
+        var version = new FileVersion
+        {
+            FileNodeId = node.Id,
+            VersionNumber = 1,
+            Size = 1024,
+            ContentHash = "deadbeef1234",
+            StoragePath = "files/dead/deadbeef1234",
+            CreatedByUserId = userId
+        };
+        db.FileVersions.Add(version);
+        db.FileVersionChunks.Add(new FileVersionChunk
+        {
+            FileVersionId = version.Id,
+            FileChunkId = chunk.Id,
+            SequenceIndex = 0
+        });
+        await db.SaveChangesAsync();
+
+        // Storage returns null — blob is missing from disk
+        var storageMock = new Mock<IFileStorageEngine>();
+        storageMock.Setup(s => s.OpenReadStreamAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Stream?)null);
+
+        var service = CreateService(db, storageMock.Object);
+
+        await Assert.ThrowsExactlyAsync<NotFoundException>(
+            () => service.DownloadZipAsync([node.Id], UserCaller(userId)));
+    }
 }

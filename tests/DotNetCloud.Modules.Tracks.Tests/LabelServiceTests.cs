@@ -98,7 +98,7 @@ public class LabelServiceTests
         _db.Labels.Add(label);
         await _db.SaveChangesAsync();
 
-        var list = await TestHelpers.SeedListAsync(_db, _board.Id);
+        var list = await TestHelpers.SeedSwimlaneAsync(_db, _board.Id);
         var card = await TestHelpers.SeedCardAsync(_db, list.Id, _caller.UserId);
         _db.CardLabels.Add(new CardLabel { CardId = card.Id, LabelId = label.Id });
         await _db.SaveChangesAsync();
@@ -118,7 +118,7 @@ public class LabelServiceTests
         _db.Labels.Add(label);
         await _db.SaveChangesAsync();
 
-        var list = await TestHelpers.SeedListAsync(_db, _board.Id);
+        var list = await TestHelpers.SeedSwimlaneAsync(_db, _board.Id);
         var card = await TestHelpers.SeedCardAsync(_db, list.Id, _caller.UserId);
 
         await _service.AddLabelToCardAsync(card.Id, label.Id, _caller);
@@ -133,7 +133,7 @@ public class LabelServiceTests
         _db.Labels.Add(label);
         await _db.SaveChangesAsync();
 
-        var list = await TestHelpers.SeedListAsync(_db, _board.Id);
+        var list = await TestHelpers.SeedSwimlaneAsync(_db, _board.Id);
         var card = await TestHelpers.SeedCardAsync(_db, list.Id, _caller.UserId);
 
         await _service.AddLabelToCardAsync(card.Id, label.Id, _caller);
@@ -150,7 +150,7 @@ public class LabelServiceTests
         _db.Labels.Add(label);
         await _db.SaveChangesAsync();
 
-        var list = await TestHelpers.SeedListAsync(_db, _board.Id);
+        var list = await TestHelpers.SeedSwimlaneAsync(_db, _board.Id);
         var card = await TestHelpers.SeedCardAsync(_db, list.Id, _caller.UserId);
         _db.CardLabels.Add(new CardLabel { CardId = card.Id, LabelId = label.Id });
         await _db.SaveChangesAsync();
@@ -163,7 +163,7 @@ public class LabelServiceTests
     [TestMethod]
     public async Task RemoveLabelFromCard_NotApplied_IsIdempotent()
     {
-        var list = await TestHelpers.SeedListAsync(_db, _board.Id);
+        var list = await TestHelpers.SeedSwimlaneAsync(_db, _board.Id);
         var card = await TestHelpers.SeedCardAsync(_db, list.Id, _caller.UserId);
 
         // Should not throw

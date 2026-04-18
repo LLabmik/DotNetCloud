@@ -98,6 +98,15 @@ public enum NotificationCategory
     /// <summary>Calendar event invitation received.</summary>
     CalendarInvitation,
 
+    /// <summary>Incoming video/audio call (high priority — should ring).</summary>
+    IncomingCall,
+
+    /// <summary>Missed video/audio call (normal priority).</summary>
+    MissedCall,
+
+    /// <summary>Call ended notification for disconnected participants.</summary>
+    CallEnded,
+
     /// <summary>Calendar or task reminder.</summary>
     Reminder,
 

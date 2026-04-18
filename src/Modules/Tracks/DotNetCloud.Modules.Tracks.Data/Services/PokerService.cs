@@ -3,6 +3,7 @@ using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Modules.Tracks.Models;
+using DotNetCloud.Modules.Tracks.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -16,6 +17,7 @@ public sealed class PokerService
     private readonly TracksDbContext _db;
     private readonly BoardService _boardService;
     private readonly ActivityService _activityService;
+    private readonly ITracksRealtimeService _realtimeService;
     private readonly ILogger<PokerService> _logger;
 
     // Valid values for built-in scales
@@ -31,11 +33,12 @@ public sealed class PokerService
     /// <summary>
     /// Initializes a new instance of the <see cref="PokerService"/> class.
     /// </summary>
-    public PokerService(TracksDbContext db, BoardService boardService, ActivityService activityService, ILogger<PokerService> logger)
+    public PokerService(TracksDbContext db, BoardService boardService, ActivityService activityService, ITracksRealtimeService realtimeService, ILogger<PokerService> logger)
     {
         _db = db;
         _boardService = boardService;
         _activityService = activityService;
+        _realtimeService = realtimeService;
         _logger = logger;
     }
 
@@ -47,11 +50,11 @@ public sealed class PokerService
         ArgumentNullException.ThrowIfNull(dto);
 
         var card = await _db.Cards
-            .Include(c => c.List)
+            .Include(c => c.Swimlane)
             .FirstOrDefaultAsync(c => c.Id == cardId && !c.IsDeleted, cancellationToken)
             ?? throw new ValidationException(ErrorCodes.CardNotFound, "Card not found.");
 
-        await _boardService.EnsureBoardRoleAsync(card.List!.BoardId, caller.UserId, BoardMemberRole.Admin, cancellationToken);
+        await _boardService.EnsureBoardRoleAsync(card.Swimlane!.BoardId, caller.UserId, BoardMemberRole.Admin, cancellationToken);
 
         // Check for active session
         var activeExists = await _db.PokerSessions
@@ -65,7 +68,7 @@ public sealed class PokerService
         var session = new PokerSession
         {
             CardId = cardId,
-            BoardId = card.List.BoardId,
+            BoardId = card.Swimlane.BoardId,
             CreatedByUserId = caller.UserId,
             Scale = dto.Scale,
             CustomScaleValues = dto.CustomScaleValues,
@@ -79,7 +82,7 @@ public sealed class PokerService
         _logger.LogInformation("Poker session {SessionId} started for card {CardId} by user {UserId}",
             session.Id, cardId, caller.UserId);
 
-        await _activityService.LogAsync(card.List.BoardId, caller.UserId, "poker.started", "PokerSession", session.Id,
+        await _activityService.LogAsync(card.Swimlane.BoardId, caller.UserId, "poker.started", "PokerSession", session.Id,
             $"{{\"cardId\":\"{cardId}\",\"scale\":\"{dto.Scale}\"}}", cancellationToken);
 
         return MapToDto(session);
@@ -109,12 +112,12 @@ public sealed class PokerService
     public async Task<IReadOnlyList<PokerSessionDto>> GetCardSessionsAsync(Guid cardId, CallerContext caller, CancellationToken cancellationToken = default)
     {
         var card = await _db.Cards
-            .Include(c => c.List)
+            .Include(c => c.Swimlane)
             .AsNoTracking()
             .FirstOrDefaultAsync(c => c.Id == cardId && !c.IsDeleted, cancellationToken)
             ?? throw new ValidationException(ErrorCodes.CardNotFound, "Card not found.");
 
-        await _boardService.EnsureBoardMemberAsync(card.List!.BoardId, caller.UserId, cancellationToken);
+        await _boardService.EnsureBoardMemberAsync(card.Swimlane!.BoardId, caller.UserId, cancellationToken);
 
         var sessions = await _db.PokerSessions
             .AsNoTracking()
@@ -167,6 +170,13 @@ public sealed class PokerService
         _logger.LogInformation("User {UserId} voted '{Estimate}' in session {SessionId} round {Round}",
             caller.UserId, dto.Estimate, sessionId, session.Round);
 
+        // Broadcast vote status if this poker session is linked to a review session
+        if (session.ReviewSessionId.HasValue)
+        {
+            await _realtimeService.BroadcastPokerVoteStatusAsync(
+                session.ReviewSessionId.Value, sessionId, caller.UserId, true, cancellationToken);
+        }
+
         return MapToDto(session);
     }
 
@@ -191,6 +201,13 @@ public sealed class PokerService
         await _db.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation("Poker session {SessionId} votes revealed by user {UserId}", sessionId, caller.UserId);
+
+        // Broadcast poker state change if linked to a review session
+        if (session.ReviewSessionId.HasValue)
+        {
+            await _realtimeService.BroadcastReviewPokerStateAsync(
+                session.ReviewSessionId.Value, sessionId, session.BoardId, "revealed", cancellationToken);
+        }
 
         return MapToDto(session);
     }
@@ -236,6 +253,13 @@ public sealed class PokerService
             $"{{\"acceptedEstimate\":\"{dto.AcceptedEstimate}\",\"storyPoints\":{dto.StoryPoints ?? 0}}}",
             cancellationToken);
 
+        // Broadcast poker state change if linked to a review session
+        if (session.ReviewSessionId.HasValue)
+        {
+            await _realtimeService.BroadcastReviewPokerStateAsync(
+                session.ReviewSessionId.Value, sessionId, session.BoardId, "completed", cancellationToken);
+        }
+
         return MapToDto(session);
     }
 
@@ -267,7 +291,46 @@ public sealed class PokerService
         _logger.LogInformation("Poker session {SessionId} restarted as round {Round} by user {UserId}",
             sessionId, session.Round, caller.UserId);
 
+        // Broadcast poker state change if linked to a review session
+        if (session.ReviewSessionId.HasValue)
+        {
+            await _realtimeService.BroadcastReviewPokerStateAsync(
+                session.ReviewSessionId.Value, sessionId, session.BoardId, "new_round", cancellationToken);
+        }
+
         return MapToDto(session);
+    }
+
+    /// <summary>
+    /// Gets the vote status for each participant (who voted, who hasn't) without revealing actual vote values.
+    /// </summary>
+    public async Task<IReadOnlyList<PokerVoteStatusDto>> GetVoteStatusAsync(Guid sessionId, CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        var session = await _db.PokerSessions
+            .AsNoTracking()
+            .Include(s => s.Votes)
+            .FirstOrDefaultAsync(s => s.Id == sessionId, cancellationToken)
+            ?? throw new ValidationException(ErrorCodes.PokerSessionNotFound, "Poker session not found.");
+
+        await _boardService.EnsureBoardMemberAsync(session.BoardId, caller.UserId, cancellationToken);
+
+        // Get all board members who could vote
+        var boardMembers = await _db.BoardMembers
+            .AsNoTracking()
+            .Where(m => m.BoardId == session.BoardId)
+            .Select(m => m.UserId)
+            .ToListAsync(cancellationToken);
+
+        var currentRoundVoters = session.Votes
+            .Where(v => v.Round == session.Round)
+            .Select(v => v.UserId)
+            .ToHashSet();
+
+        return boardMembers.Select(userId => new PokerVoteStatusDto
+        {
+            UserId = userId,
+            HasVoted = currentRoundVoters.Contains(userId)
+        }).ToList();
     }
 
     // ─── Private Helpers ─────────────────────────────────────────────

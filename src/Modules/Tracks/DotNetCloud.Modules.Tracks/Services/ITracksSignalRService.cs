@@ -22,10 +22,10 @@ public interface ITracksSignalRService
     event Action<Guid, Guid, string>? CardActionReceived;
 
     /// <summary>
-    /// Raised when a list action occurs on a board (created, updated, deleted).
-    /// Args: boardId, listId, action.
+    /// Raised when a swimlane action occurs on a board (created, updated, deleted).
+    /// Args: boardId, swimlaneId, action.
     /// </summary>
-    event Action<Guid, Guid, string>? ListActionReceived;
+    event Action<Guid, Guid, string>? SwimlaneActionReceived;
 
     /// <summary>
     /// Raised when a comment action occurs on a card (added, updated, deleted).
@@ -56,6 +56,36 @@ public interface ITracksSignalRService
     /// Args: teamId, action.
     /// </summary>
     event Action<Guid, string>? TeamActionReceived;
+
+    /// <summary>
+    /// Raised when the host changes the current card in a review session.
+    /// Args: sessionId, boardId, cardId.
+    /// </summary>
+    event Action<Guid, Guid, Guid>? ReviewCardChanged;
+
+    /// <summary>
+    /// Raised when a review session state changes (started, ended, paused).
+    /// Args: sessionId, boardId, action.
+    /// </summary>
+    event Action<Guid, Guid, string>? ReviewSessionStateChanged;
+
+    /// <summary>
+    /// Raised when a poker vote status changes during a review session (per-vote without revealing value).
+    /// Args: sessionId, pokerId, userId, hasVoted.
+    /// </summary>
+    event Action<Guid, Guid, Guid, bool>? PokerVoteStatusChanged;
+
+    /// <summary>
+    /// Raised when a poker session state changes during a review (started, revealed, completed, cancelled).
+    /// Args: sessionId, pokerId, boardId, action.
+    /// </summary>
+    event Action<Guid, Guid, Guid, string>? ReviewPokerStateChanged;
+
+    /// <summary>
+    /// Raised when a participant joins or leaves a review session.
+    /// Args: sessionId, userId, action.
+    /// </summary>
+    event Action<Guid, Guid, string>? ReviewParticipantChanged;
 }
 
 /// <summary>
@@ -71,7 +101,7 @@ internal sealed class NullTracksSignalRService : ITracksSignalRService
 #pragma warning disable CS0067 // Event is never used — intentional for null-object stub
     public event Action<Guid, Guid, string>? CardActionReceived;
     /// <inheritdoc />
-    public event Action<Guid, Guid, string>? ListActionReceived;
+    public event Action<Guid, Guid, string>? SwimlaneActionReceived;
     /// <inheritdoc />
     public event Action<Guid, Guid, Guid, string>? CommentActionReceived;
     /// <inheritdoc />
@@ -82,5 +112,15 @@ internal sealed class NullTracksSignalRService : ITracksSignalRService
     public event Action<Guid, Guid, string>? BoardMemberActionReceived;
     /// <inheritdoc />
     public event Action<Guid, string>? TeamActionReceived;
+    /// <inheritdoc />
+    public event Action<Guid, Guid, Guid>? ReviewCardChanged;
+    /// <inheritdoc />
+    public event Action<Guid, Guid, string>? ReviewSessionStateChanged;
+    /// <inheritdoc />
+    public event Action<Guid, Guid, Guid, bool>? PokerVoteStatusChanged;
+    /// <inheritdoc />
+    public event Action<Guid, Guid, Guid, string>? ReviewPokerStateChanged;
+    /// <inheritdoc />
+    public event Action<Guid, Guid, string>? ReviewParticipantChanged;
 #pragma warning restore CS0067
 }

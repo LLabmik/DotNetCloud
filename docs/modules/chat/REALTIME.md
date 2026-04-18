@@ -363,3 +363,7 @@ The Chat module subscribes to events from other modules:
 ### Reconnection
 
 On reconnect, the full `OnConnectedAsync` flow runs again — the client is re-added to all channel groups and presence is restored. Clients should re-fetch messages since last known timestamp to catch any missed during disconnection.
+
+## Related Documentation
+
+- [Chat ↔ Tracks Integration](../CHAT_TRACKS_INTEGRATION.md) — Cross-module real-time events between Chat and Tracks

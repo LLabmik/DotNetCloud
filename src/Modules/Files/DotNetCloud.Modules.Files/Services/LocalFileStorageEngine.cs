@@ -44,6 +44,15 @@ public sealed class LocalFileStorageEngine : IFileStorageEngine
 
         await File.WriteAllBytesAsync(fullPath, data.ToArray(), cancellationToken);
 
+        // Verify the write completed fully — catches disk-full, truncation, filesystem errors.
+        var writtenSize = new FileInfo(fullPath).Length;
+        if (writtenSize != data.Length)
+        {
+            try { File.Delete(fullPath); } catch { /* best-effort cleanup */ }
+            throw new IOException(
+                $"Chunk write verification failed for '{storagePath}': expected {data.Length} bytes, got {writtenSize}.");
+        }
+
         // Prevent execute bits on stored chunk files — chunks are content-addressable
         // data, never executables. Restrict to user read/write only (600 on Linux/macOS).
         if (OperatingSystem.IsLinux() || OperatingSystem.IsMacOS())

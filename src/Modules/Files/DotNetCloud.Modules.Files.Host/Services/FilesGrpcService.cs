@@ -1,4 +1,6 @@
+using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Files.Data;
+using DotNetCloud.Modules.Files.Events;
 using DotNetCloud.Modules.Files.Host.Protos;
 using DotNetCloud.Modules.Files.Models;
 using Grpc.Core;
@@ -16,14 +18,16 @@ namespace DotNetCloud.Modules.Files.Host.Services;
 public sealed class FilesGrpcService : FilesService.FilesServiceBase
 {
     private readonly FilesDbContext _db;
+    private readonly IEventBus _eventBus;
     private readonly ILogger<FilesGrpcService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FilesGrpcService"/> class.
     /// </summary>
-    public FilesGrpcService(FilesDbContext db, ILogger<FilesGrpcService> logger)
+    public FilesGrpcService(FilesDbContext db, IEventBus eventBus, ILogger<FilesGrpcService> logger)
     {
         _db = db;
+        _eventBus = eventBus;
         _logger = logger;
     }
 
@@ -786,6 +790,22 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
             "Upload completed: {FileName} ({Size} bytes) -> node {NodeId}",
             session.FileName, session.TotalSize, fileNode.Id);
 
+        // Publish event so thumbnail generation and other handlers can react
+        var caller = new DotNetCloud.Core.Authorization.CallerContext(
+            userId, [], DotNetCloud.Core.Authorization.CallerType.User);
+        await _eventBus.PublishAsync(new FileUploadedEvent
+        {
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            FileNodeId = fileNode.Id,
+            FileName = session.FileName,
+            Size = session.TotalSize,
+            MimeType = session.MimeType,
+            ParentId = session.TargetParentId,
+            UploadedByUserId = userId,
+            StoragePath = storagePath
+        }, caller, context.CancellationToken);
+
         return new CompleteUploadResponse { Success = true, Node = ToMessage(fileNode) };
     }
 
@@ -1288,5 +1308,79 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
         var hash = System.Security.Cryptography.SHA256.HashData(
             System.Text.Encoding.UTF8.GetBytes(combined));
         return Convert.ToHexStringLower(hash);
+    }
+
+    /// <inheritdoc />
+    public override async Task GetSearchableDocuments(
+        GetSearchableDocumentsRequest request,
+        IServerStreamWriter<SearchableDocument> responseStream,
+        ServerCallContext context)
+    {
+        var nodes = await _db.FileNodes
+            .Where(n => !n.IsDeleted)
+            .OrderBy(n => n.Id)
+            .ToListAsync(context.CancellationToken);
+
+        foreach (var node in nodes)
+        {
+            var doc = MapToSearchableDocument(node);
+            await responseStream.WriteAsync(doc, context.CancellationToken);
+        }
+    }
+
+    /// <inheritdoc />
+    public override async Task<SearchableDocumentResponse> GetSearchableDocument(
+        GetSearchableDocumentRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.EntityId, out var entityId))
+            return new SearchableDocumentResponse { Found = false };
+
+        var node = await _db.FileNodes
+            .FirstOrDefaultAsync(n => n.Id == entityId && !n.IsDeleted, context.CancellationToken);
+
+        if (node is null)
+            return new SearchableDocumentResponse { Found = false };
+
+        return new SearchableDocumentResponse
+        {
+            Found = true,
+            Document = MapToSearchableDocument(node)
+        };
+    }
+
+    private static SearchableDocument MapToSearchableDocument(FileNode node)
+    {
+        var doc = new SearchableDocument
+        {
+            ModuleId = "files",
+            EntityId = node.Id.ToString(),
+            EntityType = node.NodeType.ToString(),
+            Title = node.Name,
+            Content = string.Empty,
+            Summary = node.NodeType == FileNodeType.Folder
+                ? $"Folder: {node.Name}"
+                : $"{node.MimeType ?? "file"} ({FormatSize(node.Size)})",
+            OwnerId = node.OwnerId.ToString(),
+            CreatedAt = node.CreatedAt.ToString("O"),
+            UpdatedAt = node.UpdatedAt.ToString("O")
+        };
+
+        doc.Metadata["MimeType"] = node.MimeType ?? string.Empty;
+        doc.Metadata["Path"] = node.MaterializedPath;
+        doc.Metadata["Size"] = node.Size.ToString();
+        doc.Metadata["NodeType"] = node.NodeType.ToString();
+
+        return doc;
+    }
+
+    private static string FormatSize(long bytes)
+    {
+        return bytes switch
+        {
+            < 1024 => $"{bytes} B",
+            < 1024 * 1024 => $"{bytes / 1024.0:F1} KB",
+            < 1024 * 1024 * 1024 => $"{bytes / (1024.0 * 1024):F1} MB",
+            _ => $"{bytes / (1024.0 * 1024 * 1024):F1} GB"
+        };
     }
 }

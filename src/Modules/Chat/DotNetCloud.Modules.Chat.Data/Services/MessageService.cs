@@ -1,5 +1,6 @@
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Events.Search;
 using DotNetCloud.Modules.Chat.DTOs;
 using DotNetCloud.Modules.Chat.Events;
 using DotNetCloud.Modules.Chat.Models;
@@ -83,6 +84,15 @@ internal sealed class MessageService : IMessageService
             MessageType = message.Type.ToString()
         }, caller, cancellationToken);
 
+        await _eventBus.PublishAsync(new SearchIndexRequestEvent
+        {
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            ModuleId = "chat",
+            EntityId = message.Id.ToString(),
+            Action = SearchIndexAction.Index
+        }, caller, cancellationToken);
+
         // Dispatch mention notifications after the message is persisted
         if (mentions.Count > 0 && _mentionNotifier is not null)
         {
@@ -132,6 +142,15 @@ internal sealed class MessageService : IMessageService
             NewContent = message.Content
         }, caller, cancellationToken);
 
+        await _eventBus.PublishAsync(new SearchIndexRequestEvent
+        {
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            ModuleId = "chat",
+            EntityId = message.Id.ToString(),
+            Action = SearchIndexAction.Index
+        }, caller, cancellationToken);
+
         // Dispatch mention notifications for new mentions after edit
         if (newMentions.Count > 0 && _mentionNotifier is not null)
         {
@@ -171,6 +190,15 @@ internal sealed class MessageService : IMessageService
             MessageId = message.Id,
             ChannelId = message.ChannelId,
             DeletedByUserId = caller.UserId
+        }, caller, cancellationToken);
+
+        await _eventBus.PublishAsync(new SearchIndexRequestEvent
+        {
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            ModuleId = "chat",
+            EntityId = message.Id.ToString(),
+            Action = SearchIndexAction.Remove
         }, caller, cancellationToken);
     }
 

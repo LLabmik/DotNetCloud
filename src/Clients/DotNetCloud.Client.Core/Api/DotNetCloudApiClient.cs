@@ -246,13 +246,14 @@ public sealed class DotNetCloudApiClient : IDotNetCloudApiClient
     }
 
     /// <inheritdoc/>
-    public async Task<Stream> DownloadChunkByHashAsync(string chunkHash, CancellationToken cancellationToken = default)
+    public async Task<Stream> DownloadChunkByHashAsync(string chunkHash, bool useConditional = true, CancellationToken cancellationToken = default)
     {
         var response = await SendWithRetryAsync(
             () =>
             {
                 var req = CreateAuthenticatedRequest(HttpMethod.Get, $"api/v1/files/chunks/{chunkHash}");
-                req.Headers.IfNoneMatch.Add(new EntityTagHeaderValue($"\"{chunkHash}\""));
+                if (useConditional)
+                    req.Headers.IfNoneMatch.Add(new EntityTagHeaderValue($"\"{chunkHash}\""));
                 return req;
             },
             cancellationToken);
@@ -260,19 +261,7 @@ public sealed class DotNetCloudApiClient : IDotNetCloudApiClient
         if (response.StatusCode == HttpStatusCode.NotModified)
         {
             response.Dispose();
-
-            // If the client does not currently have the chunk cached, callers can hit a
-            // 304-without-local-cache edge case. Retry once without conditional headers.
-            _logger.LogWarning(
-                "Chunk {ChunkHash} returned 304 Not Modified; retrying chunk download without If-None-Match.",
-                chunkHash);
-
-            var unconditionalResponse = await SendWithRetryAsync(
-                () => CreateAuthenticatedRequest(HttpMethod.Get, $"api/v1/files/chunks/{chunkHash}"),
-                cancellationToken);
-
-            unconditionalResponse.EnsureSuccessStatusCode();
-            return await unconditionalResponse.Content.ReadAsStreamAsync(cancellationToken);
+            return Stream.Null;
         }
 
         response.EnsureSuccessStatusCode();

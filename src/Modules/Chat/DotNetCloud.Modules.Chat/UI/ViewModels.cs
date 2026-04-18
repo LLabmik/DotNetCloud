@@ -160,7 +160,7 @@ public sealed class MemberViewModel
     public string Role { get; init; } = "Member";
 
     /// <summary>Presence status.</summary>
-    public string Status { get; init; } = "Offline";
+    public string Status { get; set; } = "Offline";
 
     /// <summary>Optional user handle.</summary>
     public string? Username { get; init; }
@@ -208,4 +208,19 @@ public sealed class AnnouncementViewModel
 
     /// <summary>Author display name.</summary>
     public string AuthorName { get; init; } = string.Empty;
+}
+
+/// <summary>
+/// View model for a user search result in the DM user picker.
+/// </summary>
+public sealed class UserSearchResultViewModel
+{
+    /// <summary>User ID.</summary>
+    public Guid UserId { get; init; }
+
+    /// <summary>Display name.</summary>
+    public string DisplayName { get; init; } = string.Empty;
+
+    /// <summary>Email address.</summary>
+    public string Email { get; init; } = string.Empty;
 }

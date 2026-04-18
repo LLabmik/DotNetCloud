@@ -1,0 +1,39 @@
+/* ── Module Not Available fallback ── */
+
+.tracks-module-unavailable {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 80vh;
+    padding: 2rem;
+}
+
+.tracks-unavailable-card {
+    text-align: center;
+    max-width: 440px;
+    padding: 3rem 2.5rem;
+    background: var(--color-surface, #fff);
+    border-radius: 12px;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+    border: 1px solid var(--color-border, #e2e8f0);
+}
+
+.tracks-unavailable-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    line-height: 1;
+}
+
+.tracks-unavailable-card h2 {
+    margin: 0 0 0.75rem;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--color-text, #1e293b);
+}
+
+.tracks-unavailable-card p {
+    margin: 0 0 1.5rem;
+    font-size: 0.938rem;
+    line-height: 1.6;
+    color: var(--color-text-secondary, #64748b);
+}

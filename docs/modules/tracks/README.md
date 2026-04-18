@@ -15,9 +15,9 @@ The Tracks module provides project management and kanban boards for DotNetCloud 
 
 | Feature | Description |
 |---|---|
-| **Kanban Boards** | Multi-list boards with customizable columns, backgrounds, and visibility (public/private) |
+| **Kanban Boards** | Multi-swimlane boards with customizable columns, backgrounds, and visibility (public/private) |
 | **Cards** | Rich cards with descriptions (Markdown), due dates, priority, assignees, and position tracking |
-| **Lists** | Ordered columns within boards, reorderable, with card containment |
+| **Swimlanes** | Ordered columns within boards, reorderable, with card containment |
 | **Sprints** | Time-boxed iterations with start/complete lifecycle, card assignment, and velocity tracking |
 | **Comments** | Threaded comments on cards with Markdown support |
 | **Checklists** | Multi-checklist support per card with toggleable items and progress tracking |
@@ -26,7 +26,7 @@ The Tracks module provides project management and kanban boards for DotNetCloud 
 | **Time Tracking** | Manual time entries and start/stop timer per card |
 | **Planning Poker** | Multi-round estimation sessions with vote submission, reveal, and acceptance |
 | **Attachments** | File attachments on cards integrated with the Files module |
-| **Bulk Operations** | Batch move, assign, label, and archive cards across lists |
+| **Bulk Operations** | Batch move, assign, label, and archive cards across swimlanes |
 | **Board Templates** | Create reusable board structures; instantiate boards from templates |
 | **Card Templates** | Create reusable card structures from existing cards |
 | **Teams** | Team-based board ownership with role hierarchy (Owner > Manager > Member > Guest) |
@@ -70,17 +70,17 @@ Client → REST API / gRPC → Service Layer → EF Core → Database
 
 | Directory | Contents |
 |---|---|
-| `Models/` | Entity models (`Board`, `BoardList`, `Card`, `Sprint`, `Comment`, `Checklist`, `Label`, `Dependency`, `TimeEntry`, `PokerSession`, `Attachment`, `TeamRole`, etc.) |
+| `Models/` | Entity models (`Board`, `BoardSwimlane`, `Card`, `Sprint`, `Comment`, `Checklist`, `Label`, `Dependency`, `TimeEntry`, `PokerSession`, `Attachment`, `TeamRole`, etc.) |
 | `DTOs/` | Data transfer objects for all API requests/responses |
 | `Events/` | Domain events implementing `IEvent` (board, card, sprint, poker events) |
-| `Services/` | Service interfaces (`IBoardService`, `ICardService`, `IListService`, etc.) |
+| `Services/` | Service interfaces (`IBoardService`, `ICardService`, `ISwimlaneService`, etc.) |
 
 ### DotNetCloud.Modules.Tracks.Data (Data Access)
 
 | Directory | Contents |
 |---|---|
 | `Configuration/` | EF Core `IEntityTypeConfiguration` for all 20+ entities |
-| `Services/` | Service implementations (21 services: `BoardService`, `CardService`, `ListService`, `SprintService`, `CommentService`, `ChecklistService`, `LabelService`, `DependencyService`, `TimeTrackingService`, `PokerService`, `AttachmentService`, `ActivityService`, `TeamService`, `AnalyticsService`, `SprintReportService`, `BulkOperationService`, `BoardTemplateService`, `CardTemplateService`, `DueDateReminderService`, `TracksRealtimeService`, `TracksNotificationService`) |
+| `Services/` | Service implementations (21 services: `BoardService`, `CardService`, `SwimlaneService`, `SprintService`, `CommentService`, `ChecklistService`, `LabelService`, `DependencyService`, `TimeTrackingService`, `PokerService`, `AttachmentService`, `ActivityService`, `TeamService`, `AnalyticsService`, `SprintReportService`, `BulkOperationService`, `BoardTemplateService`, `CardTemplateService`, `DueDateReminderService`, `TracksRealtimeService`, `TracksNotificationService`) |
 | `Migrations/` | PostgreSQL and SQL Server migrations |
 
 ### DotNetCloud.Modules.Tracks.Host (Web Host)
@@ -96,7 +96,7 @@ Client → REST API / gRPC → Service Layer → EF Core → Database
 | Controller | Route | Endpoints | Description |
 |---|---|---|---|
 | `BoardsController` | `api/v1/boards` | 18 | Board CRUD, members, labels, activity, import/export |
-| `ListsController` | `api/v1/boards/{boardId}/lists` | 5 | List CRUD and reorder |
+| `SwimlanesController` | `api/v1/boards/{boardId}/swimlanes` | 5 | Swimlane CRUD and reorder |
 | `CardsController` | `api/v1` | 11 | Card CRUD, move, assign, labels, activity |
 | `SprintsController` | `api/v1/boards/{boardId}/sprints` | 9 | Sprint lifecycle, card assignment |
 | `CommentsController` | `api/v1/cards/{cardId}/comments` | 4 | Comment CRUD |
@@ -121,9 +121,9 @@ Tracks uses a two-tier authorization model:
 | Role | Permissions |
 |---|---|
 | **Owner** | Full control: delete board, transfer ownership, manage all members |
-| **Admin** | Manage members, lists, labels, sprints; edit all cards |
+| **Admin** | Manage members, swimlanes, labels, sprints; edit all cards |
 | **Member** | Create/edit own cards, add comments, manage checklists |
-| **Viewer** | Read-only access to board, lists, and cards |
+| **Viewer** | Read-only access to board, swimlanes, and cards |
 
 ### Team Roles
 
@@ -176,8 +176,8 @@ The Tracks module exposes 11 gRPC RPCs for inter-module communication:
 | `GetBoard` | Retrieve board by ID |
 | `ListBoards` | List boards for the current user |
 | `CreateBoard` | Create a new board |
-| `CreateCard` | Create a card in a list |
-| `MoveCard` | Move a card to a different list/position |
+| `CreateCard` | Create a card in a swimlane |
+| `MoveCard` | Move a card to a different swimlane/position |
 | `GetSprint` | Retrieve sprint by ID |
 | `StartSprint` | Begin a sprint |
 | `CompleteSprint` | Complete a sprint |
@@ -189,6 +189,7 @@ The Tracks module exposes 11 gRPC RPCs for inter-module communication:
 
 - [REST API Reference](API.md)
 - [User Guide](USER_GUIDE.md)
+- [Chat ↔ Tracks Integration](../CHAT_TRACKS_INTEGRATION.md)
 
 ## Test Coverage
 

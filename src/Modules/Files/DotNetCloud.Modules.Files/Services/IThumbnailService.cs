@@ -55,6 +55,21 @@ public interface IThumbnailService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Generates and caches all thumbnail sizes from an already-opened content stream.
+    /// Use this overload when the file content has been reconstructed from chunks.
+    /// Only raster image MIME types are supported; other types are silently skipped.
+    /// </summary>
+    /// <param name="fileNodeId">The file node ID.</param>
+    /// <param name="contentStream">Readable stream containing the file content.</param>
+    /// <param name="mimeType">MIME type of the file (e.g. <c>"image/jpeg"</c>).</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task GenerateThumbnailFromStreamAsync(
+        Guid fileNodeId,
+        Stream contentStream,
+        string mimeType,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Removes all cached thumbnails for the specified file node.
     /// Should be called when a file is permanently deleted.
     /// </summary>

@@ -12,50 +12,200 @@
 }
 else
 {
-    <div class="dashboard-grid">
-        <div class="dashboard-card">
-            <div class="card-icon">👥</div>
-            <div class="card-content">
-                <h3>Users</h3>
-                <p class="card-value">@_userCount</p>
+    @* ── Top Stat Cards ─────────────────────────────────────────── *@
+    <div class="dash-stats">
+        <div class="dash-stat-card">
+            <div class="dash-stat-icon dash-stat-icon--users">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
             </div>
-            <a href="/admin/users" class="card-link">Manage</a>
+            <div class="dash-stat-body">
+                <span class="dash-stat-label">Total Users</span>
+                <span class="dash-stat-value">@_userCount</span>
+            </div>
         </div>
 
-        <div class="dashboard-card">
-            <div class="card-icon">🏢</div>
-            <div class="card-content">
+        <div class="dash-stat-card">
+            <div class="dash-stat-icon dash-stat-icon--orgs">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+            </div>
+            <div class="dash-stat-body">
+                <span class="dash-stat-label">Organizations</span>
+                <span class="dash-stat-value">@_orgCount</span>
+            </div>
+        </div>
+
+        <div class="dash-stat-card">
+            <div class="dash-stat-icon dash-stat-icon--storage">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 12H16c-.7 2-2 3-4 3s-3.3-1-4-3H2.5"/><path d="M5.5 5.1L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.5-6.9A2 2 0 0 0 16.7 4H7.3a2 2 0 0 0-1.8 1.1z"/></svg>
+            </div>
+            <div class="dash-stat-body">
+                <span class="dash-stat-label">Used Storage</span>
+                <span class="dash-stat-value">@FormatBytes(_totalUsedBytes)<span class="dash-stat-sub"> / @FormatBytes(_totalMaxBytes)</span></span>
+                @if (_totalMaxBytes > 0)
+                {
+                    <div class="dash-stat-bar">
+                        <div class="dash-stat-bar-fill" style="width: @(Math.Min(StoragePercent(), 100).ToString("F0"))%"></div>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <div class="dash-stat-card">
+            <div class="dash-stat-icon dash-stat-icon--modules">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+            </div>
+            <div class="dash-stat-body">
+                <span class="dash-stat-label">Active Modules</span>
+                <span class="dash-stat-value">@_moduleCount</span>
+            </div>
+        </div>
+    </div>
+
+    @* ── User Management ────────────────────────────────────────── *@
+    <div class="dash-section">
+        <div class="dash-section-header">
+            <h2>User Management</h2>
+            <a href="/admin/users" class="dash-section-link">View all →</a>
+        </div>
+        <div class="table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>User</th>
+                        <th>Role</th>
+                        <th>Storage Used</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (_users.Count == 0)
+                    {
+                        <tr><td colspan="5" class="text-center text-muted">No users found.</td></tr>
+                    }
+                    @foreach (var user in _users)
+                    {
+                        <tr>
+                            <td>
+                                <div class="dash-user-cell">
+                                    @if (!string.IsNullOrWhiteSpace(user.AvatarUrl))
+                                    {
+                                        <img src="@user.AvatarUrl" alt="@user.DisplayName" class="dash-avatar-img" />
+                                    }
+                                    else
+                                    {
+                                        <div class="dash-avatar" title="@user.DisplayName">@GetInitials(user.DisplayName)</div>
+                                    }
+                                    <a href="/admin/users/@user.Id" class="dash-user-name">@user.DisplayName</a>
+                                </div>
+                            </td>
+                            <td>@GetPrimaryRole(user)</td>
+                            <td>
+                                @if (_quotas.TryGetValue(user.Id, out var q) && q.MaxBytes > 0)
+                                {
+                                    <div class="dash-storage-cell">
+                                        <span class="dash-storage-text">@FormatBytes(q.UsedBytes) / @FormatBytes(q.MaxBytes)</span>
+                                        <div class="quota-bar quota-bar-sm">
+                                            <div class="quota-bar-fill @QuotaBarClass(q)" style="width: @(Math.Min(q.UsagePercent, 100).ToString("F0"))%"></div>
+                                        </div>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">Unlimited</span>
+                                }
+                            </td>
+                            <td>
+                                <span class="badge badge-@(user.IsActive ? "success" : "warning")">
+                                    @(user.IsActive ? "Active" : "Inactive")
+                                </span>
+                            </td>
+                            <td class="actions">
+                                <a href="/admin/users/@user.Id/edit" class="btn btn-sm btn-outline">✎ Edit</a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    @* ── Bottom Panels ──────────────────────────────────────────── *@
+    <div class="dash-panels">
+        @* Organizations *@
+        <div class="dash-panel">
+            <div class="dash-panel-header">
                 <h3>Organizations</h3>
-                <p class="card-value">@_orgCount</p>
+                <a href="/admin/organizations" class="dash-section-link">Manage →</a>
             </div>
-            <a href="/admin/organizations" class="card-link">Manage</a>
+            <div class="dash-panel-body">
+                @if (_orgs.Count == 0)
+                {
+                    <p class="text-muted">No organizations yet.</p>
+                }
+                @foreach (var org in _orgs)
+                {
+                    <div class="dash-panel-row">
+                        <div class="dash-panel-row-icon">🏢</div>
+                        <div class="dash-panel-row-text">
+                            <span class="dash-panel-row-label">@org.Name</span>
+                            <span class="dash-panel-row-detail">@org.MemberCount member@(org.MemberCount != 1 ? "s" : "")</span>
+                        </div>
+                    </div>
+                }
+            </div>
         </div>
 
-        <div class="dashboard-card">
-            <div class="card-icon">📦</div>
-            <div class="card-content">
-                <h3>Modules</h3>
-                <p class="card-value">@_moduleCount</p>
+        @* Storage Quota *@
+        <div class="dash-panel">
+            <div class="dash-panel-header">
+                <h3>Storage Quota</h3>
             </div>
-            <a href="/admin/modules" class="card-link">Manage</a>
+            <div class="dash-panel-body">
+                @if (_topQuotas.Count == 0)
+                {
+                    <p class="text-muted">No quota data available.</p>
+                }
+                @foreach (var (user, quota) in _topQuotas)
+                {
+                    <div class="dash-quota-row">
+                        <span class="dash-quota-label">@user.DisplayName</span>
+                        <div class="dash-quota-bar-wrapper">
+                            <div class="quota-bar" style="flex: 1; width: auto; display: block;">
+                                <div class="quota-bar-fill @QuotaBarClass(quota)" style="width: @(Math.Min(quota.UsagePercent, 100).ToString("F0"))%"></div>
+                            </div>
+                            <span class="dash-quota-text">@FormatBytes(quota.UsedBytes) / @FormatBytes(quota.MaxBytes)</span>
+                        </div>
+                    </div>
+                }
+            </div>
         </div>
 
-        <div class="dashboard-card">
-            <div class="card-icon">⚙</div>
-            <div class="card-content">
-                <h3>Settings</h3>
-                <p class="card-value">@_settingsCount</p>
-            </div>
-            <a href="/admin/settings" class="card-link">Manage</a>
-        </div>
-
-        <div class="dashboard-card @GetHealthClass()">
-            <div class="card-icon">💚</div>
-            <div class="card-content">
+        @* System Health *@
+        <div class="dash-panel">
+            <div class="dash-panel-header">
                 <h3>System Health</h3>
-                <p class="card-value">@(_health?.Status ?? "Unknown")</p>
+                <a href="/admin/health" class="dash-section-link">Details →</a>
             </div>
-            <a href="/admin/health" class="card-link">Details</a>
+            <div class="dash-panel-body">
+                <div class="dash-health-overall">
+                    <span class="dash-health-dot @GetHealthDotClass()"></span>
+                    <span class="dash-health-status">@(_health?.Status ?? "Unknown")</span>
+                </div>
+                @if (_health?.Entries != null)
+                {
+                    @foreach (var entry in _health.Entries.Take(5))
+                    {
+                        <div class="dash-panel-row">
+                            <span class="dash-health-dot dash-health-dot--sm @GetEntryDotClass(entry.Value.Status)"></span>
+                            <div class="dash-panel-row-text">
+                                <span class="dash-panel-row-label">@entry.Key</span>
+                                <span class="dash-panel-row-detail">@entry.Value.Status</span>
+                            </div>
+                        </div>
+                    }
+                }
+            </div>
         </div>
     </div>
 }
@@ -67,36 +217,58 @@ else
     private int _userCount;
     private int _orgCount;
     private int _moduleCount;
-    private int _settingsCount;
+    private long _totalUsedBytes;
+    private long _totalMaxBytes;
     private HealthReportDto? _health;
+    private IReadOnlyList<UserDto> _users = [];
+    private IReadOnlyList<OrganizationDto> _orgs = [];
+    private Dictionary<Guid, QuotaResponse> _quotas = [];
+    private List<(UserDto User, QuotaResponse Quota)> _topQuotas = [];
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
-            var usersTask = Api.ListUsersAsync(page: 1, pageSize: 1);
+            var usersTask = Api.ListUsersAsync(page: 1, pageSize: 6);
             var orgsTask = Api.ListOrganizationsAsync();
             var modulesTask = Api.ListModulesAsync();
-            var settingsTask = Api.ListSettingsAsync();
+            var quotasTask = Api.GetAllQuotasAsync();
             var healthTask = Api.GetHealthAsync();
 
-            await Task.WhenAll(usersTask, orgsTask, modulesTask, settingsTask, healthTask);
+            await Task.WhenAll(usersTask, orgsTask, modulesTask, quotasTask, healthTask);
 
-            _userCount = usersTask.Result.TotalCount;
-            _orgCount = orgsTask.Result.Count;
+            var usersResult = usersTask.Result;
+            _userCount = usersResult.TotalCount;
+            _users = usersResult.Items;
+            _orgs = orgsTask.Result;
+            _orgCount = _orgs.Count;
             _moduleCount = modulesTask.Result.Count;
-            _settingsCount = settingsTask.Result.Count;
+            _quotas = quotasTask.Result;
             _health = healthTask.Result;
+
+            _totalUsedBytes = _quotas.Values.Sum(q => q.UsedBytes);
+            _totalMaxBytes = _quotas.Values.Sum(q => q.MaxBytes);
+
+            // Build top quota users for the panel (users with quotas, sorted by usage)
+            _topQuotas = _users
+                .Where(u => _quotas.TryGetValue(u.Id, out var q) && q.MaxBytes > 0)
+                .Select(u => (u, _quotas[u.Id]))
+                .OrderByDescending(x => x.Item2.UsagePercent)
+                .Take(5)
+                .ToList();
         }
         catch
         {
-            // Dashboard is non-critical; show zeros on failure
+            // Dashboard is non-critical; show defaults on failure
         }
         finally
         {
             _loading = false;
         }
     }
+
+    private double StoragePercent() =>
+        _totalMaxBytes > 0 ? (double)_totalUsedBytes / _totalMaxBytes * 100 : 0;
 
     private string GetHealthClass() => _health?.Status switch
     {
@@ -105,4 +277,50 @@ else
         "Unhealthy" => "card-unhealthy",
         _ => ""
     };
+
+    private string GetHealthDotClass() => _health?.Status switch
+    {
+        "Healthy" => "dash-health-dot--healthy",
+        "Degraded" => "dash-health-dot--degraded",
+        "Unhealthy" => "dash-health-dot--unhealthy",
+        _ => "dash-health-dot--unknown"
+    };
+
+    private static string GetEntryDotClass(string status) => status switch
+    {
+        "Healthy" => "dash-health-dot--healthy",
+        "Degraded" => "dash-health-dot--degraded",
+        "Unhealthy" => "dash-health-dot--unhealthy",
+        _ => "dash-health-dot--unknown"
+    };
+
+    private static string GetInitials(string name)
+    {
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length >= 2
+            ? $"{parts[0][0]}{parts[^1][0]}".ToUpperInvariant()
+            : name.Length > 0 ? name[0..Math.Min(2, name.Length)].ToUpperInvariant() : "?";
+    }
+
+    private static string GetPrimaryRole(UserDto user)
+    {
+        if (user.Roles.Contains("Admin")) return "Admin";
+        if (user.Roles.Contains("Manager")) return "Manager";
+        return user.Roles.FirstOrDefault() ?? "User";
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        if (bytes >= 1024L * 1024 * 1024) return $"{bytes / (1024.0 * 1024.0 * 1024.0):F1} GB";
+        if (bytes >= 1024L * 1024) return $"{bytes / (1024.0 * 1024.0):F1} MB";
+        if (bytes >= 1024L) return $"{bytes / 1024.0:F1} KB";
+        return $"{bytes} B";
+    }
+
+    private static string QuotaBarClass(QuotaResponse q)
+    {
+        if (q.UsagePercent >= 95) return "quota-critical";
+        if (q.UsagePercent >= 80) return "quota-warning";
+        return "";
+    }
 }

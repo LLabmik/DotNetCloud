@@ -13,7 +13,7 @@ public class RateLimitingOptionsTests
         Assert.IsTrue(options.Enabled);
         Assert.AreEqual(100, options.GlobalPermitLimit);
         Assert.AreEqual(60, options.GlobalWindowSeconds);
-        Assert.AreEqual(200, options.AuthenticatedPermitLimit);
+        Assert.AreEqual(10000, options.AuthenticatedPermitLimit);
         Assert.AreEqual(60, options.AuthenticatedWindowSeconds);
         Assert.IsTrue(options.IncludeHeaders);
         Assert.AreEqual(0, options.QueueLimit);

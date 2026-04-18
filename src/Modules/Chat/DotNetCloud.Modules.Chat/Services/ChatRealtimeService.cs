@@ -42,6 +42,26 @@ public interface IChatRealtimeService
     /// <summary>Sends a channel invite notification to a specific user.</summary>
     Task SendInviteNotificationAsync(Guid userId, ChannelInviteDto invite, CancellationToken cancellationToken = default);
 
+    /// <summary>Sends a call invite notification to a specific user (mid-call or direct).</summary>
+    Task SendCallInviteAsync(
+        Guid targetUserId,
+        Guid callId,
+        Guid channelId,
+        Guid invitedByUserId,
+        string? invitedByDisplayName,
+        string mediaType,
+        bool isMidCallInvite,
+        int participantCount,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Broadcasts a host transfer notification to all members of a channel.</summary>
+    Task BroadcastHostTransferredAsync(
+        Guid channelId,
+        Guid callId,
+        Guid previousHostUserId,
+        Guid newHostUserId,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Adds a user to a channel's broadcast group.</summary>
     Task AddUserToChannelGroupAsync(Guid userId, Guid channelId, CancellationToken cancellationToken = default);
 
@@ -145,10 +165,52 @@ internal sealed class ChatRealtimeService : IChatRealtimeService
     }
 
     /// <inheritdoc />
+    public async Task SendCallInviteAsync(
+        Guid targetUserId,
+        Guid callId,
+        Guid channelId,
+        Guid invitedByUserId,
+        string? invitedByDisplayName,
+        string mediaType,
+        bool isMidCallInvite,
+        int participantCount,
+        CancellationToken cancellationToken)
+    {
+        if (_broadcaster is null) return;
+        await _broadcaster.SendToUserAsync(targetUserId, "CallInviteReceived", new
+        {
+            callId,
+            channelId,
+            invitedByUserId,
+            invitedByDisplayName,
+            mediaType,
+            isMidCallInvite,
+            participantCount
+        }, cancellationToken);
+    }
+
+    /// <inheritdoc />
     public async Task AddUserToChannelGroupAsync(Guid userId, Guid channelId, CancellationToken cancellationToken)
     {
         if (_broadcaster is null) return;
         await _broadcaster.AddToGroupAsync(userId, ChannelGroup(channelId), cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task BroadcastHostTransferredAsync(
+        Guid channelId,
+        Guid callId,
+        Guid previousHostUserId,
+        Guid newHostUserId,
+        CancellationToken cancellationToken)
+    {
+        if (_broadcaster is null) return;
+        await _broadcaster.BroadcastAsync(ChannelGroup(channelId), "HostTransferred", new
+        {
+            callId,
+            previousHostUserId,
+            newHostUserId
+        }, cancellationToken);
     }
 
     /// <inheritdoc />

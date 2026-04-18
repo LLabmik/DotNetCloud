@@ -247,7 +247,7 @@ See [DOCKER_SETUP.md](./DOCKER_SETUP.md) for containerized SQL Server.
 
 3. **Connection String**
    ```
-   Server=localhost\SQLEXPRESS;Database=dotnetcloud_dev;User Id=dotnetcloud;Password=DotNetCloud2024!Dev;
+   Server=localhost\SQLEXPRESS;Database=dotnetcloud_dev;User Id=dotnetcloud;Password=DotNetCloud2024!Dev;MultipleActiveResultSets=True;
    ```
 
 4. **Enable TCP/IP** (if using remote connections or Docker)
@@ -407,7 +407,7 @@ Store connection strings in `appsettings.json` or `appsettings.Development.json`
 {
   "ConnectionStrings": {
     "PostgreSQL": "Server=localhost;Port=5432;Database=dotnetcloud_dev;User Id=dotnetcloud;Password=dotnetcloud_dev_password;",
-    "SqlServer": "Server=localhost\\SQLEXPRESS;Database=dotnetcloud_dev;User Id=dotnetcloud;Password=DotNetCloud2024!Dev;",
+    "SqlServer": "Server=localhost\\SQLEXPRESS;Database=dotnetcloud_dev;User Id=dotnetcloud;Password=DotNetCloud2024!Dev;MultipleActiveResultSets=True;",
     "MariaDb": "Server=localhost;Port=3306;Database=dotnetcloud_dev;Uid=dotnetcloud;Pwd=dotnetcloud_dev_password;"
   },
   "Database": {
@@ -564,7 +564,7 @@ public class DatabaseFixture : IAsyncLifetime
                             options.UseNpgsql("Server=localhost;Port=5432;Database=dotnetcloud_test;User Id=dotnetcloud;Password=test_password;");
                             break;
                         case "SqlServer":
-                            options.UseSqlServer("Server=localhost\\SQLEXPRESS;Database=dotnetcloud_test;User Id=sa;Password=Test@123;");
+                            options.UseSqlServer("Server=localhost\\SQLEXPRESS;Database=dotnetcloud_test;User Id=sa;Password=Test@123;MultipleActiveResultSets=True;");
                             break;
                         case "MariaDb":
                             options.UseMySql("Server=localhost;Port=3306;Database=dotnetcloud_test;Uid=root;Pwd=test_password;", ServerVersion.AutoDetect("Server=localhost;Port=3306;Uid=root;Pwd=test_password;"));

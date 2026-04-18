@@ -1,0 +1,7 @@
+@page "/apps/video"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@attribute [Authorize]
+
+<PageTitle>Video - DotNetCloud</PageTitle>
+
+<ModulePageHost RouteKey="video.page" />

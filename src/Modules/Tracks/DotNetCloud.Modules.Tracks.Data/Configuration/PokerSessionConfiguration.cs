@@ -52,6 +52,11 @@ public sealed class PokerSessionConfiguration : IEntityTypeConfiguration<PokerSe
             .HasForeignKey(ps => ps.BoardId)
             .OnDelete(DeleteBehavior.NoAction);
 
+        builder.HasOne(ps => ps.ReviewSession)
+            .WithMany(rs => rs.PokerSessions)
+            .HasForeignKey(ps => ps.ReviewSessionId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         // Indexes
         builder.HasIndex(ps => new { ps.CardId, ps.Status })
             .HasDatabaseName("ix_poker_sessions_card_status");
@@ -61,5 +66,9 @@ public sealed class PokerSessionConfiguration : IEntityTypeConfiguration<PokerSe
 
         builder.HasIndex(ps => ps.CreatedByUserId)
             .HasDatabaseName("ix_poker_sessions_created_by");
+
+        builder.HasIndex(ps => ps.ReviewSessionId)
+            .HasDatabaseName("ix_poker_sessions_review_session")
+            .HasFilter("\"ReviewSessionId\" IS NOT NULL");
     }
 }

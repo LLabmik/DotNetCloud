@@ -1,6 +1,8 @@
+using System.Security.Claims;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Modules.Tracks.Services;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization;
 
 namespace DotNetCloud.Modules.Tracks.UI;
 
@@ -11,21 +13,23 @@ public partial class TracksPage : ComponentBase, IDisposable
 {
     [Inject] private ITracksApiClient ApiClient { get; set; } = default!;
     [Inject] private ITracksSignalRService SignalRService { get; set; } = default!;
+    [Inject] private AuthenticationStateProvider AuthStateProvider { get; set; } = default!;
 
-    private enum TracksView { Boards, Board, Teams }
+    private enum TracksView { Boards, Board, Teams, Planning, Wizard, Backlog, Timeline, Review }
 
     private TracksView _view = TracksView.Boards;
+    private bool _sidebarCollapsed;
     private bool _isLoading = true;
     private string? _errorMessage;
 
-    // Board list state
+    // Board overview state
     private readonly List<BoardDto> _boards = [];
     private readonly List<TracksTeamDto> _teams = [];
 
     // Active board state
     private BoardDto? _selectedBoard;
-    private readonly List<BoardListDto> _boardLists = [];
-    private readonly Dictionary<Guid, List<CardDto>> _cardsByList = new();
+    private readonly List<BoardSwimlaneDto> _boardSwimlanes = [];
+    private readonly Dictionary<Guid, List<CardDto>> _cardsBySwimlane = new();
     private readonly List<SprintDto> _sprints = [];
 
     // Card detail
@@ -34,6 +38,18 @@ public partial class TracksPage : ComponentBase, IDisposable
     // Panels
     private bool _showSprints;
     private bool _showBoardSettings;
+
+    // Sprint planning
+    private SprintDto? _planningSprint;
+
+    // Review session
+    private ReviewSessionDto? _activeReviewSession;
+    private bool _isHost;
+    private bool _isStartingReview;
+    private string? _reviewStartError;
+
+    /// <summary>First sprint in Planning or Active status, for sidebar nav.</summary>
+    private SprintDto? PlannableSprint => _sprints.FirstOrDefault(s => s.Status is SprintStatus.Planning or SprintStatus.Active);
 
     protected override async Task OnInitializedAsync()
     {
@@ -70,7 +86,7 @@ public partial class TracksPage : ComponentBase, IDisposable
 
     // ── Navigation ──────────────────────────────────────────
 
-    private void ShowBoardList()
+    private void ShowBoardSwimlane()
     {
         _view = TracksView.Boards;
         _selectedBoard = null;
@@ -85,6 +101,175 @@ public partial class TracksPage : ComponentBase, IDisposable
         _view = TracksView.Teams;
         _selectedBoard = null;
         _selectedCard = null;
+    }
+
+    private void OpenSprintPlanning(SprintDto sprint)
+    {
+        if (_selectedBoard?.Mode != BoardMode.Team) return;
+        _planningSprint = sprint;
+        _selectedCard = null;
+        _showBoardSettings = false;
+        _showSprints = false;
+        _view = TracksView.Planning;
+    }
+
+    private void ClosePlanning()
+    {
+        _planningSprint = null;
+        _view = TracksView.Board;
+    }
+
+    private void OpenWizard()
+    {
+        if (_selectedBoard?.Mode != BoardMode.Team) return;
+        _selectedCard = null;
+        _showBoardSettings = false;
+        _showSprints = false;
+        _view = TracksView.Wizard;
+    }
+
+    private void OpenBacklog()
+    {
+        if (_selectedBoard?.Mode != BoardMode.Team) return;
+        _selectedCard = null;
+        _showBoardSettings = false;
+        _showSprints = false;
+        _view = TracksView.Backlog;
+    }
+
+    private void OpenTimeline()
+    {
+        if (_selectedBoard?.Mode != BoardMode.Team) return;
+        _selectedCard = null;
+        _showBoardSettings = false;
+        _showSprints = false;
+        _view = TracksView.Timeline;
+    }
+
+    private async Task OpenReview()
+    {
+        if (_selectedBoard?.Mode != BoardMode.Team) return;
+        _selectedCard = null;
+        _showBoardSettings = false;
+        _showSprints = false;
+
+        // Check for an existing active session on this board
+        try
+        {
+            _activeReviewSession = await ApiClient.GetActiveReviewSessionAsync(_selectedBoard.Id);
+        }
+        catch
+        {
+            _activeReviewSession = null;
+        }
+
+        if (_activeReviewSession is not null)
+        {
+            var currentUserId = await GetCurrentUserIdAsync();
+            _isHost = currentUserId.HasValue && _activeReviewSession.HostUserId == currentUserId.Value;
+        }
+        else
+        {
+            _isHost = false;
+        }
+        _view = TracksView.Review;
+    }
+
+    private async Task<Guid?> GetCurrentUserIdAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        var claim = state.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                 ?? state.User.FindFirst("sub")?.Value;
+        return Guid.TryParse(claim, out var id) ? id : null;
+    }
+
+    private async Task HandleReviewStarted(ReviewSessionDto session)
+    {
+        _activeReviewSession = session;
+        _isHost = true;
+        StateHasChanged();
+    }
+
+    private async Task HandleReviewJoined(ReviewSessionDto session)
+    {
+        _activeReviewSession = session;
+        _isHost = false;
+        StateHasChanged();
+    }
+
+    private async Task HandleReviewEnded()
+    {
+        _activeReviewSession = null;
+        _isHost = false;
+        _view = TracksView.Board;
+        await RefreshBoardDataAsync();
+        StateHasChanged();
+    }
+
+    private async Task StartReviewSession()
+    {
+        if (_selectedBoard is null) return;
+        _isStartingReview = true;
+        _reviewStartError = null;
+        try
+        {
+            var session = await ApiClient.StartReviewSessionAsync(_selectedBoard.Id);
+            if (session is not null)
+            {
+                _activeReviewSession = session;
+                _isHost = true;
+            }
+            else
+            {
+                _reviewStartError = "Failed to start review session.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _reviewStartError = ex.Message;
+        }
+        finally
+        {
+            _isStartingReview = false;
+        }
+    }
+
+    private async Task HandleReviewSessionUpdated(ReviewSessionDto session)
+    {
+        _activeReviewSession = session;
+        StateHasChanged();
+        await Task.CompletedTask;
+    }
+
+    private async Task HandleTimelineSprintSelected(SprintDto sprint)
+    {
+        // Navigate to the board view (kanban) — the sprint tab selection
+        // is handled by setting the sprint filter on the board.
+        _view = TracksView.Board;
+        StateHasChanged();
+    }
+
+    private async Task HandlePlanAdjusted()
+    {
+        await RefreshSprintsAsync();
+    }
+
+    private async Task HandleBacklogChanged()
+    {
+        await RefreshBoardDataAsync();
+        StateHasChanged();
+    }
+
+    private async Task HandlePlanCreated(SprintPlanOverviewDto overview)
+    {
+        await RefreshBoardDataAsync();
+        _view = TracksView.Board;
+        StateHasChanged();
+    }
+
+    private void CloseWizard()
+    {
+        _view = TracksView.Board;
     }
 
     private async Task SelectBoard(Guid boardId)
@@ -132,21 +317,21 @@ public partial class TracksPage : ComponentBase, IDisposable
     {
         if (_selectedBoard is null) return;
 
-        var listsTask = ApiClient.ListListsAsync(_selectedBoard.Id);
+        var swimlanesTask = ApiClient.ListSwimlanesAsync(_selectedBoard.Id);
         var sprintsTask = ApiClient.ListSprintsAsync(_selectedBoard.Id);
-        await Task.WhenAll(listsTask, sprintsTask);
+        await Task.WhenAll(swimlanesTask, sprintsTask);
 
-        _boardLists.Clear();
-        _boardLists.AddRange((await listsTask).OrderBy(l => l.Position));
+        _boardSwimlanes.Clear();
+        _boardSwimlanes.AddRange((await swimlanesTask).OrderBy(swimlane => swimlane.Position));
 
         _sprints.Clear();
         _sprints.AddRange(await sprintsTask);
 
-        _cardsByList.Clear();
-        foreach (var list in _boardLists)
+        _cardsBySwimlane.Clear();
+        foreach (var swimlane in _boardSwimlanes)
         {
-            var cards = await ApiClient.ListCardsAsync(list.Id);
-            _cardsByList[list.Id] = cards.OrderBy(c => c.Position).ToList();
+            var cards = await ApiClient.ListCardsAsync(swimlane.Id);
+            _cardsBySwimlane[swimlane.Id] = cards.OrderBy(c => c.Position).ToList();
         }
     }
 
@@ -169,8 +354,21 @@ public partial class TracksPage : ComponentBase, IDisposable
     private async Task RefreshSprintsAsync()
     {
         if (_selectedBoard is null) return;
+
+        var planningSprintId = _planningSprint?.Id;
+
         _sprints.Clear();
         _sprints.AddRange(await ApiClient.ListSprintsAsync(_selectedBoard.Id));
+
+        if (planningSprintId.HasValue)
+        {
+            _planningSprint = _sprints.FirstOrDefault(s => s.Id == planningSprintId.Value);
+            if (_planningSprint is null && _view == TracksView.Planning)
+            {
+                _view = TracksView.Board;
+            }
+        }
+
         StateHasChanged();
     }
 
@@ -214,7 +412,7 @@ public partial class TracksPage : ComponentBase, IDisposable
         _boards.RemoveAll(b => b.Id == boardId);
         if (_selectedBoard?.Id == boardId)
         {
-            ShowBoardList();
+            ShowBoardSwimlane();
         }
         await Task.CompletedTask;
     }
@@ -230,7 +428,7 @@ public partial class TracksPage : ComponentBase, IDisposable
     private async Task HandleBoardDeletedFromSettings(Guid boardId)
     {
         await HandleBoardDeleted(boardId);
-        ShowBoardList();
+        ShowBoardSwimlane();
         await LoadInitialDataAsync();
     }
 
@@ -238,13 +436,13 @@ public partial class TracksPage : ComponentBase, IDisposable
 
     private async Task HandleCardMoved(CardDto card)
     {
-        // Remove from old list, add to new
-        foreach (var (_, cards) in _cardsByList)
+        // Remove from the previous swimlane, then add to the new swimlane.
+        foreach (var (_, cards) in _cardsBySwimlane)
         {
             cards.RemoveAll(c => c.Id == card.Id);
         }
 
-        if (_cardsByList.TryGetValue(card.ListId, out var targetCards))
+        if (_cardsBySwimlane.TryGetValue(card.SwimlaneId, out var targetCards))
         {
             targetCards.Add(card);
             targetCards.Sort((a, b) => a.Position.CompareTo(b.Position));
@@ -255,7 +453,7 @@ public partial class TracksPage : ComponentBase, IDisposable
 
     private async Task HandleCardCreated(CardDto card)
     {
-        if (_cardsByList.TryGetValue(card.ListId, out var cards))
+        if (_cardsBySwimlane.TryGetValue(card.SwimlaneId, out var cards))
         {
             cards.Add(card);
             cards.Sort((a, b) => a.Position.CompareTo(b.Position));
@@ -267,7 +465,7 @@ public partial class TracksPage : ComponentBase, IDisposable
     {
         _selectedCard = card;
 
-        foreach (var (_, cards) in _cardsByList)
+        foreach (var (_, cards) in _cardsBySwimlane)
         {
             var index = cards.FindIndex(c => c.Id == card.Id);
             if (index >= 0)
@@ -281,7 +479,7 @@ public partial class TracksPage : ComponentBase, IDisposable
 
     private async Task HandleCardDeleted(Guid cardId)
     {
-        foreach (var (_, cards) in _cardsByList)
+        foreach (var (_, cards) in _cardsBySwimlane)
         {
             cards.RemoveAll(c => c.Id == cardId);
         }
@@ -293,26 +491,30 @@ public partial class TracksPage : ComponentBase, IDisposable
         await Task.CompletedTask;
     }
 
-    // ── List Events ─────────────────────────────────────────
+    // ── Swimlane Events ─────────────────────────────────────
 
-    private async Task HandleListCreated(BoardListDto list)
+    private async Task HandleSwimlaneCreated(BoardSwimlaneDto swimlane)
     {
-        _boardLists.Add(list);
-        _boardLists.Sort((a, b) => a.Position.CompareTo(b.Position));
-        _cardsByList[list.Id] = [];
+        _boardSwimlanes.Add(swimlane);
+        _boardSwimlanes.Sort((a, b) => a.Position.CompareTo(b.Position));
+        _cardsBySwimlane[swimlane.Id] = [];
         await Task.CompletedTask;
     }
 
-    private async Task HandleListDeleted(Guid listId)
+    private async Task HandleSwimlaneDeleted(Guid swimlaneId)
     {
-        _boardLists.RemoveAll(l => l.Id == listId);
-        _cardsByList.Remove(listId);
+        _boardSwimlanes.RemoveAll(l => l.Id == swimlaneId);
+        _cardsBySwimlane.Remove(swimlaneId);
         await Task.CompletedTask;
     }
 
     // ── Panel Toggles ───────────────────────────────────────
 
-    private void ToggleSprints() => _showSprints = !_showSprints;
+    private void ToggleSprints()
+    {
+        if (_selectedBoard?.Mode != BoardMode.Team) return;
+        _showSprints = !_showSprints;
+    }
 
     private void ShowBoardSettings() => _showBoardSettings = true;
 
@@ -321,10 +523,11 @@ public partial class TracksPage : ComponentBase, IDisposable
     public void Dispose()
     {
         SignalRService.CardActionReceived -= OnCardActionReceived;
-        SignalRService.ListActionReceived -= OnListActionReceived;
+        SignalRService.SwimlaneActionReceived -= OnSwimlaneActionReceived;
         SignalRService.CommentActionReceived -= OnCommentActionReceived;
         SignalRService.SprintActionReceived -= OnSprintActionReceived;
         SignalRService.BoardMemberActionReceived -= OnBoardMemberActionReceived;
+        SignalRService.ReviewSessionStateChanged -= OnReviewSessionStateChanged;
     }
 
     // ── Real-time Event Subscriptions ───────────────────────
@@ -332,10 +535,11 @@ public partial class TracksPage : ComponentBase, IDisposable
     private void SubscribeToRealtimeEvents()
     {
         SignalRService.CardActionReceived += OnCardActionReceived;
-        SignalRService.ListActionReceived += OnListActionReceived;
+        SignalRService.SwimlaneActionReceived += OnSwimlaneActionReceived;
         SignalRService.CommentActionReceived += OnCommentActionReceived;
         SignalRService.SprintActionReceived += OnSprintActionReceived;
         SignalRService.BoardMemberActionReceived += OnBoardMemberActionReceived;
+        SignalRService.ReviewSessionStateChanged += OnReviewSessionStateChanged;
     }
 
     private async void OnCardActionReceived(Guid boardId, Guid cardId, string action)
@@ -348,7 +552,7 @@ public partial class TracksPage : ComponentBase, IDisposable
         });
     }
 
-    private async void OnListActionReceived(Guid boardId, Guid listId, string action)
+    private async void OnSwimlaneActionReceived(Guid boardId, Guid swimlaneId, string action)
     {
         if (_selectedBoard?.Id != boardId) return;
         await InvokeAsync(async () =>
@@ -383,6 +587,35 @@ public partial class TracksPage : ComponentBase, IDisposable
         await InvokeAsync(async () =>
         {
             await RefreshBoardAsync();
+        });
+    }
+
+    private async void OnReviewSessionStateChanged(Guid sessionId, Guid boardId, string action)
+    {
+        if (_selectedBoard?.Id != boardId) return;
+        await InvokeAsync(async () =>
+        {
+            if (action is "ended")
+            {
+                _activeReviewSession = null;
+                _isHost = false;
+                if (_view == TracksView.Review)
+                {
+                    _view = TracksView.Board;
+                }
+            }
+            else
+            {
+                try
+                {
+                    _activeReviewSession = await ApiClient.GetReviewSessionAsync(sessionId);
+                }
+                catch
+                {
+                    _activeReviewSession = null;
+                }
+            }
+            StateHasChanged();
         });
     }
 }

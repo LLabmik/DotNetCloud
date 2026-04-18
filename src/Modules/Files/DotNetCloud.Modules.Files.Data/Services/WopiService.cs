@@ -1,5 +1,6 @@
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Events.Search;
 using DotNetCloud.Modules.Files.DTOs;
 using DotNetCloud.Modules.Files.Events;
 using DotNetCloud.Modules.Files.Models;
@@ -196,7 +197,17 @@ internal sealed class WopiService : IWopiService
             UploadedByUserId = caller.UserId,
             Size = totalSize,
             MimeType = node.MimeType,
-            ParentId = node.ParentId
+            ParentId = node.ParentId,
+            StoragePath = node.StoragePath
+        }, caller);
+
+        await _eventBus.PublishAsync(new SearchIndexRequestEvent
+        {
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            ModuleId = "files",
+            EntityId = fileId.ToString(),
+            Action = SearchIndexAction.Index
         }, caller);
 
         return node.UpdatedAt.ToString("O");
