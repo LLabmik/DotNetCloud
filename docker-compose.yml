@@ -23,6 +23,8 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_NOLOGO: "1"
       ConnectionStrings__DefaultConnection: "Host=db;Port=5432;Database=dotnetcloud;Username=dotnetcloud;Password=dotnetcloud_dev_password"
       Database__Provider: postgresql
       Serilog__WriteTo__1__Args__path: /app/logs/dotnetcloud-.log

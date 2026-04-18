@@ -11,6 +11,11 @@
 # Stage 1: Restore
 # ---------------------------------------------------------------------------
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS restore
+
+# Disable all Microsoft telemetry in build stages
+ENV DOTNET_CLI_TELEMETRY_OPTOUT=1
+ENV DOTNET_NOLOGO=1
+
 WORKDIR /src
 
 # Copy solution and project files first for layer caching
@@ -126,6 +131,8 @@ COPY --from=publish /app/publish .
 ENV ASPNETCORE_URLS=http://+:8080
 ENV ASPNETCORE_ENVIRONMENT=Production
 ENV DOTNET_EnableDiagnostics=0
+ENV DOTNET_CLI_TELEMETRY_OPTOUT=1
+ENV DOTNET_NOLOGO=1
 
 # Expose HTTP port
 EXPOSE 8080
