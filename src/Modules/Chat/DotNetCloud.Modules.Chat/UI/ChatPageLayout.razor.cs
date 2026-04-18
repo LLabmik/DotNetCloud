@@ -579,7 +579,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
             var caller = await GetCallerContextAsync();
             var result = await MessageService.GetMessagesAsync(channelId, _currentMessagePage, MessagePageSize, caller);
             await ResolveDisplayNamesAsync(result.Items);
-            _messages = result.Items.Select(ToMessageViewModel).ToList();
+            _messages = result.Items.Select(ToMessageViewModel).Reverse().ToList();
             _hasMoreMessages = result.Page < result.TotalPages;
         }
         catch (Exception ex)
@@ -603,7 +603,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
             var caller = await GetCallerContextAsync();
             var result = await MessageService.GetMessagesAsync(_selectedChannel.Id, _currentMessagePage, MessagePageSize, caller);
             await ResolveDisplayNamesAsync(result.Items);
-            var older = result.Items.Select(ToMessageViewModel).ToList();
+            var older = result.Items.Select(ToMessageViewModel).Reverse().ToList();
             _messages.InsertRange(0, older);
             _hasMoreMessages = result.Page < result.TotalPages;
         }
