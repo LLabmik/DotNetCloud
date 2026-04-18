@@ -802,6 +802,19 @@ window.dotnetcloudVideoCall = window.dotnetcloudVideoCall || (function () {
         };
     }
 
+    // ── Fullscreen ─────────────────────────────────────────────
+
+    function toggleFullscreen(elementId) {
+        var el = document.getElementById(elementId);
+        if (!el) return;
+
+        if (document.fullscreenElement === el) {
+            document.exitFullscreen();
+        } else {
+            el.requestFullscreen().catch(function () { /* best-effort */ });
+        }
+    }
+
     // ── Public API ─────────────────────────────────────────────
 
     return {
@@ -832,6 +845,8 @@ window.dotnetcloudVideoCall = window.dotnetcloudVideoCall || (function () {
         // Query
         getCallState: getCallState,
         getPeerState: getPeerState,
-        getMediaState: getMediaState
+        getMediaState: getMediaState,
+        // Fullscreen
+        toggleFullscreen: toggleFullscreen
     };
 })();

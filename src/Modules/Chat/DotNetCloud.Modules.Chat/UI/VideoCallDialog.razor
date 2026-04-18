@@ -39,7 +39,7 @@
                 {
                     @foreach (var participant in RemoteParticipants)
                     {
-                        <div class="video-tile">
+                        <div class="video-tile" id="video-tile-@participant.UserId">
                             <video id="remote-video-@participant.UserId" class="video-element" autoplay playsinline></video>
                             <div class="video-tile-overlay">
                                 <span class="participant-name">@(participant.DisplayName ?? "Unknown")</span>
@@ -58,6 +58,9 @@
                                     }
                                 </div>
                             </div>
+                            <button class="btn-fullscreen" onclick="dotnetcloudVideoCall.toggleFullscreen('video-tile-@participant.UserId')" title="Toggle fullscreen">
+                                <span class="fullscreen-icon">⛶</span>
+                            </button>
                             @if (!participant.HasVideo && !participant.HasScreenShare)
                             {
                                 <div class="video-placeholder">

@@ -205,6 +205,64 @@
     opacity: 0.9;
 }
 
+/* --- Fullscreen Toggle Button --- */
+
+.btn-fullscreen {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 5;
+    width: 36px;
+    height: 36px;
+    border: none;
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.55);
+    color: #ffffff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.7;
+    transition: opacity 0.2s ease, background 0.15s ease;
+    pointer-events: auto;
+}
+
+.video-tile:hover .btn-fullscreen {
+    opacity: 1;
+}
+
+.btn-fullscreen:hover {
+    background: rgba(59, 130, 246, 0.8);
+}
+
+.fullscreen-icon {
+    font-size: 20px;
+    line-height: 1;
+}
+
+/* Fullscreen state: fill the screen, dark background */
+
+.video-tile:fullscreen {
+    background: #000;
+    border-radius: 0;
+}
+
+.video-tile:fullscreen .video-element {
+    object-fit: contain;
+}
+
+.video-tile:fullscreen .btn-fullscreen {
+    opacity: 1;
+    top: 16px;
+    right: 16px;
+    width: 44px;
+    height: 44px;
+}
+
+.video-tile:fullscreen .fullscreen-icon {
+    font-size: 24px;
+}
+
 /* --- Avatar Placeholder (camera off) --- */
 
 .video-placeholder {
