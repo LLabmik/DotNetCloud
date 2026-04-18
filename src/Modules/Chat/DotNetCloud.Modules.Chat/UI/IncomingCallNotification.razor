@@ -27,7 +27,14 @@
 
             <div class="incoming-call-body">
                 <div class="caller-avatar">
-                    <div class="avatar-circle">@GetInitials(CallerName)</div>
+                    @if (!string.IsNullOrEmpty(CallerAvatarUrl))
+                    {
+                        <img class="avatar-circle-img" src="@CallerAvatarUrl" alt="@CallerName" />
+                    }
+                    else
+                    {
+                        <div class="avatar-circle">@GetInitials(CallerName)</div>
+                    }
                 </div>
                 <div class="caller-info">
                     @if (IsMidCallInvite)

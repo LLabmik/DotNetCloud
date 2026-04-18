@@ -100,6 +100,13 @@
     letter-spacing: 1px;
 }
 
+.avatar-circle-img {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
 .caller-info {
     display: flex;
     flex-direction: column;

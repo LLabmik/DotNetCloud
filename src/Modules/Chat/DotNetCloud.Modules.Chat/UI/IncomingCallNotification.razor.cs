@@ -21,6 +21,10 @@ public partial class IncomingCallNotification : ComponentBase
     [Parameter]
     public string CallerName { get; set; } = string.Empty;
 
+    /// <summary>Avatar URL of the caller, if available.</summary>
+    [Parameter]
+    public string? CallerAvatarUrl { get; set; }
+
     /// <summary>Name of the channel the call is from.</summary>
     [Parameter]
     public string ChannelName { get; set; } = string.Empty;

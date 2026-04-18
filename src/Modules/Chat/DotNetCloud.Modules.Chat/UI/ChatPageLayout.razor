@@ -304,6 +304,7 @@
                  ChannelName="@(_selectedChannel?.Name ?? "")"
                  CallState="@_currentCallState"
                  LocalDisplayName="@_currentUserDisplayName"
+                 LocalAvatarUrl="@(_avatarUrlCache.GetValueOrDefault(_currentUserId))"
                  CurrentUserId="@_currentUserId"
                  HostUserId="@(_currentCallHostUserId ?? Guid.Empty)"
                  RemoteParticipants="@_remoteParticipants"
@@ -330,6 +331,7 @@
 
 <IncomingCallNotification IsVisible="@_showIncomingCall"
                           CallerName="@_incomingCallerName"
+                          CallerAvatarUrl="@(_incomingCallInitiatorId.HasValue ? _avatarUrlCache.GetValueOrDefault(_incomingCallInitiatorId.Value) : null)"
                           ChannelName="@_incomingCallChannelName"
                           MediaType="@_incomingCallMediaType"
                           RemainingSeconds="@_incomingCallRemainingSeconds"

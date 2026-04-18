@@ -297,6 +297,18 @@
     font-size: 14px;
 }
 
+.placeholder-avatar-img {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.placeholder-avatar-img-sm {
+    width: 40px;
+    height: 40px;
+}
+
 .placeholder-name {
     font-size: 14px;
     font-weight: 500;

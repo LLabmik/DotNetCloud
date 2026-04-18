@@ -1355,6 +1355,20 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
             });
         }
 
+        // Resolve caller avatar if not cached
+        if (!_avatarUrlCache.ContainsKey(notification.InitiatorUserId))
+        {
+            _ = InvokeAsync(async () =>
+            {
+                var avatars = await UserDirectory.GetAvatarUrlsAsync([notification.InitiatorUserId]);
+                if (avatars.TryGetValue(notification.InitiatorUserId, out var avatarUrl))
+                {
+                    _avatarUrlCache[notification.InitiatorUserId] = avatarUrl;
+                    StateHasChanged();
+                }
+            });
+        }
+
         _ = InvokeAsync(StateHasChanged);
     }
 
@@ -1397,6 +1411,20 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
             });
         }
 
+        // Resolve inviter avatar if not cached
+        if (!_avatarUrlCache.ContainsKey(notification.InvitedByUserId))
+        {
+            _ = InvokeAsync(async () =>
+            {
+                var avatars = await UserDirectory.GetAvatarUrlsAsync([notification.InvitedByUserId]);
+                if (avatars.TryGetValue(notification.InvitedByUserId, out var avatarUrl))
+                {
+                    _avatarUrlCache[notification.InvitedByUserId] = avatarUrl;
+                    StateHasChanged();
+                }
+            });
+        }
+
         _ = InvokeAsync(StateHasChanged);
     }
 
@@ -1417,6 +1445,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
                 Id = participant.Id,
                 UserId = participant.UserId,
                 DisplayName = participant.DisplayName,
+                AvatarUrl = participant.AvatarUrl,
                 Role = participant.UserId == notification.NewHostUserId ? "Host" : "Participant",
                 JoinedAtUtc = participant.JoinedAtUtc,
                 LeftAtUtc = participant.LeftAtUtc,
@@ -1446,6 +1475,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
             Id = existingIndex >= 0 ? _remoteParticipants[existingIndex].Id : Guid.NewGuid(),
             UserId = notification.AcceptedByUserId,
             DisplayName = displayName,
+            AvatarUrl = _avatarUrlCache.GetValueOrDefault(notification.AcceptedByUserId),
             Role = "Participant",
             HasAudio = true,
             HasVideo = _incomingCallMediaType == "Video"
@@ -1479,6 +1509,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
                             Id = old.Id,
                             UserId = old.UserId,
                             DisplayName = resolvedName,
+                            AvatarUrl = old.AvatarUrl,
                             Role = old.Role,
                             HasAudio = old.HasAudio,
                             HasVideo = old.HasVideo,
@@ -1916,6 +1947,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
                 Id = p.Id,
                 UserId = p.UserId,
                 DisplayName = p.DisplayName,
+                AvatarUrl = p.AvatarUrl,
                 Role = p.Role,
                 HasAudio = kind == "audio" ? false : p.HasAudio,
                 HasVideo = kind == "video" ? false : p.HasVideo

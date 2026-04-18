@@ -28,7 +28,14 @@
                 {
                     <div class="video-tile video-tile-solo">
                         <div class="video-placeholder">
-                            <div class="placeholder-avatar">@GetInitials(LocalDisplayName)</div>
+                            @if (!string.IsNullOrEmpty(LocalAvatarUrl))
+                            {
+                                <img class="placeholder-avatar-img" src="@LocalAvatarUrl" alt="@LocalDisplayName" />
+                            }
+                            else
+                            {
+                                <div class="placeholder-avatar">@GetInitials(LocalDisplayName)</div>
+                            }
                             <span class="placeholder-name">@LocalDisplayName</span>
                             <span class="placeholder-status">@GetWaitingMessage()</span>
                         </div>
@@ -64,7 +71,14 @@
                             @if (!participant.HasVideo && !participant.HasScreenShare)
                             {
                                 <div class="video-placeholder">
-                                    <div class="placeholder-avatar">@GetInitials(participant.DisplayName)</div>
+                                    @if (!string.IsNullOrEmpty(participant.AvatarUrl))
+                                    {
+                                        <img class="placeholder-avatar-img" src="@participant.AvatarUrl" alt="@participant.DisplayName" />
+                                    }
+                                    else
+                                    {
+                                        <div class="placeholder-avatar">@GetInitials(participant.DisplayName)</div>
+                                    }
                                     <span class="placeholder-name">@(participant.DisplayName ?? "Unknown")</span>
                                 </div>
                             }
@@ -80,7 +94,14 @@
                         @if (IsCameraOff)
                         {
                             <div class="pip-placeholder">
-                                <div class="placeholder-avatar placeholder-avatar-sm">@GetInitials(LocalDisplayName)</div>
+                                @if (!string.IsNullOrEmpty(LocalAvatarUrl))
+                                {
+                                    <img class="placeholder-avatar-img placeholder-avatar-img-sm" src="@LocalAvatarUrl" alt="You" />
+                                }
+                                else
+                                {
+                                    <div class="placeholder-avatar placeholder-avatar-sm">@GetInitials(LocalDisplayName)</div>
+                                }
                             </div>
                         }
                         <span class="pip-label">You</span>

@@ -25,6 +25,10 @@ public partial class VideoCallDialog : ComponentBase
     [Parameter]
     public string LocalDisplayName { get; set; } = string.Empty;
 
+    /// <summary>Local user avatar URL, if available.</summary>
+    [Parameter]
+    public string? LocalAvatarUrl { get; set; }
+
     /// <summary>Current user ID.</summary>
     [Parameter]
     public Guid CurrentUserId { get; set; }

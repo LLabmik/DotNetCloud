@@ -547,6 +547,9 @@ public sealed record CallParticipantDto
     /// <summary>Display name of the participant.</summary>
     public string? DisplayName { get; init; }
 
+    /// <summary>Avatar URL of the participant, if available.</summary>
+    public string? AvatarUrl { get; init; }
+
     /// <summary>Role in the call (Host, Participant).</summary>
     public required string Role { get; init; }
 
