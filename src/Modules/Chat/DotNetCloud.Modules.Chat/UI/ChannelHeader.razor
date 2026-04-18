@@ -25,6 +25,12 @@
             <button class="btn btn-sm @(Channel.IsMuted ? "btn-muted" : "")" @onclick="OnToggleMuteClick" title="@(Channel.IsMuted ? "Unmute notifications for this channel" : "Mute notifications for this channel")">
                 @(Channel.IsMuted ? "🔇 Muted" : "🔔 Mute")
             </button>
+            @if (Channel!.Type == "DirectMessage")
+            {
+                <button class="btn btn-sm btn-block-call" @onclick="OnToggleDirectPeerBlockClick" title="@(IsDirectPeerBlocked ? "Unblock calls from this user" : "Block calls from this user")">
+                    @(IsDirectPeerBlocked ? "✅ Unblock" : "🚫 Block")
+                </button>
+            }
             @if (IsAdminOrOwner)
             {
                 <button class="btn btn-sm" @onclick="OnArchiveClick" title="Archive this channel — hides it from the sidebar (can be restored later)">
@@ -46,10 +52,10 @@
                     👥 Add People
                 </button>
             }
-            <button class="btn btn-sm btn-call" @onclick="OnAudioCallClick" title="Start audio call">
+            <button class="btn btn-sm btn-call" @onclick="OnAudioCallClick" disabled="@Channel.IsMuted" title="@(Channel.IsMuted ? "Unmute channel to place calls" : "Start audio call")">
                 📞 Call
             </button>
-            <button class="btn btn-sm btn-call" @onclick="OnVideoCallClick" title="Start video call">
+            <button class="btn btn-sm btn-call" @onclick="OnVideoCallClick" disabled="@Channel.IsMuted" title="@(Channel.IsMuted ? "Unmute channel to place calls" : "Start video call")">
                 📹 Video
             </button>
             @if (HasActiveCall)

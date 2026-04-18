@@ -81,6 +81,26 @@ public sealed record UserPresenceChangedNotification(
     bool IsOnline);
 
 /// <summary>
+/// Payload for a new-message toast notification delivered per-user after mute/DND filtering.
+/// Raised via <see cref="IChatMessageNotifier"/> for in-process Blazor circuits.
+/// </summary>
+public sealed record NewMessageToastNotification(
+    Guid TargetUserId,
+    Guid ChannelId,
+    string ChannelName,
+    string SenderName,
+    string MessagePreview);
+
+/// <summary>
+/// Payload for a user block/unblock status change notification.
+/// Sent to the target user so they see that they've been blocked or unblocked.
+/// </summary>
+public sealed record UserBlockStatusChangedNotification(
+    Guid BlockerUserId,
+    Guid TargetUserId,
+    bool IsBlocked);
+
+/// <summary>
 /// Payload for a WebRTC signaling message (offer, answer, or ICE candidate) relayed in-process.
 /// </summary>
 public sealed record CallSignalNotification(
@@ -133,6 +153,12 @@ public interface IChatMessageNotifier
     /// <summary>Raised when a participant leaves an active call.</summary>
     event Action<CallParticipantLeftNotification>? CallParticipantLeft;
 
+    /// <summary>Raised when a new-message toast should be shown (filtered for mute/DND).</summary>
+    event Action<NewMessageToastNotification>? NewMessageToast;
+
+    /// <summary>Raised when a user's block status changes (blocked or unblocked by another user).</summary>
+    event Action<UserBlockStatusChangedNotification>? UserBlockStatusChanged;
+
     /// <summary>Notifies all subscribers that a new message was sent.</summary>
     void NotifyMessageReceived(Guid channelId, MessageDto message);
 
@@ -168,6 +194,12 @@ public interface IChatMessageNotifier
 
     /// <summary>Notifies all subscribers that a participant has left a call.</summary>
     void NotifyCallParticipantLeft(CallParticipantLeftNotification notification);
+
+    /// <summary>Notifies all subscribers of a new-message toast (after mute/DND filtering).</summary>
+    void NotifyNewMessageToast(NewMessageToastNotification notification);
+
+    /// <summary>Notifies all subscribers that a user's block status has changed.</summary>
+    void NotifyUserBlockStatusChanged(UserBlockStatusChangedNotification notification);
 }
 
 /// <summary>
@@ -253,10 +285,24 @@ public sealed class InProcessChatMessageNotifier : IChatMessageNotifier
     public event Action<CallParticipantLeftNotification>? CallParticipantLeft;
 
     /// <inheritdoc />
+    public event Action<NewMessageToastNotification>? NewMessageToast;
+
+    /// <inheritdoc />
     public void NotifyMediaStateChanged(MediaStateChangedNotification notification)
         => MediaStateChanged?.Invoke(notification);
 
     /// <inheritdoc />
     public void NotifyCallParticipantLeft(CallParticipantLeftNotification notification)
         => CallParticipantLeft?.Invoke(notification);
+
+    /// <inheritdoc />
+    public void NotifyNewMessageToast(NewMessageToastNotification notification)
+        => NewMessageToast?.Invoke(notification);
+
+    /// <inheritdoc />
+    public event Action<UserBlockStatusChangedNotification>? UserBlockStatusChanged;
+
+    /// <inheritdoc />
+    public void NotifyUserBlockStatusChanged(UserBlockStatusChangedNotification notification)
+        => UserBlockStatusChanged?.Invoke(notification);
 }

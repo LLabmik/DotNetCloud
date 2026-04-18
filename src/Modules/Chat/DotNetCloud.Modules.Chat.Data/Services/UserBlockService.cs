@@ -15,15 +15,21 @@ internal sealed class UserBlockService : IUserBlockService
 {
     private readonly ChatDbContext _db;
     private readonly IUserDirectory? _userDirectory;
+    private readonly IChatRealtimeService? _realtimeService;
+    private readonly IChatMessageNotifier? _notifier;
     private readonly ILogger<UserBlockService> _logger;
 
     public UserBlockService(
         ChatDbContext db,
         ILogger<UserBlockService> logger,
-        IUserDirectory? userDirectory = null)
+        IUserDirectory? userDirectory = null,
+        IChatRealtimeService? realtimeService = null,
+        IChatMessageNotifier? notifier = null)
     {
         _db = db;
         _userDirectory = userDirectory;
+        _realtimeService = realtimeService;
+        _notifier = notifier;
         _logger = logger;
     }
 
@@ -48,6 +54,9 @@ internal sealed class UserBlockService : IUserBlockService
         await _db.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation("User {UserId} blocked user {BlockedUserId} from calls", caller.UserId, targetUserId);
+
+        // Notify the blocked user in real-time
+        await NotifyBlockStatusAsync(targetUserId, caller.UserId, isBlocked: true, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -63,6 +72,9 @@ internal sealed class UserBlockService : IUserBlockService
         await _db.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation("User {UserId} unblocked user {BlockedUserId}", caller.UserId, targetUserId);
+
+        // Notify the unblocked user in real-time
+        await NotifyBlockStatusAsync(targetUserId, caller.UserId, isBlocked: false, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -93,5 +105,22 @@ internal sealed class UserBlockService : IUserBlockService
             DisplayName = displayNames.GetValueOrDefault(b.BlockedUserId, b.BlockedUserId.ToString()[..8]),
             BlockedAtUtc = b.BlockedAtUtc
         }).ToList();
+    }
+
+    private async Task NotifyBlockStatusAsync(Guid targetUserId, Guid blockerUserId, bool isBlocked, CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (_realtimeService is not null)
+            {
+                await _realtimeService.SendBlockStatusChangedAsync(targetUserId, blockerUserId, isBlocked, cancellationToken);
+            }
+
+            _notifier?.NotifyUserBlockStatusChanged(new UserBlockStatusChangedNotification(blockerUserId, targetUserId, isBlocked));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to send block status notification to user {TargetUserId}", targetUserId);
+        }
     }
 }

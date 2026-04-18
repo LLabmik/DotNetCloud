@@ -18,6 +18,10 @@ public partial class GlobalChatNotifications : ComponentBase, IDisposable
     [Inject] private NavigationManager Navigation { get; set; } = default!;
     [Inject] private AuthenticationStateProvider AuthStateProvider { get; set; } = default!;
 
+    private bool ShouldShowMessageToast
+        => NotificationState.ShowMessageToast
+           && !Navigation.Uri.Contains("/apps/chat", StringComparison.OrdinalIgnoreCase);
+
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
     {
@@ -69,6 +73,12 @@ public partial class GlobalChatNotifications : ComponentBase, IDisposable
                 // Dismiss regardless of API failure
             }
         }
+    }
+
+    private Task HandleDismissToast()
+    {
+        NotificationState.DismissMessageToast();
+        return Task.CompletedTask;
     }
 
     private void NavigateToChatIfNeeded()

@@ -248,3 +248,20 @@
 .btn-icon {
     min-width: 32px;
 }
+
+/* Blocked-by banner */
+.chat-blocked-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    background: var(--color-danger-bg, #2d1b1b);
+    border-top: 1px solid var(--color-danger-border, #7f3030);
+    color: var(--color-danger-text, #f5a5a5);
+    font-size: 14px;
+}
+
+.chat-blocked-banner .blocked-icon {
+    font-size: 18px;
+    flex-shrink: 0;
+}

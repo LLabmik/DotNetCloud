@@ -71,6 +71,16 @@ internal sealed class VideoCallService : IVideoCallService
             throw new ArgumentException($"Invalid media type: {request.MediaType}", nameof(request));
         }
 
+        var callerMembership = await _db.ChannelMembers
+            .AsNoTracking()
+            .FirstOrDefaultAsync(cm => cm.ChannelId == channelId && cm.UserId == caller.UserId, cancellationToken)
+            ?? throw new UnauthorizedAccessException("Caller is not a member of this channel.");
+
+        if (callerMembership.IsMuted)
+        {
+            throw new InvalidOperationException("This channel is muted. Unmute it before starting calls.");
+        }
+
         // Ensure no active call already exists in this channel
         var existingActiveCall = await _db.VideoCalls
             .AnyAsync(vc => vc.ChannelId == channelId
@@ -147,7 +157,7 @@ internal sealed class VideoCallService : IVideoCallService
         // Only target channel members (excluding the initiator) to prevent notification leaking to unrelated users.
         // Also exclude members who have blocked the caller — they won't see the ring.
         var targetMemberIds = await _db.ChannelMembers
-            .Where(cm => cm.ChannelId == channelId && cm.UserId != caller.UserId)
+            .Where(cm => cm.ChannelId == channelId && cm.UserId != caller.UserId && !cm.IsMuted)
             .Select(cm => cm.UserId)
             .ToListAsync(cancellationToken);
 
@@ -612,7 +622,7 @@ internal sealed class VideoCallService : IVideoCallService
                 _logger.LogInformation(
                     "Direct call from {CallerId} to {TargetId} silently rejected: caller is blocked by target.",
                     caller.UserId, targetUserId);
-                throw new InvalidOperationException("User is currently unavailable.");
+                throw new InvalidOperationException("You have been blocked by this user.");
             }
         }
 
@@ -623,6 +633,17 @@ internal sealed class VideoCallService : IVideoCallService
 
         // Step 1: Get or create DM channel between caller and target
         var dmChannel = await _channelService.GetOrCreateDirectMessageAsync(targetUserId, caller, cancellationToken);
+
+        var targetMembership = await _db.ChannelMembers
+            .AsNoTracking()
+            .FirstOrDefaultAsync(cm => cm.ChannelId == dmChannel.Id && cm.UserId == targetUserId, cancellationToken);
+        if (targetMembership?.IsMuted == true)
+        {
+            _logger.LogInformation(
+                "Direct call from {CallerId} to {TargetId} silently rejected: target muted DM channel {ChannelId}.",
+                caller.UserId, targetUserId, dmChannel.Id);
+            throw new InvalidOperationException("User is currently unavailable.");
+        }
 
         _logger.LogInformation(
             "Direct call: using DM channel {ChannelId} between user {CallerId} and {TargetId}",
@@ -677,8 +698,15 @@ internal sealed class VideoCallService : IVideoCallService
         }
 
         // If target is not a channel member, auto-add them (may trigger DM→Group conversion)
-        var isChannelMember = await _db.ChannelMembers
-            .AnyAsync(cm => cm.ChannelId == call.ChannelId && cm.UserId == targetUserId, cancellationToken);
+        var targetMembership = await _db.ChannelMembers
+            .AsNoTracking()
+            .FirstOrDefaultAsync(cm => cm.ChannelId == call.ChannelId && cm.UserId == targetUserId, cancellationToken);
+        var isChannelMember = targetMembership is not null;
+
+        if (targetMembership?.IsMuted == true)
+        {
+            throw new InvalidOperationException("User is currently unavailable.");
+        }
 
         if (!isChannelMember)
         {

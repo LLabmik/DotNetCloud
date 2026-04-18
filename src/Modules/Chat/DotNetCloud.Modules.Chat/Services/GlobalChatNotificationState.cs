@@ -12,6 +12,7 @@ public sealed class GlobalChatNotificationState : IDisposable
     private readonly IChatMessageNotifier _notifier;
     private readonly IUserDirectory _userDirectory;
     private System.Timers.Timer? _ringTimer;
+    private System.Timers.Timer? _toastTimer;
     private Guid _currentUserId;
     private Guid? _activeCallId;
 
@@ -54,6 +55,21 @@ public sealed class GlobalChatNotificationState : IDisposable
     /// <summary>Pending call accept that <c>ChatPageLayout</c> should consume.</summary>
     public PendingCallAccept? PendingAccept { get; private set; }
 
+    /// <summary>Whether a message toast notification should be displayed.</summary>
+    public bool ShowMessageToast { get; private set; }
+
+    /// <summary>The channel ID the toast message is from.</summary>
+    public Guid? ToastChannelId { get; private set; }
+
+    /// <summary>The channel name the toast message is from.</summary>
+    public string ToastChannelName { get; private set; } = string.Empty;
+
+    /// <summary>The sender's display name for the toast.</summary>
+    public string ToastSenderName { get; private set; } = string.Empty;
+
+    /// <summary>Message preview text for the toast.</summary>
+    public string ToastMessagePreview { get; private set; } = string.Empty;
+
     /// <summary>Raised when any notification state property changes.</summary>
     public event Action? OnChange;
 
@@ -73,6 +89,7 @@ public sealed class GlobalChatNotificationState : IDisposable
         _notifier.CallRinging += HandleCallRinging;
         _notifier.CallInviteReceived += HandleCallInviteReceived;
         _notifier.CallEnded += HandleCallEnded;
+        _notifier.NewMessageToast += HandleNewMessageToast;
     }
 
     /// <summary>
@@ -200,6 +217,35 @@ public sealed class GlobalChatNotificationState : IDisposable
         }
     }
 
+    private void HandleNewMessageToast(NewMessageToastNotification notification)
+    {
+        if (_currentUserId == Guid.Empty) return;
+        if (notification.TargetUserId != _currentUserId) return;
+
+        ToastChannelId = notification.ChannelId;
+        ToastChannelName = notification.ChannelName;
+        ToastSenderName = notification.SenderName;
+        ToastMessagePreview = notification.MessagePreview;
+        ShowMessageToast = true;
+
+        StartToastTimer();
+        OnChange?.Invoke();
+    }
+
+    /// <summary>
+    /// Dismisses the currently visible message toast notification.
+    /// </summary>
+    public void DismissMessageToast()
+    {
+        ShowMessageToast = false;
+        ToastChannelId = null;
+        ToastChannelName = string.Empty;
+        ToastSenderName = string.Empty;
+        ToastMessagePreview = string.Empty;
+        StopToastTimer();
+        OnChange?.Invoke();
+    }
+
     private void DismissIncomingCall()
     {
         ShowIncomingCall = false;
@@ -235,6 +281,32 @@ public sealed class GlobalChatNotificationState : IDisposable
         _ringTimer = null;
     }
 
+    private void StartToastTimer()
+    {
+        StopToastTimer();
+        _toastTimer = new System.Timers.Timer(4000)
+        {
+            AutoReset = false
+        };
+        _toastTimer.Elapsed += (_, _) =>
+        {
+            ShowMessageToast = false;
+            ToastChannelId = null;
+            ToastChannelName = string.Empty;
+            ToastSenderName = string.Empty;
+            ToastMessagePreview = string.Empty;
+            OnChange?.Invoke();
+        };
+        _toastTimer.Start();
+    }
+
+    private void StopToastTimer()
+    {
+        _toastTimer?.Stop();
+        _toastTimer?.Dispose();
+        _toastTimer = null;
+    }
+
     private async Task ResolveCallerInfoAsync(Guid userId)
     {
         try
@@ -265,7 +337,9 @@ public sealed class GlobalChatNotificationState : IDisposable
         _notifier.CallRinging -= HandleCallRinging;
         _notifier.CallInviteReceived -= HandleCallInviteReceived;
         _notifier.CallEnded -= HandleCallEnded;
+        _notifier.NewMessageToast -= HandleNewMessageToast;
         StopRingTimer();
+        StopToastTimer();
     }
 }
 

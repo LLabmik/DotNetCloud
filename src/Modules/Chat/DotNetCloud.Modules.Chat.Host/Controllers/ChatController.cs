@@ -348,9 +348,40 @@ public class ChatController : ChatControllerBase
     {
         try
         {
-            var message = await _messageService.SendMessageAsync(channelId, dto, GetAuthenticatedCaller());
+            var caller = GetAuthenticatedCaller();
+            var message = await _messageService.SendMessageAsync(channelId, dto, caller);
             await _chatRealtimeService.BroadcastNewMessageAsync(channelId, message);
             _chatMessageNotifier.NotifyMessageReceived(channelId, message);
+
+            var channel = await _channelService.GetChannelAsync(channelId, caller);
+            var members = await _memberService.ListMembersAsync(channelId, caller);
+            var channelName = string.IsNullOrWhiteSpace(channel?.Name) ? "Channel" : channel.Name;
+            var preview = BuildMessagePreview(message.Content);
+            var senderName = members.FirstOrDefault(m => m.UserId == caller.UserId)?.DisplayName
+                ?? message.SenderUserId.ToString()[..8];
+
+            foreach (var member in members)
+            {
+                if (member.UserId == caller.UserId || member.IsMuted)
+                {
+                    continue;
+                }
+
+                await _chatRealtimeService.SendNewMessageToastAsync(
+                    member.UserId,
+                    channelId,
+                    channelName,
+                    senderName,
+                    preview);
+
+                _chatMessageNotifier.NotifyNewMessageToast(new NewMessageToastNotification(
+                    member.UserId,
+                    channelId,
+                    channelName,
+                    senderName,
+                    preview));
+            }
+
             return Ok(Envelope(message));
         }
         catch (ArgumentException ex)
@@ -1223,6 +1254,17 @@ public class ChatController : ChatControllerBase
             iceServers,
             iceTransportPolicy = transportPolicy
         }));
+    }
+
+    private static string BuildMessagePreview(string? content)
+    {
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            return "(no text)";
+        }
+
+        var preview = content.Replace('\r', ' ').Replace('\n', ' ').Trim();
+        return preview.Length <= 120 ? preview : $"{preview[..120]}...";
     }
 }
 

@@ -20,6 +20,7 @@ internal sealed class MessageService : IMessageService
     private readonly IEventBus _eventBus;
     private readonly IUserDirectory? _userDirectory;
     private readonly IMentionNotificationService? _mentionNotifier;
+    private readonly IUserBlockService? _userBlockService;
     private readonly ILogger<MessageService> _logger;
 
     public MessageService(
@@ -27,13 +28,15 @@ internal sealed class MessageService : IMessageService
         IEventBus eventBus,
         ILogger<MessageService> logger,
         IUserDirectory? userDirectory = null,
-        IMentionNotificationService? mentionNotifier = null)
+        IMentionNotificationService? mentionNotifier = null,
+        IUserBlockService? userBlockService = null)
     {
         _db = db;
         _eventBus = eventBus;
         _logger = logger;
         _userDirectory = userDirectory;
         _mentionNotifier = mentionNotifier;
+        _userBlockService = userBlockService;
     }
 
     /// <inheritdoc />
@@ -49,6 +52,23 @@ internal sealed class MessageService : IMessageService
 
         if (!isMember)
             throw new UnauthorizedAccessException($"User {caller.UserId} is not a member of channel {channelId}.");
+
+        // For DM channels, check if the other user has blocked the sender
+        if (_userBlockService is not null)
+        {
+            var ch = await _db.Channels.AsNoTracking().FirstOrDefaultAsync(c => c.Id == channelId, cancellationToken);
+            if (ch?.Type == Models.ChannelType.DirectMessage)
+            {
+                var otherMember = await _db.ChannelMembers.AsNoTracking()
+                    .FirstOrDefaultAsync(m => m.ChannelId == channelId && m.UserId != caller.UserId, cancellationToken);
+                if (otherMember is not null)
+                {
+                    var isBlocked = await _userBlockService.IsBlockedAsync(caller.UserId, otherMember.UserId, cancellationToken);
+                    if (isBlocked)
+                        throw new InvalidOperationException("You have been blocked by this user. You cannot send messages.");
+                }
+            }
+        }
 
         var message = new Message
         {

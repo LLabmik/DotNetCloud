@@ -50,6 +50,10 @@ public partial class MemberListPanel : ComponentBase
     [Parameter]
     public Guid CurrentUserId { get; set; }
 
+    /// <summary>Whether the current channel is muted by the current user.</summary>
+    [Parameter]
+    public bool IsChannelMuted { get; set; }
+
     /// <summary>Set of user IDs that the current user has blocked.</summary>
     [Parameter]
     public HashSet<Guid> BlockedUserIds { get; set; } = [];

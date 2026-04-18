@@ -23,5 +23,69 @@
                                   OnAcceptVideo="@HandleAcceptVideo"
                                   OnAcceptAudio="@HandleAcceptAudio"
                                   OnReject="@HandleReject" />
+
+        @if (ShouldShowMessageToast)
+        {
+            <div class="global-message-toast" role="status" aria-live="polite">
+                <button class="toast-close" type="button" title="Dismiss" @onclick="HandleDismissToast">✕</button>
+                <div class="toast-channel">@NotificationState.ToastChannelName</div>
+                <div class="toast-sender">@NotificationState.ToastSenderName</div>
+                <div class="toast-preview">@NotificationState.ToastMessagePreview</div>
+            </div>
+        }
     </Authorized>
 </AuthorizeView>
+
+<style>
+    .global-message-toast {
+        position: fixed;
+        right: 1rem;
+        bottom: 1rem;
+        z-index: 1100;
+        width: min(320px, calc(100vw - 2rem));
+        padding: 0.75rem 2rem 0.75rem 0.9rem;
+        border-radius: 10px;
+        background: #111827;
+        color: #f9fafb;
+        box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .toast-close {
+        position: absolute;
+        top: 0.4rem;
+        right: 0.45rem;
+        border: none;
+        background: transparent;
+        color: #d1d5db;
+        font-size: 14px;
+        cursor: pointer;
+    }
+
+    .toast-close:hover {
+        color: #ffffff;
+    }
+
+    .toast-channel {
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #93c5fd;
+        margin-bottom: 4px;
+    }
+
+    .toast-sender {
+        font-size: 13px;
+        font-weight: 600;
+        color: #f3f4f6;
+        margin-bottom: 2px;
+    }
+
+    .toast-preview {
+        font-size: 13px;
+        color: #d1d5db;
+        line-height: 1.35;
+        word-break: break-word;
+    }
+</style>

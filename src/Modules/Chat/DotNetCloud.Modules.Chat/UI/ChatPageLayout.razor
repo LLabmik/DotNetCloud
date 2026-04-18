@@ -30,8 +30,10 @@
         <ChannelHeader Channel="@_selectedChannel"
                        IsAdminOrOwner="@_currentUserIsAdminOrOwner"
                        HasActiveCall="@_hasActiveCall"
+                       IsDirectPeerBlocked="@IsSelectedDirectPeerBlocked"
                        OnPinChanged="@HandlePinChanged"
                        OnMuteChanged="@HandleMuteChanged"
+                       OnToggleDirectPeerBlock="@HandleToggleDirectPeerBlock"
                        OnEditChannel="@HandleEditChannel"
                        OnArchiveChannel="@HandleArchiveChannel"
                        OnLeaveChannel="@HandleLeaveChannel"
@@ -94,17 +96,27 @@
 
                 @if (_selectedChannel is not null)
                 {
-                    <MessageComposer ChannelName="@_selectedChannel.Name"
-                                     ChannelType="@_selectedChannel.Type"
-                                     ReplyToMessage="@_replyToMessage"
-                                     EditingMessage="@_editingMessage"
-                                     MentionSuggestions="@_memberSuggestions"
-                                     OnSend="@HandleSendMessage"
-                                     OnEditSend="@HandleEditMessage"
-                                     OnCancelReply="@HandleCancelReply"
-                                     OnCancelEdit="@HandleCancelEditMessage"
-                                     OnTyping="@HandleTyping"
-                                     OnAttach="@HandleAttach" />
+                    @if (IsBlockedBySelectedPeer)
+                    {
+                        <div class="chat-blocked-banner">
+                            <span class="blocked-icon">🚫</span>
+                            <span>You have been blocked by this user. You cannot send messages or make calls.</span>
+                        </div>
+                    }
+                    else
+                    {
+                        <MessageComposer ChannelName="@_selectedChannel.Name"
+                                         ChannelType="@_selectedChannel.Type"
+                                         ReplyToMessage="@_replyToMessage"
+                                         EditingMessage="@_editingMessage"
+                                         MentionSuggestions="@_memberSuggestions"
+                                         OnSend="@HandleSendMessage"
+                                         OnEditSend="@HandleEditMessage"
+                                         OnCancelReply="@HandleCancelReply"
+                                         OnCancelEdit="@HandleCancelEditMessage"
+                                         OnTyping="@HandleTyping"
+                                         OnAttach="@HandleAttach" />
+                    }
                 }
             </div>
 
@@ -113,6 +125,7 @@
                 <MemberListPanel Members="@_members"
                                  CanManageMembers="@_currentUserIsAdminOrOwner"
                                  CurrentUserId="@_currentUserId"
+                                 IsChannelMuted="@(_selectedChannel?.IsMuted ?? false)"
                                  BlockedUserIds="@_blockedUserIds"
                                  OnClose="@HandleCloseMemberPanel"
                                  OnPromoteMember="@HandlePromoteMember"

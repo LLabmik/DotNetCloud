@@ -43,6 +43,14 @@ public partial class ChannelHeader : ComponentBase
     [Parameter]
     public EventCallback<(Guid ChannelId, bool IsMuted)> OnMuteChanged { get; set; }
 
+    /// <summary>Whether the direct-message peer is blocked by the current user.</summary>
+    [Parameter]
+    public bool IsDirectPeerBlocked { get; set; }
+
+    /// <summary>Callback to toggle block/unblock for the direct-message peer.</summary>
+    [Parameter]
+    public EventCallback OnToggleDirectPeerBlock { get; set; }
+
     /// <summary>Callback to open the invite dialog.</summary>
     [Parameter]
     public EventCallback OnInvite { get; set; }
@@ -132,6 +140,12 @@ public partial class ChannelHeader : ComponentBase
     protected async Task OnVideoCallClick()
     {
         await OnVideoCall.InvokeAsync();
+    }
+
+    /// <summary>Handles direct-message peer block/unblock click.</summary>
+    protected async Task OnToggleDirectPeerBlockClick()
+    {
+        await OnToggleDirectPeerBlock.InvokeAsync();
     }
 
     /// <summary>Handles join call button click.</summary>

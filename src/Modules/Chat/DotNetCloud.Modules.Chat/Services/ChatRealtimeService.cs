@@ -79,6 +79,16 @@ public interface IChatRealtimeService
         string senderName,
         string messagePreview,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Sends a block/unblock status notification to a specific user.
+    /// The target user sees that they have been blocked or unblocked.
+    /// </summary>
+    Task SendBlockStatusChangedAsync(
+        Guid targetUserId,
+        Guid blockerUserId,
+        bool isBlocked,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -248,6 +258,21 @@ internal sealed class ChatRealtimeService : IChatRealtimeService
             channelName,
             senderName,
             messagePreview
+        }, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task SendBlockStatusChangedAsync(
+        Guid targetUserId,
+        Guid blockerUserId,
+        bool isBlocked,
+        CancellationToken cancellationToken)
+    {
+        if (_broadcaster is null) return;
+        await _broadcaster.SendToUserAsync(targetUserId, "BlockStatusChanged", new
+        {
+            blockerUserId,
+            isBlocked
         }, cancellationToken);
     }
 }

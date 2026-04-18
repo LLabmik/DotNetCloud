@@ -146,6 +146,28 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     private readonly Dictionary<Guid, string> _avatarUrlCache = [];
     private readonly Dictionary<Guid, Guid> _dmChannelToOtherUser = [];
     private HashSet<Guid> _blockedUserIds = [];  // Users blocked by current user
+    private HashSet<Guid> _blockedByUserIds = []; // Users who have blocked current user
+
+    private Guid? SelectedDirectPeerUserId
+    {
+        get
+        {
+            if (_selectedChannel is null || _selectedChannel.Type != "DirectMessage")
+            {
+                return null;
+            }
+
+            return _dmChannelToOtherUser.TryGetValue(_selectedChannel.Id, out var otherUserId)
+                ? otherUserId
+                : null;
+        }
+    }
+
+    private bool IsSelectedDirectPeerBlocked
+        => SelectedDirectPeerUserId is Guid userId && _blockedUserIds.Contains(userId);
+
+    private bool IsBlockedBySelectedPeer
+        => SelectedDirectPeerUserId is Guid userId && _blockedByUserIds.Contains(userId);
 
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
@@ -178,6 +200,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         ChatMessageNotifier.UserPresenceChanged += OnUserPresenceChanged;
         ChatMessageNotifier.MediaStateChanged += OnMediaStateChanged;
         ChatMessageNotifier.CallParticipantLeft += OnCallParticipantLeft;
+        ChatMessageNotifier.UserBlockStatusChanged += OnUserBlockStatusChanged;
         GlobalNotificationState.OnCallAccepted += OnGlobalCallAccepted;
 
         await LoadChannelsAsync();
@@ -205,6 +228,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         ChatMessageNotifier.UserPresenceChanged -= OnUserPresenceChanged;
         ChatMessageNotifier.MediaStateChanged -= OnMediaStateChanged;
         ChatMessageNotifier.CallParticipantLeft -= OnCallParticipantLeft;
+        ChatMessageNotifier.UserBlockStatusChanged -= OnUserBlockStatusChanged;
         GlobalNotificationState.OnCallAccepted -= OnGlobalCallAccepted;
 
         _callDurationTimer?.Stop();
@@ -221,12 +245,26 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
     private void OnRemoteMessageReceived(Guid channelId, MessageDto message)
     {
-        if (_selectedChannel is null || _selectedChannel.Id != channelId) return;
-        if (_messages.Any(m => m.Id == message.Id)) return;
-
         InvokeAsync(() =>
         {
-            _messages.Add(ToMessageViewModel(message));
+            if (_selectedChannel is not null && _selectedChannel.Id == channelId)
+            {
+                if (_messages.Any(m => m.Id == message.Id))
+                {
+                    return;
+                }
+
+                _messages.Add(ToMessageViewModel(message));
+            }
+            else
+            {
+                var channel = _channels.FirstOrDefault(c => c.Id == channelId);
+                if (channel is not null)
+                {
+                    channel.UnreadCount += 1;
+                }
+            }
+
             StateHasChanged();
         });
     }
@@ -395,6 +433,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         await LoadMessagesAsync(channel.Id);
         await LoadMembersAsync(channel.Id);
         await MarkChannelAsReadAsync(channel.Id);
+        await CheckIfBlockedByPeerAsync();
     }
 
     /// <summary>Handles creating a new channel.</summary>
@@ -471,6 +510,29 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         }
     }
 
+    /// <summary>Checks if the selected DM peer has blocked the current user.</summary>
+    private async Task CheckIfBlockedByPeerAsync()
+    {
+        if (SelectedDirectPeerUserId is not Guid peerId) return;
+
+        try
+        {
+            var isBlocked = await UserBlockService.IsBlockedAsync(_currentUserId, peerId);
+            if (isBlocked)
+            {
+                _blockedByUserIds.Add(peerId);
+            }
+            else
+            {
+                _blockedByUserIds.Remove(peerId);
+            }
+        }
+        catch
+        {
+            // Non-critical
+        }
+    }
+
     /// <summary>Handles block/unblock toggle for a user.</summary>
     protected async Task HandleToggleBlockUser(Guid userId)
     {
@@ -494,6 +556,35 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         {
             _channelErrorMessage = ex.Message;
         }
+    }
+
+    protected async Task HandleToggleDirectPeerBlock()
+    {
+        if (SelectedDirectPeerUserId is not Guid userId)
+        {
+            return;
+        }
+
+        await HandleToggleBlockUser(userId);
+    }
+
+    private void OnUserBlockStatusChanged(UserBlockStatusChangedNotification notification)
+    {
+        if (notification.TargetUserId != _currentUserId) return;
+
+        InvokeAsync(() =>
+        {
+            if (notification.IsBlocked)
+            {
+                _blockedByUserIds.Add(notification.BlockerUserId);
+            }
+            else
+            {
+                _blockedByUserIds.Remove(notification.BlockerUserId);
+            }
+
+            StateHasChanged();
+        });
     }
 
     /// <summary>Handles channel reorder from drag-and-drop.</summary>
@@ -699,6 +790,33 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
             await ChatRealtimeService.BroadcastNewMessageAsync(_selectedChannel.Id, sent);
             ChatMessageNotifier.NotifyMessageReceived(_selectedChannel.Id, sent);
+
+            var members = await MemberService.ListMembersAsync(_selectedChannel.Id, caller);
+            var preview = BuildMessagePreview(sent.Content);
+            var channelName = string.IsNullOrWhiteSpace(_selectedChannel.Name) ? "Channel" : _selectedChannel.Name;
+            var senderName = _displayNameCache.GetValueOrDefault(sent.SenderUserId, sent.SenderUserId.ToString()[..8]);
+
+            foreach (var member in members)
+            {
+                if (member.UserId == caller.UserId || member.IsMuted)
+                {
+                    continue;
+                }
+
+                await ChatRealtimeService.SendNewMessageToastAsync(
+                    member.UserId,
+                    _selectedChannel.Id,
+                    channelName,
+                    senderName,
+                    preview);
+
+                ChatMessageNotifier.NotifyNewMessageToast(new NewMessageToastNotification(
+                    member.UserId,
+                    _selectedChannel.Id,
+                    channelName,
+                    senderName,
+                    preview));
+            }
         }
         catch (Exception ex)
         {
@@ -2010,6 +2128,18 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     /// </summary>
     private async Task CallUserDirectlyAsync(Guid targetUserId, string mediaType = "Audio")
     {
+        if (_selectedChannel is not null && _selectedChannel.IsMuted)
+        {
+            _messageErrorMessage = "This channel is muted. Unmute it to start calls.";
+            return;
+        }
+
+        if (_blockedByUserIds.Contains(targetUserId))
+        {
+            _messageErrorMessage = "You have been blocked by this user. You cannot place calls.";
+            return;
+        }
+
         try
         {
             var caller = await GetCallerContextAsync();
@@ -2278,6 +2408,17 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     private async Task InitiateCallAsync(string mediaType, bool cameraOff)
     {
         if (_selectedChannel is null) return;
+        if (_selectedChannel.IsMuted)
+        {
+            _messageErrorMessage = "This channel is muted. Unmute it to start calls.";
+            return;
+        }
+        if (IsBlockedBySelectedPeer)
+        {
+            _messageErrorMessage = "You have been blocked by this user. You cannot place calls.";
+            return;
+        }
+
         try
         {
             var caller = await GetCallerContextAsync();
@@ -2653,5 +2794,16 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
             AcknowledgementCount = dto.AcknowledgementCount,
             AuthorName = dto.AuthorUserId.ToString()[..8]
         };
+    }
+
+    private static string BuildMessagePreview(string? content)
+    {
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            return "(no text)";
+        }
+
+        var preview = content.Replace('\r', ' ').Replace('\n', ' ').Trim();
+        return preview.Length <= 120 ? preview : $"{preview[..120]}...";
     }
 }
