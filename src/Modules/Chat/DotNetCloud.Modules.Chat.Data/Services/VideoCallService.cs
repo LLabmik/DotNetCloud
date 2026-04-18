@@ -141,11 +141,18 @@ internal sealed class VideoCallService : IVideoCallService
         }
 
         // Notify in-process Blazor circuits so members in this channel can render the incoming call UI.
+        // Only target channel members (excluding the initiator) to prevent notification leaking to unrelated users.
+        var targetMemberIds = await _db.ChannelMembers
+            .Where(cm => cm.ChannelId == channelId && cm.UserId != caller.UserId)
+            .Select(cm => cm.UserId)
+            .ToListAsync(cancellationToken);
+
         _messageNotifier?.NotifyCallRinging(new CallRingingNotification(
             CallId: call.Id,
             ChannelId: channelId,
             InitiatorUserId: caller.UserId,
-            MediaType: mediaType.ToString()));
+            MediaType: mediaType.ToString(),
+            TargetUserIds: targetMemberIds));
 
         _logger.LogInformation(
             "Video call {CallId} initiated in channel {ChannelId} by user {UserId} (MediaType={MediaType}, IsGroup={IsGroup})",
@@ -716,7 +723,8 @@ internal sealed class VideoCallService : IVideoCallService
             InvitedByDisplayName: inviterDisplayName,
             MediaType: call.MediaType.ToString(),
             IsMidCallInvite: true,
-            ParticipantCount: activeParticipantCount));
+            ParticipantCount: activeParticipantCount,
+            TargetUserId: targetUserId));
 
         _logger.LogInformation(
             "User {InviterId} (Host) invited user {TargetId} to call {CallId} in channel {ChannelId}",

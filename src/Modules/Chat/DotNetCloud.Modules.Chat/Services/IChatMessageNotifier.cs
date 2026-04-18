@@ -9,7 +9,8 @@ public sealed record CallRingingNotification(
     Guid CallId,
     Guid ChannelId,
     Guid InitiatorUserId,
-    string MediaType);
+    string MediaType,
+    IReadOnlyList<Guid> TargetUserIds);
 
 /// <summary>
 /// Payload for a call-accepted notification raised via <see cref="IChatMessageNotifier"/>.
@@ -40,7 +41,8 @@ public sealed record CallInviteReceivedNotification(
     string? InvitedByDisplayName,
     string MediaType,
     bool IsMidCallInvite,
-    int ParticipantCount);
+    int ParticipantCount,
+    Guid TargetUserId);
 
 /// <summary>
 /// Payload for a host transfer notification raised via <see cref="IChatMessageNotifier"/>.

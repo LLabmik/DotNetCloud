@@ -588,7 +588,8 @@ public class InviteToCallServiceTests
             InvitedByDisplayName: "Alice",
             MediaType: "Video",
             IsMidCallInvite: true,
-            ParticipantCount: 3);
+            ParticipantCount: 3,
+            TargetUserId: Guid.NewGuid());
 
         Assert.IsTrue(notification.IsMidCallInvite);
         Assert.AreEqual("Video", notification.MediaType);
@@ -606,7 +607,8 @@ public class InviteToCallServiceTests
             InvitedByDisplayName: null,
             MediaType: "Audio",
             IsMidCallInvite: false,
-            ParticipantCount: 1);
+            ParticipantCount: 1,
+            TargetUserId: Guid.NewGuid());
 
         Assert.IsNull(notification.InvitedByDisplayName);
         Assert.IsFalse(notification.IsMidCallInvite);
@@ -645,7 +647,7 @@ public class InviteToCallServiceTests
 
         var notification = new CallInviteReceivedNotification(
             Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
-            "Bob", "Video", true, 2);
+            "Bob", "Video", true, 2, Guid.NewGuid());
 
         notifier.NotifyCallInviteReceived(notification);
 
@@ -661,7 +663,7 @@ public class InviteToCallServiceTests
 
         var notification = new CallInviteReceivedNotification(
             Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
-            "Bob", "Video", true, 2);
+            "Bob", "Video", true, 2, Guid.NewGuid());
 
         // Should not throw when no subscribers
         notifier.NotifyCallInviteReceived(notification);

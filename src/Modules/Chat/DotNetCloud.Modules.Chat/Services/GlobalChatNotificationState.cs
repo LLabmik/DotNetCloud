@@ -138,6 +138,7 @@ public sealed class GlobalChatNotificationState : IDisposable
     {
         if (_currentUserId == Guid.Empty) return;
         if (notification.InitiatorUserId == _currentUserId) return;
+        if (!notification.TargetUserIds.Contains(_currentUserId)) return;
 
         IncomingCallId = notification.CallId;
         IncomingCallInitiatorId = notification.InitiatorUserId;
@@ -160,6 +161,7 @@ public sealed class GlobalChatNotificationState : IDisposable
     {
         if (_currentUserId == Guid.Empty) return;
         if (_activeCallId == notification.CallId) return;
+        if (notification.TargetUserId != _currentUserId) return;
 
         IncomingCallId = notification.CallId;
         IncomingCallInitiatorId = notification.InvitedByUserId;
