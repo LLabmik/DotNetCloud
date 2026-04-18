@@ -235,6 +235,18 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
             _breadcrumbs.Clear();
             await LoadCurrentFolderAsync();
         }
+        else if (section == FileSidebarSection.Favorites)
+        {
+            _currentFolderId = null;
+            _breadcrumbs.Clear();
+            await LoadFavoritesAsync();
+        }
+        else if (section == FileSidebarSection.Recent)
+        {
+            _currentFolderId = null;
+            _breadcrumbs.Clear();
+            await LoadRecentAsync();
+        }
         else if (section == FileSidebarSection.SharedWithMe)
         {
             await LoadSharedWithMeAsync();
@@ -1418,12 +1430,25 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         StateHasChanged();
     }
 
-    protected void ToggleFavorite(Guid nodeId)
+    protected async Task ToggleFavorite(Guid nodeId)
     {
         var node = _nodes.FirstOrDefault(n => n.Id == nodeId);
         if (node is not null)
         {
             node.IsFavorite = !node.IsFavorite;
+            StateHasChanged();
+
+            try
+            {
+                var caller = await GetCallerContextAsync();
+                await FileService.ToggleFavoriteAsync(nodeId, caller);
+            }
+            catch
+            {
+                // Revert on failure
+                node.IsFavorite = !node.IsFavorite;
+                StateHasChanged();
+            }
         }
     }
 
@@ -1886,6 +1911,22 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
             }
         }
 
+        StateHasChanged();
+    }
+
+    private async Task LoadFavoritesAsync()
+    {
+        var caller = await GetCallerContextAsync();
+        var nodes = await FileService.ListFavoritesAsync(caller);
+        _nodes = nodes.Select(ToViewModel).ToList();
+        StateHasChanged();
+    }
+
+    private async Task LoadRecentAsync()
+    {
+        var caller = await GetCallerContextAsync();
+        var nodes = await FileService.ListRecentAsync(50, caller);
+        _nodes = nodes.Select(ToViewModel).ToList();
         StateHasChanged();
     }
 
