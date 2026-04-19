@@ -370,6 +370,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
     private async Task LoadChannelsAsync()
     {
+        if (_isLoadingChannels) return;
         try
         {
             _isLoadingChannels = true;
