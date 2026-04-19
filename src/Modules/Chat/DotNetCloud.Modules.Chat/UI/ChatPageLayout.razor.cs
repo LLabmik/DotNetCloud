@@ -94,6 +94,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
     // DM user search state
     private bool _showDmUserPicker;
+    private bool _dmCreationInProgress;
     private ElementReference _dmSearchInputRef;
     private string _dmSearchTerm = string.Empty;
     private List<UserSearchResultViewModel> _dmSearchResults = [];
@@ -579,10 +580,15 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     private void OnChannelAdded(Guid channelId)
     {
         // A new channel (e.g. a DM started by another user) has been added.
-        // Skip the reload if this circuit already has the channel (i.e. this is the creator's
-        // circuit and StartDmWithUserAsync already loaded it), or if a load is already in progress.
+        // Blazor Server runs InvokeAsync callbacks INLINE (up to their first real await) when
+        // called from the circuit thread. Guard against the three cases where we should skip:
+        //   1. _dmCreationInProgress: this IS the creator's circuit — StartDmWithUserAsync is
+        //      mid-flight and will handle everything itself.
+        //   2. _channels.Any: the channel was already added (queued callback ran after the fact).
+        //   3. _isLoadingChannels: another reload is already in progress.
         _ = InvokeAsync(async () =>
         {
+            if (_dmCreationInProgress) return;
             if (_channels.Any(c => c.Id == channelId)) return;
             if (_isLoadingChannels) return;
             await LoadChannelsAsync();
@@ -2177,6 +2183,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     /// </summary>
     private async Task StartDmWithUserAsync(Guid targetUserId)
     {
+        _dmCreationInProgress = true;
         try
         {
             var caller = await GetCallerContextAsync();
@@ -2224,6 +2231,10 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         catch (Exception ex)
         {
             _messageErrorMessage = $"Failed to start DM: {ex.Message}";
+        }
+        finally
+        {
+            _dmCreationInProgress = false;
         }
     }
 
