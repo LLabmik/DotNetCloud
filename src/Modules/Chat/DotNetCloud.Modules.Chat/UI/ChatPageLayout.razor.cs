@@ -577,9 +577,13 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
     private void OnChannelAdded(Guid channelId)
     {
-        // A new channel (e.g. a DM started by another user) has been added — reload the sidebar.
-        InvokeAsync(async () =>
+        // A new channel (e.g. a DM started by another user) has been added.
+        // Skip the reload if this circuit already has the channel (i.e. this is the creator's
+        // circuit and StartDmWithUserAsync already loaded it), or if a load is already in progress.
+        _ = InvokeAsync(async () =>
         {
+            if (_channels.Any(c => c.Id == channelId)) return;
+            if (_isLoadingChannels) return;
             await LoadChannelsAsync();
             StateHasChanged();
         });
@@ -587,8 +591,9 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
     private void OnChannelDeleted(Guid channelId)
     {
-        // A channel was deleted (e.g. the other DM participant left) — remove it from the sidebar.
-        InvokeAsync(() =>
+        // A channel was deleted (e.g. the other DM participant left) — remove it from the sidebar
+        // and navigate away if it was the active channel.
+        _ = InvokeAsync(async () =>
         {
             _channels.RemoveAll(c => c.Id == channelId);
             _dmChannelToOtherUser.Remove(channelId);
@@ -596,10 +601,18 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
             if (_selectedChannel?.Id == channelId)
             {
                 _selectedChannel = null;
+
+                // Navigate to another DM if available, otherwise fall back to the Public channel.
+                var next = _channels.FirstOrDefault(c => c.Type is "DirectMessage" or "Group")
+                        ?? _channels.FirstOrDefault(c => c.Type is "Public");
+
+                if (next is not null)
+                {
+                    await HandleChannelSelected(next);
+                }
             }
 
             StateHasChanged();
-            return Task.CompletedTask;
         });
     }
 
