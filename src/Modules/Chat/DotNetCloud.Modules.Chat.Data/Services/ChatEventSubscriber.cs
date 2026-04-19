@@ -17,6 +17,7 @@ internal sealed class ChatEventSubscriber : IHostedService
     private readonly IChatMessageNotifier _notifier;
     private readonly ILoggerFactory _loggerFactory;
     private ChannelCreatedEventHandler? _channelCreatedHandler;
+    private ChannelDeletedEventHandler? _channelDeletedHandler;
 
     /// <summary>
     /// Initializes a new instance of <see cref="ChatEventSubscriber"/>.
@@ -38,10 +39,15 @@ internal sealed class ChatEventSubscriber : IHostedService
             _notifier,
             _loggerFactory.CreateLogger<ChannelCreatedEventHandler>());
 
+        _channelDeletedHandler = new ChannelDeletedEventHandler(
+            _notifier,
+            _loggerFactory.CreateLogger<ChannelDeletedEventHandler>());
+
         await _eventBus.SubscribeAsync(_channelCreatedHandler, cancellationToken);
+        await _eventBus.SubscribeAsync(_channelDeletedHandler, cancellationToken);
 
         _loggerFactory.CreateLogger<ChatEventSubscriber>()
-            .LogInformation("Chat event handlers subscribed (ChannelCreated)");
+            .LogInformation("Chat event handlers subscribed (ChannelCreated, ChannelDeleted)");
     }
 
     /// <inheritdoc />
@@ -49,5 +55,8 @@ internal sealed class ChatEventSubscriber : IHostedService
     {
         if (_channelCreatedHandler is not null)
             await _eventBus.UnsubscribeAsync(_channelCreatedHandler, cancellationToken);
+
+        if (_channelDeletedHandler is not null)
+            await _eventBus.UnsubscribeAsync(_channelDeletedHandler, cancellationToken);
     }
 }

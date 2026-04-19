@@ -159,11 +159,17 @@ public interface IChatMessageNotifier
     /// <summary>Raised when a channel is added to the current user's membership (e.g. a new DM was started with them).</summary>
     event Action<Guid>? ChannelAdded;
 
+    /// <summary>Raised when a channel is deleted (e.g. the other participant left a DM).</summary>
+    event Action<Guid>? ChannelDeleted;
+
     /// <summary>Raised when a user's block status changes (blocked or unblocked by another user).</summary>
     event Action<UserBlockStatusChangedNotification>? UserBlockStatusChanged;
 
     /// <summary>Notifies all subscribers that a channel was added.</summary>
     void NotifyChannelAdded(Guid channelId);
+
+    /// <summary>Notifies all subscribers that a channel was deleted.</summary>
+    void NotifyChannelDeleted(Guid channelId);
 
     /// <summary>Notifies all subscribers that a new message was sent.</summary>
     void NotifyMessageReceived(Guid channelId, MessageDto message);
@@ -310,6 +316,12 @@ public sealed class InProcessChatMessageNotifier : IChatMessageNotifier
 
     /// <inheritdoc />
     public void NotifyChannelAdded(Guid channelId) => ChannelAdded?.Invoke(channelId);
+
+    /// <inheritdoc />
+    public event Action<Guid>? ChannelDeleted;
+
+    /// <inheritdoc />
+    public void NotifyChannelDeleted(Guid channelId) => ChannelDeleted?.Invoke(channelId);
 
     /// <inheritdoc />
     public event Action<UserBlockStatusChangedNotification>? UserBlockStatusChanged;

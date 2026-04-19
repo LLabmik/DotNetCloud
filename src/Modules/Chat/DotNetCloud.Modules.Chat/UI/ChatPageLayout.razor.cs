@@ -203,6 +203,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         ChatMessageNotifier.MediaStateChanged += OnMediaStateChanged;
         ChatMessageNotifier.CallParticipantLeft += OnCallParticipantLeft;
         ChatMessageNotifier.ChannelAdded += OnChannelAdded;
+        ChatMessageNotifier.ChannelDeleted += OnChannelDeleted;
         ChatMessageNotifier.UserBlockStatusChanged += OnUserBlockStatusChanged;
         GlobalNotificationState.OnCallAccepted += OnGlobalCallAccepted;
 
@@ -232,6 +233,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         ChatMessageNotifier.MediaStateChanged -= OnMediaStateChanged;
         ChatMessageNotifier.CallParticipantLeft -= OnCallParticipantLeft;
         ChatMessageNotifier.ChannelAdded -= OnChannelAdded;
+        ChatMessageNotifier.ChannelDeleted -= OnChannelDeleted;
         ChatMessageNotifier.UserBlockStatusChanged -= OnUserBlockStatusChanged;
         GlobalNotificationState.OnCallAccepted -= OnGlobalCallAccepted;
 
@@ -579,6 +581,24 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         {
             await LoadChannelsAsync();
             StateHasChanged();
+        });
+    }
+
+    private void OnChannelDeleted(Guid channelId)
+    {
+        // A channel was deleted (e.g. the other DM participant left) — remove it from the sidebar.
+        InvokeAsync(() =>
+        {
+            _channels.RemoveAll(c => c.Id == channelId);
+            _dmChannelToOtherUser.Remove(channelId);
+
+            if (_selectedChannel?.Id == channelId)
+            {
+                _selectedChannel = null;
+            }
+
+            StateHasChanged();
+            return Task.CompletedTask;
         });
     }
 
