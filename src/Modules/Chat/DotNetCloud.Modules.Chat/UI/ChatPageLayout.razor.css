@@ -298,6 +298,15 @@
     margin: 4px 0 0;
 }
 
+.dm-picker-error {
+    font-size: 12px;
+    color: var(--color-danger, #ef4444);
+    background: rgba(239, 68, 68, 0.08);
+    border-radius: 6px;
+    padding: 6px 10px;
+    margin: 0;
+}
+
 /* Results list */
 
 .dm-picker-results {

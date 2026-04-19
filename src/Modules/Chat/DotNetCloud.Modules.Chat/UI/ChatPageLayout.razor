@@ -243,6 +243,11 @@
                            aria-label="Search users for a direct message" />
                 </div>
 
+                @if (!string.IsNullOrWhiteSpace(_dmSearchError))
+                {
+                    <p class="dm-picker-error">@_dmSearchError</p>
+                }
+
                 @if (_isDmSearching)
                 {
                     <p class="dm-picker-status">Searching…</p>

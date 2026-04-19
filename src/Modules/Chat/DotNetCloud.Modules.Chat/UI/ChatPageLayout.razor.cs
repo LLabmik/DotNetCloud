@@ -97,6 +97,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     private string _dmSearchTerm = string.Empty;
     private List<UserSearchResultViewModel> _dmSearchResults = [];
     private bool _isDmSearching;
+    private string? _dmSearchError;
+    private CancellationTokenSource? _dmSearchCts;
 
     // Channel add-people state
     private bool _showChannelAddPeoplePicker;
@@ -2064,21 +2066,36 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     /// </summary>
     private async Task SearchUsersForDmAsync(string searchTerm)
     {
+        _dmSearchCts?.Cancel();
+        _dmSearchCts?.Dispose();
+        _dmSearchCts = new CancellationTokenSource();
+        var cts = _dmSearchCts;
+
         if (string.IsNullOrWhiteSpace(searchTerm))
         {
             _dmSearchResults = [];
+            _dmSearchError = null;
             return;
         }
 
         _isDmSearching = true;
+        _dmSearchError = null;
         try
         {
-            var results = await UserDirectory.SearchUsersAsync(searchTerm);
-            var existingDmUserIds = _dmChannelToOtherUser.Values.ToHashSet();
+            // Derive active DM peers from _channels (stays in sync with deletions)
+            var existingDmUserIds = _channels
+                .Where(c => c.Type is "DirectMessage" && _dmChannelToOtherUser.ContainsKey(c.Id))
+                .Select(c => _dmChannelToOtherUser[c.Id])
+                .ToHashSet();
+
+            var results = await UserDirectory.SearchUsersAsync(searchTerm, cancellationToken: cts.Token);
             var filtered = results
                 .Where(r => r.Id != _currentUserId && !existingDmUserIds.Contains(r.Id))
                 .ToList();
-            var avatarUrls = await UserDirectory.GetAvatarUrlsAsync(filtered.Select(r => r.Id));
+            var avatarUrls = await UserDirectory.GetAvatarUrlsAsync(filtered.Select(r => r.Id), cts.Token);
+
+            if (cts.IsCancellationRequested) return;
+
             _dmSearchResults = filtered
                 .Select(r => new UserSearchResultViewModel
                 {
@@ -2089,14 +2106,22 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
                 })
                 .ToList();
         }
+        catch (OperationCanceledException)
+        {
+            // superseded by a newer search — no action needed
+        }
         catch (Exception ex)
         {
-            _messageErrorMessage = $"Failed to search users: {ex.Message}";
-            _dmSearchResults = [];
+            if (!cts.IsCancellationRequested)
+            {
+                _dmSearchError = $"Search failed: {ex.Message}";
+                _dmSearchResults = [];
+            }
         }
         finally
         {
-            _isDmSearching = false;
+            if (!cts.IsCancellationRequested)
+                _isDmSearching = false;
         }
     }
 
@@ -2395,9 +2420,14 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
     private Task HandleCloseDmUserPicker()
     {
+        _dmSearchCts?.Cancel();
+        _dmSearchCts?.Dispose();
+        _dmSearchCts = null;
         _showDmUserPicker = false;
         _dmSearchTerm = string.Empty;
         _dmSearchResults = [];
+        _dmSearchError = null;
+        _isDmSearching = false;
         return Task.CompletedTask;
     }
 
