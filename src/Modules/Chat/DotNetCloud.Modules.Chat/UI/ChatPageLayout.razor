@@ -236,7 +236,7 @@
                     </svg>
                     <input type="text"
                            class="dm-picker-search-input"
-                           autocomplete="off"
+                           type="search"
                            @bind="_dmSearchTerm"
                            @bind:event="oninput"
                            @bind:after="() => SearchUsersForDmAsync(_dmSearchTerm)"
@@ -321,7 +321,7 @@
                     </svg>
                     <input type="text"
                            class="dm-picker-search-input"
-                           autocomplete="off"
+                           type="search"
                            @bind="_channelAddPeopleSearchTerm"
                            @bind:event="oninput"
                            @bind:after="() => SearchUsersForChannelAddAsync(_channelAddPeopleSearchTerm)"

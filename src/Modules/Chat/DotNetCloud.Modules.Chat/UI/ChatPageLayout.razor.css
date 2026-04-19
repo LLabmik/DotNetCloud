@@ -278,6 +278,11 @@
     color: var(--color-muted, #94a3b8);
 }
 
+.dm-picker-search-input::-webkit-search-cancel-button,
+.dm-picker-search-input::-webkit-search-decoration {
+    display: none;
+}
+
 .dm-picker-search-input:focus {
     border-color: var(--color-primary, #3b82f6);
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
