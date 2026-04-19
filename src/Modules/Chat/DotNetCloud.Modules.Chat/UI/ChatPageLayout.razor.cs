@@ -2186,13 +2186,42 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
             _dmSearchTerm = string.Empty;
             _dmSearchResults = [];
 
-            // Reload channels and select the DM
-            await LoadChannelsAsync();
+            // Find the channel in the already-loaded list or add it directly.
+            // Avoids a LoadChannelsAsync race with the OnChannelAdded callback that fires
+            // when ChannelCreatedEvent is published inside GetOrCreateDirectMessageAsync.
             var targetChannel = _channels.FirstOrDefault(c => c.Id == dm.Id);
-            if (targetChannel is not null)
+            if (targetChannel is null)
             {
-                await HandleChannelSelected(targetChannel);
+                targetChannel = ToChannelViewModel(dm);
+
+                // Resolve and cache the other user's display name
+                if (!_displayNameCache.TryGetValue(targetUserId, out var displayName))
+                {
+                    var names = await UserDirectory.GetDisplayNamesAsync([targetUserId]);
+                    displayName = names.GetValueOrDefault(targetUserId, dm.Name);
+                    _displayNameCache[targetUserId] = displayName;
+                }
+                targetChannel.Name = displayName;
+                _dmChannelToOtherUser[dm.Id] = targetUserId;
+
+                // Resolve avatar (may already be cached from the search)
+                if (!_avatarUrlCache.ContainsKey(targetUserId))
+                {
+                    var urls = await UserDirectory.GetAvatarUrlsAsync([targetUserId]);
+                    if (urls.TryGetValue(targetUserId, out var url))
+                        _avatarUrlCache[targetUserId] = url;
+                }
+
+                _channels.Add(targetChannel);
+                _channels = _channels
+                    .OrderByDescending(c => c.LastActivityAt ?? DateTime.MinValue)
+                    .ThenBy(c => c.Name, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                targetChannel = _channels.First(c => c.Id == dm.Id);
             }
+
+            await HandleChannelSelected(targetChannel);
         }
         catch (Exception ex)
         {
