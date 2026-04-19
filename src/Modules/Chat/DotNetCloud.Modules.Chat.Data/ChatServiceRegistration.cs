@@ -60,6 +60,7 @@ public static class ChatServiceRegistration
         services.AddSingleton<IQueuedNotificationDispatcher>(sp => sp.GetRequiredService<NotificationRouter>());
         services.AddSingleton<IPushNotificationService>(sp => sp.GetRequiredService<NotificationRouter>());
         services.AddHostedService<NotificationDeliveryBackgroundService>();
+        services.AddHostedService<ChatEventSubscriber>();
 
         // Video call management
         services.AddScoped<IVideoCallService, VideoCallService>();
