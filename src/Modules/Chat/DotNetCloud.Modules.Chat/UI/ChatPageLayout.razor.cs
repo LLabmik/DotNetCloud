@@ -2074,7 +2074,10 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         try
         {
             var results = await UserDirectory.SearchUsersAsync(searchTerm);
-            var filtered = results.Where(r => r.Id != _currentUserId).ToList();
+            var existingDmUserIds = _dmChannelToOtherUser.Values.ToHashSet();
+            var filtered = results
+                .Where(r => r.Id != _currentUserId && !existingDmUserIds.Contains(r.Id))
+                .ToList();
             var avatarUrls = await UserDirectory.GetAvatarUrlsAsync(filtered.Select(r => r.Id));
             _dmSearchResults = filtered
                 .Select(r => new UserSearchResultViewModel
