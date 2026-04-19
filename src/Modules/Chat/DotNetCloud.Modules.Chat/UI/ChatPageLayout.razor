@@ -234,9 +234,8 @@
                         <circle cx="11" cy="11" r="8" />
                         <line x1="21" y1="21" x2="16.65" y2="16.65" />
                     </svg>
-                    <input type="text"
+                    <input type="search"
                            class="dm-picker-search-input"
-                           type="search"
                            @bind="_dmSearchTerm"
                            @bind:event="oninput"
                            @bind:after="() => SearchUsersForDmAsync(_dmSearchTerm)"
@@ -319,9 +318,8 @@
                         <circle cx="11" cy="11" r="8" />
                         <line x1="21" y1="21" x2="16.65" y2="16.65" />
                     </svg>
-                    <input type="text"
+                    <input type="search"
                            class="dm-picker-search-input"
-                           type="search"
                            @bind="_channelAddPeopleSearchTerm"
                            @bind:event="oninput"
                            @bind:after="() => SearchUsersForChannelAddAsync(_channelAddPeopleSearchTerm)"
