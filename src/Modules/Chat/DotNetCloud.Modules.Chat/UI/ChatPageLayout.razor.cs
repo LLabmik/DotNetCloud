@@ -94,6 +94,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
     // DM user search state
     private bool _showDmUserPicker;
+    private ElementReference _dmSearchInputRef;
     private string _dmSearchTerm = string.Empty;
     private List<UserSearchResultViewModel> _dmSearchResults = [];
     private bool _isDmSearching;
@@ -2254,12 +2255,13 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         return CallUserDirectlyAsync(userId, "Video");
     }
 
-    private Task HandleOpenDmUserPicker()
+    private async Task HandleOpenDmUserPicker()
     {
         _showDmUserPicker = true;
         _dmSearchTerm = string.Empty;
         _dmSearchResults = [];
-        return Task.CompletedTask;
+        await Task.Yield(); // allow the dialog to render before focusing
+        await _dmSearchInputRef.FocusAsync();
     }
 
     private Task HandleOpenChannelAddPeoplePicker()

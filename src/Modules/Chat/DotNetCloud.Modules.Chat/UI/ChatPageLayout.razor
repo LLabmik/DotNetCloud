@@ -236,6 +236,7 @@
                     </svg>
                     <input type="search"
                            class="dm-picker-search-input"
+                           @ref="_dmSearchInputRef"
                            @bind="_dmSearchTerm"
                            @bind:event="oninput"
                            @bind:after="() => SearchUsersForDmAsync(_dmSearchTerm)"
