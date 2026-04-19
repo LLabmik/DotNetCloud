@@ -217,50 +217,62 @@
 {
     <div class="dialog-overlay" @onclick="HandleCloseDmUserPicker">
         <div class="dialog dm-user-picker-dialog" @onclick:stopPropagation="true">
-            <div class="dialog-header">
-                <h2>New Direct Message</h2>
-                <button class="btn btn-sm" @onclick="HandleCloseDmUserPicker">✕</button>
+            <div class="dm-picker-header">
+                <div class="dm-picker-title-row">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                    </svg>
+                    <h3 class="dm-picker-title">New Direct Message</h3>
+                </div>
+                <button class="dm-picker-close" @onclick="HandleCloseDmUserPicker" aria-label="Close">✕</button>
             </div>
-            <div class="dialog-body">
-                <div class="settings-section">
-                    <label>Search users</label>
+            <div class="dm-picker-body">
+                <div class="dm-picker-search-wrapper">
+                    <svg class="dm-picker-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="8" />
+                        <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                    </svg>
                     <input type="text"
+                           class="dm-picker-search-input"
                            @bind="_dmSearchTerm"
                            @bind:event="oninput"
                            @bind:after="() => SearchUsersForDmAsync(_dmSearchTerm)"
-                           placeholder="Search by name or email..."
-                           class="search-input" />
+                           placeholder="Search by name or email…"
+                           aria-label="Search users for a direct message" />
                 </div>
 
                 @if (_isDmSearching)
                 {
-                    <div class="search-loading">Searching...</div>
+                    <p class="dm-picker-status">Searching…</p>
                 }
                 else if (_dmSearchResults.Count > 0)
                 {
-                    <div class="dm-user-results">
+                    <div class="dm-picker-results">
                         @foreach (var user in _dmSearchResults)
                         {
-                            <div class="dm-user-result-item" @onclick="() => StartDmWithUserAsync(user.UserId)">
-                                <div class="dm-user-info">
-                                    <span class="dm-user-name">@user.DisplayName</span>
-                                    <span class="dm-user-email">@user.Email</span>
-                                </div>
-                                <div class="dm-user-actions">
-                                    <button class="btn btn-sm btn-icon" title="Audio call"
+                            <button type="button" class="dm-picker-result" @onclick="() => StartDmWithUserAsync(user.UserId)">
+                                <span class="dm-picker-avatar">@(user.DisplayName.Length > 0 ? user.DisplayName[..1].ToUpperInvariant() : "?")</span>
+                                <span class="dm-picker-user-info">
+                                    <span class="dm-picker-name">@user.DisplayName</span>
+                                    <span class="dm-picker-email">@user.Email</span>
+                                </span>
+                                <span class="dm-picker-actions">
+                                    <button type="button" class="dm-picker-icon-btn" title="Audio call"
                                             @onclick="@(() => CallUserDirectlyAsync(user.UserId, "Audio"))"
                                             @onclick:stopPropagation="true">📞</button>
-                                    <button class="btn btn-sm btn-icon" title="Video call"
+                                    <button type="button" class="dm-picker-icon-btn" title="Video call"
                                             @onclick="@(() => CallUserDirectlyAsync(user.UserId, "Video"))"
                                             @onclick:stopPropagation="true">📹</button>
-                                </div>
-                            </div>
+                                </span>
+                            </button>
                         }
                     </div>
                 }
                 else if (!string.IsNullOrWhiteSpace(_dmSearchTerm))
                 {
-                    <div class="search-empty">No users found.</div>
+                    <p class="dm-picker-status">No users found matching "<strong>@_dmSearchTerm</strong>"</p>
                 }
             </div>
         </div>
@@ -271,45 +283,64 @@
 {
     <div class="dialog-overlay" @onclick="HandleCloseChannelAddPeoplePicker">
         <div class="dialog dm-user-picker-dialog" @onclick:stopPropagation="true">
-            <div class="dialog-header">
-                <h2>Add People to @_selectedChannel.Name</h2>
-                <button class="btn btn-sm" @onclick="HandleCloseChannelAddPeoplePicker">✕</button>
+            <div class="dm-picker-header">
+                <div class="dm-picker-title-row">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                        <circle cx="8.5" cy="7" r="4" />
+                        <line x1="20" y1="8" x2="20" y2="14" />
+                        <line x1="23" y1="11" x2="17" y2="11" />
+                    </svg>
+                    <h3 class="dm-picker-title">Add People to #@_selectedChannel.Name</h3>
+                </div>
+                <button class="dm-picker-close" @onclick="HandleCloseChannelAddPeoplePicker" aria-label="Close">✕</button>
             </div>
-            <div class="dialog-body">
-                <div class="settings-section">
-                    <label>Search users</label>
+            <div class="dm-picker-body">
+                <div class="dm-picker-search-wrapper">
+                    <svg class="dm-picker-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="8" />
+                        <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                    </svg>
                     <input type="text"
+                           class="dm-picker-search-input"
                            @bind="_channelAddPeopleSearchTerm"
                            @bind:event="oninput"
                            @bind:after="() => SearchUsersForChannelAddAsync(_channelAddPeopleSearchTerm)"
-                           placeholder="Search by name or email..."
-                           class="search-input" />
+                           placeholder="Search by name or email…"
+                           aria-label="Search people to add" />
                 </div>
 
                 @if (_isChannelAddPeopleSearching)
                 {
-                    <div class="search-loading">Searching...</div>
+                    <p class="dm-picker-status">Searching…</p>
                 }
                 else if (_channelAddPeopleResults.Count > 0)
                 {
-                    <div class="dm-user-results">
+                    <div class="dm-picker-results">
                         @foreach (var user in _channelAddPeopleResults)
                         {
-                            <div class="dm-user-result-item" @onclick="() => AddUserToCurrentChannelAsync(user.UserId)">
-                                <div class="dm-user-info">
-                                    <span class="dm-user-name">@user.DisplayName</span>
-                                    <span class="dm-user-email">@user.Email</span>
-                                </div>
-                                <div class="dm-user-actions">
-                                    <button class="btn btn-sm btn-primary">Add</button>
-                                </div>
-                            </div>
+                            <button type="button" class="dm-picker-result" @onclick="() => AddUserToCurrentChannelAsync(user.UserId)">
+                                <span class="dm-picker-avatar">@(user.DisplayName.Length > 0 ? user.DisplayName[..1].ToUpperInvariant() : "?")</span>
+                                <span class="dm-picker-user-info">
+                                    <span class="dm-picker-name">@user.DisplayName</span>
+                                    <span class="dm-picker-email">@user.Email</span>
+                                </span>
+                                <span class="dm-picker-actions">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                         stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                        <line x1="12" y1="5" x2="12" y2="19" />
+                                        <line x1="5" y1="12" x2="19" y2="12" />
+                                    </svg>
+                                </span>
+                            </button>
                         }
                     </div>
                 }
                 else if (!string.IsNullOrWhiteSpace(_channelAddPeopleSearchTerm))
                 {
-                    <div class="search-empty">No matching users to add.</div>
+                    <p class="dm-picker-status">No users found matching "<strong>@_channelAddPeopleSearchTerm</strong>"</p>
                 }
             </div>
         </div>
