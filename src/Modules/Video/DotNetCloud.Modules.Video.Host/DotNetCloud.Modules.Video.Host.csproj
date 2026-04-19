@@ -7,6 +7,11 @@
     <RootNamespace>DotNetCloud.Modules.Video.Host</RootNamespace>
     <AssemblyName>dotnetcloud.video</AssemblyName>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- Prevent publishing static web assets to avoid conflicts when Core.Server publishes.
+         Module.Host projects are referenced by Core.Server, and their assets would collide
+         with Core.Server's own assets. These settings ensure only Core.Server's assets are published. -->
+    <PublishWithPackageReferences>false</PublishWithPackageReferences>
+    <PublishReadyToCompile>false</PublishReadyToCompile>
   </PropertyGroup>
 
   <ItemGroup>
