@@ -262,7 +262,7 @@
                                     }
                                     else
                                     {
-                                        <span class="dm-picker-avatar">@(user.DisplayName.Length > 0 ? user.DisplayName[..1].ToUpperInvariant() : "?")</span>
+                                        <span class="dm-picker-avatar">@(user.DisplayName.Length > 0 ? user.DisplayName.Substring(0, 1).ToUpperInvariant() : "?")</span>
                                     }
                                     <span class="dm-picker-user-info">
                                         <span class="dm-picker-name">@user.DisplayName</span>
@@ -270,17 +270,17 @@
                                     </span>
                                 </button>
                                 <span class="dm-picker-actions">
-                                    <button type="button" class="dm-picker-icon-btn" title="Send a message">
+                                    <button type="button" class="dm-picker-icon-btn" title="Send a message"
+                                            @onclick="() => StartDmWithUserAsync(user.UserId)">
                                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                             stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                                             @onclick="() => StartDmWithUserAsync(user.UserId)">
+                                             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                                         </svg>
                                     </button>
                                     <button type="button" class="dm-picker-icon-btn" title="Audio call"
-                                            @onclick="() => CallUserDirectlyAsync(user.UserId, "Audio")">📞</button>
+                                            @onclick="@(() => CallUserDirectlyAsync(user.UserId, "Audio"))">📞</button>
                                     <button type="button" class="dm-picker-icon-btn" title="Video call"
-                                            @onclick="() => CallUserDirectlyAsync(user.UserId, "Video")">📹</button>
+                                            @onclick="@(() => CallUserDirectlyAsync(user.UserId, "Video"))">📹</button>
                                 </span>
                             </div>
                         }
@@ -347,7 +347,7 @@
                                     }
                                     else
                                     {
-                                        <span class="dm-picker-avatar">@(user.DisplayName.Length > 0 ? user.DisplayName[..1].ToUpperInvariant() : "?")</span>
+                                        <span class="dm-picker-avatar">@(user.DisplayName.Length > 0 ? user.DisplayName.Substring(0, 1).ToUpperInvariant() : "?")</span>
                                     }
                                     <span class="dm-picker-user-info">
                                         <span class="dm-picker-name">@user.DisplayName</span>
