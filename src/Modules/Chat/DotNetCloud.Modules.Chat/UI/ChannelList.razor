@@ -125,35 +125,32 @@
             }
         </div>
 
-        @if (FilteredChannels.Any(c => c.Type is "DirectMessage" or "Group"))
-        {
-            <div class="channel-group">
-                <div class="channel-group-header">
-                    <h3>Direct Messages</h3>
-                    <button class="btn btn-sm btn-new-dm" @onclick="HandleNewDmClick" title="New direct message" aria-label="Start a new direct message">+</button>
-                </div>
-                @foreach (var channel in FilteredChannels.Where(c => c.Type is "DirectMessage" or "Group" && !c.IsPinned))
-                {
-                    <div class="channel-item @(channel.IsActive ? "active" : "")"
-                         role="button"
-                         tabindex="0"
-                         aria-label="Open direct message @channel.Name"
-                         @onkeydown="(e) => HandleChannelKeyDown(e, channel)"
-                         @onclick="() => SelectChannel(channel)">
-                        <span class="channel-icon">💬</span>
-                        <span class="presence-dot @GetPresenceClass(channel)" title="@channel.PresenceStatus"></span>
-                        <span class="channel-name">@channel.Name</span>
-                        @if (channel.IsMuted)
-                        {
-                            <span class="channel-muted-icon" title="Muted">🔇</span>
-                        }
-                        @if (channel.UnreadCount > 0)
-                        {
-                            <span class="badge badge-unread">@channel.UnreadCount</span>
-                        }
-                    </div>
-                }
+        <div class="channel-group">
+            <div class="channel-group-header">
+                <h3>Direct Messages</h3>
+                <button class="btn btn-sm btn-new-dm" @onclick="HandleNewDmClick" title="New direct message" aria-label="Start a new direct message">+</button>
             </div>
-        }
+            @foreach (var channel in FilteredChannels.Where(c => c.Type is "DirectMessage" or "Group" && !c.IsPinned))
+            {
+                <div class="channel-item @(channel.IsActive ? "active" : "")"
+                     role="button"
+                     tabindex="0"
+                     aria-label="Open direct message @channel.Name"
+                     @onkeydown="(e) => HandleChannelKeyDown(e, channel)"
+                     @onclick="() => SelectChannel(channel)">
+                    <span class="channel-icon">💬</span>
+                    <span class="presence-dot @GetPresenceClass(channel)" title="@channel.PresenceStatus"></span>
+                    <span class="channel-name">@channel.Name</span>
+                    @if (channel.IsMuted)
+                    {
+                        <span class="channel-muted-icon" title="Muted">🔇</span>
+                    }
+                    @if (channel.UnreadCount > 0)
+                    {
+                        <span class="badge badge-unread">@channel.UnreadCount</span>
+                    }
+                </div>
+            }
+        </div>
     }
 </div>
