@@ -99,7 +99,9 @@ internal sealed class ChannelMemberService : IChannelMemberService
     /// <inheritdoc />
     public async Task RemoveMemberAsync(Guid channelId, Guid userId, CallerContext caller, CancellationToken cancellationToken = default)
     {
-        await EnsureChannelExistsAsync(channelId, cancellationToken);
+        var channel = await _db.Channels
+            .FirstOrDefaultAsync(c => c.Id == channelId, cancellationToken)
+            ?? throw new InvalidOperationException(ChannelNotFoundError);
 
         var membership = await _db.ChannelMembers
             .FirstOrDefaultAsync(m => m.ChannelId == channelId && m.UserId == userId, cancellationToken);
@@ -121,6 +123,39 @@ internal sealed class ChannelMemberService : IChannelMemberService
             {
                 throw new InvalidOperationException("Cannot remove the last owner from the channel.");
             }
+        }
+
+        // When a user leaves a 1:1 DM the conversation is over for both parties — delete it.
+        if (channel.Type == ChannelType.DirectMessage)
+        {
+            var allMemberIds = await _db.ChannelMembers
+                .Where(m => m.ChannelId == channelId)
+                .Select(m => m.UserId)
+                .ToListAsync(cancellationToken);
+
+            channel.IsDeleted = true;
+            channel.DeletedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync(cancellationToken);
+
+            if (_realtimeService is not null)
+            {
+                foreach (var memberId in allMemberIds)
+                {
+                    await _realtimeService.RemoveUserFromChannelGroupAsync(memberId, channelId, cancellationToken);
+                }
+            }
+
+            await _eventBus.PublishAsync(new ChannelDeletedEvent
+            {
+                EventId = Guid.NewGuid(),
+                CreatedAt = DateTime.UtcNow,
+                ChannelId = channelId,
+                ChannelName = channel.Name,
+                DeletedByUserId = userId
+            }, caller, cancellationToken);
+
+            _logger.LogInformation("DM channel {ChannelId} deleted because user {UserId} left", channelId, userId);
+            return;
         }
 
         _db.ChannelMembers.Remove(membership);

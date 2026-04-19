@@ -155,7 +155,7 @@ internal sealed class ChannelService : IChannelService
 
         var channels = await _db.Channels
             .AsNoTracking()
-            .Where(c => channelIds.Contains(c.Id))
+            .Where(c => channelIds.Contains(c.Id) && !c.IsDeleted)
             .OrderByDescending(c => c.LastActivityAt ?? c.CreatedAt)
             .ToListAsync(cancellationToken);
 
@@ -323,7 +323,7 @@ internal sealed class ChannelService : IChannelService
         // Find existing DM between the two users
         var existingChannel = await _db.Channels
             .AsNoTracking()
-            .Where(c => c.Type == ChannelType.DirectMessage)
+            .Where(c => c.Type == ChannelType.DirectMessage && !c.IsDeleted)
             .Where(c => _db.ChannelMembers.Any(m => m.ChannelId == c.Id && m.UserId == caller.UserId)
                      && _db.ChannelMembers.Any(m => m.ChannelId == c.Id && m.UserId == otherUserId))
             .FirstOrDefaultAsync(cancellationToken);
