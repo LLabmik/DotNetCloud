@@ -202,6 +202,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         ChatMessageNotifier.UserPresenceChanged += OnUserPresenceChanged;
         ChatMessageNotifier.MediaStateChanged += OnMediaStateChanged;
         ChatMessageNotifier.CallParticipantLeft += OnCallParticipantLeft;
+        ChatMessageNotifier.ChannelAdded += OnChannelAdded;
         ChatMessageNotifier.UserBlockStatusChanged += OnUserBlockStatusChanged;
         GlobalNotificationState.OnCallAccepted += OnGlobalCallAccepted;
 
@@ -230,6 +231,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         ChatMessageNotifier.UserPresenceChanged -= OnUserPresenceChanged;
         ChatMessageNotifier.MediaStateChanged -= OnMediaStateChanged;
         ChatMessageNotifier.CallParticipantLeft -= OnCallParticipantLeft;
+        ChatMessageNotifier.ChannelAdded -= OnChannelAdded;
         ChatMessageNotifier.UserBlockStatusChanged -= OnUserBlockStatusChanged;
         GlobalNotificationState.OnCallAccepted -= OnGlobalCallAccepted;
 
@@ -568,6 +570,16 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         }
 
         await HandleToggleBlockUser(userId);
+    }
+
+    private void OnChannelAdded(Guid channelId)
+    {
+        // A new channel (e.g. a DM started by another user) has been added — reload the sidebar.
+        InvokeAsync(async () =>
+        {
+            await LoadChannelsAsync();
+            StateHasChanged();
+        });
     }
 
     private void OnUserBlockStatusChanged(UserBlockStatusChangedNotification notification)

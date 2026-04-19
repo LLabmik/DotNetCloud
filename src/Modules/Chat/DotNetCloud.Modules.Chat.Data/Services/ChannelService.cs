@@ -353,6 +353,16 @@ internal sealed class ChannelService : IChannelService
             await _realtimeService.AddUserToChannelGroupAsync(otherUserId, channel.Id, cancellationToken);
         }
 
+        await _eventBus.PublishAsync(new ChannelCreatedEvent
+        {
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            ChannelId = channel.Id,
+            ChannelName = channel.Name,
+            ChannelType = channel.Type.ToString(),
+            CreatedByUserId = caller.UserId
+        }, caller, cancellationToken);
+
         _logger.LogInformation("DM channel {ChannelId} created between {User1} and {User2}", channel.Id, caller.UserId, otherUserId);
 
         return ToChannelDto(channel, 2);

@@ -2,6 +2,7 @@ using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Modules;
 using DotNetCloud.Modules.Chat.Events;
+using DotNetCloud.Modules.Chat.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -56,7 +57,9 @@ public sealed class ChatModule : IModuleLifecycle
         await _eventBus.SubscribeAsync(_messageSentHandler, cancellationToken);
 
         var channelCreatedLogger = context.Services.GetService<ILogger<ChannelCreatedEventHandler>>();
+        var channelCreatedNotifier = context.Services.GetRequiredService<IChatMessageNotifier>();
         _channelCreatedHandler = new ChannelCreatedEventHandler(
+            channelCreatedNotifier,
             channelCreatedLogger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<ChannelCreatedEventHandler>.Instance);
         await _eventBus.SubscribeAsync(_channelCreatedHandler, cancellationToken);
 

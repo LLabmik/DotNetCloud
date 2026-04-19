@@ -156,8 +156,14 @@ public interface IChatMessageNotifier
     /// <summary>Raised when a new-message toast should be shown (filtered for mute/DND).</summary>
     event Action<NewMessageToastNotification>? NewMessageToast;
 
+    /// <summary>Raised when a channel is added to the current user's membership (e.g. a new DM was started with them).</summary>
+    event Action<Guid>? ChannelAdded;
+
     /// <summary>Raised when a user's block status changes (blocked or unblocked by another user).</summary>
     event Action<UserBlockStatusChangedNotification>? UserBlockStatusChanged;
+
+    /// <summary>Notifies all subscribers that a channel was added.</summary>
+    void NotifyChannelAdded(Guid channelId);
 
     /// <summary>Notifies all subscribers that a new message was sent.</summary>
     void NotifyMessageReceived(Guid channelId, MessageDto message);
@@ -298,6 +304,12 @@ public sealed class InProcessChatMessageNotifier : IChatMessageNotifier
     /// <inheritdoc />
     public void NotifyNewMessageToast(NewMessageToastNotification notification)
         => NewMessageToast?.Invoke(notification);
+
+    /// <inheritdoc />
+    public event Action<Guid>? ChannelAdded;
+
+    /// <inheritdoc />
+    public void NotifyChannelAdded(Guid channelId) => ChannelAdded?.Invoke(channelId);
 
     /// <inheritdoc />
     public event Action<UserBlockStatusChangedNotification>? UserBlockStatusChanged;
