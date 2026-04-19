@@ -2074,13 +2074,15 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         try
         {
             var results = await UserDirectory.SearchUsersAsync(searchTerm);
-            _dmSearchResults = results
-                .Where(r => r.Id != _currentUserId)
+            var filtered = results.Where(r => r.Id != _currentUserId).ToList();
+            var avatarUrls = await UserDirectory.GetAvatarUrlsAsync(filtered.Select(r => r.Id));
+            _dmSearchResults = filtered
                 .Select(r => new UserSearchResultViewModel
                 {
                     UserId = r.Id,
                     DisplayName = r.DisplayName,
-                    Email = r.Email
+                    Email = r.Email,
+                    AvatarUrl = avatarUrls.GetValueOrDefault(r.Id)
                 })
                 .ToList();
         }
@@ -2220,15 +2222,18 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         {
             var results = await UserDirectory.SearchUsersAsync(searchTerm);
             var existingMemberIds = _members.Select(m => m.UserId).ToHashSet();
+            var filtered = results
+                .Where(r => r.Id != _currentUserId && !existingMemberIds.Contains(r.Id))
+                .ToList();
+            var avatarUrls = await UserDirectory.GetAvatarUrlsAsync(filtered.Select(r => r.Id));
 
-            _channelAddPeopleResults = results
-                .Where(r => r.Id != _currentUserId)
-                .Where(r => !existingMemberIds.Contains(r.Id))
+            _channelAddPeopleResults = filtered
                 .Select(r => new UserSearchResultViewModel
                 {
                     UserId = r.Id,
                     DisplayName = r.DisplayName,
-                    Email = r.Email
+                    Email = r.Email,
+                    AvatarUrl = avatarUrls.GetValueOrDefault(r.Id)
                 })
                 .ToList();
         }

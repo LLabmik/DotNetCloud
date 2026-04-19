@@ -236,6 +236,7 @@
                     </svg>
                     <input type="text"
                            class="dm-picker-search-input"
+                           autocomplete="off"
                            @bind="_dmSearchTerm"
                            @bind:event="oninput"
                            @bind:after="() => SearchUsersForDmAsync(_dmSearchTerm)"
@@ -252,21 +253,36 @@
                     <div class="dm-picker-results">
                         @foreach (var user in _dmSearchResults)
                         {
-                            <button type="button" class="dm-picker-result" @onclick="() => StartDmWithUserAsync(user.UserId)">
-                                <span class="dm-picker-avatar">@(user.DisplayName.Length > 0 ? user.DisplayName[..1].ToUpperInvariant() : "?")</span>
-                                <span class="dm-picker-user-info">
-                                    <span class="dm-picker-name">@user.DisplayName</span>
-                                    <span class="dm-picker-email">@user.Email</span>
-                                </span>
+                            <div class="dm-picker-result">
+                                <button type="button" class="dm-picker-result-main" title="Open chat with @user.DisplayName"
+                                        @onclick="() => StartDmWithUserAsync(user.UserId)">
+                                    @if (!string.IsNullOrEmpty(user.AvatarUrl))
+                                    {
+                                        <img class="dm-picker-avatar-img" src="@user.AvatarUrl" alt="@user.DisplayName" />
+                                    }
+                                    else
+                                    {
+                                        <span class="dm-picker-avatar">@(user.DisplayName.Length > 0 ? user.DisplayName[..1].ToUpperInvariant() : "?")</span>
+                                    }
+                                    <span class="dm-picker-user-info">
+                                        <span class="dm-picker-name">@user.DisplayName</span>
+                                        <span class="dm-picker-email">@user.Email</span>
+                                    </span>
+                                </button>
                                 <span class="dm-picker-actions">
+                                    <button type="button" class="dm-picker-icon-btn" title="Send a message">
+                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                             stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                                             @onclick="() => StartDmWithUserAsync(user.UserId)">
+                                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                                        </svg>
+                                    </button>
                                     <button type="button" class="dm-picker-icon-btn" title="Audio call"
-                                            @onclick="@(() => CallUserDirectlyAsync(user.UserId, "Audio"))"
-                                            @onclick:stopPropagation="true">📞</button>
+                                            @onclick="() => CallUserDirectlyAsync(user.UserId, "Audio")">📞</button>
                                     <button type="button" class="dm-picker-icon-btn" title="Video call"
-                                            @onclick="@(() => CallUserDirectlyAsync(user.UserId, "Video"))"
-                                            @onclick:stopPropagation="true">📹</button>
+                                            @onclick="() => CallUserDirectlyAsync(user.UserId, "Video")">📹</button>
                                 </span>
-                            </button>
+                            </div>
                         }
                     </div>
                 }
@@ -305,6 +321,7 @@
                     </svg>
                     <input type="text"
                            class="dm-picker-search-input"
+                           autocomplete="off"
                            @bind="_channelAddPeopleSearchTerm"
                            @bind:event="oninput"
                            @bind:after="() => SearchUsersForChannelAddAsync(_channelAddPeopleSearchTerm)"
@@ -321,20 +338,33 @@
                     <div class="dm-picker-results">
                         @foreach (var user in _channelAddPeopleResults)
                         {
-                            <button type="button" class="dm-picker-result" @onclick="() => AddUserToCurrentChannelAsync(user.UserId)">
-                                <span class="dm-picker-avatar">@(user.DisplayName.Length > 0 ? user.DisplayName[..1].ToUpperInvariant() : "?")</span>
-                                <span class="dm-picker-user-info">
-                                    <span class="dm-picker-name">@user.DisplayName</span>
-                                    <span class="dm-picker-email">@user.Email</span>
-                                </span>
+                            <div class="dm-picker-result">
+                                <button type="button" class="dm-picker-result-main" title="Add @user.DisplayName"
+                                        @onclick="() => AddUserToCurrentChannelAsync(user.UserId)">
+                                    @if (!string.IsNullOrEmpty(user.AvatarUrl))
+                                    {
+                                        <img class="dm-picker-avatar-img" src="@user.AvatarUrl" alt="@user.DisplayName" />
+                                    }
+                                    else
+                                    {
+                                        <span class="dm-picker-avatar">@(user.DisplayName.Length > 0 ? user.DisplayName[..1].ToUpperInvariant() : "?")</span>
+                                    }
+                                    <span class="dm-picker-user-info">
+                                        <span class="dm-picker-name">@user.DisplayName</span>
+                                        <span class="dm-picker-email">@user.Email</span>
+                                    </span>
+                                </button>
                                 <span class="dm-picker-actions">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                         stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                        <line x1="12" y1="5" x2="12" y2="19" />
-                                        <line x1="5" y1="12" x2="19" y2="12" />
-                                    </svg>
+                                    <button type="button" class="dm-picker-icon-btn" title="Add to channel"
+                                            @onclick="() => AddUserToCurrentChannelAsync(user.UserId)">
+                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                             stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                            <line x1="12" y1="5" x2="12" y2="19" />
+                                            <line x1="5" y1="12" x2="19" y2="12" />
+                                        </svg>
+                                    </button>
                                 </span>
-                            </button>
+                            </div>
                         }
                     </div>
                 }

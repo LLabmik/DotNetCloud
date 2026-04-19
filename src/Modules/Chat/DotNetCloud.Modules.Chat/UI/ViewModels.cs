@@ -229,4 +229,7 @@ public sealed class UserSearchResultViewModel
 
     /// <summary>Email address.</summary>
     public string Email { get; init; } = string.Empty;
+
+    /// <summary>Avatar URL, or null if the user has no avatar.</summary>
+    public string? AvatarUrl { get; init; }
 }

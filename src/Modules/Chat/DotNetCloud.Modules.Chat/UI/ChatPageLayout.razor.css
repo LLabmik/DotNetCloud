@@ -301,25 +301,41 @@
     gap: 4px;
 }
 
+/* Result row — outer flex container (div, not button, to avoid nesting) */
+
 .dm-picker-result {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: 10px;
+    background: transparent;
+    transition: border-color 120ms ease, background 120ms ease;
+    overflow: hidden;
+}
+
+.dm-picker-result:hover {
+    border-color: var(--color-primary, #3b82f6);
+    background: var(--color-bg, #f5f7fa);
+}
+
+/* Main clickable area (avatar + user info) */
+
+.dm-picker-result-main {
     display: flex;
     align-items: center;
     gap: 12px;
     padding: 10px 12px;
-    border: 1px solid var(--color-border, #e2e8f0);
-    border-radius: 10px;
+    flex: 1;
+    min-width: 0;
     background: transparent;
+    border: none;
     cursor: pointer;
-    width: 100%;
     text-align: left;
-    transition: background 120ms ease, border-color 120ms ease;
     color: var(--color-text, #1e293b);
 }
 
-.dm-picker-result:hover {
-    background: var(--color-bg, #f5f7fa);
-    border-color: var(--color-primary, #3b82f6);
-}
+/* Avatar circle (initials fallback) */
 
 .dm-picker-avatar {
     display: flex;
@@ -335,6 +351,17 @@
     flex-shrink: 0;
     text-transform: uppercase;
     user-select: none;
+}
+
+/* Avatar image */
+
+.dm-picker-avatar-img {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+    display: block;
 }
 
 .dm-picker-user-info {
@@ -361,31 +388,38 @@
     text-overflow: ellipsis;
 }
 
+/* Action buttons on the right */
+
 .dm-picker-actions {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: 2px;
     flex-shrink: 0;
-    color: var(--color-muted, #94a3b8);
-}
-
-.dm-picker-result:hover .dm-picker-actions {
-    color: var(--color-primary, #3b82f6);
+    padding-right: 8px;
 }
 
 .dm-picker-icon-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     border: none;
     background: transparent;
     cursor: pointer;
     font-size: 15px;
-    padding: 4px 6px;
+    width: 30px;
+    height: 30px;
     border-radius: 6px;
-    line-height: 1;
-    transition: background 100ms ease;
+    color: var(--color-text-secondary, #64748b);
+    transition: background 100ms ease, color 100ms ease;
 }
 
 .dm-picker-icon-btn:hover {
-    background: rgba(0, 0, 0, 0.06);
+    background: rgba(59, 130, 246, 0.1);
+    color: var(--color-primary, #3b82f6);
+}
+
+.dm-picker-icon-btn svg {
+    pointer-events: none;
 }
 
 .btn-icon {
