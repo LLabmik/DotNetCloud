@@ -98,6 +98,23 @@ public sealed class SearchReindexBackgroundService : BackgroundService
         // Wait for initial startup to complete
         await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
 
+        // Run an immediate full reindex on startup, then wait for the interval
+        try
+        {
+            _logger.LogInformation("Starting initial full reindex after startup");
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+            cts.CancelAfter(ReindexTimeout);
+            await PerformFullReindexAsync(cts.Token);
+        }
+        catch (OperationCanceledException) when (!stoppingToken.IsCancellationRequested)
+        {
+            _logger.LogWarning("Initial reindex timed out after {Timeout} and was cancelled", ReindexTimeout);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Initial reindex operation failed");
+        }
+
         while (!stoppingToken.IsCancellationRequested)
         {
             try
