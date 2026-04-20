@@ -19,7 +19,7 @@ public class PhotoIndexingCallbackTests
     {
         _db = TestHelpers.CreateDb();
         _photoService = new PhotoService(_db, Mock.Of<IEventBus>(), Mock.Of<ILogger<PhotoService>>());
-        _callback = new PhotoIndexingCallback(_photoService, Mock.Of<IPhotoThumbnailService>(), Mock.Of<ILogger<PhotoIndexingCallback>>());
+        _callback = new PhotoIndexingCallback(_photoService, Mock.Of<IPhotoThumbnailService>(), _db, Mock.Of<ILogger<PhotoIndexingCallback>>());
     }
 
     [TestCleanup]

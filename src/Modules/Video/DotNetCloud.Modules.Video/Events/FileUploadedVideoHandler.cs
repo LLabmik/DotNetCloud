@@ -87,6 +87,24 @@ public interface IVideoIndexingCallback
     Task IndexVideoAsync(Guid fileNodeId, string fileName, string mimeType, long sizeBytes, Guid ownerId, string? storagePath = null, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Returns the set of FileNode IDs already indexed in the video library for the given owner.
+    /// Used by the scanner to skip files that have not changed since the last scan.
+    /// </summary>
+    /// <param name="ownerId">Owner user ID.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task<HashSet<Guid>> GetIndexedFileNodeIdsAsync(Guid ownerId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Soft-deletes Video records whose source FileNodes no longer exist in the Files module.
+    /// Also removes related junction data (collection items, watch progress, watch history, etc.).
+    /// </summary>
+    /// <param name="deletedFileNodeIds">FileNode IDs whose backing files have been deleted.</param>
+    /// <param name="ownerId">Owner user ID.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Number of videos removed.</returns>
+    Task<int> RemoveDeletedVideosAsync(IReadOnlyCollection<Guid> deletedFileNodeIds, Guid ownerId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Deletes all video library metadata from the database (videos, collections, subtitles,
     /// watch progress, watch history, shares). The actual video files are NOT affected.
     /// After calling this, a re-scan will rebuild the entire library from scratch.

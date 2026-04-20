@@ -2,6 +2,7 @@ using System.Security.Claims;
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Services;
+using DotNetCloud.Modules.Photos.Events;
 using DotNetCloud.Modules.Photos.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
@@ -86,6 +87,8 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
     private Guid? _libraryFolderId;
     private bool _settingsSaving;
     private bool _settingsScanning;
+    private bool _settingsResetting;
+    private bool _showResetConfirm;
     private string? _settingsError;
     private string? _settingsSuccess;
     private MediaScanResult? _scanResult;
@@ -680,6 +683,47 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
         finally
         {
             _settingsScanning = false;
+        }
+    }
+
+    private async Task ResetCollectionAsync()
+    {
+        _settingsResetting = true;
+        _settingsError = null;
+        _settingsSuccess = null;
+        _scanResult = null;
+        StateHasChanged();
+        try
+        {
+            await PhotoIndexingCallback.ResetCollectionAsync();
+            _settingsSuccess = "Photo collection reset. Click Scan Now to rebuild your library.";
+            _showResetConfirm = false;
+
+            // Clear displayed data
+            _currentPhotos.Clear();
+            _searchResults = null;
+            _albums.Clear();
+            _timelineGroups.Clear();
+            _geoClusters.Clear();
+            _selectedPhotoIds.Clear();
+            _selectedAlbum = null;
+            _selectedAlbumId = null;
+            _lightboxPhoto = null;
+            if (_slideshowActive)
+            {
+                _slideshowActive = false;
+                _slideshowTimer?.Dispose();
+                _slideshowTimer = null;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to reset photo collection");
+            _settingsError = $"Reset failed: {ex.Message}";
+        }
+        finally
+        {
+            _settingsResetting = false;
         }
     }
 

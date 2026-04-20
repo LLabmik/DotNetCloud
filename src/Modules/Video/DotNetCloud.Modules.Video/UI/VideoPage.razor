@@ -391,6 +391,10 @@
                         {
                             <div class="scan-result-banner">
                                 Found @_scanResult.TotalFound · Imported @_scanResult.Imported · Skipped @_scanResult.Skipped
+                                @if (_scanResult.Removed > 0)
+                                {
+                                    <span> · Removed @_scanResult.Removed</span>
+                                }
                                 @if (_scanResult.Failed > 0)
                                 {
                                     <span class="text-danger"> · Failed @_scanResult.Failed</span>

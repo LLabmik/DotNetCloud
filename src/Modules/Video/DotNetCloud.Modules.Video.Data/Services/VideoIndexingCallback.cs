@@ -4,6 +4,7 @@ using DotNetCloud.Modules.Video.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using System.Collections.Generic;
 
 namespace DotNetCloud.Modules.Video.Data.Services;
 
@@ -73,5 +74,75 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
         await _db.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation("Video collection reset complete");
+    }
+
+    /// <inheritdoc />
+    public async Task<HashSet<Guid>> GetIndexedFileNodeIdsAsync(Guid ownerId, CancellationToken cancellationToken = default)
+    {
+        var ids = await _db.Videos
+            .Where(v => v.OwnerId == ownerId)
+            .Select(v => v.FileNodeId)
+            .ToListAsync(cancellationToken);
+        return [.. ids];
+    }
+
+    /// <inheritdoc />
+    public async Task<int> RemoveDeletedVideosAsync(IReadOnlyCollection<Guid> deletedFileNodeIds, Guid ownerId, CancellationToken cancellationToken = default)
+    {
+        var videos = await _db.Videos
+            .Where(v => v.OwnerId == ownerId && deletedFileNodeIds.Contains(v.FileNodeId) && !v.IsDeleted)
+            .ToListAsync(cancellationToken);
+
+        if (videos.Count == 0)
+            return 0;
+
+        var videoIds = videos.Select(v => v.Id).ToHashSet();
+
+        // Remove related junction/child records before soft-deleting parent.
+        var collectionItems = await _db.VideoCollectionItems
+            .Where(i => videoIds.Contains(i.VideoId))
+            .ToListAsync(cancellationToken);
+        _db.VideoCollectionItems.RemoveRange(collectionItems);
+
+        var watchProgresses = await _db.WatchProgresses
+            .Where(w => videoIds.Contains(w.VideoId))
+            .ToListAsync(cancellationToken);
+        _db.WatchProgresses.RemoveRange(watchProgresses);
+
+        var watchHistories = await _db.WatchHistories
+            .Where(w => videoIds.Contains(w.VideoId))
+            .ToListAsync(cancellationToken);
+        _db.WatchHistories.RemoveRange(watchHistories);
+
+        var shares = await _db.VideoShares
+            .Where(s => videoIds.Contains(s.VideoId))
+            .ToListAsync(cancellationToken);
+        _db.VideoShares.RemoveRange(shares);
+
+        var subtitles = await _db.Subtitles
+            .Where(s => videoIds.Contains(s.VideoId))
+            .ToListAsync(cancellationToken);
+        _db.Subtitles.RemoveRange(subtitles);
+
+        var metadatas = await _db.VideoMetadata
+            .Where(m => videoIds.Contains(m.VideoId))
+            .ToListAsync(cancellationToken);
+        _db.VideoMetadata.RemoveRange(metadatas);
+
+        // Soft-delete the video records.
+        var now = DateTime.UtcNow;
+        foreach (var video in videos)
+        {
+            video.IsDeleted = true;
+            video.DeletedAt = now;
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation(
+            "Removed {Count} deleted video records for user {OwnerId}",
+            videos.Count, ownerId);
+
+        return videos.Count;
     }
 }

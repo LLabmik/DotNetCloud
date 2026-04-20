@@ -84,4 +84,29 @@ public interface IPhotoIndexingCallback
     /// <param name="storagePath">Relative content-addressable storage path (for thumbnail generation via IFileStorageEngine).</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     Task IndexPhotoAsync(Guid fileNodeId, string fileName, string mimeType, long sizeBytes, Guid ownerId, string? storagePath = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns the set of FileNode IDs already indexed in the photo library for the given owner.
+    /// Used by the scanner to skip files that have not changed since the last scan.
+    /// </summary>
+    /// <param name="ownerId">Owner user ID.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task<HashSet<Guid>> GetIndexedFileNodeIdsAsync(Guid ownerId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Soft-deletes Photo records whose source FileNodes no longer exist in the Files module.
+    /// Also removes related junction data (album membership, tags, shares, edit records).
+    /// </summary>
+    /// <param name="deletedFileNodeIds">FileNode IDs whose backing files have been deleted.</param>
+    /// <param name="ownerId">Owner user ID.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Number of photos removed.</returns>
+    Task<int> RemoveDeletedPhotosAsync(IReadOnlyCollection<Guid> deletedFileNodeIds, Guid ownerId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Deletes all photo library metadata from the database (photos, albums, metadata, tags,
+    /// shares, edit records). The actual image files are NOT affected.
+    /// After calling this, a re-scan will rebuild the entire library from scratch.
+    /// </summary>
+    Task ResetCollectionAsync(CancellationToken cancellationToken = default);
 }

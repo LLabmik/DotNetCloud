@@ -183,15 +183,33 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
             "Virtual folder scan: found {Count} {MediaType} files under folder {FolderId} for user {OwnerId}",
             matchingFiles.Count, parsed, folderId?.ToString() ?? "root", ownerId);
 
-        // ── Pre-filter: skip already-indexed files (Music only) ──────────────────
-        // Build a set of FileNode IDs currently in the music index so we can skip
+        // ── Pre-filter: skip already-indexed files ──────────────────────────────
+        // Build a set of FileNode IDs currently in the index so we can skip
         // files that are already up to date, avoiding redundant stream downloads.
         HashSet<Guid> alreadyIndexedIds = [];
-        if (parsed == MediaType.Music)
+        switch (parsed)
         {
-            var musicCallback = scope.ServiceProvider.GetService<IMusicIndexingCallback>();
-            if (musicCallback is not null)
-                alreadyIndexedIds = await musicCallback.GetIndexedFileNodeIdsAsync(ownerId, cancellationToken);
+            case MediaType.Music:
+            {
+                var musicCallback = scope.ServiceProvider.GetService<IMusicIndexingCallback>();
+                if (musicCallback is not null)
+                    alreadyIndexedIds = await musicCallback.GetIndexedFileNodeIdsAsync(ownerId, cancellationToken);
+                break;
+            }
+            case MediaType.Video:
+            {
+                var videoCallback = scope.ServiceProvider.GetService<IVideoIndexingCallback>();
+                if (videoCallback is not null)
+                    alreadyIndexedIds = await videoCallback.GetIndexedFileNodeIdsAsync(ownerId, cancellationToken);
+                break;
+            }
+            case MediaType.Photos:
+            {
+                var photoCallback = scope.ServiceProvider.GetService<IPhotoIndexingCallback>();
+                if (photoCallback is not null)
+                    alreadyIndexedIds = await photoCallback.GetIndexedFileNodeIdsAsync(ownerId, cancellationToken);
+                break;
+            }
         }
 
         var currentFileNodeIds = matchingFiles.Select(f => f.Id).ToHashSet();
@@ -295,8 +313,8 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
             filesProcessed++;
         }
 
-        // ── Deletion detection: remove tracks whose source files no longer exist ─
-        if (parsed == MediaType.Music && !cancellationToken.IsCancellationRequested)
+        // ── Deletion detection: remove indexed items whose source files no longer exist ─
+        if (alreadyIndexedIds.Count > 0 && !cancellationToken.IsCancellationRequested)
         {
             var deletedFileNodeIds = alreadyIndexedIds
                 .Where(id => !currentFileNodeIds.Contains(id))
@@ -305,8 +323,8 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
             if (deletedFileNodeIds.Count > 0)
             {
                 _logger.LogInformation(
-                    "Detected {Count} deleted music files for user {OwnerId} — removing from index",
-                    deletedFileNodeIds.Count, ownerId);
+                    "Detected {Count} deleted {MediaType} files for user {OwnerId} — removing from index",
+                    deletedFileNodeIds.Count, parsed, ownerId);
 
                 progress?.Report(new MediaScanProgress
                 {
@@ -318,10 +336,29 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
                     PercentComplete = 100,
                 });
 
-                var musicCallback = scope.ServiceProvider.GetService<IMusicIndexingCallback>();
-                if (musicCallback is not null)
+                switch (parsed)
                 {
-                    result.Removed = await musicCallback.RemoveDeletedTracksAsync(deletedFileNodeIds, ownerId, cancellationToken);
+                    case MediaType.Music:
+                    {
+                        var musicCallback = scope.ServiceProvider.GetService<IMusicIndexingCallback>();
+                        if (musicCallback is not null)
+                            result.Removed = await musicCallback.RemoveDeletedTracksAsync(deletedFileNodeIds, ownerId, cancellationToken);
+                        break;
+                    }
+                    case MediaType.Video:
+                    {
+                        var videoCallback = scope.ServiceProvider.GetService<IVideoIndexingCallback>();
+                        if (videoCallback is not null)
+                            result.Removed = await videoCallback.RemoveDeletedVideosAsync(deletedFileNodeIds, ownerId, cancellationToken);
+                        break;
+                    }
+                    case MediaType.Photos:
+                    {
+                        var photoCallback = scope.ServiceProvider.GetService<IPhotoIndexingCallback>();
+                        if (photoCallback is not null)
+                            result.Removed = await photoCallback.RemoveDeletedPhotosAsync(deletedFileNodeIds, ownerId, cancellationToken);
+                        break;
+                    }
                 }
             }
         }
