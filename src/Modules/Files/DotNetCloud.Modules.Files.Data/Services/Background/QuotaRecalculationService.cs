@@ -39,6 +39,7 @@ internal sealed class QuotaRecalculationService : BackgroundService
 
         while (await timer.WaitForNextTickAsync(stoppingToken))
         {
+            _logger.LogDebug("Quota recalculation cycle starting");
             try
             {
                 await RecalculateAllAsync(stoppingToken);

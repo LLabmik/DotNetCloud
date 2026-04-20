@@ -49,6 +49,7 @@ internal sealed class VersionCleanupService : BackgroundService
 
         while (await timer.WaitForNextTickAsync(stoppingToken))
         {
+            _logger.LogDebug("Version cleanup cycle starting");
             try
             {
                 await CleanupAsync(stoppingToken);

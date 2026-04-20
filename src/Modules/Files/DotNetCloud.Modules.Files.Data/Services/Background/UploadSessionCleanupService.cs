@@ -31,6 +31,7 @@ internal sealed class UploadSessionCleanupService : BackgroundService
 
         while (await timer.WaitForNextTickAsync(stoppingToken))
         {
+            _logger.LogDebug("Upload session cleanup cycle starting");
             try
             {
                 await CleanupAsync(stoppingToken);

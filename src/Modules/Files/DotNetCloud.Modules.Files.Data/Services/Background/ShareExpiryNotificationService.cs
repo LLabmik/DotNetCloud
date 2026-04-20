@@ -40,6 +40,7 @@ internal sealed class ShareExpiryNotificationService : BackgroundService
 
         while (await timer.WaitForNextTickAsync(stoppingToken))
         {
+            _logger.LogDebug("Share expiry notification check starting");
             try
             {
                 await CheckExpiringSharesAsync(stoppingToken);

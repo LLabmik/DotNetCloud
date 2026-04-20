@@ -33,6 +33,7 @@ internal sealed class TrashCleanupService : BackgroundService
 
         while (await timer.WaitForNextTickAsync(stoppingToken))
         {
+            _logger.LogDebug("Trash cleanup cycle starting");
             try
             {
                 await CleanupAsync(stoppingToken);

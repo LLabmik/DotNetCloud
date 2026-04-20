@@ -6,11 +6,14 @@ using Microsoft.Extensions.Options;
 namespace DotNetCloud.Modules.Files.Data.Services.Background;
 
 /// <summary>
-/// Hosted service that prepares the server temp directory on startup and removes stale temp files.
-/// Runs once at startup; the directory is created with 700 permissions (Linux/macOS).
+/// Background service that prepares the server temp directory on startup and periodically
+/// removes stale temp files. The directory is created with 700 permissions (Linux/macOS).
+/// Runs immediately on startup, then every 6 hours.
 /// </summary>
-internal sealed class TempFileCleanupService : IHostedService
+internal sealed class TempFileCleanupService : BackgroundService
 {
+    private static readonly TimeSpan CleanupInterval = TimeSpan.FromHours(6);
+
     private readonly string _tmpPath;
     private readonly ILogger<TempFileCleanupService> _logger;
 
@@ -24,7 +27,21 @@ internal sealed class TempFileCleanupService : IHostedService
     }
 
     /// <inheritdoc />
-    public Task StartAsync(CancellationToken cancellationToken)
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        // Run immediately on startup
+        Cleanup();
+
+        using var timer = new PeriodicTimer(CleanupInterval);
+
+        while (await timer.WaitForNextTickAsync(stoppingToken))
+        {
+            _logger.LogDebug("Temp file cleanup cycle starting");
+            Cleanup();
+        }
+    }
+
+    private void Cleanup()
     {
         try
         {
@@ -69,10 +86,5 @@ internal sealed class TempFileCleanupService : IHostedService
         {
             _logger.LogError(ex, "Failed to initialize temp directory {TmpPath}.", _tmpPath);
         }
-
-        return Task.CompletedTask;
     }
-
-    /// <inheritdoc />
-    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 }

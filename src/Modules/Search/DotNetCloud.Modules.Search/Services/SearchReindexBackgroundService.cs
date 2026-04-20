@@ -55,6 +55,9 @@ public sealed class SearchReindexBackgroundService : BackgroundService
     /// <summary>Default batch size for indexing operations during full reindex.</summary>
     public const int DefaultBatchSize = 200;
 
+    /// <summary>Maximum time a single reindex operation may run before being cancelled.</summary>
+    private static readonly TimeSpan ReindexTimeout = TimeSpan.FromHours(1);
+
     /// <summary>Initializes a new instance of the <see cref="SearchReindexBackgroundService"/> class.</summary>
     public SearchReindexBackgroundService(
         IServiceScopeFactory scopeFactory,
@@ -110,17 +113,30 @@ public sealed class SearchReindexBackgroundService : BackgroundService
 
                     if (moduleId is not null)
                     {
-                        await PerformModuleReindexAsync(moduleId, stoppingToken);
+                        _logger.LogInformation("Starting manual module reindex for {ModuleId}", moduleId);
+                        using var cts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+                        cts.CancelAfter(ReindexTimeout);
+                        await PerformModuleReindexAsync(moduleId, cts.Token);
                     }
                     else
                     {
-                        await PerformFullReindexAsync(stoppingToken);
+                        _logger.LogInformation("Starting manual full reindex");
+                        using var cts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+                        cts.CancelAfter(ReindexTimeout);
+                        await PerformFullReindexAsync(cts.Token);
                     }
                 }
                 else
                 {
-                    await PerformFullReindexAsync(stoppingToken);
+                    _logger.LogInformation("Starting scheduled full reindex cycle");
+                    using var cts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+                    cts.CancelAfter(ReindexTimeout);
+                    await PerformFullReindexAsync(cts.Token);
                 }
+            }
+            catch (OperationCanceledException) when (!stoppingToken.IsCancellationRequested)
+            {
+                _logger.LogWarning("Reindex operation timed out after {Timeout} and was cancelled", ReindexTimeout);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {

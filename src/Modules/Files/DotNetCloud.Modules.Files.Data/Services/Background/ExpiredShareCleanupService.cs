@@ -31,6 +31,7 @@ internal sealed class ExpiredShareCleanupService : BackgroundService
 
         while (await timer.WaitForNextTickAsync(stoppingToken))
         {
+            _logger.LogDebug("Expired share cleanup cycle starting");
             try
             {
                 await CleanupAsync(stoppingToken);
