@@ -28,6 +28,17 @@
             <span class="control-label">@(IsCameraOff ? "Start Video" : "Stop Video")</span>
         </button>
 
+        @if (IsBlurSupported)
+        {
+            <button class="control-btn @(IsBackgroundBlurred ? "control-active blur-active" : "")"
+                    @onclick="HandleToggleBackgroundBlur"
+                    title="@(IsBackgroundBlurred ? "Disable background blur" : "Enable background blur")"
+                    disabled="@IsDisabled">
+                <span class="control-icon">🔲</span>
+                <span class="control-label">@(IsBackgroundBlurred ? "Blur On" : "Blur Off")</span>
+            </button>
+        }
+
         <button class="control-btn @(IsScreenSharing ? "control-active screen-share-active" : "")"
                 @onclick="HandleToggleScreenShare"
                 title="@(IsScreenSharing ? "Stop sharing screen" : "Share your screen")"

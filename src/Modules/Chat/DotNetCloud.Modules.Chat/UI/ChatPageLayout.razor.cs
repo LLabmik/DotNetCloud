@@ -1,6 +1,8 @@
 using System.Security.Claims;
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Capabilities;
+using DotNetCloud.Core.DTOs;
+using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Chat.DTOs;
 using DotNetCloud.Modules.Chat.Models;
 using DotNetCloud.Modules.Chat.Services;
@@ -36,6 +38,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     [Inject] private IIceServerService IceServerService { get; set; } = default!;
     [Inject] private IPresenceTracker PresenceTracker { get; set; } = default!;
     [Inject] private IUserBlockService UserBlockService { get; set; } = default!;
+    [Inject] private IUserSettingsService UserSettingsService { get; set; } = default!;
     [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
     [Inject] private GlobalChatNotificationState GlobalNotificationState { get; set; } = default!;
     [Inject] private IChatImageStore ChatImageStore { get; set; } = default!;
@@ -130,6 +133,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     private bool _isCallScreenSharing;
     private int _callDurationSeconds;
     private string? _callConnectionQuality;
+    private bool _isCallBackgroundBlurred;
+    private bool _isBlurSupported;
     private Guid? _incomingCallInitiatorId;
     private Guid? _incomingCallChannelId;
     private Guid? _currentCallHostUserId;
@@ -2068,6 +2073,10 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
             _webRtcInitialized = true;
 
+            // Check browser support for background blur
+            try { _isBlurSupported = await WebRtcInterop.IsBackgroundBlurSupportedAsync(); }
+            catch { _isBlurSupported = false; }
+
             // StartLocalMediaAsync may fail if the device has no camera/mic — continue without local media
             try
             {
@@ -2079,6 +2088,22 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
                         ? "local-video-pip"
                         : "local-video-main";
                     await WebRtcInterop.AttachStreamToElementAsync(localVideoElementId, "local");
+
+                    // Auto-enable background blur if user preference is set
+                    if (_isBlurSupported)
+                    {
+                        try
+                        {
+                            var blurSetting = await UserSettingsService.GetSettingAsync(
+                                _currentUserId, "dotnetcloud.video", "background-blur-enabled");
+                            if (blurSetting?.Value is "true")
+                            {
+                                var blurOk = await WebRtcInterop.SetBackgroundBlurAsync(true);
+                                _isCallBackgroundBlurred = blurOk;
+                            }
+                        }
+                        catch { /* Non-critical: proceed without blur */ }
+                    }
                 }
                 else
                 {
@@ -2824,6 +2849,28 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
             await WebRtcInterop.StopScreenShareAsync();
         }
         // _isCallScreenSharing is updated via OnScreenShareStateChanged JS callback
+    }
+
+    private async Task HandleCallToggleBackgroundBlur(bool blurred)
+    {
+        if (!_webRtcInitialized || !_isBlurSupported) return;
+
+        var success = await WebRtcInterop.SetBackgroundBlurAsync(blurred);
+        if (success)
+        {
+            _isCallBackgroundBlurred = blurred;
+
+            // Persist preference
+            try
+            {
+                await UserSettingsService.UpsertSettingAsync(
+                    _currentUserId,
+                    "dotnetcloud.video",
+                    "background-blur-enabled",
+                    new UpsertUserSettingDto { Value = blurred ? "true" : "false" });
+            }
+            catch { /* Non-critical: blur works even if preference save fails */ }
+        }
     }
 
     private async Task SendMediaStateChangeAsync(string mediaType, bool enabled)

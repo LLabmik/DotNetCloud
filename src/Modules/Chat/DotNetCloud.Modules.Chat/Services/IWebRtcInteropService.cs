@@ -121,4 +121,18 @@ public interface IWebRtcInteropService
     /// Get local media track states.
     /// </summary>
     Task<WebRtcMediaState?> GetMediaStateAsync();
+
+    /// <summary>
+    /// Enable or disable background blur on the local video stream.
+    /// When enabled, the raw camera track is replaced with a processed (blurred) track.
+    /// </summary>
+    /// <param name="enabled">True to enable blur, false to disable.</param>
+    /// <returns>True if the operation succeeded.</returns>
+    Task<bool> SetBackgroundBlurAsync(bool enabled);
+
+    /// <summary>
+    /// Checks whether the client browser supports background blur (WebGL2 + WASM).
+    /// </summary>
+    /// <returns>True if background blur is supported.</returns>
+    Task<bool> IsBackgroundBlurSupportedAsync();
 }

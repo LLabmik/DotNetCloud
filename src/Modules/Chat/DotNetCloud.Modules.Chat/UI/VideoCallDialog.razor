@@ -139,6 +139,8 @@
             <CallControls IsMuted="@IsMuted"
                           IsCameraOff="@IsCameraOff"
                           IsScreenSharing="@IsScreenSharing"
+                          IsBackgroundBlurred="@IsBackgroundBlurred"
+                          IsBlurSupported="@IsBlurSupported"
                           ParticipantCount="@TotalParticipantCount"
                           DurationSeconds="@DurationSeconds"
                           ConnectionQuality="@ConnectionQuality"
@@ -148,6 +150,7 @@
                           OnToggleMute="@HandleToggleMute"
                           OnToggleCamera="@HandleToggleCamera"
                           OnToggleScreenShare="@HandleToggleScreenShare"
+                          OnToggleBackgroundBlur="@HandleToggleBackgroundBlur"
                           OnAddPeople="@HandleAddPeople"
                           OnHangUp="@HandleHangUp" />
         </div>

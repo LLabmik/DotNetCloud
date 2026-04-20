@@ -53,6 +53,14 @@ public partial class VideoCallDialog : ComponentBase
     [Parameter]
     public bool IsScreenSharing { get; set; }
 
+    /// <summary>Whether background blur is active on local video.</summary>
+    [Parameter]
+    public bool IsBackgroundBlurred { get; set; }
+
+    /// <summary>Whether background blur is supported by the client browser.</summary>
+    [Parameter]
+    public bool IsBlurSupported { get; set; }
+
     /// <summary>Call duration in seconds.</summary>
     [Parameter]
     public int DurationSeconds { get; set; }
@@ -72,6 +80,10 @@ public partial class VideoCallDialog : ComponentBase
     /// <summary>Callback when screen share is toggled.</summary>
     [Parameter]
     public EventCallback<bool> OnToggleScreenShare { get; set; }
+
+    /// <summary>Callback when background blur is toggled.</summary>
+    [Parameter]
+    public EventCallback<bool> OnToggleBackgroundBlur { get; set; }
 
     /// <summary>Callback when hang up is clicked.</summary>
     [Parameter]
@@ -222,6 +234,12 @@ public partial class VideoCallDialog : ComponentBase
     protected async Task HandleToggleScreenShare(bool sharing)
     {
         await OnToggleScreenShare.InvokeAsync(sharing);
+    }
+
+    /// <summary>Handles background blur toggle from CallControls.</summary>
+    protected async Task HandleToggleBackgroundBlur(bool blurred)
+    {
+        await OnToggleBackgroundBlur.InvokeAsync(blurred);
     }
 
     /// <summary>Handles hang up from CallControls.</summary>

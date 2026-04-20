@@ -189,6 +189,27 @@ internal sealed class WebRtcInteropService : IWebRtcInteropService
         return await _js.InvokeAsync<WebRtcMediaState?>($"{JsNamespace}.getMediaState");
     }
 
+    /// <inheritdoc />
+    public async Task<bool> SetBackgroundBlurAsync(bool enabled)
+    {
+        _logger.LogDebug("Setting background blur: {Enabled}", enabled);
+        if (enabled)
+        {
+            return await _js.InvokeAsync<bool>($"{JsNamespace}.enableBackgroundBlur");
+        }
+        else
+        {
+            await _js.InvokeVoidAsync($"{JsNamespace}.disableBackgroundBlur");
+            return true;
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> IsBackgroundBlurSupportedAsync()
+    {
+        return await _js.InvokeAsync<bool>("dotnetcloudVideoEffects.isSupported");
+    }
+
     // ── Validation ────────────────────────────────────────────
 
     internal static void ValidatePeerId(string peerId)

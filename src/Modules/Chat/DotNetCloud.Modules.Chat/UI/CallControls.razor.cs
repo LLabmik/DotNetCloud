@@ -20,6 +20,14 @@ public partial class CallControls : ComponentBase
     [Parameter]
     public bool IsScreenSharing { get; set; }
 
+    /// <summary>Whether background blur is active on local video.</summary>
+    [Parameter]
+    public bool IsBackgroundBlurred { get; set; }
+
+    /// <summary>Whether background blur is supported by the client browser.</summary>
+    [Parameter]
+    public bool IsBlurSupported { get; set; }
+
     /// <summary>Number of participants in the call.</summary>
     [Parameter]
     public int ParticipantCount { get; set; }
@@ -56,6 +64,10 @@ public partial class CallControls : ComponentBase
     [Parameter]
     public EventCallback<bool> OnToggleScreenShare { get; set; }
 
+    /// <summary>Callback when background blur is toggled.</summary>
+    [Parameter]
+    public EventCallback<bool> OnToggleBackgroundBlur { get; set; }
+
     /// <summary>Callback when hang up is clicked.</summary>
     [Parameter]
     public EventCallback OnHangUp { get; set; }
@@ -83,6 +95,12 @@ public partial class CallControls : ComponentBase
     protected async Task HandleToggleScreenShare()
     {
         await OnToggleScreenShare.InvokeAsync(!IsScreenSharing);
+    }
+
+    /// <summary>Toggles background blur state.</summary>
+    protected async Task HandleToggleBackgroundBlur()
+    {
+        await OnToggleBackgroundBlur.InvokeAsync(!IsBackgroundBlurred);
     }
 
     /// <summary>Handles hang up button click.</summary>
