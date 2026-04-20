@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Files.Options;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -12,32 +14,53 @@ namespace DotNetCloud.Modules.Files.Data.Services.Background;
 /// </summary>
 internal sealed class TempFileCleanupService : BackgroundService
 {
+    private const string ServiceName = "Temp File Cleanup";
     private static readonly TimeSpan CleanupInterval = TimeSpan.FromHours(6);
 
     private readonly string _tmpPath;
     private readonly ILogger<TempFileCleanupService> _logger;
+    private readonly IBackgroundServiceTracker _tracker;
 
     /// <summary>
     /// Initializes a new instance of <see cref="TempFileCleanupService"/>.
     /// </summary>
-    public TempFileCleanupService(IOptions<FileUploadOptions> options, ILogger<TempFileCleanupService> logger)
+    public TempFileCleanupService(IOptions<FileUploadOptions> options, ILogger<TempFileCleanupService> logger, IBackgroundServiceTracker tracker)
     {
         _tmpPath = options.Value.TmpPath ?? Path.GetTempPath();
         _logger = logger;
+        _tracker = tracker;
     }
 
     /// <inheritdoc />
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         // Run immediately on startup
-        Cleanup();
+        RunTrackedCleanup("initial");
 
         using var timer = new PeriodicTimer(CleanupInterval);
 
         while (await timer.WaitForNextTickAsync(stoppingToken))
         {
-            _logger.LogDebug("Temp file cleanup cycle starting");
+            RunTrackedCleanup("scheduled");
+        }
+    }
+
+    private void RunTrackedCleanup(string trigger)
+    {
+        var sw = Stopwatch.StartNew();
+        try
+        {
+            _logger.LogInformation("{Service} cycle starting ({Trigger})", ServiceName, trigger);
             Cleanup();
+            sw.Stop();
+            _tracker.RecordRun(ServiceName, DateTimeOffset.UtcNow, sw.Elapsed, success: true);
+            _logger.LogInformation("{Service} cycle completed in {Elapsed:F1}s", ServiceName, sw.Elapsed.TotalSeconds);
+        }
+        catch (Exception ex)
+        {
+            sw.Stop();
+            _tracker.RecordRun(ServiceName, DateTimeOffset.UtcNow, sw.Elapsed, success: false, message: ex.Message);
+            _logger.LogError(ex, "Error during {Service}", ServiceName);
         }
     }
 

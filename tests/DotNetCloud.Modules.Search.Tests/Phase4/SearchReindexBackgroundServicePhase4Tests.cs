@@ -1,5 +1,6 @@
 using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs.Search;
+using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Search.Data;
 using DotNetCloud.Modules.Search.Data.Models;
 using DotNetCloud.Modules.Search.Services;
@@ -52,7 +53,8 @@ public class SearchReindexBackgroundServicePhase4Tests
 
         _service = new SearchReindexBackgroundService(
             _serviceProvider.GetRequiredService<IServiceScopeFactory>(),
-            NullLogger<SearchReindexBackgroundService>.Instance);
+            NullLogger<SearchReindexBackgroundService>.Instance,
+            new BackgroundServiceTracker());
     }
 
     [TestCleanup]

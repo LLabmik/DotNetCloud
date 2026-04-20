@@ -1,6 +1,7 @@
 using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs.Search;
 using DotNetCloud.Core.Events.Search;
+using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Search.Data;
 using DotNetCloud.Modules.Search.Data.Models;
 using DotNetCloud.Modules.Search.Events;
@@ -296,7 +297,8 @@ public class EndToEndIndexingTests
 
         var reindexService = new SearchReindexBackgroundService(
             sp.GetRequiredService<IServiceScopeFactory>(),
-            NullLogger<SearchReindexBackgroundService>.Instance);
+            NullLogger<SearchReindexBackgroundService>.Instance,
+            new BackgroundServiceTracker());
 
         await reindexService.PerformFullReindexAsync();
 
@@ -345,7 +347,8 @@ public class EndToEndIndexingTests
 
         var reindexService = new SearchReindexBackgroundService(
             sp.GetRequiredService<IServiceScopeFactory>(),
-            NullLogger<SearchReindexBackgroundService>.Instance);
+            NullLogger<SearchReindexBackgroundService>.Instance,
+            new BackgroundServiceTracker());
 
         await reindexService.PerformModuleReindexAsync("notes");
 
@@ -478,7 +481,8 @@ public class EndToEndIndexingTests
 
         var reindexService = new SearchReindexBackgroundService(
             sp.GetRequiredService<IServiceScopeFactory>(),
-            NullLogger<SearchReindexBackgroundService>.Instance);
+            NullLogger<SearchReindexBackgroundService>.Instance,
+            new BackgroundServiceTracker());
 
         await reindexService.PerformFullReindexAsync();
 

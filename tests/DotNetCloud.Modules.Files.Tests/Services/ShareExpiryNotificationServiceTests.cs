@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Files.Data;
 using DotNetCloud.Modules.Files.Data.Services.Background;
 using DotNetCloud.Modules.Files.Events;
@@ -56,7 +57,8 @@ public class ShareExpiryNotificationServiceTests
 
         var service = new ShareExpiryNotificationService(
             serviceProvider.GetRequiredService<IServiceScopeFactory>(),
-            NullLogger<ShareExpiryNotificationService>.Instance);
+            NullLogger<ShareExpiryNotificationService>.Instance,
+            new BackgroundServiceTracker());
 
         await service.CheckExpiringSharesAsync(CancellationToken.None);
 
@@ -108,7 +110,8 @@ public class ShareExpiryNotificationServiceTests
 
         var service = new ShareExpiryNotificationService(
             serviceProvider.GetRequiredService<IServiceScopeFactory>(),
-            NullLogger<ShareExpiryNotificationService>.Instance);
+            NullLogger<ShareExpiryNotificationService>.Instance,
+            new BackgroundServiceTracker());
 
         await service.CheckExpiringSharesAsync(CancellationToken.None);
 
@@ -151,7 +154,8 @@ public class ShareExpiryNotificationServiceTests
 
         var service = new ShareExpiryNotificationService(
             serviceProvider.GetRequiredService<IServiceScopeFactory>(),
-            NullLogger<ShareExpiryNotificationService>.Instance);
+            NullLogger<ShareExpiryNotificationService>.Instance,
+            new BackgroundServiceTracker());
 
         await service.CheckExpiringSharesAsync(CancellationToken.None);
 
@@ -194,7 +198,8 @@ public class ShareExpiryNotificationServiceTests
 
         var service = new ShareExpiryNotificationService(
             serviceProvider.GetRequiredService<IServiceScopeFactory>(),
-            NullLogger<ShareExpiryNotificationService>.Instance);
+            NullLogger<ShareExpiryNotificationService>.Instance,
+            new BackgroundServiceTracker());
 
         await service.CheckExpiringSharesAsync(CancellationToken.None);
 

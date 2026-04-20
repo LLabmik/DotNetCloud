@@ -430,6 +430,16 @@ public sealed class DotNetCloudApiClient
         return envelope?.Data;
     }
 
+    /// <summary>
+    /// Gets the status of all tracked background services.
+    /// </summary>
+    public async Task<IReadOnlyList<BackgroundServiceStatusDto>> GetBackgroundServicesAsync(CancellationToken ct = default)
+    {
+        var envelope = await _http.GetFromJsonAsync<ApiEnvelope<IReadOnlyList<BackgroundServiceStatusDto>>>(
+            "api/v1/core/admin/background-services", ct);
+        return envelope?.Data ?? [];
+    }
+
     // -----------------------------------------------------------------------
     // Sync Device Status (Admin)
     // -----------------------------------------------------------------------
@@ -852,6 +862,20 @@ public sealed class HealthEntryDto
     public string? Description { get; set; }
     public double Duration { get; set; }
     public Dictionary<string, object>? Data { get; set; }
+}
+
+/// <summary>
+/// Status snapshot for a tracked background service.
+/// </summary>
+public sealed class BackgroundServiceStatusDto
+{
+    public string ServiceName { get; set; } = string.Empty;
+    public DateTimeOffset LastRunAt { get; set; }
+    public double LastRunDurationMs { get; set; }
+    public bool LastRunSuccess { get; set; }
+    public string? LastRunMessage { get; set; }
+    public int TotalRuns { get; set; }
+    public int TotalFailures { get; set; }
 }
 
 /// <summary>

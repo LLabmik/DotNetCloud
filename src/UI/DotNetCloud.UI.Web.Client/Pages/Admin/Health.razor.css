@@ -1,0 +1,32 @@
+.bg-services-section {
+    margin-top: 2rem;
+}
+
+.bg-services-section h2 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+}
+
+.bg-svc-name {
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.bg-svc-time {
+    white-space: nowrap;
+}
+
+.bg-svc-message {
+    max-width: 20rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-muted, #6b7280);
+    font-size: 0.875rem;
+}
+
+.text-danger {
+    color: #dc2626;
+    font-weight: 600;
+}

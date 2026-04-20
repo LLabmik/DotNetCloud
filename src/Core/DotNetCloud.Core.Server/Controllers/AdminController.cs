@@ -19,6 +19,7 @@ public class AdminController : ControllerBase
     private readonly IAdminSettingsService _settingsService;
     private readonly IAdminModuleService _moduleService;
     private readonly HealthCheckService _healthCheckService;
+    private readonly IBackgroundServiceTracker _backgroundServiceTracker;
     private readonly ILogger<AdminController> _logger;
 
     /// <summary>
@@ -28,11 +29,13 @@ public class AdminController : ControllerBase
         IAdminSettingsService settingsService,
         IAdminModuleService moduleService,
         HealthCheckService healthCheckService,
+        IBackgroundServiceTracker backgroundServiceTracker,
         ILogger<AdminController> logger)
     {
         _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
         _moduleService = moduleService ?? throw new ArgumentNullException(nameof(moduleService));
         _healthCheckService = healthCheckService ?? throw new ArgumentNullException(nameof(healthCheckService));
+        _backgroundServiceTracker = backgroundServiceTracker ?? throw new ArgumentNullException(nameof(backgroundServiceTracker));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -273,6 +276,34 @@ public class AdminController : ControllerBase
                 entries,
             },
         });
+    }
+
+    // ---------------------------------------------------------------------------
+    // Background Services
+    // ---------------------------------------------------------------------------
+
+    /// <summary>
+    /// Get status of all tracked background services (last run time, duration, success).
+    /// </summary>
+    /// <returns>List of background service statuses.</returns>
+    [HttpGet("background-services")]
+    public IActionResult GetBackgroundServices()
+    {
+        var services = _backgroundServiceTracker.GetAll()
+            .Values
+            .OrderBy(s => s.ServiceName)
+            .Select(s => new
+            {
+                serviceName = s.ServiceName,
+                lastRunAt = s.LastRunAt,
+                lastRunDurationMs = s.LastRunDuration.TotalMilliseconds,
+                lastRunSuccess = s.LastRunSuccess,
+                lastRunMessage = s.LastRunMessage,
+                totalRuns = s.TotalRuns,
+                totalFailures = s.TotalFailures,
+            });
+
+        return Ok(new { success = true, data = services });
     }
 
     // ---------------------------------------------------------------------------

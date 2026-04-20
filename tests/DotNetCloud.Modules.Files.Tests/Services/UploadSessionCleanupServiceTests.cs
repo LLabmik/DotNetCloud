@@ -1,4 +1,5 @@
 using DotNetCloud.Modules.Files.Data;
+using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Files.Data.Services.Background;
 using DotNetCloud.Modules.Files.Models;
 using DotNetCloud.Modules.Files.Services;
@@ -32,7 +33,7 @@ public class UploadSessionCleanupServiceTests
         scope.Setup(s => s.ServiceProvider).Returns(provider);
         scopeFactory.Setup(f => f.CreateScope()).Returns(scope.Object);
 
-        return new UploadSessionCleanupService(scopeFactory.Object, NullLogger<UploadSessionCleanupService>.Instance);
+        return new UploadSessionCleanupService(scopeFactory.Object, NullLogger<UploadSessionCleanupService>.Instance, new BackgroundServiceTracker());
     }
 
     [TestMethod]

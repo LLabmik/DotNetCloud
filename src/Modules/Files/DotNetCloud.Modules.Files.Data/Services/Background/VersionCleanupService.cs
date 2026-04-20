@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Files.Options;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -27,41 +29,59 @@ namespace DotNetCloud.Modules.Files.Data.Services.Background;
 /// </remarks>
 internal sealed class VersionCleanupService : BackgroundService
 {
+    private const string ServiceName = "Version Cleanup";
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IOptions<VersionRetentionOptions> _options;
     private readonly ILogger<VersionCleanupService> _logger;
+    private readonly IBackgroundServiceTracker _tracker;
 
     public VersionCleanupService(
         IServiceScopeFactory scopeFactory,
         IOptions<VersionRetentionOptions> options,
-        ILogger<VersionCleanupService> logger)
+        ILogger<VersionCleanupService> logger,
+        IBackgroundServiceTracker tracker)
     {
         _scopeFactory = scopeFactory;
         _options = options;
         _logger = logger;
+        _tracker = tracker;
     }
 
     /// <inheritdoc />
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        // Run immediately on startup
+        await RunCycleAsync("initial", stoppingToken);
+
         var opts = _options.Value;
         using var timer = new PeriodicTimer(opts.CleanupInterval);
 
         while (await timer.WaitForNextTickAsync(stoppingToken))
         {
-            _logger.LogDebug("Version cleanup cycle starting");
-            try
-            {
-                await CleanupAsync(stoppingToken);
-            }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-            {
-                break;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error during version cleanup");
-            }
+            await RunCycleAsync("scheduled", stoppingToken);
+        }
+    }
+
+    private async Task RunCycleAsync(string trigger, CancellationToken ct)
+    {
+        var sw = Stopwatch.StartNew();
+        try
+        {
+            _logger.LogInformation("{Service} cycle starting ({Trigger})", ServiceName, trigger);
+            await CleanupAsync(ct);
+            sw.Stop();
+            _tracker.RecordRun(ServiceName, DateTimeOffset.UtcNow, sw.Elapsed, success: true);
+            _logger.LogInformation("{Service} cycle completed in {Elapsed:F1}s", ServiceName, sw.Elapsed.TotalSeconds);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            sw.Stop();
+            _tracker.RecordRun(ServiceName, DateTimeOffset.UtcNow, sw.Elapsed, success: false, message: ex.Message);
+            _logger.LogError(ex, "Error during {Service}", ServiceName);
         }
     }
 

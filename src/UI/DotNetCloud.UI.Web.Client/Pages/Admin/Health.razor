@@ -54,6 +54,60 @@ else
             </tbody>
         </table>
     </div>
+
+    @* ── Background Services ──────────────────────────────────── *@
+    <div class="bg-services-section">
+        <h2>Background Services</h2>
+        @if (_bgServices.Count == 0)
+        {
+            <p class="text-muted">No background service data available yet.</p>
+        }
+        else
+        {
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Service</th>
+                            <th>Last Run</th>
+                            <th>Duration</th>
+                            <th>Status</th>
+                            <th>Runs</th>
+                            <th>Failures</th>
+                            <th>Message</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var svc in _bgServices)
+                        {
+                            <tr>
+                                <td class="bg-svc-name">@svc.ServiceName</td>
+                                <td class="bg-svc-time" title="@svc.LastRunAt.ToString("O")">@FormatTimeAgo(svc.LastRunAt)</td>
+                                <td>@FormatDuration(svc.LastRunDurationMs)</td>
+                                <td>
+                                    <span class="badge badge-@(svc.LastRunSuccess ? "success" : "danger")">
+                                        @(svc.LastRunSuccess ? "OK" : "Failed")
+                                    </span>
+                                </td>
+                                <td>@svc.TotalRuns</td>
+                                <td>
+                                    @if (svc.TotalFailures > 0)
+                                    {
+                                        <span class="text-danger">@svc.TotalFailures</span>
+                                    }
+                                    else
+                                    {
+                                        <span>0</span>
+                                    }
+                                </td>
+                                <td class="bg-svc-message">@(svc.LastRunMessage ?? "—")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
 }
 
 @code {
@@ -62,6 +116,7 @@ else
 
     private bool _loading = true;
     private HealthReportDto? _health;
+    private IReadOnlyList<BackgroundServiceStatusDto> _bgServices = [];
 
     protected override async Task OnInitializedAsync()
     {
@@ -73,7 +128,11 @@ else
         _loading = true;
         try
         {
-            _health = await Api.GetHealthAsync();
+            var healthTask = Api.GetHealthAsync();
+            var bgTask = Api.GetBackgroundServicesAsync();
+            await Task.WhenAll(healthTask, bgTask);
+            _health = healthTask.Result;
+            _bgServices = bgTask.Result;
         }
         catch
         {
@@ -92,4 +151,20 @@ else
         "Unhealthy" => "danger",
         _ => "muted"
     };
+
+    private static string FormatTimeAgo(DateTimeOffset time)
+    {
+        var elapsed = DateTimeOffset.UtcNow - time;
+        if (elapsed.TotalSeconds < 60) return $"{elapsed.Seconds}s ago";
+        if (elapsed.TotalMinutes < 60) return $"{elapsed.Minutes}m ago";
+        if (elapsed.TotalHours < 24) return $"{elapsed.Hours}h {elapsed.Minutes % 60}m ago";
+        return $"{elapsed.Days}d {elapsed.Hours % 24}h ago";
+    }
+
+    private static string FormatDuration(double ms)
+    {
+        if (ms < 1000) return $"{ms:F0}ms";
+        if (ms < 60_000) return $"{ms / 1000:F1}s";
+        return $"{ms / 60_000:F1}m";
+    }
 }

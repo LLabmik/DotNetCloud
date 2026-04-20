@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs.Search;
+using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Search.Data;
 using DotNetCloud.Modules.Search.Data.Models;
 using Microsoft.EntityFrameworkCore;
@@ -16,8 +18,10 @@ namespace DotNetCloud.Modules.Search.Services;
 /// </summary>
 public sealed class SearchReindexBackgroundService : BackgroundService
 {
+    private const string ServiceName = "Search Full Reindex";
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<SearchReindexBackgroundService> _logger;
+    private readonly IBackgroundServiceTracker _tracker;
     private readonly TimeSpan _reindexInterval;
     private readonly SemaphoreSlim _triggerSemaphore = new(0, 1);
     private volatile bool _manualReindexRequested;
@@ -61,10 +65,12 @@ public sealed class SearchReindexBackgroundService : BackgroundService
     /// <summary>Initializes a new instance of the <see cref="SearchReindexBackgroundService"/> class.</summary>
     public SearchReindexBackgroundService(
         IServiceScopeFactory scopeFactory,
-        ILogger<SearchReindexBackgroundService> logger)
+        ILogger<SearchReindexBackgroundService> logger,
+        IBackgroundServiceTracker tracker)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
+        _tracker = tracker;
         _reindexInterval = TimeSpan.FromHours(24); // Default: daily
     }
 
@@ -99,19 +105,26 @@ public sealed class SearchReindexBackgroundService : BackgroundService
         await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
 
         // Run an immediate full reindex on startup, then wait for the interval
+        var sw = Stopwatch.StartNew();
         try
         {
             _logger.LogInformation("Starting initial full reindex after startup");
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
             cts.CancelAfter(ReindexTimeout);
             await PerformFullReindexAsync(cts.Token);
+            sw.Stop();
+            _tracker.RecordRun(ServiceName, DateTimeOffset.UtcNow, sw.Elapsed, success: true);
         }
         catch (OperationCanceledException) when (!stoppingToken.IsCancellationRequested)
         {
+            sw.Stop();
+            _tracker.RecordRun(ServiceName, DateTimeOffset.UtcNow, sw.Elapsed, success: false, message: "Timed out");
             _logger.LogWarning("Initial reindex timed out after {Timeout} and was cancelled", ReindexTimeout);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            sw.Stop();
+            _tracker.RecordRun(ServiceName, DateTimeOffset.UtcNow, sw.Elapsed, success: false, message: ex.Message);
             _logger.LogError(ex, "Initial reindex operation failed");
         }
 
@@ -121,6 +134,7 @@ public sealed class SearchReindexBackgroundService : BackgroundService
             {
                 // Wait for either the interval to elapse or a manual trigger
                 var triggered = await WaitForNextRunAsync(stoppingToken);
+                sw = Stopwatch.StartNew();
 
                 if (triggered && _manualReindexRequested)
                 {
@@ -150,13 +164,20 @@ public sealed class SearchReindexBackgroundService : BackgroundService
                     cts.CancelAfter(ReindexTimeout);
                     await PerformFullReindexAsync(cts.Token);
                 }
+
+                sw.Stop();
+                _tracker.RecordRun(ServiceName, DateTimeOffset.UtcNow, sw.Elapsed, success: true);
             }
             catch (OperationCanceledException) when (!stoppingToken.IsCancellationRequested)
             {
+                sw.Stop();
+                _tracker.RecordRun(ServiceName, DateTimeOffset.UtcNow, sw.Elapsed, success: false, message: "Timed out");
                 _logger.LogWarning("Reindex operation timed out after {Timeout} and was cancelled", ReindexTimeout);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
+                sw.Stop();
+                _tracker.RecordRun(ServiceName, DateTimeOffset.UtcNow, sw.Elapsed, success: false, message: ex.Message);
                 _logger.LogError(ex, "Reindex operation failed");
             }
         }

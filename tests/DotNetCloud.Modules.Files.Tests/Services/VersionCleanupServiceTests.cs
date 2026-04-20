@@ -1,4 +1,5 @@
 using DotNetCloud.Modules.Files.Data;
+using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Files.Data.Services.Background;
 using DotNetCloud.Modules.Files.Models;
 using DotNetCloud.Modules.Files.Options;
@@ -35,7 +36,8 @@ public class VersionCleanupServiceTests
         return new VersionCleanupService(
             scopeFactory.Object,
             OptionsHelper.Create(opts),
-            NullLogger<VersionCleanupService>.Instance);
+            NullLogger<VersionCleanupService>.Instance,
+            new BackgroundServiceTracker());
     }
 
     private static (FileNode Node, FileChunk Chunk) SeedNodeWithVersions(

@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Files.Models;
 using DotNetCloud.Modules.Files.Services;
 using Microsoft.EntityFrameworkCore;
@@ -13,37 +15,54 @@ namespace DotNetCloud.Modules.Files.Data.Services.Background;
 /// </summary>
 internal sealed class UploadSessionCleanupService : BackgroundService
 {
+    private const string ServiceName = "Upload Session Cleanup";
     private static readonly TimeSpan Interval = TimeSpan.FromHours(1);
 
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<UploadSessionCleanupService> _logger;
+    private readonly IBackgroundServiceTracker _tracker;
 
-    public UploadSessionCleanupService(IServiceScopeFactory scopeFactory, ILogger<UploadSessionCleanupService> logger)
+    public UploadSessionCleanupService(IServiceScopeFactory scopeFactory, ILogger<UploadSessionCleanupService> logger, IBackgroundServiceTracker tracker)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
+        _tracker = tracker;
     }
 
     /// <inheritdoc />
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        // Run immediately on startup
+        await RunCycleAsync("initial", stoppingToken);
+
         using var timer = new PeriodicTimer(Interval);
 
         while (await timer.WaitForNextTickAsync(stoppingToken))
         {
-            _logger.LogDebug("Upload session cleanup cycle starting");
-            try
-            {
-                await CleanupAsync(stoppingToken);
-            }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-            {
-                break;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error during upload session cleanup");
-            }
+            await RunCycleAsync("scheduled", stoppingToken);
+        }
+    }
+
+    private async Task RunCycleAsync(string trigger, CancellationToken ct)
+    {
+        var sw = Stopwatch.StartNew();
+        try
+        {
+            _logger.LogInformation("{Service} cycle starting ({Trigger})", ServiceName, trigger);
+            await CleanupAsync(ct);
+            sw.Stop();
+            _tracker.RecordRun(ServiceName, DateTimeOffset.UtcNow, sw.Elapsed, success: true);
+            _logger.LogInformation("{Service} cycle completed in {Elapsed:F1}s", ServiceName, sw.Elapsed.TotalSeconds);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            sw.Stop();
+            _tracker.RecordRun(ServiceName, DateTimeOffset.UtcNow, sw.Elapsed, success: false, message: ex.Message);
+            _logger.LogError(ex, "Error during {Service}", ServiceName);
         }
     }
 
@@ -74,8 +93,10 @@ internal sealed class UploadSessionCleanupService : BackgroundService
 
         // GC orphaned chunks: chunks with no file version references (ReferenceCount = 0)
         // These arise from sessions that were cancelled, expired, or had network failures
+        // Also verify no actual FK references exist (guards against stale ReferenceCount)
         var orphanChunks = await db.FileChunks
             .Where(c => c.ReferenceCount <= 0)
+            .Where(c => !db.FileVersionChunks.Any(vc => vc.FileChunkId == c.Id))
             .ToListAsync(cancellationToken);
 
         foreach (var chunk in orphanChunks)
@@ -94,8 +115,16 @@ internal sealed class UploadSessionCleanupService : BackgroundService
 
         if (orphanChunks.Count > 0)
         {
-            await db.SaveChangesAsync(cancellationToken);
-            _logger.LogInformation("Garbage-collected {Count} orphaned chunks from failed upload sessions", orphanChunks.Count);
+            try
+            {
+                await db.SaveChangesAsync(cancellationToken);
+                _logger.LogInformation("Garbage-collected {Count} orphaned chunks from failed upload sessions", orphanChunks.Count);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                // Another service (e.g. TrashCleanup) already deleted some of these chunks
+                _logger.LogDebug("Chunk GC had concurrency conflict (another service already cleaned some chunks)");
+            }
         }
     }
 }

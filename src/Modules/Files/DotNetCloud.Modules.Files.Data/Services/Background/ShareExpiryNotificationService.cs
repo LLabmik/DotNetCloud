@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Files.Events;
 using DotNetCloud.Modules.Files.Models;
 using Microsoft.EntityFrameworkCore;
@@ -16,6 +18,8 @@ namespace DotNetCloud.Modules.Files.Data.Services.Background;
 /// </summary>
 internal sealed class ShareExpiryNotificationService : BackgroundService
 {
+    private const string ServiceName = "Share Expiry Notification";
+
     /// <summary>How far before expiry to send the notification (24 hours).</summary>
     private static readonly TimeSpan NotificationWindow = TimeSpan.FromHours(24);
 
@@ -24,35 +28,52 @@ internal sealed class ShareExpiryNotificationService : BackgroundService
 
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<ShareExpiryNotificationService> _logger;
+    private readonly IBackgroundServiceTracker _tracker;
 
     public ShareExpiryNotificationService(
         IServiceScopeFactory scopeFactory,
-        ILogger<ShareExpiryNotificationService> logger)
+        ILogger<ShareExpiryNotificationService> logger,
+        IBackgroundServiceTracker tracker)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
+        _tracker = tracker;
     }
 
     /// <inheritdoc />
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        // Run immediately on startup
+        await RunCycleAsync("initial", stoppingToken);
+
         using var timer = new PeriodicTimer(CheckInterval);
 
         while (await timer.WaitForNextTickAsync(stoppingToken))
         {
-            _logger.LogDebug("Share expiry notification check starting");
-            try
-            {
-                await CheckExpiringSharesAsync(stoppingToken);
-            }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-            {
-                break;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error checking for expiring shares");
-            }
+            await RunCycleAsync("scheduled", stoppingToken);
+        }
+    }
+
+    private async Task RunCycleAsync(string trigger, CancellationToken ct)
+    {
+        var sw = Stopwatch.StartNew();
+        try
+        {
+            _logger.LogInformation("{Service} cycle starting ({Trigger})", ServiceName, trigger);
+            await CheckExpiringSharesAsync(ct);
+            sw.Stop();
+            _tracker.RecordRun(ServiceName, DateTimeOffset.UtcNow, sw.Elapsed, success: true);
+            _logger.LogInformation("{Service} cycle completed in {Elapsed:F1}s", ServiceName, sw.Elapsed.TotalSeconds);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            sw.Stop();
+            _tracker.RecordRun(ServiceName, DateTimeOffset.UtcNow, sw.Elapsed, success: false, message: ex.Message);
+            _logger.LogError(ex, "Error during {Service}", ServiceName);
         }
     }
 
