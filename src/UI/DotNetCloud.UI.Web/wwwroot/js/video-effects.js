@@ -83,6 +83,8 @@ window.dotnetcloudVideoEffects = window.dotnetcloudVideoEffects || (function () 
     let useRvfc = false;
     /** @type {number|null} rAF handle (used when rVFC not available) */
     let rafId = null;
+    /** @type {number} Frame counter for debug logging */
+    let frameCount = 0;
 
     // ── Module Loading ─────────────────────────────────────────
 
@@ -156,7 +158,7 @@ window.dotnetcloudVideoEffects = window.dotnetcloudVideoEffects || (function () 
                         delegate: 'GPU'
                     },
                     outputCategoryMask: true,
-                    outputConfidenceMasks: false,
+                    outputConfidenceMasks: true,
                     runningMode: 'VIDEO'
                 });
                 console.log('[VideoEffects] Image Segmenter ready (GPU)');
@@ -168,7 +170,7 @@ window.dotnetcloudVideoEffects = window.dotnetcloudVideoEffects || (function () 
                         delegate: 'CPU'
                     },
                     outputCategoryMask: true,
-                    outputConfidenceMasks: false,
+                    outputConfidenceMasks: true,
                     runningMode: 'VIDEO'
                 });
                 console.log('[VideoEffects] Image Segmenter ready (CPU)');
@@ -412,6 +414,7 @@ window.dotnetcloudVideoEffects = window.dotnetcloudVideoEffects || (function () 
         frameHeight = 0;
 
         // Release virtual background (keep image cached for re-use, only clear on dispose)
+        frameCount = 0;
     }
 
     // ── Processing Loops ───────────────────────────────────────
@@ -450,10 +453,41 @@ window.dotnetcloudVideoEffects = window.dotnetcloudVideoEffects || (function () 
         try {
             // Run segmentation
             var result = segmenter.segmentForVideo(hiddenVideo, timestampMs);
-            var categoryMask = result.categoryMask;
+            frameCount++;
 
-            if (!categoryMask) {
-                // No mask — draw original frame as fallback
+            // Debug: log result structure on first few frames
+            if (frameCount <= 3) {
+                console.log('[VideoEffects] Frame ' + frameCount + ' result keys:', Object.keys(result));
+                console.log('[VideoEffects] categoryMask:', result.categoryMask ? 'present' : 'null');
+                console.log('[VideoEffects] confidenceMasks:', result.confidenceMasks ? ('array[' + result.confidenceMasks.length + ']') : 'null');
+                if (result.categoryMask) {
+                    var dbgBytes = result.categoryMask.getAsUint8Array();
+                    var dbgMin = 999, dbgMax = -1, dbgPersonCount = 0;
+                    for (var di = 0; di < Math.min(dbgBytes.length, w * h); di++) {
+                        if (dbgBytes[di] < dbgMin) dbgMin = dbgBytes[di];
+                        if (dbgBytes[di] > dbgMax) dbgMax = dbgBytes[di];
+                        if (dbgBytes[di] > 0) dbgPersonCount++;
+                    }
+                    console.log('[VideoEffects] categoryMask stats: min=' + dbgMin + ' max=' + dbgMax + ' personPixels=' + dbgPersonCount + '/' + (w * h));
+                }
+                if (result.confidenceMasks && result.confidenceMasks.length >= 2) {
+                    var dbgFloats = result.confidenceMasks[1].getAsFloat32Array();
+                    var fMin = 999, fMax = -1, fAboveHalf = 0;
+                    for (var fi = 0; fi < Math.min(dbgFloats.length, w * h); fi++) {
+                        if (dbgFloats[fi] < fMin) fMin = dbgFloats[fi];
+                        if (dbgFloats[fi] > fMax) fMax = dbgFloats[fi];
+                        if (dbgFloats[fi] > 0.5) fAboveHalf++;
+                    }
+                    console.log('[VideoEffects] confidenceMask[1] stats: min=' + fMin.toFixed(4) + ' max=' + fMax.toFixed(4) + ' aboveHalf=' + fAboveHalf + '/' + (w * h));
+                }
+            }
+
+            // Prefer confidence masks for smooth edges, fall back to category mask
+            var useConfidence = result.confidenceMasks && result.confidenceMasks.length >= 2;
+            var useCategoryMask = result.categoryMask;
+
+            if (!useConfidence && !useCategoryMask) {
+                // No masks at all — draw original frame as fallback
                 outputCtx.drawImage(hiddenVideo, 0, 0, w, h);
                 return;
             }
@@ -470,16 +504,29 @@ window.dotnetcloudVideoEffects = window.dotnetcloudVideoEffects || (function () 
                 outputCtx.filter = 'none';
             }
 
-            // ── Step 2: Build the person mask as ImageData ──
-            // categoryMask: Uint8 per pixel, 0=background, 1=person
-            var maskBytes = categoryMask.getAsUint8Array();
+            // ── Step 2: Build the person mask ──
             var md = maskImageData.data;
-            for (var i = 0; i < w * h; i++) {
-                var p = i * 4;
-                md[p]     = 255;
-                md[p + 1] = 255;
-                md[p + 2] = 255;
-                md[p + 3] = maskBytes[i] === 1 ? 255 : 0;
+            if (useConfidence) {
+                // Use confidence mask for smooth alpha-blended edges
+                // confidenceMasks[0] = background confidence; use it inverted so person=opaque
+                var maskFloats = result.confidenceMasks[0].getAsFloat32Array();
+                for (var i = 0; i < w * h; i++) {
+                    var p = i * 4;
+                    md[p]     = 255;
+                    md[p + 1] = 255;
+                    md[p + 2] = 255;
+                    md[p + 3] = Math.round((1.0 - maskFloats[i]) * 255);
+                }
+            } else {
+                // Fallback: category mask (0=background, 1=person)
+                var maskBytes = useCategoryMask.getAsUint8Array();
+                for (var i = 0; i < w * h; i++) {
+                    var p = i * 4;
+                    md[p]     = 255;
+                    md[p + 1] = 255;
+                    md[p + 2] = 255;
+                    md[p + 3] = maskBytes[i] === 0 ? 255 : 0;
+                }
             }
 
             // ── Step 3: Apply mask to sharp frame on personCanvas ──
@@ -496,7 +543,12 @@ window.dotnetcloudVideoEffects = window.dotnetcloudVideoEffects || (function () 
             outputCtx.drawImage(personCanvas, 0, 0);
 
             // Release mask resources
-            categoryMask.close();
+            if (result.categoryMask) result.categoryMask.close();
+            if (result.confidenceMasks) {
+                for (var j = 0; j < result.confidenceMasks.length; j++) {
+                    result.confidenceMasks[j].close();
+                }
+            }
 
         } catch (e) {
             // Fallback: draw original frame unmodified

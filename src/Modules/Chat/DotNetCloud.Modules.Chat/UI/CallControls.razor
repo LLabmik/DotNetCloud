@@ -30,16 +30,32 @@
 
         @if (IsBlurSupported)
         {
-            @* Blur toggle — standalone button like before *@
-            <button class="control-btn @(IsBackgroundBlurred ? "control-active blur-active" : "")"
-                    @onclick="HandleToggleBackgroundBlur"
-                    title="@(IsBackgroundBlurred ? "Disable background blur" : "Enable background blur")"
-                    disabled="@IsDisabled">
-                <span class="control-icon">🔲</span>
-                <span class="control-label">@(IsBackgroundBlurred ? "Blur On" : "Blur")</span>
-            </button>
+            <div class="blur-control-group">
+                @* Blur toggle — standalone button *@
+                <button class="control-btn @(IsBackgroundBlurred ? "control-active blur-active" : "")"
+                        @onclick="HandleToggleBackgroundBlur"
+                        title="@(IsBackgroundBlurred ? "Disable background blur" : "Enable background blur")"
+                        disabled="@IsDisabled">
+                    <span class="control-icon">🔲</span>
+                    <span class="control-label">@(IsBackgroundBlurred ? "Blur On" : "Blur")</span>
+                </button>
 
-            @* Effects button — opens virtual background picker + blur intensity slider *@
+                @* Blur intensity slider — shown directly below blur button when blur is active *@
+                @if (IsBackgroundBlurred)
+                {
+                    <div class="blur-inline-slider" @onclick:stopPropagation="true">
+                        <input type="range"
+                               class="blur-slider"
+                               min="1" max="50" step="1"
+                               value="@BlurIntensity"
+                               disabled="@IsDisabled"
+                               @oninput="HandleBlurIntensityInput" />
+                        <span class="blur-value">@(BlurIntensity)px</span>
+                    </div>
+                }
+            </div>
+
+            @* Effects button — opens virtual background picker *@
             <button class="control-btn @(HasVirtualBackground ? "control-active vbg-active" : "") @(_showEffectsPanel ? "control-active" : "")"
                     @onclick="ToggleEffectsPanel"
                     title="Video effects settings"
@@ -52,21 +68,6 @@
             {
                 <div class="effects-panel" @onclick:stopPropagation="true">
                     <div class="effects-panel-header">Video Effects</div>
-
-                    <div class="effects-section">
-                        <div class="effects-section-label">Blur Intensity</div>
-                        <div class="blur-slider-row">
-                            <span class="blur-label-min">Light</span>
-                            <input type="range"
-                                   class="blur-slider"
-                                   min="1" max="50" step="1"
-                                   value="@BlurIntensity"
-                                   disabled="@IsDisabled"
-                                   @oninput="HandleBlurIntensityInput" />
-                            <span class="blur-label-max">Heavy</span>
-                            <span class="blur-value">@(BlurIntensity)px</span>
-                        </div>
-                    </div>
 
                     <div class="effects-section">
                         <div class="effects-section-label">Virtual Background</div>
