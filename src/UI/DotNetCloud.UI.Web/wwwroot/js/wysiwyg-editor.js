@@ -12,13 +12,13 @@ window.wysiwygEditor = {
      * @param {string} elementId - The id of the contenteditable div
      * @param {object} dotNetRef - .NET object reference for callbacks
      */
-    init: function (elementId, dotNetRef) {
+    init: function (elementId, dotNetRef, channelId) {
         const element = document.getElementById(elementId);
         if (!element || !dotNetRef) return;
 
         this.dispose(elementId);
 
-        const editor = { element, dotNetRef, handlers: {} };
+        const editor = { element, dotNetRef, handlers: {}, channelId: channelId || null };
 
         editor.handlers.input = () => this._notifyContentChanged(elementId);
         element.addEventListener('input', editor.handlers.input);
@@ -30,6 +30,17 @@ window.wysiwygEditor = {
         element.addEventListener('paste', editor.handlers.paste);
 
         this._editors[elementId] = editor;
+    },
+
+    /**
+     * Updates the channel ID for HTTP image uploads.
+     * Called when the user switches channels.
+     * @param {string} elementId
+     * @param {string} channelId
+     */
+    setChannelId: function (elementId, channelId) {
+        const editor = this._editors[elementId];
+        if (editor) editor.channelId = channelId || null;
     },
 
     /**
@@ -276,6 +287,22 @@ window.wysiwygEditor = {
         const file = item.getAsFile();
         if (!file) return;
 
+        // Upload via HTTP to bypass SignalR message size limits
+        if (editor.channelId && window.chatImageUpload?.uploadImageFile) {
+            const result = await window.chatImageUpload.uploadImageFile(file, editor.channelId);
+            if (result) {
+                await editor.dotNetRef.invokeMethodAsync(
+                    'HandlePastedImageUploaded',
+                    result.url,
+                    result.fileName,
+                    result.mimeType,
+                    result.fileSize
+                );
+                return;
+            }
+        }
+
+        // Fallback: send data URL via SignalR (works only for very small images)
         const dataUrl = await new Promise((resolve) => {
             const reader = new FileReader();
             reader.onload = () => resolve(reader.result || '');

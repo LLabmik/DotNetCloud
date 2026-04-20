@@ -16,4 +16,7 @@ public sealed class PastedImageData
 
     /// <summary>Reported payload size in bytes.</summary>
     public long SizeBytes { get; init; }
+
+    /// <summary>Server URL when already uploaded via HTTP (null when using SignalR fallback).</summary>
+    public string? Url { get; init; }
 }

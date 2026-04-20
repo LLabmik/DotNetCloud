@@ -1339,7 +1339,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     {
         try
         {
-            await JS.InvokeVoidAsync("chatImageUpload.triggerFileInput", _fileInputId, _dotNetRef);
+            var channelId = _selectedChannel?.Id;
+            await JS.InvokeVoidAsync("chatImageUpload.triggerFileInput", _fileInputId, _dotNetRef, channelId);
         }
         catch (JSDisconnectedException)
         {
@@ -1350,7 +1351,26 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     /// <summary>Handles an image pasted into the composer.</summary>
     protected async Task HandlePasteImage(PastedImageData pastedImage)
     {
-        if (_selectedChannel is null || pastedImage.Data.Length == 0) return;
+        if (_selectedChannel is null) return;
+
+        // If the image was already uploaded via HTTP, just add metadata
+        if (!string.IsNullOrEmpty(pastedImage.Url))
+        {
+            _pendingAttachments.Add(new PendingAttachment
+            {
+                Id = Guid.NewGuid(),
+                FileName = pastedImage.FileName,
+                MimeType = pastedImage.ContentType,
+                FileSize = pastedImage.SizeBytes,
+                Url = pastedImage.Url
+            });
+
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        // Fallback: image data sent via SignalR (small images only)
+        if (pastedImage.Data.Length == 0) return;
 
         try
         {
@@ -1376,7 +1396,25 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         }
     }
 
-    /// <summary>Called from JS when a file is selected via the file input.</summary>
+    /// <summary>Called from JS when a file is selected via the file input and uploaded via HTTP.</summary>
+    [JSInvokable]
+    public async Task HandleImageUploaded(string url, string fileName, string mimeType, long fileSize)
+    {
+        if (_selectedChannel is null) return;
+
+        _pendingAttachments.Add(new PendingAttachment
+        {
+            Id = Guid.NewGuid(),
+            FileName = fileName,
+            MimeType = mimeType,
+            FileSize = fileSize,
+            Url = url
+        });
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>Called from JS when a file is selected via the file input (legacy SignalR path).</summary>
     [JSInvokable]
     public async Task HandleFileSelected(string fileName, string contentType, string dataUrl, long sizeBytes)
     {

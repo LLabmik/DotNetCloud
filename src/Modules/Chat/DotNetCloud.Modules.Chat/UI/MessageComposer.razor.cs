@@ -70,6 +70,14 @@ public partial class MessageComposer : ComponentBase, IAsyncDisposable
     [Parameter]
     public EventCallback<PastedImageData> OnPasteImage { get; set; }
 
+    /// <summary>The current channel ID, used to upload pasted images via HTTP.</summary>
+    [Parameter]
+    public Guid? ChannelId { get; set; }
+
+    /// <summary>Whether there are pending attachments ready to send.</summary>
+    [Parameter]
+    public bool HasPendingAttachments { get; set; }
+
     /// <summary>Available members for @mention suggestions.</summary>
     [Parameter]
     public List<MemberViewModel> MentionSuggestions { get; set; } = [];
@@ -85,7 +93,7 @@ public partial class MessageComposer : ComponentBase, IAsyncDisposable
     protected string EditorElementId => _editorElementId;
 
     /// <summary>Whether the send button should be disabled.</summary>
-    protected bool IsSendDisabled => _isEmpty;
+    protected bool IsSendDisabled => _isEmpty && !HasPendingAttachments;
 
     /// <summary>Whether the composer is in edit mode.</summary>
     protected bool IsEditMode => EditingMessage is not null;
@@ -114,6 +122,19 @@ public partial class MessageComposer : ComponentBase, IAsyncDisposable
         {
             _lastEditingMessageId = Guid.Empty;
         }
+
+        // Keep the JS editor in sync with the active channel for HTTP image uploads
+        if (_isInitialized && ChannelId.HasValue)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("wysiwygEditor.setChannelId", _editorElementId, ChannelId.Value);
+            }
+            catch (JSDisconnectedException)
+            {
+                // Browser disconnected; safe to ignore.
+            }
+        }
     }
 
     /// <inheritdoc />
@@ -125,7 +146,7 @@ public partial class MessageComposer : ComponentBase, IAsyncDisposable
         }
 
         _dotNetRef = DotNetObjectReference.Create(this);
-        await JS.InvokeVoidAsync("wysiwygEditor.init", _editorElementId, _dotNetRef);
+        await JS.InvokeVoidAsync("wysiwygEditor.init", _editorElementId, _dotNetRef, ChannelId);
         _isInitialized = true;
 
         // If edit mode was set before initialisation completed
@@ -186,6 +207,22 @@ public partial class MessageComposer : ComponentBase, IAsyncDisposable
         await ProcessPastedImageAsync(fileName, contentType, dataUrl, sizeBytes);
     }
 
+    /// <summary>JS callback invoked when a pasted image has been uploaded via HTTP.</summary>
+    [JSInvokable]
+    public async Task HandlePastedImageUploaded(string url, string fileName, string mimeType, long fileSize)
+    {
+        var payload = new PastedImageData
+        {
+            FileName = fileName,
+            ContentType = string.IsNullOrWhiteSpace(mimeType) ? "image/png" : mimeType,
+            Data = [],
+            SizeBytes = fileSize,
+            Url = url
+        };
+
+        await OnPasteImage.InvokeAsync(payload);
+    }
+
     /// <summary>Applies a WYSIWYG format command via JS interop.</summary>
     protected async Task FormatAsync(string command)
     {
@@ -196,7 +233,7 @@ public partial class MessageComposer : ComponentBase, IAsyncDisposable
     protected async Task SendMessage()
     {
         var content = await JS.InvokeAsync<string>("wysiwygEditor.getMarkdown", _editorElementId);
-        if (string.IsNullOrWhiteSpace(content))
+        if (string.IsNullOrWhiteSpace(content) && !HasPendingAttachments)
         {
             return;
         }

@@ -121,6 +121,8 @@
 
                         <MessageComposer ChannelName="@_selectedChannel.Name"
                                          ChannelType="@_selectedChannel.Type"
+                                         ChannelId="@_selectedChannel.Id"
+                                         HasPendingAttachments="@(_pendingAttachments.Count > 0)"
                                          ReplyToMessage="@_replyToMessage"
                                          EditingMessage="@_editingMessage"
                                          MentionSuggestions="@_memberSuggestions"
