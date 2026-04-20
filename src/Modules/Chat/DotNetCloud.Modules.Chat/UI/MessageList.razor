@@ -81,6 +81,13 @@
 
                             <div class="message-actions">
                                 <button class="msg-action-btn" @onclick="() => RequestReply(message)" title="Reply">↩</button>
+                                @if (message.Attachments.Count > 0)
+                                {
+                                    <a class="msg-action-btn msg-action-download"
+                                       href="@(message.Attachments[0].ThumbnailUrl ?? string.Empty)"
+                                       download="@message.Attachments[0].FileName"
+                                       title="Download @message.Attachments[0].FileName">⬇</a>
+                                }
                                 @if (message.SenderUserId == CurrentUserId)
                                 {
                                     <button class="msg-action-btn" @onclick="() => RequestEdit(message)" title="Edit">✏️</button>
@@ -114,7 +121,10 @@
                                         <div class="attachment-preview">
                                             @if (attachment.MimeType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
                                             {
-                                                <img src="@(attachment.ThumbnailUrl ?? string.Empty)" alt="@attachment.FileName" class="image-preview" />
+                                                <img src="@(attachment.ThumbnailUrl ?? string.Empty)"
+                                                     alt="@attachment.FileName"
+                                                     class="image-preview"
+                                                     @onclick="() => OpenImageLightbox(attachment.ThumbnailUrl ?? string.Empty, attachment.FileName)" />
                                             }
                                             else if (attachment.MimeType.Contains("pdf", StringComparison.OrdinalIgnoreCase))
                                             {
@@ -154,6 +164,20 @@
     {
         <div class="typing-indicator">
             @GetTypingText()
+        </div>
+    }
+
+    @if (_lightboxOpen)
+    {
+        <div class="chat-lightbox-overlay" @onclick="CloseLightbox">
+            <div class="chat-lightbox-content" @onclick:stopPropagation="true">
+                <button class="chat-lightbox-close" @onclick="CloseLightbox" title="Close" aria-label="Close">✕</button>
+                <img src="@_lightboxImageUrl" alt="@_lightboxImageAlt" class="chat-lightbox-image" />
+                @if (!string.IsNullOrEmpty(_lightboxImageAlt))
+                {
+                    <div class="chat-lightbox-caption">@_lightboxImageAlt</div>
+                }
+            </div>
         </div>
     }
 </div>

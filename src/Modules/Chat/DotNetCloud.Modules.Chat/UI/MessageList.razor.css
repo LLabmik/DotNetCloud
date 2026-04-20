@@ -239,3 +239,81 @@
     background: rgba(239, 68, 68, 0.08);
     color: var(--color-danger, #ef4444);
 }
+
+.msg-action-download {
+    text-decoration: none;
+}
+
+.msg-action-download:hover {
+    background: rgba(59, 130, 246, 0.08);
+    color: var(--color-primary, #3b82f6);
+}
+
+/* ─────────── Chat Image Lightbox ─────────── */
+
+.chat-lightbox-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(4px);
+    cursor: pointer;
+    animation: lightbox-fade-in 0.15s ease;
+}
+
+@keyframes lightbox-fade-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+.chat-lightbox-content {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    max-width: 92vw;
+    max-height: 92vh;
+    cursor: default;
+}
+
+.chat-lightbox-close {
+    position: absolute;
+    top: -36px;
+    right: -4px;
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 22px;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: background 0.15s ease;
+    z-index: 1;
+}
+
+.chat-lightbox-close:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: #fff;
+}
+
+.chat-lightbox-image {
+    max-width: 90vw;
+    max-height: 85vh;
+    object-fit: contain;
+    border-radius: 6px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.chat-lightbox-caption {
+    margin-top: 10px;
+    color: rgba(255, 255, 255, 0.75);
+    font-size: 13px;
+    text-align: center;
+    max-width: 60vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}

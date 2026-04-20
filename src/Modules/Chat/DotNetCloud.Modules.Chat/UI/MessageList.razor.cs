@@ -25,6 +25,11 @@ public partial class MessageList : ComponentBase
 
     private ElementReference _messageListRef;
 
+    // Lightbox state
+    private bool _lightboxOpen;
+    private string _lightboxImageUrl = string.Empty;
+    private string _lightboxImageAlt = string.Empty;
+
     /// <summary>The list of messages to display.</summary>
     [Parameter]
     public List<MessageViewModel> Messages { get; set; } = [];
@@ -370,5 +375,21 @@ public partial class MessageList : ComponentBase
         return attachment.MimeType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)
             || attachment.MimeType.Contains("pdf", StringComparison.OrdinalIgnoreCase)
             || attachment.MimeType.StartsWith("text/", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Opens the image lightbox overlay.</summary>
+    protected void OpenImageLightbox(string imageUrl, string altText)
+    {
+        _lightboxImageUrl = imageUrl;
+        _lightboxImageAlt = altText;
+        _lightboxOpen = true;
+    }
+
+    /// <summary>Closes the image lightbox overlay.</summary>
+    protected void CloseLightbox()
+    {
+        _lightboxOpen = false;
+        _lightboxImageUrl = string.Empty;
+        _lightboxImageAlt = string.Empty;
     }
 }
