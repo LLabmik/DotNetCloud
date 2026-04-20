@@ -457,6 +457,15 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         {
             _breadcrumbs.Clear();
         }
+        else
+        {
+            // Trim breadcrumbs to the clicked folder (handles breadcrumb-back navigation)
+            var idx = _breadcrumbs.FindIndex(b => b.Id == folderId);
+            if (idx >= 0)
+            {
+                _breadcrumbs.RemoveRange(idx + 1, _breadcrumbs.Count - idx - 1);
+            }
+        }
 
         _ = LoadCurrentFolderAsync();
     }

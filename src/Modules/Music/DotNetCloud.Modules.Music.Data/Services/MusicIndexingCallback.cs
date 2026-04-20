@@ -58,6 +58,18 @@ public sealed class MusicIndexingCallback : IMusicIndexingCallback
     }
 
     /// <inheritdoc />
+    public async Task<HashSet<Guid>> GetIndexedFileNodeIdsAsync(Guid ownerId, CancellationToken cancellationToken = default)
+    {
+        return await _libraryScanService.GetIndexedFileNodeIdsAsync(ownerId, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<int> RemoveDeletedTracksAsync(IReadOnlyCollection<Guid> deletedFileNodeIds, Guid ownerId, CancellationToken cancellationToken = default)
+    {
+        return await _libraryScanService.SoftDeleteTracksAsync(deletedFileNodeIds, ownerId, cancellationToken);
+    }
+
+    /// <inheritdoc />
     public async Task ResetCollectionAsync(CancellationToken cancellationToken = default)
     {
         await _libraryScanService.ResetCollectionAsync(cancellationToken);

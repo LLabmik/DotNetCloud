@@ -774,6 +774,7 @@ public partial class MusicPage : IAsyncDisposable
                     TotalFiles = msp.TotalFiles,
                     TracksAdded = msp.Imported,
                     TracksFailed = msp.Failed,
+                    TracksRemoved = msp.Removed,
                     PercentComplete = msp.PercentComplete,
                     ElapsedTime = scanStopwatch.Elapsed,
                 });
@@ -789,7 +790,10 @@ public partial class MusicPage : IAsyncDisposable
             }
 
             ScanProgress.CompleteScan();
-            _settingsSuccess = $"Scan complete: {_scanResult.Imported} imported, {_scanResult.Skipped} already up to date.";
+            var successMsg = $"Scan complete: {_scanResult.Imported} imported, {_scanResult.Skipped} already up to date";
+            if (_scanResult.Removed > 0)
+                successMsg += $", {_scanResult.Removed} removed (files deleted)";
+            _settingsSuccess = successMsg + ".";
 
             // Reload library data so navigating to Library shows freshly imported tracks
             var caller = await GetCallerAsync();

@@ -337,6 +337,9 @@ public sealed record LibraryScanProgress
     /// <summary>Tracks that failed to index.</summary>
     public int TracksFailed { get; init; }
 
+    /// <summary>Tracks removed because their source files were deleted.</summary>
+    public int TracksRemoved { get; init; }
+
     /// <summary>Album covers fetched from external source.</summary>
     public int AlbumArtFetched { get; init; }
 

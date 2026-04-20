@@ -183,8 +183,30 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
             "Virtual folder scan: found {Count} {MediaType} files under folder {FolderId} for user {OwnerId}",
             matchingFiles.Count, parsed, folderId?.ToString() ?? "root", ownerId);
 
+        // ── Pre-filter: skip already-indexed files (Music only) ──────────────────
+        // Build a set of FileNode IDs currently in the music index so we can skip
+        // files that are already up to date, avoiding redundant stream downloads.
+        HashSet<Guid> alreadyIndexedIds = [];
+        if (parsed == MediaType.Music)
+        {
+            var musicCallback = scope.ServiceProvider.GetService<IMusicIndexingCallback>();
+            if (musicCallback is not null)
+                alreadyIndexedIds = await musicCallback.GetIndexedFileNodeIdsAsync(ownerId, cancellationToken);
+        }
+
+        var currentFileNodeIds = matchingFiles.Select(f => f.Id).ToHashSet();
+        var filesToIndex = matchingFiles.Where(f => !alreadyIndexedIds.Contains(f.Id)).ToList();
+        result.Skipped = matchingFiles.Count - filesToIndex.Count;
+
+        if (result.Skipped > 0)
+        {
+            _logger.LogInformation(
+                "Skipping {Skipped} already-indexed {MediaType} files for user {OwnerId}",
+                result.Skipped, parsed, ownerId);
+        }
+
         var filesProcessed = 0;
-        foreach (var file in matchingFiles)
+        foreach (var file in filesToIndex)
         {
             if (cancellationToken.IsCancellationRequested) break;
 
@@ -193,10 +215,10 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
                 Phase = "Indexing media",
                 CurrentFile = file.Name,
                 FilesProcessed = filesProcessed,
-                TotalFiles = matchingFiles.Count,
+                TotalFiles = filesToIndex.Count,
                 Imported = result.Imported,
                 Failed = result.Failed,
-                PercentComplete = matchingFiles.Count > 0 ? (int)((long)filesProcessed * 100 / matchingFiles.Count) : 0,
+                PercentComplete = filesToIndex.Count > 0 ? (int)((long)filesProcessed * 100 / filesToIndex.Count) : 0,
             });
 
             try
@@ -273,19 +295,51 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
             filesProcessed++;
         }
 
+        // ── Deletion detection: remove tracks whose source files no longer exist ─
+        if (parsed == MediaType.Music && !cancellationToken.IsCancellationRequested)
+        {
+            var deletedFileNodeIds = alreadyIndexedIds
+                .Where(id => !currentFileNodeIds.Contains(id))
+                .ToList();
+
+            if (deletedFileNodeIds.Count > 0)
+            {
+                _logger.LogInformation(
+                    "Detected {Count} deleted music files for user {OwnerId} — removing from index",
+                    deletedFileNodeIds.Count, ownerId);
+
+                progress?.Report(new MediaScanProgress
+                {
+                    Phase = "Removing deleted files",
+                    FilesProcessed = filesProcessed,
+                    TotalFiles = filesToIndex.Count,
+                    Imported = result.Imported,
+                    Failed = result.Failed,
+                    PercentComplete = 100,
+                });
+
+                var musicCallback = scope.ServiceProvider.GetService<IMusicIndexingCallback>();
+                if (musicCallback is not null)
+                {
+                    result.Removed = await musicCallback.RemoveDeletedTracksAsync(deletedFileNodeIds, ownerId, cancellationToken);
+                }
+            }
+        }
+
         progress?.Report(new MediaScanProgress
         {
             Phase = "Complete",
             FilesProcessed = filesProcessed,
-            TotalFiles = matchingFiles.Count,
+            TotalFiles = filesToIndex.Count,
             Imported = result.Imported,
             Failed = result.Failed,
+            Removed = result.Removed,
             PercentComplete = 100,
         });
 
         _logger.LogInformation(
-            "Virtual folder scan complete: {Imported} indexed, {Failed} failed out of {Total}",
-            result.Imported, result.Failed, result.TotalFound);
+            "Virtual folder scan complete: {Imported} indexed, {Skipped} skipped, {Removed} removed, {Failed} failed out of {Total}",
+            result.Imported, result.Skipped, result.Removed, result.Failed, result.TotalFound);
 
         return result;
     }

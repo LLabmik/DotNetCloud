@@ -120,6 +120,24 @@ public interface IMusicIndexingCallback
     Task IndexAudioAsync(Guid fileNodeId, string fileName, string mimeType, long sizeBytes, Guid ownerId, string? storagePath = null, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Returns the set of FileNode IDs that are already indexed in the music library for the given owner.
+    /// Used by the scanner to skip files that have not changed since last scan.
+    /// </summary>
+    /// <param name="ownerId">Owner user ID.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task<HashSet<Guid>> GetIndexedFileNodeIdsAsync(Guid ownerId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Soft-deletes Track records whose source FileNodes no longer exist in the Files module.
+    /// Also removes orphaned albums and artists (those with zero remaining non-deleted tracks).
+    /// </summary>
+    /// <param name="deletedFileNodeIds">FileNode IDs whose backing files have been deleted.</param>
+    /// <param name="ownerId">Owner user ID.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Number of tracks removed.</returns>
+    Task<int> RemoveDeletedTracksAsync(IReadOnlyCollection<Guid> deletedFileNodeIds, Guid ownerId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Deletes all music library metadata from the database (tracks, albums, artists, etc.).
     /// The actual audio files are NOT affected.
     /// </summary>

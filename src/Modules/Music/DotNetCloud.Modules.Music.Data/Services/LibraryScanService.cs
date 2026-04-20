@@ -506,6 +506,121 @@ public sealed class LibraryScanService
     }
 
     /// <summary>
+    /// Returns the set of FileNode IDs that are already indexed in the music library for the given owner.
+    /// Only non-deleted tracks are returned; soft-deleted tracks are excluded so they can be re-indexed
+    /// if the source file reappears.
+    /// </summary>
+    public async Task<HashSet<Guid>> GetIndexedFileNodeIdsAsync(Guid ownerId, CancellationToken cancellationToken = default)
+    {
+        var ids = await _db.Tracks
+            .Where(t => t.OwnerId == ownerId)
+            .Select(t => t.FileNodeId)
+            .ToListAsync(cancellationToken);
+        return [.. ids];
+    }
+
+    /// <summary>
+    /// Soft-deletes Track records whose source FileNodes no longer exist, then removes any
+    /// albums and artists that have zero remaining non-deleted tracks (orphan cleanup).
+    /// </summary>
+    /// <param name="deletedFileNodeIds">FileNode IDs whose backing files have been deleted.</param>
+    /// <param name="ownerId">Owner user ID.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Number of tracks soft-deleted.</returns>
+    public async Task<int> SoftDeleteTracksAsync(IReadOnlyCollection<Guid> deletedFileNodeIds, Guid ownerId, CancellationToken cancellationToken = default)
+    {
+        if (deletedFileNodeIds.Count == 0)
+            return 0;
+
+        var now = DateTime.UtcNow;
+
+        var tracksToDelete = await _db.Tracks
+            .Where(t => t.OwnerId == ownerId && deletedFileNodeIds.Contains(t.FileNodeId) && !t.IsDeleted)
+            .ToListAsync(cancellationToken);
+
+        if (tracksToDelete.Count == 0)
+            return 0;
+
+        var affectedAlbumIds = tracksToDelete
+            .Where(t => t.AlbumId.HasValue)
+            .Select(t => t.AlbumId!.Value)
+            .ToHashSet();
+
+        // Soft-delete tracks and remove their junction rows
+        var trackIds = tracksToDelete.Select(t => t.Id).ToHashSet();
+
+        var trackArtists = await _db.TrackArtists
+            .Where(ta => trackIds.Contains(ta.TrackId))
+            .ToListAsync(cancellationToken);
+        _db.TrackArtists.RemoveRange(trackArtists);
+
+        var trackGenres = await _db.TrackGenres
+            .Where(tg => trackIds.Contains(tg.TrackId))
+            .ToListAsync(cancellationToken);
+        _db.TrackGenres.RemoveRange(trackGenres);
+
+        foreach (var track in tracksToDelete)
+        {
+            track.IsDeleted = true;
+            track.DeletedAt = now;
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        // Remove orphaned albums: albums whose every track is now deleted
+        foreach (var albumId in affectedAlbumIds)
+        {
+            var hasActiveTracks = await _db.Tracks
+                .AnyAsync(t => t.AlbumId == albumId && !t.IsDeleted, cancellationToken);
+
+            if (!hasActiveTracks)
+            {
+                var album = await _db.Albums.FindAsync([albumId], cancellationToken);
+                if (album is not null)
+                {
+                    var artistId = album.ArtistId;
+                    _db.Albums.Remove(album);
+                    await _db.SaveChangesAsync(cancellationToken);
+
+                    // Remove orphaned artist: artist with no remaining albums and no remaining active tracks
+                    var hasActiveAlbums = await _db.Albums
+                        .AnyAsync(a => a.ArtistId == artistId && a.OwnerId == ownerId, cancellationToken);
+                    var hasActiveTracksDirect = await _db.TrackArtists
+                        .AnyAsync(ta => ta.ArtistId == artistId, cancellationToken);
+
+                    if (!hasActiveAlbums && !hasActiveTracksDirect)
+                    {
+                        var artist = await _db.Artists.FindAsync([artistId], cancellationToken);
+                        if (artist is not null && artist.OwnerId == ownerId)
+                        {
+                            _db.Artists.Remove(artist);
+                            await _db.SaveChangesAsync(cancellationToken);
+                        }
+                    }
+                }
+            }
+            else
+            {
+                // Recalculate album total duration after track removal
+                var album = await _db.Albums.FindAsync([albumId], cancellationToken);
+                if (album is not null)
+                {
+                    album.TotalDurationTicks = await _db.Tracks
+                        .Where(t => t.AlbumId == albumId && !t.IsDeleted)
+                        .SumAsync(t => t.DurationTicks, cancellationToken);
+                    await _db.SaveChangesAsync(cancellationToken);
+                }
+            }
+        }
+
+        _logger.LogInformation(
+            "Soft-deleted {Count} tracks for user {OwnerId} (source files removed from library)",
+            tracksToDelete.Count, ownerId);
+
+        return tracksToDelete.Count;
+    }
+
+    /// <summary>
     /// Deletes all music library metadata (tracks, albums, artists, genres, play history, etc.)
     /// from the database. Does NOT delete the actual audio files — only the indexed metadata.
     /// After calling this, a re-scan will rebuild the entire library from scratch.

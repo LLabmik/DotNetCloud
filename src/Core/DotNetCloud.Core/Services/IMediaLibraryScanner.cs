@@ -45,6 +45,9 @@ public sealed class MediaScanResult
     /// <summary>Files that failed to import.</summary>
     public int Failed { get; set; }
 
+    /// <summary>Tracks removed because their source files were deleted.</summary>
+    public int Removed { get; set; }
+
     /// <summary>Error messages for failed imports.</summary>
     public List<string> Errors { get; set; } = [];
 }
@@ -71,6 +74,9 @@ public sealed class MediaScanProgress
 
     /// <summary>Number of files that failed to import.</summary>
     public int Failed { get; init; }
+
+    /// <summary>Number of tracks removed (source files deleted).</summary>
+    public int Removed { get; init; }
 
     /// <summary>Percentage complete (0-100).</summary>
     public int PercentComplete { get; init; }
