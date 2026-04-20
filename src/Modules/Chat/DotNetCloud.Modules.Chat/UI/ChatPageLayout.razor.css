@@ -4,7 +4,7 @@
 
 .chat-layout {
     display: flex;
-    height: 100%;
+    height: calc(100vh - var(--topbar-height, 56px));
     min-height: 0;
     background: var(--color-bg, #f5f7fa);
 }

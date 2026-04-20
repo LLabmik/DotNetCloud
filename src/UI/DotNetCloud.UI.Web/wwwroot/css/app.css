@@ -248,6 +248,20 @@ a:hover { text-decoration: underline; }
 
 .content-area { max-width: 1400px; margin: 0 auto; }
 
+/* --- Full-bleed module pages (chat, etc.) --- */
+/* Remove page padding and let the module fill the full content area.
+   Use :has() to target only pages that contain the chat layout. */
+.page-content:has(.chat-layout) {
+    padding: 0;
+    overflow: hidden;
+}
+
+.page-content:has(.chat-layout) .content-area {
+    max-width: none;
+    margin: 0;
+    height: 100%;
+}
+
 /* --- Page Header --- */
 .page-header {
     display: flex;

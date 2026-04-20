@@ -46,6 +46,10 @@ public partial class MessageList : ComponentBase
     [Parameter]
     public bool HasMoreMessages { get; set; }
 
+    /// <summary>Whether older messages are currently being loaded (shows spinner at top).</summary>
+    [Parameter]
+    public bool IsLoadingMore { get; set; }
+
     /// <summary>Whether a channel is currently selected.</summary>
     [Parameter]
     public bool ChannelSelected { get; set; }
@@ -93,12 +97,6 @@ public partial class MessageList : ComponentBase
     {
         get => _messageListRef;
         set => _messageListRef = value;
-    }
-
-    /// <summary>Loads older messages.</summary>
-    protected async Task LoadMoreMessages()
-    {
-        await OnLoadMore.InvokeAsync();
     }
 
     /// <summary>Toggles a reaction on a message.</summary>

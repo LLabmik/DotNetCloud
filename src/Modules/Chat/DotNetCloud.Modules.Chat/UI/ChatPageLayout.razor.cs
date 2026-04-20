@@ -50,6 +50,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     // Message state
     private List<MessageViewModel> _messages = [];
     private bool _isLoadingMessages;
+    private bool _isLoadingMore;
     private string? _messageErrorMessage;
     private bool _hasMoreMessages;
     private int _currentMessagePage = 1;
@@ -254,13 +255,15 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
             try { await WebRtcInterop.HangupAsync(); } catch { /* best-effort cleanup */ }
         }
 
+        try { await JS.InvokeVoidAsync("dotnetcloudChatScroll.disconnectSentinel"); } catch { /* best-effort */ }
+
         _dotNetRef?.Dispose();
         _signalingLock.Dispose();
     }
 
     private void OnRemoteMessageReceived(Guid channelId, MessageDto message)
     {
-        InvokeAsync(() =>
+        InvokeAsync(async () =>
         {
             if (_selectedChannel is not null && _selectedChannel.Id == channelId)
             {
@@ -269,7 +272,17 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
                     return;
                 }
 
+                bool wasNearBottom;
+                try { wasNearBottom = await JS.InvokeAsync<bool>("dotnetcloudChatScroll.isNearBottom", ".chat-message-list", 150); }
+                catch { wasNearBottom = true; }
+
                 _messages.Add(ToMessageViewModel(message));
+                StateHasChanged();
+
+                if (wasNearBottom)
+                {
+                    try { await JS.InvokeVoidAsync("dotnetcloudChatScroll.scrollToBottom", ".chat-message-list"); } catch { /* best-effort */ }
+                }
             }
             else
             {
@@ -278,9 +291,9 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
                 {
                     channel.UnreadCount += 1;
                 }
-            }
 
-            StateHasChanged();
+                StateHasChanged();
+            }
         });
     }
 
@@ -789,6 +802,9 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
     private async Task LoadMessagesAsync(Guid channelId)
     {
+        // Disconnect any previous sentinel observer before loading new channel messages
+        try { await JS.InvokeVoidAsync("dotnetcloudChatScroll.disconnectSentinel"); } catch { /* best-effort */ }
+
         try
         {
             _isLoadingMessages = true;
@@ -808,12 +824,40 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         {
             _isLoadingMessages = false;
         }
+
+        // After render: scroll to bottom so the user sees the latest messages,
+        // then start observing the sentinel for infinite scroll.
+        StateHasChanged();
+        await Task.Yield(); // let Blazor flush the render
+        try
+        {
+            await JS.InvokeVoidAsync("dotnetcloudChatScroll.scrollToBottom", ".chat-message-list");
+            if (_hasMoreMessages && _dotNetRef is not null)
+            {
+                await JS.InvokeVoidAsync("dotnetcloudChatScroll.observeSentinel", "scroll-sentinel", _dotNetRef);
+            }
+        }
+        catch { /* JS interop may not be available during pre-render */ }
     }
 
-    /// <summary>Handles loading older messages.</summary>
-    protected async Task HandleLoadMoreMessages()
+    /// <summary>
+    /// Invoked by JS when the sentinel element becomes visible (user scrolled near the top).
+    /// Loads the next page of older messages while preserving the scroll position.
+    /// </summary>
+    [Microsoft.JSInterop.JSInvokable]
+    public async Task OnScrolledToTop()
     {
-        if (_selectedChannel is null || !_hasMoreMessages) return;
+        if (_selectedChannel is null || !_hasMoreMessages || _isLoadingMore) return;
+
+        _isLoadingMore = true;
+        StateHasChanged();
+
+        double previousScrollHeight = 0;
+        try
+        {
+            previousScrollHeight = await JS.InvokeAsync<double>("dotnetcloudChatScroll.preserveScrollPosition", ".chat-message-list");
+        }
+        catch { /* best-effort */ }
 
         try
         {
@@ -830,7 +874,30 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
             _messageErrorMessage = ex.Message;
             _currentMessagePage--;
         }
+        finally
+        {
+            _isLoadingMore = false;
+        }
+
+        StateHasChanged();
+        await Task.Yield(); // let Blazor flush the render
+
+        // Restore scroll position so the user stays at the same visual spot
+        try
+        {
+            await JS.InvokeVoidAsync("dotnetcloudChatScroll.restoreScrollPosition", ".chat-message-list", previousScrollHeight);
+
+            // Re-attach the sentinel observer (it may have disappeared during re-render)
+            if (_hasMoreMessages && _dotNetRef is not null)
+            {
+                await JS.InvokeVoidAsync("dotnetcloudChatScroll.observeSentinel", "scroll-sentinel", _dotNetRef);
+            }
+        }
+        catch { /* best-effort */ }
     }
+
+    /// <summary>Handles loading older messages (kept for internal use).</summary>
+    private Task HandleLoadMoreMessages() => OnScrolledToTop();
 
     /// <summary>Handles sending a new message.</summary>
     protected async Task HandleSendMessage((string Content, Guid? ReplyToMessageId) args)
@@ -875,6 +942,9 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
             await ChatRealtimeService.BroadcastNewMessageAsync(_selectedChannel.Id, sent);
             ChatMessageNotifier.NotifyMessageReceived(_selectedChannel.Id, sent);
+
+            // Scroll to bottom to show the just-sent message
+            try { await JS.InvokeVoidAsync("dotnetcloudChatScroll.scrollToBottom", ".chat-message-list"); } catch { /* best-effort */ }
 
             var members = await MemberService.ListMembersAsync(_selectedChannel.Id, caller);
             var preview = BuildMessagePreview(sent.Content);

@@ -36,10 +36,17 @@
     }
     else
     {
-        @if (HasMoreMessages)
+        @* Sentinel element: IntersectionObserver watches this to trigger loading older messages *@
+        @if (HasMoreMessages || IsLoadingMore)
         {
-            <div class="load-more">
-                <button class="btn btn-sm" @onclick="LoadMoreMessages" title="Load older messages">Load older messages</button>
+            <div id="scroll-sentinel" class="scroll-sentinel"></div>
+        }
+
+        @if (IsLoadingMore)
+        {
+            <div class="loading-more" role="status" aria-live="polite">
+                <span class="loading-more-spinner"></span>
+                <span class="loading-more-text">Loading older messages…</span>
             </div>
         }
 

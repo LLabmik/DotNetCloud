@@ -317,3 +317,43 @@
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+
+/* --- Infinite Scroll --- */
+
+/* Invisible sentinel element at top of message list — watched by IntersectionObserver */
+.scroll-sentinel {
+    height: 1px;
+    width: 100%;
+    flex-shrink: 0;
+}
+
+/* Loading spinner shown at top while older messages are being fetched */
+.loading-more {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 16px;
+    color: var(--color-text-muted, #64748b);
+    font-size: 13px;
+    flex-shrink: 0;
+}
+
+.loading-more-spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--color-border, #e2e8f0);
+    border-top-color: var(--color-primary, #3b82f6);
+    border-radius: 50%;
+    animation: chat-spin 0.65s linear infinite;
+    flex-shrink: 0;
+}
+
+@keyframes chat-spin {
+    to { transform: rotate(360deg); }
+}
+
+.loading-more-text {
+    line-height: 1;
+}
