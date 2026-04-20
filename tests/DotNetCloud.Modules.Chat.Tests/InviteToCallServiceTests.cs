@@ -526,10 +526,10 @@ public class InviteToCallServiceTests
     [TestMethod]
     public void ParticipantState_EnumValuesExist()
     {
-        Assert.AreEqual(0, (int)ParticipantState.Invited);
-        Assert.AreEqual(1, (int)ParticipantState.Joined);
-        Assert.AreEqual(2, (int)ParticipantState.Left);
-        Assert.AreEqual(3, (int)ParticipantState.Rejected);
+        Assert.AreEqual(0, Convert.ToInt32(ParticipantState.Invited));
+        Assert.AreEqual(1, Convert.ToInt32(ParticipantState.Joined));
+        Assert.AreEqual(2, Convert.ToInt32(ParticipantState.Left));
+        Assert.AreEqual(3, Convert.ToInt32(ParticipantState.Rejected));
     }
 
     [TestMethod]

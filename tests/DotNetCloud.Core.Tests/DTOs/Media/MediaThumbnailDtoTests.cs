@@ -13,10 +13,10 @@ public class MediaThumbnailDtoTests
     public void MediaThumbnailSize_HasExpectedPixelValues()
     {
         // Assert
-        Assert.AreEqual(128, (int)MediaThumbnailSize.Small);
-        Assert.AreEqual(300, (int)MediaThumbnailSize.Grid);
-        Assert.AreEqual(512, (int)MediaThumbnailSize.Medium);
-        Assert.AreEqual(1200, (int)MediaThumbnailSize.Large);
+        Assert.AreEqual(128, Convert.ToInt32(MediaThumbnailSize.Small));
+        Assert.AreEqual(300, Convert.ToInt32(MediaThumbnailSize.Grid));
+        Assert.AreEqual(512, Convert.ToInt32(MediaThumbnailSize.Medium));
+        Assert.AreEqual(1200, Convert.ToInt32(MediaThumbnailSize.Large));
     }
 
     [TestMethod]

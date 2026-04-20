@@ -628,19 +628,19 @@ public class TracksDtosTests
     [TestMethod]
     public void PokerSessionStatus_HasExpectedValues()
     {
-        Assert.AreEqual(0, (int)PokerSessionStatus.Voting);
-        Assert.AreEqual(1, (int)PokerSessionStatus.Revealed);
-        Assert.AreEqual(2, (int)PokerSessionStatus.Completed);
-        Assert.AreEqual(3, (int)PokerSessionStatus.Cancelled);
+        Assert.AreEqual(0, Convert.ToInt32(PokerSessionStatus.Voting));
+        Assert.AreEqual(1, Convert.ToInt32(PokerSessionStatus.Revealed));
+        Assert.AreEqual(2, Convert.ToInt32(PokerSessionStatus.Completed));
+        Assert.AreEqual(3, Convert.ToInt32(PokerSessionStatus.Cancelled));
     }
 
     [TestMethod]
     public void PokerScale_HasExpectedValues()
     {
-        Assert.AreEqual(0, (int)PokerScale.Fibonacci);
-        Assert.AreEqual(1, (int)PokerScale.TShirt);
-        Assert.AreEqual(2, (int)PokerScale.PowersOfTwo);
-        Assert.AreEqual(3, (int)PokerScale.Custom);
+        Assert.AreEqual(0, Convert.ToInt32(PokerScale.Fibonacci));
+        Assert.AreEqual(1, Convert.ToInt32(PokerScale.TShirt));
+        Assert.AreEqual(2, Convert.ToInt32(PokerScale.PowersOfTwo));
+        Assert.AreEqual(3, Convert.ToInt32(PokerScale.Custom));
     }
 
     [TestMethod]

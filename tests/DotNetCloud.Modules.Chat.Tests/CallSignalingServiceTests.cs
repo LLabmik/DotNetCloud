@@ -794,13 +794,15 @@ public class CallSignalingServiceTests
     [TestMethod]
     public void MaxSdpPayloadBytes_Is64KB()
     {
-        Assert.AreEqual(64 * 1024, CallSignalingService.MaxSdpPayloadBytes);
+        int actual = CallSignalingService.MaxSdpPayloadBytes;
+        Assert.AreEqual(64 * 1024, actual);
     }
 
     [TestMethod]
     public void MaxIceCandidateBytes_Is4KB()
     {
-        Assert.AreEqual(4 * 1024, CallSignalingService.MaxIceCandidateBytes);
+        int actual = CallSignalingService.MaxIceCandidateBytes;
+        Assert.AreEqual(4 * 1024, actual);
     }
 
     // ── Unicode Payload Size Validation ──────────────────────────

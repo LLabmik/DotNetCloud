@@ -71,7 +71,8 @@ public class LiveKitOptionsTests
     [TestMethod]
     public void SectionName_IsChatLiveKit()
     {
-        Assert.AreEqual("Chat:LiveKit", LiveKitOptions.SectionName);
+        string sectionName = LiveKitOptions.SectionName;
+        Assert.AreEqual("Chat:LiveKit", sectionName);
     }
 
     // ══════════════════════════════════════════════════════════════

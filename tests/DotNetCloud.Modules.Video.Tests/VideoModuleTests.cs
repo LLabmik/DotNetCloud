@@ -77,8 +77,7 @@ public class VideoModuleTests
         await module.StartAsync(CancellationToken.None);
         await module.StopAsync(CancellationToken.None);
 
-        // Should not throw
-        Assert.IsTrue(true);
+        // Passes if no exception is thrown
     }
 
     [TestMethod]
@@ -88,7 +87,6 @@ public class VideoModuleTests
 
         await module.DisposeAsync();
 
-        // Should not throw
-        Assert.IsTrue(true);
+        // Passes if no exception is thrown
     }
 }

@@ -62,9 +62,9 @@ public class SearchQueryTests
     public void SearchSortOrder_HasExpectedValues()
     {
         // Assert
-        Assert.AreEqual(0, (int)SearchSortOrder.Relevance);
-        Assert.AreEqual(1, (int)SearchSortOrder.DateDesc);
-        Assert.AreEqual(2, (int)SearchSortOrder.DateAsc);
+        Assert.AreEqual(0, Convert.ToInt32(SearchSortOrder.Relevance));
+        Assert.AreEqual(1, Convert.ToInt32(SearchSortOrder.DateDesc));
+        Assert.AreEqual(2, Convert.ToInt32(SearchSortOrder.DateAsc));
     }
 
     [TestMethod]

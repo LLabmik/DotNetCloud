@@ -71,9 +71,9 @@ public class SearchIndexCompletedEventTests
     public void IndexCompletionStatus_HasExpectedValues()
     {
         // Assert
-        Assert.AreEqual(0, (int)IndexCompletionStatus.Success);
-        Assert.AreEqual(1, (int)IndexCompletionStatus.PartialSuccess);
-        Assert.AreEqual(2, (int)IndexCompletionStatus.Failed);
+        Assert.AreEqual(0, Convert.ToInt32(IndexCompletionStatus.Success));
+        Assert.AreEqual(1, Convert.ToInt32(IndexCompletionStatus.PartialSuccess));
+        Assert.AreEqual(2, Convert.ToInt32(IndexCompletionStatus.Failed));
     }
 
     [TestMethod]

@@ -885,7 +885,7 @@ public class DirectCallControllerTests
 }
 
 /// <summary>
-/// Tests for the <see cref="UserSearchResultViewModel"/> view model.
+/// Tests for the <see cref="DotNetCloud.Modules.Chat.UI.UserSearchResultViewModel"/> view model.
 /// </summary>
 [TestClass]
 public class UserSearchResultViewModelTests

@@ -13,9 +13,9 @@ public class MediaTypeTests
     public void MediaType_HasExpectedValues()
     {
         // Assert
-        Assert.AreEqual(0, (int)MediaType.Photo);
-        Assert.AreEqual(1, (int)MediaType.Audio);
-        Assert.AreEqual(2, (int)MediaType.Video);
+        Assert.AreEqual(0, Convert.ToInt32(MediaType.Photo));
+        Assert.AreEqual(1, Convert.ToInt32(MediaType.Audio));
+        Assert.AreEqual(2, Convert.ToInt32(MediaType.Video));
     }
 
     [TestMethod]

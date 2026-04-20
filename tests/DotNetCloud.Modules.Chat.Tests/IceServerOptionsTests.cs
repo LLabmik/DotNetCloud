@@ -12,7 +12,8 @@ public sealed class IceServerOptionsTests
     [TestMethod]
     public void SectionName_IsCorrect()
     {
-        Assert.AreEqual("Chat:IceServers", IceServerOptions.SectionName);
+        string sectionName = IceServerOptions.SectionName;
+        Assert.AreEqual("Chat:IceServers", sectionName);
     }
 
     [TestMethod]

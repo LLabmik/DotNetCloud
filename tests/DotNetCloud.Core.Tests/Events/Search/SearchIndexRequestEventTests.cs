@@ -71,8 +71,8 @@ public class SearchIndexRequestEventTests
     public void SearchIndexAction_HasExpectedValues()
     {
         // Assert
-        Assert.AreEqual(0, (int)SearchIndexAction.Index);
-        Assert.AreEqual(1, (int)SearchIndexAction.Remove);
+        Assert.AreEqual(0, Convert.ToInt32(SearchIndexAction.Index));
+        Assert.AreEqual(1, Convert.ToInt32(SearchIndexAction.Remove));
     }
 
     [TestMethod]
