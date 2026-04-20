@@ -271,6 +271,62 @@ public class CallControlsTests
         Assert.AreEqual(false, receivedValue);
     }
 
+    // ── Blur Intensity Tests ────────────────────────────────────────
+
+    [TestMethod]
+    public async Task HandleBlurIntensityInput_InvokesOnBlurIntensityChangedWithValue()
+    {
+        var controls = new TestableCallControls();
+        int? receivedValue = null;
+        var receiver = new object();
+        controls.OnBlurIntensityChanged = EventCallback.Factory.Create<int>(receiver, val => receivedValue = val);
+
+        await controls.InvokeBlurIntensityInput(25);
+
+        Assert.AreEqual(25, receivedValue);
+    }
+
+    // ── Virtual Background Selection Tests ──────────────────────────
+
+    [TestMethod]
+    public async Task HandleSelectVirtualBackground_InvokesOnVirtualBackgroundSelectedWithUrl()
+    {
+        var controls = new TestableCallControls();
+        string? receivedUrl = null;
+        var receiver = new object();
+        controls.OnVirtualBackgroundSelected = EventCallback.Factory.Create<string?>(receiver, url => receivedUrl = url);
+
+        await controls.InvokeSelectVirtualBackground("https://example.com/bg.jpg");
+
+        Assert.AreEqual("https://example.com/bg.jpg", receivedUrl);
+    }
+
+    [TestMethod]
+    public async Task HandleClearVirtualBackground_InvokesOnVirtualBackgroundSelectedWithNull()
+    {
+        var controls = new TestableCallControls();
+        string? receivedUrl = "initial";
+        var receiver = new object();
+        controls.OnVirtualBackgroundSelected = EventCallback.Factory.Create<string?>(receiver, url => receivedUrl = url);
+
+        await controls.InvokeClearVirtualBackground();
+
+        Assert.IsNull(receivedUrl);
+    }
+
+    [TestMethod]
+    public async Task HandleSelectBlurOnly_InvokesOnToggleBackgroundBlurWithTrue()
+    {
+        var controls = new TestableCallControls();
+        bool? receivedValue = null;
+        var receiver = new object();
+        controls.OnToggleBackgroundBlur = EventCallback.Factory.Create<bool>(receiver, val => receivedValue = val);
+
+        await controls.InvokeSelectBlurOnly();
+
+        Assert.AreEqual(true, receivedValue);
+    }
+
     // ── Helpers ─────────────────────────────────────────────────────
 
     private sealed class TestableCallControls : CallControls
@@ -291,5 +347,9 @@ public class CallControlsTests
         public Task InvokeToggleBackgroundBlur() => HandleToggleBackgroundBlur();
         public Task InvokeHangUp() => HandleHangUp();
         public Task InvokeAddPeople() => HandleAddPeople();
+        public Task InvokeBlurIntensityInput(int value) => HandleBlurIntensityInput(new ChangeEventArgs { Value = value.ToString() });
+        public Task InvokeSelectVirtualBackground(string url) => HandleSelectVirtualBackground(url);
+        public Task InvokeClearVirtualBackground() => HandleClearVirtualBackground();
+        public Task InvokeSelectBlurOnly() => HandleSelectBlurOnly();
     }
 }

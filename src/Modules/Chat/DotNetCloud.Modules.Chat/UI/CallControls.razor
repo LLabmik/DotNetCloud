@@ -30,13 +30,73 @@
 
         @if (IsBlurSupported)
         {
+            @* Blur toggle — standalone button like before *@
             <button class="control-btn @(IsBackgroundBlurred ? "control-active blur-active" : "")"
                     @onclick="HandleToggleBackgroundBlur"
                     title="@(IsBackgroundBlurred ? "Disable background blur" : "Enable background blur")"
                     disabled="@IsDisabled">
                 <span class="control-icon">🔲</span>
-                <span class="control-label">@(IsBackgroundBlurred ? "Blur On" : "Blur Off")</span>
+                <span class="control-label">@(IsBackgroundBlurred ? "Blur On" : "Blur")</span>
             </button>
+
+            @* Effects button — opens virtual background picker + blur intensity slider *@
+            <button class="control-btn @(HasVirtualBackground ? "control-active vbg-active" : "") @(_showEffectsPanel ? "control-active" : "")"
+                    @onclick="ToggleEffectsPanel"
+                    title="Video effects settings"
+                    disabled="@IsDisabled">
+                <span class="control-icon">🖼️</span>
+                <span class="control-label">Effects</span>
+            </button>
+
+            @if (_showEffectsPanel)
+            {
+                <div class="effects-panel" @onclick:stopPropagation="true">
+                    <div class="effects-panel-header">Video Effects</div>
+
+                    <div class="effects-section">
+                        <div class="effects-section-label">Blur Intensity</div>
+                        <div class="blur-slider-row">
+                            <span class="blur-label-min">Light</span>
+                            <input type="range"
+                                   class="blur-slider"
+                                   min="1" max="50" step="1"
+                                   value="@BlurIntensity"
+                                   disabled="@IsDisabled"
+                                   @oninput="HandleBlurIntensityInput" />
+                            <span class="blur-label-max">Heavy</span>
+                            <span class="blur-value">@(BlurIntensity)px</span>
+                        </div>
+                    </div>
+
+                    <div class="effects-section">
+                        <div class="effects-section-label">Virtual Background</div>
+                        <div class="vbg-grid">
+                            <button class="vbg-option @(ActiveVirtualBackgroundUrl is null && !HasVirtualBackground ? "vbg-selected" : "")"
+                                    @onclick="HandleClearVirtualBackground"
+                                    disabled="@IsDisabled"
+                                    title="No virtual background">
+                                <span class="vbg-option-label">None</span>
+                            </button>
+                            @foreach (var bg in VirtualBackgrounds)
+                            {
+                                <button class="vbg-option @(ActiveVirtualBackgroundUrl == bg.Url ? "vbg-selected" : "")"
+                                        @onclick="() => HandleSelectVirtualBackground(bg.Url)"
+                                        disabled="@IsDisabled"
+                                        title="@bg.Name">
+                                    @if (!string.IsNullOrEmpty(bg.ThumbnailUrl))
+                                    {
+                                        <img class="vbg-thumb" src="@bg.ThumbnailUrl" alt="@bg.Name" loading="lazy" />
+                                    }
+                                    else
+                                    {
+                                        <span class="vbg-option-label">@bg.Name</span>
+                                    }
+                                </button>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
         }
 
         <button class="control-btn @(IsScreenSharing ? "control-active screen-share-active" : "")"

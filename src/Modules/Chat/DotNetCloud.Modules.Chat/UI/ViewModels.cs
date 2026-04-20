@@ -254,3 +254,18 @@ public sealed class PendingAttachment
     /// <summary>Serving URL for preview.</summary>
     public string Url { get; init; } = string.Empty;
 }
+
+/// <summary>
+/// Represents a virtual background option available for video calls.
+/// </summary>
+public sealed record VirtualBackgroundOption
+{
+    /// <summary>Display name for the background.</summary>
+    public required string Name { get; init; }
+
+    /// <summary>Full-size image URL used as the virtual background.</summary>
+    public required string Url { get; init; }
+
+    /// <summary>Thumbnail URL for the picker grid.</summary>
+    public required string ThumbnailUrl { get; init; }
+}

@@ -210,6 +210,36 @@ internal sealed class WebRtcInteropService : IWebRtcInteropService
         return await _js.InvokeAsync<bool>("dotnetcloudVideoEffects.isSupported");
     }
 
+    /// <inheritdoc />
+    public async Task<bool> SetVirtualBackgroundAsync(string imageUrl)
+    {
+        if (string.IsNullOrWhiteSpace(imageUrl))
+        {
+            throw new ArgumentException("Image URL is required.", nameof(imageUrl));
+        }
+
+        _logger.LogDebug("Setting virtual background: {ImageUrl}", imageUrl);
+        return await _js.InvokeAsync<bool>($"{JsNamespace}.setVirtualBackground", imageUrl);
+    }
+
+    /// <inheritdoc />
+    public async Task SetBlurIntensityAsync(int intensity)
+    {
+        if (intensity < 1 || intensity > 50)
+        {
+            throw new ArgumentOutOfRangeException(nameof(intensity), intensity, "Blur intensity must be between 1 and 50.");
+        }
+
+        _logger.LogDebug("Setting blur intensity: {Intensity}px", intensity);
+        await _js.InvokeVoidAsync($"{JsNamespace}.setBlurIntensity", intensity);
+    }
+
+    /// <inheritdoc />
+    public async Task<int> GetBlurIntensityAsync()
+    {
+        return await _js.InvokeAsync<int>($"{JsNamespace}.getBlurIntensity");
+    }
+
     // ── Validation ────────────────────────────────────────────
 
     internal static void ValidatePeerId(string peerId)

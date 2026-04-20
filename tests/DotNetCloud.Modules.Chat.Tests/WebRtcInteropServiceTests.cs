@@ -1141,4 +1141,129 @@ public class WebRtcInteropServiceTests
             "dotnetcloudVideoEffects.isSupported",
             It.IsAny<object?[]>()), Times.Once);
     }
+
+    // ── SetVirtualBackgroundAsync Tests ─────────────────────────────
+
+    [TestMethod]
+    public async Task SetVirtualBackgroundAsync_ValidUrl_InvokesJsAndReturnsTrue()
+    {
+        _jsMock.Setup(js => js.InvokeAsync<bool>("dotnetcloudVideoCall.setVirtualBackground", It.IsAny<object?[]>()))
+            .ReturnsAsync(true);
+
+        var result = await _service.SetVirtualBackgroundAsync("https://example.com/bg.jpg");
+
+        Assert.IsTrue(result);
+        _jsMock.Verify(js => js.InvokeAsync<bool>(
+            "dotnetcloudVideoCall.setVirtualBackground",
+            It.Is<object?[]>(args => args.Length == 1 && (string)args[0]! == "https://example.com/bg.jpg")),
+            Times.Once);
+    }
+
+    [TestMethod]
+    public async Task SetVirtualBackgroundAsync_JsReturnsFalse_ReturnsFalse()
+    {
+        _jsMock.Setup(js => js.InvokeAsync<bool>("dotnetcloudVideoCall.setVirtualBackground", It.IsAny<object?[]>()))
+            .ReturnsAsync(false);
+
+        var result = await _service.SetVirtualBackgroundAsync("https://example.com/bg.jpg");
+
+        Assert.IsFalse(result);
+    }
+
+    [TestMethod]
+    public void SetVirtualBackgroundAsync_NullUrl_ThrowsArgumentException()
+    {
+        Assert.ThrowsExactlyAsync<ArgumentException>(() => _service.SetVirtualBackgroundAsync(null!));
+    }
+
+    [TestMethod]
+    public void SetVirtualBackgroundAsync_EmptyUrl_ThrowsArgumentException()
+    {
+        Assert.ThrowsExactlyAsync<ArgumentException>(() => _service.SetVirtualBackgroundAsync(""));
+    }
+
+    [TestMethod]
+    public void SetVirtualBackgroundAsync_WhitespaceUrl_ThrowsArgumentException()
+    {
+        Assert.ThrowsExactlyAsync<ArgumentException>(() => _service.SetVirtualBackgroundAsync("   "));
+    }
+
+    // ── SetBlurIntensityAsync Tests ─────────────────────────────────
+
+    [TestMethod]
+    public async Task SetBlurIntensityAsync_ValidIntensity_InvokesJs()
+    {
+        await _service.SetBlurIntensityAsync(25);
+
+        _jsMock.Verify(js => js.InvokeAsync<Microsoft.JSInterop.Infrastructure.IJSVoidResult>(
+            "dotnetcloudVideoCall.setBlurIntensity",
+            It.Is<object?[]>(args => args.Length == 1 && (int)args[0]! == 25)),
+            Times.Once);
+    }
+
+    [TestMethod]
+    public async Task SetBlurIntensityAsync_MinIntensity_InvokesJs()
+    {
+        await _service.SetBlurIntensityAsync(1);
+
+        _jsMock.Verify(js => js.InvokeAsync<Microsoft.JSInterop.Infrastructure.IJSVoidResult>(
+            "dotnetcloudVideoCall.setBlurIntensity",
+            It.Is<object?[]>(args => args.Length == 1 && (int)args[0]! == 1)),
+            Times.Once);
+    }
+
+    [TestMethod]
+    public async Task SetBlurIntensityAsync_MaxIntensity_InvokesJs()
+    {
+        await _service.SetBlurIntensityAsync(50);
+
+        _jsMock.Verify(js => js.InvokeAsync<Microsoft.JSInterop.Infrastructure.IJSVoidResult>(
+            "dotnetcloudVideoCall.setBlurIntensity",
+            It.Is<object?[]>(args => args.Length == 1 && (int)args[0]! == 50)),
+            Times.Once);
+    }
+
+    [TestMethod]
+    public void SetBlurIntensityAsync_ZeroIntensity_ThrowsArgumentOutOfRangeException()
+    {
+        Assert.ThrowsExactlyAsync<ArgumentOutOfRangeException>(() => _service.SetBlurIntensityAsync(0));
+    }
+
+    [TestMethod]
+    public void SetBlurIntensityAsync_NegativeIntensity_ThrowsArgumentOutOfRangeException()
+    {
+        Assert.ThrowsExactlyAsync<ArgumentOutOfRangeException>(() => _service.SetBlurIntensityAsync(-5));
+    }
+
+    [TestMethod]
+    public void SetBlurIntensityAsync_Over50_ThrowsArgumentOutOfRangeException()
+    {
+        Assert.ThrowsExactlyAsync<ArgumentOutOfRangeException>(() => _service.SetBlurIntensityAsync(51));
+    }
+
+    // ── GetBlurIntensityAsync Tests ─────────────────────────────────
+
+    [TestMethod]
+    public async Task GetBlurIntensityAsync_ReturnsJsValue()
+    {
+        _jsMock.Setup(js => js.InvokeAsync<int>("dotnetcloudVideoCall.getBlurIntensity", It.IsAny<object?[]>()))
+            .ReturnsAsync(15);
+
+        var result = await _service.GetBlurIntensityAsync();
+
+        Assert.AreEqual(15, result);
+    }
+
+    [TestMethod]
+    public async Task GetBlurIntensityAsync_InvokesCorrectJsFunction()
+    {
+        _jsMock.Setup(js => js.InvokeAsync<int>("dotnetcloudVideoCall.getBlurIntensity", It.IsAny<object?[]>()))
+            .ReturnsAsync(10);
+
+        await _service.GetBlurIntensityAsync();
+
+        _jsMock.Verify(js => js.InvokeAsync<int>(
+            "dotnetcloudVideoCall.getBlurIntensity",
+            It.IsAny<object?[]>()), Times.Once);
+    }
 }

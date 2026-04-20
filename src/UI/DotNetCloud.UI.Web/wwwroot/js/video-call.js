@@ -533,6 +533,66 @@ window.dotnetcloudVideoCall = window.dotnetcloudVideoCall || (function () {
         console.log("[VideoCall] Background blur disabled");
     }
 
+    /**
+     * Set a virtual background image on the local camera stream.
+     * If effects are already active, switches to virtual background mode.
+     * If not active, starts the effect pipeline with virtual background.
+     * @param {string} imageUrl - URL of the background image.
+     * @returns {Promise<boolean>} True on success.
+     */
+    async function setVirtualBackground(imageUrl) {
+        if (!localStream) {
+            console.error("[VideoCall] Cannot set virtual background: no local stream");
+            return false;
+        }
+
+        var effects = window.dotnetcloudVideoEffects;
+        if (!effects) {
+            console.error("[VideoCall] dotnetcloudVideoEffects not available");
+            return false;
+        }
+
+        var processedTrack = await effects.setVirtualBackground(localStream, imageUrl);
+        if (!processedTrack) {
+            console.error("[VideoCall] setVirtualBackground returned null track");
+            return false;
+        }
+
+        // If already active, the track is the same (just mode switched)
+        if (!isBlurActive) {
+            rawCameraTrack = localStream.getVideoTracks()[0] || null;
+            processedBlurTrack = processedTrack;
+            isBlurActive = true;
+
+            if (rawCameraTrack && peerConnections.size > 0) {
+                replaceTrackInAllPeers(rawCameraTrack, processedBlurTrack);
+            }
+        }
+
+        console.log("[VideoCall] Virtual background set: " + imageUrl);
+        return true;
+    }
+
+    /**
+     * Set the blur intensity (only takes effect when blur mode is active).
+     * @param {number} intensity - Blur amount in pixels (1-50).
+     */
+    function setBlurIntensity(intensity) {
+        var effects = window.dotnetcloudVideoEffects;
+        if (effects) {
+            effects.setBlurIntensity(intensity);
+        }
+    }
+
+    /**
+     * Get the current blur intensity.
+     * @returns {number}
+     */
+    function getBlurIntensity() {
+        var effects = window.dotnetcloudVideoEffects;
+        return effects ? effects.getBlurIntensity() : 10;
+    }
+
     // ── Track Controls ─────────────────────────────────────────
 
     /**
@@ -939,6 +999,10 @@ window.dotnetcloudVideoCall = window.dotnetcloudVideoCall || (function () {
         // Background blur
         enableBackgroundBlur: enableBackgroundBlur,
         disableBackgroundBlur: disableBackgroundBlur,
+        // Virtual background & blur intensity
+        setVirtualBackground: setVirtualBackground,
+        setBlurIntensity: setBlurIntensity,
+        getBlurIntensity: getBlurIntensity,
         // Peer connections
         createPeerConnection: createPeerConnection,
         closePeerConnection: closePeerConnection,

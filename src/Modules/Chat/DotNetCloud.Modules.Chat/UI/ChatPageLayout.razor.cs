@@ -135,6 +135,17 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     private string? _callConnectionQuality;
     private bool _isCallBackgroundBlurred;
     private bool _isBlurSupported;
+    private bool _hasVirtualBackground;
+    private string? _activeVirtualBackgroundUrl;
+    private int _blurIntensity = 10;
+    private static readonly IReadOnlyList<VirtualBackgroundOption> DefaultVirtualBackgrounds =
+    [
+        new() { Name = "Mountain Lake", Url = "/_content/DotNetCloud.UI.Web/images/backgrounds/mountain-lake.jpg", ThumbnailUrl = "/_content/DotNetCloud.UI.Web/images/backgrounds/thumbs/mountain-lake.jpg" },
+        new() { Name = "City Skyline", Url = "/_content/DotNetCloud.UI.Web/images/backgrounds/city-skyline.jpg", ThumbnailUrl = "/_content/DotNetCloud.UI.Web/images/backgrounds/thumbs/city-skyline.jpg" },
+        new() { Name = "Abstract Blue", Url = "/_content/DotNetCloud.UI.Web/images/backgrounds/abstract-blue.jpg", ThumbnailUrl = "/_content/DotNetCloud.UI.Web/images/backgrounds/thumbs/abstract-blue.jpg" },
+        new() { Name = "Cozy Office", Url = "/_content/DotNetCloud.UI.Web/images/backgrounds/cozy-office.jpg", ThumbnailUrl = "/_content/DotNetCloud.UI.Web/images/backgrounds/thumbs/cozy-office.jpg" },
+        new() { Name = "Nature Green", Url = "/_content/DotNetCloud.UI.Web/images/backgrounds/nature-green.jpg", ThumbnailUrl = "/_content/DotNetCloud.UI.Web/images/backgrounds/thumbs/nature-green.jpg" },
+    ];
     private Guid? _incomingCallInitiatorId;
     private Guid? _incomingCallChannelId;
     private Guid? _currentCallHostUserId;
@@ -154,6 +165,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     private bool _initialNegotiationDone;
     private System.Timers.Timer? _callDurationTimer;
     private readonly SemaphoreSlim _signalingLock = new(1, 1);
+    private bool _isDisposed;
 
     // User state
     private Guid _currentUserId;
@@ -186,6 +198,20 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     private bool IsBlockedBySelectedPeer
         => SelectedDirectPeerUserId is Guid userId && _blockedByUserIds.Contains(userId);
 
+    /// <summary>
+    /// Safely invokes StateHasChanged on the dispatcher, suppressing ObjectDisposedException
+    /// that can occur when SignalR events arrive after the component has been disposed.
+    /// </summary>
+    private void SafeStateHasChanged()
+    {
+        if (_isDisposed) return;
+        try
+        {
+            _ = InvokeAsync(StateHasChanged);
+        }
+        catch (ObjectDisposedException) { /* Component disposed; ignore */ }
+    }
+
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
     {
@@ -207,6 +233,14 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
             _avatarUrlCache[_currentUserId] = selfAvatar;
         }
 
+        // Load data BEFORE subscribing to events to prevent concurrent DbContext access.
+        // SignalR event handlers invoke DB queries via InvokeAsync; if they fire while
+        // OnInitializedAsync is still running DB queries, the scoped DbContext is used
+        // from two threads simultaneously → InvalidOperationException.
+        await LoadChannelsAsync();
+        await LoadBlockedUsersAsync();
+        await LoadAnnouncementsAsync();
+
         ChatMessageNotifier.MessageReceived += OnRemoteMessageReceived;
         ChatMessageNotifier.MessageEdited += OnRemoteMessageEdited;
         ChatMessageNotifier.MessageDeleted += OnRemoteMessageDeleted;
@@ -222,10 +256,6 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         ChatMessageNotifier.UserBlockStatusChanged += OnUserBlockStatusChanged;
         GlobalNotificationState.OnCallAccepted += OnGlobalCallAccepted;
 
-        await LoadChannelsAsync();
-        await LoadBlockedUsersAsync();
-        await LoadAnnouncementsAsync();
-
         // Check if a call was accepted from the global notification overlay before navigation
         var pendingAccept = GlobalNotificationState.ConsumePendingAccept();
         if (pendingAccept is not null)
@@ -237,6 +267,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
+        _isDisposed = true;
+
         ChatMessageNotifier.MessageReceived -= OnRemoteMessageReceived;
         ChatMessageNotifier.MessageEdited -= OnRemoteMessageEdited;
         ChatMessageNotifier.MessageDeleted -= OnRemoteMessageDeleted;
@@ -268,6 +300,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
     private void OnRemoteMessageReceived(Guid channelId, MessageDto message)
     {
+        if (_isDisposed) return;
         InvokeAsync(async () =>
         {
             if (_selectedChannel is not null && _selectedChannel.Id == channelId)
@@ -304,6 +337,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
     private void OnRemoteMessageEdited(Guid channelId, MessageDto message)
     {
+        if (_isDisposed) return;
         if (_selectedChannel is null || _selectedChannel.Id != channelId) return;
 
         InvokeAsync(() =>
@@ -319,6 +353,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
     private void OnRemoteMessageDeleted(Guid channelId, Guid messageId)
     {
+        if (_isDisposed) return;
         if (_selectedChannel is null || _selectedChannel.Id != channelId) return;
 
         InvokeAsync(() =>
@@ -332,6 +367,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
     private void OnUserPresenceChanged(UserPresenceChangedNotification notification)
     {
+        if (_isDisposed) return;
         InvokeAsync(() =>
         {
             var changed = false;
@@ -367,6 +403,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
     private void OnMediaStateChanged(MediaStateChangedNotification notification)
     {
+        if (_isDisposed) return;
         // Ignore our own media state changes — we already know our own state
         if (notification.UserId == _currentUserId) return;
         if (_currentCallId is null || notification.CallId != _currentCallId) return;
@@ -604,6 +641,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
     private void OnChannelAdded(Guid channelId)
     {
+        if (_isDisposed) return;
         // A new channel (e.g. a DM started by another user) has been added.
         // Blazor Server runs InvokeAsync callbacks INLINE (up to their first real await) when
         // called from the circuit thread. Guard against the three cases where we should skip:
@@ -623,6 +661,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
     private void OnChannelDeleted(Guid channelId)
     {
+        if (_isDisposed) return;
         // A channel was deleted (e.g. the other DM participant left) — remove it from the sidebar
         // and navigate away if it was the active channel.
         _ = InvokeAsync(async () =>
@@ -650,6 +689,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
     private void OnUserBlockStatusChanged(UserBlockStatusChangedNotification notification)
     {
+        if (_isDisposed) return;
         if (notification.TargetUserId != _currentUserId) return;
 
         InvokeAsync(() =>
@@ -1778,6 +1818,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
     private void OnGlobalCallAccepted()
     {
+        if (_isDisposed) return;
         var pending = GlobalNotificationState.ConsumePendingAccept();
         if (pending is not null)
         {
@@ -1795,6 +1836,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
     private void OnCallHostTransferred(CallHostTransferredNotification notification)
     {
+        if (_isDisposed) return;
         if (_currentCallId is null || _currentCallId != notification.CallId)
         {
             return;
@@ -1820,11 +1862,12 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
             };
         }
 
-        _ = InvokeAsync(StateHasChanged);
+        SafeStateHasChanged();
     }
 
     private void OnCallAccepted(CallAcceptedNotification notification)
     {
+        if (_isDisposed) return;
         // Only the caller (who initiated this call) should react
         if (_currentCallId is null || _currentCallId != notification.CallId) return;
 
@@ -1906,6 +1949,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
     private void OnCallParticipantLeft(CallParticipantLeftNotification notification)
     {
+        if (_isDisposed) return;
         if (_currentCallId is null || _currentCallId != notification.CallId)
             return;
 
@@ -1942,6 +1986,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
     private void OnCallEnded(CallEndedNotification notification)
     {
+        if (_isDisposed) return;
         // If we're in the call that just ended, clean up the UI
         if (_currentCallId is not null && _currentCallId == notification.CallId)
         {
@@ -2005,6 +2050,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
     private void OnCallSignalReceived(CallSignalNotification notification)
     {
+        if (_isDisposed) return;
         if (_currentCallId is null || notification.CallId != _currentCallId) return;
         // Only process signals addressed to this user — ignore signals we sent ourselves
         if (notification.ToUserId != _currentUserId) return;
@@ -2089,20 +2135,45 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
                         : "local-video-main";
                     await WebRtcInterop.AttachStreamToElementAsync(localVideoElementId, "local");
 
-                    // Auto-enable background blur if user preference is set
+                    // Auto-enable background effects from user preferences
                     if (_isBlurSupported)
                     {
                         try
                         {
-                            var blurSetting = await UserSettingsService.GetSettingAsync(
-                                _currentUserId, "dotnetcloud.video", "background-blur-enabled");
-                            if (blurSetting?.Value is "true")
+                            // Load blur intensity preference
+                            var intensitySetting = await UserSettingsService.GetSettingAsync(
+                                _currentUserId, "dotnetcloud.video", "blur-intensity");
+                            if (intensitySetting?.Value is not null && int.TryParse(intensitySetting.Value, out var savedIntensity) && savedIntensity is >= 1 and <= 50)
                             {
-                                var blurOk = await WebRtcInterop.SetBackgroundBlurAsync(true);
-                                _isCallBackgroundBlurred = blurOk;
+                                _blurIntensity = savedIntensity;
+                                await WebRtcInterop.SetBlurIntensityAsync(savedIntensity);
+                            }
+
+                            // Check for virtual background preference first
+                            var vbgSetting = await UserSettingsService.GetSettingAsync(
+                                _currentUserId, "dotnetcloud.video", "virtual-background-url");
+                            if (!string.IsNullOrEmpty(vbgSetting?.Value))
+                            {
+                                var vbgOk = await WebRtcInterop.SetVirtualBackgroundAsync(vbgSetting.Value);
+                                if (vbgOk)
+                                {
+                                    _hasVirtualBackground = true;
+                                    _activeVirtualBackgroundUrl = vbgSetting.Value;
+                                }
+                            }
+                            else
+                            {
+                                // Fall back to blur preference
+                                var blurSetting = await UserSettingsService.GetSettingAsync(
+                                    _currentUserId, "dotnetcloud.video", "background-blur-enabled");
+                                if (blurSetting?.Value is "true")
+                                {
+                                    var blurOk = await WebRtcInterop.SetBackgroundBlurAsync(true);
+                                    _isCallBackgroundBlurred = blurOk;
+                                }
                             }
                         }
-                        catch { /* Non-critical: proceed without blur */ }
+                        catch { /* Non-critical: proceed without effects */ }
                     }
                 }
                 else
@@ -2136,8 +2207,9 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         _callDurationTimer = new System.Timers.Timer(1000);
         _callDurationTimer.Elapsed += (_, _) =>
         {
+            if (_isDisposed) return;
             _callDurationSeconds++;
-            _ = InvokeAsync(StateHasChanged);
+            SafeStateHasChanged();
         };
         _callDurationTimer.Start();
     }
@@ -2820,56 +2892,195 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     private async Task HandleCallToggleMute(bool muted)
     {
         _isCallMuted = muted;
-        if (_webRtcInitialized)
+        try
         {
-            await WebRtcInterop.ToggleAudioAsync(!muted);
+            if (_webRtcInitialized)
+            {
+                await WebRtcInterop.ToggleAudioAsync(!muted);
+            }
+            await SendMediaStateChangeAsync("Audio", !muted);
         }
-        await SendMediaStateChangeAsync("Audio", !muted);
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Call] ToggleMute failed: {ex.Message}");
+        }
     }
 
     private async Task HandleCallToggleCamera(bool cameraOff)
     {
         _isCallCameraOff = cameraOff;
-        if (_webRtcInitialized)
+        try
         {
-            await WebRtcInterop.ToggleVideoAsync(!cameraOff);
+            if (_webRtcInitialized)
+            {
+                await WebRtcInterop.ToggleVideoAsync(!cameraOff);
+            }
+            await SendMediaStateChangeAsync("Video", !cameraOff);
         }
-        await SendMediaStateChangeAsync("Video", !cameraOff);
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Call] ToggleCamera failed: {ex.Message}");
+        }
     }
 
     private async Task HandleCallToggleScreenShare(bool sharing)
     {
-        if (!_webRtcInitialized) return;
-        if (sharing)
+        try
         {
-            await WebRtcInterop.StartScreenShareAsync();
+            if (!_webRtcInitialized) return;
+            if (sharing)
+            {
+                await WebRtcInterop.StartScreenShareAsync();
+            }
+            else
+            {
+                await WebRtcInterop.StopScreenShareAsync();
+            }
+            // _isCallScreenSharing is updated via OnScreenShareStateChanged JS callback
         }
-        else
+        catch (Exception ex)
         {
-            await WebRtcInterop.StopScreenShareAsync();
+            Console.WriteLine($"[Call] ToggleScreenShare failed: {ex.Message}");
         }
-        // _isCallScreenSharing is updated via OnScreenShareStateChanged JS callback
     }
 
     private async Task HandleCallToggleBackgroundBlur(bool blurred)
     {
         if (!_webRtcInitialized || !_isBlurSupported) return;
 
-        var success = await WebRtcInterop.SetBackgroundBlurAsync(blurred);
-        if (success)
+        try
         {
-            _isCallBackgroundBlurred = blurred;
-
-            // Persist preference
-            try
+        if (blurred)
+        {
+            // Switching to blur mode — clear any virtual background
+            var success = await WebRtcInterop.SetBackgroundBlurAsync(true);
+            if (success)
             {
-                await UserSettingsService.UpsertSettingAsync(
-                    _currentUserId,
-                    "dotnetcloud.video",
-                    "background-blur-enabled",
-                    new UpsertUserSettingDto { Value = blurred ? "true" : "false" });
+                _isCallBackgroundBlurred = true;
+                _hasVirtualBackground = false;
+                _activeVirtualBackgroundUrl = null;
+
+                // Persist preference
+                try
+                {
+                    await UserSettingsService.UpsertSettingAsync(
+                        _currentUserId,
+                        "dotnetcloud.video",
+                        "background-blur-enabled",
+                        new UpsertUserSettingDto { Value = "true" });
+                    await UserSettingsService.UpsertSettingAsync(
+                        _currentUserId,
+                        "dotnetcloud.video",
+                        "virtual-background-url",
+                        new UpsertUserSettingDto { Value = "" });
+                }
+                catch { /* Non-critical */ }
             }
-            catch { /* Non-critical: blur works even if preference save fails */ }
+        }
+        else
+        {
+            // Disabling all effects
+            var success = await WebRtcInterop.SetBackgroundBlurAsync(false);
+            if (success)
+            {
+                _isCallBackgroundBlurred = false;
+                _hasVirtualBackground = false;
+                _activeVirtualBackgroundUrl = null;
+
+                try
+                {
+                    await UserSettingsService.UpsertSettingAsync(
+                        _currentUserId,
+                        "dotnetcloud.video",
+                        "background-blur-enabled",
+                        new UpsertUserSettingDto { Value = "false" });
+                    await UserSettingsService.UpsertSettingAsync(
+                        _currentUserId,
+                        "dotnetcloud.video",
+                        "virtual-background-url",
+                        new UpsertUserSettingDto { Value = "" });
+                }
+                catch { /* Non-critical */ }
+            }
+        }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Call] ToggleBackgroundBlur failed: {ex.Message}");
+        }
+    }
+
+    private async Task HandleCallBlurIntensityChanged(int intensity)
+    {
+        if (!_webRtcInitialized || !_isBlurSupported) return;
+
+        _blurIntensity = intensity;
+        try
+        {
+            await WebRtcInterop.SetBlurIntensityAsync(intensity);
+            await UserSettingsService.UpsertSettingAsync(
+                _currentUserId,
+                "dotnetcloud.video",
+                "blur-intensity",
+                new UpsertUserSettingDto { Value = intensity.ToString() });
+        }
+        catch { /* Non-critical */ }
+    }
+
+    private async Task HandleCallVirtualBackgroundSelected(string? imageUrl)
+    {
+        if (!_webRtcInitialized || !_isBlurSupported) return;
+
+        try
+        {
+        if (string.IsNullOrEmpty(imageUrl))
+        {
+            // Clear all effects
+            var success = await WebRtcInterop.SetBackgroundBlurAsync(false);
+            if (success)
+            {
+                _isCallBackgroundBlurred = false;
+                _hasVirtualBackground = false;
+                _activeVirtualBackgroundUrl = null;
+
+                try
+                {
+                    await UserSettingsService.UpsertSettingAsync(
+                        _currentUserId, "dotnetcloud.video", "background-blur-enabled",
+                        new UpsertUserSettingDto { Value = "false" });
+                    await UserSettingsService.UpsertSettingAsync(
+                        _currentUserId, "dotnetcloud.video", "virtual-background-url",
+                        new UpsertUserSettingDto { Value = "" });
+                }
+                catch { /* Non-critical */ }
+            }
+        }
+        else
+        {
+            // Set virtual background
+            var success = await WebRtcInterop.SetVirtualBackgroundAsync(imageUrl);
+            if (success)
+            {
+                _hasVirtualBackground = true;
+                _activeVirtualBackgroundUrl = imageUrl;
+                _isCallBackgroundBlurred = false;
+
+                try
+                {
+                    await UserSettingsService.UpsertSettingAsync(
+                        _currentUserId, "dotnetcloud.video", "background-blur-enabled",
+                        new UpsertUserSettingDto { Value = "false" });
+                    await UserSettingsService.UpsertSettingAsync(
+                        _currentUserId, "dotnetcloud.video", "virtual-background-url",
+                        new UpsertUserSettingDto { Value = imageUrl });
+                }
+                catch { /* Non-critical */ }
+            }
+        }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Call] VirtualBackgroundSelected failed: {ex.Message}");
         }
     }
 

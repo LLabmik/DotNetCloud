@@ -7,6 +7,7 @@
 set -euo pipefail
 
 SERVICE_NAME="${SERVICE_NAME:-dotnetcloud.service}"
+SOLUTION_FILTER="${SOLUTION_FILTER:-DotNetCloud.CI.slnf}"
 PROJECT_PATH="${PROJECT_PATH:-src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj}"
 CLI_PROJECT_PATH="${CLI_PROJECT_PATH:-src/CLI/DotNetCloud.CLI/DotNetCloud.CLI.csproj}"
 OUTPUT_DIR="${OUTPUT_DIR:-artifacts/publish/server-baremetal}"
@@ -26,6 +27,7 @@ Usage:
 
 Environment overrides:
   SERVICE_NAME         systemd unit name (default: dotnetcloud.service)
+  SOLUTION_FILTER      solution filter for build (default: DotNetCloud.CI.slnf)
   PROJECT_PATH         server csproj path (default: src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj)
   CLI_PROJECT_PATH     CLI csproj path (default: src/CLI/DotNetCloud.CLI/DotNetCloud.CLI.csproj)
   OUTPUT_DIR           server publish output directory (default: artifacts/publish/server-baremetal)
@@ -70,19 +72,16 @@ fi
 # Acquire sudo upfront so later commands don't prompt mid-deploy.
 sudo -v || { error "sudo authentication failed."; exit 1; }
 
-# Clean stale Debug bin/ artifacts that cause NETSDK1152 "multiple publish output files"
-# when a previous Debug build (e.g. `dotnet build DotNetCloud.sln`) left nested bin/
-# directories that conflict with the Release publish.
-info "Cleaning stale build artifacts..."
-dotnet clean "$PROJECT_PATH" --configuration Debug --verbosity quiet 2>/dev/null || true
-dotnet clean "$PROJECT_PATH" --configuration "$CONFIGURATION" --verbosity quiet 2>/dev/null || true
+# Build via the CI solution filter to avoid restoring/building Android/MAUI projects.
+info "Building $SOLUTION_FILTER ($CONFIGURATION)..."
+dotnet build "$SOLUTION_FILTER" --configuration "$CONFIGURATION"
 
 info "Publishing server to $OUTPUT_DIR..."
-dotnet publish "$PROJECT_PATH" --configuration "$CONFIGURATION" --output "$OUTPUT_DIR"
+dotnet publish "$PROJECT_PATH" --configuration "$CONFIGURATION" --no-build --output "$OUTPUT_DIR"
 
 info "Publishing CLI to $CLI_OUTPUT_DIR (framework-dependent, portable)..."
 dotnet publish "$CLI_PROJECT_PATH" --configuration "$CONFIGURATION" \
-    --self-contained false --output "$CLI_OUTPUT_DIR"
+    --no-build --self-contained false --output "$CLI_OUTPUT_DIR"
 
 # Copy published output to the installed locations.
 # The systemd service runs /opt/dotnetcloud/dotnetcloud start which:

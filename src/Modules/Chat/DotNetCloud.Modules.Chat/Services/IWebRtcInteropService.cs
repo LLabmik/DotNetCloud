@@ -135,4 +135,25 @@ public interface IWebRtcInteropService
     /// </summary>
     /// <returns>True if background blur is supported.</returns>
     Task<bool> IsBackgroundBlurSupportedAsync();
+
+    /// <summary>
+    /// Set a virtual background image on the local video stream.
+    /// The background is replaced with the provided image while the person stays sharp.
+    /// </summary>
+    /// <param name="imageUrl">URL of the background image to use.</param>
+    /// <returns>True if the operation succeeded.</returns>
+    Task<bool> SetVirtualBackgroundAsync(string imageUrl);
+
+    /// <summary>
+    /// Set the blur intensity for background blur (1-50 pixels).
+    /// Only takes effect when blur mode is active.
+    /// </summary>
+    /// <param name="intensity">Blur amount in pixels (clamped to 1-50).</param>
+    Task SetBlurIntensityAsync(int intensity);
+
+    /// <summary>
+    /// Get the current blur intensity.
+    /// </summary>
+    /// <returns>Blur amount in pixels.</returns>
+    Task<int> GetBlurIntensityAsync();
 }

@@ -61,6 +61,22 @@ public partial class VideoCallDialog : ComponentBase
     [Parameter]
     public bool IsBlurSupported { get; set; }
 
+    /// <summary>Whether a virtual background is currently active.</summary>
+    [Parameter]
+    public bool HasVirtualBackground { get; set; }
+
+    /// <summary>URL of the currently active virtual background image.</summary>
+    [Parameter]
+    public string? ActiveVirtualBackgroundUrl { get; set; }
+
+    /// <summary>Current blur intensity in pixels (1-50).</summary>
+    [Parameter]
+    public int BlurIntensity { get; set; } = 10;
+
+    /// <summary>Available virtual background options.</summary>
+    [Parameter]
+    public IReadOnlyList<VirtualBackgroundOption> VirtualBackgrounds { get; set; } = [];
+
     /// <summary>Call duration in seconds.</summary>
     [Parameter]
     public int DurationSeconds { get; set; }
@@ -84,6 +100,14 @@ public partial class VideoCallDialog : ComponentBase
     /// <summary>Callback when background blur is toggled.</summary>
     [Parameter]
     public EventCallback<bool> OnToggleBackgroundBlur { get; set; }
+
+    /// <summary>Callback when blur intensity changes.</summary>
+    [Parameter]
+    public EventCallback<int> OnBlurIntensityChanged { get; set; }
+
+    /// <summary>Callback when a virtual background is selected (null to clear).</summary>
+    [Parameter]
+    public EventCallback<string?> OnVirtualBackgroundSelected { get; set; }
 
     /// <summary>Callback when hang up is clicked.</summary>
     [Parameter]
@@ -240,6 +264,17 @@ public partial class VideoCallDialog : ComponentBase
     protected async Task HandleToggleBackgroundBlur(bool blurred)
     {
         await OnToggleBackgroundBlur.InvokeAsync(blurred);
+    }
+    /// <summary>Handles blur intensity change from CallControls.</summary>
+    protected async Task HandleBlurIntensityChanged(int intensity)
+    {
+        await OnBlurIntensityChanged.InvokeAsync(intensity);
+    }
+
+    /// <summary>Handles virtual background selection from CallControls.</summary>
+    protected async Task HandleVirtualBackgroundSelected(string? url)
+    {
+        await OnVirtualBackgroundSelected.InvokeAsync(url);
     }
 
     /// <summary>Handles hang up from CallControls.</summary>

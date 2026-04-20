@@ -4,10 +4,12 @@ namespace DotNetCloud.Modules.Chat.UI;
 
 /// <summary>
 /// Code-behind for the call controls toolbar component.
-/// Provides mute, camera, screen share, and hang up controls.
+/// Provides mute, camera, screen share, background effects, and hang up controls.
 /// </summary>
 public partial class CallControls : ComponentBase
 {
+    private bool _showEffectsPanel;
+
     /// <summary>Whether the microphone is muted.</summary>
     [Parameter]
     public bool IsMuted { get; set; }
@@ -27,6 +29,22 @@ public partial class CallControls : ComponentBase
     /// <summary>Whether background blur is supported by the client browser.</summary>
     [Parameter]
     public bool IsBlurSupported { get; set; }
+
+    /// <summary>Whether a virtual background is currently active.</summary>
+    [Parameter]
+    public bool HasVirtualBackground { get; set; }
+
+    /// <summary>URL of the currently active virtual background image (null if none).</summary>
+    [Parameter]
+    public string? ActiveVirtualBackgroundUrl { get; set; }
+
+    /// <summary>Current blur intensity in pixels (1-50).</summary>
+    [Parameter]
+    public int BlurIntensity { get; set; } = 10;
+
+    /// <summary>Available virtual background options.</summary>
+    [Parameter]
+    public IReadOnlyList<VirtualBackgroundOption> VirtualBackgrounds { get; set; } = [];
 
     /// <summary>Number of participants in the call.</summary>
     [Parameter]
@@ -68,6 +86,14 @@ public partial class CallControls : ComponentBase
     [Parameter]
     public EventCallback<bool> OnToggleBackgroundBlur { get; set; }
 
+    /// <summary>Callback when blur intensity changes.</summary>
+    [Parameter]
+    public EventCallback<int> OnBlurIntensityChanged { get; set; }
+
+    /// <summary>Callback when a virtual background is selected.</summary>
+    [Parameter]
+    public EventCallback<string?> OnVirtualBackgroundSelected { get; set; }
+
     /// <summary>Callback when hang up is clicked.</summary>
     [Parameter]
     public EventCallback OnHangUp { get; set; }
@@ -101,6 +127,58 @@ public partial class CallControls : ComponentBase
     protected async Task HandleToggleBackgroundBlur()
     {
         await OnToggleBackgroundBlur.InvokeAsync(!IsBackgroundBlurred);
+    }
+
+    /// <summary>Handles blur intensity slider input.</summary>
+    protected async Task HandleBlurIntensityInput(ChangeEventArgs args)
+    {
+        if (int.TryParse(args.Value?.ToString(), out var intensity))
+        {
+            await OnBlurIntensityChanged.InvokeAsync(intensity);
+        }
+    }
+
+    /// <summary>Handles selecting a virtual background image.</summary>
+    protected async Task HandleSelectVirtualBackground(string url)
+    {
+        _showEffectsPanel = false;
+        await OnVirtualBackgroundSelected.InvokeAsync(url);
+    }
+
+    /// <summary>Handles selecting blur-only mode (no virtual background).</summary>
+    protected async Task HandleSelectBlurOnly()
+    {
+        _showEffectsPanel = false;
+        await OnToggleBackgroundBlur.InvokeAsync(true);
+    }
+
+    /// <summary>Handles clearing virtual background and blur.</summary>
+    protected async Task HandleClearVirtualBackground()
+    {
+        _showEffectsPanel = false;
+        await OnVirtualBackgroundSelected.InvokeAsync(null);
+    }
+
+    /// <summary>Toggles the effects settings panel visibility.</summary>
+    protected void ToggleEffectsPanel()
+    {
+        _showEffectsPanel = !_showEffectsPanel;
+    }
+
+    /// <summary>Gets the effects button title based on current state.</summary>
+    protected string GetEffectsButtonTitle()
+    {
+        if (HasVirtualBackground) return "Virtual background active";
+        if (IsBackgroundBlurred) return "Background blur active";
+        return "Enable background effects";
+    }
+
+    /// <summary>Gets the effects button label based on current state.</summary>
+    protected string GetEffectsButtonLabel()
+    {
+        if (HasVirtualBackground) return "Virtual BG";
+        if (IsBackgroundBlurred) return "Blur On";
+        return "Effects";
     }
 
     /// <summary>Handles hang up button click.</summary>
