@@ -1048,4 +1048,97 @@ public class WebRtcInteropServiceTests
 
         Assert.IsNull(result);
     }
+
+    // ── SetBackgroundBlurAsync Tests ────────────────────────────────
+
+    [TestMethod]
+    public async Task SetBackgroundBlurAsync_Enable_InvokesJsEnableBackgroundBlur()
+    {
+        _jsMock.Setup(js => js.InvokeAsync<bool>("dotnetcloudVideoCall.enableBackgroundBlur", It.IsAny<object?[]>()))
+            .ReturnsAsync(true);
+
+        var result = await _service.SetBackgroundBlurAsync(true);
+
+        Assert.IsTrue(result);
+        _jsMock.Verify(js => js.InvokeAsync<bool>(
+            "dotnetcloudVideoCall.enableBackgroundBlur",
+            It.IsAny<object?[]>()), Times.Once);
+    }
+
+    [TestMethod]
+    public async Task SetBackgroundBlurAsync_Enable_ReturnsFalse_WhenJsReturnsFalse()
+    {
+        _jsMock.Setup(js => js.InvokeAsync<bool>("dotnetcloudVideoCall.enableBackgroundBlur", It.IsAny<object?[]>()))
+            .ReturnsAsync(false);
+
+        var result = await _service.SetBackgroundBlurAsync(true);
+
+        Assert.IsFalse(result);
+    }
+
+    [TestMethod]
+    public async Task SetBackgroundBlurAsync_Disable_InvokesJsDisableBackgroundBlur()
+    {
+        _jsMock.Setup(js => js.InvokeAsync<Microsoft.JSInterop.Infrastructure.IJSVoidResult>(
+            "dotnetcloudVideoCall.disableBackgroundBlur", It.IsAny<object?[]>()))
+            .ReturnsAsync((Microsoft.JSInterop.Infrastructure.IJSVoidResult)null!);
+
+        var result = await _service.SetBackgroundBlurAsync(false);
+
+        Assert.IsTrue(result);
+        _jsMock.Verify(js => js.InvokeAsync<Microsoft.JSInterop.Infrastructure.IJSVoidResult>(
+            "dotnetcloudVideoCall.disableBackgroundBlur",
+            It.IsAny<object?[]>()), Times.Once);
+    }
+
+    [TestMethod]
+    public async Task SetBackgroundBlurAsync_Disable_DoesNotCallEnable()
+    {
+        _jsMock.Setup(js => js.InvokeAsync<Microsoft.JSInterop.Infrastructure.IJSVoidResult>(
+            "dotnetcloudVideoCall.disableBackgroundBlur", It.IsAny<object?[]>()))
+            .ReturnsAsync((Microsoft.JSInterop.Infrastructure.IJSVoidResult)null!);
+
+        await _service.SetBackgroundBlurAsync(false);
+
+        _jsMock.Verify(js => js.InvokeAsync<bool>(
+            "dotnetcloudVideoCall.enableBackgroundBlur",
+            It.IsAny<object?[]>()), Times.Never);
+    }
+
+    // ── IsBackgroundBlurSupportedAsync Tests ────────────────────────
+
+    [TestMethod]
+    public async Task IsBackgroundBlurSupportedAsync_ReturnsTrue_WhenJsReturnsTrue()
+    {
+        _jsMock.Setup(js => js.InvokeAsync<bool>("dotnetcloudVideoEffects.isSupported", It.IsAny<object?[]>()))
+            .ReturnsAsync(true);
+
+        var result = await _service.IsBackgroundBlurSupportedAsync();
+
+        Assert.IsTrue(result);
+    }
+
+    [TestMethod]
+    public async Task IsBackgroundBlurSupportedAsync_ReturnsFalse_WhenJsReturnsFalse()
+    {
+        _jsMock.Setup(js => js.InvokeAsync<bool>("dotnetcloudVideoEffects.isSupported", It.IsAny<object?[]>()))
+            .ReturnsAsync(false);
+
+        var result = await _service.IsBackgroundBlurSupportedAsync();
+
+        Assert.IsFalse(result);
+    }
+
+    [TestMethod]
+    public async Task IsBackgroundBlurSupportedAsync_InvokesCorrectJsFunction()
+    {
+        _jsMock.Setup(js => js.InvokeAsync<bool>("dotnetcloudVideoEffects.isSupported", It.IsAny<object?[]>()))
+            .ReturnsAsync(true);
+
+        await _service.IsBackgroundBlurSupportedAsync();
+
+        _jsMock.Verify(js => js.InvokeAsync<bool>(
+            "dotnetcloudVideoEffects.isSupported",
+            It.IsAny<object?[]>()), Times.Once);
+    }
 }

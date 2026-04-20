@@ -241,6 +241,36 @@ public class CallControlsTests
         Assert.IsTrue(invoked);
     }
 
+    // ── Background Blur Toggle Tests ────────────────────────────────
+
+    [TestMethod]
+    public async Task HandleToggleBackgroundBlur_WhenBlurOff_InvokesCallbackWithTrue()
+    {
+        var controls = new TestableCallControls();
+        controls.SetBackgroundBlurred(false);
+        bool? receivedValue = null;
+        var receiver = new object();
+        controls.OnToggleBackgroundBlur = EventCallback.Factory.Create<bool>(receiver, val => receivedValue = val);
+
+        await controls.InvokeToggleBackgroundBlur();
+
+        Assert.AreEqual(true, receivedValue);
+    }
+
+    [TestMethod]
+    public async Task HandleToggleBackgroundBlur_WhenBlurOn_InvokesCallbackWithFalse()
+    {
+        var controls = new TestableCallControls();
+        controls.SetBackgroundBlurred(true);
+        bool? receivedValue = null;
+        var receiver = new object();
+        controls.OnToggleBackgroundBlur = EventCallback.Factory.Create<bool>(receiver, val => receivedValue = val);
+
+        await controls.InvokeToggleBackgroundBlur();
+
+        Assert.AreEqual(false, receivedValue);
+    }
+
     // ── Helpers ─────────────────────────────────────────────────────
 
     private sealed class TestableCallControls : CallControls
@@ -253,10 +283,12 @@ public class CallControlsTests
         public void SetMuted(bool muted) => IsMuted = muted;
         public void SetCameraOff(bool off) => IsCameraOff = off;
         public void SetScreenSharing(bool sharing) => IsScreenSharing = sharing;
+        public void SetBackgroundBlurred(bool blurred) => IsBackgroundBlurred = blurred;
 
         public Task InvokeToggleMute() => HandleToggleMute();
         public Task InvokeToggleCamera() => HandleToggleCamera();
         public Task InvokeToggleScreenShare() => HandleToggleScreenShare();
+        public Task InvokeToggleBackgroundBlur() => HandleToggleBackgroundBlur();
         public Task InvokeHangUp() => HandleHangUp();
         public Task InvokeAddPeople() => HandleAddPeople();
     }
