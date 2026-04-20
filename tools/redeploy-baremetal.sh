@@ -70,6 +70,13 @@ fi
 # Acquire sudo upfront so later commands don't prompt mid-deploy.
 sudo -v || { error "sudo authentication failed."; exit 1; }
 
+# Clean stale Debug bin/ artifacts that cause NETSDK1152 "multiple publish output files"
+# when a previous Debug build (e.g. `dotnet build DotNetCloud.sln`) left nested bin/
+# directories that conflict with the Release publish.
+info "Cleaning stale build artifacts..."
+dotnet clean "$PROJECT_PATH" --configuration Debug --verbosity quiet 2>/dev/null || true
+dotnet clean "$PROJECT_PATH" --configuration "$CONFIGURATION" --verbosity quiet 2>/dev/null || true
+
 info "Publishing server to $OUTPUT_DIR..."
 dotnet publish "$PROJECT_PATH" --configuration "$CONFIGURATION" --output "$OUTPUT_DIR"
 
