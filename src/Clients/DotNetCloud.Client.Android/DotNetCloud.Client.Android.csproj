@@ -75,26 +75,26 @@
 		 Core dependencies
 	     ======================== -->
 	<ItemGroup>
-		<PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
-		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
-		<PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.0" />
-		<PackageReference Include="Microsoft.Extensions.Http" Version="10.0.0" />
-		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.0" />
-		<PackageReference Include="sqlite-net-pcl" Version="1.9.172" />
+		<PackageReference Include="Microsoft.Maui.Controls" />
+		<PackageReference Include="CommunityToolkit.Mvvm" />
+		<PackageReference Include="Microsoft.AspNetCore.SignalR.Client" />
+		<PackageReference Include="Microsoft.Extensions.Http" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Debug" />
+		<PackageReference Include="sqlite-net-pcl" />
 	</ItemGroup>
 
 	<!-- ========================
 	     Google Play flavor: Firebase Cloud Messaging
 	     ======================== -->
 	<ItemGroup Condition="'$(BuildFlavor)' == 'googleplay'">
-		<PackageReference Include="Xamarin.Firebase.Messaging" Version="123.1.2.0" />
+		<PackageReference Include="Xamarin.Firebase.Messaging" />
 	</ItemGroup>
 
 	<!-- ========================
 	     F-Droid flavor: UnifiedPush
 	     ======================== -->
 	<ItemGroup Condition="'$(BuildFlavor)' == 'fdroid'">
-		<PackageReference Include="UnifiedPush.NET" Version="2.0.2" />
+		<PackageReference Include="UnifiedPush.NET" />
 	</ItemGroup>
 
 	<!-- ========================

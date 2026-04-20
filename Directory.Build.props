@@ -2,6 +2,7 @@
   <!-- CRITICAL: Set output paths before Microsoft.Common.props is imported -->
   <!-- This prevents MSB3539 warning about BaseIntermediateOutputPath being modified after use -->
   <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <BaseIntermediateOutputPath>$(MSBuildProjectDir)bin\obj\</BaseIntermediateOutputPath>
     <BaseOutputPath>$(MSBuildProjectDir)bin\</BaseOutputPath>
     <!-- Prevent test SDK and other targets from overriding output paths -->
