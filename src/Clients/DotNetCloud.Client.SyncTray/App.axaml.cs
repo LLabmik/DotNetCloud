@@ -138,6 +138,9 @@ public partial class App : Application
         services.AddSingleton<INotificationService>(static sp =>
             NotificationServiceFactory.Create(sp.GetRequiredService<ILogger<INotificationService>>()));
 
+        // Update service (checks server + GitHub fallback for new releases).
+        services.AddHttpClient<IClientUpdateService, ClientUpdateService>();
+
         // Background update checker.
         services.AddSingleton<UpdateCheckBackgroundService>();
 
