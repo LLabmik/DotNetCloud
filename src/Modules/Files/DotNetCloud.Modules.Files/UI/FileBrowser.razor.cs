@@ -363,8 +363,8 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
             {
                 ("Name", true)  => _nodes.OrderBy(n => n.NodeType != "Folder").ThenBy(n => n.Name, StringComparer.OrdinalIgnoreCase),
                 ("Name", false) => _nodes.OrderBy(n => n.NodeType != "Folder").ThenByDescending(n => n.Name, StringComparer.OrdinalIgnoreCase),
-                ("Size", true)  => _nodes.OrderBy(n => n.NodeType != "Folder").ThenBy(n => n.Size),
-                ("Size", false) => _nodes.OrderBy(n => n.NodeType != "Folder").ThenByDescending(n => n.Size),
+                ("Size", true)  => _nodes.OrderBy(n => n.NodeType != "Folder").ThenBy(n => n.NodeType == "Folder" ? n.TotalSize : n.Size),
+                ("Size", false) => _nodes.OrderBy(n => n.NodeType != "Folder").ThenByDescending(n => n.NodeType == "Folder" ? n.TotalSize : n.Size),
                 ("Date", true)  => _nodes.OrderBy(n => n.NodeType != "Folder").ThenBy(n => n.UpdatedAt),
                 ("Date", false) => _nodes.OrderBy(n => n.NodeType != "Folder").ThenByDescending(n => n.UpdatedAt),
                 ("Type", true)  => _nodes.OrderBy(n => n.NodeType != "Folder").ThenBy(n => n.MimeType),
@@ -2207,6 +2207,7 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
             NodeType = dto.NodeType,
             MimeType = dto.MimeType,
             Size = dto.Size,
+            TotalSize = dto.TotalSize,
             ParentId = dto.ParentId,
             IsFavorite = dto.IsFavorite,
             UpdatedAt = dto.UpdatedAt,

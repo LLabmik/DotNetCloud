@@ -20,6 +20,9 @@ public sealed class FileNodeViewModel
     /// <summary>Size in bytes.</summary>
     public long Size { get; init; }
 
+    /// <summary>Total recursive size of all contents in bytes (folders only; 0 for files).</summary>
+    public long TotalSize { get; init; }
+
     /// <summary>Parent folder ID.</summary>
     public Guid? ParentId { get; init; }
 

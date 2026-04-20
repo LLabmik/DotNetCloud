@@ -85,6 +85,11 @@ else if (_activeSection == FileSidebarSection.Tags && ActiveTag is not null)
                                     @FormatSize(node.Size)
                                     <span class="meta-sep">·</span>
                                 }
+                                else if (node.NodeType == "Folder")
+                                {
+                                    @FormatSize(node.TotalSize)
+                                    <span class="meta-sep">·</span>
+                                }
                                 @node.UpdatedAt.ToString("MMM d, yyyy")
                                 @if (node.CommentCount > 0)
                                 {
@@ -364,6 +369,11 @@ else
                             @if (node.NodeType == "File")
                             {
                                 @FormatSize(node.Size)
+                                <span class="meta-sep">·</span>
+                            }
+                            else if (node.NodeType == "Folder")
+                            {
+                                @FormatSize(node.TotalSize)
                                 <span class="meta-sep">·</span>
                             }
                             @node.UpdatedAt.ToString("MMM d, yyyy")

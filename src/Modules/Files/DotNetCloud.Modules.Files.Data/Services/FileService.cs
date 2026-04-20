@@ -176,7 +176,8 @@ internal sealed class FileService : IFileService
             .ToListAsync(cancellationToken);
 
         var childCounts = await GetChildCountsAsync(children, cancellationToken);
-        return children.Select(n => ToDto(n, childCounts.GetValueOrDefault(n.Id))).ToList();
+        var subtreeSizes = await GetSubtreeSizesAsync(children, cancellationToken);
+        return children.Select(n => ToDto(n, childCounts.GetValueOrDefault(n.Id), subtreeSizes.GetValueOrDefault(n.Id))).ToList();
     }
 
     /// <inheritdoc />
@@ -193,7 +194,8 @@ internal sealed class FileService : IFileService
             .ToListAsync(cancellationToken);
 
         var childCounts = await GetChildCountsAsync(roots, cancellationToken);
-        return roots.Select(n => ToDto(n, childCounts.GetValueOrDefault(n.Id))).ToList();
+        var subtreeSizes = await GetSubtreeSizesAsync(roots, cancellationToken);
+        return roots.Select(n => ToDto(n, childCounts.GetValueOrDefault(n.Id), subtreeSizes.GetValueOrDefault(n.Id))).ToList();
     }
 
     /// <inheritdoc />
@@ -667,6 +669,33 @@ internal sealed class FileService : IFileService
             throw new ForbiddenException("You do not have permission to modify this node.");
     }
 
+    /// <summary>Batch-computes the recursive total size of all descendants for each folder in the list.</summary>
+    private async Task<Dictionary<Guid, long>> GetSubtreeSizesAsync(List<FileNode> nodes, CancellationToken ct)
+    {
+        var folders = nodes
+            .Where(n => n.NodeType == FileNodeType.Folder)
+            .ToList();
+
+        if (folders.Count == 0)
+            return [];
+
+        var result = new Dictionary<Guid, long>(folders.Count);
+
+        foreach (var folder in folders)
+        {
+            var size = await _db.FileNodes
+                .AsNoTracking()
+                .Where(n => n.MaterializedPath.StartsWith(folder.MaterializedPath + "/")
+                            && n.NodeType == FileNodeType.File
+                            && !n.IsDeleted)
+                .SumAsync(n => n.Size, ct);
+
+            result[folder.Id] = size;
+        }
+
+        return result;
+    }
+
     /// <summary>Batch-fetches child counts for all folder nodes in a single query.</summary>
     private async Task<Dictionary<Guid, int>> GetChildCountsAsync(List<FileNode> nodes, CancellationToken ct)
     {
@@ -690,13 +719,14 @@ internal sealed class FileService : IFileService
             .ToDictionary(g => g.Key, g => g.Count());
     }
 
-    private static FileNodeDto ToDto(FileNode node, int? childCount = null) => new()
+    private static FileNodeDto ToDto(FileNode node, int? childCount = null, long? totalSize = null) => new()
     {
         Id = node.Id,
         Name = node.Name,
         NodeType = node.NodeType.ToString(),
         MimeType = node.MimeType,
         Size = node.Size,
+        TotalSize = totalSize ?? 0,
         ParentId = node.ParentId,
         OwnerId = node.OwnerId,
         CurrentVersion = node.CurrentVersion,
