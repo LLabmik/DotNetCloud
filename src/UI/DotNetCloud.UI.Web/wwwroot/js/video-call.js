@@ -35,6 +35,11 @@ window.dotnetcloudVideoCall = window.dotnetcloudVideoCall || (function () {
     let isScreenSharing = false;
     let screenShareWasAdded = false; // true if screen track was added (not replaced)
     let isInitialized = false;
+    let isBlurActive = false;
+    /** @type {MediaStreamTrack|null} raw camera track saved before blur swap */
+    let rawCameraTrack = null;
+    /** @type {MediaStreamTrack|null} processed (blurred) track currently in peers */
+    let processedBlurTrack = null;
 
     // ── Initialization ─────────────────────────────────────────
 
@@ -79,9 +84,10 @@ window.dotnetcloudVideoCall = window.dotnetcloudVideoCall || (function () {
     /**
      * Start capturing local media (camera + microphone).
      * @param {object} [constraints] - Optional getUserMedia constraints override.
-     * @returns {Promise<string|null>} The local stream ID on success, null on failure.
+     * @param {boolean} [enableBlur=false] - Whether to enable background blur immediately.
+     * @returns {Promise<string|null>} The local stream ID (or processed stream ID) on success, null on failure.
      */
-    async function startLocalMedia(constraints) {
+    async function startLocalMedia(constraints, enableBlur) {
         try {
             var mediaConstraints = constraints || {
                 audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
@@ -90,6 +96,14 @@ window.dotnetcloudVideoCall = window.dotnetcloudVideoCall || (function () {
 
             localStream = await navigator.mediaDevices.getUserMedia(mediaConstraints);
             console.log("[VideoCall] Local media started, tracks:", localStream.getTracks().map(function (t) { return t.kind; }));
+
+            if (enableBlur) {
+                var blurOk = await _enableBlur();
+                if (!blurOk) {
+                    console.warn("[VideoCall] Background blur failed to start, continuing with raw stream");
+                }
+            }
+
             return localStream.id;
         } catch (e) {
             console.error("[VideoCall] getUserMedia failed:", e.name, e.message);
@@ -124,9 +138,10 @@ window.dotnetcloudVideoCall = window.dotnetcloudVideoCall || (function () {
             // Replace video track in all peer connections, or add if no camera track exists
             var screenTrack = screenStream.getVideoTracks()[0];
             if (screenTrack) {
-                var cameraTrack = localStream ? localStream.getVideoTracks()[0] : null;
-                if (cameraTrack) {
-                    replaceTrackInAllPeers(cameraTrack, screenTrack);
+                // When blur is active, the track in peer senders is the processed blur track
+                var activeTrack = _getActiveVideoTrack();
+                if (activeTrack) {
+                    replaceTrackInAllPeers(activeTrack, screenTrack);
                     screenShareWasAdded = false;
                 } else {
                     // No camera track — add screen track directly to all peers
@@ -158,16 +173,17 @@ window.dotnetcloudVideoCall = window.dotnetcloudVideoCall || (function () {
         if (!isScreenSharing || !screenStream) return;
 
         var screenTrack = screenStream.getVideoTracks()[0];
-        var cameraTrack = localStream ? localStream.getVideoTracks()[0] : null;
+        // Swap back to the active video track (blur track if active, raw camera otherwise)
+        var restoreTrack = _getActiveVideoTrack();
 
         if (screenShareWasAdded) {
             // Screen track was added directly — remove it from all peers
             if (screenTrack) {
                 removeTrackFromAllPeers(screenTrack);
             }
-        } else if (cameraTrack && screenTrack) {
-            // Screen track replaced camera — swap back
-            replaceTrackInAllPeers(screenTrack, cameraTrack);
+        } else if (restoreTrack && screenTrack) {
+            // Screen track replaced camera/blur — swap back
+            replaceTrackInAllPeers(screenTrack, restoreTrack);
         }
 
         // Stop all screen share tracks
@@ -185,15 +201,15 @@ window.dotnetcloudVideoCall = window.dotnetcloudVideoCall || (function () {
     /** Internal handler when user stops screen share via browser chrome. */
     function handleScreenShareEnded() {
         if (!isScreenSharing) return;
-        var cameraTrack = localStream ? localStream.getVideoTracks()[0] : null;
+        var restoreTrack = _getActiveVideoTrack();
         var screenTrack = screenStream ? screenStream.getVideoTracks()[0] : null;
 
         if (screenShareWasAdded) {
             if (screenTrack) {
                 removeTrackFromAllPeers(screenTrack);
             }
-        } else if (cameraTrack && screenTrack) {
-            replaceTrackInAllPeers(screenTrack, cameraTrack);
+        } else if (restoreTrack && screenTrack) {
+            replaceTrackInAllPeers(screenTrack, restoreTrack);
         }
 
         if (screenStream) {
@@ -236,9 +252,14 @@ window.dotnetcloudVideoCall = window.dotnetcloudVideoCall || (function () {
         peerConnections.set(peerId, pc);
 
         // Add local tracks to the connection
+        // When blur is active, substitute the processed blur track for the raw camera video
         if (localStream) {
             localStream.getTracks().forEach(function (track) {
-                pc.addTrack(track, localStream);
+                if (isBlurActive && processedBlurTrack && track.kind === 'video') {
+                    pc.addTrack(processedBlurTrack, localStream);
+                } else {
+                    pc.addTrack(track, localStream);
+                }
             });
         }
 
@@ -430,6 +451,86 @@ window.dotnetcloudVideoCall = window.dotnetcloudVideoCall || (function () {
             }
             return false;
         }
+    }
+
+    // ── Background Blur ────────────────────────────────────────
+
+    /**
+     * Get the video track currently active in peer connections.
+     * Returns the blur track if blur is active, otherwise the raw camera track from localStream.
+     * @returns {MediaStreamTrack|null}
+     */
+    function _getActiveVideoTrack() {
+        if (isBlurActive && processedBlurTrack) return processedBlurTrack;
+        return localStream ? localStream.getVideoTracks()[0] || null : null;
+    }
+
+    /**
+     * Enable background blur on the local camera stream.
+     * Swaps the raw camera track for a processed (blurred) track in all peer connections.
+     * @returns {Promise<boolean>} True on success.
+     */
+    async function enableBackgroundBlur() {
+        if (isBlurActive) {
+            console.warn("[VideoCall] Background blur already active");
+            return true;
+        }
+        return await _enableBlur();
+    }
+
+    /**
+     * Internal: run the blur enable logic (used by both startLocalMedia and enableBackgroundBlur).
+     * @returns {Promise<boolean>}
+     */
+    async function _enableBlur() {
+        if (!localStream) {
+            console.error("[VideoCall] Cannot enable blur: no local stream");
+            return false;
+        }
+
+        var effects = window.dotnetcloudVideoEffects;
+        if (!effects) {
+            console.error("[VideoCall] dotnetcloudVideoEffects not available");
+            return false;
+        }
+
+        var processedTrack = await effects.enableBackgroundBlur(localStream);
+        if (!processedTrack) {
+            console.error("[VideoCall] enableBackgroundBlur returned null track");
+            return false;
+        }
+
+        rawCameraTrack = localStream.getVideoTracks()[0] || null;
+        processedBlurTrack = processedTrack;
+        isBlurActive = true;
+
+        if (rawCameraTrack && peerConnections.size > 0) {
+            replaceTrackInAllPeers(rawCameraTrack, processedBlurTrack);
+        }
+
+        console.log("[VideoCall] Background blur enabled");
+        return true;
+    }
+
+    /**
+     * Disable background blur and revert to the raw camera stream in all peer connections.
+     */
+    function disableBackgroundBlur() {
+        if (!isBlurActive) return;
+
+        var effects = window.dotnetcloudVideoEffects;
+        if (effects) {
+            effects.disableBackgroundBlur();
+        }
+
+        if (rawCameraTrack && processedBlurTrack && peerConnections.size > 0) {
+            replaceTrackInAllPeers(processedBlurTrack, rawCameraTrack);
+        }
+
+        processedBlurTrack = null;
+        rawCameraTrack = null;
+        isBlurActive = false;
+        console.log("[VideoCall] Background blur disabled");
     }
 
     // ── Track Controls ─────────────────────────────────────────
@@ -713,6 +814,17 @@ window.dotnetcloudVideoCall = window.dotnetcloudVideoCall || (function () {
     function hangup() {
         console.log("[VideoCall] Hanging up call:", currentCallId);
 
+        // Disable background blur (releases effects engine resources)
+        if (isBlurActive) {
+            var effects = window.dotnetcloudVideoEffects;
+            if (effects) {
+                effects.dispose();
+            }
+            isBlurActive = false;
+            processedBlurTrack = null;
+            rawCameraTrack = null;
+        }
+
         // Close all peer connections
         var peerIds = Array.from(peerConnections.keys());
         for (var i = 0; i < peerIds.length; i++) {
@@ -824,6 +936,9 @@ window.dotnetcloudVideoCall = window.dotnetcloudVideoCall || (function () {
         startLocalMedia: startLocalMedia,
         startScreenShare: startScreenShare,
         stopScreenShare: stopScreenShare,
+        // Background blur
+        enableBackgroundBlur: enableBackgroundBlur,
+        disableBackgroundBlur: disableBackgroundBlur,
         // Peer connections
         createPeerConnection: createPeerConnection,
         closePeerConnection: closePeerConnection,
