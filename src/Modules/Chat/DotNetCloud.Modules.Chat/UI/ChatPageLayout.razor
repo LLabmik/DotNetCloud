@@ -105,6 +105,20 @@
                     }
                     else
                     {
+                        @if (_pendingAttachments.Count > 0)
+                        {
+                            <div class="pending-attachments-preview">
+                                @foreach (var attachment in _pendingAttachments)
+                                {
+                                    <div class="pending-attachment-item">
+                                        <img src="@attachment.Url" alt="@attachment.FileName" class="pending-attachment-thumb" />
+                                        <span class="pending-attachment-name">@attachment.FileName</span>
+                                        <button class="pending-attachment-remove" @onclick="() => HandleRemovePendingAttachment(attachment.Id)" title="Remove">✕</button>
+                                    </div>
+                                }
+                            </div>
+                        }
+
                         <MessageComposer ChannelName="@_selectedChannel.Name"
                                          ChannelType="@_selectedChannel.Type"
                                          ReplyToMessage="@_replyToMessage"
@@ -115,7 +129,14 @@
                                          OnCancelReply="@HandleCancelReply"
                                          OnCancelEdit="@HandleCancelEditMessage"
                                          OnTyping="@HandleTyping"
-                                         OnAttach="@HandleAttach" />
+                                         OnAttach="@HandleAttach"
+                                         OnPasteImage="@HandlePasteImage" />
+
+                        <input type="file"
+                               id="@_fileInputId"
+                               accept="image/*"
+                               style="display:none"
+                               @ref="_fileInputRef" />
                     }
                 }
             </div>

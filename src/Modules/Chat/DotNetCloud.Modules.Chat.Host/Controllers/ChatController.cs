@@ -4,6 +4,7 @@ using DotNetCloud.Modules.Chat.DTOs;
 using DotNetCloud.Modules.Chat.Models;
 using DotNetCloud.Modules.Chat.Services;
 using DotNetCloud.Modules.Search.Client;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 
@@ -34,6 +35,7 @@ public class ChatController : ChatControllerBase
     private readonly IIceServerService _iceServerService;
     private readonly IVideoCallService _videoCallService;
     private readonly IUserBlockService _userBlockService;
+    private readonly IChatImageStore _chatImageStore;
     private readonly ILogger<ChatController> _logger;
     private readonly ISearchFtsClient? _searchFtsClient;
 
@@ -57,6 +59,7 @@ public class ChatController : ChatControllerBase
         IIceServerService iceServerService,
         IVideoCallService videoCallService,
         IUserBlockService userBlockService,
+        IChatImageStore chatImageStore,
         ILogger<ChatController> logger,
         ISearchFtsClient? searchFtsClient = null)
     {
@@ -76,6 +79,7 @@ public class ChatController : ChatControllerBase
         _iceServerService = iceServerService;
         _videoCallService = videoCallService;
         _userBlockService = userBlockService;
+        _chatImageStore = chatImageStore;
         _logger = logger;
         _searchFtsClient = searchFtsClient;
     }
@@ -707,6 +711,60 @@ public class ChatController : ChatControllerBase
             .SelectMany(m => m.Attachments)
             .ToList();
         return Ok(Envelope(attachments));
+    }
+
+    // ── Chat Image Upload ──────────────────────────────────────────
+
+    /// <summary>Uploads an image for use in a chat message. Returns attachment metadata with the serving URL.</summary>
+    [HttpPost("channels/{channelId:guid}/upload-image")]
+    [RequestSizeLimit(10 * 1024 * 1024)]
+    public async Task<IActionResult> UploadChatImageAsync(Guid channelId)
+    {
+        try
+        {
+            var caller = GetAuthenticatedCaller();
+
+            // Verify user is a channel member
+            var isMember = await _memberService.ListMembersAsync(channelId, caller);
+            if (isMember.All(m => m.UserId != caller.UserId))
+                return Forbid();
+
+            using var ms = new MemoryStream();
+            await Request.Body.CopyToAsync(ms);
+            var data = ms.ToArray();
+
+            if (data.Length == 0)
+                return BadRequest(ErrorEnvelope("VALIDATION_ERROR", "No image data received."));
+
+            var contentType = Request.ContentType ?? "image/png";
+            var fileName = Request.Headers["X-File-Name"].FirstOrDefault() ?? "uploaded-image.png";
+
+            var result = await _chatImageStore.SaveAsync(fileName, contentType, data);
+
+            return Ok(Envelope(new
+            {
+                url = result.Url,
+                fileName = fileName,
+                mimeType = result.ContentType,
+                fileSize = result.FileSize
+            }));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ErrorEnvelope("VALIDATION_ERROR", ex.Message));
+        }
+    }
+
+    /// <summary>Serves an uploaded chat image.</summary>
+    [HttpGet("~/api/v1/chat/uploads/{fileName}")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetChatUploadAsync(string fileName)
+    {
+        var file = await _chatImageStore.GetAsync(fileName);
+        if (file is null)
+            return NotFound();
+
+        return File(file.Data, file.ContentType, enableRangeProcessing: true);
     }
 
     // ── Announcement Endpoints ─────────────────────────────────────

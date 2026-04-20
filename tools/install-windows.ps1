@@ -445,6 +445,7 @@ function Copy-Binaries {
     foreach ($target in @($Script:ServerRoot, $Script:CliRoot, $Script:ConfigRoot, $Script:LogsRoot, $Script:StorageRoot, $Script:BackupsRoot)) {
         Ensure-Directory $target
     }
+    Ensure-Directory (Join-Path $Script:StorageRoot "chat-uploads")
 
     Copy-Item -Path (Join-Path $ServerSource "*") -Destination $Script:ServerRoot -Recurse -Force
     Copy-Item -Path (Join-Path $CliSource "*") -Destination $Script:CliRoot -Recurse -Force

@@ -2,6 +2,7 @@ using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Modules;
 using DotNetCloud.Modules.Chat.Events;
+using DotNetCloud.Modules.Chat.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -27,6 +28,7 @@ public class ChatModuleTests
 
         var services = new ServiceCollection();
         services.AddSingleton<IEventBus>(_mockEventBus.Object);
+        services.AddSingleton<IChatMessageNotifier>(new Mock<IChatMessageNotifier>().Object);
         services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
         services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
         _serviceProvider = services.BuildServiceProvider();

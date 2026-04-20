@@ -1,7 +1,9 @@
 using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Chat.Events;
+using DotNetCloud.Modules.Chat.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
 
 namespace DotNetCloud.Modules.Chat.Tests;
 
@@ -207,14 +209,14 @@ public class EventHandlerTests
     [TestMethod]
     public void ChannelCreatedEventHandlerImplementsIEventHandler()
     {
-        var handler = new ChannelCreatedEventHandler(NullLogger<ChannelCreatedEventHandler>.Instance);
+        var handler = new ChannelCreatedEventHandler(new Mock<IChatMessageNotifier>().Object, NullLogger<ChannelCreatedEventHandler>.Instance);
         Assert.IsInstanceOfType<IEventHandler<ChannelCreatedEvent>>(handler);
     }
 
     [TestMethod]
     public async Task ChannelCreatedEventHandlerHandlesEventWithoutThrowing()
     {
-        var handler = new ChannelCreatedEventHandler(NullLogger<ChannelCreatedEventHandler>.Instance);
+        var handler = new ChannelCreatedEventHandler(new Mock<IChatMessageNotifier>().Object, NullLogger<ChannelCreatedEventHandler>.Instance);
         var evt = new ChannelCreatedEvent
         {
             EventId = Guid.NewGuid(),
@@ -250,7 +252,7 @@ public class EventHandlerTests
     [TestMethod]
     public async Task ChannelCreatedEventHandlerSupportsCancellation()
     {
-        var handler = new ChannelCreatedEventHandler(NullLogger<ChannelCreatedEventHandler>.Instance);
+        var handler = new ChannelCreatedEventHandler(new Mock<IChatMessageNotifier>().Object, NullLogger<ChannelCreatedEventHandler>.Instance);
         using var cts = new CancellationTokenSource();
         var evt = new ChannelCreatedEvent
         {

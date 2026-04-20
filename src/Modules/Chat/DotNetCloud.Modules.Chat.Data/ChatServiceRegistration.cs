@@ -93,6 +93,9 @@ public static class ChatServiceRegistration
                 liveKitOptions.MaxP2PParticipants);
         });
 
+        // Chat image upload storage
+        services.AddSingleton<IChatImageStore, LocalChatImageStore>();
+
         // Cross-module Tracks activity display (null-object when Tracks not installed)
         services.AddSingleton<ITracksActivitySignalRService, NullTracksActivitySignalRService>();
 

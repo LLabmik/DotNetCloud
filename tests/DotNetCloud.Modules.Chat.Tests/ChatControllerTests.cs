@@ -80,6 +80,7 @@ public class ChatControllerTests
             iceServerService.Object,
             videoCallService.Object,
             userBlockService.Object,
+            new Mock<IChatImageStore>().Object,
             NullLogger<ChatController>.Instance)
         {
             ControllerContext = new ControllerContext

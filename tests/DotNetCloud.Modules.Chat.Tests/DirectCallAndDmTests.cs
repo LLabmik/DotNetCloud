@@ -679,6 +679,7 @@ public class DirectCallControllerTests
             _iceServerService.Object,
             _videoCallService.Object,
             _userBlockService.Object,
+            new Mock<IChatImageStore>().Object,
             NullLogger<ChatController>.Instance)
         {
             ControllerContext = new ControllerContext

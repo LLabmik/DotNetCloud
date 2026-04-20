@@ -38,6 +38,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     [Inject] private IUserBlockService UserBlockService { get; set; } = default!;
     [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
     [Inject] private GlobalChatNotificationState GlobalNotificationState { get; set; } = default!;
+    [Inject] private IChatImageStore ChatImageStore { get; set; } = default!;
+    [Inject] private IJSRuntime JS { get; set; } = default!;
 
     // Channel state
     private List<ChannelViewModel> _channels = [];
@@ -53,6 +55,11 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     private int _currentMessagePage = 1;
     private MessageViewModel? _replyToMessage;
     private MessageViewModel? _editingMessage;
+
+    // Pending image attachments (uploaded, waiting to be sent with next message)
+    private readonly List<PendingAttachment> _pendingAttachments = [];
+    private readonly string _fileInputId = $"chat-file-input-{Guid.NewGuid():N}";
+    private ElementReference _fileInputRef;
 
     // Member state
     private List<MemberViewModel> _members = [];
@@ -833,11 +840,34 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         try
         {
             var caller = await GetCallerContextAsync();
+
+            // Build inline attachments from pending uploads
+            List<CreateAttachmentDto>? attachments = null;
+            if (_pendingAttachments.Count > 0)
+            {
+                attachments = _pendingAttachments.Select(p => new CreateAttachmentDto
+                {
+                    FileName = p.FileName,
+                    MimeType = p.MimeType,
+                    FileSize = p.FileSize,
+                    ThumbnailUrl = p.Url
+                }).ToList();
+            }
+
+            var content = args.Content;
+            if (string.IsNullOrWhiteSpace(content) && attachments is { Count: > 0 })
+            {
+                content = " "; // Ensure non-null for messages with only attachments
+            }
+
             var sent = await MessageService.SendMessageAsync(_selectedChannel.Id, new SendMessageDto
             {
-                Content = args.Content,
-                ReplyToMessageId = args.ReplyToMessageId
+                Content = content,
+                ReplyToMessageId = args.ReplyToMessageId,
+                Attachments = attachments
             }, caller);
+
+            _pendingAttachments.Clear();
 
             await ResolveDisplayNamesAsync([sent]);
             _messages.Add(ToMessageViewModel(sent));
@@ -1302,14 +1332,93 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         }
     }
 
-    // ── Attachment (placeholder) ────────────────────────────────────
+    // ── Image Upload & Attachment ──────────────────────────────────
 
-    /// <summary>Handles attach button click — not yet wired to Files module.</summary>
-    protected Task HandleAttach()
+    /// <summary>Handles attach button click — opens the file picker via JS interop.</summary>
+    protected async Task HandleAttach()
     {
-        // File attachment requires Files module integration (file picker + upload).
-        // This is a cross-module feature that will be wired in a future phase.
-        return Task.CompletedTask;
+        try
+        {
+            await JS.InvokeVoidAsync("chatImageUpload.triggerFileInput", _fileInputId, _dotNetRef);
+        }
+        catch (JSDisconnectedException)
+        {
+            // Browser disconnected; safe to ignore.
+        }
+    }
+
+    /// <summary>Handles an image pasted into the composer.</summary>
+    protected async Task HandlePasteImage(PastedImageData pastedImage)
+    {
+        if (_selectedChannel is null || pastedImage.Data.Length == 0) return;
+
+        try
+        {
+            var result = await ChatImageStore.SaveAsync(
+                pastedImage.FileName,
+                pastedImage.ContentType,
+                pastedImage.Data);
+
+            _pendingAttachments.Add(new PendingAttachment
+            {
+                Id = Guid.NewGuid(),
+                FileName = pastedImage.FileName,
+                MimeType = result.ContentType,
+                FileSize = result.FileSize,
+                Url = result.Url
+            });
+
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (ArgumentException)
+        {
+            // Invalid image — silently ignore
+        }
+    }
+
+    /// <summary>Called from JS when a file is selected via the file input.</summary>
+    [JSInvokable]
+    public async Task HandleFileSelected(string fileName, string contentType, string dataUrl, long sizeBytes)
+    {
+        if (_selectedChannel is null) return;
+
+        byte[] data;
+        try
+        {
+            var commaIndex = dataUrl.IndexOf(',');
+            if (commaIndex < 0) return;
+            data = Convert.FromBase64String(dataUrl[(commaIndex + 1)..]);
+        }
+        catch (FormatException)
+        {
+            return;
+        }
+
+        try
+        {
+            var result = await ChatImageStore.SaveAsync(fileName, contentType, data);
+
+            _pendingAttachments.Add(new PendingAttachment
+            {
+                Id = Guid.NewGuid(),
+                FileName = fileName,
+                MimeType = result.ContentType,
+                FileSize = result.FileSize,
+                Url = result.Url
+            });
+
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (ArgumentException)
+        {
+            // Invalid file type or size — silently ignore
+        }
+    }
+
+    /// <summary>Removes a pending attachment before sending.</summary>
+    protected void HandleRemovePendingAttachment(Guid attachmentId)
+    {
+        _pendingAttachments.RemoveAll(a => a.Id == attachmentId);
     }
 
     // ── Announcement Operations ─────────────────────────────────────

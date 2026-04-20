@@ -148,11 +148,17 @@
 }
 
 .image-preview {
-    max-width: 16rem;
-    max-height: 10rem;
+    max-width: 24rem;
+    max-height: 16rem;
     border-radius: 6px;
     border: 1px solid var(--color-border, #e2e8f0);
-    object-fit: cover;
+    object-fit: contain;
+    cursor: pointer;
+    transition: opacity 0.15s ease;
+}
+
+.image-preview:hover {
+    opacity: 0.9;
 }
 
 .document-preview {

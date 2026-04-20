@@ -447,6 +447,7 @@ install_dotnetcloud() {
     info "Creating directory structure..."
     $SUDO mkdir -p "$INSTALL_DIR" "$CONFIG_DIR" "$DATA_DIR" "$LOG_DIR" "$RUN_DIR"
     $SUDO mkdir -p "${DATA_DIR}/files"
+    $SUDO mkdir -p "${DATA_DIR}/storage/chat-uploads"
 
     # On upgrade: remove old binaries to prevent stale files
     if [[ "$IS_UPGRADE" == true ]]; then

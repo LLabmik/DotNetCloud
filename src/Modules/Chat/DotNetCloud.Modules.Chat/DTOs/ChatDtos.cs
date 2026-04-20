@@ -169,6 +169,9 @@ public sealed record SendMessageDto
 
     /// <summary>ID of the message to reply to (optional).</summary>
     public Guid? ReplyToMessageId { get; init; }
+
+    /// <summary>Attachments to include with the message (optional).</summary>
+    public IReadOnlyList<CreateAttachmentDto>? Attachments { get; init; }
 }
 
 /// <summary>

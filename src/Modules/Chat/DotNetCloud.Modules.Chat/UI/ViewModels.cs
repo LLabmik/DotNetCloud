@@ -233,3 +233,24 @@ public sealed class UserSearchResultViewModel
     /// <summary>Avatar URL, or null if the user has no avatar.</summary>
     public string? AvatarUrl { get; init; }
 }
+
+/// <summary>
+/// Represents an image that has been uploaded but not yet attached to a message.
+/// </summary>
+public sealed class PendingAttachment
+{
+    /// <summary>Local tracking ID.</summary>
+    public Guid Id { get; init; }
+
+    /// <summary>Original file name.</summary>
+    public string FileName { get; init; } = string.Empty;
+
+    /// <summary>MIME type.</summary>
+    public string MimeType { get; init; } = string.Empty;
+
+    /// <summary>File size in bytes.</summary>
+    public long FileSize { get; init; }
+
+    /// <summary>Serving URL for preview.</summary>
+    public string Url { get; init; } = string.Empty;
+}

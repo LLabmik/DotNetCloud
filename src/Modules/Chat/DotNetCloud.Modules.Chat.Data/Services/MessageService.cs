@@ -44,8 +44,9 @@ internal sealed class MessageService : IMessageService
     {
         ArgumentNullException.ThrowIfNull(dto);
 
-        if (string.IsNullOrWhiteSpace(dto.Content))
-            throw new ArgumentException("Message content is required.", nameof(dto));
+        var hasAttachments = dto.Attachments is { Count: > 0 };
+        if (string.IsNullOrWhiteSpace(dto.Content) && !hasAttachments)
+            throw new ArgumentException("Message content or at least one attachment is required.", nameof(dto));
 
         var isMember = await _db.ChannelMembers
             .AnyAsync(m => m.ChannelId == channelId && m.UserId == caller.UserId, cancellationToken);
@@ -80,6 +81,25 @@ internal sealed class MessageService : IMessageService
         };
 
         _db.Messages.Add(message);
+
+        // Create inline attachments if provided
+        if (dto.Attachments is { Count: > 0 })
+        {
+            for (var i = 0; i < dto.Attachments.Count; i++)
+            {
+                var att = dto.Attachments[i];
+                message.Attachments.Add(new MessageAttachment
+                {
+                    MessageId = message.Id,
+                    FileName = att.FileName,
+                    MimeType = att.MimeType,
+                    FileSize = att.FileSize,
+                    ThumbnailUrl = att.ThumbnailUrl,
+                    FileNodeId = att.FileNodeId,
+                    SortOrder = i
+                });
+            }
+        }
 
         // Parse and store mentions
         var mentions = await ParseAndStoreMentionsAsync(message, cancellationToken);
