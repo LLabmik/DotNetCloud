@@ -9,7 +9,7 @@
 @if (IsVisible)
 {
     <div class="video-call-overlay">
-        <div class="video-call-dialog @LayoutClass">
+        <div class="video-call-dialog">
             <div class="video-call-header">
                 <div class="call-header-info">
                     <span class="call-channel-name">@ChannelName</span>
@@ -27,6 +27,7 @@
                 @if (RemoteParticipants.Count == 0)
                 {
                     <div class="video-tile video-tile-solo">
+                        @* Limit height when solo to ensure controls are visible *@
                         <div class="video-placeholder">
                             @if (!string.IsNullOrEmpty(LocalAvatarUrl))
                             {

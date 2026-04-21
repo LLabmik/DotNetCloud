@@ -132,7 +132,7 @@
 
 .video-grid-1x1 {
     grid-template-columns: 1fr;
-    grid-template-rows: 1fr;
+    grid-template-rows: auto;
     /* Limit solo call height so controls are always visible */
     max-height: calc(100% - 88px);
 }
@@ -165,6 +165,14 @@
     background: #16162a;
     width: 100%;
     aspect-ratio: 16 / 9;
+}
+
+/* Limit solo tile height so controls are always visible */
+.video-tile-solo {
+    /* The grid is now height: auto, so the tile naturally fits its content.
+       The tile's content is just the placeholder with avatar and text,
+       which is much smaller than the full 16:9 aspect ratio would suggest. */
+    max-height: calc(100% - 48px);
 }
 
 .video-element {
