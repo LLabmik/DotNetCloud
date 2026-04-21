@@ -133,16 +133,22 @@
 .video-grid-1x1 {
     grid-template-columns: 1fr;
     grid-template-rows: 1fr;
+    /* Limit solo call height so controls are always visible */
+    max-height: calc(100% - 88px);
 }
 
 .video-grid-2x1 {
     grid-template-columns: 1fr 1fr;
     grid-template-rows: 1fr;
+    /* Limit pair layout height so controls are always visible */
+    max-height: calc(100% - 88px);
 }
 
 .video-grid-2x1-pip {
     grid-template-columns: 1fr 1fr;
     grid-template-rows: 1fr;
+    /* Limit pair + pip layout height so controls are always visible */
+    max-height: calc(100% - 88px);
 }
 
 .video-grid-2x2 {
