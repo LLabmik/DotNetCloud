@@ -105,7 +105,7 @@ internal sealed class GitHubUpdateService : IUpdateService
             var ghReleases = JsonSerializer.Deserialize<List<GitHubRelease>>(json, JsonOptions) ?? [];
 
             var releases = ghReleases
-                .Where(r => !r.Draft)
+                .Where(r => !r.Draft && !string.IsNullOrWhiteSpace(r.TagName))
                 .Select(MapRelease)
                 .ToList()
                 .AsReadOnly();
@@ -156,8 +156,13 @@ internal sealed class GitHubUpdateService : IUpdateService
     /// <summary>
     /// Strips a leading "v" from the tag to get a clean version string.
     /// </summary>
-    private static string NormalizeVersion(string tagName)
+    internal static string NormalizeVersion(string? tagName)
     {
+        if (string.IsNullOrWhiteSpace(tagName))
+        {
+            return string.Empty;
+        }
+
         return tagName.StartsWith('v') ? tagName[1..] : tagName;
     }
 

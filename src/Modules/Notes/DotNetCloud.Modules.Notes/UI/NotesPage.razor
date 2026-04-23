@@ -5,11 +5,15 @@
 @using DotNetCloud.Modules.Notes.Models
 @inject INotesApiClient ApiClient
 @inject IMarkdownRenderer MarkdownRenderer
+@inject Microsoft.JSInterop.IJSRuntime JSRuntime
 
 <div class="notes-page-layout">
-    <div class="notes-sidebar">
+    <div class="notes-sidebar @(_sidebarCollapsed ? "collapsed" : "")">
         <div class="notes-sidebar-header">
-            <h3>Notes</h3>
+            <h3 class="notes-sidebar-title">Notes</h3>
+            <button class="notes-sidebar-toggle" @onclick="ToggleSidebar" title="Toggle sidebar">
+                @(_sidebarCollapsed ? "▸" : "◂")
+            </button>
             <button class="btn btn-sm btn-primary" @onclick="BeginCreateNote" title="New Note">
                 <span>+</span>
             </button>
@@ -196,6 +200,7 @@
     private bool _showFolderForm;
     private string _folderName = string.Empty;
     private Guid? _editingFolderId;
+    private bool _sidebarCollapsed;
 
     private IEnumerable<NoteDto> VisibleNotes
     {
@@ -210,20 +215,51 @@
                     n.Content.Contains(_searchQuery, StringComparison.OrdinalIgnoreCase));
             }
 
-            query = _activeSection switch
+            var filtered = _activeSection switch
             {
                 "favorites" => query.Where(n => n.IsFavorite),
                 "shared" => query,
                 _ => query
             };
 
-            return query.OrderByDescending(n => n.UpdatedAt);
+            return filtered.OrderByDescending(n => n.UpdatedAt);
         }
     }
 
     protected override async Task OnInitializedAsync()
     {
+        try
+        {
+            var collapsed = await JSRuntime.InvokeAsync<string>("localStorage.getItem", new object?[] { "dotnetcloud.sidebar:notes" });
+            if (bool.TryParse(collapsed ?? "false", out var parsed))
+            {
+                _sidebarCollapsed = parsed;
+            }
+        }
+        catch
+        {
+            // localStorage unavailable
+        }
+
         await ReloadAsync();
+    }
+
+    private async Task ToggleSidebar()
+    {
+        _sidebarCollapsed = !_sidebarCollapsed;
+        await SaveSidebarCollapsedStateAsync();
+    }
+
+    private async Task SaveSidebarCollapsedStateAsync()
+    {
+        try
+        {
+            await JSRuntime.InvokeAsync<object?>("localStorage.setItem", new object?[] { "dotnetcloud.sidebar:notes", _sidebarCollapsed.ToString().ToLowerInvariant() });
+        }
+        catch
+        {
+            // localStorage unavailable
+        }
     }
 
     private async Task ReloadAsync()

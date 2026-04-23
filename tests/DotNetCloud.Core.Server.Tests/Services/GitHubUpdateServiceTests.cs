@@ -8,6 +8,21 @@ namespace DotNetCloud.Core.Server.Tests.Services;
 public class GitHubUpdateServiceTests
 {
     // -----------------------------------------------------------------------
+    // Version normalization tests
+    // -----------------------------------------------------------------------
+
+    [TestMethod]
+    [DataRow("v0.2.0", "0.2.0")]
+    [DataRow("0.2.0", "0.2.0")]
+    [DataRow("", "")]
+    [DataRow(null, "")]
+    public void NormalizeVersion_ReturnsExpectedValue(string? tagName, string expected)
+    {
+        var result = GitHubUpdateService.NormalizeVersion(tagName);
+        Assert.AreEqual(expected, result);
+    }
+
+    // -----------------------------------------------------------------------
     // Version comparison tests
     // -----------------------------------------------------------------------
 

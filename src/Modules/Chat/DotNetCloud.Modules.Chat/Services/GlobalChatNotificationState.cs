@@ -10,7 +10,7 @@ namespace DotNetCloud.Modules.Chat.Services;
 public sealed class GlobalChatNotificationState : IDisposable
 {
     private readonly IChatMessageNotifier _notifier;
-    private readonly IUserDirectory _userDirectory;
+    private readonly IUserDirectory? _userDirectory;
     private System.Timers.Timer? _ringTimer;
     private System.Timers.Timer? _toastTimer;
     private Guid _currentUserId;
@@ -82,7 +82,7 @@ public sealed class GlobalChatNotificationState : IDisposable
     /// </summary>
     public GlobalChatNotificationState(
         IChatMessageNotifier notifier,
-        IUserDirectory userDirectory)
+        IUserDirectory? userDirectory = null)
     {
         _notifier = notifier;
         _userDirectory = userDirectory;
@@ -309,6 +309,11 @@ public sealed class GlobalChatNotificationState : IDisposable
 
     private async Task ResolveCallerInfoAsync(Guid userId)
     {
+        if (_userDirectory is null)
+        {
+            return;
+        }
+
         try
         {
             var names = await _userDirectory.GetDisplayNamesAsync([userId]);

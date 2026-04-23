@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.JSInterop;
 
 namespace DotNetCloud.Modules.Chat.Data;
 
@@ -66,7 +67,10 @@ public static class ChatServiceRegistration
         services.AddScoped<IVideoCallService, VideoCallService>();
         services.AddScoped<ICallSignalingService, CallSignalingService>();
         services.AddScoped<ICallNotificationHandler, CallNotificationEventHandler>();
-        services.AddScoped<IWebRtcInteropService, WebRtcInteropService>();
+        services.AddScoped<IWebRtcInteropService>(sp =>
+            sp.GetService<IJSRuntime>() is null
+                ? new NoOpWebRtcInteropService()
+                : ActivatorUtilities.CreateInstance<WebRtcInteropService>(sp));
         services.AddScoped<IUserBlockService, UserBlockService>();
 
         // ICE server configuration (built-in STUN + optional TURN)

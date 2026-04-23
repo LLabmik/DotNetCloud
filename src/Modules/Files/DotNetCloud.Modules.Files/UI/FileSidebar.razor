@@ -7,63 +7,96 @@
     Code-behind: FileSidebar.razor.cs
 *@
 
-<nav class="files-sidebar" aria-label="Files navigation">
+<nav class="files-sidebar @(_sidebarCollapsed ? "collapsed" : "")" aria-label="Files navigation">
+    <div class="sidebar-header">
+        @if (!_sidebarCollapsed)
+        {
+            <h3 class="sidebar-title">Files</h3>
+        }
+        <button class="sidebar-toggle" @onclick="ToggleCollapsed" title="@(_sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar")">
+            <span>@(_sidebarCollapsed ? "▶" : "◀")</span>
+        </button>
+    </div>
     <ul class="sidebar-nav-list">
         <li class="sidebar-nav-item @IsActive(FileSidebarSection.AllFiles)">
             <a href="#" class="sidebar-nav-link"
+               title="All Files"
                @onclick="() => Navigate(FileSidebarSection.AllFiles)"
                @onclick:preventDefault>
                 <span class="nav-icon" aria-hidden="true">📁</span>
-                <span class="nav-label">All Files</span>
+                @if (!_sidebarCollapsed)
+                {
+                    <span class="nav-label">All Files</span>
+                }
             </a>
         </li>
 
         <li class="sidebar-nav-item @IsActive(FileSidebarSection.Favorites)">
             <a href="#" class="sidebar-nav-link"
+               title="Favorites"
                @onclick="() => Navigate(FileSidebarSection.Favorites)"
                @onclick:preventDefault>
                 <span class="nav-icon" aria-hidden="true">⭐</span>
-                <span class="nav-label">Favorites</span>
+                @if (!_sidebarCollapsed)
+                {
+                    <span class="nav-label">Favorites</span>
+                }
             </a>
         </li>
 
         <li class="sidebar-nav-item @IsActive(FileSidebarSection.Recent)">
             <a href="#" class="sidebar-nav-link"
+               title="Recent"
                @onclick="() => Navigate(FileSidebarSection.Recent)"
                @onclick:preventDefault>
                 <span class="nav-icon" aria-hidden="true">🕐</span>
-                <span class="nav-label">Recent</span>
+                @if (!_sidebarCollapsed)
+                {
+                    <span class="nav-label">Recent</span>
+                }
             </a>
         </li>
 
         <li class="sidebar-nav-item @IsActive(FileSidebarSection.SharedWithMe)">
             <a href="#" class="sidebar-nav-link"
+               title="Shared with me"
                @onclick="() => Navigate(FileSidebarSection.SharedWithMe)"
                @onclick:preventDefault>
                 <span class="nav-icon" aria-hidden="true">📥</span>
-                <span class="nav-label">Shared with me</span>
+                @if (!_sidebarCollapsed)
+                {
+                    <span class="nav-label">Shared with me</span>
+                }
             </a>
         </li>
 
         <li class="sidebar-nav-item @IsActive(FileSidebarSection.SharedByMe)">
             <a href="#" class="sidebar-nav-link"
+               title="Shared by me"
                @onclick="() => Navigate(FileSidebarSection.SharedByMe)"
                @onclick:preventDefault>
                 <span class="nav-icon" aria-hidden="true">📤</span>
-                <span class="nav-label">Shared by me</span>
+                @if (!_sidebarCollapsed)
+                {
+                    <span class="nav-label">Shared by me</span>
+                }
             </a>
         </li>
 
         <li class="sidebar-nav-item sidebar-nav-item--expandable @IsActive(FileSidebarSection.Tags)">
             <button class="sidebar-nav-link sidebar-nav-link--expandable"
                     @onclick="ToggleTagsExpanded"
+                    title="Tags"
                     aria-expanded="@IsTagsExpanded">
                 <span class="nav-icon" aria-hidden="true">🏷️</span>
-                <span class="nav-label">Tags</span>
-                <span class="nav-chevron">@(IsTagsExpanded ? "▲" : "▼")</span>
+                @if (!_sidebarCollapsed)
+                {
+                    <span class="nav-label">Tags</span>
+                    <span class="nav-chevron">@(IsTagsExpanded ? "▲" : "▼")</span>
+                }
             </button>
 
-            @if (IsTagsExpanded)
+            @if (IsTagsExpanded && !_sidebarCollapsed)
             {
                 <ul class="sidebar-tag-list" aria-label="Tags">
                     @if (Tags.Count == 0)
@@ -94,48 +127,55 @@
 
         <li class="sidebar-nav-item @IsActive(FileSidebarSection.Trash)">
             <a href="#" class="sidebar-nav-link"
+               title="Trash"
                @onclick="() => Navigate(FileSidebarSection.Trash)"
                @onclick:preventDefault>
                 <span class="nav-icon" aria-hidden="true">🗑️</span>
-                <span class="nav-label">Trash</span>
-                @if (TrashItemCount > 0)
+                @if (!_sidebarCollapsed)
                 {
-                    <span class="nav-badge" aria-label="@TrashItemCount items in trash">
-                        @(TrashItemCount > 99 ? "99+" : TrashItemCount.ToString())
-                    </span>
+                    <span class="nav-label">Trash</span>
+                    @if (TrashItemCount > 0)
+                    {
+                        <span class="nav-badge" aria-label="@TrashItemCount items in trash">
+                            @(TrashItemCount > 99 ? "99+" : TrashItemCount.ToString())
+                        </span>
+                    }
                 }
             </a>
         </li>
     </ul>
 
-    <div class="sidebar-quota">
-        <div class="sidebar-storage-summary">
-            <div class="storage-line">
-                <span class="storage-label">Used</span>
-                <span class="storage-value">@(Quota is not null ? FormatBytes(Quota.UsedBytes) : "—")</span>
-            </div>
-            <div class="storage-line">
-                <span class="storage-label">In Trash</span>
-                <span class="storage-value">@(TrashBytes > 0 ? FormatBytes(TrashBytes) : "Empty")</span>
-            </div>
-            @if (Quota is not null && Quota.MaxBytes > 0)
-            {
+    @if (!_sidebarCollapsed)
+    {
+        <div class="sidebar-quota">
+            <div class="sidebar-storage-summary">
                 <div class="storage-line">
-                    <span class="storage-label">Quota</span>
-                    <span class="storage-value">@FormatBytes(Quota.MaxBytes)</span>
+                    <span class="storage-label">Used</span>
+                    <span class="storage-value">@(Quota is not null ? FormatBytes(Quota.UsedBytes) : "—")</span>
                 </div>
-                <div class="quota-bar quota-bar-sm">
-                    <div class="quota-bar-fill @QuotaBarClass(Quota)" style="width: @(Math.Min(Quota.UsagePercent, 100).ToString("F0"))%"></div>
-                </div>
-                <span class="text-muted text-sm">@Quota.UsagePercent.ToString("F1")% used</span>
-            }
-            else
-            {
                 <div class="storage-line">
-                    <span class="storage-label">Quota</span>
-                    <span class="storage-value">Unlimited</span>
+                    <span class="storage-label">In Trash</span>
+                    <span class="storage-value">@(TrashBytes > 0 ? FormatBytes(TrashBytes) : "Empty")</span>
                 </div>
-            }
+                @if (Quota is not null && Quota.MaxBytes > 0)
+                {
+                    <div class="storage-line">
+                        <span class="storage-label">Quota</span>
+                        <span class="storage-value">@FormatBytes(Quota.MaxBytes)</span>
+                    </div>
+                    <div class="quota-bar quota-bar-sm">
+                        <div class="quota-bar-fill @QuotaBarClass(Quota)" style="width: @(Math.Min(Quota.UsagePercent, 100).ToString("F0"))%"></div>
+                    </div>
+                    <span class="text-muted text-sm">@Quota.UsagePercent.ToString("F1")% used</span>
+                }
+                else
+                {
+                    <div class="storage-line">
+                        <span class="storage-label">Quota</span>
+                        <span class="storage-value">Unlimited</span>
+                    </div>
+                }
+            </div>
         </div>
-    </div>
+    }
 </nav>

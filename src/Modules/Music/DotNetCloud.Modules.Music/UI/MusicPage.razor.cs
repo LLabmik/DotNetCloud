@@ -121,12 +121,41 @@ public partial class MusicPage : IAsyncDisposable
     private bool _autoFetchMetadata = true;
     private bool _autoFetchAlbumArt = true;
 
+    // Sidebar collapse state
+    private bool _sidebarCollapsed;
+
+    private async Task ToggleSidebar()
+    {
+        _sidebarCollapsed = !_sidebarCollapsed;
+        await SaveSidebarCollapsedStateAsync();
+        StateHasChanged();
+    }
+
+    private async Task SaveSidebarCollapsedStateAsync()
+    {
+        try
+        {
+            await Js.InvokeAsync<object?>("localStorage.setItem", new object?[] { "dotnetcloud.sidebar:music", _sidebarCollapsed.ToString().ToLowerInvariant() });
+        }
+        catch { /* localStorage unavailable */ }
+    }
+
     // ────────────────────────────────────────────────────────
     //  Lifecycle
     // ────────────────────────────────────────────────────────
 
     protected override async Task OnInitializedAsync()
     {
+        try
+        {
+            var collapsed = await Js.InvokeAsync<string>("localStorage.getItem", new object?[] { "dotnetcloud.sidebar:music" });
+            if (bool.TryParse(collapsed ?? "false", out var parsed))
+            {
+                _sidebarCollapsed = parsed;
+            }
+        }
+        catch { /* localStorage unavailable */ }
+
         Playback.OnChange += OnPlaybackStateChanged;
         ScanProgress.OnProgressChanged += OnScanProgressChanged;
 

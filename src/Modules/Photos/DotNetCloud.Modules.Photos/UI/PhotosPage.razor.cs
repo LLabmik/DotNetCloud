@@ -106,6 +106,12 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
     {
         try
         {
+            var collapsed = await Js.InvokeAsync<string>("localStorage.getItem", new object?[] { "dotnetcloud.sidebar:photos" });
+            if (bool.TryParse(collapsed ?? "false", out var parsed))
+            {
+                _sidebarCollapsed = parsed;
+            }
+
             _caller = await GetCallerContextAsync();
             await LoadLibraryPathAsync();
             await LoadCurrentSectionAsync();
@@ -810,6 +816,22 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
         _libraryPath = GetDirBrowserPath();
         _libraryFolderId = _dirBrowserFolderId;
         _showDirBrowser = false;
+    }
+
+    private async Task ToggleSidebar()
+    {
+        _sidebarCollapsed = !_sidebarCollapsed;
+        await SaveSidebarCollapsedStateAsync();
+        StateHasChanged();
+    }
+
+    private async Task SaveSidebarCollapsedStateAsync()
+    {
+        try
+        {
+            await Js.InvokeAsync<object?>("localStorage.setItem", new object?[] { "dotnetcloud.sidebar:photos", _sidebarCollapsed.ToString().ToLowerInvariant() });
+        }
+        catch { /* localStorage unavailable */ }
     }
 
     public async ValueTask DisposeAsync()

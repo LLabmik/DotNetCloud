@@ -20,6 +20,25 @@ HEALTH_DELAY_SECONDS="${HEALTH_DELAY_SECONDS:-2}"
 info() { printf '[INFO] %s\n' "$*"; }
 error() { printf '[ERROR] %s\n' "$*" >&2; }
 
+repair_build_output_ownership() {
+    local current_user current_group
+    current_user="$(id -un)"
+    current_group="$(id -gn)"
+
+    local build_dirs=()
+    mapfile -t build_dirs < <(find src tests -type d \( -name bin -o -name obj \) -prune -print 2>/dev/null || true)
+    build_dirs+=("artifacts/publish")
+
+    for dir in "${build_dirs[@]}"; do
+        [[ -e "$dir" ]] || continue
+
+        if find "$dir" \( ! -user "$current_user" -o ! -group "$current_group" \) -print -quit | grep -q .; then
+            info "Repairing build output ownership in $dir..."
+            sudo chown -R "$current_user:$current_group" "$dir"
+        fi
+    done
+}
+
 usage() {
     cat <<'EOF'
 Usage:
@@ -71,6 +90,10 @@ fi
 
 # Acquire sudo upfront so later commands don't prompt mid-deploy.
 sudo -v || { error "sudo authentication failed."; exit 1; }
+
+# Previous root-run builds can leave root-owned bin/obj/publish artifacts behind,
+# which causes later non-root StaticWebAssets writes to fail with access denied.
+repair_build_output_ownership
 
 # Build via the CI solution filter to avoid restoring/building Android/MAUI projects.
 info "Building $SOLUTION_FILTER ($CONFIGURATION)..."

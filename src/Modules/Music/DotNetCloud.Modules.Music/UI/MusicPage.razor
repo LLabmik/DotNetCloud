@@ -24,9 +24,12 @@
 
 <div class="music-layout">
     @* ─── Sidebar ─── *@
-    <aside class="music-sidebar">
+    <aside class="music-sidebar @(_sidebarCollapsed ? "collapsed" : "")">
         <div class="music-sidebar-header">
-            <h2>Music</h2>
+            <h2 class="music-sidebar-title">Music</h2>
+            <button class="music-sidebar-toggle" @onclick="ToggleSidebar" title="Toggle sidebar">
+                @(_sidebarCollapsed ? "▸" : "◂")
+            </button>
         </div>
 
         <nav class="music-nav">

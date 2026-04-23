@@ -6,11 +6,15 @@
 @inject ICalendarApiClient ApiClient
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject NavigationManager Navigation
+@inject Microsoft.JSInterop.IJSRuntime JSRuntime
 
 <div class="calendar-page-layout">
-    <div class="calendar-sidebar">
+    <div class="calendar-sidebar @(_sidebarCollapsed ? "collapsed" : "")">
         <div class="calendar-sidebar-header">
-            <h3>Calendar</h3>
+            <h3 class="calendar-sidebar-title">Calendar</h3>
+            <button class="calendar-sidebar-toggle" @onclick="ToggleSidebar" title="Toggle sidebar">
+                @(_sidebarCollapsed ? "▸" : "◂")
+            </button>
             <button class="btn btn-sm btn-primary" @onclick="BeginCreateEvent" title="New Event">
                 <span>+</span>
             </button>
@@ -262,6 +266,7 @@
     private string _shareUserId = string.Empty;
     private string _sharePermission = "ReadOnly";
     private string _importText = string.Empty;
+    private bool _sidebarCollapsed;
 
     private string RangeLabel => _activeView switch
     {
@@ -356,8 +361,39 @@
         _calendarEditor = null;
     }
 
+    private async Task ToggleSidebar()
+    {
+        _sidebarCollapsed = !_sidebarCollapsed;
+        await SaveSidebarCollapsedStateAsync();
+    }
+
+    private async Task SaveSidebarCollapsedStateAsync()
+    {
+        try
+        {
+            await JSRuntime.InvokeAsync<object?>("localStorage.setItem", new object?[] { "dotnetcloud.sidebar:calendar", _sidebarCollapsed.ToString().ToLowerInvariant() });
+        }
+        catch
+        {
+            // localStorage unavailable
+        }
+    }
+
     protected override async Task OnInitializedAsync()
     {
+        try
+        {
+            var collapsed = await JSRuntime.InvokeAsync<string>("localStorage.getItem", new object?[] { "dotnetcloud.sidebar:calendar" });
+            if (bool.TryParse(collapsed ?? "false", out var parsed))
+            {
+                _sidebarCollapsed = parsed;
+            }
+        }
+        catch
+        {
+            // localStorage unavailable
+        }
+
         await ResolveCurrentUserAsync();
         await ReloadCalendarsAsync();
         await TryOpenEventFromQueryAsync();

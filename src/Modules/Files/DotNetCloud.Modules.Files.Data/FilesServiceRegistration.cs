@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Files.Data.Services;
 using DotNetCloud.Modules.Files.Data.Services.Background;
 using DotNetCloud.Modules.Files.Events;
@@ -7,6 +8,7 @@ using DotNetCloud.Modules.Files.Services;
 using System.Net.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
 namespace DotNetCloud.Modules.Files.Data;
@@ -21,6 +23,8 @@ public static class FilesServiceRegistration
     /// </summary>
     public static IServiceCollection AddFilesServices(this IServiceCollection services, IConfiguration? configuration = null)
     {
+        services.TryAddSingleton<IBackgroundServiceTracker, BackgroundServiceTracker>();
+
         // Bind options from configuration or use defaults
         if (configuration is not null)
         {

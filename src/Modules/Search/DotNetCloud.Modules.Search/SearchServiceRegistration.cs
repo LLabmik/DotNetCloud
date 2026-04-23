@@ -1,9 +1,11 @@
 using DotNetCloud.Core.Capabilities;
+using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Search.Events;
 using DotNetCloud.Modules.Search.Extractors;
 using DotNetCloud.Modules.Search.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using IContentExtractor = DotNetCloud.Core.Capabilities.IContentExtractor;
 using ISearchProvider = DotNetCloud.Core.Capabilities.ISearchProvider;
 
@@ -20,6 +22,8 @@ public static class SearchServiceRegistration
     /// </summary>
     public static IServiceCollection AddSearchServices(this IServiceCollection services, IConfiguration? configuration = null)
     {
+        services.TryAddSingleton<IBackgroundServiceTracker, BackgroundServiceTracker>();
+
         // Search provider — PostgreSQL as default
         services.AddScoped<ISearchProvider, PostgreSqlSearchProvider>();
 

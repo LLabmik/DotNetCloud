@@ -795,6 +795,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Fix Files filtered index SQL for provider compatibility so PostgreSQL module table creation succeeds
 - ✓ Restyle Files upload dialog/progress panel with polished spacing, controls, and icons (remove scaffold placeholder tokens)
 - ✓ Add core Files page layout styling (breadcrumbs/actions/list rows) and CSS cache-bust query to ensure clients receive updated styles
+- ✓ Refine Files sidebar collapsed navigation to match the Tracks module pattern (icon-only collapsed state, no clipped title/quota text, correct active-state styling)
 - ✓ Auto-create default quota on first upload initiation and surface upload errors in UI (avoid silent failed uploads)
 - ✓ Keep upload dialog open on failed uploads and only close after full success so users can see actionable errors
 - ✓ Add top-level StartUpload exception handling so pre-upload failures surface as visible error messages (no silent no-op clicks)

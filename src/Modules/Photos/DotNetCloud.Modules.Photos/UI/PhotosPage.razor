@@ -24,7 +24,7 @@
     <aside class="photos-sidebar @(_sidebarCollapsed ? "collapsed" : "")">
         <div class="photos-sidebar-header">
             <h2>Photos</h2>
-            <button class="sidebar-toggle" @onclick="() => _sidebarCollapsed = !_sidebarCollapsed" title="Toggle sidebar">
+            <button class="sidebar-toggle" @onclick="ToggleSidebar" title="Toggle sidebar">
                 @(_sidebarCollapsed ? "▸" : "◂")
             </button>
         </div>

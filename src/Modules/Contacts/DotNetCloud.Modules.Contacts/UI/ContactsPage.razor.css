@@ -1,0 +1,573 @@
+.contacts-page-layout {
+    display: flex;
+    height: 100%;
+    background: var(--color-surface);
+}
+
+.contacts-sidebar {
+    width: 240px;
+    background: var(--color-surface);
+    border-right: 1px solid var(--color-border);
+    overflow-y: auto;
+    transition: width 200ms ease;
+}
+
+.contacts-sidebar.collapsed {
+    width: 52px;
+    overflow: hidden;
+}
+
+.contacts-sidebar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 12px 8px;
+    border-bottom: 1px solid var(--color-border);
+    min-height: 48px;
+    gap: 6px;
+}
+
+.contacts-sidebar.collapsed .contacts-sidebar-header {
+    justify-content: center;
+    padding: 16px 6px 8px;
+}
+
+.contacts-sidebar-title {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--color-text);
+    flex-shrink: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.contacts-sidebar-toggle {
+    background: none;
+    border: none;
+    color: var(--color-muted);
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: var(--radius);
+    font-size: 11px;
+    line-height: 1;
+    flex-shrink: 0;
+    transition: background var(--transition), color var(--transition);
+    white-space: nowrap;
+}
+
+.contacts-sidebar-toggle:hover {
+    background: var(--color-bg);
+    color: var(--color-text);
+}
+
+.contacts-nav {
+    display: flex;
+    flex-direction: column;
+    padding: 8px;
+    gap: 2px;
+}
+
+.contacts-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border: none;
+    background: transparent;
+    color: var(--color-text-secondary);
+    font-size: 13px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    text-align: left;
+    width: 100%;
+    transition: background var(--transition), color var(--transition);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.contacts-nav-item:hover {
+    background: var(--color-bg);
+    color: var(--color-text);
+}
+
+.contacts-nav-item.active {
+    background: var(--color-accent-subtle);
+    color: var(--color-text);
+}
+
+.contacts-sidebar.collapsed .contacts-nav-item {
+    justify-content: center;
+    padding: 8px;
+}
+
+.contacts-sidebar.collapsed .contacts-nav-item span:not(.nav-icon) {
+    display: none;
+}
+
+.contacts-search {
+    display: flex;
+    gap: 6px;
+    padding: 8px 12px 4px;
+}
+
+.contacts-search input {
+    flex: 1;
+    padding: 8px 10px;
+    border-radius: var(--radius);
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-size: 13px;
+}
+
+.contacts-search button {
+    padding: 8px 12px;
+    border: none;
+    background: transparent;
+    color: var(--color-text-secondary);
+    font-size: 13px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: background var(--transition), color var(--transition);
+    white-space: nowrap;
+}
+
+.contacts-search button:hover {
+    background: var(--color-bg);
+    color: var(--color-text);
+}
+
+.contacts-group-list {
+    padding: 4px;
+    margin-bottom: 8px;
+}
+
+.contacts-group-item-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    background: var(--color-bg);
+    border-radius: var(--radius);
+    font-size: 12px;
+    color: var(--color-text-secondary);
+    cursor: default;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.contacts-group-item-row::before {
+    content: '👥';
+}
+
+.contacts-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 0 4px;
+}
+
+.contacts-list-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px;
+    border: none;
+    background: transparent;
+    color: var(--color-text-secondary);
+    font-size: 13px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    text-align: left;
+    width: 100%;
+    transition: background var(--transition), color var(--transition);
+    min-height: 52px;
+}
+
+.contacts-list-item:hover {
+    background: var(--color-bg);
+    color: var(--color-text);
+}
+
+.contacts-list-item.selected {
+    background: var(--color-accent-subtle);
+    color: var(--color-text);
+}
+
+.contacts-list-item strong {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.contacts-list-item span:last-child {
+    color: var(--color-muted);
+    font-size: 12px;
+    flex: 1;
+    text-align: right;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Contact avatar */
+.contacts-avatar {
+    display: block;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    margin-right: 12px;
+    object-fit: cover;
+    border: 2px solid var(--color-border);
+}
+
+.contacts-avatar::before {
+    content: '👤';
+    font-size: 24px;
+    text-align: center;
+    line-height: 48px;
+    color: var(--color-muted);
+}
+
+.contacts-detail {
+    padding: 24px 24px 24px 12px;
+    min-height: 100%;
+}
+
+.contacts-detail h2 {
+    margin: 0 0 8px 0;
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.contacts-detail p {
+    margin: 0 0 6px 0;
+    font-size: 13px;
+    color: var(--color-text-secondary);
+}
+
+.contacts-detail p:last-of-type {
+    margin-bottom: 0;
+}
+
+.contacts-detail-actions {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 16px;
+}
+
+.contacts-detail-actions button {
+    padding: 8px 16px;
+}
+
+.contacts-related {
+    padding: 12px;
+    background: var(--color-bg);
+    border-radius: var(--radius);
+    margin-bottom: 16px;
+}
+
+.contacts-related h4 {
+    margin: 0 0 8px 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.contacts-related p {
+    margin: 0 0 6px 0;
+    font-size: 12px;
+    color: var(--color-muted);
+}
+
+/* Cross-module link buttons */
+.contacts-related button {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 8px;
+    margin-bottom: 4px;
+    border: none;
+    background: transparent;
+    color: var(--color-text-secondary);
+    font-size: 12px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: background var(--transition), color var(--transition);
+    width: 100%;
+}
+
+.contacts-related button:hover {
+    background: var(--color-bg);
+    color: var(--color-text);
+}
+
+.contacts-related strong {
+    display: inline;
+    flex: 1;
+}
+
+.contacts-related span {
+    display: inline;
+    color: var(--color-muted);
+    font-size: 11px;
+}
+
+.contacts-related button span:last-child {
+    display: none;
+}
+
+/* Share panel */
+.contacts-share-panel {
+    padding: 12px;
+    background: var(--color-bg);
+    border-radius: var(--radius);
+}
+
+.contacts-share-panel h4 {
+    margin: 0 0 8px 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.contacts-share-panel p {
+    margin: 0 0 6px 0;
+    font-size: 12px;
+    color: var(--color-muted);
+}
+
+.share-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 8px;
+    border-radius: var(--radius);
+    margin-bottom: 4px;
+    font-size: 12px;
+}
+
+.share-item button {
+    padding: 4px 8px;
+}
+
+.share-form {
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.share-form input {
+    padding: 8px 10px;
+    border-radius: var(--radius);
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-size: 12px;
+    min-width: 120px;
+}
+
+.share-form select {
+    padding: 8px 10px;
+    border-radius: var(--radius);
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-size: 12px;
+}
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border: none;
+    border-radius: var(--radius);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background var(--transition), color var(--transition), opacity var(--transition);
+}
+
+.btn:hover {
+    opacity: 0.9;
+}
+
+.btn-primary {
+    background: var(--color-accent);
+    color: #fff;
+}
+
+.btn-secondary {
+    background: var(--color-bg);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+}
+
+.btn-danger {
+    background: var(--color-danger-subtle);
+    color: var(--color-danger);
+}
+
+.btn-sm {
+    padding: 6px 10px;
+    font-size: 12px;
+}
+
+.btn-icon {
+    padding: 6px 8px;
+    font-size: 14px;
+}
+
+.btn-icon:hover,
+.btn-icon-action:hover,
+.btn-retry:hover,
+.btn-cancel:hover,
+.btn-cancel-scan:hover {
+    background: var(--color-bg);
+}
+
+.btn-icon-action {
+    padding: 6px 8px;
+    font-size: 14px;
+    border: 1px solid transparent;
+}
+
+.btn-icon::before,
+.btn-icon-action::before {
+    content: none;
+}
+
+.btn-primary {
+    background: var(--color-accent);
+    color: #fff;
+}
+
+.btn-retry {
+    padding: 8px 16px;
+    background: var(--color-accent);
+    color: #fff;
+    border-radius: var(--radius);
+    border: none;
+    cursor: pointer;
+}
+
+.form-control {
+    padding: 10px 12px;
+    border-radius: var(--radius);
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-size: 13px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.form-control-sm {
+    padding: 6px 10px;
+    font-size: 12px;
+}
+
+.form-select {
+    padding: 8px 10px;
+    border-radius: var(--radius);
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-size: 12px;
+    min-width: 120px;
+}
+
+.text-muted {
+    color: var(--color-muted);
+}
+
+.text-sm {
+    font-size: 11px;
+}
+
+/* Nav icon */
+.nav-icon {
+    flex-shrink: 0;
+    font-size: 16px;
+}
+
+.nav-label {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Form grid */
+.contacts-form-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 0 4px 12px;
+}
+
+.contacts-form-grid .form-control {
+    padding: 10px 12px;
+    border-radius: var(--radius);
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-size: 13px;
+}
+
+.contacts-form-actions {
+    display: flex;
+    gap: 6px;
+    padding: 8px 4px;
+}
+
+.contacts-form-actions button {
+    flex: 1;
+    padding: 8px 12px;
+}
+
+/* Placeholder */
+.contacts-placeholder,
+.contacts-error,
+.contacts-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100%;
+    padding: 40px 24px;
+    text-align: center;
+    color: var(--color-muted);
+    font-size: 13px;
+}
+
+/* Divider */
+.nav-separator,
+.contacts-nav-separator {
+    height: 1px;
+    background: var(--color-border);
+    margin: 8px 0;
+}
+
+/* Alert */
+.alert {
+    padding: 10px 12px;
+    border-radius: var(--radius);
+    font-size: 13px;
+}
+
+.alert-danger {
+    background: var(--color-danger-subtle);
+    color: var(--color-danger);
+}
+
+.alert-success {
+    background: var(--color-success-subtle);
+    color: var(--color-success);
+}

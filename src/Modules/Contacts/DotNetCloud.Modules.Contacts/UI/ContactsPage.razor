@@ -3,11 +3,15 @@
 @using DotNetCloud.Core.DTOs
 @using DotNetCloud.Modules.Contacts.Services
 @inject IContactsApiClient ApiClient
+@inject Microsoft.JSInterop.IJSRuntime JSRuntime
 
 <div class="contacts-page-layout">
-    <div class="contacts-sidebar">
+    <div class="contacts-sidebar @(_sidebarCollapsed ? "collapsed" : "")">
         <div class="contacts-sidebar-header">
-            <h3>Contacts</h3>
+            <h3 class="contacts-sidebar-title">Contacts</h3>
+            <button class="contacts-sidebar-toggle" @onclick="ToggleSidebar" title="Toggle sidebar">
+                @(_sidebarCollapsed ? "▸" : "◂")
+            </button>
             <button class="btn btn-sm btn-primary" @onclick="BeginCreateContact" title="New Contact">
                 <span>+</span>
             </button>
@@ -20,9 +24,15 @@
             <button class="btn btn-sm btn-outline-secondary" @onclick="ReloadAsync">Search</button>
         </div>
         <nav class="contacts-nav">
-            <a class="contacts-nav-item @(_activeSection == "all" ? "active" : "")" @onclick='() => ChangeSection("all")'>All Contacts</a>
-            <a class="contacts-nav-item @(_activeSection == "groups" ? "active" : "")" @onclick='() => ChangeSection("groups")'>Groups</a>
-            <a class="contacts-nav-item @(_activeSection == "recent" ? "active" : "")" @onclick='() => ChangeSection("recent")'>Recently Added</a>
+            <a class="contacts-nav-item @(_activeSection == "all" ? "active" : "")" @onclick='() => ChangeSection("all")' data-icon="👤">
+                <span class="nav-icon">👤</span><span class="nav-label">All Contacts</span>
+            </a>
+            <a class="contacts-nav-item @(_activeSection == "groups" ? "active" : "")" @onclick='() => ChangeSection("groups")' data-icon="👥">
+                <span class="nav-icon">👥</span><span class="nav-label">Groups</span>
+            </a>
+            <a class="contacts-nav-item @(_activeSection == "recent" ? "active" : "")" @onclick='() => ChangeSection("recent")' data-icon="🆕">
+                <span class="nav-icon">🆕</span><span class="nav-label">Recently Added</span>
+            </a>
         </nav>
 
         @if (_activeSection == "groups")
@@ -177,6 +187,7 @@
     private bool _showSharePanel;
     private string _shareUserId = string.Empty;
     private string _sharePermission = "ReadOnly";
+    private bool _sidebarCollapsed;
 
     private IEnumerable<ContactDto> VisibleContacts => _activeSection switch
     {
@@ -186,7 +197,38 @@
 
     protected override async Task OnInitializedAsync()
     {
+        try
+        {
+            var collapsed = await JSRuntime.InvokeAsync<string>("localStorage.getItem", new object?[] { "dotnetcloud.sidebar:contacts" });
+            if (bool.TryParse(collapsed ?? "false", out var parsed))
+            {
+                _sidebarCollapsed = parsed;
+            }
+        }
+        catch
+        {
+            // localStorage unavailable
+        }
+
         await ReloadAsync();
+    }
+
+    private async Task ToggleSidebar()
+    {
+        _sidebarCollapsed = !_sidebarCollapsed;
+        await SaveSidebarCollapsedStateAsync();
+    }
+
+    private async Task SaveSidebarCollapsedStateAsync()
+    {
+        try
+        {
+            await JSRuntime.InvokeAsync<object?>("localStorage.setItem", new object?[] { "dotnetcloud.sidebar:contacts", _sidebarCollapsed.ToString().ToLowerInvariant() });
+        }
+        catch
+        {
+            // localStorage unavailable
+        }
     }
 
     private async Task ReloadAsync()
