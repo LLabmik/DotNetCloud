@@ -60,6 +60,28 @@ public class ShareServiceTests
     }
 
     [TestMethod]
+    public async Task CreateShareAsync_GroupShare_ReturnsGroupTarget()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var targetGroupId = Guid.NewGuid();
+        var node = CreateFileNode(userId);
+        db.FileNodes.Add(node);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var result = await service.CreateShareAsync(node.Id, new CreateShareDto
+        {
+            ShareType = "Group",
+            SharedWithGroupId = targetGroupId,
+            Permission = "Read"
+        }, UserCaller(userId));
+
+        Assert.AreEqual("Group", result.ShareType);
+        Assert.AreEqual(targetGroupId, result.SharedWithGroupId);
+    }
+
+    [TestMethod]
     public async Task CreateShareAsync_PublicLink_GeneratesToken()
     {
         using var db = CreateContext();
@@ -195,6 +217,46 @@ public class ShareServiceTests
         var shares = await service.GetSharedWithMeAsync(UserCaller(targetUserId));
 
         Assert.AreEqual(1, shares.Count);
+    }
+
+    [TestMethod]
+    public async Task GetSharedWithMeAsync_ExcludesNonUserShareTypes()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var targetUserId = Guid.NewGuid();
+        var node = CreateFileNode(userId);
+        db.FileNodes.Add(node);
+        db.FileShares.Add(new FileShare
+        {
+            FileNodeId = node.Id,
+            ShareType = ShareType.User,
+            SharedWithUserId = targetUserId,
+            CreatedByUserId = userId,
+        });
+        db.FileShares.Add(new FileShare
+        {
+            FileNodeId = node.Id,
+            ShareType = ShareType.Team,
+            SharedWithUserId = targetUserId,
+            SharedWithTeamId = Guid.NewGuid(),
+            CreatedByUserId = userId,
+        });
+        db.FileShares.Add(new FileShare
+        {
+            FileNodeId = node.Id,
+            ShareType = ShareType.Group,
+            SharedWithUserId = targetUserId,
+            SharedWithGroupId = Guid.NewGuid(),
+            CreatedByUserId = userId,
+        });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var shares = await service.GetSharedWithMeAsync(UserCaller(targetUserId));
+
+        Assert.AreEqual(1, shares.Count);
+        Assert.IsTrue(shares.All(share => share.ShareType == ShareType.User.ToString()));
     }
 
     [TestMethod]

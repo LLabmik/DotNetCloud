@@ -23,6 +23,8 @@ public sealed class FilesModuleManifest : IModuleManifest
     {
         nameof(Core.Capabilities.INotificationService),
         nameof(Core.Capabilities.IStorageProvider),
+        nameof(Core.Capabilities.ITeamDirectory),
+        nameof(Core.Capabilities.IGroupDirectory),
         nameof(Core.Capabilities.IUserDirectory),
         nameof(Core.Capabilities.ICurrentUserContext)
     };

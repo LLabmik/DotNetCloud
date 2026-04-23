@@ -19,6 +19,11 @@ namespace DotNetCloud.Core.Data.Entities.Organizations;
 public class Group
 {
     /// <summary>
+    /// The reserved display name for the built-in organization-wide group.
+    /// </summary>
+    public const string AllUsersGroupName = "All Users";
+
+    /// <summary>
     /// Gets or sets the unique identifier for the group.
     /// </summary>
     public Guid Id { get; set; }
@@ -48,6 +53,15 @@ public class Group
     /// Optional. Maximum 1000 characters. Explains the group's purpose and who should be members.
     /// </remarks>
     public string? Description { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether this is the built-in group that includes all active organization members.
+    /// </summary>
+    /// <remarks>
+    /// Built-in groups are system-managed and cannot be renamed, deleted, or have explicit membership edited.
+    /// Membership is resolved implicitly from active <see cref="OrganizationMember"/> records.
+    /// </remarks>
+    public bool IsAllUsersGroup { get; set; }
 
     /// <summary>
     /// Gets or sets the date and time when the group was created.

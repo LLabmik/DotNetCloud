@@ -2993,6 +2993,30 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Create `AnnouncementAcknowledgement` entity:
   - ✓ `Guid Id` primary key
   - ✓ `Guid AnnouncementId` FK
+
+---
+
+## Shared File Folder Workstream
+
+#### Group Foundation
+
+- ✓ Add `IGroupDirectory` capability contract
+- ✓ Add `IGroupManager` capability contract
+- ✓ Implement `GroupDirectoryService` in Core.Auth
+- ✓ Implement `GroupManagerService` in Core.Auth
+- ✓ Add focused Core.Auth tests for group query and membership management flows
+- ✓ Add protected built-in `All Users` group semantics and backfill logic
+- ✓ Add admin group CRUD and membership API surfaces
+- ✓ Add admin group management UI
+
+#### Shared Folder Integration
+
+- ✓ Harden Files permission evaluation for user, team, and group shares
+- ✓ Add mounted-access listing path for team/group shared content
+- ✓ Add admin shared-folder definitions and path validation
+- ☐ Surface virtual `_DotNetCloud` root with mounted shared folders
+- ☐ Add group-aware mounted-folder search indexing and navigation
+- ☐ Add shared-folder media source selection for Music, Photos, and Video
   - ✓ `Guid UserId` FK
   - ✓ `DateTime AcknowledgedAt` property
   - ✓ Unique constraint: (`AnnouncementId`, `UserId`)

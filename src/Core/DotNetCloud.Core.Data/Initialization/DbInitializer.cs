@@ -80,6 +80,7 @@ public class DbInitializer
                         await SeedDefaultPermissionsAsync(cancellationToken);
                         await SeedSystemSettingsAsync(cancellationToken);
                         await SeedDefaultOrganizationAsync(cancellationToken);
+                        await SeedBuiltInGroupsAsync(cancellationToken);
 
                         // Commit transaction
                         await transaction.CommitAsync(cancellationToken);
@@ -101,6 +102,7 @@ public class DbInitializer
                 await SeedDefaultPermissionsAsync(cancellationToken);
                 await SeedSystemSettingsAsync(cancellationToken);
                 await SeedDefaultOrganizationAsync(cancellationToken);
+                await SeedBuiltInGroupsAsync(cancellationToken);
 
                 _logger.LogInformation("Database initialization completed successfully (in-memory).");
             }
@@ -620,5 +622,75 @@ public class DbInitializer
         await _context.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation("Seeded default organization '{Name}' ({Id}).", org.Name, org.Id);
+    }
+
+    /// <summary>
+    /// Ensures every organization has exactly one built-in <c>All Users</c> group.
+    /// </summary>
+    private async Task SeedBuiltInGroupsAsync(CancellationToken cancellationToken)
+    {
+        var organizations = await _context.Organizations
+            .Where(o => !o.IsDeleted)
+            .OrderBy(o => o.CreatedAt)
+            .ToListAsync(cancellationToken);
+
+        if (organizations.Count == 0)
+        {
+            _logger.LogInformation("No organizations available. Skipping built-in group seeding.");
+            return;
+        }
+
+        var groups = await _context.Groups
+            .Where(g => organizations.Select(o => o.Id).Contains(g.OrganizationId))
+            .ToListAsync(cancellationToken);
+
+        var createdCount = 0;
+        var convertedCount = 0;
+
+        foreach (var organization in organizations)
+        {
+            if (groups.Any(group => group.OrganizationId == organization.Id && group.IsAllUsersGroup))
+                continue;
+
+            var existingNamedGroup = groups.FirstOrDefault(group =>
+                group.OrganizationId == organization.Id &&
+                string.Equals(group.Name, Group.AllUsersGroupName, StringComparison.OrdinalIgnoreCase));
+
+            if (existingNamedGroup is not null)
+            {
+                existingNamedGroup.IsAllUsersGroup = true;
+                existingNamedGroup.Name = Group.AllUsersGroupName;
+                existingNamedGroup.Description ??= "Built-in group containing all active organization members.";
+                convertedCount++;
+                continue;
+            }
+
+            var builtInGroup = new Group
+            {
+                Id = Guid.NewGuid(),
+                OrganizationId = organization.Id,
+                Name = Group.AllUsersGroupName,
+                Description = "Built-in group containing all active organization members.",
+                IsAllUsersGroup = true,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _context.Groups.Add(builtInGroup);
+            groups.Add(builtInGroup);
+            createdCount++;
+        }
+
+        if (createdCount == 0 && convertedCount == 0)
+        {
+            _logger.LogInformation("Built-in All Users groups already exist for all organizations.");
+            return;
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation(
+            "Ensured built-in All Users groups for organizations ({Created} created, {Converted} backfilled).",
+            createdCount,
+            convertedCount);
     }
 }

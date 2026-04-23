@@ -3,7 +3,9 @@ using DotNetCloud.Core.Errors;
 using DotNetCloud.Modules.Files.Data;
 using DotNetCloud.Modules.Files.Data.Services;
 using DotNetCloud.Modules.Files.Models;
+using DotNetCloud.Modules.Files.Services;
 using Microsoft.EntityFrameworkCore;
+using Moq;
 using FileShare = DotNetCloud.Modules.Files.Models.FileShare;
 
 namespace DotNetCloud.Modules.Files.Tests.Services;
@@ -16,7 +18,9 @@ public class PermissionServiceTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options);
 
-    private static PermissionService CreateService(FilesDbContext db) => new(db);
+    private static PermissionService CreateService(
+        FilesDbContext db,
+        IShareAccessMembershipResolver? membershipResolver = null) => new(db, membershipResolver);
 
     private static CallerContext UserCaller(Guid userId) =>
         new(userId, Array.Empty<string>(), CallerType.User);
@@ -199,6 +203,72 @@ public class PermissionServiceTests
         Assert.AreEqual(SharePermission.Full, result);
     }
 
+    [TestMethod]
+    public async Task GetEffectivePermissionAsync_ActiveTeamShare_ReturnsGrantedPermission()
+    {
+        using var db = CreateContext();
+        var ownerId = Guid.NewGuid();
+        var targetUserId = Guid.NewGuid();
+        var teamId = Guid.NewGuid();
+        var node = CreateNode(ownerId);
+        db.FileNodes.Add(node);
+        db.FileShares.Add(new FileShare
+        {
+            FileNodeId = node.Id,
+            ShareType = ShareType.Team,
+            SharedWithTeamId = teamId,
+            Permission = SharePermission.ReadWrite,
+            CreatedByUserId = ownerId
+        });
+        await db.SaveChangesAsync();
+
+        var membershipResolverMock = new Mock<IShareAccessMembershipResolver>();
+        membershipResolverMock
+            .Setup(resolver => resolver.ResolveAsync(targetUserId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ShareAccessMembership
+            {
+                TeamIds = [teamId],
+            });
+
+        var result = await CreateService(db, membershipResolverMock.Object)
+            .GetEffectivePermissionAsync(node.Id, UserCaller(targetUserId));
+
+        Assert.AreEqual(SharePermission.ReadWrite, result);
+    }
+
+    [TestMethod]
+    public async Task GetEffectivePermissionAsync_ActiveGroupShare_ReturnsGrantedPermission()
+    {
+        using var db = CreateContext();
+        var ownerId = Guid.NewGuid();
+        var targetUserId = Guid.NewGuid();
+        var groupId = Guid.NewGuid();
+        var node = CreateNode(ownerId);
+        db.FileNodes.Add(node);
+        db.FileShares.Add(new FileShare
+        {
+            FileNodeId = node.Id,
+            ShareType = ShareType.Group,
+            SharedWithGroupId = groupId,
+            Permission = SharePermission.Read,
+            CreatedByUserId = ownerId
+        });
+        await db.SaveChangesAsync();
+
+        var membershipResolverMock = new Mock<IShareAccessMembershipResolver>();
+        membershipResolverMock
+            .Setup(resolver => resolver.ResolveAsync(targetUserId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ShareAccessMembership
+            {
+                GroupIds = [groupId],
+            });
+
+        var result = await CreateService(db, membershipResolverMock.Object)
+            .GetEffectivePermissionAsync(node.Id, UserCaller(targetUserId));
+
+        Assert.AreEqual(SharePermission.Read, result);
+    }
+
     // ── Cascading shares ────────────────────────────────────────────────────
 
     [TestMethod]
@@ -267,6 +337,45 @@ public class PermissionServiceTests
             .GetEffectivePermissionAsync(child.Id, UserCaller(targetUserId));
 
         Assert.AreEqual(SharePermission.Read, result);
+    }
+
+    [TestMethod]
+    public async Task GetEffectivePermissionAsync_ParentFolderGroupShare_ChildInheritsPermission()
+    {
+        using var db = CreateContext();
+        var ownerId = Guid.NewGuid();
+        var targetUserId = Guid.NewGuid();
+        var groupId = Guid.NewGuid();
+
+        var parent = CreateNode(ownerId, FileNodeType.Folder);
+        db.FileNodes.Add(parent);
+
+        var child = CreateNode(ownerId, FileNodeType.File, parentId: parent.Id,
+            materializedPath: $"{parent.MaterializedPath}/{Guid.NewGuid()}");
+        db.FileNodes.Add(child);
+
+        db.FileShares.Add(new FileShare
+        {
+            FileNodeId = parent.Id,
+            ShareType = ShareType.Group,
+            SharedWithGroupId = groupId,
+            Permission = SharePermission.ReadWrite,
+            CreatedByUserId = ownerId
+        });
+        await db.SaveChangesAsync();
+
+        var membershipResolverMock = new Mock<IShareAccessMembershipResolver>();
+        membershipResolverMock
+            .Setup(resolver => resolver.ResolveAsync(targetUserId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ShareAccessMembership
+            {
+                GroupIds = [groupId],
+            });
+
+        var result = await CreateService(db, membershipResolverMock.Object)
+            .GetEffectivePermissionAsync(child.Id, UserCaller(targetUserId));
+
+        Assert.AreEqual(SharePermission.ReadWrite, result);
     }
 
     // ── HasPermissionAsync / RequirePermissionAsync ─────────────────────────

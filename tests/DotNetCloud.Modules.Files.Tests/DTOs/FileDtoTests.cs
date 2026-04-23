@@ -201,6 +201,7 @@ public class FileDtoTests
         {
             Id = id,
             ShareType = "PublicLink",
+            SharedWithGroupId = Guid.NewGuid(),
             Permission = "Read",
             LinkToken = "token123",
             MaxDownloads = 50,
@@ -209,6 +210,7 @@ public class FileDtoTests
 
         Assert.AreEqual(id, dto.Id);
         Assert.AreEqual("PublicLink", dto.ShareType);
+        Assert.IsNotNull(dto.SharedWithGroupId);
         Assert.AreEqual("Read", dto.Permission);
         Assert.AreEqual("token123", dto.LinkToken);
         Assert.AreEqual(50, dto.MaxDownloads);

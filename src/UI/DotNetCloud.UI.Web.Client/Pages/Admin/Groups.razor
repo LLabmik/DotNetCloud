@@ -1,0 +1,657 @@
+@page "/admin/groups"
+@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveAutoRenderMode(prerender: false))
+@attribute [Authorize(Policy = "RequireAdmin")]
+@inject DotNetCloudApiClient Api
+@implements IDisposable
+
+<PageTitle>Groups - DotNetCloud</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1>Groups</h1>
+        <p class="text-muted">Manage organization-wide permission groups and review the protected built-in All Users membership view.</p>
+    </div>
+    <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+        <select class="form-control" style="min-width: 260px;" value="@_selectedOrganizationId" @onchange="OnOrganizationChanged" disabled="@(_orgs.Count == 0)">
+            @foreach (var org in _orgs)
+            {
+                <option value="@org.Id">@org.Name</option>
+            }
+        </select>
+        <button class="btn btn-primary" @onclick="ShowCreate" disabled="@(_orgs.Count == 0)">Create Group</button>
+    </div>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(_error))
+{
+    <div class="alert alert-danger">@_error</div>
+}
+
+@if (_loading)
+{
+    <LoadingIndicator Message="Loading groups..." />
+}
+else if (_orgs.Count == 0)
+{
+    <div class="alert alert-info">
+        No organizations are available yet. Create an organization first, then come back here to manage groups.
+    </div>
+}
+else
+{
+    <div class="table-container">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Type</th>
+                    <th>Members</th>
+                    <th>Created</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (_groups.Count == 0)
+                {
+                    <tr>
+                        <td colspan="5" class="text-center">No groups found for this organization.</td>
+                    </tr>
+                }
+                @foreach (var group in _groups)
+                {
+                    <tr>
+                        <td>
+                            <strong>@group.Name</strong>
+                            @if (!string.IsNullOrWhiteSpace(group.Description))
+                            {
+                                <div class="text-muted" style="font-size: 0.9rem; margin-top: 0.15rem;">@group.Description</div>
+                            }
+                        </td>
+                        <td>@(group.IsAllUsersGroup ? "Built-in" : "Custom")</td>
+                        <td>@group.MemberCount</td>
+                        <td>@group.CreatedAt.ToString("yyyy-MM-dd")</td>
+                        <td>
+                            <button class="btn btn-sm btn-outline" @onclick="() => ShowMembersAsync(group)">Members</button>
+                            @if (!group.IsAllUsersGroup)
+                            {
+                                <button class="btn btn-sm btn-outline" @onclick="() => StartEdit(group)">Edit</button>
+                                <button class="btn btn-sm btn-danger" @onclick="() => DeleteAsync(group)">Delete</button>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@if (_showCreate)
+{
+    <DncModal Title="Create Group" StartVisible OnClose="CloseCreate">
+        <div class="form-group">
+            <label>Organization</label>
+            <select class="form-control" value="@_createOrganizationId" @onchange="OnCreateOrganizationChanged">
+                @foreach (var org in _orgs)
+                {
+                    <option value="@org.Id">@org.Name</option>
+                }
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Name *</label>
+            <input type="text" class="form-control" @bind="_createName" placeholder="Group name" />
+        </div>
+        <div class="form-group">
+            <label>Description</label>
+            <textarea class="form-control" rows="3" @bind="_createDescription" placeholder="Optional description"></textarea>
+        </div>
+        @if (!string.IsNullOrEmpty(_modalError))
+        {
+            <div class="alert alert-danger">@_modalError</div>
+        }
+        <div class="form-actions">
+            <button class="btn btn-secondary" @onclick="CloseCreate">Cancel</button>
+            <button class="btn btn-primary" @onclick="CreateAsync" disabled="@_saving">
+                @(_saving ? "Creating..." : "Create")
+            </button>
+        </div>
+    </DncModal>
+}
+
+@if (_showEdit)
+{
+    <DncModal Title="Edit Group" StartVisible OnClose="CloseEdit">
+        <div class="form-group">
+            <label>Name *</label>
+            <input type="text" class="form-control" @bind="_editName" />
+        </div>
+        <div class="form-group">
+            <label>Description</label>
+            <textarea class="form-control" rows="3" @bind="_editDescription"></textarea>
+        </div>
+        @if (!string.IsNullOrEmpty(_modalError))
+        {
+            <div class="alert alert-danger">@_modalError</div>
+        }
+        <div class="form-actions">
+            <button class="btn btn-secondary" @onclick="CloseEdit">Cancel</button>
+            <button class="btn btn-primary" @onclick="SaveEditAsync" disabled="@_saving">
+                @(_saving ? "Saving..." : "Save")
+            </button>
+        </div>
+    </DncModal>
+}
+
+@if (_showMembers)
+{
+    <DncModal Title="@($"Members — {_membersGroupName}")" StartVisible OnClose="CloseMembers">
+        @if (_membersGroupIsBuiltIn)
+        {
+            <div class="alert alert-info" style="margin-bottom: 1rem;">
+                This built-in group is system-managed. Membership comes from active organization membership, so add and remove actions are intentionally disabled here.
+            </div>
+        }
+        else
+        {
+            <div style="display: flex; justify-content: flex-end; margin-bottom: 0.75rem;">
+                <button class="btn btn-sm btn-primary" @onclick="ShowAddMember">Add Member</button>
+            </div>
+        }
+
+        @if (_membersLoading)
+        {
+            <LoadingIndicator Message="Loading members..." />
+        }
+        else if (_members.Count == 0)
+        {
+            <p class="text-center" style="color: var(--text-secondary); padding: 1rem 0;">No members in this group.</p>
+        }
+        else
+        {
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Added</th>
+                            <th style="width: 80px;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var member in _members)
+                        {
+                            <tr>
+                                <td>@member.UserDisplayName</td>
+                                <td>@member.UserEmail</td>
+                                <td>@member.AddedAt.ToString("yyyy-MM-dd")</td>
+                                <td>
+                                    @if (!_membersGroupIsBuiltIn)
+                                    {
+                                        <button class="btn btn-sm btn-danger" @onclick="() => RemoveMemberAsync(member)">Remove</button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+
+        @if (!string.IsNullOrEmpty(_membersError))
+        {
+            <div class="alert alert-danger">@_membersError</div>
+        }
+    </DncModal>
+}
+
+@if (_showAddMember)
+{
+    <DncModal Title="@($"Add Member — {_membersGroupName}")" StartVisible OnClose="CloseAddMember">
+        <div class="form-group">
+            <label>Search users</label>
+            <input type="text" class="form-control" placeholder="Search by name or email..."
+                   @bind="_addMemberSearch" @bind:event="oninput" @bind:after="SearchUsersAsync" />
+        </div>
+        @if (_candidateUsersLoading)
+        {
+            <LoadingIndicator Message="Searching users..." />
+        }
+        else if (string.IsNullOrWhiteSpace(_addMemberSearch))
+        {
+            <p class="text-center" style="color: var(--text-secondary); padding: 1rem 0;">Start typing to find active users who are not already in this group.</p>
+        }
+        else if (_candidateUsers.Count == 0)
+        {
+            <p class="text-center" style="color: var(--text-secondary); padding: 1rem 0;">No matching users available to add.</p>
+        }
+        else
+        {
+            <div class="table-container" style="max-height: 300px; overflow-y: auto;">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th style="width: 80px;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var user in _candidateUsers)
+                        {
+                            <tr>
+                                <td>@user.DisplayName</td>
+                                <td>@user.Email</td>
+                                <td>
+                                    <button class="btn btn-sm btn-primary" @onclick="() => AddMemberAsync(user)" disabled="@_saving">Add</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        @if (!string.IsNullOrEmpty(_membersError))
+        {
+            <div class="alert alert-danger">@_membersError</div>
+        }
+        <div class="form-actions">
+            <button class="btn btn-secondary" @onclick="CloseAddMember">Close</button>
+        </div>
+    </DncModal>
+}
+
+<ConfirmDialog @ref="_confirmDialog" />
+
+@code {
+    private bool _loading = true;
+    private bool _showCreate;
+    private bool _showEdit;
+    private bool _showMembers;
+    private bool _showAddMember;
+    private bool _saving;
+    private bool _membersLoading;
+    private bool _candidateUsersLoading;
+    private string _error = string.Empty;
+    private string _modalError = string.Empty;
+    private string _membersError = string.Empty;
+    private Guid _selectedOrganizationId;
+    private Guid _createOrganizationId;
+    private Guid _editId;
+    private Guid _membersGroupId;
+    private string _createName = string.Empty;
+    private string? _createDescription;
+    private string _editName = string.Empty;
+    private string? _editDescription;
+    private string _membersGroupName = string.Empty;
+    private bool _membersGroupIsBuiltIn;
+    private string _addMemberSearch = string.Empty;
+    private IReadOnlyList<OrganizationDto> _orgs = [];
+    private IReadOnlyList<GroupDto> _groups = [];
+    private IReadOnlyList<GroupMemberDto> _members = [];
+    private IReadOnlyList<UserDto> _candidateUsers = [];
+    private ConfirmDialog _confirmDialog = default!;
+    private System.Timers.Timer? _searchDebounce;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    public void Dispose()
+    {
+        _searchDebounce?.Stop();
+        _searchDebounce?.Dispose();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = string.Empty;
+
+        try
+        {
+            _orgs = await Api.ListOrganizationsAsync();
+            if (_orgs.Count > 0)
+            {
+                if (_selectedOrganizationId == Guid.Empty || _orgs.All(org => org.Id != _selectedOrganizationId))
+                {
+                    _selectedOrganizationId = _orgs[0].Id;
+                }
+
+                _createOrganizationId = _selectedOrganizationId;
+                await LoadGroupsAsync();
+            }
+            else
+            {
+                _groups = [];
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task LoadGroupsAsync()
+    {
+        if (_selectedOrganizationId == Guid.Empty)
+        {
+            _groups = [];
+            return;
+        }
+
+        _groups = await Api.ListGroupsAsync(_selectedOrganizationId);
+    }
+
+    private async Task OnOrganizationChanged(ChangeEventArgs args)
+    {
+        if (!Guid.TryParse(args.Value?.ToString(), out var organizationId))
+            return;
+
+        _selectedOrganizationId = organizationId;
+        _createOrganizationId = organizationId;
+        _error = string.Empty;
+
+        try
+        {
+            await LoadGroupsAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private void OnCreateOrganizationChanged(ChangeEventArgs args)
+    {
+        if (Guid.TryParse(args.Value?.ToString(), out var organizationId))
+        {
+            _createOrganizationId = organizationId;
+        }
+    }
+
+    private void ShowCreate()
+    {
+        _createOrganizationId = _selectedOrganizationId;
+        _createName = string.Empty;
+        _createDescription = null;
+        _modalError = string.Empty;
+        _showCreate = true;
+    }
+
+    private void CloseCreate()
+    {
+        _showCreate = false;
+        _modalError = string.Empty;
+    }
+
+    private async Task CreateAsync()
+    {
+        if (_createOrganizationId == Guid.Empty)
+        {
+            _modalError = "Select an organization first.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_createName))
+        {
+            _modalError = "Name is required.";
+            return;
+        }
+
+        _saving = true;
+        _modalError = string.Empty;
+
+        try
+        {
+            await Api.CreateGroupAsync(new CreateGroupDto
+            {
+                OrganizationId = _createOrganizationId,
+                Name = _createName.Trim(),
+                Description = string.IsNullOrWhiteSpace(_createDescription) ? null : _createDescription.Trim(),
+            });
+
+            _selectedOrganizationId = _createOrganizationId;
+            CloseCreate();
+            await LoadGroupsAsync();
+        }
+        catch (Exception ex)
+        {
+            _modalError = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void StartEdit(GroupDto group)
+    {
+        _editId = group.Id;
+        _editName = group.Name;
+        _editDescription = group.Description;
+        _modalError = string.Empty;
+        _showEdit = true;
+    }
+
+    private void CloseEdit()
+    {
+        _showEdit = false;
+        _modalError = string.Empty;
+    }
+
+    private async Task SaveEditAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_editName))
+        {
+            _modalError = "Name is required.";
+            return;
+        }
+
+        _saving = true;
+        _modalError = string.Empty;
+
+        try
+        {
+            var success = await Api.UpdateGroupAsync(_editId, new UpdateGroupDto
+            {
+                Name = _editName.Trim(),
+                Description = string.IsNullOrWhiteSpace(_editDescription) ? null : _editDescription.Trim(),
+            });
+
+            if (!success)
+            {
+                _modalError = "Failed to update group.";
+                return;
+            }
+
+            CloseEdit();
+            await LoadGroupsAsync();
+        }
+        catch (Exception ex)
+        {
+            _modalError = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task DeleteAsync(GroupDto group)
+    {
+        _error = string.Empty;
+
+        if (!await _confirmDialog.ShowAsync($"Delete group '{group.Name}'?", "Delete Group"))
+            return;
+
+        try
+        {
+            var success = await Api.DeleteGroupAsync(group.Id);
+            if (!success)
+            {
+                _error = "Failed to delete group.";
+                return;
+            }
+
+            await LoadGroupsAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task ShowMembersAsync(GroupDto group)
+    {
+        _membersGroupId = group.Id;
+        _membersGroupName = group.Name;
+        _membersGroupIsBuiltIn = group.IsAllUsersGroup;
+        _membersError = string.Empty;
+        _showMembers = true;
+        await LoadMembersAsync();
+    }
+
+    private void CloseMembers()
+    {
+        _showMembers = false;
+        _showAddMember = false;
+        _membersError = string.Empty;
+        _addMemberSearch = string.Empty;
+        _candidateUsers = [];
+    }
+
+    private async Task LoadMembersAsync()
+    {
+        _membersLoading = true;
+
+        try
+        {
+            _members = await Api.ListGroupMembersAsync(_membersGroupId);
+        }
+        catch (Exception ex)
+        {
+            _membersError = ex.Message;
+        }
+        finally
+        {
+            _membersLoading = false;
+        }
+    }
+
+    private void ShowAddMember()
+    {
+        _showAddMember = true;
+        _addMemberSearch = string.Empty;
+        _candidateUsers = [];
+        _membersError = string.Empty;
+    }
+
+    private void CloseAddMember()
+    {
+        _showAddMember = false;
+        _addMemberSearch = string.Empty;
+        _candidateUsers = [];
+        _membersError = string.Empty;
+    }
+
+    private async Task SearchUsersAsync()
+    {
+        _searchDebounce?.Stop();
+        _searchDebounce?.Dispose();
+
+        if (string.IsNullOrWhiteSpace(_addMemberSearch))
+        {
+            _candidateUsers = [];
+            return;
+        }
+
+        _searchDebounce = new System.Timers.Timer(300)
+        {
+            AutoReset = false,
+        };
+        _searchDebounce.Elapsed += async (_, _) =>
+        {
+            await InvokeAsync(async () =>
+            {
+                _candidateUsersLoading = true;
+                StateHasChanged();
+
+                try
+                {
+                    var result = await Api.ListUsersAsync(page: 1, pageSize: 50, search: _addMemberSearch, isActive: true);
+                    var existingMemberIds = _members.Select(member => member.UserId).ToHashSet();
+                    _candidateUsers = result.Items
+                        .Where(user => !existingMemberIds.Contains(user.Id))
+                        .OrderBy(user => user.DisplayName)
+                        .ToList();
+                }
+                catch (Exception ex)
+                {
+                    _membersError = ex.Message;
+                }
+                finally
+                {
+                    _candidateUsersLoading = false;
+                    StateHasChanged();
+                }
+            });
+        };
+        _searchDebounce.Start();
+    }
+
+    private async Task AddMemberAsync(UserDto user)
+    {
+        _membersError = string.Empty;
+        _saving = true;
+
+        try
+        {
+            var success = await Api.AddGroupMemberAsync(_membersGroupId, user.Id);
+            if (!success)
+            {
+                _membersError = "Failed to add member.";
+                return;
+            }
+
+            _candidateUsers = _candidateUsers.Where(candidate => candidate.Id != user.Id).ToList();
+            await LoadMembersAsync();
+            await LoadGroupsAsync();
+        }
+        catch (Exception ex)
+        {
+            _membersError = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task RemoveMemberAsync(GroupMemberDto member)
+    {
+        _membersError = string.Empty;
+
+        try
+        {
+            var success = await Api.RemoveGroupMemberAsync(_membersGroupId, member.UserId);
+            if (!success)
+            {
+                _membersError = "Failed to remove member.";
+                return;
+            }
+
+            await LoadMembersAsync();
+            await LoadGroupsAsync();
+        }
+        catch (Exception ex)
+        {
+            _membersError = ex.Message;
+        }
+    }
+}

@@ -45,8 +45,9 @@ internal sealed class FileService : IFileService
 
     private readonly IQuotaService _quotaService;
     private readonly FileSystemOptions _fileSystemOptions;
+    private readonly IShareAccessMembershipResolver? _shareAccessMembershipResolver;
 
-    public FileService(FilesDbContext db, IEventBus eventBus, ILogger<FileService> logger, IPermissionService permissions, IDeviceContext deviceContext, IQuotaService quotaService, IOptions<FileSystemOptions> fileSystemOptions, ISyncChangeNotifier syncNotifier)
+    public FileService(FilesDbContext db, IEventBus eventBus, ILogger<FileService> logger, IPermissionService permissions, IDeviceContext deviceContext, IQuotaService quotaService, IOptions<FileSystemOptions> fileSystemOptions, ISyncChangeNotifier syncNotifier, IShareAccessMembershipResolver? shareAccessMembershipResolver = null)
     {
         _db = db;
         _eventBus = eventBus;
@@ -56,6 +57,7 @@ internal sealed class FileService : IFileService
         _quotaService = quotaService;
         _fileSystemOptions = fileSystemOptions.Value;
         _syncNotifier = syncNotifier;
+        _shareAccessMembershipResolver = shareAccessMembershipResolver;
     }
 
     /// <inheritdoc />
@@ -196,6 +198,48 @@ internal sealed class FileService : IFileService
         var childCounts = await GetChildCountsAsync(roots, cancellationToken);
         var subtreeSizes = await GetSubtreeSizesAsync(roots, cancellationToken);
         return roots.Select(n => ToDto(n, childCounts.GetValueOrDefault(n.Id), subtreeSizes.GetValueOrDefault(n.Id))).ToList();
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<FileNodeDto>> ListMountedAccessAsync(CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(caller);
+
+        var memberships = _shareAccessMembershipResolver is null
+            ? ShareAccessMembership.Empty
+            : await _shareAccessMembershipResolver.ResolveAsync(caller.UserId, cancellationToken);
+
+        var teamIds = memberships.TeamIds.ToArray();
+        var groupIds = memberships.GroupIds.ToArray();
+        if (teamIds.Length == 0 && groupIds.Length == 0)
+            return [];
+
+        var now = DateTime.UtcNow;
+
+        var nodeIds = await _db.FileShares
+            .AsNoTracking()
+            .Where(s =>
+                (s.ExpiresAt == null || s.ExpiresAt > now)
+                && ((teamIds.Length > 0 && s.ShareType == ShareType.Team && s.SharedWithTeamId.HasValue && teamIds.Contains(s.SharedWithTeamId.Value))
+                    || (groupIds.Length > 0 && s.ShareType == ShareType.Group && s.SharedWithGroupId.HasValue && groupIds.Contains(s.SharedWithGroupId.Value))))
+            .Select(s => s.FileNodeId)
+            .Distinct()
+            .ToArrayAsync(cancellationToken);
+
+        if (nodeIds.Length == 0)
+            return [];
+
+        var nodes = await _db.FileNodes
+            .AsNoTrackingWithIdentityResolution()
+            .Include(n => n.Tags)
+            .Where(n => nodeIds.Contains(n.Id) && n.OwnerId != caller.UserId)
+            .OrderBy(n => n.NodeType)
+            .ThenBy(n => n.Name)
+            .ToListAsync(cancellationToken);
+
+        var childCounts = await GetChildCountsAsync(nodes, cancellationToken);
+        var subtreeSizes = await GetSubtreeSizesAsync(nodes, cancellationToken);
+        return nodes.Select(n => ToDto(n, childCounts.GetValueOrDefault(n.Id), subtreeSizes.GetValueOrDefault(n.Id))).ToList();
     }
 
     /// <inheritdoc />

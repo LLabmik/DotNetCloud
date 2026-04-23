@@ -169,6 +169,7 @@ internal sealed class ShareService : IShareService
                 ShareType = s.ShareType.ToString(),
                 SharedWithUserId = s.SharedWithUserId,
                 SharedWithTeamId = s.SharedWithTeamId,
+                SharedWithGroupId = s.SharedWithGroupId,
                 Permission = s.Permission.ToString(),
                 LinkToken = s.LinkToken,
                 ExpiresAt = s.ExpiresAt,
@@ -190,7 +191,7 @@ internal sealed class ShareService : IShareService
         return await _db.FileShares
             .AsNoTracking()
             .Include(s => s.FileNode)
-            .Where(s => s.SharedWithUserId == caller.UserId)
+            .Where(s => s.ShareType == ShareType.User && s.SharedWithUserId == caller.UserId)
             .OrderByDescending(s => s.CreatedAt)
             .Select(s => new FileShareDto
             {
@@ -200,6 +201,7 @@ internal sealed class ShareService : IShareService
                 ShareType = s.ShareType.ToString(),
                 SharedWithUserId = s.SharedWithUserId,
                 SharedWithTeamId = s.SharedWithTeamId,
+                SharedWithGroupId = s.SharedWithGroupId,
                 Permission = s.Permission.ToString(),
                 LinkToken = s.LinkToken,
                 ExpiresAt = s.ExpiresAt,
@@ -231,6 +233,7 @@ internal sealed class ShareService : IShareService
                 ShareType = s.ShareType.ToString(),
                 SharedWithUserId = s.SharedWithUserId,
                 SharedWithTeamId = s.SharedWithTeamId,
+                SharedWithGroupId = s.SharedWithGroupId,
                 Permission = s.Permission.ToString(),
                 LinkToken = s.LinkToken,
                 ExpiresAt = s.ExpiresAt,
@@ -354,6 +357,7 @@ internal sealed class ShareService : IShareService
         ShareType = share.ShareType.ToString(),
         SharedWithUserId = share.SharedWithUserId,
         SharedWithTeamId = share.SharedWithTeamId,
+        SharedWithGroupId = share.SharedWithGroupId,
         Permission = share.Permission.ToString(),
         LinkToken = share.LinkToken,
         ExpiresAt = share.ExpiresAt,

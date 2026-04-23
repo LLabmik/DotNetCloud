@@ -29,6 +29,10 @@ public class GroupConfiguration : IEntityTypeConfiguration<Group>
         builder.Property(g => g.Description)
             .HasMaxLength(1000);
 
+        builder.Property(g => g.IsAllUsersGroup)
+            .IsRequired()
+            .HasDefaultValue(false);
+
         builder.Property(g => g.CreatedAt)
             .IsRequired();
 
@@ -48,6 +52,9 @@ public class GroupConfiguration : IEntityTypeConfiguration<Group>
 
         builder.HasIndex(g => g.CreatedAt)
             .HasDatabaseName("IX_groups_created_at");
+
+        builder.HasIndex(g => new { g.OrganizationId, g.IsAllUsersGroup })
+            .HasDatabaseName("IX_groups_org_all_users");
 
         // Soft-delete query filter
         builder.HasQueryFilter(g => !g.IsDeleted);

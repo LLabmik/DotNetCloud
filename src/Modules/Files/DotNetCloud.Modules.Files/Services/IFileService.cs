@@ -20,6 +20,12 @@ public interface IFileService
     /// <summary>Lists root-level nodes for the caller.</summary>
     Task<IReadOnlyList<FileNodeDto>> ListRootAsync(CallerContext caller, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Lists non-owned nodes the caller can access through team or group shares.
+    /// This mounted-access view feeds the future <c>_DotNetCloud</c> shared root.
+    /// </summary>
+    Task<IReadOnlyList<FileNodeDto>> ListMountedAccessAsync(CallerContext caller, CancellationToken cancellationToken = default);
+
     /// <summary>Renames a file or folder.</summary>
     Task<FileNodeDto> RenameAsync(Guid nodeId, RenameNodeDto dto, CallerContext caller, CancellationToken cancellationToken = default);
 

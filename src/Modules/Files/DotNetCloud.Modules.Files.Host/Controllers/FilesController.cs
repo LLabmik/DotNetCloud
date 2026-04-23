@@ -559,6 +559,17 @@ public class FilesController : FilesControllerBase
     });
 
     /// <summary>
+    /// Lists nodes the caller can access through team or group shares.
+    /// This separate listing path feeds the future <c>_DotNetCloud</c> mounted-access experience.
+    /// </summary>
+    [HttpGet("mounted-access")]
+    public Task<IActionResult> ListMountedAccessAsync() => ExecuteAsync(async () =>
+    {
+        var nodes = await _fileService.ListMountedAccessAsync(GetAuthenticatedCaller());
+        return Ok(nodes);
+    });
+
+    /// <summary>
     /// Resolves a public share link.
     /// </summary>
     [AllowAnonymous]

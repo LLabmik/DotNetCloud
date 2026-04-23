@@ -217,6 +217,39 @@ public class ControllerSecurityAuditTests
         Assert.AreEqual(403, result.StatusCode);
     }
 
+    [TestMethod]
+    public async Task FilesMountedAccess_UsesAuthenticatedCaller()
+    {
+        var userId = Guid.NewGuid();
+        var fileMock = new Mock<IFileService>();
+        fileMock.Setup(service => service.ListMountedAccessAsync(
+                It.Is<DotNetCloud.Core.Authorization.CallerContext>(caller => caller.UserId == userId),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+
+        var controller = CreateFilesController(fileMock);
+        SetAuthenticatedUser(controller, userId);
+
+        await controller.ListMountedAccessAsync();
+
+        fileMock.Verify(service => service.ListMountedAccessAsync(
+                It.Is<DotNetCloud.Core.Authorization.CallerContext>(caller => caller.UserId == userId),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [TestMethod]
+    public async Task FilesMountedAccess_Unauthenticated_Returns403()
+    {
+        var controller = CreateFilesController();
+        SetUnauthenticatedUser(controller);
+
+        var result = await controller.ListMountedAccessAsync() as ObjectResult;
+
+        Assert.IsNotNull(result);
+        Assert.AreEqual(403, result.StatusCode);
+    }
+
     #endregion
 
     #region Helpers
@@ -247,6 +280,20 @@ public class ControllerSecurityAuditTests
     private static MySharesController CreateMySharesController(Mock<IShareService>? shareMock = null)
     {
         return new MySharesController(shareMock?.Object ?? Mock.Of<IShareService>());
+    }
+
+    private static FilesController CreateFilesController(Mock<IFileService>? fileMock = null)
+    {
+        return new FilesController(
+            fileMock?.Object ?? Mock.Of<IFileService>(),
+            Mock.Of<IChunkedUploadService>(),
+            Mock.Of<IDownloadService>(),
+            Mock.Of<IVersionService>(),
+            Mock.Of<IShareService>(),
+            Mock.Of<IThumbnailService>(),
+            NullLogger<FilesController>.Instance,
+            Microsoft.Extensions.Options.Options.Create(new FileSystemOptions()),
+            Microsoft.Extensions.Options.Options.Create(new FileUploadOptions()));
     }
 
     private static void SetAuthenticatedUser(ControllerBase controller, Guid userId)

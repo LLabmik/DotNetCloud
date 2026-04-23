@@ -203,6 +203,8 @@ public static class AuthServiceExtensions
         // Capability implementations
         // -----------------------------------------------------------------
         services.AddScoped<IUserDirectory, UserDirectoryService>();
+        services.AddScoped<IGroupDirectory, GroupDirectoryService>();
+        services.AddScoped<IGroupManager, GroupManagerService>();
         services.AddScoped<ITeamDirectory, TeamDirectoryService>();
         services.AddScoped<ITeamManager, TeamManagerService>();
         services.AddScoped<IUserManager, UserManagerService>();

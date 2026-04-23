@@ -27,10 +27,11 @@ public class FileServiceTests
         return new FilesDbContext(options);
     }
 
-    private static FileService CreateService(FilesDbContext db, IQuotaService? quotaService = null, FileSystemOptions? fileSystemOptions = null) =>
+    private static FileService CreateService(FilesDbContext db, IQuotaService? quotaService = null, FileSystemOptions? fileSystemOptions = null, IShareAccessMembershipResolver? shareAccessMembershipResolver = null) =>
         new(db, Mock.Of<IEventBus>(), NullLoggerFactory.Instance.CreateLogger<FileService>(), new PermissionService(db), new DeviceContext(), quotaService ?? Mock.Of<IQuotaService>(),
             Microsoft.Extensions.Options.Options.Create(fileSystemOptions ?? new FileSystemOptions()),
-            Mock.Of<ISyncChangeNotifier>());
+            Mock.Of<ISyncChangeNotifier>(),
+            shareAccessMembershipResolver);
 
     private static CallerContext UserCaller(Guid userId) => new(userId, Array.Empty<string>(), CallerType.User);
 
@@ -182,6 +183,53 @@ public class FileServiceTests
         Assert.AreEqual(1, roots.Count);
         Assert.AreEqual("report.pdf", roots[0].Name);
         Assert.AreEqual(2, roots[0].Tags.Count);
+    }
+
+    [TestMethod]
+    public async Task ListMountedAccessAsync_ReturnsDistinctTeamAndGroupSharedNodes()
+    {
+        using var db = CreateContext();
+        var callerUserId = Guid.NewGuid();
+        var ownerId = Guid.NewGuid();
+        var teamId = Guid.NewGuid();
+        var groupId = Guid.NewGuid();
+        var otherTeamId = Guid.NewGuid();
+        var accessibleFolder = new FileNode { Name = "Team Folder", NodeType = FileNodeType.Folder, OwnerId = ownerId };
+        var accessibleFile = new FileNode { Name = "Group File.txt", NodeType = FileNodeType.File, OwnerId = ownerId };
+        var duplicateNode = new FileNode { Name = "Shared Twice.txt", NodeType = FileNodeType.File, OwnerId = ownerId };
+        var userOnlyNode = new FileNode { Name = "User Only.txt", NodeType = FileNodeType.File, OwnerId = ownerId };
+        var expiredNode = new FileNode { Name = "Expired.txt", NodeType = FileNodeType.File, OwnerId = ownerId };
+        var ownNode = new FileNode { Name = "Own Shared.txt", NodeType = FileNodeType.File, OwnerId = callerUserId };
+        var unmatchedNode = new FileNode { Name = "Other Team.txt", NodeType = FileNodeType.File, OwnerId = ownerId };
+
+        db.FileNodes.AddRange(accessibleFolder, accessibleFile, duplicateNode, userOnlyNode, expiredNode, ownNode, unmatchedNode);
+        db.FileShares.AddRange(
+            new FilesFileShare { FileNodeId = accessibleFolder.Id, ShareType = ShareType.Team, SharedWithTeamId = teamId, CreatedByUserId = ownerId },
+            new FilesFileShare { FileNodeId = accessibleFile.Id, ShareType = ShareType.Group, SharedWithGroupId = groupId, CreatedByUserId = ownerId },
+            new FilesFileShare { FileNodeId = duplicateNode.Id, ShareType = ShareType.Team, SharedWithTeamId = teamId, CreatedByUserId = ownerId },
+            new FilesFileShare { FileNodeId = duplicateNode.Id, ShareType = ShareType.Group, SharedWithGroupId = groupId, CreatedByUserId = ownerId },
+            new FilesFileShare { FileNodeId = userOnlyNode.Id, ShareType = ShareType.User, SharedWithUserId = callerUserId, CreatedByUserId = ownerId },
+            new FilesFileShare { FileNodeId = expiredNode.Id, ShareType = ShareType.Team, SharedWithTeamId = teamId, ExpiresAt = DateTime.UtcNow.AddMinutes(-5), CreatedByUserId = ownerId },
+            new FilesFileShare { FileNodeId = ownNode.Id, ShareType = ShareType.Group, SharedWithGroupId = groupId, CreatedByUserId = callerUserId },
+            new FilesFileShare { FileNodeId = unmatchedNode.Id, ShareType = ShareType.Team, SharedWithTeamId = otherTeamId, CreatedByUserId = ownerId });
+        await db.SaveChangesAsync();
+
+        var membershipResolverMock = new Mock<IShareAccessMembershipResolver>();
+        membershipResolverMock
+            .Setup(resolver => resolver.ResolveAsync(callerUserId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ShareAccessMembership
+            {
+                TeamIds = new[] { teamId },
+                GroupIds = new[] { groupId },
+            });
+
+        var service = CreateService(db, shareAccessMembershipResolver: membershipResolverMock.Object);
+        var result = await service.ListMountedAccessAsync(UserCaller(callerUserId));
+
+        CollectionAssert.AreEquivalent(
+            new[] { "Group File.txt", "Shared Twice.txt", "Team Folder" },
+            result.Select(node => node.Name).ToArray());
+        Assert.AreEqual(3, result.Count);
     }
 
     [TestMethod]

@@ -666,6 +666,79 @@ public sealed class DotNetCloudApiClient
     }
 
     // -----------------------------------------------------------------------
+    // Groups
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Lists groups for the specified organization.
+    /// </summary>
+    public async Task<IReadOnlyList<GroupDto>> ListGroupsAsync(Guid organizationId, CancellationToken ct = default)
+    {
+        var envelope = await _http.GetFromJsonAsync<ApiEnvelope<IReadOnlyList<GroupDto>>>(
+            $"api/v1/core/admin/groups?organizationId={organizationId}", ct);
+        return envelope?.Data ?? [];
+    }
+
+    /// <summary>
+    /// Creates a new group.
+    /// </summary>
+    public async Task<GroupDto?> CreateGroupAsync(CreateGroupDto dto, CancellationToken ct = default)
+    {
+        var response = await _http.PostAsJsonAsync("api/v1/core/admin/groups", dto, ct);
+        response.EnsureSuccessStatusCode();
+        var envelope = await response.Content.ReadFromJsonAsync<ApiEnvelope<GroupDto>>(ct);
+        return envelope?.Data;
+    }
+
+    /// <summary>
+    /// Updates a group.
+    /// </summary>
+    public async Task<bool> UpdateGroupAsync(Guid id, UpdateGroupDto dto, CancellationToken ct = default)
+    {
+        var response = await _http.PutAsJsonAsync($"api/v1/core/admin/groups/{id}", dto, ct);
+        return response.IsSuccessStatusCode;
+    }
+
+    /// <summary>
+    /// Deletes a group.
+    /// </summary>
+    public async Task<bool> DeleteGroupAsync(Guid id, CancellationToken ct = default)
+    {
+        var response = await _http.DeleteAsync($"api/v1/core/admin/groups/{id}", ct);
+        return response.IsSuccessStatusCode;
+    }
+
+    /// <summary>
+    /// Lists members of a group.
+    /// </summary>
+    public async Task<IReadOnlyList<GroupMemberDto>> ListGroupMembersAsync(Guid groupId, CancellationToken ct = default)
+    {
+        var envelope = await _http.GetFromJsonAsync<ApiEnvelope<IReadOnlyList<GroupMemberDto>>>(
+            $"api/v1/core/admin/groups/{groupId}/members", ct);
+        return envelope?.Data ?? [];
+    }
+
+    /// <summary>
+    /// Adds a user to a group.
+    /// </summary>
+    public async Task<bool> AddGroupMemberAsync(Guid groupId, Guid userId, CancellationToken ct = default)
+    {
+        var response = await _http.PostAsJsonAsync(
+            $"api/v1/core/admin/groups/{groupId}/members",
+            new AddGroupMemberDto { UserId = userId }, ct);
+        return response.IsSuccessStatusCode;
+    }
+
+    /// <summary>
+    /// Removes a user from a group.
+    /// </summary>
+    public async Task<bool> RemoveGroupMemberAsync(Guid groupId, Guid userId, CancellationToken ct = default)
+    {
+        var response = await _http.DeleteAsync($"api/v1/core/admin/groups/{groupId}/members/{userId}", ct);
+        return response.IsSuccessStatusCode;
+    }
+
+    // -----------------------------------------------------------------------
     // Current User Profile
     // -----------------------------------------------------------------------
 

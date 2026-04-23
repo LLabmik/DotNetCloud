@@ -104,6 +104,7 @@
 | DM & Host Calls — Phase A   | 3       | 3         | 0           | 0       |
 | DM & Host Calls — Phase B   | 2       | 0         | 0           | 2       |
 | DM & Host Calls — Phase C–G | 10      | 1         | 1           | 8       |
+| Shared File Folders         | 6       | 4         | 1           | 1       |
 | Infrastructure              | Summary | 0         | 0           | 1       |
 | Documentation               | Summary | 0         | 0           | 1       |
 
@@ -2847,3 +2848,70 @@ Reference plan: `docs/DIRECT_MESSAGING_AND_HOST_CALLS_PLAN.md`
 - ☐ Integration / E2E scenarios for invite + host transfer lifecycle remain pending
 
 **Notes:** Unit-level validation is comprehensive for the Phase E UI additions. Next step is dedicated end-to-end flow verification for multi-user call lifecycles.
+
+---
+
+## Shared File Folder Workstream
+
+Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
+
+### Section: Shared File Folders — Group Foundation
+
+#### Step: shared-file-folders-1 — Group Capability Foundation
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `IGroupDirectory` capability contract added to `DotNetCloud.Core`
+- ✓ `IGroupManager` capability contract added to `DotNetCloud.Core`
+- ✓ `GroupDirectoryService` implemented in `DotNetCloud.Core.Auth`
+- ✓ `GroupManagerService` implemented in `DotNetCloud.Core.Auth`
+- ✓ DI registration added in `AuthServiceExtensions`
+- ✓ Focused Core.Auth capability tests added for group queries, CRUD, and membership flows
+- ✓ Validation run completed: filtered `DotNetCloud.Core.Auth.Tests` execution passed (15 tests)
+
+**Notes:** This completes the first implementation slice for the shared file folder plan by wiring the missing group capability layer on top of the existing Core.Data group entities. Remaining work now moves to protected `All Users` semantics, admin APIs/UI, and Files-side integration.
+
+#### Step: shared-file-folders-2 — Built-In All Users Group Semantics
+**Status:** completed ✅
+**Deliverables:**
+- ✓ Extend the group model with protected built-in semantics
+- ✓ Add creation/backfill logic for one `All Users` group per organization
+- ✓ Route built-in membership through active organization membership resolution
+- ✓ Prevent rename, delete, and manual membership mutation for the built-in group
+- ✓ Add EF migration and focused auth/data test coverage for the built-in group flow
+
+**Notes:** The shared-folder workstream now has a protected built-in `All Users` group with initializer backfill, migration support, and implicit membership based on active organization membership rather than explicit `GroupMembers` rows. Focused validation passed again after the schema update via `dotnet test DotNetCloud.CI.slnf --filter "FullyQualifiedName~GroupDirectoryServiceTests|FullyQualifiedName~GroupManagerServiceTests|FullyQualifiedName~DbInitializerTests" --no-restore` (59 tests).
+
+#### Step: shared-file-folders-3 — Admin Group Management Surfaces
+**Status:** completed ✅
+**Deliverables:**
+- ✓ Add group DTOs aligned with existing team patterns
+- ✓ Add admin REST endpoints for group CRUD and membership management
+- ✓ Add dedicated admin UI for group management
+
+**Notes:** Admin-facing group management is now available end-to-end. The core server exposes admin CRUD and membership endpoints through `GroupsController`, the web client has a dedicated `/admin/groups` page plus navigation entry, and the UI keeps the built-in `All Users` group read-only so it matches the implicit-membership server rules. Focused validation passed again via `dotnet test DotNetCloud.CI.slnf --filter "FullyQualifiedName~GroupsControllerTests" --no-restore` (8 tests), which also recompiled the touched UI projects.
+
+#### Step: shared-file-folders-4 — Files Share Model Hardening
+**Status:** completed ✅
+**Deliverables:**
+- ✓ Honor direct user, team, group, and inherited parent-folder shares in Files permissions
+- ✓ Add membership resolution abstraction inside Files
+- ✓ Keep `Shared With Me` scoped to explicit user shares only
+- ✓ Add separate listing path for mounted team/group-accessible content
+
+**Notes:** Files share-model hardening is now complete. Files permission evaluation resolves direct user shares plus team/group shares across inherited parent-folder paths, Core membership lookups stay behind `IShareAccessMembershipResolver`, `GetSharedWithMeAsync` is explicitly `ShareType.User` only, and Files now exposes a separate `ListMountedAccessAsync` path plus `GET /api/v1/files/mounted-access` for non-owned team/group-accessible nodes that will feed the future `_DotNetCloud` experience. `FileShareDto` now carries `SharedWithGroupId` so group share API responses match the supported share model. Focused validation passed via `dotnet test DotNetCloud.CI.slnf --filter "FullyQualifiedName~FileServiceTests|FullyQualifiedName~ShareServiceTests|FullyQualifiedName~ControllerSecurityAuditTests|FullyQualifiedName~FileDtoTests" --no-restore` (121 tests).
+
+#### Step: shared-file-folders-5 — Admin Shared Folder Virtualization
+**Status:** in-progress
+**Deliverables:**
+- ✓ Add admin shared-folder definitions and path validation model
+- ☐ Add `_DotNetCloud` virtual root composition with mounted folder browsing
+- ☐ Enforce read-only behavior for mounted paths
+
+**Notes:** The first 4.3 foundation slice is in place. Files now has persisted `AdminSharedFolderDefinition` and `AdminSharedFolderGrant` entities/configuration, `AdminSharedFolderOptions` with a configured root path, a generated `AddAdminSharedFolders` EF migration, and a new `IAdminSharedFolderPathValidator` implementation that canonicalizes candidate paths, resolves relative paths under the configured root, verifies directory existence, and rejects duplicate or overlapping registrations. Focused validation passed via `dotnet test DotNetCloud.CI.slnf --filter "FullyQualifiedName~AdminSharedFolderPathValidatorTests" --no-restore` (4 tests). Next focus inside this step is admin CRUD and group-assignment API/UI work on top of the new model, followed by `_DotNetCloud` browse composition.
+
+#### Step: shared-file-folders-6 — Search And Media Integration
+**Status:** pending
+**Deliverables:**
+- ☐ Add group-aware search indexing and navigation for mounted shared folders
+- ☐ Add per-user shared-folder scan-source selection for Music, Photos, and Video
+- ☐ Keep sync clients ignoring `_DotNetCloud` admin shares in v1

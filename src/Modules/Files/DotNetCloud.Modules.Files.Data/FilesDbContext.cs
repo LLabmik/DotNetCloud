@@ -44,6 +44,12 @@ public class FilesDbContext : DbContext
     /// <summary>File and folder shares.</summary>
     public DbSet<Models.FileShare> FileShares => Set<Models.FileShare>();
 
+    /// <summary>Admin-managed shared-folder definitions.</summary>
+    public DbSet<AdminSharedFolderDefinition> AdminSharedFolders => Set<AdminSharedFolderDefinition>();
+
+    /// <summary>Granted groups for admin-managed shared folders.</summary>
+    public DbSet<AdminSharedFolderGrant> AdminSharedFolderGrants => Set<AdminSharedFolderGrant>();
+
     /// <summary>Tags applied to files and folders.</summary>
     public DbSet<FileTag> FileTags => Set<FileTag>();
 
@@ -75,6 +81,8 @@ public class FilesDbContext : DbContext
         modelBuilder.ApplyConfiguration(new FileChunkConfiguration());
         modelBuilder.ApplyConfiguration(new FileVersionChunkConfiguration());
         modelBuilder.ApplyConfiguration(new FileShareConfiguration());
+        modelBuilder.ApplyConfiguration(new AdminSharedFolderDefinitionConfiguration());
+        modelBuilder.ApplyConfiguration(new AdminSharedFolderGrantConfiguration());
         modelBuilder.ApplyConfiguration(new FileTagConfiguration());
         modelBuilder.ApplyConfiguration(new FileCommentConfiguration());
         modelBuilder.ApplyConfiguration(new FileQuotaConfiguration());

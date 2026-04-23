@@ -4,7 +4,9 @@
 
 > Scope: Core group administration, admin shared-folder definitions, Files virtual-folder composition, nested mounted-directory browsing, search indexing and visibility, media-module scan source selection, APIs, Blazor UI, validation, and rollout.
 
-> Status: Planned
+> Status: In Progress
+
+> Progress: Workstreams 4.1 and 4.2 are complete, and 4.3 is now in progress. Files now has persisted admin shared-folder definition/group-grant entities, the matching `AddAdminSharedFolders` migration, and a rooted path validator that canonicalizes candidate source paths, verifies directory existence, and rejects duplicate or overlapping registrations beneath the configured admin shared-folder root. Next focus: admin CRUD/group-assignment surfaces on top of that model, then `_DotNetCloud` browse composition.
 
 ---
 

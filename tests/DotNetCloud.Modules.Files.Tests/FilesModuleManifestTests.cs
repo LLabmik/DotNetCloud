@@ -55,9 +55,11 @@ public class FilesModuleManifestTests
         var capabilities = _manifest.RequiredCapabilities;
 
         Assert.IsNotNull(capabilities);
-        Assert.AreEqual(4, capabilities.Count);
+        Assert.AreEqual(6, capabilities.Count);
         CollectionAssert.Contains(capabilities.ToList(), "INotificationService");
         CollectionAssert.Contains(capabilities.ToList(), "IStorageProvider");
+        CollectionAssert.Contains(capabilities.ToList(), "ITeamDirectory");
+        CollectionAssert.Contains(capabilities.ToList(), "IGroupDirectory");
         CollectionAssert.Contains(capabilities.ToList(), "IUserDirectory");
         CollectionAssert.Contains(capabilities.ToList(), "ICurrentUserContext");
     }

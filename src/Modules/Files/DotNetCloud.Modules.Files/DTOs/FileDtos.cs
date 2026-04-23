@@ -214,6 +214,9 @@ public sealed record FileShareDto
     /// <summary>Target team ID (for team shares).</summary>
     public Guid? SharedWithTeamId { get; init; }
 
+    /// <summary>Target group ID (for group shares).</summary>
+    public Guid? SharedWithGroupId { get; init; }
+
     /// <summary>Permission level.</summary>
     public required string Permission { get; init; }
 

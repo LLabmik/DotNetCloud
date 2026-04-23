@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Moq;
 using DotNetCloud.Core.Data.Context;
+using DotNetCloud.Core.Data.Entities.Organizations;
 using DotNetCloud.Core.Data.Initialization;
 using DotNetCloud.Core.Data.Naming;
 
@@ -118,6 +119,11 @@ public class DbInitializerTests
         var maxUploadSize = settings.FirstOrDefault(s => s.Module == "dotnetcloud.files" && s.Key == "MaxUploadSizeBytes");
         Assert.IsNotNull(maxUploadSize, "Should include MaxUploadSizeBytes setting");
         Assert.AreEqual("104857600", maxUploadSize.Value, "MaxUploadSizeBytes should be 100 MB");
+
+        var groups = await _context.Groups.ToListAsync();
+        Assert.AreEqual(1, groups.Count, "Should seed one built-in group for the default organization");
+        Assert.AreEqual(Group.AllUsersGroupName, groups[0].Name, "Built-in group should use the reserved All Users name");
+        Assert.IsTrue(groups[0].IsAllUsersGroup, "Built-in group should be marked as the implicit all-users group");
     }
 
     [TestMethod]
@@ -139,12 +145,33 @@ public class DbInitializerTests
         var settingsCount = settings.Count;
         Assert.IsTrue(settingsCount >= 20, "Should have seeded settings");
 
+        var allUsersGroupCount = await _context.Groups.CountAsync(g => g.IsAllUsersGroup);
+        Assert.AreEqual(1, allUsersGroupCount, "Initializer should remain idempotent for the built-in All Users group");
+
         // Verify no duplicate codes/keys
         var distinctPermissionCodes = permissions.Select(p => p.Code).Distinct().Count();
         Assert.AreEqual(permissionCount, distinctPermissionCodes, "All permission codes should be unique");
 
         var distinctSettingKeys = settings.Select(s => new { s.Module, s.Key }).Distinct().Count();
         Assert.AreEqual(settingsCount, distinctSettingKeys, "All setting keys should be unique per module");
+    }
+
+    [TestMethod]
+    public async Task InitializeAsync_WithExistingOrganization_BackfillsBuiltInAllUsersGroup()
+    {
+        _context.Organizations.Add(new Organization
+        {
+            Id = Guid.NewGuid(),
+            Name = "Existing Org",
+            CreatedAt = DateTime.UtcNow
+        });
+        await _context.SaveChangesAsync();
+
+        await _initializer.InitializeAsync();
+
+        var groups = await _context.Groups.Where(g => g.IsAllUsersGroup).ToListAsync();
+        Assert.AreEqual(1, groups.Count, "Existing organizations should receive a built-in All Users group during initialization");
+        Assert.AreEqual(Group.AllUsersGroupName, groups[0].Name);
     }
 
     [TestMethod]

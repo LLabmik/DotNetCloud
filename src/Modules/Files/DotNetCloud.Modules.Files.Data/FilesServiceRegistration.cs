@@ -34,6 +34,7 @@ public static class FilesServiceRegistration
             services.Configure<CollaboraOptions>(configuration.GetSection(CollaboraOptions.SectionName));
             services.Configure<FileUploadOptions>(configuration.GetSection(FileUploadOptions.SectionName));
             services.Configure<FileSystemOptions>(configuration.GetSection(FileSystemOptions.SectionName));
+            services.Configure<AdminSharedFolderOptions>(configuration.GetSection(AdminSharedFolderOptions.SectionName));
         }
         else
         {
@@ -43,12 +44,15 @@ public static class FilesServiceRegistration
             services.Configure<CollaboraOptions>(_ => { }); // use defaults
             services.Configure<FileUploadOptions>(_ => { }); // use defaults
             services.Configure<FileSystemOptions>(_ => { }); // use defaults
+            services.Configure<AdminSharedFolderOptions>(_ => { }); // use defaults
         }
 
         // File scanner (NoOp until a real scanner such as ClamAV is integrated)
         services.AddSingleton<IFileScanner, NoOpFileScanner>();
 
         // Database-backed services (Scoped)
+        services.AddScoped<IShareAccessMembershipResolver, CapabilityShareAccessMembershipResolver>();
+        services.AddScoped<IAdminSharedFolderPathValidator, AdminSharedFolderPathValidator>();
         services.AddScoped<IPermissionService, PermissionService>();
         services.AddScoped<IFileService, FileService>();
         services.AddScoped<IChunkedUploadService, ChunkedUploadService>();

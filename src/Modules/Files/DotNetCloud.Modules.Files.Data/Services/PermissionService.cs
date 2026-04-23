@@ -13,13 +13,17 @@ namespace DotNetCloud.Modules.Files.Data.Services;
 internal sealed class PermissionService : IPermissionService
 {
     private readonly FilesDbContext _db;
+    private readonly IShareAccessMembershipResolver? _membershipResolver;
 
     /// <summary>
     /// Initializes a new instance of <see cref="PermissionService"/>.
     /// </summary>
-    public PermissionService(FilesDbContext db)
+    public PermissionService(
+        FilesDbContext db,
+        IShareAccessMembershipResolver? membershipResolver = null)
     {
         _db = db;
+        _membershipResolver = membershipResolver;
     }
 
     /// <inheritdoc />
@@ -51,8 +55,14 @@ internal sealed class PermissionService : IPermissionService
         idsToCheck.Add(nodeId);
 
         var now = DateTime.UtcNow;
+        var memberships = _membershipResolver is null
+            ? ShareAccessMembership.Empty
+            : await _membershipResolver.ResolveAsync(caller.UserId, cancellationToken);
+        var teamIds = memberships.TeamIds.ToArray();
+        var groupIds = memberships.GroupIds.ToArray();
 
-        // Find the most permissive active, non-public-link share for this user.
+        // Find the most permissive active, non-public-link share for this user,
+        // their teams, or their groups.
         // Permission is stored as a string in the database, so we fetch matching
         // share permission strings and resolve the max in memory.
         var permissions = await _db.FileShares
@@ -60,7 +70,11 @@ internal sealed class PermissionService : IPermissionService
             .Where(s =>
                 idsToCheck.Contains(s.FileNodeId)
                 && s.ShareType != ShareType.PublicLink
-                && s.SharedWithUserId == caller.UserId
+                && (
+                    (s.ShareType == ShareType.User && s.SharedWithUserId == caller.UserId)
+                    || (teamIds.Length > 0 && s.ShareType == ShareType.Team && s.SharedWithTeamId.HasValue && teamIds.Contains(s.SharedWithTeamId.Value))
+                    || (groupIds.Length > 0 && s.ShareType == ShareType.Group && s.SharedWithGroupId.HasValue && groupIds.Contains(s.SharedWithGroupId.Value))
+                )
                 && (s.ExpiresAt == null || s.ExpiresAt > now))
             .Select(s => s.Permission)
             .ToListAsync(cancellationToken);
