@@ -46,6 +46,21 @@ public sealed class FileNodeViewModel
 
     /// <summary>Number of comments on this node (0 means no comments).</summary>
     public int CommentCount { get; set; }
+
+    /// <summary>True when the node is synthetic rather than a persisted FileNode.</summary>
+    public bool IsVirtual { get; init; }
+
+    /// <summary>True when the node should be treated as read-only in the UI.</summary>
+    public bool IsReadOnly { get; init; }
+
+    /// <summary>Optional synthetic source kind.</summary>
+    public string? VirtualSourceKind { get; init; }
+
+    /// <summary>Optional synthetic source identifier.</summary>
+    public Guid? VirtualSourceId { get; init; }
+
+    /// <summary>Optional relative path within a synthetic source.</summary>
+    public string? VirtualRelativePath { get; init; }
 }
 
 /// <summary>

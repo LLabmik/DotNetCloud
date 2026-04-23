@@ -21,7 +21,10 @@
                 {
                     <button class="btn btn-sm" @onclick="Share" title="Share this file">Share</button>
                 }
-                <button class="btn btn-sm" @onclick="() => OnComments.InvokeAsync(DisplayNode)" title="Comments">💬 Comments</button>
+                @if (ShowCommentsButton)
+                {
+                    <button class="btn btn-sm" @onclick="() => OnComments.InvokeAsync(DisplayNode)" title="Comments">💬 Comments</button>
+                }
                 <button class="btn btn-sm" @onclick="Download" title="Download file">Download</button>
                 <button class="btn-icon" @onclick="OnClose" title="Close preview (Esc)">✕</button>
             </div>
@@ -78,15 +81,18 @@
                 <div class="preview-text-container">
                     <div class="preview-text-toolbar">
                         <span class="preview-text-lang">Markdown</span>
-                        @if (_isEditingText)
+                        @if (!DisplayNode.IsReadOnly && _isEditingText)
                         {
                             <button class="btn btn-sm btn-primary preview-text-save-btn" @onclick="SaveTextAsync" disabled="@_isSavingText">
                                 @(_isSavingText ? "Saving…" : "Save")
                             </button>
                         }
-                        <button class="btn btn-sm preview-text-edit-btn" @onclick="ToggleTextEdit">
-                            @(_isEditingText ? "Cancel" : "Edit")
-                        </button>
+                        @if (!DisplayNode.IsReadOnly)
+                        {
+                            <button class="btn btn-sm preview-text-edit-btn" @onclick="ToggleTextEdit">
+                                @(_isEditingText ? "Cancel" : "Edit")
+                            </button>
+                        }
                     </div>
                     @if (_isLoadingText)
                     {
@@ -125,15 +131,18 @@
                         <span class="preview-text-lang">
                             @(IsMarkdown ? "Markdown" : IsCode ? GetCodeLanguage(DisplayNode.Name) : "Plain text")
                         </span>
-                        @if (_isEditingText)
+                        @if (!DisplayNode.IsReadOnly && _isEditingText)
                         {
                             <button class="btn btn-sm btn-primary preview-text-save-btn" @onclick="SaveTextAsync" disabled="@_isSavingText">
                                 @(_isSavingText ? "Saving…" : "Save")
                             </button>
                         }
-                        <button class="btn btn-sm preview-text-edit-btn" @onclick="ToggleTextEdit">
-                            @(_isEditingText ? "Cancel" : "Edit")
-                        </button>
+                        @if (!DisplayNode.IsReadOnly)
+                        {
+                            <button class="btn btn-sm preview-text-edit-btn" @onclick="ToggleTextEdit">
+                                @(_isEditingText ? "Cancel" : "Edit")
+                            </button>
+                        }
                     </div>
                     @if (_isLoadingText)
                     {
@@ -158,10 +167,18 @@
                 <div class="preview-document">
                     <span class="preview-doc-icon">@GetFileIcon(DisplayNode.MimeType)</span>
                     <p class="preview-doc-name">@DisplayNode.Name</p>
-                    <p class="text-muted">Open in the document editor to view or edit this file.</p>
-                    <button class="btn btn-primary" @onclick="OpenInCollabora">
-                        Open in Editor
-                    </button>
+                    @if (DisplayNode.IsReadOnly)
+                    {
+                        <p class="text-muted">This shared file is read-only in the mounted-folder view. Download it to inspect the content.</p>
+                        <button class="btn btn-primary" @onclick="Download">Download File</button>
+                    }
+                    else
+                    {
+                        <p class="text-muted">Open in the document editor to view or edit this file.</p>
+                        <button class="btn btn-primary" @onclick="OpenInCollabora">
+                            Open in Editor
+                        </button>
+                    }
                 </div>
             }
             else

@@ -163,12 +163,15 @@ else
     @if (!_selectionMode)
     {
         <div class="files-actions">
-            <button class="btn btn-primary btn-sm" @onclick="ShowCreateFolderDialog">New Folder</button>
-            @if (CanCreateNewFile)
+            @if (!IsCurrentFolderReadOnly)
             {
-                <button class="btn btn-primary btn-sm" @onclick="ShowCreateDocumentDialog">New File</button>
+                <button class="btn btn-primary btn-sm" @onclick="ShowCreateFolderDialog">New Folder</button>
+                @if (CanCreateNewFile)
+                {
+                    <button class="btn btn-primary btn-sm" @onclick="ShowCreateDocumentDialog">New File</button>
+                }
+                <button class="btn btn-primary btn-sm" @onclick="ShowUploadDialog">Upload</button>
             }
-            <button class="btn btn-primary btn-sm" @onclick="ShowUploadDialog">Upload</button>
         </div>
     }
     else
@@ -267,16 +270,24 @@ else
     else if (Nodes.Count == 0)
     {
         <div class="empty-state" role="status">
-            <p class="empty-state-title">No files yet — upload or create a folder</p>
-            <p class="text-muted empty-state-hint">You can also drag and drop files anywhere on this page.</p>
-            <div class="empty-state-actions">
-                <button class="btn btn-primary btn-sm" @onclick="ShowCreateFolderDialog">New Folder</button>
-                @if (CanCreateNewFile)
-                {
-                    <button class="btn btn-primary btn-sm" @onclick="ShowCreateDocumentDialog">New File</button>
-                }
-                <button class="btn btn-primary btn-sm" @onclick="ShowUploadDialog">Upload</button>
-            </div>
+            @if (IsCurrentFolderReadOnly)
+            {
+                <p class="empty-state-title">This shared folder is empty</p>
+                <p class="text-muted empty-state-hint">Mounted shared folders are exposed read-only in this first delivery.</p>
+            }
+            else
+            {
+                <p class="empty-state-title">No files yet — upload or create a folder</p>
+                <p class="text-muted empty-state-hint">You can also drag and drop files anywhere on this page.</p>
+                <div class="empty-state-actions">
+                    <button class="btn btn-primary btn-sm" @onclick="ShowCreateFolderDialog">New Folder</button>
+                    @if (CanCreateNewFile)
+                    {
+                        <button class="btn btn-primary btn-sm" @onclick="ShowCreateDocumentDialog">New File</button>
+                    }
+                    <button class="btn btn-primary btn-sm" @onclick="ShowUploadDialog">Upload</button>
+                </div>
+            }
         </div>
     }
     else
@@ -389,13 +400,16 @@ else
                     @if (!_selectionMode)
                     {
                         <div class="file-actions">
-                            <button class="btn-icon" @onclick:stopPropagation
-                                    @onclick="() => ToggleFavorite(node.Id)"
-                                    title="@(node.IsFavorite ? "Unfavorite" : "Favorite")">
-                                @(node.IsFavorite ? "★" : "☆")
-                            </button>
-                            <button class="btn-icon" @onclick:stopPropagation
-                                    @onclick="() => ShowShareDialogAsync(node)" title="Share" aria-label="Share">🔗</button>
+                            @if (!node.IsVirtual)
+                            {
+                                <button class="btn-icon" @onclick:stopPropagation
+                                        @onclick="() => ToggleFavorite(node.Id)"
+                                        title="@(node.IsFavorite ? "Unfavorite" : "Favorite")">
+                                    @(node.IsFavorite ? "★" : "☆")
+                                </button>
+                                <button class="btn-icon" @onclick:stopPropagation
+                                        @onclick="() => ShowShareDialogAsync(node)" title="Share" aria-label="Share">🔗</button>
+                            }
                         </div>
                     }
                 </div>
@@ -433,6 +447,7 @@ else
         Y="_contextMenuY"
         NodeId="_contextMenuNodeId"
         NodeType="_contextMenuNodeType"
+        IsReadOnly="_contextMenuNodeIsReadOnly"
         OnOpen="HandleContextOpen"
         OnRename="HandleContextRename"
         OnMove="HandleContextMove"
@@ -506,6 +521,8 @@ else
         Node="@PreviewNode"
         AllNodes="SortedNodes"
         ApiBaseUrl="@ApiBaseUrl"
+        ShowCommentsButton="@(!PreviewNode.IsReadOnly)"
+        ShowShareButton="@(!PreviewNode.IsVirtual)"
         OnClose="HidePreview"
         OnShare="HandlePreviewShare"
         OnDownload="HandlePreviewDownload"

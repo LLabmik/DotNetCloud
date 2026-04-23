@@ -31,6 +31,8 @@ internal sealed class CommentService : ICommentService
         ArgumentNullException.ThrowIfNull(caller);
         ArgumentException.ThrowIfNullOrWhiteSpace(content);
 
+        await MountedWriteAccessGuard.EnsureWritableNodeAsync(_db, fileNodeId, cancellationToken);
+
         _ = await _db.FileNodes.FindAsync([fileNodeId], cancellationToken)
             ?? throw new NotFoundException("FileNode", fileNodeId);
 
@@ -71,6 +73,8 @@ internal sealed class CommentService : ICommentService
             .FirstOrDefaultAsync(c => c.Id == commentId, cancellationToken)
             ?? throw new NotFoundException("FileComment", commentId);
 
+        await MountedWriteAccessGuard.EnsureWritableNodeAsync(_db, comment.FileNodeId, cancellationToken);
+
         await _permissions.RequirePermissionAsync(comment.FileNodeId, caller, SharePermission.ReadWrite, cancellationToken);
 
         if (comment.CreatedByUserId != caller.UserId && caller.Type != CallerType.System)
@@ -95,6 +99,8 @@ internal sealed class CommentService : ICommentService
         var comment = await _db.FileComments
             .FirstOrDefaultAsync(c => c.Id == commentId, cancellationToken)
             ?? throw new NotFoundException("FileComment", commentId);
+
+        await MountedWriteAccessGuard.EnsureWritableNodeAsync(_db, comment.FileNodeId, cancellationToken);
 
         await _permissions.RequirePermissionAsync(comment.FileNodeId, caller, SharePermission.ReadWrite, cancellationToken);
 

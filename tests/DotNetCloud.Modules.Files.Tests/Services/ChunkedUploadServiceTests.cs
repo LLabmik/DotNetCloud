@@ -54,6 +54,11 @@ public class ChunkedUploadServiceTests
 
     private static CallerContext UserCaller(Guid userId) => new(userId, Array.Empty<string>(), CallerType.User);
 
+    private static Guid RegisterMountedFolder(Guid sharedFolderId)
+    {
+        return VirtualMountedNodeRegistry.GetAdminSharedFolderRootId(sharedFolderId);
+    }
+
     [TestMethod]
     public async Task InitiateUploadAsync_WithDedup_IdentifiesExistingChunks()
     {
@@ -96,6 +101,32 @@ public class ChunkedUploadServiceTests
             {
                 FileName = "big.bin",
                 TotalSize = 999999999,
+                ChunkHashes = ["hash1"]
+            }, UserCaller(Guid.NewGuid())));
+    }
+
+    [TestMethod]
+    public async Task InitiateUploadAsync_MountedAdminSharedFolderParent_ThrowsInvalidOperationException()
+    {
+        using var db = CreateContext();
+        var sharedFolderId = Guid.NewGuid();
+        db.AdminSharedFolders.Add(new AdminSharedFolderDefinition
+        {
+            Id = sharedFolderId,
+            DisplayName = "Mounted",
+            SourcePath = Path.GetTempPath(),
+            CreatedByUserId = Guid.NewGuid(),
+        });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+
+        await Assert.ThrowsExactlyAsync<Core.Errors.InvalidOperationException>(
+            () => service.InitiateUploadAsync(new InitiateUploadDto
+            {
+                FileName = "blocked.txt",
+                TotalSize = 10,
+                ParentId = RegisterMountedFolder(sharedFolderId),
                 ChunkHashes = ["hash1"]
             }, UserCaller(Guid.NewGuid())));
     }

@@ -35,6 +35,39 @@ public class FileServiceTests
 
     private static CallerContext UserCaller(Guid userId) => new(userId, Array.Empty<string>(), CallerType.User);
 
+    private static async Task<(FileService Service, Guid AdminFolderId, Guid MountedFileId)> CreateMountedAdminFolderScenarioAsync(
+        FilesDbContext db,
+        Guid callerUserId,
+        string tempPath)
+    {
+        var ownerId = Guid.NewGuid();
+        var groupId = Guid.NewGuid();
+
+        Directory.CreateDirectory(tempPath);
+        await File.WriteAllTextAsync(Path.Combine(tempPath, "readme.txt"), "mounted-content");
+
+        db.AdminSharedFolders.Add(new AdminSharedFolderDefinition
+        {
+            DisplayName = "Read Only Share",
+            SourcePath = tempPath,
+            CreatedByUserId = ownerId,
+            Grants = [new AdminSharedFolderGrant { GroupId = groupId }],
+        });
+        await db.SaveChangesAsync();
+
+        var membershipResolverMock = new Mock<IShareAccessMembershipResolver>();
+        membershipResolverMock
+            .Setup(resolver => resolver.ResolveAsync(callerUserId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ShareAccessMembership { GroupIds = [groupId] });
+
+        var service = CreateService(db, shareAccessMembershipResolver: membershipResolverMock.Object);
+        var dotNetCloudRoot = (await service.ListRootAsync(UserCaller(callerUserId))).First(node => node.Name == "_DotNetCloud");
+        var adminFolder = (await service.ListChildrenAsync(dotNetCloudRoot.Id, UserCaller(callerUserId))).First(node => node.Name == "Read Only Share");
+        var mountedFile = (await service.ListChildrenAsync(adminFolder.Id, UserCaller(callerUserId))).First(node => node.Name == "readme.txt");
+
+        return (service, adminFolder.Id, mountedFile.Id);
+    }
+
     [TestMethod]
     public async Task CreateFolderAsync_AtRoot_CreatesSuccessfully()
     {
@@ -180,9 +213,10 @@ public class FileServiceTests
         var service = CreateService(db);
         var roots = await service.ListRootAsync(UserCaller(userId));
 
-        Assert.AreEqual(1, roots.Count);
-        Assert.AreEqual("report.pdf", roots[0].Name);
-        Assert.AreEqual(2, roots[0].Tags.Count);
+        Assert.AreEqual(2, roots.Count);
+        Assert.AreEqual("_DotNetCloud", roots[0].Name);
+        Assert.AreEqual("report.pdf", roots[1].Name);
+        Assert.AreEqual(2, roots[1].Tags.Count);
     }
 
     [TestMethod]
@@ -230,6 +264,214 @@ public class FileServiceTests
             new[] { "Group File.txt", "Shared Twice.txt", "Team Folder" },
             result.Select(node => node.Name).ToArray());
         Assert.AreEqual(3, result.Count);
+    }
+
+    [TestMethod]
+    public async Task ListRootAsync_IncludesDotNetCloudVirtualFolder()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        db.FileNodes.Add(new FileNode { Name = "Documents", NodeType = FileNodeType.Folder, OwnerId = userId });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var roots = await service.ListRootAsync(UserCaller(userId));
+
+        Assert.AreEqual("_DotNetCloud", roots[0].Name);
+        Assert.IsTrue(roots[0].IsVirtual);
+        Assert.IsTrue(roots[0].IsReadOnly);
+        Assert.AreEqual("Documents", roots[1].Name);
+    }
+
+    [TestMethod]
+    public async Task ListChildrenAsync_DotNetCloudRoot_ReturnsSharedWithMeAndAccessibleAdminFolders()
+    {
+        using var db = CreateContext();
+        var callerUserId = Guid.NewGuid();
+        var ownerId = Guid.NewGuid();
+        var groupId = Guid.NewGuid();
+        var tempPath = Path.Combine(Path.GetTempPath(), $"dnc-shared-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempPath);
+
+        try
+        {
+            db.AdminSharedFolders.Add(new AdminSharedFolderDefinition
+            {
+                DisplayName = "Design Assets",
+                SourcePath = tempPath,
+                CreatedByUserId = ownerId,
+                Grants = [new AdminSharedFolderGrant { GroupId = groupId }],
+            });
+
+            var mountedNode = new FileNode { Name = "Team Folder", NodeType = FileNodeType.Folder, OwnerId = ownerId };
+            db.FileNodes.Add(mountedNode);
+            db.FileShares.Add(new FilesFileShare
+            {
+                FileNodeId = mountedNode.Id,
+                ShareType = ShareType.Group,
+                SharedWithGroupId = groupId,
+                CreatedByUserId = ownerId,
+            });
+
+            await db.SaveChangesAsync();
+
+            var membershipResolverMock = new Mock<IShareAccessMembershipResolver>();
+            membershipResolverMock
+                .Setup(resolver => resolver.ResolveAsync(callerUserId, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new ShareAccessMembership { GroupIds = [groupId] });
+
+            var service = CreateService(db, shareAccessMembershipResolver: membershipResolverMock.Object);
+            var root = (await service.ListRootAsync(UserCaller(callerUserId))).First(node => node.Name == "_DotNetCloud");
+            var children = await service.ListChildrenAsync(root.Id, UserCaller(callerUserId));
+
+            CollectionAssert.AreEquivalent(
+                new[] { "Shared With Me", "Design Assets" },
+                children.Select(node => node.Name).ToArray());
+        }
+        finally
+        {
+            Directory.Delete(tempPath, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public async Task ListChildrenAsync_AdminSharedFolderVirtualNode_PreservesNestedFilesystemHierarchy()
+    {
+        using var db = CreateContext();
+        var callerUserId = Guid.NewGuid();
+        var ownerId = Guid.NewGuid();
+        var groupId = Guid.NewGuid();
+        var tempPath = Path.Combine(Path.GetTempPath(), $"dnc-shared-{Guid.NewGuid():N}");
+        var nestedFolderPath = Path.Combine(tempPath, "Albums");
+
+        Directory.CreateDirectory(nestedFolderPath);
+        await File.WriteAllTextAsync(Path.Combine(tempPath, "cover.jpg"), "image-bytes");
+        await File.WriteAllTextAsync(Path.Combine(nestedFolderPath, "notes.txt"), "hello");
+
+        try
+        {
+            db.AdminSharedFolders.Add(new AdminSharedFolderDefinition
+            {
+                DisplayName = "Media Library",
+                SourcePath = tempPath,
+                CreatedByUserId = ownerId,
+                Grants = [new AdminSharedFolderGrant { GroupId = groupId }],
+            });
+            await db.SaveChangesAsync();
+
+            var membershipResolverMock = new Mock<IShareAccessMembershipResolver>();
+            membershipResolverMock
+                .Setup(resolver => resolver.ResolveAsync(callerUserId, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new ShareAccessMembership { GroupIds = [groupId] });
+
+            var service = CreateService(db, shareAccessMembershipResolver: membershipResolverMock.Object);
+            var dotNetCloudRoot = (await service.ListRootAsync(UserCaller(callerUserId))).First(node => node.Name == "_DotNetCloud");
+            var dotNetCloudChildren = await service.ListChildrenAsync(dotNetCloudRoot.Id, UserCaller(callerUserId));
+            var adminFolder = dotNetCloudChildren.First(node => node.Name == "Media Library");
+
+            var firstLevelChildren = await service.ListChildrenAsync(adminFolder.Id, UserCaller(callerUserId));
+            var nestedFolder = firstLevelChildren.First(node => node.Name == "Albums");
+            var nestedFile = firstLevelChildren.First(node => node.Name == "cover.jpg");
+
+            Assert.IsTrue(nestedFolder.IsVirtual);
+            Assert.IsTrue(nestedFolder.IsReadOnly);
+            Assert.AreEqual("Albums", nestedFolder.Name);
+            Assert.AreEqual("cover.jpg", nestedFile.Name);
+            Assert.AreEqual("image/jpeg", nestedFile.MimeType);
+
+            var nestedChildren = await service.ListChildrenAsync(nestedFolder.Id, UserCaller(callerUserId));
+            Assert.AreEqual(1, nestedChildren.Count);
+            Assert.AreEqual("notes.txt", nestedChildren[0].Name);
+            Assert.AreEqual("Albums/notes.txt", nestedChildren[0].VirtualRelativePath);
+        }
+        finally
+        {
+            Directory.Delete(tempPath, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public async Task CreateFolderAsync_MountedAdminSharedFolderParent_ThrowsInvalidOperationException()
+    {
+        using var db = CreateContext();
+        var callerUserId = Guid.NewGuid();
+        var tempPath = Path.Combine(Path.GetTempPath(), $"dnc-mounted-create-{Guid.NewGuid():N}");
+
+        try
+        {
+            var (service, adminFolderId, _) = await CreateMountedAdminFolderScenarioAsync(db, callerUserId, tempPath);
+
+            await Assert.ThrowsExactlyAsync<Core.Errors.InvalidOperationException>(
+                () => service.CreateFolderAsync(new CreateFolderDto { Name = "Child", ParentId = adminFolderId }, UserCaller(callerUserId)));
+        }
+        finally
+        {
+            Directory.Delete(tempPath, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public async Task RenameAsync_MountedAdminSharedFile_ThrowsInvalidOperationException()
+    {
+        using var db = CreateContext();
+        var callerUserId = Guid.NewGuid();
+        var tempPath = Path.Combine(Path.GetTempPath(), $"dnc-mounted-rename-{Guid.NewGuid():N}");
+
+        try
+        {
+            var (service, _, mountedFileId) = await CreateMountedAdminFolderScenarioAsync(db, callerUserId, tempPath);
+
+            await Assert.ThrowsExactlyAsync<Core.Errors.InvalidOperationException>(
+                () => service.RenameAsync(mountedFileId, new RenameNodeDto { Name = "renamed.txt" }, UserCaller(callerUserId)));
+        }
+        finally
+        {
+            Directory.Delete(tempPath, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public async Task MoveAsync_TargetMountedAdminSharedFolder_ThrowsInvalidOperationException()
+    {
+        using var db = CreateContext();
+        var callerUserId = Guid.NewGuid();
+        var tempPath = Path.Combine(Path.GetTempPath(), $"dnc-mounted-move-{Guid.NewGuid():N}");
+
+        try
+        {
+            var (service, adminFolderId, _) = await CreateMountedAdminFolderScenarioAsync(db, callerUserId, tempPath);
+            var ownedFile = new FileNode { Name = "local.txt", NodeType = FileNodeType.File, OwnerId = callerUserId };
+            ownedFile.MaterializedPath = $"/{ownedFile.Id}";
+            db.FileNodes.Add(ownedFile);
+            await db.SaveChangesAsync();
+
+            await Assert.ThrowsExactlyAsync<Core.Errors.InvalidOperationException>(
+                () => service.MoveAsync(ownedFile.Id, new MoveNodeDto { TargetParentId = adminFolderId }, UserCaller(callerUserId)));
+        }
+        finally
+        {
+            Directory.Delete(tempPath, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public async Task DeleteAsync_MountedAdminSharedFile_ThrowsInvalidOperationException()
+    {
+        using var db = CreateContext();
+        var callerUserId = Guid.NewGuid();
+        var tempPath = Path.Combine(Path.GetTempPath(), $"dnc-mounted-delete-{Guid.NewGuid():N}");
+
+        try
+        {
+            var (service, _, mountedFileId) = await CreateMountedAdminFolderScenarioAsync(db, callerUserId, tempPath);
+
+            await Assert.ThrowsExactlyAsync<Core.Errors.InvalidOperationException>(
+                () => service.DeleteAsync(mountedFileId, UserCaller(callerUserId)));
+        }
+        finally
+        {
+            Directory.Delete(tempPath, recursive: true);
+        }
     }
 
     [TestMethod]

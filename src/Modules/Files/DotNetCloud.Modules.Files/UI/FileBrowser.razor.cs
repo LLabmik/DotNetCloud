@@ -174,6 +174,7 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     private double _contextMenuY;
     private Guid _contextMenuNodeId;
     private string _contextMenuNodeType = "File";
+    private bool _contextMenuNodeIsReadOnly;
 
     // Inline rename dialog
     private bool _showRenameDialog;
@@ -193,6 +194,7 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     private List<FileCommentViewModel> _commentItems = [];
     private Guid _currentUserId;
     private string? _lastHandledNav;
+    private bool _currentFolderIsReadOnly;
 
     protected override async Task OnInitializedAsync()
     {
@@ -385,6 +387,7 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     protected bool IsShowDocumentEditor => _showDocumentEditor;
     protected bool IsShowCreateDocument => _showCreateDocument;
     protected bool IsCollaboraAvailable => _isCollaboraAvailable;
+    protected bool IsCurrentFolderReadOnly => _currentFolderIsReadOnly;
     protected bool CanCreateNewFile => _supportedNewFileExtensions.Count > 0;
     protected IReadOnlyList<string> SupportedNewFileExtensions => _supportedNewFileExtensions;
     protected string CustomExtension { get => _customExtension; set => _customExtension = value; }
@@ -804,8 +807,10 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     {
         if (Guid.TryParse(nodeId, out var id))
         {
+            var node = _nodes.FirstOrDefault(candidate => candidate.Id == id);
             _contextMenuNodeId = id;
-            _contextMenuNodeType = nodeType;
+            _contextMenuNodeType = node?.NodeType ?? nodeType;
+            _contextMenuNodeIsReadOnly = node?.IsReadOnly == true;
             _contextMenuX = x;
             _contextMenuY = y;
             _showContextMenu = true;
@@ -825,6 +830,7 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     protected void DismissContextMenu()
     {
         _showContextMenu = false;
+        _contextMenuNodeIsReadOnly = false;
     }
 
     /// <summary>Context menu: Open file or folder.</summary>
@@ -1698,7 +1704,7 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     }
 
     protected bool CanOpenInDocumentEditor(FileNodeViewModel node) =>
-        node.NodeType == "File" && CanOpenInDocumentEditor(node.Name);
+        node.NodeType == "File" && !node.IsReadOnly && CanOpenInDocumentEditor(node.Name);
 
     private bool CanOpenInDocumentEditor(string fileName)
     {
@@ -1901,6 +1907,9 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     private async Task LoadCurrentFolderAsync()
     {
         var caller = await GetCallerContextAsync();
+
+        _currentFolderIsReadOnly = _currentFolderId.HasValue
+            && (await FileService.GetNodeAsync(_currentFolderId.Value, caller))?.IsReadOnly == true;
 
         var nodes = _currentFolderId.HasValue
             ? await FileService.ListChildrenAsync(_currentFolderId.Value, caller)
@@ -2227,7 +2236,12 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
                 Name = t.Name,
                 Color = t.Color,
                 FileCount = 0
-            }).ToList()
+            }).ToList(),
+            IsVirtual = dto.IsVirtual,
+            IsReadOnly = dto.IsReadOnly,
+            VirtualSourceKind = dto.VirtualSourceKind,
+            VirtualSourceId = dto.VirtualSourceId,
+            VirtualRelativePath = dto.VirtualRelativePath,
         };
     }
 

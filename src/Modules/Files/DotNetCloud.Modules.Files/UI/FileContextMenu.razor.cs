@@ -23,6 +23,9 @@ public partial class FileContextMenu : ComponentBase
     /// <summary>Type of the target node ("File" or "Folder").</summary>
     [Parameter] public string NodeType { get; set; } = "File";
 
+    /// <summary>Whether the target node is read-only.</summary>
+    [Parameter] public bool IsReadOnly { get; set; }
+
     /// <summary>Raised when the user selects "Open".</summary>
     [Parameter] public EventCallback<Guid> OnOpen { get; set; }
 

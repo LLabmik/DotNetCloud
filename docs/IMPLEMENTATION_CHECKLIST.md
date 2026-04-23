@@ -3016,7 +3016,8 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Add admin shared-folder definitions and path validation
 - ✓ Add admin shared-folder CRUD API, group assignment, and scan controls
 - ✓ Add admin shared-folder web UI for CRUD, group assignment, and scan actions
-- ☐ Surface virtual `_DotNetCloud` root with mounted shared folders
+- ✓ Surface virtual `_DotNetCloud` root with mounted shared folders
+- ✓ Enforce read-only behavior for mounted shared-folder paths
 - ☐ Add group-aware mounted-folder search indexing and navigation
 - ☐ Add shared-folder media source selection for Music, Photos, and Video
   - ✓ `Guid UserId` FK

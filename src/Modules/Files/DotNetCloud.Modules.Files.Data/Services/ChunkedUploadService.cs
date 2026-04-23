@@ -56,6 +56,9 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
         ArgumentNullException.ThrowIfNull(dto);
         ArgumentNullException.ThrowIfNull(caller);
 
+        await MountedWriteAccessGuard.EnsureWritableNodeAsync(_db, dto.TargetFileNodeId ?? Guid.Empty, cancellationToken);
+        await MountedWriteAccessGuard.EnsureWritableFolderAsync(_db, dto.ParentId, cancellationToken);
+
         FileService.ValidateFilenameCompatibility(dto.FileName, _fileSystemOptions);
 
         if (dto.TotalSize > _maxFileSizeBytes)
@@ -206,6 +209,14 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
         ArgumentNullException.ThrowIfNull(caller);
 
         var session = await GetActiveSessionAsync(sessionId, caller, cancellationToken);
+
+        if (session.TargetFileNodeId.HasValue)
+        {
+            await MountedWriteAccessGuard.EnsureWritableNodeAsync(_db, session.TargetFileNodeId.Value, cancellationToken);
+        }
+
+        await MountedWriteAccessGuard.EnsureWritableFolderAsync(_db, session.TargetParentId, cancellationToken);
+
         var manifest = JsonSerializer.Deserialize<List<string>>(session.ChunkManifest)!;
 
         // Verify all chunks are available

@@ -36,6 +36,13 @@ public class ShareServiceTests
         OwnerId = ownerId
     };
 
+    private static Guid RegisterMountedFile(Guid sharedFolderId, string relativePath = "readme.txt")
+    {
+        var mountedFileId = VirtualMountedNodeRegistry.GetMountedNodeId(sharedFolderId, relativePath, isDirectory: false);
+        VirtualMountedNodeRegistry.Register(new VirtualMountedNodeDescriptor(mountedFileId, sharedFolderId, relativePath, IsDirectory: false));
+        return mountedFileId;
+    }
+
     [TestMethod]
     public async Task CreateShareAsync_UserShare_CreatesSuccessfully()
     {
@@ -135,6 +142,27 @@ public class ShareServiceTests
 
         await Assert.ThrowsExactlyAsync<ForbiddenException>(
             () => service.CreateShareAsync(node.Id, new CreateShareDto { ShareType = "User" }, UserCaller(Guid.NewGuid())));
+    }
+
+    [TestMethod]
+    public async Task CreateShareAsync_MountedAdminSharedFile_ThrowsInvalidOperationException()
+    {
+        using var db = CreateContext();
+        var sharedFolderId = Guid.NewGuid();
+        db.AdminSharedFolders.Add(new AdminSharedFolderDefinition
+        {
+            Id = sharedFolderId,
+            DisplayName = "Mounted",
+            SourcePath = Path.GetTempPath(),
+            CreatedByUserId = Guid.NewGuid(),
+        });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var mountedFileId = RegisterMountedFile(sharedFolderId);
+
+        await Assert.ThrowsExactlyAsync<Core.Errors.InvalidOperationException>(
+            () => service.CreateShareAsync(mountedFileId, new CreateShareDto { ShareType = "User" }, UserCaller(Guid.NewGuid())));
     }
 
     [TestMethod]

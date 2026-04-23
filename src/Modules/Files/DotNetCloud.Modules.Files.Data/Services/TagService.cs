@@ -31,6 +31,8 @@ internal sealed class TagService : ITagService
         ArgumentNullException.ThrowIfNull(caller);
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
+        await MountedWriteAccessGuard.EnsureWritableNodeAsync(_db, fileNodeId, cancellationToken);
+
         var node = await _db.FileNodes.FindAsync([fileNodeId], cancellationToken)
             ?? throw new NotFoundException("FileNode", fileNodeId);
 
@@ -62,6 +64,8 @@ internal sealed class TagService : ITagService
     public async Task RemoveTagAsync(Guid fileNodeId, Guid tagId, CallerContext caller, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(caller);
+
+        await MountedWriteAccessGuard.EnsureWritableNodeAsync(_db, fileNodeId, cancellationToken);
 
         var tag = await _db.FileTags
             .FirstOrDefaultAsync(t => t.Id == tagId && t.FileNodeId == fileNodeId, cancellationToken)
@@ -146,6 +150,8 @@ internal sealed class TagService : ITagService
     {
         ArgumentNullException.ThrowIfNull(caller);
         ArgumentException.ThrowIfNullOrWhiteSpace(tagName);
+
+        await MountedWriteAccessGuard.EnsureWritableNodeAsync(_db, fileNodeId, cancellationToken);
 
         var tag = await _db.FileTags
             .FirstOrDefaultAsync(t => t.FileNodeId == fileNodeId && t.Name == tagName && t.CreatedByUserId == caller.UserId, cancellationToken)

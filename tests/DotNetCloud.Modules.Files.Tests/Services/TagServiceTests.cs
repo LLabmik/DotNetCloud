@@ -32,6 +32,13 @@ public class TagServiceTests
         OwnerId = ownerId
     };
 
+    private static Guid RegisterMountedFile(Guid sharedFolderId, string relativePath = "readme.txt")
+    {
+        var mountedFileId = VirtualMountedNodeRegistry.GetMountedNodeId(sharedFolderId, relativePath, isDirectory: false);
+        VirtualMountedNodeRegistry.Register(new VirtualMountedNodeDescriptor(mountedFileId, sharedFolderId, relativePath, IsDirectory: false));
+        return mountedFileId;
+    }
+
     [TestMethod]
     public async Task AddTagAsync_ValidInput_CreatesTag()
     {
@@ -78,6 +85,27 @@ public class TagServiceTests
 
         await Assert.ThrowsExactlyAsync<ForbiddenException>(
             () => service.AddTagAsync(node.Id, "Tag", null, UserCaller(otherId)));
+    }
+
+    [TestMethod]
+    public async Task AddTagAsync_MountedAdminSharedFile_ThrowsInvalidOperationException()
+    {
+        using var db = CreateContext();
+        var sharedFolderId = Guid.NewGuid();
+        db.AdminSharedFolders.Add(new AdminSharedFolderDefinition
+        {
+            Id = sharedFolderId,
+            DisplayName = "Mounted",
+            SourcePath = Path.GetTempPath(),
+            CreatedByUserId = Guid.NewGuid(),
+        });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var mountedFileId = RegisterMountedFile(sharedFolderId);
+
+        await Assert.ThrowsExactlyAsync<Core.Errors.InvalidOperationException>(
+            () => service.AddTagAsync(mountedFileId, "Important", null, UserCaller(Guid.NewGuid())));
     }
 
     [TestMethod]

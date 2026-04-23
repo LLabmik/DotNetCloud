@@ -36,6 +36,9 @@ internal sealed class FileService : IFileService
             "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"
         };
 
+    private static readonly Guid DotNetCloudRootId = VirtualMountedNodeRegistry.DotNetCloudRootId;
+    private static readonly Guid SharedWithMeRootId = VirtualMountedNodeRegistry.SharedWithMeRootId;
+
     private readonly FilesDbContext _db;
     private readonly IEventBus _eventBus;
     private readonly ILogger<FileService> _logger;
@@ -65,6 +68,8 @@ internal sealed class FileService : IFileService
     {
         ArgumentNullException.ThrowIfNull(dto);
         ArgumentNullException.ThrowIfNull(caller);
+
+        await MountedWriteAccessGuard.EnsureWritableFolderAsync(_db, dto.ParentId, cancellationToken);
 
         // Validate the folder name for cross-platform compatibility before any DB work.
         ValidateFilenameCompatibility(dto.Name, _fileSystemOptions);
@@ -142,6 +147,10 @@ internal sealed class FileService : IFileService
     {
         ArgumentNullException.ThrowIfNull(caller);
 
+        var virtualNode = await GetVirtualNodeAsync(nodeId, caller, cancellationToken);
+        if (virtualNode is not null)
+            return virtualNode;
+
         var node = await _db.FileNodes
             .AsNoTrackingWithIdentityResolution()
             .Include(n => n.Tags)
@@ -166,6 +175,10 @@ internal sealed class FileService : IFileService
     public async Task<IReadOnlyList<FileNodeDto>> ListChildrenAsync(Guid folderId, CallerContext caller, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(caller);
+
+        var virtualChildren = await GetVirtualChildrenAsync(folderId, caller, cancellationToken);
+        if (virtualChildren is not null)
+            return virtualChildren;
 
         await _permissions.RequirePermissionAsync(folderId, caller, SharePermission.Read, cancellationToken);
 
@@ -197,7 +210,10 @@ internal sealed class FileService : IFileService
 
         var childCounts = await GetChildCountsAsync(roots, cancellationToken);
         var subtreeSizes = await GetSubtreeSizesAsync(roots, cancellationToken);
-        return roots.Select(n => ToDto(n, childCounts.GetValueOrDefault(n.Id), subtreeSizes.GetValueOrDefault(n.Id))).ToList();
+
+        var result = roots.Select(n => ToDto(n, childCounts.GetValueOrDefault(n.Id), subtreeSizes.GetValueOrDefault(n.Id))).ToList();
+        result.Insert(0, await CreateDotNetCloudRootDtoAsync(caller, cancellationToken));
+        return result;
     }
 
     /// <inheritdoc />
@@ -248,6 +264,9 @@ internal sealed class FileService : IFileService
         ArgumentNullException.ThrowIfNull(dto);
         ArgumentNullException.ThrowIfNull(caller);
         ArgumentException.ThrowIfNullOrWhiteSpace(dto.Name);
+
+        await MountedWriteAccessGuard.EnsureWritableNodeAsync(_db, nodeId, cancellationToken);
+
         ValidateFilenameCompatibility(dto.Name, _fileSystemOptions);
 
         var node = await _db.FileNodes.FindAsync([nodeId], cancellationToken)
@@ -285,6 +304,9 @@ internal sealed class FileService : IFileService
     {
         ArgumentNullException.ThrowIfNull(dto);
         ArgumentNullException.ThrowIfNull(caller);
+
+        await MountedWriteAccessGuard.EnsureWritableNodeAsync(_db, nodeId, cancellationToken);
+        await MountedWriteAccessGuard.EnsureWritableFolderAsync(_db, dto.TargetParentId, cancellationToken);
 
         var node = await _db.FileNodes.FindAsync([nodeId], cancellationToken)
             ?? throw new NotFoundException("FileNode", nodeId);
@@ -382,6 +404,9 @@ internal sealed class FileService : IFileService
     {
         ArgumentNullException.ThrowIfNull(caller);
 
+        await MountedWriteAccessGuard.EnsureWritableNodeAsync(_db, nodeId, cancellationToken);
+        await MountedWriteAccessGuard.EnsureWritableFolderAsync(_db, targetParentId, cancellationToken);
+
         var source = await _db.FileNodes
             .AsNoTracking()
             .FirstOrDefaultAsync(n => n.Id == nodeId, cancellationToken)
@@ -451,6 +476,8 @@ internal sealed class FileService : IFileService
     {
         ArgumentNullException.ThrowIfNull(caller);
 
+        await MountedWriteAccessGuard.EnsureWritableNodeAsync(_db, nodeId, cancellationToken);
+
         var node = await _db.FileNodes.FindAsync([nodeId], cancellationToken)
             ?? throw new NotFoundException("FileNode", nodeId);
 
@@ -517,6 +544,8 @@ internal sealed class FileService : IFileService
     public async Task<FileNodeDto> ToggleFavoriteAsync(Guid nodeId, CallerContext caller, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(caller);
+
+        await MountedWriteAccessGuard.EnsureWritableNodeAsync(_db, nodeId, cancellationToken);
 
         var node = await _db.FileNodes.FindAsync([nodeId], cancellationToken)
             ?? throw new NotFoundException("FileNode", nodeId);
@@ -762,6 +791,416 @@ internal sealed class FileService : IFileService
             .GroupBy(id => id)
             .ToDictionary(g => g.Key, g => g.Count());
     }
+
+    private async Task<FileNodeDto?> GetVirtualNodeAsync(Guid nodeId, CallerContext caller, CancellationToken cancellationToken)
+    {
+        if (nodeId == DotNetCloudRootId)
+        {
+            return await CreateDotNetCloudRootDtoAsync(caller, cancellationToken);
+        }
+
+        if (nodeId == SharedWithMeRootId)
+        {
+            var mountedItems = await ListMountedAccessAsync(caller, cancellationToken);
+            return CreateVirtualFolderDto(
+                SharedWithMeRootId,
+                "Shared With Me",
+                DotNetCloudRootId,
+                caller.UserId,
+                mountedItems.Count,
+                DateTime.UtcNow,
+                isReadOnly: true,
+                sourceKind: "SharedWithMeRoot");
+        }
+
+        var adminRootDefinition = await GetAccessibleAdminSharedFolderByVirtualRootIdAsync(nodeId, caller, cancellationToken);
+        if (adminRootDefinition is not null)
+        {
+            return await CreateAdminSharedFolderRootDtoAsync(adminRootDefinition, cancellationToken);
+        }
+
+        if (!VirtualMountedNodeRegistry.TryGet(nodeId, out var descriptor))
+        {
+            return null;
+        }
+
+        var definition = await GetAccessibleAdminSharedFolderByIdAsync(descriptor.SharedFolderId, caller, cancellationToken);
+        if (definition is null)
+        {
+            return null;
+        }
+
+        return await CreateMountedEntryDtoAsync(definition, descriptor.RelativePath, descriptor.IsDirectory, GetMountedNodeParentId(definition.Id, descriptor.RelativePath), cancellationToken);
+    }
+
+    private async Task<IReadOnlyList<FileNodeDto>?> GetVirtualChildrenAsync(Guid folderId, CallerContext caller, CancellationToken cancellationToken)
+    {
+        if (folderId == DotNetCloudRootId)
+        {
+            return await ListDotNetCloudChildrenAsync(caller, cancellationToken);
+        }
+
+        if (folderId == SharedWithMeRootId)
+        {
+            return await ListSharedWithMeChildrenAsync(caller, cancellationToken);
+        }
+
+        var definition = await GetAccessibleAdminSharedFolderByVirtualRootIdAsync(folderId, caller, cancellationToken);
+        if (definition is not null)
+        {
+            return await ListAdminSharedFolderChildrenAsync(definition, string.Empty, folderId, cancellationToken);
+        }
+
+        if (!VirtualMountedNodeRegistry.TryGet(folderId, out var descriptor) || !descriptor.IsDirectory)
+        {
+            return null;
+        }
+
+        definition = await GetAccessibleAdminSharedFolderByIdAsync(descriptor.SharedFolderId, caller, cancellationToken);
+        if (definition is null)
+        {
+            return [];
+        }
+
+        return await ListAdminSharedFolderChildrenAsync(definition, descriptor.RelativePath, folderId, cancellationToken);
+    }
+
+    private async Task<FileNodeDto> CreateDotNetCloudRootDtoAsync(CallerContext caller, CancellationToken cancellationToken)
+    {
+        var adminFolders = await ListAccessibleAdminSharedFoldersAsync(caller, cancellationToken);
+        return CreateVirtualFolderDto(
+            DotNetCloudRootId,
+            "_DotNetCloud",
+            parentId: null,
+            caller.UserId,
+            1 + adminFolders.Count,
+            DateTime.UtcNow,
+            isReadOnly: true,
+            sourceKind: "DotNetCloudRoot");
+    }
+
+    private async Task<IReadOnlyList<FileNodeDto>> ListDotNetCloudChildrenAsync(CallerContext caller, CancellationToken cancellationToken)
+    {
+        var mountedItems = await ListMountedAccessAsync(caller, cancellationToken);
+        var adminFolders = await ListAccessibleAdminSharedFoldersAsync(caller, cancellationToken);
+
+        var result = new List<FileNodeDto>(adminFolders.Count + 1)
+        {
+            CreateVirtualFolderDto(
+                SharedWithMeRootId,
+                "Shared With Me",
+                DotNetCloudRootId,
+                caller.UserId,
+                mountedItems.Count,
+                DateTime.UtcNow,
+                isReadOnly: true,
+                sourceKind: "SharedWithMeRoot")
+        };
+
+        foreach (var definition in adminFolders)
+        {
+            result.Add(await CreateAdminSharedFolderRootDtoAsync(definition, cancellationToken));
+        }
+
+        return result;
+    }
+
+    private async Task<IReadOnlyList<FileNodeDto>> ListSharedWithMeChildrenAsync(CallerContext caller, CancellationToken cancellationToken)
+    {
+        var mountedItems = await ListMountedAccessAsync(caller, cancellationToken);
+        return mountedItems
+            .Select(node => node with
+            {
+                ParentId = SharedWithMeRootId,
+                VirtualSourceKind = "SharedWithMe",
+                VirtualSourceId = SharedWithMeRootId,
+            })
+            .ToList();
+    }
+
+    private async Task<FileNodeDto> CreateAdminSharedFolderRootDtoAsync(AdminSharedFolderDefinition definition, CancellationToken cancellationToken)
+    {
+        var childCount = await CountImmediateEntriesAsync(definition.SourcePath, cancellationToken);
+        return CreateVirtualFolderDto(
+            VirtualMountedNodeRegistry.GetAdminSharedFolderRootId(definition.Id),
+            definition.DisplayName,
+            DotNetCloudRootId,
+            definition.CreatedByUserId,
+            childCount,
+            definition.UpdatedAt,
+            isReadOnly: true,
+            sourceKind: "AdminSharedFolder",
+            sourceId: definition.Id,
+            relativePath: string.Empty);
+    }
+
+    private async Task<IReadOnlyList<FileNodeDto>> ListAdminSharedFolderChildrenAsync(AdminSharedFolderDefinition definition, string relativePath, Guid parentId, CancellationToken cancellationToken)
+    {
+        var physicalPath = CombineMountedPhysicalPath(definition.SourcePath, relativePath);
+        if (!Directory.Exists(physicalPath))
+        {
+            return [];
+        }
+
+        try
+        {
+            var directoryInfo = new DirectoryInfo(physicalPath);
+            var entries = directoryInfo.EnumerateFileSystemInfos()
+                .OrderBy(info => info is DirectoryInfo)
+                .ThenBy(info => info.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var result = new List<FileNodeDto>(entries.Count);
+            foreach (var entry in entries)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var entryRelativePath = string.IsNullOrEmpty(relativePath)
+                    ? entry.Name
+                    : $"{relativePath}/{entry.Name}";
+                var isDirectory = entry is DirectoryInfo;
+                var id = VirtualMountedNodeRegistry.GetMountedNodeId(definition.Id, entryRelativePath, isDirectory);
+                VirtualMountedNodeRegistry.Register(new VirtualMountedNodeDescriptor(id, definition.Id, entryRelativePath, isDirectory));
+
+                var dto = await CreateMountedEntryDtoAsync(definition, entryRelativePath, isDirectory, parentId, cancellationToken);
+                if (dto is not null)
+                {
+                    result.Add(dto);
+                }
+            }
+
+            return result;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _logger.LogWarning(ex, "Failed to enumerate admin shared folder {SharedFolderId} at {SourcePath}", definition.Id, definition.SourcePath);
+            return [];
+        }
+    }
+
+    private async Task<FileNodeDto?> CreateMountedEntryDtoAsync(AdminSharedFolderDefinition definition, string relativePath, bool isDirectory, Guid parentId, CancellationToken cancellationToken)
+    {
+        var physicalPath = CombineMountedPhysicalPath(definition.SourcePath, relativePath);
+        if (isDirectory)
+        {
+            if (!Directory.Exists(physicalPath))
+            {
+                return null;
+            }
+
+            var directoryInfo = new DirectoryInfo(physicalPath);
+            return CreateVirtualFolderDto(
+                VirtualMountedNodeRegistry.GetMountedNodeId(definition.Id, relativePath, isDirectory: true),
+                directoryInfo.Name,
+                parentId,
+                definition.CreatedByUserId,
+                await CountImmediateEntriesAsync(physicalPath, cancellationToken),
+                directoryInfo.LastWriteTimeUtc,
+                isReadOnly: true,
+                sourceKind: "AdminSharedFolder",
+                sourceId: definition.Id,
+                relativePath: relativePath);
+        }
+
+        if (!File.Exists(physicalPath))
+        {
+            return null;
+        }
+
+        var fileInfo = new FileInfo(physicalPath);
+        return CreateVirtualFileDto(
+            VirtualMountedNodeRegistry.GetMountedNodeId(definition.Id, relativePath, isDirectory: false),
+            fileInfo.Name,
+            parentId,
+            definition.CreatedByUserId,
+            fileInfo.Length,
+            fileInfo.LastWriteTimeUtc,
+            mimeType: GetVirtualMimeType(fileInfo.Name),
+            sourceKind: "AdminSharedFolder",
+            sourceId: definition.Id,
+            relativePath: relativePath);
+    }
+
+    private async Task<IReadOnlyList<AdminSharedFolderDefinition>> ListAccessibleAdminSharedFoldersAsync(CallerContext caller, CancellationToken cancellationToken)
+    {
+        var memberships = _shareAccessMembershipResolver is null
+            ? ShareAccessMembership.Empty
+            : await _shareAccessMembershipResolver.ResolveAsync(caller.UserId, cancellationToken);
+
+        var groupIds = memberships.GroupIds.ToArray();
+        if (groupIds.Length == 0)
+        {
+            return [];
+        }
+
+        return await _db.AdminSharedFolders
+            .AsNoTracking()
+            .Where(definition => definition.IsEnabled && definition.Grants.Any(grant => groupIds.Contains(grant.GroupId)))
+            .OrderBy(definition => definition.DisplayName)
+            .ToListAsync(cancellationToken);
+    }
+
+    private async Task<AdminSharedFolderDefinition?> GetAccessibleAdminSharedFolderByIdAsync(Guid sharedFolderId, CallerContext caller, CancellationToken cancellationToken)
+    {
+        var definitions = await ListAccessibleAdminSharedFoldersAsync(caller, cancellationToken);
+        return definitions.FirstOrDefault(definition => definition.Id == sharedFolderId);
+    }
+
+    private async Task<AdminSharedFolderDefinition?> GetAccessibleAdminSharedFolderByVirtualRootIdAsync(Guid nodeId, CallerContext caller, CancellationToken cancellationToken)
+    {
+        var definitions = await ListAccessibleAdminSharedFoldersAsync(caller, cancellationToken);
+        return definitions.FirstOrDefault(definition => VirtualMountedNodeRegistry.GetAdminSharedFolderRootId(definition.Id) == nodeId);
+    }
+
+    private static Guid GetMountedNodeParentId(Guid sharedFolderId, string relativePath)
+    {
+        var normalized = VirtualMountedNodeRegistry.NormalizeRelativePath(relativePath);
+        if (!normalized.Contains('/'))
+        {
+            return VirtualMountedNodeRegistry.GetAdminSharedFolderRootId(sharedFolderId);
+        }
+
+        var parentRelativePath = normalized[..normalized.LastIndexOf('/')];
+        return VirtualMountedNodeRegistry.GetMountedNodeId(sharedFolderId, parentRelativePath, isDirectory: true);
+    }
+
+    private static string CombineMountedPhysicalPath(string sourcePath, string relativePath)
+    {
+        var root = Path.GetFullPath(sourcePath);
+        if (string.IsNullOrWhiteSpace(relativePath))
+        {
+            return root;
+        }
+
+        var combined = Path.GetFullPath(Path.Combine(root, relativePath.Replace('/', Path.DirectorySeparatorChar)));
+        var rootPrefix = root.EndsWith(Path.DirectorySeparatorChar)
+            ? root
+            : root + Path.DirectorySeparatorChar;
+
+        if (!combined.Equals(root, StringComparison.Ordinal) && !combined.StartsWith(rootPrefix, StringComparison.Ordinal))
+        {
+            throw new Core.Errors.ValidationException("RelativePath", "Mounted path escapes the configured shared-folder root.");
+        }
+
+        return combined;
+    }
+
+    private static async Task<int> CountImmediateEntriesAsync(string physicalPath, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!Directory.Exists(physicalPath))
+        {
+            return 0;
+        }
+
+        try
+        {
+            return new DirectoryInfo(physicalPath).EnumerateFileSystemInfos().Count();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return 0;
+        }
+    }
+
+    private static string? GetVirtualMimeType(string fileName)
+    {
+        return Path.GetExtension(fileName).ToLowerInvariant() switch
+        {
+            ".txt" or ".log" or ".ini" or ".cfg" or ".conf" or ".env" => "text/plain",
+            ".md" or ".markdown" => "text/markdown",
+            ".json" => "application/json",
+            ".xml" => "application/xml",
+            ".html" or ".htm" => "text/html",
+            ".css" => "text/css",
+            ".js" => "text/javascript",
+            ".ts" => "text/typescript",
+            ".cs" => "text/x-csharp",
+            ".py" => "text/x-python",
+            ".sh" or ".bash" => "text/x-shellscript",
+            ".sql" => "text/x-sql",
+            ".yaml" or ".yml" => "text/yaml",
+            ".toml" => "text/toml",
+            ".csv" => "text/csv",
+            ".png" => "image/png",
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".gif" => "image/gif",
+            ".webp" => "image/webp",
+            ".svg" => "image/svg+xml",
+            ".pdf" => "application/pdf",
+            ".mp4" => "video/mp4",
+            ".webm" => "video/webm",
+            ".mp3" => "audio/mpeg",
+            ".wav" => "audio/wav",
+            ".flac" => "audio/flac",
+            ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            ".xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            ".pptx" => "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            ".odt" => "application/vnd.oasis.opendocument.text",
+            ".ods" => "application/vnd.oasis.opendocument.spreadsheet",
+            ".odp" => "application/vnd.oasis.opendocument.presentation",
+            _ => null,
+        };
+    }
+
+    private static FileNodeDto CreateVirtualFolderDto(
+        Guid id,
+        string name,
+        Guid? parentId,
+        Guid ownerId,
+        int childCount,
+        DateTime updatedAt,
+        bool isReadOnly,
+        string sourceKind,
+        Guid? sourceId = null,
+        string? relativePath = null)
+        => new()
+        {
+            Id = id,
+            Name = name,
+            NodeType = FileNodeType.Folder.ToString(),
+            ParentId = parentId,
+            OwnerId = ownerId,
+            CurrentVersion = 1,
+            CreatedAt = updatedAt,
+            UpdatedAt = updatedAt,
+            ChildCount = childCount,
+            IsVirtual = true,
+            IsReadOnly = isReadOnly,
+            VirtualSourceKind = sourceKind,
+            VirtualSourceId = sourceId,
+            VirtualRelativePath = relativePath,
+        };
+
+    private static FileNodeDto CreateVirtualFileDto(
+        Guid id,
+        string name,
+        Guid? parentId,
+        Guid ownerId,
+        long size,
+        DateTime updatedAt,
+        string? mimeType,
+        string sourceKind,
+        Guid? sourceId = null,
+        string? relativePath = null)
+        => new()
+        {
+            Id = id,
+            Name = name,
+            NodeType = FileNodeType.File.ToString(),
+            MimeType = mimeType,
+            Size = size,
+            ParentId = parentId,
+            OwnerId = ownerId,
+            CurrentVersion = 1,
+            CreatedAt = updatedAt,
+            UpdatedAt = updatedAt,
+            IsVirtual = true,
+            IsReadOnly = true,
+            VirtualSourceKind = sourceKind,
+            VirtualSourceId = sourceId,
+            VirtualRelativePath = relativePath,
+        };
 
     private static FileNodeDto ToDto(FileNode node, int? childCount = null, long? totalSize = null) => new()
     {

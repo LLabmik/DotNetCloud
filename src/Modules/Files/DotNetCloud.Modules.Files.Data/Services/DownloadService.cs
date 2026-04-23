@@ -20,6 +20,7 @@ internal sealed class DownloadService : IDownloadService
     private readonly IFileStorageEngine _storageEngine;
     private readonly ILogger<DownloadService> _logger;
     private readonly IPermissionService _permissions;
+    private readonly IShareAccessMembershipResolver? _shareAccessMembershipResolver;
     private readonly string _tmpPath;
 
     public DownloadService(
@@ -27,12 +28,14 @@ internal sealed class DownloadService : IDownloadService
         IFileStorageEngine storageEngine,
         ILogger<DownloadService> logger,
         IPermissionService permissions,
-        IOptions<FileUploadOptions> uploadOptions)
+        IOptions<FileUploadOptions> uploadOptions,
+        IShareAccessMembershipResolver? shareAccessMembershipResolver = null)
     {
         _db = db;
         _storageEngine = storageEngine;
         _logger = logger;
         _permissions = permissions;
+        _shareAccessMembershipResolver = shareAccessMembershipResolver;
         _tmpPath = uploadOptions.Value.TmpPath ?? Path.GetTempPath();
     }
 
@@ -44,7 +47,18 @@ internal sealed class DownloadService : IDownloadService
         var node = await _db.FileNodes
             .AsNoTracking()
             .FirstOrDefaultAsync(n => n.Id == fileNodeId, cancellationToken)
-            ?? throw new NotFoundException("FileNode", fileNodeId);
+            ;
+
+        if (node is null)
+        {
+            var virtualStream = await TryDownloadMountedFileAsync(fileNodeId, caller, cancellationToken);
+            if (virtualStream is not null)
+            {
+                return virtualStream;
+            }
+
+            throw new NotFoundException("FileNode", fileNodeId);
+        }
 
         await _permissions.RequirePermissionAsync(fileNodeId, caller, SharePermission.Read, cancellationToken);
 
@@ -154,6 +168,80 @@ internal sealed class DownloadService : IDownloadService
             return null;
 
         return await _storageEngine.OpenReadStreamAsync(chunk.StoragePath, cancellationToken);
+    }
+
+    private async Task<Stream?> TryDownloadMountedFileAsync(Guid nodeId, CallerContext caller, CancellationToken cancellationToken)
+    {
+        if (!VirtualMountedNodeRegistry.TryGet(nodeId, out var descriptor))
+        {
+            return null;
+        }
+
+        if (descriptor.IsDirectory)
+        {
+            throw new Core.Errors.InvalidOperationException("Cannot download a folder.");
+        }
+
+        var definition = await GetAccessibleAdminSharedFolderByIdAsync(descriptor.SharedFolderId, caller, cancellationToken);
+        if (definition is null)
+        {
+            return null;
+        }
+
+        var physicalPath = CombineMountedPhysicalPath(definition.SourcePath, descriptor.RelativePath);
+        if (!File.Exists(physicalPath))
+        {
+            throw new NotFoundException("FileNode", nodeId);
+        }
+
+        return new FileStream(
+            physicalPath,
+            FileMode.Open,
+            FileAccess.Read,
+            System.IO.FileShare.Read,
+            81920,
+            FileOptions.Asynchronous | FileOptions.SequentialScan);
+    }
+
+    private async Task<AdminSharedFolderDefinition?> GetAccessibleAdminSharedFolderByIdAsync(Guid sharedFolderId, CallerContext caller, CancellationToken cancellationToken)
+    {
+        var memberships = _shareAccessMembershipResolver is null
+            ? ShareAccessMembership.Empty
+            : await _shareAccessMembershipResolver.ResolveAsync(caller.UserId, cancellationToken);
+
+        var groupIds = memberships.GroupIds.ToArray();
+        if (groupIds.Length == 0)
+        {
+            return null;
+        }
+
+        return await _db.AdminSharedFolders
+            .AsNoTracking()
+            .Where(definition => definition.Id == sharedFolderId
+                && definition.IsEnabled
+                && definition.Grants.Any(grant => groupIds.Contains(grant.GroupId)))
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    private static string CombineMountedPhysicalPath(string sourcePath, string relativePath)
+    {
+        var root = Path.GetFullPath(sourcePath);
+        if (string.IsNullOrWhiteSpace(relativePath))
+        {
+            return root;
+        }
+
+        var combined = Path.GetFullPath(Path.Combine(root, relativePath.Replace('/', Path.DirectorySeparatorChar)));
+        var rootPrefix = root.EndsWith(Path.DirectorySeparatorChar)
+            ? root
+            : root + Path.DirectorySeparatorChar;
+
+        if (!combined.Equals(root, StringComparison.Ordinal) && !combined.StartsWith(rootPrefix, StringComparison.Ordinal))
+        {
+            throw new Core.Errors.ValidationException("RelativePath", "Mounted path escapes the configured shared-folder root.");
+        }
+
+        return combined;
     }
 
     /// <inheritdoc />

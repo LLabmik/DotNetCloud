@@ -32,6 +32,13 @@ public class CommentServiceTests
         OwnerId = ownerId
     };
 
+    private static Guid RegisterMountedFile(Guid sharedFolderId, string relativePath = "readme.txt")
+    {
+        var mountedFileId = VirtualMountedNodeRegistry.GetMountedNodeId(sharedFolderId, relativePath, isDirectory: false);
+        VirtualMountedNodeRegistry.Register(new VirtualMountedNodeDescriptor(mountedFileId, sharedFolderId, relativePath, IsDirectory: false));
+        return mountedFileId;
+    }
+
     [TestMethod]
     public async Task AddCommentAsync_ValidInput_CreatesComment()
     {
@@ -74,6 +81,27 @@ public class CommentServiceTests
 
         await Assert.ThrowsExactlyAsync<NotFoundException>(
             () => service.AddCommentAsync(Guid.NewGuid(), "text", null, UserCaller(Guid.NewGuid())));
+    }
+
+    [TestMethod]
+    public async Task AddCommentAsync_MountedAdminSharedFile_ThrowsInvalidOperationException()
+    {
+        using var db = CreateContext();
+        var sharedFolderId = Guid.NewGuid();
+        db.AdminSharedFolders.Add(new AdminSharedFolderDefinition
+        {
+            Id = sharedFolderId,
+            DisplayName = "Mounted",
+            SourcePath = Path.GetTempPath(),
+            CreatedByUserId = Guid.NewGuid(),
+        });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var mountedFileId = RegisterMountedFile(sharedFolderId);
+
+        await Assert.ThrowsExactlyAsync<Core.Errors.InvalidOperationException>(
+            () => service.AddCommentAsync(mountedFileId, "hello", null, UserCaller(Guid.NewGuid())));
     }
 
     [TestMethod]

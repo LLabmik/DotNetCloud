@@ -37,6 +37,9 @@ public partial class FilePreview : ComponentBase, IAsyncDisposable
     /// <summary>Whether to show the Share button in the preview header.</summary>
     [Parameter] public bool ShowShareButton { get; set; } = true;
 
+    /// <summary>Whether to show the Comments button in the preview header.</summary>
+    [Parameter] public bool ShowCommentsButton { get; set; } = true;
+
     /// <summary>Invoked when the user closes the preview.</summary>
     [Parameter] public EventCallback OnClose { get; set; }
 

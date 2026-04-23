@@ -1,5 +1,6 @@
 using System.Text;
 using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Modules.Files.Data;
 using DotNetCloud.Modules.Files.Data.Services;
@@ -24,9 +25,9 @@ public class DownloadServiceTests
         return new FilesDbContext(options);
     }
 
-    private static DownloadService CreateService(FilesDbContext db, IFileStorageEngine? storage = null) =>
+    private static DownloadService CreateService(FilesDbContext db, IFileStorageEngine? storage = null, IShareAccessMembershipResolver? shareAccessMembershipResolver = null) =>
         new(db, storage ?? Mock.Of<IFileStorageEngine>(), NullLogger<DownloadService>.Instance, new PermissionService(db),
-            Microsoft.Extensions.Options.Options.Create(new FileUploadOptions()));
+            Microsoft.Extensions.Options.Options.Create(new FileUploadOptions()), shareAccessMembershipResolver);
 
     private static CallerContext UserCaller(Guid userId) => new(userId, Array.Empty<string>(), CallerType.User);
 
@@ -185,6 +186,63 @@ public class DownloadServiceTests
 
         await Assert.ThrowsExactlyAsync<NotFoundException>(
             () => service.DownloadCurrentAsync(node.Id, UserCaller(userId)));
+    }
+
+    [TestMethod]
+    public async Task DownloadCurrentAsync_AdminSharedVirtualFile_ReturnsPhysicalStream()
+    {
+        using var db = CreateContext();
+        var callerUserId = Guid.NewGuid();
+        var ownerId = Guid.NewGuid();
+        var groupId = Guid.NewGuid();
+        var tempPath = Path.Combine(Path.GetTempPath(), $"dnc-shared-download-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempPath);
+        var filePath = Path.Combine(tempPath, "readme.txt");
+        await File.WriteAllTextAsync(filePath, "mounted-content");
+
+        try
+        {
+            db.AdminSharedFolders.Add(new AdminSharedFolderDefinition
+            {
+                DisplayName = "Shared Docs",
+                SourcePath = tempPath,
+                CreatedByUserId = ownerId,
+                Grants = [new AdminSharedFolderGrant { GroupId = groupId }],
+            });
+            await db.SaveChangesAsync();
+
+            var membershipResolverMock = new Mock<IShareAccessMembershipResolver>();
+            membershipResolverMock
+                .Setup(resolver => resolver.ResolveAsync(callerUserId, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new ShareAccessMembership { GroupIds = [groupId] });
+
+            var fileService = new FileService(
+                db,
+                Mock.Of<IEventBus>(),
+                NullLogger<FileService>.Instance,
+                new PermissionService(db),
+                new DeviceContext(),
+                Mock.Of<IQuotaService>(),
+                Microsoft.Extensions.Options.Options.Create(new FileSystemOptions()),
+                Mock.Of<ISyncChangeNotifier>(),
+                membershipResolverMock.Object);
+
+            var dotNetCloudRoot = (await fileService.ListRootAsync(UserCaller(callerUserId))).First(node => node.Name == "_DotNetCloud");
+            var dotNetCloudChildren = await fileService.ListChildrenAsync(dotNetCloudRoot.Id, UserCaller(callerUserId));
+            var adminFolder = dotNetCloudChildren.First(node => node.Name == "Shared Docs");
+            var mountedFile = (await fileService.ListChildrenAsync(adminFolder.Id, UserCaller(callerUserId))).First(node => node.Name == "readme.txt");
+
+            var downloadService = CreateService(db, shareAccessMembershipResolver: membershipResolverMock.Object);
+            await using var stream = await downloadService.DownloadCurrentAsync(mountedFile.Id, UserCaller(callerUserId));
+            using var reader = new StreamReader(stream);
+            var content = await reader.ReadToEndAsync();
+
+            Assert.AreEqual("mounted-content", content);
+        }
+        finally
+        {
+            Directory.Delete(tempPath, recursive: true);
+        }
     }
 
     [TestMethod]

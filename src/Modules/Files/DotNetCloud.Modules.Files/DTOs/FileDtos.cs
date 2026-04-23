@@ -65,6 +65,21 @@ public sealed record FileNodeDto
     /// the sync root (e.g. <c>"../shared/config.json"</c>). Null for files and folders.
     /// </summary>
     public string? LinkTarget { get; init; }
+
+    /// <summary>True when the node is synthetic rather than backed by a <see cref="Models.FileNode"/> row.</summary>
+    public bool IsVirtual { get; init; }
+
+    /// <summary>True when the node should be treated as read-only by clients.</summary>
+    public bool IsReadOnly { get; init; }
+
+    /// <summary>Optional source discriminator for synthetic nodes such as <c>DotNetCloudRoot</c> or <c>AdminSharedFolder</c>.</summary>
+    public string? VirtualSourceKind { get; init; }
+
+    /// <summary>Optional stable source identifier for synthetic nodes.</summary>
+    public Guid? VirtualSourceId { get; init; }
+
+    /// <summary>Optional relative path within a synthetic source.</summary>
+    public string? VirtualRelativePath { get; init; }
 }
 
 /// <summary>

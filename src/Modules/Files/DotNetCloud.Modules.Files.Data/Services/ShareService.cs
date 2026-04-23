@@ -38,6 +38,8 @@ internal sealed class ShareService : IShareService
         ArgumentNullException.ThrowIfNull(dto);
         ArgumentNullException.ThrowIfNull(caller);
 
+        await MountedWriteAccessGuard.EnsureWritableNodeAsync(_db, fileNodeId, cancellationToken);
+
         var node = await _db.FileNodes.FindAsync([fileNodeId], cancellationToken)
             ?? throw new NotFoundException("FileNode", fileNodeId);
 
