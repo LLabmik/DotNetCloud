@@ -104,7 +104,7 @@
 | DM & Host Calls — Phase A   | 3       | 3         | 0           | 0       |
 | DM & Host Calls — Phase B   | 2       | 0         | 0           | 2       |
 | DM & Host Calls — Phase C–G | 10      | 1         | 1           | 8       |
-| Shared File Folders         | 6       | 4         | 1           | 1       |
+| Shared File Folders         | 6       | 5         | 1           | 0       |
 | Infrastructure              | Summary | 0         | 0           | 1       |
 | Documentation               | Summary | 0         | 0           | 1       |
 
@@ -2912,8 +2912,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Notes:** The 4.4 virtualization slice is now complete end-to-end. Files root listings inject a synthetic `_DotNetCloud` folder for every user, `_DotNetCloud` contains a synthetic `Shared With Me` folder plus the caller's accessible admin shared folders, admin shared folders enumerate the real on-disk hierarchy as nested virtual nodes, mounted files can be opened through the existing download path, and mounted-path mutations are now blocked across FileService writes plus share, tag, comment, and upload entry points. The Files UI also hides rename/share/tag/comment/delete/version-edit affordances for mounted content while keeping download/open available. Focused validation passed via `dotnet test tests/DotNetCloud.Modules.Files.Tests/DotNetCloud.Modules.Files.Tests.csproj --filter "FullyQualifiedName~AddTagAsync_MountedAdminSharedFile_ThrowsInvalidOperationException|FullyQualifiedName~AddCommentAsync_MountedAdminSharedFile_ThrowsInvalidOperationException|FullyQualifiedName~CreateShareAsync_MountedAdminSharedFile_ThrowsInvalidOperationException|FullyQualifiedName~InitiateUploadAsync_MountedAdminSharedFolderParent_ThrowsInvalidOperationException" --no-restore`, `dotnet test tests/DotNetCloud.Modules.Files.Tests/DotNetCloud.Modules.Files.Tests.csproj --filter "FullyQualifiedName~CreateFolderAsync_MountedAdminSharedFolderParent_ThrowsInvalidOperationException|FullyQualifiedName~RenameAsync_MountedAdminSharedFile_ThrowsInvalidOperationException|FullyQualifiedName~MoveAsync_TargetMountedAdminSharedFolder_ThrowsInvalidOperationException|FullyQualifiedName~DeleteAsync_MountedAdminSharedFile_ThrowsInvalidOperationException" --no-restore`, `dotnet test tests/DotNetCloud.Modules.Files.Tests/DotNetCloud.Modules.Files.Tests.csproj --filter "FullyQualifiedName~FileServiceTests" --no-restore`, and `dotnet build src/Modules/Files/DotNetCloud.Modules.Files/DotNetCloud.Modules.Files.csproj --no-restore`. Remaining work moves to 4.5 search indexing/navigation and 4.6 media scan-source selection.
 
 #### Step: shared-file-folders-6 — Search And Media Integration
-**Status:** pending
+**Status:** in-progress
 **Deliverables:**
-- ☐ Add group-aware search indexing and navigation for mounted shared folders
-- ☐ Add per-user shared-folder scan-source selection for Music, Photos, and Video
+- ✓ Add group-aware search indexing and navigation for mounted shared folders
+- ✓ Add per-user shared-folder scan-source selection for Music, Photos, and Video
 - ☐ Keep sync clients ignoring `_DotNetCloud` admin shares in v1
+
+**Notes:** The search and media integration step is now down to one remaining slice. Mounted search indexing/navigation remains in place, and 4.6 media integration now persists per-user per-module source lists for owned folders plus `_DotNetCloud` admin shared mounts, routes scans through `IMediaLibraryScanner.ScanSourcesAsync`, traverses shared sources via the Files service, and removes indexed items when sources are deselected, deleted, or no longer accessible. Music, Photos, Video, and the shared media-library summary page now surface configured source lists instead of a single path. Focused validation passed via `dotnet build src/UI/DotNetCloud.UI.Web/DotNetCloud.UI.Web.csproj --no-restore`, `dotnet build src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj --no-restore`, and `dotnet test tests/DotNetCloud.Core.Tests/DotNetCloud.Core.Tests.csproj --no-restore --filter "FullyQualifiedName~MediaLibrarySourceSettingsTests"`. Remaining work in this step is explicit sync-client handling for `_DotNetCloud` admin shares.

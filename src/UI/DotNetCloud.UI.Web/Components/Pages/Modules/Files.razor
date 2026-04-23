@@ -14,17 +14,29 @@
     [SupplyParameterFromQuery(Name = "_nav")]
     public string? Nav { get; set; }
 
+    [SupplyParameterFromQuery(Name = "sharedFolderId")]
+    public string? SharedFolderId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "relativePath")]
+    public string? RelativePath { get; set; }
+
     private Dictionary<string, object>? _parameters;
 
     protected override void OnParametersSet()
     {
-        if (!string.IsNullOrEmpty(FileId))
+        if (!string.IsNullOrEmpty(FileId) || !string.IsNullOrEmpty(SharedFolderId))
         {
             _parameters = new Dictionary<string, object>
             {
-                ["FileId"] = FileId,
-                ["FileIdNav"] = Nav ?? string.Empty
+                ["FileIdNav"] = Nav ?? string.Empty,
+                ["SharedFolderId"] = SharedFolderId ?? string.Empty,
+                ["RelativePath"] = RelativePath ?? string.Empty,
             };
+
+            if (!string.IsNullOrEmpty(FileId))
+            {
+                _parameters["FileId"] = FileId;
+            }
         }
         else
         {

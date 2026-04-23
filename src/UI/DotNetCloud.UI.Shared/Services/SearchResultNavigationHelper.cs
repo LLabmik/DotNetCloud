@@ -55,7 +55,7 @@ public static class SearchResultNavigationHelper
 
         return item.ModuleId switch
         {
-            "files" => $"/apps/files?fileId={item.EntityId}&_nav={navToken}",
+            "files" => BuildFilesResultUrl(item, navToken),
             "notes" => $"/apps/notes?noteId={item.EntityId}",
             "chat" => item.Metadata.TryGetValue("ChannelId", out var channelId)
                 ? $"/apps/chat?channelId={channelId}&messageId={item.EntityId}"
@@ -69,6 +69,29 @@ public static class SearchResultNavigationHelper
             "ai" => $"/apps/ai?conversationId={item.EntityId}",
             _ => $"/search?q={item.Title}"
         };
+    }
+
+    private static string BuildFilesResultUrl(SearchResultItem item, long navToken)
+    {
+        var queryParts = new List<string>
+        {
+            $"fileId={Uri.EscapeDataString(item.EntityId)}",
+            $"_nav={navToken}",
+        };
+
+        if (item.Metadata.TryGetValue(SearchVisibilityMetadata.SharedFolderIdKey, out var sharedFolderId) &&
+            !string.IsNullOrWhiteSpace(sharedFolderId))
+        {
+            queryParts.Add($"sharedFolderId={Uri.EscapeDataString(sharedFolderId)}");
+        }
+
+        if (item.Metadata.TryGetValue(SearchVisibilityMetadata.RelativePathKey, out var relativePath) &&
+            !string.IsNullOrWhiteSpace(relativePath))
+        {
+            queryParts.Add($"relativePath={Uri.EscapeDataString(relativePath)}");
+        }
+
+        return $"/apps/files?{string.Join("&", queryParts)}";
     }
 
     private static bool IsKnownMusicExtension(string? extension) =>

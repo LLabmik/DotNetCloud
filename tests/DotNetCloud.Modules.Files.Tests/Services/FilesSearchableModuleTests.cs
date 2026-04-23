@@ -135,6 +135,50 @@ public class FilesSearchableModuleTests
         Assert.AreEqual("Photo.png", doc.Content);
     }
 
+    [TestMethod]
+    public async Task GetAllSearchableDocumentsAsync_AdminSharedFolder_IncludesMountedFilesWithGroupVisibilityMetadata()
+    {
+        using var db = CreateContext();
+        var ownerId = Guid.NewGuid();
+        var groupId = Guid.NewGuid();
+        var tempPath = Path.Combine(Path.GetTempPath(), $"dnc-search-mounted-{Guid.NewGuid():N}");
+
+        Directory.CreateDirectory(tempPath);
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(tempPath, "readme.txt"), "mounted search content");
+
+            db.AdminSharedFolders.Add(new AdminSharedFolderDefinition
+            {
+                DisplayName = "Mounted Library",
+                SourcePath = tempPath,
+                CreatedByUserId = ownerId,
+                Grants = [new AdminSharedFolderGrant { GroupId = groupId }],
+            });
+            await db.SaveChangesAsync();
+
+            var module = new FilesSearchableModule(db, Mock.Of<IFileStorageEngine>(), new IContentExtractor[] { new TestPlainTextExtractor() }, NullLogger<FilesSearchableModule>.Instance);
+
+            var documents = await module.GetAllSearchableDocumentsAsync();
+            var mountedDocument = documents.Single(document => document.Title == "readme.txt");
+
+            Assert.AreEqual("files", mountedDocument.ModuleId);
+            Assert.AreEqual("AdminSharedFolderMount", mountedDocument.EntityType);
+            Assert.AreEqual(SearchVisibilityMetadata.VisibilityScopeGroupMembers, mountedDocument.Metadata[SearchVisibilityMetadata.VisibilityScopeKey]);
+            Assert.AreEqual(SearchVisibilityMetadata.BuildGroupScopeKey([groupId]), mountedDocument.Metadata[SearchVisibilityMetadata.GroupScopeKey]);
+            Assert.AreEqual("readme.txt", mountedDocument.Metadata[SearchVisibilityMetadata.RelativePathKey]);
+            Assert.IsTrue(mountedDocument.Content.Contains("mounted search content", StringComparison.Ordinal));
+            Assert.IsTrue(mountedDocument.Content.Contains("_DotNetCloud/Mounted Library/readme.txt", StringComparison.Ordinal));
+        }
+        finally
+        {
+            if (Directory.Exists(tempPath))
+            {
+                Directory.Delete(tempPath, recursive: true);
+            }
+        }
+    }
+
     /// <summary>Simple text extractor for unit tests — returns stream content as-is.</summary>
     private sealed class TestPlainTextExtractor : IContentExtractor
     {

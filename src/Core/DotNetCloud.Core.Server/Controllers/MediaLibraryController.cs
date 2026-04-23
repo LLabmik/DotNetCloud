@@ -1,9 +1,11 @@
 using DotNetCloud.Core.Auth.Authorization;
 using DotNetCloud.Core.DTOs;
+using DotNetCloud.Core.DTOs.Media;
 using DotNetCloud.Core.Server.Services;
 using DotNetCloud.Core.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using ServerMediaType = DotNetCloud.Core.Server.Services.MediaType;
 
 namespace DotNetCloud.Core.Server.Controllers;
 
@@ -46,18 +48,21 @@ public sealed class MediaLibraryController : ControllerBase
             return Unauthorized(new { success = false, error = new { code = "INVALID_TOKEN", message = "Invalid token claims" } });
         }
 
-        var photosPath = await _userSettingsService.GetSettingAsync(userId, Module, "photos-path");
-        var musicPath = await _userSettingsService.GetSettingAsync(userId, Module, "music-path");
-        var videoPath = await _userSettingsService.GetSettingAsync(userId, Module, "video-path");
+        var photosSources = await MediaLibrarySourceSettings.LoadSourcesAsync(_userSettingsService, userId, "photos");
+        var musicSources = await MediaLibrarySourceSettings.LoadSourcesAsync(_userSettingsService, userId, "music");
+        var videoSources = await MediaLibrarySourceSettings.LoadSourcesAsync(_userSettingsService, userId, "video");
 
         return Ok(new
         {
             success = true,
             data = new MediaLibraryPathsDto
             {
-                PhotosPath = photosPath?.Value ?? string.Empty,
-                MusicPath = musicPath?.Value ?? string.Empty,
-                VideoPath = videoPath?.Value ?? string.Empty,
+                PhotosPath = photosSources.FirstOrDefault()?.DisplayPath ?? string.Empty,
+                MusicPath = musicSources.FirstOrDefault()?.DisplayPath ?? string.Empty,
+                VideoPath = videoSources.FirstOrDefault()?.DisplayPath ?? string.Empty,
+                PhotosSources = photosSources,
+                MusicSources = musicSources,
+                VideoSources = videoSources,
             }
         });
     }
@@ -98,43 +103,22 @@ public sealed class MediaLibraryController : ControllerBase
             return Unauthorized(new { success = false, error = new { code = "INVALID_TOKEN", message = "Invalid token claims" } });
         }
 
-        if (!Enum.TryParse<MediaType>(request.MediaType, ignoreCase: true, out var mediaType) ||
-            mediaType == MediaType.All)
+        if (!Enum.TryParse<ServerMediaType>(request.MediaType, ignoreCase: true, out var mediaType) ||
+            mediaType == ServerMediaType.All)
         {
             return BadRequest(new { success = false, error = new { code = "INVALID_TYPE", message = "Specify Photos, Music, or Video media type" } });
         }
 
-        var settingKey = mediaType switch
+        var sources = await MediaLibrarySourceSettings.LoadSourcesAsync(_userSettingsService, userId, request.MediaType);
+        if (sources.Count == 0)
         {
-            MediaType.Photos => "photos-path",
-            MediaType.Music => "music-path",
-            MediaType.Video => "video-path",
-            _ => throw new InvalidOperationException("Unreachable")
-        };
-
-        var folderIdKey = mediaType switch
-        {
-            MediaType.Photos => "photos-folder-id",
-            MediaType.Music => "music-folder-id",
-            MediaType.Video => "video-folder-id",
-            _ => throw new InvalidOperationException("Unreachable")
-        };
-
-        var pathSetting = await _userSettingsService.GetSettingAsync(userId, Module, settingKey);
-        var directoryPath = pathSetting?.Value;
-
-        if (string.IsNullOrWhiteSpace(directoryPath))
-        {
-            return BadRequest(new { success = false, error = new { code = "NO_PATH", message = $"No {request.MediaType} library path configured. Set one first." } });
+            return BadRequest(new { success = false, error = new { code = "NO_SOURCES", message = $"No {request.MediaType} library sources configured. Add one first." } });
         }
 
-        var folderIdSetting = await _userSettingsService.GetSettingAsync(userId, Module, folderIdKey);
-        Guid? folderId = Guid.TryParse(folderIdSetting?.Value, out var fid) ? fid : null;
+        _logger.LogInformation("User {UserId} triggered {MediaType} library scan across {SourceCount} configured sources",
+            userId, mediaType, sources.Count);
 
-        _logger.LogInformation("User {UserId} triggered {MediaType} library scan of {Path} (folderId: {FolderId})",
-            userId, mediaType, directoryPath, folderId?.ToString() ?? "root");
-
-        var result = await _importService.ScanFolderAsync(folderId, userId, request.MediaType, progress: null);
+        var result = await _importService.ScanSourcesAsync(sources, userId, request.MediaType, progress: null);
 
         return Ok(new { success = true, data = result });
     }
@@ -169,6 +153,15 @@ public sealed class MediaLibraryPathsDto
 
     /// <summary>Path to video directory.</summary>
     public string VideoPath { get; set; } = string.Empty;
+
+    /// <summary>Configured photo-library sources.</summary>
+    public IReadOnlyList<MediaLibrarySource> PhotosSources { get; set; } = [];
+
+    /// <summary>Configured music-library sources.</summary>
+    public IReadOnlyList<MediaLibrarySource> MusicSources { get; set; } = [];
+
+    /// <summary>Configured video-library sources.</summary>
+    public IReadOnlyList<MediaLibrarySource> VideoSources { get; set; } = [];
 }
 
 /// <summary>

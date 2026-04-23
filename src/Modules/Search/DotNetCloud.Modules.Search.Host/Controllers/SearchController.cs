@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs.Search;
 using DotNetCloud.Modules.Search.Data;
 using DotNetCloud.Modules.Search.Services;
@@ -15,6 +16,7 @@ namespace DotNetCloud.Modules.Search.Host.Controllers;
 public sealed class SearchController : SearchControllerBase
 {
     private readonly SearchQueryService _queryService;
+    private readonly IGroupDirectory? _groupDirectory;
     private readonly SearchReindexBackgroundService? _reindexService;
     private readonly SearchIndexingService? _indexingService;
     private readonly SearchDbContext _db;
@@ -25,12 +27,14 @@ public sealed class SearchController : SearchControllerBase
         SearchQueryService queryService,
         SearchDbContext db,
         ILogger<SearchController> logger,
+        IGroupDirectory? groupDirectory = null,
         SearchReindexBackgroundService? reindexService = null,
         SearchIndexingService? indexingService = null)
     {
         _queryService = queryService;
         _db = db;
         _logger = logger;
+        _groupDirectory = groupDirectory;
         _reindexService = reindexService;
         _indexingService = indexingService;
     }
@@ -60,6 +64,8 @@ public sealed class SearchController : SearchControllerBase
 
         var caller = GetAuthenticatedCaller();
 
+        var groupIds = await GetCallerGroupIdsAsync(caller.UserId, HttpContext.RequestAborted);
+
         var sortOrder = sort?.ToLowerInvariant() switch
         {
             "date_desc" => SearchSortOrder.DateDesc,
@@ -73,6 +79,7 @@ public sealed class SearchController : SearchControllerBase
             ModuleFilter = module,
             EntityTypeFilter = type,
             UserId = caller.UserId,
+            GroupIds = groupIds,
             Page = Math.Max(1, page),
             PageSize = Math.Clamp(pageSize, 1, 100),
             SortOrder = sortOrder
@@ -96,10 +103,13 @@ public sealed class SearchController : SearchControllerBase
 
         var caller = GetAuthenticatedCaller();
 
+        var groupIds = await GetCallerGroupIdsAsync(caller.UserId, HttpContext.RequestAborted);
+
         var query = new SearchQuery
         {
             QueryText = q,
             UserId = caller.UserId,
+            GroupIds = groupIds,
             Page = 1,
             PageSize = 10,
             SortOrder = SearchSortOrder.Relevance
@@ -109,6 +119,17 @@ public sealed class SearchController : SearchControllerBase
 
         // Return just the top items for suggestions
         return Ok(Envelope(result.Items.Take(10)));
+    }
+
+    private async Task<IReadOnlyList<Guid>> GetCallerGroupIdsAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        if (_groupDirectory is null)
+        {
+            return [];
+        }
+
+        var groups = await _groupDirectory.GetGroupsForUserAsync(userId, cancellationToken);
+        return groups.Select(group => group.Id).Distinct().ToArray();
     }
 
     /// <summary>

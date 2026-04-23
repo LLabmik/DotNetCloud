@@ -330,23 +330,43 @@
                 <div class="module-settings-section">
                     <div class="settings-card">
                         <h4>Photos Library</h4>
-                        <p class="hint">Configure the local directory path for your photos library. DotNetCloud will scan
-                            this directory and import photos (JPEG, PNG, GIF, WebP, HEIC, TIFF, RAW, and more).</p>
+                        <p class="hint">Select one or more Files folders for your photos library. Owned folders and
+                            admin shared folders mounted under _DotNetCloud are both supported, and overlapping folders are deduplicated during scans.</p>
                         <div class="form-group">
-                            <label>Directory Path</label>
-                            <div class="input-with-browse">
-                                <input type="text" class="input" @bind="_libraryPath"
-                                       placeholder="/home/user/Pictures" />
-                                <button class="btn btn-outline btn-sm" @onclick="OpenDirectoryBrowser">Browse…</button>
+                            <label>Selected Sources</label>
+                            <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">
+                                @if (_librarySources.Count == 0)
+                                {
+                                    <div class="hint" style="padding: 12px; border: 1px dashed rgba(255,255,255,0.16); border-radius: 12px;">
+                                        No sources selected yet. Add folders from your library or from _DotNetCloud shared mounts.
+                                    </div>
+                                }
+                                else
+                                {
+                                    @foreach (var source in _librarySources)
+                                    {
+                                        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; background: rgba(255,255,255,0.03);">
+                                            <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
+                                                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                                    <span class="tag-chip">@GetLibrarySourceKindLabel(source)</span>
+                                                    <strong>@source.DisplayName</strong>
+                                                </div>
+                                                <span class="hint" style="word-break: break-word;">@source.DisplayPath</span>
+                                            </div>
+                                            <button class="btn btn-outline btn-sm" @onclick="() => RemoveLibrarySource(source)">Remove</button>
+                                        </div>
+                                    }
+                                }
                             </div>
                         </div>
                         <div class="settings-actions">
+                            <button class="btn btn-outline btn-sm" @onclick="OpenDirectoryBrowser">Add Source…</button>
                             <button class="btn btn-primary btn-sm" @onclick="SaveLibraryPathAsync"
                                     disabled="@_settingsSaving">
-                                @(_settingsSaving ? "Saving..." : "Save Path")
+                                @(_settingsSaving ? "Saving..." : "Save Sources")
                             </button>
                             <button class="btn btn-outline btn-sm" @onclick="ScanLibraryAsync"
-                                    disabled="@(_settingsScanning || string.IsNullOrWhiteSpace(_libraryPath))">
+                                    disabled="@(_settingsScanning || _librarySources.Count == 0)">
                                 @(_settingsScanning ? "Scanning..." : "Scan Now")
                             </button>
                         </div>
@@ -453,8 +473,8 @@
                         </div>
 
                         <div class="folder-picker-actions">
-                            <button class="btn btn-primary btn-sm" @onclick="ConfirmDirectoryBrowser">
-                                Select this folder
+                            <button class="btn btn-primary btn-sm" @onclick="ConfirmDirectoryBrowserAsync">
+                                Add this folder
                             </button>
                             <button class="btn btn-sm" @onclick="HideDirectoryBrowser">Cancel</button>
                         </div>

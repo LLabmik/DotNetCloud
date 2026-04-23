@@ -1,3 +1,5 @@
+using DotNetCloud.Core.DTOs.Media;
+
 namespace DotNetCloud.Core.Services;
 
 /// <summary>
@@ -26,6 +28,17 @@ public interface IMediaLibraryScanner
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Result with counts of found and indexed files.</returns>
     Task<MediaScanResult> ScanFolderAsync(Guid? folderId, Guid ownerId, string mediaType, IProgress<MediaScanProgress>? progress = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Scans one or more persisted media-library sources and triggers module indexing.
+    /// </summary>
+    /// <param name="sources">The enabled media-library sources to scan.</param>
+    /// <param name="ownerId">User ID whose personal media library should be updated.</param>
+    /// <param name="mediaType">Type of media to scan for: "Photos", "Music", or "Video".</param>
+    /// <param name="progress">Optional progress reporter for real-time scan updates.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Result with counts of found and indexed files.</returns>
+    Task<MediaScanResult> ScanSourcesAsync(IReadOnlyCollection<MediaLibrarySource> sources, Guid ownerId, string mediaType, IProgress<MediaScanProgress>? progress = null, CancellationToken cancellationToken = default);
 }
 
 /// <summary>

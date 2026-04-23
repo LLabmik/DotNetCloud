@@ -112,6 +112,34 @@ public class FileServiceTests
     }
 
     [TestMethod]
+    public async Task ResolveMountedNodeAsync_ReconstructsMountedFileAfterRegistryColdStart()
+    {
+        using var db = CreateContext();
+        var callerUserId = Guid.NewGuid();
+        var tempPath = Path.Combine(Path.GetTempPath(), $"dnc-mounted-resolve-{Guid.NewGuid():N}");
+
+        try
+        {
+            var (service, _, mountedFileId) = await CreateMountedAdminFolderScenarioAsync(db, callerUserId, tempPath);
+            var sharedFolderId = db.AdminSharedFolders.Select(folder => folder.Id).Single();
+
+            var resolved = await service.ResolveMountedNodeAsync(sharedFolderId, "readme.txt", UserCaller(callerUserId));
+
+            Assert.IsNotNull(resolved);
+            Assert.AreEqual(mountedFileId, resolved.Id);
+            Assert.AreEqual("readme.txt", resolved.Name);
+            Assert.AreEqual("readme.txt", resolved.VirtualRelativePath);
+        }
+        finally
+        {
+            if (Directory.Exists(tempPath))
+            {
+                Directory.Delete(tempPath, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
     public async Task CreateFolderAsync_DuplicateName_ThrowsValidationException()
     {
         using var db = CreateContext();

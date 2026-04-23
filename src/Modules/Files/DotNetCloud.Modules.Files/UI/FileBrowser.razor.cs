@@ -51,6 +51,12 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     /// <summary>Navigation nonce — changes each time a search result is clicked, even for the same file.</summary>
     [Parameter] public string? FileIdNav { get; set; }
 
+    /// <summary>Optional shared-folder source identifier for mounted deep links.</summary>
+    [Parameter] public string? SharedFolderId { get; set; }
+
+    /// <summary>Optional mounted relative path used to resolve deep links after a cold start.</summary>
+    [Parameter] public string? RelativePath { get; set; }
+
     private FileSidebarSection _activeSection = FileSidebarSection.AllFiles;
     private int _trashItemCount;
     private long _trashBytes;
@@ -485,46 +491,60 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
             var node = await FileService.GetNodeAsync(fileId, caller);
             if (node is null)
             {
-                Logger.LogWarning("Deep-link file {FileId} not found", fileId);
-                return;
-            }
-
-            // Navigate to the file's parent folder
-            if (node.ParentId.HasValue)
-            {
-                // Build breadcrumb trail by walking up the folder tree
-                var ancestors = new List<(Guid Id, string Name)>();
-                var currentId = node.ParentId;
-                while (currentId.HasValue)
+                if (Guid.TryParse(SharedFolderId, out var sharedFolderId))
                 {
-                    var folder = await FileService.GetNodeAsync(currentId.Value, caller);
-                    if (folder is null) break;
-                    ancestors.Add((folder.Id, folder.Name));
-                    currentId = folder.ParentId;
+                    node = await FileService.ResolveMountedNodeAsync(sharedFolderId, RelativePath, caller);
                 }
 
-                _breadcrumbs.Clear();
-                ancestors.Reverse();
-                foreach (var ancestor in ancestors)
+                if (node is null)
                 {
-                    _breadcrumbs.Add(new BreadcrumbItem(ancestor.Id, ancestor.Name));
+                    Logger.LogWarning("Deep-link file {FileId} not found", fileId);
+                    return;
                 }
-
-                _currentFolderId = node.ParentId;
-                _currentPage = 1;
-                _selectedNodes.Clear();
-                await LoadCurrentFolderAsync();
             }
 
-            // Open the file (preview or editor)
-            var vm = ToViewModel(node);
-            await HandleNodeDoubleClick(vm);
-            StateHasChanged();
+            await NavigateToResolvedNodeAsync(node, caller);
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to navigate to file {FileId}", fileId);
         }
+    }
+
+    private async Task NavigateToResolvedNodeAsync(FileNodeDto node, CallerContext caller)
+    {
+        if (node.ParentId.HasValue)
+        {
+            var ancestors = new List<(Guid Id, string Name)>();
+            var currentId = node.ParentId;
+            while (currentId.HasValue)
+            {
+                var folder = await FileService.GetNodeAsync(currentId.Value, caller);
+                if (folder is null)
+                {
+                    break;
+                }
+
+                ancestors.Add((folder.Id, folder.Name));
+                currentId = folder.ParentId;
+            }
+
+            _breadcrumbs.Clear();
+            ancestors.Reverse();
+            foreach (var ancestor in ancestors)
+            {
+                _breadcrumbs.Add(new BreadcrumbItem(ancestor.Id, ancestor.Name));
+            }
+
+            _currentFolderId = node.ParentId;
+            _currentPage = 1;
+            _selectedNodes.Clear();
+            await LoadCurrentFolderAsync();
+        }
+
+        var vm = ToViewModel(node);
+        await HandleNodeDoubleClick(vm);
+        StateHasChanged();
     }
 
     protected void HandleNodeClick(FileNodeViewModel node)

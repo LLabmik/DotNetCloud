@@ -1,8 +1,10 @@
 using System.Security.Cryptography;
 using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.DTOs.Media;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Files.Data;
+using DotNetCloud.Modules.Files.DTOs;
 using DotNetCloud.Modules.Files.Events;
 using DotNetCloud.Modules.Files.Models;
 using DotNetCloud.Modules.Files.Services;
@@ -133,89 +135,76 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
     /// <inheritdoc />
     public async Task<MediaScanResult> ScanFolderAsync(Guid? folderId, Guid ownerId, string mediaType, IProgress<MediaScanProgress>? progress = null, CancellationToken cancellationToken = default)
     {
+        IReadOnlyCollection<MediaLibrarySource> sources =
+        [
+            new MediaLibrarySource
+            {
+                SourceKind = MediaLibrarySourceKind.OwnedFileNode,
+                FolderId = folderId,
+                DisplayPath = folderId.HasValue ? $"/{folderId.Value:D}" : "/",
+                DisplayName = folderId.HasValue ? "Selected Folder" : "Home",
+                Enabled = true,
+            }
+        ];
+
+        return await ScanSourcesAsync(sources, ownerId, mediaType, progress, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<MediaScanResult> ScanSourcesAsync(IReadOnlyCollection<MediaLibrarySource> sources, Guid ownerId, string mediaType, IProgress<MediaScanProgress>? progress = null, CancellationToken cancellationToken = default)
+    {
         if (!Enum.TryParse<MediaType>(mediaType, ignoreCase: true, out var parsed))
         {
             throw new ArgumentException($"Invalid media type: {mediaType}", nameof(mediaType));
         }
 
+        var normalizedSources = MediaLibrarySourceSettings.Normalize(sources.ToList());
+        var enabledSources = normalizedSources.Where(source => source.Enabled).ToList();
         var extensions = GetExtensionsForMediaType(parsed);
+        var result = new MediaScanResult();
 
         using var scope = _scopeFactory.CreateScope();
-        var filesDb = scope.ServiceProvider.GetRequiredService<FilesDbContext>();
+        var serviceProvider = scope.ServiceProvider;
+        var filesDb = serviceProvider.GetRequiredService<FilesDbContext>();
+        var fileService = serviceProvider.GetRequiredService<IFileService>();
+        var caller = new CallerContext(ownerId, ["user"], CallerType.User);
+        var visitedFolders = new HashSet<Guid>();
+        var candidatesById = new Dictionary<Guid, MediaFileCandidate>();
 
-        // Build query for files under the selected virtual folder
-        IQueryable<FileNode> query = filesDb.FileNodes
-            .Where(n => n.OwnerId == ownerId && !n.IsDeleted && n.NodeType == FileNodeType.File);
-
-        if (folderId.HasValue)
+        foreach (var source in enabledSources)
         {
-            // Get the target folder's materialized path for descendant lookup
-            var folder = await filesDb.FileNodes
-                .Where(n => n.Id == folderId.Value && n.OwnerId == ownerId && !n.IsDeleted)
-                .Select(n => new { n.MaterializedPath })
-                .FirstOrDefaultAsync(cancellationToken);
+            var sourceCandidates = await CollectSourceFilesAsync(
+                source,
+                fileService,
+                caller,
+                extensions,
+                visitedFolders,
+                cancellationToken);
 
-            if (folder is null)
+            if (sourceCandidates.Count == 0 && source.SourceKind == MediaLibrarySourceKind.SharedMount)
             {
-                return new MediaScanResult { Errors = ["Folder not found."] };
+                result.Errors.Add($"{source.DisplayPath}: shared folder is unavailable or no longer accessible.");
             }
 
-            var prefix = folder.MaterializedPath + "/";
-            query = query.Where(n => n.MaterializedPath.StartsWith(prefix));
+            foreach (var candidate in sourceCandidates)
+            {
+                candidatesById[candidate.Id] = candidate;
+            }
         }
 
-        // Pull candidates, then filter by extension in memory (EF can't do HashSet.Contains on ext)
-        var candidates = await query
-            .Select(n => new { n.Id, n.Name, n.Size, n.MimeType, n.ParentId, n.StoragePath })
-            .ToListAsync(cancellationToken);
+        result.TotalFound = candidatesById.Count;
+        _logger.LogInformation(
+            "Media source scan: found {Count} {MediaType} files across {SourceCount} sources for user {OwnerId}",
+            result.TotalFound, parsed, enabledSources.Count, ownerId);
 
-        var matchingFiles = candidates
-            .Where(f =>
-            {
-                var ext = Path.GetExtension(f.Name).ToLowerInvariant();
-                return extensions.Contains(ext);
-            })
+        var alreadyIndexedIds = await GetAlreadyIndexedIdsAsync(serviceProvider, parsed, ownerId, cancellationToken);
+        var currentFileNodeIds = candidatesById.Keys.ToHashSet();
+        var filesToIndex = candidatesById.Values
+            .Where(candidate => !alreadyIndexedIds.Contains(candidate.Id))
+            .OrderBy(candidate => candidate.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        var result = new MediaScanResult { TotalFound = matchingFiles.Count };
-
-        _logger.LogInformation(
-            "Virtual folder scan: found {Count} {MediaType} files under folder {FolderId} for user {OwnerId}",
-            matchingFiles.Count, parsed, folderId?.ToString() ?? "root", ownerId);
-
-        // ── Pre-filter: skip already-indexed files ──────────────────────────────
-        // Build a set of FileNode IDs currently in the index so we can skip
-        // files that are already up to date, avoiding redundant stream downloads.
-        HashSet<Guid> alreadyIndexedIds = [];
-        switch (parsed)
-        {
-            case MediaType.Music:
-            {
-                var musicCallback = scope.ServiceProvider.GetService<IMusicIndexingCallback>();
-                if (musicCallback is not null)
-                    alreadyIndexedIds = await musicCallback.GetIndexedFileNodeIdsAsync(ownerId, cancellationToken);
-                break;
-            }
-            case MediaType.Video:
-            {
-                var videoCallback = scope.ServiceProvider.GetService<IVideoIndexingCallback>();
-                if (videoCallback is not null)
-                    alreadyIndexedIds = await videoCallback.GetIndexedFileNodeIdsAsync(ownerId, cancellationToken);
-                break;
-            }
-            case MediaType.Photos:
-            {
-                var photoCallback = scope.ServiceProvider.GetService<IPhotoIndexingCallback>();
-                if (photoCallback is not null)
-                    alreadyIndexedIds = await photoCallback.GetIndexedFileNodeIdsAsync(ownerId, cancellationToken);
-                break;
-            }
-        }
-
-        var currentFileNodeIds = matchingFiles.Select(f => f.Id).ToHashSet();
-        var filesToIndex = matchingFiles.Where(f => !alreadyIndexedIds.Contains(f.Id)).ToList();
-        result.Skipped = matchingFiles.Count - filesToIndex.Count;
-
+        result.Skipped = result.TotalFound - filesToIndex.Count;
         if (result.Skipped > 0)
         {
             _logger.LogInformation(
@@ -226,7 +215,10 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
         var filesProcessed = 0;
         foreach (var file in filesToIndex)
         {
-            if (cancellationToken.IsCancellationRequested) break;
+            if (cancellationToken.IsCancellationRequested)
+            {
+                break;
+            }
 
             progress?.Report(new MediaScanProgress
             {
@@ -241,66 +233,7 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
 
             try
             {
-                var mime = file.MimeType ?? GetMimeType(file.Name);
-
-                // If the FileNode has a null/stale MimeType, fix it in the database
-                // so the content endpoint serves the correct Content-Type for playback.
-                if (file.MimeType is null && mime != "application/octet-stream")
-                {
-                    var node = await filesDb.FileNodes.FindAsync([file.Id], cancellationToken);
-                    if (node is not null)
-                    {
-                        node.MimeType = mime;
-                        await filesDb.SaveChangesAsync(cancellationToken);
-                    }
-                }
-
-                // Resolve actual chunk storage path (files uploaded via chunked API have their
-                // data in FileChunks, not at FileNode.StoragePath which may be stale/empty).
-                string? resolvedStoragePath = file.StoragePath;
-                {
-                    var chunkPath = await (
-                        from fv in filesDb.FileVersions
-                        where fv.FileNodeId == file.Id
-                        orderby fv.VersionNumber descending
-                        join fvc in filesDb.FileVersionChunks on fv.Id equals fvc.FileVersionId
-                        orderby fvc.SequenceIndex
-                        join fc in filesDb.FileChunks on fvc.FileChunkId equals fc.Id
-                        select fc.StoragePath
-                    ).FirstOrDefaultAsync(cancellationToken);
-                    if (!string.IsNullOrEmpty(chunkPath))
-                        resolvedStoragePath = chunkPath;
-                }
-
-                switch (parsed)
-                {
-                    case MediaType.Photos:
-                        var photoCallback = scope.ServiceProvider.GetService<IPhotoIndexingCallback>();
-                        if (photoCallback is not null)
-                        {
-                            await photoCallback.IndexPhotoAsync(file.Id, file.Name, mime, file.Size, ownerId, resolvedStoragePath, cancellationToken);
-                        }
-                        else
-                            _logger.LogWarning("IPhotoIndexingCallback not registered — cannot index {File}", file.Name);
-                        break;
-
-                    case MediaType.Music:
-                        var musicCallback = scope.ServiceProvider.GetService<IMusicIndexingCallback>();
-                        if (musicCallback is not null)
-                            await musicCallback.IndexAudioAsync(file.Id, file.Name, mime, file.Size, ownerId, resolvedStoragePath, cancellationToken);
-                        else
-                            _logger.LogWarning("IMusicIndexingCallback not registered — cannot index {File}", file.Name);
-                        break;
-
-                    case MediaType.Video:
-                        var videoCallback = scope.ServiceProvider.GetService<IVideoIndexingCallback>();
-                        if (videoCallback is not null)
-                            await videoCallback.IndexVideoAsync(file.Id, file.Name, mime, file.Size, ownerId, resolvedStoragePath, cancellationToken);
-                        else
-                            _logger.LogWarning("IVideoIndexingCallback not registered — cannot index {File}", file.Name);
-                        break;
-                }
-
+                await IndexCandidateAsync(file, ownerId, parsed, fileService, filesDb, serviceProvider, cancellationToken);
                 result.Imported++;
             }
             catch (Exception ex)
@@ -313,7 +246,6 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
             filesProcessed++;
         }
 
-        // ── Deletion detection: remove indexed items whose source files no longer exist ─
         if (alreadyIndexedIds.Count > 0 && !cancellationToken.IsCancellationRequested)
         {
             var deletedFileNodeIds = alreadyIndexedIds
@@ -336,30 +268,7 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
                     PercentComplete = 100,
                 });
 
-                switch (parsed)
-                {
-                    case MediaType.Music:
-                    {
-                        var musicCallback = scope.ServiceProvider.GetService<IMusicIndexingCallback>();
-                        if (musicCallback is not null)
-                            result.Removed = await musicCallback.RemoveDeletedTracksAsync(deletedFileNodeIds, ownerId, cancellationToken);
-                        break;
-                    }
-                    case MediaType.Video:
-                    {
-                        var videoCallback = scope.ServiceProvider.GetService<IVideoIndexingCallback>();
-                        if (videoCallback is not null)
-                            result.Removed = await videoCallback.RemoveDeletedVideosAsync(deletedFileNodeIds, ownerId, cancellationToken);
-                        break;
-                    }
-                    case MediaType.Photos:
-                    {
-                        var photoCallback = scope.ServiceProvider.GetService<IPhotoIndexingCallback>();
-                        if (photoCallback is not null)
-                            result.Removed = await photoCallback.RemoveDeletedPhotosAsync(deletedFileNodeIds, ownerId, cancellationToken);
-                        break;
-                    }
-                }
+                result.Removed = await RemoveDeletedAsync(serviceProvider, parsed, deletedFileNodeIds, ownerId, cancellationToken);
             }
         }
 
@@ -375,11 +284,263 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
         });
 
         _logger.LogInformation(
-            "Virtual folder scan complete: {Imported} indexed, {Skipped} skipped, {Removed} removed, {Failed} failed out of {Total}",
+            "Media source scan complete: {Imported} indexed, {Skipped} skipped, {Removed} removed, {Failed} failed out of {Total}",
             result.Imported, result.Skipped, result.Removed, result.Failed, result.TotalFound);
 
         return result;
     }
+
+    private async Task<IReadOnlyList<MediaFileCandidate>> CollectSourceFilesAsync(
+        MediaLibrarySource source,
+        IFileService fileService,
+        CallerContext caller,
+        HashSet<string> extensions,
+        HashSet<Guid> visitedFolders,
+        CancellationToken cancellationToken)
+    {
+        var roots = await ResolveSourceRootsAsync(source, fileService, caller, cancellationToken);
+        if (roots.Count == 0)
+        {
+            return [];
+        }
+
+        var candidates = new Dictionary<Guid, MediaFileCandidate>();
+        foreach (var root in roots)
+        {
+            await CollectMatchingFilesAsync(root, fileService, caller, extensions, candidates, visitedFolders, cancellationToken);
+        }
+
+        return candidates.Values.ToList();
+    }
+
+    private async Task<IReadOnlyList<FileNodeDto>> ResolveSourceRootsAsync(
+        MediaLibrarySource source,
+        IFileService fileService,
+        CallerContext caller,
+        CancellationToken cancellationToken)
+    {
+        switch (source.SourceKind)
+        {
+            case MediaLibrarySourceKind.OwnedFileNode when source.FolderId.HasValue:
+            {
+                var node = await fileService.GetNodeAsync(source.FolderId.Value, caller, cancellationToken);
+                return node is null || node.IsVirtual ? [] : [node];
+            }
+
+            case MediaLibrarySourceKind.OwnedFileNode:
+            {
+                var rootNodes = await fileService.ListRootAsync(caller, cancellationToken);
+                return rootNodes.Where(node => !node.IsVirtual).ToList();
+            }
+
+            case MediaLibrarySourceKind.SharedMount when source.SharedFolderId.HasValue:
+            {
+                var node = await fileService.ResolveMountedNodeAsync(source.SharedFolderId.Value, source.RelativePath, caller, cancellationToken);
+                return node is null ? [] : [node];
+            }
+
+            default:
+                return [];
+        }
+    }
+
+    private async Task CollectMatchingFilesAsync(
+        FileNodeDto node,
+        IFileService fileService,
+        CallerContext caller,
+        HashSet<string> extensions,
+        IDictionary<Guid, MediaFileCandidate> candidates,
+        ISet<Guid> visitedFolders,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (IsFolder(node))
+        {
+            if (!visitedFolders.Add(node.Id))
+            {
+                return;
+            }
+
+            try
+            {
+                var children = await fileService.ListChildrenAsync(node.Id, caller, cancellationToken);
+                foreach (var child in children)
+                {
+                    await CollectMatchingFilesAsync(child, fileService, caller, extensions, candidates, visitedFolders, cancellationToken);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to enumerate media source folder {FolderId}", node.Id);
+            }
+
+            return;
+        }
+
+        if (!IsFile(node))
+        {
+            return;
+        }
+
+        var extension = Path.GetExtension(node.Name).ToLowerInvariant();
+        if (!extensions.Contains(extension))
+        {
+            return;
+        }
+
+        candidates[node.Id] = new MediaFileCandidate(node.Id, node.Name, node.Size, node.MimeType, node.IsVirtual);
+    }
+
+    private async Task<HashSet<Guid>> GetAlreadyIndexedIdsAsync(IServiceProvider serviceProvider, MediaType mediaType, Guid ownerId, CancellationToken cancellationToken)
+    {
+        switch (mediaType)
+        {
+            case MediaType.Music:
+            {
+                var musicCallback = serviceProvider.GetService<IMusicIndexingCallback>();
+                return musicCallback is null
+                    ? []
+                    : await musicCallback.GetIndexedFileNodeIdsAsync(ownerId, cancellationToken);
+            }
+
+            case MediaType.Video:
+            {
+                var videoCallback = serviceProvider.GetService<IVideoIndexingCallback>();
+                return videoCallback is null
+                    ? []
+                    : await videoCallback.GetIndexedFileNodeIdsAsync(ownerId, cancellationToken);
+            }
+
+            case MediaType.Photos:
+            {
+                var photoCallback = serviceProvider.GetService<IPhotoIndexingCallback>();
+                return photoCallback is null
+                    ? []
+                    : await photoCallback.GetIndexedFileNodeIdsAsync(ownerId, cancellationToken);
+            }
+
+            default:
+                return [];
+        }
+    }
+
+    private async Task IndexCandidateAsync(
+        MediaFileCandidate candidate,
+        Guid ownerId,
+        MediaType mediaType,
+        IFileService fileService,
+        FilesDbContext filesDb,
+        IServiceProvider serviceProvider,
+        CancellationToken cancellationToken)
+    {
+        var mime = candidate.MimeType ?? GetMimeType(candidate.Name);
+        if (!candidate.IsVirtual && candidate.MimeType is null && mime != "application/octet-stream")
+        {
+            var node = await filesDb.FileNodes.FindAsync([candidate.Id], cancellationToken);
+            if (node is not null)
+            {
+                node.MimeType = mime;
+                await filesDb.SaveChangesAsync(cancellationToken);
+            }
+        }
+
+        var storagePath = candidate.IsVirtual
+            ? null
+            : await fileService.GetStoragePathAsync(candidate.Id, cancellationToken);
+
+        switch (mediaType)
+        {
+            case MediaType.Photos:
+            {
+                var photoCallback = serviceProvider.GetService<IPhotoIndexingCallback>();
+                if (photoCallback is not null)
+                {
+                    await photoCallback.IndexPhotoAsync(candidate.Id, candidate.Name, mime, candidate.Size, ownerId, storagePath, cancellationToken);
+                }
+                else
+                {
+                    _logger.LogWarning("IPhotoIndexingCallback not registered — cannot index {File}", candidate.Name);
+                }
+
+                break;
+            }
+
+            case MediaType.Music:
+            {
+                var musicCallback = serviceProvider.GetService<IMusicIndexingCallback>();
+                if (musicCallback is not null)
+                {
+                    await musicCallback.IndexAudioAsync(candidate.Id, candidate.Name, mime, candidate.Size, ownerId, storagePath, cancellationToken);
+                }
+                else
+                {
+                    _logger.LogWarning("IMusicIndexingCallback not registered — cannot index {File}", candidate.Name);
+                }
+
+                break;
+            }
+
+            case MediaType.Video:
+            {
+                var videoCallback = serviceProvider.GetService<IVideoIndexingCallback>();
+                if (videoCallback is not null)
+                {
+                    await videoCallback.IndexVideoAsync(candidate.Id, candidate.Name, mime, candidate.Size, ownerId, storagePath, cancellationToken);
+                }
+                else
+                {
+                    _logger.LogWarning("IVideoIndexingCallback not registered — cannot index {File}", candidate.Name);
+                }
+
+                break;
+            }
+        }
+    }
+
+    private async Task<int> RemoveDeletedAsync(
+        IServiceProvider serviceProvider,
+        MediaType mediaType,
+        IReadOnlyCollection<Guid> deletedFileNodeIds,
+        Guid ownerId,
+        CancellationToken cancellationToken)
+    {
+        switch (mediaType)
+        {
+            case MediaType.Music:
+            {
+                var musicCallback = serviceProvider.GetService<IMusicIndexingCallback>();
+                return musicCallback is null
+                    ? 0
+                    : await musicCallback.RemoveDeletedTracksAsync(deletedFileNodeIds, ownerId, cancellationToken);
+            }
+
+            case MediaType.Video:
+            {
+                var videoCallback = serviceProvider.GetService<IVideoIndexingCallback>();
+                return videoCallback is null
+                    ? 0
+                    : await videoCallback.RemoveDeletedVideosAsync(deletedFileNodeIds, ownerId, cancellationToken);
+            }
+
+            case MediaType.Photos:
+            {
+                var photoCallback = serviceProvider.GetService<IPhotoIndexingCallback>();
+                return photoCallback is null
+                    ? 0
+                    : await photoCallback.RemoveDeletedPhotosAsync(deletedFileNodeIds, ownerId, cancellationToken);
+            }
+
+            default:
+                return 0;
+        }
+    }
+
+    private static bool IsFolder(FileNodeDto node)
+        => string.Equals(node.NodeType, "Folder", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsFile(FileNodeDto node)
+        => string.Equals(node.NodeType, "File", StringComparison.OrdinalIgnoreCase);
 
     private async Task<bool> ImportSingleFileAsync(string filePath, Guid ownerId, CancellationToken ct)
     {
@@ -521,6 +682,8 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
             _ => "application/octet-stream"
         };
     }
+
+    private sealed record MediaFileCandidate(Guid Id, string Name, long Size, string? MimeType, bool IsVirtual);
 
     private static readonly HashSet<string> PhotoExtensions =
     [

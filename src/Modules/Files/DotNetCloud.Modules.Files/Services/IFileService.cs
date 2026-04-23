@@ -26,6 +26,9 @@ public interface IFileService
     /// </summary>
     Task<IReadOnlyList<FileNodeDto>> ListMountedAccessAsync(CallerContext caller, CancellationToken cancellationToken = default);
 
+    /// <summary>Resolves a mounted admin shared-folder node from its source folder and relative path.</summary>
+    Task<FileNodeDto?> ResolveMountedNodeAsync(Guid sharedFolderId, string? relativePath, CallerContext caller, CancellationToken cancellationToken = default);
+
     /// <summary>Renames a file or folder.</summary>
     Task<FileNodeDto> RenameAsync(Guid nodeId, RenameNodeDto dto, CallerContext caller, CancellationToken cancellationToken = default);
 

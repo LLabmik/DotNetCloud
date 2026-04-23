@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.DTOs.Search;
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Events.Search;
@@ -256,6 +257,43 @@ internal sealed class FileService : IFileService
         var childCounts = await GetChildCountsAsync(nodes, cancellationToken);
         var subtreeSizes = await GetSubtreeSizesAsync(nodes, cancellationToken);
         return nodes.Select(n => ToDto(n, childCounts.GetValueOrDefault(n.Id), subtreeSizes.GetValueOrDefault(n.Id))).ToList();
+    }
+
+    /// <inheritdoc />
+    public async Task<FileNodeDto?> ResolveMountedNodeAsync(Guid sharedFolderId, string? relativePath, CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(caller);
+
+        var definition = await GetAccessibleAdminSharedFolderByIdAsync(sharedFolderId, caller, cancellationToken);
+        if (definition is null)
+        {
+            return null;
+        }
+
+        var normalizedRelativePath = VirtualMountedNodeRegistry.NormalizeRelativePath(relativePath ?? string.Empty);
+        RegisterMountedAncestorDescriptors(sharedFolderId, normalizedRelativePath);
+
+        if (string.IsNullOrEmpty(normalizedRelativePath))
+        {
+            return await CreateAdminSharedFolderRootDtoAsync(definition, cancellationToken);
+        }
+
+        var physicalPath = CombineMountedPhysicalPath(definition.SourcePath, normalizedRelativePath);
+        var isDirectory = Directory.Exists(physicalPath);
+        if (!isDirectory && !File.Exists(physicalPath))
+        {
+            return null;
+        }
+
+        var nodeId = VirtualMountedNodeRegistry.GetMountedNodeId(sharedFolderId, normalizedRelativePath, isDirectory);
+        VirtualMountedNodeRegistry.Register(new VirtualMountedNodeDescriptor(nodeId, sharedFolderId, normalizedRelativePath, isDirectory));
+
+        return await CreateMountedEntryDtoAsync(
+            definition,
+            normalizedRelativePath,
+            isDirectory,
+            GetMountedNodeParentId(definition.Id, normalizedRelativePath),
+            cancellationToken);
     }
 
     /// <inheritdoc />
@@ -1062,6 +1100,27 @@ internal sealed class FileService : IFileService
 
         var parentRelativePath = normalized[..normalized.LastIndexOf('/')];
         return VirtualMountedNodeRegistry.GetMountedNodeId(sharedFolderId, parentRelativePath, isDirectory: true);
+    }
+
+    private static void RegisterMountedAncestorDescriptors(Guid sharedFolderId, string relativePath)
+    {
+        var normalized = VirtualMountedNodeRegistry.NormalizeRelativePath(relativePath);
+        if (string.IsNullOrEmpty(normalized) || !normalized.Contains('/'))
+        {
+            return;
+        }
+
+        var segments = normalized.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        var currentPath = string.Empty;
+        for (var index = 0; index < segments.Length - 1; index++)
+        {
+            currentPath = string.IsNullOrEmpty(currentPath)
+                ? segments[index]
+                : $"{currentPath}/{segments[index]}";
+
+            var nodeId = VirtualMountedNodeRegistry.GetMountedNodeId(sharedFolderId, currentPath, isDirectory: true);
+            VirtualMountedNodeRegistry.Register(new VirtualMountedNodeDescriptor(nodeId, sharedFolderId, currentPath, IsDirectory: true));
+        }
     }
 
     private static string CombineMountedPhysicalPath(string sourcePath, string relativePath)

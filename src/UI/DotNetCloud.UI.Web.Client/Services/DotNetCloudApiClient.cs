@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using DotNetCloud.Core.DTOs;
+using DotNetCloud.Core.DTOs.Media;
 using DotNetCloud.Core.DTOs.Search;
 
 namespace DotNetCloud.UI.Web.Client.Services;
@@ -1108,6 +1109,15 @@ public sealed class MediaLibraryPathsResponse
 
     /// <summary>Path to video directory.</summary>
     public string VideoPath { get; set; } = string.Empty;
+
+    /// <summary>Configured photo-library sources.</summary>
+    public IReadOnlyList<MediaLibrarySource> PhotosSources { get; set; } = [];
+
+    /// <summary>Configured music-library sources.</summary>
+    public IReadOnlyList<MediaLibrarySource> MusicSources { get; set; } = [];
+
+    /// <summary>Configured video-library sources.</summary>
+    public IReadOnlyList<MediaLibrarySource> VideoSources { get; set; } = [];
 }
 
 /// <summary>
@@ -1126,6 +1136,9 @@ public sealed class MediaScanResultResponse
 
     /// <summary>Files that failed to import.</summary>
     public int Failed { get; set; }
+
+    /// <summary>Indexed items removed because their source files disappeared.</summary>
+    public int Removed { get; set; }
 
     /// <summary>Error messages for failed imports.</summary>
     public List<string> Errors { get; set; } = [];

@@ -17,6 +17,9 @@ public sealed record SearchQuery
     /// <summary>The authenticated user ID for permission-scoped queries.</summary>
     public required Guid UserId { get; init; }
 
+    /// <summary>Groups the authenticated user belongs to for shared-visibility filtering.</summary>
+    public IReadOnlyList<Guid> GroupIds { get; init; } = [];
+
     /// <summary>Page number (1-based).</summary>
     public int Page { get; init; } = 1;
 

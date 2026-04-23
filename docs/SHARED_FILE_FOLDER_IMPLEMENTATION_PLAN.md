@@ -6,7 +6,7 @@
 
 > Status: In Progress
 
-> Progress: Workstreams 4.1 through 4.4 are complete. Files now has persisted admin shared-folder definitions and grants, admin CRUD/reindex/rescan surfaces, `_DotNetCloud` virtual browse composition, mounted-file download support, and explicit read-only enforcement across mounted mutation paths and UI affordances. Next focus: 4.5 group-aware mounted-folder search and 4.6 media scan-source selection.
+> Progress: Workstreams 4.1 through 4.4 are complete, and the first 4.5 slice is now landed. Files now has persisted admin shared-folder definitions and grants, admin CRUD/reindex/rescan surfaces, `_DotNetCloud` virtual browse composition, mounted-file download support, explicit read-only enforcement across mounted mutation paths and UI affordances, plus group-aware mounted-folder search indexing and deep-link navigation. Next focus: remaining 4.5 crawl/local-search follow-up and 4.6 media scan-source selection.
 
 ---
 
@@ -170,7 +170,7 @@ The implementation should therefore split into four architectural layers:
 - Folder validation blocks invalid and ambiguous configurations.
 - Shared-folder definitions are ready for virtual enumeration and search crawling.
 
-Current implementation status: 4.4 is now complete. Files root listings inject a synthetic `_DotNetCloud` folder for every user, `_DotNetCloud` exposes a synthetic `Shared With Me` folder plus group-authorized admin shared folders, admin shared folders enumerate their real nested on-disk hierarchy as virtual nodes, mounted files can be read through the existing download path, mounted writes are blocked across create/rename/move/delete/upload/share/tag/comment flows, and the Files UI hides write/edit affordances for mounted content while keeping open/download behavior. The next implementation focus is 4.5 search indexing/navigation and 4.6 per-user media scan-source selection.
+Current implementation status: 4.4 is complete and the first 4.5 search slice is also landed. Files root listings inject a synthetic `_DotNetCloud` folder for every user, `_DotNetCloud` exposes a synthetic `Shared With Me` folder plus group-authorized admin shared folders, admin shared folders enumerate their real nested on-disk hierarchy as virtual nodes, mounted files can be read through the existing download path, mounted writes are blocked across create/rename/move/delete/upload/share/tag/comment flows, and the Files UI hides write/edit affordances for mounted content while keeping open/download behavior. Global Search now indexes mounted admin shared-folder files and folders with group-scoped visibility metadata, Search routes mounted results back into the correct `_DotNetCloud` path, and Files can reconstruct mounted search deep links after a cold start. The next implementation focus is the remaining 4.5 crawl/local-search follow-up and 4.6 per-user media scan-source selection.
 
 ---
 

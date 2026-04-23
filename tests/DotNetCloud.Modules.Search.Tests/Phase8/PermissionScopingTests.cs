@@ -43,6 +43,29 @@ public class PermissionScopingTests
         };
     }
 
+    private static SearchDocument CreateGroupScopedDoc(string entityId, string title, string content, Guid ownerId, Guid groupId)
+    {
+        return new SearchDocument
+        {
+            ModuleId = "files",
+            EntityId = entityId,
+            EntityType = "AdminSharedFolderMount",
+            Title = title,
+            Content = content,
+            OwnerId = ownerId,
+            OrganizationId = OrgId,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+            Metadata = new Dictionary<string, string>
+            {
+                [SearchVisibilityMetadata.VisibilityScopeKey] = SearchVisibilityMetadata.VisibilityScopeGroupMembers,
+                [SearchVisibilityMetadata.GroupScopeKey] = SearchVisibilityMetadata.BuildGroupScopeKey([groupId]),
+                [SearchVisibilityMetadata.SharedFolderIdKey] = Guid.NewGuid().ToString("D"),
+                [SearchVisibilityMetadata.RelativePathKey] = "shared/report.txt",
+            }
+        };
+    }
+
     [TestMethod]
     public async Task SqlServer_UserA_CannotSee_UserB_Documents()
     {
@@ -106,6 +129,49 @@ public class PermissionScopingTests
         await provider.RemoveDocumentAsync("chat", "m1");
         stats = await provider.GetIndexStatsAsync();
         Assert.AreEqual(1, stats.TotalDocuments);
+    }
+
+    [TestMethod]
+    public async Task PermissionScoping_GroupScopedDocument_VisibleToMatchingGroup()
+    {
+        using var db = CreateDbContext(nameof(PermissionScoping_GroupScopedDocument_VisibleToMatchingGroup));
+        var provider = new SqlServerSearchProvider(db, NullLogger<SqlServerSearchProvider>.Instance);
+        var sharedGroupId = Guid.NewGuid();
+
+        await provider.IndexDocumentAsync(CreateGroupScopedDoc("shared-1", "Shared Report", "quarterly mounted data", UserB, sharedGroupId));
+
+        var result = await provider.SearchAsync(new SearchQuery
+        {
+            QueryText = "mounted",
+            UserId = UserA,
+            GroupIds = [sharedGroupId],
+            Page = 1,
+            PageSize = 20,
+        });
+
+        Assert.AreEqual(1, result.TotalCount);
+        Assert.AreEqual("shared-1", result.Items[0].EntityId);
+    }
+
+    [TestMethod]
+    public async Task PermissionScoping_GroupScopedDocument_HiddenWithoutMatchingGroup()
+    {
+        using var db = CreateDbContext(nameof(PermissionScoping_GroupScopedDocument_HiddenWithoutMatchingGroup));
+        var provider = new MariaDbSearchProvider(db, NullLogger<MariaDbSearchProvider>.Instance);
+        var sharedGroupId = Guid.NewGuid();
+
+        await provider.IndexDocumentAsync(CreateGroupScopedDoc("shared-2", "Shared Report", "quarterly mounted data", UserB, sharedGroupId));
+
+        var result = await provider.SearchAsync(new SearchQuery
+        {
+            QueryText = "mounted",
+            UserId = UserA,
+            GroupIds = [Guid.NewGuid()],
+            Page = 1,
+            PageSize = 20,
+        });
+
+        Assert.AreEqual(0, result.TotalCount);
     }
 
     [TestMethod]

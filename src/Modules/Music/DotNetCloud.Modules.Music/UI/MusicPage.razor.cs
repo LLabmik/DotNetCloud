@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
+using DotNetCloud.Core.DTOs.Media;
 using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Music.Services;
 using Microsoft.AspNetCore.Components;
@@ -89,8 +90,7 @@ public partial class MusicPage : IAsyncDisposable
     private bool _pendingScrollToPlaying;
 
     // ── Library Settings ──
-    private string _libraryPath = string.Empty;
-    private Guid? _libraryFolderId;
+    private List<MediaLibrarySource> _librarySources = [];
     private bool _settingsSaving;
     private bool _settingsScanning;
     private string? _settingsError;
@@ -742,27 +742,38 @@ public partial class MusicPage : IAsyncDisposable
         if (_caller is null) return;
         try
         {
-            var setting = await UserSettingsService.GetSettingAsync(_caller.UserId, "media-library", "music-path");
-            _libraryPath = setting?.Value ?? string.Empty;
-            var folderIdSetting = await UserSettingsService.GetSettingAsync(_caller.UserId, "media-library", "music-folder-id");
-            _libraryFolderId = Guid.TryParse(folderIdSetting?.Value, out var fid) ? fid : null;
+            _librarySources = (await MediaLibrarySourceSettings.LoadSourcesAsync(UserSettingsService, _caller.UserId, "music")).ToList();
         }
         catch { /* ignore load failures */ }
     }
 
-    private async Task SaveLibraryPathAsync()
+    private Task SaveLibraryPathAsync()
+        => PersistLibrarySourcesAsync(showSuccessMessage: true);
+
+    private async Task PersistLibrarySourcesAsync(bool showSuccessMessage)
     {
         if (_caller is null) return;
         _settingsSaving = true;
         _settingsError = null;
-        _settingsSuccess = null;
+        if (showSuccessMessage)
+        {
+            _settingsSuccess = null;
+        }
+
         try
         {
-            await UserSettingsService.UpsertSettingAsync(_caller.UserId, "media-library", "music-path",
-                new UpsertUserSettingDto { Value = _libraryPath.Trim(), Description = "Music library folder path" });
-            await UserSettingsService.UpsertSettingAsync(_caller.UserId, "media-library", "music-folder-id",
-                new UpsertUserSettingDto { Value = _libraryFolderId?.ToString() ?? string.Empty, Description = "Music library folder ID" });
-            _settingsSuccess = "Path saved.";
+            _librarySources = MediaLibrarySourceSettings.Normalize(_librarySources).ToList();
+            await MediaLibrarySourceSettings.SaveSourcesAsync(
+                UserSettingsService,
+                _caller.UserId,
+                "music",
+                _librarySources,
+                "Music library scan sources");
+
+            if (showSuccessMessage)
+            {
+                _settingsSuccess = "Sources saved.";
+            }
         }
         catch (Exception ex)
         {
@@ -776,8 +787,8 @@ public partial class MusicPage : IAsyncDisposable
 
     private async Task ScanLibraryAsync()
     {
-        if (_caller is null || string.IsNullOrWhiteSpace(_libraryPath)) return;
-        await SaveLibraryPathAsync();
+        if (_caller is null || _librarySources.Count == 0) return;
+        await PersistLibrarySourcesAsync(showSuccessMessage: false);
         if (_settingsError is not null) return;
 
         _settingsScanning = true;
@@ -809,8 +820,8 @@ public partial class MusicPage : IAsyncDisposable
                 });
             });
 
-            _scanResult = await MediaLibraryScanner.ScanFolderAsync(
-                _libraryFolderId, _caller.UserId, "Music", progressBridge, _scanCts.Token);
+            _scanResult = await MediaLibraryScanner.ScanSourcesAsync(
+                _librarySources, _caller.UserId, "Music", progressBridge, _scanCts.Token);
 
             // Phase 2: Run enrichment if enabled
             if (_autoFetchAlbumArt || _autoFetchMetadata)
@@ -1014,12 +1025,104 @@ public partial class MusicPage : IAsyncDisposable
         return "/" + string.Join('/', _dirBrowserBreadcrumbs.Select(b => b.Name));
     }
 
-    private void ConfirmDirectoryBrowser()
+    private async Task ConfirmDirectoryBrowserAsync()
     {
-        _libraryPath = GetDirBrowserPath();
-        _libraryFolderId = _dirBrowserFolderId;
+        _dirBrowserError = null;
+
+        var source = await CreateLibrarySourceFromBrowserAsync();
+        if (source is null)
+        {
+            return;
+        }
+
+        var sourceKey = MediaLibrarySourceSettings.GetSourceKey(source);
+        if (_librarySources.Any(existing => string.Equals(MediaLibrarySourceSettings.GetSourceKey(existing), sourceKey, StringComparison.OrdinalIgnoreCase)))
+        {
+            _dirBrowserError = "This folder is already selected.";
+            return;
+        }
+
+        _librarySources.Add(source);
+        _librarySources = MediaLibrarySourceSettings.Normalize(_librarySources).ToList();
+        _settingsError = null;
+        _settingsSuccess = "Source added. Save changes or scan now to persist it.";
         _showDirBrowser = false;
     }
+
+    private void RemoveLibrarySource(MediaLibrarySource source)
+    {
+        var sourceKey = MediaLibrarySourceSettings.GetSourceKey(source);
+        _librarySources = _librarySources
+            .Where(existing => !string.Equals(MediaLibrarySourceSettings.GetSourceKey(existing), sourceKey, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        _settingsError = null;
+        _settingsSuccess = "Source removed. Save changes or scan now to persist it.";
+    }
+
+    private async Task<MediaLibrarySource?> CreateLibrarySourceFromBrowserAsync()
+    {
+        if (_caller is null)
+        {
+            return null;
+        }
+
+        var displayPath = GetDirBrowserPath();
+        if (!_dirBrowserFolderId.HasValue)
+        {
+            return new MediaLibrarySource
+            {
+                SourceKind = MediaLibrarySourceKind.OwnedFileNode,
+                FolderId = null,
+                DisplayPath = displayPath,
+                DisplayName = "Home",
+                Enabled = true,
+            };
+        }
+
+        var node = await FileService.GetNodeAsync(_dirBrowserFolderId.Value, _caller);
+        if (node is null)
+        {
+            _dirBrowserError = "The selected folder is no longer available.";
+            return null;
+        }
+
+        if (!string.Equals(node.NodeType, "Folder", StringComparison.OrdinalIgnoreCase))
+        {
+            _dirBrowserError = "Select a folder source.";
+            return null;
+        }
+
+        if (!node.IsVirtual)
+        {
+            return new MediaLibrarySource
+            {
+                SourceKind = MediaLibrarySourceKind.OwnedFileNode,
+                FolderId = node.Id,
+                DisplayPath = displayPath,
+                DisplayName = node.Name,
+                Enabled = true,
+            };
+        }
+
+        if (string.Equals(node.VirtualSourceKind, "AdminSharedFolder", StringComparison.OrdinalIgnoreCase) && node.VirtualSourceId.HasValue)
+        {
+            return new MediaLibrarySource
+            {
+                SourceKind = MediaLibrarySourceKind.SharedMount,
+                SharedFolderId = node.VirtualSourceId.Value,
+                RelativePath = node.VirtualRelativePath,
+                DisplayPath = displayPath,
+                DisplayName = node.Name,
+                Enabled = true,
+            };
+        }
+
+        _dirBrowserError = "Only folders from your library or _DotNetCloud admin shared folders can be added.";
+        return null;
+    }
+
+    private static string GetLibrarySourceKindLabel(MediaLibrarySource source)
+        => source.SourceKind == MediaLibrarySourceKind.SharedMount ? "Shared" : "Owned";
 
     // ────────────────────────────────────────────────────────
     //  Visualizer

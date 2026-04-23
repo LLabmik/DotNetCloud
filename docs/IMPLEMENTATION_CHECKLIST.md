@@ -3018,8 +3018,9 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Add admin shared-folder web UI for CRUD, group assignment, and scan actions
 - ✓ Surface virtual `_DotNetCloud` root with mounted shared folders
 - ✓ Enforce read-only behavior for mounted shared-folder paths
-- ☐ Add group-aware mounted-folder search indexing and navigation
-- ☐ Add shared-folder media source selection for Music, Photos, and Video
+- ✓ Add group-aware mounted-folder search indexing and navigation
+- ✓ Add shared-folder media source selection for Music, Photos, and Video
+- ☐ Keep sync clients ignoring `_DotNetCloud` admin shares in v1
   - ✓ `Guid UserId` FK
   - ✓ `DateTime AcknowledgedAt` property
   - ✓ Unique constraint: (`AnnouncementId`, `UserId`)

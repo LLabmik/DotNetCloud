@@ -96,8 +96,7 @@ public sealed class MariaDbSearchProvider : ISearchProvider
 
         var parsed = SearchQueryParser.Parse(query.QueryText);
 
-        var dbQuery = _db.SearchIndexEntries
-            .Where(e => e.OwnerId == query.UserId);
+        var dbQuery = SearchVisibilityFilterBuilder.Apply(_db.SearchIndexEntries, query);
 
         if (!string.IsNullOrEmpty(query.ModuleFilter))
         {
@@ -221,8 +220,7 @@ public sealed class MariaDbSearchProvider : ISearchProvider
 
     private IQueryable<SearchIndexEntry> BuildFacetQuery(SearchQuery query, ParsedSearchQuery parsed)
     {
-        var facetQuery = _db.SearchIndexEntries
-            .Where(e => e.OwnerId == query.UserId);
+        var facetQuery = SearchVisibilityFilterBuilder.Apply(_db.SearchIndexEntries, query);
 
         if (parsed.HasSearchableContent)
         {

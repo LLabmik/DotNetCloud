@@ -1,6 +1,7 @@
 @page "/settings/media-libraries"
 @rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveAutoRenderMode(prerender: false))
 @attribute [Authorize]
+@using DotNetCloud.Core.DTOs.Media
 
 <PageTitle>Media Libraries - DotNetCloud</PageTitle>
 
@@ -15,26 +16,39 @@ else
     </div>
 
     <p class="text-muted">
-        Configure local directory paths for your media libraries. DotNetCloud will scan these
-        directories and import photos, music, and videos into your account.
+        Media sources are now selected inside the Photos, Music, and Video module settings pages,
+        where the Files browser can add both owned folders and _DotNetCloud shared mounts. This page shows the active sources and lets you trigger scans.
     </p>
 
     <div class="profile-layout">
         @* ── Photos Library ── *@
         <section class="profile-card">
             <h2>📷 Photos Library</h2>
-            <div class="form-group">
-                <label>Directory Path</label>
-                <input type="text" class="input" @bind="_photosPath"
-                       placeholder="/home/user/Pictures" />
-                <span class="hint">
-                    Absolute path to a directory containing photos. Supports JPEG, PNG, GIF, WebP,
-                    HEIC, TIFF, RAW, and more. Subdirectories are included.
-                </span>
+            <p class="hint">Manage these sources in the Photos module settings page.</p>
+            <div style="display: flex; flex-direction: column; gap: 8px; margin: 12px 0;">
+                @if (_photoSources.Count == 0)
+                {
+                    <div class="hint" style="padding: 12px; border: 1px dashed rgba(255,255,255,0.16); border-radius: 12px;">No photo sources selected.</div>
+                }
+                else
+                {
+                    @foreach (var source in _photoSources)
+                    {
+                        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; background: rgba(255,255,255,0.03);">
+                            <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
+                                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                    <span class="tag-chip">@GetSourceKindLabel(source)</span>
+                                    <strong>@source.DisplayName</strong>
+                                </div>
+                                <span class="hint" style="word-break: break-word;">@source.DisplayPath</span>
+                            </div>
+                        </div>
+                    }
+                }
             </div>
             <div class="media-scan-actions">
                 <button class="btn btn-sm btn-outline" @onclick='() => ScanAsync("Photos")'
-                        disabled="@(_scanning || string.IsNullOrWhiteSpace(_photosPath))">
+                        disabled="@(_scanning || _photoSources.Count == 0)">
                     @(_scanningType == "Photos" ? "Scanning..." : "Scan Now")
                 </button>
                 @if (_lastPhotoResult is not null)
@@ -47,18 +61,31 @@ else
         @* ── Music Library ── *@
         <section class="profile-card">
             <h2>🎵 Music Library</h2>
-            <div class="form-group">
-                <label>Directory Path</label>
-                <input type="text" class="input" @bind="_musicPath"
-                       placeholder="/home/user/Music" />
-                <span class="hint">
-                    Absolute path to a directory containing music. Supports MP3, FLAC, OGG, Opus,
-                    AAC, M4A, WAV, AIFF, WavPack, and more. Subdirectories are included.
-                </span>
+            <p class="hint">Manage these sources in the Music module settings page.</p>
+            <div style="display: flex; flex-direction: column; gap: 8px; margin: 12px 0;">
+                @if (_musicSources.Count == 0)
+                {
+                    <div class="hint" style="padding: 12px; border: 1px dashed rgba(255,255,255,0.16); border-radius: 12px;">No music sources selected.</div>
+                }
+                else
+                {
+                    @foreach (var source in _musicSources)
+                    {
+                        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; background: rgba(255,255,255,0.03);">
+                            <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
+                                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                    <span class="tag-chip">@GetSourceKindLabel(source)</span>
+                                    <strong>@source.DisplayName</strong>
+                                </div>
+                                <span class="hint" style="word-break: break-word;">@source.DisplayPath</span>
+                            </div>
+                        </div>
+                    }
+                }
             </div>
             <div class="media-scan-actions">
                 <button class="btn btn-sm btn-outline" @onclick='() => ScanAsync("Music")'
-                        disabled="@(_scanning || string.IsNullOrWhiteSpace(_musicPath))">
+                        disabled="@(_scanning || _musicSources.Count == 0)">
                     @(_scanningType == "Music" ? "Scanning..." : "Scan Now")
                 </button>
                 @if (_lastMusicResult is not null)
@@ -71,18 +98,31 @@ else
         @* ── Video Library ── *@
         <section class="profile-card">
             <h2>🎬 Video Library</h2>
-            <div class="form-group">
-                <label>Directory Path</label>
-                <input type="text" class="input" @bind="_videoPath"
-                       placeholder="/home/user/Videos" />
-                <span class="hint">
-                    Absolute path to a directory containing videos. Supports MP4, MKV, AVI, MOV,
-                    WebM, WMV, MPEG, and more. Subdirectories are included.
-                </span>
+            <p class="hint">Manage these sources in the Video module settings page.</p>
+            <div style="display: flex; flex-direction: column; gap: 8px; margin: 12px 0;">
+                @if (_videoSources.Count == 0)
+                {
+                    <div class="hint" style="padding: 12px; border: 1px dashed rgba(255,255,255,0.16); border-radius: 12px;">No video sources selected.</div>
+                }
+                else
+                {
+                    @foreach (var source in _videoSources)
+                    {
+                        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; background: rgba(255,255,255,0.03);">
+                            <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
+                                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                    <span class="tag-chip">@GetSourceKindLabel(source)</span>
+                                    <strong>@source.DisplayName</strong>
+                                </div>
+                                <span class="hint" style="word-break: break-word;">@source.DisplayPath</span>
+                            </div>
+                        </div>
+                    }
+                }
             </div>
             <div class="media-scan-actions">
                 <button class="btn btn-sm btn-outline" @onclick='() => ScanAsync("Video")'
-                        disabled="@(_scanning || string.IsNullOrWhiteSpace(_videoPath))">
+                        disabled="@(_scanning || _videoSources.Count == 0)">
                     @(_scanningType == "Video" ? "Scanning..." : "Scan Now")
                 </button>
                 @if (_lastVideoResult is not null)
@@ -91,13 +131,6 @@ else
                 }
             </div>
         </section>
-
-        @* ── Save ── *@
-        <div class="form-actions">
-            <button class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">
-                @(_saving ? "Saving..." : "Save Paths")
-            </button>
-        </div>
     </div>
 
     @if (!string.IsNullOrWhiteSpace(_error))
@@ -111,14 +144,13 @@ else
     [Inject] private ToastService Toast { get; set; } = default!;
 
     private bool _loading = true;
-    private bool _saving;
     private bool _scanning;
     private string? _scanningType;
     private string? _error;
 
-    private string _photosPath = string.Empty;
-    private string _musicPath = string.Empty;
-    private string _videoPath = string.Empty;
+    private IReadOnlyList<MediaLibrarySource> _photoSources = [];
+    private IReadOnlyList<MediaLibrarySource> _musicSources = [];
+    private IReadOnlyList<MediaLibrarySource> _videoSources = [];
 
     private MediaScanResultResponse? _lastPhotoResult;
     private MediaScanResultResponse? _lastMusicResult;
@@ -131,9 +163,9 @@ else
             var paths = await Api.GetMediaLibraryPathsAsync();
             if (paths is not null)
             {
-                _photosPath = paths.PhotosPath;
-                _musicPath = paths.MusicPath;
-                _videoPath = paths.VideoPath;
+                _photoSources = paths.PhotosSources;
+                _musicSources = paths.MusicSources;
+                _videoSources = paths.VideoSources;
             }
         }
         catch
@@ -146,40 +178,8 @@ else
         }
     }
 
-    private async Task SaveAsync()
-    {
-        _saving = true;
-        _error = null;
-        try
-        {
-            var success = await Api.UpdateMediaLibraryPathsAsync(new MediaLibraryPathsResponse
-            {
-                PhotosPath = _photosPath.Trim(),
-                MusicPath = _musicPath.Trim(),
-                VideoPath = _videoPath.Trim(),
-            });
-
-            if (success)
-                Toast.ShowSuccess("Media library paths saved.");
-            else
-                Toast.ShowError("Failed to save — check that paths exist on the server.");
-        }
-        catch (Exception ex)
-        {
-            _error = $"Save failed: {ex.Message}";
-        }
-        finally
-        {
-            _saving = false;
-        }
-    }
-
     private async Task ScanAsync(string mediaType)
     {
-        // Save paths first so the scan endpoint reads the latest values
-        await SaveAsync();
-        if (_error is not null) return;
-
         _scanning = true;
         _scanningType = mediaType;
         _error = null;
@@ -219,5 +219,9 @@ else
 
     private static string FormatResult(MediaScanResultResponse r) =>
         $"Found {r.TotalFound} · Imported {r.Imported} · Skipped {r.Skipped}" +
+        (r.Removed > 0 ? $" · Removed {r.Removed}" : string.Empty) +
         (r.Failed > 0 ? $" · Failed {r.Failed}" : string.Empty);
+
+    private static string GetSourceKindLabel(MediaLibrarySource source)
+        => source.SourceKind == MediaLibrarySourceKind.SharedMount ? "Shared" : "Owned";
 }
