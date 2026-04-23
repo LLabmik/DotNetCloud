@@ -451,7 +451,7 @@ public sealed class SyncEngine : ISyncEngine
             if (_syncIgnore.IsIgnored(relativePath))
                 continue;
 
-            if (!_selectiveSync.IsIncluded(context.Id, localPath))
+            if (!_selectiveSync.IsIncluded(context.Id, relativePath))
                 continue;
 
             // Skip if an upload is already queued for this path.
@@ -742,10 +742,10 @@ public sealed class SyncEngine : ISyncEngine
                     pathMap,
                     cancellationToken);
 
-                if (!_selectiveSync.IsIncluded(context.Id, localPath))
+                var relativePathForIgnore = Path.GetRelativePath(context.LocalFolderPath, localPath);
+                if (!_selectiveSync.IsIncluded(context.Id, relativePathForIgnore))
                     continue;
 
-                var relativePathForIgnore = Path.GetRelativePath(context.LocalFolderPath, localPath);
                 if (_syncIgnore.IsIgnored(relativePathForIgnore))
                 {
                     _logger.LogDebug("Skipping ignored remote change {RelPath} for context {ContextId}.",
@@ -821,7 +821,7 @@ public sealed class SyncEngine : ISyncEngine
 
             var localPath = Path.Combine(context.LocalFolderPath, relativePath);
 
-            if (!_selectiveSync.IsIncluded(context.Id, localPath))
+            if (!_selectiveSync.IsIncluded(context.Id, relativePath))
                 continue;
 
             if (_syncIgnore.IsIgnored(relativePath))

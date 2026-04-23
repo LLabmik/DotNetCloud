@@ -44,6 +44,7 @@
                 <TreeDataTemplate ItemsSource="{Binding Children}">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <CheckBox IsChecked="{Binding IsChecked}"
+                                  IsEnabled="{Binding IsSelectionEnabled}"
                                   IsThreeState="True" />
                         <TextBlock Text="{Binding Name}"
                                    VerticalAlignment="Center" />

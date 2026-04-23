@@ -3020,7 +3020,9 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Enforce read-only behavior for mounted shared-folder paths
 - ✓ Add group-aware mounted-folder search indexing and navigation
 - ✓ Add shared-folder media source selection for Music, Photos, and Video
-- ☐ Keep sync clients ignoring `_DotNetCloud` admin shares in v1
+- ✓ Add media shared-source scan verification coverage
+- ✓ Add media-library shared-source API verification coverage
+- ✓ Keep sync clients ignoring `_DotNetCloud` admin shares in v1
   - ✓ `Guid UserId` FK
   - ✓ `DateTime AcknowledgedAt` property
   - ✓ Unique constraint: (`AnnouncementId`, `UserId`)

@@ -134,6 +134,7 @@ public sealed class FolderBrowserViewModel : ViewModelBase
                 .Where(r => !r.IsInclude)
                 .Select(r => r.FolderPath),
             StringComparer.OrdinalIgnoreCase);
+        CollectReservedExcludedPaths(RootItems, path => previousExclusions.Add(path));
 
         _selectiveSync.ClearRules(_contextId);
 
@@ -176,7 +177,13 @@ public sealed class FolderBrowserViewModel : ViewModelBase
         var item = new FolderBrowserItemViewModel(node.NodeId, node.Name, relativePath)
         {
             Parent = parent,
+            IsSelectionLocked = SelectiveSyncConfig.IsReservedExcludedPath(relativePath),
         };
+
+        if (item.IsSelectionLocked)
+        {
+            item.IsChecked = false;
+        }
 
         // Check if this node has folder children at all.
         var hasChildFolders = node.Children.Any(c => IsFolderNodeType(c.NodeType));
@@ -271,6 +278,21 @@ public sealed class FolderBrowserViewModel : ViewModelBase
                 CollectExcludedPaths(item.Children, excludeAction);
             }
             // IsChecked == true → fully included, nothing to record.
+        }
+    }
+
+    private static void CollectReservedExcludedPaths(
+        IEnumerable<FolderBrowserItemViewModel> items,
+        Action<string> collectAction)
+    {
+        foreach (var item in items)
+        {
+            if (item.IsSelectionLocked)
+            {
+                collectAction(item.RelativePath);
+            }
+
+            CollectReservedExcludedPaths(item.Children, collectAction);
         }
     }
 

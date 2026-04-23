@@ -11,6 +11,7 @@ public sealed class FolderBrowserItemViewModel : ViewModelBase
 {
     private bool? _isChecked = true;
     private bool _isExpanded;
+    private bool _isSelectionLocked;
     private bool _suppressPropagation;
 
     /// <summary>Server-side node ID.</summary>
@@ -35,6 +36,22 @@ public sealed class FolderBrowserItemViewModel : ViewModelBase
         set => SetProperty(ref _isExpanded, value);
     }
 
+    /// <summary>Whether the user can change this node's selection state.</summary>
+    public bool IsSelectionEnabled => !_isSelectionLocked;
+
+    /// <summary>Whether this node is force-excluded from selective sync.</summary>
+    public bool IsSelectionLocked
+    {
+        get => _isSelectionLocked;
+        set
+        {
+            if (SetProperty(ref _isSelectionLocked, value))
+            {
+                OnPropertyChanged(nameof(IsSelectionEnabled));
+            }
+        }
+    }
+
     /// <summary>
     /// Three-state check: <c>true</c> = included, <c>false</c> = excluded,
     /// <c>null</c> = mixed (indeterminate).
@@ -44,6 +61,11 @@ public sealed class FolderBrowserItemViewModel : ViewModelBase
         get => _isChecked;
         set
         {
+            if (IsSelectionLocked && value != false)
+            {
+                value = false;
+            }
+
             if (SetProperty(ref _isChecked, value) && !_suppressPropagation)
             {
                 // Only propagate definite states down to children.

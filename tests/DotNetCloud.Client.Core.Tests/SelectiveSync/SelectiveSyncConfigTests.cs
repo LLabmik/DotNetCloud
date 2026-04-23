@@ -23,6 +23,13 @@ public class SelectiveSyncConfigTests
         Assert.IsTrue(_config.IsIncluded(_contextId, "/any/path"));
     }
 
+    [TestMethod]
+    public void IsIncluded_DotNetCloudRoot_IsAlwaysExcluded()
+    {
+        Assert.IsFalse(_config.IsIncluded(_contextId, "/_DotNetCloud"));
+        Assert.IsFalse(_config.IsIncluded(_contextId, "/_DotNetCloud/Shared/Mounted.txt"));
+    }
+
     // ── Include / Exclude ───────────────────────────────────────────────────
 
     [TestMethod]
@@ -43,6 +50,15 @@ public class SelectiveSyncConfigTests
         Assert.IsFalse(_config.IsIncluded(_contextId, "/photos/personal"));
         Assert.IsTrue(_config.IsIncluded(_contextId, "/photos/work"));
         Assert.IsTrue(_config.IsIncluded(_contextId, "/photos/work/2025"));
+    }
+
+    [TestMethod]
+    public void Include_CannotOverrideReservedDotNetCloudExclusion()
+    {
+        _config.Include(_contextId, "/_DotNetCloud");
+
+        Assert.IsFalse(_config.IsIncluded(_contextId, "/_DotNetCloud/Admin Share"));
+        Assert.AreEqual(0, _config.GetRules(_contextId).Count);
     }
 
     [TestMethod]

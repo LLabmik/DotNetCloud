@@ -111,7 +111,7 @@ public sealed class FolderBrowserViewModelTests
             // Assert
             var rules = selectiveSync.GetRules(_contextId);
             Assert.AreEqual(1, rules.Count);
-            Assert.AreEqual("Trash", rules[0].FolderPath);
+            Assert.AreEqual("/Trash", rules[0].FolderPath);
             Assert.IsFalse(rules[0].IsInclude);
         }
         finally
@@ -273,6 +273,54 @@ public sealed class FolderBrowserViewModelTests
         Assert.IsFalse(vm.NoFoldersFound);
     }
 
+    [TestMethod]
+    public async Task LoadTreeAsync_DotNetCloudRoot_IsLockedExcluded()
+    {
+        var tree = new SyncTreeNodeResponse
+        {
+            NodeId = Guid.NewGuid(),
+            Name = "root",
+            NodeType = "Folder",
+            Children =
+            [
+                new SyncTreeNodeResponse
+                {
+                    NodeId = Guid.NewGuid(),
+                    Name = "_DotNetCloud",
+                    NodeType = "Folder",
+                    Children =
+                    [
+                        new SyncTreeNodeResponse
+                        {
+                            NodeId = Guid.NewGuid(),
+                            Name = "Shared Team",
+                            NodeType = "Folder",
+                        },
+                    ],
+                },
+            ],
+        };
+
+        var syncMock = new Mock<ISyncContextManager>();
+        syncMock.Setup(x => x.GetFolderTreeAsync(_contextId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(tree);
+
+        var selectiveSync = new SelectiveSyncConfig();
+        var vm = new FolderBrowserViewModel(syncMock.Object, _contextId, selectiveSync, "test-config.json");
+
+        await vm.LoadTreeAsync();
+
+        var reservedRoot = vm.RootItems[0];
+        Assert.AreEqual("_DotNetCloud", reservedRoot.Name);
+        Assert.AreEqual(false, reservedRoot.IsChecked);
+        Assert.IsTrue(reservedRoot.IsSelectionLocked);
+        Assert.IsFalse(reservedRoot.IsSelectionEnabled);
+
+        reservedRoot.IsChecked = true;
+
+        Assert.AreEqual(false, reservedRoot.IsChecked);
+    }
+
     /// <summary>Builds a standard two-level test tree with Documents/Projects, Photos, and a File.</summary>
     private static SyncTreeNodeResponse BuildTestTree()
     {
@@ -359,5 +407,20 @@ public sealed class FolderBrowserItemViewModelTests
 
         // Assert: parent should be indeterminate (null).
         Assert.IsNull(parent.IsChecked);
+    }
+
+    [TestMethod]
+    public void LockedSelection_CannotBeReenabled()
+    {
+        var item = new FolderBrowserItemViewModel(Guid.NewGuid(), "_DotNetCloud", "_DotNetCloud")
+        {
+            IsSelectionLocked = true,
+            IsChecked = false,
+        };
+
+        item.IsChecked = true;
+
+        Assert.AreEqual(false, item.IsChecked);
+        Assert.IsFalse(item.IsSelectionEnabled);
     }
 }

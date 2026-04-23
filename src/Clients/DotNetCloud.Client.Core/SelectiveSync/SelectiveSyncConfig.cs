@@ -9,12 +9,19 @@ namespace DotNetCloud.Client.Core.SelectiveSync;
 public sealed class SelectiveSyncConfig : ISelectiveSyncConfig
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
+    private const string ReservedExcludedRoot = "_DotNetCloud";
 
     private readonly Dictionary<Guid, List<SelectiveSyncRule>> _rules = new();
 
     /// <inheritdoc/>
     public bool IsIncluded(Guid contextId, string localPath)
     {
+        var normalizedPath = NormalizePath(localPath);
+        if (IsReservedExcludedPath(normalizedPath))
+        {
+            return false;
+        }
+
         if (!_rules.TryGetValue(contextId, out var rules) || rules.Count == 0)
             return true; // No rules = include everything
 
@@ -24,11 +31,12 @@ public sealed class SelectiveSyncConfig : ISelectiveSyncConfig
 
         foreach (var rule in rules)
         {
-            if (localPath.StartsWith(rule.FolderPath, StringComparison.OrdinalIgnoreCase)
-                && rule.FolderPath.Length > bestLength)
+            var normalizedRulePath = NormalizePath(rule.FolderPath);
+            if (MatchesRule(normalizedPath, normalizedRulePath)
+                && normalizedRulePath.Length > bestLength)
             {
                 bestMatch = rule;
-                bestLength = rule.FolderPath.Length;
+                bestLength = normalizedRulePath.Length;
             }
         }
 
@@ -39,15 +47,31 @@ public sealed class SelectiveSyncConfig : ISelectiveSyncConfig
     /// <inheritdoc/>
     public void Include(Guid contextId, string folderPath)
     {
-        GetOrCreateList(contextId).RemoveAll(r => r.FolderPath.Equals(folderPath, StringComparison.OrdinalIgnoreCase));
-        GetOrCreateList(contextId).Add(new SelectiveSyncRule { FolderPath = folderPath, IsInclude = true });
+        var normalizedPath = NormalizePath(folderPath);
+        var rules = GetOrCreateList(contextId);
+        rules.RemoveAll(r => NormalizePath(r.FolderPath).Equals(normalizedPath, StringComparison.OrdinalIgnoreCase));
+
+        if (IsReservedExcludedPath(normalizedPath))
+        {
+            return;
+        }
+
+        rules.Add(new SelectiveSyncRule { FolderPath = normalizedPath, IsInclude = true });
     }
 
     /// <inheritdoc/>
     public void Exclude(Guid contextId, string folderPath)
     {
-        GetOrCreateList(contextId).RemoveAll(r => r.FolderPath.Equals(folderPath, StringComparison.OrdinalIgnoreCase));
-        GetOrCreateList(contextId).Add(new SelectiveSyncRule { FolderPath = folderPath, IsInclude = false });
+        var normalizedPath = NormalizePath(folderPath);
+        var rules = GetOrCreateList(contextId);
+        rules.RemoveAll(r => NormalizePath(r.FolderPath).Equals(normalizedPath, StringComparison.OrdinalIgnoreCase));
+
+        if (IsReservedExcludedPath(normalizedPath))
+        {
+            return;
+        }
+
+        rules.Add(new SelectiveSyncRule { FolderPath = normalizedPath, IsInclude = false });
     }
 
     /// <inheritdoc/>
@@ -115,5 +139,43 @@ public sealed class SelectiveSyncConfig : ISelectiveSyncConfig
             _rules[contextId] = list;
         }
         return list;
+    }
+
+    /// <summary>
+    /// Returns true when the path targets the reserved virtual shared-folder root.
+    /// </summary>
+    public static bool IsReservedExcludedPath(string path)
+    {
+        var normalizedPath = NormalizePath(path);
+        if (string.IsNullOrEmpty(normalizedPath))
+        {
+            return false;
+        }
+
+        return normalizedPath.Equals($"/{ReservedExcludedRoot}", StringComparison.OrdinalIgnoreCase)
+            || normalizedPath.StartsWith($"/{ReservedExcludedRoot}/", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool MatchesRule(string path, string rulePath)
+    {
+        if (string.IsNullOrEmpty(path) || string.IsNullOrEmpty(rulePath))
+        {
+            return false;
+        }
+
+        return path.Equals(rulePath, StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith(rulePath + "/", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string NormalizePath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return string.Empty;
+        }
+
+        var normalized = path.Replace('\\', '/').Trim();
+        normalized = normalized.Trim('/');
+        return normalized.Length == 0 ? "/" : "/" + normalized;
     }
 }

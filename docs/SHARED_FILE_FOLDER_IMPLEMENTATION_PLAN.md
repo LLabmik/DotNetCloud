@@ -6,7 +6,7 @@
 
 > Status: In Progress
 
-> Progress: Workstreams 4.1 through 4.4 are complete, and the first 4.5 slice is now landed. Files now has persisted admin shared-folder definitions and grants, admin CRUD/reindex/rescan surfaces, `_DotNetCloud` virtual browse composition, mounted-file download support, explicit read-only enforcement across mounted mutation paths and UI affordances, plus group-aware mounted-folder search indexing and deep-link navigation. Next focus: remaining 4.5 crawl/local-search follow-up and 4.6 media scan-source selection.
+> Progress: Workstreams 4.1 through 4.6 are complete. Files now has persisted admin shared-folder definitions and grants, admin CRUD/reindex/rescan surfaces, `_DotNetCloud` virtual browse composition, mounted-file download support, explicit read-only enforcement across mounted mutation paths and UI affordances, group-aware mounted-folder search indexing and deep-link navigation, per-user media scan-source selection for owned folders plus mounted admin shares, and client selective-sync enforcement that keeps `_DotNetCloud` ignored in v1. Next focus: 4.7 verification and rollout.
 
 ---
 
@@ -170,7 +170,7 @@ The implementation should therefore split into four architectural layers:
 - Folder validation blocks invalid and ambiguous configurations.
 - Shared-folder definitions are ready for virtual enumeration and search crawling.
 
-Current implementation status: 4.4 is complete and the first 4.5 search slice is also landed. Files root listings inject a synthetic `_DotNetCloud` folder for every user, `_DotNetCloud` exposes a synthetic `Shared With Me` folder plus group-authorized admin shared folders, admin shared folders enumerate their real nested on-disk hierarchy as virtual nodes, mounted files can be read through the existing download path, mounted writes are blocked across create/rename/move/delete/upload/share/tag/comment flows, and the Files UI hides write/edit affordances for mounted content while keeping open/download behavior. Global Search now indexes mounted admin shared-folder files and folders with group-scoped visibility metadata, Search routes mounted results back into the correct `_DotNetCloud` path, and Files can reconstruct mounted search deep links after a cold start. The next implementation focus is the remaining 4.5 crawl/local-search follow-up and 4.6 per-user media scan-source selection.
+Current implementation status: workstreams 4.4 through 4.6 are complete. Files root listings inject a synthetic `_DotNetCloud` folder for every user, `_DotNetCloud` exposes a synthetic `Shared With Me` folder plus group-authorized admin shared folders, admin shared folders enumerate their real nested on-disk hierarchy as virtual nodes, mounted files can be read through the existing download path, mounted writes are blocked across create/rename/move/delete/upload/share/tag/comment flows, and the Files UI hides write/edit affordances for mounted content while keeping open/download behavior. Global Search indexes mounted admin shared-folder files and folders with group-scoped visibility metadata, Search routes mounted results back into the correct `_DotNetCloud` path, Files can reconstruct mounted search deep links after a cold start, Music/Photos/Video now persist multi-source library selections that include mounted admin shares, and sync clients now canonically exclude `_DotNetCloud` while locking it as unselectable in the SyncTray folder browser. The next implementation focus is 4.7 verification and rollout.
 
 ---
 
@@ -328,6 +328,8 @@ Current implementation status: 4.4 is complete and the first 4.5 search slice is
   - Music, Photos, and Video selecting different shared folders
   - playback, thumbnails, and streaming for shared-source items
 - Validation that sync clients ignore `_DotNetCloud` admin shares in v1.
+
+Focused automated verification now includes Core.Server coverage for shared-mount media scan enumeration and stale-index cleanup via `MediaFolderImportServiceTests`, plus media-library shared-source path and scan response coverage via `MediaLibraryControllerTests`.
 
 ### Exit Criteria
 
