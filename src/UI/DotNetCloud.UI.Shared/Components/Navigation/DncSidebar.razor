@@ -2,14 +2,17 @@
 
 <nav class="sidebar @(Collapsed ? "collapsed" : "")">
     <div class="sidebar-header">
-        <a href="/" class="brand">
+        <a href="/" class="brand" title="@BrandText" aria-label="@BrandText">
             <span class="brand-icon">@BrandIcon</span>
             @if (!Collapsed)
             {
                 <span class="brand-text">@BrandText</span>
             }
         </a>
-        <button class="sidebar-toggle" @onclick="ToggleCollapsed" title="Toggle sidebar">
+        <button class="sidebar-toggle"
+                @onclick="ToggleCollapsed"
+                title="@(Collapsed ? "Expand sidebar" : "Collapse sidebar")"
+                aria-label="@(Collapsed ? "Expand sidebar" : "Collapse sidebar")">
             <span class="toggle-icon">@(Collapsed ? "▶" : "◀")</span>
         </button>
     </div>
@@ -18,7 +21,11 @@
             @foreach (var item in Items)
             {
                 <li class="nav-item">
-                    <NavLink href="@item.Href" Match="NavLinkMatch.Prefix" class="nav-link">
+                    <NavLink href="@item.Href"
+                             Match="NavLinkMatch.Prefix"
+                             class="nav-link"
+                             title="@item.Label"
+                             aria-label="@item.Label">
                         @if (item.Icon is not null)
                         {
                             <span class="nav-icon">@item.Icon</span>
