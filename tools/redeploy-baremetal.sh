@@ -39,6 +39,30 @@ repair_build_output_ownership() {
     done
 }
 
+purge_conflicting_build_outputs() {
+    local conflicting_configuration=""
+
+    if [[ "$CONFIGURATION" != "Debug" ]]; then
+        conflicting_configuration="Debug"
+    fi
+
+    [[ -n "$conflicting_configuration" ]] || return
+
+    local stale_dirs=()
+    local windows_style_dirs=()
+
+    mapfile -t stale_dirs < <(find src tests -type d \( -path "*/bin/$conflicting_configuration" -o -path "*/obj/$conflicting_configuration" \) -prune -print 2>/dev/null || true)
+    mapfile -t windows_style_dirs < <(find src tests -type d \( -path "*bin\\\\$conflicting_configuration" -o -path "*obj\\\\$conflicting_configuration" \) -prune -print 2>/dev/null || true)
+    stale_dirs+=("${windows_style_dirs[@]}")
+
+    if [[ ${#stale_dirs[@]} -eq 0 ]]; then
+        return
+    fi
+
+    info "Removing stale $conflicting_configuration outputs that can conflict with $CONFIGURATION publish..."
+    rm -rf "${stale_dirs[@]}"
+}
+
 usage() {
     cat <<'EOF'
 Usage:
@@ -94,6 +118,10 @@ sudo -v || { error "sudo authentication failed."; exit 1; }
 # Previous root-run builds can leave root-owned bin/obj/publish artifacts behind,
 # which causes later non-root StaticWebAssets writes to fail with access denied.
 repair_build_output_ownership
+
+# A prior Debug build can leave host/runtime artifacts in bin/obj that collide with
+# the server's Release publish graph when publish runs with --no-build.
+purge_conflicting_build_outputs
 
 # Build via the CI solution filter to avoid restoring/building Android/MAUI projects.
 info "Building $SOLUTION_FILTER ($CONFIGURATION)..."

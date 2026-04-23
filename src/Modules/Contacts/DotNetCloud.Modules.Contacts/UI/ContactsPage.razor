@@ -8,34 +8,55 @@
 <div class="contacts-page-layout">
     <div class="contacts-sidebar @(_sidebarCollapsed ? "collapsed" : "")">
         <div class="contacts-sidebar-header">
-            <h3 class="contacts-sidebar-title">Contacts</h3>
-            <button class="contacts-sidebar-toggle" @onclick="ToggleSidebar" title="Toggle sidebar">
-                @(_sidebarCollapsed ? "▸" : "◂")
+            @if (!_sidebarCollapsed)
+            {
+                <h3 class="contacts-sidebar-title">Contacts</h3>
+            }
+            <button class="contacts-sidebar-toggle" @onclick="ToggleSidebar" title="@(_sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar")">
+                <span>@(_sidebarCollapsed ? "▶" : "◀")</span>
             </button>
-            <button class="btn btn-sm btn-primary" @onclick="BeginCreateContact" title="New Contact">
-                <span>+</span>
-            </button>
+            @if (!_sidebarCollapsed)
+            {
+                <button class="btn btn-sm btn-primary" @onclick="BeginCreateContact" title="New Contact">
+                    <span>+</span>
+                </button>
+            }
         </div>
-        <div class="contacts-search">
-            <input type="text" class="form-control form-control-sm"
-                   placeholder="Search contacts..."
-                   @bind="_searchQuery"
-                   @bind:event="oninput" />
-            <button class="btn btn-sm btn-outline-secondary" @onclick="ReloadAsync">Search</button>
-        </div>
+        @if (!_sidebarCollapsed)
+        {
+            <div class="contacts-search">
+                <input type="text" class="form-control form-control-sm"
+                       placeholder="Search contacts..."
+                       @bind="_searchQuery"
+                       @bind:event="oninput" />
+                <button class="btn btn-sm btn-outline-secondary" @onclick="ReloadAsync">Search</button>
+            </div>
+        }
         <nav class="contacts-nav">
-            <a class="contacts-nav-item @(_activeSection == "all" ? "active" : "")" @onclick='() => ChangeSection("all")' data-icon="👤">
-                <span class="nav-icon">👤</span><span class="nav-label">All Contacts</span>
+            <a class="contacts-nav-item @(_activeSection == "all" ? "active" : "")" @onclick='() => ChangeSection("all")' title="All Contacts">
+                <span class="nav-icon">👤</span>
+                @if (!_sidebarCollapsed)
+                {
+                    <span class="nav-label">All Contacts</span>
+                }
             </a>
-            <a class="contacts-nav-item @(_activeSection == "groups" ? "active" : "")" @onclick='() => ChangeSection("groups")' data-icon="👥">
-                <span class="nav-icon">👥</span><span class="nav-label">Groups</span>
+            <a class="contacts-nav-item @(_activeSection == "groups" ? "active" : "")" @onclick='() => ChangeSection("groups")' title="Groups">
+                <span class="nav-icon">👥</span>
+                @if (!_sidebarCollapsed)
+                {
+                    <span class="nav-label">Groups</span>
+                }
             </a>
-            <a class="contacts-nav-item @(_activeSection == "recent" ? "active" : "")" @onclick='() => ChangeSection("recent")' data-icon="🆕">
-                <span class="nav-icon">🆕</span><span class="nav-label">Recently Added</span>
+            <a class="contacts-nav-item @(_activeSection == "recent" ? "active" : "")" @onclick='() => ChangeSection("recent")' title="Recently Added">
+                <span class="nav-icon">🆕</span>
+                @if (!_sidebarCollapsed)
+                {
+                    <span class="nav-label">Recently Added</span>
+                }
             </a>
         </nav>
 
-        @if (_activeSection == "groups")
+        @if (_activeSection == "groups" && !_sidebarCollapsed)
         {
             <div class="contacts-group-list">
                 @foreach (var group in _groups)
@@ -45,27 +66,30 @@
             </div>
         }
 
-        <div class="contacts-list">
-            @if (_isLoading)
-            {
-                <p>Loading contacts...</p>
-            }
-            else if (_contacts.Count == 0)
-            {
-                <p>No contacts found.</p>
-            }
-            else
-            {
-                @foreach (var contact in VisibleContacts)
+        @if (!_sidebarCollapsed)
+        {
+            <div class="contacts-list">
+                @if (_isLoading)
                 {
-                    <button class="contacts-list-item @(_selectedContact?.Id == contact.Id ? "selected" : "")"
-                            @onclick="() => SelectContactAsync(contact.Id)">
-                        <strong>@contact.DisplayName</strong>
-                        <span>@contact.Organization</span>
-                    </button>
+                    <p>Loading contacts...</p>
                 }
-            }
-        </div>
+                else if (_contacts.Count == 0)
+                {
+                    <p>No contacts found.</p>
+                }
+                else
+                {
+                    @foreach (var contact in VisibleContacts)
+                    {
+                        <button class="contacts-list-item @(_selectedContact?.Id == contact.Id ? "selected" : "")"
+                                @onclick="() => SelectContactAsync(contact.Id)">
+                            <strong>@contact.DisplayName</strong>
+                            <span>@contact.Organization</span>
+                        </button>
+                    }
+                }
+            </div>
+        }
     </div>
     <div class="contacts-main">
         @if (_editingContact is not null)

@@ -23,69 +23,98 @@
     @* ─── Sidebar ─── *@
     <aside class="photos-sidebar @(_sidebarCollapsed ? "collapsed" : "")">
         <div class="photos-sidebar-header">
-            <h2>Photos</h2>
-            <button class="sidebar-toggle" @onclick="ToggleSidebar" title="Toggle sidebar">
-                @(_sidebarCollapsed ? "▸" : "◂")
+            @if (!_sidebarCollapsed)
+            {
+                <h2 class="photos-sidebar-title">Photos</h2>
+            }
+            <button class="sidebar-toggle" @onclick="ToggleSidebar" title="@(_sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar")">
+                <span>@(_sidebarCollapsed ? "▶" : "◀")</span>
             </button>
         </div>
 
-        @if (!_sidebarCollapsed)
+        <nav class="photos-nav">
+            <button class="photos-nav-item @(_section == Section.Gallery ? "active" : "")"
+                    @onclick="() => SwitchSection(Section.Gallery)" title="Gallery">
+                <span class="nav-icon">🖼</span>
+                @if (!_sidebarCollapsed)
+                {
+                    <span class="nav-label">Gallery</span>
+                }
+            </button>
+            <button class="photos-nav-item @(_section == Section.Albums ? "active" : "")"
+                    @onclick="() => SwitchSection(Section.Albums)" title="Albums">
+                <span class="nav-icon">📁</span>
+                @if (!_sidebarCollapsed)
+                {
+                    <span class="nav-label">Albums</span>
+                }
+            </button>
+            <button class="photos-nav-item @(_section == Section.Timeline ? "active" : "")"
+                    @onclick="() => SwitchSection(Section.Timeline)" title="Timeline">
+                <span class="nav-icon">📅</span>
+                @if (!_sidebarCollapsed)
+                {
+                    <span class="nav-label">Timeline</span>
+                }
+            </button>
+            <button class="photos-nav-item @(_section == Section.Favorites ? "active" : "")"
+                    @onclick="() => SwitchSection(Section.Favorites)" title="Favorites">
+                <span class="nav-icon">⭐</span>
+                @if (!_sidebarCollapsed)
+                {
+                    <span class="nav-label">Favorites</span>
+                }
+            </button>
+            <button class="photos-nav-item @(_section == Section.Map ? "active" : "")"
+                    @onclick="() => SwitchSection(Section.Map)" title="Map">
+                <span class="nav-icon">🗺</span>
+                @if (!_sidebarCollapsed)
+                {
+                    <span class="nav-label">Map</span>
+                }
+            </button>
+            <button class="photos-nav-item @(_section == Section.Shared ? "active" : "")"
+                    @onclick="() => SwitchSection(Section.Shared)" title="Shared">
+                <span class="nav-icon">🤝</span>
+                @if (!_sidebarCollapsed)
+                {
+                    <span class="nav-label">Shared</span>
+                }
+            </button>
+        </nav>
+
+        <div class="photos-nav-separator"></div>
+        <nav class="photos-nav">
+            <button class="photos-nav-item @(_section == Section.Settings ? "active" : "")"
+                    @onclick="() => SwitchSection(Section.Settings)" title="Library Settings">
+                <span class="nav-icon">⚙</span>
+                @if (!_sidebarCollapsed)
+                {
+                    <span class="nav-label">Library Settings</span>
+                }
+            </button>
+        </nav>
+
+        @* Album list when in Albums section *@
+        @if (_section == Section.Albums && !_sidebarCollapsed)
         {
-            <nav class="photos-nav">
-                <button class="photos-nav-item @(_section == Section.Gallery ? "active" : "")"
-                        @onclick="() => SwitchSection(Section.Gallery)">
-                    <span class="nav-icon">🖼</span><span class="nav-label">Gallery</span>
+            <div class="album-sidebar-list">
+                <button class="btn-create-album" @onclick="BeginCreateAlbum">
+                    <span>+</span> New Album
                 </button>
-                <button class="photos-nav-item @(_section == Section.Albums ? "active" : "")"
-                        @onclick="() => SwitchSection(Section.Albums)">
-                    <span class="nav-icon">📁</span><span class="nav-label">Albums</span>
-                </button>
-                <button class="photos-nav-item @(_section == Section.Timeline ? "active" : "")"
-                        @onclick="() => SwitchSection(Section.Timeline)">
-                    <span class="nav-icon">📅</span><span class="nav-label">Timeline</span>
-                </button>
-                <button class="photos-nav-item @(_section == Section.Favorites ? "active" : "")"
-                        @onclick="() => SwitchSection(Section.Favorites)">
-                    <span class="nav-icon">⭐</span><span class="nav-label">Favorites</span>
-                </button>
-                <button class="photos-nav-item @(_section == Section.Map ? "active" : "")"
-                        @onclick="() => SwitchSection(Section.Map)">
-                    <span class="nav-icon">🗺</span><span class="nav-label">Map</span>
-                </button>
-                <button class="photos-nav-item @(_section == Section.Shared ? "active" : "")"
-                        @onclick="() => SwitchSection(Section.Shared)">
-                    <span class="nav-icon">🤝</span><span class="nav-label">Shared</span>
-                </button>
-            </nav>
-
-            <div class="photos-nav-separator"></div>
-            <nav class="photos-nav">
-                <button class="photos-nav-item @(_section == Section.Settings ? "active" : "")"
-                        @onclick="() => SwitchSection(Section.Settings)">
-                    <span class="nav-icon">⚙</span><span class="nav-label">Library Settings</span>
-                </button>
-            </nav>
-
-            @* Album list when in Albums section *@
-            @if (_section == Section.Albums)
-            {
-                <div class="album-sidebar-list">
-                    <button class="btn-create-album" @onclick="BeginCreateAlbum">
-                        <span>+</span> New Album
+                @foreach (var album in _albums)
+                {
+                    <button class="album-sidebar-item @(_selectedAlbumId == album.Id ? "active" : "")"
+                            title="@album.Title"
+                            @onclick="() => SelectAlbumAsync(album.Id)">
+                        <span class="album-thumb">📁</span>
+                        <div class="album-sidebar-info">
+                            <span class="album-sidebar-name">@album.Title</span>
+                            <span class="album-sidebar-count">@album.PhotoCount photos</span>
+                        </div>
                     </button>
-                    @foreach (var album in _albums)
-                    {
-                        <button class="album-sidebar-item @(_selectedAlbumId == album.Id ? "active" : "")"
-                                @onclick="() => SelectAlbumAsync(album.Id)">
-                            <span class="album-thumb">📁</span>
-                            <div class="album-sidebar-info">
-                                <span class="album-sidebar-name">@album.Title</span>
-                                <span class="album-sidebar-count">@album.PhotoCount photos</span>
-                            </div>
-                        </button>
-                    }
-                </div>
-            }
+                }
+            </div>
         }
     </aside>
 

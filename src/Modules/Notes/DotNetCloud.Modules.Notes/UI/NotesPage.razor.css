@@ -6,6 +6,9 @@
 
 .notes-sidebar {
     width: 240px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
     background: var(--color-surface);
     border-right: 1px solid var(--color-border);
     overflow-y: auto;
@@ -67,6 +70,14 @@
     flex-direction: column;
     padding: 8px;
     gap: 2px;
+    margin: 0;
+}
+
+.notes-nav-icon {
+    flex-shrink: 0;
+    width: 20px;
+    text-align: center;
+    font-size: 14px;
 }
 
 .notes-nav-item {
@@ -103,15 +114,8 @@
     padding: 8px;
 }
 
-.notes-sidebar.collapsed .notes-nav-item::before {
-    content: attr(data-icon);
-    display: block;
-    text-align: center;
-    width: 100%;
-}
-
-.notes-sidebar.collapsed .notes-nav-item span {
-    display: none;
+.notes-sidebar.collapsed .notes-nav-icon {
+    margin: 0;
 }
 
 .notes-folders {

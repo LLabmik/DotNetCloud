@@ -6,6 +6,9 @@
 
 .contacts-sidebar {
     width: 240px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
     background: var(--color-surface);
     border-right: 1px solid var(--color-border);
     overflow-y: auto;
@@ -67,6 +70,7 @@
     flex-direction: column;
     padding: 8px;
     gap: 2px;
+    margin: 0;
 }
 
 .contacts-nav-item {
@@ -103,8 +107,8 @@
     padding: 8px;
 }
 
-.contacts-sidebar.collapsed .contacts-nav-item span:not(.nav-icon) {
-    display: none;
+.contacts-sidebar.collapsed .nav-icon {
+    margin: 0;
 }
 
 .contacts-search {

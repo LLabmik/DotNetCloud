@@ -38,14 +38,24 @@
     justify-content: space-between;
     padding: 16px 14px 12px;
     border-bottom: 1px solid var(--color-border, #e2e8f0);
+    min-height: 48px;
+    gap: 8px;
 }
 
-.photos-sidebar-header h2 {
+.photos-sidebar.collapsed .photos-sidebar-header {
+    justify-content: center;
+    padding: 16px 6px 8px;
+}
+
+.photos-sidebar-title {
     margin: 0;
     font-size: 17px;
     font-weight: 800;
     color: var(--color-text, #1e293b);
     letter-spacing: -0.2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .sidebar-toggle {
@@ -53,14 +63,17 @@
     border: none;
     color: var(--color-text-secondary, #64748b);
     cursor: pointer;
-    font-size: 14px;
+    font-size: 11px;
     padding: 4px 6px;
-    border-radius: 4px;
-    transition: background 150ms ease;
+    border-radius: var(--radius, 8px);
+    line-height: 1;
+    flex-shrink: 0;
+    transition: background 150ms ease, color 150ms ease;
 }
 
 .sidebar-toggle:hover {
     background: var(--color-bg, #f5f7fa);
+    color: var(--color-text, #1e293b);
 }
 
 /* ─────────── Navigation ─────────── */
@@ -96,6 +109,15 @@
     background: rgba(59, 130, 246, 0.08);
     color: var(--color-primary, #3b82f6);
     font-weight: 600;
+}
+
+.photos-sidebar.collapsed .photos-nav-item {
+    justify-content: center;
+    padding: 8px;
+}
+
+.photos-sidebar.collapsed .nav-icon {
+    margin: 0;
 }
 
 .photos-nav-separator {

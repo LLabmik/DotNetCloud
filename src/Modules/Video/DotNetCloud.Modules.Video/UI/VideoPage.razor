@@ -21,40 +21,66 @@
 
 <div class="video-layout">
     @* ─── Sidebar ─── *@
-    <aside class="video-sidebar">
+    <aside class="video-sidebar @(_sidebarCollapsed ? "collapsed" : "")">
         <div class="video-sidebar-header">
-            <h2>Video</h2>
+            @if (!_sidebarCollapsed)
+            {
+                <h2 class="video-sidebar-title">Video</h2>
+            }
+            <button class="video-sidebar-toggle" @onclick="ToggleSidebar" title="@(_sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar")">
+                <span>@(_sidebarCollapsed ? "▶" : "◀")</span>
+            </button>
         </div>
 
         <nav class="video-nav">
             <button class="video-nav-item @(_section == Section.Home ? "active" : "")"
-                    @onclick="() => SwitchSection(Section.Home)">
-                <span class="nav-icon">🏠</span><span>Home</span>
+                    @onclick="() => SwitchSection(Section.Home)" title="Home">
+                <span class="nav-icon">🏠</span>
+                @if (!_sidebarCollapsed)
+                {
+                    <span class="video-nav-text">Home</span>
+                }
             </button>
             <button class="video-nav-item @(_section == Section.Library ? "active" : "")"
-                    @onclick="() => SwitchSection(Section.Library)">
-                <span class="nav-icon">🎬</span><span>Library</span>
+                    @onclick="() => SwitchSection(Section.Library)" title="Library">
+                <span class="nav-icon">🎬</span>
+                @if (!_sidebarCollapsed)
+                {
+                    <span class="video-nav-text">Library</span>
+                }
             </button>
             <button class="video-nav-item @(_section == Section.Collections ? "active" : "")"
-                    @onclick="() => SwitchSection(Section.Collections)">
-                <span class="nav-icon">📁</span><span>Collections</span>
+                    @onclick="() => SwitchSection(Section.Collections)" title="Collections">
+                <span class="nav-icon">📁</span>
+                @if (!_sidebarCollapsed)
+                {
+                    <span class="video-nav-text">Collections</span>
+                }
             </button>
             <button class="video-nav-item @(_section == Section.Favorites ? "active" : "")"
-                    @onclick="() => SwitchSection(Section.Favorites)">
-                <span class="nav-icon">⭐</span><span>Favorites</span>
+                    @onclick="() => SwitchSection(Section.Favorites)" title="Favorites">
+                <span class="nav-icon">⭐</span>
+                @if (!_sidebarCollapsed)
+                {
+                    <span class="video-nav-text">Favorites</span>
+                }
             </button>
         </nav>
 
         <div class="video-nav-separator"></div>
         <nav class="video-nav">
             <button class="video-nav-item @(_section == Section.Settings ? "active" : "")"
-                    @onclick="() => SwitchSection(Section.Settings)">
-                <span class="nav-icon">⚙</span><span>Library Settings</span>
+                    @onclick="() => SwitchSection(Section.Settings)" title="Library Settings">
+                <span class="nav-icon">⚙</span>
+                @if (!_sidebarCollapsed)
+                {
+                    <span class="video-nav-text">Library Settings</span>
+                }
             </button>
         </nav>
 
         @* ── Collections in sidebar ── *@
-        @if (_collections.Count > 0)
+        @if (!_sidebarCollapsed && _collections.Count > 0)
         {
             <div class="video-nav-separator"></div>
             <div class="sidebar-collections">

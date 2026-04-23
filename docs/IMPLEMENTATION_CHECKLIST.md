@@ -1169,6 +1169,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Add one-command bare-metal redeploy helper script (`tools/redeploy-baremetal.sh`) and document usage in server install guide
 - ✓ Clarify local-server workflow: prefer source redeploy helper for local changes and keep `tools/install.sh` in parity for fresh-machine installs
 - ✓ Ensure redeploy helper health probe parity with installer defaults (auto-tries HTTPS `:15443` and HTTP `:5080`)
+- ✓ Harden `tools/redeploy-baremetal.sh` to repair build-output ownership and purge stale normal/malformed Debug outputs before Linux Release build/publish runs
 - ✓ Align installer and `dotnetcloud setup` local health probes with configured Kestrel ports, including self-signed HTTPS checks; clarify that `5080`/`5443` are internal defaults while `15443` is a reverse-proxy/public deployment port
 - ✓ Make installer print explicit direct local access URLs, health probe URLs, and the internal-Kestrel-vs-reverse-proxy port distinction at completion
 - ✓ Add beginner-friendly setup mode and fresh-install default flow that auto-selects the recommended local PostgreSQL + self-signed HTTPS path and ends with a plain-language summary of chosen settings and next steps
@@ -3514,6 +3515,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Shared notification patterns for invites, reminders, mentions, shares
 - ✓ Cross-module link resolution (events↔contacts, notes↔events/contacts)
 - ✓ Consistent authorization, audit logging, and soft-delete behavior
+- ✓ Align Contacts, Calendar, and Notes collapsed sidebars with the Tracks-style icon-first navigation pattern and hide expanded-only panes/actions while collapsed
 
 ### Phase 3.6: Migration Foundation
 
@@ -3920,6 +3922,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
   - ✓ Music: 156 tests (12 handler + 9 notification + 4 callback = 25 new)
   - ✓ Video: 105 tests (12 handler + 9 notification + 10 service + 5 callback = 31 new, replaced 3 basic)
   - ✓ Core: 410 tests (16 new cross-module DTO tests)
+  - ✓ Align Photos, Music, and Video collapsed sidebars with the Tracks-style pattern, including layout shrink behavior and persisted collapse state for Video
   - ☐ Security tests, performance tests, admin/user docs — deferred
 
 ---

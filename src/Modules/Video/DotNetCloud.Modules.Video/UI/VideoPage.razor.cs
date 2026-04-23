@@ -20,6 +20,7 @@ public partial class VideoPage : IAsyncDisposable
     private enum Section { Home, Library, Collections, Favorites, Settings }
 
     private Section _section = Section.Home;
+    private bool _sidebarCollapsed;
     private bool _loading;
     private string? _errorMessage;
     private string _searchQuery = string.Empty;
@@ -135,6 +136,19 @@ public partial class VideoPage : IAsyncDisposable
     {
         try
         {
+            try
+            {
+                var collapsed = await Js.InvokeAsync<string>("localStorage.getItem", new object?[] { "dotnetcloud.sidebar:video" });
+                if (bool.TryParse(collapsed ?? "false", out var parsed))
+                {
+                    _sidebarCollapsed = parsed;
+                }
+            }
+            catch
+            {
+                // localStorage unavailable
+            }
+
             _loading = true;
             _caller = await GetCallerAsync();
             _collections = (await CollectionService.ListCollectionsAsync(_caller)).ToList();
@@ -149,6 +163,19 @@ public partial class VideoPage : IAsyncDisposable
         finally
         {
             _loading = false;
+        }
+    }
+
+    private async Task ToggleSidebar()
+    {
+        _sidebarCollapsed = !_sidebarCollapsed;
+        try
+        {
+            await Js.InvokeAsync<object?>("localStorage.setItem", new object?[] { "dotnetcloud.sidebar:video", _sidebarCollapsed.ToString().ToLowerInvariant() });
+        }
+        catch
+        {
+            // localStorage unavailable
         }
     }
 

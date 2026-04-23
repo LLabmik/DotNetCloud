@@ -26,28 +26,47 @@
     @* ─── Sidebar ─── *@
     <aside class="music-sidebar @(_sidebarCollapsed ? "collapsed" : "")">
         <div class="music-sidebar-header">
-            <h2 class="music-sidebar-title">Music</h2>
-            <button class="music-sidebar-toggle" @onclick="ToggleSidebar" title="Toggle sidebar">
-                @(_sidebarCollapsed ? "▸" : "◂")
+            @if (!_sidebarCollapsed)
+            {
+                <h2 class="music-sidebar-title">Music</h2>
+            }
+            <button class="music-sidebar-toggle" @onclick="ToggleSidebar" title="@(_sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar")">
+                <span>@(_sidebarCollapsed ? "▶" : "◀")</span>
             </button>
         </div>
 
         <nav class="music-nav">
             <button class="music-nav-item @(_section == Section.Library ? "active" : "")"
-                    @onclick="() => SwitchSection(Section.Library)">
-                <span class="nav-icon">🎵</span><span>Library</span>
+                    @onclick="() => SwitchSection(Section.Library)" title="Library">
+                <span class="nav-icon">🎵</span>
+                @if (!_sidebarCollapsed)
+                {
+                    <span class="music-nav-text">Library</span>
+                }
             </button>
             <button class="music-nav-item @(_section == Section.Artists ? "active" : "")"
-                    @onclick="() => SwitchSection(Section.Artists)">
-                <span class="nav-icon">🎤</span><span>Artists</span>
+                    @onclick="() => SwitchSection(Section.Artists)" title="Artists">
+                <span class="nav-icon">🎤</span>
+                @if (!_sidebarCollapsed)
+                {
+                    <span class="music-nav-text">Artists</span>
+                }
             </button>
             <button class="music-nav-item @(_section == Section.Albums ? "active" : "")"
-                    @onclick="() => SwitchSection(Section.Albums)">
-                <span class="nav-icon">💿</span><span>Albums</span>
+                    @onclick="() => SwitchSection(Section.Albums)" title="Albums">
+                <span class="nav-icon">💿</span>
+                @if (!_sidebarCollapsed)
+                {
+                    <span class="music-nav-text">Albums</span>
+                }
             </button>
             <button class="music-nav-item @(_section == Section.Genres ? "active" : "")"
-                    @onclick="() => SwitchSection(Section.Genres)">
-                <span class="nav-icon">🏷</span><span>Genres</span>
+                    @onclick="() => SwitchSection(Section.Genres)" title="Genres">
+                <span class="nav-icon">🏷</span>
+                @if (!_sidebarCollapsed)
+                {
+                    <span class="music-nav-text">Genres</span>
+                }
             </button>
         </nav>
 
@@ -55,29 +74,45 @@
 
         <nav class="music-nav">
             <button class="music-nav-item @(_section == Section.Playlists ? "active" : "")"
-                    @onclick="() => SwitchSection(Section.Playlists)">
-                <span class="nav-icon">📃</span><span>Playlists</span>
+                    @onclick="() => SwitchSection(Section.Playlists)" title="Playlists">
+                <span class="nav-icon">📃</span>
+                @if (!_sidebarCollapsed)
+                {
+                    <span class="music-nav-text">Playlists</span>
+                }
             </button>
             <button class="music-nav-item @(_section == Section.Favorites ? "active" : "")"
-                    @onclick="() => SwitchSection(Section.Favorites)">
-                <span class="nav-icon">⭐</span><span>Favorites</span>
+                    @onclick="() => SwitchSection(Section.Favorites)" title="Favorites">
+                <span class="nav-icon">⭐</span>
+                @if (!_sidebarCollapsed)
+                {
+                    <span class="music-nav-text">Favorites</span>
+                }
             </button>
             <button class="music-nav-item @(_section == Section.RecentlyPlayed ? "active" : "")"
-                    @onclick="() => SwitchSection(Section.RecentlyPlayed)">
-                <span class="nav-icon">🕐</span><span>Recently Played</span>
+                    @onclick="() => SwitchSection(Section.RecentlyPlayed)" title="Recently Played">
+                <span class="nav-icon">🕐</span>
+                @if (!_sidebarCollapsed)
+                {
+                    <span class="music-nav-text">Recently Played</span>
+                }
             </button>
         </nav>
 
         <div class="music-nav-separator"></div>
         <nav class="music-nav">
             <button class="music-nav-item @(_section == Section.Settings ? "active" : "")"
-                    @onclick="() => SwitchSection(Section.Settings)">
-                <span class="nav-icon">⚙</span><span>Library Settings</span>
+                    @onclick="() => SwitchSection(Section.Settings)" title="Library Settings">
+                <span class="nav-icon">⚙</span>
+                @if (!_sidebarCollapsed)
+                {
+                    <span class="music-nav-text">Library Settings</span>
+                }
             </button>
         </nav>
 
         @* Playlists in sidebar *@
-        @if (_section == Section.Playlists || _playlists.Count > 0)
+        @if (!_sidebarCollapsed && (_section == Section.Playlists || _playlists.Count > 0))
         {
             <div class="sidebar-playlist-list">
                 <div class="sidebar-playlist-header">

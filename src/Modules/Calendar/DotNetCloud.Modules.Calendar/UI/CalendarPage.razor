@@ -11,46 +11,86 @@
 <div class="calendar-page-layout">
     <div class="calendar-sidebar @(_sidebarCollapsed ? "collapsed" : "")">
         <div class="calendar-sidebar-header">
-            <h3 class="calendar-sidebar-title">Calendar</h3>
-            <button class="calendar-sidebar-toggle" @onclick="ToggleSidebar" title="Toggle sidebar">
-                @(_sidebarCollapsed ? "▸" : "◂")
+            @if (!_sidebarCollapsed)
+            {
+                <h3 class="calendar-sidebar-title">Calendar</h3>
+            }
+            <button class="calendar-sidebar-toggle" @onclick="ToggleSidebar" title="@(_sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar")">
+                <span>@(_sidebarCollapsed ? "▶" : "◀")</span>
             </button>
-            <button class="btn btn-sm btn-primary" @onclick="BeginCreateEvent" title="New Event">
-                <span>+</span>
-            </button>
+            @if (!_sidebarCollapsed)
+            {
+                <button class="btn btn-sm btn-primary" @onclick="BeginCreateEvent" title="New Event">
+                    <span>+</span>
+                </button>
+            }
         </div>
         <nav class="calendar-nav">
-            <a class="calendar-nav-item @(_activeView == "month" ? "active" : "")" @onclick='() => SetView("month")'>Month</a>
-            <a class="calendar-nav-item @(_activeView == "week" ? "active" : "")" @onclick='() => SetView("week")'>Week</a>
-            <a class="calendar-nav-item @(_activeView == "day" ? "active" : "")" @onclick='() => SetView("day")'>Day</a>
-            <a class="calendar-nav-item @(_activeView == "agenda" ? "active" : "")" @onclick='() => SetView("agenda")'>Agenda</a>
+            <a class="calendar-nav-item @(_activeView == "month" ? "active" : "")" @onclick='() => SetView("month")' title="Month">
+                <span class="calendar-nav-icon">📅</span>
+                @if (!_sidebarCollapsed)
+                {
+                    <span class="calendar-nav-label">Month</span>
+                }
+            </a>
+            <a class="calendar-nav-item @(_activeView == "week" ? "active" : "")" @onclick='() => SetView("week")' title="Week">
+                <span class="calendar-nav-icon">🗓️</span>
+                @if (!_sidebarCollapsed)
+                {
+                    <span class="calendar-nav-label">Week</span>
+                }
+            </a>
+            <a class="calendar-nav-item @(_activeView == "day" ? "active" : "")" @onclick='() => SetView("day")' title="Day">
+                <span class="calendar-nav-icon">☀️</span>
+                @if (!_sidebarCollapsed)
+                {
+                    <span class="calendar-nav-label">Day</span>
+                }
+            </a>
+            <a class="calendar-nav-item @(_activeView == "agenda" ? "active" : "")" @onclick='() => SetView("agenda")' title="Agenda">
+                <span class="calendar-nav-icon">📝</span>
+                @if (!_sidebarCollapsed)
+                {
+                    <span class="calendar-nav-label">Agenda</span>
+                }
+            </a>
         </nav>
 
-        <div class="calendar-list-heading">My Calendars</div>
+        @if (!_sidebarCollapsed)
+        {
+            <div class="calendar-list-heading">My Calendars</div>
+        }
         <div class="calendar-list">
             @foreach (var calendar in _calendars)
             {
                 <button class="calendar-item @(_selectedCalendar?.Id == calendar.Id ? "selected" : "")"
+                        title="@calendar.Name"
                         @onclick="() => SelectCalendarAsync(calendar.Id)">
                     <span class="calendar-dot" style="background:@(calendar.Color ?? "#3b82f6")"></span>
-                    <span>@calendar.Name</span>
+                    @if (!_sidebarCollapsed)
+                    {
+                        <span>@calendar.Name</span>
+                    }
                 </button>
             }
         </div>
 
-        <div class="calendar-actions">
-            <button class="btn btn-sm btn-outline-primary" @onclick="BeginCreateCalendar">New Calendar</button>
-            @if (_selectedCalendar is not null)
-            {
-                <button class="btn btn-sm btn-outline-secondary" @onclick="ToggleSharePanel">
-                    @(_showSharePanel ? "Hide Shares" : "Share")
-                </button>
-                <button class="btn btn-sm btn-outline-secondary" @onclick="ExportCalendarAsync">Export iCal</button>
-                <button class="btn btn-sm btn-outline-secondary" @onclick="() => _showImportPanel = !_showImportPanel">Import</button>
-            }
-        </div>
+        @if (!_sidebarCollapsed)
+        {
+            <div class="calendar-actions">
+                <button class="btn btn-sm btn-outline-primary" @onclick="BeginCreateCalendar">New Calendar</button>
+                @if (_selectedCalendar is not null)
+                {
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="ToggleSharePanel">
+                        @(_showSharePanel ? "Hide Shares" : "Share")
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="ExportCalendarAsync">Export iCal</button>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="() => _showImportPanel = !_showImportPanel">Import</button>
+                }
+            </div>
+        }
 
-        @if (_showSharePanel && _selectedCalendar is not null)
+        @if (!_sidebarCollapsed && _showSharePanel && _selectedCalendar is not null)
         {
             <div class="calendar-share-panel">
                 <h4>Shares</h4>
@@ -79,7 +119,7 @@
             </div>
         }
 
-        @if (_showImportPanel && _selectedCalendar is not null)
+        @if (!_sidebarCollapsed && _showImportPanel && _selectedCalendar is not null)
         {
             <div class="calendar-import-panel">
                 <textarea class="form-control form-control-sm" rows="4" placeholder="Paste iCalendar (.ics) data here…" @bind="_importText"></textarea>

@@ -5,8 +5,10 @@
 /* ── Layout ── */
 .video-layout {
     display: grid;
-    grid-template-columns: 240px 1fr;
-    height: 100vh;
+    grid-template-columns: auto 1fr;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
     background: var(--color-bg, #f5f7fa);
     color: var(--color-text, #1e293b);
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -17,23 +19,63 @@
    ═══════════════════════════════════════════════════════════ */
 
 .video-sidebar {
+    width: 240px;
+    flex-shrink: 0;
     background: var(--color-surface, #ffffff);
     border-right: 1px solid var(--color-border, #e2e8f0);
     display: flex;
     flex-direction: column;
     overflow-y: auto;
     overflow-x: hidden;
+    transition: width 200ms ease;
+}
+
+.video-sidebar.collapsed {
+    width: 52px;
+    overflow: hidden;
 }
 
 .video-sidebar-header {
-    padding: 20px 20px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 12px 8px;
+    border-bottom: 1px solid var(--color-border, #e2e8f0);
+    min-height: 48px;
+    gap: 8px;
 }
 
-.video-sidebar-header h2 {
+.video-sidebar.collapsed .video-sidebar-header {
+    justify-content: center;
+    padding: 16px 6px 8px;
+}
+
+.video-sidebar-title {
     margin: 0;
     font-size: 1.25rem;
     font-weight: 700;
     letter-spacing: -0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.video-sidebar-toggle {
+    background: none;
+    border: none;
+    color: var(--color-muted, #94a3b8);
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: var(--radius, 8px);
+    font-size: 11px;
+    line-height: 1;
+    flex-shrink: 0;
+    transition: background var(--transition, 200ms ease), color var(--transition, 200ms ease);
+}
+
+.video-sidebar-toggle:hover {
+    background: var(--color-bg, #f5f7fa);
+    color: var(--color-text, #1e293b);
 }
 
 .video-nav {
@@ -68,6 +110,15 @@
 .video-nav-item.active {
     background: var(--color-primary, #3b82f6);
     color: #ffffff;
+}
+
+.video-sidebar.collapsed .video-nav-item {
+    justify-content: center;
+    padding: 8px;
+}
+
+.video-sidebar.collapsed .nav-icon {
+    margin: 0;
 }
 
 .nav-icon {

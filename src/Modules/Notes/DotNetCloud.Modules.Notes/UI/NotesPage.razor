@@ -10,29 +10,68 @@
 <div class="notes-page-layout">
     <div class="notes-sidebar @(_sidebarCollapsed ? "collapsed" : "")">
         <div class="notes-sidebar-header">
-            <h3 class="notes-sidebar-title">Notes</h3>
-            <button class="notes-sidebar-toggle" @onclick="ToggleSidebar" title="Toggle sidebar">
-                @(_sidebarCollapsed ? "▸" : "◂")
+            @if (!_sidebarCollapsed)
+            {
+                <h3 class="notes-sidebar-title">Notes</h3>
+            }
+            <button class="notes-sidebar-toggle" @onclick="ToggleSidebar" title="@(_sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar")">
+                <span>@(_sidebarCollapsed ? "▶" : "◀")</span>
             </button>
-            <button class="btn btn-sm btn-primary" @onclick="BeginCreateNote" title="New Note">
-                <span>+</span>
-            </button>
+            @if (!_sidebarCollapsed)
+            {
+                <button class="btn btn-sm btn-primary" @onclick="BeginCreateNote" title="New Note">
+                    <span>+</span>
+                </button>
+            }
         </div>
-        <div class="notes-search">
-            <input type="text" class="form-control form-control-sm"
-                   placeholder="Search notes..."
-                   @bind="_searchQuery"
-                   @bind:event="oninput" />
-        </div>
+        @if (!_sidebarCollapsed)
+        {
+            <div class="notes-search">
+                <input type="text" class="form-control form-control-sm"
+                       placeholder="Search notes..."
+                       @bind="_searchQuery"
+                       @bind:event="oninput" />
+            </div>
+        }
         <nav class="notes-nav">
-            <a class="notes-nav-item @(_activeSection == "all" ? "active" : "")" @onclick='() => _activeSection = "all"'>All Notes</a>
-            <a class="notes-nav-item @(_activeSection == "folders" ? "active" : "")" @onclick='() => _activeSection = "folders"'>Folders</a>
-            <a class="notes-nav-item @(_activeSection == "tags" ? "active" : "")" @onclick='() => _activeSection = "tags"'>Tags</a>
-            <a class="notes-nav-item @(_activeSection == "favorites" ? "active" : "")" @onclick='() => _activeSection = "favorites"'>Favorites</a>
-            <a class="notes-nav-item @(_activeSection == "shared" ? "active" : "")" @onclick='() => _activeSection = "shared"'>Shared with Me</a>
+            <a class="notes-nav-item @(_activeSection == "all" ? "active" : "")" @onclick='() => _activeSection = "all"' title="All Notes">
+                <span class="notes-nav-icon">📝</span>
+                @if (!_sidebarCollapsed)
+                {
+                    <span class="notes-nav-label">All Notes</span>
+                }
+            </a>
+            <a class="notes-nav-item @(_activeSection == "folders" ? "active" : "")" @onclick='() => _activeSection = "folders"' title="Folders">
+                <span class="notes-nav-icon">📁</span>
+                @if (!_sidebarCollapsed)
+                {
+                    <span class="notes-nav-label">Folders</span>
+                }
+            </a>
+            <a class="notes-nav-item @(_activeSection == "tags" ? "active" : "")" @onclick='() => _activeSection = "tags"' title="Tags">
+                <span class="notes-nav-icon">🏷️</span>
+                @if (!_sidebarCollapsed)
+                {
+                    <span class="notes-nav-label">Tags</span>
+                }
+            </a>
+            <a class="notes-nav-item @(_activeSection == "favorites" ? "active" : "")" @onclick='() => _activeSection = "favorites"' title="Favorites">
+                <span class="notes-nav-icon">⭐</span>
+                @if (!_sidebarCollapsed)
+                {
+                    <span class="notes-nav-label">Favorites</span>
+                }
+            </a>
+            <a class="notes-nav-item @(_activeSection == "shared" ? "active" : "")" @onclick='() => _activeSection = "shared"' title="Shared with Me">
+                <span class="notes-nav-icon">🤝</span>
+                @if (!_sidebarCollapsed)
+                {
+                    <span class="notes-nav-label">Shared with Me</span>
+                }
+            </a>
         </nav>
 
-        @if (_activeSection == "folders")
+        @if (_activeSection == "folders" && !_sidebarCollapsed)
         {
             <div class="notes-folders">
                 @foreach (var folder in _folders)
@@ -62,27 +101,30 @@
             </div>
         }
 
-        <div class="notes-list">
-            @if (_notes.Count == 0)
-            {
-                <p>No notes found.</p>
-            }
-            else
-            {
-                @foreach (var note in VisibleNotes)
+        @if (!_sidebarCollapsed)
+        {
+            <div class="notes-list">
+                @if (_notes.Count == 0)
                 {
-                    <button class="notes-list-item @(_selectedNote?.Id == note.Id ? "selected" : "")"
-                            @onclick="() => SelectNoteAsync(note.Id)">
-                        <strong>@note.Title</strong>
-                        <span>@note.UpdatedAt.ToLocalTime():g</span>
-                        @if (note.IsFavorite)
-                        {
-                            <span>★</span>
-                        }
-                    </button>
+                    <p>No notes found.</p>
                 }
-            }
-        </div>
+                else
+                {
+                    @foreach (var note in VisibleNotes)
+                    {
+                        <button class="notes-list-item @(_selectedNote?.Id == note.Id ? "selected" : "")"
+                                @onclick="() => SelectNoteAsync(note.Id)">
+                            <strong>@note.Title</strong>
+                            <span>@note.UpdatedAt.ToLocalTime():g</span>
+                            @if (note.IsFavorite)
+                            {
+                                <span>★</span>
+                            }
+                        </button>
+                    }
+                }
+            </div>
+        }
     </div>
     <div class="notes-main">
         @if (_editingNote is not null)
