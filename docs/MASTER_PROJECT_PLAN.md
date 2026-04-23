@@ -2904,10 +2904,12 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Status:** in-progress
 **Deliverables:**
 - ✓ Add admin shared-folder definitions and path validation model
+- ✓ Add admin CRUD API, group-assignment endpoints, and reindex/rescan controls
+- ☐ Add admin UI for shared-folder CRUD and group assignment
 - ☐ Add `_DotNetCloud` virtual root composition with mounted folder browsing
 - ☐ Enforce read-only behavior for mounted paths
 
-**Notes:** The first 4.3 foundation slice is in place. Files now has persisted `AdminSharedFolderDefinition` and `AdminSharedFolderGrant` entities/configuration, `AdminSharedFolderOptions` with a configured root path, a generated `AddAdminSharedFolders` EF migration, and a new `IAdminSharedFolderPathValidator` implementation that canonicalizes candidate paths, resolves relative paths under the configured root, verifies directory existence, and rejects duplicate or overlapping registrations. Focused validation passed via `dotnet test DotNetCloud.CI.slnf --filter "FullyQualifiedName~AdminSharedFolderPathValidatorTests" --no-restore` (4 tests). Next focus inside this step is admin CRUD and group-assignment API/UI work on top of the new model, followed by `_DotNetCloud` browse composition.
+**Notes:** The 4.3 model and admin API slices are now in place. Files has persisted `AdminSharedFolderDefinition` and `AdminSharedFolderGrant` entities/configuration, `AdminSharedFolderOptions` with a configured root path, the generated `AddAdminSharedFolders` EF migration, `IAdminSharedFolderPathValidator`, and a new `IAdminSharedFolderService` plus `AdminSharedFoldersController` for CRUD, group assignment, scheduled rescans, and manual reindex requests. Focused validation passed via `dotnet test tests/DotNetCloud.Modules.Files.Tests/DotNetCloud.Modules.Files.Tests.csproj --filter "FullyQualifiedName~AdminSharedFolderServiceTests|FullyQualifiedName~ControllerSecurityAuditTests"` (19 tests). Next focus inside this step is the admin UI on top of the new API, followed by `_DotNetCloud` browse composition and mounted-path read-only enforcement.
 
 #### Step: shared-file-folders-6 — Search And Media Integration
 **Status:** pending

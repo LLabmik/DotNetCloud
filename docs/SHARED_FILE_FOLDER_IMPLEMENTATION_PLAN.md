@@ -170,6 +170,8 @@ The implementation should therefore split into four architectural layers:
 - Folder validation blocks invalid and ambiguous configurations.
 - Shared-folder definitions are ready for virtual enumeration and search crawling.
 
+Current implementation status: the Files module now has persisted admin shared-folder definitions/grants, rooted path validation, an admin CRUD API for managing definitions and group assignments, plus rescan and reindex control endpoints. The remaining 4.3 work is the admin UI that consumes those APIs.
+
 ---
 
 ## 4.4 Virtual `_DotNetCloud` Root And Browse Flow

@@ -250,6 +250,39 @@ public class ControllerSecurityAuditTests
         Assert.AreEqual(403, result.StatusCode);
     }
 
+    [TestMethod]
+    public async Task AdminSharedFoldersList_UsesAuthenticatedCaller()
+    {
+        var userId = Guid.NewGuid();
+        var serviceMock = new Mock<IAdminSharedFolderService>();
+        serviceMock.Setup(service => service.GetSharedFoldersAsync(
+                It.Is<DotNetCloud.Core.Authorization.CallerContext>(caller => caller.UserId == userId),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+
+        var controller = CreateAdminSharedFoldersController(serviceMock);
+        SetAuthenticatedUser(controller, userId);
+
+        await controller.ListAsync();
+
+        serviceMock.Verify(service => service.GetSharedFoldersAsync(
+                It.Is<DotNetCloud.Core.Authorization.CallerContext>(caller => caller.UserId == userId),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [TestMethod]
+    public async Task AdminSharedFoldersList_Unauthenticated_Returns403()
+    {
+        var controller = CreateAdminSharedFoldersController();
+        SetUnauthenticatedUser(controller);
+
+        var result = await controller.ListAsync() as ObjectResult;
+
+        Assert.IsNotNull(result);
+        Assert.AreEqual(403, result.StatusCode);
+    }
+
     #endregion
 
     #region Helpers
@@ -294,6 +327,11 @@ public class ControllerSecurityAuditTests
             NullLogger<FilesController>.Instance,
             Microsoft.Extensions.Options.Options.Create(new FileSystemOptions()),
             Microsoft.Extensions.Options.Options.Create(new FileUploadOptions()));
+    }
+
+    private static AdminSharedFoldersController CreateAdminSharedFoldersController(Mock<IAdminSharedFolderService>? serviceMock = null)
+    {
+        return new AdminSharedFoldersController(serviceMock?.Object ?? Mock.Of<IAdminSharedFolderService>());
     }
 
     private static void SetAuthenticatedUser(ControllerBase controller, Guid userId)

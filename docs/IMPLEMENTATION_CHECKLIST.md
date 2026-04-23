@@ -3014,6 +3014,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Harden Files permission evaluation for user, team, and group shares
 - ✓ Add mounted-access listing path for team/group shared content
 - ✓ Add admin shared-folder definitions and path validation
+- ✓ Add admin shared-folder CRUD API, group assignment, and scan controls
 - ☐ Surface virtual `_DotNetCloud` root with mounted shared folders
 - ☐ Add group-aware mounted-folder search indexing and navigation
 - ☐ Add shared-folder media source selection for Music, Photos, and Video

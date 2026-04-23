@@ -53,6 +53,7 @@ public static class FilesServiceRegistration
         // Database-backed services (Scoped)
         services.AddScoped<IShareAccessMembershipResolver, CapabilityShareAccessMembershipResolver>();
         services.AddScoped<IAdminSharedFolderPathValidator, AdminSharedFolderPathValidator>();
+        services.AddScoped<IAdminSharedFolderService, AdminSharedFolderService>();
         services.AddScoped<IPermissionService, PermissionService>();
         services.AddScoped<IFileService, FileService>();
         services.AddScoped<IChunkedUploadService, ChunkedUploadService>();
