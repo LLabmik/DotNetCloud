@@ -1,0 +1,315 @@
+.shared-folders-header {
+    gap: 1.5rem;
+}
+
+.shared-folders-toolbar {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.shared-folder-stats {
+    margin-bottom: 1.5rem;
+}
+
+.shared-folder-stat-icon {
+    background: #eff6ff;
+    color: #1d4ed8;
+}
+
+.shared-folder-stat-icon svg {
+    width: 1.35rem;
+    height: 1.35rem;
+}
+
+.shared-folder-stat-icon--folders {
+    background: #eff6ff;
+    color: #2563eb;
+}
+
+.shared-folder-stat-icon--enabled {
+    background: #dcfce7;
+    color: #16a34a;
+}
+
+.shared-folder-stat-icon--scheduled {
+    background: #fef3c7;
+    color: #d97706;
+}
+
+.shared-folder-stat-icon--reindex {
+    background: #ede9fe;
+    color: #7c3aed;
+}
+
+.shared-folder-list-card {
+    background: var(--color-surface);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 1.25rem;
+}
+
+.shared-folder-table td {
+    vertical-align: top;
+}
+
+.shared-folder-name-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+}
+
+.shared-folder-heading-row {
+    display: flex;
+    gap: 0.65rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.shared-folder-path {
+    font-size: 0.85rem;
+    color: var(--color-text-secondary);
+    word-break: break-all;
+}
+
+.shared-folder-meta {
+    display: flex;
+    gap: 0.9rem;
+    flex-wrap: wrap;
+    color: var(--color-text-secondary);
+    font-size: 0.82rem;
+}
+
+.shared-folder-mode-stack,
+.shared-folder-scan-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    min-width: 10rem;
+}
+
+.shared-folder-group-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+}
+
+.group-chip,
+.status-pill {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: 0.24rem 0.65rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    line-height: 1.2;
+}
+
+.group-chip {
+    background: #e0f2fe;
+    color: #0f766e;
+}
+
+.status-pill--enabled,
+.status-pill--success {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.status-pill--disabled,
+.status-pill--danger {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.status-pill--neutral {
+    background: #e5e7eb;
+    color: #374151;
+}
+
+.status-pill--crawl {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.status-pill--warning {
+    background: #fef3c7;
+    color: #b45309;
+}
+
+.status-pill--progress {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
+.table-actions-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.45rem;
+    min-width: 12rem;
+}
+
+.shared-folder-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.shared-folder-form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem 1.25rem;
+}
+
+.shared-folder-form-grid__wide {
+    grid-column: 1 / -1;
+}
+
+.shared-folder-form-grid__toggle {
+    grid-column: 1 / -1;
+    margin-top: -0.15rem;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    font-weight: 500;
+}
+
+.shared-folder-path-input {
+    font-family: var(--font-mono, "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace);
+}
+
+.shared-folder-group-panel {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: 1rem;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 96%, #f8fafc 4%), var(--color-surface));
+}
+
+.shared-folder-group-panel__header {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: flex-start;
+    margin-bottom: 0.9rem;
+}
+
+.shared-folder-group-panel__header h3 {
+    margin: 0 0 0.25rem;
+    font-size: 1rem;
+}
+
+.shared-folder-group-panel__header p {
+    margin: 0;
+    color: var(--color-text-secondary);
+}
+
+.shared-folder-group-count {
+    color: var(--color-text-secondary);
+    font-size: 0.85rem;
+    white-space: nowrap;
+}
+
+.shared-folder-group-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+}
+
+.shared-folder-group-option {
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-start;
+    padding: 0.85rem 0.95rem;
+    border-radius: 0.95rem;
+    border: 1px solid var(--color-border);
+    background: color-mix(in srgb, var(--color-surface) 96%, #ffffff 4%);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+    cursor: pointer;
+}
+
+.shared-folder-group-option input {
+    margin-top: 0.2rem;
+}
+
+.shared-folder-group-option strong {
+    display: block;
+    margin-bottom: 0.2rem;
+}
+
+.shared-folder-group-option--selected {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.12);
+    transform: translateY(-1px);
+}
+
+.shared-folder-group-empty {
+    padding: 0.95rem 1rem;
+    border-radius: 0.85rem;
+    background: #f8fafc;
+    color: var(--color-text-secondary);
+}
+
+.shared-folder-editor-actions {
+    margin-top: 0.5rem;
+}
+
+:global(.dark-mode) .shared-folder-stat-icon--folders {
+    background: #1e3a5f;
+    color: #93c5fd;
+}
+
+:global(.dark-mode) .shared-folder-stat-icon--enabled {
+    background: #14532d;
+    color: #86efac;
+}
+
+:global(.dark-mode) .shared-folder-stat-icon--scheduled {
+    background: #451a03;
+    color: #fcd34d;
+}
+
+:global(.dark-mode) .shared-folder-stat-icon--reindex {
+    background: #2e1065;
+    color: #c4b5fd;
+}
+
+:global(.dark-mode) .group-chip {
+    background: #164e63;
+    color: #a5f3fc;
+}
+
+:global(.dark-mode) .status-pill--neutral {
+    background: #374151;
+    color: #e5e7eb;
+}
+
+:global(.dark-mode) .shared-folder-group-panel,
+:global(.dark-mode) .shared-folder-group-option,
+:global(.dark-mode) .shared-folder-group-empty {
+    background: color-mix(in srgb, var(--color-surface) 90%, #0f172a 10%);
+}
+
+@media (max-width: 1100px) {
+    .table-actions-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 900px) {
+    .shared-folder-form-grid,
+    .shared-folder-group-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 720px) {
+    .shared-folders-toolbar,
+    .shared-folder-group-panel__header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+}

@@ -80,6 +80,19 @@
                             </NavLink>
                         </li>
                         <li class="nav-item">
+                            <NavLink href="/admin/files/shared-folders"
+                                     Match="NavLinkMatch.Prefix"
+                                     class="nav-link"
+                                     title="Shared Folders"
+                                     aria-label="Shared Folders">
+                                <span class="nav-icon">🗂</span>
+                                @if (!Collapsed)
+                                {
+                                    <span class="nav-text">Shared Folders</span>
+                                }
+                            </NavLink>
+                        </li>
+                        <li class="nav-item">
                             <NavLink href="/admin/modules"
                                      Match="NavLinkMatch.Prefix"
                                      class="nav-link"

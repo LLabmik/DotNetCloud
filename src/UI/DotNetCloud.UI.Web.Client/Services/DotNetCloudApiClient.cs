@@ -580,6 +580,76 @@ public sealed class DotNetCloudApiClient
         return response.IsSuccessStatusCode;
     }
 
+    /// <summary>
+    /// Lists Files admin shared folders.
+    /// </summary>
+    public async Task<IReadOnlyList<AdminSharedFolderResponse>> ListAdminSharedFoldersAsync(CancellationToken ct = default)
+    {
+        var envelope = await _http.GetFromJsonAsync<ApiEnvelope<IReadOnlyList<AdminSharedFolderResponse>>>(
+            "api/v1/files/admin/shared-folders", JsonOptions, ct);
+        return envelope?.Data ?? [];
+    }
+
+    /// <summary>
+    /// Creates a Files admin shared folder.
+    /// </summary>
+    public async Task<AdminSharedFolderResponse?> CreateAdminSharedFolderAsync(SaveAdminSharedFolderRequest request, CancellationToken ct = default)
+    {
+        var response = await _http.PostAsJsonAsync("api/v1/files/admin/shared-folders", request, JsonOptions, ct);
+        await EnsureSuccessStatusAsync(response, ct);
+        var envelope = await response.Content.ReadFromJsonAsync<ApiEnvelope<AdminSharedFolderResponse>>(JsonOptions, ct);
+        return envelope?.Data;
+    }
+
+    /// <summary>
+    /// Updates a Files admin shared folder.
+    /// </summary>
+    public async Task<AdminSharedFolderResponse?> UpdateAdminSharedFolderAsync(Guid sharedFolderId, SaveAdminSharedFolderRequest request, CancellationToken ct = default)
+    {
+        var response = await _http.PutAsJsonAsync($"api/v1/files/admin/shared-folders/{sharedFolderId}", request, JsonOptions, ct);
+        await EnsureSuccessStatusAsync(response, ct);
+        var envelope = await response.Content.ReadFromJsonAsync<ApiEnvelope<AdminSharedFolderResponse>>(JsonOptions, ct);
+        return envelope?.Data;
+    }
+
+    /// <summary>
+    /// Deletes a Files admin shared folder.
+    /// </summary>
+    public async Task DeleteAdminSharedFolderAsync(Guid sharedFolderId, CancellationToken ct = default)
+    {
+        var response = await _http.DeleteAsync($"api/v1/files/admin/shared-folders/{sharedFolderId}", ct);
+        await EnsureSuccessStatusAsync(response, ct);
+    }
+
+    /// <summary>
+    /// Requests a full reindex of a Files admin shared folder.
+    /// </summary>
+    public async Task<AdminSharedFolderResponse?> RequestAdminSharedFolderReindexAsync(Guid sharedFolderId, CancellationToken ct = default)
+    {
+        var response = await _http.PostAsync($"api/v1/files/admin/shared-folders/{sharedFolderId}/reindex", null, ct);
+        await EnsureSuccessStatusAsync(response, ct);
+        var envelope = await response.Content.ReadFromJsonAsync<ApiEnvelope<AdminSharedFolderResponse>>(JsonOptions, ct);
+        return envelope?.Data;
+    }
+
+    /// <summary>
+    /// Schedules or expedites a rescan of a Files admin shared folder.
+    /// </summary>
+    public async Task<AdminSharedFolderResponse?> ScheduleAdminSharedFolderRescanAsync(Guid sharedFolderId, DateTime? nextScheduledScanAt, CancellationToken ct = default)
+    {
+        var response = await _http.PostAsJsonAsync(
+            $"api/v1/files/admin/shared-folders/{sharedFolderId}/rescan",
+            new ScheduleAdminSharedFolderScanRequest
+            {
+                NextScheduledScanAt = nextScheduledScanAt,
+            },
+            JsonOptions,
+            ct);
+        await EnsureSuccessStatusAsync(response, ct);
+        var envelope = await response.Content.ReadFromJsonAsync<ApiEnvelope<AdminSharedFolderResponse>>(JsonOptions, ct);
+        return envelope?.Data;
+    }
+
     // -----------------------------------------------------------------------
     // Organizations
     // -----------------------------------------------------------------------
@@ -913,6 +983,49 @@ public sealed class DotNetCloudApiClient
     {
         public bool Success { get; set; }
         public T? Data { get; set; }
+    }
+
+    private static async Task EnsureSuccessStatusAsync(HttpResponseMessage response, CancellationToken ct)
+    {
+        if (response.IsSuccessStatusCode)
+        {
+            return;
+        }
+
+        var message = await ReadApiErrorMessageAsync(response, ct);
+        throw new HttpRequestException(message, inner: null, response.StatusCode);
+    }
+
+    private static async Task<string> ReadApiErrorMessageAsync(HttpResponseMessage response, CancellationToken ct)
+    {
+        var body = await response.Content.ReadAsStringAsync(ct);
+        if (string.IsNullOrWhiteSpace(body))
+        {
+            return $"Request failed with status code {(int)response.StatusCode}.";
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(body);
+            if (TryGetPropertyIgnoreCase(document.RootElement, "error", out var errorElement)
+                && errorElement.ValueKind == JsonValueKind.Object
+                && TryGetPropertyIgnoreCase(errorElement, "message", out var messageElement)
+                && messageElement.ValueKind == JsonValueKind.String)
+            {
+                return messageElement.GetString() ?? body;
+            }
+
+            if (TryGetPropertyIgnoreCase(document.RootElement, "message", out var rootMessage)
+                && rootMessage.ValueKind == JsonValueKind.String)
+            {
+                return rootMessage.GetString() ?? body;
+            }
+        }
+        catch (JsonException)
+        {
+        }
+
+        return body;
     }
 
 }

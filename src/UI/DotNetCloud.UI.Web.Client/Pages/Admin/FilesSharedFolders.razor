@@ -1,0 +1,749 @@
+@page "/admin/files/shared-folders"
+@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveAutoRenderMode(prerender: false))
+@attribute [Authorize(Policy = "RequireAdmin")]
+
+<PageTitle>Shared Folders - DotNetCloud</PageTitle>
+
+<div class="page-header shared-folders-header">
+    <div>
+        <h1>Files Shared Folders</h1>
+        <p class="text-muted">Register mounted server folders, assign group access, and control scan operations for the future _DotNetCloud virtual root.</p>
+    </div>
+    <div class="shared-folders-toolbar">
+        <button class="btn btn-outline" @onclick="RefreshAsync" disabled="@_loading">Refresh</button>
+        <button class="btn btn-primary" @onclick="ShowCreate">Add Shared Folder</button>
+    </div>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(_error))
+{
+    <div class="alert alert-danger">@_error</div>
+}
+
+@if (_loading)
+{
+    <LoadingIndicator Message="Loading shared folders..." />
+}
+else
+{
+    <div class="dash-stats shared-folder-stats">
+        <div class="dash-stat-card">
+            <div class="dash-stat-icon shared-folder-stat-icon shared-folder-stat-icon--folders">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></svg>
+            </div>
+            <div class="dash-stat-body">
+                <span class="dash-stat-label">Shared Folders</span>
+                <span class="dash-stat-value">@_sharedFolders.Count</span>
+            </div>
+        </div>
+        <div class="dash-stat-card">
+            <div class="dash-stat-icon shared-folder-stat-icon shared-folder-stat-icon--enabled">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12" /></svg>
+            </div>
+            <div class="dash-stat-body">
+                <span class="dash-stat-label">Enabled</span>
+                <span class="dash-stat-value">@_sharedFolders.Count(folder => folder.IsEnabled)</span>
+            </div>
+        </div>
+        <div class="dash-stat-card">
+            <div class="dash-stat-icon shared-folder-stat-icon shared-folder-stat-icon--scheduled">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
+            </div>
+            <div class="dash-stat-body">
+                <span class="dash-stat-label">Scheduled Scans</span>
+                <span class="dash-stat-value">@_sharedFolders.Count(folder => folder.NextScheduledScanAt.HasValue)</span>
+            </div>
+        </div>
+        <div class="dash-stat-card">
+            <div class="dash-stat-icon shared-folder-stat-icon shared-folder-stat-icon--reindex">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2v6h-6" /><path d="M3 11a9 9 0 0 1 15.5-6.5L21 8" /><path d="M3 22v-6h6" /><path d="M21 13a9 9 0 0 1-15.5 6.5L3 16" /></svg>
+            </div>
+            <div class="dash-stat-body">
+                <span class="dash-stat-label">Queued Reindex</span>
+                <span class="dash-stat-value">@_sharedFolders.Count(folder => !string.Equals(folder.ReindexState, "Idle", StringComparison.OrdinalIgnoreCase))</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="shared-folder-list-card">
+        @if (_sharedFolders.Count == 0)
+        {
+            <div class="empty-state">
+                <h2>No shared folders yet</h2>
+                <p>Register a mounted directory, assign one or more groups, and it will be ready for the upcoming _DotNetCloud browse layer.</p>
+                <button class="btn btn-primary" @onclick="ShowCreate">Create First Shared Folder</button>
+            </div>
+        }
+        else
+        {
+            <div class="table-container">
+                <table class="data-table shared-folder-table">
+                    <thead>
+                        <tr>
+                            <th>Folder</th>
+                            <th>Access</th>
+                            <th>Groups</th>
+                            <th>Scan</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var folder in _sharedFolders.OrderBy(folder => folder.DisplayName, StringComparer.OrdinalIgnoreCase))
+                        {
+                            <tr>
+                                <td>
+                                    <div class="shared-folder-name-cell">
+                                        <div class="shared-folder-heading-row">
+                                            <strong>@folder.DisplayName</strong>
+                                            <span class="status-pill @(folder.IsEnabled ? "status-pill--enabled" : "status-pill--disabled")">@(folder.IsEnabled ? "Enabled" : "Disabled")</span>
+                                        </div>
+                                        <code class="shared-folder-path">@folder.SourcePath</code>
+                                        <div class="shared-folder-meta">
+                                            <span>@ResolveOrganizationName(folder.OrganizationId)</span>
+                                            <span>Updated @FormatRelative(folder.UpdatedAt)</span>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="shared-folder-mode-stack">
+                                        <span class="status-pill status-pill--neutral">@folder.AccessMode</span>
+                                        <span class="status-pill status-pill--crawl">@folder.CrawlMode</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    @if (folder.GrantedGroups.Count == 0)
+                                    {
+                                        <span class="text-muted">No groups assigned</span>
+                                    }
+                                    else
+                                    {
+                                        <div class="shared-folder-group-list">
+                                            @foreach (var group in folder.GrantedGroups)
+                                            {
+                                                <span class="group-chip">@(group.GroupName ?? group.GroupId.ToString())</span>
+                                            }
+                                        </div>
+                                    }
+                                </td>
+                                <td>
+                                    <div class="shared-folder-scan-stack">
+                                        <span class="status-pill @(GetScanStatusClass(folder.LastScanStatus))">@folder.LastScanStatus</span>
+                                        <span class="status-pill @(GetReindexStateClass(folder.ReindexState))">Reindex: @folder.ReindexState</span>
+                                        <span class="text-muted">Next: @FormatSchedule(folder.NextScheduledScanAt)</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="table-actions-grid">
+                                        <button class="btn btn-sm btn-outline" @onclick="() => ShowEditAsync(folder)" disabled="@_actionInProgress">Edit</button>
+                                        <button class="btn btn-sm btn-outline" @onclick="() => ShowSchedule(folder)" disabled="@_actionInProgress">Schedule Scan</button>
+                                        <button class="btn btn-sm btn-outline" @onclick="() => RescanNowAsync(folder)" disabled="@_actionInProgress">Rescan Now</button>
+                                        <button class="btn btn-sm btn-outline" @onclick="() => ReindexAsync(folder)" disabled="@_actionInProgress">Reindex</button>
+                                        <button class="btn btn-sm btn-danger" @onclick="() => DeleteAsync(folder)" disabled="@_actionInProgress">Delete</button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+}
+
+@if (_showEditor)
+{
+    <DncModal Title="@(_editorMode == SharedFolderEditorMode.Create ? "Add Shared Folder" : $"Edit — {_editor.DisplayName}")" StartVisible OnClose="CloseEditor">
+        <div class="shared-folder-editor">
+            <div class="shared-folder-form-grid">
+                <div class="form-group">
+                    <label>Display name *</label>
+                    <input type="text" class="form-control" @bind="_editor.DisplayName" placeholder="Design Assets" />
+                </div>
+                <div class="form-group">
+                    <label>Group source organization</label>
+                    <select class="form-control" value="@_editorGroupOrganizationId" @onchange="OnEditorOrganizationChanged" disabled="@(_organizations.Count == 0)">
+                        @foreach (var organization in _organizations)
+                        {
+                            <option value="@organization.Id">@organization.Name</option>
+                        }
+                    </select>
+                    <p class="form-hint">Used to load the groups you can grant. The server still validates the final organization scope.</p>
+                </div>
+                <div class="form-group shared-folder-form-grid__wide">
+                    <label>Source path *</label>
+                    <input type="text" class="form-control shared-folder-path-input" @bind="_editor.SourcePath" placeholder="/mnt/shared/design-assets" />
+                    <p class="form-hint">Must point to an existing directory beneath the configured admin shared-folder root.</p>
+                </div>
+                <div class="form-group">
+                    <label>Access mode</label>
+                    <select class="form-control" @bind="_editor.AccessMode" disabled>
+                        <option value="ReadOnly">ReadOnly</option>
+                    </select>
+                    <p class="form-hint">Mounted shared folders remain read-only in v1.</p>
+                </div>
+                <div class="form-group">
+                    <label>Crawl mode</label>
+                    <select class="form-control" @bind="_editor.CrawlMode">
+                        <option value="Scheduled">Scheduled</option>
+                        <option value="Manual">Manual</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Next scheduled scan</label>
+                    <input type="datetime-local" class="form-control" value="@_editor.NextScheduledScanAtLocal" @onchange="OnEditorScheduleChanged" />
+                </div>
+                <div class="form-group shared-folder-form-grid__toggle">
+                    <label class="checkbox-label">
+                        <input type="checkbox" @bind="_editor.IsEnabled" />
+                        <span>Folder is enabled and eligible for future _DotNetCloud mounting</span>
+                    </label>
+                </div>
+            </div>
+
+            <section class="shared-folder-group-panel">
+                <div class="shared-folder-group-panel__header">
+                    <div>
+                        <h3>Granted Groups</h3>
+                        <p>Choose one or more groups that will be allowed to browse this mounted folder.</p>
+                    </div>
+                    <span class="shared-folder-group-count">@_editor.SelectedGroupIds.Count selected</span>
+                </div>
+
+                @if (_groupsLoading)
+                {
+                    <LoadingIndicator Message="Loading groups..." />
+                }
+                else if (_availableGroups.Count == 0)
+                {
+                    <div class="shared-folder-group-empty">No groups are available for the selected organization.</div>
+                }
+                else
+                {
+                    <div class="shared-folder-group-grid">
+                        @foreach (var group in _availableGroups)
+                        {
+                            <label class="shared-folder-group-option @(_editor.SelectedGroupIds.Contains(group.Id) ? "shared-folder-group-option--selected" : string.Empty)">
+                                <input type="checkbox"
+                                       checked="@_editor.SelectedGroupIds.Contains(group.Id)"
+                                       @onchange="args => ToggleGroup(group.Id, args.Value as bool? == true)" />
+                                <div>
+                                    <strong>@group.Name</strong>
+                                    <div class="text-muted">@(group.IsAllUsersGroup ? "Built-in all users group" : $"{group.MemberCount} members")</div>
+                                </div>
+                            </label>
+                        }
+                    </div>
+                }
+            </section>
+
+            @if (!string.IsNullOrWhiteSpace(_modalError))
+            {
+                <div class="alert alert-danger">@_modalError</div>
+            }
+        </div>
+        <div class="form-actions shared-folder-editor-actions">
+            <button class="btn btn-secondary" @onclick="CloseEditor">Cancel</button>
+            <button class="btn btn-primary" @onclick="SaveEditorAsync" disabled="@_actionInProgress">
+                @(_actionInProgress ? "Saving..." : _editorMode == SharedFolderEditorMode.Create ? "Create Shared Folder" : "Save Changes")
+            </button>
+        </div>
+    </DncModal>
+}
+
+@if (_showSchedule)
+{
+    <DncModal Title="@($"Schedule Scan — {_scheduleTarget?.DisplayName}")" StartVisible OnClose="CloseSchedule">
+        <div class="form-group">
+            <label>Next scan time</label>
+            <input type="datetime-local" class="form-control" value="@_scheduleScanLocal" @onchange="OnScheduleScanChanged" />
+            <p class="form-hint">Leave it empty to queue the scan immediately.</p>
+        </div>
+        @if (!string.IsNullOrWhiteSpace(_modalError))
+        {
+            <div class="alert alert-danger">@_modalError</div>
+        }
+        <div class="form-actions">
+            <button class="btn btn-secondary" @onclick="CloseSchedule">Cancel</button>
+            <button class="btn btn-primary" @onclick="ScheduleScanAsync" disabled="@_actionInProgress">@(_actionInProgress ? "Scheduling..." : "Schedule Scan")</button>
+        </div>
+    </DncModal>
+}
+
+<ConfirmDialog @ref="_confirmDialog" />
+
+@code {
+    [Inject] private DotNetCloudApiClient Api { get; set; } = default!;
+    [Inject] private ToastService Toast { get; set; } = default!;
+
+    private readonly SharedFolderEditorState _editor = new();
+    private bool _loading = true;
+    private bool _actionInProgress;
+    private bool _showEditor;
+    private bool _showSchedule;
+    private bool _groupsLoading;
+    private string _error = string.Empty;
+    private string _modalError = string.Empty;
+    private Guid _editorGroupOrganizationId;
+    private string _scheduleScanLocal = string.Empty;
+    private SharedFolderEditorMode _editorMode;
+    private AdminSharedFolderResponse? _scheduleTarget;
+    private IReadOnlyList<OrganizationDto> _organizations = [];
+    private IReadOnlyList<GroupDto> _availableGroups = [];
+    private IReadOnlyList<AdminSharedFolderResponse> _sharedFolders = [];
+    private ConfirmDialog _confirmDialog = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshAsync();
+    }
+
+    private async Task RefreshAsync()
+    {
+        _loading = true;
+        _error = string.Empty;
+
+        try
+        {
+            var organizationsTask = Api.ListOrganizationsAsync();
+            var sharedFoldersTask = Api.ListAdminSharedFoldersAsync();
+
+            await Task.WhenAll(organizationsTask, sharedFoldersTask);
+
+            _organizations = organizationsTask.Result;
+            _sharedFolders = sharedFoldersTask.Result;
+
+            if (_organizations.Count > 0)
+            {
+                if (_editorGroupOrganizationId == Guid.Empty || _organizations.All(org => org.Id != _editorGroupOrganizationId))
+                {
+                    _editorGroupOrganizationId = _organizations[0].Id;
+                }
+
+                await LoadGroupsAsync(_editorGroupOrganizationId);
+            }
+            else
+            {
+                _availableGroups = [];
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void ShowCreate()
+    {
+        _modalError = string.Empty;
+        _editorMode = SharedFolderEditorMode.Create;
+        _editor.Reset();
+        _editorGroupOrganizationId = _organizations.Count > 0 ? _organizations[0].Id : Guid.Empty;
+        _showEditor = true;
+    }
+
+    private async Task ShowEditAsync(AdminSharedFolderResponse folder)
+    {
+        _modalError = string.Empty;
+        _editorMode = SharedFolderEditorMode.Edit;
+        _editor.Load(folder);
+
+        var suggestedOrganizationId = folder.OrganizationId
+            ?? folder.GrantedGroups.Select(group => group.OrganizationId).FirstOrDefault(id => id.HasValue)
+            ?? (_organizations.Count > 0 ? _organizations[0].Id : Guid.Empty);
+
+        _editorGroupOrganizationId = suggestedOrganizationId;
+        if (_editorGroupOrganizationId != Guid.Empty)
+        {
+            await LoadGroupsAsync(_editorGroupOrganizationId);
+        }
+
+        _showEditor = true;
+    }
+
+    private void CloseEditor()
+    {
+        _showEditor = false;
+        _modalError = string.Empty;
+        _actionInProgress = false;
+    }
+
+    private void ShowSchedule(AdminSharedFolderResponse folder)
+    {
+        _scheduleTarget = folder;
+        _scheduleScanLocal = ToDateTimeLocalValue(folder.NextScheduledScanAt);
+        _modalError = string.Empty;
+        _showSchedule = true;
+    }
+
+    private void CloseSchedule()
+    {
+        _showSchedule = false;
+        _scheduleTarget = null;
+        _scheduleScanLocal = string.Empty;
+        _modalError = string.Empty;
+        _actionInProgress = false;
+    }
+
+    private async Task OnEditorOrganizationChanged(ChangeEventArgs args)
+    {
+        if (!Guid.TryParse(args.Value?.ToString(), out var organizationId))
+        {
+            return;
+        }
+
+        _editorGroupOrganizationId = organizationId;
+        await LoadGroupsAsync(organizationId);
+        _editor.SelectedGroupIds.RemoveWhere(groupId => _availableGroups.All(group => group.Id != groupId));
+    }
+
+    private async Task LoadGroupsAsync(Guid organizationId)
+    {
+        if (organizationId == Guid.Empty)
+        {
+            _availableGroups = [];
+            return;
+        }
+
+        _groupsLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            _availableGroups = await Api.ListGroupsAsync(organizationId);
+        }
+        catch (Exception ex)
+        {
+            _availableGroups = [];
+            _modalError = ex.Message;
+        }
+        finally
+        {
+            _groupsLoading = false;
+        }
+    }
+
+    private void ToggleGroup(Guid groupId, bool isSelected)
+    {
+        if (isSelected)
+        {
+            _editor.SelectedGroupIds.Add(groupId);
+        }
+        else
+        {
+            _editor.SelectedGroupIds.Remove(groupId);
+        }
+    }
+
+    private void OnEditorScheduleChanged(ChangeEventArgs args)
+    {
+        _editor.NextScheduledScanAtLocal = args.Value?.ToString() ?? string.Empty;
+    }
+
+    private void OnScheduleScanChanged(ChangeEventArgs args)
+    {
+        _scheduleScanLocal = args.Value?.ToString() ?? string.Empty;
+    }
+
+    private async Task SaveEditorAsync()
+    {
+        _modalError = string.Empty;
+        if (!ValidateEditor())
+        {
+            return;
+        }
+
+        _actionInProgress = true;
+        try
+        {
+            var request = new SaveAdminSharedFolderRequest
+            {
+                DisplayName = _editor.DisplayName.Trim(),
+                SourcePath = _editor.SourcePath.Trim(),
+                IsEnabled = _editor.IsEnabled,
+                AccessMode = _editor.AccessMode,
+                CrawlMode = _editor.CrawlMode,
+                NextScheduledScanAt = ParseDateTimeLocal(_editor.NextScheduledScanAtLocal),
+                GroupIds = _editor.SelectedGroupIds.OrderBy(id => id).ToArray(),
+            };
+
+            if (_editorMode == SharedFolderEditorMode.Create)
+            {
+                var created = await Api.CreateAdminSharedFolderAsync(request);
+                if (created is not null)
+                {
+                    Toast.ShowSuccess($"Shared folder '{created.DisplayName}' created.");
+                }
+            }
+            else if (_editor.Id.HasValue)
+            {
+                var updated = await Api.UpdateAdminSharedFolderAsync(_editor.Id.Value, request);
+                if (updated is not null)
+                {
+                    Toast.ShowSuccess($"Shared folder '{updated.DisplayName}' updated.");
+                }
+            }
+
+            CloseEditor();
+            await RefreshAsync();
+        }
+        catch (Exception ex)
+        {
+            _modalError = ex.Message;
+        }
+        finally
+        {
+            _actionInProgress = false;
+        }
+    }
+
+    private async Task ScheduleScanAsync()
+    {
+        if (_scheduleTarget is null)
+        {
+            return;
+        }
+
+        _actionInProgress = true;
+        _modalError = string.Empty;
+        try
+        {
+            var scheduled = await Api.ScheduleAdminSharedFolderRescanAsync(_scheduleTarget.Id, ParseDateTimeLocal(_scheduleScanLocal));
+            if (scheduled is not null)
+            {
+                Toast.ShowSuccess($"Scan scheduled for '{scheduled.DisplayName}'.");
+            }
+
+            CloseSchedule();
+            await RefreshAsync();
+        }
+        catch (Exception ex)
+        {
+            _modalError = ex.Message;
+        }
+        finally
+        {
+            _actionInProgress = false;
+        }
+    }
+
+    private async Task RescanNowAsync(AdminSharedFolderResponse folder)
+    {
+        _actionInProgress = true;
+        try
+        {
+            await Api.ScheduleAdminSharedFolderRescanAsync(folder.Id, null);
+            Toast.ShowSuccess($"Rescan queued for '{folder.DisplayName}'.");
+            await RefreshAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _actionInProgress = false;
+        }
+    }
+
+    private async Task ReindexAsync(AdminSharedFolderResponse folder)
+    {
+        _actionInProgress = true;
+        try
+        {
+            await Api.RequestAdminSharedFolderReindexAsync(folder.Id);
+            Toast.ShowSuccess($"Reindex requested for '{folder.DisplayName}'.");
+            await RefreshAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _actionInProgress = false;
+        }
+    }
+
+    private async Task DeleteAsync(AdminSharedFolderResponse folder)
+    {
+        if (!await _confirmDialog.ShowAsync($"Delete shared folder '{folder.DisplayName}'?", "Delete Shared Folder"))
+        {
+            return;
+        }
+
+        _actionInProgress = true;
+        try
+        {
+            await Api.DeleteAdminSharedFolderAsync(folder.Id);
+            Toast.ShowSuccess($"Shared folder '{folder.DisplayName}' deleted.");
+            await RefreshAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _actionInProgress = false;
+        }
+    }
+
+    private bool ValidateEditor()
+    {
+        if (string.IsNullOrWhiteSpace(_editor.DisplayName))
+        {
+            _modalError = "Display name is required.";
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(_editor.SourcePath))
+        {
+            _modalError = "Source path is required.";
+            return false;
+        }
+
+        if (_editor.SelectedGroupIds.Count == 0)
+        {
+            _modalError = "Select at least one group to grant access.";
+            return false;
+        }
+
+        return true;
+    }
+
+    private string ResolveOrganizationName(Guid? organizationId)
+    {
+        if (!organizationId.HasValue)
+        {
+            return "Global scope";
+        }
+
+        return _organizations.FirstOrDefault(organization => organization.Id == organizationId.Value)?.Name
+            ?? organizationId.Value.ToString();
+    }
+
+    private static string FormatSchedule(DateTime? value)
+    {
+        return value.HasValue
+            ? value.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
+            : "Not scheduled";
+    }
+
+    private static string FormatRelative(DateTime value)
+    {
+        var delta = DateTime.UtcNow - value;
+        if (delta.TotalMinutes < 1)
+        {
+            return "just now";
+        }
+
+        if (delta.TotalHours < 1)
+        {
+            return $"{Math.Floor(delta.TotalMinutes)}m ago";
+        }
+
+        if (delta.TotalDays < 1)
+        {
+            return $"{Math.Floor(delta.TotalHours)}h ago";
+        }
+
+        return $"{Math.Floor(delta.TotalDays)}d ago";
+    }
+
+    private static string GetScanStatusClass(string status)
+    {
+        return status switch
+        {
+            "Succeeded" => "status-pill--success",
+            "Failed" => "status-pill--danger",
+            _ => "status-pill--neutral",
+        };
+    }
+
+    private static string GetReindexStateClass(string state)
+    {
+        return state switch
+        {
+            "Running" => "status-pill--progress",
+            "Requested" => "status-pill--warning",
+            _ => "status-pill--neutral",
+        };
+    }
+
+    private static string ToDateTimeLocalValue(DateTime? value)
+    {
+        return value.HasValue
+            ? value.Value.ToLocalTime().ToString("yyyy-MM-ddTHH:mm")
+            : string.Empty;
+    }
+
+    private static DateTime? ParseDateTimeLocal(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        return DateTime.TryParse(value, out var parsed)
+            ? DateTime.SpecifyKind(parsed, DateTimeKind.Local).ToUniversalTime()
+            : null;
+    }
+
+    private sealed class SharedFolderEditorState
+    {
+        public Guid? Id { get; private set; }
+
+        public string DisplayName { get; set; } = string.Empty;
+
+        public string SourcePath { get; set; } = string.Empty;
+
+        public bool IsEnabled { get; set; } = true;
+
+        public string AccessMode { get; set; } = "ReadOnly";
+
+        public string CrawlMode { get; set; } = "Scheduled";
+
+        public string NextScheduledScanAtLocal { get; set; } = string.Empty;
+
+        public HashSet<Guid> SelectedGroupIds { get; } = [];
+
+        public void Reset()
+        {
+            Id = null;
+            DisplayName = string.Empty;
+            SourcePath = string.Empty;
+            IsEnabled = true;
+            AccessMode = "ReadOnly";
+            CrawlMode = "Scheduled";
+            NextScheduledScanAtLocal = string.Empty;
+            SelectedGroupIds.Clear();
+        }
+
+        public void Load(AdminSharedFolderResponse folder)
+        {
+            Id = folder.Id;
+            DisplayName = folder.DisplayName;
+            SourcePath = folder.SourcePath;
+            IsEnabled = folder.IsEnabled;
+            AccessMode = folder.AccessMode;
+            CrawlMode = folder.CrawlMode;
+            NextScheduledScanAtLocal = ToDateTimeLocalValue(folder.NextScheduledScanAt);
+            SelectedGroupIds.Clear();
+
+            foreach (var groupId in folder.GrantedGroups.Select(group => group.GroupId))
+            {
+                SelectedGroupIds.Add(groupId);
+            }
+        }
+    }
+
+    private enum SharedFolderEditorMode
+    {
+        Create,
+        Edit,
+    }
+}

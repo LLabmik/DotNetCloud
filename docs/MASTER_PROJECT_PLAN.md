@@ -2905,11 +2905,11 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Deliverables:**
 - ✓ Add admin shared-folder definitions and path validation model
 - ✓ Add admin CRUD API, group-assignment endpoints, and reindex/rescan controls
-- ☐ Add admin UI for shared-folder CRUD and group assignment
+- ✓ Add admin UI for shared-folder CRUD, group assignment, and scan actions
 - ☐ Add `_DotNetCloud` virtual root composition with mounted folder browsing
 - ☐ Enforce read-only behavior for mounted paths
 
-**Notes:** The 4.3 model and admin API slices are now in place. Files has persisted `AdminSharedFolderDefinition` and `AdminSharedFolderGrant` entities/configuration, `AdminSharedFolderOptions` with a configured root path, the generated `AddAdminSharedFolders` EF migration, `IAdminSharedFolderPathValidator`, and a new `IAdminSharedFolderService` plus `AdminSharedFoldersController` for CRUD, group assignment, scheduled rescans, and manual reindex requests. Focused validation passed via `dotnet test tests/DotNetCloud.Modules.Files.Tests/DotNetCloud.Modules.Files.Tests.csproj --filter "FullyQualifiedName~AdminSharedFolderServiceTests|FullyQualifiedName~ControllerSecurityAuditTests"` (19 tests). Next focus inside this step is the admin UI on top of the new API, followed by `_DotNetCloud` browse composition and mounted-path read-only enforcement.
+**Notes:** The 4.3 admin-model slice is now complete end-to-end. In addition to the persisted definitions/grants, rooted path validation, `IAdminSharedFolderService`, and `AdminSharedFoldersController`, the web admin now exposes `/admin/files/shared-folders` with group assignment, create/edit/delete, rescan scheduling, immediate rescan, and reindex actions, and the admin nav links directly to it. Focused validation passed via `dotnet test tests/DotNetCloud.Modules.Files.Tests/DotNetCloud.Modules.Files.Tests.csproj --filter "FullyQualifiedName~AdminSharedFolderServiceTests|FullyQualifiedName~ControllerSecurityAuditTests"` plus `dotnet build src/UI/DotNetCloud.UI.Web/DotNetCloud.UI.Web.csproj`. The remaining work in this step is the 4.4 virtual `_DotNetCloud` browse composition and mounted-path read-only enforcement.
 
 #### Step: shared-file-folders-6 — Search And Media Integration
 **Status:** pending
