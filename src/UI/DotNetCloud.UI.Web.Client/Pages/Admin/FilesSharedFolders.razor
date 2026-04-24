@@ -157,7 +157,7 @@ else
             <div class="shared-folder-form-grid">
                 <div class="form-group">
                     <label>Display name *</label>
-                    <input type="text" class="form-control" @bind="_editor.DisplayName" placeholder="Design Assets" />
+                    <input type="text" class="form-control" value="@_editor.DisplayName" @oninput="OnEditorDisplayNameChanged" placeholder="Design Assets" />
                 </div>
                 <div class="form-group">
                     <label>Group source organization</label>
@@ -171,8 +171,11 @@ else
                 </div>
                 <div class="form-group shared-folder-form-grid__wide">
                     <label>Source path *</label>
-                    <input type="text" class="form-control shared-folder-path-input" @bind="_editor.SourcePath" placeholder="/mnt/shared/design-assets" />
-                    <p class="form-hint">Must point to an existing directory beneath the configured admin shared-folder root.</p>
+                    <div class="input-with-browse shared-folder-path-picker">
+                        <input type="text" class="form-control shared-folder-path-input input" value="@_editor.SourcePath" @oninput="OnEditorSourcePathChanged" placeholder="/mnt/shared/design-assets" />
+                        <button type="button" class="btn btn-outline" @onclick="OpenSourcePickerAsync" disabled="@_actionInProgress">Browse…</button>
+                    </div>
+                    <p class="form-hint">Must point to an existing directory on the server. Browsing starts at the local filesystem root.</p>
                 </div>
                 <div class="form-group">
                     <label>Access mode</label>
@@ -183,14 +186,15 @@ else
                 </div>
                 <div class="form-group">
                     <label>Crawl mode</label>
-                    <select class="form-control" @bind="_editor.CrawlMode">
+                    <select class="form-control" value="@_editor.CrawlMode" @onchange="OnEditorCrawlModeChanged">
                         <option value="Scheduled">Scheduled</option>
                         <option value="Manual">Manual</option>
                     </select>
                 </div>
                 <div class="form-group">
                     <label>Next scheduled scan</label>
-                    <input type="datetime-local" class="form-control" value="@_editor.NextScheduledScanAtLocal" @onchange="OnEditorScheduleChanged" />
+                    <input type="datetime-local" class="form-control" value="@_editor.NextScheduledScanAtLocal" @onchange="OnEditorScheduleChanged" disabled="@IsEditorScheduleDisabled" />
+                    <p class="form-hint">Scheduled crawl defaults to 24 hours from now.</p>
                 </div>
                 <div class="form-group shared-folder-form-grid__toggle">
                     <label class="checkbox-label">
@@ -250,6 +254,74 @@ else
     </DncModal>
 }
 
+@if (_showSourcePicker)
+{
+    <div class="folder-picker-overlay shared-folder-picker-overlay" @onclick="CloseSourcePicker">
+        <div class="folder-picker-dialog shared-folder-picker-dialog" @onclick:stopPropagation>
+            <div class="folder-picker-header">
+                <h3>Select Source Folder</h3>
+                <button type="button" class="btn-icon" @onclick="CloseSourcePicker" title="Close">✕</button>
+            </div>
+
+            @if (_sourcePicker is not null)
+            {
+                <nav class="folder-picker-breadcrumbs">
+                    <button type="button" class="btn btn-sm" @onclick="NavigateSourcePickerToRootAsync">@GetSourcePickerRootLabel()</button>
+                    @foreach (var crumb in GetSourcePickerBreadcrumbs())
+                    {
+                        <span class="separator">/</span>
+                        <button type="button" class="btn btn-sm" @onclick="() => NavigateSourcePickerAsync(crumb.SourcePath)">@crumb.Label</button>
+                    }
+                </nav>
+                <div class="folder-picker-current-path">
+                    <span class="path-label">Path:</span> @_sourcePicker.CurrentPath
+                </div>
+            }
+
+            <div class="folder-picker-list">
+                @if (_sourcePickerLoading)
+                {
+                    <LoadingIndicator Message="Loading folders..." />
+                }
+                else if (!string.IsNullOrWhiteSpace(_sourcePickerError))
+                {
+                    <p class="text-muted folder-picker-empty">@_sourcePickerError</p>
+                }
+                else if (_sourcePicker is null)
+                {
+                    <p class="text-muted folder-picker-empty">Folder picker is unavailable right now.</p>
+                }
+                else
+                {
+                    @if (CanSourcePickerGoUp)
+                    {
+                        <button type="button" class="folder-picker-item" @onclick="NavigateSourcePickerUpAsync">..</button>
+                    }
+
+                    @if (_sourcePicker.Directories.Count == 0)
+                    {
+                        <p class="text-muted folder-picker-empty">No subfolders</p>
+                    }
+                    else
+                    {
+                        @foreach (var directory in _sourcePicker.Directories)
+                        {
+                            <button type="button" class="folder-picker-item" @onclick="() => NavigateSourcePickerAsync(directory.SourcePath)">
+                                @directory.Name
+                            </button>
+                        }
+                    }
+                }
+            </div>
+
+            <div class="folder-picker-actions">
+                <button type="button" class="btn btn-primary btn-sm" @onclick="UseSourcePickerCurrentFolderAsync" disabled="@(_sourcePickerLoading || _sourcePicker is null)">Use This Folder</button>
+                <button type="button" class="btn btn-sm" @onclick="CloseSourcePicker">Cancel</button>
+            </div>
+        </div>
+    </div>
+}
+
 @if (_showSchedule)
 {
     <DncModal Title="@($"Schedule Scan — {_scheduleTarget?.DisplayName}")" StartVisible OnClose="CloseSchedule">
@@ -280,17 +352,24 @@ else
     private bool _actionInProgress;
     private bool _showEditor;
     private bool _showSchedule;
+    private bool _showSourcePicker;
+    private bool _sourcePickerLoading;
     private bool _groupsLoading;
     private string _error = string.Empty;
     private string _modalError = string.Empty;
+    private string _sourcePickerError = string.Empty;
     private Guid _editorGroupOrganizationId;
     private string _scheduleScanLocal = string.Empty;
     private SharedFolderEditorMode _editorMode;
     private AdminSharedFolderResponse? _scheduleTarget;
+    private AdminSharedFolderBrowseResponse? _sourcePicker;
     private IReadOnlyList<OrganizationDto> _organizations = [];
     private IReadOnlyList<GroupDto> _availableGroups = [];
     private IReadOnlyList<AdminSharedFolderResponse> _sharedFolders = [];
     private ConfirmDialog _confirmDialog = default!;
+
+    private bool IsEditorScheduleDisabled => string.Equals(_editor.CrawlMode, "Manual", StringComparison.OrdinalIgnoreCase);
+    private bool CanSourcePickerGoUp => _sourcePicker is not null && !string.IsNullOrWhiteSpace(_sourcePicker.RelativePath);
 
     protected override async Task OnInitializedAsync()
     {
@@ -341,6 +420,7 @@ else
         _modalError = string.Empty;
         _editorMode = SharedFolderEditorMode.Create;
         _editor.Reset();
+        CloseSourcePicker();
         _editorGroupOrganizationId = _organizations.Count > 0 ? _organizations[0].Id : Guid.Empty;
         _showEditor = true;
     }
@@ -350,6 +430,7 @@ else
         _modalError = string.Empty;
         _editorMode = SharedFolderEditorMode.Edit;
         _editor.Load(folder);
+        CloseSourcePicker();
 
         var suggestedOrganizationId = folder.OrganizationId
             ?? folder.GrantedGroups.Select(group => group.OrganizationId).FirstOrDefault(id => id.HasValue)
@@ -366,6 +447,7 @@ else
 
     private void CloseEditor()
     {
+        CloseSourcePicker();
         _showEditor = false;
         _modalError = string.Empty;
         _actionInProgress = false;
@@ -438,6 +520,21 @@ else
         }
     }
 
+    private void OnEditorDisplayNameChanged(ChangeEventArgs args)
+    {
+        _editor.DisplayName = args.Value?.ToString() ?? string.Empty;
+    }
+
+    private void OnEditorSourcePathChanged(ChangeEventArgs args)
+    {
+        _editor.SourcePath = args.Value?.ToString() ?? string.Empty;
+    }
+
+    private void OnEditorCrawlModeChanged(ChangeEventArgs args)
+    {
+        _editor.ApplyCrawlMode(args.Value?.ToString());
+    }
+
     private void OnEditorScheduleChanged(ChangeEventArgs args)
     {
         _editor.NextScheduledScanAtLocal = args.Value?.ToString() ?? string.Empty;
@@ -451,6 +548,7 @@ else
     private async Task SaveEditorAsync()
     {
         _modalError = string.Empty;
+        _editor.EnsureScheduledDefault();
         if (!ValidateEditor())
         {
             return;
@@ -466,7 +564,9 @@ else
                 IsEnabled = _editor.IsEnabled,
                 AccessMode = _editor.AccessMode,
                 CrawlMode = _editor.CrawlMode,
-                NextScheduledScanAt = ParseDateTimeLocal(_editor.NextScheduledScanAtLocal),
+                NextScheduledScanAt = string.Equals(_editor.CrawlMode, "Scheduled", StringComparison.OrdinalIgnoreCase)
+                    ? ParseDateTimeLocal(_editor.NextScheduledScanAtLocal)
+                    : null,
                 GroupIds = _editor.SelectedGroupIds.OrderBy(id => id).ToArray(),
             };
 
@@ -497,6 +597,96 @@ else
         finally
         {
             _actionInProgress = false;
+        }
+    }
+
+    private async Task OpenSourcePickerAsync()
+    {
+        _showSourcePicker = true;
+        var preferredPath = string.IsNullOrWhiteSpace(_editor.SourcePath)
+            ? null
+            : _editor.SourcePath.Trim();
+
+        await LoadSourcePickerAsync(preferredPath, fallbackToRoot: !string.IsNullOrWhiteSpace(preferredPath));
+    }
+
+    private void CloseSourcePicker()
+    {
+        _showSourcePicker = false;
+        _sourcePickerLoading = false;
+        _sourcePickerError = string.Empty;
+        _sourcePicker = null;
+    }
+
+    private async Task NavigateSourcePickerToRootAsync()
+    {
+        await LoadSourcePickerAsync(null);
+    }
+
+    private async Task NavigateSourcePickerAsync(string sourcePath)
+    {
+        await LoadSourcePickerAsync(sourcePath);
+    }
+
+    private async Task NavigateSourcePickerUpAsync()
+    {
+        if (_sourcePicker is null)
+        {
+            return;
+        }
+
+        if (!CanSourcePickerGoUp)
+        {
+            await LoadSourcePickerAsync(null);
+            return;
+        }
+
+        var parent = Directory.GetParent(_sourcePicker.CurrentPath);
+        var parentPath = parent?.FullName;
+        await LoadSourcePickerAsync(string.IsNullOrWhiteSpace(parentPath) ? null : parentPath);
+    }
+
+    private Task UseSourcePickerCurrentFolderAsync()
+    {
+        if (_sourcePicker is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        _editor.ApplyPickedSourcePath(_sourcePicker.CurrentPath);
+        CloseSourcePicker();
+        return Task.CompletedTask;
+    }
+
+    private async Task LoadSourcePickerAsync(string? sourcePath, bool fallbackToRoot = false)
+    {
+        _sourcePickerLoading = true;
+        _sourcePickerError = string.Empty;
+
+        try
+        {
+            _sourcePicker = await Api.BrowseAdminSharedFolderDirectoriesAsync(sourcePath);
+        }
+        catch (Exception) when (fallbackToRoot && !string.IsNullOrWhiteSpace(sourcePath))
+        {
+            try
+            {
+                _sourcePicker = await Api.BrowseAdminSharedFolderDirectoriesAsync();
+            }
+            catch (Exception fallbackEx)
+            {
+                _sourcePicker = null;
+                _sourcePickerError = fallbackEx.Message;
+            }
+        }
+        catch (Exception ex)
+        {
+            _sourcePicker = null;
+            _sourcePickerError = ex.Message;
+        }
+        finally
+        {
+            _sourcePickerLoading = false;
         }
     }
 
@@ -681,6 +871,49 @@ else
             : string.Empty;
     }
 
+    private string GetSourcePickerRootLabel()
+    {
+        if (_sourcePicker is null || string.IsNullOrWhiteSpace(_sourcePicker.RootPath))
+        {
+            return "Root";
+        }
+
+        if (Path.GetDirectoryName(_sourcePicker.RootPath) is null)
+        {
+            return _sourcePicker.RootPath;
+        }
+
+        var trimmedRoot = Path.TrimEndingDirectorySeparator(_sourcePicker.RootPath);
+        var label = Path.GetFileName(trimmedRoot);
+        return string.IsNullOrWhiteSpace(label)
+            ? trimmedRoot
+            : label;
+    }
+
+    private IReadOnlyList<SourcePickerBreadcrumb> GetSourcePickerBreadcrumbs()
+    {
+        if (_sourcePicker is null || string.IsNullOrWhiteSpace(_sourcePicker.RelativePath))
+        {
+            return [];
+        }
+
+        var breadcrumbs = new List<SourcePickerBreadcrumb>();
+        var segments = _sourcePicker.RelativePath
+            .Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        for (var index = 0; index < segments.Length; index++)
+        {
+            var relativePath = string.Join('/', segments.Take(index + 1));
+            var sourcePath = Path.GetFullPath(Path.Combine(
+                _sourcePicker.RootPath,
+                relativePath.Replace('/', Path.DirectorySeparatorChar)));
+
+            breadcrumbs.Add(new SourcePickerBreadcrumb(segments[index], sourcePath));
+        }
+
+        return breadcrumbs;
+    }
+
     private static DateTime? ParseDateTimeLocal(string value)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -695,6 +928,8 @@ else
 
     private sealed class SharedFolderEditorState
     {
+        private string? _lastSuggestedDisplayName;
+
         public Guid? Id { get; private set; }
 
         public string DisplayName { get; set; } = string.Empty;
@@ -720,6 +955,8 @@ else
             AccessMode = "ReadOnly";
             CrawlMode = "Scheduled";
             NextScheduledScanAtLocal = string.Empty;
+            _lastSuggestedDisplayName = null;
+            EnsureScheduledDefault();
             SelectedGroupIds.Clear();
         }
 
@@ -732,6 +969,10 @@ else
             AccessMode = folder.AccessMode;
             CrawlMode = folder.CrawlMode;
             NextScheduledScanAtLocal = ToDateTimeLocalValue(folder.NextScheduledScanAt);
+            _lastSuggestedDisplayName = MatchesSuggestedDisplayName(folder.DisplayName, folder.SourcePath)
+                ? SuggestDisplayNameFromPath(folder.SourcePath)
+                : null;
+            EnsureScheduledDefault();
             SelectedGroupIds.Clear();
 
             foreach (var groupId in folder.GrantedGroups.Select(group => group.GroupId))
@@ -739,7 +980,88 @@ else
                 SelectedGroupIds.Add(groupId);
             }
         }
+
+        public void ApplyPickedSourcePath(string sourcePath)
+        {
+            SourcePath = sourcePath;
+
+            var suggestedDisplayName = SuggestDisplayNameFromPath(sourcePath);
+            if (!string.IsNullOrWhiteSpace(suggestedDisplayName)
+                && (string.IsNullOrWhiteSpace(DisplayName)
+                    || string.Equals(DisplayName, _lastSuggestedDisplayName, StringComparison.Ordinal)))
+            {
+                DisplayName = suggestedDisplayName;
+            }
+
+            _lastSuggestedDisplayName = suggestedDisplayName;
+        }
+
+        public void ApplyCrawlMode(string? crawlMode)
+        {
+            CrawlMode = string.IsNullOrWhiteSpace(crawlMode)
+                ? "Scheduled"
+                : crawlMode;
+
+            if (string.Equals(CrawlMode, "Scheduled", StringComparison.OrdinalIgnoreCase))
+            {
+                EnsureScheduledDefault();
+                return;
+            }
+
+            NextScheduledScanAtLocal = string.Empty;
+        }
+
+        public void EnsureScheduledDefault()
+        {
+            if (string.Equals(CrawlMode, "Scheduled", StringComparison.OrdinalIgnoreCase)
+                && string.IsNullOrWhiteSpace(NextScheduledScanAtLocal))
+            {
+                NextScheduledScanAtLocal = CreateDefaultScheduledScanLocalValue();
+            }
+        }
+
+        private static string CreateDefaultScheduledScanLocalValue()
+        {
+            return DateTime.Now.AddHours(24).ToString("yyyy-MM-ddTHH:mm");
+        }
+
+        private static bool MatchesSuggestedDisplayName(string displayName, string sourcePath)
+        {
+            var suggestedDisplayName = SuggestDisplayNameFromPath(sourcePath);
+            return !string.IsNullOrWhiteSpace(suggestedDisplayName)
+                && string.Equals(displayName.Trim(), suggestedDisplayName, StringComparison.Ordinal);
+        }
+
+        private static string SuggestDisplayNameFromPath(string sourcePath)
+        {
+            if (string.IsNullOrWhiteSpace(sourcePath))
+            {
+                return string.Empty;
+            }
+
+            var lastSegment = Path.GetFileName(Path.TrimEndingDirectorySeparator(sourcePath.Trim()));
+            if (string.IsNullOrWhiteSpace(lastSegment))
+            {
+                return string.Empty;
+            }
+
+            var normalized = string.Join(' ', lastSegment
+                .Replace('-', ' ')
+                .Replace('_', ' ')
+                .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+
+            if (string.IsNullOrWhiteSpace(normalized))
+            {
+                return lastSegment;
+            }
+
+            return string.Equals(normalized, normalized.ToLowerInvariant(), StringComparison.Ordinal)
+                ? System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(normalized)
+                : normalized;
+        }
     }
+
+    private sealed record SourcePickerBreadcrumb(string Label, string SourcePath);
 
     private enum SharedFolderEditorMode
     {

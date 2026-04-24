@@ -9,8 +9,8 @@ public sealed class AdminSharedFolderOptions
     public const string SectionName = "Files:AdminSharedFolders";
 
     /// <summary>
-    /// Canonical host root beneath which admins may register shared folders.
-    /// Relative source paths are resolved against this root.
+    /// Legacy host root setting retained for compatibility.
+    /// Admin shared-folder browsing and validation now use the platform filesystem root.
     /// </summary>
     public string RootPath { get; set; } = string.Empty;
 }

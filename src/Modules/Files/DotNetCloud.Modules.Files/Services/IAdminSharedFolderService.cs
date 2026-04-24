@@ -14,6 +14,9 @@ public interface IAdminSharedFolderService
     /// <summary>Gets a single admin shared folder by ID.</summary>
     Task<AdminSharedFolderDto> GetSharedFolderAsync(Guid sharedFolderId, CallerContext caller, CancellationToken cancellationToken = default);
 
+    /// <summary>Browses directories beneath the local filesystem root.</summary>
+    Task<AdminSharedFolderDirectoryBrowseDto> BrowseDirectoriesAsync(string? sourcePath, CallerContext caller, CancellationToken cancellationToken = default);
+
     /// <summary>Creates a new admin shared folder definition.</summary>
     Task<AdminSharedFolderDto> CreateSharedFolderAsync(CreateAdminSharedFolderDto dto, CallerContext caller, CancellationToken cancellationToken = default);
 

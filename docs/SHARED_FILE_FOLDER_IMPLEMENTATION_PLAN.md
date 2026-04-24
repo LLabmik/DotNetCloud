@@ -4,9 +4,9 @@
 
 > Scope: Core group administration, admin shared-folder definitions, Files virtual-folder composition, nested mounted-directory browsing, search indexing and visibility, media-module scan source selection, APIs, Blazor UI, validation, and rollout.
 
-> Status: In Progress
+> Status: Complete
 
-> Progress: Workstreams 4.1 through 4.6 are complete. Files now has persisted admin shared-folder definitions and grants, admin CRUD/reindex/rescan surfaces, `_DotNetCloud` virtual browse composition, mounted-file download support, explicit read-only enforcement across mounted mutation paths and UI affordances, group-aware mounted-folder search indexing and deep-link navigation, per-user media scan-source selection for owned folders plus mounted admin shares, and client selective-sync enforcement that keeps `_DotNetCloud` ignored in v1. Next focus: 4.7 verification and rollout.
+> Progress: Workstreams 4.1 through 4.7 are complete. Files now has persisted admin shared-folder definitions and grants, admin CRUD/reindex/rescan surfaces, a constrained admin source-folder picker with path-based display-name suggestions and a default 24-hour scheduled crawl seed, platform-root browse defaults that no longer depend on a configured Files admin root, `_DotNetCloud` virtual browse composition, mounted-file download support, explicit read-only enforcement across mounted mutation paths and UI affordances, group-aware mounted-folder search indexing and deep-link navigation, per-user media scan-source selection for owned folders plus mounted admin shares, client selective-sync enforcement that keeps `_DotNetCloud` ignored in v1, and focused host-level integration coverage across the core and Files hosts for group admin endpoints, media-library shared-source APIs, shared-folder admin APIs, and `_DotNetCloud` mounted browsing and write rejection. Live rollout verification also passed on mint22: the configured admin account created a shared folder through the new picker flow and `testdude` could see and access the mounted share from a separate browser session. The manual rollout matrix below remains the deployment acceptance checklist.
 
 ---
 
@@ -170,7 +170,7 @@ The implementation should therefore split into four architectural layers:
 - Folder validation blocks invalid and ambiguous configurations.
 - Shared-folder definitions are ready for virtual enumeration and search crawling.
 
-Current implementation status: workstreams 4.4 through 4.6 are complete. Files root listings inject a synthetic `_DotNetCloud` folder for every user, `_DotNetCloud` exposes a synthetic `Shared With Me` folder plus group-authorized admin shared folders, admin shared folders enumerate their real nested on-disk hierarchy as virtual nodes, mounted files can be read through the existing download path, mounted writes are blocked across create/rename/move/delete/upload/share/tag/comment flows, and the Files UI hides write/edit affordances for mounted content while keeping open/download behavior. Global Search indexes mounted admin shared-folder files and folders with group-scoped visibility metadata, Search routes mounted results back into the correct `_DotNetCloud` path, Files can reconstruct mounted search deep links after a cold start, Music/Photos/Video now persist multi-source library selections that include mounted admin shares, and sync clients now canonically exclude `_DotNetCloud` while locking it as unselectable in the SyncTray folder browser. The next implementation focus is 4.7 verification and rollout.
+Current implementation status: workstreams 4.4 through 4.7 are complete. Files root listings inject a synthetic `_DotNetCloud` folder for every user, `_DotNetCloud` exposes a synthetic `Shared With Me` folder plus group-authorized admin shared folders, admin shared folders enumerate their real nested on-disk hierarchy as virtual nodes, mounted files can be read through the existing download path, mounted writes are blocked across create/rename/move/delete/upload/share/tag/comment flows, and the Files UI hides write/edit affordances for mounted content while keeping open/download behavior. Global Search indexes mounted admin shared-folder files and folders with group-scoped visibility metadata, Search routes mounted results back into the correct `_DotNetCloud` path, Files can reconstruct mounted search deep links after a cold start, Music/Photos/Video now persist multi-source library selections that include mounted admin shares, sync clients now canonically exclude `_DotNetCloud` while locking it as unselectable in the SyncTray folder browser, and focused Files-host integration tests now cover shared-folder admin HTTP flows plus `_DotNetCloud` virtual browsing and mounted write rejection.
 
 ---
 
@@ -329,7 +329,7 @@ Current implementation status: workstreams 4.4 through 4.6 are complete. Files r
   - playback, thumbnails, and streaming for shared-source items
 - Validation that sync clients ignore `_DotNetCloud` admin shares in v1.
 
-Focused automated verification now includes Core.Server coverage for shared-mount media scan enumeration and stale-index cleanup via `MediaFolderImportServiceTests`, plus media-library shared-source path and scan response coverage via `MediaLibraryControllerTests`.
+Focused automated verification now includes Core.Server coverage for shared-mount media scan enumeration and stale-index cleanup via `MediaFolderImportServiceTests`, media-library shared-source path and scan response coverage via `MediaLibraryControllerTests`, core-host integration coverage via `GroupsEndpointIntegrationTests` and `MediaLibraryEndpointIntegrationTests`, and Files-host integration coverage via `AdminSharedFoldersEndpointTests` for shared-folder admin create/list/get, `_DotNetCloud` listing, nested virtual browsing, and mounted write rejection. The manual verification matrix above remains the rollout acceptance checklist for live environments.
 
 ### Exit Criteria
 

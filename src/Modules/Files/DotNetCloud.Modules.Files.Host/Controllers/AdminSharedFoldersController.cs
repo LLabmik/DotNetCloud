@@ -45,6 +45,17 @@ public sealed class AdminSharedFoldersController : FilesControllerBase
     });
 
     /// <summary>
+    /// Browses directories beneath the local filesystem root.
+    /// </summary>
+    [HttpGet("browse")]
+    public Task<IActionResult> BrowseAsync([FromQuery] string? path = null) => ExecuteAsync(async () =>
+    {
+        var caller = GetAuthenticatedCaller();
+        var browseResult = await _adminSharedFolderService.BrowseDirectoriesAsync(path, caller, HttpContext.RequestAborted);
+        return Ok(Envelope(browseResult));
+    });
+
+    /// <summary>
     /// Creates a new admin shared folder definition.
     /// </summary>
     [HttpPost]

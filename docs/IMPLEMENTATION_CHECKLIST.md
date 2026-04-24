@@ -3008,6 +3008,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Add protected built-in `All Users` group semantics and backfill logic
 - ✓ Add admin group CRUD and membership API surfaces
 - ✓ Add admin group management UI
+- ✓ Add core-host integration coverage for group admin endpoints
 
 #### Shared Folder Integration
 
@@ -3015,13 +3016,18 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Add mounted-access listing path for team/group shared content
 - ✓ Add admin shared-folder definitions and path validation
 - ✓ Add admin shared-folder CRUD API, group assignment, and scan controls
-- ✓ Add admin shared-folder web UI for CRUD, group assignment, and scan actions
+- ✓ Add admin shared-folder web UI for CRUD, group assignment, scan actions, and constrained source picking
+- ✓ Default admin source-folder browsing to the platform filesystem root while still honoring configured relative-source bases when present
 - ✓ Surface virtual `_DotNetCloud` root with mounted shared folders
 - ✓ Enforce read-only behavior for mounted shared-folder paths
 - ✓ Add group-aware mounted-folder search indexing and navigation
 - ✓ Add shared-folder media source selection for Music, Photos, and Video
 - ✓ Add media shared-source scan verification coverage
 - ✓ Add media-library shared-source API verification coverage
+- ✓ Add core-host media-library shared-source endpoint integration coverage
+- ✓ Add shared-folder admin endpoint integration coverage
+- ✓ Add `_DotNetCloud` browsing and mounted read-only integration coverage
+- ✓ Live-verify admin shared-folder creation on mint22 and confirm non-admin mounted access in a separate browser session
 - ✓ Keep sync clients ignoring `_DotNetCloud` admin shares in v1
   - ✓ `Guid UserId` FK
   - ✓ `DateTime AcknowledgedAt` property

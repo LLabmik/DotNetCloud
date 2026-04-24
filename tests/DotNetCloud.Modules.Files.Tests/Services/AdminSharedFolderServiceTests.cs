@@ -76,6 +76,8 @@ public class AdminSharedFolderServiceTests
 
             var service = CreateService(db, rootPath, orgResolver, groupDirectory);
 
+            var scheduleLowerBound = DateTime.UtcNow.AddHours(24).AddMinutes(-2);
+
             var result = await service.CreateSharedFolderAsync(new CreateAdminSharedFolderDto
             {
                 DisplayName = "Media",
@@ -83,11 +85,15 @@ public class AdminSharedFolderServiceTests
                 GroupIds = [grantedGroupId],
             }, AdminCaller(callerId));
 
+            var scheduleUpperBound = DateTime.UtcNow.AddHours(24).AddMinutes(2);
+
             Assert.AreEqual("Media", result.DisplayName);
             Assert.AreEqual(Path.GetFullPath(canonicalPath), result.SourcePath);
             Assert.AreEqual(organizationId, result.OrganizationId);
             Assert.AreEqual(1, result.GrantedGroups.Count);
             Assert.AreEqual(grantedGroupId, result.GrantedGroups[0].GroupId);
+            Assert.IsTrue(result.NextScheduledScanAt >= scheduleLowerBound);
+            Assert.IsTrue(result.NextScheduledScanAt <= scheduleUpperBound);
 
             var definition = await db.AdminSharedFolders
                 .Include(folder => folder.Grants)
@@ -95,6 +101,8 @@ public class AdminSharedFolderServiceTests
 
             Assert.AreEqual(Path.GetFullPath(canonicalPath), definition.SourcePath);
             Assert.AreEqual(1, definition.Grants.Count);
+            Assert.IsTrue(definition.NextScheduledScanAt >= scheduleLowerBound);
+            Assert.IsTrue(definition.NextScheduledScanAt <= scheduleUpperBound);
         }
         finally
         {
@@ -203,6 +211,7 @@ public class AdminSharedFolderServiceTests
             Assert.AreEqual(Path.GetFullPath(updatedPath), result.SourcePath);
             Assert.IsFalse(result.IsEnabled);
             Assert.AreEqual("Manual", result.CrawlMode);
+            Assert.IsNull(result.NextScheduledScanAt);
             Assert.AreEqual(1, result.GrantedGroups.Count);
             Assert.AreEqual(replacementGroupId, result.GrantedGroups[0].GroupId);
 
@@ -213,8 +222,43 @@ public class AdminSharedFolderServiceTests
             Assert.AreEqual("Photos", persisted.DisplayName);
             Assert.AreEqual(Path.GetFullPath(updatedPath), persisted.SourcePath);
             Assert.AreEqual(AdminSharedFolderCrawlMode.Manual, persisted.CrawlMode);
+            Assert.IsNull(persisted.NextScheduledScanAt);
             Assert.AreEqual(1, persisted.Grants.Count);
             Assert.AreEqual(replacementGroupId, persisted.Grants.Single().GroupId);
+        }
+        finally
+        {
+            Directory.Delete(rootPath, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public async Task BrowseDirectoriesAsync_ValidPath_ReturnsImmediateSubdirectories()
+    {
+        var rootPath = CreateTempDirectory();
+        var callerId = Guid.NewGuid();
+
+        try
+        {
+            var teamDirectory = Directory.CreateDirectory(Path.Combine(rootPath, "team")).FullName;
+            var designDirectory = Directory.CreateDirectory(Path.Combine(teamDirectory, "design-assets")).FullName;
+            Directory.CreateDirectory(Path.Combine(designDirectory, "archive"));
+            var qaDirectory = Directory.CreateDirectory(Path.Combine(teamDirectory, "qa")).FullName;
+
+            using var db = CreateContext();
+            var service = CreateService(db, rootPath);
+
+            var result = await service.BrowseDirectoriesAsync("team", AdminCaller(callerId));
+
+            Assert.AreEqual(Path.GetFullPath(rootPath), result.RootPath);
+            Assert.AreEqual(Path.GetFullPath(teamDirectory), result.CurrentPath);
+            Assert.AreEqual("team", result.RelativePath);
+            CollectionAssert.AreEqual(
+                new[] { "design-assets", "qa" },
+                result.Directories.Select(directory => directory.Name).ToArray());
+            Assert.AreEqual(Path.GetFullPath(designDirectory), result.Directories[0].SourcePath);
+            Assert.AreEqual("team/design-assets", result.Directories[0].RelativePath);
+            Assert.AreEqual(Path.GetFullPath(qaDirectory), result.Directories[1].SourcePath);
         }
         finally
         {

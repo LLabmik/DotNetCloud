@@ -592,6 +592,19 @@ public sealed class DotNetCloudApiClient
     }
 
     /// <summary>
+    /// Browses directories beneath the local filesystem root.
+    /// </summary>
+    public async Task<AdminSharedFolderBrowseResponse> BrowseAdminSharedFolderDirectoriesAsync(string? path = null, CancellationToken ct = default)
+    {
+        var requestUri = string.IsNullOrWhiteSpace(path)
+            ? "api/v1/files/admin/shared-folders/browse"
+            : $"api/v1/files/admin/shared-folders/browse?path={Uri.EscapeDataString(path)}";
+
+        var envelope = await _http.GetFromJsonAsync<ApiEnvelope<AdminSharedFolderBrowseResponse>>(requestUri, JsonOptions, ct);
+        return envelope?.Data ?? new AdminSharedFolderBrowseResponse();
+    }
+
+    /// <summary>
     /// Creates a Files admin shared folder.
     /// </summary>
     public async Task<AdminSharedFolderResponse?> CreateAdminSharedFolderAsync(SaveAdminSharedFolderRequest request, CancellationToken ct = default)

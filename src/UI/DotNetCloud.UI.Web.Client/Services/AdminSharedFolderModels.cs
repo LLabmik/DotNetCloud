@@ -70,6 +70,39 @@ public sealed record AdminSharedFolderGroupResponse
 }
 
 /// <summary>
+/// Client-side browse result for admin shared-folder source directories.
+/// </summary>
+public sealed record AdminSharedFolderBrowseResponse
+{
+    /// <summary>Configured canonical root path.</summary>
+    public string RootPath { get; init; } = string.Empty;
+
+    /// <summary>Canonical path for the current browse location.</summary>
+    public string CurrentPath { get; init; } = string.Empty;
+
+    /// <summary>Current browse path relative to the configured root.</summary>
+    public string RelativePath { get; init; } = string.Empty;
+
+    /// <summary>Immediate child directories under the current browse location.</summary>
+    public IReadOnlyList<AdminSharedFolderBrowseDirectoryResponse> Directories { get; init; } = [];
+}
+
+/// <summary>
+/// Client-side directory entry for the admin shared-folder picker.
+/// </summary>
+public sealed record AdminSharedFolderBrowseDirectoryResponse
+{
+    /// <summary>Directory name.</summary>
+    public string Name { get; init; } = string.Empty;
+
+    /// <summary>Canonical source path for the directory.</summary>
+    public string SourcePath { get; init; } = string.Empty;
+
+    /// <summary>Directory path relative to the configured root.</summary>
+    public string RelativePath { get; init; } = string.Empty;
+}
+
+/// <summary>
 /// Client-side request model for creating or updating an admin shared folder.
 /// </summary>
 public sealed record SaveAdminSharedFolderRequest

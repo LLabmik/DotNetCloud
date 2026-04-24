@@ -283,6 +283,35 @@ public class ControllerSecurityAuditTests
         Assert.AreEqual(403, result.StatusCode);
     }
 
+    [TestMethod]
+    public async Task AdminSharedFoldersBrowse_UsesAuthenticatedCaller()
+    {
+        var userId = Guid.NewGuid();
+        var serviceMock = new Mock<IAdminSharedFolderService>();
+        serviceMock.Setup(service => service.BrowseDirectoriesAsync(
+                It.Is<string?>(path => path == "design-assets"),
+                It.Is<DotNetCloud.Core.Authorization.CallerContext>(caller => caller.UserId == userId),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DotNetCloud.Modules.Files.DTOs.AdminSharedFolderDirectoryBrowseDto
+            {
+                RootPath = "/mnt/shared",
+                CurrentPath = "/mnt/shared/design-assets",
+                RelativePath = "design-assets",
+                Directories = [],
+            });
+
+        var controller = CreateAdminSharedFoldersController(serviceMock);
+        SetAuthenticatedUser(controller, userId);
+
+        await controller.BrowseAsync("design-assets");
+
+        serviceMock.Verify(service => service.BrowseDirectoriesAsync(
+                It.Is<string?>(path => path == "design-assets"),
+                It.Is<DotNetCloud.Core.Authorization.CallerContext>(caller => caller.UserId == userId),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
     #endregion
 
     #region Helpers

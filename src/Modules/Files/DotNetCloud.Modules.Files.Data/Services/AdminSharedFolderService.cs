@@ -59,6 +59,34 @@ internal sealed class AdminSharedFolderService : IAdminSharedFolderService
     }
 
     /// <inheritdoc />
+    public async Task<AdminSharedFolderDirectoryBrowseDto> BrowseDirectoriesAsync(string? sourcePath, CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(caller);
+
+        var resolvedPath = await _pathValidator.ResolveDirectoryAsync(sourcePath, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var directories = Directory.EnumerateDirectories(resolvedPath.CanonicalPath)
+            .Select(path => Path.TrimEndingDirectorySeparator(Path.GetFullPath(path)))
+            .OrderBy(path => Path.GetFileName(path), StringComparer.OrdinalIgnoreCase)
+            .Select(path => new AdminSharedFolderDirectoryEntryDto
+            {
+                Name = Path.GetFileName(path),
+                SourcePath = path,
+                RelativePath = GetNormalizedRelativePath(resolvedPath.RootPath, path),
+            })
+            .ToList();
+
+        return new AdminSharedFolderDirectoryBrowseDto
+        {
+            RootPath = resolvedPath.RootPath,
+            CurrentPath = resolvedPath.CanonicalPath,
+            RelativePath = resolvedPath.RelativePath,
+            Directories = directories,
+        };
+    }
+
+    /// <inheritdoc />
     public async Task<AdminSharedFolderDto> CreateSharedFolderAsync(CreateAdminSharedFolderDto dto, CallerContext caller, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(dto);
@@ -82,7 +110,7 @@ internal sealed class AdminSharedFolderService : IAdminSharedFolderService
             IsEnabled = dto.IsEnabled,
             AccessMode = accessMode,
             CrawlMode = crawlMode,
-            NextScheduledScanAt = NormalizeUtc(dto.NextScheduledScanAt),
+            NextScheduledScanAt = ResolveNextScheduledScanAt(crawlMode, dto.NextScheduledScanAt, now),
             LastScanStatus = AdminSharedFolderScanStatus.NeverScanned,
             ReindexState = AdminSharedFolderReindexState.Idle,
             CreatedByUserId = caller.UserId,
@@ -126,7 +154,7 @@ internal sealed class AdminSharedFolderService : IAdminSharedFolderService
         folder.IsEnabled = dto.IsEnabled;
         folder.AccessMode = accessMode;
         folder.CrawlMode = crawlMode;
-        folder.NextScheduledScanAt = NormalizeUtc(dto.NextScheduledScanAt);
+        folder.NextScheduledScanAt = ResolveNextScheduledScanAt(crawlMode, dto.NextScheduledScanAt, now);
         folder.UpdatedByUserId = caller.UserId;
         folder.UpdatedAt = now;
 
@@ -432,6 +460,26 @@ internal sealed class AdminSharedFolderService : IAdminSharedFolderService
     private static DateTime? NormalizeUtc(DateTime? value)
     {
         return value?.ToUniversalTime();
+    }
+
+    private static DateTime? ResolveNextScheduledScanAt(AdminSharedFolderCrawlMode crawlMode, DateTime? requestedNextScheduledScanAt, DateTime referenceUtc)
+    {
+        if (crawlMode != AdminSharedFolderCrawlMode.Scheduled)
+        {
+            return null;
+        }
+
+        return NormalizeUtc(requestedNextScheduledScanAt) ?? referenceUtc.AddHours(24);
+    }
+
+    private static string GetNormalizedRelativePath(string rootPath, string candidatePath)
+    {
+        var relativePath = Path.GetRelativePath(rootPath, candidatePath)
+            .Replace('\\', '/');
+
+        return relativePath == "."
+            ? string.Empty
+            : relativePath;
     }
 
     private sealed record ResolvedScope

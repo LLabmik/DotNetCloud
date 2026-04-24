@@ -76,6 +76,39 @@ public sealed record AdminSharedFolderGroupDto
 }
 
 /// <summary>
+/// Response DTO for browsing directories beneath the local filesystem root.
+/// </summary>
+public sealed record AdminSharedFolderDirectoryBrowseDto
+{
+    /// <summary>Configured canonical root path.</summary>
+    public required string RootPath { get; init; }
+
+    /// <summary>Canonical absolute path for the current browse location.</summary>
+    public required string CurrentPath { get; init; }
+
+    /// <summary>Normalized path relative to the configured root for the current location.</summary>
+    public string RelativePath { get; init; } = string.Empty;
+
+    /// <summary>Immediate child directories available beneath the current location.</summary>
+    public IReadOnlyList<AdminSharedFolderDirectoryEntryDto> Directories { get; init; } = [];
+}
+
+/// <summary>
+/// Directory entry returned while browsing the local filesystem root.
+/// </summary>
+public sealed record AdminSharedFolderDirectoryEntryDto
+{
+    /// <summary>Directory name.</summary>
+    public required string Name { get; init; }
+
+    /// <summary>Canonical absolute path for the directory.</summary>
+    public required string SourcePath { get; init; }
+
+    /// <summary>Normalized path relative to the configured root.</summary>
+    public string RelativePath { get; init; } = string.Empty;
+}
+
+/// <summary>
 /// Request DTO for creating an admin-managed shared folder.
 /// </summary>
 public sealed record CreateAdminSharedFolderDto

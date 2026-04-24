@@ -9,6 +9,11 @@ public interface IAdminSharedFolderPathValidator
     /// Validates a candidate folder path, resolves it within the configured root, and rejects overlaps with existing definitions.
     /// </summary>
     Task<ValidatedAdminSharedFolderPath> ValidateAsync(string sourcePath, Guid? existingDefinitionId = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Resolves an existing directory within the local filesystem root for browse operations.
+    /// </summary>
+    Task<ValidatedAdminSharedFolderPath> ResolveDirectoryAsync(string? sourcePath = null, CancellationToken cancellationToken = default);
 }
 
 /// <summary>

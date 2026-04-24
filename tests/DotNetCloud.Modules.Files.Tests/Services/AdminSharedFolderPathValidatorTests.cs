@@ -19,7 +19,7 @@ public class AdminSharedFolderPathValidatorTests
         return new FilesDbContext(options);
     }
 
-    private static AdminSharedFolderPathValidator CreateValidator(FilesDbContext db, string rootPath)
+    private static AdminSharedFolderPathValidator CreateValidator(FilesDbContext db, string rootPath = "")
     {
         return new AdminSharedFolderPathValidator(
             db,
@@ -64,12 +64,38 @@ public class AdminSharedFolderPathValidatorTests
             using var db = CreateContext();
             var validator = CreateValidator(db, rootPath);
 
-            await Assert.ThrowsExactlyAsync<ValidationException>(() => validator.ValidateAsync(outsideFolderPath));
+            var result = await validator.ValidateAsync(outsideFolderPath);
+
+            Assert.AreEqual(Path.GetFullPath(outsideFolderPath), result.CanonicalPath);
+            Assert.AreEqual(GetPlatformRootPath(), result.RootPath);
         }
         finally
         {
             Directory.Delete(rootPath, recursive: true);
             Directory.Delete(outsideRootPath, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public async Task ResolveDirectoryAsync_WithoutConfiguredRoot_UsesPlatformRoot()
+    {
+        var rootPath = CreateTempDirectory();
+
+        try
+        {
+            var nestedFolderPath = Directory.CreateDirectory(Path.Combine(rootPath, "media", "photos")).FullName;
+            using var db = CreateContext();
+            var validator = CreateValidator(db);
+
+            var result = await validator.ResolveDirectoryAsync(nestedFolderPath);
+
+            Assert.AreEqual(Path.GetFullPath(nestedFolderPath), result.CanonicalPath);
+            Assert.AreEqual(GetPlatformRootPath(), result.RootPath);
+            Assert.IsTrue(result.RelativePath.Length > 0);
+        }
+        finally
+        {
+            Directory.Delete(rootPath, recursive: true);
         }
     }
 
@@ -126,5 +152,11 @@ public class AdminSharedFolderPathValidatorTests
         var path = Path.Combine(Path.GetTempPath(), $"dotnetcloud-admin-share-{Guid.NewGuid():N}");
         Directory.CreateDirectory(path);
         return path;
+    }
+
+    private static string GetPlatformRootPath()
+    {
+        return Path.TrimEndingDirectorySeparator(
+            Path.GetFullPath(Path.GetPathRoot(Path.GetTempPath()) ?? Path.DirectorySeparatorChar.ToString()));
     }
 }
