@@ -34,4 +34,12 @@ public interface ISearchFtsClient
         int pageSize = 20,
         SearchSortOrder sortOrder = SearchSortOrder.Relevance,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Requests a full reindex for a specific module.
+    /// </summary>
+    /// <param name="moduleId">The module identifier to reindex.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns><see langword="true"/> when the Search module accepted the request; otherwise <see langword="false"/>.</returns>
+    Task<bool> RequestModuleReindexAsync(string moduleId, CancellationToken cancellationToken = default);
 }

@@ -5,6 +5,7 @@ using DotNetCloud.Modules.Files.Data.Services.Background;
 using DotNetCloud.Modules.Files.Events;
 using DotNetCloud.Modules.Files.Options;
 using DotNetCloud.Modules.Files.Services;
+using DotNetCloud.Modules.Search.Client;
 using System.Net.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -112,6 +113,12 @@ public static class FilesServiceRegistration
         services.AddSingleton<CollaboraProcessManager>();
         services.AddSingleton<ICollaboraProcessManager>(sp => sp.GetRequiredService<CollaboraProcessManager>());
         services.AddHostedService(sp => sp.GetRequiredService<CollaboraProcessManager>());
+
+        services.AddSingleton<IAdminSharedFolderReindexDispatcher>(sp =>
+            new SearchClientAdminSharedFolderReindexDispatcher(sp.GetService<ISearchFtsClient>()));
+        services.AddSingleton<AdminSharedFolderMaintenanceService>();
+        services.AddSingleton<IAdminSharedFolderMaintenanceScheduler>(sp => sp.GetRequiredService<AdminSharedFolderMaintenanceService>());
+        services.AddHostedService(sp => sp.GetRequiredService<AdminSharedFolderMaintenanceService>());
 
         // Background services
         services.AddHostedService<UploadSessionCleanupService>();

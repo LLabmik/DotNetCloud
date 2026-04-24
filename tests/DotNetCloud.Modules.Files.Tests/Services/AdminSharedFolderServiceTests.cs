@@ -2,6 +2,7 @@ using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Modules.Files.Data;
+using DotNetCloud.Modules.Files.Data.Services.Background;
 using DotNetCloud.Modules.Files.Data.Services;
 using DotNetCloud.Modules.Files.DTOs;
 using DotNetCloud.Modules.Files.Models;
@@ -31,7 +32,8 @@ public class AdminSharedFolderServiceTests
         FilesDbContext db,
         string rootPath,
         Mock<IUserOrganizationResolver>? userOrganizationResolver = null,
-        Mock<IGroupDirectory>? groupDirectory = null)
+        Mock<IGroupDirectory>? groupDirectory = null,
+        IAdminSharedFolderMaintenanceScheduler? maintenanceScheduler = null)
     {
         var validator = new AdminSharedFolderPathValidator(
             db,
@@ -44,7 +46,8 @@ public class AdminSharedFolderServiceTests
             db,
             validator,
             userOrganizationResolver?.Object,
-            groupDirectory?.Object);
+            groupDirectory?.Object,
+            maintenanceScheduler);
     }
 
     [TestMethod]
@@ -272,6 +275,7 @@ public class AdminSharedFolderServiceTests
         var rootPath = CreateTempDirectory();
         using var db = CreateContext();
         var callerId = Guid.NewGuid();
+        var scheduler = new RecordingMaintenanceScheduler();
         var definition = new AdminSharedFolderDefinition
         {
             DisplayName = "Media",
@@ -284,11 +288,44 @@ public class AdminSharedFolderServiceTests
 
         try
         {
-            var service = CreateService(db, rootPath);
+            var service = CreateService(db, rootPath, maintenanceScheduler: scheduler);
             var result = await service.RequestReindexAsync(definition.Id, AdminCaller(callerId));
 
             Assert.AreEqual("Requested", result.ReindexState);
             Assert.IsTrue(result.NextScheduledScanAt <= DateTime.UtcNow.AddSeconds(5));
+            Assert.AreEqual(1, scheduler.TriggerCount);
+        }
+        finally
+        {
+            Directory.Delete(rootPath, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public async Task ScheduleRescanAsync_TriggersImmediateMaintenanceProcessing()
+    {
+        var rootPath = CreateTempDirectory();
+        using var db = CreateContext();
+        var callerId = Guid.NewGuid();
+        var scheduler = new RecordingMaintenanceScheduler();
+        var requestedScanAt = DateTime.UtcNow.AddMinutes(5);
+        var definition = new AdminSharedFolderDefinition
+        {
+            DisplayName = "Media",
+            SourcePath = "/mnt/media",
+            CreatedByUserId = callerId,
+        };
+        db.AdminSharedFolders.Add(definition);
+        await db.SaveChangesAsync();
+
+        try
+        {
+            var service = CreateService(db, rootPath, maintenanceScheduler: scheduler);
+            var result = await service.ScheduleRescanAsync(definition.Id, requestedScanAt, AdminCaller(callerId));
+
+            Assert.IsTrue(result.NextScheduledScanAt >= requestedScanAt.AddSeconds(-5));
+            Assert.IsTrue(result.NextScheduledScanAt <= requestedScanAt.AddSeconds(5));
+            Assert.AreEqual(1, scheduler.TriggerCount);
         }
         finally
         {
@@ -335,5 +372,15 @@ public class AdminSharedFolderServiceTests
         var path = Path.Combine(Path.GetTempPath(), $"dotnetcloud-admin-service-{Guid.NewGuid():N}");
         Directory.CreateDirectory(path);
         return path;
+    }
+
+    private sealed class RecordingMaintenanceScheduler : IAdminSharedFolderMaintenanceScheduler
+    {
+        public int TriggerCount { get; private set; }
+
+        public void TriggerProcessing()
+        {
+            TriggerCount++;
+        }
     }
 }

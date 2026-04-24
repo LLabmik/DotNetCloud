@@ -67,9 +67,7 @@ public sealed class SearchFtsClient : ISearchFtsClient, IDisposable
                 }
             };
 
-            var callOptions = new CallOptions(
-                deadline: DateTime.UtcNow.Add(_options.Timeout),
-                cancellationToken: cancellationToken);
+            var callOptions = CreateCallOptions(cancellationToken);
 
             var response = await _client.Value.SearchAsync(request, callOptions);
 
@@ -122,6 +120,51 @@ public sealed class SearchFtsClient : ISearchFtsClient, IDisposable
     }
 
     /// <inheritdoc />
+    public async Task<bool> RequestModuleReindexAsync(string moduleId, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(moduleId);
+
+        if (!IsAvailable)
+        {
+            _logger.LogDebug("Search FTS client unavailable — Search module address not configured");
+            return false;
+        }
+
+        try
+        {
+            var response = await _client.Value.ReindexModuleAsync(
+                new ReindexModuleRequest
+                {
+                    ModuleId = moduleId,
+                },
+                CreateCallOptions(cancellationToken));
+
+            if (!response.Success)
+            {
+                _logger.LogWarning("Search module reindex request failed for {ModuleId}: {Error}", moduleId, response.ErrorMessage);
+                return false;
+            }
+
+            return true;
+        }
+        catch (RpcException ex) when (ex.StatusCode == StatusCode.Unavailable)
+        {
+            _logger.LogDebug("Search module gRPC service unavailable at {Address}", _options.SearchModuleAddress);
+            return false;
+        }
+        catch (RpcException ex) when (ex.StatusCode == StatusCode.DeadlineExceeded)
+        {
+            _logger.LogWarning("Search reindex request for {ModuleId} timed out after {Timeout}", moduleId, _options.Timeout);
+            return false;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error requesting Search module reindex for {ModuleId}", moduleId);
+            return false;
+        }
+    }
+
+    /// <inheritdoc />
     public void Dispose()
     {
         if (_disposed) return;
@@ -164,5 +207,12 @@ public sealed class SearchFtsClient : ISearchFtsClient, IDisposable
         }
 
         return GrpcChannel.ForAddress(address, channelOptions);
+    }
+
+    private CallOptions CreateCallOptions(CancellationToken cancellationToken)
+    {
+        return new CallOptions(
+            deadline: DateTime.UtcNow.Add(_options.Timeout),
+            cancellationToken: cancellationToken);
     }
 }

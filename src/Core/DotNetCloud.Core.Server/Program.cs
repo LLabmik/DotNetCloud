@@ -318,6 +318,8 @@ public class Program
         builder.Services.AddVideoServices(builder.Configuration);
         builder.Services.AddAiServices(builder.Configuration);
         builder.Services.AddSearchServices(builder.Configuration);
+        builder.Services.AddSingleton<DotNetCloud.Modules.Files.Data.Services.Background.IAdminSharedFolderReindexDispatcher>(sp =>
+            new InProcessAdminSharedFolderReindexDispatcher(sp.GetService<DotNetCloud.Modules.Search.Services.SearchReindexBackgroundService>()));
         // Register ISearchableModule implementations for search indexing
         builder.Services.AddScoped<DotNetCloud.Core.Capabilities.ISearchableModule, DotNetCloud.Modules.Files.Data.Services.FilesSearchableModule>();
         builder.Services.AddScoped<DotNetCloud.Core.Capabilities.ISearchableModule, DotNetCloud.Modules.Notes.Data.Services.NotesSearchableModule>();

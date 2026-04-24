@@ -1,6 +1,7 @@
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.Errors;
+using DotNetCloud.Modules.Files.Data.Services.Background;
 using DotNetCloud.Modules.Files.DTOs;
 using DotNetCloud.Modules.Files.Models;
 using DotNetCloud.Modules.Files.Services;
@@ -17,6 +18,7 @@ internal sealed class AdminSharedFolderService : IAdminSharedFolderService
     private readonly IAdminSharedFolderPathValidator _pathValidator;
     private readonly IUserOrganizationResolver? _userOrganizationResolver;
     private readonly IGroupDirectory? _groupDirectory;
+    private readonly IAdminSharedFolderMaintenanceScheduler? _maintenanceScheduler;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AdminSharedFolderService"/> class.
@@ -25,12 +27,14 @@ internal sealed class AdminSharedFolderService : IAdminSharedFolderService
         FilesDbContext db,
         IAdminSharedFolderPathValidator pathValidator,
         IUserOrganizationResolver? userOrganizationResolver = null,
-        IGroupDirectory? groupDirectory = null)
+        IGroupDirectory? groupDirectory = null,
+        IAdminSharedFolderMaintenanceScheduler? maintenanceScheduler = null)
     {
         _db = db;
         _pathValidator = pathValidator;
         _userOrganizationResolver = userOrganizationResolver;
         _groupDirectory = groupDirectory;
+        _maintenanceScheduler = maintenanceScheduler;
     }
 
     /// <inheritdoc />
@@ -212,6 +216,7 @@ internal sealed class AdminSharedFolderService : IAdminSharedFolderService
         folder.UpdatedAt = now;
 
         await _db.SaveChangesAsync(cancellationToken);
+        _maintenanceScheduler?.TriggerProcessing();
 
         var groups = await LoadGroupMetadataAsync(folder.Grants.Select(grant => grant.GroupId), cancellationToken);
         return ToDto(folder, groups);
@@ -229,6 +234,7 @@ internal sealed class AdminSharedFolderService : IAdminSharedFolderService
         folder.UpdatedAt = now;
 
         await _db.SaveChangesAsync(cancellationToken);
+        _maintenanceScheduler?.TriggerProcessing();
 
         var groups = await LoadGroupMetadataAsync(folder.Grants.Select(grant => grant.GroupId), cancellationToken);
         return ToDto(folder, groups);
