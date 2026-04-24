@@ -3912,6 +3912,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `LibraryScanProgress` DTO
 - ✓ Update `LibraryScanService` with progress reporting
 - ✓ `ScanProgressState` — scoped Blazor state service
+- ✓ Post-scan enrichment background worker with shared per-user progress/cancellation tracking and remaining cover-art lookup counts
 
 #### Phase D — API Endpoints
 - ✓ Enrichment endpoints on MusicController
@@ -3922,6 +3923,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Album enrichment UI
 - ✓ Artist enrichment UI
 - ✓ Settings: enrichment toggles
+- ✓ Settings scan panel keeps showing background enrichment progress after navigation and displays remaining album-art lookups
 
 #### Phase F — Service Registration + Configuration
 - ✓ Register new services and HTTP clients

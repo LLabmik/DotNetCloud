@@ -301,6 +301,9 @@ public sealed record EnrichmentProgress
     /// <summary>Number of album covers found so far.</summary>
     public int AlbumArtFound { get; init; }
 
+    /// <summary>Number of album cover lookups still remaining in the current job.</summary>
+    public int AlbumArtRemaining { get; init; }
+
     /// <summary>Number of artist biographies found so far.</summary>
     public int ArtistBiosFound { get; init; }
 }
@@ -342,6 +345,9 @@ public sealed record LibraryScanProgress
 
     /// <summary>Album covers fetched from external source.</summary>
     public int AlbumArtFetched { get; init; }
+
+    /// <summary>Album cover lookups still remaining in the current scan or enrichment job.</summary>
+    public int AlbumArtRemaining { get; init; }
 
     /// <summary>Completion percentage (0-100).</summary>
     public int PercentComplete { get; init; }

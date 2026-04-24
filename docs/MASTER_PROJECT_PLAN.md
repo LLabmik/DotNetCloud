@@ -1981,13 +1981,15 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 **Deliverables:**
 - ✓ `LibraryScanProgress` DTO — real-time progress record with phase, file counts, track stats, percentage, elapsed time
 - ✓ `LibraryScanService` updated — accepts `IProgress<LibraryScanProgress>?`, reports per-file progress, runs enrichment phase (auto-fetch art + auto-enrich artists) controlled by configuration
-- ✓ `ScanProgressState` — scoped Blazor state service bridging `IProgress<T>` callbacks to `StateHasChanged()` via `OnProgressChanged` event
-- ✓ `ScanProgressState` registered as scoped in `MusicServiceRegistration`
+- ✓ `ScanProgressState` — shared per-user scan/enrichment state tracker bridging progress callbacks to `StateHasChanged()` via `OnProgressChanged` event
+- ✓ `ScanProgressState` registered as singleton in `MusicServiceRegistration`
 - ✓ `IMetadataEnrichmentService?` injected into `LibraryScanService` as optional dependency
 - ✓ Configuration-driven enrichment: `Music:Enrichment:Enabled`, `AutoFetchArt`, `AutoEnrichArtists`
+- ✓ Hosted post-scan enrichment queue and worker keep MusicBrainz lookups running after the settings page is left
+- ✓ Scan progress payloads include remaining album-art lookup counts during background enrichment
 - ✓ Full solution build: 0 errors, 250 existing tests passing
 
-**Notes:** Phase C complete. Scan progress infrastructure in place. `ScanLibraryAsync` now reports real-time progress through all phases (metadata extraction → enrichment → complete) and supports cancellation. Enrichment runs automatically after scan if configured. The `ScanProgressState` service enables Blazor components to subscribe to progress updates. Ready for Phase D (API endpoints).
+**Notes:** Phase C complete. Scan progress infrastructure now survives Music page navigation because post-scan enrichment is handed off to a hosted background worker and tracked in shared per-user state. `ScanLibraryAsync` still reports real-time extraction progress, and the same progress surface continues through background enrichment with remaining cover-art lookup counts and shared cancellation support. Ready for Phase D (API endpoints).
 
 ---
 
@@ -2024,10 +2026,11 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ E2: Album enrichment UI — "Fetch Cover Art" button on albums without art, spinner during enrichment, toast notification on success
 - ✓ E3: Artist enrichment UI — biography section, external links (Wikipedia/Discogs/Website), artist image, "Fetch Info" button with spinner
 - ✓ E4: Settings enrichment toggles — auto-fetch metadata and auto-fetch album art checkboxes, persisted via UserSettingsService
+- ✓ E5: Settings scan panel keeps rendering background enrichment progress after page navigation and shows remaining album-art lookups
 - ✓ ~300 lines of scoped CSS for all new UI elements (progress bar, artist bio, toggles, toast animations)
 - ✓ Full solution build: 0 errors, 250 tests passing
 
-**Notes:** Phase E complete. All Blazor UI components for MusicBrainz enrichment are in place. Scan progress panel shows real-time progress with cancel support. Album and artist detail views have contextual enrichment buttons. Settings section includes enrichment toggle controls. Ready for Phase G (comprehensive unit tests).
+**Notes:** Phase E complete. All Blazor UI components for MusicBrainz enrichment are in place. The settings scan panel now keeps showing progress after navigation while post-scan enrichment runs in the background, including a live remaining album-art lookup count. Album and artist detail views have contextual enrichment buttons, and settings still include enrichment toggle controls. Ready for Phase G (comprehensive unit tests).
 
 ---
 

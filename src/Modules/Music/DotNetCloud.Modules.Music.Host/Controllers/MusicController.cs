@@ -605,8 +605,8 @@ public class MusicController : MusicControllerBase
     [HttpGet("scan/progress")]
     public IActionResult GetScanProgress()
     {
-        GetAuthenticatedCaller();
-        if (!_scanProgressState.IsScanning)
+        var caller = GetAuthenticatedCaller();
+        if (!_scanProgressState.IsScanning(caller.UserId))
         {
             return Ok(Envelope(new { isScanning = false }));
         }
@@ -614,7 +614,7 @@ public class MusicController : MusicControllerBase
         return Ok(Envelope(new
         {
             isScanning = true,
-            progress = _scanProgressState.CurrentProgress
+            progress = _scanProgressState.GetCurrentProgress(caller.UserId)
         }));
     }
 }

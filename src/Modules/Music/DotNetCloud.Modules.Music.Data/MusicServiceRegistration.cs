@@ -43,8 +43,8 @@ public static class MusicServiceRegistration
         // Shared playback state (survives page navigations within a circuit)
         services.AddScoped<MusicPlaybackState>();
 
-        // Scan progress state (bridges IProgress callbacks to Blazor StateHasChanged)
-        services.AddScoped<ScanProgressState>();
+        // Shared per-user scan and enrichment progress state
+        services.AddSingleton<ScanProgressState>();
 
         // MusicBrainz + Cover Art Archive enrichment services
         var rateLimitMs = configuration.GetValue("Music:Enrichment:RateLimitMs", 1100);
@@ -64,6 +64,9 @@ public static class MusicServiceRegistration
 
         services.AddScoped<MetadataEnrichmentService>();
         services.AddScoped<IMetadataEnrichmentService>(sp => sp.GetRequiredService<MetadataEnrichmentService>());
+        services.AddSingleton<InMemoryMusicEnrichmentBackgroundQueue>();
+        services.AddSingleton<IMusicEnrichmentBackgroundQueue>(sp => sp.GetRequiredService<InMemoryMusicEnrichmentBackgroundQueue>());
+        services.AddHostedService<MusicEnrichmentBackgroundService>();
 
         // Indexing callback (bridges Module → Data for FileUploadedEvent handling)
         services.AddScoped<IMusicIndexingCallback, MusicIndexingCallback>();

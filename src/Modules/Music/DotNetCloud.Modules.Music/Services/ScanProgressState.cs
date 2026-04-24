@@ -1,61 +1,164 @@
 using DotNetCloud.Core.DTOs;
+using System.Collections.Concurrent;
 
 namespace DotNetCloud.Modules.Music.Services;
 
 /// <summary>
-/// Scoped state service that bridges <see cref="IProgress{LibraryScanProgress}"/> callbacks
-/// to Blazor's <c>StateHasChanged()</c> pattern. One instance per Blazor circuit/tab.
+/// Shared per-user scan and enrichment progress tracker.
 /// </summary>
 public sealed class ScanProgressState
 {
-    private LibraryScanProgress? _currentProgress;
-
-    /// <summary>Whether a library scan is currently in progress.</summary>
-    public bool IsScanning { get; private set; }
-
-    /// <summary>The latest progress snapshot from the running scan, or null if no scan is active.</summary>
-    public LibraryScanProgress? CurrentProgress => _currentProgress;
+    private readonly ConcurrentDictionary<Guid, UserScanState> _states = new();
 
     /// <summary>
-    /// Raised when scan progress is updated or scanning state changes.
-    /// Subscribe to this in Blazor components to call <c>StateHasChanged()</c>.
+    /// Raised when any user's scan progress is updated or scanning state changes.
     /// </summary>
     public event Action? OnProgressChanged;
 
     /// <summary>
-    /// Marks the beginning of a library scan.
+    /// Starts or replaces the active operation for a user.
     /// </summary>
-    public void StartScan()
+    public CancellationTokenSource StartScan(Guid userId)
     {
-        IsScanning = true;
-        _currentProgress = null;
+        var state = _states.AddOrUpdate(
+            userId,
+            _ => new UserScanState(),
+            (_, existing) => existing);
+
+        CancellationTokenSource cancellationSource;
+        lock (state.SyncRoot)
+        {
+            state.CancellationSource?.Dispose();
+            cancellationSource = new CancellationTokenSource();
+            state.CancellationSource = cancellationSource;
+            state.IsScanning = true;
+            state.CurrentProgress = null;
+        }
+
+        OnProgressChanged?.Invoke();
+        return cancellationSource;
+    }
+
+    /// <summary>
+    /// Gets whether the specified user has an active scan or background enrichment job.
+    /// </summary>
+    public bool IsScanning(Guid userId)
+    {
+        if (!_states.TryGetValue(userId, out var state))
+        {
+            return false;
+        }
+
+        lock (state.SyncRoot)
+        {
+            return state.IsScanning;
+        }
+    }
+
+    /// <summary>
+    /// Gets the latest progress snapshot for a user's active operation.
+    /// </summary>
+    public LibraryScanProgress? GetCurrentProgress(Guid userId)
+    {
+        if (!_states.TryGetValue(userId, out var state))
+        {
+            return null;
+        }
+
+        lock (state.SyncRoot)
+        {
+            return state.CurrentProgress;
+        }
+    }
+
+    /// <summary>
+    /// Updates the current progress snapshot for a user's operation.
+    /// </summary>
+    public void UpdateProgress(Guid userId, LibraryScanProgress progress)
+    {
+        var state = _states.GetOrAdd(userId, _ => new UserScanState());
+        lock (state.SyncRoot)
+        {
+            state.IsScanning = true;
+            state.CurrentProgress = progress;
+        }
+
         OnProgressChanged?.Invoke();
     }
 
     /// <summary>
-    /// Updates the current scan progress. Typically called from an <see cref="IProgress{T}"/> callback.
+    /// Cancels the current operation for a user, if one is active.
     /// </summary>
-    /// <param name="progress">Latest progress snapshot.</param>
-    public void UpdateProgress(LibraryScanProgress progress)
+    public void Cancel(Guid userId)
     {
-        _currentProgress = progress;
+        if (!_states.TryGetValue(userId, out var state))
+        {
+            return;
+        }
+
+        CancellationTokenSource? cancellationSource;
+        lock (state.SyncRoot)
+        {
+            cancellationSource = state.CancellationSource;
+        }
+
+        cancellationSource?.Cancel();
+    }
+
+    /// <summary>
+    /// Gets the current cancellation token for a user's operation, if any.
+    /// </summary>
+    public CancellationToken GetCancellationToken(Guid userId)
+    {
+        if (!_states.TryGetValue(userId, out var state))
+        {
+            return CancellationToken.None;
+        }
+
+        lock (state.SyncRoot)
+        {
+            return state.CancellationSource?.Token ?? CancellationToken.None;
+        }
+    }
+
+    /// <summary>
+    /// Marks a user's operation as complete and releases its cancellation source.
+    /// </summary>
+    public void CompleteScan(Guid userId)
+    {
+        if (!_states.TryGetValue(userId, out var state))
+        {
+            return;
+        }
+
+        CancellationTokenSource? cancellationSource;
+        lock (state.SyncRoot)
+        {
+            state.IsScanning = false;
+            cancellationSource = state.CancellationSource;
+            state.CancellationSource = null;
+        }
+
+        cancellationSource?.Dispose();
         OnProgressChanged?.Invoke();
     }
 
     /// <summary>
-    /// Marks the scan as complete and clears scanning state.
+    /// Creates an <see cref="IProgress{LibraryScanProgress}"/> that routes reports for a user.
     /// </summary>
-    public void CompleteScan()
+    public IProgress<LibraryScanProgress> CreateProgressReporter(Guid userId)
     {
-        IsScanning = false;
-        OnProgressChanged?.Invoke();
+        return new Progress<LibraryScanProgress>(progress => UpdateProgress(userId, progress));
     }
 
-    /// <summary>
-    /// Creates an <see cref="IProgress{LibraryScanProgress}"/> that routes reports to <see cref="UpdateProgress"/>.
-    /// </summary>
-    public IProgress<LibraryScanProgress> CreateProgressReporter()
+    private sealed class UserScanState
     {
-        return new Progress<LibraryScanProgress>(UpdateProgress);
+        public object SyncRoot { get; } = new();
+
+        public bool IsScanning { get; set; }
+
+        public LibraryScanProgress? CurrentProgress { get; set; }
+
+        public CancellationTokenSource? CancellationSource { get; set; }
     }
 }

@@ -32,8 +32,6 @@ public partial class MusicPage : IAsyncDisposable
     private int _artistPage = 0;
     private int _artistPageSize = 100;
     private List<MusicAlbumDto> _albums = [];
-    private int _albumPage = 0;
-    private int _albumPageSize = 100;
     private List<MusicAlbumDto> _recentAlbums = [];
     private List<TrackDto> _newTracks = [];
     private List<TrackDto> _recommendations = [];
@@ -109,9 +107,6 @@ public partial class MusicPage : IAsyncDisposable
     private List<(Guid Id, string Name)> _dirBrowserFolders = [];
     private List<(Guid Id, string Name)> _dirBrowserBreadcrumbs = [];
     private string? _dirBrowserError;
-
-    // Scan progress
-    private CancellationTokenSource? _scanCts;
 
     // Enrichment state
     private bool _enrichingAlbum;
@@ -278,6 +273,10 @@ public partial class MusicPage : IAsyncDisposable
         InvokeAsync(StateHasChanged);
     }
 
+    private bool IsScanActive => _caller is not null && ScanProgress.IsScanning(_caller.UserId);
+
+    private LibraryScanProgress? CurrentScanProgress => _caller is null ? null : ScanProgress.GetCurrentProgress(_caller.UserId);
+
     // ────────────────────────────────────────────────────────
     //  Section navigation
     // ────────────────────────────────────────────────────────
@@ -372,20 +371,24 @@ public partial class MusicPage : IAsyncDisposable
         }
     }
 
-    private void PrevArtistPage()
+    private async Task PrevArtistPageAsync()
     {
         if (_artistPage > 0)
         {
             _artistPage--;
-            LoadArtistsAsync();
+            await LoadArtistsAsync();
         }
     }
 
     private async Task NextArtistPageAsync()
     {
+        if (_caller is null)
+        {
+            return;
+        }
+
         try
         {
-            var caller = await GetCallerAsync();
             var count = await ArtistService.GetCountAsync(_caller.UserId);
             if (_artistPage * _artistPageSize + _artists.Count < count)
             {
@@ -397,25 +400,6 @@ public partial class MusicPage : IAsyncDisposable
         {
             Logger.LogError(ex, "Error fetching next page of artists");
         }
-    }
-
-    private Task<List<MusicAlbumDto>> LoadAlbumsAsync()
-    {
-        throw new NotImplementedException();
-    }
-
-    private void PrevAlbumPage()
-    {
-        if (_albumPage > 0)
-        {
-            _albumPage--;
-            // _albums = (await AlbumService.ListAlbumsAsync(caller, _albumPage * _albumPageSize, _albumPageSize)).ToList();
-        }
-    }
-
-    private Task NextAlbumPageAsync()
-    {
-        throw new NotImplementedException();
     }
 
     private async void OpenArtistDetail(ArtistDto artist)
@@ -862,9 +846,8 @@ public partial class MusicPage : IAsyncDisposable
         _settingsError = null;
         _settingsSuccess = null;
         _scanResult = null;
-        _scanCts?.Dispose();
-        _scanCts = new CancellationTokenSource();
-        ScanProgress.StartScan();
+        var scanStartedAt = DateTimeOffset.UtcNow;
+        var scanCts = ScanProgress.StartScan(_caller.UserId);
         StateHasChanged();
 
         var scanStopwatch = System.Diagnostics.Stopwatch.StartNew();
@@ -873,33 +856,47 @@ public partial class MusicPage : IAsyncDisposable
             // Bridge MediaScanProgress → ScanProgressState (LibraryScanProgress)
             var progressBridge = new Progress<MediaScanProgress>(msp =>
             {
-                ScanProgress.UpdateProgress(new LibraryScanProgress
+                ScanProgress.UpdateProgress(_caller.UserId, new LibraryScanProgress
                 {
                     Phase = msp.Phase,
                     CurrentFile = msp.CurrentFile,
                     FilesProcessed = msp.FilesProcessed,
                     TotalFiles = msp.TotalFiles,
                     TracksAdded = msp.Imported,
+                    TracksUpdated = 0,
+                    TracksSkipped = 0,
                     TracksFailed = msp.Failed,
                     TracksRemoved = msp.Removed,
+                    AlbumArtFetched = 0,
+                    AlbumArtRemaining = 0,
                     PercentComplete = msp.PercentComplete,
                     ElapsedTime = scanStopwatch.Elapsed,
                 });
             });
 
             _scanResult = await MediaLibraryScanner.ScanSourcesAsync(
-                _librarySources, _caller.UserId, "Music", progressBridge, _scanCts.Token);
+                _librarySources, _caller.UserId, "Music", progressBridge, scanCts.Token);
 
-            // Phase 2: Run enrichment if enabled
-            if (_autoFetchAlbumArt || _autoFetchMetadata)
-            {
-                await RunPostScanEnrichmentAsync(scanStopwatch, _scanCts.Token);
-            }
-
-            ScanProgress.CompleteScan();
             var successMsg = $"Scan complete: {_scanResult.Imported} imported, {_scanResult.Skipped} already up to date";
             if (_scanResult.Removed > 0)
                 successMsg += $", {_scanResult.Removed} removed (files deleted)";
+
+            var queuedBackgroundEnrichment = false;
+            if (_autoFetchAlbumArt || _autoFetchMetadata)
+            {
+                queuedBackgroundEnrichment = await QueuePostScanEnrichmentAsync(scanStartedAt);
+            }
+
+            if (!queuedBackgroundEnrichment)
+            {
+                ScanProgress.CompleteScan(_caller.UserId);
+            }
+
+            if (queuedBackgroundEnrichment)
+            {
+                successMsg += ". MusicBrainz enrichment continues in the background";
+            }
+
             _settingsSuccess = successMsg + ".";
 
             // Reload library data so navigating to Library shows freshly imported tracks
@@ -910,12 +907,12 @@ public partial class MusicPage : IAsyncDisposable
         }
         catch (OperationCanceledException)
         {
-            ScanProgress.CompleteScan();
+            ScanProgress.CompleteScan(_caller.UserId);
             _settingsSuccess = "Scan cancelled.";
         }
         catch (Exception ex)
         {
-            ScanProgress.CompleteScan();
+            ScanProgress.CompleteScan(_caller.UserId);
             _settingsError = $"Scan failed: {ex.Message}";
         }
         finally
@@ -924,59 +921,60 @@ public partial class MusicPage : IAsyncDisposable
         }
     }
 
-    private async Task RunPostScanEnrichmentAsync(System.Diagnostics.Stopwatch stopwatch, CancellationToken ct)
+    private async Task<bool> QueuePostScanEnrichmentAsync(DateTimeOffset scanStartedAt)
     {
-        if (_caller is null) return;
+        if (_caller is null || _scanResult is null)
+        {
+            return false;
+        }
+
         try
         {
-            ScanProgress.UpdateProgress(new LibraryScanProgress
+            ScanProgress.UpdateProgress(_caller.UserId, new LibraryScanProgress
             {
-                Phase = "Enriching metadata",
+                Phase = "Queued background enrichment",
                 PercentComplete = 100,
-                FilesProcessed = _scanResult?.TotalFound ?? 0,
-                TotalFiles = _scanResult?.TotalFound ?? 0,
-                TracksAdded = _scanResult?.Imported ?? 0,
-                ElapsedTime = stopwatch.Elapsed,
+                FilesProcessed = _scanResult.TotalFound,
+                TotalFiles = _scanResult.TotalFound,
+                TracksAdded = _scanResult.Imported,
+                TracksUpdated = 0,
+                TracksSkipped = _scanResult.Skipped,
+                TracksFailed = _scanResult.Failed,
+                TracksRemoved = _scanResult.Removed,
+                AlbumArtFetched = 0,
+                AlbumArtRemaining = 0,
+                ElapsedTime = DateTimeOffset.UtcNow - scanStartedAt,
             });
 
-            var enrichmentProgress = new Progress<EnrichmentProgress>(ep =>
+            return await EnrichmentBackgroundQueue.EnqueueAsync(new MusicEnrichmentJob
             {
-                ScanProgress.UpdateProgress(new LibraryScanProgress
-                {
-                    Phase = ep.Phase ?? "Enriching metadata",
-                    CurrentFile = ep.CurrentItem,
-                    AlbumArtFetched = ep.AlbumArtFound,
-                    PercentComplete = 100,
-                    FilesProcessed = _scanResult?.TotalFound ?? 0,
-                    TotalFiles = _scanResult?.TotalFound ?? 0,
-                    TracksAdded = _scanResult?.Imported ?? 0,
-                    ElapsedTime = stopwatch.Elapsed,
-                });
+                OwnerId = _caller.UserId,
+                FetchAlbumArt = _autoFetchAlbumArt,
+                FetchMetadata = _autoFetchMetadata,
+                StartedAtUtc = scanStartedAt,
+                TotalFiles = _scanResult.TotalFound,
+                TracksAdded = _scanResult.Imported,
+                TracksUpdated = 0,
+                TracksSkipped = _scanResult.Skipped,
+                TracksFailed = _scanResult.Failed,
+                TracksRemoved = _scanResult.Removed
             });
-
-            if (_autoFetchAlbumArt)
-            {
-                await EnrichmentService.EnrichAlbumsWithoutArtAsync(_caller.UserId, enrichmentProgress, ct);
-            }
-
-            if (_autoFetchMetadata)
-            {
-                await EnrichmentService.EnrichAllAsync(_caller.UserId, enrichmentProgress, ct);
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            Logger.LogInformation("Post-scan enrichment cancelled");
         }
         catch (Exception ex)
         {
-            Logger.LogWarning(ex, "Post-scan enrichment failed, scan results preserved");
+            Logger.LogWarning(ex, "Failed to queue post-scan enrichment, scan results preserved");
+            return false;
         }
     }
 
     private void CancelScan()
     {
-        _scanCts?.Cancel();
+        if (_caller is null)
+        {
+            return;
+        }
+
+        ScanProgress.Cancel(_caller.UserId);
     }
 
     private async Task ResetCollectionAsync()
@@ -1339,7 +1337,6 @@ public partial class MusicPage : IAsyncDisposable
     {
         Playback.OnChange -= OnPlaybackStateChanged;
         ScanProgress.OnProgressChanged -= OnScanProgressChanged;
-        _scanCts?.Dispose();
 
         try
         {

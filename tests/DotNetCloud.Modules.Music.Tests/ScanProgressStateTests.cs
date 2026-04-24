@@ -6,19 +6,22 @@ namespace DotNetCloud.Modules.Music.Tests;
 [TestClass]
 public class ScanProgressStateTests
 {
+    private static readonly Guid UserId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+    private static readonly Guid OtherUserId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+
     [TestMethod]
     public void IsScanning_DefaultFalse()
     {
         var state = new ScanProgressState();
-        Assert.IsFalse(state.IsScanning);
+        Assert.IsFalse(state.IsScanning(UserId));
     }
 
     [TestMethod]
     public void StartScan_SetsIsScanningTrue()
     {
         var state = new ScanProgressState();
-        state.StartScan();
-        Assert.IsTrue(state.IsScanning);
+        using var _ = state.StartScan(UserId);
+        Assert.IsTrue(state.IsScanning(UserId));
     }
 
     [TestMethod]
@@ -35,14 +38,15 @@ public class ScanProgressStateTests
             ElapsedTime = TimeSpan.FromSeconds(10)
         };
 
-        state.UpdateProgress(progress);
+        state.UpdateProgress(UserId, progress);
 
-        Assert.IsNotNull(state.CurrentProgress);
-        Assert.AreEqual("Extracting metadata", state.CurrentProgress.Phase);
-        Assert.AreEqual("track1.mp3", state.CurrentProgress.CurrentFile);
-        Assert.AreEqual(5, state.CurrentProgress.FilesProcessed);
-        Assert.AreEqual(20, state.CurrentProgress.TotalFiles);
-        Assert.AreEqual(25, state.CurrentProgress.PercentComplete);
+        var current = state.GetCurrentProgress(UserId);
+        Assert.IsNotNull(current);
+        Assert.AreEqual("Extracting metadata", current.Phase);
+        Assert.AreEqual("track1.mp3", current.CurrentFile);
+        Assert.AreEqual(5, current.FilesProcessed);
+        Assert.AreEqual(20, current.TotalFiles);
+        Assert.AreEqual(25, current.PercentComplete);
     }
 
     [TestMethod]
@@ -52,7 +56,7 @@ public class ScanProgressStateTests
         var fired = false;
         state.OnProgressChanged += () => fired = true;
 
-        state.UpdateProgress(new LibraryScanProgress
+        state.UpdateProgress(UserId, new LibraryScanProgress
         {
             Phase = "Test",
             ElapsedTime = TimeSpan.Zero
@@ -65,23 +69,23 @@ public class ScanProgressStateTests
     public void CompleteScan_SetsIsScanningFalse()
     {
         var state = new ScanProgressState();
-        state.StartScan();
-        Assert.IsTrue(state.IsScanning);
+        using var _ = state.StartScan(UserId);
+        Assert.IsTrue(state.IsScanning(UserId));
 
-        state.CompleteScan();
-        Assert.IsFalse(state.IsScanning);
+        state.CompleteScan(UserId);
+        Assert.IsFalse(state.IsScanning(UserId));
     }
 
     [TestMethod]
     public void CompleteScan_FiresOnProgressChanged()
     {
         var state = new ScanProgressState();
-        state.StartScan();
+        using var _ = state.StartScan(UserId);
 
         var fired = false;
         state.OnProgressChanged += () => fired = true;
 
-        state.CompleteScan();
+        state.CompleteScan(UserId);
         Assert.IsTrue(fired);
     }
 
@@ -93,7 +97,7 @@ public class ScanProgressStateTests
         state.OnProgressChanged += () => count++;
         state.OnProgressChanged += () => count++;
 
-        state.StartScan();
+        using var _ = state.StartScan(UserId);
 
         Assert.AreEqual(2, count);
     }
@@ -104,13 +108,38 @@ public class ScanProgressStateTests
         var state = new ScanProgressState();
 
         // No subscribers — should not throw
-        state.UpdateProgress(new LibraryScanProgress
+        state.UpdateProgress(UserId, new LibraryScanProgress
         {
             Phase = "Test",
             ElapsedTime = TimeSpan.Zero
         });
 
-        state.StartScan();
-        state.CompleteScan();
+        using var _ = state.StartScan(UserId);
+        state.CompleteScan(UserId);
+    }
+
+    [TestMethod]
+    public void Progress_IsIsolatedPerUser()
+    {
+        var state = new ScanProgressState();
+
+        state.UpdateProgress(UserId, new LibraryScanProgress
+        {
+            Phase = "User one",
+            FilesProcessed = 1,
+            TotalFiles = 2,
+            ElapsedTime = TimeSpan.FromSeconds(1)
+        });
+
+        state.UpdateProgress(OtherUserId, new LibraryScanProgress
+        {
+            Phase = "User two",
+            FilesProcessed = 2,
+            TotalFiles = 4,
+            ElapsedTime = TimeSpan.FromSeconds(2)
+        });
+
+        Assert.AreEqual("User one", state.GetCurrentProgress(UserId)?.Phase);
+        Assert.AreEqual("User two", state.GetCurrentProgress(OtherUserId)?.Phase);
     }
 }

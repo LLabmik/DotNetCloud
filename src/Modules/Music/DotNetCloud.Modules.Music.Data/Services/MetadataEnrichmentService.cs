@@ -258,6 +258,7 @@ public sealed class MetadataEnrichmentService : IMetadataEnrichmentService
                 Total = albumsWithoutArt.Count,
                 CurrentItem = album.Title,
                 AlbumArtFound = artFound,
+                AlbumArtRemaining = Math.Max(0, albumsWithoutArt.Count - (i + 1)),
                 ArtistBiosFound = 0
             });
 
@@ -285,6 +286,9 @@ public sealed class MetadataEnrichmentService : IMetadataEnrichmentService
         var unenrichedArtists = await _db.Artists
             .Where(a => a.OwnerId == ownerId && a.LastEnrichedAt == null)
             .ToListAsync(cancellationToken);
+        var pendingAlbumArtLookups = await _db.Albums
+            .Where(a => a.OwnerId == ownerId && a.LastEnrichedAt == null && !a.HasCoverArt)
+            .CountAsync(cancellationToken);
 
         _logger.LogInformation("Enriching {Count} artists for user {OwnerId}", unenrichedArtists.Count, ownerId);
 
@@ -300,6 +304,7 @@ public sealed class MetadataEnrichmentService : IMetadataEnrichmentService
                 Total = unenrichedArtists.Count,
                 CurrentItem = artist.Name,
                 AlbumArtFound = artFound,
+                AlbumArtRemaining = pendingAlbumArtLookups,
                 ArtistBiosFound = biosFound
             });
 
@@ -326,6 +331,7 @@ public sealed class MetadataEnrichmentService : IMetadataEnrichmentService
             cancellationToken.ThrowIfCancellationRequested();
 
             var album = unenrichedAlbums[i];
+            var needsAlbumArtLookup = !album.HasCoverArt;
             progress?.Report(new EnrichmentProgress
             {
                 Phase = "Enriching albums...",
@@ -333,6 +339,7 @@ public sealed class MetadataEnrichmentService : IMetadataEnrichmentService
                 Total = unenrichedAlbums.Count,
                 CurrentItem = album.Title,
                 AlbumArtFound = artFound,
+                AlbumArtRemaining = Math.Max(0, pendingAlbumArtLookups - (needsAlbumArtLookup ? 1 : 0)),
                 ArtistBiosFound = biosFound
             });
 
@@ -342,6 +349,11 @@ public sealed class MetadataEnrichmentService : IMetadataEnrichmentService
             if (album.HasCoverArt)
             {
                 artFound++;
+            }
+
+            if (needsAlbumArtLookup)
+            {
+                pendingAlbumArtLookups = Math.Max(0, pendingAlbumArtLookups - 1);
             }
         }
 
@@ -366,6 +378,7 @@ public sealed class MetadataEnrichmentService : IMetadataEnrichmentService
                 Total = unenrichedTracks.Count,
                 CurrentItem = track.Title,
                 AlbumArtFound = artFound,
+                AlbumArtRemaining = pendingAlbumArtLookups,
                 ArtistBiosFound = biosFound
             });
 

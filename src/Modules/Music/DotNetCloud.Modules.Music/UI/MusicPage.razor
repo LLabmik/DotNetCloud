@@ -21,6 +21,7 @@
 @inject MusicPlaybackState Playback
 @inject ScanProgressState ScanProgress
 @inject IMetadataEnrichmentService EnrichmentService
+@inject IMusicEnrichmentBackgroundQueue EnrichmentBackgroundQueue
 
 <div class="music-layout">
     @* ─── Sidebar ─── *@
@@ -753,7 +754,7 @@
                                     disabled="@_settingsSaving">
                                 @(_settingsSaving ? "Saving..." : "Save Sources")
                             </button>
-                            @if (ScanProgress.IsScanning)
+                            @if (IsScanActive)
                             {
                                 <button class="btn btn-outline btn-sm btn-cancel-scan" @onclick="CancelScan">
                                     Cancel Scan
@@ -762,16 +763,16 @@
                             else
                             {
                                 <button class="btn btn-outline btn-sm" @onclick="ScanLibraryAsync"
-                                        disabled="@(_settingsScanning || _librarySources.Count == 0)">
+                                        disabled="@(_settingsScanning || _librarySources.Count == 0 || IsScanActive)">
                                     @(_settingsScanning ? "Scanning..." : "Scan Now")
                                 </button>
                             }
                         </div>
 
                         @* ─── Scan Progress Panel ─── *@
-                        @if (ScanProgress.IsScanning)
+                        @if (IsScanActive)
                         {
-                            var p = ScanProgress.CurrentProgress;
+                            var p = CurrentScanProgress;
                             <div class="scan-progress-panel">
                                 @if (p is not null)
                                 {
@@ -798,6 +799,10 @@
                                             @if (p.AlbumArtFetched > 0)
                                             {
                                                 <span class="scan-count art">🎨@p.AlbumArtFetched covers</span>
+                                            }
+                                            @if (p.AlbumArtRemaining > 0)
+                                            {
+                                                <span class="scan-count art">⌛@p.AlbumArtRemaining art left</span>
                                             }
                                         </div>
                                         @if (p.TotalFiles > 0)
