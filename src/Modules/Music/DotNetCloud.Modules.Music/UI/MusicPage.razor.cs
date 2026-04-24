@@ -29,7 +29,11 @@ public partial class MusicPage : IAsyncDisposable
 
     // ── Data collections ──
     private List<ArtistDto> _artists = [];
+    private int _artistPage = 0;
+    private int _artistPageSize = 100;
     private List<MusicAlbumDto> _albums = [];
+    private int _albumPage = 0;
+    private int _albumPageSize = 100;
     private List<MusicAlbumDto> _recentAlbums = [];
     private List<TrackDto> _newTracks = [];
     private List<TrackDto> _recommendations = [];
@@ -310,7 +314,8 @@ public partial class MusicPage : IAsyncDisposable
                     break;
 
                 case Section.Artists:
-                    _artists = (await ArtistService.ListArtistsAsync(caller, 0, 200)).ToList();
+                    _artistPage = 0;
+                    await LoadArtistsAsync();
                     break;
 
                 case Section.Albums:
@@ -350,6 +355,68 @@ public partial class MusicPage : IAsyncDisposable
     // ────────────────────────────────────────────────────────
     //  Artist drill-down
     // ────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Lists artists for the current page.
+    /// </summary>
+    private async Task LoadArtistsAsync()
+    {
+        try
+        {
+            var caller = await GetCallerAsync();
+            _artists = (await ArtistService.ListArtistsAsync(caller, _artistPage * _artistPageSize, _artistPageSize)).ToList();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading artists");
+        }
+    }
+
+    private void PrevArtistPage()
+    {
+        if (_artistPage > 0)
+        {
+            _artistPage--;
+            LoadArtistsAsync();
+        }
+    }
+
+    private async Task NextArtistPageAsync()
+    {
+        try
+        {
+            var caller = await GetCallerAsync();
+            var count = await ArtistService.GetCountAsync(_caller.UserId);
+            if (_artistPage * _artistPageSize + _artists.Count < count)
+            {
+                _artistPage++;
+                await LoadArtistsAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error fetching next page of artists");
+        }
+    }
+
+    private Task<List<MusicAlbumDto>> LoadAlbumsAsync()
+    {
+        throw new NotImplementedException();
+    }
+
+    private void PrevAlbumPage()
+    {
+        if (_albumPage > 0)
+        {
+            _albumPage--;
+            // _albums = (await AlbumService.ListAlbumsAsync(caller, _albumPage * _albumPageSize, _albumPageSize)).ToList();
+        }
+    }
+
+    private Task NextAlbumPageAsync()
+    {
+        throw new NotImplementedException();
+    }
 
     private async void OpenArtistDetail(ArtistDto artist)
     {
