@@ -30,7 +30,7 @@ public partial class MusicPage : IAsyncDisposable
     // ── Data collections ──
     private List<ArtistDto> _artists = [];
     private int _artistPage = 0;
-    private int _artistPageSize = 100;
+    private int _artistPageSize = 50;
     private List<MusicAlbumDto> _albums = [];
     private List<MusicAlbumDto> _recentAlbums = [];
     private List<TrackDto> _newTracks = [];
@@ -314,6 +314,7 @@ public partial class MusicPage : IAsyncDisposable
 
                 case Section.Artists:
                     _artistPage = 0;
+                    _hasMoreArtists = true;
                     await LoadArtistsAsync();
                     break;
 
@@ -363,11 +364,30 @@ public partial class MusicPage : IAsyncDisposable
         try
         {
             var caller = await GetCallerAsync();
-            _artists = (await ArtistService.ListArtistsAsync(caller, _artistPage * _artistPageSize, _artistPageSize)).ToList();
+            var artists = (await ArtistService.ListArtistsAsync(caller, _artistPage * _artistPageSize, _artistPageSize)).ToList();
+            _artists = artists;
+            if (artists.Count < _artistPageSize)
+            {
+                _hasMoreArtists = false;
+            }
+            else
+            {
+                _hasMoreArtists = true;
+            }
+            _totalArtists = artists.Count;
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error loading artists");
+        }
+    }
+
+    private void PrevArtistPage()
+    {
+        if (_artistPage > 0)
+        {
+            _artistPage--;
+            LoadArtistsAsync();
         }
     }
 
