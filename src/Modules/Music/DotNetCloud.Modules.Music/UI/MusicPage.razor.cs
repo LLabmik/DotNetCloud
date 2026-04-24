@@ -31,6 +31,8 @@ public partial class MusicPage : IAsyncDisposable
     private List<ArtistDto> _artists = [];
     private int _artistPage = 0;
     private int _artistPageSize = 50;
+    private int _totalArtists;
+    private bool _hasMoreArtists;
     private List<MusicAlbumDto> _albums = [];
     private List<MusicAlbumDto> _recentAlbums = [];
     private List<TrackDto> _newTracks = [];
@@ -314,7 +316,6 @@ public partial class MusicPage : IAsyncDisposable
 
                 case Section.Artists:
                     _artistPage = 0;
-                    _hasMoreArtists = true;
                     await LoadArtistsAsync();
                     break;
 
@@ -365,29 +366,13 @@ public partial class MusicPage : IAsyncDisposable
         {
             var caller = await GetCallerAsync();
             var artists = (await ArtistService.ListArtistsAsync(caller, _artistPage * _artistPageSize, _artistPageSize)).ToList();
+            _totalArtists = await ArtistService.GetCountAsync(caller.UserId);
             _artists = artists;
-            if (artists.Count < _artistPageSize)
-            {
-                _hasMoreArtists = false;
-            }
-            else
-            {
-                _hasMoreArtists = true;
-            }
-            _totalArtists = artists.Count;
+            _hasMoreArtists = (_artistPage + 1) * _artistPageSize < _totalArtists;
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error loading artists");
-        }
-    }
-
-    private void PrevArtistPage()
-    {
-        if (_artistPage > 0)
-        {
-            _artistPage--;
-            LoadArtistsAsync();
         }
     }
 
@@ -402,19 +387,15 @@ public partial class MusicPage : IAsyncDisposable
 
     private async Task NextArtistPageAsync()
     {
-        if (_caller is null)
+        if (!_hasMoreArtists)
         {
             return;
         }
 
         try
         {
-            var count = await ArtistService.GetCountAsync(_caller.UserId);
-            if (_artistPage * _artistPageSize + _artists.Count < count)
-            {
-                _artistPage++;
-                await LoadArtistsAsync();
-            }
+            _artistPage++;
+            await LoadArtistsAsync();
         }
         catch (Exception ex)
         {
