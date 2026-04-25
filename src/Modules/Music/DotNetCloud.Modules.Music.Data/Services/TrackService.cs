@@ -83,11 +83,13 @@ public sealed class TrackService : ITrackService
             .Include(t => t.TrackArtists).ThenInclude(ta => ta.Artist)
             .Include(t => t.TrackGenres).ThenInclude(tg => tg.Genre)
             .Where(t => t.AlbumId == albumId && t.OwnerId == caller.UserId)
-            .OrderBy(t => t.DiscNumber)
-            .ThenBy(t => t.TrackNumber)
             .ToListAsync(cancellationToken);
 
-        return tracks.Select(t => MapToDto(t, caller.UserId)).ToList();
+        return tracks
+            .Select(t => MapToDto(t, caller.UserId))
+            .OrderBy(t => t.DiscNumber ?? int.MaxValue)
+            .ThenBy(t => t.TrackNumber ?? int.MaxValue)
+            .ToList();
     }
 
     /// <summary>

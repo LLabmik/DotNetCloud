@@ -599,7 +599,7 @@
                         {
                             <div class="track-row @(Playback.NowPlaying?.Id == track.Id ? "playing" : "")"
                                  @ondblclick="() => PlayTrackAsync(track)">
-                                <span class="track-num">@(track.TrackNumber > 0 ? track.TrackNumber : index + 1)</span>
+                                <span class="track-num">@(track.TrackNumber > 0 ? track.TrackNumber.ToString() : "—")</span>
                                 <div class="track-info">
                                     <span class="track-title">@track.Title</span>
                                     @if (track.ArtistName != _selectedAlbum.ArtistName)
