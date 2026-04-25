@@ -175,7 +175,12 @@ internal sealed class DownloadService : IDownloadService
         var (found, desc) = await VirtualMountedNodeRegistry.TryGetOrLoadAsync(nodeId, _db, cancellationToken);
         if (!found || desc is null)
         {
-            return null;
+            // Descriptor not in memory or DB (e.g. created before DB persistence
+            // was added, or DB was reset). Walk the accessible admin shared folders
+            // to re-discover the file by recomputing its deterministic GUID.
+            desc = await TryRecoverMountedNodeAsync(nodeId, caller, cancellationToken);
+            if (desc is null)
+                return null;
         }
 
         if (desc.IsDirectory)
@@ -202,6 +207,146 @@ internal sealed class DownloadService : IDownloadService
             System.IO.FileShare.Read,
             81920,
             FileOptions.Asynchronous | FileOptions.SequentialScan);
+    }
+
+    /// <summary>
+    /// Walks the accessible admin shared folders to find a file or directory whose
+    /// deterministic mounted-node GUID matches <paramref name="nodeId"/>. Used as a
+    /// recovery path when the virtual node descriptor is absent from the registry.
+    /// </summary>
+    private async Task<VirtualMountedNodeDescriptor?> TryRecoverMountedNodeAsync(
+        Guid nodeId, CallerContext caller, CancellationToken cancellationToken)
+    {
+        var definitions = await GetAccessibleAdminSharedFoldersAsync(caller, cancellationToken);
+        if (definitions.Count == 0)
+            return null;
+
+        foreach (var definition in definitions)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var descriptor = await TryRecoverFromSharedFolderAsync(nodeId, definition, cancellationToken);
+            if (descriptor is not null)
+            {
+                // Persist so subsequent lookups hit the registry instead of walking again.
+                await VirtualMountedNodeRegistry.RegisterAndPersistAsync(descriptor, _db, cancellationToken);
+                RegisterMountedAncestorDescriptors(definition.Id, descriptor.RelativePath);
+                _logger.LogInformation(
+                    "Recovered virtual mounted node descriptor {NodeId} for shared folder {SharedFolderId} at '{RelativePath}'",
+                    nodeId, definition.Id, descriptor.RelativePath);
+                return descriptor;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Breadth-first walks a single admin shared folder looking for the entry whose
+    /// <see cref="VirtualMountedNodeRegistry.GetMountedNodeId"/> matches the target.
+    /// </summary>
+    private static async Task<VirtualMountedNodeDescriptor?> TryRecoverFromSharedFolderAsync(
+        Guid nodeId, AdminSharedFolderDefinition definition, CancellationToken cancellationToken)
+    {
+        var root = Path.GetFullPath(definition.SourcePath);
+        if (!Directory.Exists(root))
+            return null;
+
+        var queue = new Queue<(string PhysicalPath, string RelativePath)>();
+        queue.Enqueue((root, string.Empty));
+
+        while (queue.Count > 0)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var (currentPhysical, currentRelative) = queue.Dequeue();
+
+            try
+            {
+                foreach (var filePath in Directory.EnumerateFiles(currentPhysical))
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var fileName = Path.GetFileName(filePath);
+                    var fileRelative = string.IsNullOrEmpty(currentRelative)
+                        ? fileName
+                        : $"{currentRelative}/{fileName}";
+                    var normalized = VirtualMountedNodeRegistry.NormalizeRelativePath(fileRelative);
+                    var candidateId = VirtualMountedNodeRegistry.GetMountedNodeId(
+                        definition.Id, normalized, isDirectory: false);
+
+                    if (candidateId == nodeId)
+                        return new VirtualMountedNodeDescriptor(nodeId, definition.Id, normalized, IsDirectory: false);
+                }
+
+                foreach (var dirPath in Directory.EnumerateDirectories(currentPhysical))
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var dirName = Path.GetFileName(dirPath);
+                    var dirRelative = string.IsNullOrEmpty(currentRelative)
+                        ? dirName
+                        : $"{currentRelative}/{dirName}";
+                    var normalized = VirtualMountedNodeRegistry.NormalizeRelativePath(dirRelative);
+                    var candidateId = VirtualMountedNodeRegistry.GetMountedNodeId(
+                        definition.Id, normalized, isDirectory: true);
+
+                    if (candidateId == nodeId)
+                        return new VirtualMountedNodeDescriptor(nodeId, definition.Id, normalized, IsDirectory: true);
+
+                    queue.Enqueue((dirPath, normalized));
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // Skip directories we can't read — they can't contain the target anyway.
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Registers ancestor directory descriptors in memory (but not DB) so that
+    /// parent paths can be navigated immediately. Individual ancestors are persisted
+    /// lazily when first browsed.
+    /// </summary>
+    private static void RegisterMountedAncestorDescriptors(Guid sharedFolderId, string relativePath)
+    {
+        var normalized = VirtualMountedNodeRegistry.NormalizeRelativePath(relativePath);
+        if (string.IsNullOrEmpty(normalized) || !normalized.Contains('/'))
+            return;
+
+        var segments = normalized.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        var currentPath = string.Empty;
+        for (var i = 0; i < segments.Length - 1; i++)
+        {
+            currentPath = string.IsNullOrEmpty(currentPath)
+                ? segments[i]
+                : $"{currentPath}/{segments[i]}";
+
+            var ancestorId = VirtualMountedNodeRegistry.GetMountedNodeId(
+                sharedFolderId, currentPath, isDirectory: true);
+            VirtualMountedNodeRegistry.Register(
+                new VirtualMountedNodeDescriptor(ancestorId, sharedFolderId, currentPath, IsDirectory: true));
+        }
+    }
+
+    /// <summary>
+    /// Returns all enabled admin shared folders accessible to the caller.
+    /// </summary>
+    private async Task<List<AdminSharedFolderDefinition>> GetAccessibleAdminSharedFoldersAsync(
+        CallerContext caller, CancellationToken cancellationToken)
+    {
+        var memberships = _shareAccessMembershipResolver is null
+            ? ShareAccessMembership.Empty
+            : await _shareAccessMembershipResolver.ResolveAsync(caller.UserId, cancellationToken);
+
+        var groupIds = memberships.GroupIds.ToArray();
+        if (groupIds.Length == 0)
+            return [];
+
+        return await _db.AdminSharedFolders
+            .AsNoTracking()
+            .Where(d => d.IsEnabled && d.Grants.Any(g => groupIds.Contains(g.GroupId)))
+            .ToListAsync(cancellationToken);
     }
 
     private async Task<AdminSharedFolderDefinition?> GetAccessibleAdminSharedFolderByIdAsync(Guid sharedFolderId, CallerContext caller, CancellationToken cancellationToken)
