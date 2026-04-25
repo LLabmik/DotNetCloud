@@ -825,6 +825,8 @@ public partial class MusicPage : IAsyncDisposable
                 var caller = await GetCallerAsync();
                 _searchResults = (await TrackService.SearchAsync(caller, _searchQuery, 50)).ToList();
                 _breadcrumb.Clear();
+                _selectedAlbum = null;
+                _section = Section.Library;
             }
             catch (Exception ex)
             {
