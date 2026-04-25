@@ -85,11 +85,14 @@ public sealed class TrackService : ITrackService
             .Where(t => t.AlbumId == albumId && t.OwnerId == caller.UserId)
             .ToListAsync(cancellationToken);
 
-        return tracks
-            .Select(t => MapToDto(t, caller.UserId))
+        var sorted = tracks
             .OrderBy(t => t.DiscNumber ?? int.MaxValue)
-            .ThenBy(t => t.TrackNumber ?? int.MaxValue)
+            .ThenBy(t => t.TrackNumber ?? ExtractTrackNumberFromFileName(t.FileName))
+            .ThenBy(t => t.FileName, NaturalFileNameComparer.Instance)
+            .Select(t => MapToDto(t, caller.UserId))
             .ToList();
+
+        return sorted;
     }
 
     /// <summary>
@@ -243,5 +246,76 @@ public sealed class TrackService : ITrackService
             IsStarred = isStarred,
             CreatedAt = track.CreatedAt
         };
+    }
+
+    /// <summary>
+    /// Extracts a numeric track number from the beginning of a filename.
+    /// Returns int.MaxValue if no digits are found, so tracks sort after numbered ones.
+    /// </summary>
+    private static int ExtractTrackNumberFromFileName(string fileName)
+    {
+        var name = Path.GetFileNameWithoutExtension(fileName);
+        if (string.IsNullOrEmpty(name))
+            return int.MaxValue;
+
+        // Collect leading digits (handles "01", "01 - Title", "1. Title", etc.)
+        int i = 0;
+        while (i < name.Length && !char.IsDigit(name[i]))
+            i++;
+
+        if (i >= name.Length)
+            return int.MaxValue;
+
+        int start = i;
+        while (i < name.Length && char.IsDigit(name[i]))
+            i++;
+
+        var span = name.AsSpan(start, i - start);
+        return int.TryParse(span, out var num) ? num : int.MaxValue;
+    }
+
+    /// <summary>
+    /// Compares filenames using natural (numeric-aware) ordering so "02" &lt; "11".
+    /// </summary>
+    private sealed class NaturalFileNameComparer : IComparer<string>
+    {
+        public static readonly NaturalFileNameComparer Instance = new();
+
+        public int Compare(string? x, string? y)
+        {
+            if (x is null && y is null) return 0;
+            if (x is null) return -1;
+            if (y is null) return 1;
+
+            var nameX = Path.GetFileNameWithoutExtension(x);
+            var nameY = Path.GetFileNameWithoutExtension(y);
+
+            int ix = 0, iy = 0;
+            while (ix < nameX.Length && iy < nameY.Length)
+            {
+                if (char.IsDigit(nameX[ix]) && char.IsDigit(nameY[iy]))
+                {
+                    // Extract and compare full numbers
+                    int sx = ix, sy = iy;
+                    while (ix < nameX.Length && char.IsDigit(nameX[ix])) ix++;
+                    while (iy < nameY.Length && char.IsDigit(nameY[iy])) iy++;
+
+                    var numX = long.Parse(nameX.AsSpan(sx, ix - sx));
+                    var numY = long.Parse(nameY.AsSpan(sy, iy - sy));
+                    if (numX != numY)
+                        return numX.CompareTo(numY);
+                }
+                else
+                {
+                    if (nameX[ix] != nameY[iy])
+                        return nameX[ix].CompareTo(nameY[iy]);
+                    ix++;
+                    iy++;
+                }
+            }
+
+            // Shorter string comes first if all else equal
+            return (nameX.Length - ix).CompareTo(nameY.Length - iy);
+        }
     }
 }
