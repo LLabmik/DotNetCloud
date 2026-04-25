@@ -442,6 +442,18 @@ public class VideoController : VideoControllerBase
 
         var contentType = VideoStreamingService.GetContentType(video.MimeType);
 
+        // Remove X-Content-Type-Options: nosniff for this endpoint.
+        // The global security middleware sets it on every response, but nosniff
+        // prevents browsers (especially Edge) from probing the actual codec inside
+        // the container. If the Content-Type doesn't perfectly match the codec the
+        // browser expects, playback fails. Video streaming needs the browser to
+        // inspect the media, not blindly trust the Content-Type header.
+        HttpContext.Response.OnStarting(() =>
+        {
+            HttpContext.Response.Headers.Remove("X-Content-Type-Options");
+            return Task.CompletedTask;
+        });
+
         // Serve via PhysicalFile which uses Kestrel's sendfile() syscall:
         // - Zero-copy: kernel sends file data directly to the socket
         // - Bypasses response.Body entirely (no MemoryStream, no compression wrapping)

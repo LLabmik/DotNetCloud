@@ -156,12 +156,29 @@ public sealed class VideoStreamingService : IVideoStreamingService
     {
         return mimeType.ToLowerInvariant() switch
         {
+            // Explicitly mapped types
             "video/mp4" => "video/mp4",
             "video/webm" => "video/webm",
             "video/ogg" => "video/ogg",
             "video/x-matroska" => "video/x-matroska",
             "video/quicktime" => "video/mp4", // Browsers handle QT as MP4
             "video/x-m4v" => "video/mp4",
+
+            // Additional scanner-produced types — keep as-is so browsers can attempt playback
+            "video/mpeg" => "video/mpeg",
+            "video/x-msvideo" => "video/x-msvideo",
+            "video/x-ms-wmv" => "video/x-ms-wmv",
+            "video/x-flv" => "video/x-flv",
+            "video/3gpp" => "video/3gpp",
+            "video/3gpp2" => "video/3gpp2",
+            "video/mp2t" => "video/mp2t",
+
+            // Preserve any unrecognised video/* or audio/* MIME type so browsers
+            // get a valid media Content-Type instead of application/octet-stream,
+            // which would be rejected under X-Content-Type-Options: nosniff.
+            var m when m.StartsWith("video/", StringComparison.Ordinal) => m,
+            var m when m.StartsWith("audio/", StringComparison.Ordinal) => m,
+
             _ => "application/octet-stream"
         };
     }
