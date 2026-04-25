@@ -286,7 +286,7 @@ internal sealed class FileService : IFileService
         }
 
         var nodeId = VirtualMountedNodeRegistry.GetMountedNodeId(sharedFolderId, normalizedRelativePath, isDirectory);
-        VirtualMountedNodeRegistry.Register(new VirtualMountedNodeDescriptor(nodeId, sharedFolderId, normalizedRelativePath, isDirectory));
+        await VirtualMountedNodeRegistry.RegisterAndPersistAsync(new VirtualMountedNodeDescriptor(nodeId, sharedFolderId, normalizedRelativePath, isDirectory), _db, cancellationToken);
 
         return await CreateMountedEntryDtoAsync(
             definition,
@@ -857,18 +857,19 @@ internal sealed class FileService : IFileService
             return await CreateAdminSharedFolderRootDtoAsync(adminRootDefinition, cancellationToken);
         }
 
-        if (!VirtualMountedNodeRegistry.TryGet(nodeId, out var descriptor))
+        var (found, desc) = await VirtualMountedNodeRegistry.TryGetOrLoadAsync(nodeId, _db, cancellationToken);
+        if (!found || desc is null)
         {
             return null;
         }
 
-        var definition = await GetAccessibleAdminSharedFolderByIdAsync(descriptor.SharedFolderId, caller, cancellationToken);
+        var definition = await GetAccessibleAdminSharedFolderByIdAsync(desc.SharedFolderId, caller, cancellationToken);
         if (definition is null)
         {
             return null;
         }
 
-        return await CreateMountedEntryDtoAsync(definition, descriptor.RelativePath, descriptor.IsDirectory, GetMountedNodeParentId(definition.Id, descriptor.RelativePath), cancellationToken);
+        return await CreateMountedEntryDtoAsync(definition, desc.RelativePath, desc.IsDirectory, GetMountedNodeParentId(definition.Id, desc.RelativePath), cancellationToken);
     }
 
     private async Task<IReadOnlyList<FileNodeDto>?> GetVirtualChildrenAsync(Guid folderId, CallerContext caller, CancellationToken cancellationToken)
@@ -889,18 +890,19 @@ internal sealed class FileService : IFileService
             return await ListAdminSharedFolderChildrenAsync(definition, string.Empty, folderId, cancellationToken);
         }
 
-        if (!VirtualMountedNodeRegistry.TryGet(folderId, out var descriptor) || !descriptor.IsDirectory)
+        var (vFound, vDescriptor) = await VirtualMountedNodeRegistry.TryGetOrLoadAsync(folderId, _db, cancellationToken);
+        if (!vFound || !vDescriptor!.IsDirectory)
         {
             return null;
         }
 
-        definition = await GetAccessibleAdminSharedFolderByIdAsync(descriptor.SharedFolderId, caller, cancellationToken);
+        definition = await GetAccessibleAdminSharedFolderByIdAsync(vDescriptor.SharedFolderId, caller, cancellationToken);
         if (definition is null)
         {
             return [];
         }
 
-        return await ListAdminSharedFolderChildrenAsync(definition, descriptor.RelativePath, folderId, cancellationToken);
+        return await ListAdminSharedFolderChildrenAsync(definition, vDescriptor.RelativePath, folderId, cancellationToken);
     }
 
     private async Task<FileNodeDto> CreateDotNetCloudRootDtoAsync(CallerContext caller, CancellationToken cancellationToken)
@@ -998,7 +1000,7 @@ internal sealed class FileService : IFileService
                     : $"{relativePath}/{entry.Name}";
                 var isDirectory = entry is DirectoryInfo;
                 var id = VirtualMountedNodeRegistry.GetMountedNodeId(definition.Id, entryRelativePath, isDirectory);
-                VirtualMountedNodeRegistry.Register(new VirtualMountedNodeDescriptor(id, definition.Id, entryRelativePath, isDirectory));
+                await VirtualMountedNodeRegistry.RegisterAndPersistAsync(new VirtualMountedNodeDescriptor(id, definition.Id, entryRelativePath, isDirectory), _db, cancellationToken);
 
                 var dto = await CreateMountedEntryDtoAsync(definition, entryRelativePath, isDirectory, parentId, cancellationToken);
                 if (dto is not null)

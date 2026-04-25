@@ -71,6 +71,9 @@ public class FilesDbContext : DbContext
     /// <summary>Per-device sync cursor for server-side tracking and recovery.</summary>
     public DbSet<SyncDeviceCursor> SyncDeviceCursors => Set<SyncDeviceCursor>();
 
+    /// <summary>Persisted virtual mounted node descriptors for admin shared folders.</summary>
+    public DbSet<MountedNodeEntry> MountedNodeEntries => Set<MountedNodeEntry>();
+
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -90,5 +93,6 @@ public class FilesDbContext : DbContext
         modelBuilder.ApplyConfiguration(new UserSyncCounterConfiguration());
         modelBuilder.ApplyConfiguration(new SyncDeviceConfiguration());
         modelBuilder.ApplyConfiguration(new SyncDeviceCursorConfiguration());
+        modelBuilder.ApplyConfiguration(new MountedNodeEntryConfiguration());
     }
 }

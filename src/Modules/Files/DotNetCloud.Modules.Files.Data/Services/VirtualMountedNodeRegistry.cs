@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
+using DotNetCloud.Modules.Files.Models;
+using Microsoft.EntityFrameworkCore;
 
 namespace DotNetCloud.Modules.Files.Data.Services;
 
@@ -26,6 +28,51 @@ internal static class VirtualMountedNodeRegistry
     internal static bool TryGet(Guid id, out VirtualMountedNodeDescriptor descriptor)
     {
         return Entries.TryGetValue(id, out descriptor!);
+    }
+
+    /// <summary>
+    /// Registers the descriptor in memory and persists it to the database so it survives process restarts.
+    /// </summary>
+    internal static async Task RegisterAndPersistAsync(VirtualMountedNodeDescriptor descriptor, FilesDbContext db, CancellationToken cancellationToken)
+    {
+        Entries[descriptor.Id] = descriptor;
+
+        if (!await db.MountedNodeEntries.AnyAsync(e => e.Id == descriptor.Id, cancellationToken))
+        {
+            db.MountedNodeEntries.Add(new MountedNodeEntry
+            {
+                Id = descriptor.Id,
+                SharedFolderId = descriptor.SharedFolderId,
+                RelativePath = descriptor.RelativePath,
+                IsDirectory = descriptor.IsDirectory,
+            });
+            await db.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    /// <summary>
+    /// Tries the in-memory cache first, then falls back to the database.
+    /// On a DB hit, the entry is re-registered in memory for subsequent lookups.
+    /// </summary>
+    internal static async Task<(bool Found, VirtualMountedNodeDescriptor? Descriptor)> TryGetOrLoadAsync(Guid id, FilesDbContext db, CancellationToken cancellationToken)
+    {
+        if (Entries.TryGetValue(id, out var descriptor))
+        {
+            return (true, descriptor);
+        }
+
+        var entry = await db.MountedNodeEntries
+            .AsNoTracking()
+            .FirstOrDefaultAsync(e => e.Id == id, cancellationToken);
+
+        if (entry is null)
+        {
+            return (false, null);
+        }
+
+        descriptor = new VirtualMountedNodeDescriptor(entry.Id, entry.SharedFolderId, entry.RelativePath, entry.IsDirectory);
+        Entries[entry.Id] = descriptor;
+        return (true, descriptor);
     }
 
     internal static string NormalizeRelativePath(string relativePath)

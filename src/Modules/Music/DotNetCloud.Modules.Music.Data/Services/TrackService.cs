@@ -91,15 +91,21 @@ public sealed class TrackService : ITrackService
     }
 
     /// <summary>
-    /// Searches tracks by title.
+    /// Searches tracks by title, artist name, or album title (case-insensitive).
     /// </summary>
     public async Task<IReadOnlyList<TrackDto>> SearchAsync(CallerContext caller, string query, int maxResults = 20, CancellationToken cancellationToken = default)
     {
+        var queryLower = query.ToLowerInvariant();
+
         var tracks = await _db.Tracks
             .Include(t => t.Album)
             .Include(t => t.TrackArtists).ThenInclude(ta => ta.Artist)
             .Include(t => t.TrackGenres).ThenInclude(tg => tg.Genre)
-            .Where(t => t.OwnerId == caller.UserId && t.Title.Contains(query))
+            .Where(t => t.OwnerId == caller.UserId && (
+                t.Title.ToLower().Contains(queryLower)
+                || (t.Album != null && t.Album.Title.ToLower().Contains(queryLower))
+                || t.TrackArtists!.Any(ta => ta.Artist != null && ta.Artist.Name.ToLower().Contains(queryLower))
+            ))
             .OrderBy(t => t.Title)
             .Take(maxResults)
             .ToListAsync(cancellationToken);

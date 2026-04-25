@@ -172,23 +172,24 @@ internal sealed class DownloadService : IDownloadService
 
     private async Task<Stream?> TryDownloadMountedFileAsync(Guid nodeId, CallerContext caller, CancellationToken cancellationToken)
     {
-        if (!VirtualMountedNodeRegistry.TryGet(nodeId, out var descriptor))
+        var (found, desc) = await VirtualMountedNodeRegistry.TryGetOrLoadAsync(nodeId, _db, cancellationToken);
+        if (!found || desc is null)
         {
             return null;
         }
 
-        if (descriptor.IsDirectory)
+        if (desc.IsDirectory)
         {
             throw new Core.Errors.InvalidOperationException("Cannot download a folder.");
         }
 
-        var definition = await GetAccessibleAdminSharedFolderByIdAsync(descriptor.SharedFolderId, caller, cancellationToken);
+        var definition = await GetAccessibleAdminSharedFolderByIdAsync(desc.SharedFolderId, caller, cancellationToken);
         if (definition is null)
         {
             return null;
         }
 
-        var physicalPath = CombineMountedPhysicalPath(definition.SourcePath, descriptor.RelativePath);
+        var physicalPath = CombineMountedPhysicalPath(definition.SourcePath, desc.RelativePath);
         if (!File.Exists(physicalPath))
         {
             throw new NotFoundException("FileNode", nodeId);

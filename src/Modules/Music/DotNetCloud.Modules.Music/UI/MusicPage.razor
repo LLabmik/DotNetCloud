@@ -226,6 +226,72 @@
                 <button class="btn-retry" @onclick="LoadCurrentSectionAsync">Retry</button>
             </div>
         }
+        else if (_searchResults is not null)
+        {
+            @* ─── Search Results Page ─── *@
+            <div class="search-results-page">
+                <div class="search-results-header">
+                    <h4>Search Results for "@_searchQuery"</h4>
+                    <button class="btn btn-outline btn-sm" @onclick="ClearSearch">← Back to Library</button>
+                </div>
+                @if (_searchResults.Count == 0)
+                {
+                    <div class="music-empty">
+                        <div class="empty-icon">🔍</div>
+                        <h4>No results found</h4>
+                        <p>Try a different search term.</p>
+                    </div>
+                }
+                else
+                {
+                    <div class="search-results-list">
+                        @foreach (var albumGroup in _searchResults
+                            .GroupBy(t => t.AlbumId ?? Guid.Empty)
+                            .OrderBy(g => g.Key == Guid.Empty ? 0 : 1)
+                            .ThenBy(g => g.First().ArtistName)
+                            .ThenBy(g => g.Key == Guid.Empty ? null : g.First().AlbumTitle))
+                        {
+                            var albumTitle = albumGroup.First().AlbumTitle ?? "Unknown Album";
+                            var artistName = albumGroup.First().ArtistName;
+                            var isNowPlaying = Playback.NowPlaying is not null;
+                            <div class="search-album-group">
+                                <div class="search-album-header">
+                                    <span class="album-group-icon">💿</span>
+                                    <div class="album-group-info">
+                                        @if (albumGroup.Key != Guid.Empty)
+                                        {
+                                            <a class="album-group-title"
+                                               title="View album"
+                                               @onclick="() => NavigateToAlbumAsync(albumGroup.Key)"
+                                               @onclick:stopPropagation="true">@albumTitle</a>
+                                        }
+                                        else
+                                        {
+                                            <span class="album-group-title">@albumTitle</span>
+                                        }
+                                        <span class="album-group-artist">@artistName</span>
+                                    </div>
+                                    <span class="album-group-count">@albumGroup.Count() @(albumGroup.Count() == 1 ? "track" : "tracks")</span>
+                                </div>
+                                <div class="track-list">
+                                    @foreach (var (track, index) in albumGroup.Select((t, i) => (t, i)))
+                                    {
+                                        <div class="track-row @(isNowPlaying && Playback.NowPlaying?.Id == track.Id ? "playing" : "")"
+                                             @ondblclick="() => PlayTrackAsync(track)">
+                                            <span class="track-num">@(track.TrackNumber?.ToString() ?? "—")</span>
+                                            <div class="track-info">
+                                                <span class="track-title">@track.Title</span>
+                                            </div>
+                                            <span class="track-duration">@FormatDuration(track.Duration)</span>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
         else
         {
             @* ─── Library / Recently Played ─── *@
@@ -712,28 +778,6 @@
                             <span class="track-duration">@FormatDuration(track.Duration)</span>
                         </div>
                     }
-                </div>
-            }
-
-            @* ─── Search Results ─── *@
-            @if (_searchResults is not null)
-            {
-                <div class="search-results">
-                    <h4>Search Results for "@_searchQuery"</h4>
-                    <div class="track-list">
-                        @foreach (var (track, index) in _searchResults.Select((t, i) => (t, i)))
-                        {
-                            <div class="track-row @(Playback.NowPlaying?.Id == track.Id ? "playing" : "")"
-                                 @ondblclick="() => PlayTrackAsync(track)">
-                                <span class="track-num">@(index + 1)</span>
-                                <div class="track-info">
-                                    <span class="track-title">@track.Title</span>
-                                    <span class="track-artist">@track.ArtistName — @track.AlbumTitle</span>
-                                </div>
-                                <span class="track-duration">@FormatDuration(track.Duration)</span>
-                            </div>
-                        }
-                    </div>
                 </div>
             }
 

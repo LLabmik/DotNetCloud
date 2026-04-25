@@ -781,6 +781,7 @@ public partial class MusicPage : IAsyncDisposable
             {
                 var caller = await GetCallerAsync();
                 _searchResults = (await TrackService.SearchAsync(caller, _searchQuery, 50)).ToList();
+                _breadcrumb.Clear();
             }
             catch (Exception ex)
             {
@@ -791,6 +792,13 @@ public partial class MusicPage : IAsyncDisposable
         {
             _searchResults = null;
         }
+    }
+
+    private void ClearSearch()
+    {
+        _searchQuery = string.Empty;
+        _searchResults = null;
+        _breadcrumb.Clear();
     }
 
     // ────────────────────────────────────────────────────────
@@ -806,21 +814,23 @@ public partial class MusicPage : IAsyncDisposable
     //  Helpers
     // ────────────────────────────────────────────────────────
 
-    private string GetSectionTitle() => _section switch
-    {
-        Section.Library => "Library",
-        Section.Artists when _selectedArtist is not null => _selectedArtist.Name,
-        Section.Artists => "Artists",
-        Section.Albums when _selectedAlbum is not null => _selectedAlbum.Title,
-        Section.Albums => "Albums",
-        Section.Genres when _selectedGenre is not null => _selectedGenre,
-        Section.Genres => "Genres",
-        Section.Playlists when _selectedPlaylist is not null => _selectedPlaylist.Name,
-        Section.Playlists => "Playlists",
-        Section.Favorites => "Favorites",
-        Section.RecentlyPlayed => "Recently Played",
-        _ => "Music"
-    };
+    private string GetSectionTitle() => _searchResults is not null
+        ? $"Search: {_searchQuery}"
+        : _section switch
+        {
+            Section.Library => "Library",
+            Section.Artists when _selectedArtist is not null => _selectedArtist.Name,
+            Section.Artists => "Artists",
+            Section.Albums when _selectedAlbum is not null => _selectedAlbum.Title,
+            Section.Albums => "Albums",
+            Section.Genres when _selectedGenre is not null => _selectedGenre,
+            Section.Genres => "Genres",
+            Section.Playlists when _selectedPlaylist is not null => _selectedPlaylist.Name,
+            Section.Playlists => "Playlists",
+            Section.Favorites => "Favorites",
+            Section.RecentlyPlayed => "Recently Played",
+            _ => "Music"
+        };
 
     private static string FormatDuration(TimeSpan duration) => MusicPlaybackState.FormatDuration(duration);
 
