@@ -15,6 +15,7 @@
     <PackageReference Include="Moq" />
     <PackageReference Include="MSTest.TestAdapter" />
     <PackageReference Include="MSTest.TestFramework" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
     <!-- Security: override vulnerable transitive dependency (GHSA-37gx-xxp4-5rgx, GHSA-w3x6-4m5h-cxqf) -->
     <PackageReference Include="System.Security.Cryptography.Xml" />
   </ItemGroup>
