@@ -118,9 +118,27 @@ public partial class VideoPage : IAsyncDisposable
 
     /// <summary>Called from JS when the video element fires an error event.</summary>
     [JSInvokable]
-    public void OnVideoError(int code, string message)
+    public void OnVideoError(int code, string message, int? httpStatus, string? httpStatusText)
     {
-        _codecErrorMessage = "playback_error";
+        var codeLabel = code switch
+        {
+            1 => "MEDIA_ERR_ABORTED",
+            2 => "MEDIA_ERR_NETWORK",
+            3 => "MEDIA_ERR_DECODE",
+            4 => "MEDIA_ERR_SRC_NOT_SUPPORTED",
+            _ => $"Unknown ({code})"
+        };
+
+        var diagnostic = $"Code: {codeLabel}";
+        if (!string.IsNullOrWhiteSpace(message))
+            diagnostic += $" — {message}";
+        if (httpStatus.HasValue)
+            diagnostic += $" | HTTP {httpStatus}";
+        if (!string.IsNullOrWhiteSpace(httpStatusText))
+            diagnostic += $" ({httpStatusText})";
+
+        Logger.LogWarning("Video playback error: {Diagnostic}", diagnostic);
+        _codecErrorMessage = diagnostic;
         InvokeAsync(StateHasChanged);
     }
 

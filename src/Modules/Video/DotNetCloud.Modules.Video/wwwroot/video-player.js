@@ -10,10 +10,27 @@ export function attachVideoErrorListener(elementId, dotNetRef) {
     const video = document.getElementById(elementId);
     if (!video) return;
 
-    video.addEventListener('error', function () {
+    video.addEventListener('error', async function () {
         const err = video.error;
         if (!err) return;
-        dotNetRef.invokeMethodAsync('OnVideoError', err.code, err.message || '');
+
+        // Probe the stream URL to capture the HTTP status — a 4xx/5xx
+        // response means the server rejected the request rather than the
+        // browser failing to decode the media.
+        let httpStatus = null;
+        let httpStatusText = '';
+        try {
+            const resp = await fetch(video.src, { method: 'GET' });
+            httpStatus = resp.status;
+            httpStatusText = resp.statusText || '';
+        } catch (fetchErr) {
+            httpStatus = 0;
+            httpStatusText = fetchErr.message || 'fetch failed';
+        }
+
+        dotNetRef.invokeMethodAsync('OnVideoError',
+            err.code, err.message || '',
+            httpStatus, httpStatusText);
     }, { once: true });
 
     // Detect missing audio after the video starts playing.
