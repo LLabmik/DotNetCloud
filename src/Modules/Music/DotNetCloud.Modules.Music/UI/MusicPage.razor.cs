@@ -34,6 +34,10 @@ public partial class MusicPage : IAsyncDisposable
     private int _totalArtists;
     private bool _hasMoreArtists;
     private List<MusicAlbumDto> _albums = [];
+    private int _albumPage = 0;
+    private int _albumPageSize = 50;
+    private int _totalAlbums;
+    private bool _hasMoreAlbums;
     private List<MusicAlbumDto> _recentAlbums = [];
     private List<TrackDto> _newTracks = [];
     private List<TrackDto> _recommendations = [];
@@ -320,7 +324,8 @@ public partial class MusicPage : IAsyncDisposable
                     break;
 
                 case Section.Albums:
-                    _albums = (await AlbumService.ListAlbumsAsync(caller, 0, 200)).ToList();
+                    _albumPage = 0;
+                    await LoadAlbumsAsync();
                     break;
 
                 case Section.Genres:
@@ -400,6 +405,57 @@ public partial class MusicPage : IAsyncDisposable
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error fetching next page of artists");
+        }
+    }
+
+    // ────────────────────────────────────────────────────────
+    //  Album pagination
+    // ────────────────────────────────────────────────────────
+
+    private async Task LoadAlbumsAsync()
+    {
+        try
+        {
+            var caller = await GetCallerAsync();
+            var albums = (await AlbumService.ListAlbumsAsync(caller, _albumPage * _albumPageSize, _albumPageSize + 1)).ToList();
+            _hasMoreAlbums = albums.Count > _albumPageSize;
+            if (_hasMoreAlbums)
+            {
+                albums.RemoveAt(albums.Count - 1);
+            }
+            _albums = albums;
+            _totalAlbums = _albumPage * _albumPageSize + albums.Count + (_hasMoreAlbums ? 1 : 0);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading albums");
+        }
+    }
+
+    private async Task PrevAlbumPageAsync()
+    {
+        if (_albumPage > 0)
+        {
+            _albumPage--;
+            await LoadAlbumsAsync();
+        }
+    }
+
+    private async Task NextAlbumPageAsync()
+    {
+        if (!_hasMoreAlbums)
+        {
+            return;
+        }
+
+        try
+        {
+            _albumPage++;
+            await LoadAlbumsAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error fetching next page of albums");
         }
     }
 

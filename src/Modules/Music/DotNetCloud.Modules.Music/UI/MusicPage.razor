@@ -321,19 +321,19 @@
             @* ─── Artists Grid ─── *@
             @if (_section == Section.Artists && _selectedArtist is null)
             {
-                <div class="artists-grid">
-                    <div class="artists-toolbar">
-                        <button class="btn-icon" @onclick="PrevArtistPageAsync" disabled="@(_artistPage == 0)" title="Previous page">
-                            <span>◀</span>
-                        </button>
-                        <div class="artists-page-info">
-                            <span>Showing @(_totalArtists == 0 ? 0 : _artistPage * _artistPageSize + 1)-@Math.Min((_artistPage + 1) * _artistPageSize, _totalArtists) of @_totalArtists artists</span>
-                            <span class="artists-page-info-more">@(_hasMoreArtists ? "(More available)" : "(All shown)")</span>
-                        </div>
-                        <button class="btn-icon" @onclick="NextArtistPageAsync" disabled="@(!_hasMoreArtists)" title="Next page">
-                            <span>▶</span>
-                        </button>
+                <div class="artists-toolbar">
+                    <button class="btn-icon" @onclick="PrevArtistPageAsync" disabled="@(_artistPage == 0)" title="Previous page">
+                        <span>◀</span>
+                    </button>
+                    <div class="artists-page-info">
+                        <span>Showing @(_totalArtists == 0 ? 0 : _artistPage * _artistPageSize + 1)-@Math.Min((_artistPage + 1) * _artistPageSize, _totalArtists) of @_totalArtists artists</span>
+                        <span class="artists-page-info-more">@(_hasMoreArtists ? "(More available)" : "(All shown)")</span>
                     </div>
+                    <button class="btn-icon" @onclick="NextArtistPageAsync" disabled="@(!_hasMoreArtists)" title="Next page">
+                        <span>▶</span>
+                    </button>
+                </div>
+                <div class="artists-grid">
                     @foreach (var artist in _artists)
                     {
                         <div class="artist-card" @onclick="() => OpenArtistDetail(artist)">
@@ -446,6 +446,18 @@
             @* ─── Albums Grid ─── *@
             @if (_section == Section.Albums && _selectedAlbum is null)
             {
+                <div class="albums-toolbar">
+                    <button class="btn-icon" @onclick="PrevAlbumPageAsync" disabled="@(_albumPage == 0)" title="Previous page">
+                        <span>◀</span>
+                    </button>
+                    <div class="albums-page-info">
+                        <span>Showing @(_albums.Count == 0 ? 0 : _albumPage * _albumPageSize + 1)-@(_albumPage * _albumPageSize + _albums.Count) albums</span>
+                        <span class="albums-page-info-more">@(_hasMoreAlbums ? "(More available)" : "(All shown)")</span>
+                    </div>
+                    <button class="btn-icon" @onclick="NextAlbumPageAsync" disabled="@(!_hasMoreAlbums)" title="Next page">
+                        <span>▶</span>
+                    </button>
+                </div>
                 <div class="albums-grid">
                     @foreach (var album in _albums)
                     {
