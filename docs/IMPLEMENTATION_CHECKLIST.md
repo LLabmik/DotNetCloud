@@ -3924,6 +3924,9 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Artist enrichment UI
 - ✓ Settings: enrichment toggles
 - ✓ Settings scan panel keeps showing background enrichment progress after navigation and displays remaining album-art lookups
+- ✓ Artist grid pager toolbar — improved layout, button styling, page info text formatting
+
+#### Phase F — Service Registration + Configuration
 
 #### Phase F — Service Registration + Configuration
 - ✓ Register new services and HTTP clients

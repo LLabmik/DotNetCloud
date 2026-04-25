@@ -328,7 +328,7 @@
                         </button>
                         <div class="artists-page-info">
                             <span>Showing @(_totalArtists == 0 ? 0 : _artistPage * _artistPageSize + 1)-@Math.Min((_artistPage + 1) * _artistPageSize, _totalArtists) of @_totalArtists artists</span>
-                            <span>@(_hasMoreArtists ? "(More available)" : "(All shown)")</span>
+                            <span class="artists-page-info-more">@(_hasMoreArtists ? "(More available)" : "(All shown)")</span>
                         </div>
                         <button class="btn-icon" @onclick="NextArtistPageAsync" disabled="@(!_hasMoreArtists)" title="Next page">
                             <span>▶</span>
