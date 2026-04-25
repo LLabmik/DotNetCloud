@@ -226,7 +226,7 @@
                 <button class="btn-retry" @onclick="LoadCurrentSectionAsync">Retry</button>
             </div>
         }
-        else if (_searchResults is not null)
+        else if (_searchResults is not null && _selectedAlbum is null)
         {
             @* ─── Search Results Page ─── *@
             <div class="search-results-page">

@@ -14,6 +14,9 @@
     [SupplyParameterFromQuery(Name = "_nav")]
     public string? Nav { get; set; }
 
+    [SupplyParameterFromQuery(Name = "trackId")]
+    public string? TrackId { get; set; }
+
     [SupplyParameterFromQuery(Name = "playing")]
     public string? Playing { get; set; }
 
@@ -28,6 +31,12 @@
         {
             _parameters["FileId"] = FileId;
             _parameters["FileIdNav"] = Nav ?? string.Empty;
+            hasParams = true;
+        }
+
+        if (!string.IsNullOrEmpty(TrackId))
+        {
+            _parameters["TrackId"] = TrackId;
             hasParams = true;
         }
 

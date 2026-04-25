@@ -119,6 +119,37 @@ public class SearchResultNavigationHelperTests
         Assert.AreEqual("/apps/files?fileId=file-77&_nav=555", url);
     }
 
+    [TestMethod]
+    public void GetResultUrl_WhenMusicModule_ReturnsUrlWithTrackId()
+    {
+        var item = CreateItem(
+            moduleId: "music",
+            entityId: "abc-123-track-guid",
+            metadata: new Dictionary<string, string>
+            {
+                ["Genre"] = "Rock",
+                ["Year"] = "2024",
+                ["ArtistId"] = "artist-guid",
+                ["AlbumId"] = "album-guid"
+            });
+
+        var url = SearchResultNavigationHelper.GetResultUrl(item, navToken: 42);
+
+        Assert.AreEqual("/apps/music?trackId=abc-123-track-guid", url);
+    }
+
+    [TestMethod]
+    public void GetResultUrl_WhenMusicModule_DoesNotAppendNavToken()
+    {
+        var item = CreateItem(
+            moduleId: "music",
+            entityId: "track-1");
+
+        var url = SearchResultNavigationHelper.GetResultUrl(item, navToken: 999);
+
+        Assert.AreEqual("/apps/music?trackId=track-1", url);
+    }
+
     private static SearchResultItem CreateItem(
         string moduleId,
         string entityId = "entity-1",

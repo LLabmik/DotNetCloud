@@ -93,8 +93,10 @@ public partial class MusicPage : IAsyncDisposable
     // ── Deep-link parameters (from search) ──
     [Parameter] public string? FileId { get; set; }
     [Parameter] public string? FileIdNav { get; set; }
+    [Parameter] public string? TrackId { get; set; }
     [Parameter] public string? ScrollToPlaying { get; set; }
     private string? _lastHandledNav;
+    private string? _lastHandledTrackId;
     private bool _pendingScrollToPlaying;
 
     // ── Library Settings ──
@@ -180,6 +182,13 @@ public partial class MusicPage : IAsyncDisposable
                 _lastHandledNav = FileIdNav;
                 await TryAutoPlayFileAsync(fileId, caller);
             }
+
+            // Deep-link: navigate to album from search if trackId parameter was supplied
+            if (!string.IsNullOrEmpty(TrackId) && Guid.TryParse(TrackId, out var trackId))
+            {
+                _lastHandledTrackId = TrackId;
+                await TryNavigateToTrackAlbumAsync(trackId, caller);
+            }
         }
         catch (Exception ex)
         {
@@ -204,6 +213,14 @@ public partial class MusicPage : IAsyncDisposable
             await TryAutoPlayFileAsync(fileId, caller);
         }
 
+        // Handle same-page navigation from search results for trackId
+        if (!string.IsNullOrEmpty(TrackId) && TrackId != _lastHandledTrackId && Guid.TryParse(TrackId, out var trackId))
+        {
+            _lastHandledTrackId = TrackId;
+            var caller = _caller ?? await GetCallerAsync();
+            await TryNavigateToTrackAlbumAsync(trackId, caller);
+        }
+
         // Handle "scroll to playing track" when navigating from global playbar
         if (string.Equals(ScrollToPlaying, "true", StringComparison.OrdinalIgnoreCase) && Playback.NowPlaying is not null)
         {
@@ -213,7 +230,7 @@ public partial class MusicPage : IAsyncDisposable
             // Navigate to the album containing the playing track
             if (nowPlaying.AlbumId.HasValue)
             {
-                NavigateToAlbumAsync(nowPlaying.AlbumId);
+                await NavigateToAlbumAsync(nowPlaying.AlbumId);
             }
 
             _pendingScrollToPlaying = true;
@@ -245,6 +262,32 @@ public partial class MusicPage : IAsyncDisposable
     }
 
     private TrackDto? _pendingAutoPlayTrack;
+
+    /// <summary>Exposed for testing.</summary>
+    internal TrackDto? PendingAutoPlayTrackForTests => _pendingAutoPlayTrack;
+
+    /// <summary>
+    /// Looks up a track by its ID and navigates to its album.
+    /// </summary>
+    internal async Task TryNavigateToTrackAlbumAsync(Guid trackId, CallerContext caller)
+    {
+        try
+        {
+            var track = await TrackService.GetTrackAsync(trackId, caller);
+            if (track?.AlbumId is not null)
+            {
+                await NavigateToAlbumAsync(track.AlbumId);
+            }
+            else if (track is not null)
+            {
+                _pendingAutoPlayTrack = track;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to navigate from track {TrackId}", trackId);
+        }
+    }
 
     /// <summary>
     /// Looks up a track by its Files-module FileNodeId and queues it for auto-play.
@@ -529,7 +572,7 @@ public partial class MusicPage : IAsyncDisposable
         StateHasChanged();
     }
 
-    private async void NavigateToAlbumAsync(Guid? albumId)
+    internal virtual async Task NavigateToAlbumAsync(Guid? albumId)
     {
         if (albumId is null) return;
         try
