@@ -787,6 +787,86 @@
     color: var(--color-text, #1e293b);
 }
 
+/* ── TMDB Info Section ── */
+
+.tmdb-info-section {
+    display: flex;
+    gap: 24px;
+    padding: 20px 0;
+    border-top: 1px solid var(--color-border, #e2e8f0);
+    border-bottom: 1px solid var(--color-border, #e2e8f0);
+    margin-bottom: 0;
+}
+
+.tmdb-poster {
+    width: 180px;
+    height: auto;
+    aspect-ratio: 2 / 3;
+    object-fit: cover;
+    border-radius: var(--radius, 8px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    flex-shrink: 0;
+}
+
+.tmdb-details {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
+    flex: 1;
+}
+
+.tmdb-rating {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--color-text, #1e293b);
+}
+
+.tmdb-rating-star {
+    color: #f59e0b;
+    font-size: 1.3rem;
+}
+
+.tmdb-rating-max {
+    font-size: 0.9rem;
+    font-weight: 400;
+    color: var(--color-text-secondary, #64748b);
+}
+
+.tmdb-release-year {
+    font-size: 0.9375rem;
+    font-weight: 500;
+    color: var(--color-text-secondary, #64748b);
+}
+
+.tmdb-genres {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.tmdb-genre-tag {
+    display: inline-block;
+    padding: 3px 10px;
+    background: var(--color-bg, #f5f7fa);
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--color-text-secondary, #64748b);
+}
+
+.tmdb-overview {
+    margin: 4px 0 0;
+    font-size: 0.875rem;
+    line-height: 1.65;
+    color: var(--color-text-secondary, #64748b);
+    max-width: 65ch;
+}
+
 /* ── Metadata Grid ── */
 .metadata-grid {
     display: grid;
@@ -1047,6 +1127,15 @@
     .metadata-grid {
         grid-template-columns: repeat(2, 1fr);
     }
+
+    .tmdb-info-section {
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .tmdb-poster {
+        width: 140px;
+    }
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -1064,4 +1153,13 @@
 
 :global(.dark-mode) .video-thumb {
     background: #0f172a;
+}
+
+:global(.dark-mode) .tmdb-poster {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+:global(.dark-mode) .tmdb-genre-tag {
+    background: #0f172a;
+    border-color: #334155;
 }
