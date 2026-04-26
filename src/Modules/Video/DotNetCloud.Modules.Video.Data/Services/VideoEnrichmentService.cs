@@ -73,7 +73,7 @@ public sealed partial class VideoEnrichmentService : IVideoEnrichmentService
             video.TmdbId = detail.Id;
             video.TmdbTitle = detail.Title;
             video.Overview = detail.Overview;
-            video.ReleaseDate = detail.ReleaseDate;
+            video.ReleaseDate = detail.ReleaseDate is not null ? DateTime.SpecifyKind(detail.ReleaseDate.Value, DateTimeKind.Utc) : null;
             video.TmdbRating = detail.VoteAverage;
             video.Genres = detail.Genres.Count > 0 ? string.Join(", ", detail.Genres.Select(g => g.Name)) : null;
         }
@@ -85,7 +85,7 @@ public sealed partial class VideoEnrichmentService : IVideoEnrichmentService
             video.Overview = best.Overview;
             video.TmdbRating = best.VoteAverage;
             if (best.ReleaseDate is not null && DateTime.TryParse(best.ReleaseDate, out var rd))
-                video.ReleaseDate = rd;
+                video.ReleaseDate = DateTime.SpecifyKind(rd, DateTimeKind.Utc);
         }
 
         // Phase 3: Download poster
