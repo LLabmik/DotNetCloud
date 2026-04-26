@@ -582,6 +582,7 @@ Environment=DOTNET_ENVIRONMENT=Production
 Environment=DOTNETCLOUD_CONFIG_DIR=${CONFIG_DIR}
 Environment=DOTNETCLOUD_DATA_DIR=${DATA_DIR}
 Environment=DOTNETCLOUD_LOG_DIR=${LOG_DIR}
+Environment=Video__Enrichment__TmdbApiKey=a15fa8fabf06e1d13623369b28bba1c5
 
 [Install]
 WantedBy=multi-user.target
@@ -613,6 +614,7 @@ Environment=DOTNET_ENVIRONMENT=Production
 Environment=DOTNETCLOUD_CONFIG_DIR=${CONFIG_DIR}
 Environment=DOTNETCLOUD_DATA_DIR=${DATA_DIR}
 Environment=DOTNETCLOUD_LOG_DIR=${LOG_DIR}
+Environment=Video__Enrichment__TmdbApiKey=a15fa8fabf06e1d13623369b28bba1c5
 
 [Install]
 WantedBy=multi-user.target

@@ -595,6 +595,30 @@ Key settings for the chat module:
 
 ---
 
+## Video Module
+
+Key settings for the Video module:
+
+```json
+{
+  "Video": {
+    "Enrichment": {
+      "TmdbApiKey": ""
+    }
+  }
+}
+```
+
+| Setting | Type | Default | Description |
+|---|---|---|---|
+| `Video:Enrichment:TmdbApiKey` | string | (enabled by default via env var) | TMDB API v3 key for movie metadata and poster art lookup. DotNetCloud ships with a default project key; set to empty to disable enrichment. To use your own, register at https://www.themoviedb.org/signup. |
+
+The Video module uses [TMDB](https://www.themoviedb.org/) (The Movie Database) to automatically fetch movie posters, descriptions, ratings, genres, and release dates. Enrichment runs in the background after library scans. A default API key is provided by the installer so no configuration is needed — TMDB enrichment works out of the box.
+
+To disable TMDB enrichment, set `Video__Enrichment__TmdbApiKey` to an empty string in the environment.
+
+---
+
 ## Environment Variable Reference
 
 Quick reference for the most common settings configured via environment variables:
@@ -614,6 +638,7 @@ Quick reference for the most common settings configured via environment variable
 | `Cors__AllowedOrigins__0` | `https://cloud.example.com` | First allowed CORS origin |
 | `Files__Collabora__Enabled` | `true` | Enable Collabora |
 | `Files__Collabora__ServerUrl` | `https://collabora:9980` | Collabora server URL |
+| `Video__Enrichment__TmdbApiKey` | (auto-configured) | TMDB API key. Set to empty to disable movie metadata enrichment. |
 
 ---
 
