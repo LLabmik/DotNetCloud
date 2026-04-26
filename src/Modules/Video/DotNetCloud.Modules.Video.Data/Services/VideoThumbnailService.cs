@@ -1,6 +1,8 @@
 using System.Diagnostics;
+using System.Text.Json;
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Modules.Files.Services;
+using DotNetCloud.Modules.Video.Models;
 using DotNetCloud.Modules.Video.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -280,6 +282,196 @@ public sealed class VideoThumbnailService : IVideoThumbnailService
         {
             return Task.FromResult<IReadOnlyList<string>?>(null);
         }
+    }
+
+    /// <inheritdoc />
+    public async Task ExtractMetadataAsync(Guid videoId, Guid fileNodeId, CancellationToken cancellationToken = default)
+    {
+        string? tempVideoPath = null;
+
+        try
+        {
+            var caller = new CallerContext(Guid.Empty, [], CallerType.System);
+            await using var videoStream = await _downloadService.DownloadCurrentAsync(fileNodeId, caller);
+
+            if (videoStream is FileStream fs)
+                tempVideoPath = fs.Name;
+            else
+            {
+                tempVideoPath = Path.GetTempFileName();
+                await using var tempFile = File.Create(tempVideoPath);
+                await videoStream.CopyToAsync(tempFile, cancellationToken);
+            }
+
+            // Run ffprobe — derive path from ffmpegthumbnailer location
+            var ffprobePath = _ffmpegPath == "ffmpegthumbnailer"
+                ? "ffprobe"
+                : Path.Combine(Path.GetDirectoryName(_ffmpegPath)!, "ffprobe");
+
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = ffprobePath,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+            startInfo.ArgumentList.Add("-v");
+            startInfo.ArgumentList.Add("quiet");
+            startInfo.ArgumentList.Add("-print_format");
+            startInfo.ArgumentList.Add("json");
+            startInfo.ArgumentList.Add("-show_format");
+            startInfo.ArgumentList.Add("-show_streams");
+            startInfo.ArgumentList.Add(tempVideoPath);
+
+            using var process = Process.Start(startInfo);
+            if (process is null)
+            {
+                _logger.LogWarning("Unable to start ffprobe for video {VideoId}", videoId);
+                return;
+            }
+
+            var stdout = await process.StandardOutput.ReadToEndAsync(cancellationToken);
+            await process.WaitForExitAsync(cancellationToken);
+
+            if (process.ExitCode != 0 || string.IsNullOrWhiteSpace(stdout))
+            {
+                var stderr = await process.StandardError.ReadToEndAsync(cancellationToken);
+                _logger.LogWarning("ffprobe failed for video {VideoId}: {StdErr}", videoId, stderr);
+                return;
+            }
+
+            using var doc = JsonDocument.Parse(stdout);
+            var root = doc.RootElement;
+
+            var streams = root.TryGetProperty("streams", out var s) ? s : default;
+            var format = root.TryGetProperty("format", out var f) ? f : default;
+
+            var vid = EnumerateStreams(streams, "video");
+            var aud = EnumerateStreams(streams, "audio");
+
+            var metadata = new VideoMetadata
+            {
+                VideoId = videoId,
+                Width = vid.w ?? 0,
+                Height = vid.h ?? 0,
+                FrameRate = ParseFrameRate(vid.r),
+                VideoCodec = vid.c,
+                AudioCodec = aud.c,
+                Bitrate = ParseLong(vid.b) ?? ParseLong(format, "bit_rate") ?? 0,
+                AudioTrackCount = CountStreams(streams, "audio"),
+                SubtitleTrackCount = CountStreams(streams, "subtitle"),
+                ContainerFormat = GetString(format, "format_name")?.Split(',').FirstOrDefault()?.Trim()
+            };
+
+            // Save or update
+            var existing = await _db.VideoMetadata
+                .FirstOrDefaultAsync(m => m.VideoId == videoId, cancellationToken);
+
+            if (existing is not null)
+            {
+                existing.Width = metadata.Width;
+                existing.Height = metadata.Height;
+                existing.FrameRate = metadata.FrameRate;
+                existing.VideoCodec = metadata.VideoCodec;
+                existing.AudioCodec = metadata.AudioCodec;
+                existing.Bitrate = metadata.Bitrate;
+                existing.AudioTrackCount = metadata.AudioTrackCount;
+                existing.SubtitleTrackCount = metadata.SubtitleTrackCount;
+                existing.ContainerFormat = metadata.ContainerFormat;
+                existing.ExtractedAt = DateTime.UtcNow;
+            }
+            else
+            {
+                metadata.ExtractedAt = DateTime.UtcNow;
+                _db.VideoMetadata.Add(metadata);
+            }
+
+            await _db.SaveChangesAsync(cancellationToken);
+
+            _logger.LogInformation("Metadata extracted for video {VideoId}: {Width}x{Height} {Codec}",
+                videoId, metadata.Width, metadata.Height, metadata.VideoCodec);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Metadata extraction failed for video {VideoId}", videoId);
+        }
+    }
+
+    private static (int? w, int? h, string? c, string? r, string? b) EnumerateStreams(JsonElement streams, string type)
+    {
+        if (streams.ValueKind != JsonValueKind.Array) return default;
+
+        foreach (var stream in streams.EnumerateArray())
+        {
+            if (stream.TryGetProperty("codec_type", out var ct) &&
+                ct.ValueKind == JsonValueKind.String &&
+                string.Equals(ct.GetString(), type, StringComparison.OrdinalIgnoreCase))
+            {
+                int? w = null, h = null;
+                string? c = null, r = null, b = null;
+
+                if (stream.TryGetProperty("width", out var wEl) && wEl.TryGetInt32(out var wVal)) w = wVal;
+                if (stream.TryGetProperty("height", out var hEl) && hEl.TryGetInt32(out var hVal)) h = hVal;
+                if (stream.TryGetProperty("codec_name", out var cn) && cn.ValueKind == JsonValueKind.String) c = cn.GetString();
+                if (stream.TryGetProperty("r_frame_rate", out var rf) && rf.ValueKind == JsonValueKind.String) r = rf.GetString();
+                if (stream.TryGetProperty("bit_rate", out var br) && br.ValueKind == JsonValueKind.String) b = br.GetString();
+
+                return (w, h, c, r, b);
+            }
+        }
+
+        return default;
+    }
+
+    private static int CountStreams(JsonElement streams, string type)
+    {
+        if (streams.ValueKind != JsonValueKind.Array) return 0;
+        var count = 0;
+        foreach (var stream in streams.EnumerateArray())
+        {
+            if (stream.TryGetProperty("codec_type", out var ct) &&
+                ct.ValueKind == JsonValueKind.String &&
+                string.Equals(ct.GetString(), type, StringComparison.OrdinalIgnoreCase))
+            {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private static double ParseFrameRate(string? rFrameRate)
+    {
+        if (string.IsNullOrWhiteSpace(rFrameRate)) return 0;
+        var parts = rFrameRate.Split('/');
+        if (parts.Length == 2 &&
+            double.TryParse(parts[0], out var num) &&
+            double.TryParse(parts[1], out var den) &&
+            den > 0)
+        {
+            return Math.Round(num / den, 2);
+        }
+        return double.TryParse(rFrameRate, out var d) ? Math.Round(d, 2) : 0;
+    }
+
+    private static long? ParseLong(string? value)
+    {
+        return long.TryParse(value, out var v) ? v : null;
+    }
+
+    private static long? ParseLong(JsonElement element, string propertyName)
+    {
+        return element.ValueKind == JsonValueKind.Object &&
+               element.TryGetProperty(propertyName, out var prop) &&
+               prop.ValueKind == JsonValueKind.String &&
+               long.TryParse(prop.GetString(), out var v) ? v : null;
+    }
+
+    private static string? GetString(JsonElement element, string propertyName)
+    {
+        return element.ValueKind == JsonValueKind.Object &&
+               element.TryGetProperty(propertyName, out var prop) &&
+               prop.ValueKind == JsonValueKind.String ? prop.GetString() : null;
     }
 
     private async Task<bool> ExtractFrameAsync(string inputPath, string outputPath, string timestamp, CancellationToken cancellationToken)

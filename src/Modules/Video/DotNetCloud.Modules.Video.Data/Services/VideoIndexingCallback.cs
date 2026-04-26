@@ -86,6 +86,21 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
             }
         }, CancellationToken.None);
 
+        // Metadata extraction (fire-and-forget — uses ffprobe, no network dependency)
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await using var scope = _scopeFactory.CreateAsyncScope();
+                var thumbnailService = scope.ServiceProvider.GetRequiredService<IVideoThumbnailService>();
+                await thumbnailService.ExtractMetadataAsync(video.Id, fileNodeId, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Metadata extraction failed for video {VideoId}", video.Id);
+            }
+        }, CancellationToken.None);
+
         _logger.LogDebug("Video indexed for FileNode {FileNodeId} by user {OwnerId}", fileNodeId, ownerId);
     }
 

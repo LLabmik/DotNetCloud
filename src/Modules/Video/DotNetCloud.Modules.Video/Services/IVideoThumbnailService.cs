@@ -55,4 +55,10 @@ public interface IVideoThumbnailService
     /// or null if none exist.
     /// </summary>
     Task<IReadOnlyList<string>?> GetScreenshotPathsAsync(Guid videoId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Extracts technical metadata (resolution, codecs, bitrate, etc.) from the video file
+    /// using ffprobe and saves it to the database.
+    /// </summary>
+    Task ExtractMetadataAsync(Guid videoId, Guid fileNodeId, CancellationToken cancellationToken = default);
 }
