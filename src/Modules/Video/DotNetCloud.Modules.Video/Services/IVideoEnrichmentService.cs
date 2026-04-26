@@ -8,6 +8,9 @@ namespace DotNetCloud.Modules.Video.Services;
 /// </summary>
 public interface IVideoEnrichmentService
 {
+    /// <summary>Whether TMDB enrichment is available (API key is configured).</summary>
+    bool IsTmdbAvailable { get; }
+
     /// <summary>Enriches a single video with TMDB metadata and poster art.</summary>
     Task EnrichVideoAsync(Guid videoId, CallerContext caller, bool force = false, CancellationToken cancellationToken = default);
 

@@ -26,10 +26,14 @@ public sealed partial class VideoEnrichmentService : IVideoEnrichmentService
         _tmdbClient = tmdbClient;
         _logger = logger;
 
+        IsTmdbAvailable = !string.IsNullOrWhiteSpace(configuration["Video:Enrichment:TmdbApiKey"]);
+
         var storageRoot = configuration["Files:Storage:RootPath"] ?? Path.GetTempPath();
         _posterCacheDir = Path.Combine(storageRoot, ".video-posters");
-        Directory.CreateDirectory(_posterCacheDir);
     }
+
+    /// <inheritdoc />
+    public bool IsTmdbAvailable { get; }
 
     /// <inheritdoc />
     public async Task EnrichVideoAsync(Guid videoId, CallerContext caller, bool force = false, CancellationToken cancellationToken = default)
@@ -181,6 +185,7 @@ public sealed partial class VideoEnrichmentService : IVideoEnrichmentService
     {
         try
         {
+            Directory.CreateDirectory(_posterCacheDir);
             var ext = mimeType.Contains("png", StringComparison.OrdinalIgnoreCase) ? ".png" : ".jpg";
             var path = Path.Combine(_posterCacheDir, $"{videoId}{ext}");
             File.WriteAllBytes(path, data);

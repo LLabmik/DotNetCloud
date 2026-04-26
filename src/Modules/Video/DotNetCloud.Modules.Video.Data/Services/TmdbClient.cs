@@ -30,7 +30,7 @@ public sealed class TmdbClient : ITmdbClient
         _logger = logger;
 
         if (string.IsNullOrWhiteSpace(_apiKey))
-            _logger.LogWarning("TMDB API key is not configured (Video:Enrichment:TmdbApiKey). Enrichment will be disabled.");
+            _logger.LogInformation("TMDB API key is not configured (Video:Enrichment:TmdbApiKey). TMDB enrichment is disabled.");
     }
 
     /// <inheritdoc />

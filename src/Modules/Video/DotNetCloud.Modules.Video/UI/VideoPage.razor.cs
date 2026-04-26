@@ -96,6 +96,7 @@ public partial class VideoPage : IAsyncDisposable
     private bool _settingsResetting;
 
     // Enrichment state
+    private bool _tmdbAvailable;
     private bool _enrichingVideo;
     private Guid? _enrichingVideoId;
     private string? _enrichmentToast;
@@ -197,6 +198,8 @@ public partial class VideoPage : IAsyncDisposable
 
             _loading = true;
             _caller = await GetCallerAsync();
+
+            _tmdbAvailable = EnrichmentService.IsTmdbAvailable;
 
             // Deep-link: auto-open from Files module if fileId parameter was supplied on first load
             if (!string.IsNullOrEmpty(FileId) && Guid.TryParse(FileId, out var fileId))

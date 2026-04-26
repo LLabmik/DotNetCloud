@@ -43,8 +43,6 @@ public sealed class VideoThumbnailService : IVideoThumbnailService
         var storageRoot = configuration["Files:Storage:RootPath"] ?? Path.GetTempPath();
         _screenshotCacheDir = Path.Combine(storageRoot, ".video-screenshots");
         _posterCacheDir = Path.Combine(storageRoot, ".video-posters");
-        Directory.CreateDirectory(_screenshotCacheDir);
-        Directory.CreateDirectory(_posterCacheDir);
     }
 
     /// <inheritdoc />
@@ -242,6 +240,7 @@ public sealed class VideoThumbnailService : IVideoThumbnailService
                         screenshotBytes = output.ToArray();
                     }
 
+                    Directory.CreateDirectory(_screenshotCacheDir);
                     var screenshotPath = Path.Combine(_screenshotCacheDir, $"{videoId}_{pct}.jpg");
                     await File.WriteAllBytesAsync(screenshotPath, screenshotBytes, cancellationToken);
                 }

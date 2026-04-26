@@ -480,26 +480,29 @@
                             <div class="alert alert-success" style="margin-top: 12px; font-size: 13px;">@_settingsSuccess</div>
                         }
 
-                        <div class="enrichment-settings" style="margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--color-border, rgba(255,255,255,0.08));">
-                            <h5 style="margin-bottom: 10px;">TMDB Enrichment</h5>
-                            <p class="hint" style="margin-bottom: 8px;">Requires a TMDB API key configured in appsettings (Video:Enrichment:TmdbApiKey).</p>
-                            <label class="checkbox-label" style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px; cursor: pointer;">
-                                <input type="checkbox" checked="@_autoFetchMetadata" @onchange="OnAutoFetchMetadataChanged" />
-                                Auto-fetch movie metadata from TMDB after library scan
-                            </label>
-                            <label class="checkbox-label" style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px; cursor: pointer;">
-                                <input type="checkbox" checked="@_autoFetchPosters" @onchange="OnAutoFetchPostersChanged" />
-                                Auto-fetch movie posters from TMDB after library scan
-                            </label>
-                            <button class="btn btn-outline btn-sm" style="margin-top: 10px;"
-                                    @onclick="EnrichLibraryAsync" disabled="@_settingsEnriching">
-                                @(_settingsEnriching ? "Enriching..." : "Enrich Library")
-                            </button>
-                            @if (!string.IsNullOrWhiteSpace(_enrichmentToast))
-                            {
-                                <div class="alert alert-info" style="margin-top: 8px; font-size: 13px;">@_enrichmentToast</div>
-                            }
-                        </div>
+                        @if (_tmdbAvailable)
+                        {
+                            <div class="enrichment-settings" style="margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--color-border, rgba(255,255,255,0.08));">
+                                <h5 style="margin-bottom: 10px;">TMDB Enrichment</h5>
+                                <p class="hint" style="margin-bottom: 8px;">Auto-fetch movie posters and metadata from TMDB for videos in your library.</p>
+                                <label class="checkbox-label" style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px; cursor: pointer;">
+                                    <input type="checkbox" checked="@_autoFetchMetadata" @onchange="OnAutoFetchMetadataChanged" />
+                                    Auto-fetch movie metadata from TMDB after library scan
+                                </label>
+                                <label class="checkbox-label" style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px; cursor: pointer;">
+                                    <input type="checkbox" checked="@_autoFetchPosters" @onchange="OnAutoFetchPostersChanged" />
+                                    Auto-fetch movie posters from TMDB after library scan
+                                </label>
+                                <button class="btn btn-outline btn-sm" style="margin-top: 10px;"
+                                        @onclick="EnrichLibraryAsync" disabled="@_settingsEnriching">
+                                    @(_settingsEnriching ? "Enriching..." : "Enrich Library")
+                                </button>
+                                @if (!string.IsNullOrWhiteSpace(_enrichmentToast))
+                                {
+                                    <div class="alert alert-info" style="margin-top: 8px; font-size: 13px;">@_enrichmentToast</div>
+                                }
+                            </div>
+                        }
 
                         <div class="settings-danger-zone" style="margin-top: 24px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.08);">
                             <h5 style="color: var(--color-danger, #e55); margin-bottom: 8px;">Reset Collection</h5>
@@ -668,20 +671,23 @@
                                     @(_playerVideo.IsFavorite ? "★" : "☆")
                                 </button>
                                 <button type="button" class="btn-icon-action" @onclick="() => _showAddToCollection = true" title="Add to collection">📁</button>
-                                <button type="button" class="btn-icon-action"
-                                        @onclick="() => EnrichVideoAsync(_playerVideo!.Id)"
-                                        disabled="@(_enrichingVideo && _enrichingVideoId == _playerVideo!.Id)"
-                                        title="Fetch movie poster and metadata from TMDB">
-                                    @if (_enrichingVideo && _enrichingVideoId == _playerVideo!.Id)
-                                    {
-                                        <span class="enrich-spinner"></span>
-                                        <span>Fetching...</span>
-                                    }
-                                    else
-                                    {
-                                        <span>🎬</span>
-                                    }
-                                </button>
+                                @if (_tmdbAvailable)
+                                {
+                                    <button type="button" class="btn-icon-action"
+                                            @onclick="() => EnrichVideoAsync(_playerVideo!.Id)"
+                                            disabled="@(_enrichingVideo && _enrichingVideoId == _playerVideo!.Id)"
+                                            title="Fetch movie poster and metadata from TMDB">
+                                        @if (_enrichingVideo && _enrichingVideoId == _playerVideo!.Id)
+                                        {
+                                            <span class="enrich-spinner"></span>
+                                            <span>Fetching...</span>
+                                        }
+                                        else
+                                        {
+                                            <span>🎬</span>
+                                        }
+                                    </button>
+                                }
                                 <button type="button" class="btn-close-player" @onclick="ClosePlayer">✕ Close</button>
                             </div>
                         </div>
