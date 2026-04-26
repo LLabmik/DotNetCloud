@@ -23,6 +23,7 @@ public class VideoController : VideoControllerBase
     private readonly VideoMetadataService _metadataService;
     private readonly IDownloadService _downloadService;
     private readonly IVideoThumbnailService _thumbnailService;
+    private readonly IVideoEnrichmentService _enrichmentService;
     private readonly ILogger<VideoController> _logger;
 
     /// <summary>
@@ -37,6 +38,7 @@ public class VideoController : VideoControllerBase
         VideoMetadataService metadataService,
         IDownloadService downloadService,
         IVideoThumbnailService thumbnailService,
+        IVideoEnrichmentService enrichmentService,
         ILogger<VideoController> logger)
     {
         _videoService = videoService;
@@ -47,6 +49,7 @@ public class VideoController : VideoControllerBase
         _metadataService = metadataService;
         _downloadService = downloadService;
         _thumbnailService = thumbnailService;
+        _enrichmentService = enrichmentService;
         _logger = logger;
     }
 
@@ -82,6 +85,37 @@ public class VideoController : VideoControllerBase
 
         Response.Headers.CacheControl = "private, max-age=3600";
         return File(stream, contentType ?? "image/jpeg");
+    }
+
+    /// <summary>Triggers TMDB enrichment for a video.</summary>
+    [HttpPost("{videoId:guid}/enrich")]
+    public async Task<IActionResult> EnrichVideo(Guid videoId, [FromQuery] bool force = false)
+    {
+        var caller = GetAuthenticatedCaller();
+        try
+        {
+            await _enrichmentService.EnrichVideoAsync(videoId, caller, force);
+            var video = await _videoService.GetVideoAsync(videoId, caller);
+            return video is null
+                ? NotFound(ErrorEnvelope(ErrorCodes.VideoNotFound, "Video not found."))
+                : Ok(Envelope(video));
+        }
+        catch (BusinessRuleException ex) when (ex.ErrorCode == ErrorCodes.VideoNotFound)
+        {
+            return NotFound(ErrorEnvelope(ErrorCodes.VideoNotFound, ex.Message));
+        }
+    }
+
+    /// <summary>Gets a specific screenshot frame for a video (0-based index).</summary>
+    [HttpGet("{videoId:guid}/screenshots/{index:int}")]
+    public async Task<IActionResult> GetScreenshot(Guid videoId, int index)
+    {
+        var paths = await _thumbnailService.GetScreenshotPathsAsync(videoId);
+        if (paths is null || index < 0 || index >= paths.Count)
+            return NotFound();
+
+        Response.Headers.CacheControl = "private, max-age=3600";
+        return PhysicalFile(paths[index], "image/jpeg");
     }
 
     /// <summary>Searches videos by title.</summary>

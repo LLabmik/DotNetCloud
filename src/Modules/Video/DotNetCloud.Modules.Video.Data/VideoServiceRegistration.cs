@@ -36,6 +36,25 @@ public static class VideoServiceRegistration
         services.AddScoped<VideoThumbnailService>();
         services.AddScoped<IVideoThumbnailService>(sp => sp.GetRequiredService<VideoThumbnailService>());
 
+        // TMDB API client
+        var tmdbRateLimitMs = configuration.GetValue("Video:Enrichment:TmdbRateLimitMs", 300);
+        services.AddSingleton(new TmdbRateLimiter(tmdbRateLimitMs));
+        services.AddHttpClient<ITmdbClient, TmdbClient>(client =>
+        {
+            client.BaseAddress = new Uri("https://api.themoviedb.org/3/");
+            client.DefaultRequestHeaders.Add("Accept", "application/json");
+            client.DefaultRequestHeaders.Add("User-Agent", "DotNetCloud/0.1");
+        });
+
+        // Video enrichment services
+        services.AddScoped<VideoEnrichmentService>();
+        services.AddScoped<IVideoEnrichmentService>(sp => sp.GetRequiredService<VideoEnrichmentService>());
+
+        // Background enrichment queue (singleton — shared across the application lifetime)
+        services.AddSingleton<InMemoryVideoEnrichmentBackgroundQueue>();
+        services.AddSingleton<IVideoEnrichmentBackgroundQueue>(sp => sp.GetRequiredService<InMemoryVideoEnrichmentBackgroundQueue>());
+        services.AddHostedService<VideoEnrichmentBackgroundService>();
+
         // Indexing callback (bridges Module → Data for FileUploadedEvent handling)
         services.AddScoped<IVideoIndexingCallback, VideoIndexingCallback>();
 

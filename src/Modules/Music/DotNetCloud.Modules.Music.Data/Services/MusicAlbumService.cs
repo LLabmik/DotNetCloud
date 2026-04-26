@@ -53,6 +53,14 @@ public sealed class MusicAlbumService : IMusicAlbumService
     }
 
     /// <summary>
+    /// Gets the total album count for a user.
+    /// </summary>
+    public async Task<int> GetCountAsync(Guid ownerId, CancellationToken cancellationToken = default)
+    {
+        return await _db.Albums.CountAsync(a => a.OwnerId == ownerId, cancellationToken);
+    }
+
+    /// <summary>
     /// Lists albums for the authenticated user.
     /// </summary>
     public async Task<IReadOnlyList<MusicAlbumDto>> ListAlbumsAsync(CallerContext caller, int skip = 0, int take = 50, CancellationToken cancellationToken = default)
@@ -95,7 +103,7 @@ public sealed class MusicAlbumService : IMusicAlbumService
         var albums = await _db.Albums
             .Include(a => a.Artist)
             .Include(a => a.Tracks)
-            .Where(a => a.OwnerId == caller.UserId && a.Title.Contains(query))
+            .Where(a => a.OwnerId == caller.UserId && a.Title.ToLower().Contains(query.ToLower()))
             .OrderBy(a => a.Title)
             .Take(maxResults)
             .ToListAsync(cancellationToken);

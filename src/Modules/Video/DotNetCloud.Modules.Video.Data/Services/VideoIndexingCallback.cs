@@ -2,6 +2,7 @@ using DotNetCloud.Core.Authorization;
 using DotNetCloud.Modules.Video.Events;
 using DotNetCloud.Modules.Video.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.Collections.Generic;
@@ -17,16 +18,18 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
     private readonly VideoService _videoService;
     private readonly VideoDbContext _db;
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IConfiguration _configuration;
     private readonly ILogger<VideoIndexingCallback> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="VideoIndexingCallback"/> class.
     /// </summary>
-    public VideoIndexingCallback(VideoService videoService, VideoDbContext db, IServiceScopeFactory scopeFactory, ILogger<VideoIndexingCallback> logger)
+    public VideoIndexingCallback(VideoService videoService, VideoDbContext db, IServiceScopeFactory scopeFactory, IConfiguration configuration, ILogger<VideoIndexingCallback> logger)
     {
         _videoService = videoService;
         _db = db;
         _scopeFactory = scopeFactory;
+        _configuration = configuration;
         _logger = logger;
     }
 
@@ -52,6 +55,37 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
             }
         }, CancellationToken.None);
 
+        // Generate screenshots (fire-and-forget — no network dependency, runs in parallel with thumbnail)
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await using var scope = _scopeFactory.CreateAsyncScope();
+                var thumbnailService = scope.ServiceProvider.GetRequiredService<IVideoThumbnailService>();
+                await thumbnailService.GenerateScreenshotsAsync(video.Id, fileNodeId, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Screenshot generation failed for video {VideoId}", video.Id);
+            }
+        }, CancellationToken.None);
+
+        // TMDB enrichment (fire-and-forget — network-dependent, graceful failure)
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await using var scope = _scopeFactory.CreateAsyncScope();
+                var enrichmentService = scope.ServiceProvider.GetRequiredService<IVideoEnrichmentService>();
+                var caller = new CallerContext(ownerId, ["user"], CallerType.System);
+                await enrichmentService.EnrichVideoAsync(video.Id, caller, cancellationToken: CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "TMDB enrichment failed for video {VideoId}", video.Id);
+            }
+        }, CancellationToken.None);
+
         _logger.LogDebug("Video indexed for FileNode {FileNodeId} by user {OwnerId}", fileNodeId, ownerId);
     }
 
@@ -59,6 +93,17 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
     public async Task ResetCollectionAsync(CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Resetting video collection — deleting all metadata");
+
+        // Clean up screenshot and poster cache directories
+        var storageRoot = _configuration["Files:Storage:RootPath"] ?? Path.GetTempPath();
+        foreach (var dir in new[] { ".video-screenshots", ".video-posters" })
+        {
+            var path = Path.Combine(storageRoot, dir);
+            if (Directory.Exists(path))
+            {
+                try { Directory.Delete(path, recursive: true); } catch { /* best effort */ }
+            }
+        }
 
         // Delete in FK-safe order: junction/child tables first, then parents.
         // Use IgnoreQueryFilters to include soft-deleted records.

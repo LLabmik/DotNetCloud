@@ -43,4 +43,16 @@ public interface IVideoThumbnailService
     /// <param name="videoId">The video whose thumbnail should be purged.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     Task DeleteThumbnailAsync(Guid videoId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Generates multiple screenshots from the video at different timestamps
+    /// and stores them on disk as a fallback when no external poster is available.
+    /// </summary>
+    Task GenerateScreenshotsAsync(Guid videoId, Guid fileNodeId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns paths to all generated screenshots for a video,
+    /// or null if none exist.
+    /// </summary>
+    Task<IReadOnlyList<string>?> GetScreenshotPathsAsync(Guid videoId, CancellationToken cancellationToken = default);
 }

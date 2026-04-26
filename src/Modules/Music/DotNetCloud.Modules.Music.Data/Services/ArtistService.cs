@@ -63,7 +63,7 @@ public sealed class ArtistService : IArtistService
         var artists = await _db.Artists
             .Include(a => a.Albums)
             .Include(a => a.TrackArtists)
-            .Where(a => a.OwnerId == caller.UserId && a.Name.Contains(query))
+            .Where(a => a.OwnerId == caller.UserId && a.Name.ToLower().Contains(query.ToLower()))
             .OrderBy(a => a.SortName ?? a.Name)
             .Take(maxResults)
             .ToListAsync(cancellationToken);

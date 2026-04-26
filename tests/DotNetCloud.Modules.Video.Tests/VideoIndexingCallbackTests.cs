@@ -3,6 +3,7 @@ using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Video.Data;
 using DotNetCloud.Modules.Video.Data.Services;
 using DotNetCloud.Modules.Video.Services;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -21,7 +22,7 @@ public class VideoIndexingCallbackTests
     {
         _db = TestHelpers.CreateDb();
         _videoService = new VideoService(_db, Mock.Of<IEventBus>(), Mock.Of<ILogger<VideoService>>());
-        _callback = new VideoIndexingCallback(_videoService, _db, Mock.Of<IServiceScopeFactory>(), Mock.Of<ILogger<VideoIndexingCallback>>());
+        _callback = new VideoIndexingCallback(_videoService, _db, Mock.Of<IServiceScopeFactory>(), Mock.Of<IConfiguration>(), Mock.Of<ILogger<VideoIndexingCallback>>());
     }
 
     [TestCleanup]

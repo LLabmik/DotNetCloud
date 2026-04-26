@@ -20,11 +20,14 @@ public interface IVideoService
     /// <summary>Lists videos with paging.</summary>
     Task<IReadOnlyList<VideoDto>> ListVideosAsync(CallerContext caller, int skip = 0, int take = 50, CancellationToken cancellationToken = default);
 
+    /// <summary>Gets the total video count for a user.</summary>
+    Task<int> GetVideoCountAsync(Guid ownerId, CancellationToken cancellationToken = default);
+
     /// <summary>Searches videos by query.</summary>
     Task<IReadOnlyList<VideoDto>> SearchAsync(CallerContext caller, string query, int maxResults = 20, CancellationToken cancellationToken = default);
 
-    /// <summary>Gets recently added videos.</summary>
-    Task<IReadOnlyList<VideoDto>> GetRecentVideosAsync(CallerContext caller, int count = 20, CancellationToken cancellationToken = default);
+    /// <summary>Gets recently added videos with paging.</summary>
+    Task<IReadOnlyList<VideoDto>> GetRecentVideosAsync(CallerContext caller, int skip = 0, int take = 20, CancellationToken cancellationToken = default);
 
     /// <summary>Gets favorited videos.</summary>
     Task<IReadOnlyList<VideoDto>> GetFavoritesAsync(CallerContext caller, CancellationToken cancellationToken = default);

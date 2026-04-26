@@ -393,7 +393,6 @@
                     </button>
                     <div class="artists-page-info">
                         <span>Showing @(_totalArtists == 0 ? 0 : _artistPage * _artistPageSize + 1)-@Math.Min((_artistPage + 1) * _artistPageSize, _totalArtists) of @_totalArtists artists</span>
-                        <span class="artists-page-info-more">@(_hasMoreArtists ? "(More available)" : "(All shown)")</span>
                     </div>
                     <button class="btn-icon" @onclick="NextArtistPageAsync" disabled="@(!_hasMoreArtists)" title="Next page">
                         <span>▶</span>
@@ -517,8 +516,7 @@
                         <span>◀</span>
                     </button>
                     <div class="albums-page-info">
-                        <span>Showing @(_albums.Count == 0 ? 0 : _albumPage * _albumPageSize + 1)-@(_albumPage * _albumPageSize + _albums.Count) albums</span>
-                        <span class="albums-page-info-more">@(_hasMoreAlbums ? "(More available)" : "(All shown)")</span>
+                        <span>Showing @(_albums.Count == 0 ? 0 : _albumPage * _albumPageSize + 1)-@(_albumPage * _albumPageSize + _albums.Count) of @_totalAlbums albums</span>
                     </div>
                     <button class="btn-icon" @onclick="NextAlbumPageAsync" disabled="@(!_hasMoreAlbums)" title="Next page">
                         <span>▶</span>

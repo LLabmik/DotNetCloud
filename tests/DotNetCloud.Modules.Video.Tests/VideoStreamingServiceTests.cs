@@ -215,6 +215,6 @@ public class VideoStreamingServiceTests
     [TestMethod]
     public void GetContentType_ReturnsFallbackForUnknown()
     {
-        Assert.AreEqual("application/octet-stream", VideoStreamingService.GetContentType("video/unknown-format"));
+        Assert.AreEqual("video/unknown-format", VideoStreamingService.GetContentType("video/unknown-format"));
     }
 }

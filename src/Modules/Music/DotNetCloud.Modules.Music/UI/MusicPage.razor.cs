@@ -460,14 +460,10 @@ public partial class MusicPage : IAsyncDisposable
         try
         {
             var caller = await GetCallerAsync();
-            var albums = (await AlbumService.ListAlbumsAsync(caller, _albumPage * _albumPageSize, _albumPageSize + 1)).ToList();
-            _hasMoreAlbums = albums.Count > _albumPageSize;
-            if (_hasMoreAlbums)
-            {
-                albums.RemoveAt(albums.Count - 1);
-            }
+            _totalAlbums = await AlbumService.GetCountAsync(caller.UserId);
+            var albums = (await AlbumService.ListAlbumsAsync(caller, _albumPage * _albumPageSize, _albumPageSize)).ToList();
+            _hasMoreAlbums = (_albumPage + 1) * _albumPageSize < _totalAlbums;
             _albums = albums;
-            _totalAlbums = _albumPage * _albumPageSize + albums.Count + (_hasMoreAlbums ? 1 : 0);
         }
         catch (Exception ex)
         {

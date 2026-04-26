@@ -18,6 +18,8 @@
 @inject DotNetCloud.Modules.Video.Events.IVideoIndexingCallback VideoIndexingCallback
 @inject IJSRuntime Js
 @inject Microsoft.Extensions.Logging.ILogger<VideoPage> Logger
+@inject IVideoEnrichmentService EnrichmentService
+@inject IVideoEnrichmentBackgroundQueue EnrichmentBackgroundQueue
 
 <div class="video-layout">
     @* ─── Sidebar ─── *@
@@ -177,6 +179,17 @@
                     {
                         <section class="video-section">
                             <h4>Recently Added</h4>
+                            <div class="videos-toolbar">
+                                <button class="btn-icon" @onclick="PrevRecentPageAsync" disabled="@(_recentPage == 0)" title="Previous page">
+                                    <span>◀</span>
+                                </button>
+                                <div class="videos-page-info">
+                                    <span>Showing @(_recentVideos.Count == 0 ? 0 : _recentPage * RecentPageSize + 1)-@(_recentPage * RecentPageSize + _recentVideos.Count) of @_totalRecentVideos videos</span>
+                                </div>
+                                <button class="btn-icon" @onclick="NextRecentPageAsync" disabled="@(!_hasMoreRecent)" title="Next page">
+                                    <span>▶</span>
+                                </button>
+                            </div>
                             <div class="video-grid">
                                 @foreach (var video in _recentVideos)
                                 {
@@ -227,8 +240,7 @@
                             <span>◀</span>
                         </button>
                         <div class="videos-page-info">
-                            <span>Showing @(_videos.Count == 0 ? 0 : _videoPage * VideoPageSize + 1)-@(_videoPage * VideoPageSize + _videos.Count) videos</span>
-                            <span class="videos-page-info-more">@(_hasMoreVideos ? "(More available)" : "(All shown)")</span>
+                            <span>Showing @(_videos.Count == 0 ? 0 : _videoPage * VideoPageSize + 1)-@(_videoPage * VideoPageSize + _videos.Count) of @_totalVideos videos</span>
                         </div>
                         <button class="btn-icon" @onclick="NextVideoPageAsync" disabled="@(!_hasMoreVideos)" title="Next page">
                             <span>▶</span>
@@ -468,6 +480,27 @@
                             <div class="alert alert-success" style="margin-top: 12px; font-size: 13px;">@_settingsSuccess</div>
                         }
 
+                        <div class="enrichment-settings" style="margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--color-border, rgba(255,255,255,0.08));">
+                            <h5 style="margin-bottom: 10px;">TMDB Enrichment</h5>
+                            <p class="hint" style="margin-bottom: 8px;">Requires a TMDB API key configured in appsettings (Video:Enrichment:TmdbApiKey).</p>
+                            <label class="checkbox-label" style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px; cursor: pointer;">
+                                <input type="checkbox" checked="@_autoFetchMetadata" @onchange="OnAutoFetchMetadataChanged" />
+                                Auto-fetch movie metadata from TMDB after library scan
+                            </label>
+                            <label class="checkbox-label" style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px; cursor: pointer;">
+                                <input type="checkbox" checked="@_autoFetchPosters" @onchange="OnAutoFetchPostersChanged" />
+                                Auto-fetch movie posters from TMDB after library scan
+                            </label>
+                            <button class="btn btn-outline btn-sm" style="margin-top: 10px;"
+                                    @onclick="EnrichLibraryAsync" disabled="@_settingsEnriching">
+                                @(_settingsEnriching ? "Enriching..." : "Enrich Library")
+                            </button>
+                            @if (!string.IsNullOrWhiteSpace(_enrichmentToast))
+                            {
+                                <div class="alert alert-info" style="margin-top: 8px; font-size: 13px;">@_enrichmentToast</div>
+                            }
+                        </div>
+
                         <div class="settings-danger-zone" style="margin-top: 24px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.08);">
                             <h5 style="color: var(--color-danger, #e55); margin-bottom: 8px;">Reset Collection</h5>
                             <p class="hint" style="margin-bottom: 8px;">Deletes all indexed video metadata (videos, collections, subtitles, watch progress, watch history, shares).
@@ -635,6 +668,20 @@
                                     @(_playerVideo.IsFavorite ? "★" : "☆")
                                 </button>
                                 <button type="button" class="btn-icon-action" @onclick="() => _showAddToCollection = true" title="Add to collection">📁</button>
+                                <button type="button" class="btn-icon-action"
+                                        @onclick="() => EnrichVideoAsync(_playerVideo!.Id)"
+                                        disabled="@(_enrichingVideo && _enrichingVideoId == _playerVideo!.Id)"
+                                        title="Fetch movie poster and metadata from TMDB">
+                                    @if (_enrichingVideo && _enrichingVideoId == _playerVideo!.Id)
+                                    {
+                                        <span class="enrich-spinner"></span>
+                                        <span>Fetching...</span>
+                                    }
+                                    else
+                                    {
+                                        <span>🎬</span>
+                                    }
+                                </button>
                                 <button type="button" class="btn-close-player" @onclick="ClosePlayer">✕ Close</button>
                             </div>
                         </div>

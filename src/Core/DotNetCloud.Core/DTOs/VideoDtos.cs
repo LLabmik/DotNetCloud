@@ -45,6 +45,21 @@ public sealed record VideoDto
 
     /// <summary>When the video was added to the library (UTC).</summary>
     public required DateTime CreatedAt { get; init; }
+
+    /// <summary>Whether an external poster (TMDB) is available for this video.</summary>
+    public bool HasExternalPoster { get; init; }
+
+    /// <summary>TMDB movie overview/description.</summary>
+    public string? Overview { get; init; }
+
+    /// <summary>Movie rating from TMDB (0-10).</summary>
+    public double? TmdbRating { get; init; }
+
+    /// <summary>Genres as comma-separated string.</summary>
+    public string? Genres { get; init; }
+
+    /// <summary>Release date from TMDB.</summary>
+    public DateTime? ReleaseDate { get; init; }
 }
 
 // ── Video Collection DTOs ───────────────────────────────────────────

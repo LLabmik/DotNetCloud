@@ -22,6 +22,8 @@ public sealed class VideoThumbnailService : IVideoThumbnailService
     private readonly VideoDbContext _db;
     private readonly IDownloadService _downloadService;
     private readonly string _ffmpegPath;
+    private readonly string _screenshotCacheDir;
+    private readonly string _posterCacheDir;
     private readonly ILogger<VideoThumbnailService> _logger;
 
     /// <summary>
@@ -37,6 +39,12 @@ public sealed class VideoThumbnailService : IVideoThumbnailService
         _downloadService = downloadService;
         _ffmpegPath = configuration["Video:Thumbnails:FfmpegPath"] ?? "ffmpegthumbnailer";
         _logger = logger;
+
+        var storageRoot = configuration["Files:Storage:RootPath"] ?? Path.GetTempPath();
+        _screenshotCacheDir = Path.Combine(storageRoot, ".video-screenshots");
+        _posterCacheDir = Path.Combine(storageRoot, ".video-posters");
+        Directory.CreateDirectory(_screenshotCacheDir);
+        Directory.CreateDirectory(_posterCacheDir);
     }
 
     /// <inheritdoc />
@@ -44,15 +52,34 @@ public sealed class VideoThumbnailService : IVideoThumbnailService
         Guid videoId,
         CancellationToken cancellationToken = default)
     {
+        // Priority 1: TMDB cached poster
+        var enriched = await _db.Videos.IgnoreQueryFilters()
+            .Where(v => v.Id == videoId)
+            .Select(v => new { v.HasExternalPoster, v.ExternalPosterPath })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (enriched?.HasExternalPoster == true &&
+            enriched.ExternalPosterPath is not null &&
+            File.Exists(enriched.ExternalPosterPath))
+        {
+            return (File.OpenRead(enriched.ExternalPosterPath), "image/jpeg");
+        }
+
+        // Priority 2: Generated screenshots
+        var screenshotPaths = await GetScreenshotPathsAsync(videoId, cancellationToken);
+        if (screenshotPaths is { Count: > 0 })
+        {
+            return (File.OpenRead(screenshotPaths[0]), "image/jpeg");
+        }
+
+        // Priority 3: DB poster (existing ffmpegthumbnailer frame)
         var data = await _db.Videos.IgnoreQueryFilters()
             .Where(v => v.Id == videoId)
             .Select(v => v.ThumbnailPoster)
             .FirstOrDefaultAsync(cancellationToken);
 
         if (data is null || data.Length == 0)
-        {
             return (null, null);
-        }
 
         return (new MemoryStream(data, writable: false), "image/jpeg");
     }
@@ -87,7 +114,7 @@ public sealed class VideoThumbnailService : IVideoThumbnailService
 
             // Extract a frame at ~2 seconds (falls back to first frame for short videos)
             tempFramePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.jpg");
-            var extracted = await ExtractFrameAsync(tempVideoPath, tempFramePath, cancellationToken);
+            var extracted = await ExtractFrameAsync(tempVideoPath, tempFramePath, "10%", cancellationToken);
             if (!extracted)
             {
                 _logger.LogWarning("ffmpegthumbnailer frame extraction failed for video {VideoId}", videoId);
@@ -148,13 +175,115 @@ public sealed class VideoThumbnailService : IVideoThumbnailService
         if (video is not null)
         {
             video.ThumbnailPoster = null;
+
+            // Clean up cached poster on disk
+            if (video.ExternalPosterPath is not null && File.Exists(video.ExternalPosterPath))
+            {
+                try { File.Delete(video.ExternalPosterPath); } catch { /* best effort */ }
+                video.ExternalPosterPath = null;
+            }
+            video.HasExternalPoster = false;
+
             await _db.SaveChangesAsync(cancellationToken);
+        }
+
+        // Clean up screenshots on disk
+        var screenshotPaths = await GetScreenshotPathsAsync(videoId, cancellationToken);
+        if (screenshotPaths is not null)
+        {
+            foreach (var path in screenshotPaths)
+            {
+                try { File.Delete(path); } catch { /* best effort */ }
+            }
         }
 
         _logger.LogDebug("Video thumbnail deleted for {VideoId}", videoId);
     }
 
-    private async Task<bool> ExtractFrameAsync(string inputPath, string outputPath, CancellationToken cancellationToken)
+    /// <inheritdoc />
+    public async Task GenerateScreenshotsAsync(Guid videoId, Guid fileNodeId, CancellationToken cancellationToken = default)
+    {
+        string? tempVideoPath = null;
+
+        try
+        {
+            var caller = new CallerContext(Guid.Empty, [], CallerType.System);
+            await using var videoStream = await _downloadService.DownloadCurrentAsync(fileNodeId, caller);
+
+            if (videoStream is FileStream fs)
+                tempVideoPath = fs.Name;
+            else
+            {
+                tempVideoPath = Path.GetTempFileName();
+                await using var tempFile = File.Create(tempVideoPath);
+                await videoStream.CopyToAsync(tempFile, cancellationToken);
+            }
+
+            // Extract frames at multiple timestamps
+            foreach (var pct in new[] { 10, 30, 50, 70, 90 })
+            {
+                var frameTemp = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.jpg");
+                try
+                {
+                    var extracted = await ExtractFrameAsync(tempVideoPath, frameTemp, $"{pct}%", cancellationToken);
+                    if (!extracted) continue;
+
+                    byte[] screenshotBytes;
+                    await using (var frameStream = File.OpenRead(frameTemp))
+                    {
+                        using var image = await Image.LoadAsync(frameStream, cancellationToken);
+                        var ratio = (double)PosterWidth / image.Width;
+                        var newHeight = (int)(image.Height * ratio);
+                        image.Mutate(x => x.Resize(PosterWidth, newHeight));
+
+                        using var output = new MemoryStream();
+                        var encoder = new SixLabors.ImageSharp.Formats.Jpeg.JpegEncoder { Quality = JpegQuality };
+                        await image.SaveAsync(output, encoder, cancellationToken);
+                        screenshotBytes = output.ToArray();
+                    }
+
+                    var screenshotPath = Path.Combine(_screenshotCacheDir, $"{videoId}_{pct}.jpg");
+                    await File.WriteAllBytesAsync(screenshotPath, screenshotBytes, cancellationToken);
+                }
+                finally
+                {
+                    if (File.Exists(frameTemp))
+                    {
+                        try { File.Delete(frameTemp); } catch { /* best effort */ }
+                    }
+                }
+            }
+
+            _logger.LogInformation("Screenshots generated for video {VideoId}", videoId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to generate screenshots for video {VideoId}", videoId);
+        }
+    }
+
+    /// <inheritdoc />
+    public Task<IReadOnlyList<string>?> GetScreenshotPathsAsync(Guid videoId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            if (!Directory.Exists(_screenshotCacheDir))
+                return Task.FromResult<IReadOnlyList<string>?>(null);
+
+            var prefix = $"{videoId}_";
+            var files = Directory.GetFiles(_screenshotCacheDir, $"{prefix}*.jpg")
+                .OrderBy(f => f)
+                .ToList();
+
+            return Task.FromResult<IReadOnlyList<string>?>(files.Count > 0 ? files : null);
+        }
+        catch
+        {
+            return Task.FromResult<IReadOnlyList<string>?>(null);
+        }
+    }
+
+    private async Task<bool> ExtractFrameAsync(string inputPath, string outputPath, string timestamp, CancellationToken cancellationToken)
     {
         try
         {
@@ -174,7 +303,7 @@ public sealed class VideoThumbnailService : IVideoThumbnailService
             startInfo.ArgumentList.Add("-s");
             startInfo.ArgumentList.Add("0");  // original size (ImageSharp will resize)
             startInfo.ArgumentList.Add("-t");
-            startInfo.ArgumentList.Add("10%"); // 10% into the video (skips intros)
+            startInfo.ArgumentList.Add(timestamp);
             startInfo.ArgumentList.Add("-q");
             startInfo.ArgumentList.Add("8");  // quality 0-10
             startInfo.ArgumentList.Add("-c");

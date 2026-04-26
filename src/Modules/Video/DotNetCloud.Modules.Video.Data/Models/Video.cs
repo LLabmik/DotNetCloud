@@ -62,6 +62,33 @@ public sealed class Video
     /// <summary>Poster thumbnail JPEG bytes (300px wide, extracted from video via FFmpeg).</summary>
     public byte[]? ThumbnailPoster { get; set; }
 
+    /// <summary>TMDB movie ID, if found during enrichment.</summary>
+    public int? TmdbId { get; set; }
+
+    /// <summary>TMDB movie title (may differ from filename-derived title).</summary>
+    public string? TmdbTitle { get; set; }
+
+    /// <summary>Movie overview/description from TMDB.</summary>
+    public string? Overview { get; set; }
+
+    /// <summary>Release date from TMDB.</summary>
+    public DateTime? ReleaseDate { get; set; }
+
+    /// <summary>Average vote from TMDB (0-10).</summary>
+    public double? TmdbRating { get; set; }
+
+    /// <summary>Comma-separated genres from TMDB.</summary>
+    public string? Genres { get; set; }
+
+    /// <summary>Whether an external poster (TMDB) has been fetched.</summary>
+    public bool HasExternalPoster { get; set; }
+
+    /// <summary>Filesystem path to the cached poster image.</summary>
+    public string? ExternalPosterPath { get; set; }
+
+    /// <summary>When the video was last enriched from TMDB (UTC).</summary>
+    public DateTime? LastEnrichedAt { get; set; }
+
     /// <summary>Watch progress records for this video.</summary>
     public ICollection<WatchProgress> WatchProgresses { get; set; } = new List<WatchProgress>();
 

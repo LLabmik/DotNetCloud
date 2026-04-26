@@ -38,7 +38,13 @@ public partial class VideoPage : IAsyncDisposable
     // ── Paging ──
     private int _videoPage;
     private const int VideoPageSize = 50;
+    private int _totalVideos;
     private bool _hasMoreVideos;
+
+    private int _recentPage;
+    private const int RecentPageSize = 12;
+    private int _totalRecentVideos;
+    private bool _hasMoreRecent;
 
     // ── Selection ──
     private VideoCollectionDto? _selectedCollection;
@@ -88,6 +94,14 @@ public partial class VideoPage : IAsyncDisposable
     // Reset Collection
     private bool _showResetConfirm;
     private bool _settingsResetting;
+
+    // Enrichment state
+    private bool _enrichingVideo;
+    private Guid? _enrichingVideoId;
+    private string? _enrichmentToast;
+    private bool _autoFetchMetadata = true;
+    private bool _autoFetchPosters = true;
+    private bool _settingsEnriching;
 
     // Directory Browser
     private bool _showDirBrowser;
@@ -193,6 +207,7 @@ public partial class VideoPage : IAsyncDisposable
 
             _collections = (await CollectionService.ListCollectionsAsync(_caller)).ToList();
             await LoadLibraryPathAsync();
+            await LoadEnrichmentSettingsAsync();
             await LoadCurrentSectionAsync();
         }
         catch (Exception ex)
@@ -245,6 +260,7 @@ public partial class VideoPage : IAsyncDisposable
         _searchQuery = string.Empty;
         _playerOpen = false;
         _videoPage = 0;
+        _recentPage = 0;
         _breadcrumb.Clear();
         await LoadCurrentSectionAsync();
     }
@@ -271,7 +287,7 @@ public partial class VideoPage : IAsyncDisposable
             {
                 case Section.Home:
                     _continueWatching = (await WatchProgressService.GetContinueWatchingAsync(_caller, 10)).ToList();
-                    _recentVideos = (await VideoService.GetRecentVideosAsync(_caller, 12)).ToList();
+                    await LoadRecentPageAsync();
                     break;
 
                 case Section.Library:
@@ -305,12 +321,9 @@ public partial class VideoPage : IAsyncDisposable
     {
         if (_caller is null) return;
 
-        var videos = (await VideoService.ListVideosAsync(_caller, _videoPage * VideoPageSize, VideoPageSize + 1)).ToList();
-        _hasMoreVideos = videos.Count > VideoPageSize;
-        if (_hasMoreVideos)
-        {
-            videos.RemoveAt(videos.Count - 1);
-        }
+        _totalVideos = await VideoService.GetVideoCountAsync(_caller.UserId);
+        var videos = (await VideoService.ListVideosAsync(_caller, _videoPage * VideoPageSize, VideoPageSize)).ToList();
+        _hasMoreVideos = (_videoPage + 1) * VideoPageSize < _totalVideos;
         _videos = videos;
     }
 
@@ -329,6 +342,33 @@ public partial class VideoPage : IAsyncDisposable
 
         _videoPage++;
         await LoadVideosPageAsync();
+    }
+
+    private async Task LoadRecentPageAsync()
+    {
+        if (_caller is null) return;
+
+        _totalRecentVideos = await VideoService.GetVideoCountAsync(_caller.UserId);
+        var videos = (await VideoService.GetRecentVideosAsync(_caller, _recentPage * RecentPageSize, RecentPageSize)).ToList();
+        _hasMoreRecent = (_recentPage + 1) * RecentPageSize < _totalRecentVideos;
+        _recentVideos = videos;
+    }
+
+    private async Task PrevRecentPageAsync()
+    {
+        if (_recentPage > 0)
+        {
+            _recentPage--;
+            await LoadRecentPageAsync();
+        }
+    }
+
+    private async Task NextRecentPageAsync()
+    {
+        if (!_hasMoreRecent) return;
+
+        _recentPage++;
+        await LoadRecentPageAsync();
     }
 
     // ────────────────────────────────────────────────────────
@@ -750,6 +790,9 @@ public partial class VideoPage : IAsyncDisposable
         {
             _scanResult = await MediaLibraryScanner.ScanSourcesAsync(_librarySources, _caller.UserId, "Video");
             _settingsSuccess = $"Scan complete: {_scanResult.Imported} imported, {_scanResult.Skipped} already up to date.";
+
+            // Fire-and-forget background enrichment
+            _ = QueuePostScanEnrichmentAsync(DateTimeOffset.UtcNow);
         }
         catch (Exception ex)
         {
@@ -974,6 +1017,167 @@ public partial class VideoPage : IAsyncDisposable
 
     private static string GetLibrarySourceKindLabel(MediaLibrarySource source)
         => source.SourceKind == MediaLibrarySourceKind.SharedMount ? "Shared" : "Owned";
+
+    // ────────────────────────────────────────────────────────
+    //  TMDB Enrichment
+    // ────────────────────────────────────────────────────────
+
+    private async Task EnrichVideoAsync(Guid videoId)
+    {
+        if (_caller is null) return;
+        _enrichingVideo = true;
+        _enrichingVideoId = videoId;
+        _enrichmentToast = null;
+        StateHasChanged();
+        try
+        {
+            await EnrichmentService.EnrichVideoAsync(videoId, _caller, force: false);
+            var updated = await VideoService.GetVideoAsync(videoId, _caller);
+            if (updated is not null)
+            {
+                if (_playerVideo?.Id == videoId)
+                    _playerVideo = updated;
+                _enrichmentToast = updated.HasExternalPoster
+                    ? "Movie poster fetched from TMDB!"
+                    : "No poster found on TMDB.";
+                ReplaceInList(_videos, updated);
+                ReplaceInList(_recentVideos, updated);
+                ReplaceInList(_favoriteVideos, updated);
+                ReplaceInList(_collectionVideos, updated);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error enriching video {VideoId}", videoId);
+            _enrichmentToast = "Failed to fetch movie poster.";
+        }
+        finally
+        {
+            _enrichingVideo = false;
+            _enrichingVideoId = null;
+            StateHasChanged();
+        }
+    }
+
+    private async Task EnrichLibraryAsync()
+    {
+        if (_caller is null) return;
+        _settingsEnriching = true;
+        _enrichmentToast = null;
+        StateHasChanged();
+        try
+        {
+            var queued = await EnrichmentBackgroundQueue.EnqueueAsync(new VideoEnrichmentJob
+            {
+                OwnerId = _caller.UserId,
+                FetchPosters = true,
+                FetchMetadata = true,
+                StartedAtUtc = DateTimeOffset.UtcNow
+            });
+            _enrichmentToast = queued
+                ? "Library enrichment queued. It will run in the background."
+                : "An enrichment job is already running for your library.";
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error queueing library enrichment");
+            _enrichmentToast = "Failed to queue enrichment.";
+        }
+        finally
+        {
+            _settingsEnriching = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task<bool> QueuePostScanEnrichmentAsync(DateTimeOffset scanStartedAt)
+    {
+        if (_caller is null || _scanResult is null)
+            return false;
+
+        if (!_autoFetchMetadata && !_autoFetchPosters)
+            return false;
+
+        try
+        {
+            return await EnrichmentBackgroundQueue.EnqueueAsync(new VideoEnrichmentJob
+            {
+                OwnerId = _caller.UserId,
+                FetchPosters = _autoFetchPosters,
+                FetchMetadata = _autoFetchMetadata,
+                StartedAtUtc = scanStartedAt,
+                TotalFiles = _scanResult.TotalFound,
+                VideosAdded = _scanResult.Imported,
+                VideosSkipped = _scanResult.Skipped,
+                VideosFailed = _scanResult.Failed,
+                VideosRemoved = _scanResult.Removed
+            });
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to queue post-scan video enrichment");
+            return false;
+        }
+    }
+
+    private async Task LoadEnrichmentSettingsAsync()
+    {
+        if (_caller is null) return;
+        try
+        {
+            var posterSetting = await UserSettingsService.GetSettingAsync(
+                _caller.UserId, "media-library", "video-auto-fetch-posters");
+            if (posterSetting?.Value is not null)
+                _autoFetchPosters = bool.TryParse(posterSetting.Value, out var v) && v;
+            var metadataSetting = await UserSettingsService.GetSettingAsync(
+                _caller.UserId, "media-library", "video-auto-fetch-metadata");
+            if (metadataSetting?.Value is not null)
+                _autoFetchMetadata = bool.TryParse(metadataSetting.Value, out var v2) && v2;
+        }
+        catch { /* ignore load failures */ }
+    }
+
+    private async Task SaveEnrichmentSettingsAsync()
+    {
+        if (_caller is null) return;
+        try
+        {
+            await UserSettingsService.UpsertSettingAsync(_caller.UserId, "media-library",
+                "video-auto-fetch-posters",
+                new UpsertUserSettingDto { Value = _autoFetchPosters.ToString(), Description = "Auto-fetch movie posters from TMDB during video library scan" });
+            await UserSettingsService.UpsertSettingAsync(_caller.UserId, "media-library",
+                "video-auto-fetch-metadata",
+                new UpsertUserSettingDto { Value = _autoFetchMetadata.ToString(), Description = "Auto-fetch movie metadata from TMDB during video library scan" });
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error saving video enrichment settings");
+        }
+    }
+
+    private async Task OnAutoFetchPostersChanged(ChangeEventArgs e)
+    {
+        _autoFetchPosters = e.Value is bool b ? b : false;
+        await SaveEnrichmentSettingsAsync();
+    }
+
+    private async Task OnAutoFetchMetadataChanged(ChangeEventArgs e)
+    {
+        _autoFetchMetadata = e.Value is bool b ? b : false;
+        await SaveEnrichmentSettingsAsync();
+    }
+
+    private static void ReplaceInList(List<VideoDto> list, VideoDto updated)
+    {
+        for (var i = 0; i < list.Count; i++)
+        {
+            if (list[i].Id == updated.Id)
+            {
+                list[i] = updated;
+                return;
+            }
+        }
+    }
 
     public async ValueTask DisposeAsync()
     {

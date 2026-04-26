@@ -128,7 +128,7 @@ public sealed class VideoService : IVideoService
     {
         var videos = await _db.Videos
             .Include(v => v.Metadata)
-            .Where(v => v.OwnerId == caller.UserId && v.Title.Contains(query))
+            .Where(v => v.OwnerId == caller.UserId && v.Title.ToLower().Contains(query.ToLower()))
             .OrderBy(v => v.Title)
             .Take(maxResults)
             .ToListAsync(cancellationToken);
@@ -137,18 +137,27 @@ public sealed class VideoService : IVideoService
     }
 
     /// <summary>
-    /// Gets recently added videos.
+    /// Gets recently added videos with paging.
     /// </summary>
-    public async Task<IReadOnlyList<VideoDto>> GetRecentVideosAsync(CallerContext caller, int count = 20, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<VideoDto>> GetRecentVideosAsync(CallerContext caller, int skip = 0, int take = 20, CancellationToken cancellationToken = default)
     {
         var videos = await _db.Videos
             .Include(v => v.Metadata)
             .Where(v => v.OwnerId == caller.UserId)
             .OrderByDescending(v => v.CreatedAt)
-            .Take(count)
+            .Skip(skip)
+            .Take(take)
             .ToListAsync(cancellationToken);
 
         return videos.Select(v => MapToDto(v, caller.UserId)).ToList();
+    }
+
+    /// <summary>
+    /// Gets the total video count for a user.
+    /// </summary>
+    public async Task<int> GetVideoCountAsync(Guid ownerId, CancellationToken cancellationToken = default)
+    {
+        return await _db.Videos.CountAsync(v => v.OwnerId == ownerId, cancellationToken);
     }
 
     /// <summary>
@@ -229,7 +238,12 @@ public sealed class VideoService : IVideoService
             IsFavorite = video.IsFavorite,
             ViewCount = video.ViewCount,
             WatchPositionTicks = watchProgress?.PositionTicks,
-            CreatedAt = video.CreatedAt
+            CreatedAt = video.CreatedAt,
+            HasExternalPoster = video.HasExternalPoster,
+            Overview = video.Overview,
+            TmdbRating = video.TmdbRating,
+            Genres = video.Genres,
+            ReleaseDate = video.ReleaseDate
         };
     }
 }

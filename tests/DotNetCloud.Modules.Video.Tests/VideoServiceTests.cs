@@ -91,7 +91,7 @@ public class VideoServiceTests
         await TestHelpers.SeedVideoAsync(_db, "Older", ownerId: caller.UserId);
         await TestHelpers.SeedVideoAsync(_db, "Newer", ownerId: caller.UserId);
 
-        var result = await _service.GetRecentVideosAsync(caller, 10);
+        var result = await _service.GetRecentVideosAsync(caller, take: 10);
 
         Assert.AreEqual(2, result.Count);
         // Most recent should be first (ordered desc)

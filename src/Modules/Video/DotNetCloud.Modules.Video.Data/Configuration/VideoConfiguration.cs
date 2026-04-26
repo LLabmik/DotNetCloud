@@ -30,5 +30,13 @@ public sealed class VideoConfiguration : IEntityTypeConfiguration<Models.Video>
         builder.HasIndex(v => v.Title).HasDatabaseName("ix_videos_title");
         builder.HasIndex(v => new { v.OwnerId, v.CreatedAt }).HasDatabaseName("ix_videos_owner_created_at");
         builder.HasIndex(v => v.IsDeleted).HasDatabaseName("ix_videos_is_deleted");
+
+        // TMDB enrichment fields
+        builder.Property(v => v.TmdbTitle).HasMaxLength(500);
+        builder.Property(v => v.Overview).HasMaxLength(5000);
+        builder.Property(v => v.Genres).HasMaxLength(500);
+        builder.Property(v => v.ExternalPosterPath).HasMaxLength(1000);
+        builder.HasIndex(v => v.TmdbId).HasDatabaseName("ix_videos_tmdb_id");
+        builder.HasIndex(v => v.LastEnrichedAt).HasDatabaseName("ix_videos_last_enriched_at");
     }
 }
