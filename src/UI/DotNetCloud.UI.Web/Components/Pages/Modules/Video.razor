@@ -1,7 +1,45 @@
 @page "/apps/video"
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
 @attribute [Authorize]
+@using Microsoft.AspNetCore.Components
 
 <PageTitle>Video - DotNetCloud</PageTitle>
 
-<ModulePageHost RouteKey="video.page" />
+<ModulePageHost RouteKey="video.page" Parameters="_parameters" />
+
+@code {
+    [SupplyParameterFromQuery(Name = "fileId")]
+    public string? FileId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "videoId")]
+    public string? VideoId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "_nav")]
+    public string? Nav { get; set; }
+
+    private Dictionary<string, object>? _parameters;
+
+    protected override void OnParametersSet()
+    {
+        var hasParams = false;
+        _parameters = new Dictionary<string, object>();
+
+        if (!string.IsNullOrEmpty(FileId))
+        {
+            _parameters["FileId"] = FileId;
+            _parameters["FileIdNav"] = Nav ?? string.Empty;
+            hasParams = true;
+        }
+
+        if (!string.IsNullOrEmpty(VideoId))
+        {
+            _parameters["VideoId"] = VideoId;
+            hasParams = true;
+        }
+
+        if (!hasParams)
+        {
+            _parameters = null;
+        }
+    }
+}

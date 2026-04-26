@@ -35,6 +35,11 @@ public partial class VideoPage : IAsyncDisposable
     private List<WatchProgressDto> _continueWatching = [];
     private List<VideoCollectionDto> _collections = [];
 
+    // ── Paging ──
+    private int _videoPage;
+    private const int VideoPageSize = 50;
+    private bool _hasMoreVideos;
+
     // ── Selection ──
     private VideoCollectionDto? _selectedCollection;
     private Guid? _selectedCollectionId;
@@ -90,6 +95,15 @@ public partial class VideoPage : IAsyncDisposable
     private List<(Guid Id, string Name)> _dirBrowserFolders = [];
     private List<(Guid Id, string Name)> _dirBrowserBreadcrumbs = [];
     private string? _dirBrowserError;
+
+    // Deep-link from Files module
+    private string? _lastHandledNav;
+
+    /// <summary>Optional file ID to auto-open on load (deep-link from Files module).</summary>
+    [Parameter] public string? FileId { get; set; }
+
+    /// <summary>Navigation nonce — changes each time a file is clicked, even for the same file.</summary>
+    [Parameter] public string? FileIdNav { get; set; }
 
     // ────────────────────────────────────────────────────────
     //  Lifecycle
@@ -169,6 +183,14 @@ public partial class VideoPage : IAsyncDisposable
 
             _loading = true;
             _caller = await GetCallerAsync();
+
+            // Deep-link: auto-open from Files module if fileId parameter was supplied on first load
+            if (!string.IsNullOrEmpty(FileId) && Guid.TryParse(FileId, out var fileId))
+            {
+                _lastHandledNav = FileIdNav;
+                await TryAutoPlayFileAsync(fileId, _caller);
+            }
+
             _collections = (await CollectionService.ListCollectionsAsync(_caller)).ToList();
             await LoadLibraryPathAsync();
             await LoadCurrentSectionAsync();
@@ -181,6 +203,19 @@ public partial class VideoPage : IAsyncDisposable
         finally
         {
             _loading = false;
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_caller is null) return;
+
+        // Handle fileId changes when already on the page (same-page navigation via Files module).
+        // FileIdNav is a timestamp nonce that changes on every click, even for the same file.
+        if (!string.IsNullOrEmpty(FileId) && FileIdNav != _lastHandledNav && Guid.TryParse(FileId, out var fileId))
+        {
+            _lastHandledNav = FileIdNav;
+            await TryAutoPlayFileAsync(fileId, _caller);
         }
     }
 
@@ -207,7 +242,9 @@ public partial class VideoPage : IAsyncDisposable
         _selectedCollection = null;
         _selectedCollectionId = null;
         _searchResults = null;
+        _searchQuery = string.Empty;
         _playerOpen = false;
+        _videoPage = 0;
         _breadcrumb.Clear();
         await LoadCurrentSectionAsync();
     }
@@ -238,7 +275,7 @@ public partial class VideoPage : IAsyncDisposable
                     break;
 
                 case Section.Library:
-                    _videos = (await VideoService.ListVideosAsync(_caller, 0, 200)).ToList();
+                    await LoadVideosPageAsync();
                     break;
 
                 case Section.Collections:
@@ -260,6 +297,38 @@ public partial class VideoPage : IAsyncDisposable
             _loading = false;
             StateHasChanged();
         }
+    }
+
+    // ── Paging ──
+
+    private async Task LoadVideosPageAsync()
+    {
+        if (_caller is null) return;
+
+        var videos = (await VideoService.ListVideosAsync(_caller, _videoPage * VideoPageSize, VideoPageSize + 1)).ToList();
+        _hasMoreVideos = videos.Count > VideoPageSize;
+        if (_hasMoreVideos)
+        {
+            videos.RemoveAt(videos.Count - 1);
+        }
+        _videos = videos;
+    }
+
+    private async Task PrevVideoPageAsync()
+    {
+        if (_videoPage > 0)
+        {
+            _videoPage--;
+            await LoadVideosPageAsync();
+        }
+    }
+
+    private async Task NextVideoPageAsync()
+    {
+        if (!_hasMoreVideos) return;
+
+        _videoPage++;
+        await LoadVideosPageAsync();
     }
 
     // ────────────────────────────────────────────────────────
@@ -463,6 +532,7 @@ public partial class VideoPage : IAsyncDisposable
             {
                 var caller = await GetCallerAsync();
                 _searchResults = (await VideoService.SearchAsync(caller, _searchQuery, 50)).ToList();
+                _breadcrumb.Clear();
             }
             catch (Exception ex)
             {
@@ -547,6 +617,29 @@ public partial class VideoPage : IAsyncDisposable
     {
         if (video.WatchPositionTicks is null || video.Duration.Ticks < 1) return 0;
         return (double)video.WatchPositionTicks.Value / video.Duration.Ticks * 100;
+    }
+
+    /// <summary>
+    /// Looks up a video by its Files-module FileNodeId and opens it in the player.
+    /// </summary>
+    private async Task TryAutoPlayFileAsync(Guid fileNodeId, CallerContext caller)
+    {
+        try
+        {
+            var video = await VideoService.GetVideoByFileNodeIdAsync(fileNodeId, caller);
+            if (video is not null)
+            {
+                await OpenVideoDetailAsync(video);
+            }
+            else
+            {
+                Logger.LogWarning("No video found for FileNodeId {FileNodeId}", fileNodeId);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to auto-open video for FileNodeId {FileNodeId}", fileNodeId);
+        }
     }
 
     private async Task<CallerContext> GetCallerAsync()

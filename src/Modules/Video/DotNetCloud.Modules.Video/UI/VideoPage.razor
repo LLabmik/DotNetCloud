@@ -143,7 +143,7 @@
         else
         {
             @* ─── Home ─── *@
-            @if (_section == Section.Home && !_playerOpen)
+            @if (_section == Section.Home && !_playerOpen && _searchResults is null)
             {
                 <div class="home-content">
                     @if (_continueWatching.Count > 0)
@@ -210,7 +210,7 @@
             }
 
             @* ─── Library (full grid) ─── *@
-            @if (_section == Section.Library && !_playerOpen)
+            @if (_section == Section.Library && !_playerOpen && _searchResults is null)
             {
                 @if (_videos.Count == 0)
                 {
@@ -222,6 +222,18 @@
                 }
                 else
                 {
+                    <div class="videos-toolbar">
+                        <button class="btn-icon" @onclick="PrevVideoPageAsync" disabled="@(_videoPage == 0)" title="Previous page">
+                            <span>◀</span>
+                        </button>
+                        <div class="videos-page-info">
+                            <span>Showing @(_videos.Count == 0 ? 0 : _videoPage * VideoPageSize + 1)-@(_videoPage * VideoPageSize + _videos.Count) videos</span>
+                            <span class="videos-page-info-more">@(_hasMoreVideos ? "(More available)" : "(All shown)")</span>
+                        </div>
+                        <button class="btn-icon" @onclick="NextVideoPageAsync" disabled="@(!_hasMoreVideos)" title="Next page">
+                            <span>▶</span>
+                        </button>
+                    </div>
                     <div class="video-grid padded">
                         @foreach (var video in _videos)
                         {
@@ -256,7 +268,7 @@
             }
 
             @* ─── Collections list ─── *@
-            @if (_section == Section.Collections && _selectedCollection is null && !_playerOpen)
+            @if (_section == Section.Collections && _selectedCollection is null && !_playerOpen && _searchResults is null)
             {
                 <div class="collections-grid">
                     @foreach (var coll in _collections)
@@ -292,7 +304,7 @@
             }
 
             @* ─── Collection detail ─── *@
-            @if (_section == Section.Collections && _selectedCollection is not null && !_playerOpen)
+            @if (_section == Section.Collections && _selectedCollection is not null && !_playerOpen && _searchResults is null)
             {
                 <div class="collection-detail">
                     <div class="collection-detail-header">
@@ -328,7 +340,7 @@
             }
 
             @* ─── Favorites ─── *@
-            @if (_section == Section.Favorites && !_playerOpen)
+            @if (_section == Section.Favorites && !_playerOpen && _searchResults is null)
             {
                 @if (_favoriteVideos.Count == 0)
                 {

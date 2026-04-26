@@ -37,6 +37,7 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
     [Inject] private IJSRuntime Js { get; set; } = default!;
+    [Inject] private HttpClient Http { get; set; } = default!;
     [Inject] private ILogger<FileBrowser> Logger { get; set; } = default!;
 
     /// <summary>The current user ID, used for opening the document editor.</summary>
@@ -126,6 +127,8 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     private string _freeformFileName = string.Empty;
     private bool _isCollaboraAvailable;
     private bool _isCollaboraConfigured;
+    private bool? _isVideoModuleAvailable;
+    private bool? _isMusicModuleAvailable;
     private HashSet<string> _collaboraEditableExtensions = new(StringComparer.OrdinalIgnoreCase);
     private List<string> _supportedNewFileExtensions = [];
     private List<string> _collaboraNewFileExtensions = [];
@@ -594,6 +597,40 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
             _breadcrumbs.Add(new BreadcrumbItem(node.Id, node.Name));
             NavigateToFolder(node.Id);
         }
+        else if (IsVideoFile(node))
+        {
+            if (await IsVideoModuleAvailableAsync())
+            {
+                var openInVideo = await Js.InvokeAsync<bool>("confirm",
+                    "This looks like a video file. Open in Video module?\n\nOK = Video, Cancel = Files");
+                if (openInVideo)
+                {
+                    Console.WriteLine("[DIAG-OPEN] → Video module");
+                    var nav = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                    Navigation.NavigateTo($"/apps/video?fileId={node.Id}&_nav={nav}");
+                    return;
+                }
+            }
+            Console.WriteLine("[DIAG-OPEN] → ShowPreview (video native)");
+            ShowPreview(node);
+        }
+        else if (IsMusicFile(node))
+        {
+            if (await IsMusicModuleAvailableAsync())
+            {
+                var openInMusic = await Js.InvokeAsync<bool>("confirm",
+                    "This looks like a music file. Open in Music module?\n\nOK = Music, Cancel = Files");
+                if (openInMusic)
+                {
+                    Console.WriteLine("[DIAG-OPEN] → Music module");
+                    var nav = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                    Navigation.NavigateTo($"/apps/music?fileId={node.Id}&_nav={nav}");
+                    return;
+                }
+            }
+            Console.WriteLine("[DIAG-OPEN] → ShowPreview (audio native)");
+            ShowPreview(node);
+        }
         else if (CanOpenInNativePreview(node))
         {
             Console.WriteLine("[DIAG-OPEN] → ShowPreview (native)");
@@ -609,8 +646,6 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
             Console.WriteLine("[DIAG-OPEN] → ShowPreview (fallback)");
             ShowPreview(node);
         }
-
-        await Task.CompletedTask;
     }
 
     protected void OpenFolder(FileNodeViewModel node)
@@ -1763,6 +1798,58 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
             or "sql" or "ini" or "toml" or "cfg" or "conf" or "env" or "rtf";
     }
 
+    private static bool IsVideoFile(FileNodeViewModel node)
+    {
+        if (node.NodeType != "File") return false;
+        var mime = node.MimeType;
+        if (!string.IsNullOrEmpty(mime) && mime.StartsWith("video/", StringComparison.OrdinalIgnoreCase))
+            return true;
+        var ext = NormalizeExtension(Path.GetExtension(node.Name));
+        return ext is "mp4" or "webm" or "mkv" or "avi" or "mov" or "wmv" or "flv" or "m4v" or "ogv";
+    }
+
+    private static bool IsMusicFile(FileNodeViewModel node)
+    {
+        if (node.NodeType != "File") return false;
+        var mime = node.MimeType;
+        if (!string.IsNullOrEmpty(mime) && mime.StartsWith("audio/", StringComparison.OrdinalIgnoreCase))
+            return true;
+        var ext = NormalizeExtension(Path.GetExtension(node.Name));
+        return ext is "mp3" or "wav" or "flac" or "aac" or "oga" or "ogg" or "opus" or "m4a" or "wma" or "alac";
+    }
+
+    private async Task<bool> IsVideoModuleAvailableAsync()
+    {
+        if (_isVideoModuleAvailable.HasValue) return _isVideoModuleAvailable.Value;
+        try
+        {
+            var result = await Http.GetFromJsonAsync<ModuleAvailabilityResponse>(
+                "api/v1/core/modules/dotnetcloud.video/available");
+            _isVideoModuleAvailable = result?.Data?.Installed ?? false;
+        }
+        catch
+        {
+            _isVideoModuleAvailable = false;
+        }
+        return _isVideoModuleAvailable.Value;
+    }
+
+    private async Task<bool> IsMusicModuleAvailableAsync()
+    {
+        if (_isMusicModuleAvailable.HasValue) return _isMusicModuleAvailable.Value;
+        try
+        {
+            var result = await Http.GetFromJsonAsync<ModuleAvailabilityResponse>(
+                "api/v1/core/modules/dotnetcloud.music/available");
+            _isMusicModuleAvailable = result?.Data?.Installed ?? false;
+        }
+        catch
+        {
+            _isMusicModuleAvailable = false;
+        }
+        return _isMusicModuleAvailable.Value;
+    }
+
     protected void HideDocumentEditor()
     {
         _showDocumentEditor = false;
@@ -2271,4 +2358,7 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         if (node is not null)
             node.CommentCount = count;
     }
+
+    private sealed record ModuleAvailabilityData(bool Installed);
+    private sealed record ModuleAvailabilityResponse(bool Success, ModuleAvailabilityData? Data);
 }

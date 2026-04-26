@@ -94,6 +94,18 @@ public sealed class VideoService : IVideoService
     }
 
     /// <summary>
+    /// Gets a video by its Files-module FileNodeId.
+    /// </summary>
+    public async Task<VideoDto?> GetVideoByFileNodeIdAsync(Guid fileNodeId, CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        var video = await _db.Videos
+            .Include(v => v.Metadata)
+            .FirstOrDefaultAsync(v => v.FileNodeId == fileNodeId && v.OwnerId == caller.UserId, cancellationToken);
+
+        return video is null ? null : MapToDto(video, caller.UserId);
+    }
+
+    /// <summary>
     /// Lists videos for the authenticated user.
     /// </summary>
     public async Task<IReadOnlyList<VideoDto>> ListVideosAsync(CallerContext caller, int skip = 0, int take = 50, CancellationToken cancellationToken = default)

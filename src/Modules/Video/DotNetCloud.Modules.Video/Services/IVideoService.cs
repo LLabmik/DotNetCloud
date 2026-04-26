@@ -14,6 +14,9 @@ public interface IVideoService
     /// <summary>Gets a video by ID.</summary>
     Task<VideoDto?> GetVideoAsync(Guid videoId, CallerContext caller, CancellationToken cancellationToken = default);
 
+    /// <summary>Gets a video by its Files-module FileNodeId.</summary>
+    Task<VideoDto?> GetVideoByFileNodeIdAsync(Guid fileNodeId, CallerContext caller, CancellationToken cancellationToken = default);
+
     /// <summary>Lists videos with paging.</summary>
     Task<IReadOnlyList<VideoDto>> ListVideosAsync(CallerContext caller, int skip = 0, int take = 50, CancellationToken cancellationToken = default);
 
