@@ -6,6 +6,7 @@ using DotNetCloud.Modules.Calendar.Models;
 using DotNetCloud.Modules.Calendar.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using OrgDirectory = DotNetCloud.Core.Capabilities.IOrganizationDirectory;
 
 namespace DotNetCloud.Modules.Calendar.Data.Services;
 
@@ -16,15 +17,21 @@ public sealed class CalendarEventService : ICalendarEventService
 {
     private readonly CalendarDbContext _db;
     private readonly IEventBus _eventBus;
+    private readonly OrgDirectory _orgDirectory;
     private readonly ILogger<CalendarEventService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="CalendarEventService"/> class.
     /// </summary>
-    public CalendarEventService(CalendarDbContext db, IEventBus eventBus, ILogger<CalendarEventService> logger)
+    public CalendarEventService(
+        CalendarDbContext db,
+        IEventBus eventBus,
+        DotNetCloud.Core.Capabilities.IOrganizationDirectory orgDirectory,
+        ILogger<CalendarEventService> logger)
     {
         _db = db;
         _eventBus = eventBus;
+        _orgDirectory = orgDirectory;
         _logger = logger;
     }
 
@@ -35,10 +42,11 @@ public sealed class CalendarEventService : ICalendarEventService
 
         // Verify the calendar exists and user has access
         var calendar = await _db.Calendars
-            .FirstOrDefaultAsync(c => c.Id == dto.CalendarId &&
-                (c.OwnerId == caller.UserId || c.Shares.Any(s => s.SharedWithUserId == caller.UserId && s.Permission == CalendarSharePermission.ReadWrite)),
-                cancellationToken)
-            ?? throw new Core.Errors.ValidationException(Core.Errors.ErrorCodes.CalendarNotFound, "Calendar not found or access denied.");
+            .FirstOrDefaultAsync(c => c.Id == dto.CalendarId, cancellationToken)
+            ?? throw new Core.Errors.ValidationException(Core.Errors.ErrorCodes.CalendarNotFound, "Calendar not found.");
+
+        if (!await CanAccessCalendarAsync(calendar, caller.UserId, requireWrite: true, cancellationToken))
+            throw new Core.Errors.ValidationException(Core.Errors.ErrorCodes.Forbidden, "You do not have permission to create events in this calendar.");
 
         if (dto.StartUtc >= dto.EndUtc && !dto.IsAllDay)
         {
@@ -121,21 +129,30 @@ public sealed class CalendarEventService : ICalendarEventService
     public async Task<CalendarEventDto?> GetEventAsync(Guid eventId, CallerContext caller, CancellationToken cancellationToken = default)
     {
         var calendarEvent = await QueryEvents()
-            .FirstOrDefaultAsync(e => e.Id == eventId &&
-                (e.Calendar!.OwnerId == caller.UserId ||
-                 e.Calendar.Shares.Any(s => s.SharedWithUserId == caller.UserId)),
-                cancellationToken);
+            .FirstOrDefaultAsync(e => e.Id == eventId, cancellationToken);
 
-        return calendarEvent is null ? null : MapToDto(calendarEvent);
+        if (calendarEvent?.Calendar is null)
+            return null;
+
+        if (!await CanAccessCalendarAsync(calendarEvent.Calendar, caller.UserId, requireWrite: false, cancellationToken))
+            return null;
+
+        return MapToDto(calendarEvent);
     }
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<CalendarEventDto>> ListEventsAsync(Guid calendarId, CallerContext caller, DateTime? from = null, DateTime? to = null, int skip = 0, int take = 50, CancellationToken cancellationToken = default)
     {
+        // Verify calendar access first
+        var calendar = await _db.Calendars
+            .AsNoTracking()
+            .FirstOrDefaultAsync(c => c.Id == calendarId, cancellationToken);
+
+        if (calendar is null || !await CanAccessCalendarAsync(calendar, caller.UserId, requireWrite: false, cancellationToken))
+            return [];
+
         var query = QueryEvents()
-            .Where(e => e.CalendarId == calendarId &&
-                (e.Calendar!.OwnerId == caller.UserId ||
-                 e.Calendar.Shares.Any(s => s.SharedWithUserId == caller.UserId)));
+            .Where(e => e.CalendarId == calendarId);
 
         if (from.HasValue)
             query = query.Where(e => e.EndUtc >= from.Value);
@@ -161,11 +178,11 @@ public sealed class CalendarEventService : ICalendarEventService
             .Include(e => e.Calendar)
             .Include(e => e.Attendees)
             .Include(e => e.Reminders)
-            .FirstOrDefaultAsync(e => e.Id == eventId && !e.IsDeleted &&
-                (e.Calendar!.OwnerId == caller.UserId ||
-                 e.Calendar.Shares.Any(s => s.SharedWithUserId == caller.UserId && s.Permission == CalendarSharePermission.ReadWrite)),
-                cancellationToken)
-            ?? throw new Core.Errors.ValidationException(Core.Errors.ErrorCodes.CalendarEventNotFound, "Calendar event not found or access denied.");
+            .FirstOrDefaultAsync(e => e.Id == eventId && !e.IsDeleted, cancellationToken)
+            ?? throw new Core.Errors.ValidationException(Core.Errors.ErrorCodes.CalendarEventNotFound, "Calendar event not found.");
+
+        if (calendarEvent.Calendar is null || !await CanAccessCalendarAsync(calendarEvent.Calendar, caller.UserId, requireWrite: true, cancellationToken))
+            throw new Core.Errors.ValidationException(Core.Errors.ErrorCodes.Forbidden, "You do not have permission to modify this event.");
 
         if (dto.Title is not null) calendarEvent.Title = dto.Title;
         if (dto.Description is not null) calendarEvent.Description = dto.Description;
@@ -248,11 +265,11 @@ public sealed class CalendarEventService : ICalendarEventService
     {
         var calendarEvent = await _db.CalendarEvents
             .Include(e => e.Calendar)
-            .FirstOrDefaultAsync(e => e.Id == eventId && !e.IsDeleted &&
-                (e.Calendar!.OwnerId == caller.UserId ||
-                 e.Calendar.Shares.Any(s => s.SharedWithUserId == caller.UserId && s.Permission == CalendarSharePermission.ReadWrite)),
-                cancellationToken)
-            ?? throw new Core.Errors.ValidationException(Core.Errors.ErrorCodes.CalendarEventNotFound, "Calendar event not found or access denied.");
+            .FirstOrDefaultAsync(e => e.Id == eventId && !e.IsDeleted, cancellationToken)
+            ?? throw new Core.Errors.ValidationException(Core.Errors.ErrorCodes.CalendarEventNotFound, "Calendar event not found.");
+
+        if (calendarEvent.Calendar is null || !await CanAccessCalendarAsync(calendarEvent.Calendar, caller.UserId, requireWrite: true, cancellationToken))
+            throw new Core.Errors.ValidationException(Core.Errors.ErrorCodes.Forbidden, "You do not have permission to delete this event.");
 
         calendarEvent.IsDeleted = true;
         calendarEvent.DeletedAt = DateTime.UtcNow;
@@ -405,5 +422,43 @@ public sealed class CalendarEventService : ICalendarEventService
             }).ToList(),
             ETag = e.ETag
         };
+    }
+
+    /// <summary>
+    /// Checks whether the given user can access a calendar.
+    /// </summary>
+    /// <param name="calendar">The calendar to check.</param>
+    /// <param name="userId">The user making the request.</param>
+    /// <param name="requireWrite">Whether write access is required (org Manager+ role).</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    private async Task<bool> CanAccessCalendarAsync(Models.Calendar calendar, Guid userId, bool requireWrite, CancellationToken cancellationToken)
+    {
+        if (calendar.OrganizationId is null)
+        {
+            // User-owned: owner has full access; shares checked separately
+            if (calendar.OwnerId == userId) return true;
+            if (!requireWrite) return calendar.Shares.Any(s => s.SharedWithUserId == userId);
+            return calendar.Shares.Any(s => s.SharedWithUserId == userId && s.Permission == CalendarSharePermission.ReadWrite);
+        }
+
+        // Org-owned: user must be an active member
+        var isMember = await _orgDirectory.IsOrganizationMemberAsync(calendar.OrganizationId.Value, userId, cancellationToken);
+        if (!isMember) return false;
+        if (!requireWrite) return true;
+
+        // Write access: check for Manager+ role
+        var member = await _orgDirectory.GetMemberAsync(calendar.OrganizationId.Value, userId, cancellationToken);
+        return member is not null && HasManagerOrAboveRole(member);
+    }
+
+    /// <summary>
+    /// Checks whether a member has a Manager or above role.
+    /// </summary>
+    private static bool HasManagerOrAboveRole(OrganizationMemberInfo member)
+    {
+        var managerRoleId = Guid.Parse("a1b2c3d4-0001-4000-8000-000000000001");
+        var adminRoleId = Guid.Parse("a1b2c3d4-0002-4000-8000-000000000001");
+
+        return member.RoleIds.Contains(managerRoleId) || member.RoleIds.Contains(adminRoleId);
     }
 }

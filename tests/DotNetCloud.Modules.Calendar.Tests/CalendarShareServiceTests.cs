@@ -31,7 +31,7 @@ public class CalendarShareServiceTests
             .Options;
         _db = new CalendarDbContext(options);
         _eventBusMock = new Mock<IEventBus>();
-        _calendarService = new CalendarService(_db, _eventBusMock.Object, NullLogger<CalendarService>.Instance);
+        _calendarService = new CalendarService(_db, _eventBusMock.Object, Mock.Of<DotNetCloud.Core.Capabilities.IOrganizationDirectory>(), NullLogger<CalendarService>.Instance);
         _shareService = new CalendarShareService(_db, _eventBusMock.Object, NullLogger<CalendarShareService>.Instance);
         _owner = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
         _otherUser = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);

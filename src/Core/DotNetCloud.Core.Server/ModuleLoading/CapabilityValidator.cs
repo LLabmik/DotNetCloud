@@ -71,7 +71,8 @@ internal sealed class CapabilityValidator
     [
         nameof(IStorageProvider),
         nameof(IModuleSettings),
-        nameof(ITeamDirectory)
+        nameof(ITeamDirectory),
+        nameof(IOrganizationDirectory)
     ];
 
     private static readonly HashSet<string> PrivilegedCapabilities =

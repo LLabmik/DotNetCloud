@@ -55,6 +55,7 @@ message CreateCalendarRequest {
   string description = 3;
   string color = 4;
   string timezone = 5;
+  string organization_id = 6;  // optional GUID string
 }
 
 message CalendarResponse {
@@ -74,6 +75,7 @@ message GetCalendarRequest {
 
 message ListCalendarsRequest {
   string user_id = 1;
+  string organization_id = 2;  // optional filter
 }
 
 message ListCalendarsResponse {
@@ -211,6 +213,7 @@ message CalendarMessage {
   string sync_token = 9;
   string created_at = 10;     // ISO 8601 timestamp
   string updated_at = 11;
+  string organization_id = 12; // optional GUID string
 }
 
 message EventMessage {

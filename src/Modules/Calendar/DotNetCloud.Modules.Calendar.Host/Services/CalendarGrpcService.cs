@@ -45,7 +45,8 @@ public sealed class CalendarGrpcService : Protos.CalendarGrpcService.CalendarGrp
             Name = request.Name,
             Description = NullIfEmpty(request.Description),
             Color = NullIfEmpty(request.Color),
-            Timezone = string.IsNullOrEmpty(request.Timezone) ? "UTC" : request.Timezone
+            Timezone = string.IsNullOrEmpty(request.Timezone) ? "UTC" : request.Timezone,
+            OrganizationId = Guid.TryParse(request.OrganizationId, out var orgId) ? orgId : null
         };
 
         try
@@ -85,6 +86,12 @@ public sealed class CalendarGrpcService : Protos.CalendarGrpcService.CalendarGrp
 
         var results = await _calendarService.ListCalendarsAsync(
             new CallerContext(userId, ["user"], CallerType.User), context.CancellationToken);
+
+        // Filter by organization if requested
+        if (Guid.TryParse(request.OrganizationId, out var orgId))
+        {
+            results = results.Where(c => c.OrganizationId == orgId).ToList();
+        }
 
         var response = new ListCalendarsResponse { Success = true };
         response.Calendars.AddRange(results.Select(ToCalendarMessage));
@@ -322,7 +329,8 @@ public sealed class CalendarGrpcService : Protos.CalendarGrpcService.CalendarGrp
             IsVisible = dto.IsVisible,
             SyncToken = dto.SyncToken ?? "",
             CreatedAt = dto.CreatedAt.ToString("O"),
-            UpdatedAt = dto.UpdatedAt.ToString("O")
+            UpdatedAt = dto.UpdatedAt.ToString("O"),
+            OrganizationId = dto.OrganizationId?.ToString() ?? ""
         };
     }
 

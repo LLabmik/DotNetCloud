@@ -33,8 +33,15 @@ public sealed class CalendarShareService : ICalendarShareService
     public async Task<CalendarShare> ShareCalendarAsync(Guid calendarId, Guid? userId, Guid? teamId, CalendarSharePermission permission, CallerContext caller, CancellationToken cancellationToken = default)
     {
         var calendar = await _db.Calendars
-            .FirstOrDefaultAsync(c => c.Id == calendarId && c.OwnerId == caller.UserId, cancellationToken)
-            ?? throw new Core.Errors.ValidationException(Core.Errors.ErrorCodes.CalendarNotFound, "Calendar not found or you are not the owner.");
+            .FirstOrDefaultAsync(c => c.Id == calendarId, cancellationToken)
+            ?? throw new Core.Errors.ValidationException(Core.Errors.ErrorCodes.CalendarNotFound, "Calendar not found.");
+
+        // Org calendars do not use shares — membership IS the share
+        if (calendar.OrganizationId.HasValue)
+            throw new Core.Errors.ValidationException(Core.Errors.ErrorCodes.Forbidden, "Organization calendars cannot be shared. Organization membership controls access.");
+
+        if (calendar.OwnerId != caller.UserId)
+            throw new Core.Errors.ValidationException(Core.Errors.ErrorCodes.CalendarNotFound, "Calendar not found or you are not the owner.");
 
         var share = new CalendarShare
         {

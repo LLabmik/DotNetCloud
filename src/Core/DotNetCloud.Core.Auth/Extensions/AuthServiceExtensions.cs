@@ -207,6 +207,7 @@ public static class AuthServiceExtensions
         services.AddScoped<IGroupManager, GroupManagerService>();
         services.AddScoped<ITeamDirectory, TeamDirectoryService>();
         services.AddScoped<ITeamManager, TeamManagerService>();
+        services.AddScoped<IOrganizationDirectory, OrganizationDirectoryService>();
         services.AddScoped<IUserManager, UserManagerService>();
         services.AddScoped<ICurrentUserContext, CurrentUserContextService>();
         services.AddHttpContextAccessor();

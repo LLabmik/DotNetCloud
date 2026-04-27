@@ -26,7 +26,8 @@ public sealed class CalendarModuleManifest : IModuleManifest
         nameof(Core.Capabilities.ICurrentUserContext),
         nameof(Core.Capabilities.IAuditLogger),
         nameof(Core.Capabilities.ICrossModuleLinkResolver),
-        nameof(Core.Capabilities.IContactDirectory)
+        nameof(Core.Capabilities.IContactDirectory),
+        nameof(Core.Capabilities.IOrganizationDirectory)
     };
 
     /// <inheritdoc />

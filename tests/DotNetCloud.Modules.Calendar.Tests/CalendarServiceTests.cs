@@ -30,7 +30,7 @@ public class CalendarServiceTests
             .Options;
         _db = new CalendarDbContext(options);
         _eventBusMock = new Mock<IEventBus>();
-        _service = new CalendarService(_db, _eventBusMock.Object, NullLogger<CalendarService>.Instance);
+        _service = new CalendarService(_db, _eventBusMock.Object, Mock.Of<DotNetCloud.Core.Capabilities.IOrganizationDirectory>(), NullLogger<CalendarService>.Instance);
         _caller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
     }
 

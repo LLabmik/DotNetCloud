@@ -51,6 +51,12 @@ public sealed record CalendarDto
     public bool IsDeleted { get; init; }
 
     /// <summary>
+    /// When set, this calendar belongs to an organization rather than an individual user.
+    /// Null for user-owned calendars.
+    /// </summary>
+    public Guid? OrganizationId { get; init; }
+
+    /// <summary>
     /// Timestamp when the calendar was created.
     /// </summary>
     public required DateTime CreatedAt { get; init; }
@@ -310,6 +316,12 @@ public sealed record CreateCalendarDto
     /// IANA timezone identifier.
     /// </summary>
     public string Timezone { get; init; } = "UTC";
+
+    /// <summary>
+    /// Optional organization ID. When set, the calendar belongs to an organization
+    /// rather than the creating user. Organization membership controls access instead of shares.
+    /// </summary>
+    public Guid? OrganizationId { get; init; }
 }
 
 /// <summary>
@@ -490,4 +502,31 @@ public sealed record EventRsvpDto
     /// Optional comment with the response.
     /// </summary>
     public string? Comment { get; init; }
+}
+
+/// <summary>
+/// Lightweight snapshot of a user's membership in an organization.
+/// Used by modules for organization-scoped authorization checks.
+/// </summary>
+public sealed record OrganizationMemberInfo
+{
+    /// <summary>
+    /// The organization identifier.
+    /// </summary>
+    public required Guid OrganizationId { get; init; }
+
+    /// <summary>
+    /// The user identifier.
+    /// </summary>
+    public required Guid UserId { get; init; }
+
+    /// <summary>
+    /// Organization-scoped role IDs assigned to this user.
+    /// </summary>
+    public IReadOnlyList<Guid> RoleIds { get; init; } = [];
+
+    /// <summary>
+    /// Whether the membership is active.
+    /// </summary>
+    public bool IsActive { get; init; }
 }

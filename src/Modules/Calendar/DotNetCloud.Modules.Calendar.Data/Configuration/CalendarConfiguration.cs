@@ -21,6 +21,8 @@ public sealed class CalendarConfiguration : IEntityTypeConfiguration<Models.Cale
         builder.Property(c => c.Color).HasMaxLength(20);
         builder.Property(c => c.Timezone).IsRequired().HasMaxLength(100);
 
+        builder.Property(c => c.OrganizationId).IsRequired(false);
+
         builder.Property(c => c.SyncToken)
             .IsRequired()
             .HasMaxLength(64);
@@ -45,5 +47,8 @@ public sealed class CalendarConfiguration : IEntityTypeConfiguration<Models.Cale
 
         builder.HasIndex(c => c.IsDeleted)
             .HasDatabaseName("ix_calendars_is_deleted");
+
+        builder.HasIndex(c => c.OrganizationId)
+            .HasDatabaseName("ix_calendars_organization_id");
     }
 }

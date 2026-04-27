@@ -37,12 +37,19 @@ public class CalendarController : CalendarControllerBase
 
     // ─── Calendar CRUD ────────────────────────────────────────────────────
 
-    /// <summary>Lists calendars for the authenticated user.</summary>
+    /// <summary>Lists calendars for the authenticated user. Optionally filter by organization.</summary>
     [HttpGet]
-    public async Task<IActionResult> ListCalendarsAsync()
+    public async Task<IActionResult> ListCalendarsAsync([FromQuery] Guid? organizationId = null)
     {
         var caller = GetAuthenticatedCaller();
         var calendars = await _calendarService.ListCalendarsAsync(caller);
+
+        // Filter by organization if requested
+        if (organizationId.HasValue)
+        {
+            calendars = calendars.Where(c => c.OrganizationId == organizationId.Value).ToList();
+        }
+
         return Ok(Envelope(calendars));
     }
 

@@ -11,6 +11,12 @@ public sealed class Calendar
     /// <summary>User who owns this calendar.</summary>
     public Guid OwnerId { get; set; }
 
+    /// <summary>
+    /// When set, this calendar belongs to an organization rather than an individual user.
+    /// Organization members have implicit access based on their role.
+    /// </summary>
+    public Guid? OrganizationId { get; set; }
+
     /// <summary>Display name for the calendar (e.g., "Work", "Personal").</summary>
     public required string Name { get; set; }
 
