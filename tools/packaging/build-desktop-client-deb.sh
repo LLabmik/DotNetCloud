@@ -55,8 +55,8 @@ dotnet publish "$SYNCTRAY_PROJECT" \
 echo "[2/4] Creating Debian package structure..."
 
 DEBIAN_DIR="$DEB_STAGING/DEBIAN"
-BIN_DIR="$DEB_STAGING/usr/local/bin"
-APPLICATIONS_DIR="$DEB_STAGING/usr/local/share/applications"
+BIN_DIR="$DEB_STAGING/usr/bin"
+APPLICATIONS_DIR="$DEB_STAGING/usr/share/applications"
 ICONS_DIR="$DEB_STAGING/usr/share/icons/hicolor/scalable/apps"
 
 mkdir -p "$DEBIAN_DIR"
@@ -85,7 +85,7 @@ Depends: libc6 (>= 2.31), libssl3 | libssl1.1, libx11-6, libfontconfig1
 Homepage: https://github.com/LLabmik/DotNetCloud
 EOF
 
-# Launcher wrapper in /usr/local/bin
+# Launcher wrapper in /usr/bin
 cat > "$BIN_DIR/dotnetcloud-sync-tray" <<'EOF'
 #!/usr/bin/env bash
 exec /opt/dotnetcloud-desktop-client/SyncTray/dotnetcloud-sync-tray "$@"
@@ -107,7 +107,7 @@ Type=Application
 Version=1.0
 Name=DotNetCloud Sync Client
 Comment=File sync and tray client for DotNetCloud
-Exec=/usr/local/bin/dotnetcloud-sync-tray
+Exec=/usr/bin/dotnetcloud-sync-tray
 Icon=$DESKTOP_ICON
 Terminal=false
 StartupNotify=true
@@ -122,7 +122,7 @@ cat > "$DEBIAN_DIR/postinst" <<'EOF'
 set -e
 chmod 0755 /opt/dotnetcloud-desktop-client/SyncTray/dotnetcloud-sync-tray
 if command -v update-desktop-database >/dev/null 2>&1; then
-    update-desktop-database /usr/local/share/applications || true
+    update-desktop-database /usr/share/applications || true
 fi
 if command -v gtk-update-icon-cache >/dev/null 2>&1; then
     gtk-update-icon-cache /usr/share/icons/hicolor || true
@@ -146,7 +146,7 @@ if [ "$1" = "remove" ] || [ "$1" = "purge" ]; then
 fi
 
 if command -v update-desktop-database >/dev/null 2>&1; then
-    update-desktop-database /usr/local/share/applications || true
+    update-desktop-database /usr/share/applications || true
 fi
 if command -v gtk-update-icon-cache >/dev/null 2>&1; then
     gtk-update-icon-cache /usr/share/icons/hicolor || true
