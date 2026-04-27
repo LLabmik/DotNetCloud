@@ -281,6 +281,16 @@ check_prerequisites() {
         fi
     done
 
+    # Media tooling (Video module: thumbnails via ffmpegthumbnailer, metadata via ffprobe)
+    if ! command -v ffmpegthumbnailer &>/dev/null; then
+        info "Installing ffmpegthumbnailer..."
+        $SUDO apt-get update -qq && $SUDO apt-get install -y -qq ffmpegthumbnailer
+    fi
+    if ! command -v ffprobe &>/dev/null; then
+        info "Installing ffmpeg..."
+        $SUDO apt-get update -qq && $SUDO apt-get install -y -qq ffmpeg
+    fi
+
     ok "Prerequisites satisfied."
 }
 

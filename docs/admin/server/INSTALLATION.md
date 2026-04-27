@@ -117,6 +117,9 @@ sudo ln -sf /usr/share/dotnet/dotnet /usr/local/bin/dotnet
 
 # Verify .NET installation
 dotnet --info
+
+# Install media tooling (Video module: thumbnails + metadata extraction)
+sudo apt install -y ffmpegthumbnailer ffmpeg
 ```
 
 #### Step 2: Install PostgreSQL (Recommended)
