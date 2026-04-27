@@ -77,7 +77,7 @@
 | Sync Batch 5                | 2       | 2         | 0           | 0       |
 | Sync Verification           | 1       | 1         | 0           | 0       |
 | Sync Hardening P0           | 3       | 3         | 0           | 0       |
-| Sync Hardening P1–P2        | 6       | 6         | 0           | 0       |
+| Calendar Recurrence+Org     | 6       | 6         | 0           | 0       |
 | Client Security Remediation | 1       | 1         | 0           | 0       |
 | Phase 3.1                   | 4       | 4         | 0           | 0       |
 | Phase 3.2                   | 6       | 6         | 0           | 0       |
@@ -1444,6 +1444,24 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ 82 passing tests (39 existing + 43 new: recurrence, expansion, reminders)
 
 **Notes:** Calendar module fully complete. RecurrenceEngine parses RFC 5545 RRULE (DAILY/WEEKLY/MONTHLY/YEARLY, INTERVAL, COUNT, UNTIL, BYDAY with ordinals, BYMONTHDAY, BYMONTH, BYSETPOS). OccurrenceExpansionService merges expanded/concrete/exception events for time-range queries. ReminderDispatchService (BackgroundService) scans every 30s, publishes CalendarReminderTriggeredEvent + ReminderTriggeredEvent, logs dispatches in ReminderLog table to prevent duplicates. Handles recurring event reminders via recurrence expansion.
+
+#### Calendar Recurrence UI + Organization Enhancement (2026-04-27)
+
+**STATUS:** completed ✅
+**DELIVERABLES:**
+
+- ✓ Org picker dropdown in toolbar (My Calendars / Organization filter)
+- ✓ Org badge in calendar editor modal (shows org name when creating under org)
+- ✓ Attendee management UI in event editor (email, name, role, status fields)
+- ✓ Reminder configuration UI in event editor (method dropdown, minutes input, add/remove)
+- ✓ Monthly BYDAY position recurrence builder (First/Second/Third/Fourth/Last + day-of-week picker for "every Nth weekday" patterns)
+- ✓ Multi-day event spanning bars in month grid (CSS grid-column span for all-day/multi-day events)
+- ✓ HasByDay fix for position-prefixed BYDAY values (2TU, -1FR)
+- ✓ OrganizationCalendarAuthorizationTests (11 tests: org member read, manager write, non-member denied, share rejection, coexistence)
+- ✓ RecurrenceLogicTests (28 tests: RRULE build/parse, BYDAY, monthly position, round-trip)
+- ✓ 179 calendar tests passing (0 failures, 0 regressions)
+
+**Notes:** Calendar module now has complete Shelter-style UX with all backend recurrence features wired to the UI. Org calendars coexist with user-owned calendars. Monthly recurrence supports "first Monday", "last Friday", etc. Multi-day/all-day events render as spanning bars in the month grid. All changes covered by unit tests.
 
 ---
 

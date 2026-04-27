@@ -3518,17 +3518,25 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Modal-based editing: Event, Calendar, Day Details, Delete Confirmation
 - ✓ Month grid polish: max 3 events per cell, "+X more" link, time badges, all-day styling
 - ✓ Today button in calendar toolbar
-- ✓ `OrganizationId` on Calendar entity + EF configuration + index
-- ✓ `IOrganizationDirectory` capability interface (Restricted tier)
-- ✓ `OrganizationDirectoryService` implementation in Core.Auth
+- ✓ OrganizationId on Calendar entity + EF configuration + index
+- ✓ IOrganizationDirectory capability interface (Restricted tier)
+- ✓ OrganizationDirectoryService implementation in Core.Auth
 - ✓ Org membership authorization in CalendarService and CalendarEventService
 - ✓ CalendarShareService rejects sharing on org calendars
-- ✓ REST `GET /api/v1/calendars?organizationId={guid}` filter
-- ✓ gRPC proto: `organization_id` in CalendarMessage, CreateCalendarRequest, ListCalendarsRequest
+- ✓ REST GET /api/v1/calendars?organizationId={guid} filter
+- ✓ gRPC proto: organization_id in CalendarMessage, CreateCalendarRequest, ListCalendarsRequest
 - ✓ CalendarGrpcService maps org fields to/from DTOs
 - ✓ CalendarModuleManifest registers IOrganizationDirectory capability
 - ✓ Module manifest (manifest.json)
-- ✓ 39 passing tests (module, service, event, iCal)
+- ✓ Attendee management UI in event editor (email, name, role, status)
+- ✓ Reminder configuration UI in event editor (method dropdown, minutes input, add/remove)
+- ✓ Org picker dropdown in toolbar (My Calendars / Organization filter)
+- ✓ Org badge in calendar editor modal (shows org name when creating under org)
+- ✓ Monthly BYDAY position recurrence builder (First/Second/Third/Fourth/Last + day-of-week picker)
+- ✓ Multi-day event spanning bars in month grid (CSS grid-column span)
+- ✓ OrganizationCalendarAuthorizationTests (11 tests: org member, manager, non-member, coexistence)
+- ✓ RecurrenceLogicTests (28 tests: RRULE build/parse, BYDAY, round-trip)
+- ✓ 179 passing calendar tests (0 failures)
 
 ### Phase 3.4: Notes Module
 
