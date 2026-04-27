@@ -57,6 +57,7 @@ public partial class VideoPage : IAsyncDisposable
     private List<SubtitleDto> _playerSubtitles = [];
     private string? _streamToken;
     private string? _codecErrorMessage;
+    private string? _codecErrorGuidance;
     private bool _noAudioDetected;
     private IJSObjectReference? _jsModule;
     private IJSObjectReference? _idleAutoHideHandle;
@@ -166,9 +167,93 @@ public partial class VideoPage : IAsyncDisposable
         if (!string.IsNullOrWhiteSpace(httpStatusText))
             diagnostic += $" ({httpStatusText})";
 
+        // Append codec/container info from ffprobe metadata if available
+        if (_playerMetadata is not null)
+        {
+            if (!string.IsNullOrWhiteSpace(_playerMetadata.ContainerFormat))
+                diagnostic += $" | Container: {_playerMetadata.ContainerFormat}";
+            if (!string.IsNullOrWhiteSpace(_playerMetadata.VideoCodec))
+                diagnostic += $" | Video: {_playerMetadata.VideoCodec}";
+            if (!string.IsNullOrWhiteSpace(_playerMetadata.AudioCodec))
+                diagnostic += $" | Audio: {_playerMetadata.AudioCodec}";
+        }
+
         Logger.LogWarning("Video playback error: {Diagnostic}", diagnostic);
         _codecErrorMessage = diagnostic;
+        _codecErrorGuidance = BuildCodecGuidance();
         InvokeAsync(StateHasChanged);
+    }
+
+    private string BuildCodecGuidance()
+    {
+        var container = _playerMetadata?.ContainerFormat?.ToLowerInvariant();
+        var videoCodec = _playerMetadata?.VideoCodec?.ToLowerInvariant();
+        var audioCodec = _playerMetadata?.AudioCodec?.ToLowerInvariant();
+
+        // MKV container — Edge doesn't support it at all
+        if (container == "mkv" || container == "matroska" || container == "webm")
+        {
+            if (container == "webm" && videoCodec is "vp8" or "vp9" or "av1")
+                return "This video uses a WebM container with a supported codec. This format should play in most modern browsers, including Edge.";
+
+            if (container == "mkv" || container == "matroska")
+            {
+                return "This video uses an <strong>MKV (Matroska)</strong> container, which Microsoft Edge does not support natively — even with HEVC extensions installed. " +
+                       "To play this video, use <strong>Google Chrome</strong> or <strong>Mozilla Firefox</strong>, both of which support MKV playback. " +
+                       "Alternatively, you can remux the file to MP4 using ffmpeg: <code>ffmpeg -i input.mkv -c copy output.mp4</code>.";
+            }
+        }
+
+        // Known problematic codecs in MP4 — HEVC needs Microsoft's extension
+        if (videoCodec is "hevc" or "h265" && (container == "mp4" || container is null))
+        {
+            return "This video uses <strong>H.265 / HEVC</strong> video. Install the free " +
+                   "<a href=\"ms-windows-store://pdp/?productid=9n4wgh0z6vhq\" target=\"_blank\" rel=\"noopener\">HEVC Video Extensions</a> " +
+                   "from the Microsoft Store, then refresh the page.";
+        }
+
+        if (videoCodec is "av1" && (container == "mp4" || container is null))
+        {
+            return "This video uses the <strong>AV1</strong> video codec. Install the " +
+                   "<a href=\"ms-windows-store://pdp/?productid=9mvzqvxjbq9v\" target=\"_blank\" rel=\"noopener\">AV1 Video Extension</a> " +
+                   "from the Microsoft Store, then refresh the page.";
+        }
+
+        if (videoCodec is "mpeg2video" or "mpeg1video")
+        {
+            return "This video uses <strong>MPEG-2</strong> video, which is not supported for playback in any modern browser. " +
+                   "Re-encode the file to H.264 using ffmpeg: <code>ffmpeg -i input -c:v libx264 -c:a aac output.mp4</code>.";
+        }
+
+        if (container == "avi" || videoCodec is "msmpeg4v3" or "wmv3" or "wmv2" or "wmv1")
+        {
+            return "This video uses a legacy Windows Media or AVI format. These formats have limited browser support. " +
+                   "Try a different browser, or re-encode to H.264 MP4.";
+        }
+
+        // Audio-only issues
+        if (audioCodec is "ac3" or "eac3" or "dts" or "truehd")
+        {
+            return "This video has a <strong>" + (audioCodec ?? "surround") + "</strong> audio track that most browsers cannot decode. " +
+                   "For full audio support, use <strong>Microsoft Edge</strong> or re-encode the audio to AAC.";
+        }
+
+        // Generic guidance when we have metadata but no known bad combo
+        if (_playerMetadata is not null)
+        {
+            return "The file uses a <strong>" + (container ?? "unknown") + "</strong> container with <strong>" +
+                   (videoCodec ?? "unknown") + "</strong> video. This combination may not be supported by your browser. " +
+                   "Try <strong>Google Chrome</strong> or <strong>Mozilla Firefox</strong> for the widest format compatibility.";
+        }
+
+        // No metadata — generic guidance
+        return "Your browser was unable to play this video. This can happen if the video uses an unsupported codec or if the file failed to load.";
+    }
+
+    private void DismissCodecError()
+    {
+        _codecErrorMessage = null;
+        _codecErrorGuidance = null;
     }
 
     /// <summary>Called from JS when the video plays but no audio track is decoded (e.g. Firefox + Dolby Digital).</summary>
@@ -389,6 +474,7 @@ public partial class VideoPage : IAsyncDisposable
 
             _streamToken = StreamingService.GenerateStreamToken(video.Id, caller.UserId);
             _codecErrorMessage = null;
+            _codecErrorGuidance = null;
             _noAudioDetected = false;
             _videoErrorListenerAttached = false;
             _playerOpen = true;
@@ -431,6 +517,7 @@ public partial class VideoPage : IAsyncDisposable
         _playerSubtitles.Clear();
         _streamToken = null;
         _codecErrorMessage = null;
+        _codecErrorGuidance = null;
         _noAudioDetected = false;
         _videoErrorListenerAttached = false;
         _breadcrumb.Clear();

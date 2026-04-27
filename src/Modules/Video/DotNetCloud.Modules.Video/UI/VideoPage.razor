@@ -622,15 +622,16 @@
                         {
                             <div class="codec-error-overlay">
                                 <div class="codec-error-card">
+                                    <button type="button" class="codec-error-close" @onclick="DismissCodecError" title="Dismiss" aria-label="Close error">&times;</button>
                                     <div class="codec-error-icon">⚠️</div>
                                     <h4>Video Cannot Be Played</h4>
-                                    <p>Your browser was unable to play this video. This can happen if the video uses an unsupported codec or if the file failed to load.</p>
-                                    <p class="codec-error-diagnostic" style="font-family: monospace; font-size: 13px; padding: 8px 12px; background: rgba(255,255,255,0.06); border-radius: 8px; word-break: break-all;">@_codecErrorMessage</p>
+                                    <p>@(_codecErrorGuidance ?? "Your browser was unable to play this video. This can happen if the video uses an unsupported codec or if the file failed to load.")</p>
+                                    <p class="codec-error-diagnostic">@_codecErrorMessage</p>
                                     <div class="codec-error-instructions">
                                         <strong>Suggestions:</strong>
-                                        <ul style="margin: 8px 0 0 0; padding-left: 20px; text-align: left;">
+                                        <ul>
                                             <li>Try refreshing the page</li>
-                                            <li>Try <strong>Microsoft Edge</strong>, which supports the widest range of video and audio codecs on Windows</li>
+                                            <li>Try <strong>Google Chrome</strong> or <strong>Mozilla Firefox</strong>, which support more video formats than Edge</li>
                                             <li>On Edge, install the free
                                                 <a href="ms-windows-store://pdp/?productid=9n4wgh0z6vhq" target="_blank" rel="noopener">HEVC Video Extensions</a>
                                                 from the Microsoft Store for H.265 video support</li>
