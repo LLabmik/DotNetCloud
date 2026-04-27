@@ -3508,6 +3508,25 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 
 - ✓ gRPC service (11 RPCs) for core ↔ module communication
 - ✓ iCalendar RFC 5545 import/export service
+
+#### Calendar Recurrence UI + Organization Support (Phases 1-5)
+
+- ✓ Recurrence picker (Daily/Weekly/Biweekly/Monthly/Yearly) with end date in event editor
+- ✓ All-day event toggle with conditional time inputs
+- ✓ Color swatch picker with preset colors + custom hex
+- ✓ URL field in event editor
+- ✓ Modal-based editing: Event, Calendar, Day Details, Delete Confirmation
+- ✓ Month grid polish: max 3 events per cell, "+X more" link, time badges, all-day styling
+- ✓ Today button in calendar toolbar
+- ✓ `OrganizationId` on Calendar entity + EF configuration + index
+- ✓ `IOrganizationDirectory` capability interface (Restricted tier)
+- ✓ `OrganizationDirectoryService` implementation in Core.Auth
+- ✓ Org membership authorization in CalendarService and CalendarEventService
+- ✓ CalendarShareService rejects sharing on org calendars
+- ✓ REST `GET /api/v1/calendars?organizationId={guid}` filter
+- ✓ gRPC proto: `organization_id` in CalendarMessage, CreateCalendarRequest, ListCalendarsRequest
+- ✓ CalendarGrpcService maps org fields to/from DTOs
+- ✓ CalendarModuleManifest registers IOrganizationDirectory capability
 - ✓ Module manifest (manifest.json)
 - ✓ 39 passing tests (module, service, event, iCal)
 
