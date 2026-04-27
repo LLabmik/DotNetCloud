@@ -171,29 +171,14 @@
 
         @if (_activeView == "month")
         {
-            var gridDays = GetMonthGridDays();
-            var multiDayEvents = GetMultiDayEvents(gridDays);
             <div class="calendar-month-grid">
                 @foreach (var name in DayNames)
                 {
                     <div class="calendar-day-header">@name</div>
                 }
-                @* ── Multi-day events bar ── *@
-                @if (multiDayEvents.Count > 0)
+                @foreach (var day in GetMonthGridDays())
                 {
-                    @foreach (var mde in multiDayEvents)
-                    {
-                        <div class="calendar-multi-day-event"
-                             style="grid-column: @(mde.GridStartCol) / span @(mde.GridSpan); background: @mde.BackgroundColor"
-                             @onclick="() => BeginEditEvent(mde.Event)"
-                             title="@mde.Event.Title">
-                            <span class="calendar-multi-day-title">@mde.Event.Title</span>
-                        </div>
-                    }
-                }
-                @foreach (var day in gridDays)
-                {
-                    var dayEvents = GetEventsForDate(day).Where(e => !multiDayEvents.Any(m => m.Event == e)).ToList();
+                    var dayEvents = GetEventsForDate(day);
                     var visibleEvents = dayEvents.Take(3).ToList();
                     var overflowCount = dayEvents.Count - 3;
                     <div class="calendar-day-cell @(day.Month != _anchorDate.Month ? "other-month" : "") @(day.Date == DateTime.Today ? "today" : "")"
@@ -684,58 +669,6 @@
 
     private sealed record OrgInfo(Guid Id, string Name);
 
-    private sealed record MultiDayEventInfo(CalendarEventDto Event, int GridStartCol, int GridSpan, string BackgroundColor);
-
-    private List<MultiDayEventInfo> GetMultiDayEvents(List<DateTime> gridDays)
-    {
-        var result = new List<MultiDayEventInfo>();
-        var seen = new HashSet<Guid>();
-
-        foreach (var evt in _events)
-        {
-            var localStart = evt.StartUtc.ToLocalTime();
-            var localEnd = evt.EndUtc.ToLocalTime();
-            var spanDays = (localEnd.Date - localStart.Date).Days;
-
-            // Only consider multi-day events (span > 1 day) or all-day events
-            if (spanDays <= 1 && !evt.IsAllDay)
-                continue;
-
-            if (!seen.Add(evt.Id))
-                continue;
-
-            // Find the event's position in the grid
-            var eventStartDate = localStart.Date;
-            var eventEndDate = localEnd.Date;
-
-            // Clamp to visible grid range
-            var gridStart = gridDays.First().Date;
-            var gridEnd = gridDays.Last().Date.AddDays(1);
-
-            var visibleStart = eventStartDate < gridStart ? gridStart : eventStartDate;
-            var visibleEnd = eventEndDate > gridEnd ? gridEnd : eventEndDate;
-
-            // Find grid column index (1-based for CSS grid)
-            var startIdx = gridDays.FindIndex(d => d.Date == visibleStart);
-            if (startIdx < 0) startIdx = 0;
-            var endIdx = gridDays.FindIndex(d => d.Date >= visibleEnd);
-            if (endIdx < 0) endIdx = gridDays.Count;
-
-            var colStart = startIdx + 1; // CSS grid is 1-based
-            var colSpan = endIdx - startIdx;
-            if (colSpan < 1) colSpan = 1;
-
-            result.Add(new MultiDayEventInfo(
-                evt,
-                colStart,
-                colSpan,
-                GetEventColor(evt)
-            ));
-        }
-
-        return result;
-    }
-
     private List<DateTime> GetMonthGridDays()
     {
         var firstOfMonth = new DateTime(_anchorDate.Year, _anchorDate.Month, 1);
@@ -768,7 +701,8 @@
                 var localStart = e.StartUtc.ToLocalTime();
                 var localEnd = e.EndUtc.ToLocalTime();
                 // Event starts on this date, OR spans across it (multi-day)
-                return localStart.Date <= date.Date && localEnd.Date > date.Date;
+                // End date is inclusive — an all-day event April 27-30 shows on all four days
+                return localStart.Date <= date.Date && localEnd.Date >= date.Date;
             })
             .OrderBy(e => e.IsAllDay ? 0 : 1)
             .ThenBy(e => e.StartUtc)

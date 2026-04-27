@@ -872,35 +872,6 @@
     color: var(--color-text);
 }
 
-/* ── Multi-day event bar ── */
-
-.calendar-multi-day-event {
-    display: flex;
-    align-items: center;
-    padding: 4px 10px;
-    margin: 1px 0;
-    border-radius: 4px;
-    font-size: 12px;
-    font-weight: 500;
-    color: #fff;
-    cursor: pointer;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-    transition: opacity 0.15s ease;
-    min-height: 24px;
-}
-
-.calendar-multi-day-event:hover {
-    opacity: 0.85;
-}
-
-.calendar-multi-day-title {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
 /* ── Share Panel ── */
 
 .share-item {
