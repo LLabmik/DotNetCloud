@@ -39,38 +39,9 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
         var caller = new CallerContext(ownerId, ["user"], CallerType.System);
         var video = await _videoService.CreateVideoAsync(fileNodeId, fileName, mimeType, sizeBytes, ownerId, caller, cancellationToken);
 
-        // Generate poster thumbnail in a new DI scope (fire-and-forget — failure is non-fatal).
-        // Must use a separate scope because the request scope will be disposed before the background work completes.
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                await using var scope = _scopeFactory.CreateAsyncScope();
-                var thumbnailService = scope.ServiceProvider.GetRequiredService<IVideoThumbnailService>();
-                await thumbnailService.GenerateThumbnailAsync(video.Id, fileNodeId, CancellationToken.None);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Thumbnail generation failed for video {VideoId}", video.Id);
-            }
-        }, CancellationToken.None);
-
-        // Generate screenshots (fire-and-forget — no network dependency, runs in parallel with thumbnail)
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                await using var scope = _scopeFactory.CreateAsyncScope();
-                var thumbnailService = scope.ServiceProvider.GetRequiredService<IVideoThumbnailService>();
-                await thumbnailService.GenerateScreenshotsAsync(video.Id, fileNodeId, CancellationToken.None);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Screenshot generation failed for video {VideoId}", video.Id);
-            }
-        }, CancellationToken.None);
-
-        // TMDB enrichment (fire-and-forget — network-dependent, graceful failure)
+        // TMDB enrichment (fire-and-forget — network-dependent, graceful failure).
+        // Thumbnail and screenshots are only generated as a fallback when TMDB doesn't provide a poster,
+        // avoiding unnecessary ffmpeg work against every video file.
         _ = Task.Run(async () =>
         {
             try
@@ -79,10 +50,37 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
                 var enrichmentService = scope.ServiceProvider.GetRequiredService<IVideoEnrichmentService>();
                 var caller = new CallerContext(ownerId, ["user"], CallerType.System);
                 await enrichmentService.EnrichVideoAsync(video.Id, caller, cancellationToken: CancellationToken.None);
+
+                // Only generate local poster fallback if TMDB didn't provide one
+                var db = scope.ServiceProvider.GetRequiredService<VideoDbContext>();
+                var hasPoster = await db.Videos
+                    .Where(v => v.Id == video.Id)
+                    .Select(v => v.HasExternalPoster)
+                    .FirstOrDefaultAsync(CancellationToken.None);
+
+                if (!hasPoster)
+                {
+                    var thumbnailService = scope.ServiceProvider.GetRequiredService<IVideoThumbnailService>();
+                    await thumbnailService.GenerateThumbnailAsync(video.Id, fileNodeId, CancellationToken.None);
+                    await thumbnailService.GenerateScreenshotsAsync(video.Id, fileNodeId, CancellationToken.None);
+                }
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "TMDB enrichment failed for video {VideoId}", video.Id);
+
+                // Generate local poster fallback when TMDB is unavailable
+                try
+                {
+                    await using var fallbackScope = _scopeFactory.CreateAsyncScope();
+                    var thumbnailService = fallbackScope.ServiceProvider.GetRequiredService<IVideoThumbnailService>();
+                    await thumbnailService.GenerateThumbnailAsync(video.Id, fileNodeId, CancellationToken.None);
+                    await thumbnailService.GenerateScreenshotsAsync(video.Id, fileNodeId, CancellationToken.None);
+                }
+                catch (Exception fallbackEx)
+                {
+                    _logger.LogWarning(fallbackEx, "Poster fallback generation failed for video {VideoId}", video.Id);
+                }
             }
         }, CancellationToken.None);
 
@@ -116,7 +114,7 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
             var path = Path.Combine(storageRoot, dir);
             if (Directory.Exists(path))
             {
-                try { Directory.Delete(path, recursive: true); } catch { /* best effort */ }
+                try { Directory.Delete(path, recursive: true); } catch (Exception ex) { _logger.LogWarning(ex, "Failed to delete directory {Path} during collection reset", path); }
             }
         }
 

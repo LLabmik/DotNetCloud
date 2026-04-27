@@ -22,13 +22,22 @@ internal sealed class InMemoryVideoEnrichmentBackgroundQueue : IVideoEnrichmentB
 
     private readonly HashSet<Guid> _activeOrQueuedUsers = [];
     private readonly object _syncRoot = new();
+    private readonly ILogger<InMemoryVideoEnrichmentBackgroundQueue> _logger;
+
+    public InMemoryVideoEnrichmentBackgroundQueue(ILogger<InMemoryVideoEnrichmentBackgroundQueue> logger)
+    {
+        _logger = logger;
+    }
 
     public ValueTask<bool> EnqueueAsync(VideoEnrichmentJob job, CancellationToken cancellationToken = default)
     {
         lock (_syncRoot)
         {
             if (!_activeOrQueuedUsers.Add(job.OwnerId))
+            {
+                _logger.LogDebug("Duplicate enrichment job rejected for user {UserId}", job.OwnerId);
                 return ValueTask.FromResult(false);
+            }
         }
 
         return EnqueueCoreAsync(job, cancellationToken);

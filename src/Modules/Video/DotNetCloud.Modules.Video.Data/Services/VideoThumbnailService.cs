@@ -95,8 +95,14 @@ public sealed class VideoThumbnailService : IVideoThumbnailService
 
         try
         {
+            // Resolve the owner so admin shared folders (_DotNetCloud/Movies) are reachable
+            var ownerId = await _db.Videos.IgnoreQueryFilters()
+                .Where(v => v.Id == videoId)
+                .Select(v => v.OwnerId)
+                .FirstOrDefaultAsync(cancellationToken);
+
             // Download the video file to a temp location
-            var caller = new CallerContext(Guid.Empty, [], CallerType.System);
+            var caller = new CallerContext(ownerId, [], CallerType.System);
             await using var videoStream = await _downloadService.DownloadCurrentAsync(fileNodeId, caller);
 
             // If it's a FileStream (DeleteOnClose temp file from download service), use it directly
@@ -161,7 +167,7 @@ public sealed class VideoThumbnailService : IVideoThumbnailService
             // Clean up temp frame file (video temp file is DeleteOnClose from download service)
             if (tempFramePath is not null && File.Exists(tempFramePath))
             {
-                try { File.Delete(tempFramePath); } catch { /* best effort */ }
+                try { File.Delete(tempFramePath); } catch (Exception ex) { _logger.LogDebug(ex, "Failed to delete temp frame file {Path}", tempFramePath); }
             }
         }
     }
@@ -207,7 +213,12 @@ public sealed class VideoThumbnailService : IVideoThumbnailService
 
         try
         {
-            var caller = new CallerContext(Guid.Empty, [], CallerType.System);
+            var ownerId = await _db.Videos.IgnoreQueryFilters()
+                .Where(v => v.Id == videoId)
+                .Select(v => v.OwnerId)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            var caller = new CallerContext(ownerId, [], CallerType.System);
             await using var videoStream = await _downloadService.DownloadCurrentAsync(fileNodeId, caller);
 
             if (videoStream is FileStream fs)
@@ -250,7 +261,7 @@ public sealed class VideoThumbnailService : IVideoThumbnailService
                 {
                     if (File.Exists(frameTemp))
                     {
-                        try { File.Delete(frameTemp); } catch { /* best effort */ }
+                        try { File.Delete(frameTemp); } catch (Exception ex) { _logger.LogDebug(ex, "Failed to delete screenshot temp file {Path}", frameTemp); }
                     }
                 }
             }
@@ -278,8 +289,9 @@ public sealed class VideoThumbnailService : IVideoThumbnailService
 
             return Task.FromResult<IReadOnlyList<string>?>(files.Count > 0 ? files : null);
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogWarning(ex, "Failed to enumerate screenshot directory for video {VideoId}", videoId);
             return Task.FromResult<IReadOnlyList<string>?>(null);
         }
     }
@@ -291,7 +303,12 @@ public sealed class VideoThumbnailService : IVideoThumbnailService
 
         try
         {
-            var caller = new CallerContext(Guid.Empty, [], CallerType.System);
+            var ownerId = await _db.Videos.IgnoreQueryFilters()
+                .Where(v => v.Id == videoId)
+                .Select(v => v.OwnerId)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            var caller = new CallerContext(ownerId, [], CallerType.System);
             await using var videoStream = await _downloadService.DownloadCurrentAsync(fileNodeId, caller);
 
             if (videoStream is FileStream fs)
@@ -394,7 +411,7 @@ public sealed class VideoThumbnailService : IVideoThumbnailService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Metadata extraction failed for video {VideoId}", videoId);
+            _logger.LogError(ex, "Metadata extraction failed for video {VideoId}", videoId);
         }
     }
 

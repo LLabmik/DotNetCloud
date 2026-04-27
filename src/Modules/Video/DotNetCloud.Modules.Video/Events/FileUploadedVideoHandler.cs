@@ -51,7 +51,7 @@ public sealed class FileUploadedVideoHandler : IEventHandler<FileUploadedEvent>
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex,
+                _logger.LogWarning(ex,
                     "Failed to auto-create video for uploaded file: {FileName} ({MimeType}) by user {UserId}",
                     @event.FileName, @event.MimeType, @event.UploadedByUserId);
             }

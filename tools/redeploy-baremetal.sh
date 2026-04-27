@@ -143,7 +143,11 @@ INSTALL_CLI_DIR="/opt/dotnetcloud/cli/server"
 INSTALL_SERVER_DIR="/opt/dotnetcloud/server"
 
 stop_service() {
-    sudo systemctl stop "$SERVICE_NAME"
+    # Stop via the CLI first (handles direct-run processes), then systemd as a fallback.
+    if command -v dotnetcloud >/dev/null 2>&1; then
+        sudo dotnetcloud stop 2>/dev/null || true
+    fi
+    sudo systemctl stop "$SERVICE_NAME" 2>/dev/null || true
 }
 
 start_service() {

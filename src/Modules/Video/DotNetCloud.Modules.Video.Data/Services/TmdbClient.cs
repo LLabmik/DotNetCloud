@@ -72,7 +72,7 @@ public sealed class TmdbClient : ITmdbClient
 
             if (!response.IsSuccessStatusCode)
             {
-                _logger.LogDebug("TMDB poster download returned {StatusCode} for {Path}", (int)response.StatusCode, posterPath);
+                _logger.LogWarning("TMDB poster download returned {StatusCode} for {Path}", (int)response.StatusCode, posterPath);
                 return null;
             }
 
@@ -82,7 +82,7 @@ public sealed class TmdbClient : ITmdbClient
         }
         catch (HttpRequestException ex)
         {
-            _logger.LogDebug(ex, "Network error downloading TMDB poster for {Path}", posterPath);
+            _logger.LogWarning(ex, "Network error downloading TMDB poster for {Path}", posterPath);
             return null;
         }
         finally
@@ -103,7 +103,7 @@ public sealed class TmdbClient : ITmdbClient
 
             if (!response.IsSuccessStatusCode)
             {
-                _logger.LogDebug("TMDB API returned {StatusCode} for {Uri}", (int)response.StatusCode, requestUri);
+                _logger.LogWarning("TMDB API returned {StatusCode} for {Uri}", (int)response.StatusCode, requestUri);
                 return null;
             }
 
@@ -112,7 +112,7 @@ public sealed class TmdbClient : ITmdbClient
         }
         catch (HttpRequestException ex)
         {
-            _logger.LogDebug(ex, "Network error calling TMDB API for {Uri}", requestUri);
+            _logger.LogWarning(ex, "Network error calling TMDB API for {Uri}", requestUri);
             return null;
         }
         finally

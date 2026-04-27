@@ -692,7 +692,45 @@
                             </div>
                         </div>
 
-                        @* Metadata *@
+                        @* TMDB Enrichment Info *@
+                        @if (_playerVideo.HasExternalPoster || _playerVideo.Overview is not null || _playerVideo.TmdbRating is not null || _playerVideo.ReleaseDate is not null)
+                        {
+                            <div class="tmdb-info-section">
+                                @if (_playerVideo.HasExternalPoster)
+                                {
+                                    <img class="tmdb-poster" src="@GetThumbnailUrl(_playerVideo.Id)" alt="@_playerVideo.Title" />
+                                }
+                                <div class="tmdb-details">
+                                    @if (_playerVideo.TmdbRating is not null)
+                                    {
+                                        <div class="tmdb-rating">
+                                            <span class="tmdb-rating-star">★</span>
+                                            <span>@_playerVideo.TmdbRating.Value.ToString("F1")</span>
+                                            <span class="tmdb-rating-max">/ 10</span>
+                                        </div>
+                                    }
+                                    @if (_playerVideo.ReleaseDate is not null)
+                                    {
+                                        <span class="tmdb-release-year">@_playerVideo.ReleaseDate.Value.ToString("yyyy")</span>
+                                    }
+                                    @if (_playerVideo.Genres is not null)
+                                    {
+                                        <div class="tmdb-genres">
+                                            @foreach (var genre in _playerVideo.Genres.Split(", "))
+                                            {
+                                                <span class="tmdb-genre-tag">@genre</span>
+                                            }
+                                        </div>
+                                    }
+                                    @if (_playerVideo.Overview is not null)
+                                    {
+                                        <p class="tmdb-overview">@_playerVideo.Overview</p>
+                                    }
+                                </div>
+                            </div>
+                        }
+
+                        @* Technical Metadata *@
                         @if (_playerMetadata is not null)
                         {
                             <div class="metadata-grid">

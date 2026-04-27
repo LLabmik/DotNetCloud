@@ -57,6 +57,7 @@ public sealed partial class VideoEnrichmentService : IVideoEnrichmentService
         var results = await _tmdbClient.SearchMovieAsync(video.Title, year, cancellationToken);
         if (results is null || results.Count == 0)
         {
+            _logger.LogDebug("No TMDB results found for video {VideoId} ('{Title}')", videoId, video.Title);
             video.LastEnrichedAt = DateTime.UtcNow;
             video.UpdatedAt = DateTime.UtcNow;
             await _db.SaveChangesAsync(cancellationToken);
@@ -79,6 +80,7 @@ public sealed partial class VideoEnrichmentService : IVideoEnrichmentService
         }
         else
         {
+            _logger.LogDebug("TMDB movie detail unavailable for {TmdbId}, falling back to search result", best.Id);
             // Use search result as fallback
             video.TmdbId = best.Id;
             video.TmdbTitle = best.Title;

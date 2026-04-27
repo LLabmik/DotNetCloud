@@ -5,6 +5,7 @@ using DotNetCloud.Modules.Video.Events;
 using DotNetCloud.Modules.Video.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace DotNetCloud.Modules.Video.Data;
 
@@ -38,7 +39,7 @@ public static class VideoServiceRegistration
 
         // TMDB API client
         var tmdbRateLimitMs = configuration.GetValue("Video:Enrichment:TmdbRateLimitMs", 300);
-        services.AddSingleton(new TmdbRateLimiter(tmdbRateLimitMs));
+        services.AddSingleton(sp => new TmdbRateLimiter(tmdbRateLimitMs, sp.GetRequiredService<ILogger<TmdbRateLimiter>>()));
         services.AddHttpClient<ITmdbClient, TmdbClient>(client =>
         {
             client.BaseAddress = new Uri("https://api.themoviedb.org/3/");
