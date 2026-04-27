@@ -872,6 +872,35 @@
     color: var(--color-text);
 }
 
+/* ── Multi-day event bar ── */
+
+.calendar-multi-day-event {
+    display: flex;
+    align-items: center;
+    padding: 4px 10px;
+    margin: 1px 0;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    color: #fff;
+    cursor: pointer;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    transition: opacity 0.15s ease;
+    min-height: 24px;
+}
+
+.calendar-multi-day-event:hover {
+    opacity: 0.85;
+}
+
+.calendar-multi-day-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 /* ── Share Panel ── */
 
 .share-item {
@@ -1186,6 +1215,122 @@
     font-size: 13px;
     color: var(--color-danger);
     margin-top: 4px;
+}
+
+/* ── Org Picker ── */
+
+.calendar-org-picker {
+    position: relative;
+}
+
+.calendar-org-arrow {
+    font-size: 10px;
+    margin-left: 4px;
+}
+
+.calendar-org-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    z-index: 100;
+    margin-top: 4px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+    min-width: 200px;
+    overflow: hidden;
+}
+
+.calendar-org-option {
+    display: block;
+    width: 100%;
+    padding: 8px 14px;
+    border: none;
+    background: transparent;
+    color: var(--color-text);
+    font-size: 13px;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.12s ease;
+}
+
+.calendar-org-option:hover {
+    background: var(--color-bg);
+}
+
+.calendar-org-option.selected {
+    background: var(--color-accent-subtle);
+    color: var(--color-accent);
+    font-weight: 600;
+}
+
+.calendar-org-divider {
+    height: 1px;
+    background: var(--color-border);
+    margin: 4px 0;
+}
+
+/* ── Weekday Picker ── */
+
+.calendar-weekday-picker {
+    display: flex;
+    gap: 4px;
+}
+
+.calendar-weekday-btn {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    background: var(--color-surface);
+    color: var(--color-text-secondary);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.12s ease;
+}
+
+.calendar-weekday-btn:hover {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+}
+
+.calendar-weekday-btn.active {
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+    color: #fff;
+}
+
+/* ── Section Headers ── */
+
+.calendar-section {
+    margin-top: 4px;
+}
+
+.calendar-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+/* ── Org Badge ── */
+
+.calendar-org-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-text);
 }
 
 /* ── Responsive modals ── */
