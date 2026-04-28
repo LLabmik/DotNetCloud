@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Authorization;
 using Microsoft.AspNetCore.Authorization;
 
 namespace DotNetCloud.Core.Auth.Authorization;
@@ -21,8 +22,8 @@ public sealed class PermissionAuthorizationHandler
     {
         // Seeded installations grant the Identity role "Administrator".
         // Treat that role as satisfying the admin permission requirement.
-        if (string.Equals(requirement.Permission, "admin", StringComparison.OrdinalIgnoreCase) &&
-            (context.User.IsInRole("Administrator") || context.User.IsInRole("admin")))
+        if (string.Equals(requirement.Permission, "admin", StringComparison.OrdinalIgnoreCase)
+            && context.User.IsInRole(SystemRoleNames.Administrator))
         {
             context.Succeed(requirement);
             return Task.CompletedTask;

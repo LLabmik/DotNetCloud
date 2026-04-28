@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Data.Entities.Identity;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -106,8 +107,7 @@ public sealed class AuthSessionController : ControllerBase
         if (user is null)
             return "/";
 
-        var isAdmin = await _userManager.IsInRoleAsync(user, "Administrator")
-            || await _userManager.IsInRoleAsync(user, "admin");
+        var isAdmin = await _userManager.IsInRoleAsync(user, SystemRoleNames.Administrator);
 
         return isAdmin ? safeTarget : "/";
     }

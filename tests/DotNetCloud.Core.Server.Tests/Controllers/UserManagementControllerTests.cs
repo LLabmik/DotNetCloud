@@ -1,9 +1,11 @@
 using System.Security.Claims;
 using DotNetCloud.Core.Auth.Authorization;
+using DotNetCloud.Core.Data.Entities.Identity;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Server.Controllers;
 using DotNetCloud.Core.Services;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -15,6 +17,7 @@ namespace DotNetCloud.Core.Server.Tests.Controllers;
 public sealed class UserManagementControllerTests : IDisposable
 {
     private Mock<IUserManagementService> _serviceMock = null!;
+    private Mock<UserManager<ApplicationUser>> _userManagerMock = null!;
     private Mock<ILogger<UserManagementController>> _loggerMock = null!;
     private UserManagementController _controller = null!;
     private string? _tempAvatarDir;
@@ -23,8 +26,11 @@ public sealed class UserManagementControllerTests : IDisposable
     public void Setup()
     {
         _serviceMock = new Mock<IUserManagementService>();
+        _userManagerMock = new Mock<UserManager<ApplicationUser>>(
+            Mock.Of<IUserStore<ApplicationUser>>(),
+            null!, null!, null!, null!, null!, null!, null!, null!);
         _loggerMock = new Mock<ILogger<UserManagementController>>();
-        _controller = new UserManagementController(_serviceMock.Object, _loggerMock.Object)
+        _controller = new UserManagementController(_serviceMock.Object, _userManagerMock.Object, _loggerMock.Object)
         {
             ControllerContext = new ControllerContext
             {
@@ -676,7 +682,7 @@ public sealed class UserManagementControllerTests : IDisposable
     {
         var userId = Guid.NewGuid();
         var targetId = Guid.NewGuid();
-        SetUserWithClaims(userId, new Claim(ClaimTypes.Role, "admin"));
+        SetUserWithClaims(userId, new Claim(PermissionAuthorizationHandler.PermissionClaimType, "admin"));
         _serviceMock.Setup(s => s.GetUserAsync(targetId))
             .ReturnsAsync(CreateUserDto(targetId));
 

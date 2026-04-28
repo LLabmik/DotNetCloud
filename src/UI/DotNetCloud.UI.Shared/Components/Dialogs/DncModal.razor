@@ -1,7 +1,7 @@
 @if (_visible)
 {
     <div class="dialog-overlay" @onclick="OnOverlayClick">
-        <div class="dialog @(Wide ? "dialog-wide" : "") @CssClass" @onclick:stopPropagation="true">
+        <div class="dialog @(Wide ? "dialog-wide" : "") @(ExtraWide ? "dialog-xwide" : "") @CssClass" @onclick:stopPropagation="true">
             @if (!string.IsNullOrWhiteSpace(Title))
             {
                 <div class="dialog-header">
@@ -36,9 +36,13 @@
     [Parameter]
     public RenderFragment? Footer { get; set; }
 
-    /// <summary>Whether to use the wider dialog variant.</summary>
+    /// <summary>Whether to use the wider dialog variant (560px).</summary>
     [Parameter]
     public bool Wide { get; set; }
+
+    /// <summary>Whether to use the extra-wide dialog variant (800px).</summary>
+    [Parameter]
+    public bool ExtraWide { get; set; }
 
     /// <summary>Additional CSS class for the dialog container.</summary>
     [Parameter]

@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Auth.Authorization;
+using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Core.Data.Entities.Identity;
 using DotNetCloud.Core.Data.Entities.Organizations;
@@ -185,18 +186,30 @@ public class OrganizationsController : ControllerBase
 
         var members = await _db.OrganizationMembers
             .Where(om => om.OrganizationId == id && om.IsActive)
-            .Join(_userManager.Users, om => om.UserId, u => u.Id, (om, u) => new OrganizationMemberDto
+            .Join(_userManager.Users, om => om.UserId, u => u.Id, (om, u) => new
             {
-                UserId = u.Id,
+                u.Id,
                 Email = u.Email!,
                 DisplayName = u.DisplayName,
                 JoinedAt = om.JoinedAt,
-                IsActive = om.IsActive
+                IsActive = om.IsActive,
+                om.RoleIds
             })
             .OrderBy(m => m.DisplayName)
             .ToListAsync(ct);
 
-        return Ok(new { success = true, data = members });
+        var result = members.Select(m => new OrganizationMemberDto
+        {
+            UserId = m.Id,
+            Email = m.Email,
+            DisplayName = m.DisplayName,
+            JoinedAt = m.JoinedAt,
+            IsActive = m.IsActive,
+            RoleIds = m.RoleIds.ToList(),
+            RoleNames = m.RoleIds.Select(OrgRoleIds.GetName).ToList()
+        }).ToList();
+
+        return Ok(new { success = true, data = result });
     }
 
     /// <summary>
@@ -223,7 +236,10 @@ public class OrganizationsController : ControllerBase
             OrganizationId = id,
             UserId = dto.UserId,
             JoinedAt = DateTime.UtcNow,
-            IsActive = true
+            IsActive = true,
+            RoleIds = dto.RoleIds?.Count > 0
+                ? dto.RoleIds
+                : new List<Guid> { OrgRoleIds.OrgMember }
         };
 
         _db.OrganizationMembers.Add(member);
@@ -240,9 +256,71 @@ public class OrganizationsController : ControllerBase
                 Email = user.Email!,
                 DisplayName = user.DisplayName,
                 JoinedAt = member.JoinedAt,
-                IsActive = member.IsActive
+                IsActive = member.IsActive,
+                RoleIds = member.RoleIds.ToList(),
+                RoleNames = member.RoleIds.Select(OrgRoleIds.GetName).ToList()
             }
         });
+    }
+
+    /// <summary>
+    /// Sets the org roles for a member (replaces all existing role assignments).
+    /// </summary>
+    [HttpPut("{id:guid}/members/{userId:guid}/roles")]
+    public async Task<IActionResult> SetMemberRolesAsync(Guid id, Guid userId, [FromBody] SetOrgMemberRolesDto dto, CancellationToken ct)
+    {
+        var member = await _db.OrganizationMembers
+            .AsTracking()
+            .FirstOrDefaultAsync(om => om.OrganizationId == id && om.UserId == userId, ct);
+        if (member is null)
+            return NotFound(new { success = false, error = new { code = "NOT_MEMBER", message = "User is not a member of this organization." } });
+
+        member.RoleIds = dto.RoleIds?.Distinct().ToList() ?? new List<Guid> { OrgRoleIds.OrgMember };
+        await _db.SaveChangesAsync(ct);
+
+        _logger.LogInformation("Roles updated for user {UserId} in org {OrgId}: {Roles}", userId, id, string.Join(", ", member.RoleIds.Select(OrgRoleIds.GetName)));
+
+        return Ok(new
+        {
+            success = true,
+            data = new OrganizationMemberDto
+            {
+                UserId = userId,
+                Email = (await _userManager.FindByIdAsync(userId.ToString()))?.Email ?? "",
+                DisplayName = (await _userManager.FindByIdAsync(userId.ToString()))?.DisplayName ?? "",
+                JoinedAt = member.JoinedAt,
+                IsActive = member.IsActive,
+                RoleIds = member.RoleIds.ToList(),
+                RoleNames = member.RoleIds.Select(OrgRoleIds.GetName).ToList()
+            }
+        });
+    }
+
+    /// <summary>
+    /// Removes a single org role from a member.
+    /// </summary>
+    [HttpDelete("{id:guid}/members/{userId:guid}/roles/{roleId:guid}")]
+    public async Task<IActionResult> RemoveMemberRoleAsync(Guid id, Guid userId, Guid roleId, CancellationToken ct)
+    {
+        var member = await _db.OrganizationMembers
+            .AsTracking()
+            .FirstOrDefaultAsync(om => om.OrganizationId == id && om.UserId == userId, ct);
+        if (member is null)
+            return NotFound(new { success = false, error = new { code = "NOT_MEMBER", message = "User is not a member of this organization." } });
+
+        if (!member.RoleIds.Contains(roleId))
+            return NotFound(new { success = false, error = new { code = "ROLE_NOT_ASSIGNED", message = "The specified role is not assigned to this member." } });
+
+        member.RoleIds.Remove(roleId);
+        // Ensure every member always has at least Org Member role
+        if (member.RoleIds.Count == 0)
+            member.RoleIds.Add(OrgRoleIds.OrgMember);
+
+        await _db.SaveChangesAsync(ct);
+
+        _logger.LogInformation("Role {RoleId} removed from user {UserId} in org {OrgId}", roleId, userId, id);
+
+        return Ok(new { success = true, message = "Role removed." });
     }
 
     /// <summary>

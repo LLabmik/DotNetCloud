@@ -60,7 +60,7 @@
 
         @if (!_sidebarCollapsed)
         {
-            <div class="calendar-list-heading">My Calendars</div>
+            <div class="calendar-list-heading">@SidebarHeading</div>
         }
         <div class="calendar-list">
             @foreach (var calendar in _calendars)
@@ -77,17 +77,31 @@
             }
         </div>
 
+        @if (!_sidebarCollapsed && _calendars.Count == 0 && _selectedOrgId.HasValue)
+        {
+            <div class="calendar-empty-hint">
+                @(_canCreateOrgCalendar
+                    ? "No calendars yet — create one with \"New Calendar\" below."
+                    : "No calendars in this organization.")
+            </div>
+        }
+
         @if (!_sidebarCollapsed)
         {
             <div class="calendar-actions">
-                <button class="btn btn-sm btn-outline-primary" @onclick="BeginCreateCalendar">New Calendar</button>
+                @if (_canCreateOrgCalendar)
+                {
+                    <button class="btn btn-sm btn-outline-primary" @onclick="BeginCreateCalendar">New Calendar</button>
+                }
                 @if (_selectedCalendar is not null)
                 {
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="BeginEditCalendar">Edit</button>
                     <button class="btn btn-sm btn-outline-secondary" @onclick="ToggleSharePanel">
                         @(_showSharePanel ? "Hide Shares" : "Share")
                     </button>
                     <button class="btn btn-sm btn-outline-secondary" @onclick="ExportCalendarAsync">Export iCal</button>
                     <button class="btn btn-sm btn-outline-secondary" @onclick="() => _showImportPanel = !_showImportPanel">Import</button>
+                    <button class="btn btn-sm btn-outline-danger" @onclick="DeleteCalendarAsync">Delete</button>
                 }
             </div>
         }
@@ -142,7 +156,7 @@
             <button class="btn btn-sm btn-outline-secondary" @onclick="GoToToday">Today</button>
             <div class="calendar-org-picker">
                 <button class="btn btn-sm btn-outline-secondary" @onclick="ToggleOrgDropdown">
-                    @(_selectedOrgId is null ? "My Calendars" : (_organizations.FirstOrDefault(o => o.Id == _selectedOrgId)?.Name ?? "Org"))
+                    @(_selectedOrgId is null ? "Personal" : (_organizations.FirstOrDefault(o => o.Id == _selectedOrgId)?.Name ?? "Org"))
                     <span class="calendar-org-arrow">▾</span>
                 </button>
                 @if (_showOrgDropdown)
@@ -150,7 +164,7 @@
                     <div class="calendar-org-dropdown">
                         <button class="calendar-org-option @(_selectedOrgId is null ? "selected" : "")"
                                 @onclick="() => SelectOrganizationAsync(null)">
-                            My Calendars
+                            Personal
                         </button>
                         @if (_organizations.Count > 0)
                         {
@@ -368,20 +382,7 @@
                                 <InputDate class="form-control" @bind-Value="_eventEditor.RecurrenceEndDate" />
                             </div>
                         }
-                        <div class="calendar-form-row">
-                            <label class="calendar-form-label">Color</label>
-                            <div class="calendar-color-swatches">
-                                @foreach (var swatch in _colorSwatches)
-                                {
-                                    <button type="button"
-                                            class="calendar-color-swatch @(_eventEditor.Color == swatch ? "selected" : "")"
-                                            style="background-color: @swatch;"
-                                            @onclick="() => _eventEditor.Color = _eventEditor.Color == swatch ? null : swatch"
-                                            title="@swatch"></button>
-                                }
-                                <input type="color" class="calendar-color-custom" @bind="_eventEditor.Color" title="Custom color" />
-                            </div>
-                        </div>
+                        <ColorSwatchPicker @bind-Color="_eventEditor.Color" />
                         <InputText class="form-control" @bind-Value="_eventEditor.Url" placeholder="URL (e.g., video call link)" />
 
                         @* ── Advanced Recurrence (BYDAY) ── *@
@@ -535,7 +536,7 @@
                 <EditForm Model="_calendarEditor" OnValidSubmit="SaveCalendarAsync">
                     <div class="calendar-form-grid">
                         <InputText class="form-control" @bind-Value="_calendarEditor.Name" placeholder="Calendar Name" />
-                        <InputText class="form-control" @bind-Value="_calendarEditor.Color" placeholder="Color (e.g. #3b82f6)" />
+                        <ColorSwatchPicker @bind-Color="_calendarEditor.Color" />
                         <InputText class="form-control" @bind-Value="_calendarEditor.Description" placeholder="Description" />
                         @if (_selectedOrgId.HasValue)
                         {
@@ -625,6 +626,27 @@
     </div>
 }
 
+@* ── Delete Calendar Confirmation Modal ── *@
+@if (_showDeleteCalendarModal && _selectedCalendar is not null)
+{
+    <div class="calendar-modal-backdrop" @onclick="CancelDeleteCalendar">
+        <div class="calendar-modal calendar-modal-sm" @onclick:stopPropagation>
+            <div class="calendar-modal-header">
+                <h4>Delete Calendar</h4>
+                <button class="calendar-modal-close" @onclick="CancelDeleteCalendar" title="Close">✕</button>
+            </div>
+            <div class="calendar-modal-body">
+                <p>Are you sure you want to delete <strong>"@_selectedCalendar.Name"</strong>?</p>
+                <p class="calendar-delete-warning">All events in this calendar will also be deleted. This action cannot be undone.</p>
+                <div class="calendar-form-actions">
+                    <button class="btn btn-danger" @onclick="ConfirmDeleteCalendarAsync">Delete</button>
+                    <button class="btn btn-secondary" @onclick="CancelDeleteCalendar">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private readonly List<CalendarDto> _calendars = [];
     private readonly List<CalendarEventDto> _events = [];
@@ -648,6 +670,7 @@
     private bool _showCalendarModal;
     private bool _showDayModal;
     private bool _showDeleteModal;
+    private bool _showDeleteCalendarModal;
     private DateTime _dayModalDate;
     private List<CalendarEventDto> _dayModalEvents = [];
 
@@ -655,6 +678,11 @@
     private List<OrgInfo> _organizations = [];
     private Guid? _selectedOrgId;
     private bool _showOrgDropdown;
+    private bool _canCreateOrgCalendar = true;
+
+    private string SidebarHeading => _selectedOrgId is null
+        ? "Personal"
+        : (_organizations.FirstOrDefault(o => o.Id == _selectedOrgId)?.Name ?? "Org") + " Calendars";
 
     private string RangeLabel => _activeView switch
     {
@@ -664,8 +692,6 @@
     };
 
     private static readonly string[] DayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
-    private static readonly string[] _colorSwatches = ["#ef4444", "#f97316", "#eab308", "#22c55e", "#3b82f6", "#8b5cf6", "#ec4899", "#6b7280"];
 
     private sealed record OrgInfo(Guid Id, string Name);
 
@@ -851,22 +877,15 @@
 
     private async Task<List<OrgInfo>> GetUserOrganizationsAsync(Guid userId)
     {
-        // Use ITeamDirectory or direct API to get user's orgs.
-        // For now, query via the API client if available; otherwise return empty.
-        // In a full implementation, this would use an organization listing API.
-        // We wrap the IOrganizationDirectory to find orgs the user belongs to.
-        var result = new List<OrgInfo>();
         try
         {
-            // We don't have a "list my orgs" API, so we iterate known orgs.
-            // This is a pragmatic approach: scan a reasonable range of orgs.
-            // In production, a dedicated API endpoint should provide this.
+            var orgs = await OrgDirectory.GetUserOrganizationsAsync(userId);
+            return orgs.Select(o => new OrgInfo(o.Id, o.Name)).ToList();
         }
         catch
         {
-            // Silently fail — org picker will show no orgs
+            return [];
         }
-        return result;
     }
 
     private void ToggleOrgDropdown()
@@ -878,6 +897,16 @@
     {
         _selectedOrgId = orgId;
         _showOrgDropdown = false;
+
+        if (orgId.HasValue && _currentUserId.HasValue)
+        {
+            _canCreateOrgCalendar = await OrgDirectory.HasManagerOrAboveRoleAsync(orgId.Value, _currentUserId.Value);
+        }
+        else
+        {
+            _canCreateOrgCalendar = true;
+        }
+
         await ReloadCalendarsAsync();
     }
 
@@ -998,6 +1027,21 @@
         _showCalendarModal = true;
     }
 
+    private void BeginEditCalendar()
+    {
+        if (_selectedCalendar is null) return;
+
+        _calendarEditor = new CalendarEditorModel
+        {
+            Id = _selectedCalendar.Id,
+            Name = _selectedCalendar.Name,
+            Description = _selectedCalendar.Description,
+            Color = _selectedCalendar.Color,
+            OrganizationId = _selectedCalendar.OrganizationId
+        };
+        _showCalendarModal = true;
+    }
+
     private async Task SaveCalendarAsync()
     {
         if (_calendarEditor is null)
@@ -1023,6 +1067,27 @@
     {
         _calendarEditor = null;
         _showCalendarModal = false;
+    }
+
+    private void DeleteCalendarAsync()
+    {
+        if (_selectedCalendar is null) return;
+        _showDeleteCalendarModal = true;
+    }
+
+    private async Task ConfirmDeleteCalendarAsync()
+    {
+        if (_selectedCalendar is null) return;
+
+        await ApiClient.DeleteCalendarAsync(_selectedCalendar.Id);
+        _selectedCalendar = null;
+        _showDeleteCalendarModal = false;
+        await ReloadCalendarsAsync();
+    }
+
+    private void CancelDeleteCalendar()
+    {
+        _showDeleteCalendarModal = false;
     }
 
     private void BeginCreateEvent()

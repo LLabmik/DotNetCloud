@@ -30,9 +30,9 @@ public class OrganizationCalendarAuthorizationTests
     private CallerContext _regularUser = null!;
     private readonly Guid _orgId = Guid.NewGuid();
 
-    // Well-known role GUIDs matching CalendarService.HasManagerOrAboveRole
-    private static readonly Guid ManagerRoleId = Guid.Parse("a1b2c3d4-0001-4000-8000-000000000001");
-    private static readonly Guid AdminRoleId = Guid.Parse("a1b2c3d4-0002-4000-8000-000000000001");
+    // Well-known role GUIDs from OrgRoleIds
+    private static readonly Guid ManagerRoleId = OrgRoleIds.OrgManager;
+    private static readonly Guid AdminRoleId = OrgRoleIds.OrgAdmin;
 
     [TestInitialize]
     public void Setup()

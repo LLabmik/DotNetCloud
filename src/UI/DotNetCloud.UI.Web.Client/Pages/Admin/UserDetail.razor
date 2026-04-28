@@ -59,7 +59,13 @@ else
                 <ul class="tag-list">
                     @foreach (var role in _user.Roles)
                     {
-                        <li class="tag">@role</li>
+                        <li class="tag">
+                            @role
+                            @if (string.Equals(role, "Administrator", StringComparison.OrdinalIgnoreCase))
+                            {
+                                <span class="badge badge-warning" style="margin-left: 0.25rem;">System Admin</span>
+                            }
+                        </li>
                     }
                 </ul>
             }
@@ -67,6 +73,20 @@ else
             {
                 <p class="text-muted">No roles assigned.</p>
             }
+            <div style="margin-top: 0.75rem;">
+                @if (_user.Roles.Any(r => string.Equals(r, "Administrator", StringComparison.OrdinalIgnoreCase)))
+                {
+                    <button class="btn btn-warning btn-sm" @onclick="RevokeAdminAsync" disabled="@_actionInProgress">
+                        Revoke Admin
+                    </button>
+                }
+                else
+                {
+                    <button class="btn btn-success btn-sm" @onclick="GrantAdminAsync" disabled="@_actionInProgress">
+                        Grant Admin
+                    </button>
+                }
+            </div>
         </div>
 
         <div class="detail-section">
@@ -226,6 +246,47 @@ else
         }
         else Toast.ShowError("Failed to reset password.");
         _actionInProgress = false;
+    }
+
+    private async Task GrantAdminAsync()
+    {
+        _actionInProgress = true;
+        try
+        {
+            var roles = new List<string>(_user!.Roles) { "Administrator" };
+            var result = await Api.SetUserRolesAsync(UserId, roles);
+            if (result is not null)
+            {
+                Toast.ShowSuccess("Administrator role granted.");
+                await LoadAsync();
+            }
+            else
+            {
+                Toast.ShowError("Failed to grant administrator role.");
+            }
+        }
+        catch { Toast.ShowError("Failed to grant administrator role."); }
+        finally { _actionInProgress = false; }
+    }
+
+    private async Task RevokeAdminAsync()
+    {
+        _actionInProgress = true;
+        try
+        {
+            var success = await Api.RemoveUserRoleAsync(UserId, "Administrator");
+            if (success)
+            {
+                Toast.ShowSuccess("Administrator role revoked.");
+                await LoadAsync();
+            }
+            else
+            {
+                Toast.ShowError("Failed to revoke administrator role.");
+            }
+        }
+        catch { Toast.ShowError("Failed to revoke administrator role."); }
+        finally { _actionInProgress = false; }
     }
 
     private static string FormatBytes(long bytes)

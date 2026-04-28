@@ -1,8 +1,7 @@
+using DotNetCloud.Core.Data.Configuration.Shared;
 using DotNetCloud.Core.Data.Entities.Organizations;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using System.Text.Json;
 
 namespace DotNetCloud.Core.Data.Configuration.Organizations;
 
@@ -29,15 +28,10 @@ public class TeamMemberConfiguration : IEntityTypeConfiguration<TeamMember>
 
         var roleIdsProp = builder.Property(tm => tm.RoleIds)
             .IsRequired()
-            .HasConversion(
-                v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
-                v => JsonSerializer.Deserialize<List<Guid>>(v, (JsonSerializerOptions?)null) ?? new List<Guid>())
+            .HasConversion(RoleIdsConversion.Converter)
             .HasDefaultValue(new List<Guid>());
 
-        roleIdsProp.Metadata.SetValueComparer(new ValueComparer<ICollection<Guid>>(
-            (c1, c2) => c1!.SequenceEqual(c2!),
-            c => c.Aggregate(0, (a, v) => HashCode.Combine(a, v.GetHashCode())),
-            c => (ICollection<Guid>)c.ToList()));
+        roleIdsProp.Metadata.SetValueComparer(RoleIdsConversion.Comparer);
 
         builder.Property(tm => tm.JoinedAt)
             .IsRequired();

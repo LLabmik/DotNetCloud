@@ -107,6 +107,16 @@ public class OrganizationMemberDto
     /// Gets or sets a value indicating whether the membership is active.
     /// </summary>
     public bool IsActive { get; set; }
+
+    /// <summary>
+    /// Gets or sets the organization-scoped role IDs assigned to this member.
+    /// </summary>
+    public IReadOnlyList<Guid> RoleIds { get; set; } = Array.Empty<Guid>();
+
+    /// <summary>
+    /// Gets or sets the human-readable role names for display.
+    /// </summary>
+    public IReadOnlyList<string> RoleNames { get; set; } = Array.Empty<string>();
 }
 
 /// <summary>
@@ -118,4 +128,20 @@ public class AddOrganizationMemberDto
     /// Gets or sets the user ID to add.
     /// </summary>
     public Guid UserId { get; set; }
+
+    /// <summary>
+    /// Gets or sets optional org role IDs to assign. Defaults to [OrgMember] if empty.
+    /// </summary>
+    public List<Guid>? RoleIds { get; set; }
+}
+
+/// <summary>
+/// Data transfer object for setting an organization member's roles.
+/// </summary>
+public class SetOrgMemberRolesDto
+{
+    /// <summary>
+    /// Gets or sets the complete list of role IDs to assign.
+    /// </summary>
+    public List<Guid> RoleIds { get; set; } = new();
 }

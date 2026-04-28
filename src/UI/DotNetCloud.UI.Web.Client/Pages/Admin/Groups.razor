@@ -144,7 +144,7 @@ else
 
 @if (_showMembers)
 {
-    <DncModal Title="@($"Members — {_membersGroupName}")" StartVisible OnClose="CloseMembers">
+    <DncModal Title="@($"Members — {_membersGroupName}")" StartVisible OnClose="CloseMembers" ExtraWide>
         @if (_membersGroupIsBuiltIn)
         {
             <div class="alert alert-info" style="margin-bottom: 1rem;">
@@ -207,7 +207,7 @@ else
 
 @if (_showAddMember)
 {
-    <DncModal Title="@($"Add Member — {_membersGroupName}")" StartVisible OnClose="CloseAddMember">
+    <DncModal Title="@($"Add Member — {_membersGroupName}")" StartVisible OnClose="CloseAddMember" Wide>
         <div class="form-group">
             <label>Search users</label>
             <input type="text" class="form-control" placeholder="Search by name or email..."

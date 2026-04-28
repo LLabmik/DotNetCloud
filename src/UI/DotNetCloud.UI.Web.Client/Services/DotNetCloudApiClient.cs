@@ -233,6 +233,28 @@ public sealed class DotNetCloudApiClient
         return response.IsSuccessStatusCode;
     }
 
+    /// <summary>
+    /// Sets the system roles for a user (replaces all existing roles).
+    /// </summary>
+    public async Task<IReadOnlyList<string>?> SetUserRolesAsync(Guid userId, List<string> roles, CancellationToken ct = default)
+    {
+        var response = await _http.PutAsJsonAsync(
+            $"api/v1/core/users/{userId}/roles",
+            new { roles }, ct);
+        if (!response.IsSuccessStatusCode) return null;
+        var envelope = await response.Content.ReadFromJsonAsync<ApiEnvelope<UserRolesResponse>>(ct);
+        return envelope?.Data?.Roles ?? new List<string>();
+    }
+
+    /// <summary>
+    /// Removes a single system role from a user.
+    /// </summary>
+    public async Task<bool> RemoveUserRoleAsync(Guid userId, string roleName, CancellationToken ct = default)
+    {
+        var response = await _http.DeleteAsync($"api/v1/core/users/{userId}/roles/{Uri.EscapeDataString(roleName)}", ct);
+        return response.IsSuccessStatusCode;
+    }
+
     // -----------------------------------------------------------------------
     // Modules
     // -----------------------------------------------------------------------
@@ -730,13 +752,13 @@ public sealed class DotNetCloudApiClient
     }
 
     /// <summary>
-    /// Adds a user to an organization.
+    /// Adds a user to an organization with optional role assignments.
     /// </summary>
-    public async Task<bool> AddOrganizationMemberAsync(Guid orgId, Guid userId, CancellationToken ct = default)
+    public async Task<bool> AddOrganizationMemberAsync(Guid orgId, Guid userId, List<Guid>? roleIds = null, CancellationToken ct = default)
     {
         var response = await _http.PostAsJsonAsync(
             $"api/v1/core/admin/organizations/{orgId}/members",
-            new AddOrganizationMemberDto { UserId = userId }, ct);
+            new AddOrganizationMemberDto { UserId = userId, RoleIds = roleIds }, ct);
         return response.IsSuccessStatusCode;
     }
 
@@ -746,6 +768,28 @@ public sealed class DotNetCloudApiClient
     public async Task<bool> RemoveOrganizationMemberAsync(Guid orgId, Guid userId, CancellationToken ct = default)
     {
         var response = await _http.DeleteAsync($"api/v1/core/admin/organizations/{orgId}/members/{userId}", ct);
+        return response.IsSuccessStatusCode;
+    }
+
+    /// <summary>
+    /// Sets the org roles for a member (replaces all existing roles).
+    /// </summary>
+    public async Task<OrganizationMemberDto?> SetOrgMemberRolesAsync(Guid orgId, Guid userId, List<Guid> roleIds, CancellationToken ct = default)
+    {
+        var response = await _http.PutAsJsonAsync(
+            $"api/v1/core/admin/organizations/{orgId}/members/{userId}/roles",
+            new { roleIds }, ct);
+        if (!response.IsSuccessStatusCode) return null;
+        var envelope = await response.Content.ReadFromJsonAsync<ApiEnvelope<OrganizationMemberDto>>(ct);
+        return envelope?.Data;
+    }
+
+    /// <summary>
+    /// Removes a single org role from a member.
+    /// </summary>
+    public async Task<bool> RemoveOrgMemberRoleAsync(Guid orgId, Guid userId, Guid roleId, CancellationToken ct = default)
+    {
+        var response = await _http.DeleteAsync($"api/v1/core/admin/organizations/{orgId}/members/{userId}/roles/{roleId}", ct);
         return response.IsSuccessStatusCode;
     }
 
@@ -1272,4 +1316,13 @@ public sealed class ModuleAvailabilityDto
 {
     /// <summary>Whether the module is installed.</summary>
     public bool Installed { get; set; }
+}
+
+/// <summary>
+/// Response DTO for user role queries.
+/// </summary>
+internal sealed class UserRolesResponse
+{
+    /// <summary>The list of role names assigned to the user.</summary>
+    public List<string> Roles { get; set; } = new();
 }

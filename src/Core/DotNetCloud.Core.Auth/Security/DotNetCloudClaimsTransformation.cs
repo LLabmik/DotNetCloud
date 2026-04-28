@@ -1,4 +1,6 @@
 using System.Security.Claims;
+using DotNetCloud.Core.Auth.Authorization;
+using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Data.Entities.Identity;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
@@ -82,6 +84,13 @@ public sealed class DotNetCloudClaimsTransformation : IClaimsTransformation
         // Add application roles
         var roles = await _userManager.GetRolesAsync(user);
         claims.AddRange(roles.Select(r => new Claim(ClaimTypes.Role, r)));
+
+        // If the user has the Administrator role, add the admin permission claim.
+        // This makes HasClaim("dnc:perm", "admin") work for policy-based authorization.
+        if (roles.Contains(SystemRoleNames.Administrator))
+        {
+            claims.Add(new Claim(PermissionAuthorizationHandler.PermissionClaimType, "admin"));
+        }
 
         // Add display name so Blazor pages can resolve it from the principal
         if (!string.IsNullOrWhiteSpace(user.DisplayName))

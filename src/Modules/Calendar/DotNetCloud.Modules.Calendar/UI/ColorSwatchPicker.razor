@@ -1,0 +1,39 @@
+<div class="calendar-form-row">
+    <label class="calendar-form-label">Color</label>
+    <div class="calendar-color-swatches">
+        @foreach (var swatch in Swatches)
+        {
+            <button type="button"
+                    class="calendar-color-swatch @(Color == swatch ? "selected" : "")"
+                    style="background-color: @swatch;"
+                    @onclick="() => ToggleSwatch(swatch)"
+                    title="@swatch"></button>
+        }
+        <input type="color" class="calendar-color-custom"
+               value="@(Color ?? "#000000")"
+               @onchange="OnCustomColorChanged"
+               title="Custom color" />
+    </div>
+</div>
+
+@code {
+    private static readonly string[] DefaultSwatches = ["#ef4444", "#f97316", "#eab308", "#22c55e", "#3b82f6", "#8b5cf6", "#ec4899", "#6b7280"];
+
+    [Parameter] public string? Color { get; set; }
+    [Parameter] public EventCallback<string?> ColorChanged { get; set; }
+    [Parameter] public IReadOnlyList<string> Swatches { get; set; } = DefaultSwatches;
+
+    private async Task ToggleSwatch(string swatch)
+    {
+        var next = Color == swatch ? null : swatch;
+        Color = next;
+        await ColorChanged.InvokeAsync(next);
+    }
+
+    private async Task OnCustomColorChanged(ChangeEventArgs e)
+    {
+        var next = e.Value?.ToString();
+        Color = next;
+        await ColorChanged.InvokeAsync(next);
+    }
+}

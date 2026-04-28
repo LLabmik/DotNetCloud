@@ -1,0 +1,78 @@
+.calendar-form-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.calendar-form-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    min-width: 48px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.calendar-color-swatches {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.calendar-color-swatch {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+    padding: 0;
+    outline: none;
+}
+
+.calendar-color-swatch:hover {
+    transform: scale(1.15);
+    box-shadow: 0 0 0 3px rgba(0,0,0,0.08);
+}
+
+.calendar-color-swatch.selected {
+    border-color: var(--color-text);
+    box-shadow: 0 0 0 3px rgba(0,0,0,0.12);
+    transform: scale(1.1);
+}
+
+.calendar-color-custom {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 2px dashed var(--color-border);
+    cursor: pointer;
+    padding: 0;
+    background: transparent;
+    transition: border-color 0.15s ease;
+}
+
+.calendar-color-custom:hover {
+    border-color: var(--color-text-secondary);
+}
+
+.calendar-color-custom::-webkit-color-swatch-wrapper {
+    padding: 0;
+}
+
+.calendar-color-custom::-webkit-color-swatch {
+    border: none;
+    border-radius: 50%;
+}
+
+@media (max-width: 640px) {
+    .calendar-color-swatches {
+        gap: 4px;
+    }
+
+    .calendar-color-swatch {
+        width: 24px;
+        height: 24px;
+    }
+}

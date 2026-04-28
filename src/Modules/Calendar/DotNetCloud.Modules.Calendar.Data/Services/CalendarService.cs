@@ -41,7 +41,7 @@ public sealed class CalendarService : ICalendarService
         // If org-owned, validate caller is org member with write access
         if (dto.OrganizationId.HasValue)
         {
-            await ValidateOrgWriteAccessAsync(dto.OrganizationId.Value, caller.UserId, cancellationToken);
+            await ValidateOrgWriteAccessAsync(dto.OrganizationId.Value, caller, cancellationToken);
         }
 
         var calendar = new Models.Calendar
@@ -73,7 +73,7 @@ public sealed class CalendarService : ICalendarService
         if (calendar is null)
             return null;
 
-        if (!await CanAccessCalendarAsync(calendar, caller.UserId, requireWrite: false, cancellationToken))
+        if (!await CanAccessCalendarAsync(calendar, caller, requireWrite: false, cancellationToken))
             return null;
 
         return MapToDto(calendar);
@@ -119,7 +119,7 @@ public sealed class CalendarService : ICalendarService
             .FirstOrDefaultAsync(c => c.Id == calendarId, cancellationToken)
             ?? throw new Core.Errors.ValidationException(Core.Errors.ErrorCodes.CalendarNotFound, "Calendar not found.");
 
-        if (!await CanAccessCalendarAsync(calendar, caller.UserId, requireWrite: true, cancellationToken))
+        if (!await CanAccessCalendarAsync(calendar, caller, requireWrite: true, cancellationToken))
             throw new Core.Errors.ValidationException(Core.Errors.ErrorCodes.Forbidden, "You do not have permission to modify this calendar.");
 
         if (dto.Name is not null) calendar.Name = dto.Name;
@@ -145,17 +145,15 @@ public sealed class CalendarService : ICalendarService
             .FirstOrDefaultAsync(c => c.Id == calendarId, cancellationToken)
             ?? throw new Core.Errors.ValidationException(Core.Errors.ErrorCodes.CalendarNotFound, "Calendar not found.");
 
-        if (!await CanAccessCalendarAsync(calendar, caller.UserId, requireWrite: true, cancellationToken))
+        if (!await CanAccessCalendarAsync(calendar, caller, requireWrite: true, cancellationToken))
             throw new Core.Errors.ValidationException(Core.Errors.ErrorCodes.Forbidden, "You do not have permission to delete this calendar.");
 
-        calendar.IsDeleted = true;
-        calendar.DeletedAt = DateTime.UtcNow;
-        calendar.UpdatedAt = DateTime.UtcNow;
-        calendar.SyncToken = Guid.NewGuid().ToString("N");
+        // Hard-delete the calendar; cascade will remove all events, attendees, and reminders
+        _db.Calendars.Remove(calendar);
 
         await _db.SaveChangesAsync(cancellationToken);
 
-        _logger.LogInformation("Calendar {CalendarId} soft-deleted by user {UserId}", calendarId, caller.UserId);
+        _logger.LogInformation("Calendar {CalendarId} hard-deleted by user {UserId}", calendarId, caller.UserId);
     }
 
     private static CalendarDto MapToDto(Models.Calendar c)
@@ -179,59 +177,46 @@ public sealed class CalendarService : ICalendarService
     }
 
     /// <summary>
-    /// Checks whether the given user can access a calendar.
+    /// Checks whether the given caller can access a calendar.
+    /// System admins bypass all access checks.
     /// </summary>
-    /// <param name="calendar">The calendar to check.</param>
-    /// <param name="userId">The user making the request.</param>
-    /// <param name="requireWrite">Whether write access is required (org Manager+ role).</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    private async Task<bool> CanAccessCalendarAsync(Models.Calendar calendar, Guid userId, bool requireWrite, CancellationToken cancellationToken)
+    private async Task<bool> CanAccessCalendarAsync(Models.Calendar calendar, CallerContext caller, bool requireWrite, CancellationToken cancellationToken)
     {
+        // System admins bypass all org and ownership checks
+        if (caller.HasRole(SystemRoleNames.Administrator))
+            return true;
+
         if (calendar.OrganizationId is null)
         {
             // User-owned: owner has full access; shares checked separately
-            return calendar.OwnerId == userId || calendar.Shares.Any(s => s.SharedWithUserId == userId);
+            return calendar.OwnerId == caller.UserId || calendar.Shares.Any(s => s.SharedWithUserId == caller.UserId);
         }
 
         // Org-owned: user must be an active member
-        var isMember = await _orgDirectory.IsOrganizationMemberAsync(calendar.OrganizationId.Value, userId, cancellationToken);
+        var isMember = await _orgDirectory.IsOrganizationMemberAsync(calendar.OrganizationId.Value, caller.UserId, cancellationToken);
         if (!isMember) return false;
         if (!requireWrite) return true;
 
         // Write access: check for Manager+ role
-        var member = await _orgDirectory.GetMemberAsync(calendar.OrganizationId.Value, userId, cancellationToken);
-        return member is not null && HasManagerOrAboveRole(member);
+        var member = await _orgDirectory.GetMemberAsync(calendar.OrganizationId.Value, caller.UserId, cancellationToken);
+        return member is not null && OrgRoleChecker.HasManagerOrAboveRole(member.RoleIds);
     }
 
     /// <summary>
-    /// Validates that the user has write access to the organization (Manager+ role).
+    /// Validates that the caller has write access to the organization (Manager+ role or system admin).
     /// Throws <see cref="Core.Errors.ValidationException"/> if not.
     /// </summary>
-    /// <param name="organizationId">The organization to check.</param>
-    /// <param name="userId">The user to validate.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    private async Task ValidateOrgWriteAccessAsync(Guid organizationId, Guid userId, CancellationToken cancellationToken)
+    private async Task ValidateOrgWriteAccessAsync(Guid organizationId, CallerContext caller, CancellationToken cancellationToken)
     {
-        var member = await _orgDirectory.GetMemberAsync(organizationId, userId, cancellationToken);
+        // System admins bypass org role checks
+        if (caller.HasRole(SystemRoleNames.Administrator))
+            return;
+
+        var member = await _orgDirectory.GetMemberAsync(organizationId, caller.UserId, cancellationToken);
         if (member is null)
             throw new Core.Errors.ValidationException(Core.Errors.ErrorCodes.Forbidden, "You are not a member of this organization.");
 
-        if (!HasManagerOrAboveRole(member))
+        if (!OrgRoleChecker.HasManagerOrAboveRole(member.RoleIds))
             throw new Core.Errors.ValidationException(Core.Errors.ErrorCodes.Forbidden, "You need a Manager or Admin role in this organization to create calendars.");
-    }
-
-    /// <summary>
-    /// Checks whether a member has a Manager or above role.
-    /// Role GUIDs: Manager = <c>OrgRoleIds.Manager</c>, Admin = <c>OrgRoleIds.Admin</c>.
-    /// </summary>
-    private static bool HasManagerOrAboveRole(OrganizationMemberInfo member)
-    {
-        // Common org role GUIDs — these are well-known IDs defined in the seed data.
-        // Manager:  a1b2c3d4-0001-4000-8000-000000000001
-        // Admin:    a1b2c3d4-0002-4000-8000-000000000001
-        var managerRoleId = Guid.Parse("a1b2c3d4-0001-4000-8000-000000000001");
-        var adminRoleId = Guid.Parse("a1b2c3d4-0002-4000-8000-000000000001");
-
-        return member.RoleIds.Contains(managerRoleId) || member.RoleIds.Contains(adminRoleId);
     }
 }

@@ -1,6 +1,7 @@
 @page "/admin/organizations"
 @rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveAutoRenderMode(prerender: false))
 @attribute [Authorize(Policy = "RequireAdmin")]
+@using DotNetCloud.Core.Authorization
 @inject DotNetCloudApiClient Api
 @inject NavigationManager Nav
 
@@ -109,7 +110,7 @@ else
 
 @if (_showMembers)
 {
-    <DncModal Title="@($"Members — {_membersOrgName}")" StartVisible OnClose="() => _showMembers = false">
+    <DncModal Title="@($"Members — {_membersOrgName}")" StartVisible OnClose="() => _showMembers = false" ExtraWide>
         <div style="display: flex; justify-content: flex-end; margin-bottom: 0.75rem;">
             <button class="btn btn-sm btn-primary" @onclick="ShowAddMember">Add Member</button>
         </div>
@@ -129,6 +130,9 @@ else
                         <tr>
                             <th>Name</th>
                             <th>Email</th>
+                            <th style="width: 70px;">Admin</th>
+                            <th style="width: 80px;">Manager</th>
+                            <th style="width: 75px;">Member</th>
                             <th>Joined</th>
                             <th style="width: 80px;">Actions</th>
                         </tr>
@@ -136,9 +140,13 @@ else
                     <tbody>
                         @foreach (var member in _members)
                         {
+                            var isSaving = _savingRolesFor == member.UserId;
                             <tr>
                                 <td>@member.DisplayName</td>
                                 <td>@member.Email</td>
+                                <td><input type="checkbox" checked="@member.RoleIds.Contains(OrgRoleIds.OrgAdmin)" @onchange="(e) => ToggleRoleAsync(member, OrgRoleIds.OrgAdmin, (bool)e.Value!)" disabled="@isSaving" /></td>
+                                <td><input type="checkbox" checked="@member.RoleIds.Contains(OrgRoleIds.OrgManager)" @onchange="(e) => ToggleRoleAsync(member, OrgRoleIds.OrgManager, (bool)e.Value!)" disabled="@isSaving" /></td>
+                                <td><input type="checkbox" checked="@member.RoleIds.Contains(OrgRoleIds.OrgMember)" @onchange="(e) => ToggleRoleAsync(member, OrgRoleIds.OrgMember, (bool)e.Value!)" disabled="@isSaving" /></td>
                                 <td>@member.JoinedAt.ToString("yyyy-MM-dd")</td>
                                 <td>
                                     <button class="btn btn-sm btn-danger" @onclick="() => RemoveMemberAsync(member)">Remove</button>
@@ -174,6 +182,18 @@ else
         }
         else if (_nonMembers.Count > 0)
         {
+            <div style="margin-bottom: 0.75rem; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                <small style="color: var(--text-secondary);">Assign roles:</small>
+                <label style="display: flex; align-items: center; gap: 0.25rem; font-size: 0.85rem; cursor: pointer;">
+                    <input type="checkbox" checked="@_addMemberRoleIds.Contains(OrgRoleIds.OrgAdmin)" @onchange="(e) => ToggleAddRole(OrgRoleIds.OrgAdmin, (bool)e.Value!)" /> Admin
+                </label>
+                <label style="display: flex; align-items: center; gap: 0.25rem; font-size: 0.85rem; cursor: pointer;">
+                    <input type="checkbox" checked="@_addMemberRoleIds.Contains(OrgRoleIds.OrgManager)" @onchange="(e) => ToggleAddRole(OrgRoleIds.OrgManager, (bool)e.Value!)" /> Manager
+                </label>
+                <label style="display: flex; align-items: center; gap: 0.25rem; font-size: 0.85rem; cursor: pointer;">
+                    <input type="checkbox" checked="@_addMemberRoleIds.Contains(OrgRoleIds.OrgMember)" @onchange="(e) => ToggleAddRole(OrgRoleIds.OrgMember, (bool)e.Value!)" /> Member
+                </label>
+            </div>
             <div class="table-container" style="max-height: 300px; overflow-y: auto;">
                 <table class="data-table">
                     <thead>
@@ -230,6 +250,8 @@ else
     private IReadOnlyList<OrganizationDto> _orgs = [];
     private IReadOnlyList<OrganizationMemberDto> _members = [];
     private IReadOnlyList<OrganizationMemberDto> _nonMembers = [];
+    private Guid? _savingRolesFor;
+    private List<Guid> _addMemberRoleIds = new() { OrgRoleIds.OrgMember };
     private System.Timers.Timer? _searchDebounce;
 
     protected override async Task OnInitializedAsync()
@@ -394,11 +416,62 @@ else
         }
     }
 
+    private async Task ToggleRoleAsync(OrganizationMemberDto member, Guid roleId, bool add)
+    {
+        _membersError = "";
+        _savingRolesFor = member.UserId;
+        try
+        {
+            var roleIds = member.RoleIds.ToList();
+            if (add)
+            {
+                if (!roleIds.Contains(roleId))
+                    roleIds.Add(roleId);
+            }
+            else
+            {
+                roleIds.Remove(roleId);
+                if (roleIds.Count == 0)
+                    roleIds.Add(OrgRoleIds.OrgMember);
+            }
+
+            var result = await Api.SetOrgMemberRolesAsync(_membersOrgId, member.UserId, roleIds);
+            if (result is not null)
+                await LoadMembersAsync();
+            else
+                _membersError = "Failed to update roles.";
+        }
+        catch (Exception ex)
+        {
+            _membersError = ex.Message;
+        }
+        finally
+        {
+            _savingRolesFor = null;
+        }
+    }
+
+    private void ToggleAddRole(Guid roleId, bool add)
+    {
+        if (add)
+        {
+            if (!_addMemberRoleIds.Contains(roleId))
+                _addMemberRoleIds.Add(roleId);
+        }
+        else
+        {
+            _addMemberRoleIds.Remove(roleId);
+            if (_addMemberRoleIds.Count == 0)
+                _addMemberRoleIds.Add(OrgRoleIds.OrgMember);
+        }
+    }
+
     private void ShowAddMember()
     {
         _addMemberSearch = "";
         _nonMembers = [];
         _membersError = "";
+        _addMemberRoleIds = new() { OrgRoleIds.OrgMember };
         _showAddMember = true;
     }
 
@@ -445,12 +518,10 @@ else
         _saving = true;
         try
         {
-            var success = await Api.AddOrganizationMemberAsync(_membersOrgId, user.UserId);
+            var success = await Api.AddOrganizationMemberAsync(_membersOrgId, user.UserId, _addMemberRoleIds);
             if (success)
             {
-                // Remove the user from non-members list immediately
                 _nonMembers = _nonMembers.Where(u => u.UserId != user.UserId).ToList();
-                // Refresh the members list in the background
                 await LoadMembersAsync();
                 await LoadAsync();
             }

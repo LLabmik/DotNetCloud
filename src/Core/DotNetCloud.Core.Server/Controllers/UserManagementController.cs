@@ -1,8 +1,11 @@
 using DotNetCloud.Core.Auth.Authorization;
+using DotNetCloud.Core.Auth.Extensions;
+using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.Data.Entities.Identity;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Services;
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DotNetCloud.Core.Server.Controllers;
@@ -16,6 +19,7 @@ namespace DotNetCloud.Core.Server.Controllers;
 public class UserManagementController : ControllerBase
 {
     private readonly IUserManagementService _userManagementService;
+    private readonly UserManager<ApplicationUser> _userManager;
     private readonly ILogger<UserManagementController> _logger;
 
     /// <summary>
@@ -23,9 +27,11 @@ public class UserManagementController : ControllerBase
     /// </summary>
     public UserManagementController(
         IUserManagementService userManagementService,
+        UserManager<ApplicationUser> userManager,
         ILogger<UserManagementController> logger)
     {
         _userManagementService = userManagementService ?? throw new ArgumentNullException(nameof(userManagementService));
+        _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -208,6 +214,81 @@ public class UserManagementController : ControllerBase
     }
 
     // ---------------------------------------------------------------------------
+    // Roles
+    // ---------------------------------------------------------------------------
+
+    /// <summary>
+    /// Sets the system roles for a user (replaces all existing role assignments).
+    /// Only the "Administrator" role is supported as a system role.
+    /// </summary>
+    [HttpPut("{userId:guid}/roles")]
+    [Authorize(Policy = AuthorizationPolicies.RequireAdmin)]
+    public async Task<IActionResult> SetUserRolesAsync(Guid userId, [FromBody] SetUserRolesDto dto)
+    {
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+        if (user is null)
+            return NotFound(new { success = false, error = new { code = "USER_NOT_FOUND", message = "User not found." } });
+
+        // Prevent self-demotion
+        if (IsCurrentUser(userId) && (dto.Roles is null || !dto.Roles.Contains(SystemRoleNames.Administrator)))
+            return BadRequest(new { success = false, error = new { code = "CANNOT_DEMOTE_SELF", message = "Cannot remove your own administrator role." } });
+
+        var currentRoles = await _userManager.GetRolesAsync(user);
+        var targetRoles = dto.Roles?.Distinct(StringComparer.OrdinalIgnoreCase).ToList() ?? new List<string>();
+
+        // Only allow the Administrator role as a system role
+        var validTarget = targetRoles.Where(r => string.Equals(r, SystemRoleNames.Administrator, StringComparison.OrdinalIgnoreCase)).ToList();
+
+        var toRemove = currentRoles.Except(validTarget, StringComparer.OrdinalIgnoreCase).ToList();
+        var toAdd = validTarget.Except(currentRoles, StringComparer.OrdinalIgnoreCase).ToList();
+
+        if (toRemove.Count > 0)
+            await _userManager.RemoveFromRolesAsync(user, toRemove);
+        if (toAdd.Count > 0)
+            await _userManager.AddToRolesAsync(user, toAdd);
+
+        _logger.LogInformation("Roles updated for user {UserId}: added [{Added}], removed [{Removed}]",
+            userId, string.Join(", ", toAdd), string.Join(", ", toRemove));
+
+        return Ok(new
+        {
+            success = true,
+            data = new { roles = await _userManager.GetRolesAsync(user) }
+        });
+    }
+
+    /// <summary>
+    /// Removes a single system role from a user.
+    /// </summary>
+    [HttpDelete("{userId:guid}/roles/{roleName}")]
+    [Authorize(Policy = AuthorizationPolicies.RequireAdmin)]
+    public async Task<IActionResult> RemoveUserRoleAsync(Guid userId, string roleName)
+    {
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+        if (user is null)
+            return NotFound(new { success = false, error = new { code = "USER_NOT_FOUND", message = "User not found." } });
+
+        // Prevent self-demotion
+        if (IsCurrentUser(userId) && string.Equals(roleName, SystemRoleNames.Administrator, StringComparison.OrdinalIgnoreCase))
+            return BadRequest(new { success = false, error = new { code = "CANNOT_DEMOTE_SELF", message = "Cannot remove your own administrator role." } });
+
+        var result = await _userManager.RemoveFromRoleAsync(user, roleName);
+        if (!result.Succeeded)
+        {
+            var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+            return BadRequest(new { success = false, error = new { code = "ROLE_REMOVE_FAILED", message = errors } });
+        }
+
+        _logger.LogInformation("Role '{Role}' removed from user {UserId}", roleName, userId);
+
+        return Ok(new
+        {
+            success = true,
+            data = new { roles = await _userManager.GetRolesAsync(user) }
+        });
+    }
+
+    // ---------------------------------------------------------------------------
     // Avatar
     // ---------------------------------------------------------------------------
 
@@ -369,12 +450,5 @@ public class UserManagementController : ControllerBase
         return TryGetUserId(out var currentUserId) && currentUserId == userId;
     }
 
-    private bool IsAdmin()
-    {
-        return User.HasClaim(PermissionAuthorizationHandler.PermissionClaimType, "admin") ||
-               User.IsInRole("Administrator") ||
-               User.HasClaim(ClaimTypes.Role, "Administrator") ||
-               User.IsInRole("admin") ||
-               User.HasClaim(ClaimTypes.Role, "admin");
-    }
+    private bool IsAdmin() => User.IsSystemAdmin();
 }

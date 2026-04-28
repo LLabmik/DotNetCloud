@@ -142,3 +142,14 @@ public class UserSearchResultDto
     /// <summary>Gets or sets the email address.</summary>
     public string Email { get; set; } = null!;
 }
+
+/// <summary>
+/// Data transfer object for setting a user's system roles.
+/// </summary>
+public class SetUserRolesDto
+{
+    /// <summary>
+    /// Gets or sets the complete list of role names to assign.
+    /// </summary>
+    public List<string> Roles { get; set; } = new();
+}

@@ -28,4 +28,25 @@ public interface IOrganizationDirectory : ICapabilityInterface
     /// </summary>
     /// <returns>The membership info if found; otherwise <c>null</c>.</returns>
     Task<OrganizationMemberInfo?> GetMemberAsync(Guid organizationId, Guid userId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns the organizations a user is an active member of.
+    /// </summary>
+    /// <returns>A list of organizations the user belongs to.</returns>
+    Task<IReadOnlyList<OrganizationDto>> GetUserOrganizationsAsync(Guid userId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Checks whether a user has a specific org role.
+    /// </summary>
+    Task<bool> HasOrgRoleAsync(Guid organizationId, Guid userId, Guid roleId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Checks whether a user has Manager or Admin role in the organization.
+    /// </summary>
+    Task<bool> HasManagerOrAboveRoleAsync(Guid organizationId, Guid userId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets the org role GUIDs assigned to a user in an organization.
+    /// </summary>
+    Task<IReadOnlyList<Guid>> GetUserRoleIdsAsync(Guid organizationId, Guid userId, CancellationToken cancellationToken = default);
 }

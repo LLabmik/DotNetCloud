@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Core.Data.Entities.Organizations;
 using DotNetCloud.Core.Data.Entities.Permissions;
@@ -13,13 +14,12 @@ namespace DotNetCloud.Core.Data.Initialization;
 /// <remarks>
 /// DbInitializer is responsible for:
 /// - Creating and migrating the database to the latest schema version
-/// - Seeding default system roles (Admin, User, Guest, Moderator)
-/// - Seeding default permissions for all core modules
+/// - Seeding default org role definitions (Org Admin, Org Manager, Org Member)
 /// - Seeding default system settings with recommended configuration values
-/// 
+///
 /// This class is typically invoked during the initial setup wizard (dotnetcloud setup)
 /// or programmatically during application startup when the database is first created.
-/// 
+///
 /// All seeding operations are idempotent - they check for existing data before insertion
 /// to prevent duplicate entries and allow safe re-execution.
 /// </remarks>
@@ -46,10 +46,11 @@ public class DbInitializer
     /// <remarks>
     /// This method performs the following operations in order:
     /// 1. Creates database and applies migrations
-    /// 2. Seeds default system roles
-    /// 3. Seeds default permissions
-    /// 4. Seeds default system settings
-    /// 
+    /// 2. Seeds default org role definitions
+    /// 3. Seeds default system settings
+    /// 4. Seeds default organization
+    /// 5. Seeds built-in groups
+    ///
     /// All operations are wrapped in a transaction (for relational databases) to ensure atomicity.
     /// If any step fails, all changes are rolled back.
     /// </remarks>
@@ -77,7 +78,10 @@ public class DbInitializer
                     {
                         // Seed default data
                         await SeedDefaultRolesAsync(cancellationToken);
-                        await SeedDefaultPermissionsAsync(cancellationToken);
+                        // Permissions seeding is deferred to a future phase.
+                        // The permission entities and RolePermission junction exist as scaffolding
+                        // but are not populated or enforced at runtime.
+                        // await SeedDefaultPermissionsAsync(cancellationToken);
                         await SeedSystemSettingsAsync(cancellationToken);
                         await SeedDefaultOrganizationAsync(cancellationToken);
                         await SeedBuiltInGroupsAsync(cancellationToken);
@@ -99,7 +103,8 @@ public class DbInitializer
             {
                 // For in-memory databases, seed without transaction
                 await SeedDefaultRolesAsync(cancellationToken);
-                await SeedDefaultPermissionsAsync(cancellationToken);
+                // Permissions seeding is deferred to a future phase.
+                // await SeedDefaultPermissionsAsync(cancellationToken);
                 await SeedSystemSettingsAsync(cancellationToken);
                 await SeedDefaultOrganizationAsync(cancellationToken);
                 await SeedBuiltInGroupsAsync(cancellationToken);
@@ -160,67 +165,81 @@ public class DbInitializer
     }
 
     /// <summary>
-    /// Seeds default system roles into the database.
+    /// Seeds default org role definitions into the database.
     /// </summary>
     /// <param name="cancellationToken">Cancellation token for async operations</param>
     /// <remarks>
-    /// Creates the following system roles:
-    /// - Administrator: Full system access with all permissions
-    /// - User: Standard user with basic permissions
-    /// - Guest: Read-only access with minimal permissions
-    /// - Moderator: Content moderation capabilities
-    /// 
-    /// All system roles have IsSystemRole set to true, making them immutable.
-    /// This operation is idempotent - existing roles are not duplicated.
+    /// Creates the three organization-scoped roles using well-known GUIDs:
+    /// - Org Admin: Full control over an organization including members, teams, and module data.
+    /// - Org Manager: Can create and edit organization resources and manage teams.
+    /// - Org Member: Default read-level access to view and consume organization resources.
+    ///
+    /// These roles are stored in the Permissions.Role table (distinct from AspNetRoles).
+    /// The GUIDs are referenced by OrganizationMember.RoleIds at runtime.
+    ///
+    /// Uses upsert-by-ID: existing rows with matching well-known GUIDs are updated in place.
+    /// Roles from the old seed set (Administrator/User/Guest/Moderator with random GUIDs)
+    /// are kept but no longer qualify as well-known org roles.
     /// </remarks>
     private async Task SeedDefaultRolesAsync(CancellationToken cancellationToken)
     {
-        _logger.LogInformation("Seeding default system roles...");
+        _logger.LogInformation("Seeding default org roles...");
 
-        // Check if roles already exist
-        var existingRolesCount = await _context.Roles.CountAsync(cancellationToken);
-        if (existingRolesCount > 0)
-        {
-            _logger.LogInformation("Roles already exist. Skipping role seeding.");
-            return;
-        }
+        var wellKnownIds = OrgRoleIds.All.ToHashSet();
 
-        var defaultRoles = new[]
+        // Fetch any existing roles that overlap with well-known GUIDs
+        var existingRoles = await _context.Roles
+            .Where(r => wellKnownIds.Contains(r.Id))
+            .ToDictionaryAsync(r => r.Id, cancellationToken);
+
+        var newRoles = new List<Role>();
+        var updatedCount = 0;
+
+        var definitions = new[]
         {
-            new Role
-            {
-                Id = Guid.NewGuid(),
-                Name = "Administrator",
-                Description = "Full system administrator with access to all features and settings. Can manage users, modules, and system configuration.",
-                IsSystemRole = true
-            },
-            new Role
-            {
-                Id = Guid.NewGuid(),
-                Name = "User",
-                Description = "Standard user with access to core features. Can use files, chat, calendar, and other user-facing modules.",
-                IsSystemRole = true
-            },
-            new Role
-            {
-                Id = Guid.NewGuid(),
-                Name = "Guest",
-                Description = "Guest user with read-only access to shared resources. Cannot create or modify content.",
-                IsSystemRole = true
-            },
-            new Role
-            {
-                Id = Guid.NewGuid(),
-                Name = "Moderator",
-                Description = "Content moderator with permissions to manage user-generated content across modules.",
-                IsSystemRole = true
-            }
+            (Id: OrgRoleIds.OrgAdmin, Name: "Org Admin", Description: "Full control over an organization including members, teams, groups, and all module data."),
+            (Id: OrgRoleIds.OrgManager, Name: "Org Manager", Description: "Can create and edit organization resources such as calendars, shared folders, and manage teams."),
+            (Id: OrgRoleIds.OrgMember, Name: "Org Member", Description: "Can view and use organization resources. Default role for new members.")
         };
 
-        await _context.Roles.AddRangeAsync(defaultRoles, cancellationToken);
-        await _context.SaveChangesAsync(cancellationToken);
+        foreach (var def in definitions)
+        {
+            if (existingRoles.TryGetValue(def.Id, out var existing))
+            {
+                if (existing.Name != def.Name || existing.Description != def.Description || !existing.IsSystemRole)
+                {
+                    existing.Name = def.Name;
+                    existing.Description = def.Description;
+                    existing.IsSystemRole = true;
+                    updatedCount++;
+                }
+            }
+            else
+            {
+                newRoles.Add(new Role
+                {
+                    Id = def.Id,
+                    Name = def.Name,
+                    Description = def.Description,
+                    IsSystemRole = true
+                });
+            }
+        }
 
-        _logger.LogInformation("Seeded {Count} default system roles.", defaultRoles.Length);
+        if (newRoles.Count > 0)
+        {
+            await _context.Roles.AddRangeAsync(newRoles, cancellationToken);
+        }
+
+        if (newRoles.Count > 0 || updatedCount > 0)
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+            _logger.LogInformation("Seeded {New} new org roles, updated {Updated} existing.", newRoles.Count, updatedCount);
+        }
+        else
+        {
+            _logger.LogInformation("All well-known org roles already present and up-to-date.");
+        }
     }
 
     /// <summary>

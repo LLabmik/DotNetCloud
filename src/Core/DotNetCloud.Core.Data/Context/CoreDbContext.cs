@@ -124,9 +124,11 @@ public class CoreDbContext : IdentityDbContext<ApplicationUser, ApplicationRole,
     /// Gets or sets the Roles DbSet.
     /// </summary>
     /// <remarks>
-    /// Represents role definitions that group permissions together.
-    /// This is distinct from ASP.NET Core Identity's IdentityRole and represents
-    /// application-level role definitions for the DotNetCloud permission system.
+    /// NOTE: This uses 'new' to shadow IdentityDbContext&lt;...&gt;.Roles (which returns DbSet&lt;ApplicationRole&gt;).
+    /// These are completely separate tables:
+    ///   - this.Roles       → Permissions.Role entity (org role definitions, well-known GUIDs)
+    ///   - base.Roles       → ApplicationRole entity (AspNetRoles, system-level Identity roles)
+    /// Access base Identity roles via _context.Set&lt;ApplicationRole&gt;() or RoleManager&lt;ApplicationRole&gt;.
     /// </remarks>
     public new DbSet<Role> Roles => Set<Role>();
 
