@@ -1017,7 +1017,10 @@
     {
         <div class="dialog-overlay" @onclick="ClosePlaylistDialog">
             <div class="dialog-panel" @onclick:stopPropagation="true">
-                <h4>@(_showEditPlaylistDialog ? "Edit Playlist" : "Create Playlist")</h4>
+                <div class="dialog-header">
+                    <h4>@(_showEditPlaylistDialog ? "Edit Playlist" : "Create Playlist")</h4>
+                    <button class="btn-icon" @onclick="ClosePlaylistDialog" aria-label="Close" title="Close">X</button>
+                </div>
                 <div class="dialog-form">
                     <label>Name
                         <input type="text" @bind="_playlistName" placeholder="Playlist name" />

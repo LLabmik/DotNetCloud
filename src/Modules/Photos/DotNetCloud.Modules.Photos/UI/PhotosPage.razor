@@ -627,7 +627,10 @@
         {
             <div class="dialog-overlay" @onclick="() => _showAlbumDialog = false">
                 <div class="dialog-panel" @onclick:stopPropagation="true">
-                    <h4>@(_editingAlbumId.HasValue ? "Edit Album" : "Create Album")</h4>
+                    <div class="dialog-header">
+                        <h4>@(_editingAlbumId.HasValue ? "Edit Album" : "Create Album")</h4>
+                        <button class="btn-icon" @onclick="() => _showAlbumDialog = false" aria-label="Close" title="Close">X</button>
+                    </div>
                     <div class="dialog-form">
                         <label>Title
                             <input type="text" @bind="_albumTitle" placeholder="Album title" />
@@ -651,7 +654,10 @@
         {
             <div class="dialog-overlay" @onclick="() => _showShareDialog = false">
                 <div class="dialog-panel" @onclick:stopPropagation="true">
-                    <h4>Share Photo</h4>
+                    <div class="dialog-header">
+                        <h4>Share Photo</h4>
+                        <button class="btn-icon" @onclick="() => _showShareDialog = false" aria-label="Close" title="Close">X</button>
+                    </div>
                     <div class="dialog-form">
                         <label>Share with (User ID)
                             <input type="text" @bind="_shareUserId" placeholder="User ID" />

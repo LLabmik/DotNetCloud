@@ -475,6 +475,7 @@ else
                             <text>Tag @_tagTargetNodeIds.Count files</text>
                         }
                     </h3>
+                    <button class="btn-icon" @onclick="HideSingleTagDialog" aria-label="Close" title="Close">X</button>
                 </div>
                 <div class="dialog-body">
                     <TagInput ExistingTags="UserTags" OnTagAdded="HandleSingleTagAdd" />

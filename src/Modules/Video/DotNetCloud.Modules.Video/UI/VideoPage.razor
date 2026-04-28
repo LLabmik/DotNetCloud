@@ -772,7 +772,10 @@
     {
         <div class="dialog-overlay" @onclick="() => _showAddToCollection = false">
             <div class="dialog-panel" @onclick:stopPropagation="true">
-                <h4>Add to Collection</h4>
+                <div class="dialog-header">
+                    <h4>Add to Collection</h4>
+                    <button class="btn-icon" @onclick="() => _showAddToCollection = false" aria-label="Close" title="Close">X</button>
+                </div>
                 <div class="collection-select-list">
                     @foreach (var coll in _collections)
                     {
@@ -799,7 +802,10 @@
     {
         <div class="dialog-overlay" @onclick="CloseCollectionDialog">
             <div class="dialog-panel" @onclick:stopPropagation="true">
-                <h4>@(_showEditCollectionDialog ? "Edit Collection" : "Create Collection")</h4>
+                <div class="dialog-header">
+                    <h4>@(_showEditCollectionDialog ? "Edit Collection" : "Create Collection")</h4>
+                    <button class="btn-icon" @onclick="CloseCollectionDialog" aria-label="Close" title="Close">X</button>
+                </div>
                 <div class="dialog-form">
                     <label>Name
                         <input type="text" @bind="_collectionName" placeholder="Collection name" />

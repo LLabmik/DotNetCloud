@@ -861,7 +861,7 @@ textarea.input { resize: vertical; min-height: 60px; }
 }
 .dialog-wide { width: 560px; }
 .dialog-xwide { width: 800px; }
-.dialog-header { padding: 16px 20px; border-bottom: 1px solid var(--color-border); }
+.dialog-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--color-border); }
 .dialog-header h3 { font-size: 16px; }
 .dialog-body { padding: 20px; max-height: 80vh; overflow-y: auto; }
 .dialog-footer { padding: 12px 20px; border-top: 1px solid var(--color-border); display: flex; gap: 8px; justify-content: flex-end; }
