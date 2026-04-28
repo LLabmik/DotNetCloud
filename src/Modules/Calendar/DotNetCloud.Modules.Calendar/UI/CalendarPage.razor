@@ -332,20 +332,20 @@
                         <div class="calendar-form-row">
                             <label class="calendar-form-label">Start</label>
                             <div class="calendar-form-datetime">
-                                <InputDate class="form-control" @bind-Value="_eventEditor.StartLocal" />
+                                <InputDate class="form-control" @bind-Value="_eventEditor.StartDate" />
                                 @if (!_eventEditor.IsAllDay)
                                 {
-                                    <InputDate Type="InputDateType.Time" class="form-control" @bind-Value="_eventEditor.StartLocal" />
+                                    <InputDate Type="InputDateType.Time" class="form-control" @bind-Value="_eventEditor.StartTime" />
                                 }
                             </div>
                         </div>
                         <div class="calendar-form-row">
                             <label class="calendar-form-label">End</label>
                             <div class="calendar-form-datetime">
-                                <InputDate class="form-control" @bind-Value="_eventEditor.EndLocal" />
+                                <InputDate class="form-control" @bind-Value="_eventEditor.EndDate" />
                                 @if (!_eventEditor.IsAllDay)
                                 {
-                                    <InputDate Type="InputDateType.Time" class="form-control" @bind-Value="_eventEditor.EndLocal" />
+                                    <InputDate Type="InputDateType.Time" class="form-control" @bind-Value="_eventEditor.EndTime" />
                                 }
                             </div>
                         </div>
@@ -1248,6 +1248,15 @@
         public string? Location { get; set; }
         public DateTime StartLocal { get; set; }
         public DateTime EndLocal { get; set; }
+
+        // Separate date/time bindings so the time picker doesn't clobber the date,
+        // and vice versa.  InputDate of type Time always produces DateTime.Today +
+        // the selected time-of-day, so we must preserve the date portion ourselves.
+        public DateTime StartDate { get => StartLocal.Date; set => StartLocal = value.Date + StartLocal.TimeOfDay; }
+        public DateTime StartTime { get => StartLocal; set => StartLocal = StartLocal.Date + value.TimeOfDay; }
+        public DateTime EndDate   { get => EndLocal.Date;   set => EndLocal   = value.Date   + EndLocal.TimeOfDay; }
+        public DateTime EndTime   { get => EndLocal;        set => EndLocal   = EndLocal.Date + value.TimeOfDay; }
+
         public bool IsAllDay { get; set; }
         public string? Color { get; set; }
         public string? Url { get; set; }
