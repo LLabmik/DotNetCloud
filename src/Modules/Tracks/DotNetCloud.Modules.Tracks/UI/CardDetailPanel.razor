@@ -142,9 +142,9 @@
                                             ContentChanged="@(v => _newCommentContent = v)"
                                             Renderer="MarkdownRenderer" />
                             <div class="tracks-card-section-actions">
-                                <button class="btn btn-sm btn-secondary" @onclick="() => _showCommentComposer = false">Cancel</button>
                                 <button class="btn btn-sm btn-primary" disabled="@string.IsNullOrWhiteSpace(_newCommentContent)"
                                         @onclick="AddCommentAsync">Comment</button>
+                                <button class="btn btn-sm btn-secondary" @onclick="() => _showCommentComposer = false">Cancel</button>
                             </div>
                         </div>
                     }
@@ -471,11 +471,11 @@
                 }
             </div>
             <div class="tracks-modal-footer">
-                <button class="btn btn-sm btn-secondary" @onclick="CancelConfirm">Cancel</button>
                 <button class="btn btn-sm @(_confirmAction == "delete" ? "btn-danger" : "btn-primary")"
                         @onclick="ConfirmActionAsync">
                     @(_confirmAction == "delete" ? "Delete" : (_confirmAction == "archive" ? "Archive" : "Unarchive"))
                 </button>
+                <button class="btn btn-sm btn-secondary" @onclick="CancelConfirm">Cancel</button>
             </div>
         </div>
     </div>

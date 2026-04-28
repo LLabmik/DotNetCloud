@@ -1031,10 +1031,10 @@
                     </label>
                 </div>
                 <div class="dialog-actions">
-                    <button class="btn-cancel" @onclick="ClosePlaylistDialog">Cancel</button>
                     <button class="btn-primary" @onclick="SavePlaylistAsync">
                         @(_showEditPlaylistDialog ? "Save" : "Create")
                     </button>
+                    <button class="btn-cancel" @onclick="ClosePlaylistDialog">Cancel</button>
                 </div>
             </div>
         </div>

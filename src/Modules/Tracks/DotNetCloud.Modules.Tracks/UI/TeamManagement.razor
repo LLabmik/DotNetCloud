@@ -165,9 +165,9 @@
                     </div>
                 </div>
                 <div class="tracks-dialog-footer">
-                    <button class="btn btn-outline" @onclick="() => _showCreateDialog = false">Cancel</button>
                     <button class="btn btn-primary" @onclick="CreateTeamAsync"
                             disabled="@string.IsNullOrWhiteSpace(_newTeamName)">Create</button>
+                    <button class="btn btn-outline" @onclick="() => _showCreateDialog = false">Cancel</button>
                 </div>
             </div>
         </div>

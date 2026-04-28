@@ -246,10 +246,10 @@ else
             }
         </div>
         <div class="form-actions shared-folder-editor-actions">
-            <button class="btn btn-secondary" @onclick="CloseEditor">Cancel</button>
             <button class="btn btn-primary" @onclick="SaveEditorAsync" disabled="@_actionInProgress">
                 @(_actionInProgress ? "Saving..." : _editorMode == SharedFolderEditorMode.Create ? "Create Shared Folder" : "Save Changes")
             </button>
+            <button class="btn btn-secondary" @onclick="CloseEditor">Cancel</button>
         </div>
     </DncModal>
 }
@@ -335,8 +335,8 @@ else
             <div class="alert alert-danger">@_modalError</div>
         }
         <div class="form-actions">
-            <button class="btn btn-secondary" @onclick="CloseSchedule">Cancel</button>
             <button class="btn btn-primary" @onclick="ScheduleScanAsync" disabled="@_actionInProgress">@(_actionInProgress ? "Scheduling..." : "Schedule Scan")</button>
+            <button class="btn btn-secondary" @onclick="CloseSchedule">Cancel</button>
         </div>
     </DncModal>
 }

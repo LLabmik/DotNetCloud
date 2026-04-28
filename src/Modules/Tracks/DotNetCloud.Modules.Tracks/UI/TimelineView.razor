@@ -155,10 +155,10 @@
                         Subsequent sprint dates will cascade automatically.
                     </p>
                     <div class="tracks-timeline-adjust-actions">
-                        <button class="btn btn-sm btn-outline" @onclick="CancelAdjust" disabled="@_isAdjusting">Cancel</button>
                         <button class="btn btn-sm btn-primary" @onclick="ConfirmAdjust" disabled="@_isAdjusting">
                             @(_isAdjusting ? "Adjusting..." : "Apply")
                         </button>
+                        <button class="btn btn-sm btn-outline" @onclick="CancelAdjust" disabled="@_isAdjusting">Cancel</button>
                     </div>
                 </div>
             </div>

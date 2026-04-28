@@ -110,10 +110,10 @@ else
             <div class="alert alert-danger">@_modalError</div>
         }
         <div class="form-actions">
-            <button class="btn btn-secondary" @onclick="CloseCreate">Cancel</button>
             <button class="btn btn-primary" @onclick="CreateAsync" disabled="@_saving">
                 @(_saving ? "Creating..." : "Create")
             </button>
+            <button class="btn btn-secondary" @onclick="CloseCreate">Cancel</button>
         </div>
     </DncModal>
 }
@@ -134,10 +134,10 @@ else
             <div class="alert alert-danger">@_modalError</div>
         }
         <div class="form-actions">
-            <button class="btn btn-secondary" @onclick="CloseEdit">Cancel</button>
             <button class="btn btn-primary" @onclick="SaveEditAsync" disabled="@_saving">
                 @(_saving ? "Saving..." : "Save")
             </button>
+            <button class="btn btn-secondary" @onclick="CloseEdit">Cancel</button>
         </div>
     </DncModal>
 }

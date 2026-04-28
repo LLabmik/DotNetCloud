@@ -182,8 +182,8 @@
                     </label>
                 </div>
                 <div class="gmp-dialog-actions">
-                    <button class="btn-secondary" @onclick="Playback.ToggleSavePresetDialog">Cancel</button>
                     <button class="btn-primary" @onclick="SavePresetAsync" disabled="@string.IsNullOrWhiteSpace(_newPresetName)">Save</button>
+                    <button class="btn-secondary" @onclick="Playback.ToggleSavePresetDialog">Cancel</button>
                 </div>
             </div>
         </div>

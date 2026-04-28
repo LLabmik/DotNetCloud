@@ -250,7 +250,6 @@
 
     @* ── Footer Navigation ── *@
     <div class="tracks-wizard-footer">
-        <button class="btn btn-secondary" @onclick="HandleCancel">Cancel</button>
         <div class="tracks-wizard-footer-right">
             @if (_currentStep > 0)
             {
@@ -270,6 +269,7 @@
                     @(_isCreating ? "Creating…" : "Create Plan")
                 </button>
             }
+            <button class="btn btn-secondary" @onclick="HandleCancel">Cancel</button>
         </div>
     </div>
 </div>

@@ -637,10 +637,10 @@
                         </label>
                     </div>
                     <div class="dialog-actions">
-                        <button class="btn-cancel" @onclick="() => _showAlbumDialog = false">Cancel</button>
                         <button class="btn-primary" @onclick="SaveAlbumAsync">
                             @(_editingAlbumId.HasValue ? "Save" : "Create")
                         </button>
+                        <button class="btn-cancel" @onclick="() => _showAlbumDialog = false">Cancel</button>
                     </div>
                 </div>
             </div>
@@ -665,8 +665,8 @@
                         </label>
                     </div>
                     <div class="dialog-actions">
-                        <button class="btn-cancel" @onclick="() => _showShareDialog = false">Cancel</button>
                         <button class="btn-primary" @onclick="SaveShareAsync">Share</button>
+                        <button class="btn-cancel" @onclick="() => _showShareDialog = false">Cancel</button>
                     </div>
                 </div>
             </div>

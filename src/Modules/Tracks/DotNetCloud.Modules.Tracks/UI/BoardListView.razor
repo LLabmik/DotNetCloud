@@ -143,10 +143,10 @@
                 </div>
             }
             <div class="form-actions">
-                <button type="button" class="btn btn-secondary" @onclick="CloseCreateDialog">Cancel</button>
                 <button type="submit" class="btn btn-primary" disabled="@_isCreating">
                     @(_isCreating ? "Creating..." : "Create Board")
                 </button>
+                <button type="button" class="btn btn-secondary" @onclick="CloseCreateDialog">Cancel</button>
             </div>
         </EditForm>
     </DncModal>

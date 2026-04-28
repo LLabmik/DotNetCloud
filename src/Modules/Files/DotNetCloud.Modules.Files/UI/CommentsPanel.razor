@@ -29,12 +29,12 @@
                             ContentChanged="@(v => _newCommentText = v)"
                             Renderer="MarkdownRenderer" />
             <div class="comments-compose-actions">
-                <button class="btn btn-sm" @onclick="HideComposer">Cancel</button>
                 <button class="btn btn-primary btn-sm"
                         disabled="@(string.IsNullOrWhiteSpace(_newCommentText) || _isSubmitting)"
                         @onclick="SubmitNewComment">
                     @(_isSubmitting ? "Posting…" : "Post")
                 </button>
+                <button class="btn btn-sm" @onclick="HideComposer">Cancel</button>
             </div>
         }
         else

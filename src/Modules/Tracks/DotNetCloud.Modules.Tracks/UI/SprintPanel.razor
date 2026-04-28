@@ -181,11 +181,11 @@
             }
 
             <div class="form-actions">
-                <button class="btn btn-secondary" @onclick="CloseCardPicker">Cancel</button>
                 <button class="btn btn-primary" disabled="@(_pickerSelectedCardIds.Count == 0 || _isAddingCards)"
                         @onclick="AddSelectedCardsAsync">
                     @(_isAddingCards ? "Adding..." : $"Add {_pickerSelectedCardIds.Count} Card(s)")
                 </button>
+                <button class="btn btn-secondary" @onclick="CloseCardPicker">Cancel</button>
             </div>
         </div>
     </DncModal>
@@ -223,11 +223,11 @@
                 <div class="alert alert-danger">@_createError</div>
             }
             <div class="form-actions">
-                <button type="button" class="btn btn-secondary"
-                        @onclick="() => _showCreateDialog = false">Cancel</button>
                 <button type="submit" class="btn btn-primary" disabled="@_isCreating">
                     @(_isCreating ? "Creating..." : "Create Sprint")
                 </button>
+                <button type="button" class="btn btn-secondary"
+                        @onclick="() => _showCreateDialog = false">Cancel</button>
             </div>
         </EditForm>
     </DncModal>
@@ -270,11 +270,11 @@
                 <div class="alert alert-danger">@_editError</div>
             }
             <div class="form-actions">
-                <button type="button" class="btn btn-secondary"
-                        @onclick="() => _showEditDialog = false">Cancel</button>
                 <button type="submit" class="btn btn-primary" disabled="@_isSavingEdit">
                     @(_isSavingEdit ? "Saving..." : "Save Changes")
                 </button>
+                <button type="button" class="btn btn-secondary"
+                        @onclick="() => _showEditDialog = false">Cancel</button>
             </div>
         </EditForm>
     </DncModal>

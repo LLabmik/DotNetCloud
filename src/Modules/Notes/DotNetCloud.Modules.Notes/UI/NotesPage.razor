@@ -132,11 +132,11 @@
             <EditForm Model="_editingNote" OnValidSubmit="SaveNoteAsync">
                 <div class="notes-form-actions">
                     <button type="submit" class="btn btn-primary">Save</button>
-                    <button type="button" class="btn btn-secondary" @onclick="CancelEdit">Cancel</button>
                     @if (_editingNote.Id.HasValue)
                     {
                         <button type="button" class="btn btn-danger" @onclick="DeleteSelectedAsync">Delete</button>
                     }
+                    <button type="button" class="btn btn-secondary" @onclick="CancelEdit">Cancel</button>
                 </div>
                 <div class="notes-form-grid">
                     <InputText class="form-control" @bind-Value="_editingNote.Title" placeholder="Note title" />

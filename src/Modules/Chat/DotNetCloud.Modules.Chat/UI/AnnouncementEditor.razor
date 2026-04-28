@@ -57,10 +57,10 @@
             </div>
 
             <div class="dialog-footer">
-                <button class="btn" @onclick="Cancel">Cancel</button>
                 <button class="btn btn-primary" @onclick="Save" disabled="@IsSaveDisabled">
                     @(IsEditing ? "Update" : "Publish")
                 </button>
+                <button class="btn" @onclick="Cancel">Cancel</button>
             </div>
         </div>
     </div>

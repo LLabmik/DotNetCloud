@@ -809,10 +809,10 @@
                     </label>
                 </div>
                 <div class="dialog-actions">
-                    <button type="button" class="btn-cancel" @onclick="CloseCollectionDialog">Cancel</button>
                     <button type="button" class="btn-primary" @onclick="SaveCollectionAsync">
                         @(_showEditCollectionDialog ? "Save" : "Create")
                     </button>
+                    <button type="button" class="btn-cancel" @onclick="CloseCollectionDialog">Cancel</button>
                 </div>
             </div>
         </div>

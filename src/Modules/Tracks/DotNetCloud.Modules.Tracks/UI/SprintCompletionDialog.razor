@@ -97,10 +97,10 @@
             </div>
 
             <div class="tracks-dialog-footer">
-                <button class="btn btn-secondary" @onclick="OnCancel" disabled="@_isCompleting">Cancel</button>
                 <button class="btn btn-primary" @onclick="CompleteAsync" disabled="@_isCompleting">
                     @(_isCompleting ? "Completing..." : "✅ Complete Sprint")
                 </button>
+                <button class="btn btn-secondary" @onclick="OnCancel" disabled="@_isCompleting">Cancel</button>
             </div>
         }
     </div>
