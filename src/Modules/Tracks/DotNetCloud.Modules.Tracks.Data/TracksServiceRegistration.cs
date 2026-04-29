@@ -41,6 +41,9 @@ public static class TracksServiceRegistration
         // Cross-module services
         services.AddScoped<ICardAttachmentCleanupService, AttachmentCleanupService>();
 
+        // Background services
+        services.AddHostedService<ProductCleanupBackgroundService>();
+
         return services;
     }
 }

@@ -3734,6 +3734,12 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ ITracksApiClient / TracksApiClient HTTP service
 - ✓ Module UI registration + DI setup
 - ✓ tracks-kanban.js drag-drop JS interop
+- ✓ Hierarchy level indicator banner on kanban board (Product/Epic/Feature/Item level labels)
+- ✓ Card type badges (Epic/Feature/Item/SubItem) on kanban cards
+- ✓ Depth-based visual styling for hierarchy levels (color-coded column borders)
+- ✓ Product Creation Wizard (multi-step: Name → Color/Settings → Members → Review)
+- ✓ WorkItem Creation Wizard (multi-step: Type/Title → Details → Assignments → Review)
+- ✓ Context-aware type pre-selection in wizard based on current hierarchy level
 
 ### Phase 4.6: Real-time And Notifications
 

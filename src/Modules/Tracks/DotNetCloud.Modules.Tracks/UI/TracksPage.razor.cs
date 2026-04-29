@@ -393,6 +393,11 @@ public partial class TracksPage : ComponentBase, IDisposable
             NavigateToProductList();
     }
 
+    private async Task HandleProductRestored(ProductDto product)
+    {
+        _products.Insert(0, product);
+    }
+
     // ── Drilling / Navigation ───────────────────────────────
 
     private void NavigateToProductList()

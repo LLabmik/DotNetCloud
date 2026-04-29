@@ -8,7 +8,7 @@
                 <input type="text" class="tracks-search-input" placeholder="Search products..."
                        @bind="_searchQuery" @bind:event="oninput" />
             </div>
-            <button class="btn btn-primary" @onclick="OpenCreateDialog">
+            <button class="btn btn-primary" @onclick="OpenCreateWizard">
                 + New Product
             </button>
         </div>
@@ -20,7 +20,7 @@
             <div class="tracks-empty-icon">📋</div>
             <h3>No products yet</h3>
             <p>Create your first product to start tracking work.</p>
-            <button class="btn btn-primary" @onclick="OpenCreateDialog">Create Product</button>
+            <button class="btn btn-primary" @onclick="OpenCreateWizard">Create Product</button>
         </div>
     }
     else
@@ -35,10 +35,17 @@
                     <div class="tracks-board-card-body">
                         <div class="tracks-board-card-header">
                             <h3>@product.Name</h3>
-                            @if (product.IsArchived)
-                            {
-                                <span class="tracks-badge tracks-badge--muted">Archived</span>
-                            }
+                            <div class="tracks-board-card-header-actions" @onclick:stopPropagation>
+                                @if (product.IsArchived)
+                                {
+                                    <span class="tracks-badge tracks-badge--muted">Archived</span>
+                                }
+                                <button class="tracks-board-card-delete-btn"
+                                        @onclick="() => ConfirmDelete(product)"
+                                        title="Delete product">
+                                    🗑
+                                </button>
+                            </div>
                         </div>
                         @if (!string.IsNullOrEmpty(product.Description))
                         {
@@ -60,47 +67,95 @@
             }
         </div>
     }
-</div>
 
-@* ── Create Product Dialog ── *@
-@if (_showCreateDialog)
-{
-    <DncModal Title="Create Product" StartVisible OnClose="CloseCreateDialog">
-        <EditForm Model="_createModel" OnValidSubmit="CreateProductAsync">
-            <div class="form-group">
-                <label>Name</label>
-                <InputText class="form-control" @bind-Value="_createModel.Name" placeholder="Product name" />
-            </div>
-            <div class="form-group">
-                <label>Description (optional)</label>
-                <InputTextArea class="form-control" @bind-Value="_createModel.Description" rows="3"
-                               placeholder="What is this product for?" />
-            </div>
-            <div class="form-group">
-                <label>Color</label>
-                <div class="tracks-color-picker">
-                    @foreach (var color in _productColors)
+    @* ── Deleted Products ── *@
+    @if (_deletedProducts.Count > 0)
+    {
+        <div class="tracks-deleted-section">
+            <button class="tracks-deleted-toggle" @onclick="() => _showDeleted = !_showDeleted">
+                <span class="tracks-deleted-toggle-icon">@(_showDeleted ? "▼" : "▶")</span>
+                <span>🗑 Trash (@_deletedProducts.Count)</span>
+                <span class="tracks-deleted-toggle-hint">Restorable within 30 days</span>
+            </button>
+
+            @if (_showDeleted)
+            {
+                <div class="tracks-deleted-grid">
+                    @foreach (var product in _deletedProducts)
                     {
-                        <button type="button"
-                                class="tracks-color-swatch @(_createModel.Color == color ? "selected" : "")"
-                                style="background: @color;"
-                                @onclick="() => _createModel.Color = color">
-                        </button>
+                        <div class="tracks-board-card tracks-board-card--deleted">
+                            <div class="tracks-board-card-color"
+                                 style="background: @(product.Color ?? "#6b7280"); opacity: 0.5;"></div>
+                            <div class="tracks-board-card-body">
+                                <div class="tracks-board-card-header">
+                                    <h3>@product.Name</h3>
+                                    <div class="tracks-board-card-header-actions">
+                                        @if (product.DeletedAt.HasValue)
+                                        {
+                                            var daysLeft = 30 - (int)(DateTime.UtcNow - product.DeletedAt.Value).TotalDays;
+                                            <span class="tracks-badge @(daysLeft <= 7 ? "tracks-badge--warning" : "tracks-badge--muted")">
+                                                @daysLeft day@(daysLeft != 1 ? "s" : "") left
+                                            </span>
+                                        }
+                                        <button class="tracks-deleted-restore-btn"
+                                                @onclick="() => RestoreProductAsync(product)"
+                                                disabled="@(_isRestoring == product.Id)"
+                                                title="Restore product">
+                                            @(_isRestoring == product.Id ? "Restoring..." : "↩ Restore")
+                                        </button>
+                                        <button class="tracks-deleted-permanent-btn"
+                                                @onclick="() => PermanentDeleteProductAsync(product)"
+                                                disabled="@(_isPermanentlyDeleting == product.Id)"
+                                                title="Permanently delete — cannot be undone">
+                                            @(_isPermanentlyDeleting == product.Id ? "Deleting..." : "🗑")
+                                        </button>
+                                    </div>
+                                </div>
+                                @if (!string.IsNullOrEmpty(product.Description))
+                                {
+                                    <p class="tracks-board-card-desc">@TruncateText(product.Description, 80)</p>
+                                }
+                                @if (product.DeletedAt.HasValue)
+                                {
+                                    <div class="tracks-deleted-date">
+                                        Deleted @product.DeletedAt.Value.ToString("MMM d, yyyy")
+                                    </div>
+                                }
+                            </div>
+                        </div>
                     }
                 </div>
-            </div>
-            <div class="form-group">
-                <label>
-                    <input type="checkbox" @bind="_subItemsEnabled" />
-                    Enable Sub Items (instead of Checklists)
-                </label>
-            </div>
-            <div class="form-actions">
-                <button type="submit" class="btn btn-primary" disabled="@_isCreating">
-                    @(_isCreating ? "Creating..." : "Create Product")
+            }
+        </div>
+    }
+</div>
+
+@* ── Create Product Wizard ── *@
+@if (_showCreateWizard && OrganizationId.HasValue)
+{
+    <ProductCreationWizard OrganizationId="OrganizationId.Value"
+                           OnClose="CloseCreateWizard"
+                           OnCreated="HandleProductCreatedFromWizard" />
+}
+
+@* ── Delete Confirmation Dialog ── *@
+@if (_deleteTarget is not null)
+{
+    <div class="tracks-wizard-overlay" @onclick="CancelDelete">
+        <div class="tracks-confirm-dialog" @onclick:stopPropagation>
+            <div class="tracks-confirm-icon">⚠️</div>
+            <h3>Delete &quot;@_deleteTarget.Name&quot;?</h3>
+            <p>This will mark the product for deletion. It can be restored within 30 days by an admin. <strong>After 30 days it will be permanently removed.</strong></p>
+            <div class="tracks-confirm-actions">
+                <button class="btn btn-danger" @onclick="DeleteProductAsync" disabled="@_isDeleting">
+                    @(_isDeleting ? "Deleting..." : "Delete Product")
                 </button>
-                <button type="button" class="btn btn-secondary" @onclick="CloseCreateDialog">Cancel</button>
+                <button class="btn btn-secondary" @onclick="CancelDelete">Cancel</button>
             </div>
-        </EditForm>
-    </DncModal>
+            @if (_deleteError is not null)
+            {
+                <DncErrorDisplay Message="@_deleteError" />
+            }
+        </div>
+    </div>
 }

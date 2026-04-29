@@ -5,7 +5,8 @@ using Microsoft.AspNetCore.Components;
 namespace DotNetCloud.Modules.Tracks.UI;
 
 /// <summary>
-/// Grid view of all products in an organization, with create product dialog.
+/// Grid view of all products in an organization, with product creation wizard,
+/// soft-delete with 30-day retention, and admin restore.
 /// </summary>
 public partial class ProductListView : ComponentBase
 {
@@ -16,19 +17,22 @@ public partial class ProductListView : ComponentBase
     [Parameter] public EventCallback<Guid> OnProductSelected { get; set; }
     [Parameter] public EventCallback<ProductDto> OnProductCreated { get; set; }
     [Parameter] public EventCallback<Guid> OnProductDeleted { get; set; }
+    [Parameter] public EventCallback<ProductDto> OnProductRestored { get; set; }
 
     private string _searchQuery = "";
-    private bool _showCreateDialog;
-    private bool _isCreating;
-    private bool _subItemsEnabled;
+    private bool _showCreateWizard;
 
-    private readonly CreateProductModel _createModel = new();
+    // Delete state
+    private ProductDto? _deleteTarget;
+    private bool _isDeleting;
+    private string? _deleteError;
 
-    private static readonly string[] _productColors =
-    [
-        "#3b82f6", "#ef4444", "#10b981", "#f59e0b", "#8b5cf6",
-        "#ec4899", "#06b6d4", "#84cc16", "#f97316", "#6366f1"
-    ];
+    // Deleted products
+    private readonly List<ProductDto> _deletedProducts = [];
+    private bool _showDeleted;
+    private Guid? _isRestoring;
+    private Guid? _isPermanentlyDeleting;
+    private bool _deletedLoaded;
 
     private IReadOnlyList<ProductDto> FilteredProducts
     {
@@ -48,54 +52,121 @@ public partial class ProductListView : ComponentBase
         }
     }
 
-    private void OpenCreateDialog()
+    private void OpenCreateWizard()
     {
-        _createModel.Name = "";
-        _createModel.Description = "";
-        _createModel.Color = _productColors[0];
-        _subItemsEnabled = false;
-        _showCreateDialog = true;
+        _showCreateWizard = true;
     }
 
-    private void CloseCreateDialog() => _showCreateDialog = false;
+    private void CloseCreateWizard() => _showCreateWizard = false;
 
-    private async Task CreateProductAsync()
+    private async Task HandleProductCreatedFromWizard(ProductDto product)
     {
-        if (string.IsNullOrWhiteSpace(_createModel.Name)) return;
-        if (OrganizationId is null) return;
-
-        _isCreating = true;
-        try
-        {
-            var dto = new CreateProductDto
-            {
-                Name = _createModel.Name.Trim(),
-                Description = string.IsNullOrWhiteSpace(_createModel.Description) ? null : _createModel.Description.Trim(),
-                Color = _createModel.Color,
-                SubItemsEnabled = _subItemsEnabled
-            };
-
-            var product = await ApiClient.CreateProductAsync(OrganizationId.Value, dto);
-            if (product is not null)
-            {
-                await OnProductCreated.InvokeAsync(product);
-            }
-
-            _showCreateDialog = false;
-        }
-        finally
-        {
-            _isCreating = false;
-        }
+        _showCreateWizard = false;
+        await OnProductCreated.InvokeAsync(product);
     }
 
     private static string TruncateText(string text, int maxLength)
         => text.Length <= maxLength ? text : text[..maxLength] + "…";
 
-    private sealed class CreateProductModel
+    private void ConfirmDelete(ProductDto product)
     {
-        public string Name { get; set; } = "";
-        public string Description { get; set; } = "";
-        public string Color { get; set; } = "#3b82f6";
+        _deleteTarget = product;
+        _deleteError = null;
+    }
+
+    private void CancelDelete()
+    {
+        _deleteTarget = null;
+        _deleteError = null;
+    }
+
+    private async Task DeleteProductAsync()
+    {
+        if (_deleteTarget is null) return;
+
+        _isDeleting = true;
+        _deleteError = null;
+
+        try
+        {
+            await ApiClient.DeleteProductAsync(_deleteTarget.Id);
+            await OnProductDeleted.InvokeAsync(_deleteTarget.Id);
+            _deleteTarget = null;
+        }
+        catch (Exception ex)
+        {
+            _deleteError = ex.Message;
+        }
+        finally
+        {
+            _isDeleting = false;
+        }
+    }
+
+    private async Task LoadDeletedProductsAsync()
+    {
+        if (!OrganizationId.HasValue || _deletedLoaded) return;
+
+        try
+        {
+            var deleted = await ApiClient.ListDeletedProductsAsync(OrganizationId.Value);
+            _deletedProducts.Clear();
+            _deletedProducts.AddRange(deleted);
+            _deletedLoaded = true;
+        }
+        catch
+        {
+            // Non-critical; silently skip
+        }
+    }
+
+    private async Task RestoreProductAsync(ProductDto product)
+    {
+        _isRestoring = product.Id;
+
+        try
+        {
+            var restored = await ApiClient.RestoreProductAsync(product.Id);
+            if (restored is not null)
+            {
+                _deletedProducts.Remove(product);
+                await OnProductRestored.InvokeAsync(restored);
+            }
+        }
+        catch
+        {
+            // Restore failed; user can retry
+        }
+        finally
+        {
+            _isRestoring = null;
+        }
+    }
+
+    private async Task PermanentDeleteProductAsync(ProductDto product)
+    {
+        _isPermanentlyDeleting = product.Id;
+
+        try
+        {
+            await ApiClient.PermanentDeleteProductAsync(product.Id);
+            _deletedProducts.Remove(product);
+        }
+        catch
+        {
+            // Can retry
+        }
+        finally
+        {
+            _isPermanentlyDeleting = null;
+        }
+    }
+
+    /// <summary>
+    /// Loads deleted products list when parameters change.
+    /// </summary>
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadDeletedProductsAsync();
     }
 }

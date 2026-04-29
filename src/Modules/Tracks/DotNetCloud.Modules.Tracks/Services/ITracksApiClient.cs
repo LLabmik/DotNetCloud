@@ -13,6 +13,9 @@ public interface ITracksApiClient
     Task<ProductDto?> CreateProductAsync(Guid organizationId, CreateProductDto dto, CancellationToken ct = default);
     Task<ProductDto?> UpdateProductAsync(Guid productId, UpdateProductDto dto, CancellationToken ct = default);
     Task DeleteProductAsync(Guid productId, CancellationToken ct = default);
+    Task<IReadOnlyList<ProductDto>> ListDeletedProductsAsync(Guid organizationId, CancellationToken ct = default);
+    Task<ProductDto?> RestoreProductAsync(Guid productId, CancellationToken ct = default);
+    Task PermanentDeleteProductAsync(Guid productId, CancellationToken ct = default);
 
     // Product Members
     Task<IReadOnlyList<ProductMemberDto>> ListProductMembersAsync(Guid productId, CancellationToken ct = default);

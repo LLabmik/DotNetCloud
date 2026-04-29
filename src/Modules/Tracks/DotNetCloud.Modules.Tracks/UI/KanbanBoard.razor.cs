@@ -8,7 +8,7 @@ namespace DotNetCloud.Modules.Tracks.UI;
 
 /// <summary>
 /// Full kanban board with drag-and-drop work items between swimlanes.
-/// Works at any hierarchy level (Product, Epic, Feature) by parameterizing the container.
+/// Works at any hierarchy level (Product, Epic, Feature, Item) by parameterizing the container.
 /// </summary>
 public partial class KanbanBoard : ComponentBase
 {
@@ -21,6 +21,7 @@ public partial class KanbanBoard : ComponentBase
     [Parameter, EditorRequired] public List<SwimlaneDto> Swimlanes { get; set; } = [];
     [Parameter, EditorRequired] public Dictionary<Guid, List<WorkItemDto>> WorkItemsBySwimlane { get; set; } = new();
     [Parameter] public List<LabelDto>? Labels { get; set; }
+    [Parameter] public List<ProductMemberDto>? Members { get; set; }
     [Parameter] public WorkItemType CreateWorkItemType { get; set; } = WorkItemType.Epic;
     [Parameter] public EventCallback<Guid> OnWorkItemSelected { get; set; }
     [Parameter] public EventCallback<WorkItemDto> OnWorkItemMoved { get; set; }
@@ -43,6 +44,9 @@ public partial class KanbanBoard : ComponentBase
     // Swimlane add
     private bool _showAddSwimlane;
     private string _newSwimlaneTitle = "";
+
+    // Wizard
+    private bool _showCreateWizard;
 
     // Drag state
     private WorkItemDto? _draggedItem;
@@ -357,5 +361,57 @@ public partial class KanbanBoard : ComponentBase
         return parts.Length >= 2
             ? $"{parts[0][0]}{parts[1][0]}".ToUpperInvariant()
             : name[..1].ToUpperInvariant();
+    }
+
+    // ── Hierarchy Visuals ──────────────────────────────────
+
+    private string GetLevelIcon() => CreateWorkItemType switch
+    {
+        WorkItemType.Epic => "🏗️",
+        WorkItemType.Feature => "🎯",
+        WorkItemType.Item => "📋",
+        WorkItemType.SubItem => "📌",
+        _ => "📋"
+    };
+
+    private string GetLevelLabel() => CreateWorkItemType switch
+    {
+        WorkItemType.Epic => "Epics",
+        WorkItemType.Feature => "Features",
+        WorkItemType.Item => "Items",
+        WorkItemType.SubItem => "Sub-Items",
+        _ => "Work Items"
+    };
+
+    private int GetTotalCardCount()
+    {
+        return WorkItemsBySwimlane.Values.Sum(items => items.Count(c => !c.IsArchived));
+    }
+
+    private string GetDepthClass() => CreateWorkItemType switch
+    {
+        WorkItemType.Epic => "tracks-kanban--depth-1",
+        WorkItemType.Feature => "tracks-kanban--depth-2",
+        WorkItemType.Item => "tracks-kanban--depth-3",
+        WorkItemType.SubItem => "tracks-kanban--depth-4",
+        _ => ""
+    };
+
+    // ── Wizard ─────────────────────────────────────────────
+
+    private void OpenCreateWizard()
+    {
+        _showCreateWizard = true;
+    }
+
+    private void CloseCreateWizard()
+    {
+        _showCreateWizard = false;
+    }
+
+    private async Task HandleWizardCreated(WorkItemDto item)
+    {
+        _showCreateWizard = false;
+        await OnWorkItemCreated.InvokeAsync(item);
     }
 }

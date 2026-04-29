@@ -16,6 +16,7 @@ public sealed class Product
     public bool IsArchived { get; set; }
     public bool IsDeleted { get; set; }
     public DateTime? DeletedAt { get; set; }
+    public Guid? DeletedByUserId { get; set; }
     public string ETag { get; set; } = Guid.NewGuid().ToString("N");
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

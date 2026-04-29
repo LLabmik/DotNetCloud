@@ -96,7 +96,7 @@
 | Phase 4.7                   | 6       | 6         | 0           | 0       |
 | Phase 4.8                   | 8       | 8         | 0           | 0       |
 | Phase 4.9                   | 42      | 42        | 0           | 0       |
-| Phase 4.10 — Hierarchy      | 16      | 13        | 0           | 3       |
+| Phase 4.10 — Hierarchy      | 17      | 14        | 0           | 3       |
 | Phase 5-8                   | Summary | 10        | 0           | 0       |
 | Phase 8 (Full-Text Search)  | 18      | 18        | 0           | 0       |
 | Phase 7 (Video Calling)     | 11      | 11        | 0           | 0       |
@@ -1775,6 +1775,22 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ☐ Tracks.Tests excluded from CI build — 248 errors, needs full rewrite for new service/controller layer
 
 **Plan reference:** `docs/TRACKS_HIERARCHY_EXPANSION.md`
+
+#### Step: phase-4.10.17 — Hierarchy Clarity & Creation Wizards
+
+**Status:** completed ✅
+**Duration:** ~3 hours
+**Deliverables:**
+- ✓ Hierarchy level indicator banner on kanban board (Product → Epic → Feature → Item level labels with icon)
+- ✓ Card type badges (Epic/Feature/Item/SubItem) on every kanban card
+- ✓ Depth-based visual styling — progressive left borders and color-coded column tops at each level
+- ✓ `ProductCreationWizard.razor` — Multi-step wizard (Name & Description → Color & Settings → Team Members → Review)
+- ✓ `WorkItemCreationWizard.razor` — Multi-step wizard (Type & Title → Details → Assignments → Review)
+- ✓ Context-aware type pre-selection — wizard defaults to correct type based on current kanban view
+- ✓ User search integration via `IUserDirectory` for team member selection
+- ✓ `TracksPage.razor.css` — Full CSS for wizards, hierarchy indicators, type badges, depth styling
+
+**Notes:** Addresses user confusion about hierarchy levels. All kanban boards looked identical across Product/Epic/Feature/Item levels — now visually distinct with level indicators, type badges, and depth styling. Guided wizard creation replaces simple modal/inline forms. Builds with 0 errors, 435 core tests pass.
 
 ---
 

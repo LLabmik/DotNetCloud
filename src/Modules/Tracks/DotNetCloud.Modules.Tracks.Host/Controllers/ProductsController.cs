@@ -110,14 +110,20 @@ public class ProductsController : TracksControllerBase
         }
     }
 
-    /// <summary>Soft-deletes a product.</summary>
+    /// <summary>Soft-deletes a product. Requires Admin or Owner role.</summary>
     [HttpDelete("products/{productId:guid}")]
     public async Task<IActionResult> DeleteProductAsync(Guid productId, CancellationToken ct)
     {
         var caller = GetAuthenticatedCaller();
         try
         {
-            await _productService.DeleteProductAsync(productId, ct);
+            var role = await _productService.GetUserProductRoleAsync(productId, caller.UserId, ct);
+            if (role is not (ProductMemberRole.Admin or ProductMemberRole.Owner))
+            {
+                return Unauthorized(ErrorEnvelope(ErrorCodes.Forbidden, "Only admins and owners can delete a product."));
+            }
+
+            await _productService.DeleteProductAsync(productId, caller.UserId, ct);
             return Ok(Envelope(new { deleted = true }));
         }
         catch (System.InvalidOperationException ex)
@@ -127,6 +133,73 @@ public class ProductsController : TracksControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to delete product {ProductId}", productId);
+            return BadRequest(ErrorEnvelope(ErrorCodes.BadRequest, ex.Message));
+        }
+    }
+
+    /// <summary>Lists soft-deleted products for an organization. Requires Admin or Owner for each.</summary>
+    [HttpGet("organizations/{orgId:guid}/products/deleted")]
+    public async Task<IActionResult> ListDeletedProductsAsync(Guid orgId, CancellationToken ct)
+    {
+        var caller = GetAuthenticatedCaller();
+        try
+        {
+            var deleted = await _productService.ListDeletedProductsAsync(orgId, ct);
+            return Ok(Envelope(deleted));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to list deleted products for org {OrgId}", orgId);
+            return BadRequest(ErrorEnvelope(ErrorCodes.BadRequest, ex.Message));
+        }
+    }
+
+    /// <summary>Restores a soft-deleted product. Requires Admin or Owner role.</summary>
+    [HttpPost("products/{productId:guid}/restore")]
+    public async Task<IActionResult> RestoreProductAsync(Guid productId, CancellationToken ct)
+    {
+        var caller = GetAuthenticatedCaller();
+        try
+        {
+            var role = await _productService.GetUserProductRoleAsync(productId, caller.UserId, ct);
+            if (role is not (ProductMemberRole.Admin or ProductMemberRole.Owner))
+            {
+                return Unauthorized(ErrorEnvelope(ErrorCodes.Forbidden, "Only admins and owners can restore a product."));
+            }
+
+            var product = await _productService.UndeleteProductAsync(productId, ct);
+            return Ok(Envelope(product));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(ErrorEnvelope(ErrorCodes.BoardNotFound, ex.Message));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to restore product {ProductId}", productId);
+            return BadRequest(ErrorEnvelope(ErrorCodes.BadRequest, ex.Message));
+        }
+    }
+
+    /// <summary>Permanently deletes a product and all its data. Requires Admin or Owner role. Irreversible.</summary>
+    [HttpDelete("products/{productId:guid}/permanent")]
+    public async Task<IActionResult> PermanentDeleteProductAsync(Guid productId, CancellationToken ct)
+    {
+        var caller = GetAuthenticatedCaller();
+        try
+        {
+            var role = await _productService.GetUserProductRoleAsync(productId, caller.UserId, ct);
+            if (role is not (ProductMemberRole.Admin or ProductMemberRole.Owner))
+            {
+                return Unauthorized(ErrorEnvelope(ErrorCodes.Forbidden, "Only admins and owners can permanently delete a product."));
+            }
+
+            await _productService.HardDeleteProductAsync(productId, ct);
+            return Ok(Envelope(new { deleted = true, permanent = true }));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to permanently delete product {ProductId}", productId);
             return BadRequest(ErrorEnvelope(ErrorCodes.BadRequest, ex.Message));
         }
     }

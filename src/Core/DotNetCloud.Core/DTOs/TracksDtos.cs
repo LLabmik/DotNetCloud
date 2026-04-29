@@ -32,6 +32,9 @@ public sealed record ProductDto
     public required string ETag { get; init; }
     public required DateTime CreatedAt { get; init; }
     public required DateTime UpdatedAt { get; init; }
+    public DateTime? DeletedAt { get; init; }
+    public Guid? DeletedByUserId { get; init; }
+    public string? DeletedByDisplayName { get; init; }
 }
 
 public sealed record ProductMemberDto

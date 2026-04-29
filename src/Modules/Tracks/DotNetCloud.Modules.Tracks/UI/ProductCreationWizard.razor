@@ -1,0 +1,314 @@
+@namespace DotNetCloud.Modules.Tracks.UI
+
+<div class="tracks-wizard-overlay" @onclick="HandleOverlayClick">
+    <div class="tracks-wizard tracks-wizard--wide" @onclick:stopPropagation>
+        @* ── Header ── *@
+        <div class="tracks-wizard-header">
+            <h2>📦 New Product</h2>
+            <p class="tracks-wizard-subtitle">Create a product to organize your work into epics, features, and items.</p>
+            <button class="tracks-close-btn" @onclick="HandleCancel" title="Close">✕</button>
+        </div>
+
+        @* ── Progress Steps ── *@
+        <div class="tracks-wizard-progress">
+            @for (var i = 0; i < _stepLabels.Length; i++)
+            {
+                var step = i;
+                <button class="tracks-wizard-step @(step == _currentStep ? "active" : "") @(step < _currentStep ? "completed" : "")"
+                        @onclick="() => GoToStep(step)"
+                        disabled="@(step > _currentStep)">
+                    <span class="tracks-wizard-step-number">
+                        @if (step < _currentStep)
+                        {
+                            <span>✓</span>
+                        }
+                        else
+                        {
+                            <span>@(step + 1)</span>
+                        }
+                    </span>
+                    <span class="tracks-wizard-step-label">@_stepLabels[step]</span>
+                </button>
+                @if (i < _stepLabels.Length - 1)
+                {
+                    <div class="tracks-wizard-step-connector @(i < _currentStep ? "completed" : "")"></div>
+                }
+            }
+        </div>
+
+        @* ── Step Content ── *@
+        <div class="tracks-wizard-content">
+            @switch (_currentStep)
+            {
+                case 0:
+                    @* ── Step 1: Name & Description ── *@
+                    <div class="tracks-wizard-step-content">
+                        <h3>Name your product</h3>
+                        <p class="tracks-wizard-step-desc">Give your product a clear, descriptive name. This is how your team will identify it.</p>
+
+                        <div class="tracks-wizard-form">
+                            <div class="tracks-form-group">
+                                <label>Product Name <span class="tracks-required">*</span></label>
+                                <input type="text" class="form-control tracks-wizard-title-input"
+                                       @bind="_name" @bind:event="oninput"
+                                       placeholder="e.g., &quot;Mobile App v2&quot; or &quot;Website Redesign&quot;"
+                                       autofocus />
+                            </div>
+                            <div class="tracks-form-group">
+                                <label>Description <span class="tracks-optional">(optional)</span></label>
+                                <textarea class="form-control" rows="3"
+                                          @bind="_description"
+                                          placeholder="What is this product for? Describe its purpose and goals..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    break;
+
+                case 1:
+                    @* ── Step 2: Color & Settings ── *@
+                    <div class="tracks-wizard-step-content">
+                        <h3>Customize your product</h3>
+                        <p class="tracks-wizard-step-desc">Choose a color to identify this product across the app, and configure workflow settings.</p>
+
+                        <div class="tracks-wizard-form">
+                            @* Color Picker *@
+                            <div class="tracks-form-group">
+                                <label>Product Color</label>
+                                <div class="tracks-wizard-color-grid">
+                                    @foreach (var color in _productColors)
+                                    {
+                                        <button type="button"
+                                                class="tracks-wizard-color-swatch @(_color == color ? "selected" : "")"
+                                                style="background: @color;"
+                                                @onclick="() => _color = color">
+                                            @if (_color == color)
+                                            {
+                                                <span>✓</span>
+                                            }
+                                        </button>
+                                    }
+                                </div>
+                            </div>
+
+                            @* SubItems Toggle *@
+                            <div class="tracks-form-group">
+                                <label class="tracks-wizard-checkbox-label">
+                                    <input type="checkbox" @bind="_subItemsEnabled" />
+                                    <span>Enable Sub-Items</span>
+                                </label>
+                                <span class="tracks-form-hint">Allow breaking items down into smaller sub-items instead of using checklists.</span>
+                            </div>
+
+                            @* Default Swimlanes *@
+                            <div class="tracks-form-group">
+                                <label class="tracks-wizard-checkbox-label">
+                                    <input type="checkbox" @bind="_showSwimlaneSetup" />
+                                    <span>Set up default swimlanes</span>
+                                </label>
+                                <span class="tracks-form-hint">Pre-create workflow columns like To Do, In Progress, and Done.</span>
+                            </div>
+
+                            @if (_showSwimlaneSetup)
+                            {
+                                <div class="tracks-wizard-swimlanes">
+                                    @for (var i = 0; i < _defaultSwimlanes.Count; i++)
+                                    {
+                                        var idx = i;
+                                        <div class="tracks-wizard-swimlane-row">
+                                            <span class="tracks-wizard-swimlane-grip">⠿</span>
+                                            <input type="text" class="form-control"
+                                                   value="@_defaultSwimlanes[idx].Title"
+                                                   placeholder="Swimlane name"
+                                                   @onchange="e => UpdateDefaultSwimlaneTitle(idx, e.Value?.ToString() ?? string.Empty)" />
+                                            <label class="tracks-wizard-swimlane-done" title="Mark as 'Done' column — cards here count as completed">
+                                                <input type="checkbox" checked="@_defaultSwimlanes[idx].IsDone"
+                                                       @onchange="() => ToggleDefaultSwimlaneDone(idx)" />
+                                                <span>Done</span>
+                                            </label>
+                                            @if (_defaultSwimlanes.Count > 1)
+                                            {
+                                                <button class="tracks-icon-btn tracks-icon-btn--danger"
+                                                        @onclick="() => RemoveDefaultSwimlane(idx)" title="Remove" type="button">
+                                                    ✕
+                                                </button>
+                                            }
+                                        </div>
+                                    }
+                                    <button class="btn btn-secondary tracks-wizard-add-btn" @onclick="AddDefaultSwimlane" type="button">
+                                        + Add Swimlane
+                                    </button>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                    break;
+
+                case 2:
+                    @* ── Step 3: Team Members ── *@
+                    <div class="tracks-wizard-step-content">
+                        <h3>Invite team members</h3>
+                        <p class="tracks-wizard-step-desc">Search for users to add to this product. You can also do this later from product settings.</p>
+
+                        @* Selected Members *@
+                        @if (_selectedMembers.Count > 0)
+                        {
+                            <div class="tracks-wizard-section">
+                                <h4>👤 Added Members (@_selectedMembers.Count)</h4>
+                                <div class="tracks-wizard-chip-grid">
+                                    @foreach (var member in _selectedMembers)
+                                    {
+                                        <button class="tracks-wizard-chip selected"
+                                                @onclick="() => RemoveMember(member)" type="button"
+                                                title="Click to remove">
+                                            <span class="tracks-wizard-chip-avatar">@member.DisplayName[..1].ToUpperInvariant()</span>
+                                            <span>@member.DisplayName</span>
+                                            <span class="tracks-wizard-chip-remove">×</span>
+                                        </button>
+                                    }
+                                </div>
+                            </div>
+                        }
+
+                        @* Member Search *@
+                        <div class="tracks-wizard-section">
+                            <h4>Search Users</h4>
+                            <div class="tracks-wizard-search-row">
+                                <input type="text" class="form-control"
+                                       @bind="_memberSearchTerm" @bind:event="oninput"
+                                       @onkeydown="HandleSearchKeyDown"
+                                       placeholder="Type a name or email (min 2 characters)..." />
+                                <button class="btn btn-primary" @onclick="SearchMembersAsync"
+                                        disabled="@(_isSearching || _memberSearchTerm.Length < 2)">
+                                    @(_isSearching ? "Searching..." : "Search")
+                                </button>
+                            </div>
+
+                            @if (_searchResults.Count > 0)
+                            {
+                                <div class="tracks-wizard-search-results">
+                                    @foreach (var user in _searchResults)
+                                    {
+                                        <button class="tracks-wizard-search-result"
+                                                @onclick="() => AddMember(user)" type="button">
+                                            <span class="tracks-wizard-chip-avatar">@user.DisplayName[..1].ToUpperInvariant()</span>
+                                            <div class="tracks-wizard-search-result-info">
+                                                <span class="tracks-wizard-search-result-name">@user.DisplayName</span>
+                                                <span class="tracks-wizard-search-result-email">@user.Email</span>
+                                            </div>
+                                            <span class="tracks-wizard-search-result-add">+</span>
+                                        </button>
+                                    }
+                                </div>
+                            }
+                            else if (!string.IsNullOrEmpty(_memberSearchTerm) && _memberSearchTerm.Length >= 2 && !_isSearching && _searchResults.Count == 0)
+                            {
+                                <p class="tracks-wizard-empty">No users found.</p>
+                            }
+                        </div>
+                    </div>
+                    break;
+
+                case 3:
+                    @* ── Step 4: Review & Create ── *@
+                    <div class="tracks-wizard-step-content">
+                        <h3>Review &amp; Create</h3>
+                        <p class="tracks-wizard-step-desc">Confirm the details before creating your product.</p>
+
+                        <div class="tracks-wizard-review">
+                            <div class="tracks-wizard-review-section">
+                                <h4>📦 Product Details</h4>
+                                <div class="tracks-wizard-review-grid">
+                                    <div class="tracks-wizard-review-item">
+                                        <span class="tracks-wizard-review-label">Name</span>
+                                        <span class="tracks-wizard-review-value">
+                                            <span class="tracks-wizard-review-color-dot" style="background: @_color;"></span>
+                                            @_name
+                                        </span>
+                                    </div>
+                                    @if (!string.IsNullOrWhiteSpace(_description))
+                                    {
+                                        <div class="tracks-wizard-review-item">
+                                            <span class="tracks-wizard-review-label">Description</span>
+                                            <span class="tracks-wizard-review-value">@_description</span>
+                                        </div>
+                                    }
+                                    <div class="tracks-wizard-review-item">
+                                        <span class="tracks-wizard-review-label">Color</span>
+                                        <span class="tracks-wizard-review-value">
+                                            <span class="tracks-wizard-review-color-dot" style="background: @_color;"></span>
+                                            @_color
+                                        </span>
+                                    </div>
+                                    <div class="tracks-wizard-review-item">
+                                        <span class="tracks-wizard-review-label">Sub-Items</span>
+                                        <span class="tracks-wizard-review-value">@(_subItemsEnabled ? "Enabled" : "Disabled")</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            @if (_showSwimlaneSetup && _defaultSwimlanes.Any(s => !string.IsNullOrWhiteSpace(s.Title)))
+                            {
+                                <div class="tracks-wizard-review-section">
+                                    <h4>🏊 Default Swimlanes (@_defaultSwimlanes.Count(s => !string.IsNullOrWhiteSpace(s.Title)))</h4>
+                                    <div class="tracks-wizard-review-chips">
+                                        @foreach (var sw in _defaultSwimlanes.Where(s => !string.IsNullOrWhiteSpace(s.Title)))
+                                        {
+                                            <span class="tracks-wizard-review-chip" style="background: @(sw.Color ?? "#6b7280"); color: #fff;">
+                                                @sw.Title @(sw.IsDone ? "✓" : "")
+                                            </span>
+                                        }
+                                    </div>
+                                </div>
+                            }
+
+                            @if (_selectedMembers.Count > 0)
+                            {
+                                <div class="tracks-wizard-review-section">
+                                    <h4>👤 Team Members (@_selectedMembers.Count)</h4>
+                                    <div class="tracks-wizard-review-chips">
+                                        @foreach (var member in _selectedMembers)
+                                        {
+                                            <span class="tracks-wizard-review-chip">@member.DisplayName</span>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        </div>
+
+                        @if (_errorMessage is not null)
+                        {
+                            <DncErrorDisplay Message="@_errorMessage" />
+                        }
+                    </div>
+                    break;
+            }
+        </div>
+
+        @* ── Footer Actions ── *@
+        <div class="tracks-wizard-footer">
+            <div class="tracks-wizard-footer-left">
+                <button class="btn btn-secondary" @onclick="HandleCancel">Cancel</button>
+            </div>
+            <div class="tracks-wizard-footer-right">
+                @if (_currentStep > 0)
+                {
+                    <button class="btn btn-secondary" @onclick="PreviousStep">← Back</button>
+                }
+                @if (_currentStep < _stepLabels.Length - 1)
+                {
+                    <button class="btn btn-primary" @onclick="NextStep"
+                            disabled="@(!IsStepValid(_currentStep))">
+                        Continue →
+                    </button>
+                }
+                else
+                {
+                    <button class="btn btn-primary" @onclick="SubmitAsync"
+                            disabled="@(!CanSubmit)">
+                        @(_isSubmitting ? "Creating..." : "Create Product")
+                    </button>
+                }
+            </div>
+        </div>
+    </div>
+</div>

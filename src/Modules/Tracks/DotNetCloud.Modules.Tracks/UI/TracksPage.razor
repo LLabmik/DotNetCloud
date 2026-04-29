@@ -163,7 +163,8 @@
                                      OrganizationId="@_selectedOrgId"
                                      OnProductSelected="SelectProduct"
                                      OnProductCreated="HandleProductCreated"
-                                     OnProductDeleted="HandleProductDeleted" />
+                                     OnProductDeleted="HandleProductDeleted"
+                                     OnProductRestored="HandleProductRestored" />
                     break;
 
                 case TracksView.ProductKanban:
@@ -186,6 +187,7 @@
                                          Swimlanes="_currentSwimlanes"
                                          WorkItemsBySwimlane="_currentWorkItems"
                                          Labels="_currentLabels"
+                                         Members="_currentMembers"
                                          CreateWorkItemType="createType"
                                          Sprints="_selectedEpic is not null ? _sprints : null"
                                          OnWorkItemSelected="SelectWorkItem"

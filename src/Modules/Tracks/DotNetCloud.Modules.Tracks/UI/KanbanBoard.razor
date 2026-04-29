@@ -1,7 +1,18 @@
 @namespace DotNetCloud.Modules.Tracks.UI
 @inject Microsoft.JSInterop.IJSRuntime JS
 
-<div class="tracks-kanban">
+<div class="tracks-kanban @GetDepthClass()">
+    @* ── Hierarchy Level Indicator ── *@
+    <div class="tracks-kanban-level">
+        <span class="tracks-kanban-level-icon">@GetLevelIcon()</span>
+        <span class="tracks-kanban-level-label">@GetLevelLabel()</span>
+        <span class="tracks-kanban-level-count">@GetTotalCardCount() cards</span>
+        <button class="btn btn-sm btn-primary tracks-kanban-level-create"
+                @onclick="OpenCreateWizard" title="New @CreateWorkItemType">
+            ＋ New @CreateWorkItemType
+        </button>
+    </div>
+
     @* ── Board Header ── *@
     <div class="tracks-kanban-header">
         <h2>
@@ -119,6 +130,7 @@
                             @* ── Card Header (product-colored) ── *@
                             <div class="tracks-card-header" style="@GetCardHeaderStyle()">
                                 <span class="tracks-card-number">#@item.ItemNumber</span>
+                                <span class="tracks-card-type-badge tracks-card-type-@item.Type.ToString().ToLowerInvariant()">@item.Type</span>
                                 <div class="tracks-card-header-actions">
                                     @if (item.Priority != Priority.None)
                                     {
@@ -252,4 +264,17 @@
             }
         </div>
     </div>
+
+    @* ── Work Item Creation Wizard ── *@
+    @if (_showCreateWizard)
+    {
+        <WorkItemCreationWizard DefaultType="CreateWorkItemType"
+                                ContainerId="ContainerId"
+                                ContainerType="ContainerType"
+                                Swimlanes="Swimlanes"
+                                Labels="@(Labels ?? [])"
+                                Members="@(Members ?? [])"
+                                OnClose="CloseCreateWizard"
+                                OnCreated="HandleWizardCreated" />
+    }
 </div>

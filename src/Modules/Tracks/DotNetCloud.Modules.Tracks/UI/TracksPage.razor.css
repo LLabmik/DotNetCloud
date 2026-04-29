@@ -4982,3 +4982,955 @@
     font-size: 13px;
     border-top: 1px solid #fecaca;
 }
+
+/* ═══════════════════════════════════════════════════════════
+   Hierarchy Level Indicator
+   ═══════════════════════════════════════════════════════════ */
+
+::deep .tracks-kanban-level {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 20px;
+    background: color-mix(in srgb, var(--color-primary) 6%, var(--color-surface));
+    border-bottom: 1px solid color-mix(in srgb, var(--color-primary) 15%, var(--color-border));
+    flex-shrink: 0;
+    font-size: 13px;
+}
+
+::deep .tracks-kanban-level-icon {
+    font-size: 16px;
+}
+
+::deep .tracks-kanban-level-label {
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+::deep .tracks-kanban-level-count {
+    color: var(--color-muted);
+    font-size: 12px;
+}
+
+::deep .tracks-kanban-level-create {
+    margin-left: auto;
+}
+
+/* Depth-based visual distinction for hierarchy levels */
+
+::deep .tracks-kanban--depth-1 .tracks-kanban-column {
+    border-top: 3px solid var(--color-primary);
+}
+
+::deep .tracks-kanban--depth-2 .tracks-kanban-column {
+    border-top: 3px solid color-mix(in srgb, var(--color-primary) 65%, var(--color-border));
+    border-left: 2px solid color-mix(in srgb, var(--color-primary) 20%, transparent);
+}
+
+::deep .tracks-kanban--depth-3 .tracks-kanban-column {
+    border-top: 3px solid color-mix(in srgb, var(--color-primary) 40%, var(--color-border));
+    border-left: 3px solid color-mix(in srgb, var(--color-primary) 12%, transparent);
+}
+
+::deep .tracks-kanban--depth-4 .tracks-kanban-column {
+    border-top: 3px solid color-mix(in srgb, var(--color-primary) 25%, var(--color-border));
+    border-left: 4px solid color-mix(in srgb, var(--color-primary) 8%, transparent);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Card Type Badges
+   ═══════════════════════════════════════════════════════════ */
+
+::deep .tracks-card-type-badge {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    opacity: 0.75;
+}
+
+::deep .tracks-card-type-epic {
+    background: color-mix(in srgb, #8b5cf6 30%, transparent);
+    color: #c4b5fd;
+}
+
+::deep .tracks-card-type-feature {
+    background: color-mix(in srgb, #3b82f6 30%, transparent);
+    color: #93c5fd;
+}
+
+::deep .tracks-card-type-item {
+    background: color-mix(in srgb, #10b981 30%, transparent);
+    color: #6ee7b7;
+}
+
+::deep .tracks-card-type-subitem {
+    background: color-mix(in srgb, #6b7280 30%, transparent);
+    color: #d1d5db;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Creation Wizards (shared)
+   ═══════════════════════════════════════════════════════════ */
+
+::deep .tracks-wizard-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: tracks-fade-in 150ms ease;
+}
+
+::deep .tracks-wizard {
+    background: var(--color-surface);
+    border-radius: 12px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+    width: 640px;
+    max-width: 95vw;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    animation: tracks-wizard-enter 200ms ease;
+}
+
+::deep .tracks-wizard--wide {
+    width: 720px;
+}
+
+@keyframes tracks-wizard-enter {
+    from { opacity: 0; transform: scale(0.95) translateY(10px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+::deep .tracks-wizard-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    padding: 24px 28px 16px;
+    border-bottom: 1px solid var(--color-border);
+    flex-shrink: 0;
+}
+
+::deep .tracks-wizard-header h2 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+::deep .tracks-wizard-subtitle {
+    margin: 6px 0 0 0;
+    font-size: 13px;
+    color: var(--color-muted);
+}
+
+::deep .tracks-wizard-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px 28px;
+    min-height: 0;
+}
+
+::deep .tracks-wizard-step-content h3 {
+    margin: 0 0 8px 0;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+::deep .tracks-wizard-step-desc {
+    margin: 0 0 20px 0;
+    font-size: 13px;
+    color: var(--color-muted);
+    line-height: 1.5;
+}
+
+/* ── Wizard Progress Steps ── */
+
+::deep .tracks-wizard-progress {
+    display: flex;
+    align-items: center;
+    padding: 12px 28px;
+    background: var(--color-bg);
+    border-bottom: 1px solid var(--color-border);
+    gap: 0;
+    flex-shrink: 0;
+}
+
+::deep .tracks-wizard-step {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    border-radius: 100px;
+    transition: background var(--transition);
+    white-space: nowrap;
+}
+
+::deep .tracks-wizard-step:hover:not(:disabled) {
+    background: var(--color-surface);
+}
+
+::deep .tracks-wizard-step.active {
+    background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+}
+
+::deep .tracks-wizard-step.completed {
+    color: var(--color-success, #22c55e);
+}
+
+::deep .tracks-wizard-step-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    font-size: 12px;
+    font-weight: 700;
+    background: var(--color-border);
+    color: var(--color-muted);
+    flex-shrink: 0;
+}
+
+::deep .tracks-wizard-step.active .tracks-wizard-step-number {
+    background: var(--color-primary);
+    color: #fff;
+}
+
+::deep .tracks-wizard-step.completed .tracks-wizard-step-number {
+    background: var(--color-success, #22c55e);
+    color: #fff;
+}
+
+::deep .tracks-wizard-step-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-muted);
+}
+
+::deep .tracks-wizard-step.active .tracks-wizard-step-label {
+    color: var(--color-text);
+}
+
+::deep .tracks-wizard-step.completed .tracks-wizard-step-label {
+    color: var(--color-success, #22c55e);
+}
+
+::deep .tracks-wizard-step-connector {
+    flex: 1;
+    height: 2px;
+    background: var(--color-border);
+    min-width: 20px;
+    margin: 0 4px;
+}
+
+::deep .tracks-wizard-step-connector.completed {
+    background: var(--color-success, #22c55e);
+}
+
+/* ── Wizard Footer ── */
+
+::deep .tracks-wizard-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 28px;
+    border-top: 1px solid var(--color-border);
+    background: var(--color-bg);
+    flex-shrink: 0;
+}
+
+::deep .tracks-wizard-footer-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* ── Wizard Type Selection Grid ── */
+
+::deep .tracks-wizard-type-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+::deep .tracks-wizard-type-card {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    padding: 14px;
+    border: 2px solid var(--color-border);
+    border-radius: 10px;
+    background: var(--color-surface);
+    cursor: pointer;
+    transition: border-color var(--transition), box-shadow var(--transition);
+    text-align: left;
+}
+
+::deep .tracks-wizard-type-card:hover:not(.disabled) {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 12%, transparent);
+}
+
+::deep .tracks-wizard-type-card.selected {
+    border-color: var(--color-primary);
+    background: color-mix(in srgb, var(--color-primary) 6%, var(--color-surface));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 18%, transparent);
+}
+
+::deep .tracks-wizard-type-card.disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+::deep .tracks-wizard-type-icon {
+    font-size: 22px;
+    line-height: 1;
+}
+
+::deep .tracks-wizard-type-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+::deep .tracks-wizard-type-desc {
+    font-size: 11px;
+    color: var(--color-muted);
+    line-height: 1.4;
+}
+
+/* ── Wizard Form ── */
+
+::deep .tracks-wizard-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+::deep .tracks-wizard-title-input {
+    font-size: 16px;
+    font-weight: 600;
+}
+
+::deep .tracks-wizard-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+/* ── Wizard Section ── */
+
+::deep .tracks-wizard-section {
+    margin-bottom: 20px;
+}
+
+::deep .tracks-wizard-section h4 {
+    margin: 0 0 10px 0;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+/* ── Wizard Chip Grid ── */
+
+::deep .tracks-wizard-chip-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+::deep .tracks-wizard-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border: 1.5px solid var(--color-border);
+    border-radius: 100px;
+    background: var(--color-surface);
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--color-text);
+    transition: border-color var(--transition), background var(--transition);
+}
+
+::deep .tracks-wizard-chip:hover {
+    border-color: var(--color-primary);
+}
+
+::deep .tracks-wizard-chip.selected {
+    border-color: var(--color-primary);
+    background: color-mix(in srgb, var(--color-primary) 8%, var(--color-surface));
+    font-weight: 600;
+}
+
+::deep .tracks-wizard-chip-avatar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--color-primary) 20%, transparent);
+    color: var(--color-primary);
+    font-size: 10px;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+::deep .tracks-wizard-chip-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+::deep .tracks-wizard-chip-check {
+    color: var(--color-primary);
+    font-weight: 700;
+    font-size: 11px;
+}
+
+::deep .tracks-wizard-chip-remove {
+    color: var(--color-muted);
+    font-weight: 700;
+    font-size: 14px;
+    margin-left: 2px;
+}
+
+::deep .tracks-wizard-chip-remove:hover {
+    color: var(--color-danger);
+}
+
+/* ── Wizard Color Grid ── */
+
+::deep .tracks-wizard-color-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+::deep .tracks-wizard-color-swatch {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 3px solid transparent;
+    cursor: pointer;
+    transition: transform var(--transition), border-color var(--transition);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+::deep .tracks-wizard-color-swatch:hover {
+    transform: scale(1.15);
+}
+
+::deep .tracks-wizard-color-swatch.selected {
+    border-color: var(--color-text);
+    transform: scale(1.1);
+}
+
+/* ── Wizard Swimlanes ── */
+
+::deep .tracks-wizard-swimlanes {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+::deep .tracks-wizard-swimlane-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+::deep .tracks-wizard-swimlane-grip {
+    color: var(--color-muted);
+    font-size: 16px;
+    cursor: grab;
+    user-select: none;
+}
+
+::deep .tracks-wizard-swimlane-done {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    color: var(--color-muted);
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+::deep .tracks-wizard-add-btn {
+    align-self: flex-start;
+}
+
+/* ── Wizard Checkbox Label ── */
+
+::deep .tracks-wizard-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+::deep .tracks-form-hint {
+    display: block;
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--color-muted);
+    margin-left: 24px;
+}
+
+::deep .tracks-required {
+    color: var(--color-danger);
+}
+
+::deep .tracks-optional {
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--color-muted);
+}
+
+/* ── Wizard Search ── */
+
+::deep .tracks-wizard-search-row {
+    display: flex;
+    gap: 8px;
+}
+
+::deep .tracks-wizard-search-results {
+    margin-top: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+::deep .tracks-wizard-search-result {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: var(--color-surface);
+    cursor: pointer;
+    transition: background var(--transition);
+    width: 100%;
+    text-align: left;
+}
+
+::deep .tracks-wizard-search-result:hover {
+    background: var(--color-bg);
+}
+
+::deep .tracks-wizard-search-result-info {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+}
+
+::deep .tracks-wizard-search-result-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+::deep .tracks-wizard-search-result-email {
+    font-size: 11px;
+    color: var(--color-muted);
+}
+
+::deep .tracks-wizard-search-result-add {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--color-primary);
+    flex-shrink: 0;
+}
+
+::deep .tracks-wizard-empty {
+    text-align: center;
+    padding: 20px;
+    color: var(--color-muted);
+    font-size: 13px;
+}
+
+/* ── Wizard Review ── */
+
+::deep .tracks-wizard-review {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+::deep .tracks-wizard-review-section {
+    background: var(--color-bg);
+    border-radius: 8px;
+    padding: 16px;
+}
+
+::deep .tracks-wizard-review-section h4 {
+    margin: 0 0 10px 0;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+::deep .tracks-wizard-review-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+::deep .tracks-wizard-review-item {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    font-size: 13px;
+}
+
+::deep .tracks-wizard-review-label {
+    font-weight: 600;
+    color: var(--color-muted);
+    min-width: 80px;
+    flex-shrink: 0;
+}
+
+::deep .tracks-wizard-review-value {
+    color: var(--color-text);
+    word-break: break-word;
+}
+
+::deep .tracks-wizard-review-title {
+    font-weight: 600;
+}
+
+::deep .tracks-wizard-review-color-dot {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    vertical-align: middle;
+    margin-right: 4px;
+}
+
+::deep .tracks-wizard-review-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+::deep .tracks-wizard-review-chip {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 100px;
+    background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+    color: var(--color-text);
+    font-size: 12px;
+    font-weight: 500;
+}
+
+/* ── Sprint Tabs ── */
+
+::deep .tracks-sprint-tabs {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 20px;
+    background: var(--color-bg);
+    border-bottom: 1px solid var(--color-border);
+    overflow-x: auto;
+    flex-shrink: 0;
+}
+
+::deep .tracks-sprint-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 12px;
+    border: 1px solid var(--color-border);
+    border-radius: 100px;
+    background: transparent;
+    color: var(--color-muted);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background var(--transition), color var(--transition), border-color var(--transition);
+}
+
+::deep .tracks-sprint-tab:hover {
+    background: var(--color-surface);
+    color: var(--color-text);
+}
+
+::deep .tracks-sprint-tab.active {
+    background: var(--color-primary);
+    color: #fff;
+    border-color: var(--color-primary);
+}
+
+::deep .tracks-sprint-tab.sprint-active {
+    border-color: var(--color-success, #22c55e);
+}
+
+::deep .tracks-sprint-tab.sprint-active.active {
+    border-color: var(--color-primary);
+}
+
+::deep .tracks-sprint-tab-indicator {
+    font-size: 8px;
+    color: var(--color-success, #22c55e);
+}
+
+::deep .tracks-sprint-tab.active .tracks-sprint-tab-indicator {
+    color: #fff;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Product Card Delete Button
+   ═══════════════════════════════════════════════════════════ */
+
+::deep .tracks-board-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+::deep .tracks-board-card-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+::deep .tracks-board-card-delete-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: transparent;
+    color: var(--color-muted);
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: 14px;
+    opacity: 0;
+    transition: opacity var(--transition), background var(--transition), color var(--transition);
+}
+
+::deep .tracks-board-card:hover .tracks-board-card-delete-btn {
+    opacity: 0.7;
+}
+
+::deep .tracks-board-card-delete-btn:hover {
+    opacity: 1 !important;
+    background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+    color: var(--color-danger);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Confirm Dialog
+   ═══════════════════════════════════════════════════════════ */
+
+::deep .tracks-confirm-dialog {
+    background: var(--color-surface);
+    border-radius: 12px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    width: 440px;
+    max-width: 95vw;
+    padding: 28px;
+    text-align: center;
+    animation: tracks-wizard-enter 200ms ease;
+}
+
+::deep .tracks-confirm-icon {
+    font-size: 40px;
+    margin-bottom: 12px;
+}
+
+::deep .tracks-confirm-dialog h3 {
+    margin: 0 0 8px 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+::deep .tracks-confirm-dialog p {
+    margin: 0 0 20px 0;
+    font-size: 13px;
+    color: var(--color-muted);
+    line-height: 1.5;
+}
+
+::deep .tracks-confirm-actions {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+::deep .btn-danger {
+    background: var(--color-danger, #ef4444);
+    color: #fff;
+    border: none;
+    padding: 8px 20px;
+    border-radius: var(--radius);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity var(--transition);
+}
+
+::deep .btn-danger:hover {
+    opacity: 0.9;
+}
+
+::deep .btn-danger:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Deleted Products Section
+   ═══════════════════════════════════════════════════════════ */
+
+::deep .tracks-deleted-section {
+    margin-top: 32px;
+    border-top: 1px solid var(--color-border);
+    padding-top: 16px;
+}
+
+::deep .tracks-deleted-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 0;
+    border: none;
+    background: transparent;
+    color: var(--color-muted);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: color var(--transition);
+}
+
+::deep .tracks-deleted-toggle:hover {
+    color: var(--color-text);
+}
+
+::deep .tracks-deleted-toggle-icon {
+    font-size: 10px;
+    width: 14px;
+}
+
+::deep .tracks-deleted-toggle-hint {
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--color-muted);
+    opacity: 0.7;
+}
+
+::deep .tracks-deleted-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 12px;
+    margin-top: 12px;
+}
+
+::deep .tracks-board-card--deleted {
+    opacity: 0.7;
+    border-color: color-mix(in srgb, var(--color-danger) 20%, var(--color-border));
+}
+
+::deep .tracks-board-card--deleted:hover {
+    opacity: 0.85;
+}
+
+::deep .tracks-deleted-restore-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border: 1px solid var(--color-success, #22c55e);
+    border-radius: 100px;
+    background: transparent;
+    color: var(--color-success, #22c55e);
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background var(--transition), color var(--transition);
+}
+
+::deep .tracks-deleted-restore-btn:hover {
+    background: var(--color-success, #22c55e);
+    color: #fff;
+}
+
+::deep .tracks-deleted-restore-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+::deep .tracks-deleted-permanent-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: 1px solid transparent;
+    border-radius: 100px;
+    background: transparent;
+    color: var(--color-muted);
+    font-size: 12px;
+    cursor: pointer;
+    transition: background var(--transition), color var(--transition), border-color var(--transition);
+}
+
+::deep .tracks-deleted-permanent-btn:hover {
+    background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+    color: var(--color-danger);
+    border-color: var(--color-danger);
+}
+
+::deep .tracks-deleted-permanent-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+::deep .tracks-deleted-date {
+    font-size: 11px;
+    color: var(--color-muted);
+    margin-top: 4px;
+}
+
+::deep .tracks-badge--warning {
+    background: color-mix(in srgb, var(--color-warning, #f59e0b) 15%, transparent);
+    color: var(--color-warning, #f59e0b);
+    font-weight: 600;
+}

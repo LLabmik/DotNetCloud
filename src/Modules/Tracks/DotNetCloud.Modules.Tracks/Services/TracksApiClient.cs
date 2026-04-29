@@ -42,6 +42,22 @@ public sealed class TracksApiClient : ITracksApiClient
         await EnsureSuccessOrThrowAsync(response);
     }
 
+    public async Task<IReadOnlyList<ProductDto>> ListDeletedProductsAsync(Guid organizationId, CancellationToken ct = default)
+        => await ReadDataAsync<IReadOnlyList<ProductDto>>($"api/v1/organizations/{organizationId}/products/deleted", ct) ?? [];
+
+    public async Task<ProductDto?> RestoreProductAsync(Guid productId, CancellationToken ct = default)
+    {
+        var response = await _httpClient.PostAsync($"api/v1/products/{productId}/restore", null, ct);
+        await EnsureSuccessOrThrowAsync(response);
+        return await ReadDataAsync<ProductDto>($"api/v1/products/{productId}", ct);
+    }
+
+    public async Task PermanentDeleteProductAsync(Guid productId, CancellationToken ct = default)
+    {
+        var response = await _httpClient.DeleteAsync($"api/v1/products/{productId}/permanent", ct);
+        await EnsureSuccessOrThrowAsync(response);
+    }
+
     // ── Product Members ──────────────────────────────────────
 
     public async Task<IReadOnlyList<ProductMemberDto>> ListProductMembersAsync(Guid productId, CancellationToken ct = default)

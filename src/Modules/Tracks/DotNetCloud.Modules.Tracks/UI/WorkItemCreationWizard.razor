@@ -1,0 +1,314 @@
+@namespace DotNetCloud.Modules.Tracks.UI
+
+<div class="tracks-wizard-overlay" @onclick="HandleOverlayClick">
+    <div class="tracks-wizard tracks-wizard--wide" @onclick:stopPropagation>
+        @* ── Header ── *@
+        <div class="tracks-wizard-header">
+            <h2>@GetTypeIcon(_selectedType) New @_selectedType</h2>
+            <p class="tracks-wizard-subtitle">Create a new @_selectedType.ToString().ToLowerInvariant() @GetTypeDescription(_selectedType)</p>
+            <button class="tracks-close-btn" @onclick="HandleCancel" title="Close">✕</button>
+        </div>
+
+        @* ── Progress Steps ── *@
+        <div class="tracks-wizard-progress">
+            @for (var i = 0; i < _stepLabels.Length; i++)
+            {
+                var step = i;
+                <button class="tracks-wizard-step @(step == _currentStep ? "active" : "") @(step < _currentStep ? "completed" : "")"
+                        @onclick="() => GoToStep(step)"
+                        disabled="@(step > _currentStep)">
+                    <span class="tracks-wizard-step-number">
+                        @if (step < _currentStep)
+                        {
+                            <span>✓</span>
+                        }
+                        else
+                        {
+                            <span>@(step + 1)</span>
+                        }
+                    </span>
+                    <span class="tracks-wizard-step-label">@_stepLabels[step]</span>
+                </button>
+                @if (i < _stepLabels.Length - 1)
+                {
+                    <div class="tracks-wizard-step-connector @(i < _currentStep ? "completed" : "")"></div>
+                }
+            }
+        </div>
+
+        @* ── Step Content ── *@
+        <div class="tracks-wizard-content">
+            @switch (_currentStep)
+            {
+                case 0:
+                    @* ── Step 1: Type & Title ── *@
+                    <div class="tracks-wizard-step-content">
+                        <h3>What are you creating?</h3>
+                        <p class="tracks-wizard-step-desc">Choose the work item type and give it a clear title.</p>
+
+                        @* Type Selection *@
+                        <div class="tracks-wizard-type-grid">
+                            @foreach (var type in Enum.GetValues<WorkItemType>())
+                            {
+                                var canCreate = CanCreateType(type);
+                                var reason = CanCreateTypeReason(type);
+                                <button class="tracks-wizard-type-card @(_selectedType == type ? "selected" : "") @(canCreate ? "" : "disabled")"
+                                        @onclick="() => { if (canCreate) _selectedType = type; }"
+                                        title="@(canCreate ? $"Create a {type}" : reason)"
+                                        type="button">
+                                    <span class="tracks-wizard-type-icon">@GetTypeIcon(type)</span>
+                                    <span class="tracks-wizard-type-name">@type</span>
+                                    <span class="tracks-wizard-type-desc">@GetTypeDescription(type)</span>
+                                </button>
+                            }
+                        </div>
+
+                        @* Title Input *@
+                        <div class="tracks-wizard-form" style="margin-top: 24px;">
+                            <div class="tracks-form-group">
+                                <label>Title <span class="tracks-required">*</span></label>
+                                <input type="text" class="form-control tracks-wizard-title-input"
+                                       @bind="_title" @bind:event="oninput"
+                                       placeholder="e.g., &quot;User authentication system&quot;"
+                                       autofocus />
+                            </div>
+                        </div>
+                    </div>
+                    break;
+
+                case 1:
+                    @* ── Step 2: Details ── *@
+                    <div class="tracks-wizard-step-content">
+                        <h3>Fill in the details</h3>
+                        <p class="tracks-wizard-step-desc">All fields are optional — you can fill them in later.</p>
+
+                        <div class="tracks-wizard-form">
+                            @* Swimlane *@
+                            @if (Swimlanes.Count > 0)
+                            {
+                                <div class="tracks-form-group">
+                                    <label>Swimlane</label>
+                                    <select class="form-control" @bind="_selectedSwimlaneId">
+                                        @foreach (var lane in Swimlanes)
+                                        {
+                                            <option value="@lane.Id">@lane.Title</option>
+                                        }
+                                    </select>
+                                </div>
+                            }
+
+                            @* Description *@
+                            <div class="tracks-form-group">
+                                <label>Description</label>
+                                <textarea class="form-control" rows="4"
+                                          @bind="_description"
+                                          placeholder="Describe what needs to be done..."></textarea>
+                            </div>
+
+                            @* Row: Priority + Story Points *@
+                            <div class="tracks-wizard-row">
+                                <div class="tracks-form-group">
+                                    <label>Priority</label>
+                                    <select class="form-control" @bind="_priority">
+                                        <option value="None">None</option>
+                                        <option value="Low">🟢 Low</option>
+                                        <option value="Medium">🟡 Medium</option>
+                                        <option value="High">🟠 High</option>
+                                        <option value="Urgent">🔴 Urgent</option>
+                                    </select>
+                                </div>
+                                <div class="tracks-form-group">
+                                    <label>Story Points</label>
+                                    <select class="form-control" @bind="_storyPoints">
+                                        <option value="">—</option>
+                                        @for (var sp = 1; sp <= 21; sp++)
+                                        {
+                                            <option value="@sp">@sp</option>
+                                        }
+                                    </select>
+                                </div>
+                            </div>
+
+                            @* Due Date *@
+                            <div class="tracks-form-group">
+                                <label>Due Date</label>
+                                <input type="date" class="form-control"
+                                       value="@(_dueDate?.ToString("yyyy-MM-dd") ?? "")"
+                                       @onchange="e => _dueDate = DateTime.TryParse(e.Value?.ToString(), out var d) ? d : null" />
+                            </div>
+                        </div>
+                    </div>
+                    break;
+
+                case 2:
+                    @* ── Step 3: Assignments & Labels ── *@
+                    <div class="tracks-wizard-step-content">
+                        <h3>Assign people &amp; labels</h3>
+                        <p class="tracks-wizard-step-desc">Optional — assign team members and labels to this @_selectedType.ToString().ToLowerInvariant().</p>
+
+                        @* Members *@
+                        @if (Members.Count > 0)
+                        {
+                            <div class="tracks-wizard-section">
+                                <h4>👤 Team Members</h4>
+                                <div class="tracks-wizard-chip-grid">
+                                    @foreach (var member in Members)
+                                    {
+                                        var isSelected = _selectedMemberIds.Contains(member.UserId);
+                                        <button class="tracks-wizard-chip @(isSelected ? "selected" : "")"
+                                                @onclick="() => ToggleMember(member.UserId)" type="button">
+                                            <span class="tracks-wizard-chip-avatar">@(member.DisplayName?[..1].ToUpperInvariant() ?? "?")</span>
+                                            <span>@(member.DisplayName ?? "User")</span>
+                                            @if (isSelected)
+                                            {
+                                                <span class="tracks-wizard-chip-check">✓</span>
+                                            }
+                                        </button>
+                                    }
+                                </div>
+                            </div>
+                        }
+
+                        @* Labels *@
+                        @if (Labels.Count > 0)
+                        {
+                            <div class="tracks-wizard-section">
+                                <h4>🏷️ Labels</h4>
+                                <div class="tracks-wizard-chip-grid">
+                                    @foreach (var label in Labels)
+                                    {
+                                        var isSelected = _selectedLabelIds.Contains(label.Id);
+                                        <button class="tracks-wizard-chip tracks-wizard-chip--label @(isSelected ? "selected" : "")"
+                                                @onclick="() => ToggleLabel(label.Id)" type="button"
+                                                style="@(isSelected ? $"border-color: {label.Color}; background: {label.Color}20;" : "")">
+                                            <span class="tracks-wizard-chip-dot" style="background: @label.Color;"></span>
+                                            <span>@label.Title</span>
+                                            @if (isSelected)
+                                            {
+                                                <span class="tracks-wizard-chip-check">✓</span>
+                                            }
+                                        </button>
+                                    }
+                                </div>
+                            </div>
+                        }
+
+                        @if (Members.Count == 0 && Labels.Count == 0)
+                        {
+                            <div class="tracks-wizard-empty">
+                                <p>No team members or labels available yet. You can add them later from the work item detail panel.</p>
+                            </div>
+                        }
+                    </div>
+                    break;
+
+                case 3:
+                    @* ── Step 4: Review & Create ── *@
+                    <div class="tracks-wizard-step-content">
+                        <h3>Review &amp; Create</h3>
+                        <p class="tracks-wizard-step-desc">Confirm the details before creating this @_selectedType.ToString().ToLowerInvariant().</p>
+
+                        <div class="tracks-wizard-review">
+                            <div class="tracks-wizard-review-section">
+                                <h4>@GetTypeIcon(_selectedType) @_selectedType</h4>
+                                <div class="tracks-wizard-review-grid">
+                                    <div class="tracks-wizard-review-item">
+                                        <span class="tracks-wizard-review-label">Title</span>
+                                        <span class="tracks-wizard-review-value tracks-wizard-review-title">@_title</span>
+                                    </div>
+                                    @if (!string.IsNullOrWhiteSpace(_description))
+                                    {
+                                        <div class="tracks-wizard-review-item">
+                                            <span class="tracks-wizard-review-label">Description</span>
+                                            <span class="tracks-wizard-review-value">@_description</span>
+                                        </div>
+                                    }
+                                    @if (_selectedSwimlaneId.HasValue && Swimlanes.Count > 0)
+                                    {
+                                        var laneName = Swimlanes.FirstOrDefault(l => l.Id == _selectedSwimlaneId)?.Title ?? "—";
+                                        <div class="tracks-wizard-review-item">
+                                            <span class="tracks-wizard-review-label">Swimlane</span>
+                                            <span class="tracks-wizard-review-value">@laneName</span>
+                                        </div>
+                                    }
+                                    <div class="tracks-wizard-review-item">
+                                        <span class="tracks-wizard-review-label">Priority</span>
+                                        <span class="tracks-wizard-review-value">@(_priority == Priority.None ? "None" : _priority.ToString())</span>
+                                    </div>
+                                    <div class="tracks-wizard-review-item">
+                                        <span class="tracks-wizard-review-label">Story Points</span>
+                                        <span class="tracks-wizard-review-value">@(_storyPoints?.ToString() ?? "—")</span>
+                                    </div>
+                                    <div class="tracks-wizard-review-item">
+                                        <span class="tracks-wizard-review-label">Due Date</span>
+                                        <span class="tracks-wizard-review-value">@(_dueDate?.ToString("MMM d, yyyy") ?? "—")</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            @if (_selectedMemberIds.Count > 0)
+                            {
+                                <div class="tracks-wizard-review-section">
+                                    <h4>👤 Assigned Members (@_selectedMemberIds.Count)</h4>
+                                    <div class="tracks-wizard-review-chips">
+                                        @foreach (var memberId in _selectedMemberIds)
+                                        {
+                                            var member = Members.FirstOrDefault(m => m.UserId == memberId);
+                                            <span class="tracks-wizard-review-chip">@(member?.DisplayName ?? memberId.ToString())</span>
+                                        }
+                                    </div>
+                                </div>
+                            }
+
+                            @if (_selectedLabelIds.Count > 0)
+                            {
+                                <div class="tracks-wizard-review-section">
+                                    <h4>🏷️ Labels (@_selectedLabelIds.Count)</h4>
+                                    <div class="tracks-wizard-review-chips">
+                                        @foreach (var labelId in _selectedLabelIds)
+                                        {
+                                            var label = Labels.FirstOrDefault(l => l.Id == labelId);
+                                            <span class="tracks-wizard-review-chip" style="background: @(label?.Color ?? "#888"); color: #fff;">@(label?.Title ?? "?")</span>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        </div>
+
+                        @if (_errorMessage is not null)
+                        {
+                            <DncErrorDisplay Message="@_errorMessage" />
+                        }
+                    </div>
+                    break;
+            }
+        </div>
+
+        @* ── Footer Actions ── *@
+        <div class="tracks-wizard-footer">
+            <div class="tracks-wizard-footer-left">
+                <button class="btn btn-secondary" @onclick="HandleCancel">Cancel</button>
+            </div>
+            <div class="tracks-wizard-footer-right">
+                @if (_currentStep > 0)
+                {
+                    <button class="btn btn-secondary" @onclick="PreviousStep">← Back</button>
+                }
+                @if (_currentStep < _stepLabels.Length - 1)
+                {
+                    <button class="btn btn-primary" @onclick="NextStep"
+                            disabled="@(!IsStepValid(_currentStep))">
+                        Continue →
+                    </button>
+                }
+                else
+                {
+                    <button class="btn btn-primary" @onclick="SubmitAsync"
+                            disabled="@(!CanSubmit)">
+                        @(_isSubmitting ? "Creating..." : $"Create {_selectedType}")
+                    </button>
+                }
+            </div>
+        </div>
+    </div>
+</div>
