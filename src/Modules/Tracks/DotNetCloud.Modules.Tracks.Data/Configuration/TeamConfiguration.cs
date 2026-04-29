@@ -8,6 +8,8 @@ public sealed class TeamConfiguration : IEntityTypeConfiguration<Team>
 {
     public void Configure(EntityTypeBuilder<Team> builder)
     {
+        builder.ToTable("TracksTeams");
+
         builder.HasKey(t => t.Id);
 
         builder.Property(t => t.Name)
@@ -22,7 +24,7 @@ public sealed class TeamConfiguration : IEntityTypeConfiguration<Team>
             .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
         builder.HasIndex(t => t.Name)
-            .HasDatabaseName("ix_teams_name");
+            .HasDatabaseName("ix_tracks_teams_name");
 
         builder.HasMany(t => t.TeamRoles)
             .WithOne()

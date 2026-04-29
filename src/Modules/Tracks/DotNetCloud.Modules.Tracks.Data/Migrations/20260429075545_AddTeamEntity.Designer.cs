@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace DotNetCloud.Modules.Tracks.Data.Migrations
 {
     [DbContext(typeof(TracksDbContext))]
-    [Migration("20260429072745_AddTeamEntity")]
+    [Migration("20260429075545_AddTeamEntity")]
     partial class AddTeamEntity
     {
         /// <inheritdoc />
@@ -731,9 +731,9 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("Name")
-                        .HasDatabaseName("ix_teams_name");
+                        .HasDatabaseName("ix_tracks_teams_name");
 
-                    b.ToTable("Teams");
+                    b.ToTable("TracksTeams", (string)null);
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.TeamRole", b =>

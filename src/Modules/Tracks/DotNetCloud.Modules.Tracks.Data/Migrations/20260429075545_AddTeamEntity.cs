@@ -12,7 +12,7 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.CreateTable(
-                name: "Teams",
+                name: "TracksTeams",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
@@ -23,19 +23,19 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_Teams", x => x.Id);
+                    table.PrimaryKey("PK_TracksTeams", x => x.Id);
                 });
 
             migrationBuilder.CreateIndex(
-                name: "ix_teams_name",
-                table: "Teams",
+                name: "ix_tracks_teams_name",
+                table: "TracksTeams",
                 column: "Name");
 
             migrationBuilder.AddForeignKey(
-                name: "FK_TeamRoles_Teams_TeamId",
+                name: "FK_TeamRoles_TracksTeams_TeamId",
                 table: "TeamRoles",
                 column: "TeamId",
-                principalTable: "Teams",
+                principalTable: "TracksTeams",
                 principalColumn: "Id",
                 onDelete: ReferentialAction.Cascade);
         }
@@ -44,11 +44,11 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropForeignKey(
-                name: "FK_TeamRoles_Teams_TeamId",
+                name: "FK_TeamRoles_TracksTeams_TeamId",
                 table: "TeamRoles");
 
             migrationBuilder.DropTable(
-                name: "Teams");
+                name: "TracksTeams");
         }
     }
 }

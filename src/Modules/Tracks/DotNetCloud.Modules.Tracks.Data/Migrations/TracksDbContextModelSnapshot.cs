@@ -728,9 +728,9 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("Name")
-                        .HasDatabaseName("ix_teams_name");
+                        .HasDatabaseName("ix_tracks_teams_name");
 
-                    b.ToTable("Teams");
+                    b.ToTable("TracksTeams", (string)null);
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.TeamRole", b =>
