@@ -31,6 +31,22 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                 table: "TracksTeams",
                 column: "Name");
 
+            // Backfill TracksTeams rows from existing TeamRoles so the FK can be created.
+            // Without this, any TeamRoles row with a TeamId not in TracksTeams would
+            // cause a FK violation (23503) when the constraint is added.
+            migrationBuilder.Sql(
+                """
+                INSERT INTO "TracksTeams" ("Id", "Name", "CreatedAt", "CreatedByUserId")
+                SELECT DISTINCT
+                    tr."TeamId",
+                    'Team ' || left(tr."TeamId"::text, 8),
+                    NOW(),
+                    '00000000-0000-0000-0000-000000000000'
+                FROM "TeamRoles" tr
+                WHERE tr."TeamId" IS NOT NULL
+                  AND NOT EXISTS (SELECT 1 FROM "TracksTeams" t WHERE t."Id" = tr."TeamId")
+                """);
+
             migrationBuilder.AddForeignKey(
                 name: "FK_TeamRoles_TracksTeams_TeamId",
                 table: "TeamRoles",
