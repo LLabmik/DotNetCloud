@@ -41,7 +41,7 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                     tr."TeamId",
                     'Team ' || left(tr."TeamId"::text, 8),
                     NOW(),
-                    '00000000-0000-0000-0000-000000000000'
+                    '00000000-0000-0000-0000-000000000000'::uuid
                 FROM "TeamRoles" tr
                 WHERE tr."TeamId" IS NOT NULL
                   AND NOT EXISTS (SELECT 1 FROM "TracksTeams" t WHERE t."Id" = tr."TeamId")
