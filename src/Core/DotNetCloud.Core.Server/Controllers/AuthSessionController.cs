@@ -3,6 +3,7 @@ using DotNetCloud.Core.Data.Entities.Identity;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace DotNetCloud.Core.Server.Controllers;
 
@@ -114,16 +115,14 @@ public sealed class AuthSessionController : ControllerBase
 
     private async Task UpdateLastLoginAsync(string email)
     {
-        var user = await _userManager.FindByEmailAsync(email);
-        if (user is null)
-            return;
-
-        user.LastLoginAt = DateTime.UtcNow;
-        var updateResult = await _userManager.UpdateAsync(user);
-        if (!updateResult.Succeeded)
-        {
-            var errors = string.Join(", ", updateResult.Errors.Select(e => e.Description));
-            _logger.LogWarning("Could not persist LastLoginAt for {Email}: {Errors}", email, errors);
-        }
+        // Use ExecuteUpdateAsync to avoid a second tracked instance conflicting with
+        // the ApplicationUser already tracked by PasswordSignInAsync in the same DbContext scope.
+        var now = DateTime.UtcNow;
+        var normalizedEmail = _userManager.NormalizeEmail(email);
+        var updated = await _userManager.Users
+            .Where(u => u.NormalizedEmail == normalizedEmail)
+            .ExecuteUpdateAsync(s => s.SetProperty(u => u.LastLoginAt, now));
+        if (updated == 0)
+            _logger.LogWarning("Could not persist LastLoginAt for {Email}: user not found", email);
     }
 }
