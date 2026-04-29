@@ -4,12 +4,8 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace DotNetCloud.Modules.Tracks.Data.Configuration;
 
-/// <summary>
-/// EF Core configuration for the <see cref="TimeEntry"/> entity.
-/// </summary>
 public sealed class TimeEntryConfiguration : IEntityTypeConfiguration<TimeEntry>
 {
-    /// <inheritdoc />
     public void Configure(EntityTypeBuilder<TimeEntry> builder)
     {
         builder.HasKey(t => t.Id);
@@ -28,20 +24,19 @@ public sealed class TimeEntryConfiguration : IEntityTypeConfiguration<TimeEntry>
             .IsRequired()
             .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
-        builder.HasOne(t => t.Card)
-            .WithMany(c => c.TimeEntries)
-            .HasForeignKey(t => t.CardId)
+        builder.HasOne(t => t.WorkItem)
+            .WithMany(wi => wi.TimeEntries)
+            .HasForeignKey(t => t.WorkItemId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        // Indexes
-        builder.HasIndex(t => t.CardId)
-            .HasDatabaseName("ix_time_entries_card_id");
+        builder.HasIndex(t => t.WorkItemId)
+            .HasDatabaseName("ix_time_entries_work_item_id");
 
         builder.HasIndex(t => t.UserId)
             .HasDatabaseName("ix_time_entries_user_id");
 
-        builder.HasIndex(t => new { t.CardId, t.UserId })
-            .HasDatabaseName("ix_time_entries_card_user");
+        builder.HasIndex(t => new { t.WorkItemId, t.UserId })
+            .HasDatabaseName("ix_time_entries_work_item_user");
 
         builder.HasIndex(t => t.StartTime)
             .HasDatabaseName("ix_time_entries_start_time")

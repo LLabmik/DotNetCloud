@@ -13,8 +13,8 @@ public partial class TimelineView : ComponentBase
 {
     [Inject] private ITracksApiClient ApiClient { get; set; } = default!;
 
-    /// <summary>The board whose sprint plan to display.</summary>
-    [Parameter, EditorRequired] public Guid BoardId { get; set; }
+    /// <summary>The epic whose sprint plan to display.</summary>
+    [Parameter, EditorRequired] public Guid EpicId { get; set; }
 
     /// <summary>Called when a sprint block is clicked to navigate to the sprint-filtered kanban view.</summary>
     [Parameter] public EventCallback<SprintDto> OnSprintSelected { get; set; }
@@ -25,9 +25,20 @@ public partial class TimelineView : ComponentBase
     /// <summary>Called when the plan has been adjusted (duration change with cascade).</summary>
     [Parameter] public EventCallback OnPlanAdjusted { get; set; }
 
-    private SprintPlanOverviewDto? _planOverview;
+    private IReadOnlyList<SprintDto>? _planOverview;
     private bool _isLoading = true;
     private string? _errorMessage;
+
+    // Derived summary values
+    private int TotalWeeks => _planOverview is { Count: > 0 }
+        ? (int)Math.Ceiling((PlanEndDate - PlanStartDate).TotalDays / 7.0)
+        : 0;
+    private DateTime PlanStartDate => _planOverview is { Count: > 0 }
+        ? _planOverview.Min(s => s.StartDate ?? DateTime.MaxValue)
+        : DateTime.MinValue;
+    private DateTime PlanEndDate => _planOverview is { Count: > 0 }
+        ? _planOverview.Max(s => s.EndDate ?? DateTime.MinValue)
+        : DateTime.MinValue;
 
     // Computed layout data
     private DateTime _planStart;
@@ -55,8 +66,8 @@ public partial class TimelineView : ComponentBase
         _errorMessage = null;
         try
         {
-            _planOverview = await ApiClient.GetSprintPlanAsync(BoardId);
-            if (_planOverview is not null && _planOverview.Sprints.Count > 0)
+            _planOverview = await ApiClient.GetSprintPlanAsync(EpicId);
+            if (_planOverview is not null && _planOverview.Count > 0)
             {
                 ComputeLayoutData();
             }
@@ -82,7 +93,7 @@ public partial class TimelineView : ComponentBase
     {
         if (_planOverview is null) return;
 
-        var sprints = _planOverview.Sprints;
+        var sprints = _planOverview;
 
         // Find plan boundaries — expand to include full months
         var earliestStart = sprints
@@ -192,7 +203,7 @@ public partial class TimelineView : ComponentBase
             parts.Add($"{sprint.DurationWeeks} week(s)");
         }
 
-        parts.Add($"{sprint.CardCount} cards, {sprint.CompletedStoryPoints}/{sprint.TotalStoryPoints} SP");
+        parts.Add($"{sprint.ItemCount} items, {sprint.CompletedStoryPoints}/{sprint.TotalStoryPoints} SP");
         parts.Add($"Status: {sprint.Status}");
         return string.Join(" | ", parts);
     }
@@ -229,7 +240,7 @@ public partial class TimelineView : ComponentBase
         _isAdjusting = true;
         try
         {
-            var result = await ApiClient.AdjustSprintAsync(_adjustingSprint.Id, new AdjustSprintDto
+            var result = await ApiClient.AdjustSprintDatesAsync(_adjustingSprint.Id, new AdjustSprintDto
             {
                 DurationWeeks = _adjustDurationWeeks
             });

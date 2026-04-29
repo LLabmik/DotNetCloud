@@ -9,7 +9,7 @@
         </div>
         <div class="review-header-right">
             <span class="review-participant-count">
-                👥 @ConnectedParticipantCount / @Session.Participants.Count
+                👥 @Session.ParticipantCount participants
             </span>
             <button class="btn btn-sm btn-outline" @onclick="LeaveSession">Leave Session</button>
         </div>
@@ -22,50 +22,50 @@
                 <span>📡 Following host's view</span>
             </div>
 
-            @if (_currentCard is not null)
+            @if (_currentItem is not null)
             {
                 <div class="review-card-detail">
                     <div class="review-card-header">
-                        <span class="review-card-number">#@_currentCard.CardNumber</span>
-                        <h3 class="review-card-title">@_currentCard.Title</h3>
-                        @if (_currentCard.StoryPoints.HasValue)
+                        <span class="review-card-number">#@_currentItem.ItemNumber</span>
+                        <h3 class="review-card-title">@_currentItem.Title</h3>
+                        @if (_currentItem.StoryPoints.HasValue)
                         {
-                            <span class="review-card-points">@_currentCard.StoryPoints SP</span>
+                            <span class="review-card-points">@_currentItem.StoryPoints SP</span>
                         }
                     </div>
-                    @if (_currentCard.Priority != CardPriority.None)
+                    @if (_currentItem.Priority != Priority.None)
                     {
-                        <span class="review-card-priority priority-@_currentCard.Priority.ToString().ToLowerInvariant()">
-                            @_currentCard.Priority
+                        <span class="review-card-priority priority-@_currentItem.Priority.ToString().ToLowerInvariant()">
+                            @_currentItem.Priority
                         </span>
                     }
-                    @if (!string.IsNullOrWhiteSpace(_currentCard.Description))
+                    @if (!string.IsNullOrWhiteSpace(_currentItem.Description))
                     {
-                        <div class="review-card-description">@_currentCard.Description</div>
+                        <div class="review-card-description">@_currentItem.Description</div>
                     }
-                    @if (_currentCard.Labels.Count > 0)
+                    @if (_currentItem.Labels.Count > 0)
                     {
                         <div class="review-card-labels">
-                            @foreach (var label in _currentCard.Labels)
+                            @foreach (var label in _currentItem.Labels)
                             {
                                 <span class="review-label" style="background: @(label.Color ?? "#6b7280");">@label.Title</span>
                             }
                         </div>
                     }
-                    @if (_currentCard.Assignments.Count > 0)
+                    @if (_currentItem.Assignments.Count > 0)
                     {
                         <div class="review-card-assignments">
                             <span class="review-assignments-label">Assigned:</span>
-                            @foreach (var a in _currentCard.Assignments)
+                            @foreach (var a in _currentItem.Assignments)
                             {
                                 <span class="review-assignee">@(a.DisplayName ?? a.UserId.ToString()[..8])</span>
                             }
                         </div>
                     }
-                    @if (_currentCard.DueDate.HasValue)
+                    @if (_currentItem.DueDate.HasValue)
                     {
                         <div class="review-card-due">
-                            📅 Due: @_currentCard.DueDate.Value.ToString("MMM d, yyyy")
+                            📅 Due: @_currentItem.DueDate.Value.ToString("MMM d, yyyy")
                         </div>
                     }
                 </div>
@@ -84,23 +84,7 @@
             <div class="review-participants">
                 <h4>Participants</h4>
                 <div class="review-participant-list">
-                    @foreach (var p in Session.Participants)
-                    {
-                        <div class="review-participant @(p.IsConnected ? "connected" : "disconnected")">
-                            <span class="review-participant-status">@(p.IsConnected ? "🟢" : "⚪")</span>
-                            <span class="review-participant-name">
-                                @(p.DisplayName ?? p.UserId.ToString()[..8])
-                                @if (p.UserId == Session.HostUserId) { <span class="review-host-badge">Host</span> }
-                            </span>
-                            @if (_activePoker is not null)
-                            {
-                                var voteStatus = _voteStatuses.FirstOrDefault(v => v.UserId == p.UserId);
-                                <span class="review-vote-indicator">
-                                    @if (voteStatus?.HasVoted == true) { <text>✓</text> } else { <text>…</text> }
-                                </span>
-                            }
-                        </div>
-                    }
+                    <p class="tracks-muted">@Session.ParticipantCount participant(s) connected</p>
                 </div>
             </div>
 
@@ -146,15 +130,9 @@
                 }
                 else if (_activePoker.Status == PokerSessionStatus.Revealed)
                 {
-                    @* Revealed — show all votes *@
+                    @* Revealed — show vote status *@
                     <div class="review-poker-results">
-                        @foreach (var vote in _activePoker.Votes)
-                        {
-                            <div class="review-poker-result">
-                                <span class="review-poker-voter">@(vote.DisplayName ?? vote.UserId.ToString()[..8])</span>
-                                <span class="review-poker-estimate">@vote.Estimate</span>
-                            </div>
-                        }
+                        <p>Votes have been revealed. Host will accept an estimate.</p>
                     </div>
                     <p class="review-poker-hint">Waiting for host to accept an estimate…</p>
                 }

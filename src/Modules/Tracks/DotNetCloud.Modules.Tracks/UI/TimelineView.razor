@@ -8,12 +8,12 @@
             @if (_planOverview is not null)
             {
                 <div class="tracks-timeline-stats">
-                    <span class="tracks-timeline-stat">@_planOverview.Sprints.Count sprints</span>
-                    <span class="tracks-timeline-stat">@_planOverview.TotalWeeks weeks</span>
-                    @if (_planOverview.PlanStartDate.HasValue && _planOverview.PlanEndDate.HasValue)
+                    <span class="tracks-timeline-stat">@_planOverview.Count sprints</span>
+                    <span class="tracks-timeline-stat">@TotalWeeks weeks</span>
+                    @if (_planOverview.Count > 0)
                     {
                         <span class="tracks-timeline-stat">
-                            @_planOverview.PlanStartDate.Value.ToString("MMM d, yyyy") — @_planOverview.PlanEndDate.Value.ToString("MMM d, yyyy")
+                            @PlanStartDate.ToString("MMM d, yyyy") — @PlanEndDate.ToString("MMM d, yyyy")
                         </span>
                     }
                 </div>
@@ -35,7 +35,7 @@
     {
         <DncErrorDisplay Message="@_errorMessage" />
     }
-    else if (_planOverview is null || _planOverview.Sprints.Count == 0)
+    else if (_planOverview is null || _planOverview.Count == 0)
     {
         <div class="tracks-timeline-empty">
             <div class="tracks-timeline-empty-icon">📅</div>
@@ -69,13 +69,13 @@
                 @if (_todayColumn > 0 && _todayColumn <= _totalDays)
                 {
                     <div class="tracks-timeline-today-marker"
-                         style="grid-column: @_todayColumn / @(_todayColumn + 1); grid-row: 1 / @(_planOverview.Sprints.Count + 1);">
+                         style="grid-column: @_todayColumn / @(_todayColumn + 1); grid-row: 1 / @(_planOverview.Count + 1);">
                         <div class="tracks-timeline-today-line"></div>
                         <span class="tracks-timeline-today-label">Today</span>
                     </div>
                 }
 
-                @foreach (var sprint in _planOverview.Sprints)
+                @foreach (var sprint in _planOverview)
                 {
                     var blockInfo = GetSprintBlockInfo(sprint);
                     @if (blockInfo.StartDay > 0 && blockInfo.EndDay > 0)
@@ -93,7 +93,7 @@
                                 <div class="tracks-timeline-sprint-content">
                                     <span class="tracks-timeline-sprint-name">@sprint.Title</span>
                                     <span class="tracks-timeline-sprint-meta">
-                                        @(sprint.DurationWeeks ?? 0)w · @sprint.CardCount cards
+                                        @(sprint.DurationWeeks ?? 0)w · @sprint.ItemCount items
                                         @if (sprint.TotalStoryPoints > 0)
                                         {
                                             <text> · @sprint.CompletedStoryPoints/@sprint.TotalStoryPoints SP</text>

@@ -1,158 +1,104 @@
-using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
-using DotNetCloud.Core.Errors;
-using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Tracks.Models;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 
 namespace DotNetCloud.Modules.Tracks.Data.Services;
 
-/// <summary>
-/// Service for managing card comments with Markdown support.
-/// </summary>
 public sealed class CommentService
 {
     private readonly TracksDbContext _db;
-    private readonly BoardService _boardService;
-    private readonly ActivityService _activityService;
-    private readonly IEventBus _eventBus;
-    private readonly ILogger<CommentService> _logger;
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="CommentService"/> class.
-    /// </summary>
-    public CommentService(TracksDbContext db, BoardService boardService, ActivityService activityService, IEventBus eventBus, ILogger<CommentService> logger)
+    public CommentService(TracksDbContext db)
     {
         _db = db;
-        _boardService = boardService;
-        _activityService = activityService;
-        _eventBus = eventBus;
-        _logger = logger;
     }
 
-    /// <summary>
-    /// Adds a comment to a card. Requires Member role or higher.
-    /// </summary>
-    public async Task<CardCommentDto> CreateCommentAsync(Guid cardId, string content, CallerContext caller, CancellationToken cancellationToken = default)
+    public async Task<WorkItemCommentDto> CreateCommentAsync(
+        Guid workItemId,
+        Guid userId,
+        AddWorkItemCommentDto dto,
+        CancellationToken ct)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(content);
-
-        var card = await _db.Cards
-            .Include(c => c.Swimlane)
-            .FirstOrDefaultAsync(c => c.Id == cardId && !c.IsDeleted, cancellationToken)
-            ?? throw new ValidationException(ErrorCodes.CardNotFound, "Card not found.");
-
-        await _boardService.EnsureBoardRoleAsync(card.Swimlane!.BoardId, caller.UserId, BoardMemberRole.Member, cancellationToken);
-
-        var comment = new CardComment
+        var now = DateTime.UtcNow;
+        var comment = new WorkItemComment
         {
-            CardId = cardId,
-            UserId = caller.UserId,
-            Content = content
+            WorkItemId = workItemId,
+            UserId = userId,
+            Content = dto.Content,
+            CreatedAt = now,
+            UpdatedAt = now
         };
 
-        _db.CardComments.Add(comment);
-        card.UpdatedAt = DateTime.UtcNow;
-        await _db.SaveChangesAsync(cancellationToken);
+        _db.WorkItemComments.Add(comment);
+        await _db.SaveChangesAsync(ct);
 
-        _logger.LogInformation("Comment {CommentId} added to card {CardId} by user {UserId}",
-            comment.Id, cardId, caller.UserId);
-
-        await _activityService.LogAsync(card.Swimlane.BoardId, caller.UserId, "comment.added", "CardComment", comment.Id,
-            $"{{\"cardId\":\"{cardId}\"}}", cancellationToken);
-
-        await _eventBus.PublishAsync(new CardCommentAddedEvent
-        {
-            EventId = Guid.NewGuid(),
-            CreatedAt = DateTime.UtcNow,
-            CommentId = comment.Id,
-            CardId = cardId,
-            BoardId = card.Swimlane.BoardId,
-            UserId = caller.UserId
-        }, caller, cancellationToken);
-
-        return MapToDto(comment);
+        return Map(comment);
     }
 
-    /// <summary>
-    /// Gets all comments for a card, ordered by creation date.
-    /// </summary>
-    public async Task<IReadOnlyList<CardCommentDto>> GetCommentsAsync(Guid cardId, CallerContext caller, CancellationToken cancellationToken = default)
+    public async Task<List<WorkItemCommentDto>> GetCommentsByWorkItemAsync(
+        Guid workItemId,
+        int skip,
+        int take,
+        CancellationToken ct)
     {
-        var card = await _db.Cards
-            .AsNoTracking()
-            .Include(c => c.Swimlane)
-            .FirstOrDefaultAsync(c => c.Id == cardId && !c.IsDeleted, cancellationToken)
-            ?? throw new ValidationException(ErrorCodes.CardNotFound, "Card not found.");
-
-        await _boardService.EnsureBoardMemberAsync(card.Swimlane!.BoardId, caller.UserId, cancellationToken);
-
-        var comments = await _db.CardComments
-            .AsNoTracking()
-            .Where(c => c.CardId == cardId && !c.IsDeleted)
+        var comments = await _db.WorkItemComments
+            .IgnoreQueryFilters()
+            .Where(c => c.WorkItemId == workItemId && !c.IsDeleted)
             .OrderBy(c => c.CreatedAt)
-            .ToListAsync(cancellationToken);
+            .Skip(skip)
+            .Take(take)
+            .Select(c => Map(c))
+            .ToListAsync(ct);
 
-        return comments.Select(MapToDto).ToList();
+        return comments;
     }
 
-    /// <summary>
-    /// Updates a comment. Only the comment author can edit.
-    /// </summary>
-    public async Task<CardCommentDto> UpdateCommentAsync(Guid commentId, string content, CallerContext caller, CancellationToken cancellationToken = default)
+    public async Task<WorkItemCommentDto> UpdateCommentAsync(
+        Guid commentId,
+        Guid userId,
+        UpdateWorkItemCommentDto dto,
+        CancellationToken ct)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(content);
+        var comment = await _db.WorkItemComments.FindAsync(new object[] { commentId }, ct);
 
-        var comment = await _db.CardComments
-            .FirstOrDefaultAsync(c => c.Id == commentId && !c.IsDeleted, cancellationToken)
-            ?? throw new ValidationException(ErrorCodes.CommentNotFound, "Comment not found.");
+        if (comment is null || comment.UserId != userId)
+        {
+            throw new InvalidOperationException("Comment not found or not authorized to edit.");
+        }
 
-        if (comment.UserId != caller.UserId)
-            throw new ValidationException(ErrorCodes.InsufficientBoardRole, "Only the comment author can edit.");
-
-        comment.Content = content;
+        comment.Content = dto.Content;
         comment.IsEdited = true;
         comment.UpdatedAt = DateTime.UtcNow;
 
-        await _db.SaveChangesAsync(cancellationToken);
+        await _db.SaveChangesAsync(ct);
 
-        _logger.LogInformation("Comment {CommentId} updated by user {UserId}", commentId, caller.UserId);
-
-        return MapToDto(comment);
+        return Map(comment);
     }
 
-    /// <summary>
-    /// Soft-deletes a comment. The author or an Admin can delete.
-    /// </summary>
-    public async Task DeleteCommentAsync(Guid commentId, CallerContext caller, CancellationToken cancellationToken = default)
+    public async Task DeleteCommentAsync(Guid commentId, Guid userId, CancellationToken ct)
     {
-        var comment = await _db.CardComments
-            .Include(c => c.Card).ThenInclude(c => c!.Swimlane)
-            .FirstOrDefaultAsync(c => c.Id == commentId && !c.IsDeleted, cancellationToken)
-            ?? throw new ValidationException(ErrorCodes.CommentNotFound, "Comment not found.");
+        var comment = await _db.WorkItemComments.FindAsync(new object[] { commentId }, ct);
 
-        // Author can always delete their own comment; otherwise requires Admin
-        if (comment.UserId != caller.UserId)
+        if (comment is null || comment.UserId != userId)
         {
-            await _boardService.EnsureBoardRoleAsync(comment.Card!.Swimlane!.BoardId, caller.UserId,
-                BoardMemberRole.Admin, cancellationToken);
+            throw new InvalidOperationException("Comment not found or not authorized to delete.");
         }
 
+        var now = DateTime.UtcNow;
         comment.IsDeleted = true;
-        comment.DeletedAt = DateTime.UtcNow;
+        comment.DeletedAt = now;
+        comment.UpdatedAt = now;
 
-        await _db.SaveChangesAsync(cancellationToken);
-
-        _logger.LogInformation("Comment {CommentId} deleted by user {UserId}", commentId, caller.UserId);
+        await _db.SaveChangesAsync(ct);
     }
 
-    private static CardCommentDto MapToDto(CardComment c) => new()
+    private static WorkItemCommentDto Map(WorkItemComment c) => new()
     {
         Id = c.Id,
-        CardId = c.CardId,
+        WorkItemId = c.WorkItemId,
         UserId = c.UserId,
         Content = c.Content,
+        IsEdited = c.IsEdited,
         CreatedAt = c.CreatedAt,
         UpdatedAt = c.UpdatedAt
     };

@@ -1,5 +1,6 @@
 namespace DotNetCloud.Core.Tests.Events;
 
+using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Events;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -9,75 +10,70 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 [TestClass]
 public class TracksEventTests
 {
-    // ── Board Events ──
+    // -- Product Events --
 
     [TestMethod]
-    public void BoardCreatedEvent_ImplementsIEvent()
+    public void ProductCreatedEvent_ImplementsIEvent()
     {
-        var e = new BoardCreatedEvent
+        var e = new ProductCreatedEvent
         {
             EventId = Guid.NewGuid(),
             CreatedAt = DateTime.UtcNow,
-            BoardId = Guid.NewGuid(),
-            Title = "Sprint Board",
+            ProductId = Guid.NewGuid(),
+            OrganizationId = Guid.NewGuid(),
             OwnerId = Guid.NewGuid()
         };
 
         Assert.IsInstanceOfType(e, typeof(IEvent));
         Assert.AreNotEqual(Guid.Empty, e.EventId);
-        Assert.AreEqual("Sprint Board", e.Title);
+        Assert.AreNotEqual(Guid.Empty, e.ProductId);
     }
 
     [TestMethod]
-    public void BoardDeletedEvent_ImplementsIEvent()
+    public void ProductDeletedEvent_ImplementsIEvent()
     {
-        var e = new BoardDeletedEvent
+        var e = new ProductDeletedEvent
         {
             EventId = Guid.NewGuid(),
             CreatedAt = DateTime.UtcNow,
-            BoardId = Guid.NewGuid(),
-            DeletedByUserId = Guid.NewGuid(),
-            IsPermanent = true
+            ProductId = Guid.NewGuid()
         };
 
         Assert.IsInstanceOfType(e, typeof(IEvent));
-        Assert.IsTrue(e.IsPermanent);
+        Assert.AreNotEqual(Guid.Empty, e.ProductId);
     }
 
-    // ── Card Events ──
+    // -- WorkItem Events --
 
     [TestMethod]
-    public void CardCreatedEvent_ImplementsIEvent()
+    public void WorkItemCreatedEvent_ImplementsIEvent()
     {
-        var e = new CardCreatedEvent
+        var e = new WorkItemCreatedEvent
         {
             EventId = Guid.NewGuid(),
             CreatedAt = DateTime.UtcNow,
-            CardId = Guid.NewGuid(),
-            Title = "Fix login",
-            BoardId = Guid.NewGuid(),
-            SwimlaneId = Guid.NewGuid(),
-            CreatedByUserId = Guid.NewGuid()
+            WorkItemId = Guid.NewGuid(),
+            ProductId = Guid.NewGuid(),
+            Type = WorkItemType.Item
         };
 
         Assert.IsInstanceOfType(e, typeof(IEvent));
-        Assert.AreEqual("Fix login", e.Title);
+        Assert.AreEqual(WorkItemType.Item, e.Type);
     }
 
     [TestMethod]
-    public void CardMovedEvent_ImplementsIEvent()
+    public void WorkItemMovedEvent_ImplementsIEvent()
     {
         var fromSwimlane = Guid.NewGuid();
         var toSwimlane = Guid.NewGuid();
-        var e = new CardMovedEvent
+        var e = new WorkItemMovedEvent
         {
             EventId = Guid.NewGuid(),
             CreatedAt = DateTime.UtcNow,
-            CardId = Guid.NewGuid(),
-            BoardId = Guid.NewGuid(),
+            WorkItemId = Guid.NewGuid(),
+            Type = WorkItemType.Item,
             FromSwimlaneId = fromSwimlane,
-            ToSwimlaneId = toSwimlane,
-            MovedByUserId = Guid.NewGuid()
+            ToSwimlaneId = toSwimlane
         };
 
         Assert.IsInstanceOfType(e, typeof(IEvent));
@@ -85,66 +81,59 @@ public class TracksEventTests
     }
 
     [TestMethod]
-    public void CardUpdatedEvent_ImplementsIEvent()
+    public void WorkItemUpdatedEvent_ImplementsIEvent()
     {
-        var e = new CardUpdatedEvent
+        var e = new WorkItemUpdatedEvent
         {
             EventId = Guid.NewGuid(),
             CreatedAt = DateTime.UtcNow,
-            CardId = Guid.NewGuid(),
-            BoardId = Guid.NewGuid(),
-            UpdatedByUserId = Guid.NewGuid()
+            WorkItemId = Guid.NewGuid(),
+            Type = WorkItemType.Item
         };
 
         Assert.IsInstanceOfType(e, typeof(IEvent));
     }
 
     [TestMethod]
-    public void CardDeletedEvent_ImplementsIEvent()
+    public void WorkItemDeletedEvent_ImplementsIEvent()
     {
-        var e = new CardDeletedEvent
+        var e = new WorkItemDeletedEvent
         {
             EventId = Guid.NewGuid(),
             CreatedAt = DateTime.UtcNow,
-            CardId = Guid.NewGuid(),
-            BoardId = Guid.NewGuid(),
-            DeletedByUserId = Guid.NewGuid(),
-            IsPermanent = false
+            WorkItemId = Guid.NewGuid(),
+            Type = WorkItemType.Item
         };
 
         Assert.IsInstanceOfType(e, typeof(IEvent));
-        Assert.IsFalse(e.IsPermanent);
     }
 
-    // ── Assignment & Comment Events ──
+    // -- Assignment and Comment Events --
 
     [TestMethod]
-    public void CardAssignedEvent_ImplementsIEvent()
+    public void WorkItemAssignedEvent_ImplementsIEvent()
     {
-        var e = new CardAssignedEvent
+        var e = new WorkItemAssignedEvent
         {
             EventId = Guid.NewGuid(),
             CreatedAt = DateTime.UtcNow,
-            CardId = Guid.NewGuid(),
-            BoardId = Guid.NewGuid(),
-            AssignedUserId = Guid.NewGuid(),
-            AssignedByUserId = Guid.NewGuid()
+            WorkItemId = Guid.NewGuid(),
+            UserId = Guid.NewGuid()
         };
 
         Assert.IsInstanceOfType(e, typeof(IEvent));
-        Assert.AreNotEqual(Guid.Empty, e.AssignedUserId);
+        Assert.AreNotEqual(Guid.Empty, e.UserId);
     }
 
     [TestMethod]
-    public void CardCommentAddedEvent_ImplementsIEvent()
+    public void WorkItemCommentAddedEvent_ImplementsIEvent()
     {
-        var e = new CardCommentAddedEvent
+        var e = new WorkItemCommentAddedEvent
         {
             EventId = Guid.NewGuid(),
             CreatedAt = DateTime.UtcNow,
             CommentId = Guid.NewGuid(),
-            CardId = Guid.NewGuid(),
-            BoardId = Guid.NewGuid(),
+            WorkItemId = Guid.NewGuid(),
             UserId = Guid.NewGuid()
         };
 
@@ -152,7 +141,7 @@ public class TracksEventTests
         Assert.AreNotEqual(Guid.Empty, e.CommentId);
     }
 
-    // ── Sprint Events ──
+    // -- Sprint Events --
 
     [TestMethod]
     public void SprintStartedEvent_ImplementsIEvent()
@@ -162,13 +151,11 @@ public class TracksEventTests
             EventId = Guid.NewGuid(),
             CreatedAt = DateTime.UtcNow,
             SprintId = Guid.NewGuid(),
-            BoardId = Guid.NewGuid(),
-            Title = "Sprint 1",
-            StartedByUserId = Guid.NewGuid()
+            EpicId = Guid.NewGuid()
         };
 
         Assert.IsInstanceOfType(e, typeof(IEvent));
-        Assert.AreEqual("Sprint 1", e.Title);
+        Assert.AreNotEqual(Guid.Empty, e.SprintId);
     }
 
     [TestMethod]
@@ -179,35 +166,30 @@ public class TracksEventTests
             EventId = Guid.NewGuid(),
             CreatedAt = DateTime.UtcNow,
             SprintId = Guid.NewGuid(),
-            BoardId = Guid.NewGuid(),
-            Title = "Sprint 1",
-            CompletedByUserId = Guid.NewGuid(),
-            CompletedCardCount = 8,
-            TotalCardCount = 10
+            EpicId = Guid.NewGuid()
         };
 
         Assert.IsInstanceOfType(e, typeof(IEvent));
-        Assert.AreEqual(8, e.CompletedCardCount);
-        Assert.AreEqual(10, e.TotalCardCount);
+        Assert.AreNotEqual(Guid.Empty, e.SprintId);
     }
 
-    // ── Event uniqueness ──
+    // -- Event uniqueness --
 
     [TestMethod]
     public void TracksEvents_HaveUniqueEventIds()
     {
         var events = new IEvent[]
         {
-            new BoardCreatedEvent { EventId = Guid.NewGuid(), CreatedAt = DateTime.UtcNow, BoardId = Guid.NewGuid(), Title = "A", OwnerId = Guid.NewGuid() },
-            new CardCreatedEvent { EventId = Guid.NewGuid(), CreatedAt = DateTime.UtcNow, CardId = Guid.NewGuid(), Title = "B", BoardId = Guid.NewGuid(), SwimlaneId = Guid.NewGuid(), CreatedByUserId = Guid.NewGuid() },
-            new SprintStartedEvent { EventId = Guid.NewGuid(), CreatedAt = DateTime.UtcNow, SprintId = Guid.NewGuid(), BoardId = Guid.NewGuid(), Title = "C", StartedByUserId = Guid.NewGuid() }
+            new ProductCreatedEvent { EventId = Guid.NewGuid(), CreatedAt = DateTime.UtcNow, ProductId = Guid.NewGuid(), OrganizationId = Guid.NewGuid(), OwnerId = Guid.NewGuid() },
+            new WorkItemCreatedEvent { EventId = Guid.NewGuid(), CreatedAt = DateTime.UtcNow, WorkItemId = Guid.NewGuid(), ProductId = Guid.NewGuid(), Type = WorkItemType.Item },
+            new SprintStartedEvent { EventId = Guid.NewGuid(), CreatedAt = DateTime.UtcNow, SprintId = Guid.NewGuid(), EpicId = Guid.NewGuid() }
         };
 
         var ids = events.Select(e => e.EventId).ToHashSet();
         Assert.AreEqual(events.Length, ids.Count, "All events should have unique EventIds");
     }
 
-    // ── Planning Poker Events ──
+    // -- Planning Poker Events --
 
     [TestMethod]
     public void PokerSessionStartedEvent_ImplementsIEvent()
@@ -217,14 +199,13 @@ public class TracksEventTests
             EventId = Guid.NewGuid(),
             CreatedAt = DateTime.UtcNow,
             SessionId = Guid.NewGuid(),
-            CardId = Guid.NewGuid(),
-            BoardId = Guid.NewGuid(),
-            StartedByUserId = Guid.NewGuid()
+            EpicId = Guid.NewGuid(),
+            ItemId = Guid.NewGuid()
         };
 
         Assert.IsInstanceOfType(e, typeof(IEvent));
         Assert.AreNotEqual(Guid.Empty, e.SessionId);
-        Assert.AreNotEqual(Guid.Empty, e.CardId);
+        Assert.AreNotEqual(Guid.Empty, e.ItemId);
     }
 
     [TestMethod]
@@ -235,13 +216,11 @@ public class TracksEventTests
             EventId = Guid.NewGuid(),
             CreatedAt = DateTime.UtcNow,
             SessionId = Guid.NewGuid(),
-            CardId = Guid.NewGuid(),
-            BoardId = Guid.NewGuid(),
-            VoteCount = 5
+            EpicId = Guid.NewGuid()
         };
 
         Assert.IsInstanceOfType(e, typeof(IEvent));
-        Assert.AreEqual(5, e.VoteCount);
+        Assert.AreNotEqual(Guid.Empty, e.SessionId);
     }
 
     [TestMethod]
@@ -252,34 +231,10 @@ public class TracksEventTests
             EventId = Guid.NewGuid(),
             CreatedAt = DateTime.UtcNow,
             SessionId = Guid.NewGuid(),
-            CardId = Guid.NewGuid(),
-            BoardId = Guid.NewGuid(),
-            AcceptedEstimate = "8",
-            StoryPoints = 8,
-            AcceptedByUserId = Guid.NewGuid()
+            EpicId = Guid.NewGuid()
         };
 
         Assert.IsInstanceOfType(e, typeof(IEvent));
-        Assert.AreEqual("8", e.AcceptedEstimate);
-        Assert.AreEqual(8, e.StoryPoints);
-    }
-
-    [TestMethod]
-    public void PokerSessionCompletedEvent_NonNumericEstimate_StoryPointsNull()
-    {
-        var e = new PokerSessionCompletedEvent
-        {
-            EventId = Guid.NewGuid(),
-            CreatedAt = DateTime.UtcNow,
-            SessionId = Guid.NewGuid(),
-            CardId = Guid.NewGuid(),
-            BoardId = Guid.NewGuid(),
-            AcceptedEstimate = "XL",
-            StoryPoints = null,
-            AcceptedByUserId = Guid.NewGuid()
-        };
-
-        Assert.IsNull(e.StoryPoints);
-        Assert.AreEqual("XL", e.AcceptedEstimate);
+        Assert.AreNotEqual(Guid.Empty, e.SessionId);
     }
 }

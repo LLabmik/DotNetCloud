@@ -6,9 +6,9 @@ using Microsoft.AspNetCore.Mvc;
 namespace DotNetCloud.Modules.Tracks.Host.Controllers;
 
 /// <summary>
-/// REST API controller for board swimlane (column) management.
+/// REST API controller for swimlane (column) management on products and work items.
 /// </summary>
-[Route("api/v1/boards/{boardId:guid}/swimlanes")]
+[ApiController]
 public class SwimlanesController : TracksControllerBase
 {
     private readonly SwimlaneService _swimlaneService;
@@ -23,94 +23,131 @@ public class SwimlanesController : TracksControllerBase
         _logger = logger;
     }
 
-    /// <summary>Lists all swimlanes (columns) for a board.</summary>
-    [HttpGet]
-    public async Task<IActionResult> ListSwimlanesAsync(Guid boardId)
+    /// <summary>Lists all swimlanes for a product.</summary>
+    [HttpGet("api/v1/products/{productId:guid}/swimlanes")]
+    public async Task<IActionResult> GetProductSwimlanesAsync(Guid productId, CancellationToken ct)
     {
         var caller = GetAuthenticatedCaller();
         try
         {
-            var swimlanes = await _swimlaneService.GetSwimlanesAsync(boardId, caller);
+            var swimlanes = await _swimlaneService.GetSwimlanesAsync(SwimlaneContainerType.Product, productId, ct);
             return Ok(Envelope(swimlanes));
         }
-        catch (ValidationException ex)
+        catch (NotFoundException ex)
         {
-            return NotFound(ErrorEnvelope(ErrorCodes.BoardNotFound, ex.Message));
+            return NotFound(ErrorEnvelope(ErrorCodes.NotFound, ex.Message));
         }
     }
 
-    /// <summary>Creates a new swimlane on a board.</summary>
-    [HttpPost]
-    public async Task<IActionResult> CreateSwimlaneAsync(Guid boardId, [FromBody] CreateBoardSwimlaneDto dto)
+    /// <summary>Creates a new swimlane on a product.</summary>
+    [HttpPost("api/v1/products/{productId:guid}/swimlanes")]
+    public async Task<IActionResult> CreateProductSwimlaneAsync(Guid productId, [FromBody] CreateSwimlaneDto dto, CancellationToken ct)
     {
         var caller = GetAuthenticatedCaller();
         try
         {
-            var swimlane = await _swimlaneService.CreateSwimlaneAsync(boardId, dto, caller);
-            return Created($"/api/v1/boards/{boardId}/swimlanes", Envelope(swimlane));
+            var swimlane = await _swimlaneService.CreateSwimlaneAsync(SwimlaneContainerType.Product, productId, dto, ct);
+            return Created($"/api/v1/products/{productId}/swimlanes", Envelope(swimlane));
         }
-        catch (ValidationException ex)
+        catch (NotFoundException ex)
         {
-            return IsBoardNotFound(ex)
-                ? NotFound(ErrorEnvelope(ErrorCodes.BoardNotFound, ex.Message))
-                : BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
+            return NotFound(ErrorEnvelope(ErrorCodes.NotFound, ex.Message));
+        }
+        catch (System.InvalidOperationException ex)
+        {
+            return BadRequest(ErrorEnvelope(ErrorCodes.InvalidOperation, ex.Message));
+        }
+    }
+
+    /// <summary>Lists all swimlanes for a work item (sub-board).</summary>
+    [HttpGet("api/v1/workitems/{workItemId:guid}/swimlanes")]
+    public async Task<IActionResult> GetWorkItemSwimlanesAsync(Guid workItemId, CancellationToken ct)
+    {
+        var caller = GetAuthenticatedCaller();
+        try
+        {
+            var swimlanes = await _swimlaneService.GetSwimlanesAsync(SwimlaneContainerType.WorkItem, workItemId, ct);
+            return Ok(Envelope(swimlanes));
+        }
+        catch (NotFoundException ex)
+        {
+            return NotFound(ErrorEnvelope(ErrorCodes.NotFound, ex.Message));
+        }
+    }
+
+    /// <summary>Creates a new swimlane on a work item sub-board.</summary>
+    [HttpPost("api/v1/workitems/{workItemId:guid}/swimlanes")]
+    public async Task<IActionResult> CreateWorkItemSwimlaneAsync(Guid workItemId, [FromBody] CreateSwimlaneDto dto, CancellationToken ct)
+    {
+        var caller = GetAuthenticatedCaller();
+        try
+        {
+            var swimlane = await _swimlaneService.CreateSwimlaneAsync(SwimlaneContainerType.WorkItem, workItemId, dto, ct);
+            return Created($"/api/v1/workitems/{workItemId}/swimlanes", Envelope(swimlane));
+        }
+        catch (NotFoundException ex)
+        {
+            return NotFound(ErrorEnvelope(ErrorCodes.NotFound, ex.Message));
+        }
+        catch (System.InvalidOperationException ex)
+        {
+            return BadRequest(ErrorEnvelope(ErrorCodes.InvalidOperation, ex.Message));
         }
     }
 
     /// <summary>Updates a swimlane.</summary>
-    [HttpPut("{swimlaneId:guid}")]
-    public async Task<IActionResult> UpdateSwimlaneAsync(Guid boardId, Guid swimlaneId, [FromBody] UpdateBoardSwimlaneDto dto)
+    [HttpPut("api/v1/swimlanes/{swimlaneId:guid}")]
+    public async Task<IActionResult> UpdateSwimlaneAsync(Guid swimlaneId, [FromBody] UpdateSwimlaneDto dto, CancellationToken ct)
     {
         var caller = GetAuthenticatedCaller();
         try
         {
-            var swimlane = await _swimlaneService.UpdateSwimlaneAsync(swimlaneId, dto, caller);
+            var swimlane = await _swimlaneService.UpdateSwimlaneAsync(swimlaneId, dto, ct);
             return Ok(Envelope(swimlane));
         }
-        catch (ValidationException ex)
+        catch (NotFoundException ex)
         {
-            return ex.Errors.ContainsKey(ErrorCodes.BoardSwimlaneNotFound)
-                ? NotFound(ErrorEnvelope(ErrorCodes.BoardSwimlaneNotFound, ex.Message))
-                : BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
+            return NotFound(ErrorEnvelope(ErrorCodes.BoardSwimlaneNotFound, ex.Message));
+        }
+        catch (System.InvalidOperationException ex)
+        {
+            return BadRequest(ErrorEnvelope(ErrorCodes.InvalidOperation, ex.Message));
         }
     }
 
-    /// <summary>Deletes a swimlane.</summary>
-    [HttpDelete("{swimlaneId:guid}")]
-    public async Task<IActionResult> DeleteSwimlaneAsync(Guid boardId, Guid swimlaneId)
+    /// <summary>Deletes (archives) a swimlane.</summary>
+    [HttpDelete("api/v1/swimlanes/{swimlaneId:guid}")]
+    public async Task<IActionResult> DeleteSwimlaneAsync(Guid swimlaneId, CancellationToken ct)
     {
         var caller = GetAuthenticatedCaller();
         try
         {
-            await _swimlaneService.DeleteSwimlaneAsync(swimlaneId, caller);
+            await _swimlaneService.DeleteSwimlaneAsync(swimlaneId, ct);
             return Ok(Envelope(new { deleted = true }));
         }
-        catch (ValidationException ex)
+        catch (NotFoundException ex)
         {
             return NotFound(ErrorEnvelope(ErrorCodes.BoardSwimlaneNotFound, ex.Message));
         }
     }
 
-    /// <summary>Reorders swimlanes within a board.</summary>
-    [HttpPut("reorder")]
-    public async Task<IActionResult> ReorderSwimlanesAsync(Guid boardId, [FromBody] ReorderSwimlanesRequest request)
+    /// <summary>Reorders swimlanes within a container.</summary>
+    [HttpPut("api/v1/swimlanes/reorder")]
+    public async Task<IActionResult> ReorderSwimlanesAsync([FromBody] ReorderSwimlanesDto dto, CancellationToken ct)
     {
         var caller = GetAuthenticatedCaller();
         try
         {
-            await _swimlaneService.ReorderSwimlanesAsync(boardId, request.SwimlaneIds, caller);
-            return Ok(Envelope(new { reordered = true }));
+            var reordered = await _swimlaneService.ReorderSwimlanesAsync(dto.OrderedIds, ct);
+            return Ok(Envelope(reordered));
         }
-        catch (ValidationException ex)
+        catch (NotFoundException ex)
         {
-            return BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
+            return NotFound(ErrorEnvelope(ErrorCodes.BoardSwimlaneNotFound, ex.Message));
+        }
+        catch (System.InvalidOperationException ex)
+        {
+            return BadRequest(ErrorEnvelope(ErrorCodes.InvalidOperation, ex.Message));
         }
     }
-}
-
-/// <summary>Request body for reordering swimlanes.</summary>
-public sealed record ReorderSwimlanesRequest
-{
-    /// <summary>Ordered list of swimlane IDs.</summary>
-    public required IReadOnlyList<Guid> SwimlaneIds { get; init; }
 }

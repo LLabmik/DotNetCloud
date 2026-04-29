@@ -4,18 +4,18 @@ using Microsoft.Extensions.Logging;
 namespace DotNetCloud.Modules.Tracks.Events;
 
 /// <summary>
-/// Handles Tracks board and card events by broadcasting real-time action signals to connected clients
+/// Handles Tracks product and work item events by broadcasting real-time action signals to connected clients
 /// via <see cref="Services.ITracksRealtimeService"/>.
 /// </summary>
 internal sealed class TracksRealtimeEventHandler :
-    IEventHandler<CardCreatedEvent>,
-    IEventHandler<CardUpdatedEvent>,
-    IEventHandler<CardMovedEvent>,
-    IEventHandler<CardDeletedEvent>,
-    IEventHandler<CardAssignedEvent>,
-    IEventHandler<CardCommentAddedEvent>,
-    IEventHandler<BoardCreatedEvent>,
-    IEventHandler<BoardDeletedEvent>,
+    IEventHandler<WorkItemCreatedEvent>,
+    IEventHandler<WorkItemUpdatedEvent>,
+    IEventHandler<WorkItemMovedEvent>,
+    IEventHandler<WorkItemDeletedEvent>,
+    IEventHandler<WorkItemAssignedEvent>,
+    IEventHandler<WorkItemCommentAddedEvent>,
+    IEventHandler<ProductCreatedEvent>,
+    IEventHandler<ProductDeletedEvent>,
     IEventHandler<SprintStartedEvent>,
     IEventHandler<SprintCompletedEvent>,
     IEventHandler<TeamCreatedEvent>,
@@ -34,79 +34,79 @@ internal sealed class TracksRealtimeEventHandler :
     }
 
     /// <inheritdoc />
-    public async Task HandleAsync(CardCreatedEvent @event, CancellationToken cancellationToken)
+    public async Task HandleAsync(WorkItemCreatedEvent @event, CancellationToken cancellationToken)
     {
-        _logger.LogDebug("Broadcasting card created: {CardId} on board {BoardId}", @event.CardId, @event.BoardId);
-        await _realtimeService.BroadcastCardActionAsync(@event.BoardId, @event.CardId, "created",
-            toSwimlaneId: @event.SwimlaneId, cancellationToken: cancellationToken);
-    }
-
-    /// <inheritdoc />
-    public async Task HandleAsync(CardUpdatedEvent @event, CancellationToken cancellationToken)
-    {
-        _logger.LogDebug("Broadcasting card updated: {CardId} on board {BoardId}", @event.CardId, @event.BoardId);
-        await _realtimeService.BroadcastCardActionAsync(@event.BoardId, @event.CardId, "updated",
+        _logger.LogDebug("Broadcasting work item created: {WorkItemId} in product {ProductId}", @event.WorkItemId, @event.ProductId);
+        await _realtimeService.BroadcastWorkItemActionAsync(@event.ProductId, @event.WorkItemId, "created",
             cancellationToken: cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task HandleAsync(CardMovedEvent @event, CancellationToken cancellationToken)
+    public async Task HandleAsync(WorkItemUpdatedEvent @event, CancellationToken cancellationToken)
     {
-        _logger.LogDebug("Broadcasting card moved: {CardId} from {FromSwimlane} to {ToSwimlane}", @event.CardId, @event.FromSwimlaneId, @event.ToSwimlaneId);
-        await _realtimeService.BroadcastCardActionAsync(@event.BoardId, @event.CardId, "moved",
+        _logger.LogDebug("Broadcasting work item updated: {WorkItemId} type {Type}", @event.WorkItemId, @event.Type);
+        await _realtimeService.BroadcastWorkItemActionAsync(Guid.Empty, @event.WorkItemId, "updated",
+            cancellationToken: cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task HandleAsync(WorkItemMovedEvent @event, CancellationToken cancellationToken)
+    {
+        _logger.LogDebug("Broadcasting work item moved: {WorkItemId} from {FromSwimlane} to {ToSwimlane}", @event.WorkItemId, @event.FromSwimlaneId, @event.ToSwimlaneId);
+        await _realtimeService.BroadcastWorkItemActionAsync(Guid.Empty, @event.WorkItemId, "moved",
             fromSwimlaneId: @event.FromSwimlaneId, toSwimlaneId: @event.ToSwimlaneId, cancellationToken: cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task HandleAsync(CardDeletedEvent @event, CancellationToken cancellationToken)
+    public async Task HandleAsync(WorkItemDeletedEvent @event, CancellationToken cancellationToken)
     {
-        _logger.LogDebug("Broadcasting card deleted: {CardId} on board {BoardId}", @event.CardId, @event.BoardId);
-        await _realtimeService.BroadcastCardActionAsync(@event.BoardId, @event.CardId, "deleted",
+        _logger.LogDebug("Broadcasting work item deleted: {WorkItemId} type {Type}", @event.WorkItemId, @event.Type);
+        await _realtimeService.BroadcastWorkItemActionAsync(Guid.Empty, @event.WorkItemId, "deleted",
             cancellationToken: cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task HandleAsync(CardAssignedEvent @event, CancellationToken cancellationToken)
+    public async Task HandleAsync(WorkItemAssignedEvent @event, CancellationToken cancellationToken)
     {
-        _logger.LogDebug("Broadcasting card assigned: {CardId} to user {UserId}", @event.CardId, @event.AssignedUserId);
-        await _realtimeService.BroadcastCardActionAsync(@event.BoardId, @event.CardId, "assigned",
-            targetUserId: @event.AssignedUserId, cancellationToken: cancellationToken);
+        _logger.LogDebug("Broadcasting work item assigned: {WorkItemId} to user {UserId}", @event.WorkItemId, @event.UserId);
+        await _realtimeService.BroadcastWorkItemActionAsync(Guid.Empty, @event.WorkItemId, "assigned",
+            targetUserId: @event.UserId, cancellationToken: cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task HandleAsync(CardCommentAddedEvent @event, CancellationToken cancellationToken)
+    public async Task HandleAsync(WorkItemCommentAddedEvent @event, CancellationToken cancellationToken)
     {
-        _logger.LogDebug("Broadcasting comment added: {CommentId} on card {CardId}", @event.CommentId, @event.CardId);
-        await _realtimeService.BroadcastCommentActionAsync(@event.BoardId, @event.CardId, @event.CommentId, "added",
+        _logger.LogDebug("Broadcasting comment added: {CommentId} on work item {WorkItemId}", @event.CommentId, @event.WorkItemId);
+        await _realtimeService.BroadcastCommentActionAsync(Guid.Empty, @event.WorkItemId, @event.CommentId, "added",
             cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task HandleAsync(BoardCreatedEvent @event, CancellationToken cancellationToken)
+    public async Task HandleAsync(ProductCreatedEvent @event, CancellationToken cancellationToken)
     {
-        _logger.LogDebug("Board created: {BoardId} '{Title}'", @event.BoardId, @event.Title);
+        _logger.LogDebug("Product created: {ProductId}", @event.ProductId);
         await Task.CompletedTask;
     }
 
     /// <inheritdoc />
-    public async Task HandleAsync(BoardDeletedEvent @event, CancellationToken cancellationToken)
+    public async Task HandleAsync(ProductDeletedEvent @event, CancellationToken cancellationToken)
     {
-        _logger.LogDebug("Board deleted: {BoardId}", @event.BoardId);
+        _logger.LogDebug("Product deleted: {ProductId}", @event.ProductId);
         await Task.CompletedTask;
     }
 
     /// <inheritdoc />
     public async Task HandleAsync(SprintStartedEvent @event, CancellationToken cancellationToken)
     {
-        _logger.LogDebug("Broadcasting sprint started: {SprintId} on board {BoardId}", @event.SprintId, @event.BoardId);
-        await _realtimeService.BroadcastSprintActionAsync(@event.BoardId, @event.SprintId, "started", cancellationToken);
+        _logger.LogDebug("Broadcasting sprint started: {SprintId} for epic {EpicId}", @event.SprintId, @event.EpicId);
+        await _realtimeService.BroadcastSprintActionAsync(@event.EpicId, @event.SprintId, "started", cancellationToken);
     }
 
     /// <inheritdoc />
     public async Task HandleAsync(SprintCompletedEvent @event, CancellationToken cancellationToken)
     {
-        _logger.LogDebug("Broadcasting sprint completed: {SprintId} on board {BoardId}", @event.SprintId, @event.BoardId);
-        await _realtimeService.BroadcastSprintActionAsync(@event.BoardId, @event.SprintId, "completed", cancellationToken);
+        _logger.LogDebug("Broadcasting sprint completed: {SprintId} for epic {EpicId}", @event.SprintId, @event.EpicId);
+        await _realtimeService.BroadcastSprintActionAsync(@event.EpicId, @event.SprintId, "completed", cancellationToken);
     }
 
     /// <inheritdoc />

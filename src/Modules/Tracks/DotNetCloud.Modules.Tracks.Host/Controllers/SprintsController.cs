@@ -6,9 +6,9 @@ using Microsoft.AspNetCore.Mvc;
 namespace DotNetCloud.Modules.Tracks.Host.Controllers;
 
 /// <summary>
-/// REST API controller for sprint management.
+/// REST API controller for sprint management, sprint items, backlog, and sprint planning.
 /// </summary>
-[Route("api/v1/boards/{boardId:guid}/sprints")]
+[ApiController]
 public class SprintsController : TracksControllerBase
 {
     private readonly SprintService _sprintService;
@@ -25,279 +25,235 @@ public class SprintsController : TracksControllerBase
         _logger = logger;
     }
 
-    /// <summary>Lists sprints for a board.</summary>
-    [HttpGet]
-    public async Task<IActionResult> ListSprintsAsync(Guid boardId)
+    // ─── Sprint CRUD ────────────────────────────────────────────────────────
+
+    /// <summary>Lists all sprints for an epic.</summary>
+    [HttpGet("api/v1/workitems/{epicId:guid}/sprints")]
+    public async Task<IActionResult> GetSprintsAsync(Guid epicId, CancellationToken ct)
     {
         var caller = GetAuthenticatedCaller();
         try
         {
-            var sprints = await _sprintService.GetSprintsAsync(boardId, caller);
+            var sprints = await _sprintService.GetSprintsByEpicAsync(epicId, ct);
             return Ok(Envelope(sprints));
+        }
+        catch (NotFoundException ex)
+        {
+            return NotFound(ErrorEnvelope(ErrorCodes.NotFound, ex.Message));
+        }
+    }
+
+    /// <summary>Creates a new sprint under an epic.</summary>
+    [HttpPost("api/v1/workitems/{epicId:guid}/sprints")]
+    public async Task<IActionResult> CreateSprintAsync(Guid epicId, [FromBody] CreateSprintDto dto, CancellationToken ct)
+    {
+        var caller = GetAuthenticatedCaller();
+        try
+        {
+            var sprint = await _sprintService.CreateSprintAsync(epicId, dto, ct);
+            return Created($"/api/v1/sprints/{sprint.Id}", Envelope(sprint));
         }
         catch (ValidationException ex)
         {
-            return NotFound(ErrorEnvelope(ErrorCodes.BoardNotFound, ex.Message));
+            return ex.Errors.ContainsKey("EpicId")
+                ? NotFound(ErrorEnvelope(ErrorCodes.NotFound, ex.Message))
+                : BadRequest(ErrorEnvelope(ErrorCodes.ValidationError, ex.Message));
         }
     }
 
     /// <summary>Gets a sprint by ID.</summary>
-    [HttpGet("{sprintId:guid}")]
-    public async Task<IActionResult> GetSprintAsync(Guid boardId, Guid sprintId)
+    [HttpGet("api/v1/sprints/{sprintId:guid}")]
+    public async Task<IActionResult> GetSprintAsync(Guid sprintId, CancellationToken ct)
     {
         var caller = GetAuthenticatedCaller();
-        var sprint = await _sprintService.GetSprintAsync(sprintId, caller);
+        var sprint = await _sprintService.GetSprintAsync(sprintId, ct);
         return sprint is null
             ? NotFound(ErrorEnvelope(ErrorCodes.SprintNotFound, "Sprint not found."))
             : Ok(Envelope(sprint));
     }
 
-    /// <summary>Creates a new sprint.</summary>
-    [HttpPost]
-    public async Task<IActionResult> CreateSprintAsync(Guid boardId, [FromBody] CreateSprintDto dto)
-    {
-        var caller = GetAuthenticatedCaller();
-        try
-        {
-            var sprint = await _sprintService.CreateSprintAsync(boardId, dto, caller);
-            return Created($"/api/v1/boards/{boardId}/sprints/{sprint.Id}", Envelope(sprint));
-        }
-        catch (ValidationException ex)
-        {
-            return IsBoardNotFound(ex)
-                ? NotFound(ErrorEnvelope(ErrorCodes.BoardNotFound, ex.Message))
-                : BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
-        }
-    }
-
     /// <summary>Updates a sprint.</summary>
-    [HttpPut("{sprintId:guid}")]
-    public async Task<IActionResult> UpdateSprintAsync(Guid boardId, Guid sprintId, [FromBody] UpdateSprintDto dto)
+    [HttpPut("api/v1/sprints/{sprintId:guid}")]
+    public async Task<IActionResult> UpdateSprintAsync(Guid sprintId, [FromBody] UpdateSprintDto dto, CancellationToken ct)
     {
         var caller = GetAuthenticatedCaller();
         try
         {
-            var sprint = await _sprintService.UpdateSprintAsync(sprintId, dto, caller);
+            var sprint = await _sprintService.UpdateSprintAsync(sprintId, dto, ct);
             return Ok(Envelope(sprint));
         }
-        catch (ValidationException ex)
+        catch (NotFoundException ex)
         {
-            return ex.Errors.ContainsKey(ErrorCodes.SprintNotFound)
-                ? NotFound(ErrorEnvelope(ErrorCodes.SprintNotFound, ex.Message))
-                : BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
+            return NotFound(ErrorEnvelope(ErrorCodes.SprintNotFound, ex.Message));
+        }
+        catch (System.InvalidOperationException ex)
+        {
+            return BadRequest(ErrorEnvelope(ErrorCodes.InvalidOperation, ex.Message));
         }
     }
 
     /// <summary>Deletes a sprint.</summary>
-    [HttpDelete("{sprintId:guid}")]
-    public async Task<IActionResult> DeleteSprintAsync(Guid boardId, Guid sprintId)
+    [HttpDelete("api/v1/sprints/{sprintId:guid}")]
+    public async Task<IActionResult> DeleteSprintAsync(Guid sprintId, CancellationToken ct)
     {
         var caller = GetAuthenticatedCaller();
         try
         {
-            await _sprintService.DeleteSprintAsync(sprintId, caller);
+            await _sprintService.DeleteSprintAsync(sprintId, ct);
             return Ok(Envelope(new { deleted = true }));
         }
-        catch (ValidationException ex)
+        catch (NotFoundException ex)
         {
             return NotFound(ErrorEnvelope(ErrorCodes.SprintNotFound, ex.Message));
         }
     }
 
-    /// <summary>Starts a sprint.</summary>
-    [HttpPost("{sprintId:guid}/start")]
-    public async Task<IActionResult> StartSprintAsync(Guid boardId, Guid sprintId)
+    /// <summary>Starts a sprint (Planning to Active).</summary>
+    [HttpPost("api/v1/sprints/{sprintId:guid}/start")]
+    public async Task<IActionResult> StartSprintAsync(Guid sprintId, CancellationToken ct)
     {
         var caller = GetAuthenticatedCaller();
         try
         {
-            var sprint = await _sprintService.StartSprintAsync(sprintId, caller);
+            var sprint = await _sprintService.StartSprintAsync(sprintId, ct);
             return Ok(Envelope(sprint));
         }
-        catch (ValidationException ex)
+        catch (NotFoundException ex)
         {
-            if (ex.Errors.ContainsKey(ErrorCodes.SprintNotFound))
-                return NotFound(ErrorEnvelope(ErrorCodes.SprintNotFound, ex.Message));
-            if (ex.Errors.ContainsKey(ErrorCodes.ActiveSprintExists))
-                return Conflict(ErrorEnvelope(ErrorCodes.ActiveSprintExists, ex.Message));
-            return BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
+            return NotFound(ErrorEnvelope(ErrorCodes.SprintNotFound, ex.Message));
+        }
+        catch (System.InvalidOperationException ex)
+        {
+            return BadRequest(ErrorEnvelope(ErrorCodes.InvalidSprintTransition, ex.Message));
         }
     }
 
-    /// <summary>Completes a sprint.</summary>
-    [HttpPost("{sprintId:guid}/complete")]
-    public async Task<IActionResult> CompleteSprintAsync(Guid boardId, Guid sprintId)
+    /// <summary>Completes a sprint (Active to Completed).</summary>
+    [HttpPost("api/v1/sprints/{sprintId:guid}/complete")]
+    public async Task<IActionResult> CompleteSprintAsync(Guid sprintId, CancellationToken ct)
     {
         var caller = GetAuthenticatedCaller();
         try
         {
-            var sprint = await _sprintService.CompleteSprintAsync(sprintId, caller);
+            var sprint = await _sprintService.CompleteSprintAsync(sprintId, ct);
             return Ok(Envelope(sprint));
         }
-        catch (ValidationException ex)
+        catch (NotFoundException ex)
         {
-            if (ex.Errors.ContainsKey(ErrorCodes.SprintNotFound))
-                return NotFound(ErrorEnvelope(ErrorCodes.SprintNotFound, ex.Message));
-            if (ex.Errors.ContainsKey(ErrorCodes.InvalidSprintTransition))
-                return BadRequest(ErrorEnvelope(ErrorCodes.InvalidSprintTransition, ex.Message));
-            return BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
+            return NotFound(ErrorEnvelope(ErrorCodes.SprintNotFound, ex.Message));
+        }
+        catch (System.InvalidOperationException ex)
+        {
+            return BadRequest(ErrorEnvelope(ErrorCodes.InvalidSprintTransition, ex.Message));
         }
     }
 
-    // ─── Sprint Cards ─────────────────────────────────────────────────────
+    // ─── Sprint Items ───────────────────────────────────────────────────────
 
-    /// <summary>Adds a card to a sprint.</summary>
-    [HttpPost("{sprintId:guid}/cards/{cardId:guid}")]
-    public async Task<IActionResult> AddCardToSprintAsync(Guid boardId, Guid sprintId, Guid cardId)
+    /// <summary>Adds a work item to a sprint.</summary>
+    [HttpPost("api/v1/sprints/{sprintId:guid}/items/{itemId:guid}")]
+    public async Task<IActionResult> AddItemToSprintAsync(Guid sprintId, Guid itemId, CancellationToken ct)
     {
         var caller = GetAuthenticatedCaller();
         try
         {
-            await _sprintService.AddCardToSprintAsync(sprintId, cardId, caller);
+            await _sprintService.AddItemToSprintAsync(sprintId, itemId, ct);
             return Ok(Envelope(new { added = true }));
         }
+        catch (NotFoundException ex)
+        {
+            return NotFound(ErrorEnvelope(ErrorCodes.SprintNotFound, ex.Message));
+        }
         catch (ValidationException ex)
         {
-            if (ex.Errors.ContainsKey(ErrorCodes.SprintNotFound) || ex.Errors.ContainsKey(ErrorCodes.CardNotFound))
-                return NotFound(ErrorEnvelope(ErrorCodes.SprintNotFound, ex.Message));
-            return BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
+            return ex.Errors.ContainsKey("ItemId")
+                ? BadRequest(ErrorEnvelope(ErrorCodes.ValidationError, ex.Message))
+                : BadRequest(ErrorEnvelope(ErrorCodes.ValidationError, ex.Message));
         }
     }
 
-    /// <summary>Removes a card from a sprint.</summary>
-    [HttpDelete("{sprintId:guid}/cards/{cardId:guid}")]
-    public async Task<IActionResult> RemoveCardFromSprintAsync(Guid boardId, Guid sprintId, Guid cardId)
+    /// <summary>Removes a work item from a sprint.</summary>
+    [HttpDelete("api/v1/sprints/{sprintId:guid}/items/{itemId:guid}")]
+    public async Task<IActionResult> RemoveItemFromSprintAsync(Guid sprintId, Guid itemId, CancellationToken ct)
     {
         var caller = GetAuthenticatedCaller();
         try
         {
-            await _sprintService.RemoveCardFromSprintAsync(sprintId, cardId, caller);
+            await _sprintService.RemoveItemFromSprintAsync(sprintId, itemId, ct);
             return Ok(Envelope(new { removed = true }));
         }
-        catch (ValidationException ex)
+        catch (NotFoundException ex)
         {
             return NotFound(ErrorEnvelope(ErrorCodes.SprintNotFound, ex.Message));
         }
     }
 
-    /// <summary>Lists all cards in a sprint.</summary>
-    [HttpGet("{sprintId:guid}/cards")]
-    public async Task<IActionResult> GetSprintCardsAsync(Guid boardId, Guid sprintId)
+    // ─── Backlog ────────────────────────────────────────────────────────────
+
+    /// <summary>Gets unassigned backlog items for an epic.</summary>
+    [HttpGet("api/v1/workitems/{epicId:guid}/backlog")]
+    public async Task<IActionResult> GetBacklogItemsAsync(Guid epicId, CancellationToken ct)
+    {
+        var caller = GetAuthenticatedCaller();
+        var items = await _sprintService.GetBacklogItemsAsync(epicId, ct);
+        return Ok(Envelope(items));
+    }
+
+    // ─── Sprint Plan ────────────────────────────────────────────────────────
+
+    /// <summary>Gets the sprint plan overview for an epic.</summary>
+    [HttpGet("api/v1/workitems/{epicId:guid}/sprint-plan")]
+    public async Task<IActionResult> GetSprintPlanAsync(Guid epicId, CancellationToken ct)
     {
         var caller = GetAuthenticatedCaller();
         try
         {
-            var cards = await _sprintService.GetSprintCardsAsync(sprintId, caller);
-            return Ok(Envelope(cards));
+            var plan = await _sprintPlanningService.GetSprintPlanAsync(epicId, ct);
+            return Ok(Envelope(plan));
+        }
+        catch (NotFoundException ex)
+        {
+            return NotFound(ErrorEnvelope(ErrorCodes.NotFound, ex.Message));
+        }
+    }
+
+    /// <summary>Creates a sequential sprint plan for an epic.</summary>
+    [HttpPost("api/v1/workitems/{epicId:guid}/sprint-plan")]
+    public async Task<IActionResult> CreateSprintPlanAsync(Guid epicId, [FromBody] CreateSprintPlanDto dto, CancellationToken ct)
+    {
+        var caller = GetAuthenticatedCaller();
+        try
+        {
+            var sprints = await _sprintPlanningService.CreateSprintPlanAsync(epicId, dto, ct);
+            return Created($"/api/v1/workitems/{epicId}/sprint-plan", Envelope(sprints));
         }
         catch (ValidationException ex)
+        {
+            return ex.Errors.ContainsKey("EpicId")
+                ? NotFound(ErrorEnvelope(ErrorCodes.NotFound, ex.Message))
+                : BadRequest(ErrorEnvelope(ErrorCodes.ValidationError, ex.Message));
+        }
+    }
+
+    /// <summary>Adjusts a sprint's duration/dates and cascades to subsequent sprints.</summary>
+    [HttpPut("api/v1/sprints/{sprintId:guid}/adjust")]
+    public async Task<IActionResult> AdjustSprintDatesAsync(Guid sprintId, [FromBody] AdjustSprintDto dto, CancellationToken ct)
+    {
+        var caller = GetAuthenticatedCaller();
+        try
+        {
+            var sprint = await _sprintPlanningService.AdjustSprintDatesAsync(sprintId, dto, ct);
+            return Ok(Envelope(sprint));
+        }
+        catch (NotFoundException ex)
         {
             return NotFound(ErrorEnvelope(ErrorCodes.SprintNotFound, ex.Message));
         }
-    }
-
-    /// <summary>Batch-adds multiple cards to a sprint.</summary>
-    [HttpPost("{sprintId:guid}/cards/batch")]
-    public async Task<IActionResult> BatchAddCardsAsync(Guid boardId, Guid sprintId, [FromBody] BatchAddSprintCardsDto dto)
-    {
-        var caller = GetAuthenticatedCaller();
-        try
-        {
-            await _sprintService.BatchAddCardsAsync(sprintId, dto.CardIds, caller);
-            return Ok(Envelope(new { added = dto.CardIds.Count }));
-        }
         catch (ValidationException ex)
         {
-            return NotFound(ErrorEnvelope(ErrorCodes.SprintNotFound, ex.Message));
-        }
-    }
-
-    // ─── Sprint Plan ──────────────────────────────────────────────────────
-
-    /// <summary>Creates a year plan of sequential sprints for a team board.</summary>
-    [HttpPost("~/api/v1/boards/{boardId:guid}/sprint-plan")]
-    public async Task<IActionResult> CreateSprintPlanAsync(Guid boardId, [FromBody] CreateSprintPlanDto dto)
-    {
-        var caller = GetAuthenticatedCaller();
-        try
-        {
-            var overview = await _sprintPlanningService.CreateYearPlanAsync(boardId, dto, caller);
-            return Created($"/api/v1/boards/{boardId}/sprint-plan", Envelope(overview));
-        }
-        catch (ValidationException ex)
-        {
-            if (IsBoardNotFound(ex))
-                return NotFound(ErrorEnvelope(ErrorCodes.BoardNotFound, ex.Message));
-            return BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
-        }
-    }
-
-    /// <summary>Gets the sprint plan overview for timeline display.</summary>
-    [HttpGet("~/api/v1/boards/{boardId:guid}/sprint-plan")]
-    public async Task<IActionResult> GetSprintPlanAsync(Guid boardId)
-    {
-        var caller = GetAuthenticatedCaller();
-        try
-        {
-            var overview = await _sprintPlanningService.GetPlanOverviewAsync(boardId, caller);
-            return Ok(Envelope(overview));
-        }
-        catch (ValidationException ex)
-        {
-            return IsBoardNotFound(ex)
-                ? NotFound(ErrorEnvelope(ErrorCodes.BoardNotFound, ex.Message))
-                : BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
-        }
-    }
-
-    /// <summary>Adjusts a sprint's duration and cascades date changes to subsequent sprints.</summary>
-    [HttpPut("~/api/v1/sprints/{sprintId:guid}/adjust")]
-    public async Task<IActionResult> AdjustSprintAsync(Guid sprintId, [FromBody] AdjustSprintDto dto)
-    {
-        var caller = GetAuthenticatedCaller();
-        try
-        {
-            var overview = await _sprintPlanningService.AdjustSprintAsync(sprintId, dto, caller);
-            return Ok(Envelope(overview));
-        }
-        catch (ValidationException ex)
-        {
-            if (ex.Errors.ContainsKey(ErrorCodes.SprintNotFound))
-                return NotFound(ErrorEnvelope(ErrorCodes.SprintNotFound, ex.Message));
-            return BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
-        }
-    }
-}
-
-/// <summary>
-/// Controller for board backlog operations.
-/// </summary>
-[Route("api/v1/boards/{boardId:guid}")]
-public class BoardBacklogController : TracksControllerBase
-{
-    private readonly SprintService _sprintService;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="BoardBacklogController"/> class.
-    /// </summary>
-    public BoardBacklogController(SprintService sprintService)
-    {
-        _sprintService = sprintService;
-    }
-
-    /// <summary>Gets unassigned backlog cards for the board.</summary>
-    [HttpGet("backlog")]
-    public async Task<IActionResult> GetBacklogAsync(Guid boardId)
-    {
-        var caller = GetAuthenticatedCaller();
-        try
-        {
-            var cards = await _sprintService.GetBacklogCardsAsync(boardId, caller);
-            return Ok(Envelope(cards));
-        }
-        catch (ValidationException ex)
-        {
-            return NotFound(ErrorEnvelope(ErrorCodes.BoardNotFound, ex.Message));
+            return ex.Errors.ContainsKey("DurationWeeks")
+                ? BadRequest(ErrorEnvelope(ErrorCodes.InvalidSprintDuration, ex.Message))
+                : BadRequest(ErrorEnvelope(ErrorCodes.ValidationError, ex.Message));
         }
     }
 }

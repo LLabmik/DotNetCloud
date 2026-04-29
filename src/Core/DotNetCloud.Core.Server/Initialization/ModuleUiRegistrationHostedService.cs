@@ -62,7 +62,7 @@ internal sealed class ModuleUiRegistrationHostedService : BackgroundService
             SortOrder: 60,
             RouteKey: "tracks.page",
             ComponentType: typeof(DotNetCloud.Modules.Tracks.UI.TracksPage),
-            AdditionalPages: [("tracks.card", typeof(DotNetCloud.Modules.Tracks.UI.CardFullscreenPage))]),
+            AdditionalPages: [("tracks.item", typeof(DotNetCloud.Modules.Tracks.UI.WorkItemFullscreenPage))]),
         new(
             ModuleId: "dotnetcloud.photos",
             Label: "Photos",

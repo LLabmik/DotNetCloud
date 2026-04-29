@@ -132,6 +132,30 @@ public class DbInitializer
 
         if (isRelational)
         {
+            // First, verify the database exists. MigrateAsync will try to CREATE DATABASE
+            // if it doesn't exist, which requires elevated permissions that the runtime user
+            // may not have. Check connectivity first to give a clear error message.
+            var dbExists = await _context.Database.CanConnectAsync(cancellationToken);
+
+            if (!dbExists)
+            {
+                // Try to create the database (requires CREATEDB on PostgreSQL,
+                // CREATE DATABASE on SQL Server, etc.)
+                try
+                {
+                    _logger.LogInformation("Database does not exist — attempting to create...");
+                    await _context.Database.EnsureCreatedAsync(cancellationToken);
+                    _logger.LogInformation("Database created successfully.");
+                }
+                catch (Exception ex)
+                {
+                    throw new InvalidOperationException(
+                        "The database does not exist and the configured user lacks permission to create it. "
+                        + "Create the database manually or run 'dotnetcloud setup' to configure it. "
+                        + $"Underlying error: {ex.Message}", ex);
+                }
+            }
+
             // Check if there are any pending migrations
             var pendingMigrations = await _context.Database.GetPendingMigrationsAsync(cancellationToken);
 

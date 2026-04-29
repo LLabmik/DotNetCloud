@@ -7,20 +7,25 @@ using Microsoft.AspNetCore.Components.Web;
 namespace DotNetCloud.Modules.Tracks.UI;
 
 /// <summary>
-/// Full kanban board with drag-and-drop cards between swimlanes.
+/// Full kanban board with drag-and-drop work items between swimlanes.
+/// Works at any hierarchy level (Product, Epic, Feature) by parameterizing the container.
 /// </summary>
 public partial class KanbanBoard : ComponentBase
 {
     [Inject] private ITracksApiClient ApiClient { get; set; } = default!;
     [Inject] private BrowserTimeProvider TimeProvider { get; set; } = default!;
 
-    [Parameter, EditorRequired] public BoardDto Board { get; set; } = default!;
-    [Parameter, EditorRequired] public List<BoardSwimlaneDto> Swimlanes { get; set; } = [];
-    [Parameter, EditorRequired] public Dictionary<Guid, List<CardDto>> CardsBySwimlane { get; set; } = new();
-    [Parameter] public EventCallback<Guid> OnCardSelected { get; set; }
-    [Parameter] public EventCallback<CardDto> OnCardMoved { get; set; }
-    [Parameter] public EventCallback<CardDto> OnCardCreated { get; set; }
-    [Parameter] public EventCallback<BoardSwimlaneDto> OnSwimlaneCreated { get; set; }
+    [Parameter, EditorRequired] public ProductDto Product { get; set; } = default!;
+    [Parameter, EditorRequired] public SwimlaneContainerType ContainerType { get; set; }
+    [Parameter, EditorRequired] public Guid ContainerId { get; set; }
+    [Parameter, EditorRequired] public List<SwimlaneDto> Swimlanes { get; set; } = [];
+    [Parameter, EditorRequired] public Dictionary<Guid, List<WorkItemDto>> WorkItemsBySwimlane { get; set; } = new();
+    [Parameter] public List<LabelDto>? Labels { get; set; }
+    [Parameter] public WorkItemType CreateWorkItemType { get; set; } = WorkItemType.Epic;
+    [Parameter] public EventCallback<Guid> OnWorkItemSelected { get; set; }
+    [Parameter] public EventCallback<WorkItemDto> OnWorkItemMoved { get; set; }
+    [Parameter] public EventCallback<WorkItemDto> OnWorkItemCreated { get; set; }
+    [Parameter] public EventCallback<SwimlaneDto> OnSwimlaneCreated { get; set; }
     [Parameter] public EventCallback<Guid> OnSwimlaneDeleted { get; set; }
     [Parameter] public EventCallback OnRefreshRequested { get; set; }
     [Parameter] public List<SprintDto>? Sprints { get; set; }
@@ -31,17 +36,17 @@ public partial class KanbanBoard : ComponentBase
     private string _labelFilter = "";
     private string _sprintFilter = "";
 
-    // Card add
-    private Guid? _addingCardToSwimlane;
-    private string _newCardTitle = "";
+    // Work item add
+    private Guid? _addingItemToSwimlane;
+    private string _newItemTitle = "";
 
     // Swimlane add
     private bool _showAddSwimlane;
     private string _newSwimlaneTitle = "";
 
     // Drag state
-    private CardDto? _draggedCard;
-    private Guid? _dropTargetCardId;
+    private WorkItemDto? _draggedItem;
+    private Guid? _dropTargetItemId;
 
     /// <inheritdoc />
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -53,11 +58,11 @@ public partial class KanbanBoard : ComponentBase
         }
     }
 
-    private IReadOnlyList<CardDto> GetFilteredCards(Guid swimlaneId)
+    private IReadOnlyList<WorkItemDto> GetFilteredWorkItems(Guid swimlaneId)
     {
-        if (!CardsBySwimlane.TryGetValue(swimlaneId, out var cards)) return [];
+        if (!WorkItemsBySwimlane.TryGetValue(swimlaneId, out var items)) return [];
 
-        IEnumerable<CardDto> filtered = cards.Where(c => !c.IsArchived && !c.IsDeleted);
+        IEnumerable<WorkItemDto> filtered = items.Where(c => !c.IsArchived);
 
         if (!string.IsNullOrWhiteSpace(_filterText))
         {
@@ -66,7 +71,7 @@ public partial class KanbanBoard : ComponentBase
         }
 
         if (!string.IsNullOrEmpty(_priorityFilter) &&
-            Enum.TryParse<CardPriority>(_priorityFilter, out var priority))
+            Enum.TryParse<Priority>(_priorityFilter, out var priority))
         {
             filtered = filtered.Where(c => c.Priority == priority);
         }
@@ -93,93 +98,81 @@ public partial class KanbanBoard : ComponentBase
 
     // ── Drag & Drop ─────────────────────────────────────────
 
-    private void HandleDragStart(CardDto card) => _draggedCard = card;
+    private void HandleDragStart(WorkItemDto item) => _draggedItem = item;
 
-    private void HandleDragEnterCard(Guid cardId)
+    private void HandleDragEnterItem(Guid itemId)
     {
-        if (_draggedCard is not null && _draggedCard.Id != cardId)
-            _dropTargetCardId = cardId;
+        if (_draggedItem is not null && _draggedItem.Id != itemId)
+            _dropTargetItemId = itemId;
     }
 
     private void HandleDragOver() { /* Allow drop */ }
 
     private async Task HandleDropOnSwimlane(Guid targetSwimlaneId)
     {
-        if (_draggedCard is null) return;
+        if (_draggedItem is null) return;
 
-        var card = _draggedCard;
-        var dropTarget = _dropTargetCardId;
-        _draggedCard = null;
-        _dropTargetCardId = null;
+        var item = _draggedItem;
+        var dropTarget = _dropTargetItemId;
+        _draggedItem = null;
+        _dropTargetItemId = null;
 
-        // Same swimlane with no specific drop target — nothing to do
-        if (card.SwimlaneId == targetSwimlaneId && dropTarget is null) return;
-
-        // Same card dropped on itself
-        if (dropTarget == card.Id) return;
+        if (item.SwimlaneId == targetSwimlaneId && dropTarget is null) return;
+        if (dropTarget == item.Id) return;
 
         try
         {
-            var targetCards = CardsBySwimlane.TryGetValue(targetSwimlaneId, out var tc) ? tc : [];
-            int position;
+            var targetItems = WorkItemsBySwimlane.TryGetValue(targetSwimlaneId, out var ti) ? ti : [];
+            double position;
 
             if (dropTarget is not null)
             {
-                var targetCard = targetCards.FirstOrDefault(c => c.Id == dropTarget.Value);
-                if (targetCard is not null)
+                var targetItem = targetItems.FirstOrDefault(c => c.Id == dropTarget.Value);
+                if (targetItem is not null)
                 {
-                    var idx = targetCards.IndexOf(targetCard);
-                    var sourceIdx = targetCards.FindIndex(c => c.Id == card.Id);
+                    var idx = targetItems.IndexOf(targetItem);
+                    var sourceIdx = targetItems.FindIndex(c => c.Id == item.Id);
                     var draggingDown = sourceIdx >= 0 && sourceIdx < idx;
 
                     if (draggingDown)
                     {
-                        // Dragging down → insert AFTER the target card
-                        if (idx >= targetCards.Count - 1)
-                        {
-                            position = targetCard.Position + 1000;
-                        }
+                        if (idx >= targetItems.Count - 1)
+                            position = targetItem.Position + 1000;
                         else
-                        {
-                            var nextCard = targetCards[idx + 1];
-                            position = (targetCard.Position + nextCard.Position) / 2;
-                        }
+                            position = (targetItem.Position + targetItems[idx + 1].Position) / 2;
                     }
                     else
                     {
-                        // Dragging up or cross-swimlane → insert BEFORE the target card
                         if (idx == 0)
                         {
-                            position = targetCard.Position - 500;
+                            position = targetItem.Position - 500;
                         }
                         else
                         {
-                            var prevCard = targetCards[idx - 1];
-                            // Skip self if it's the card right above
-                            if (prevCard.Id == card.Id && idx >= 2)
-                                prevCard = targetCards[idx - 2];
-                            else if (prevCard.Id == card.Id)
+                            var prevItem = targetItems[idx - 1];
+                            if (prevItem.Id == item.Id && idx >= 2)
+                                prevItem = targetItems[idx - 2];
+                            else if (prevItem.Id == item.Id)
                             {
-                                position = targetCard.Position - 500;
+                                position = targetItem.Position - 500;
                                 goto doMove;
                             }
-                            position = (prevCard.Position + targetCard.Position) / 2;
+                            position = (prevItem.Position + targetItem.Position) / 2;
                         }
                     }
                 }
                 else
                 {
-                    position = targetCards.Count > 0 ? targetCards.Max(c => c.Position) + 1000 : 1000;
+                    position = targetItems.Count > 0 ? targetItems.Max(c => c.Position) + 1000 : 1000;
                 }
             }
             else
             {
-                // No specific target — append to end
-                position = targetCards.Count > 0 ? targetCards.Max(c => c.Position) + 1000 : 1000;
+                position = targetItems.Count > 0 ? targetItems.Max(c => c.Position) + 1000 : 1000;
             }
 
             doMove:
-            var moved = await ApiClient.MoveCardAsync(card.Id, new MoveCardDto
+            var moved = await ApiClient.MoveWorkItemAsync(item.Id, new MoveWorkItemDto
             {
                 TargetSwimlaneId = targetSwimlaneId,
                 Position = position
@@ -187,7 +180,7 @@ public partial class KanbanBoard : ComponentBase
 
             if (moved is not null)
             {
-                await OnCardMoved.InvokeAsync(moved);
+                await OnWorkItemMoved.InvokeAsync(moved);
             }
         }
         catch
@@ -196,47 +189,51 @@ public partial class KanbanBoard : ComponentBase
         }
     }
 
-    // ── Add Card ────────────────────────────────────────────
+    // ── Add Work Item ─────────────────────────────────────────
 
-    private void BeginAddCard(Guid swimlaneId)
+    private void BeginAddItem(Guid swimlaneId)
     {
-        _addingCardToSwimlane = swimlaneId;
-        _newCardTitle = "";
+        _addingItemToSwimlane = swimlaneId;
+        _newItemTitle = "";
     }
 
-    private void CancelAddCard()
+    private void CancelAddItem()
     {
-        _addingCardToSwimlane = null;
-        _newCardTitle = "";
+        _addingItemToSwimlane = null;
+        _newItemTitle = "";
     }
 
-    private async Task HandleAddCardKeyDown(KeyboardEventArgs e)
+    private async Task HandleAddItemKeyDown(KeyboardEventArgs e)
     {
-        if (e.Key == "Enter") await SubmitNewCardAsync();
-        else if (e.Key == "Escape") CancelAddCard();
+        if (e.Key == "Enter") await SubmitNewItemAsync();
+        else if (e.Key == "Escape") CancelAddItem();
     }
 
-    private async Task SubmitNewCardAsync()
+    private async Task SubmitNewItemAsync()
     {
-        if (_addingCardToSwimlane is null || string.IsNullOrWhiteSpace(_newCardTitle)) return;
+        if (_addingItemToSwimlane is null || string.IsNullOrWhiteSpace(_newItemTitle)) return;
 
         try
         {
-            var card = await ApiClient.CreateCardAsync(_addingCardToSwimlane.Value, new CreateCardDto
+            var dto = new CreateWorkItemDto { Title = _newItemTitle.Trim() };
+            WorkItemDto? item = CreateWorkItemType switch
             {
-                Title = _newCardTitle.Trim()
-            });
+                WorkItemType.Epic => await ApiClient.CreateEpicAsync(_addingItemToSwimlane.Value, dto),
+                WorkItemType.Feature => await ApiClient.CreateFeatureAsync(_addingItemToSwimlane.Value, dto),
+                WorkItemType.Item => await ApiClient.CreateItemAsync(_addingItemToSwimlane.Value, dto),
+                _ => null
+            };
 
-            if (card is not null)
+            if (item is not null)
             {
-                await OnCardCreated.InvokeAsync(card);
+                await OnWorkItemCreated.InvokeAsync(item);
             }
 
-            _newCardTitle = "";
+            _newItemTitle = "";
         }
         catch
         {
-            // Card creation failed
+            // Work item creation failed
         }
     }
 
@@ -254,10 +251,13 @@ public partial class KanbanBoard : ComponentBase
 
         try
         {
-            var swimlane = await ApiClient.CreateSwimlaneAsync(Board.Id, new CreateBoardSwimlaneDto
+            var dto = new CreateSwimlaneDto { Title = _newSwimlaneTitle.Trim() };
+            SwimlaneDto? swimlane = ContainerType switch
             {
-                Title = _newSwimlaneTitle.Trim()
-            });
+                SwimlaneContainerType.Product => await ApiClient.CreateProductSwimlaneAsync(ContainerId, dto),
+                SwimlaneContainerType.WorkItem => await ApiClient.CreateWorkItemSwimlaneAsync(ContainerId, dto),
+                _ => null
+            };
 
             if (swimlane is not null)
             {
@@ -277,7 +277,7 @@ public partial class KanbanBoard : ComponentBase
     {
         try
         {
-            await ApiClient.DeleteSwimlaneAsync(Board.Id, swimlaneId);
+            await ApiClient.DeleteSwimlaneAsync(swimlaneId);
             await OnSwimlaneDeleted.InvokeAsync(swimlaneId);
         }
         catch
@@ -288,21 +288,21 @@ public partial class KanbanBoard : ComponentBase
 
     // ── Helpers ─────────────────────────────────────────────
 
-    private static string GetPriorityClass(CardPriority priority) => priority switch
+    private static string GetPriorityClass(Priority priority) => priority switch
     {
-        CardPriority.Urgent => "priority-urgent",
-        CardPriority.High => "priority-high",
-        CardPriority.Medium => "priority-medium",
-        CardPriority.Low => "priority-low",
+        Priority.Urgent => "priority-urgent",
+        Priority.High => "priority-high",
+        Priority.Medium => "priority-medium",
+        Priority.Low => "priority-low",
         _ => ""
     };
 
-    private static string GetPriorityIcon(CardPriority priority) => priority switch
+    private static string GetPriorityIcon(Priority priority) => priority switch
     {
-        CardPriority.Urgent => "🔴",
-        CardPriority.High => "🟠",
-        CardPriority.Medium => "🟡",
-        CardPriority.Low => "🟢",
+        Priority.Urgent => "🔴",
+        Priority.High => "🟠",
+        Priority.Medium => "🟡",
+        Priority.Low => "🟢",
         _ => ""
     };
 
@@ -330,7 +330,6 @@ public partial class KanbanBoard : ComponentBase
         var g = int.Parse(hex[2..4], System.Globalization.NumberStyles.HexNumber) / 255.0;
         var b = int.Parse(hex[4..6], System.Globalization.NumberStyles.HexNumber) / 255.0;
 
-        // sRGB to linear
         r = r <= 0.03928 ? r / 12.92 : Math.Pow((r + 0.055) / 1.055, 2.4);
         g = g <= 0.03928 ? g / 12.92 : Math.Pow((g + 0.055) / 1.055, 2.4);
         b = b <= 0.03928 ? b / 12.92 : Math.Pow((b + 0.055) / 1.055, 2.4);
@@ -340,15 +339,15 @@ public partial class KanbanBoard : ComponentBase
     }
 
     /// <summary>
-    /// Builds the inline style for the card header using the board's color.
+    /// Builds the inline style for the card header using the product's color.
     /// </summary>
     private string GetCardHeaderStyle()
     {
-        if (string.IsNullOrEmpty(Board.Color))
+        if (string.IsNullOrEmpty(Product.Color))
             return "background: var(--color-primary); color: #fff;";
 
-        var textColor = GetContrastTextColor(Board.Color);
-        return $"background: {Board.Color}; color: {textColor};";
+        var textColor = GetContrastTextColor(Product.Color);
+        return $"background: {Product.Color}; color: {textColor};";
     }
 
     private static string GetInitials(string? name)

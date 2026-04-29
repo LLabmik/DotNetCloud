@@ -6,9 +6,9 @@ using Microsoft.AspNetCore.Mvc;
 namespace DotNetCloud.Modules.Tracks.Host.Controllers;
 
 /// <summary>
-/// REST API controller for card dependencies.
+/// REST API controller for work item dependency relationships.
 /// </summary>
-[Route("api/v1/cards/{cardId:guid}/dependencies")]
+[ApiController]
 public class DependenciesController : TracksControllerBase
 {
     private readonly DependencyService _dependencyService;
@@ -23,66 +23,49 @@ public class DependenciesController : TracksControllerBase
         _logger = logger;
     }
 
-    /// <summary>Lists dependencies for a card.</summary>
-    [HttpGet]
-    public async Task<IActionResult> ListDependenciesAsync(Guid cardId)
+    /// <summary>Lists all dependencies for a work item (items this work item depends on).</summary>
+    [HttpGet("api/v1/workitems/{workItemId:guid}/dependencies")]
+    public async Task<IActionResult> GetDependenciesAsync(Guid workItemId, CancellationToken ct)
+    {
+        var caller = GetAuthenticatedCaller();
+        var dependencies = await _dependencyService.GetDependenciesByWorkItemAsync(workItemId, ct);
+        return Ok(Envelope(dependencies));
+    }
+
+    /// <summary>Lists all dependents for a work item (items that depend on this work item).</summary>
+    [HttpGet("api/v1/workitems/{workItemId:guid}/dependents")]
+    public async Task<IActionResult> GetDependentsAsync(Guid workItemId, CancellationToken ct)
+    {
+        var caller = GetAuthenticatedCaller();
+        var dependents = await _dependencyService.GetDependentsByWorkItemAsync(workItemId, ct);
+        return Ok(Envelope(dependents));
+    }
+
+    /// <summary>Adds a dependency on another work item.</summary>
+    [HttpPost("api/v1/workitems/{workItemId:guid}/dependencies")]
+    public async Task<IActionResult> AddDependencyAsync(Guid workItemId, [FromBody] AddWorkItemDependencyDto dto, CancellationToken ct)
     {
         var caller = GetAuthenticatedCaller();
         try
         {
-            var dependencies = await _dependencyService.GetDependenciesAsync(cardId, caller);
-            return Ok(Envelope(dependencies));
+            var dependency = await _dependencyService.AddDependencyAsync(workItemId, dto, ct);
+            return Created($"/api/v1/workitems/{workItemId}/dependencies", Envelope(dependency));
         }
-        catch (ValidationException ex)
+        catch (System.InvalidOperationException ex)
         {
-            return NotFound(ErrorEnvelope(ErrorCodes.CardNotFound, ex.Message));
+            return ex.Message.Contains("cannot depend on itself", StringComparison.OrdinalIgnoreCase)
+                || ex.Message.Contains("circular chain", StringComparison.OrdinalIgnoreCase)
+                ? Conflict(ErrorEnvelope(ErrorCodes.DependencyCycleDetected, ex.Message))
+                : BadRequest(ErrorEnvelope(ErrorCodes.InvalidOperation, ex.Message));
         }
     }
 
-    /// <summary>Adds a dependency on another card.</summary>
-    [HttpPost]
-    public async Task<IActionResult> AddDependencyAsync(Guid cardId, [FromBody] AddDependencyRequest request)
+    /// <summary>Removes a dependency by its ID.</summary>
+    [HttpDelete("api/v1/workitems/{workItemId:guid}/dependencies/{dependencyId:guid}")]
+    public async Task<IActionResult> RemoveDependencyAsync(Guid workItemId, Guid dependencyId, CancellationToken ct)
     {
         var caller = GetAuthenticatedCaller();
-        try
-        {
-            var dependency = await _dependencyService.AddDependencyAsync(
-                cardId, request.DependsOnCardId, request.Type, caller);
-            return Created($"/api/v1/cards/{cardId}/dependencies", Envelope(dependency));
-        }
-        catch (ValidationException ex)
-        {
-            if (ex.Errors.ContainsKey(ErrorCodes.CardNotFound))
-                return NotFound(ErrorEnvelope(ErrorCodes.CardNotFound, ex.Message));
-            if (ex.Errors.ContainsKey(ErrorCodes.DependencyCycleDetected))
-                return Conflict(ErrorEnvelope(ErrorCodes.DependencyCycleDetected, ex.Message));
-            return BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
-        }
+        await _dependencyService.RemoveDependencyAsync(dependencyId, ct);
+        return Ok(Envelope(new { removed = true }));
     }
-
-    /// <summary>Removes a dependency.</summary>
-    [HttpDelete("{dependsOnCardId:guid}")]
-    public async Task<IActionResult> RemoveDependencyAsync(Guid cardId, Guid dependsOnCardId)
-    {
-        var caller = GetAuthenticatedCaller();
-        try
-        {
-            await _dependencyService.RemoveDependencyAsync(cardId, dependsOnCardId, caller);
-            return Ok(Envelope(new { removed = true }));
-        }
-        catch (ValidationException ex)
-        {
-            return NotFound(ErrorEnvelope(ErrorCodes.CardNotFound, ex.Message));
-        }
-    }
-}
-
-/// <summary>Request body for adding a dependency.</summary>
-public sealed record AddDependencyRequest
-{
-    /// <summary>The card ID that this card depends on.</summary>
-    public required Guid DependsOnCardId { get; init; }
-
-    /// <summary>The dependency type.</summary>
-    public required CardDependencyType Type { get; init; }
 }

@@ -1,202 +1,179 @@
-using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Modules.Tracks.Models;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 
 namespace DotNetCloud.Modules.Tracks.Data.Services;
 
-/// <summary>
-/// Service for managing sprint year plans — bulk creation, duration adjustment, and plan overview.
-/// Only available on Team-mode boards.
-/// </summary>
 public sealed class SprintPlanningService
 {
     private readonly TracksDbContext _db;
-    private readonly BoardService _boardService;
-    private readonly ActivityService _activityService;
-    private readonly ILogger<SprintPlanningService> _logger;
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="SprintPlanningService"/> class.
-    /// </summary>
-    public SprintPlanningService(TracksDbContext db, BoardService boardService, ActivityService activityService, ILogger<SprintPlanningService> logger)
+    public SprintPlanningService(TracksDbContext db) => _db = db;
+
+    public async Task<List<SprintDto>> CreateSprintPlanAsync(Guid epicId, CreateSprintPlanDto dto, CancellationToken ct)
     {
-        _db = db;
-        _boardService = boardService;
-        _activityService = activityService;
-        _logger = logger;
-    }
+        var epic = await _db.WorkItems
+            .FirstOrDefaultAsync(wi => wi.Id == epicId && wi.Type == WorkItemType.Epic && !wi.IsDeleted, ct)
+            ?? throw new ValidationException("EpicId", "Epic not found or is not an Epic.");
 
-    /// <summary>
-    /// Creates a year plan of sequential sprints with equal default durations.
-    /// Requires Admin role and Team-mode board.
-    /// </summary>
-    public async Task<SprintPlanOverviewDto> CreateYearPlanAsync(Guid boardId, CreateSprintPlanDto dto, CallerContext caller, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(dto);
+        if (dto.NumberOfSprints <= 0)
+            throw new ValidationException("NumberOfSprints", "Number of sprints must be greater than zero.");
 
-        await _boardService.EnsureBoardRoleAsync(boardId, caller.UserId, BoardMemberRole.Admin, cancellationToken);
-        await _boardService.EnsureTeamModeAsync(boardId, cancellationToken);
+        if (dto.SprintDurationWeeks is < 1 or > 16)
+            throw new ValidationException("SprintDurationWeeks", "Sprint duration must be between 1 and 16 weeks.");
 
-        if (dto.DefaultDurationWeeks < 1 || dto.DefaultDurationWeeks > 16)
-            throw new ValidationException(ErrorCodes.InvalidSprintDuration, "Sprint duration must be between 1 and 16 weeks.");
-
-        if (dto.SprintCount < 1 || dto.SprintCount > 104)
-            throw new ValidationException(ErrorCodes.InvalidSprintDuration, "Sprint count must be between 1 and 104.");
-
-        // Find the highest existing PlannedOrder for this board
         var maxOrder = await _db.Sprints
-            .Where(s => s.BoardId == boardId && s.PlannedOrder.HasValue)
-            .MaxAsync(s => (int?)s.PlannedOrder, cancellationToken) ?? 0;
+            .Where(s => s.EpicId == epicId)
+            .MaxAsync(s => (int?)s.PlannedOrder, ct) ?? 0;
 
-        var startDate = DateTime.SpecifyKind(dto.StartDate, DateTimeKind.Utc);
-        var sprints = new List<Sprint>(dto.SprintCount);
-        var currentStart = startDate;
+        var startDate = dto.StartDate ?? DateTime.UtcNow;
+        var sprints = new List<Sprint>();
 
-        for (var i = 0; i < dto.SprintCount; i++)
+        for (int i = 0; i < dto.NumberOfSprints; i++)
         {
-            var order = maxOrder + i + 1;
-            var endDate = currentStart.AddDays(dto.DefaultDurationWeeks * 7);
+            var sprintStart = startDate.AddDays(7 * dto.SprintDurationWeeks * i);
+            var sprintEnd = sprintStart.AddDays(7 * dto.SprintDurationWeeks - 1);
 
             var sprint = new Sprint
             {
-                BoardId = boardId,
-                Title = $"Sprint {order}",
-                StartDate = currentStart,
-                EndDate = endDate,
-                DurationWeeks = dto.DefaultDurationWeeks,
-                PlannedOrder = order,
-                Status = SprintStatus.Planning
+                EpicId = epicId,
+                Title = $"Sprint {maxOrder + i + 1}",
+                StartDate = sprintStart,
+                EndDate = sprintEnd,
+                DurationWeeks = dto.SprintDurationWeeks,
+                PlannedOrder = maxOrder + i + 1,
+                Status = SprintStatus.Planning,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
             };
 
+            _db.Sprints.Add(sprint);
             sprints.Add(sprint);
-            currentStart = endDate;
         }
 
-        _db.Sprints.AddRange(sprints);
-        await _db.SaveChangesAsync(cancellationToken);
+        await _db.SaveChangesAsync(ct);
 
-        _logger.LogInformation(
-            "Year plan created for board {BoardId}: {Count} sprints starting {StartDate} by user {UserId}",
-            boardId, dto.SprintCount, dto.StartDate, caller.UserId);
-
-        await _activityService.LogAsync(boardId, caller.UserId, "sprint_plan.created", "Board", boardId,
-            $"{{\"sprintCount\":{dto.SprintCount},\"durationWeeks\":{dto.DefaultDurationWeeks}}}", cancellationToken);
-
-        return await GetPlanOverviewAsync(boardId, caller, cancellationToken);
+        return sprints.Select(s => new SprintDto
+        {
+            Id = s.Id,
+            EpicId = s.EpicId,
+            Title = s.Title,
+            Goal = s.Goal,
+            StartDate = s.StartDate,
+            EndDate = s.EndDate,
+            Status = s.Status,
+            TargetStoryPoints = s.TargetStoryPoints,
+            DurationWeeks = s.DurationWeeks,
+            PlannedOrder = s.PlannedOrder,
+            ItemCount = 0,
+            CreatedAt = s.CreatedAt,
+            UpdatedAt = s.UpdatedAt
+        }).ToList();
     }
 
-    /// <summary>
-    /// Adjusts a sprint's duration and optionally its start date, cascading date changes to subsequent sprints.
-    /// </summary>
-    public async Task<SprintPlanOverviewDto> AdjustSprintAsync(Guid sprintId, AdjustSprintDto dto, CallerContext caller, CancellationToken cancellationToken = default)
+    public async Task<List<SprintDto>> GetSprintPlanAsync(Guid epicId, CancellationToken ct)
     {
-        ArgumentNullException.ThrowIfNull(dto);
+        var sprints = await _db.Sprints
+            .Include(s => s.SprintItems)
+            .Where(s => s.EpicId == epicId)
+            .OrderBy(s => s.PlannedOrder)
+            .ToListAsync(ct);
 
-        if (dto.DurationWeeks < 1 || dto.DurationWeeks > 16)
-            throw new ValidationException(ErrorCodes.InvalidSprintDuration, "Sprint duration must be between 1 and 16 weeks.");
+        return sprints.Select(s => new SprintDto
+        {
+            Id = s.Id,
+            EpicId = s.EpicId,
+            Title = s.Title,
+            Goal = s.Goal,
+            StartDate = s.StartDate,
+            EndDate = s.EndDate,
+            Status = s.Status,
+            TargetStoryPoints = s.TargetStoryPoints,
+            DurationWeeks = s.DurationWeeks,
+            PlannedOrder = s.PlannedOrder,
+            ItemCount = s.SprintItems.Count,
+            CreatedAt = s.CreatedAt,
+            UpdatedAt = s.UpdatedAt
+        }).ToList();
+    }
 
-        var sprint = await _db.Sprints
-            .FirstOrDefaultAsync(s => s.Id == sprintId, cancellationToken)
-            ?? throw new ValidationException(ErrorCodes.SprintNotFound, "Sprint not found.");
+    public async Task<SprintDto> AdjustSprintDatesAsync(Guid sprintId, AdjustSprintDto dto, CancellationToken ct)
+    {
+        var sprint = await _db.Sprints.FindAsync([sprintId], ct)
+            ?? throw new NotFoundException("Sprint", sprintId);
 
-        await _boardService.EnsureBoardRoleAsync(sprint.BoardId, caller.UserId, BoardMemberRole.Admin, cancellationToken);
-        await _boardService.EnsureTeamModeAsync(sprint.BoardId, cancellationToken);
+        var oldStartDate = sprint.StartDate;
+        var oldEndDate = sprint.EndDate;
 
-        // Update the adjusted sprint
-        if (dto.StartDate.HasValue)
-            sprint.StartDate = DateTime.SpecifyKind(dto.StartDate.Value, DateTimeKind.Utc);
+        if (dto.DurationWeeks is not null)
+        {
+            if (dto.DurationWeeks is < 1 or > 16)
+                throw new ValidationException("DurationWeeks", "Sprint duration must be between 1 and 16 weeks.");
 
-        sprint.DurationWeeks = dto.DurationWeeks;
-        sprint.EndDate = sprint.StartDate?.AddDays(dto.DurationWeeks * 7);
+            sprint.DurationWeeks = dto.DurationWeeks;
+        }
+
+        if (dto.StartDate is not null)
+            sprint.StartDate = dto.StartDate;
+
+        if (dto.EndDate is not null)
+            sprint.EndDate = dto.EndDate;
+
+        // If duration changed but end date was not explicitly set, recalculate end date
+        if (dto.DurationWeeks is not null && dto.EndDate is null && sprint.StartDate is not null)
+        {
+            sprint.EndDate = sprint.StartDate.Value.AddDays(7 * sprint.DurationWeeks!.Value - 1);
+        }
+
         sprint.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(ct);
 
-        // Cascade to subsequent sprints (by PlannedOrder)
-        if (sprint.PlannedOrder.HasValue && sprint.EndDate.HasValue)
+        // Cascade date shifts to subsequent sprints
+        if (dto.DurationWeeks is not null || dto.StartDate is not null || dto.EndDate is not null)
         {
             var subsequentSprints = await _db.Sprints
-                .Where(s => s.BoardId == sprint.BoardId
-                    && s.PlannedOrder.HasValue
-                    && s.PlannedOrder > sprint.PlannedOrder)
+                .Where(s => s.EpicId == sprint.EpicId && s.PlannedOrder > sprint.PlannedOrder)
                 .OrderBy(s => s.PlannedOrder)
-                .ToListAsync(cancellationToken);
+                .ToListAsync(ct);
 
-            var nextStart = sprint.EndDate.Value;
-            foreach (var subsequent in subsequentSprints)
+            if (subsequentSprints.Count > 0)
             {
-                subsequent.StartDate = nextStart;
-                subsequent.EndDate = subsequent.DurationWeeks.HasValue
-                    ? nextStart.AddDays(subsequent.DurationWeeks.Value * 7)
-                    : null;
-                subsequent.UpdatedAt = DateTime.UtcNow;
+                var daysShift = sprint.EndDate.HasValue && oldEndDate.HasValue
+                    ? (sprint.EndDate.Value - oldEndDate.Value).Days
+                    : 0;
 
-                if (subsequent.EndDate.HasValue)
-                    nextStart = subsequent.EndDate.Value;
+                foreach (var subsequent in subsequentSprints)
+                {
+                    if (subsequent.StartDate is not null)
+                        subsequent.StartDate = subsequent.StartDate.Value.AddDays(daysShift);
+
+                    if (subsequent.EndDate is not null)
+                        subsequent.EndDate = subsequent.EndDate.Value.AddDays(daysShift);
+
+                    subsequent.UpdatedAt = DateTime.UtcNow;
+                }
+
+                await _db.SaveChangesAsync(ct);
             }
         }
 
-        await _db.SaveChangesAsync(cancellationToken);
-
-        _logger.LogInformation(
-            "Sprint {SprintId} adjusted to {DurationWeeks} weeks by user {UserId}",
-            sprintId, dto.DurationWeeks, caller.UserId);
-
-        return await GetPlanOverviewAsync(sprint.BoardId, caller, cancellationToken);
-    }
-
-    /// <summary>
-    /// Returns a plan overview with all sprints ordered by PlannedOrder for timeline display.
-    /// </summary>
-    public async Task<SprintPlanOverviewDto> GetPlanOverviewAsync(Guid boardId, CallerContext caller, CancellationToken cancellationToken = default)
-    {
-        await _boardService.EnsureBoardMemberAsync(boardId, caller.UserId, cancellationToken);
-
-        var sprints = await _db.Sprints
-            .AsNoTracking()
-            .Include(s => s.SprintCards)
-                .ThenInclude(sc => sc.Card)
-                    .ThenInclude(c => c!.Swimlane)
-            .Where(s => s.BoardId == boardId)
-            .OrderBy(s => s.PlannedOrder ?? int.MaxValue)
-                .ThenBy(s => s.StartDate)
-            .ToListAsync(cancellationToken);
-
-        var sprintDtos = sprints.Select(s =>
+        var itemCount = await _db.SprintItems.CountAsync(si => si.SprintId == sprintId, ct);
+        return new SprintDto
         {
-            var cards = s.SprintCards
-                .Where(sc => sc.Card is not null)
-                .Select(sc => sc.Card!)
-                .ToList();
-
-            return new SprintDto
-            {
-                Id = s.Id,
-                BoardId = s.BoardId,
-                Title = s.Title,
-                Goal = s.Goal,
-                StartDate = s.StartDate,
-                EndDate = s.EndDate,
-                Status = s.Status,
-                CardCount = cards.Count,
-                TotalStoryPoints = cards.Where(c => c.StoryPoints.HasValue).Sum(c => c.StoryPoints!.Value),
-                CompletedStoryPoints = cards.Where(c => (c.IsArchived || (c.Swimlane?.IsDone ?? false)) && c.StoryPoints.HasValue).Sum(c => c.StoryPoints!.Value),
-                TargetStoryPoints = s.TargetStoryPoints,
-                DurationWeeks = s.DurationWeeks,
-                PlannedOrder = s.PlannedOrder,
-                CreatedAt = s.CreatedAt,
-                UpdatedAt = s.UpdatedAt
-            };
-        }).ToList();
-
-        return new SprintPlanOverviewDto
-        {
-            BoardId = boardId,
-            Sprints = sprintDtos,
-            TotalWeeks = sprintDtos.Where(s => s.DurationWeeks.HasValue).Sum(s => s.DurationWeeks!.Value),
-            PlanStartDate = sprintDtos.FirstOrDefault()?.StartDate,
-            PlanEndDate = sprintDtos.LastOrDefault()?.EndDate
+            Id = sprint.Id,
+            EpicId = sprint.EpicId,
+            Title = sprint.Title,
+            Goal = sprint.Goal,
+            StartDate = sprint.StartDate,
+            EndDate = sprint.EndDate,
+            Status = sprint.Status,
+            TargetStoryPoints = sprint.TargetStoryPoints,
+            DurationWeeks = sprint.DurationWeeks,
+            PlannedOrder = sprint.PlannedOrder,
+            ItemCount = itemCount,
+            CreatedAt = sprint.CreatedAt,
+            UpdatedAt = sprint.UpdatedAt
         };
     }
 }

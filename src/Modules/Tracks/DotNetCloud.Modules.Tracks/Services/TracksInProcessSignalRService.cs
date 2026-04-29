@@ -11,7 +11,7 @@ internal sealed class TracksInProcessSignalRService : ITracksSignalRService
     public bool IsActive => true;
 
     /// <inheritdoc />
-    public event Action<Guid, Guid, string>? CardActionReceived;
+    public event Action<Guid, Guid, string>? WorkItemActionReceived;
 
     /// <inheritdoc />
     public event Action<Guid, Guid, string>? SwimlaneActionReceived;
@@ -26,13 +26,13 @@ internal sealed class TracksInProcessSignalRService : ITracksSignalRService
     public event Action<Guid>? ActivityReceived;
 
     /// <inheritdoc />
-    public event Action<Guid, Guid, string>? BoardMemberActionReceived;
+    public event Action<Guid, Guid, string>? ProductMemberActionReceived;
 
     /// <inheritdoc />
     public event Action<Guid, string>? TeamActionReceived;
 
     /// <inheritdoc />
-    public event Action<Guid, Guid, Guid>? ReviewCardChanged;
+    public event Action<Guid, Guid, Guid>? ReviewItemChanged;
 
     /// <inheritdoc />
     public event Action<Guid, Guid, string>? ReviewSessionStateChanged;
@@ -48,38 +48,38 @@ internal sealed class TracksInProcessSignalRService : ITracksSignalRService
 
     // ── Raise methods (called by TracksRealtimeService) ─────
 
-    internal void OnCardAction(Guid boardId, Guid cardId, string action)
-        => CardActionReceived?.Invoke(boardId, cardId, action);
+    internal void OnWorkItemAction(Guid productId, Guid workItemId, string action)
+        => WorkItemActionReceived?.Invoke(productId, workItemId, action);
 
-    internal void OnSwimlaneAction(Guid boardId, Guid swimlaneId, string action)
-        => SwimlaneActionReceived?.Invoke(boardId, swimlaneId, action);
+    internal void OnSwimlaneAction(Guid productId, Guid swimlaneId, string action)
+        => SwimlaneActionReceived?.Invoke(productId, swimlaneId, action);
 
-    internal void OnCommentAction(Guid boardId, Guid cardId, Guid commentId, string action)
-        => CommentActionReceived?.Invoke(boardId, cardId, commentId, action);
+    internal void OnCommentAction(Guid productId, Guid workItemId, Guid commentId, string action)
+        => CommentActionReceived?.Invoke(productId, workItemId, commentId, action);
 
-    internal void OnSprintAction(Guid boardId, Guid sprintId, string action)
-        => SprintActionReceived?.Invoke(boardId, sprintId, action);
+    internal void OnSprintAction(Guid epicId, Guid sprintId, string action)
+        => SprintActionReceived?.Invoke(epicId, sprintId, action);
 
-    internal void OnActivity(Guid boardId)
-        => ActivityReceived?.Invoke(boardId);
+    internal void OnActivity(Guid productId)
+        => ActivityReceived?.Invoke(productId);
 
-    internal void OnBoardMemberAction(Guid boardId, Guid userId, string action)
-        => BoardMemberActionReceived?.Invoke(boardId, userId, action);
+    internal void OnProductMemberAction(Guid productId, Guid userId, string action)
+        => ProductMemberActionReceived?.Invoke(productId, userId, action);
 
     internal void OnTeamAction(Guid teamId, string action)
         => TeamActionReceived?.Invoke(teamId, action);
 
-    internal void OnReviewCardChanged(Guid sessionId, Guid boardId, Guid cardId)
-        => ReviewCardChanged?.Invoke(sessionId, boardId, cardId);
+    internal void OnReviewItemChanged(Guid sessionId, Guid epicId, Guid itemId)
+        => ReviewItemChanged?.Invoke(sessionId, epicId, itemId);
 
-    internal void OnReviewSessionStateChanged(Guid sessionId, Guid boardId, string action)
-        => ReviewSessionStateChanged?.Invoke(sessionId, boardId, action);
+    internal void OnReviewSessionStateChanged(Guid sessionId, Guid epicId, string action)
+        => ReviewSessionStateChanged?.Invoke(sessionId, epicId, action);
 
     internal void OnPokerVoteStatus(Guid sessionId, Guid pokerId, Guid userId, bool hasVoted)
         => PokerVoteStatusChanged?.Invoke(sessionId, pokerId, userId, hasVoted);
 
-    internal void OnReviewPokerStateChanged(Guid sessionId, Guid pokerId, Guid boardId, string action)
-        => ReviewPokerStateChanged?.Invoke(sessionId, pokerId, boardId, action);
+    internal void OnReviewPokerStateChanged(Guid sessionId, Guid pokerId, Guid epicId, string action)
+        => ReviewPokerStateChanged?.Invoke(sessionId, pokerId, epicId, action);
 
     internal void OnReviewParticipantChanged(Guid sessionId, Guid userId, string action)
         => ReviewParticipantChanged?.Invoke(sessionId, userId, action);

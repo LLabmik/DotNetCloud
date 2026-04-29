@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Components;
 namespace DotNetCloud.Modules.Tracks.UI;
 
 /// <summary>
-/// Participant view for a live review session. Auto-follows the host's current card
+/// Participant view for a live review session. Auto-follows the host's current item
 /// via SignalR events and provides poker voting when active.
 /// </summary>
 public partial class ReviewSessionParticipant : ComponentBase, IDisposable
@@ -16,8 +16,8 @@ public partial class ReviewSessionParticipant : ComponentBase, IDisposable
     /// <summary>The active review session.</summary>
     [Parameter, EditorRequired] public ReviewSessionDto Session { get; set; } = default!;
 
-    /// <summary>The board this session is on.</summary>
-    [Parameter, EditorRequired] public BoardDto Board { get; set; } = default!;
+    /// <summary>The epic this session is on.</summary>
+    [Parameter, EditorRequired] public WorkItemDto Epic { get; set; } = default!;
 
     /// <summary>Raised when the participant leaves the session.</summary>
     [Parameter] public EventCallback OnLeft { get; set; }
@@ -25,8 +25,8 @@ public partial class ReviewSessionParticipant : ComponentBase, IDisposable
     /// <summary>Raised when the session is updated (participant refresh).</summary>
     [Parameter] public EventCallback<ReviewSessionDto> OnSessionUpdated { get; set; }
 
-    // Card state (synced from host)
-    private CardDto? _currentCard;
+    // Item state (synced from host)
+    private WorkItemDto? _currentItem;
 
     // Poker state
     private PokerSessionDto? _activePoker;
@@ -38,18 +38,18 @@ public partial class ReviewSessionParticipant : ComponentBase, IDisposable
     private string? _errorMessage;
 
     /// <summary>Number of connected participants.</summary>
-    private int ConnectedParticipantCount => Session.Participants.Count(p => p.IsConnected);
+    private int ConnectedParticipantCount => Session.ParticipantCount;
 
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
     {
         SubscribeToEvents();
-        _activePoker = Session.ActivePokerSession;
+        // Poker session loaded via separate API when available
 
-        // Load the current card if session has one
-        if (Session.CurrentCardId.HasValue)
+        // Load the current item if session has one
+        if (Session.CurrentItemId.HasValue)
         {
-            await LoadCardAsync(Session.CurrentCardId.Value);
+            await LoadWorkItemAsync(Session.CurrentItemId.Value);
         }
 
         if (_activePoker is not null)
@@ -59,15 +59,15 @@ public partial class ReviewSessionParticipant : ComponentBase, IDisposable
         }
     }
 
-    private async Task LoadCardAsync(Guid cardId)
+    private async Task LoadWorkItemAsync(Guid workItemId)
     {
         try
         {
-            _currentCard = await ApiClient.GetCardAsync(cardId);
+            _currentItem = await ApiClient.GetWorkItemAsync(workItemId);
         }
         catch
         {
-            _currentCard = null;
+            _currentItem = null;
         }
     }
 
@@ -135,20 +135,20 @@ public partial class ReviewSessionParticipant : ComponentBase, IDisposable
 
     private void SubscribeToEvents()
     {
-        SignalRService.ReviewCardChanged += OnReviewCardChanged;
+        SignalRService.ReviewItemChanged += OnReviewItemChanged;
         SignalRService.PokerVoteStatusChanged += OnPokerVoteStatusChanged;
         SignalRService.ReviewPokerStateChanged += OnReviewPokerStateChanged;
         SignalRService.ReviewParticipantChanged += OnReviewParticipantChanged;
         SignalRService.ReviewSessionStateChanged += OnReviewSessionStateChanged;
     }
 
-    private async void OnReviewCardChanged(Guid sessionId, Guid boardId, Guid cardId)
+    private async void OnReviewItemChanged(Guid sessionId, Guid productId, Guid workItemId)
     {
         if (sessionId != Session.Id) return;
         await InvokeAsync(async () =>
         {
-            await LoadCardAsync(cardId);
-            // Reset poker state when card changes
+            await LoadWorkItemAsync(workItemId);
+            // Reset poker state when item changes
             _activePoker = null;
             _voteStatuses.Clear();
             _selectedVote = null;
@@ -168,7 +168,7 @@ public partial class ReviewSessionParticipant : ComponentBase, IDisposable
         });
     }
 
-    private async void OnReviewPokerStateChanged(Guid sessionId, Guid pokerId, Guid boardId, string action)
+    private async void OnReviewPokerStateChanged(Guid sessionId, Guid pokerId, Guid productId, string action)
     {
         if (sessionId != Session.Id) return;
         await InvokeAsync(async () =>
@@ -178,7 +178,7 @@ public partial class ReviewSessionParticipant : ComponentBase, IDisposable
                 var updated = await ApiClient.GetReviewSessionAsync(Session.Id);
                 if (updated is not null)
                 {
-                    _activePoker = updated.ActivePokerSession;
+                    // ActivePokerSession removed from ReviewSessionDto
                     if (action is "started")
                     {
                         // New poker session started — reset vote state
@@ -219,7 +219,7 @@ public partial class ReviewSessionParticipant : ComponentBase, IDisposable
         });
     }
 
-    private async void OnReviewSessionStateChanged(Guid sessionId, Guid boardId, string action)
+    private async void OnReviewSessionStateChanged(Guid sessionId, Guid productId, string action)
     {
         if (sessionId != Session.Id) return;
         await InvokeAsync(async () =>
@@ -235,7 +235,7 @@ public partial class ReviewSessionParticipant : ComponentBase, IDisposable
     /// <inheritdoc />
     public void Dispose()
     {
-        SignalRService.ReviewCardChanged -= OnReviewCardChanged;
+        SignalRService.ReviewItemChanged -= OnReviewItemChanged;
         SignalRService.PokerVoteStatusChanged -= OnPokerVoteStatusChanged;
         SignalRService.ReviewPokerStateChanged -= OnReviewPokerStateChanged;
         SignalRService.ReviewParticipantChanged -= OnReviewParticipantChanged;

@@ -22,88 +22,7 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.Board", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Color")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Description")
-                        .HasColumnType("text");
-
-                    b.Property<string>("ETag")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<bool>("IsArchived")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("LockSwimlanes")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Mode")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasDefaultValue("Personal");
-
-                    b.Property<Guid>("OwnerId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("TeamId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CreatedAt")
-                        .HasDatabaseName("ix_boards_created_at");
-
-                    b.HasIndex("IsArchived")
-                        .HasDatabaseName("ix_boards_is_archived");
-
-                    b.HasIndex("IsDeleted")
-                        .HasDatabaseName("ix_boards_is_deleted");
-
-                    b.HasIndex("Mode")
-                        .HasDatabaseName("ix_boards_mode");
-
-                    b.HasIndex("OwnerId")
-                        .HasDatabaseName("ix_boards_owner_id");
-
-                    b.HasIndex("TeamId")
-                        .HasDatabaseName("ix_boards_team_id");
-
-                    b.ToTable("Boards");
-                });
-
-            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.BoardActivity", b =>
+            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.Activity", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -113,9 +32,6 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
-
-                    b.Property<Guid>("BoardId")
-                        .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
@@ -133,286 +49,30 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
 
                     b.HasIndex("UserId")
-                        .HasDatabaseName("ix_board_activities_user_id");
-
-                    b.HasIndex("BoardId", "CreatedAt")
-                        .HasDatabaseName("ix_board_activities_board_created");
+                        .HasDatabaseName("ix_activities_user_id");
 
                     b.HasIndex("EntityType", "EntityId")
-                        .HasDatabaseName("ix_board_activities_entity");
+                        .HasDatabaseName("ix_activities_entity");
 
-                    b.ToTable("BoardActivities");
+                    b.HasIndex("ProductId", "CreatedAt")
+                        .HasDatabaseName("ix_activities_product_created");
+
+                    b.ToTable("Activities");
                 });
 
-            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.BoardMember", b =>
+            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.Checklist", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("BoardId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("JoinedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
-
-                    b.Property<string>("Role")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId")
-                        .HasDatabaseName("ix_board_members_user_id");
-
-                    b.HasIndex("BoardId", "UserId")
-                        .IsUnique()
-                        .HasDatabaseName("uq_board_members_board_user");
-
-                    b.ToTable("BoardMembers");
-                });
-
-            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.BoardSwimlane", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("BoardId")
-                        .HasColumnType("uuid");
-
-                    b.Property<int?>("CardLimit")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Color")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
-
-                    b.Property<bool>("IsArchived")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsDone")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false);
-
-                    b.Property<double>("Position")
-                        .HasColumnType("double precision");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("IsArchived")
-                        .HasDatabaseName("ix_board_swimlanes_is_archived");
-
-                    b.HasIndex("BoardId", "Position")
-                        .HasDatabaseName("ix_board_swimlanes_board_position");
-
-                    b.ToTable("BoardSwimlanes");
-                });
-
-            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.BoardTemplate", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Category")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
-
-                    b.Property<Guid?>("CreatedByUserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("DefinitionJson")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<bool>("IsBuiltIn")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CreatedByUserId");
-
-                    b.HasIndex("IsBuiltIn");
-
-                    b.ToTable("BoardTemplates");
-                });
-
-            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.Card", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("CardNumber")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
-
-                    b.Property<Guid>("CreatedByUserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Description")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("DueDate")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("ETag")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<bool>("IsArchived")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
-
-                    b.Property<double>("Position")
-                        .HasColumnType("double precision");
-
-                    b.Property<string>("Priority")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<int?>("StoryPoints")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid>("SwimlaneId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CardNumber")
-                        .IsUnique()
-                        .HasDatabaseName("ix_cards_card_number");
-
-                    b.HasIndex("CreatedAt")
-                        .HasDatabaseName("ix_cards_created_at");
-
-                    b.HasIndex("CreatedByUserId")
-                        .HasDatabaseName("ix_cards_created_by");
-
-                    b.HasIndex("DueDate")
-                        .HasDatabaseName("ix_cards_due_date")
-                        .HasFilter("\"DueDate\" IS NOT NULL");
-
-                    b.HasIndex("IsArchived")
-                        .HasDatabaseName("ix_cards_is_archived");
-
-                    b.HasIndex("IsDeleted")
-                        .HasDatabaseName("ix_cards_is_deleted");
-
-                    b.HasIndex("Priority")
-                        .HasDatabaseName("ix_cards_priority");
-
-                    b.HasIndex("SwimlaneId", "Position")
-                        .HasDatabaseName("ix_cards_swimlane_position");
-
-                    b.ToTable("Cards");
-                });
-
-            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.CardAssignment", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("AssignedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
-
-                    b.Property<Guid>("CardId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId")
-                        .HasDatabaseName("ix_card_assignments_user_id");
-
-                    b.HasIndex("CardId", "UserId")
-                        .IsUnique()
-                        .HasDatabaseName("uq_card_assignments_card_user");
-
-                    b.ToTable("CardAssignments");
-                });
-
-            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.CardAttachment", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("CardId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
@@ -420,53 +80,8 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
-                    b.Property<string>("FileName")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<Guid?>("FileNodeId")
+                    b.Property<Guid>("ItemId")
                         .HasColumnType("uuid");
-
-                    b.Property<long?>("FileSize")
-                        .HasColumnType("bigint");
-
-                    b.Property<string>("MimeType")
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)");
-
-                    b.Property<Guid>("UploadedByUserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Url")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CardId")
-                        .HasDatabaseName("ix_card_attachments_card_id");
-
-                    b.HasIndex("FileNodeId")
-                        .HasDatabaseName("ix_card_attachments_file_node_id")
-                        .HasFilter("\"FileNodeId\" IS NOT NULL");
-
-                    b.ToTable("CardAttachments");
-                });
-
-            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.CardChecklist", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("CardId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
                     b.Property<double>("Position")
                         .HasColumnType("double precision");
@@ -478,165 +93,10 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CardId", "Position")
-                        .HasDatabaseName("ix_card_checklists_card_position");
+                    b.HasIndex("ItemId", "Position")
+                        .HasDatabaseName("ix_checklists_item_position");
 
-                    b.ToTable("CardChecklists");
-                });
-
-            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.CardComment", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("CardId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Content")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsEdited")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CardId")
-                        .HasDatabaseName("ix_card_comments_card_id");
-
-                    b.HasIndex("CreatedAt")
-                        .HasDatabaseName("ix_card_comments_created_at");
-
-                    b.HasIndex("UserId")
-                        .HasDatabaseName("ix_card_comments_user_id");
-
-                    b.ToTable("CardComments");
-                });
-
-            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.CardDependency", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("CardId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
-
-                    b.Property<Guid>("DependsOnCardId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Type")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("DependsOnCardId")
-                        .HasDatabaseName("ix_card_dependencies_depends_on");
-
-                    b.HasIndex("CardId", "DependsOnCardId", "Type")
-                        .IsUnique()
-                        .HasDatabaseName("uq_card_dependencies_card_depends_type");
-
-                    b.ToTable("CardDependencies");
-                });
-
-            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.CardLabel", b =>
-                {
-                    b.Property<Guid>("CardId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("LabelId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("AppliedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
-
-                    b.HasKey("CardId", "LabelId");
-
-                    b.HasIndex("LabelId");
-
-                    b.ToTable("CardLabels");
-                });
-
-            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.CardTemplate", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("BoardId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("ChecklistsJson")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
-
-                    b.Property<Guid>("CreatedByUserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Description")
-                        .HasColumnType("text");
-
-                    b.Property<string>("LabelIdsJson")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<string>("Priority")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<string>("TitlePattern")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("BoardId");
-
-                    b.ToTable("CardTemplates");
+                    b.ToTable("Checklists");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.ChecklistItem", b =>
@@ -684,13 +144,63 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                     b.ToTable("ChecklistItems");
                 });
 
-            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.Label", b =>
+            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.ItemTemplate", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("BoardId")
+                    b.Property<string>("ChecklistsJson")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text");
+
+                    b.Property<string>("LabelIdsJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Priority")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("TitlePattern")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId")
+                        .HasDatabaseName("ix_item_templates_product_id");
+
+                    b.ToTable("ItemTemplates");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.Label", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
                     b.Property<string>("Color")
@@ -703,6 +213,9 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -710,9 +223,9 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("BoardId", "Title")
+                    b.HasIndex("ProductId", "Title")
                         .IsUnique()
-                        .HasDatabaseName("uq_labels_board_title");
+                        .HasDatabaseName("uq_labels_product_title");
 
                     b.ToTable("Labels");
                 });
@@ -727,12 +240,6 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
-                    b.Property<Guid>("BoardId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("CardId")
-                        .HasColumnType("uuid");
-
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -743,6 +250,12 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
 
                     b.Property<string>("CustomScaleValues")
                         .HasColumnType("text");
+
+                    b.Property<Guid>("EpicId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ItemId")
+                        .HasColumnType("uuid");
 
                     b.Property<Guid?>("ReviewSessionId")
                         .HasColumnType("uuid");
@@ -776,11 +289,11 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                         .HasDatabaseName("ix_poker_sessions_review_session")
                         .HasFilter("\"ReviewSessionId\" IS NOT NULL");
 
-                    b.HasIndex("BoardId", "Status")
-                        .HasDatabaseName("ix_poker_sessions_board_status");
+                    b.HasIndex("EpicId", "Status")
+                        .HasDatabaseName("ix_poker_sessions_epic_status");
 
-                    b.HasIndex("CardId", "Status")
-                        .HasDatabaseName("ix_poker_sessions_card_status");
+                    b.HasIndex("ItemId", "Status")
+                        .HasDatabaseName("ix_poker_sessions_item_status");
 
                     b.ToTable("PokerSessions");
                 });
@@ -822,13 +335,159 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                     b.ToTable("PokerVotes");
                 });
 
-            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.ReviewSession", b =>
+            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.Product", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("BoardId")
+                    b.Property<string>("Color")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ETag")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("OwnerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("SubItemsEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("ix_products_created_at");
+
+                    b.HasIndex("IsArchived")
+                        .HasDatabaseName("ix_products_is_archived");
+
+                    b.HasIndex("IsDeleted")
+                        .HasDatabaseName("ix_products_is_deleted");
+
+                    b.HasIndex("OrganizationId")
+                        .HasDatabaseName("ix_products_organization_id");
+
+                    b.HasIndex("OwnerId")
+                        .HasDatabaseName("ix_products_owner_id");
+
+                    b.ToTable("Products");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.ProductMember", b =>
+                {
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("JoinedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("ProductId", "UserId");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_product_members_user_id");
+
+                    b.HasIndex("ProductId", "Role")
+                        .HasDatabaseName("ix_product_members_product_role");
+
+                    b.ToTable("ProductMembers");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.ProductTemplate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Category")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("DefinitionJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsBuiltIn")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Category")
+                        .HasDatabaseName("ix_product_templates_category");
+
+                    b.HasIndex("IsBuiltIn")
+                        .HasDatabaseName("ix_product_templates_is_built_in");
+
+                    b.ToTable("ProductTemplates");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.ReviewSession", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
@@ -836,11 +495,14 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
-                    b.Property<Guid?>("CurrentCardId")
+                    b.Property<Guid?>("CurrentItemId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime?>("EndedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("EpicId")
+                        .HasColumnType("uuid");
 
                     b.Property<Guid>("HostUserId")
                         .HasColumnType("uuid");
@@ -854,13 +516,13 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CurrentCardId");
+                    b.HasIndex("CurrentItemId");
 
                     b.HasIndex("HostUserId")
                         .HasDatabaseName("ix_review_sessions_host_user_id");
 
-                    b.HasIndex("BoardId", "Status")
-                        .HasDatabaseName("ix_review_sessions_board_status");
+                    b.HasIndex("EpicId", "Status")
+                        .HasDatabaseName("ix_review_sessions_epic_status");
 
                     b.ToTable("ReviewSessions");
                 });
@@ -903,9 +565,6 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("BoardId")
-                        .HasColumnType("uuid");
-
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -916,6 +575,9 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
 
                     b.Property<DateTime?>("EndDate")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("EpicId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("Goal")
                         .HasColumnType("text");
@@ -950,18 +612,18 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                         .HasDatabaseName("ix_sprints_start_date")
                         .HasFilter("\"StartDate\" IS NOT NULL");
 
-                    b.HasIndex("BoardId", "Status")
-                        .HasDatabaseName("ix_sprints_board_status");
+                    b.HasIndex("EpicId", "Status")
+                        .HasDatabaseName("ix_sprints_epic_status");
 
                     b.ToTable("Sprints");
                 });
 
-            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.SprintCard", b =>
+            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.SprintItem", b =>
                 {
                     b.Property<Guid>("SprintId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("CardId")
+                    b.Property<Guid>("ItemId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("AddedAt")
@@ -969,11 +631,75 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
-                    b.HasKey("SprintId", "CardId");
+                    b.HasKey("SprintId", "ItemId");
 
-                    b.HasIndex("CardId");
+                    b.HasIndex("ItemId")
+                        .HasDatabaseName("ix_sprint_items_item_id");
 
-                    b.ToTable("SprintCards");
+                    b.ToTable("SprintItems");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.Swimlane", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int?>("CardLimit")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Color")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("ContainerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ContainerType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDone")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<double>("Position")
+                        .HasColumnType("double precision");
+
+                    b.Property<Guid?>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsArchived")
+                        .HasDatabaseName("ix_swimlanes_is_archived");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("ContainerType", "ContainerId", "Position")
+                        .HasDatabaseName("ix_swimlanes_container_position");
+
+                    b.ToTable("Swimlanes");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.TeamRole", b =>
@@ -987,26 +713,26 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
-                    b.Property<Guid>("CoreTeamId")
-                        .HasColumnType("uuid");
-
                     b.Property<string>("Role")
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("TeamId")
+                        .HasColumnType("uuid");
 
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CoreTeamId")
-                        .HasDatabaseName("ix_team_roles_core_team_id");
+                    b.HasIndex("TeamId")
+                        .HasDatabaseName("ix_team_roles_team_id");
 
                     b.HasIndex("UserId")
                         .HasDatabaseName("ix_team_roles_user_id");
 
-                    b.HasIndex("CoreTeamId", "UserId")
+                    b.HasIndex("TeamId", "UserId")
                         .IsUnique()
                         .HasDatabaseName("uq_team_roles_team_user");
 
@@ -1017,9 +743,6 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("CardId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
@@ -1048,10 +771,10 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid");
 
-                    b.HasKey("Id");
+                    b.Property<Guid>("WorkItemId")
+                        .HasColumnType("uuid");
 
-                    b.HasIndex("CardId")
-                        .HasDatabaseName("ix_time_entries_card_id");
+                    b.HasKey("Id");
 
                     b.HasIndex("StartTime")
                         .HasDatabaseName("ix_time_entries_start_time")
@@ -1060,152 +783,329 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                     b.HasIndex("UserId")
                         .HasDatabaseName("ix_time_entries_user_id");
 
-                    b.HasIndex("CardId", "UserId")
-                        .HasDatabaseName("ix_time_entries_card_user");
+                    b.HasIndex("WorkItemId")
+                        .HasDatabaseName("ix_time_entries_work_item_id");
+
+                    b.HasIndex("WorkItemId", "UserId")
+                        .HasDatabaseName("ix_time_entries_work_item_user");
 
                     b.ToTable("TimeEntries");
                 });
 
-            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.BoardActivity", b =>
+            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.WorkItem", b =>
                 {
-                    b.HasOne("DotNetCloud.Modules.Tracks.Models.Board", "Board")
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("DueDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ETag")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("ItemNumber")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("ParentWorkItemId")
+                        .HasColumnType("uuid");
+
+                    b.Property<double>("Position")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("Priority")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int?>("StoryPoints")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("SwimlaneId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("ix_work_items_created_at");
+
+                    b.HasIndex("CreatedByUserId")
+                        .HasDatabaseName("ix_work_items_created_by");
+
+                    b.HasIndex("DueDate")
+                        .HasDatabaseName("ix_work_items_due_date")
+                        .HasFilter("\"DueDate\" IS NOT NULL");
+
+                    b.HasIndex("IsArchived")
+                        .HasDatabaseName("ix_work_items_is_archived");
+
+                    b.HasIndex("IsDeleted")
+                        .HasDatabaseName("ix_work_items_is_deleted");
+
+                    b.HasIndex("ParentWorkItemId")
+                        .HasDatabaseName("ix_work_items_parent");
+
+                    b.HasIndex("Priority")
+                        .HasDatabaseName("ix_work_items_priority");
+
+                    b.HasIndex("ProductId", "ItemNumber")
+                        .IsUnique()
+                        .HasDatabaseName("uq_work_items_product_number");
+
+                    b.HasIndex("ProductId", "Type")
+                        .HasDatabaseName("ix_work_items_product_type");
+
+                    b.HasIndex("SwimlaneId", "Position")
+                        .HasDatabaseName("ix_work_items_swimlane_position");
+
+                    b.ToTable("WorkItems");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.WorkItemAssignment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("AssignedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("WorkItemId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_work_item_assignments_user_id");
+
+                    b.HasIndex("WorkItemId", "UserId")
+                        .IsUnique()
+                        .HasDatabaseName("uq_work_item_assignments_item_user");
+
+                    b.ToTable("WorkItemAssignments");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.WorkItemAttachment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid?>("FileNodeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<long?>("FileSize")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("MimeType")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<Guid>("UploadedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Url")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<Guid>("WorkItemId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FileNodeId")
+                        .HasDatabaseName("ix_work_item_attachments_file_node")
+                        .HasFilter("\"FileNodeId\" IS NOT NULL");
+
+                    b.HasIndex("WorkItemId")
+                        .HasDatabaseName("ix_work_item_attachments_work_item");
+
+                    b.ToTable("WorkItemAttachments");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.WorkItemComment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsEdited")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("WorkItemId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("ix_work_item_comments_created_at");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_work_item_comments_user");
+
+                    b.HasIndex("WorkItemId")
+                        .HasDatabaseName("ix_work_item_comments_work_item");
+
+                    b.ToTable("WorkItemComments");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.WorkItemDependency", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<Guid>("DependsOnWorkItemId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("WorkItemId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DependsOnWorkItemId")
+                        .HasDatabaseName("ix_work_item_dependencies_depends_on");
+
+                    b.HasIndex("WorkItemId", "DependsOnWorkItemId", "Type")
+                        .IsUnique()
+                        .HasDatabaseName("uq_work_item_dependencies_item_depends_type");
+
+                    b.ToTable("WorkItemDependencies");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.WorkItemLabel", b =>
+                {
+                    b.Property<Guid>("WorkItemId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("LabelId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("AppliedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.HasKey("WorkItemId", "LabelId");
+
+                    b.HasIndex("LabelId");
+
+                    b.ToTable("WorkItemLabels");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.Activity", b =>
+                {
+                    b.HasOne("DotNetCloud.Modules.Tracks.Models.Product", "Product")
                         .WithMany("Activities")
-                        .HasForeignKey("BoardId")
+                        .HasForeignKey("ProductId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Board");
+                    b.Navigation("Product");
                 });
 
-            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.BoardMember", b =>
+            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.Checklist", b =>
                 {
-                    b.HasOne("DotNetCloud.Modules.Tracks.Models.Board", "Board")
-                        .WithMany("Members")
-                        .HasForeignKey("BoardId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Board");
-                });
-
-            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.BoardSwimlane", b =>
-                {
-                    b.HasOne("DotNetCloud.Modules.Tracks.Models.Board", "Board")
-                        .WithMany("Swimlanes")
-                        .HasForeignKey("BoardId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Board");
-                });
-
-            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.Card", b =>
-                {
-                    b.HasOne("DotNetCloud.Modules.Tracks.Models.BoardSwimlane", "Swimlane")
-                        .WithMany("Cards")
-                        .HasForeignKey("SwimlaneId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Swimlane");
-                });
-
-            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.CardAssignment", b =>
-                {
-                    b.HasOne("DotNetCloud.Modules.Tracks.Models.Card", "Card")
-                        .WithMany("Assignments")
-                        .HasForeignKey("CardId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Card");
-                });
-
-            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.CardAttachment", b =>
-                {
-                    b.HasOne("DotNetCloud.Modules.Tracks.Models.Card", "Card")
-                        .WithMany("Attachments")
-                        .HasForeignKey("CardId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Card");
-                });
-
-            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.CardChecklist", b =>
-                {
-                    b.HasOne("DotNetCloud.Modules.Tracks.Models.Card", "Card")
+                    b.HasOne("DotNetCloud.Modules.Tracks.Models.WorkItem", "Item")
                         .WithMany("Checklists")
-                        .HasForeignKey("CardId")
+                        .HasForeignKey("ItemId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Card");
-                });
-
-            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.CardComment", b =>
-                {
-                    b.HasOne("DotNetCloud.Modules.Tracks.Models.Card", "Card")
-                        .WithMany("Comments")
-                        .HasForeignKey("CardId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Card");
-                });
-
-            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.CardDependency", b =>
-                {
-                    b.HasOne("DotNetCloud.Modules.Tracks.Models.Card", "Card")
-                        .WithMany("Dependencies")
-                        .HasForeignKey("CardId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("DotNetCloud.Modules.Tracks.Models.Card", "DependsOnCard")
-                        .WithMany("Dependents")
-                        .HasForeignKey("DependsOnCardId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Card");
-
-                    b.Navigation("DependsOnCard");
-                });
-
-            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.CardLabel", b =>
-                {
-                    b.HasOne("DotNetCloud.Modules.Tracks.Models.Card", "Card")
-                        .WithMany("CardLabels")
-                        .HasForeignKey("CardId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("DotNetCloud.Modules.Tracks.Models.Label", "Label")
-                        .WithMany("CardLabels")
-                        .HasForeignKey("LabelId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Card");
-
-                    b.Navigation("Label");
-                });
-
-            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.CardTemplate", b =>
-                {
-                    b.HasOne("DotNetCloud.Modules.Tracks.Models.Board", "Board")
-                        .WithMany()
-                        .HasForeignKey("BoardId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Board");
+                    b.Navigation("Item");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.ChecklistItem", b =>
                 {
-                    b.HasOne("DotNetCloud.Modules.Tracks.Models.CardChecklist", "Checklist")
+                    b.HasOne("DotNetCloud.Modules.Tracks.Models.Checklist", "Checklist")
                         .WithMany("Items")
                         .HasForeignKey("ChecklistId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -1214,28 +1114,39 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                     b.Navigation("Checklist");
                 });
 
-            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.Label", b =>
+            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.ItemTemplate", b =>
                 {
-                    b.HasOne("DotNetCloud.Modules.Tracks.Models.Board", "Board")
-                        .WithMany("Labels")
-                        .HasForeignKey("BoardId")
+                    b.HasOne("DotNetCloud.Modules.Tracks.Models.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Board");
+                    b.Navigation("Product");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.Label", b =>
+                {
+                    b.HasOne("DotNetCloud.Modules.Tracks.Models.Product", "Product")
+                        .WithMany("Labels")
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Product");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.PokerSession", b =>
                 {
-                    b.HasOne("DotNetCloud.Modules.Tracks.Models.Board", "Board")
-                        .WithMany("PokerSessions")
-                        .HasForeignKey("BoardId")
+                    b.HasOne("DotNetCloud.Modules.Tracks.Models.WorkItem", "Epic")
+                        .WithMany()
+                        .HasForeignKey("EpicId")
                         .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
-                    b.HasOne("DotNetCloud.Modules.Tracks.Models.Card", "Card")
+                    b.HasOne("DotNetCloud.Modules.Tracks.Models.WorkItem", "Item")
                         .WithMany("PokerSessions")
-                        .HasForeignKey("CardId")
+                        .HasForeignKey("ItemId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -1244,9 +1155,9 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                         .HasForeignKey("ReviewSessionId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.Navigation("Board");
+                    b.Navigation("Epic");
 
-                    b.Navigation("Card");
+                    b.Navigation("Item");
 
                     b.Navigation("ReviewSession");
                 });
@@ -1262,22 +1173,33 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                     b.Navigation("Session");
                 });
 
-            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.ReviewSession", b =>
+            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.ProductMember", b =>
                 {
-                    b.HasOne("DotNetCloud.Modules.Tracks.Models.Board", "Board")
-                        .WithMany("ReviewSessions")
-                        .HasForeignKey("BoardId")
+                    b.HasOne("DotNetCloud.Modules.Tracks.Models.Product", "Product")
+                        .WithMany("Members")
+                        .HasForeignKey("ProductId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("DotNetCloud.Modules.Tracks.Models.Card", "CurrentCard")
+                    b.Navigation("Product");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.ReviewSession", b =>
+                {
+                    b.HasOne("DotNetCloud.Modules.Tracks.Models.WorkItem", "CurrentItem")
                         .WithMany()
-                        .HasForeignKey("CurrentCardId")
+                        .HasForeignKey("CurrentItemId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.Navigation("Board");
+                    b.HasOne("DotNetCloud.Modules.Tracks.Models.WorkItem", "Epic")
+                        .WithMany()
+                        .HasForeignKey("EpicId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
-                    b.Navigation("CurrentCard");
+                    b.Navigation("CurrentItem");
+
+                    b.Navigation("Epic");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.ReviewSessionParticipant", b =>
@@ -1293,46 +1215,164 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.Sprint", b =>
                 {
-                    b.HasOne("DotNetCloud.Modules.Tracks.Models.Board", "Board")
-                        .WithMany("Sprints")
-                        .HasForeignKey("BoardId")
+                    b.HasOne("DotNetCloud.Modules.Tracks.Models.WorkItem", "Epic")
+                        .WithMany()
+                        .HasForeignKey("EpicId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Board");
+                    b.Navigation("Epic");
                 });
 
-            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.SprintCard", b =>
+            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.SprintItem", b =>
                 {
-                    b.HasOne("DotNetCloud.Modules.Tracks.Models.Card", "Card")
-                        .WithMany("SprintCards")
-                        .HasForeignKey("CardId")
+                    b.HasOne("DotNetCloud.Modules.Tracks.Models.WorkItem", "Item")
+                        .WithMany("SprintItems")
+                        .HasForeignKey("ItemId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.HasOne("DotNetCloud.Modules.Tracks.Models.Sprint", "Sprint")
-                        .WithMany("SprintCards")
+                        .WithMany("SprintItems")
                         .HasForeignKey("SprintId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Card");
+                    b.Navigation("Item");
 
                     b.Navigation("Sprint");
                 });
 
+            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.Swimlane", b =>
+                {
+                    b.HasOne("DotNetCloud.Modules.Tracks.Models.Product", null)
+                        .WithMany("Swimlanes")
+                        .HasForeignKey("ProductId");
+                });
+
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.TimeEntry", b =>
                 {
-                    b.HasOne("DotNetCloud.Modules.Tracks.Models.Card", "Card")
+                    b.HasOne("DotNetCloud.Modules.Tracks.Models.WorkItem", "WorkItem")
                         .WithMany("TimeEntries")
-                        .HasForeignKey("CardId")
+                        .HasForeignKey("WorkItemId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Card");
+                    b.Navigation("WorkItem");
                 });
 
-            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.Board", b =>
+            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.WorkItem", b =>
+                {
+                    b.HasOne("DotNetCloud.Modules.Tracks.Models.WorkItem", "ParentWorkItem")
+                        .WithMany("ChildWorkItems")
+                        .HasForeignKey("ParentWorkItemId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("DotNetCloud.Modules.Tracks.Models.Product", "Product")
+                        .WithMany("WorkItems")
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("DotNetCloud.Modules.Tracks.Models.Swimlane", "Swimlane")
+                        .WithMany("WorkItems")
+                        .HasForeignKey("SwimlaneId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("ParentWorkItem");
+
+                    b.Navigation("Product");
+
+                    b.Navigation("Swimlane");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.WorkItemAssignment", b =>
+                {
+                    b.HasOne("DotNetCloud.Modules.Tracks.Models.WorkItem", "WorkItem")
+                        .WithMany("Assignments")
+                        .HasForeignKey("WorkItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("WorkItem");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.WorkItemAttachment", b =>
+                {
+                    b.HasOne("DotNetCloud.Modules.Tracks.Models.WorkItem", "WorkItem")
+                        .WithMany("Attachments")
+                        .HasForeignKey("WorkItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("WorkItem");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.WorkItemComment", b =>
+                {
+                    b.HasOne("DotNetCloud.Modules.Tracks.Models.WorkItem", "WorkItem")
+                        .WithMany("Comments")
+                        .HasForeignKey("WorkItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("WorkItem");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.WorkItemDependency", b =>
+                {
+                    b.HasOne("DotNetCloud.Modules.Tracks.Models.WorkItem", "DependsOnWorkItem")
+                        .WithMany("Dependents")
+                        .HasForeignKey("DependsOnWorkItemId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("DotNetCloud.Modules.Tracks.Models.WorkItem", "WorkItem")
+                        .WithMany("Dependencies")
+                        .HasForeignKey("WorkItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("DependsOnWorkItem");
+
+                    b.Navigation("WorkItem");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.WorkItemLabel", b =>
+                {
+                    b.HasOne("DotNetCloud.Modules.Tracks.Models.Label", "Label")
+                        .WithMany("WorkItemLabels")
+                        .HasForeignKey("LabelId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("DotNetCloud.Modules.Tracks.Models.WorkItem", "WorkItem")
+                        .WithMany("WorkItemLabels")
+                        .HasForeignKey("WorkItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Label");
+
+                    b.Navigation("WorkItem");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.Checklist", b =>
+                {
+                    b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.Label", b =>
+                {
+                    b.Navigation("WorkItemLabels");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.PokerSession", b =>
+                {
+                    b.Navigation("Votes");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.Product", b =>
                 {
                     b.Navigation("Activities");
 
@@ -1340,56 +1380,9 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
 
                     b.Navigation("Members");
 
-                    b.Navigation("PokerSessions");
-
-                    b.Navigation("ReviewSessions");
-
-                    b.Navigation("Sprints");
-
                     b.Navigation("Swimlanes");
-                });
 
-            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.BoardSwimlane", b =>
-                {
-                    b.Navigation("Cards");
-                });
-
-            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.Card", b =>
-                {
-                    b.Navigation("Assignments");
-
-                    b.Navigation("Attachments");
-
-                    b.Navigation("CardLabels");
-
-                    b.Navigation("Checklists");
-
-                    b.Navigation("Comments");
-
-                    b.Navigation("Dependencies");
-
-                    b.Navigation("Dependents");
-
-                    b.Navigation("PokerSessions");
-
-                    b.Navigation("SprintCards");
-
-                    b.Navigation("TimeEntries");
-                });
-
-            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.CardChecklist", b =>
-                {
-                    b.Navigation("Items");
-                });
-
-            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.Label", b =>
-                {
-                    b.Navigation("CardLabels");
-                });
-
-            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.PokerSession", b =>
-                {
-                    b.Navigation("Votes");
+                    b.Navigation("WorkItems");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.ReviewSession", b =>
@@ -1401,7 +1394,37 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.Sprint", b =>
                 {
-                    b.Navigation("SprintCards");
+                    b.Navigation("SprintItems");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.Swimlane", b =>
+                {
+                    b.Navigation("WorkItems");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.WorkItem", b =>
+                {
+                    b.Navigation("Assignments");
+
+                    b.Navigation("Attachments");
+
+                    b.Navigation("Checklists");
+
+                    b.Navigation("ChildWorkItems");
+
+                    b.Navigation("Comments");
+
+                    b.Navigation("Dependencies");
+
+                    b.Navigation("Dependents");
+
+                    b.Navigation("PokerSessions");
+
+                    b.Navigation("SprintItems");
+
+                    b.Navigation("TimeEntries");
+
+                    b.Navigation("WorkItemLabels");
                 });
 #pragma warning restore 612, 618
         }

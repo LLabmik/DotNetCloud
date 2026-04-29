@@ -4,12 +4,8 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace DotNetCloud.Modules.Tracks.Data.Configuration;
 
-/// <summary>
-/// EF Core configuration for the <see cref="Sprint"/> entity.
-/// </summary>
 public sealed class SprintConfiguration : IEntityTypeConfiguration<Sprint>
 {
-    /// <inheritdoc />
     public void Configure(EntityTypeBuilder<Sprint> builder)
     {
         builder.HasKey(s => s.Id);
@@ -38,14 +34,13 @@ public sealed class SprintConfiguration : IEntityTypeConfiguration<Sprint>
             .IsRequired()
             .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
-        builder.HasOne(s => s.Board)
-            .WithMany(b => b.Sprints)
-            .HasForeignKey(s => s.BoardId)
+        builder.HasOne(s => s.Epic)
+            .WithMany()
+            .HasForeignKey(s => s.EpicId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        // Indexes
-        builder.HasIndex(s => new { s.BoardId, s.Status })
-            .HasDatabaseName("ix_sprints_board_status");
+        builder.HasIndex(s => new { s.EpicId, s.Status })
+            .HasDatabaseName("ix_sprints_epic_status");
 
         builder.HasIndex(s => s.StartDate)
             .HasDatabaseName("ix_sprints_start_date")

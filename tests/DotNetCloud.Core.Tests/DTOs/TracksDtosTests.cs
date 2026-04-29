@@ -9,104 +9,109 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 [TestClass]
 public class TracksDtosTests
 {
-    // ── Board ──
+    // -- Product --
 
     [TestMethod]
-    public void BoardDto_CanBeCreated_WithRequiredProperties()
+    public void ProductDto_CanBeCreated_WithRequiredProperties()
     {
         // Arrange & Act
-        var board = new BoardDto
+        var product = new ProductDto
         {
             Id = Guid.NewGuid(),
+            OrganizationId = Guid.NewGuid(),
+            Name = "Sprint Board",
             OwnerId = Guid.NewGuid(),
-            Title = "Sprint Board",
+            ETag = "etag-1",
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
 
         // Assert
-        Assert.AreNotEqual(Guid.Empty, board.Id);
-        Assert.AreEqual("Sprint Board", board.Title);
-        Assert.IsFalse(board.IsArchived);
-        Assert.IsFalse(board.IsDeleted);
+        Assert.AreNotEqual(Guid.Empty, product.Id);
+        Assert.AreEqual("Sprint Board", product.Name);
+        Assert.IsFalse(product.IsArchived);
     }
 
     [TestMethod]
-    public void BoardDto_OptionalFields_DefaultToNull()
+    public void ProductDto_OptionalFields_DefaultToNull()
     {
         // Arrange & Act
-        var board = new BoardDto
+        var product = new ProductDto
         {
             Id = Guid.NewGuid(),
+            OrganizationId = Guid.NewGuid(),
+            Name = "Test",
             OwnerId = Guid.NewGuid(),
-            Title = "Test",
+            ETag = "etag-1",
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
 
         // Assert
-        Assert.IsNull(board.Description);
-        Assert.IsNull(board.Color);
-        Assert.IsNull(board.DeletedAt);
-        Assert.IsNull(board.ETag);
+        Assert.IsNull(product.Description);
+        Assert.IsNull(product.Color);
     }
 
     [TestMethod]
-    public void BoardDto_Collections_DefaultToEmpty()
+    public void ProductDto_SwimlaneAndEpicCounts_DefaultToZero()
     {
         // Arrange & Act
-        var board = new BoardDto
+        var product = new ProductDto
         {
             Id = Guid.NewGuid(),
+            OrganizationId = Guid.NewGuid(),
+            Name = "Test",
             OwnerId = Guid.NewGuid(),
-            Title = "Test",
+            ETag = "etag-1",
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
 
         // Assert
-        Assert.AreEqual(0, board.Members.Count);
-        Assert.AreEqual(0, board.Swimlanes.Count);
-        Assert.AreEqual(0, board.Labels.Count);
+        Assert.AreEqual(0, product.SwimlaneCount);
+        Assert.AreEqual(0, product.EpicCount);
+        Assert.AreEqual(0, product.MemberCount);
+        Assert.AreEqual(0, product.LabelCount);
     }
 
     [TestMethod]
-    public void BoardMemberRole_AllValuesExist()
+    public void ProductMemberRole_AllValuesExist()
     {
         // Act
-        var values = Enum.GetValues(typeof(BoardMemberRole));
+        var values = Enum.GetValues(typeof(ProductMemberRole));
 
         // Assert
         Assert.AreEqual(4, values.Length);
     }
 
     [TestMethod]
-    public void BoardMemberDto_CanBeCreated()
+    public void ProductMemberDto_CanBeCreated()
     {
         // Arrange & Act
-        var member = new BoardMemberDto
+        var member = new ProductMemberDto
         {
             UserId = Guid.NewGuid(),
             DisplayName = "Alice",
-            Role = BoardMemberRole.Admin,
+            Role = ProductMemberRole.Admin,
             JoinedAt = DateTime.UtcNow
         };
 
         // Assert
         Assert.AreEqual("Alice", member.DisplayName);
-        Assert.AreEqual(BoardMemberRole.Admin, member.Role);
+        Assert.AreEqual(ProductMemberRole.Admin, member.Role);
     }
 
-    // ── BoardSwimlane ──
+    // -- Swimlane --
 
     [TestMethod]
-    public void BoardSwimlaneDto_CanBeCreated_WithRequiredProperties()
+    public void SwimlaneDto_CanBeCreated_WithRequiredProperties()
     {
         // Arrange & Act
-        var swimlane = new BoardSwimlaneDto
+        var swimlane = new SwimlaneDto
         {
             Id = Guid.NewGuid(),
-            BoardId = Guid.NewGuid(),
+            ContainerType = SwimlaneContainerType.Product,
+            ContainerId = Guid.NewGuid(),
             Title = "To Do",
             Position = 0,
             CreatedAt = DateTime.UtcNow,
@@ -120,94 +125,108 @@ public class TracksDtosTests
         Assert.AreEqual(0, swimlane.CardCount);
     }
 
-    // ── Card ──
+    // -- WorkItem --
 
     [TestMethod]
-    public void CardDto_CanBeCreated_WithRequiredProperties()
+    public void WorkItemDto_CanBeCreated_WithRequiredProperties()
     {
         // Arrange & Act
-        var card = new CardDto
+        var item = new WorkItemDto
         {
             Id = Guid.NewGuid(),
+            ProductId = Guid.NewGuid(),
+            ParentWorkItemId = null,
+            Type = WorkItemType.Item,
             SwimlaneId = Guid.NewGuid(),
-            BoardId = Guid.NewGuid(),
+            ItemNumber = 42,
             Title = "Implement auth",
             Position = 1000,
+            ETag = "etag-1",
             CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
+            UpdatedAt = DateTime.UtcNow,
+            TotalTrackedMinutes = null
         };
 
         // Assert
-        Assert.AreEqual("Implement auth", card.Title);
-        Assert.AreEqual(CardPriority.None, card.Priority);
-        Assert.IsFalse(card.IsArchived);
-        Assert.IsFalse(card.IsDeleted);
-        Assert.AreEqual(0, card.CommentCount);
-        Assert.AreEqual(0, card.AttachmentCount);
-        Assert.AreEqual(0, card.TotalTrackedMinutes);
+        Assert.AreEqual("Implement auth", item.Title);
+        Assert.AreEqual(Priority.None, item.Priority);
+        Assert.IsFalse(item.IsArchived);
+        Assert.AreEqual(0, item.CommentCount);
+        Assert.AreEqual(0, item.AttachmentCount);
+        Assert.IsNull(item.TotalTrackedMinutes);
     }
 
     [TestMethod]
-    public void CardDto_OptionalFields_DefaultToNull()
+    public void WorkItemDto_OptionalFields_DefaultToNull()
     {
         // Arrange & Act
-        var card = new CardDto
+        var item = new WorkItemDto
         {
             Id = Guid.NewGuid(),
+            ProductId = Guid.NewGuid(),
+            ParentWorkItemId = null,
+            Type = WorkItemType.Item,
             SwimlaneId = Guid.NewGuid(),
-            BoardId = Guid.NewGuid(),
+            ItemNumber = 1,
             Title = "Test",
             Position = 0,
+            ETag = "etag-1",
             CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
+            UpdatedAt = DateTime.UtcNow,
+            TotalTrackedMinutes = null
         };
 
         // Assert
-        Assert.IsNull(card.Description);
-        Assert.IsNull(card.DueDate);
-        Assert.IsNull(card.StoryPoints);
-        Assert.IsNull(card.DeletedAt);
-        Assert.IsNull(card.ETag);
+        Assert.IsNull(item.Description);
+        Assert.IsNull(item.DueDate);
+        Assert.IsNull(item.StoryPoints);
+        Assert.IsNull(item.SprintId);
+        Assert.IsNull(item.SprintTitle);
     }
 
     [TestMethod]
-    public void CardDto_Collections_DefaultToEmpty()
+    public void WorkItemDto_Collections_DefaultToEmpty()
     {
         // Arrange & Act
-        var card = new CardDto
+        var item = new WorkItemDto
         {
             Id = Guid.NewGuid(),
+            ProductId = Guid.NewGuid(),
+            ParentWorkItemId = null,
+            Type = WorkItemType.Item,
             SwimlaneId = Guid.NewGuid(),
-            BoardId = Guid.NewGuid(),
+            ItemNumber = 1,
             Title = "Test",
             Position = 0,
+            ETag = "etag-1",
             CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
+            UpdatedAt = DateTime.UtcNow,
+            TotalTrackedMinutes = null
         };
 
         // Assert
-        Assert.AreEqual(0, card.Assignments.Count);
-        Assert.AreEqual(0, card.Labels.Count);
-        Assert.AreEqual(0, card.Checklists.Count);
+        Assert.AreEqual(0, item.Assignments.Count);
+        Assert.AreEqual(0, item.Labels.Count);
+        Assert.IsNull(item.Checklists);
     }
 
     [TestMethod]
-    public void CardPriority_AllValuesExist()
+    public void Priority_AllValuesExist()
     {
         // Act
-        var values = Enum.GetValues(typeof(CardPriority));
+        var values = Enum.GetValues(typeof(Priority));
 
         // Assert
         Assert.AreEqual(5, values.Length);
     }
 
-    // ── Assignment, Label, Comment ──
+    // -- Assignment, Label, Comment --
 
     [TestMethod]
-    public void CardAssignmentDto_CanBeCreated()
+    public void WorkItemAssignmentDto_CanBeCreated()
     {
         // Arrange & Act
-        var assignment = new CardAssignmentDto
+        var assignment = new WorkItemAssignmentDto
         {
             UserId = Guid.NewGuid(),
             DisplayName = "Bob",
@@ -225,9 +244,10 @@ public class TracksDtosTests
         var label = new LabelDto
         {
             Id = Guid.NewGuid(),
-            BoardId = Guid.NewGuid(),
+            ProductId = Guid.NewGuid(),
             Title = "Bug",
-            Color = "#FF0000"
+            Color = "#FF0000",
+            CreatedAt = DateTime.UtcNow
         };
 
         // Assert
@@ -236,16 +256,17 @@ public class TracksDtosTests
     }
 
     [TestMethod]
-    public void CardCommentDto_CanBeCreated()
+    public void WorkItemCommentDto_CanBeCreated()
     {
         // Arrange & Act
-        var comment = new CardCommentDto
+        var comment = new WorkItemCommentDto
         {
             Id = Guid.NewGuid(),
-            CardId = Guid.NewGuid(),
+            WorkItemId = Guid.NewGuid(),
             UserId = Guid.NewGuid(),
             DisplayName = "Alice",
             Content = "Looks good!",
+            IsEdited = false,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
@@ -254,19 +275,19 @@ public class TracksDtosTests
         Assert.AreEqual("Looks good!", comment.Content);
     }
 
-    // ── Attachment ──
+    // -- Attachment --
 
     [TestMethod]
-    public void CardAttachmentDto_CanBeCreated_WithFileNodeId()
+    public void WorkItemAttachmentDto_CanBeCreated_WithFileNodeId()
     {
         // Arrange & Act
-        var attachment = new CardAttachmentDto
+        var attachment = new WorkItemAttachmentDto
         {
             Id = Guid.NewGuid(),
-            CardId = Guid.NewGuid(),
+            WorkItemId = Guid.NewGuid(),
             FileNodeId = Guid.NewGuid(),
             FileName = "design.pdf",
-            AddedByUserId = Guid.NewGuid(),
+            UploadedByUserId = Guid.NewGuid(),
             CreatedAt = DateTime.UtcNow
         };
 
@@ -276,16 +297,16 @@ public class TracksDtosTests
     }
 
     [TestMethod]
-    public void CardAttachmentDto_CanBeCreated_WithUrl()
+    public void WorkItemAttachmentDto_CanBeCreated_WithUrl()
     {
         // Arrange & Act
-        var attachment = new CardAttachmentDto
+        var attachment = new WorkItemAttachmentDto
         {
             Id = Guid.NewGuid(),
-            CardId = Guid.NewGuid(),
+            WorkItemId = Guid.NewGuid(),
             FileName = "External Link",
             Url = "https://example.com/spec.pdf",
-            AddedByUserId = Guid.NewGuid(),
+            UploadedByUserId = Guid.NewGuid(),
             CreatedAt = DateTime.UtcNow
         };
 
@@ -294,22 +315,23 @@ public class TracksDtosTests
         Assert.IsNotNull(attachment.Url);
     }
 
-    // ── Checklist ──
+    // -- Checklist --
 
     [TestMethod]
-    public void CardChecklistDto_CanBeCreated_WithItems()
+    public void ChecklistDto_CanBeCreated_WithItems()
     {
         // Arrange & Act
-        var checklist = new CardChecklistDto
+        var checklist = new ChecklistDto
         {
             Id = Guid.NewGuid(),
-            CardId = Guid.NewGuid(),
+            ItemId = Guid.NewGuid(),
             Title = "Acceptance Criteria",
             Position = 0,
+            CreatedAt = DateTime.UtcNow,
             Items =
             [
-                new ChecklistItemDto { Id = Guid.NewGuid(), Title = "Unit tests pass", IsCompleted = true, Position = 0 },
-                new ChecklistItemDto { Id = Guid.NewGuid(), Title = "Code review done", IsCompleted = false, Position = 1 }
+                new ChecklistItemDto { Id = Guid.NewGuid(), ChecklistId = Guid.NewGuid(), Title = "Unit tests pass", IsCompleted = true, Position = 0, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+                new ChecklistItemDto { Id = Guid.NewGuid(), ChecklistId = Guid.NewGuid(), Title = "Code review done", IsCompleted = false, Position = 1, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow }
             ]
         };
 
@@ -321,51 +343,54 @@ public class TracksDtosTests
     }
 
     [TestMethod]
-    public void CardChecklistDto_Items_DefaultToEmpty()
+    public void ChecklistDto_Items_DefaultToEmpty()
     {
         // Arrange & Act
-        var checklist = new CardChecklistDto
+        var checklist = new ChecklistDto
         {
             Id = Guid.NewGuid(),
-            CardId = Guid.NewGuid(),
+            ItemId = Guid.NewGuid(),
             Title = "Test",
-            Position = 0
+            Position = 0,
+            CreatedAt = DateTime.UtcNow
         };
 
         // Assert
         Assert.AreEqual(0, checklist.Items.Count);
     }
 
-    // ── Dependency ──
+    // -- Dependency --
 
     [TestMethod]
-    public void CardDependencyType_AllValuesExist()
+    public void DependencyType_AllValuesExist()
     {
         // Act
-        var values = Enum.GetValues(typeof(CardDependencyType));
+        var values = Enum.GetValues(typeof(DependencyType));
 
         // Assert
         Assert.AreEqual(2, values.Length);
     }
 
     [TestMethod]
-    public void CardDependencyDto_CanBeCreated()
+    public void WorkItemDependencyDto_CanBeCreated()
     {
         // Arrange & Act
-        var dep = new CardDependencyDto
+        var dep = new WorkItemDependencyDto
         {
-            CardId = Guid.NewGuid(),
-            DependsOnCardId = Guid.NewGuid(),
-            DependsOnCardTitle = "Setup CI",
-            Type = CardDependencyType.BlockedBy
+            Id = Guid.NewGuid(),
+            WorkItemId = Guid.NewGuid(),
+            DependsOnWorkItemId = Guid.NewGuid(),
+            DependsOnTitle = "Setup CI",
+            Type = DependencyType.BlockedBy,
+            CreatedAt = DateTime.UtcNow
         };
 
         // Assert
-        Assert.AreEqual(CardDependencyType.BlockedBy, dep.Type);
-        Assert.AreEqual("Setup CI", dep.DependsOnCardTitle);
+        Assert.AreEqual(DependencyType.BlockedBy, dep.Type);
+        Assert.AreEqual("Setup CI", dep.DependsOnTitle);
     }
 
-    // ── Sprint ──
+    // -- Sprint --
 
     [TestMethod]
     public void SprintStatus_AllValuesExist()
@@ -384,7 +409,7 @@ public class TracksDtosTests
         var sprint = new SprintDto
         {
             Id = Guid.NewGuid(),
-            BoardId = Guid.NewGuid(),
+            EpicId = Guid.NewGuid(),
             Title = "Sprint 1",
             Status = SprintStatus.Planning,
             CreatedAt = DateTime.UtcNow,
@@ -397,10 +422,10 @@ public class TracksDtosTests
         Assert.IsNull(sprint.Goal);
         Assert.IsNull(sprint.StartDate);
         Assert.IsNull(sprint.EndDate);
-        Assert.AreEqual(0, sprint.CardCount);
+        Assert.AreEqual(0, sprint.ItemCount);
     }
 
-    // ── TimeEntry ──
+    // -- TimeEntry --
 
     [TestMethod]
     public void TimeEntryDto_CanBeCreated()
@@ -409,14 +434,14 @@ public class TracksDtosTests
         var entry = new TimeEntryDto
         {
             Id = Guid.NewGuid(),
-            CardId = Guid.NewGuid(),
+            WorkItemId = Guid.NewGuid(),
             UserId = Guid.NewGuid(),
-            DisplayName = "Alice",
             StartTime = DateTime.UtcNow.AddHours(-2),
             EndTime = DateTime.UtcNow,
             DurationMinutes = 120,
             Description = "Working on auth",
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
         };
 
         // Assert
@@ -431,92 +456,93 @@ public class TracksDtosTests
         var entry = new TimeEntryDto
         {
             Id = Guid.NewGuid(),
-            CardId = Guid.NewGuid(),
+            WorkItemId = Guid.NewGuid(),
             UserId = Guid.NewGuid(),
             StartTime = DateTime.UtcNow,
             DurationMinutes = 0,
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
         };
 
         // Assert
         Assert.IsNull(entry.EndTime);
     }
 
-    // ── BoardActivity ──
+    // -- Activity --
 
     [TestMethod]
-    public void BoardActivityDto_CanBeCreated()
+    public void ActivityDto_CanBeCreated()
     {
         // Arrange & Act
-        var activity = new BoardActivityDto
+        var activity = new ActivityDto
         {
             Id = Guid.NewGuid(),
-            BoardId = Guid.NewGuid(),
+            ProductId = Guid.NewGuid(),
             UserId = Guid.NewGuid(),
             DisplayName = "Bob",
-            Action = "card.created",
-            EntityType = "Card",
+            Action = "workitem.created",
+            EntityType = "WorkItem",
             EntityId = Guid.NewGuid(),
             Details = "{\"title\":\"New task\"}",
             CreatedAt = DateTime.UtcNow
         };
 
         // Assert
-        Assert.AreEqual("card.created", activity.Action);
-        Assert.AreEqual("Card", activity.EntityType);
+        Assert.AreEqual("workitem.created", activity.Action);
+        Assert.AreEqual("WorkItem", activity.EntityType);
     }
 
-    // ── Request DTOs ──
+    // -- Request DTOs --
 
     [TestMethod]
-    public void CreateBoardDto_HasRequiredTitle()
+    public void CreateProductDto_HasRequiredName()
     {
         // Arrange & Act
-        var dto = new CreateBoardDto
+        var dto = new CreateProductDto
         {
-            Title = "Project Alpha"
+            Name = "Project Alpha"
         };
 
         // Assert
-        Assert.AreEqual("Project Alpha", dto.Title);
+        Assert.AreEqual("Project Alpha", dto.Name);
         Assert.IsNull(dto.Description);
         Assert.IsNull(dto.Color);
     }
 
     [TestMethod]
-    public void UpdateBoardDto_AllFieldsNullable()
+    public void UpdateProductDto_AllFieldsNullable()
     {
         // Arrange & Act
-        var dto = new UpdateBoardDto();
+        var dto = new UpdateProductDto();
 
         // Assert
-        Assert.IsNull(dto.Title);
+        Assert.IsNull(dto.Name);
         Assert.IsNull(dto.Description);
         Assert.IsNull(dto.Color);
-        Assert.IsNull(dto.IsArchived);
+        Assert.IsNull(dto.SubItemsEnabled);
     }
 
     [TestMethod]
-    public void CreateCardDto_HasRequiredTitle()
+    public void CreateWorkItemDto_HasRequiredTitle()
     {
         // Arrange & Act
-        var dto = new CreateCardDto
+        var dto = new CreateWorkItemDto
         {
             Title = "Fix login bug"
         };
 
         // Assert
         Assert.AreEqual("Fix login bug", dto.Title);
-        Assert.AreEqual(CardPriority.None, dto.Priority);
+        Assert.AreEqual(Priority.None, dto.Priority);
         Assert.AreEqual(0, dto.AssigneeIds.Count);
         Assert.AreEqual(0, dto.LabelIds.Count);
     }
 
     [TestMethod]
-    public void UpdateCardDto_AllFieldsNullable()
+    public void UpdateWorkItemDto_AllFieldsNullable()
     {
         // Arrange & Act
-        var dto = new UpdateCardDto();
+        var dto = new UpdateWorkItemDto();
 
         // Assert
         Assert.IsNull(dto.Title);
@@ -528,10 +554,10 @@ public class TracksDtosTests
     }
 
     [TestMethod]
-    public void MoveCardDto_HasRequiredFields()
+    public void MoveWorkItemDto_HasRequiredFields()
     {
         // Arrange & Act
-        var dto = new MoveCardDto
+        var dto = new MoveWorkItemDto
         {
             TargetSwimlaneId = Guid.NewGuid(),
             Position = 2000
@@ -559,71 +585,76 @@ public class TracksDtosTests
     }
 
     [TestMethod]
-    public void CreateTimeEntryDto_HasRequiredStartTime()
+    public void CreateTimeEntryDto_Defaults()
     {
         // Arrange & Act
-        var now = DateTime.UtcNow;
         var dto = new CreateTimeEntryDto
         {
-            StartTime = now
+            DurationMinutes = 30
         };
 
         // Assert
-        Assert.AreEqual(now, dto.StartTime);
-        Assert.IsNull(dto.EndTime);
-        Assert.IsNull(dto.DurationMinutes);
+        Assert.AreEqual(30, dto.DurationMinutes);
+        Assert.IsNull(dto.StartTime);
         Assert.IsNull(dto.Description);
     }
 
-    // ── Record immutability (with expressions) ──
+    // -- Record immutability (with expressions) --
 
     [TestMethod]
-    public void BoardDto_SupportsWithExpression()
+    public void ProductDto_SupportsWithExpression()
     {
         // Arrange
-        var board = new BoardDto
+        var product = new ProductDto
         {
             Id = Guid.NewGuid(),
+            OrganizationId = Guid.NewGuid(),
+            Name = "Original",
             OwnerId = Guid.NewGuid(),
-            Title = "Original",
+            ETag = "etag-1",
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
 
         // Act
-        var updated = board with { Title = "Updated", IsArchived = true };
+        var updated = product with { Name = "Updated", IsArchived = true };
 
         // Assert
-        Assert.AreEqual("Updated", updated.Title);
+        Assert.AreEqual("Updated", updated.Name);
         Assert.IsTrue(updated.IsArchived);
-        Assert.AreEqual("Original", board.Title); // original unchanged
+        Assert.AreEqual("Original", product.Name); // original unchanged
     }
 
     [TestMethod]
-    public void CardDto_SupportsWithExpression()
+    public void WorkItemDto_SupportsWithExpression()
     {
         // Arrange
-        var card = new CardDto
+        var item = new WorkItemDto
         {
             Id = Guid.NewGuid(),
+            ProductId = Guid.NewGuid(),
+            ParentWorkItemId = null,
+            Type = WorkItemType.Item,
             SwimlaneId = Guid.NewGuid(),
-            BoardId = Guid.NewGuid(),
+            ItemNumber = 1,
             Title = "Original",
             Position = 1000,
+            ETag = "etag-1",
             CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
+            UpdatedAt = DateTime.UtcNow,
+            TotalTrackedMinutes = null
         };
 
         // Act
-        var moved = card with { SwimlaneId = Guid.NewGuid(), Position = 2000 };
+        var moved = item with { SwimlaneId = Guid.NewGuid(), Position = 2000 };
 
         // Assert
-        Assert.AreNotEqual(card.SwimlaneId, moved.SwimlaneId);
+        Assert.AreNotEqual(item.SwimlaneId, moved.SwimlaneId);
         Assert.AreEqual(2000, moved.Position);
         Assert.AreEqual("Original", moved.Title);
     }
 
-    // ── Planning Poker ──
+    // -- Planning Poker --
 
     [TestMethod]
     public void PokerSessionStatus_HasExpectedValues()
@@ -649,8 +680,8 @@ public class TracksDtosTests
         var session = new PokerSessionDto
         {
             Id = Guid.NewGuid(),
-            CardId = Guid.NewGuid(),
-            BoardId = Guid.NewGuid(),
+            EpicId = Guid.NewGuid(),
+            ItemId = Guid.NewGuid(),
             CreatedByUserId = Guid.NewGuid(),
             Scale = PokerScale.Fibonacci,
             Status = PokerSessionStatus.Voting,
@@ -668,29 +699,12 @@ public class TracksDtosTests
     }
 
     [TestMethod]
-    public void PokerSessionDto_Votes_DefaultToEmpty()
-    {
-        var session = new PokerSessionDto
-        {
-            Id = Guid.NewGuid(),
-            CardId = Guid.NewGuid(),
-            BoardId = Guid.NewGuid(),
-            CreatedByUserId = Guid.NewGuid(),
-            Scale = PokerScale.Fibonacci,
-            Status = PokerSessionStatus.Voting,
-            Round = 1,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
-
-        Assert.AreEqual(0, session.Votes.Count);
-    }
-
-    [TestMethod]
     public void PokerVoteDto_CanBeCreated_WithRequiredProperties()
     {
         var vote = new PokerVoteDto
         {
+            Id = Guid.NewGuid(),
+            SessionId = Guid.NewGuid(),
             UserId = Guid.NewGuid(),
             Estimate = "8",
             VotedAt = DateTime.UtcNow,
@@ -707,6 +721,7 @@ public class TracksDtosTests
     {
         var dto = new CreatePokerSessionDto
         {
+            ItemId = Guid.NewGuid(),
             Scale = PokerScale.TShirt,
             CustomScaleValues = null
         };
@@ -719,6 +734,7 @@ public class TracksDtosTests
     {
         var dto = new CreatePokerSessionDto
         {
+            ItemId = Guid.NewGuid(),
             Scale = PokerScale.Custom,
             CustomScaleValues = "[\"XS\",\"S\",\"M\",\"L\",\"XL\"]"
         };
@@ -732,31 +748,5 @@ public class TracksDtosTests
     {
         var dto = new SubmitPokerVoteDto { Estimate = "13" };
         Assert.AreEqual("13", dto.Estimate);
-    }
-
-    [TestMethod]
-    public void AcceptPokerEstimateDto_CanBeCreated()
-    {
-        var dto = new AcceptPokerEstimateDto
-        {
-            AcceptedEstimate = "8",
-            StoryPoints = 8
-        };
-
-        Assert.AreEqual("8", dto.AcceptedEstimate);
-        Assert.AreEqual(8, dto.StoryPoints);
-    }
-
-    [TestMethod]
-    public void AcceptPokerEstimateDto_NonNumericScale_StoryPointsNull()
-    {
-        var dto = new AcceptPokerEstimateDto
-        {
-            AcceptedEstimate = "L",
-            StoryPoints = null
-        };
-
-        Assert.AreEqual("L", dto.AcceptedEstimate);
-        Assert.IsNull(dto.StoryPoints);
     }
 }

@@ -1,3 +1,4 @@
+using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Modules.Tracks.Data.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -5,9 +6,9 @@ using Microsoft.AspNetCore.Mvc;
 namespace DotNetCloud.Modules.Tracks.Host.Controllers;
 
 /// <summary>
-/// REST API controller for card attachments.
+/// REST API controller for work item attachments.
 /// </summary>
-[Route("api/v1/cards/{cardId:guid}/attachments")]
+[ApiController]
 public class AttachmentsController : TracksControllerBase
 {
     private readonly AttachmentService _attachmentService;
@@ -22,55 +23,46 @@ public class AttachmentsController : TracksControllerBase
         _logger = logger;
     }
 
-    /// <summary>Lists attachments on a card.</summary>
-    [HttpGet]
-    public async Task<IActionResult> ListAttachmentsAsync(Guid cardId)
+    /// <summary>Lists attachments on a work item.</summary>
+    [HttpGet("api/v1/workitems/{workItemId:guid}/attachments")]
+    public async Task<IActionResult> GetAttachmentsAsync(Guid workItemId, CancellationToken ct)
     {
         var caller = GetAuthenticatedCaller();
-        try
-        {
-            var attachments = await _attachmentService.GetAttachmentsAsync(cardId, caller);
-            return Ok(Envelope(attachments));
-        }
-        catch (ValidationException ex)
-        {
-            return NotFound(ErrorEnvelope(ErrorCodes.CardNotFound, ex.Message));
-        }
+        var attachments = await _attachmentService.GetAttachmentsByWorkItemAsync(workItemId, ct);
+        return Ok(Envelope(attachments));
     }
 
-    /// <summary>Adds an attachment to a card.</summary>
-    [HttpPost]
-    public async Task<IActionResult> AddAttachmentAsync(Guid cardId, [FromBody] AddAttachmentRequest request)
+    /// <summary>Adds an attachment to a work item.</summary>
+    [HttpPost("api/v1/workitems/{workItemId:guid}/attachments")]
+    public async Task<IActionResult> AddAttachmentAsync(Guid workItemId, [FromBody] AddAttachmentRequest request, CancellationToken ct)
     {
         var caller = GetAuthenticatedCaller();
         try
         {
             var attachment = await _attachmentService.AddAttachmentAsync(
-                cardId, request.FileName, request.FileNodeId, request.Url, caller);
-            return Created($"/api/v1/cards/{cardId}/attachments", Envelope(attachment));
+                workItemId,
+                caller.UserId,
+                request.FileName,
+                request.FileSize,
+                request.MimeType,
+                request.FileNodeId,
+                request.Url,
+                ct);
+            return Created($"/api/v1/workitems/{workItemId}/attachments", Envelope(attachment));
         }
-        catch (ValidationException ex)
+        catch (System.InvalidOperationException ex)
         {
-            return ex.Errors.ContainsKey(ErrorCodes.CardNotFound)
-                ? NotFound(ErrorEnvelope(ErrorCodes.CardNotFound, ex.Message))
-                : BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
+            return BadRequest(ErrorEnvelope(ErrorCodes.InvalidOperation, ex.Message));
         }
     }
 
-    /// <summary>Removes an attachment from a card.</summary>
-    [HttpDelete("{attachmentId:guid}")]
-    public async Task<IActionResult> RemoveAttachmentAsync(Guid cardId, Guid attachmentId)
+    /// <summary>Removes an attachment from a work item.</summary>
+    [HttpDelete("api/v1/workitems/{workItemId:guid}/attachments/{attachmentId:guid}")]
+    public async Task<IActionResult> RemoveAttachmentAsync(Guid workItemId, Guid attachmentId, CancellationToken ct)
     {
         var caller = GetAuthenticatedCaller();
-        try
-        {
-            await _attachmentService.RemoveAttachmentAsync(attachmentId, caller);
-            return Ok(Envelope(new { deleted = true }));
-        }
-        catch (ValidationException ex)
-        {
-            return NotFound(ErrorEnvelope(ErrorCodes.CardNotFound, ex.Message));
-        }
+        await _attachmentService.RemoveAttachmentAsync(attachmentId, ct);
+        return Ok(Envelope(new { deleted = true }));
     }
 }
 
@@ -79,6 +71,12 @@ public sealed record AddAttachmentRequest
 {
     /// <summary>Display name of the file.</summary>
     public required string FileName { get; init; }
+
+    /// <summary>File size in bytes.</summary>
+    public long? FileSize { get; init; }
+
+    /// <summary>MIME type of the file.</summary>
+    public string? MimeType { get; init; }
 
     /// <summary>Optional Files module FileNode ID.</summary>
     public Guid? FileNodeId { get; init; }

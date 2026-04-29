@@ -401,7 +401,7 @@ namespace DotNetCloud.Modules.Files.Data.Migrations
                     b.HasIndex("LinkToken")
                         .IsUnique()
                         .HasDatabaseName("ix_file_shares_link_token")
-                        .HasFilter("[LinkToken] IS NOT NULL");
+                        .HasFilter("\"LinkToken\" IS NOT NULL");
 
                     b.HasIndex("SharedWithTeamId")
                         .HasDatabaseName("ix_file_shares_shared_with_team");

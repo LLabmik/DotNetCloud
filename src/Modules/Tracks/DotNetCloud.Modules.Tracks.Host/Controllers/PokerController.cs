@@ -8,7 +8,7 @@ namespace DotNetCloud.Modules.Tracks.Host.Controllers;
 /// <summary>
 /// REST API controller for planning poker sessions.
 /// </summary>
-[Route("api/v1")]
+[ApiController]
 public class PokerController : TracksControllerBase
 {
     private readonly PokerService _pokerService;
@@ -23,140 +23,108 @@ public class PokerController : TracksControllerBase
         _logger = logger;
     }
 
-    /// <summary>Gets all poker sessions for a card.</summary>
-    [HttpGet("cards/{cardId:guid}/poker")]
-    public async Task<IActionResult> GetCardSessionsAsync(Guid cardId)
+    /// <summary>Starts a new planning poker session for an item under an epic.</summary>
+    [HttpPost("api/v1/workitems/{epicId:guid}/poker")]
+    public async Task<IActionResult> StartSessionAsync(Guid epicId, [FromBody] CreatePokerSessionDto dto, CancellationToken ct)
     {
         var caller = GetAuthenticatedCaller();
         try
         {
-            var sessions = await _pokerService.GetCardSessionsAsync(cardId, caller);
-            return Ok(Envelope(sessions));
-        }
-        catch (ValidationException ex)
-        {
-            return ex.Errors.ContainsKey(ErrorCodes.CardNotFound)
-                ? NotFound(ErrorEnvelope(ErrorCodes.CardNotFound, ex.Message))
-                : BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
-        }
-    }
-
-    /// <summary>Starts a new planning poker session for a card.</summary>
-    [HttpPost("cards/{cardId:guid}/poker")]
-    public async Task<IActionResult> StartSessionAsync(Guid cardId, [FromBody] CreatePokerSessionDto dto)
-    {
-        var caller = GetAuthenticatedCaller();
-        try
-        {
-            var session = await _pokerService.StartSessionAsync(cardId, dto, caller);
+            var session = await _pokerService.StartSessionAsync(epicId, caller.UserId, dto, ct);
             return Created($"/api/v1/poker/{session.Id}", Envelope(session));
         }
         catch (ValidationException ex)
         {
-            return ex.Errors.ContainsKey(ErrorCodes.CardNotFound)
-                ? NotFound(ErrorEnvelope(ErrorCodes.CardNotFound, ex.Message))
-                : BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
+            return ex.Errors.ContainsKey("EpicId") || ex.Errors.ContainsKey("ItemId")
+                ? NotFound(ErrorEnvelope(ErrorCodes.NotFound, ex.Message))
+                : BadRequest(ErrorEnvelope(ErrorCodes.ValidationError, ex.Message));
         }
     }
 
     /// <summary>Gets a poker session by ID.</summary>
-    [HttpGet("poker/{sessionId:guid}")]
-    public async Task<IActionResult> GetSessionAsync(Guid sessionId)
+    [HttpGet("api/v1/poker/{sessionId:guid}")]
+    public async Task<IActionResult> GetSessionAsync(Guid sessionId, CancellationToken ct)
     {
         var caller = GetAuthenticatedCaller();
-        var session = await _pokerService.GetSessionAsync(sessionId, caller);
+        var session = await _pokerService.GetSessionAsync(sessionId, ct);
         return session is null
             ? NotFound(ErrorEnvelope(ErrorCodes.PokerSessionNotFound, "Poker session not found."))
             : Ok(Envelope(session));
     }
 
     /// <summary>Submits or updates a vote in a poker session.</summary>
-    [HttpPost("poker/{sessionId:guid}/vote")]
-    public async Task<IActionResult> SubmitVoteAsync(Guid sessionId, [FromBody] SubmitPokerVoteDto dto)
+    [HttpPost("api/v1/poker/{sessionId:guid}/vote")]
+    public async Task<IActionResult> SubmitVoteAsync(Guid sessionId, [FromBody] SubmitPokerVoteDto dto, CancellationToken ct)
     {
         var caller = GetAuthenticatedCaller();
         try
         {
-            var session = await _pokerService.SubmitVoteAsync(sessionId, dto, caller);
+            var session = await _pokerService.SubmitVoteAsync(sessionId, caller.UserId, dto, ct);
             return Ok(Envelope(session));
         }
-        catch (ValidationException ex)
+        catch (NotFoundException ex)
         {
-            return ex.Errors.ContainsKey(ErrorCodes.PokerSessionNotFound)
-                ? NotFound(ErrorEnvelope(ErrorCodes.PokerSessionNotFound, ex.Message))
-                : BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
+            return NotFound(ErrorEnvelope(ErrorCodes.PokerSessionNotFound, ex.Message));
+        }
+        catch (System.InvalidOperationException ex)
+        {
+            return BadRequest(ErrorEnvelope(ErrorCodes.PokerSessionNotVoting, ex.Message));
         }
     }
 
     /// <summary>Reveals all votes in a poker session.</summary>
-    [HttpPost("poker/{sessionId:guid}/reveal")]
-    public async Task<IActionResult> RevealSessionAsync(Guid sessionId)
+    [HttpPost("api/v1/poker/{sessionId:guid}/reveal")]
+    public async Task<IActionResult> RevealVotesAsync(Guid sessionId, CancellationToken ct)
     {
         var caller = GetAuthenticatedCaller();
         try
         {
-            var session = await _pokerService.RevealSessionAsync(sessionId, caller);
+            var session = await _pokerService.RevealVotesAsync(sessionId, ct);
             return Ok(Envelope(session));
         }
-        catch (ValidationException ex)
+        catch (NotFoundException ex)
         {
-            return ex.Errors.ContainsKey(ErrorCodes.PokerSessionNotFound)
-                ? NotFound(ErrorEnvelope(ErrorCodes.PokerSessionNotFound, ex.Message))
-                : BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
+            return NotFound(ErrorEnvelope(ErrorCodes.PokerSessionNotFound, ex.Message));
+        }
+        catch (System.InvalidOperationException ex)
+        {
+            return BadRequest(ErrorEnvelope(ErrorCodes.PokerSessionNotVoting, ex.Message));
         }
     }
 
-    /// <summary>Accepts an estimate, applies it to the card, and completes the session.</summary>
-    [HttpPost("poker/{sessionId:guid}/accept")]
-    public async Task<IActionResult> AcceptEstimateAsync(Guid sessionId, [FromBody] AcceptPokerEstimateDto dto)
+    /// <summary>Accepts an estimate, applies it to the item, and completes the session.</summary>
+    [HttpPost("api/v1/poker/{sessionId:guid}/accept")]
+    public async Task<IActionResult> AcceptEstimateAsync(Guid sessionId, [FromBody] AcceptEstimateRequest request, CancellationToken ct)
     {
         var caller = GetAuthenticatedCaller();
         try
         {
-            var session = await _pokerService.AcceptEstimateAsync(sessionId, dto, caller);
+            var session = await _pokerService.AcceptEstimateAsync(sessionId, request.Estimate, ct);
             return Ok(Envelope(session));
         }
-        catch (ValidationException ex)
+        catch (NotFoundException ex)
         {
-            return ex.Errors.ContainsKey(ErrorCodes.PokerSessionNotFound)
-                ? NotFound(ErrorEnvelope(ErrorCodes.PokerSessionNotFound, ex.Message))
-                : BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
+            return NotFound(ErrorEnvelope(ErrorCodes.PokerSessionNotFound, ex.Message));
+        }
+        catch (System.InvalidOperationException ex)
+        {
+            return BadRequest(ErrorEnvelope(ErrorCodes.InvalidOperation, ex.Message));
         }
     }
 
-    /// <summary>Starts a new voting round in a poker session (clears current votes, increments round).</summary>
-    [HttpPost("poker/{sessionId:guid}/new-round")]
-    public async Task<IActionResult> StartNewRoundAsync(Guid sessionId)
+    /// <summary>Gets the current vote status for a poker session (per-user vote status without revealing values).</summary>
+    [HttpGet("api/v1/poker/{sessionId:guid}/vote-status")]
+    public async Task<IActionResult> GetVoteStatusAsync(Guid sessionId, CancellationToken ct)
     {
         var caller = GetAuthenticatedCaller();
-        try
-        {
-            var session = await _pokerService.StartNewRoundAsync(sessionId, caller);
-            return Ok(Envelope(session));
-        }
-        catch (ValidationException ex)
-        {
-            return ex.Errors.ContainsKey(ErrorCodes.PokerSessionNotFound)
-                ? NotFound(ErrorEnvelope(ErrorCodes.PokerSessionNotFound, ex.Message))
-                : BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
-        }
+        var statuses = await _pokerService.GetVoteStatusAsync(sessionId, ct);
+        return Ok(Envelope(statuses));
     }
+}
 
-    /// <summary>Gets the vote status for each participant (who voted, who hasn't) without revealing actual vote values.</summary>
-    [HttpGet("poker/{sessionId:guid}/vote-status")]
-    public async Task<IActionResult> GetVoteStatusAsync(Guid sessionId)
-    {
-        var caller = GetAuthenticatedCaller();
-        try
-        {
-            var status = await _pokerService.GetVoteStatusAsync(sessionId, caller);
-            return Ok(Envelope(status));
-        }
-        catch (ValidationException ex)
-        {
-            return ex.Errors.ContainsKey(ErrorCodes.PokerSessionNotFound)
-                ? NotFound(ErrorEnvelope(ErrorCodes.PokerSessionNotFound, ex.Message))
-                : BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
-        }
-    }
+/// <summary>Request body for accepting a poker estimate.</summary>
+public sealed record AcceptEstimateRequest
+{
+    /// <summary>The estimate value to apply to the item.</summary>
+    public required string Estimate { get; init; }
 }

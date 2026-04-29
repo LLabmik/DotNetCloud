@@ -31,14 +31,14 @@ public sealed class TracksModuleManifest : IModuleManifest
     /// <inheritdoc />
     public IReadOnlyCollection<string> PublishedEvents => new[]
     {
-        nameof(BoardCreatedEvent),
-        nameof(BoardDeletedEvent),
-        nameof(CardCreatedEvent),
-        nameof(CardMovedEvent),
-        nameof(CardUpdatedEvent),
-        nameof(CardDeletedEvent),
-        nameof(CardAssignedEvent),
-        nameof(CardCommentAddedEvent),
+        nameof(ProductCreatedEvent),
+        nameof(ProductDeletedEvent),
+        nameof(WorkItemCreatedEvent),
+        nameof(WorkItemMovedEvent),
+        nameof(WorkItemUpdatedEvent),
+        nameof(WorkItemDeletedEvent),
+        nameof(WorkItemAssignedEvent),
+        nameof(WorkItemCommentAddedEvent),
         nameof(SprintStartedEvent),
         nameof(SprintCompletedEvent),
         nameof(PokerSessionStartedEvent),

@@ -51,7 +51,7 @@ internal sealed class ChatMessageTracksHandler :
 
         // Broadcast chat activity to any Tracks board views listening for cross-module updates
         await _realtimeService.BroadcastActivityAsync(
-            boardId: Guid.Empty, // Global — not board-specific; clients filter by relevance
+            productId: Guid.Empty, // Global — not product-specific; clients filter by relevance
             userId: @event.SenderUserId,
             activityAction: "chat_message_sent",
             entityType: "ChatMessage",
@@ -67,7 +67,7 @@ internal sealed class ChatMessageTracksHandler :
             @event.ChannelName, @event.CreatedByUserId);
 
         await _realtimeService.BroadcastActivityAsync(
-            boardId: Guid.Empty,
+            productId: Guid.Empty,
             userId: @event.CreatedByUserId,
             activityAction: "chat_channel_created",
             entityType: "ChatChannel",
@@ -83,7 +83,7 @@ internal sealed class ChatMessageTracksHandler :
             @event.ChannelName, @event.DeletedByUserId);
 
         await _realtimeService.BroadcastActivityAsync(
-            boardId: Guid.Empty,
+            productId: Guid.Empty,
             userId: @event.DeletedByUserId,
             activityAction: "chat_channel_deleted",
             entityType: "ChatChannel",

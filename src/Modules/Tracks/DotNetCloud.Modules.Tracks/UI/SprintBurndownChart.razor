@@ -6,8 +6,8 @@
         @if (_report is not null)
         {
             <span class="tracks-muted">
-                @_report.CompletedPoints / @_report.TotalPoints SP ·
-                @_report.CompletedCards / @_report.TotalCards cards
+                @_report.CompletedStoryPoints / @_report.TotalStoryPoints SP ·
+                @_report.CompletedItems / @(_report.CompletedItems + _report.IncompleteItems) items
             </span>
         }
     </div>
@@ -16,7 +16,7 @@
     {
         <p class="tracks-muted">Loading chart data...</p>
     }
-    else if (_report is null || _report.BurndownData.Count == 0)
+    else if (_burndownData is null || _burndownData.Points.Count == 0)
     {
         <p class="tracks-muted">No burndown data available. Sprint needs start/end dates and story points.</p>
     }

@@ -44,7 +44,7 @@ namespace DotNetCloud.Modules.Files.Data.Migrations
                 table: "FileShares",
                 column: "LinkToken",
                 unique: true,
-                filter: "[LinkToken] IS NOT NULL");
+                filter: "\"LinkToken\" IS NOT NULL");
         }
     }
 }

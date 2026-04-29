@@ -38,12 +38,7 @@ app.MapControllers();
 // Health check endpoint
 app.MapHealthChecks("/health");
 
-// Seed built-in board templates on startup
-using (var scope = app.Services.CreateScope())
-{
-    var boardTemplateService = scope.ServiceProvider.GetRequiredService<BoardTemplateService>();
-    await boardTemplateService.SeedBuiltInTemplatesAsync();
-}
+// TODO: Seed built-in product templates on startup (ProductTemplateService.SeedBuiltInTemplatesAsync)
 
 // Minimal info endpoint
 app.MapGet("/", () => Results.Ok(new

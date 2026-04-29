@@ -7,152 +7,137 @@ namespace DotNetCloud.Modules.Tracks.Services;
 /// </summary>
 public interface ITracksApiClient
 {
-    // ── Boards ──────────────────────────────────────────────
+    // Products
+    Task<IReadOnlyList<ProductDto>> ListProductsAsync(Guid organizationId, CancellationToken ct = default);
+    Task<ProductDto?> GetProductAsync(Guid productId, CancellationToken ct = default);
+    Task<ProductDto?> CreateProductAsync(Guid organizationId, CreateProductDto dto, CancellationToken ct = default);
+    Task<ProductDto?> UpdateProductAsync(Guid productId, UpdateProductDto dto, CancellationToken ct = default);
+    Task DeleteProductAsync(Guid productId, CancellationToken ct = default);
 
-    Task<IReadOnlyList<BoardDto>> ListBoardsAsync(bool includeArchived = false, BoardMode? mode = null, CancellationToken ct = default);
-    Task<BoardDto?> GetBoardAsync(Guid boardId, CancellationToken ct = default);
-    Task<BoardDto?> CreateBoardAsync(CreateBoardDto dto, CancellationToken ct = default);
-    Task<BoardDto?> UpdateBoardAsync(Guid boardId, UpdateBoardDto dto, CancellationToken ct = default);
-    Task DeleteBoardAsync(Guid boardId, CancellationToken ct = default);
+    // Product Members
+    Task<IReadOnlyList<ProductMemberDto>> ListProductMembersAsync(Guid productId, CancellationToken ct = default);
+    Task AddProductMemberAsync(Guid productId, AddProductMemberDto dto, CancellationToken ct = default);
+    Task RemoveProductMemberAsync(Guid productId, Guid userId, CancellationToken ct = default);
+    Task UpdateProductMemberRoleAsync(Guid productId, Guid userId, ProductMemberRole role, CancellationToken ct = default);
 
-    // ── Board Members ───────────────────────────────────────
+    // Labels
+    Task<IReadOnlyList<LabelDto>> ListLabelsAsync(Guid productId, CancellationToken ct = default);
+    Task<LabelDto?> CreateLabelAsync(Guid productId, CreateLabelDto dto, CancellationToken ct = default);
+    Task<LabelDto?> UpdateLabelAsync(Guid productId, Guid labelId, UpdateLabelDto dto, CancellationToken ct = default);
+    Task DeleteLabelAsync(Guid productId, Guid labelId, CancellationToken ct = default);
 
-    Task<IReadOnlyList<BoardMemberDto>> ListBoardMembersAsync(Guid boardId, CancellationToken ct = default);
-    Task AddBoardMemberAsync(Guid boardId, Guid userId, BoardMemberRole role, CancellationToken ct = default);
-    Task RemoveBoardMemberAsync(Guid boardId, Guid userId, CancellationToken ct = default);
-    Task UpdateBoardMemberRoleAsync(Guid boardId, Guid userId, BoardMemberRole role, CancellationToken ct = default);
+    // Swimlanes
+    Task<IReadOnlyList<SwimlaneDto>> ListProductSwimlanesAsync(Guid productId, CancellationToken ct = default);
+    Task<SwimlaneDto?> CreateProductSwimlaneAsync(Guid productId, CreateSwimlaneDto dto, CancellationToken ct = default);
+    Task<IReadOnlyList<SwimlaneDto>> ListWorkItemSwimlanesAsync(Guid workItemId, CancellationToken ct = default);
+    Task<SwimlaneDto?> CreateWorkItemSwimlaneAsync(Guid workItemId, CreateSwimlaneDto dto, CancellationToken ct = default);
+    Task<SwimlaneDto?> UpdateSwimlaneAsync(Guid swimlaneId, UpdateSwimlaneDto dto, CancellationToken ct = default);
+    Task DeleteSwimlaneAsync(Guid swimlaneId, CancellationToken ct = default);
+    Task ReorderSwimlanesAsync(IReadOnlyList<Guid> swimlaneIds, CancellationToken ct = default);
 
-    // ── Labels ──────────────────────────────────────────────
+    // Work Items
+    Task<IReadOnlyList<WorkItemDto>> ListWorkItemsAsync(Guid swimlaneId, CancellationToken ct = default);
+    Task<WorkItemDto?> GetWorkItemAsync(Guid workItemId, CancellationToken ct = default);
+    Task<WorkItemDto?> GetWorkItemByNumberAsync(Guid productId, int itemNumber, CancellationToken ct = default);
+    Task<WorkItemDto?> CreateEpicAsync(Guid swimlaneId, CreateWorkItemDto dto, CancellationToken ct = default);
+    Task<WorkItemDto?> CreateFeatureAsync(Guid swimlaneId, CreateWorkItemDto dto, CancellationToken ct = default);
+    Task<WorkItemDto?> CreateItemAsync(Guid swimlaneId, CreateWorkItemDto dto, CancellationToken ct = default);
+    Task<WorkItemDto?> CreateSubItemAsync(Guid parentItemId, CreateWorkItemDto dto, CancellationToken ct = default);
+    Task<WorkItemDto?> UpdateWorkItemAsync(Guid workItemId, UpdateWorkItemDto dto, CancellationToken ct = default);
+    Task DeleteWorkItemAsync(Guid workItemId, CancellationToken ct = default);
+    Task<WorkItemDto?> MoveWorkItemAsync(Guid workItemId, MoveWorkItemDto dto, CancellationToken ct = default);
+    Task<IReadOnlyList<WorkItemDto>> GetChildWorkItemsAsync(Guid parentWorkItemId, CancellationToken ct = default);
 
-    Task<IReadOnlyList<LabelDto>> ListLabelsAsync(Guid boardId, CancellationToken ct = default);
-    Task<LabelDto?> CreateLabelAsync(Guid boardId, CreateLabelDto dto, CancellationToken ct = default);
-    Task<LabelDto?> UpdateLabelAsync(Guid boardId, Guid labelId, UpdateLabelDto dto, CancellationToken ct = default);
-    Task DeleteLabelAsync(Guid boardId, Guid labelId, CancellationToken ct = default);
+    // Work Item Assignments
+    Task AssignUserAsync(Guid workItemId, Guid userId, CancellationToken ct = default);
+    Task UnassignUserAsync(Guid workItemId, Guid userId, CancellationToken ct = default);
 
-    // ── Swimlanes ───────────────────────────────────────────
+    // Work Item Labels
+    Task AddLabelToWorkItemAsync(Guid workItemId, Guid labelId, CancellationToken ct = default);
+    Task RemoveLabelFromWorkItemAsync(Guid workItemId, Guid labelId, CancellationToken ct = default);
 
-    Task<IReadOnlyList<BoardSwimlaneDto>> ListSwimlanesAsync(Guid boardId, CancellationToken ct = default);
-    Task<BoardSwimlaneDto?> CreateSwimlaneAsync(Guid boardId, CreateBoardSwimlaneDto dto, CancellationToken ct = default);
-    Task<BoardSwimlaneDto?> UpdateSwimlaneAsync(Guid boardId, Guid swimlaneId, UpdateBoardSwimlaneDto dto, CancellationToken ct = default);
-    Task DeleteSwimlaneAsync(Guid boardId, Guid swimlaneId, CancellationToken ct = default);
-    Task ReorderSwimlanesAsync(Guid boardId, IReadOnlyList<Guid> swimlaneIds, CancellationToken ct = default);
+    // Comments
+    Task<IReadOnlyList<WorkItemCommentDto>> ListCommentsAsync(Guid workItemId, int skip = 0, int take = 50, CancellationToken ct = default);
+    Task<WorkItemCommentDto?> CreateCommentAsync(Guid workItemId, string content, CancellationToken ct = default);
+    Task<WorkItemCommentDto?> UpdateCommentAsync(Guid workItemId, Guid commentId, string content, CancellationToken ct = default);
+    Task DeleteCommentAsync(Guid workItemId, Guid commentId, CancellationToken ct = default);
 
-    // ── Cards ───────────────────────────────────────────────
+    // Checklists
+    Task<IReadOnlyList<ChecklistDto>> ListChecklistsAsync(Guid itemId, CancellationToken ct = default);
+    Task<ChecklistDto?> CreateChecklistAsync(Guid itemId, string title, CancellationToken ct = default);
+    Task DeleteChecklistAsync(Guid itemId, Guid checklistId, CancellationToken ct = default);
+    Task<ChecklistItemDto?> AddChecklistItemAsync(Guid itemId, Guid checklistId, string title, CancellationToken ct = default);
+    Task<ChecklistItemDto?> ToggleChecklistItemAsync(Guid itemId, Guid checklistId, Guid checklistItemId, CancellationToken ct = default);
+    Task DeleteChecklistItemAsync(Guid itemId, Guid checklistId, Guid checklistItemId, CancellationToken ct = default);
 
-    Task<IReadOnlyList<CardDto>> ListCardsAsync(Guid swimlaneId, bool includeArchived = false, CancellationToken ct = default);
-    Task<CardDto?> GetCardAsync(Guid cardId, CancellationToken ct = default);
-    Task<CardDto?> GetCardByNumberAsync(int cardNumber, CancellationToken ct = default);
-    Task<CardDto?> CreateCardAsync(Guid swimlaneId, CreateCardDto dto, CancellationToken ct = default);
-    Task<CardDto?> UpdateCardAsync(Guid cardId, UpdateCardDto dto, CancellationToken ct = default);
-    Task DeleteCardAsync(Guid cardId, CancellationToken ct = default);
-    Task<CardDto?> MoveCardAsync(Guid cardId, MoveCardDto dto, CancellationToken ct = default);
-    Task AssignUserAsync(Guid cardId, Guid userId, CancellationToken ct = default);
-    Task UnassignUserAsync(Guid cardId, Guid userId, CancellationToken ct = default);
-    Task AddLabelToCardAsync(Guid cardId, Guid labelId, CancellationToken ct = default);
-    Task RemoveLabelFromCardAsync(Guid cardId, Guid labelId, CancellationToken ct = default);
+    // Attachments
+    Task<IReadOnlyList<WorkItemAttachmentDto>> ListAttachmentsAsync(Guid workItemId, CancellationToken ct = default);
+    Task<WorkItemAttachmentDto?> AddAttachmentAsync(Guid workItemId, string fileName, string? url, Guid? fileNodeId, CancellationToken ct = default);
+    Task RemoveAttachmentAsync(Guid workItemId, Guid attachmentId, CancellationToken ct = default);
 
-    // ── Comments ────────────────────────────────────────────
+    // Dependencies
+    Task<IReadOnlyList<WorkItemDependencyDto>> ListDependenciesAsync(Guid workItemId, CancellationToken ct = default);
+    Task<WorkItemDependencyDto?> AddDependencyAsync(Guid workItemId, AddWorkItemDependencyDto dto, CancellationToken ct = default);
+    Task RemoveDependencyAsync(Guid workItemId, Guid dependencyId, CancellationToken ct = default);
 
-    Task<IReadOnlyList<CardCommentDto>> ListCommentsAsync(Guid cardId, CancellationToken ct = default);
-    Task<CardCommentDto?> CreateCommentAsync(Guid cardId, string content, CancellationToken ct = default);
-    Task<CardCommentDto?> UpdateCommentAsync(Guid cardId, Guid commentId, string content, CancellationToken ct = default);
-    Task DeleteCommentAsync(Guid cardId, Guid commentId, CancellationToken ct = default);
+    // Sprints
+    Task<IReadOnlyList<SprintDto>> ListSprintsAsync(Guid epicId, CancellationToken ct = default);
+    Task<SprintDto?> GetSprintAsync(Guid sprintId, CancellationToken ct = default);
+    Task<SprintDto?> CreateSprintAsync(Guid epicId, CreateSprintDto dto, CancellationToken ct = default);
+    Task<SprintDto?> UpdateSprintAsync(Guid sprintId, UpdateSprintDto dto, CancellationToken ct = default);
+    Task DeleteSprintAsync(Guid sprintId, CancellationToken ct = default);
+    Task<SprintDto?> StartSprintAsync(Guid sprintId, CancellationToken ct = default);
+    Task<SprintDto?> CompleteSprintAsync(Guid sprintId, CancellationToken ct = default);
+    Task AddItemToSprintAsync(Guid sprintId, Guid itemId, CancellationToken ct = default);
+    Task RemoveItemFromSprintAsync(Guid sprintId, Guid itemId, CancellationToken ct = default);
+    Task<IReadOnlyList<WorkItemDto>> GetBacklogItemsAsync(Guid epicId, CancellationToken ct = default);
 
-    // ── Checklists ──────────────────────────────────────────
+    // Sprint Planning
+    Task<IReadOnlyList<SprintDto>> CreateSprintPlanAsync(Guid epicId, CreateSprintPlanDto dto, CancellationToken ct = default);
+    Task<IReadOnlyList<SprintDto>> GetSprintPlanAsync(Guid epicId, CancellationToken ct = default);
+    Task<IReadOnlyList<SprintDto>> AdjustSprintDatesAsync(Guid sprintId, AdjustSprintDto dto, CancellationToken ct = default);
 
-    Task<IReadOnlyList<CardChecklistDto>> ListChecklistsAsync(Guid cardId, CancellationToken ct = default);
-    Task<CardChecklistDto?> CreateChecklistAsync(Guid cardId, string title, CancellationToken ct = default);
-    Task DeleteChecklistAsync(Guid cardId, Guid checklistId, CancellationToken ct = default);
-    Task<ChecklistItemDto?> AddChecklistItemAsync(Guid cardId, Guid checklistId, string title, CancellationToken ct = default);
-    Task<ChecklistItemDto?> ToggleChecklistItemAsync(Guid cardId, Guid checklistId, Guid itemId, CancellationToken ct = default);
-    Task DeleteChecklistItemAsync(Guid cardId, Guid checklistId, Guid itemId, CancellationToken ct = default);
+    // Time Entries
+    Task<IReadOnlyList<TimeEntryDto>> ListTimeEntriesAsync(Guid workItemId, CancellationToken ct = default);
+    Task<TimeEntryDto?> CreateTimeEntryAsync(Guid workItemId, CreateTimeEntryDto dto, CancellationToken ct = default);
+    Task DeleteTimeEntryAsync(Guid workItemId, Guid entryId, CancellationToken ct = default);
+    Task<TimeEntryDto?> StartTimerAsync(Guid workItemId, CancellationToken ct = default);
+    Task<TimeEntryDto?> StopTimerAsync(Guid workItemId, CancellationToken ct = default);
 
-    // ── Attachments ─────────────────────────────────────────
+    // Activity
+    Task<IReadOnlyList<ActivityDto>> GetProductActivityAsync(Guid productId, int skip = 0, int take = 50, CancellationToken ct = default);
+    Task<IReadOnlyList<ActivityDto>> GetWorkItemActivityAsync(Guid workItemId, int skip = 0, int take = 50, CancellationToken ct = default);
 
-    Task<IReadOnlyList<CardAttachmentDto>> ListAttachmentsAsync(Guid cardId, CancellationToken ct = default);
-    Task<CardAttachmentDto?> AddAttachmentAsync(Guid cardId, string fileName, string? url, Guid? fileNodeId, CancellationToken ct = default);
-    Task RemoveAttachmentAsync(Guid cardId, Guid attachmentId, CancellationToken ct = default);
-
-    // ── Dependencies ────────────────────────────────────────
-
-    Task<IReadOnlyList<CardDependencyDto>> ListDependenciesAsync(Guid cardId, CancellationToken ct = default);
-    Task<CardDependencyDto?> AddDependencyAsync(Guid cardId, Guid dependsOnCardId, CardDependencyType type, CancellationToken ct = default);
-    Task RemoveDependencyAsync(Guid cardId, Guid dependsOnCardId, CancellationToken ct = default);
-
-    // ── Sprints ─────────────────────────────────────────────
-
-    Task<IReadOnlyList<SprintDto>> ListSprintsAsync(Guid boardId, CancellationToken ct = default);
-    Task<SprintDto?> GetSprintAsync(Guid boardId, Guid sprintId, CancellationToken ct = default);
-    Task<SprintDto?> CreateSprintAsync(Guid boardId, CreateSprintDto dto, CancellationToken ct = default);
-    Task<SprintDto?> UpdateSprintAsync(Guid boardId, Guid sprintId, UpdateSprintDto dto, CancellationToken ct = default);
-    Task DeleteSprintAsync(Guid boardId, Guid sprintId, CancellationToken ct = default);
-    Task<SprintDto?> StartSprintAsync(Guid boardId, Guid sprintId, CancellationToken ct = default);
-    Task<SprintDto?> CompleteSprintAsync(Guid boardId, Guid sprintId, CancellationToken ct = default);
-    Task AddCardToSprintAsync(Guid boardId, Guid sprintId, Guid cardId, CancellationToken ct = default);
-    Task RemoveCardFromSprintAsync(Guid boardId, Guid sprintId, Guid cardId, CancellationToken ct = default);
-    Task<IReadOnlyList<CardDto>> GetSprintCardsAsync(Guid boardId, Guid sprintId, CancellationToken ct = default);
-    Task<IReadOnlyList<CardDto>> GetBacklogCardsAsync(Guid boardId, CancellationToken ct = default);
-    Task BatchAddCardsToSprintAsync(Guid boardId, Guid sprintId, List<Guid> cardIds, CancellationToken ct = default);
-
-    // ── Sprint Reports ──────────────────────────────────────
-
+    // Analytics
+    Task<ProductAnalyticsDto?> GetProductAnalyticsAsync(Guid productId, CancellationToken ct = default);
+    Task<IReadOnlyList<SprintVelocityDto>> GetVelocityDataAsync(Guid productId, CancellationToken ct = default);
     Task<SprintReportDto?> GetSprintReportAsync(Guid sprintId, CancellationToken ct = default);
-    Task<IReadOnlyList<SprintVelocityDto>> GetBoardVelocityAsync(Guid boardId, CancellationToken ct = default);
+    Task<SprintBurndownDto?> GetBurndownDataAsync(Guid sprintId, CancellationToken ct = default);
 
-    // ── Time Entries ────────────────────────────────────────
-
-    Task<IReadOnlyList<TimeEntryDto>> ListTimeEntriesAsync(Guid cardId, CancellationToken ct = default);
-    Task<TimeEntryDto?> CreateTimeEntryAsync(Guid cardId, CreateTimeEntryDto dto, CancellationToken ct = default);
-    Task DeleteTimeEntryAsync(Guid cardId, Guid entryId, CancellationToken ct = default);
-    Task<TimeEntryDto?> StartTimerAsync(Guid cardId, CancellationToken ct = default);
-    Task<TimeEntryDto?> StopTimerAsync(Guid cardId, CancellationToken ct = default);
-
-    // ── Activity ────────────────────────────────────────────
-
-    Task<IReadOnlyList<BoardActivityDto>> GetBoardActivityAsync(Guid boardId, int skip = 0, int take = 50, CancellationToken ct = default);
-    Task<IReadOnlyList<BoardActivityDto>> GetCardActivityAsync(Guid cardId, int skip = 0, int take = 50, CancellationToken ct = default);
-
-    // ── Teams ───────────────────────────────────────────────
-
+    // Teams
     Task<IReadOnlyList<TracksTeamDto>> ListTeamsAsync(CancellationToken ct = default);
     Task<TracksTeamDto?> GetTeamAsync(Guid teamId, CancellationToken ct = default);
     Task<TracksTeamDto?> CreateTeamAsync(CreateTracksTeamDto dto, CancellationToken ct = default);
     Task<TracksTeamDto?> UpdateTeamAsync(Guid teamId, UpdateTracksTeamDto dto, CancellationToken ct = default);
-    Task DeleteTeamAsync(Guid teamId, bool cascade = false, CancellationToken ct = default);
+    Task DeleteTeamAsync(Guid teamId, CancellationToken ct = default);
     Task<IReadOnlyList<TracksTeamMemberDto>> ListTeamMembersAsync(Guid teamId, CancellationToken ct = default);
-    Task AddTeamMemberAsync(Guid teamId, Guid userId, TracksTeamMemberRole role, CancellationToken ct = default);
+    Task AddTeamMemberAsync(Guid teamId, AddTracksTeamMemberDto dto, CancellationToken ct = default);
     Task RemoveTeamMemberAsync(Guid teamId, Guid userId, CancellationToken ct = default);
     Task UpdateTeamMemberRoleAsync(Guid teamId, Guid userId, TracksTeamMemberRole role, CancellationToken ct = default);
-    Task<IReadOnlyList<BoardDto>> ListTeamBoardsAsync(Guid teamId, bool includeArchived = false, CancellationToken ct = default);
-    Task TransferBoardAsync(Guid boardId, Guid? teamId, CancellationToken ct = default);
 
-    // ── User Search ─────────────────────────────────────────
-
-    Task<IReadOnlyList<UserSearchResultDto>> SearchUsersAsync(string searchTerm, CancellationToken ct = default);
-
-    // ── Sprint Plan ─────────────────────────────────────────
-
-    Task<SprintPlanOverviewDto?> CreateSprintPlanAsync(Guid boardId, CreateSprintPlanDto dto, CancellationToken ct = default);
-    Task<SprintPlanOverviewDto?> GetSprintPlanAsync(Guid boardId, CancellationToken ct = default);
-    Task<SprintPlanOverviewDto?> AdjustSprintAsync(Guid sprintId, AdjustSprintDto dto, CancellationToken ct = default);
-
-    // ── Review Sessions ─────────────────────────────────────
-
-    Task<ReviewSessionDto?> StartReviewSessionAsync(Guid boardId, CancellationToken ct = default);
-    Task<ReviewSessionDto?> GetActiveReviewSessionAsync(Guid boardId, CancellationToken ct = default);
+    // Review Sessions
+    Task<ReviewSessionDto?> StartReviewSessionAsync(Guid epicId, CancellationToken ct = default);
     Task<ReviewSessionDto?> GetReviewSessionAsync(Guid sessionId, CancellationToken ct = default);
     Task<ReviewSessionDto?> JoinReviewSessionAsync(Guid sessionId, CancellationToken ct = default);
     Task LeaveReviewSessionAsync(Guid sessionId, CancellationToken ct = default);
-    Task<ReviewSessionDto?> SetReviewCurrentCardAsync(Guid sessionId, Guid cardId, CancellationToken ct = default);
-    Task<ReviewSessionDto?> StartReviewPokerAsync(Guid sessionId, StartReviewPokerDto dto, CancellationToken ct = default);
+    Task<ReviewSessionDto?> SetReviewCurrentItemAsync(Guid sessionId, Guid itemId, CancellationToken ct = default);
     Task EndReviewSessionAsync(Guid sessionId, CancellationToken ct = default);
 
-    // ── Planning Poker ─────────────────────────────────────
-
+    // Planning Poker
+    Task<PokerSessionDto?> StartPokerSessionAsync(Guid epicId, CreatePokerSessionDto dto, CancellationToken ct = default);
     Task<PokerSessionDto?> GetPokerSessionAsync(Guid sessionId, CancellationToken ct = default);
     Task<PokerSessionDto?> SubmitPokerVoteAsync(Guid sessionId, SubmitPokerVoteDto dto, CancellationToken ct = default);
     Task<PokerSessionDto?> RevealPokerSessionAsync(Guid sessionId, CancellationToken ct = default);
-    Task<PokerSessionDto?> AcceptPokerEstimateAsync(Guid sessionId, AcceptPokerEstimateDto dto, CancellationToken ct = default);
-    Task<PokerSessionDto?> StartNewPokerRoundAsync(Guid sessionId, CancellationToken ct = default);
+    Task<PokerSessionDto?> AcceptPokerEstimateAsync(Guid sessionId, string estimate, CancellationToken ct = default);
     Task<IReadOnlyList<PokerVoteStatusDto>> GetPokerVoteStatusAsync(Guid sessionId, CancellationToken ct = default);
 }

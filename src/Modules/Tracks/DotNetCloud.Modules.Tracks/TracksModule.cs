@@ -45,14 +45,14 @@ public sealed class TracksModule : IModuleLifecycle
             realtimeService,
             context.Services.GetService<ILogger<TracksRealtimeEventHandler>>() ?? NullLogger<TracksRealtimeEventHandler>.Instance);
 
-        await _eventBus.SubscribeAsync<CardCreatedEvent>(_realtimeHandler, cancellationToken);
-        await _eventBus.SubscribeAsync<CardUpdatedEvent>(_realtimeHandler, cancellationToken);
-        await _eventBus.SubscribeAsync<CardMovedEvent>(_realtimeHandler, cancellationToken);
-        await _eventBus.SubscribeAsync<CardDeletedEvent>(_realtimeHandler, cancellationToken);
-        await _eventBus.SubscribeAsync<CardAssignedEvent>(_realtimeHandler, cancellationToken);
-        await _eventBus.SubscribeAsync<CardCommentAddedEvent>(_realtimeHandler, cancellationToken);
-        await _eventBus.SubscribeAsync<BoardCreatedEvent>(_realtimeHandler, cancellationToken);
-        await _eventBus.SubscribeAsync<BoardDeletedEvent>(_realtimeHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<WorkItemCreatedEvent>(_realtimeHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<WorkItemUpdatedEvent>(_realtimeHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<WorkItemMovedEvent>(_realtimeHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<WorkItemDeletedEvent>(_realtimeHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<WorkItemAssignedEvent>(_realtimeHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<WorkItemCommentAddedEvent>(_realtimeHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<ProductCreatedEvent>(_realtimeHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<ProductDeletedEvent>(_realtimeHandler, cancellationToken);
         await _eventBus.SubscribeAsync<SprintStartedEvent>(_realtimeHandler, cancellationToken);
         await _eventBus.SubscribeAsync<SprintCompletedEvent>(_realtimeHandler, cancellationToken);
         await _eventBus.SubscribeAsync<TeamCreatedEvent>(_realtimeHandler, cancellationToken);
@@ -100,14 +100,14 @@ public sealed class TracksModule : IModuleLifecycle
         {
             if (_realtimeHandler is not null)
             {
-                await _eventBus.UnsubscribeAsync<CardCreatedEvent>(_realtimeHandler, cancellationToken);
-                await _eventBus.UnsubscribeAsync<CardUpdatedEvent>(_realtimeHandler, cancellationToken);
-                await _eventBus.UnsubscribeAsync<CardMovedEvent>(_realtimeHandler, cancellationToken);
-                await _eventBus.UnsubscribeAsync<CardDeletedEvent>(_realtimeHandler, cancellationToken);
-                await _eventBus.UnsubscribeAsync<CardAssignedEvent>(_realtimeHandler, cancellationToken);
-                await _eventBus.UnsubscribeAsync<CardCommentAddedEvent>(_realtimeHandler, cancellationToken);
-                await _eventBus.UnsubscribeAsync<BoardCreatedEvent>(_realtimeHandler, cancellationToken);
-                await _eventBus.UnsubscribeAsync<BoardDeletedEvent>(_realtimeHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<WorkItemCreatedEvent>(_realtimeHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<WorkItemUpdatedEvent>(_realtimeHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<WorkItemMovedEvent>(_realtimeHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<WorkItemDeletedEvent>(_realtimeHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<WorkItemAssignedEvent>(_realtimeHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<WorkItemCommentAddedEvent>(_realtimeHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<ProductCreatedEvent>(_realtimeHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<ProductDeletedEvent>(_realtimeHandler, cancellationToken);
                 await _eventBus.UnsubscribeAsync<SprintStartedEvent>(_realtimeHandler, cancellationToken);
                 await _eventBus.UnsubscribeAsync<SprintCompletedEvent>(_realtimeHandler, cancellationToken);
                 await _eventBus.UnsubscribeAsync<TeamCreatedEvent>(_realtimeHandler, cancellationToken);

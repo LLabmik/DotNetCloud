@@ -6,9 +6,9 @@ using Microsoft.AspNetCore.Mvc;
 namespace DotNetCloud.Modules.Tracks.Host.Controllers;
 
 /// <summary>
-/// REST API controller for time tracking on cards.
+/// REST API controller for time tracking on work items.
 /// </summary>
-[Route("api/v1/cards/{cardId:guid}")]
+[ApiController]
 public class TimeEntriesController : TracksControllerBase
 {
     private readonly TimeTrackingService _timeTrackingService;
@@ -23,97 +23,86 @@ public class TimeEntriesController : TracksControllerBase
         _logger = logger;
     }
 
-    /// <summary>Lists time entries for a card.</summary>
-    [HttpGet("time-entries")]
-    public async Task<IActionResult> ListTimeEntriesAsync(Guid cardId)
+    /// <summary>Lists time entries for a work item.</summary>
+    [HttpGet("api/v1/workitems/{itemId:guid}/time-entries")]
+    public async Task<IActionResult> GetTimeEntriesAsync(Guid itemId, CancellationToken ct)
     {
         var caller = GetAuthenticatedCaller();
-        try
-        {
-            var entries = await _timeTrackingService.GetTimeEntriesAsync(cardId, caller);
-            return Ok(Envelope(entries));
-        }
-        catch (ValidationException ex)
-        {
-            return NotFound(ErrorEnvelope(ErrorCodes.CardNotFound, ex.Message));
-        }
+        var entries = await _timeTrackingService.GetTimeEntriesByWorkItemAsync(itemId, ct);
+        return Ok(Envelope(entries));
     }
 
-    /// <summary>Creates a manual time entry.</summary>
-    [HttpPost("time-entries")]
-    public async Task<IActionResult> CreateTimeEntryAsync(Guid cardId, [FromBody] CreateTimeEntryDto dto)
+    /// <summary>Creates a manual time entry for a work item.</summary>
+    [HttpPost("api/v1/workitems/{itemId:guid}/time-entries")]
+    public async Task<IActionResult> AddManualEntryAsync(Guid itemId, [FromBody] CreateTimeEntryDto dto, CancellationToken ct)
     {
         var caller = GetAuthenticatedCaller();
         try
         {
-            var entry = await _timeTrackingService.CreateTimeEntryAsync(cardId, dto, caller);
-            return Created($"/api/v1/cards/{cardId}/time-entries", Envelope(entry));
+            var entry = await _timeTrackingService.AddManualEntryAsync(itemId, caller.UserId, dto, ct);
+            return Created($"/api/v1/workitems/{itemId}/time-entries", Envelope(entry));
+        }
+        catch (NotFoundException ex)
+        {
+            return NotFound(ErrorEnvelope(ErrorCodes.NotFound, ex.Message));
         }
         catch (ValidationException ex)
         {
-            if (ex.Errors.ContainsKey(ErrorCodes.CardNotFound))
-                return NotFound(ErrorEnvelope(ErrorCodes.CardNotFound, ex.Message));
-            if (ex.Errors.ContainsKey(ErrorCodes.InvalidTimeEntry))
-                return BadRequest(ErrorEnvelope(ErrorCodes.InvalidTimeEntry, ex.Message));
-            return BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
+            return ex.Errors.ContainsKey("DurationMinutes")
+                ? BadRequest(ErrorEnvelope(ErrorCodes.InvalidTimeEntry, ex.Message))
+                : BadRequest(ErrorEnvelope(ErrorCodes.ValidationError, ex.Message));
         }
     }
 
     /// <summary>Deletes a time entry.</summary>
-    [HttpDelete("time-entries/{entryId:guid}")]
-    public async Task<IActionResult> DeleteTimeEntryAsync(Guid cardId, Guid entryId)
+    [HttpDelete("api/v1/workitems/{itemId:guid}/time-entries/{entryId:guid}")]
+    public async Task<IActionResult> DeleteEntryAsync(Guid itemId, Guid entryId, CancellationToken ct)
     {
         var caller = GetAuthenticatedCaller();
         try
         {
-            await _timeTrackingService.DeleteTimeEntryAsync(entryId, caller);
+            await _timeTrackingService.DeleteEntryAsync(entryId, ct);
             return Ok(Envelope(new { deleted = true }));
         }
-        catch (ValidationException ex)
+        catch (NotFoundException ex)
         {
-            if (ex.Errors.ContainsKey(ErrorCodes.TimeEntryNotFound))
-                return NotFound(ErrorEnvelope(ErrorCodes.TimeEntryNotFound, ex.Message));
-            return BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
+            return NotFound(ErrorEnvelope(ErrorCodes.TimeEntryNotFound, ex.Message));
         }
     }
 
-    /// <summary>Starts a timer on a card.</summary>
-    [HttpPost("timer/start")]
-    public async Task<IActionResult> StartTimerAsync(Guid cardId)
+    /// <summary>Starts a timer on a work item.</summary>
+    [HttpPost("api/v1/workitems/{itemId:guid}/timer/start")]
+    public async Task<IActionResult> StartTimerAsync(Guid itemId, CancellationToken ct)
     {
         var caller = GetAuthenticatedCaller();
         try
         {
-            var entry = await _timeTrackingService.StartTimerAsync(cardId, caller);
+            var entry = await _timeTrackingService.StartTimerAsync(itemId, caller.UserId, ct);
             return Ok(Envelope(entry));
         }
-        catch (ValidationException ex)
+        catch (NotFoundException ex)
         {
-            if (ex.Errors.ContainsKey(ErrorCodes.CardNotFound))
-                return NotFound(ErrorEnvelope(ErrorCodes.CardNotFound, ex.Message));
-            if (ex.Errors.ContainsKey(ErrorCodes.InvalidTimeEntry))
-                return Conflict(ErrorEnvelope(ErrorCodes.InvalidTimeEntry, ex.Message));
-            return BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
+            return NotFound(ErrorEnvelope(ErrorCodes.NotFound, ex.Message));
+        }
+        catch (System.InvalidOperationException ex)
+        {
+            return Conflict(ErrorEnvelope(ErrorCodes.InvalidTimeEntry, ex.Message));
         }
     }
 
-    /// <summary>Stops a running timer on a card.</summary>
-    [HttpPost("timer/stop")]
-    public async Task<IActionResult> StopTimerAsync(Guid cardId)
+    /// <summary>Stops a running timer on a work item.</summary>
+    [HttpPost("api/v1/workitems/{itemId:guid}/timer/stop")]
+    public async Task<IActionResult> StopTimerAsync(Guid itemId, CancellationToken ct)
     {
         var caller = GetAuthenticatedCaller();
         try
         {
-            var entry = await _timeTrackingService.StopTimerAsync(cardId, caller);
+            var entry = await _timeTrackingService.StopTimerAsync(itemId, caller.UserId, ct);
             return Ok(Envelope(entry));
         }
-        catch (ValidationException ex)
+        catch (NotFoundException ex)
         {
-            if (ex.Errors.ContainsKey(ErrorCodes.CardNotFound))
-                return NotFound(ErrorEnvelope(ErrorCodes.CardNotFound, ex.Message));
-            if (ex.Errors.ContainsKey(ErrorCodes.InvalidTimeEntry))
-                return NotFound(ErrorEnvelope(ErrorCodes.InvalidTimeEntry, ex.Message));
-            return BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
+            return NotFound(ErrorEnvelope(ErrorCodes.TimeEntryNotFound, ex.Message));
         }
     }
 }

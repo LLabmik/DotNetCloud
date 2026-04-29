@@ -7,11 +7,11 @@ namespace DotNetCloud.Modules.Chat.Events;
 
 /// <summary>
 /// Handles Tracks module events by broadcasting real-time activity notifications
-/// to Chat users. Enables live board activity visibility within the Chat UI.
+/// to Chat users. Enables live product/work-item activity visibility within the Chat UI.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Subscribes to key Tracks events (card lifecycle, sprint lifecycle, assignments)
+/// Subscribes to key Tracks events (work item lifecycle, sprint lifecycle, assignments)
 /// and broadcasts notification signals to connected Chat clients via
 /// <see cref="IRealtimeBroadcaster"/>. Clients receive lightweight signals and
 /// can display activity toasts, update notification badges, or refresh feeds.
@@ -23,16 +23,16 @@ namespace DotNetCloud.Modules.Chat.Events;
 /// </para>
 /// </remarks>
 internal sealed class TracksActivityChatHandler :
-    IEventHandler<CardCreatedEvent>,
-    IEventHandler<CardMovedEvent>,
-    IEventHandler<CardUpdatedEvent>,
-    IEventHandler<CardDeletedEvent>,
-    IEventHandler<CardAssignedEvent>,
-    IEventHandler<CardCommentAddedEvent>,
+    IEventHandler<WorkItemCreatedEvent>,
+    IEventHandler<WorkItemMovedEvent>,
+    IEventHandler<WorkItemUpdatedEvent>,
+    IEventHandler<WorkItemDeletedEvent>,
+    IEventHandler<WorkItemAssignedEvent>,
+    IEventHandler<WorkItemCommentAddedEvent>,
     IEventHandler<SprintStartedEvent>,
     IEventHandler<SprintCompletedEvent>,
-    IEventHandler<BoardCreatedEvent>,
-    IEventHandler<BoardDeletedEvent>
+    IEventHandler<ProductCreatedEvent>,
+    IEventHandler<ProductDeletedEvent>
 {
     private readonly IRealtimeBroadcaster? _broadcaster;
     private readonly ILogger<TracksActivityChatHandler> _logger;
@@ -52,148 +52,128 @@ internal sealed class TracksActivityChatHandler :
     }
 
     /// <inheritdoc />
-    public async Task HandleAsync(CardCreatedEvent @event, CancellationToken cancellationToken = default)
+    public async Task HandleAsync(WorkItemCreatedEvent @event, CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("Chat integration: Card created {CardId} on board {BoardId}", @event.CardId, @event.BoardId);
-        await BroadcastTracksActivityAsync("card_created", @event.BoardId, new
+        _logger.LogDebug("Chat integration: WorkItem created {WorkItemId} type {Type} in product {ProductId}", @event.WorkItemId, @event.Type, @event.ProductId);
+        await BroadcastTracksActivityAsync("workitem_created", @event.ProductId, new
         {
-            @event.CardId,
-            @event.BoardId,
-            @event.Title,
-            @event.SwimlaneId,
-            UserId = @event.CreatedByUserId
+            @event.WorkItemId,
+            @event.ProductId,
+            @event.Type,
+            @event.ParentWorkItemId
         }, cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task HandleAsync(CardMovedEvent @event, CancellationToken cancellationToken = default)
+    public async Task HandleAsync(WorkItemMovedEvent @event, CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("Chat integration: Card moved {CardId} from {From} to {To}", @event.CardId, @event.FromSwimlaneId, @event.ToSwimlaneId);
-        await BroadcastTracksActivityAsync("card_moved", @event.BoardId, new
+        _logger.LogDebug("Chat integration: WorkItem moved {WorkItemId} from {From} to {To}", @event.WorkItemId, @event.FromSwimlaneId, @event.ToSwimlaneId);
+        await BroadcastTracksActivityAsync("workitem_moved", Guid.Empty, new
         {
-            @event.CardId,
-            @event.BoardId,
+            @event.WorkItemId,
             @event.FromSwimlaneId,
-            @event.ToSwimlaneId,
-            UserId = @event.MovedByUserId
+            @event.ToSwimlaneId
         }, cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task HandleAsync(CardUpdatedEvent @event, CancellationToken cancellationToken = default)
+    public async Task HandleAsync(WorkItemUpdatedEvent @event, CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("Chat integration: Card updated {CardId} on board {BoardId}", @event.CardId, @event.BoardId);
-        await BroadcastTracksActivityAsync("card_updated", @event.BoardId, new
+        _logger.LogDebug("Chat integration: WorkItem updated {WorkItemId} type {Type}", @event.WorkItemId, @event.Type);
+        await BroadcastTracksActivityAsync("workitem_updated", Guid.Empty, new
         {
-            @event.CardId,
-            @event.BoardId,
-            UserId = @event.UpdatedByUserId
+            @event.WorkItemId
         }, cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task HandleAsync(CardDeletedEvent @event, CancellationToken cancellationToken = default)
+    public async Task HandleAsync(WorkItemDeletedEvent @event, CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("Chat integration: Card deleted {CardId} on board {BoardId}", @event.CardId, @event.BoardId);
-        await BroadcastTracksActivityAsync("card_deleted", @event.BoardId, new
+        _logger.LogDebug("Chat integration: WorkItem deleted {WorkItemId} type {Type}", @event.WorkItemId, @event.Type);
+        await BroadcastTracksActivityAsync("workitem_deleted", Guid.Empty, new
         {
-            @event.CardId,
-            @event.BoardId,
-            UserId = @event.DeletedByUserId
+            @event.WorkItemId
         }, cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task HandleAsync(CardAssignedEvent @event, CancellationToken cancellationToken = default)
+    public async Task HandleAsync(WorkItemAssignedEvent @event, CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("Chat integration: Card {CardId} assigned to {UserId}", @event.CardId, @event.AssignedUserId);
+        _logger.LogDebug("Chat integration: WorkItem {WorkItemId} assigned to {UserId}", @event.WorkItemId, @event.UserId);
 
-        // Broadcast to board group
-        await BroadcastTracksActivityAsync("card_assigned", @event.BoardId, new
+        await BroadcastTracksActivityAsync("workitem_assigned", Guid.Empty, new
         {
-            @event.CardId,
-            @event.BoardId,
-            @event.AssignedUserId,
-            @event.AssignedByUserId
+            @event.WorkItemId,
+            @event.UserId
         }, cancellationToken);
 
         // Also send a direct notification to the assigned user
         if (_broadcaster is not null)
         {
-            await _broadcaster.SendToUserAsync(@event.AssignedUserId, "TracksCardAssignedToYou", new
+            await _broadcaster.SendToUserAsync(@event.UserId, "TracksWorkItemAssignedToYou", new
             {
-                @event.CardId,
-                @event.BoardId,
-                @event.AssignedByUserId
+                @event.WorkItemId
             }, cancellationToken);
         }
     }
 
     /// <inheritdoc />
-    public async Task HandleAsync(CardCommentAddedEvent @event, CancellationToken cancellationToken = default)
+    public async Task HandleAsync(WorkItemCommentAddedEvent @event, CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("Chat integration: Comment {CommentId} added to card {CardId}", @event.CommentId, @event.CardId);
-        await BroadcastTracksActivityAsync("comment_added", @event.BoardId, new
+        _logger.LogDebug("Chat integration: Comment {CommentId} added to WorkItem {WorkItemId}", @event.CommentId, @event.WorkItemId);
+        await BroadcastTracksActivityAsync("comment_added", Guid.Empty, new
         {
             @event.CommentId,
-            @event.CardId,
-            @event.BoardId,
-            UserId = @event.UserId
+            @event.WorkItemId,
+            @event.UserId
         }, cancellationToken);
     }
 
     /// <inheritdoc />
     public async Task HandleAsync(SprintStartedEvent @event, CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("Chat integration: Sprint {SprintId} started on board {BoardId}", @event.SprintId, @event.BoardId);
-        await BroadcastTracksActivityAsync("sprint_started", @event.BoardId, new
+        _logger.LogDebug("Chat integration: Sprint {SprintId} started for epic {EpicId}", @event.SprintId, @event.EpicId);
+        await BroadcastTracksActivityAsync("sprint_started", @event.EpicId, new
         {
             @event.SprintId,
-            @event.BoardId,
-            @event.Title,
-            UserId = @event.StartedByUserId
+            @event.EpicId
         }, cancellationToken);
     }
 
     /// <inheritdoc />
     public async Task HandleAsync(SprintCompletedEvent @event, CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("Chat integration: Sprint {SprintId} completed on board {BoardId}", @event.SprintId, @event.BoardId);
-        await BroadcastTracksActivityAsync("sprint_completed", @event.BoardId, new
+        _logger.LogDebug("Chat integration: Sprint {SprintId} completed for epic {EpicId}", @event.SprintId, @event.EpicId);
+        await BroadcastTracksActivityAsync("sprint_completed", @event.EpicId, new
         {
             @event.SprintId,
-            @event.BoardId,
-            @event.Title,
-            @event.CompletedCardCount,
-            @event.TotalCardCount,
-            UserId = @event.CompletedByUserId
+            @event.EpicId
         }, cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task HandleAsync(BoardCreatedEvent @event, CancellationToken cancellationToken = default)
+    public async Task HandleAsync(ProductCreatedEvent @event, CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("Chat integration: Board created {BoardId} '{Title}'", @event.BoardId, @event.Title);
-        await BroadcastTracksActivityAsync("board_created", @event.BoardId, new
+        _logger.LogDebug("Chat integration: Product created {ProductId}", @event.ProductId);
+        await BroadcastTracksActivityAsync("product_created", @event.ProductId, new
         {
-            @event.BoardId,
-            @event.Title,
-            UserId = @event.OwnerId
+            @event.ProductId,
+            @event.OrganizationId,
+            @event.OwnerId
         }, cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task HandleAsync(BoardDeletedEvent @event, CancellationToken cancellationToken = default)
+    public async Task HandleAsync(ProductDeletedEvent @event, CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("Chat integration: Board deleted {BoardId}", @event.BoardId);
-        await BroadcastTracksActivityAsync("board_deleted", @event.BoardId, new
+        _logger.LogDebug("Chat integration: Product deleted {ProductId}", @event.ProductId);
+        await BroadcastTracksActivityAsync("product_deleted", @event.ProductId, new
         {
-            @event.BoardId,
-            UserId = @event.DeletedByUserId
+            @event.ProductId
         }, cancellationToken);
     }
 
-    private async Task BroadcastTracksActivityAsync(string action, Guid boardId, object payload, CancellationToken cancellationToken)
+    private async Task BroadcastTracksActivityAsync(string action, Guid productId, object payload, CancellationToken cancellationToken)
     {
         if (_broadcaster is null) return;
 
@@ -201,18 +181,21 @@ internal sealed class TracksActivityChatHandler :
         await _broadcaster.BroadcastAsync(TracksActivityGroup, TracksActivityEventName, new
         {
             action,
-            boardId,
+            productId,
             payload,
             timestamp = DateTime.UtcNow
         }, cancellationToken);
 
-        // Also broadcast to the board-specific group for board-scoped Chat views
-        await _broadcaster.BroadcastAsync($"tracks-board-chat-{boardId}", TracksActivityEventName, new
+        // Also broadcast to the product-specific group for product-scoped Chat views
+        if (productId != Guid.Empty)
         {
-            action,
-            boardId,
-            payload,
-            timestamp = DateTime.UtcNow
-        }, cancellationToken);
+            await _broadcaster.BroadcastAsync($"tracks-product-chat-{productId}", TracksActivityEventName, new
+            {
+                action,
+                productId,
+                payload,
+                timestamp = DateTime.UtcNow
+            }, cancellationToken);
+        }
     }
 }

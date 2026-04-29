@@ -6,9 +6,8 @@ using Microsoft.Extensions.Logging;
 namespace DotNetCloud.Modules.Tracks.UI;
 
 /// <summary>
-/// Host controls for a live review session. Provides card navigation,
-/// participant list with online status, and integrated poker controls.
-/// Admin+ only on Team boards.
+/// Host controls for a live review session. Provides item navigation,
+/// participant count, and integrated poker controls.
 /// </summary>
 public partial class ReviewSessionHost : ComponentBase, IDisposable
 {
@@ -19,22 +18,22 @@ public partial class ReviewSessionHost : ComponentBase, IDisposable
     /// <summary>The active review session being hosted.</summary>
     [Parameter, EditorRequired] public ReviewSessionDto Session { get; set; } = default!;
 
-    /// <summary>The board for this review session.</summary>
-    [Parameter, EditorRequired] public BoardDto Board { get; set; } = default!;
+    /// <summary>The epic for this review session.</summary>
+    [Parameter, EditorRequired] public WorkItemDto Epic { get; set; } = default!;
 
-    /// <summary>Available sprints for card filtering.</summary>
+    /// <summary>Available sprints for item filtering.</summary>
     [Parameter] public List<SprintDto> Sprints { get; set; } = [];
 
     /// <summary>Raised when the session has been ended.</summary>
     [Parameter] public EventCallback OnSessionEnded { get; set; }
 
-    /// <summary>Raised when session state is updated (e.g. new card, poker state change).</summary>
+    /// <summary>Raised when session state is updated.</summary>
     [Parameter] public EventCallback<ReviewSessionDto> OnSessionUpdated { get; set; }
 
-    // Card navigation
-    private readonly List<CardDto> _cards = [];
+    // Item navigation
+    private readonly List<WorkItemDto> _items = [];
     private int _currentCardIndex;
-    private CardDto? _currentCard;
+    private WorkItemDto? _currentItem;
     private string _selectedSprintId = "";
 
     // Poker state
@@ -49,39 +48,34 @@ public partial class ReviewSessionHost : ComponentBase, IDisposable
     private bool _isSubmittingVote;
     private bool _isRevealingVotes;
     private bool _isAccepting;
-    private bool _isStartingRound;
     private string? _errorMessage;
 
-    /// <summary>Number of participants currently connected.</summary>
-    private int ConnectedParticipantCount => Session.Participants.Count(p => p.IsConnected);
+    private int ConnectedParticipantCount => Session.ParticipantCount;
 
-    private bool HasPreviousCard => _currentCardIndex > 0 && _cards.Count > 0;
-    private bool HasNextCard => _currentCardIndex < _cards.Count - 1;
+    private bool HasPreviousItem => _currentCardIndex > 0 && _items.Count > 0;
+    private bool HasNextItem => _currentCardIndex < _items.Count - 1;
 
-    /// <summary>Number of participants who have voted in the active poker session.</summary>
     private int VotedCount => _voteStatuses.Count(v => v.HasVoted);
 
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
     {
         SubscribeToEvents();
-        _activePoker = Session.ActivePokerSession;
-        await LoadCardsAsync();
+        await LoadPokerIfActiveAsync();
+        await LoadItemsAsync();
 
-        // If session already has a current card, navigate to it
-        if (Session.CurrentCardId.HasValue)
+        if (Session.CurrentItemId.HasValue)
         {
-            var idx = _cards.FindIndex(c => c.Id == Session.CurrentCardId.Value);
+            var idx = _items.FindIndex(i => i.Id == Session.CurrentItemId.Value);
             if (idx >= 0)
             {
                 _currentCardIndex = idx;
-                _currentCard = _cards[idx];
+                _currentItem = _items[idx];
             }
         }
-        else if (_currentCard is not null)
+        else if (_currentItem is not null)
         {
-            // First load — sync the initial card to server so poker can reference it
-            await SetCurrentCardOnServer();
+            await SetCurrentItemOnServer();
         }
 
         if (_activePoker is not null)
@@ -90,93 +84,85 @@ public partial class ReviewSessionHost : ComponentBase, IDisposable
         }
     }
 
-    private async Task LoadCardsAsync()
+    private async Task LoadPokerIfActiveAsync()
+    {
+        // Poker sessions are now separate; try to load the latest active one for this epic
+        // TODO: Add API to query active poker session by epic & review session
+    }
+
+    private async Task LoadItemsAsync()
     {
         try
         {
-            IReadOnlyList<CardDto> cards;
-            if (_selectedSprintId == "backlog")
+            var allItems = await ApiClient.GetBacklogItemsAsync(Epic.Id);
+
+            // Filter by sprint if selected
+            if (Guid.TryParse(_selectedSprintId, out var sprintId))
             {
-                cards = await ApiClient.GetBacklogCardsAsync(Board.Id);
+                allItems = allItems.Where(i => i.SprintId == sprintId).ToList();
             }
-            else if (Guid.TryParse(_selectedSprintId, out var sprintId))
-            {
-                cards = await ApiClient.GetSprintCardsAsync(Board.Id, sprintId);
-            }
-            else
-            {
-                // Load all cards from all swimlanes
-                var swimlanes = await ApiClient.ListSwimlanesAsync(Board.Id);
-                var allCards = new List<CardDto>();
-                foreach (var sl in swimlanes)
-                {
-                    var slCards = await ApiClient.ListCardsAsync(sl.Id);
-                    allCards.AddRange(slCards);
-                }
-                cards = allCards;
-            }
-            _cards.Clear();
-            _cards.AddRange(cards.OrderBy(c => c.CardNumber));
+
+            _items.Clear();
+            _items.AddRange(allItems.OrderBy(i => i.ItemNumber));
             _currentCardIndex = 0;
-            _currentCard = _cards.Count > 0 ? _cards[0] : null;
+            _currentItem = _items.Count > 0 ? _items[0] : null;
         }
         catch (Exception ex)
         {
-            _errorMessage = $"Failed to load cards: {ex.Message}";
+            _errorMessage = $"Failed to load items: {ex.Message}";
         }
     }
 
     // ── Card Navigation ─────────────────────────────────────
 
-    private async Task PreviousCard()
+    private async Task PreviousItem()
     {
-        if (!HasPreviousCard) return;
+        if (!HasPreviousItem) return;
         _currentCardIndex--;
-        _currentCard = _cards[_currentCardIndex];
+        _currentItem = _items[_currentCardIndex];
         _activePoker = null;
         _voteStatuses.Clear();
         _hostVote = null;
         _acceptEstimate = null;
-        await SetCurrentCardOnServer();
+        await SetCurrentItemOnServer();
     }
 
-    private async Task NextCard()
+    private async Task NextItem()
     {
-        if (!HasNextCard) return;
+        if (!HasNextItem) return;
         _currentCardIndex++;
-        _currentCard = _cards[_currentCardIndex];
+        _currentItem = _items[_currentCardIndex];
         _activePoker = null;
         _voteStatuses.Clear();
         _hostVote = null;
         _acceptEstimate = null;
-        await SetCurrentCardOnServer();
+        await SetCurrentItemOnServer();
     }
 
-    private async Task SetCurrentCardOnServer()
+    private async Task SetCurrentItemOnServer()
     {
-        if (_currentCard is null) return;
+        if (_currentItem is null) return;
         try
         {
-            var updated = await ApiClient.SetReviewCurrentCardAsync(Session.Id, _currentCard.Id);
+            var updated = await ApiClient.SetReviewCurrentItemAsync(Session.Id, _currentItem.Id);
             if (updated is not null)
             {
-                _activePoker = updated.ActivePokerSession;
                 await OnSessionUpdated.InvokeAsync(updated);
             }
         }
         catch (Exception ex)
         {
-            _errorMessage = $"Failed to set current card: {ex.Message}";
+            _errorMessage = $"Failed to set current item: {ex.Message}";
         }
     }
 
     private async Task HandleSprintFilterChanged(ChangeEventArgs e)
     {
         _selectedSprintId = e.Value?.ToString() ?? "";
-        await LoadCardsAsync();
-        if (_currentCard is not null)
+        await LoadItemsAsync();
+        if (_currentItem is not null)
         {
-            await SetCurrentCardOnServer();
+            await SetCurrentItemOnServer();
         }
     }
 
@@ -184,23 +170,16 @@ public partial class ReviewSessionHost : ComponentBase, IDisposable
 
     private async Task StartPoker()
     {
-        if (_currentCard is null) return;
+        if (_currentItem is null) return;
         _isStartingPoker = true;
         _errorMessage = null;
         try
         {
-            var dto = new StartReviewPokerDto { Scale = _selectedScale };
-            Logger.LogInformation("StartPoker: SessionId={SessionId}, CardId={CardId}, Scale={Scale}",
-                Session.Id, _currentCard.Id, _selectedScale);
-            var updated = await ApiClient.StartReviewPokerAsync(Session.Id, dto);
-            if (updated is not null)
-            {
-                _activePoker = updated.ActivePokerSession;
-                _voteStatuses.Clear();
-                _hostVote = null;
-                _acceptEstimate = null;
-                await OnSessionUpdated.InvokeAsync(updated);
-            }
+            var dto = new CreatePokerSessionDto { Scale = _selectedScale, ItemId = _currentItem.Id };
+            _activePoker = await ApiClient.StartPokerSessionAsync(Epic.Id, dto);
+            _voteStatuses.Clear();
+            _hostVote = null;
+            _acceptEstimate = null;
         }
         catch (Exception ex)
         {
@@ -267,12 +246,7 @@ public partial class ReviewSessionHost : ComponentBase, IDisposable
         _errorMessage = null;
         try
         {
-            int? sp = int.TryParse(_acceptEstimate, out var n) ? n : null;
-            var accepted = await ApiClient.AcceptPokerEstimateAsync(_activePoker.Id, new AcceptPokerEstimateDto
-            {
-                AcceptedEstimate = _acceptEstimate,
-                StoryPoints = sp
-            });
+            var accepted = await ApiClient.AcceptPokerEstimateAsync(_activePoker.Id, _acceptEstimate);
             if (accepted is not null)
             {
                 _activePoker = accepted;
@@ -285,32 +259,6 @@ public partial class ReviewSessionHost : ComponentBase, IDisposable
         finally
         {
             _isAccepting = false;
-        }
-    }
-
-    private async Task StartNewRound()
-    {
-        if (_activePoker is null) return;
-        _isStartingRound = true;
-        _errorMessage = null;
-        try
-        {
-            var newRound = await ApiClient.StartNewPokerRoundAsync(_activePoker.Id);
-            if (newRound is not null)
-            {
-                _activePoker = newRound;
-                _voteStatuses.Clear();
-                _hostVote = null;
-                _acceptEstimate = null;
-            }
-        }
-        catch (Exception ex)
-        {
-            _errorMessage = $"Failed to start new round: {ex.Message}";
-        }
-        finally
-        {
-            _isStartingRound = false;
         }
     }
 
@@ -398,7 +346,7 @@ public partial class ReviewSessionHost : ComponentBase, IDisposable
         });
     }
 
-    private async void OnReviewPokerStateChanged(Guid sessionId, Guid pokerId, Guid boardId, string action)
+    private async void OnReviewPokerStateChanged(Guid sessionId, Guid pokerId, Guid productId, string action)
     {
         if (sessionId != Session.Id) return;
         await InvokeAsync(async () =>
@@ -408,7 +356,6 @@ public partial class ReviewSessionHost : ComponentBase, IDisposable
                 var updated = await ApiClient.GetReviewSessionAsync(Session.Id);
                 if (updated is not null)
                 {
-                    _activePoker = updated.ActivePokerSession;
                     await OnSessionUpdated.InvokeAsync(updated);
                 }
             }

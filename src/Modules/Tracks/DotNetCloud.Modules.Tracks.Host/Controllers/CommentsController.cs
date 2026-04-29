@@ -1,3 +1,4 @@
+using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Modules.Tracks.Data.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -5,9 +6,9 @@ using Microsoft.AspNetCore.Mvc;
 namespace DotNetCloud.Modules.Tracks.Host.Controllers;
 
 /// <summary>
-/// REST API controller for card comments.
+/// REST API controller for work item comments.
 /// </summary>
-[Route("api/v1/cards/{cardId:guid}/comments")]
+[ApiController]
 public class CommentsController : TracksControllerBase
 {
     private readonly CommentService _commentService;
@@ -22,85 +23,64 @@ public class CommentsController : TracksControllerBase
         _logger = logger;
     }
 
-    /// <summary>Lists comments on a card.</summary>
-    [HttpGet]
-    public async Task<IActionResult> ListCommentsAsync(Guid cardId)
+    /// <summary>Lists comments on a work item, with optional pagination.</summary>
+    [HttpGet("api/v1/workitems/{workItemId:guid}/comments")]
+    public async Task<IActionResult> GetCommentsAsync(Guid workItemId, [FromQuery] int skip = 0, [FromQuery] int take = 50, CancellationToken ct = default)
+    {
+        var caller = GetAuthenticatedCaller();
+        var comments = await _commentService.GetCommentsByWorkItemAsync(workItemId, skip, take, ct);
+        return Ok(Envelope(comments, new { skip, take }));
+    }
+
+    /// <summary>Creates a comment on a work item.</summary>
+    [HttpPost("api/v1/workitems/{workItemId:guid}/comments")]
+    public async Task<IActionResult> CreateCommentAsync(Guid workItemId, [FromBody] AddWorkItemCommentDto dto, CancellationToken ct)
     {
         var caller = GetAuthenticatedCaller();
         try
         {
-            var comments = await _commentService.GetCommentsAsync(cardId, caller);
-            return Ok(Envelope(comments));
+            var comment = await _commentService.CreateCommentAsync(workItemId, caller.UserId, dto, ct);
+            return Created($"/api/v1/workitems/{workItemId}/comments", Envelope(comment));
         }
-        catch (ValidationException ex)
+        catch (System.InvalidOperationException ex)
         {
-            return NotFound(ErrorEnvelope(ErrorCodes.CardNotFound, ex.Message));
+            return BadRequest(ErrorEnvelope(ErrorCodes.InvalidOperation, ex.Message));
         }
     }
 
-    /// <summary>Creates a comment on a card.</summary>
-    [HttpPost]
-    public async Task<IActionResult> CreateCommentAsync(Guid cardId, [FromBody] CreateCommentRequest request)
+    /// <summary>Updates a comment. Only the author may edit their own comment.</summary>
+    [HttpPut("api/v1/workitems/{workItemId:guid}/comments/{commentId:guid}")]
+    public async Task<IActionResult> UpdateCommentAsync(Guid workItemId, Guid commentId, [FromBody] UpdateWorkItemCommentDto dto, CancellationToken ct)
     {
         var caller = GetAuthenticatedCaller();
         try
         {
-            var comment = await _commentService.CreateCommentAsync(cardId, request.Content, caller);
-            return Created($"/api/v1/cards/{cardId}/comments", Envelope(comment));
-        }
-        catch (ValidationException ex)
-        {
-            return ex.Errors.ContainsKey(ErrorCodes.CardNotFound)
-                ? NotFound(ErrorEnvelope(ErrorCodes.CardNotFound, ex.Message))
-                : BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
-        }
-    }
-
-    /// <summary>Updates a comment.</summary>
-    [HttpPut("{commentId:guid}")]
-    public async Task<IActionResult> UpdateCommentAsync(Guid cardId, Guid commentId, [FromBody] UpdateCommentRequest request)
-    {
-        var caller = GetAuthenticatedCaller();
-        try
-        {
-            var comment = await _commentService.UpdateCommentAsync(commentId, request.Content, caller);
+            var comment = await _commentService.UpdateCommentAsync(commentId, caller.UserId, dto, ct);
             return Ok(Envelope(comment));
         }
-        catch (ValidationException ex)
+        catch (System.InvalidOperationException ex)
         {
-            return ex.Errors.ContainsKey(ErrorCodes.CommentNotFound)
-                ? NotFound(ErrorEnvelope(ErrorCodes.CommentNotFound, ex.Message))
-                : BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
+            return ex.Message.Contains("not authorized", StringComparison.OrdinalIgnoreCase)
+                ? StatusCode(403, ErrorEnvelope(ErrorCodes.Forbidden, ex.Message))
+                : BadRequest(ErrorEnvelope(ErrorCodes.InvalidOperation, ex.Message));
         }
     }
 
-    /// <summary>Deletes a comment.</summary>
-    [HttpDelete("{commentId:guid}")]
-    public async Task<IActionResult> DeleteCommentAsync(Guid cardId, Guid commentId)
+    /// <summary>Deletes a comment (soft delete). Only the author may delete their own comment.</summary>
+    [HttpDelete("api/v1/workitems/{workItemId:guid}/comments/{commentId:guid}")]
+    public async Task<IActionResult> DeleteCommentAsync(Guid workItemId, Guid commentId, CancellationToken ct)
     {
         var caller = GetAuthenticatedCaller();
         try
         {
-            await _commentService.DeleteCommentAsync(commentId, caller);
+            await _commentService.DeleteCommentAsync(commentId, caller.UserId, ct);
             return Ok(Envelope(new { deleted = true }));
         }
-        catch (ValidationException ex)
+        catch (System.InvalidOperationException ex)
         {
-            return NotFound(ErrorEnvelope(ErrorCodes.CommentNotFound, ex.Message));
+            return ex.Message.Contains("not authorized", StringComparison.OrdinalIgnoreCase)
+                ? StatusCode(403, ErrorEnvelope(ErrorCodes.Forbidden, ex.Message))
+                : BadRequest(ErrorEnvelope(ErrorCodes.InvalidOperation, ex.Message));
         }
     }
-}
-
-/// <summary>Request body for creating a comment.</summary>
-public sealed record CreateCommentRequest
-{
-    /// <summary>Markdown content of the comment.</summary>
-    public required string Content { get; init; }
-}
-
-/// <summary>Request body for updating a comment.</summary>
-public sealed record UpdateCommentRequest
-{
-    /// <summary>Updated markdown content.</summary>
-    public required string Content { get; init; }
 }

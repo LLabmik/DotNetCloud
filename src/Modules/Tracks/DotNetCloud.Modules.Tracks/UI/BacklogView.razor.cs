@@ -6,21 +6,21 @@ using Microsoft.AspNetCore.Components.Web;
 namespace DotNetCloud.Modules.Tracks.UI;
 
 /// <summary>
-/// Backlog view showing cards not assigned to any sprint.
+/// Backlog view showing items not assigned to any sprint.
 /// Supports filtering, multi-select, and bulk sprint assignment.
 /// </summary>
 public partial class BacklogView : ComponentBase
 {
     [Inject] private ITracksApiClient ApiClient { get; set; } = default!;
 
-    [Parameter, EditorRequired] public Guid BoardId { get; set; }
+    [Parameter, EditorRequired] public Guid EpicId { get; set; }
     [Parameter, EditorRequired] public List<SprintDto> Sprints { get; set; } = [];
-    [Parameter] public List<BoardSwimlaneDto> Swimlanes { get; set; } = [];
-    [Parameter] public EventCallback<Guid> OnCardSelected { get; set; }
+    [Parameter] public List<SwimlaneDto> Swimlanes { get; set; } = [];
+    [Parameter] public EventCallback<Guid> OnWorkItemSelected { get; set; }
     [Parameter] public EventCallback OnBacklogChanged { get; set; }
 
-    private readonly List<CardDto> _backlogCards = [];
-    private readonly HashSet<Guid> _selectedCardIds = [];
+    private readonly List<WorkItemDto> _backlogItems = [];
+    private readonly HashSet<Guid> _selectedItemIds = [];
     private bool _isLoading = true;
     private bool _isBulkAssigning;
     private bool _selectAll;
@@ -46,9 +46,9 @@ public partial class BacklogView : ComponentBase
         _isLoading = true;
         try
         {
-            var cards = await ApiClient.GetBacklogCardsAsync(BoardId);
-            _backlogCards.Clear();
-            _backlogCards.AddRange(cards);
+            var items = await ApiClient.GetBacklogItemsAsync(EpicId);
+            _backlogItems.Clear();
+            _backlogItems.AddRange(items.Where(i => i.SprintId == null));
         }
         finally
         {
@@ -58,64 +58,64 @@ public partial class BacklogView : ComponentBase
 
     private async Task RefreshBacklogAsync()
     {
-        _selectedCardIds.Clear();
+        _selectedItemIds.Clear();
         _selectAll = false;
         await LoadBacklogAsync();
     }
 
-    private IReadOnlyList<CardDto> GetFilteredCards()
+    private IReadOnlyList<WorkItemDto> GetFilteredItems()
     {
-        IEnumerable<CardDto> filtered = _backlogCards.Where(c => !c.IsArchived && !c.IsDeleted);
+        IEnumerable<WorkItemDto> filtered = _backlogItems.Where(i => !i.IsArchived);
 
         if (!string.IsNullOrWhiteSpace(_filterText))
         {
             var query = _filterText.Trim();
-            filtered = filtered.Where(c =>
-                c.Title.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-                $"#{c.CardNumber}".Contains(query, StringComparison.OrdinalIgnoreCase));
+            filtered = filtered.Where(i =>
+                i.Title.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                $"#{i.ItemNumber}".Contains(query, StringComparison.OrdinalIgnoreCase));
         }
 
         if (!string.IsNullOrEmpty(_priorityFilter) &&
-            Enum.TryParse<CardPriority>(_priorityFilter, out var priority))
+            Enum.TryParse<Priority>(_priorityFilter, out var priority))
         {
-            filtered = filtered.Where(c => c.Priority == priority);
+            filtered = filtered.Where(i => i.Priority == priority);
         }
 
-        return filtered.OrderByDescending(c => c.Priority).ThenBy(c => c.CreatedAt).ToList();
+        return filtered.OrderByDescending(i => i.Priority).ThenBy(i => i.CreatedAt).ToList();
     }
 
     // ── Selection ───────────────────────────────────────────
 
-    private void ToggleCardSelection(Guid cardId)
+    private void ToggleItemSelection(Guid itemId)
     {
-        if (!_selectedCardIds.Remove(cardId))
-            _selectedCardIds.Add(cardId);
+        if (!_selectedItemIds.Remove(itemId))
+            _selectedItemIds.Add(itemId);
 
-        _selectAll = _selectedCardIds.Count == GetFilteredCards().Count && _selectedCardIds.Count > 0;
+        _selectAll = _selectedItemIds.Count == GetFilteredItems().Count && _selectedItemIds.Count > 0;
     }
 
     private void ToggleSelectAll()
     {
         _selectAll = !_selectAll;
-        _selectedCardIds.Clear();
+        _selectedItemIds.Clear();
 
         if (_selectAll)
         {
-            foreach (var card in GetFilteredCards())
-                _selectedCardIds.Add(card.Id);
+            foreach (var item in GetFilteredItems())
+                _selectedItemIds.Add(item.Id);
         }
     }
 
     // ── Sprint Assignment ───────────────────────────────────
 
-    private async Task AssignCardToSprintAsync(Guid cardId, ChangeEventArgs e)
+    private async Task AssignItemToSprintAsync(Guid itemId, ChangeEventArgs e)
     {
         var value = e.Value?.ToString();
         if (string.IsNullOrEmpty(value) || !Guid.TryParse(value, out var sprintId)) return;
 
-        await ApiClient.AddCardToSprintAsync(BoardId, sprintId, cardId);
-        _backlogCards.RemoveAll(c => c.Id == cardId);
-        _selectedCardIds.Remove(cardId);
+        await ApiClient.AddItemToSprintAsync(sprintId, itemId);
+        _backlogItems.RemoveAll(i => i.Id == itemId);
+        _selectedItemIds.Remove(itemId);
         await OnBacklogChanged.InvokeAsync();
     }
 
@@ -123,15 +123,18 @@ public partial class BacklogView : ComponentBase
     {
         if (string.IsNullOrEmpty(_bulkTargetSprintId) ||
             !Guid.TryParse(_bulkTargetSprintId, out var sprintId) ||
-            _selectedCardIds.Count == 0)
+            _selectedItemIds.Count == 0)
             return;
 
         _isBulkAssigning = true;
         try
         {
-            await ApiClient.BatchAddCardsToSprintAsync(BoardId, sprintId, _selectedCardIds.ToList());
-            _backlogCards.RemoveAll(c => _selectedCardIds.Contains(c.Id));
-            _selectedCardIds.Clear();
+            foreach (var itemId in _selectedItemIds)
+            {
+                await ApiClient.AddItemToSprintAsync(sprintId, itemId);
+            }
+            _backlogItems.RemoveAll(i => _selectedItemIds.Contains(i.Id));
+            _selectedItemIds.Clear();
             _selectAll = false;
             _bulkTargetSprintId = "";
             await OnBacklogChanged.InvokeAsync();
@@ -186,22 +189,22 @@ public partial class BacklogView : ComponentBase
         if (!Guid.TryParse(_newCardSwimlaneId, out var swimlaneId))
             swimlaneId = Swimlanes[0].Id;
 
-        var priority = CardPriority.None;
+        var priority = Priority.None;
         if (!string.IsNullOrEmpty(_newCardPriority))
             Enum.TryParse(_newCardPriority, out priority);
 
         _isSubmittingCard = true;
         try
         {
-            var card = await ApiClient.CreateCardAsync(swimlaneId, new CreateCardDto
+            var item = await ApiClient.CreateItemAsync(swimlaneId, new CreateWorkItemDto
             {
                 Title = _newCardTitle.Trim(),
                 Priority = priority
             });
 
-            if (card is not null)
+            if (item is not null)
             {
-                _backlogCards.Insert(0, card);
+                _backlogItems.Insert(0, item);
                 _newCardTitle = "";
                 _newCardPriority = "";
                 await OnBacklogChanged.InvokeAsync();
@@ -215,21 +218,21 @@ public partial class BacklogView : ComponentBase
 
     // ── Display Helpers ─────────────────────────────────────
 
-    private static string GetPriorityClass(CardPriority priority) => priority switch
+    private static string GetPriorityClass(Priority priority) => priority switch
     {
-        CardPriority.Urgent => "priority-urgent",
-        CardPriority.High => "priority-high",
-        CardPriority.Medium => "priority-medium",
-        CardPriority.Low => "priority-low",
+        Priority.Urgent => "priority-urgent",
+        Priority.High => "priority-high",
+        Priority.Medium => "priority-medium",
+        Priority.Low => "priority-low",
         _ => ""
     };
 
-    private static string GetPriorityIcon(CardPriority priority) => priority switch
+    private static string GetPriorityIcon(Priority priority) => priority switch
     {
-        CardPriority.Urgent => "🔴",
-        CardPriority.High => "🟠",
-        CardPriority.Medium => "🟡",
-        CardPriority.Low => "🟢",
+        Priority.Urgent => "🔴",
+        Priority.High => "🟠",
+        Priority.Medium => "🟡",
+        Priority.Low => "🟢",
         _ => ""
     };
 

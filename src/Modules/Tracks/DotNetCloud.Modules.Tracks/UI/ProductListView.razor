@@ -1,0 +1,106 @@
+@namespace DotNetCloud.Modules.Tracks.UI
+
+<div class="tracks-board-list">
+    <div class="tracks-board-list-header">
+        <h2>Products</h2>
+        <div class="tracks-board-list-actions">
+            <div class="tracks-filter-group">
+                <input type="text" class="tracks-search-input" placeholder="Search products..."
+                       @bind="_searchQuery" @bind:event="oninput" />
+            </div>
+            <button class="btn btn-primary" @onclick="OpenCreateDialog">
+                + New Product
+            </button>
+        </div>
+    </div>
+
+    @if (FilteredProducts.Count == 0)
+    {
+        <div class="tracks-empty-state">
+            <div class="tracks-empty-icon">📋</div>
+            <h3>No products yet</h3>
+            <p>Create your first product to start tracking work.</p>
+            <button class="btn btn-primary" @onclick="OpenCreateDialog">Create Product</button>
+        </div>
+    }
+    else
+    {
+        <div class="tracks-board-grid">
+            @foreach (var product in FilteredProducts)
+            {
+                <div class="tracks-board-card @(product.IsArchived ? "tracks-board-card--archived" : "")"
+                     @onclick="() => OnProductSelected.InvokeAsync(product.Id)">
+                    <div class="tracks-board-card-color"
+                         style="background: @(product.Color ?? "#3b82f6");"></div>
+                    <div class="tracks-board-card-body">
+                        <div class="tracks-board-card-header">
+                            <h3>@product.Name</h3>
+                            @if (product.IsArchived)
+                            {
+                                <span class="tracks-badge tracks-badge--muted">Archived</span>
+                            }
+                        </div>
+                        @if (!string.IsNullOrEmpty(product.Description))
+                        {
+                            <p class="tracks-board-card-desc">@TruncateText(product.Description, 120)</p>
+                        }
+                        <div class="tracks-board-card-footer">
+                            <span class="tracks-board-meta">
+                                <span>@product.MemberCount members</span>
+                            </span>
+                            <span class="tracks-board-meta">
+                                <span>@product.SwimlaneCount swimlane@(product.SwimlaneCount != 1 ? "s" : "")</span>
+                            </span>
+                            <span class="tracks-board-meta">
+                                <span>@product.EpicCount epic@(product.EpicCount != 1 ? "s" : "")</span>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@* ── Create Product Dialog ── *@
+@if (_showCreateDialog)
+{
+    <DncModal Title="Create Product" StartVisible OnClose="CloseCreateDialog">
+        <EditForm Model="_createModel" OnValidSubmit="CreateProductAsync">
+            <div class="form-group">
+                <label>Name</label>
+                <InputText class="form-control" @bind-Value="_createModel.Name" placeholder="Product name" />
+            </div>
+            <div class="form-group">
+                <label>Description (optional)</label>
+                <InputTextArea class="form-control" @bind-Value="_createModel.Description" rows="3"
+                               placeholder="What is this product for?" />
+            </div>
+            <div class="form-group">
+                <label>Color</label>
+                <div class="tracks-color-picker">
+                    @foreach (var color in _productColors)
+                    {
+                        <button type="button"
+                                class="tracks-color-swatch @(_createModel.Color == color ? "selected" : "")"
+                                style="background: @color;"
+                                @onclick="() => _createModel.Color = color">
+                        </button>
+                    }
+                </div>
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" @bind="_subItemsEnabled" />
+                    Enable Sub Items (instead of Checklists)
+                </label>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary" disabled="@_isCreating">
+                    @(_isCreating ? "Creating..." : "Create Product")
+                </button>
+                <button type="button" class="btn btn-secondary" @onclick="CloseCreateDialog">Cancel</button>
+            </div>
+        </EditForm>
+    </DncModal>
+}

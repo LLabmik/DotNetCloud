@@ -51,15 +51,15 @@ public sealed class ChatModuleManifest : IModuleManifest
     public IReadOnlyCollection<string> SubscribedEvents => new[]
     {
         "FileUploadedEvent",
-        nameof(CardCreatedEvent),
-        nameof(CardMovedEvent),
-        nameof(CardUpdatedEvent),
-        nameof(CardDeletedEvent),
-        nameof(CardAssignedEvent),
-        nameof(CardCommentAddedEvent),
+        nameof(WorkItemCreatedEvent),
+        nameof(WorkItemMovedEvent),
+        nameof(WorkItemUpdatedEvent),
+        nameof(WorkItemDeletedEvent),
+        nameof(WorkItemAssignedEvent),
+        nameof(WorkItemCommentAddedEvent),
         nameof(SprintStartedEvent),
         nameof(SprintCompletedEvent),
-        nameof(BoardCreatedEvent),
-        nameof(BoardDeletedEvent)
+        nameof(ProductCreatedEvent),
+        nameof(ProductDeletedEvent)
     };
 }

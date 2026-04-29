@@ -69,16 +69,16 @@ public sealed class ChatModule : IModuleLifecycle
             context.Services.GetService<ILogger<TracksActivityChatHandler>>()
                 ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<TracksActivityChatHandler>.Instance,
             broadcaster);
-        await _eventBus.SubscribeAsync<CardCreatedEvent>(_tracksActivityHandler, cancellationToken);
-        await _eventBus.SubscribeAsync<CardMovedEvent>(_tracksActivityHandler, cancellationToken);
-        await _eventBus.SubscribeAsync<CardUpdatedEvent>(_tracksActivityHandler, cancellationToken);
-        await _eventBus.SubscribeAsync<CardDeletedEvent>(_tracksActivityHandler, cancellationToken);
-        await _eventBus.SubscribeAsync<CardAssignedEvent>(_tracksActivityHandler, cancellationToken);
-        await _eventBus.SubscribeAsync<CardCommentAddedEvent>(_tracksActivityHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<WorkItemCreatedEvent>(_tracksActivityHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<WorkItemMovedEvent>(_tracksActivityHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<WorkItemUpdatedEvent>(_tracksActivityHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<WorkItemDeletedEvent>(_tracksActivityHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<WorkItemAssignedEvent>(_tracksActivityHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<WorkItemCommentAddedEvent>(_tracksActivityHandler, cancellationToken);
         await _eventBus.SubscribeAsync<SprintStartedEvent>(_tracksActivityHandler, cancellationToken);
         await _eventBus.SubscribeAsync<SprintCompletedEvent>(_tracksActivityHandler, cancellationToken);
-        await _eventBus.SubscribeAsync<BoardCreatedEvent>(_tracksActivityHandler, cancellationToken);
-        await _eventBus.SubscribeAsync<BoardDeletedEvent>(_tracksActivityHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<ProductCreatedEvent>(_tracksActivityHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<ProductDeletedEvent>(_tracksActivityHandler, cancellationToken);
 
         // Register call notification push handlers
         var callNotificationHandler = context.Services.GetService<Services.ICallNotificationHandler>();
@@ -129,16 +129,16 @@ public sealed class ChatModule : IModuleLifecycle
 
             if (_tracksActivityHandler is not null)
             {
-                await _eventBus.UnsubscribeAsync<CardCreatedEvent>(_tracksActivityHandler, cancellationToken);
-                await _eventBus.UnsubscribeAsync<CardMovedEvent>(_tracksActivityHandler, cancellationToken);
-                await _eventBus.UnsubscribeAsync<CardUpdatedEvent>(_tracksActivityHandler, cancellationToken);
-                await _eventBus.UnsubscribeAsync<CardDeletedEvent>(_tracksActivityHandler, cancellationToken);
-                await _eventBus.UnsubscribeAsync<CardAssignedEvent>(_tracksActivityHandler, cancellationToken);
-                await _eventBus.UnsubscribeAsync<CardCommentAddedEvent>(_tracksActivityHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<WorkItemCreatedEvent>(_tracksActivityHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<WorkItemMovedEvent>(_tracksActivityHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<WorkItemUpdatedEvent>(_tracksActivityHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<WorkItemDeletedEvent>(_tracksActivityHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<WorkItemAssignedEvent>(_tracksActivityHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<WorkItemCommentAddedEvent>(_tracksActivityHandler, cancellationToken);
                 await _eventBus.UnsubscribeAsync<SprintStartedEvent>(_tracksActivityHandler, cancellationToken);
                 await _eventBus.UnsubscribeAsync<SprintCompletedEvent>(_tracksActivityHandler, cancellationToken);
-                await _eventBus.UnsubscribeAsync<BoardCreatedEvent>(_tracksActivityHandler, cancellationToken);
-                await _eventBus.UnsubscribeAsync<BoardDeletedEvent>(_tracksActivityHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<ProductCreatedEvent>(_tracksActivityHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<ProductDeletedEvent>(_tracksActivityHandler, cancellationToken);
             }
 
             if (_callNotificationInitiatedHandler is not null)

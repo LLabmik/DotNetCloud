@@ -16,6 +16,7 @@ public partial class SprintBurndownChart : ComponentBase
     [Parameter, EditorRequired] public Guid SprintId { get; set; }
 
     private SprintReportDto? _report;
+    private SprintBurndownDto? _burndownData;
     private bool _isLoading = true;
 
     protected override async Task OnParametersSetAsync()
@@ -25,10 +26,12 @@ public partial class SprintBurndownChart : ComponentBase
         try
         {
             _report = await ApiClient.GetSprintReportAsync(SprintId);
+            _burndownData = await ApiClient.GetBurndownDataAsync(SprintId);
         }
         catch
         {
             _report = null;
+            _burndownData = null;
         }
         finally
         {
@@ -38,10 +41,11 @@ public partial class SprintBurndownChart : ComponentBase
 
     private string BuildBurndownSvg()
     {
-        if (_report is null) return string.Empty;
+        if (_burndownData is null) return string.Empty;
 
-        var data = _report.BurndownData;
-        var maxPoints = data.Max(d => Math.Max(d.RemainingPoints, d.IdealPoints));
+        var data = _burndownData.Points;
+        var totalSp = _burndownData.TotalStoryPoints;
+        var maxPoints = Math.Max(totalSp, data.Count > 0 ? data.Max(d => d.RemainingStoryPoints) : 0);
         if (maxPoints == 0) maxPoints = 1;
 
         const int chartWidth = 600;
@@ -80,18 +84,27 @@ public partial class SprintBurndownChart : ComponentBase
             sb.Append(CultureInfo.InvariantCulture, $"<text x=\"{XPos(data.Count - 1):F1}\" y=\"{chartHeight - 5}\" text-anchor=\"middle\" fill=\"var(--color-text-muted, #888)\" font-size=\"10\">{data[^1].Date:M/d}</text>");
         }
 
-        // Ideal line (dashed)
-        var idealLine = string.Join(" ", data.Select((d, i) => FormattableString.Invariant($"{XPos(i):F1},{YPos(d.IdealPoints):F1}")));
-        sb.Append($"<polyline points=\"{idealLine}\" fill=\"none\" stroke=\"var(--color-text-muted, #aaa)\" stroke-width=\"1.5\" stroke-dasharray=\"6,4\" />");
+        // Ideal line (dashed) — linear from total SP to 0
+        for (var i = 0; i < data.Count; i++)
+        {
+            var idealPoints = data.Count > 1
+                ? totalSp - (totalSp * i / (data.Count - 1))
+                : 0;
+            if (i == 0)
+                sb.Append(CultureInfo.InvariantCulture, $"<polyline points=\"");
+            sb.Append(CultureInfo.InvariantCulture, $"{XPos(i):F1},{YPos(idealPoints):F1}");
+            sb.Append(i < data.Count - 1 ? " " : "\" ");
+        }
+        sb.Append($"fill=\"none\" stroke=\"var(--color-text-muted, #aaa)\" stroke-width=\"1.5\" stroke-dasharray=\"6,4\" />");
 
         // Actual line (solid)
-        var actualLine = string.Join(" ", data.Select((d, i) => FormattableString.Invariant($"{XPos(i):F1},{YPos(d.RemainingPoints):F1}")));
+        var actualLine = string.Join(" ", data.Select((d, i) => FormattableString.Invariant($"{XPos(i):F1},{YPos(d.RemainingStoryPoints):F1}")));
         sb.Append($"<polyline points=\"{actualLine}\" fill=\"none\" stroke=\"var(--color-primary, #4f8af7)\" stroke-width=\"2.5\" />");
 
         // Data points
         for (var i = 0; i < data.Count; i++)
         {
-            sb.Append(CultureInfo.InvariantCulture, $"<circle cx=\"{XPos(i):F1}\" cy=\"{YPos(data[i].RemainingPoints):F1}\" r=\"3\" fill=\"var(--color-primary, #4f8af7)\" />");
+            sb.Append(CultureInfo.InvariantCulture, $"<circle cx=\"{XPos(i):F1}\" cy=\"{YPos(data[i].RemainingStoryPoints):F1}\" r=\"3\" fill=\"var(--color-primary, #4f8af7)\" />");
         }
 
         // Legend

@@ -1,3 +1,4 @@
+using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Modules.Tracks.Data.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -5,9 +6,9 @@ using Microsoft.AspNetCore.Mvc;
 namespace DotNetCloud.Modules.Tracks.Host.Controllers;
 
 /// <summary>
-/// REST API controller for card checklists and checklist items.
+/// REST API controller for checklists and checklist items on work items.
 /// </summary>
-[Route("api/v1/cards/{cardId:guid}/checklists")]
+[ApiController]
 public class ChecklistsController : TracksControllerBase
 {
     private readonly ChecklistService _checklistService;
@@ -22,119 +23,78 @@ public class ChecklistsController : TracksControllerBase
         _logger = logger;
     }
 
-    /// <summary>Lists checklists on a card.</summary>
-    [HttpGet]
-    public async Task<IActionResult> ListChecklistsAsync(Guid cardId)
+    /// <summary>Lists all checklists on a work item.</summary>
+    [HttpGet("api/v1/workitems/{itemId:guid}/checklists")]
+    public async Task<IActionResult> GetChecklistsAsync(Guid itemId, CancellationToken ct)
+    {
+        var caller = GetAuthenticatedCaller();
+        var checklists = await _checklistService.GetChecklistsByItemAsync(itemId, ct);
+        return Ok(Envelope(checklists));
+    }
+
+    /// <summary>Creates a new checklist on a work item.</summary>
+    [HttpPost("api/v1/workitems/{itemId:guid}/checklists")]
+    public async Task<IActionResult> CreateChecklistAsync(Guid itemId, [FromBody] CreateChecklistDto dto, CancellationToken ct)
     {
         var caller = GetAuthenticatedCaller();
         try
         {
-            var checklists = await _checklistService.GetChecklistsAsync(cardId, caller);
-            return Ok(Envelope(checklists));
+            var checklist = await _checklistService.CreateChecklistAsync(itemId, dto, ct);
+            return Created($"/api/v1/workitems/{itemId}/checklists", Envelope(checklist));
         }
-        catch (ValidationException ex)
+        catch (System.InvalidOperationException ex)
         {
-            return NotFound(ErrorEnvelope(ErrorCodes.CardNotFound, ex.Message));
+            return BadRequest(ErrorEnvelope(ErrorCodes.InvalidOperation, ex.Message));
         }
     }
 
-    /// <summary>Creates a checklist on a card.</summary>
-    [HttpPost]
-    public async Task<IActionResult> CreateChecklistAsync(Guid cardId, [FromBody] CreateChecklistRequest request)
+    /// <summary>Deletes a checklist and all its items.</summary>
+    [HttpDelete("api/v1/workitems/{itemId:guid}/checklists/{checklistId:guid}")]
+    public async Task<IActionResult> DeleteChecklistAsync(Guid itemId, Guid checklistId, CancellationToken ct)
     {
         var caller = GetAuthenticatedCaller();
-        try
-        {
-            var checklist = await _checklistService.CreateChecklistAsync(cardId, request.Title, caller);
-            return Created($"/api/v1/cards/{cardId}/checklists", Envelope(checklist));
-        }
-        catch (ValidationException ex)
-        {
-            return ex.Errors.ContainsKey(ErrorCodes.CardNotFound)
-                ? NotFound(ErrorEnvelope(ErrorCodes.CardNotFound, ex.Message))
-                : BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
-        }
+        await _checklistService.DeleteChecklistAsync(checklistId, ct);
+        return Ok(Envelope(new { deleted = true }));
     }
-
-    /// <summary>Deletes a checklist.</summary>
-    [HttpDelete("{checklistId:guid}")]
-    public async Task<IActionResult> DeleteChecklistAsync(Guid cardId, Guid checklistId)
-    {
-        var caller = GetAuthenticatedCaller();
-        try
-        {
-            await _checklistService.DeleteChecklistAsync(checklistId, caller);
-            return Ok(Envelope(new { deleted = true }));
-        }
-        catch (ValidationException ex)
-        {
-            return NotFound(ErrorEnvelope(ErrorCodes.ChecklistNotFound, ex.Message));
-        }
-    }
-
-    // ─── Checklist Items ──────────────────────────────────────────────────
 
     /// <summary>Adds an item to a checklist.</summary>
-    [HttpPost("{checklistId:guid}/items")]
-    public async Task<IActionResult> AddItemAsync(Guid cardId, Guid checklistId, [FromBody] CreateChecklistItemRequest request)
+    [HttpPost("api/v1/workitems/{itemId:guid}/checklists/{checklistId:guid}/items")]
+    public async Task<IActionResult> AddChecklistItemAsync(Guid itemId, Guid checklistId, [FromBody] AddChecklistItemDto dto, CancellationToken ct)
     {
         var caller = GetAuthenticatedCaller();
         try
         {
-            var item = await _checklistService.AddItemAsync(checklistId, request.Title, caller);
-            return Created($"/api/v1/cards/{cardId}/checklists/{checklistId}/items", Envelope(item));
+            var checklistItem = await _checklistService.AddChecklistItemAsync(checklistId, dto, ct);
+            return Created($"/api/v1/workitems/{itemId}/checklists/{checklistId}/items", Envelope(checklistItem));
         }
-        catch (ValidationException ex)
+        catch (System.InvalidOperationException ex)
         {
-            return ex.Errors.ContainsKey(ErrorCodes.ChecklistNotFound)
-                ? NotFound(ErrorEnvelope(ErrorCodes.ChecklistNotFound, ex.Message))
-                : BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
+            return BadRequest(ErrorEnvelope(ErrorCodes.InvalidOperation, ex.Message));
         }
     }
 
     /// <summary>Toggles a checklist item's completion state.</summary>
-    [HttpPut("{checklistId:guid}/items/{itemId:guid}/toggle")]
-    public async Task<IActionResult> ToggleItemAsync(Guid cardId, Guid checklistId, Guid itemId)
+    [HttpPut("api/v1/workitems/{itemId:guid}/checklists/{checklistId:guid}/items/{checklistItemId:guid}/toggle")]
+    public async Task<IActionResult> ToggleChecklistItemAsync(Guid itemId, Guid checklistId, Guid checklistItemId, CancellationToken ct)
     {
         var caller = GetAuthenticatedCaller();
         try
         {
-            var item = await _checklistService.ToggleItemAsync(itemId, caller);
-            return Ok(Envelope(item));
+            await _checklistService.ToggleChecklistItemAsync(checklistItemId, ct);
+            return Ok(Envelope(new { toggled = true }));
         }
-        catch (ValidationException ex)
+        catch (System.InvalidOperationException ex)
         {
             return NotFound(ErrorEnvelope(ErrorCodes.ChecklistNotFound, ex.Message));
         }
     }
 
     /// <summary>Deletes a checklist item.</summary>
-    [HttpDelete("{checklistId:guid}/items/{itemId:guid}")]
-    public async Task<IActionResult> DeleteItemAsync(Guid cardId, Guid checklistId, Guid itemId)
+    [HttpDelete("api/v1/workitems/{itemId:guid}/checklists/{checklistId:guid}/items/{checklistItemId:guid}")]
+    public async Task<IActionResult> DeleteChecklistItemAsync(Guid itemId, Guid checklistId, Guid checklistItemId, CancellationToken ct)
     {
         var caller = GetAuthenticatedCaller();
-        try
-        {
-            await _checklistService.DeleteItemAsync(itemId, caller);
-            return Ok(Envelope(new { deleted = true }));
-        }
-        catch (ValidationException ex)
-        {
-            return NotFound(ErrorEnvelope(ErrorCodes.ChecklistNotFound, ex.Message));
-        }
+        await _checklistService.DeleteChecklistItemAsync(checklistItemId, ct);
+        return Ok(Envelope(new { deleted = true }));
     }
-}
-
-/// <summary>Request body for creating a checklist.</summary>
-public sealed record CreateChecklistRequest
-{
-    /// <summary>The checklist title.</summary>
-    public required string Title { get; init; }
-}
-
-/// <summary>Request body for creating a checklist item.</summary>
-public sealed record CreateChecklistItemRequest
-{
-    /// <summary>The item title.</summary>
-    public required string Title { get; init; }
 }

@@ -47,14 +47,14 @@ public class TracksCapabilityTests
             Title = "Fix the bug",
             BoardId = Guid.NewGuid(),
             BoardTitle = "Dev Board",
-            Priority = CardPriority.High,
+            Priority = Priority.High,
             DueDate = DateTime.UtcNow.AddDays(3)
         };
 
         // Assert
         Assert.AreEqual("Fix the bug", summary.Title);
         Assert.AreEqual("Dev Board", summary.BoardTitle);
-        Assert.AreEqual(CardPriority.High, summary.Priority);
+        Assert.AreEqual(Priority.High, summary.Priority);
         Assert.IsNotNull(summary.DueDate);
     }
 
@@ -71,7 +71,7 @@ public class TracksCapabilityTests
         };
 
         // Assert
-        Assert.AreEqual(CardPriority.None, summary.Priority);
+        Assert.AreEqual(Priority.None, summary.Priority);
         Assert.IsNull(summary.DueDate);
     }
 }

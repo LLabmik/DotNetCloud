@@ -13,14 +13,14 @@ public partial class SprintPlanningView : ComponentBase
 {
     [Inject] private ITracksApiClient ApiClient { get; set; } = default!;
 
-    [Parameter, EditorRequired] public Guid BoardId { get; set; }
+    [Parameter, EditorRequired] public Guid EpicId { get; set; }
     [Parameter, EditorRequired] public SprintDto Sprint { get; set; } = default!;
     [Parameter] public EventCallback OnClose { get; set; }
-    [Parameter] public EventCallback<Guid> OnCardSelected { get; set; }
+    [Parameter] public EventCallback<Guid> OnWorkItemSelected { get; set; }
     [Parameter] public EventCallback OnSprintChanged { get; set; }
 
-    private readonly List<CardDto> _sprintCards = [];
-    private readonly List<CardDto> _backlogCards = [];
+    private readonly List<WorkItemDto> _sprintItems = [];
+    private readonly List<WorkItemDto> _backlogItems = [];
     private bool _isLoading = true;
     private string _backlogSearch = string.Empty;
 
@@ -50,14 +50,16 @@ public partial class SprintPlanningView : ComponentBase
         var loadVersion = Interlocked.Increment(ref _loadVersion);
         _isLoading = true;
 
-        var sprintCards = new List<CardDto>();
-        var backlogCards = new List<CardDto>();
+        var sprintItems = new List<WorkItemDto>();
+        var backlogItems = new List<WorkItemDto>();
 
         try
         {
-            var loadedSprintCards = await ApiClient.GetSprintCardsAsync(BoardId, Sprint.Id);
-            sprintCards.AddRange(loadedSprintCards
-                .GroupBy(c => c.Id)
+            // Load all backlog items for the Epic, then filter to those assigned to this sprint.
+            var allItems = await ApiClient.GetBacklogItemsAsync(EpicId);
+            sprintItems.AddRange(allItems
+                .Where(item => item.SprintId == Sprint.Id)
+                .GroupBy(item => item.Id)
                 .Select(g => g.First()));
         }
         catch
@@ -67,9 +69,10 @@ public partial class SprintPlanningView : ComponentBase
 
         try
         {
-            var loadedBacklogCards = await ApiClient.GetBacklogCardsAsync(BoardId);
-            backlogCards.AddRange(loadedBacklogCards
-                .GroupBy(c => c.Id)
+            var loadedBacklogItems = await ApiClient.GetBacklogItemsAsync(EpicId);
+            backlogItems.AddRange(loadedBacklogItems
+                .Where(item => item.SprintId == null)
+                .GroupBy(item => item.Id)
                 .Select(g => g.First()));
         }
         catch
@@ -80,71 +83,71 @@ public partial class SprintPlanningView : ComponentBase
         {
             if (loadVersion == _loadVersion)
             {
-                _sprintCards.Clear();
-                _sprintCards.AddRange(sprintCards);
+                _sprintItems.Clear();
+                _sprintItems.AddRange(sprintItems);
 
-                _backlogCards.Clear();
-                _backlogCards.AddRange(backlogCards);
+                _backlogItems.Clear();
+                _backlogItems.AddRange(backlogItems);
 
                 _isLoading = false;
             }
         }
     }
 
-    private List<CardDto> GetFilteredBacklog()
+    private List<WorkItemDto> GetFilteredBacklog()
     {
-        var cards = _backlogCards.AsEnumerable();
+        var items = _backlogItems.AsEnumerable();
 
         if (!string.IsNullOrWhiteSpace(_backlogSearch))
         {
             var search = _backlogSearch.Trim();
-            cards = cards.Where(c =>
-                c.Title.Contains(search, StringComparison.OrdinalIgnoreCase) ||
-                c.CardNumber.ToString().Contains(search, StringComparison.OrdinalIgnoreCase));
+            items = items.Where(item =>
+                item.Title.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                item.ItemNumber.ToString().Contains(search, StringComparison.OrdinalIgnoreCase));
         }
 
-        return cards.OrderByDescending(c => c.Priority).ThenBy(c => c.CardNumber).ToList();
+        return items.OrderByDescending(item => item.Priority).ThenBy(item => item.ItemNumber).ToList();
     }
 
-    private async Task AddToSprintAsync(Guid cardId)
+    private async Task AddToSprintAsync(Guid itemId)
     {
         try
         {
-            await ApiClient.AddCardToSprintAsync(BoardId, Sprint.Id, cardId);
+            await ApiClient.AddItemToSprintAsync(Sprint.Id, itemId);
 
-            var card = _backlogCards.FirstOrDefault(c => c.Id == cardId);
-            if (card is not null)
+            var item = _backlogItems.FirstOrDefault(i => i.Id == itemId);
+            if (item is not null)
             {
-                _backlogCards.Remove(card);
-                _sprintCards.Add(card);
+                _backlogItems.Remove(item);
+                _sprintItems.Add(item);
             }
 
             await OnSprintChanged.InvokeAsync();
         }
         catch
         {
-            // Silent fail — card stays in backlog
+            // Silent fail — item stays in backlog
         }
     }
 
-    private async Task RemoveFromSprintAsync(Guid cardId)
+    private async Task RemoveFromSprintAsync(Guid itemId)
     {
         try
         {
-            await ApiClient.RemoveCardFromSprintAsync(BoardId, Sprint.Id, cardId);
+            await ApiClient.RemoveItemFromSprintAsync(Sprint.Id, itemId);
 
-            var card = _sprintCards.FirstOrDefault(c => c.Id == cardId);
-            if (card is not null)
+            var item = _sprintItems.FirstOrDefault(i => i.Id == itemId);
+            if (item is not null)
             {
-                _sprintCards.Remove(card);
-                _backlogCards.Add(card);
+                _sprintItems.Remove(item);
+                _backlogItems.Add(item);
             }
 
             await OnSprintChanged.InvokeAsync();
         }
         catch
         {
-            // Silent fail — card stays in sprint
+            // Silent fail — item stays in sprint
         }
     }
 
@@ -158,7 +161,7 @@ public partial class SprintPlanningView : ComponentBase
 
         try
         {
-            var updated = await ApiClient.UpdateSprintAsync(BoardId, Sprint.Id, new UpdateSprintDto
+            var updated = await ApiClient.UpdateSprintAsync(Sprint.Id, new UpdateSprintDto
             {
                 Title = Sprint.Title,
                 Goal = Sprint.Goal,
@@ -190,12 +193,12 @@ public partial class SprintPlanningView : ComponentBase
         }
     }
 
-    private static string GetPriorityLabel(CardPriority priority) => priority switch
+    private static string GetPriorityLabel(Priority priority) => priority switch
     {
-        CardPriority.Urgent => "🔴 Urgent",
-        CardPriority.High => "🟠 High",
-        CardPriority.Medium => "🟡 Medium",
-        CardPriority.Low => "🔵 Low",
+        Priority.Urgent => "🔴 Urgent",
+        Priority.High => "🟠 High",
+        Priority.Medium => "🟡 Medium",
+        Priority.Low => "🔵 Low",
         _ => "⚪ None"
     };
 

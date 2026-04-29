@@ -5,12 +5,8 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace DotNetCloud.Modules.Tracks.Data.Configuration;
 
-/// <summary>
-/// EF Core configuration for the <see cref="ReviewSession"/> entity.
-/// </summary>
 public sealed class ReviewSessionConfiguration : IEntityTypeConfiguration<ReviewSession>
 {
-    /// <inheritdoc />
     public void Configure(EntityTypeBuilder<ReviewSession> builder)
     {
         builder.HasKey(rs => rs.Id);
@@ -25,19 +21,18 @@ public sealed class ReviewSessionConfiguration : IEntityTypeConfiguration<Review
             .IsRequired()
             .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
-        builder.HasOne(rs => rs.Board)
-            .WithMany(b => b.ReviewSessions)
-            .HasForeignKey(rs => rs.BoardId)
+        builder.HasOne(rs => rs.Epic)
+            .WithMany()
+            .HasForeignKey(rs => rs.EpicId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        builder.HasOne(rs => rs.CurrentCard)
+        builder.HasOne(rs => rs.CurrentItem)
             .WithMany()
-            .HasForeignKey(rs => rs.CurrentCardId)
+            .HasForeignKey(rs => rs.CurrentItemId)
             .OnDelete(DeleteBehavior.SetNull);
 
-        // Indexes
-        builder.HasIndex(rs => new { rs.BoardId, rs.Status })
-            .HasDatabaseName("ix_review_sessions_board_status");
+        builder.HasIndex(rs => new { rs.EpicId, rs.Status })
+            .HasDatabaseName("ix_review_sessions_epic_status");
 
         builder.HasIndex(rs => rs.HostUserId)
             .HasDatabaseName("ix_review_sessions_host_user_id");

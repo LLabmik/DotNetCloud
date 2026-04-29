@@ -4,12 +4,8 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace DotNetCloud.Modules.Tracks.Data.Configuration;
 
-/// <summary>
-/// EF Core configuration for the <see cref="PokerSession"/> entity.
-/// </summary>
 public sealed class PokerSessionConfiguration : IEntityTypeConfiguration<PokerSession>
 {
-    /// <inheritdoc />
     public void Configure(EntityTypeBuilder<PokerSession> builder)
     {
         builder.HasKey(ps => ps.Id);
@@ -42,14 +38,14 @@ public sealed class PokerSessionConfiguration : IEntityTypeConfiguration<PokerSe
             .IsRequired()
             .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
-        builder.HasOne(ps => ps.Card)
-            .WithMany(c => c.PokerSessions)
-            .HasForeignKey(ps => ps.CardId)
+        builder.HasOne(ps => ps.Item)
+            .WithMany(wi => wi.PokerSessions)
+            .HasForeignKey(ps => ps.ItemId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        builder.HasOne(ps => ps.Board)
-            .WithMany(b => b.PokerSessions)
-            .HasForeignKey(ps => ps.BoardId)
+        builder.HasOne(ps => ps.Epic)
+            .WithMany()
+            .HasForeignKey(ps => ps.EpicId)
             .OnDelete(DeleteBehavior.NoAction);
 
         builder.HasOne(ps => ps.ReviewSession)
@@ -57,12 +53,11 @@ public sealed class PokerSessionConfiguration : IEntityTypeConfiguration<PokerSe
             .HasForeignKey(ps => ps.ReviewSessionId)
             .OnDelete(DeleteBehavior.SetNull);
 
-        // Indexes
-        builder.HasIndex(ps => new { ps.CardId, ps.Status })
-            .HasDatabaseName("ix_poker_sessions_card_status");
+        builder.HasIndex(ps => new { ps.ItemId, ps.Status })
+            .HasDatabaseName("ix_poker_sessions_item_status");
 
-        builder.HasIndex(ps => new { ps.BoardId, ps.Status })
-            .HasDatabaseName("ix_poker_sessions_board_status");
+        builder.HasIndex(ps => new { ps.EpicId, ps.Status })
+            .HasDatabaseName("ix_poker_sessions_epic_status");
 
         builder.HasIndex(ps => ps.CreatedByUserId)
             .HasDatabaseName("ix_poker_sessions_created_by");

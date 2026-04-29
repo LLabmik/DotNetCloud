@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Capabilities;
+using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Chat.Events;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -27,30 +28,28 @@ public class TracksActivityChatHandlerTests
     [TestMethod]
     public void ImplementsAllTracksEventHandlerInterfaces()
     {
-        Assert.IsInstanceOfType<IEventHandler<CardCreatedEvent>>(_handler);
-        Assert.IsInstanceOfType<IEventHandler<CardMovedEvent>>(_handler);
-        Assert.IsInstanceOfType<IEventHandler<CardUpdatedEvent>>(_handler);
-        Assert.IsInstanceOfType<IEventHandler<CardDeletedEvent>>(_handler);
-        Assert.IsInstanceOfType<IEventHandler<CardAssignedEvent>>(_handler);
-        Assert.IsInstanceOfType<IEventHandler<CardCommentAddedEvent>>(_handler);
+        Assert.IsInstanceOfType<IEventHandler<WorkItemCreatedEvent>>(_handler);
+        Assert.IsInstanceOfType<IEventHandler<WorkItemMovedEvent>>(_handler);
+        Assert.IsInstanceOfType<IEventHandler<WorkItemUpdatedEvent>>(_handler);
+        Assert.IsInstanceOfType<IEventHandler<WorkItemDeletedEvent>>(_handler);
+        Assert.IsInstanceOfType<IEventHandler<WorkItemAssignedEvent>>(_handler);
+        Assert.IsInstanceOfType<IEventHandler<WorkItemCommentAddedEvent>>(_handler);
         Assert.IsInstanceOfType<IEventHandler<SprintStartedEvent>>(_handler);
         Assert.IsInstanceOfType<IEventHandler<SprintCompletedEvent>>(_handler);
-        Assert.IsInstanceOfType<IEventHandler<BoardCreatedEvent>>(_handler);
-        Assert.IsInstanceOfType<IEventHandler<BoardDeletedEvent>>(_handler);
+        Assert.IsInstanceOfType<IEventHandler<ProductCreatedEvent>>(_handler);
+        Assert.IsInstanceOfType<IEventHandler<ProductDeletedEvent>>(_handler);
     }
 
     [TestMethod]
     public async Task HandleCardCreatedEvent_BroadcastsToActivityGroup()
     {
-        var evt = new CardCreatedEvent
+        var evt = new WorkItemCreatedEvent
         {
             EventId = Guid.NewGuid(),
             CreatedAt = DateTime.UtcNow,
-            CardId = Guid.NewGuid(),
-            Title = "Test Card",
-            BoardId = Guid.NewGuid(),
-            SwimlaneId = Guid.NewGuid(),
-            CreatedByUserId = Guid.NewGuid()
+            WorkItemId = Guid.NewGuid(),
+            ProductId = Guid.NewGuid(),
+            Type = WorkItemType.Item
         };
 
         await _handler.HandleAsync(evt);
@@ -63,24 +62,22 @@ public class TracksActivityChatHandlerTests
     }
 
     [TestMethod]
-    public async Task HandleCardCreatedEvent_BroadcastsToBoardGroup()
+    public async Task HandleCardCreatedEvent_BroadcastsToProductGroup()
     {
-        var boardId = Guid.NewGuid();
-        var evt = new CardCreatedEvent
+        var productId = Guid.NewGuid();
+        var evt = new WorkItemCreatedEvent
         {
             EventId = Guid.NewGuid(),
             CreatedAt = DateTime.UtcNow,
-            CardId = Guid.NewGuid(),
-            Title = "Test Card",
-            BoardId = boardId,
-            SwimlaneId = Guid.NewGuid(),
-            CreatedByUserId = Guid.NewGuid()
+            WorkItemId = Guid.NewGuid(),
+            ProductId = productId,
+            Type = WorkItemType.Item
         };
 
         await _handler.HandleAsync(evt);
 
         _broadcasterMock.Verify(b => b.BroadcastAsync(
-            $"tracks-board-chat-{boardId}",
+            $"tracks-product-chat-{productId}",
             "TracksActivityNotification",
             It.IsAny<object>(),
             It.IsAny<CancellationToken>()), Times.Once);
@@ -89,15 +86,14 @@ public class TracksActivityChatHandlerTests
     [TestMethod]
     public async Task HandleCardMovedEvent_BroadcastsActivity()
     {
-        var evt = new CardMovedEvent
+        var evt = new WorkItemMovedEvent
         {
             EventId = Guid.NewGuid(),
             CreatedAt = DateTime.UtcNow,
-            CardId = Guid.NewGuid(),
-            BoardId = Guid.NewGuid(),
+            WorkItemId = Guid.NewGuid(),
+            Type = WorkItemType.Item,
             FromSwimlaneId = Guid.NewGuid(),
-            ToSwimlaneId = Guid.NewGuid(),
-            MovedByUserId = Guid.NewGuid()
+            ToSwimlaneId = Guid.NewGuid()
         };
 
         await _handler.HandleAsync(evt);
@@ -112,44 +108,39 @@ public class TracksActivityChatHandlerTests
     [TestMethod]
     public async Task HandleCardAssignedEvent_SendsDirectNotificationToAssignee()
     {
-        var assignedUserId = Guid.NewGuid();
-        var evt = new CardAssignedEvent
+        var userId = Guid.NewGuid();
+        var evt = new WorkItemAssignedEvent
         {
             EventId = Guid.NewGuid(),
             CreatedAt = DateTime.UtcNow,
-            CardId = Guid.NewGuid(),
-            BoardId = Guid.NewGuid(),
-            AssignedUserId = assignedUserId,
-            AssignedByUserId = Guid.NewGuid()
+            WorkItemId = Guid.NewGuid(),
+            UserId = userId
         };
 
         await _handler.HandleAsync(evt);
 
         _broadcasterMock.Verify(b => b.SendToUserAsync(
-            assignedUserId,
-            "TracksCardAssignedToYou",
+            userId,
+            "TracksWorkItemAssignedToYou",
             It.IsAny<object>(),
             It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [TestMethod]
-    public async Task HandleCardAssignedEvent_BroadcastsToBoardGroup()
+    public async Task HandleCardAssignedEvent_BroadcastsToActivityGroup()
     {
-        var boardId = Guid.NewGuid();
-        var evt = new CardAssignedEvent
+        var evt = new WorkItemAssignedEvent
         {
             EventId = Guid.NewGuid(),
             CreatedAt = DateTime.UtcNow,
-            CardId = Guid.NewGuid(),
-            BoardId = boardId,
-            AssignedUserId = Guid.NewGuid(),
-            AssignedByUserId = Guid.NewGuid()
+            WorkItemId = Guid.NewGuid(),
+            UserId = Guid.NewGuid()
         };
 
         await _handler.HandleAsync(evt);
 
         _broadcasterMock.Verify(b => b.BroadcastAsync(
-            $"tracks-board-chat-{boardId}",
+            "tracks-activity",
             "TracksActivityNotification",
             It.IsAny<object>(),
             It.IsAny<CancellationToken>()), Times.Once);
@@ -163,9 +154,7 @@ public class TracksActivityChatHandlerTests
             EventId = Guid.NewGuid(),
             CreatedAt = DateTime.UtcNow,
             SprintId = Guid.NewGuid(),
-            BoardId = Guid.NewGuid(),
-            Title = "Sprint 1",
-            StartedByUserId = Guid.NewGuid()
+            EpicId = Guid.NewGuid()
         };
 
         await _handler.HandleAsync(evt);
@@ -185,11 +174,7 @@ public class TracksActivityChatHandlerTests
             EventId = Guid.NewGuid(),
             CreatedAt = DateTime.UtcNow,
             SprintId = Guid.NewGuid(),
-            BoardId = Guid.NewGuid(),
-            Title = "Sprint 1",
-            CompletedByUserId = Guid.NewGuid(),
-            CompletedCardCount = 5,
-            TotalCardCount = 8
+            EpicId = Guid.NewGuid()
         };
 
         await _handler.HandleAsync(evt);
@@ -204,13 +189,12 @@ public class TracksActivityChatHandlerTests
     [TestMethod]
     public async Task HandleCardUpdatedEvent_BroadcastsActivity()
     {
-        var evt = new CardUpdatedEvent
+        var evt = new WorkItemUpdatedEvent
         {
             EventId = Guid.NewGuid(),
             CreatedAt = DateTime.UtcNow,
-            CardId = Guid.NewGuid(),
-            BoardId = Guid.NewGuid(),
-            UpdatedByUserId = Guid.NewGuid()
+            WorkItemId = Guid.NewGuid(),
+            Type = WorkItemType.Item
         };
 
         await _handler.HandleAsync(evt);
@@ -225,13 +209,12 @@ public class TracksActivityChatHandlerTests
     [TestMethod]
     public async Task HandleCardDeletedEvent_BroadcastsActivity()
     {
-        var evt = new CardDeletedEvent
+        var evt = new WorkItemDeletedEvent
         {
             EventId = Guid.NewGuid(),
             CreatedAt = DateTime.UtcNow,
-            CardId = Guid.NewGuid(),
-            BoardId = Guid.NewGuid(),
-            DeletedByUserId = Guid.NewGuid()
+            WorkItemId = Guid.NewGuid(),
+            Type = WorkItemType.Item
         };
 
         await _handler.HandleAsync(evt);
@@ -246,13 +229,12 @@ public class TracksActivityChatHandlerTests
     [TestMethod]
     public async Task HandleCardCommentAddedEvent_BroadcastsActivity()
     {
-        var evt = new CardCommentAddedEvent
+        var evt = new WorkItemCommentAddedEvent
         {
             EventId = Guid.NewGuid(),
             CreatedAt = DateTime.UtcNow,
             CommentId = Guid.NewGuid(),
-            CardId = Guid.NewGuid(),
-            BoardId = Guid.NewGuid(),
+            WorkItemId = Guid.NewGuid(),
             UserId = Guid.NewGuid()
         };
 
@@ -268,12 +250,12 @@ public class TracksActivityChatHandlerTests
     [TestMethod]
     public async Task HandleBoardCreatedEvent_BroadcastsActivity()
     {
-        var evt = new BoardCreatedEvent
+        var evt = new ProductCreatedEvent
         {
             EventId = Guid.NewGuid(),
             CreatedAt = DateTime.UtcNow,
-            BoardId = Guid.NewGuid(),
-            Title = "New Board",
+            ProductId = Guid.NewGuid(),
+            OrganizationId = Guid.NewGuid(),
             OwnerId = Guid.NewGuid()
         };
 
@@ -289,12 +271,11 @@ public class TracksActivityChatHandlerTests
     [TestMethod]
     public async Task HandleBoardDeletedEvent_BroadcastsActivity()
     {
-        var evt = new BoardDeletedEvent
+        var evt = new ProductDeletedEvent
         {
             EventId = Guid.NewGuid(),
             CreatedAt = DateTime.UtcNow,
-            BoardId = Guid.NewGuid(),
-            DeletedByUserId = Guid.NewGuid()
+            ProductId = Guid.NewGuid()
         };
 
         await _handler.HandleAsync(evt);
@@ -313,15 +294,13 @@ public class TracksActivityChatHandlerTests
             NullLogger<TracksActivityChatHandler>.Instance,
             broadcaster: null);
 
-        var evt = new CardCreatedEvent
+        var evt = new WorkItemCreatedEvent
         {
             EventId = Guid.NewGuid(),
             CreatedAt = DateTime.UtcNow,
-            CardId = Guid.NewGuid(),
-            Title = "Test",
-            BoardId = Guid.NewGuid(),
-            SwimlaneId = Guid.NewGuid(),
-            CreatedByUserId = Guid.NewGuid()
+            WorkItemId = Guid.NewGuid(),
+            ProductId = Guid.NewGuid(),
+            Type = WorkItemType.Item
         };
 
         // Should not throw even without a broadcaster
@@ -332,15 +311,13 @@ public class TracksActivityChatHandlerTests
     public async Task HandleCardCreatedEvent_SupportsCancellation()
     {
         using var cts = new CancellationTokenSource();
-        var evt = new CardCreatedEvent
+        var evt = new WorkItemCreatedEvent
         {
             EventId = Guid.NewGuid(),
             CreatedAt = DateTime.UtcNow,
-            CardId = Guid.NewGuid(),
-            Title = "Test",
-            BoardId = Guid.NewGuid(),
-            SwimlaneId = Guid.NewGuid(),
-            CreatedByUserId = Guid.NewGuid()
+            WorkItemId = Guid.NewGuid(),
+            ProductId = Guid.NewGuid(),
+            Type = WorkItemType.Item
         };
 
         await _handler.HandleAsync(evt, cts.Token);
@@ -349,6 +326,6 @@ public class TracksActivityChatHandlerTests
             It.IsAny<string>(),
             It.IsAny<string>(),
             It.IsAny<object>(),
-            cts.Token), Times.Exactly(2)); // Global + board-specific
+            cts.Token), Times.Exactly(2)); // Global + product-specific
     }
 }

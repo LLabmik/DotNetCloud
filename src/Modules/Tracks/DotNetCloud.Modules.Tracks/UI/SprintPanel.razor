@@ -32,7 +32,7 @@
                     {
                         <span>📅 @TimeProvider.ToLocal(sprint.StartDate.Value).ToString("MMM d") – @TimeProvider.ToLocal(sprint.EndDate.Value).ToString("MMM d")</span>
                     }
-                    <span>🎴 @sprint.CardCount cards</span>
+                    <span>🎴 @sprint.ItemCount items</span>
                     @if (sprint.TotalStoryPoints > 0)
                     {
                         var pct = sprint.TotalStoryPoints > 0
@@ -70,8 +70,8 @@
                             Delete
                         </button>
                     }
-                    <button class="btn btn-sm btn-outline" @onclick="() => ToggleSprintBacklog(sprint.Id)">
-                        @(_expandedSprintId == sprint.Id ? "▲ Hide" : "▼ Cards")
+                    <button class="btn btn-sm btn-outline" @onclick="() => ToggleSprintItems(sprint.Id)">
+                        @(_expandedSprintId == sprint.Id ? "▲ Hide" : "▼ Items")
                     </button>
                     @if (sprint.Status is SprintStatus.Planning or SprintStatus.Active)
                     {
@@ -81,48 +81,47 @@
                     }
                 </div>
 
-                @* ── Sprint Backlog (Expanded) ── *@
+                @* ── Sprint Items (Expanded) ── *@
                 @if (_expandedSprintId == sprint.Id)
                 {
                     <div class="tracks-sprint-backlog">
-                        @if (_isLoadingCards)
+                        @if (_isLoadingItems)
                         {
-                            <p class="tracks-muted">Loading cards...</p>
+                            <p class="tracks-muted">Loading items...</p>
                         }
-                        else if (_sprintCards.Count == 0)
+                        else if (_sprintItems.Count == 0)
                         {
-                            <p class="tracks-muted">No cards in this sprint yet.</p>
+                            <p class="tracks-muted">No items in this sprint yet.</p>
                         }
                         else
                         {
-                            @foreach (var card in _sprintCards)
+                            @foreach (var item in _sprintItems)
                             {
-                                var isCardDone = card.IsArchived || card.IsInDoneSwimlane;
-                                <div class="tracks-sprint-card-item @(isCardDone ? "completed" : "")">
-                                    <span class="tracks-sprint-card-status">@(isCardDone ? "✓" : "☐")</span>
-                                    <span class="tracks-sprint-card-title" @onclick="() => OnCardSelected.InvokeAsync(card.Id)">
-                                        <span class="tracks-card-number">#@card.CardNumber</span> @card.Title
+                                <div class="tracks-sprint-card-item">
+                                    <span class="tracks-sprint-card-status">☐</span>
+                                    <span class="tracks-sprint-card-title" @onclick="() => OnWorkItemSelected.InvokeAsync(item.Id)">
+                                        <span class="tracks-card-number">#@item.ItemNumber</span> @item.Title
                                     </span>
-                                    @if (card.StoryPoints.HasValue)
+                                    @if (item.StoryPoints.HasValue)
                                     {
-                                        <span class="tracks-sprint-card-sp">@card.StoryPoints SP</span>
+                                        <span class="tracks-sprint-card-sp">@item.StoryPoints SP</span>
                                     }
                                     else
                                     {
                                         <span class="tracks-sprint-card-sp no-estimate">?</span>
                                     }
                                     <button class="tracks-icon-btn" title="Remove from sprint"
-                                            @onclick="() => RemoveCardFromSprintAsync(sprint.Id, card.Id)">×</button>
+                                            @onclick="() => RemoveItemFromSprintAsync(sprint.Id, item.Id)">×</button>
                                 </div>
                             }
 
-                            var totalSp2 = _sprintCards.Where(c => c.StoryPoints.HasValue).Sum(c => c.StoryPoints!.Value);
-                            var doneSp2 = _sprintCards.Where(c => (c.IsArchived || c.IsInDoneSwimlane) && c.StoryPoints.HasValue).Sum(c => c.StoryPoints!.Value);
+                            var totalSp = _sprintItems.Where(c => c.StoryPoints.HasValue).Sum(c => c.StoryPoints!.Value);
+                            var doneSp = _sprintItems.Where(c => c.SwimlaneTitle is not null && c.IsArchived).Sum(c => c.StoryPoints ?? 0);
                             <div class="tracks-sprint-backlog-summary">
-                                Total: @totalSp2 SP | Done: @doneSp2 SP (@(totalSp2 > 0 ? doneSp2 * 100 / totalSp2 : 0)%)
+                                Total: @totalSp SP
                             </div>
                         }
-                        <button class="btn btn-sm btn-primary" @onclick="() => OpenCardPicker(sprint.Id)">+ Add cards...</button>
+                        <button class="btn btn-sm btn-primary" @onclick="() => OpenItemPicker(sprint.Id)">+ Add items...</button>
                     </div>
                 }
             </div>
@@ -130,35 +129,35 @@
     }
 </div>
 
-@* ── Card Picker Dialog ── *@
-@if (_showCardPicker)
+@* ── Item Picker Dialog ── *@
+@if (_showItemPicker)
 {
-    <DncModal Title="@($"Add Cards to {_pickerSprintTitle}")" StartVisible OnClose="CloseCardPicker">
+    <DncModal Title="@($"Add Items to {_pickerSprintTitle}")" StartVisible OnClose="CloseItemPicker">
         <div class="tracks-card-picker">
-            <input type="text" class="form-control" placeholder="Search cards..."
+            <input type="text" class="form-control" placeholder="Search items..."
                    @bind="_pickerSearch" @bind:event="oninput" />
 
             @{
-                var filteredBacklog = GetFilteredBacklogCards();
+                var filteredBacklog = GetFilteredBacklogItems();
             }
             @if (filteredBacklog.Count == 0)
             {
-                <p class="tracks-muted">No unassigned cards found.</p>
+                <p class="tracks-muted">No unassigned items found.</p>
             }
             else
             {
                 <div class="tracks-card-picker-list">
-                    @foreach (var card in filteredBacklog)
+                    @foreach (var item in filteredBacklog)
                     {
-                        var isSelected = _pickerSelectedCardIds.Contains(card.Id);
+                        var isSelected = _pickerSelectedItemIds.Contains(item.Id);
                         <label class="tracks-card-picker-item @(isSelected ? "selected" : "")">
                             <input type="checkbox" checked="@isSelected"
-                                   @onchange="() => TogglePickerCard(card.Id)" />
-                            <span class="tracks-card-number">#@card.CardNumber</span>
-                            <span class="tracks-card-picker-title">@card.Title</span>
-                            @if (card.StoryPoints.HasValue)
+                                   @onchange="() => TogglePickerItem(item.Id)" />
+                            <span class="tracks-card-number">#@item.ItemNumber</span>
+                            <span class="tracks-card-picker-title">@item.Title</span>
+                            @if (item.StoryPoints.HasValue)
                             {
-                                <span class="tracks-sprint-card-sp">@card.StoryPoints SP</span>
+                                <span class="tracks-sprint-card-sp">@item.StoryPoints SP</span>
                             }
                             else
                             {
@@ -169,23 +168,23 @@
                 </div>
             }
 
-            @if (_pickerSelectedCardIds.Count > 0)
+            @if (_pickerSelectedItemIds.Count > 0)
             {
-                var selectedSp = _backlogCards.Where(c => _pickerSelectedCardIds.Contains(c.Id) && c.StoryPoints.HasValue)
+                var selectedSp = _backlogItems.Where(c => _pickerSelectedItemIds.Contains(c.Id) && c.StoryPoints.HasValue)
                     .Sum(c => c.StoryPoints!.Value);
                 var currentSp = Sprints.FirstOrDefault(s => s.Id == _pickerSprintId)?.TotalStoryPoints ?? 0;
                 <div class="tracks-card-picker-summary">
-                    Selected: @_pickerSelectedCardIds.Count cards (@selectedSp SP)
+                    Selected: @_pickerSelectedItemIds.Count items (@selectedSp SP)
                     • Sprint total after: @(currentSp + selectedSp) SP
                 </div>
             }
 
             <div class="form-actions">
-                <button class="btn btn-primary" disabled="@(_pickerSelectedCardIds.Count == 0 || _isAddingCards)"
-                        @onclick="AddSelectedCardsAsync">
-                    @(_isAddingCards ? "Adding..." : $"Add {_pickerSelectedCardIds.Count} Card(s)")
+                <button class="btn btn-primary" disabled="@(_pickerSelectedItemIds.Count == 0 || _isAddingItems)"
+                        @onclick="AddSelectedItemsAsync">
+                    @(_isAddingItems ? "Adding..." : $"Add {_pickerSelectedItemIds.Count} Item(s)")
                 </button>
-                <button class="btn btn-secondary" @onclick="CloseCardPicker">Cancel</button>
+                <button class="btn btn-secondary" @onclick="CloseItemPicker">Cancel</button>
             </div>
         </div>
     </DncModal>
@@ -283,7 +282,7 @@
 @* ── Sprint Completion Dialog ── *@
 @if (_showCompletionDialog && _completionSprint is not null)
 {
-    <SprintCompletionDialog BoardId="BoardId"
+    <SprintCompletionDialog EpicId="EpicId"
                             Sprint="_completionSprint"
                             AvailableSprints="Sprints"
                             OnCompleted="HandleSprintCompleted"

@@ -7,17 +7,17 @@ using Microsoft.AspNetCore.Components;
 namespace DotNetCloud.Modules.Tracks.UI;
 
 /// <summary>
-/// Sprint management panel — create, start, complete sprints.
+/// Sprint management panel for an Epic — create, start, complete sprints.
 /// </summary>
 public partial class SprintPanel : ComponentBase
 {
     [Inject] private ITracksApiClient ApiClient { get; set; } = default!;
     [Inject] private BrowserTimeProvider TimeProvider { get; set; } = default!;
 
-    [Parameter, EditorRequired] public Guid BoardId { get; set; }
+    [Parameter, EditorRequired] public Guid EpicId { get; set; }
     [Parameter, EditorRequired] public List<SprintDto> Sprints { get; set; } = [];
     [Parameter] public EventCallback OnSprintChanged { get; set; }
-    [Parameter] public EventCallback<Guid> OnCardSelected { get; set; }
+    [Parameter] public EventCallback<Guid> OnWorkItemSelected { get; set; }
     [Parameter] public EventCallback<SprintDto> OnPlanSprint { get; set; }
 
     private bool _showCreateDialog;
@@ -25,26 +25,23 @@ public partial class SprintPanel : ComponentBase
     private string? _createError;
     private readonly SprintCreateModel _createModel = new();
 
-    // Edit dialog state
     private bool _showEditDialog;
     private bool _isSavingEdit;
     private string? _editError;
     private Guid _editSprintId;
     private readonly SprintEditModel _editModel = new();
 
-    // Sprint backlog state
     private Guid? _expandedSprintId;
-    private readonly List<CardDto> _sprintCards = [];
-    private bool _isLoadingCards;
+    private readonly List<WorkItemDto> _sprintItems = [];
+    private bool _isLoadingItems;
 
-    // Card picker state
-    private bool _showCardPicker;
+    private bool _showItemPicker;
     private Guid _pickerSprintId;
     private string _pickerSprintTitle = "";
     private string _pickerSearch = "";
-    private readonly List<CardDto> _backlogCards = [];
-    private readonly HashSet<Guid> _pickerSelectedCardIds = [];
-    private bool _isAddingCards;
+    private readonly List<WorkItemDto> _backlogItems = [];
+    private readonly HashSet<Guid> _pickerSelectedItemIds = [];
+    private bool _isAddingItems;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -75,7 +72,7 @@ public partial class SprintPanel : ComponentBase
 
         try
         {
-            await ApiClient.CreateSprintAsync(BoardId, new CreateSprintDto
+            await ApiClient.CreateSprintAsync(EpicId, new CreateSprintDto
             {
                 Title = _createModel.Title.Trim(),
                 Goal = string.IsNullOrWhiteSpace(_createModel.Goal) ? null : _createModel.Goal.Trim(),
@@ -120,7 +117,7 @@ public partial class SprintPanel : ComponentBase
 
         try
         {
-            await ApiClient.UpdateSprintAsync(BoardId, _editSprintId, new UpdateSprintDto
+            await ApiClient.UpdateSprintAsync(_editSprintId, new UpdateSprintDto
             {
                 Title = _editModel.Title.Trim(),
                 Goal = string.IsNullOrWhiteSpace(_editModel.Goal) ? null : _editModel.Goal.Trim(),
@@ -144,125 +141,131 @@ public partial class SprintPanel : ComponentBase
 
     private async Task StartSprintAsync(Guid sprintId)
     {
-        await ApiClient.StartSprintAsync(BoardId, sprintId);
+        await ApiClient.StartSprintAsync(sprintId);
         await OnSprintChanged.InvokeAsync();
     }
 
     private async Task CompleteSprintAsync(Guid sprintId)
     {
-        await ApiClient.CompleteSprintAsync(BoardId, sprintId);
+        await ApiClient.CompleteSprintAsync(sprintId);
         await OnSprintChanged.InvokeAsync();
     }
 
     private async Task DeleteSprintAsync(Guid sprintId)
     {
-        await ApiClient.DeleteSprintAsync(BoardId, sprintId);
+        await ApiClient.DeleteSprintAsync(sprintId);
         if (_expandedSprintId == sprintId)
         {
             _expandedSprintId = null;
-            _sprintCards.Clear();
+            _sprintItems.Clear();
         }
         await OnSprintChanged.InvokeAsync();
     }
 
-    // ── Sprint Backlog ──────────────────────────────────────
+    // ── Sprint Items ──────────────────────────────────────
 
-    private async Task ToggleSprintBacklog(Guid sprintId)
+    private async Task ToggleSprintItems(Guid sprintId)
     {
         if (_expandedSprintId == sprintId)
         {
             _expandedSprintId = null;
-            _sprintCards.Clear();
+            _sprintItems.Clear();
             return;
         }
 
         _expandedSprintId = sprintId;
-        await LoadSprintCardsAsync(sprintId);
+        await LoadSprintItemsAsync(sprintId);
     }
 
-    private async Task LoadSprintCardsAsync(Guid sprintId)
+    private async Task LoadSprintItemsAsync(Guid sprintId)
     {
-        _isLoadingCards = true;
+        _isLoadingItems = true;
         try
         {
-            var cards = await ApiClient.GetSprintCardsAsync(BoardId, sprintId);
-            _sprintCards.Clear();
-            _sprintCards.AddRange(cards);
+            var sprint = await ApiClient.GetSprintAsync(sprintId);
+            _sprintItems.Clear();
+            // Sprint items are loaded via the backlog endpoint or sprint report
+            // For now, we load items via the sprint's epic child items and filter
+            var allItems = await ApiClient.GetBacklogItemsAsync(EpicId);
+            _sprintItems.Clear();
+            _sprintItems.AddRange(allItems.Where(i => i.SprintId == sprintId));
         }
         finally
         {
-            _isLoadingCards = false;
+            _isLoadingItems = false;
         }
     }
 
-    private async Task RemoveCardFromSprintAsync(Guid sprintId, Guid cardId)
+    private async Task RemoveItemFromSprintAsync(Guid sprintId, Guid itemId)
     {
-        await ApiClient.RemoveCardFromSprintAsync(BoardId, sprintId, cardId);
-        _sprintCards.RemoveAll(c => c.Id == cardId);
+        await ApiClient.RemoveItemFromSprintAsync(sprintId, itemId);
+        _sprintItems.RemoveAll(c => c.Id == itemId);
         await OnSprintChanged.InvokeAsync();
     }
 
-    // ── Card Picker ─────────────────────────────────────────
+    // ── Item Picker ─────────────────────────────────────────
 
-    private async Task OpenCardPicker(Guid sprintId)
+    private async Task OpenItemPicker(Guid sprintId)
     {
         _pickerSprintId = sprintId;
         _pickerSprintTitle = Sprints.FirstOrDefault(s => s.Id == sprintId)?.Title ?? "Sprint";
         _pickerSearch = "";
-        _pickerSelectedCardIds.Clear();
-        _isAddingCards = false;
+        _pickerSelectedItemIds.Clear();
+        _isAddingItems = false;
 
-        var backlog = await ApiClient.GetBacklogCardsAsync(BoardId);
-        _backlogCards.Clear();
-        _backlogCards.AddRange(backlog);
-        _showCardPicker = true;
+        var backlog = await ApiClient.GetBacklogItemsAsync(EpicId);
+        _backlogItems.Clear();
+        _backlogItems.AddRange(backlog);
+        _showItemPicker = true;
     }
 
-    private void CloseCardPicker()
+    private void CloseItemPicker()
     {
-        _showCardPicker = false;
-        _pickerSelectedCardIds.Clear();
+        _showItemPicker = false;
+        _pickerSelectedItemIds.Clear();
     }
 
-    private void TogglePickerCard(Guid cardId)
+    private void TogglePickerItem(Guid itemId)
     {
-        if (!_pickerSelectedCardIds.Remove(cardId))
-            _pickerSelectedCardIds.Add(cardId);
+        if (!_pickerSelectedItemIds.Remove(itemId))
+            _pickerSelectedItemIds.Add(itemId);
     }
 
-    private IReadOnlyList<CardDto> GetFilteredBacklogCards()
+    private IReadOnlyList<WorkItemDto> GetFilteredBacklogItems()
     {
         if (string.IsNullOrWhiteSpace(_pickerSearch))
-            return _backlogCards;
+            return _backlogItems;
 
         var search = _pickerSearch.Trim();
-        return _backlogCards
+        return _backlogItems
             .Where(c => c.Title.Contains(search, StringComparison.OrdinalIgnoreCase)
-                        || $"#{c.CardNumber}".Contains(search, StringComparison.OrdinalIgnoreCase))
+                        || $"#{c.ItemNumber}".Contains(search, StringComparison.OrdinalIgnoreCase))
             .ToList();
     }
 
-    private async Task AddSelectedCardsAsync()
+    private async Task AddSelectedItemsAsync()
     {
-        if (_pickerSelectedCardIds.Count == 0) return;
+        if (_pickerSelectedItemIds.Count == 0) return;
 
-        _isAddingCards = true;
+        _isAddingItems = true;
         try
         {
-            await ApiClient.BatchAddCardsToSprintAsync(BoardId, _pickerSprintId, _pickerSelectedCardIds.ToList());
-            _showCardPicker = false;
-            _pickerSelectedCardIds.Clear();
+            foreach (var itemId in _pickerSelectedItemIds)
+            {
+                await ApiClient.AddItemToSprintAsync(_pickerSprintId, itemId);
+            }
+            _showItemPicker = false;
+            _pickerSelectedItemIds.Clear();
 
-            // Refresh sprint cards and sprint data
             if (_expandedSprintId == _pickerSprintId)
             {
-                await LoadSprintCardsAsync(_pickerSprintId);
+                await LoadSprintItemsAsync(_pickerSprintId);
             }
             await OnSprintChanged.InvokeAsync();
         }
         finally
         {
-            _isAddingCards = false;
+            _isAddingItems = false;
         }
     }
 

@@ -19,25 +19,25 @@
                 @* ── Summary Stats ── *@
                 <div class="tracks-completion-stats">
                     <div class="tracks-completion-stat">
-                        <span class="tracks-completion-label">Cards Completed</span>
+                        <span class="tracks-completion-label">Items Completed</span>
                         <span class="tracks-completion-value">
-                            @_report.CompletedCards / @_report.TotalCards
-                            (@(_report.TotalCards > 0 ? _report.CompletedCards * 100 / _report.TotalCards : 0)%)
+                            @_report.CompletedItems / @(_report.CompletedItems + _report.IncompleteItems)
+                            (@((_report.CompletedItems + _report.IncompleteItems) > 0 ? _report.CompletedItems * 100 / (_report.CompletedItems + _report.IncompleteItems) : 0)%)
                         </span>
                     </div>
                     <div class="tracks-completion-stat">
                         <span class="tracks-completion-label">Story Points</span>
                         <span class="tracks-completion-value">
-                            @_report.CompletedPoints / @_report.TotalPoints SP
-                            (@(_report.TotalPoints > 0 ? _report.CompletedPoints * 100 / _report.TotalPoints : 0)%)
+                            @_report.CompletedStoryPoints / @_report.TotalStoryPoints SP
+                            (@(_report.TotalStoryPoints > 0 ? _report.CompletedStoryPoints * 100 / _report.TotalStoryPoints : 0)%)
                         </span>
                     </div>
                 </div>
 
                 @* ── Progress Bar ── *@
                 @{
-                    var pct = _report.TotalPoints > 0
-                        ? _report.CompletedPoints * 100 / _report.TotalPoints
+                    var pct = _report.TotalStoryPoints > 0
+                        ? _report.CompletedStoryPoints * 100 / _report.TotalStoryPoints
                         : 0;
                 }
                 <div class="tracks-progress-bar" style="margin: 12px 0;">
@@ -45,26 +45,26 @@
                 </div>
 
                 @* ── Incomplete Cards ── *@
-                @if (_incompleteCards.Count > 0)
+                @if (_incompleteItems.Count > 0)
                 {
                     <div class="tracks-completion-incomplete">
-                        <h4>Incomplete Cards (@_incompleteCards.Count)</h4>
+                        <h4>Incomplete Items (@_incompleteItems.Count)</h4>
                         <div class="tracks-planning-card-list" style="max-height: 180px;">
-                            @foreach (var card in _incompleteCards)
+                            @foreach (var item in _incompleteItems)
                             {
                                 <div class="tracks-planning-card">
-                                    <span class="tracks-card-number">#@card.CardNumber</span>
-                                    <span class="tracks-planning-card-title">@card.Title</span>
-                                    @if (card.StoryPoints.HasValue)
+                                    <span class="tracks-card-number">#@item.ItemNumber</span>
+                                    <span class="tracks-planning-card-title">@item.Title</span>
+                                    @if (item.StoryPoints.HasValue)
                                     {
-                                        <span class="tracks-sprint-card-sp">@card.StoryPoints SP</span>
+                                        <span class="tracks-sprint-card-sp">@item.StoryPoints SP</span>
                                     }
                                 </div>
                             }
                         </div>
 
                         <div class="tracks-completion-move-options">
-                            <h4>Move incomplete cards to:</h4>
+                            <h4>Move incomplete items to:</h4>
                             <label class="tracks-radio">
                                 <input type="radio" name="moveTarget" value="backlog"
                                        checked="@(_moveTarget == "backlog")"
@@ -91,7 +91,7 @@
                 else
                 {
                     <p class="tracks-muted" style="margin-top: 12px;">
-                        🎉 All cards completed! Great work.
+                        🎉 All items completed! Great work.
                     </p>
                 }
             </div>

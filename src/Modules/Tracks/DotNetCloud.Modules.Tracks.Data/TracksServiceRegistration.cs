@@ -15,42 +15,31 @@ public static class TracksServiceRegistration
     /// </summary>
     public static IServiceCollection AddTracksServices(this IServiceCollection services, IConfiguration configuration)
     {
-        // Core business services
-        services.AddScoped<ActivityService>();
-        services.AddScoped<TeamService>();
-        services.AddScoped<BoardService>();
+        // Real-time services (singletons — live for the lifetime of the process)
+        services.AddSingleton<TracksInProcessSignalRService>();
+        services.AddSingleton<ITracksSignalRService>(sp => sp.GetRequiredService<TracksInProcessSignalRService>());
+        services.AddSingleton<ITracksRealtimeService, TracksRealtimeService>();
+
+        // Data services (scoped — one per request, shares the scoped TracksDbContext)
+        services.AddScoped<ProductService>();
+        services.AddScoped<WorkItemService>();
+        services.AddScoped<SprintService>();
+        services.AddScoped<SprintPlanningService>();
         services.AddScoped<SwimlaneService>();
-        services.AddScoped<CardService>();
-        services.AddScoped<LabelService>();
         services.AddScoped<CommentService>();
         services.AddScoped<ChecklistService>();
-        services.AddScoped<AttachmentService>();
         services.AddScoped<DependencyService>();
-        services.AddScoped<SprintService>();
         services.AddScoped<TimeTrackingService>();
-
-        // Phase 4.7 services
-        services.AddScoped<BoardTemplateService>();
-        services.AddScoped<CardTemplateService>();
+        services.AddScoped<AttachmentService>();
         services.AddScoped<AnalyticsService>();
-        services.AddScoped<SprintReportService>();
-        services.AddScoped<BulkOperationService>();
         services.AddScoped<PokerService>();
-        services.AddScoped<SprintPlanningService>();
         services.AddScoped<ReviewSessionService>();
-        services.AddHostedService<DueDateReminderService>();
+        services.AddScoped<ActivityService>();
+        services.AddScoped<ItemTemplateService>();
+        services.AddScoped<ProductTemplateService>();
 
-        // Real-time & notification services (Phase 4.6)
-        services.AddSingleton<TracksInProcessSignalRService>();
-        services.AddSingleton<ITracksRealtimeService, TracksRealtimeService>();
-        services.AddScoped<ITracksNotificationService, TracksNotificationService>();
-        services.AddSingleton<ITracksSignalRService>(sp => sp.GetRequiredService<TracksInProcessSignalRService>());
-
-        // Cross-module cleanup services
-        services.AddScoped<ICardAttachmentCleanupService, CardAttachmentCleanupService>();
-
-        // Cross-module Chat activity display (null-object when Chat not installed)
-        services.AddSingleton<IChatActivitySignalRService, NullChatActivitySignalRService>();
+        // Cross-module services
+        services.AddScoped<ICardAttachmentCleanupService, AttachmentCleanupService>();
 
         return services;
     }

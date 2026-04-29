@@ -1,5 +1,6 @@
 using System.Data.Common;
 
+using DotNetCloud.Core.DTOs;
 using DotNetCloud.Modules.Tracks.Data;
 using DotNetCloud.Modules.Tracks.Models;
 using Microsoft.EntityFrameworkCore;
@@ -42,32 +43,38 @@ public sealed class TracksSchemaMigrationIntegrationTests
 
                 await AssertSchemaStateAsync(migrationContext);
 
-                var boardId = Guid.NewGuid();
+                var productId = Guid.NewGuid();
                 var swimlaneId = Guid.NewGuid();
                 var ownerId = Guid.NewGuid();
 
-                migrationContext.Boards.Add(new Board
+                var product = new Product
                 {
-                    Id = boardId,
-                    Title = "Migration Validation Board",
+                    Id = productId,
+                    Name = "Migration Validation Product",
                     OwnerId = ownerId,
-                });
+                };
 
-                migrationContext.BoardSwimlanes.Add(new BoardSwimlane
+                var swimlane = new Swimlane
                 {
                     Id = swimlaneId,
-                    BoardId = boardId,
+                    ContainerType = SwimlaneContainerType.Product,
+                    ContainerId = productId,
                     Title = "Ready",
                     Position = 1000,
-                });
+                };
+                product.Swimlanes.Add(swimlane);
 
-                migrationContext.Cards.Add(new Card
+                migrationContext.Products.Add(product);
+
+                migrationContext.WorkItems.Add(new WorkItem
                 {
+                    ProductId = productId,
                     SwimlaneId = swimlaneId,
-                    CardNumber = 1,
+                    ItemNumber = 1,
                     Title = "Schema migrated",
                     Position = 1000,
                     CreatedByUserId = ownerId,
+                    Type = WorkItemType.Item,
                 });
 
                 await migrationContext.SaveChangesAsync();
@@ -75,13 +82,13 @@ public sealed class TracksSchemaMigrationIntegrationTests
 
             await using (var verificationContext = CreateTracksContext(testConnectionString))
             {
-                var card = await verificationContext.Cards
-                    .Include(c => c.Swimlane)
-                    .SingleAsync(c => c.Title == "Schema migrated");
+                var workItem = await verificationContext.WorkItems
+                    .Include(wi => wi.Swimlane)
+                    .SingleAsync(wi => wi.Title == "Schema migrated");
 
-                Assert.IsNotNull(card.Swimlane);
-                Assert.AreEqual("Ready", card.Swimlane.Title);
-                Assert.AreNotEqual(Guid.Empty, card.SwimlaneId);
+                Assert.IsNotNull(workItem.Swimlane);
+                Assert.AreEqual("Ready", workItem.Swimlane.Title);
+                Assert.AreNotEqual(Guid.Empty, workItem.SwimlaneId ?? Guid.Empty);
             }
         }
         catch (NpgsqlException ex)
@@ -139,11 +146,11 @@ public sealed class TracksSchemaMigrationIntegrationTests
     private static async Task RewindTracksSchemaToLegacyListNamesAsync(TracksDbContext context)
     {
         await context.Database.ExecuteSqlRawAsync("""
-            ALTER TABLE "BoardSwimlanes" RENAME TO "BoardLists";
-            ALTER TABLE "Cards" RENAME COLUMN "SwimlaneId" TO "ListId";
-            ALTER INDEX "ix_board_swimlanes_board_position" RENAME TO "ix_board_lists_board_position";
-            ALTER INDEX "ix_board_swimlanes_is_archived" RENAME TO "ix_board_lists_is_archived";
-            ALTER INDEX "ix_cards_swimlane_position" RENAME TO "ix_cards_list_position";
+            ALTER TABLE "Swimlanes" RENAME TO "BoardLists";
+            ALTER TABLE "WorkItems" RENAME COLUMN "SwimlaneId" TO "ListId";
+            ALTER INDEX "ix_swimlanes_container_position" RENAME TO "ix_board_lists_board_position";
+            ALTER INDEX "ix_swimlanes_is_archived" RENAME TO "ix_board_lists_is_archived";
+            ALTER INDEX "ix_work_items_swimlane_position" RENAME TO "ix_cards_list_position";
             """);
     }
 
@@ -158,16 +165,16 @@ public sealed class TracksSchemaMigrationIntegrationTests
 
         try
         {
-            Assert.IsTrue(await RegClassExistsAsync(connection, "public.\"BoardSwimlanes\""));
+            Assert.IsTrue(await RegClassExistsAsync(connection, "public.\"Swimlanes\""));
             Assert.IsFalse(await RegClassExistsAsync(connection, "public.\"BoardLists\""));
-            Assert.IsTrue(await RegClassExistsAsync(connection, "public.\"ix_board_swimlanes_board_position\""));
-            Assert.IsTrue(await RegClassExistsAsync(connection, "public.\"ix_board_swimlanes_is_archived\""));
-            Assert.IsTrue(await RegClassExistsAsync(connection, "public.\"ix_cards_swimlane_position\""));
+            Assert.IsTrue(await RegClassExistsAsync(connection, "public.\"ix_swimlanes_container_position\""));
+            Assert.IsTrue(await RegClassExistsAsync(connection, "public.\"ix_swimlanes_is_archived\""));
+            Assert.IsTrue(await RegClassExistsAsync(connection, "public.\"ix_work_items_swimlane_position\""));
             Assert.IsFalse(await RegClassExistsAsync(connection, "public.\"ix_board_lists_board_position\""));
             Assert.IsFalse(await RegClassExistsAsync(connection, "public.\"ix_board_lists_is_archived\""));
             Assert.IsFalse(await RegClassExistsAsync(connection, "public.\"ix_cards_list_position\""));
-            Assert.IsTrue(await ColumnExistsAsync(connection, "Cards", "SwimlaneId"));
-            Assert.IsFalse(await ColumnExistsAsync(connection, "Cards", "ListId"));
+            Assert.IsTrue(await ColumnExistsAsync(connection, "WorkItems", "SwimlaneId"));
+            Assert.IsFalse(await ColumnExistsAsync(connection, "WorkItems", "ListId"));
         }
         finally
         {

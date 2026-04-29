@@ -24,62 +24,62 @@ internal sealed class TracksRealtimeService : ITracksRealtimeService
         _logger = logger;
     }
 
-    private static string BoardGroup(Guid boardId) => $"tracks-board-{boardId}";
+    private static string ProductGroup(Guid productId) => $"tracks-product-{productId}";
     private static string TeamGroup(Guid teamId) => $"tracks-team-{teamId}";
     private static string ReviewGroup(Guid sessionId) => $"tracks-review-{sessionId}";
 
     /// <inheritdoc />
-    public async Task BroadcastCardActionAsync(Guid boardId, Guid cardId, string action, Guid? fromSwimlaneId, Guid? toSwimlaneId, Guid? targetUserId, CancellationToken cancellationToken)
+    public async Task BroadcastWorkItemActionAsync(Guid productId, Guid workItemId, string action, Guid? fromSwimlaneId, Guid? toSwimlaneId, Guid? targetUserId, CancellationToken cancellationToken)
     {
         if (_broadcaster is not null)
-            await _broadcaster.BroadcastAsync(BoardGroup(boardId), "TracksCardAction",
-                new { boardId, cardId, action, fromSwimlaneId, toSwimlaneId, targetUserId }, cancellationToken);
-        _eventBridge.OnCardAction(boardId, cardId, action);
+            await _broadcaster.BroadcastAsync(ProductGroup(productId), "TracksWorkItemAction",
+                new { productId, workItemId, action, fromSwimlaneId, toSwimlaneId, targetUserId }, cancellationToken);
+        _eventBridge.OnWorkItemAction(productId, workItemId, action);
     }
 
     /// <inheritdoc />
-    public async Task BroadcastSwimlaneActionAsync(Guid boardId, Guid swimlaneId, string action, CancellationToken cancellationToken)
+    public async Task BroadcastSwimlaneActionAsync(Guid productId, Guid swimlaneId, string action, CancellationToken cancellationToken)
     {
         if (_broadcaster is not null)
-            await _broadcaster.BroadcastAsync(BoardGroup(boardId), "TracksSwimlaneAction",
-                new { boardId, swimlaneId, action }, cancellationToken);
-        _eventBridge.OnSwimlaneAction(boardId, swimlaneId, action);
+            await _broadcaster.BroadcastAsync(ProductGroup(productId), "TracksSwimlaneAction",
+                new { productId, swimlaneId, action }, cancellationToken);
+        _eventBridge.OnSwimlaneAction(productId, swimlaneId, action);
     }
 
     /// <inheritdoc />
-    public async Task BroadcastCommentActionAsync(Guid boardId, Guid cardId, Guid commentId, string action, CancellationToken cancellationToken)
+    public async Task BroadcastCommentActionAsync(Guid productId, Guid workItemId, Guid commentId, string action, CancellationToken cancellationToken)
     {
         if (_broadcaster is not null)
-            await _broadcaster.BroadcastAsync(BoardGroup(boardId), "TracksCommentAction",
-                new { boardId, cardId, commentId, action }, cancellationToken);
-        _eventBridge.OnCommentAction(boardId, cardId, commentId, action);
+            await _broadcaster.BroadcastAsync(ProductGroup(productId), "TracksCommentAction",
+                new { productId, workItemId, commentId, action }, cancellationToken);
+        _eventBridge.OnCommentAction(productId, workItemId, commentId, action);
     }
 
     /// <inheritdoc />
-    public async Task BroadcastSprintActionAsync(Guid boardId, Guid sprintId, string action, CancellationToken cancellationToken)
+    public async Task BroadcastSprintActionAsync(Guid epicId, Guid sprintId, string action, CancellationToken cancellationToken)
     {
         if (_broadcaster is not null)
-            await _broadcaster.BroadcastAsync(BoardGroup(boardId), "TracksSprintAction",
-                new { boardId, sprintId, action }, cancellationToken);
-        _eventBridge.OnSprintAction(boardId, sprintId, action);
+            await _broadcaster.BroadcastAsync(ProductGroup(epicId), "TracksSprintAction",
+                new { epicId, sprintId, action }, cancellationToken);
+        _eventBridge.OnSprintAction(epicId, sprintId, action);
     }
 
     /// <inheritdoc />
-    public async Task BroadcastActivityAsync(Guid boardId, Guid userId, string activityAction, string entityType, Guid entityId, CancellationToken cancellationToken)
+    public async Task BroadcastActivityAsync(Guid productId, Guid userId, string activityAction, string entityType, Guid entityId, CancellationToken cancellationToken)
     {
         if (_broadcaster is not null)
-            await _broadcaster.BroadcastAsync(BoardGroup(boardId), "TracksActivity",
-                new { boardId, userId, action = activityAction, entityType, entityId, timestamp = DateTime.UtcNow }, cancellationToken);
-        _eventBridge.OnActivity(boardId);
+            await _broadcaster.BroadcastAsync(ProductGroup(productId), "TracksActivity",
+                new { productId, userId, action = activityAction, entityType, entityId, timestamp = DateTime.UtcNow }, cancellationToken);
+        _eventBridge.OnActivity(productId);
     }
 
     /// <inheritdoc />
-    public async Task BroadcastBoardMemberActionAsync(Guid boardId, Guid userId, string action, CancellationToken cancellationToken)
+    public async Task BroadcastProductMemberActionAsync(Guid productId, Guid userId, string action, CancellationToken cancellationToken)
     {
         if (_broadcaster is not null)
-            await _broadcaster.BroadcastAsync(BoardGroup(boardId), "TracksBoardMemberAction",
-                new { boardId, userId, action }, cancellationToken);
-        _eventBridge.OnBoardMemberAction(boardId, userId, action);
+            await _broadcaster.BroadcastAsync(ProductGroup(productId), "TracksProductMemberAction",
+                new { productId, userId, action }, cancellationToken);
+        _eventBridge.OnProductMemberAction(productId, userId, action);
     }
 
     /// <inheritdoc />
@@ -92,26 +92,26 @@ internal sealed class TracksRealtimeService : ITracksRealtimeService
     }
 
     /// <inheritdoc />
-    public async Task BroadcastReviewCardChangedAsync(Guid sessionId, Guid boardId, Guid cardId, CancellationToken cancellationToken)
+    public async Task BroadcastReviewItemChangedAsync(Guid sessionId, Guid epicId, Guid itemId, CancellationToken cancellationToken)
     {
         if (_broadcaster is not null)
-            await _broadcaster.BroadcastAsync(ReviewGroup(sessionId), "TracksReviewCardChanged",
-                new { sessionId, boardId, cardId }, cancellationToken);
-        _eventBridge.OnReviewCardChanged(sessionId, boardId, cardId);
+            await _broadcaster.BroadcastAsync(ReviewGroup(sessionId), "TracksReviewItemChanged",
+                new { sessionId, epicId, itemId }, cancellationToken);
+        _eventBridge.OnReviewItemChanged(sessionId, epicId, itemId);
     }
 
     /// <inheritdoc />
-    public async Task BroadcastReviewSessionStateAsync(Guid sessionId, Guid boardId, string action, CancellationToken cancellationToken)
+    public async Task BroadcastReviewSessionStateAsync(Guid sessionId, Guid epicId, string action, CancellationToken cancellationToken)
     {
         if (_broadcaster is not null)
         {
-            // Broadcast to both the review group and the board group so non-participants know a session started/ended
+            // Broadcast to both the review group and the product group so non-participants know a session started/ended
             await _broadcaster.BroadcastAsync(ReviewGroup(sessionId), "TracksReviewSessionState",
-                new { sessionId, boardId, action }, cancellationToken);
-            await _broadcaster.BroadcastAsync(BoardGroup(boardId), "TracksReviewSessionState",
-                new { sessionId, boardId, action }, cancellationToken);
+                new { sessionId, epicId, action }, cancellationToken);
+            await _broadcaster.BroadcastAsync(ProductGroup(epicId), "TracksReviewSessionState",
+                new { sessionId, epicId, action }, cancellationToken);
         }
-        _eventBridge.OnReviewSessionStateChanged(sessionId, boardId, action);
+        _eventBridge.OnReviewSessionStateChanged(sessionId, epicId, action);
     }
 
     /// <inheritdoc />
@@ -124,12 +124,12 @@ internal sealed class TracksRealtimeService : ITracksRealtimeService
     }
 
     /// <inheritdoc />
-    public async Task BroadcastReviewPokerStateAsync(Guid sessionId, Guid pokerId, Guid boardId, string action, CancellationToken cancellationToken)
+    public async Task BroadcastReviewPokerStateAsync(Guid sessionId, Guid pokerId, Guid epicId, string action, CancellationToken cancellationToken)
     {
         if (_broadcaster is not null)
             await _broadcaster.BroadcastAsync(ReviewGroup(sessionId), "TracksReviewPokerState",
-                new { sessionId, pokerId, boardId, action }, cancellationToken);
-        _eventBridge.OnReviewPokerStateChanged(sessionId, pokerId, boardId, action);
+                new { sessionId, pokerId, epicId, action }, cancellationToken);
+        _eventBridge.OnReviewPokerStateChanged(sessionId, pokerId, epicId, action);
     }
 
     /// <inheritdoc />
@@ -142,19 +142,19 @@ internal sealed class TracksRealtimeService : ITracksRealtimeService
     }
 
     /// <inheritdoc />
-    public async Task AddUserToBoardGroupAsync(Guid userId, Guid boardId, CancellationToken cancellationToken)
+    public async Task AddUserToProductGroupAsync(Guid userId, Guid productId, CancellationToken cancellationToken)
     {
         if (_broadcaster is null) return;
-        await _broadcaster.AddToGroupAsync(userId, BoardGroup(boardId), cancellationToken);
-        _logger.LogDebug("Added user {UserId} to board group {BoardId}", userId, boardId);
+        await _broadcaster.AddToGroupAsync(userId, ProductGroup(productId), cancellationToken);
+        _logger.LogDebug("Added user {UserId} to product group {ProductId}", userId, productId);
     }
 
     /// <inheritdoc />
-    public async Task RemoveUserFromBoardGroupAsync(Guid userId, Guid boardId, CancellationToken cancellationToken)
+    public async Task RemoveUserFromProductGroupAsync(Guid userId, Guid productId, CancellationToken cancellationToken)
     {
         if (_broadcaster is null) return;
-        await _broadcaster.RemoveFromGroupAsync(userId, BoardGroup(boardId), cancellationToken);
-        _logger.LogDebug("Removed user {UserId} from board group {BoardId}", userId, boardId);
+        await _broadcaster.RemoveFromGroupAsync(userId, ProductGroup(productId), cancellationToken);
+        _logger.LogDebug("Removed user {UserId} from product group {ProductId}", userId, productId);
     }
 
     /// <inheritdoc />

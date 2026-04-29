@@ -1,0 +1,42 @@
+@namespace DotNetCloud.Modules.Tracks.UI
+
+@if (_isLoading)
+{
+    <div class="tracks-fullscreen-loading">
+        <DncLoadingIndicator />
+    </div>
+}
+else if (_accessDenied)
+{
+    <div class="tracks-fullscreen-denied">
+        <div class="tracks-denied-card">
+            <div class="tracks-denied-icon">🔒</div>
+            <h2>Access Denied</h2>
+            <p>You don't have permission to view this work item. You may need to be added as a member of the product it belongs to.</p>
+            <a href="/apps/tracks" class="btn btn-primary">Go to Tracks</a>
+        </div>
+    </div>
+}
+else if (_notFound)
+{
+    <div class="tracks-fullscreen-denied">
+        <div class="tracks-denied-card">
+            <div class="tracks-denied-icon">🔍</div>
+            <h2>Item Not Found</h2>
+            <p>This work item may have been deleted or the link may be invalid.</p>
+            <a href="/apps/tracks" class="btn btn-primary">Go to Tracks</a>
+        </div>
+    </div>
+}
+else if (_workItem is not null && _product is not null)
+{
+    <div class="tracks-fullscreen-wrapper">
+        <WorkItemDetailPanel WorkItem="_workItem"
+                             Product="_product"
+                             SwimlaneTitle="@_workItem.SwimlaneTitle"
+                             OnClose="NavigateBack"
+                             OnWorkItemUpdated="HandleWorkItemUpdated"
+                             OnWorkItemDeleted="HandleWorkItemDeleted"
+                             OnOpenKanban="_ => Task.CompletedTask" />
+    </div>
+}

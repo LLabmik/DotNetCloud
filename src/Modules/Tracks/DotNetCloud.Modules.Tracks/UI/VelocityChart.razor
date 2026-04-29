@@ -5,7 +5,7 @@
         <h4>📊 Velocity Chart</h4>
         @if (_velocityData.Count > 0)
         {
-            var avgVelocity = _velocityData.Average(v => v.CompletedPoints);
+            var avgVelocity = _velocityData.Average(v => v.CompletedStoryPoints);
             <span class="tracks-muted">Avg: @avgVelocity.ToString("F0") SP/sprint</span>
         }
     </div>

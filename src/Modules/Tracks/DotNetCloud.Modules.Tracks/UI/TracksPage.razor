@@ -14,106 +14,136 @@
             </button>
         </div>
 
-        <nav class="tracks-nav">
-            <button class="tracks-nav-item @(_view == TracksView.Boards ? "active" : "")"
-                    @onclick="ShowBoardSwimlane" title="My Boards">
-                <span class="tracks-nav-icon">📋</span>
-                @if (!_sidebarCollapsed) { <span class="tracks-nav-text">My Boards</span> }
-            </button>
+        @* Organization selector *@
+        @if (!_sidebarCollapsed && _organizations.Count > 0)
+        {
+            <div class="tracks-sidebar-section">
+                <div class="tracks-sidebar-section-header">
+                    <span>Organization</span>
+                </div>
+                <select class="form-control form-control-sm" @bind="_selectedOrgId" @bind:after="OnOrgSelected">
+                    <option value="">Select...</option>
+                    @foreach (var org in _organizations)
+                    {
+                        <option value="@org.Id">@org.Name</option>
+                    }
+                </select>
+            </div>
+        }
+
+        @* Products *@
+        @if (_selectedOrgId.HasValue && _products.Count > 0)
+        {
+            <div class="tracks-sidebar-section">
+                @if (!_sidebarCollapsed)
+                {
+                    <div class="tracks-sidebar-section-header">
+                        <span>Products</span>
+                    </div>
+                }
+                @foreach (var product in _products)
+                {
+                    <button class="tracks-nav-item @(_selectedProduct?.Id == product.Id ? "active" : "")"
+                            @onclick="() => SelectProduct(product.Id)" title="@product.Name">
+                        @if (!string.IsNullOrEmpty(product.Color))
+                        {
+                            <span class="tracks-board-dot" style="background: @product.Color;"></span>
+                        }
+                        @if (!_sidebarCollapsed) { <span class="tracks-nav-text">@product.Name</span> }
+                    </button>
+                }
+            </div>
+        }
+
+        @* Epic-level sub-views (only when viewing an Epic) *@
+        @if (_selectedEpic is not null && (_view is TracksView.EpicKanban or TracksView.Planning or TracksView.Wizard or TracksView.Backlog or TracksView.Timeline or TracksView.Review))
+        {
+            <div class="tracks-sidebar-section">
+                @if (!_sidebarCollapsed)
+                {
+                    <div class="tracks-sidebar-section-header">
+                        <span>@_selectedEpic.Title</span>
+                    </div>
+                }
+                <button class="tracks-nav-item @(_showSprints ? "active" : "")"
+                        @onclick="ToggleSprints" title="Sprints">
+                    <span class="tracks-nav-icon">🏃</span>
+                    @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Sprints</span> }
+                </button>
+                @if (PlannableSprint is not null)
+                {
+                    <button class="tracks-nav-item @(_view == TracksView.Planning ? "active" : "")"
+                            @onclick="() => OpenSprintPlanning(PlannableSprint)" title="Sprint Planning">
+                        <span class="tracks-nav-icon">📊</span>
+                        @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Planning</span> }
+                    </button>
+                }
+                <button class="tracks-nav-item @(_view == TracksView.Wizard ? "active" : "")"
+                        @onclick="OpenWizard" title="Year Plan Wizard">
+                    <span class="tracks-nav-icon">📅</span>
+                    @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Year Plan</span> }
+                </button>
+                <button class="tracks-nav-item @(_view == TracksView.Backlog ? "active" : "")"
+                        @onclick="OpenBacklog" title="Backlog">
+                    <span class="tracks-nav-icon">📋</span>
+                    @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Backlog</span> }
+                </button>
+                <button class="tracks-nav-item @(_view == TracksView.Timeline ? "active" : "")"
+                        @onclick="OpenTimeline" title="Year Timeline">
+                    <span class="tracks-nav-icon">📊</span>
+                    @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Timeline</span> }
+                </button>
+                <button class="tracks-nav-item @(_view == TracksView.Review ? "active" : "")"
+                        @onclick="OpenReview" title="Live Review">
+                    <span class="tracks-nav-icon">🎯</span>
+                    @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Review</span> }
+                </button>
+                <button class="tracks-nav-item" @onclick="() => OpenEpicKanban(_selectedEpic.Id)" title="Back to Epic Kanban">
+                    <span class="tracks-nav-icon">←</span>
+                    @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Kanban</span> }
+                </button>
+            </div>
+        }
+
+        @* Teams *@
+        <div class="tracks-nav">
             <button class="tracks-nav-item @(_view == TracksView.Teams ? "active" : "")"
                     @onclick="ShowTeams" title="Teams">
                 <span class="tracks-nav-icon">👥</span>
                 @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Teams</span> }
             </button>
-        </nav>
-
-        @if (_view == TracksView.Board && _selectedBoard is not null)
-        {
-            <div class="tracks-sidebar-section">
-                @if (!_sidebarCollapsed)
-                {
-                    <div class="tracks-sidebar-section-header">
-                        <span>Board</span>
-                    </div>
-                }
-                <button class="tracks-nav-item active" @onclick="() => {}" title="@_selectedBoard.Title">
-                    @if (!string.IsNullOrEmpty(_selectedBoard.Color))
-                    {
-                        <span class="tracks-board-dot" style="background: @_selectedBoard.Color;"></span>
-                    }
-                    @if (!_sidebarCollapsed) { <span class="tracks-nav-text">@_selectedBoard.Title</span> }
-                </button>
-                @if (_selectedBoard.Mode == BoardMode.Team)
-                {
-                    <button class="tracks-nav-item @(_showSprints ? "active" : "")"
-                            @onclick="ToggleSprints" title="Sprints">
-                        <span class="tracks-nav-icon">🏃</span>
-                        @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Sprints</span> }
-                    </button>
-                    @if (PlannableSprint is not null)
-                    {
-                        <button class="tracks-nav-item @(_view == TracksView.Planning ? "active" : "")"
-                                @onclick="() => OpenSprintPlanning(PlannableSprint)" title="Sprint Planning">
-                            <span class="tracks-nav-icon">📊</span>
-                            @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Planning</span> }
-                        </button>
-                    }
-                    <button class="tracks-nav-item @(_view == TracksView.Wizard ? "active" : "")"
-                            @onclick="OpenWizard" title="Year Plan Wizard">
-                        <span class="tracks-nav-icon">📅</span>
-                        @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Year Plan</span> }
-                    </button>
-                    <button class="tracks-nav-item @(_view == TracksView.Backlog ? "active" : "")"
-                            @onclick="OpenBacklog" title="Backlog">
-                        <span class="tracks-nav-icon">📋</span>
-                        @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Backlog</span> }
-                    </button>
-                    <button class="tracks-nav-item @(_view == TracksView.Timeline ? "active" : "")"
-                            @onclick="OpenTimeline" title="Year Timeline">
-                        <span class="tracks-nav-icon">📊</span>
-                        @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Timeline</span> }
-                    </button>
-                    <button class="tracks-nav-item @(_view == TracksView.Review ? "active" : "")"
-                            @onclick="OpenReview" title="Live Review">
-                        <span class="tracks-nav-icon">🎯</span>
-                        @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Review</span> }
-                    </button>
-                }
-                <button class="tracks-nav-item"
-                        @onclick="ShowBoardSettings" title="Settings">
-                    <span class="tracks-nav-icon">⚙</span>
-                    @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Settings</span> }
-                </button>
-                <button class="tracks-nav-item" @onclick="ShowBoardSwimlane" title="All Boards">
-                    <span class="tracks-nav-icon">←</span>
-                    @if (!_sidebarCollapsed) { <span class="tracks-nav-text">All Boards</span> }
-                </button>
-            </div>
-        }
-
-        @if (_teams.Count > 0)
-        {
-            <div class="tracks-sidebar-section">
-                @if (!_sidebarCollapsed)
-                {
-                    <div class="tracks-sidebar-section-header">
-                        <span>Teams</span>
-                    </div>
-                }
-                @foreach (var team in _teams.Take(5))
-                {
-                    <button class="tracks-nav-item"
-                            @onclick="() => SelectTeam(team.Id)" title="@team.Name">
-                        <span class="tracks-nav-icon">👥</span>
-                        @if (!_sidebarCollapsed) { <span class="tracks-nav-text">@team.Name</span> }
-                    </button>
-                }
-            </div>
-        }
+        </div>
     </div>
 
     @* ── Main Content ── *@
     <div class="tracks-main">
+        @* Breadcrumb *@
+        @if (_selectedProduct is not null)
+        {
+            <div class="tracks-breadcrumb">
+                @if (_selectedOrgId.HasValue)
+                {
+                    var orgName = _organizations.FirstOrDefault(o => o.Id == _selectedOrgId)?.Name ?? "Org";
+                    <span class="tracks-breadcrumb-item">@orgName</span>
+                    <span class="tracks-breadcrumb-sep">›</span>
+                }
+                <span class="tracks-breadcrumb-item @(_selectedEpic is null ? "active" : "")"
+                      @onclick="() => SelectProduct(_selectedProduct.Id)">@_selectedProduct.Name</span>
+                @if (_selectedEpic is not null)
+                {
+                    <span class="tracks-breadcrumb-sep">›</span>
+                    <span class="tracks-breadcrumb-item @(_selectedFeature is null ? "active" : "")"
+                          @onclick="() => OpenEpicKanban(_selectedEpic.Id)">#@_selectedEpic.ItemNumber @_selectedEpic.Title</span>
+                }
+                @if (_selectedFeature is not null)
+                {
+                    <span class="tracks-breadcrumb-sep">›</span>
+                    <span class="tracks-breadcrumb-item active"
+                          @onclick="() => OpenFeatureKanban(_selectedFeature.Id)">#@_selectedFeature.ItemNumber @_selectedFeature.Title</span>
+                }
+            </div>
+        }
+
         @if (_isLoading)
         {
             <div class="tracks-loading">
@@ -128,120 +158,142 @@
         {
             @switch (_view)
             {
-                case TracksView.Boards:
-                    <BoardListView Boards="_boards"
-                                   Teams="_teams"
-                                   InitialTeamFilter="@_initialTeamFilter"
-                                   OnBoardSelected="SelectBoard"
-                                   OnBoardCreated="HandleBoardCreated"
-                                   OnBoardDeleted="HandleBoardDeleted" />
+                case TracksView.ProductList:
+                    <ProductListView Products="_products"
+                                     OrganizationId="@_selectedOrgId"
+                                     OnProductSelected="SelectProduct"
+                                     OnProductCreated="HandleProductCreated"
+                                     OnProductDeleted="HandleProductDeleted" />
                     break;
 
-                case TracksView.Board:
-                    @if (_selectedBoard is not null)
+                case TracksView.ProductKanban:
+                case TracksView.EpicKanban:
+                case TracksView.FeatureKanban:
+                    @if (_selectedProduct is not null)
                     {
+                        var containerId = _selectedFeature?.Id ?? _selectedEpic?.Id ?? _selectedProduct.Id;
+                        var containerType = _selectedFeature is not null ? SwimlaneContainerType.WorkItem
+                            : _selectedEpic is not null ? SwimlaneContainerType.WorkItem
+                            : SwimlaneContainerType.Product;
+                        var createType = _selectedFeature is not null ? WorkItemType.Item
+                            : _selectedEpic is not null ? WorkItemType.Feature
+                            : WorkItemType.Epic;
+
                         <div class="tracks-board-area">
-                            <KanbanBoard Board="_selectedBoard"
-                                         Swimlanes="_boardSwimlanes"
-                                         CardsBySwimlane="_cardsBySwimlane"
-                                         Sprints="_sprints"
-                                         OnCardSelected="SelectCard"
-                                         OnCardMoved="HandleCardMoved"
-                                         OnCardCreated="HandleCardCreated"
+                            <KanbanBoard Product="_selectedProduct"
+                                         ContainerType="containerType"
+                                         ContainerId="containerId"
+                                         Swimlanes="_currentSwimlanes"
+                                         WorkItemsBySwimlane="_currentWorkItems"
+                                         Labels="_currentLabels"
+                                         CreateWorkItemType="createType"
+                                         Sprints="_selectedEpic is not null ? _sprints : null"
+                                         OnWorkItemSelected="SelectWorkItem"
+                                         OnWorkItemMoved="HandleWorkItemMoved"
+                                         OnWorkItemCreated="HandleWorkItemCreated"
                                          OnSwimlaneCreated="HandleSwimlaneCreated"
                                          OnSwimlaneDeleted="HandleSwimlaneDeleted"
-                                         OnRefreshRequested="RefreshBoardAsync" />
+                                         OnRefreshRequested="RefreshCurrentKanbanAsync" />
 
-                            @if (_showSprints && _selectedBoard.Mode == BoardMode.Team)
+                            @if (_showSprints && _selectedEpic is not null)
                             {
-                                <SprintPanel BoardId="_selectedBoard.Id"
+                                <SprintPanel EpicId="_selectedEpic.Id"
                                              Sprints="_sprints"
                                              OnSprintChanged="RefreshSprintsAsync"
-                                             OnCardSelected="SelectCard"
+                                             OnWorkItemSelected="SelectWorkItem"
                                              OnPlanSprint="OpenSprintPlanning" />
                             }
                         </div>
 
-                        @if (_selectedCard is not null)
+                        @if (_selectedWorkItem is not null)
                         {
-                            <CardDetailPanel Card="_selectedCard"
-                                             Board="_selectedBoard"
-                                             OnClose="CloseCardDetail"
-                                             OnCardUpdated="HandleCardUpdated"
-                                             OnCardDeleted="HandleCardDeleted" />
-                        }
-
-                        @if (_showBoardSettings)
-                        {
-                            <BoardSettingsDialog Board="_selectedBoard"
-                                                 Teams="_teams"
-                                                 OnClose="CloseBoardSettings"
-                                                 OnBoardUpdated="HandleBoardUpdated"
-                                                 OnBoardDeleted="HandleBoardDeletedFromSettings" />
+                            <WorkItemDetailPanel WorkItem="_selectedWorkItem"
+                                                 Product="_selectedProduct"
+                                                 Members="_currentMembers"
+                                                 ProductLabels="_currentLabels"
+                                                 SwimlaneTitle="@_selectedWorkItem.SwimlaneTitle"
+                                                 Sprints="_selectedEpic is not null ? _sprints : null"
+                                                 OnClose="CloseWorkItemDetail"
+                                                 OnWorkItemUpdated="HandleWorkItemUpdated"
+                                                 OnWorkItemDeleted="HandleWorkItemDeleted"
+                                                 OnOpenKanban="epicOrFeatureId => {
+                                                     if (_selectedWorkItem?.Type == WorkItemType.Epic)
+                                                         InvokeAsync(() => OpenEpicKanban(epicOrFeatureId));
+                                                     else
+                                                         InvokeAsync(() => OpenFeatureKanban(epicOrFeatureId));
+                                                 }" />
                         }
                     }
                     break;
 
                 case TracksView.Teams:
                     <TeamManagement Teams="_teams"
-                                    OnTeamSelected="SelectTeam"
+                                    OnTeamSelected="teamId => { }"
                                     OnRefreshRequested="RefreshTeamsAsync" />
                     break;
 
                 case TracksView.Planning:
-                    @if (_selectedBoard is not null && _planningSprint is not null)
+                    @if (_selectedEpic is not null && _planningSprint is not null)
                     {
-                        <SprintPlanningView BoardId="_selectedBoard.Id"
+                        <SprintPlanningView EpicId="_selectedEpic.Id"
                                             Sprint="_planningSprint"
                                             OnClose="ClosePlanning"
-                                            OnCardSelected="SelectCard"
+                                            OnWorkItemSelected="SelectWorkItem"
                                             OnSprintChanged="RefreshSprintsAsync" />
 
-                        @if (_selectedCard is not null)
+                        @if (_selectedWorkItem is not null)
                         {
-                            <CardDetailPanel Card="_selectedCard"
-                                             Board="_selectedBoard"
-                                             OnClose="CloseCardDetail"
-                                             OnCardUpdated="HandleCardUpdated"
-                                             OnCardDeleted="HandleCardDeleted" />
+                            <WorkItemDetailPanel WorkItem="_selectedWorkItem"
+                                                 Product="_selectedProduct!"
+                                                 Members="_currentMembers"
+                                                 ProductLabels="_currentLabels"
+                                                 Sprints="_sprints"
+                                                 OnClose="CloseWorkItemDetail"
+                                                 OnWorkItemUpdated="HandleWorkItemUpdated"
+                                                 OnWorkItemDeleted="HandleWorkItemDeleted"
+                                                 OnOpenKanban="_ => Task.CompletedTask" />
                         }
                     }
                     break;
 
                 case TracksView.Wizard:
-                    @if (_selectedBoard is not null)
+                    @if (_selectedEpic is not null)
                     {
-                        <SprintPlanningWizard Board="_selectedBoard"
-                                              ExistingSwimlanes="_boardSwimlanes"
+                        <SprintPlanningWizard Epic="_selectedEpic"
+                                              ExistingSwimlanes="_currentSwimlanes"
                                               OnPlanCreated="HandlePlanCreated"
-                                              OnCancel="CloseWizard" />
+                                              OnCancel="ClosePlanning" />
                     }
                     break;
 
                 case TracksView.Backlog:
-                    @if (_selectedBoard is not null)
+                    @if (_selectedEpic is not null)
                     {
-                        <BacklogView BoardId="_selectedBoard.Id"
+                        <BacklogView EpicId="_selectedEpic.Id"
                                      Sprints="_sprints"
-                                     Swimlanes="_boardSwimlanes"
-                                     OnCardSelected="SelectCard"
+                                     Swimlanes="_currentSwimlanes"
+                                     OnWorkItemSelected="SelectWorkItem"
                                      OnBacklogChanged="HandleBacklogChanged" />
 
-                        @if (_selectedCard is not null)
+                        @if (_selectedWorkItem is not null)
                         {
-                            <CardDetailPanel Card="_selectedCard"
-                                             Board="_selectedBoard"
-                                             OnClose="CloseCardDetail"
-                                             OnCardUpdated="HandleCardUpdated"
-                                             OnCardDeleted="HandleCardDeleted" />
+                            <WorkItemDetailPanel WorkItem="_selectedWorkItem"
+                                                 Product="_selectedProduct!"
+                                                 Members="_currentMembers"
+                                                 ProductLabels="_currentLabels"
+                                                 Sprints="_sprints"
+                                                 OnClose="CloseWorkItemDetail"
+                                                 OnWorkItemUpdated="HandleWorkItemUpdated"
+                                                 OnWorkItemDeleted="HandleWorkItemDeleted"
+                                                 OnOpenKanban="_ => Task.CompletedTask" />
                         }
                     }
                     break;
 
                 case TracksView.Timeline:
-                    @if (_selectedBoard is not null)
+                    @if (_selectedEpic is not null)
                     {
-                        <TimelineView BoardId="_selectedBoard.Id"
+                        <TimelineView EpicId="_selectedEpic.Id"
                                       OnSprintSelected="HandleTimelineSprintSelected"
                                       OnOpenWizard="OpenWizard"
                                       OnPlanAdjusted="HandlePlanAdjusted" />
@@ -249,12 +301,12 @@
                     break;
 
                 case TracksView.Review:
-                    @if (_selectedBoard is not null)
+                    @if (_selectedEpic is not null)
                     {
                         @if (_activeReviewSession is not null && _isHost)
                         {
                             <ReviewSessionHost Session="_activeReviewSession"
-                                               Board="_selectedBoard"
+                                               Epic="_selectedEpic"
                                                Sprints="_sprints"
                                                OnSessionEnded="HandleReviewEnded"
                                                OnSessionUpdated="HandleReviewSessionUpdated" />
@@ -262,19 +314,18 @@
                         else if (_activeReviewSession is not null)
                         {
                             <ReviewSessionParticipant Session="_activeReviewSession"
-                                                      Board="_selectedBoard"
+                                                      Epic="_selectedEpic"
                                                       OnLeft="HandleReviewEnded"
                                                       OnSessionUpdated="HandleReviewSessionUpdated" />
                         }
                         else
                         {
-                            @* No active session — show start/join options *@
                             <div class="review-landing">
                                 <div class="review-landing-icon">🎯</div>
                                 <h3>Live Review Session</h3>
-                                <p>Start a review session to synchronize card navigation with your team and run planning poker in real-time.</p>
+                                <p>Start a review session to synchronize item navigation with your team and run planning poker in real-time.</p>
                                 <div class="review-landing-actions">
-                                    <button class="btn btn-primary" @onclick="StartReviewSession" disabled="@_isStartingReview">
+                                    <button class="btn btn-primary" @onclick="OpenReview" disabled="@_isStartingReview">
                                         🚀 Start Review Session
                                     </button>
                                 </div>

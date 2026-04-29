@@ -2,7 +2,7 @@ namespace DotNetCloud.Modules.Chat.Services;
 
 /// <summary>
 /// Delivers real-time Tracks activity signals to Chat Blazor UI components.
-/// Components subscribe to events to display board activity in the Chat interface.
+/// Components subscribe to events to display product activity in the Chat interface.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -24,28 +24,28 @@ public interface ITracksActivitySignalRService
     bool IsActive { get; }
 
     /// <summary>
-    /// Raised when any Tracks activity occurs (card created/moved/deleted, sprint started, etc.).
-    /// Args: action, boardId, timestamp.
+    /// Raised when any Tracks activity occurs (work item created/moved/deleted, sprint started, etc.).
+    /// Args: action, productId, timestamp.
     /// </summary>
     event Action<TracksActivitySignal>? ActivityReceived;
 
     /// <summary>
-    /// Raised when the current user is assigned to a card.
-    /// Args: cardId, boardId, assignedByUserId.
+    /// Raised when the current user is assigned to a work item.
+    /// Args: workItemId, productId, assignedByUserId.
     /// </summary>
-    event Action<Guid, Guid, Guid>? CardAssignedToMe;
+    event Action<Guid, Guid, Guid>? WorkItemAssignedToMe;
 }
 
 /// <summary>
-/// A lightweight signal describing a Tracks board activity event.
+/// A lightweight signal describing a Tracks product activity event.
 /// </summary>
 public sealed record TracksActivitySignal
 {
-    /// <summary>The action that occurred (e.g., card_created, card_moved, sprint_started).</summary>
+    /// <summary>The action that occurred (e.g., workitem_created, workitem_moved, sprint_started).</summary>
     public required string Action { get; init; }
 
-    /// <summary>The board the activity occurred on.</summary>
-    public required Guid BoardId { get; init; }
+    /// <summary>The product the activity occurred on.</summary>
+    public required Guid ProductId { get; init; }
 
     /// <summary>When the activity occurred.</summary>
     public required DateTime Timestamp { get; init; }
@@ -64,6 +64,6 @@ internal sealed class NullTracksActivitySignalRService : ITracksActivitySignalRS
 #pragma warning disable CS0067 // Event is never used — intentional for null-object stub
     public event Action<TracksActivitySignal>? ActivityReceived;
     /// <inheritdoc />
-    public event Action<Guid, Guid, Guid>? CardAssignedToMe;
+    public event Action<Guid, Guid, Guid>? WorkItemAssignedToMe;
 #pragma warning restore CS0067
 }

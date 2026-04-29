@@ -340,7 +340,7 @@ namespace DotNetCloud.Modules.Files.Data.Migrations
                 table: "FileShares",
                 column: "LinkToken",
                 unique: true,
-                filter: "[LinkToken] IS NOT NULL");
+                filter: "\"LinkToken\" IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "ix_file_shares_shared_with_team",

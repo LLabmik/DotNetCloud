@@ -1,396 +1,249 @@
-using System.Text.Json;
-using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Modules.Tracks.Models;
-using DotNetCloud.Modules.Tracks.Services;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 
 namespace DotNetCloud.Modules.Tracks.Data.Services;
 
-/// <summary>
-/// Service for planning poker (estimation) sessions on cards.
-/// </summary>
 public sealed class PokerService
 {
     private readonly TracksDbContext _db;
-    private readonly BoardService _boardService;
-    private readonly ActivityService _activityService;
-    private readonly ITracksRealtimeService _realtimeService;
-    private readonly ILogger<PokerService> _logger;
 
-    // Valid values for built-in scales
-    private static readonly IReadOnlySet<string> FibonacciValues =
-        new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "0", "1", "2", "3", "5", "8", "13", "21", "34", "?" };
+    public PokerService(TracksDbContext db) => _db = db;
 
-    private static readonly IReadOnlySet<string> TShirtValues =
-        new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "XS", "S", "M", "L", "XL", "XXL", "?" };
-
-    private static readonly IReadOnlySet<string> PowersOfTwoValues =
-        new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "0", "1", "2", "4", "8", "16", "32", "?" };
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="PokerService"/> class.
-    /// </summary>
-    public PokerService(TracksDbContext db, BoardService boardService, ActivityService activityService, ITracksRealtimeService realtimeService, ILogger<PokerService> logger)
+    public async Task<PokerSessionDto> StartSessionAsync(Guid epicId, Guid createdByUserId, CreatePokerSessionDto dto, CancellationToken ct)
     {
-        _db = db;
-        _boardService = boardService;
-        _activityService = activityService;
-        _realtimeService = realtimeService;
-        _logger = logger;
-    }
+        var epic = await _db.WorkItems
+            .FirstOrDefaultAsync(wi => wi.Id == epicId && wi.Type == WorkItemType.Epic && !wi.IsDeleted, ct)
+            ?? throw new ValidationException("EpicId", "Epic not found or is not an Epic.");
 
-    /// <summary>
-    /// Starts a new planning poker session for a card. Only one active session per card is allowed.
-    /// </summary>
-    public async Task<PokerSessionDto> StartSessionAsync(Guid cardId, CreatePokerSessionDto dto, CallerContext caller, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(dto);
+        // Validate item belongs to Epic's tree
+        var item = await _db.WorkItems
+            .FirstOrDefaultAsync(wi => wi.Id == dto.ItemId && !wi.IsDeleted, ct)
+            ?? throw new ValidationException("ItemId", "Item not found.");
 
-        var card = await _db.Cards
-            .Include(c => c.Swimlane)
-            .FirstOrDefaultAsync(c => c.Id == cardId && !c.IsDeleted, cancellationToken)
-            ?? throw new ValidationException(ErrorCodes.CardNotFound, "Card not found.");
+        if (item.Type != WorkItemType.Item)
+            throw new ValidationException("ItemId", "Poker sessions are only valid for Item-type work items.");
 
-        await _boardService.EnsureBoardRoleAsync(card.Swimlane!.BoardId, caller.UserId, BoardMemberRole.Admin, cancellationToken);
-
-        // Check for active session
-        var activeExists = await _db.PokerSessions
-            .AnyAsync(s => s.CardId == cardId && s.Status == PokerSessionStatus.Voting, cancellationToken);
-        if (activeExists)
-            throw new ValidationException(ErrorCodes.PokerSessionAlreadyActive, "This card already has an active poker session.");
-
-        if (dto.Scale == PokerScale.Custom && string.IsNullOrWhiteSpace(dto.CustomScaleValues))
-            throw new ValidationException(ErrorCodes.PokerInvalidEstimate, "Custom scale requires CustomScaleValues to be provided.");
+        // Walk up the tree to verify the item belongs to this epic
+        var isInEpicTree = await IsItemInEpicTreeAsync(dto.ItemId, epicId, ct);
+        if (!isInEpicTree)
+            throw new ValidationException("ItemId", "Item does not belong to the specified Epic's hierarchy.");
 
         var session = new PokerSession
         {
-            CardId = cardId,
-            BoardId = card.Swimlane.BoardId,
-            CreatedByUserId = caller.UserId,
+            EpicId = epicId,
+            ItemId = dto.ItemId,
+            CreatedByUserId = createdByUserId,
             Scale = dto.Scale,
             CustomScaleValues = dto.CustomScaleValues,
             Status = PokerSessionStatus.Voting,
-            Round = 1
+            Round = 1,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
         };
 
         _db.PokerSessions.Add(session);
-        await _db.SaveChangesAsync(cancellationToken);
-
-        _logger.LogInformation("Poker session {SessionId} started for card {CardId} by user {UserId}",
-            session.Id, cardId, caller.UserId);
-
-        await _activityService.LogAsync(card.Swimlane.BoardId, caller.UserId, "poker.started", "PokerSession", session.Id,
-            $"{{\"cardId\":\"{cardId}\",\"scale\":\"{dto.Scale}\"}}", cancellationToken);
+        await _db.SaveChangesAsync(ct);
 
         return MapToDto(session);
     }
 
-    /// <summary>
-    /// Gets a poker session by ID.
-    /// </summary>
-    public async Task<PokerSessionDto?> GetSessionAsync(Guid sessionId, CallerContext caller, CancellationToken cancellationToken = default)
+    public async Task<PokerSessionDto?> GetSessionAsync(Guid sessionId, CancellationToken ct)
     {
         var session = await _db.PokerSessions
-            .AsNoTracking()
-            .Include(s => s.Votes)
-            .FirstOrDefaultAsync(s => s.Id == sessionId, cancellationToken);
+            .Include(ps => ps.Votes)
+            .FirstOrDefaultAsync(ps => ps.Id == sessionId, ct);
 
-        if (session is null)
-            return null;
-
-        await _boardService.EnsureBoardMemberAsync(session.BoardId, caller.UserId, cancellationToken);
-
-        return MapToDto(session);
+        return session is null ? null : MapToDto(session);
     }
 
-    /// <summary>
-    /// Gets active or completed sessions for a card.
-    /// </summary>
-    public async Task<IReadOnlyList<PokerSessionDto>> GetCardSessionsAsync(Guid cardId, CallerContext caller, CancellationToken cancellationToken = default)
+    public async Task<PokerSessionDto> SubmitVoteAsync(Guid sessionId, Guid userId, SubmitPokerVoteDto dto, CancellationToken ct)
     {
-        var card = await _db.Cards
-            .Include(c => c.Swimlane)
-            .AsNoTracking()
-            .FirstOrDefaultAsync(c => c.Id == cardId && !c.IsDeleted, cancellationToken)
-            ?? throw new ValidationException(ErrorCodes.CardNotFound, "Card not found.");
-
-        await _boardService.EnsureBoardMemberAsync(card.Swimlane!.BoardId, caller.UserId, cancellationToken);
-
-        var sessions = await _db.PokerSessions
-            .AsNoTracking()
-            .Include(s => s.Votes)
-            .Where(s => s.CardId == cardId)
-            .OrderByDescending(s => s.CreatedAt)
-            .ToListAsync(cancellationToken);
-
-        return sessions.Select(MapToDto).ToList();
-    }
-
-    /// <summary>
-    /// Submits or updates a vote in a session. Voting must be open (Status = Voting).
-    /// </summary>
-    public async Task<PokerSessionDto> SubmitVoteAsync(Guid sessionId, SubmitPokerVoteDto dto, CallerContext caller, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(dto);
-
         var session = await _db.PokerSessions
-            .Include(s => s.Votes)
-            .FirstOrDefaultAsync(s => s.Id == sessionId, cancellationToken)
-            ?? throw new ValidationException(ErrorCodes.PokerSessionNotFound, "Poker session not found.");
+            .Include(ps => ps.Votes)
+            .FirstOrDefaultAsync(ps => ps.Id == sessionId, ct)
+            ?? throw new NotFoundException("PokerSession", sessionId);
 
         if (session.Status != PokerSessionStatus.Voting)
-            throw new ValidationException(ErrorCodes.PokerSessionNotVoting,
-                $"Session is in {session.Status} state. Voting is closed.");
+            throw new System.InvalidOperationException("Votes can only be submitted while the session is in Voting status.");
 
-        await _boardService.EnsureBoardMemberAsync(session.BoardId, caller.UserId, cancellationToken);
+        var existingVote = session.Votes
+            .FirstOrDefault(v => v.UserId == userId && v.Round == session.Round);
 
-        ValidateEstimate(session, dto.Estimate);
-
-        // Upsert vote: remove existing vote for this round, then add new one
-        var existingVote = session.Votes.FirstOrDefault(v => v.UserId == caller.UserId && v.Round == session.Round);
         if (existingVote is not null)
-            _db.PokerVotes.Remove(existingVote);
-
-        var vote = new PokerVote
         {
-            SessionId = sessionId,
-            UserId = caller.UserId,
-            Estimate = dto.Estimate,
-            Round = session.Round,
-            VotedAt = DateTime.UtcNow
-        };
-        _db.PokerVotes.Add(vote);
-        session.UpdatedAt = DateTime.UtcNow;
-
-        await _db.SaveChangesAsync(cancellationToken);
-
-        _logger.LogInformation("User {UserId} voted '{Estimate}' in session {SessionId} round {Round}",
-            caller.UserId, dto.Estimate, sessionId, session.Round);
-
-        // Broadcast vote status if this poker session is linked to a review session
-        if (session.ReviewSessionId.HasValue)
+            existingVote.Estimate = dto.Estimate;
+            existingVote.VotedAt = DateTime.UtcNow;
+        }
+        else
         {
-            await _realtimeService.BroadcastPokerVoteStatusAsync(
-                session.ReviewSessionId.Value, sessionId, caller.UserId, true, cancellationToken);
+            var vote = new PokerVote
+            {
+                SessionId = sessionId,
+                UserId = userId,
+                Estimate = dto.Estimate,
+                Round = session.Round,
+                VotedAt = DateTime.UtcNow
+            };
+            _db.PokerVotes.Add(vote);
         }
 
+        session.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(ct);
+
         return MapToDto(session);
     }
 
-    /// <summary>
-    /// Reveals all votes in the session (Admin or session creator required).
-    /// </summary>
-    public async Task<PokerSessionDto> RevealSessionAsync(Guid sessionId, CallerContext caller, CancellationToken cancellationToken = default)
+    public async Task<PokerSessionDto> RevealVotesAsync(Guid sessionId, CancellationToken ct)
     {
         var session = await _db.PokerSessions
-            .Include(s => s.Votes)
-            .FirstOrDefaultAsync(s => s.Id == sessionId, cancellationToken)
-            ?? throw new ValidationException(ErrorCodes.PokerSessionNotFound, "Poker session not found.");
+            .Include(ps => ps.Votes)
+            .FirstOrDefaultAsync(ps => ps.Id == sessionId, ct)
+            ?? throw new NotFoundException("PokerSession", sessionId);
 
         if (session.Status != PokerSessionStatus.Voting)
-            throw new ValidationException(ErrorCodes.PokerSessionNotVoting, "Session votes are already revealed or session is completed.");
-
-        await _boardService.EnsureBoardRoleAsync(session.BoardId, caller.UserId, BoardMemberRole.Admin, cancellationToken);
+            throw new System.InvalidOperationException("Only sessions in Voting status can be revealed.");
 
         session.Status = PokerSessionStatus.Revealed;
         session.UpdatedAt = DateTime.UtcNow;
-
-        await _db.SaveChangesAsync(cancellationToken);
-
-        _logger.LogInformation("Poker session {SessionId} votes revealed by user {UserId}", sessionId, caller.UserId);
-
-        // Broadcast poker state change if linked to a review session
-        if (session.ReviewSessionId.HasValue)
-        {
-            await _realtimeService.BroadcastReviewPokerStateAsync(
-                session.ReviewSessionId.Value, sessionId, session.BoardId, "revealed", cancellationToken);
-        }
+        await _db.SaveChangesAsync(ct);
 
         return MapToDto(session);
     }
 
-    /// <summary>
-    /// Accepts an estimate, applies it to the card's story points, and completes the session.
-    /// </summary>
-    public async Task<PokerSessionDto> AcceptEstimateAsync(Guid sessionId, AcceptPokerEstimateDto dto, CallerContext caller, CancellationToken cancellationToken = default)
+    public async Task<PokerSessionDto> AcceptEstimateAsync(Guid sessionId, string estimate, CancellationToken ct)
     {
-        ArgumentNullException.ThrowIfNull(dto);
-
         var session = await _db.PokerSessions
-            .Include(s => s.Votes)
-            .FirstOrDefaultAsync(s => s.Id == sessionId, cancellationToken)
-            ?? throw new ValidationException(ErrorCodes.PokerSessionNotFound, "Poker session not found.");
+            .Include(ps => ps.Votes)
+            .FirstOrDefaultAsync(ps => ps.Id == sessionId, ct)
+            ?? throw new NotFoundException("PokerSession", sessionId);
 
-        if (session.Status == PokerSessionStatus.Completed)
-            throw new ValidationException(ErrorCodes.PokerSessionNotVoting, "Session is already completed.");
+        if (session.Status != PokerSessionStatus.Revealed)
+            throw new System.InvalidOperationException("Estimates can only be accepted after votes are revealed.");
 
-        await _boardService.EnsureBoardRoleAsync(session.BoardId, caller.UserId, BoardMemberRole.Admin, cancellationToken);
-
+        session.AcceptedEstimate = estimate;
         session.Status = PokerSessionStatus.Completed;
-        session.AcceptedEstimate = dto.AcceptedEstimate;
         session.UpdatedAt = DateTime.UtcNow;
 
-        // Apply to card if numeric story points provided
-        if (dto.StoryPoints.HasValue && dto.StoryPoints.Value > 0)
+        // Update the Item's StoryPoints if the estimate is a valid integer
+        if (int.TryParse(estimate, out var storyPoints))
         {
-            var card = await _db.Cards.FindAsync([session.CardId], cancellationToken);
-            if (card is not null)
+            var item = await _db.WorkItems.FindAsync([session.ItemId], ct);
+            if (item is not null)
             {
-                card.StoryPoints = dto.StoryPoints.Value;
-                card.UpdatedAt = DateTime.UtcNow;
+                item.StoryPoints = storyPoints;
+                item.UpdatedAt = DateTime.UtcNow;
             }
         }
 
-        await _db.SaveChangesAsync(cancellationToken);
-
-        _logger.LogInformation("Poker session {SessionId} completed with estimate '{Estimate}' by user {UserId}",
-            sessionId, dto.AcceptedEstimate, caller.UserId);
-
-        await _activityService.LogAsync(session.BoardId, caller.UserId, "poker.completed", "PokerSession", sessionId,
-            $"{{\"acceptedEstimate\":\"{dto.AcceptedEstimate}\",\"storyPoints\":{dto.StoryPoints ?? 0}}}",
-            cancellationToken);
-
-        // Broadcast poker state change if linked to a review session
-        if (session.ReviewSessionId.HasValue)
-        {
-            await _realtimeService.BroadcastReviewPokerStateAsync(
-                session.ReviewSessionId.Value, sessionId, session.BoardId, "completed", cancellationToken);
-        }
+        await _db.SaveChangesAsync(ct);
 
         return MapToDto(session);
     }
 
-    /// <summary>
-    /// Restarts voting for a new round (Admin required). Clears current-round votes and increments round.
-    /// </summary>
-    public async Task<PokerSessionDto> StartNewRoundAsync(Guid sessionId, CallerContext caller, CancellationToken cancellationToken = default)
+    public async Task<PokerSessionDto> NewRoundAsync(Guid sessionId, CancellationToken ct)
     {
         var session = await _db.PokerSessions
-            .Include(s => s.Votes)
-            .FirstOrDefaultAsync(s => s.Id == sessionId, cancellationToken)
-            ?? throw new ValidationException(ErrorCodes.PokerSessionNotFound, "Poker session not found.");
-
-        if (session.Status == PokerSessionStatus.Completed)
-            throw new ValidationException(ErrorCodes.PokerSessionNotVoting, "Session is already completed.");
-
-        await _boardService.EnsureBoardRoleAsync(session.BoardId, caller.UserId, BoardMemberRole.Admin, cancellationToken);
-
-        // Remove current-round votes
-        var currentVotes = session.Votes.Where(v => v.Round == session.Round).ToList();
-        _db.PokerVotes.RemoveRange(currentVotes);
+            .Include(ps => ps.Votes)
+            .FirstOrDefaultAsync(ps => ps.Id == sessionId, ct)
+            ?? throw new NotFoundException("PokerSession", sessionId);
 
         session.Round++;
         session.Status = PokerSessionStatus.Voting;
+        session.AcceptedEstimate = null;
         session.UpdatedAt = DateTime.UtcNow;
-
-        await _db.SaveChangesAsync(cancellationToken);
-
-        _logger.LogInformation("Poker session {SessionId} restarted as round {Round} by user {UserId}",
-            sessionId, session.Round, caller.UserId);
-
-        // Broadcast poker state change if linked to a review session
-        if (session.ReviewSessionId.HasValue)
-        {
-            await _realtimeService.BroadcastReviewPokerStateAsync(
-                session.ReviewSessionId.Value, sessionId, session.BoardId, "new_round", cancellationToken);
-        }
+        await _db.SaveChangesAsync(ct);
 
         return MapToDto(session);
     }
 
-    /// <summary>
-    /// Gets the vote status for each participant (who voted, who hasn't) without revealing actual vote values.
-    /// </summary>
-    public async Task<IReadOnlyList<PokerVoteStatusDto>> GetVoteStatusAsync(Guid sessionId, CallerContext caller, CancellationToken cancellationToken = default)
+    public async Task<List<PokerVoteStatusDto>> GetVoteStatusAsync(Guid sessionId, CancellationToken ct)
     {
         var session = await _db.PokerSessions
-            .AsNoTracking()
-            .Include(s => s.Votes)
-            .FirstOrDefaultAsync(s => s.Id == sessionId, cancellationToken)
-            ?? throw new ValidationException(ErrorCodes.PokerSessionNotFound, "Poker session not found.");
+            .Include(ps => ps.Votes)
+            .FirstOrDefaultAsync(ps => ps.Id == sessionId, ct)
+            ?? throw new NotFoundException("PokerSession", sessionId);
 
-        await _boardService.EnsureBoardMemberAsync(session.BoardId, caller.UserId, cancellationToken);
-
-        // Get all board members who could vote
-        var boardMembers = await _db.BoardMembers
-            .AsNoTracking()
-            .Where(m => m.BoardId == session.BoardId)
-            .Select(m => m.UserId)
-            .ToListAsync(cancellationToken);
-
-        var currentRoundVoters = session.Votes
+        var currentRoundVotes = session.Votes
             .Where(v => v.Round == session.Round)
-            .Select(v => v.UserId)
-            .ToHashSet();
+            .ToList();
 
-        return boardMembers.Select(userId => new PokerVoteStatusDto
+        var participantIds = await _db.ReviewSessionParticipants
+            .Where(rsp => rsp.ReviewSessionId == session.ReviewSessionId && rsp.IsConnected)
+            .Select(rsp => rsp.UserId)
+            .Distinct()
+            .ToListAsync(ct);
+
+        // If no review session participants, return just the vote statuses
+        if (participantIds.Count == 0)
         {
-            UserId = userId,
-            HasVoted = currentRoundVoters.Contains(userId)
-        }).ToList();
-    }
-
-    // ─── Private Helpers ─────────────────────────────────────────────
-
-    private static void ValidateEstimate(PokerSession session, string estimate)
-    {
-        var valid = session.Scale switch
-        {
-            PokerScale.Fibonacci => FibonacciValues.Contains(estimate),
-            PokerScale.TShirt => TShirtValues.Contains(estimate),
-            PokerScale.PowersOfTwo => PowersOfTwoValues.Contains(estimate),
-            PokerScale.Custom => IsValidCustomEstimate(session.CustomScaleValues, estimate),
-            _ => false
-        };
-
-        if (!valid)
-            throw new ValidationException(ErrorCodes.PokerInvalidEstimate,
-                $"'{estimate}' is not a valid estimate for the {session.Scale} scale.");
-    }
-
-    private static bool IsValidCustomEstimate(string? customValuesJson, string estimate)
-    {
-        if (string.IsNullOrEmpty(customValuesJson))
-            return false;
-
-        try
-        {
-            var values = JsonSerializer.Deserialize<string[]>(customValuesJson);
-            return values?.Contains(estimate, StringComparer.OrdinalIgnoreCase) ?? false;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    private static PokerSessionDto MapToDto(PokerSession s) => new()
-    {
-        Id = s.Id,
-        CardId = s.CardId,
-        BoardId = s.BoardId,
-        CreatedByUserId = s.CreatedByUserId,
-        Scale = s.Scale,
-        CustomScaleValues = s.CustomScaleValues,
-        Status = s.Status,
-        AcceptedEstimate = s.AcceptedEstimate,
-        Round = s.Round,
-        Votes = s.Votes
-            .Where(v => s.Status != PokerSessionStatus.Voting || v.UserId == s.CreatedByUserId)
-            .Select(v => new PokerVoteDto
+            return currentRoundVotes.Select(v => new PokerVoteStatusDto
             {
-                UserId = v.UserId,
-                // Only reveal estimates when the session is Revealed or Completed
-                Estimate = s.Status is PokerSessionStatus.Revealed or PokerSessionStatus.Completed
-                    ? v.Estimate
-                    : "?",
-                Round = v.Round,
-                VotedAt = v.VotedAt
-            }).ToList(),
-        CreatedAt = s.CreatedAt,
-        UpdatedAt = s.UpdatedAt
-    };
+                HasVoted = true,
+                Estimate = null // Don't reveal estimates in status
+            }).ToList();
+        }
+
+        var result = new List<PokerVoteStatusDto>();
+        foreach (var participantId in participantIds)
+        {
+            var vote = currentRoundVotes.FirstOrDefault(v => v.UserId == participantId);
+            result.Add(new PokerVoteStatusDto
+            {
+                HasVoted = vote is not null,
+                Estimate = null
+            });
+        }
+
+        return result;
+    }
+
+    private async Task<bool> IsItemInEpicTreeAsync(Guid itemId, Guid epicId, CancellationToken ct)
+    {
+        // Walk up the parent chain to see if the item is under this epic
+        var currentId = itemId;
+        var visited = new HashSet<Guid>();
+        const int maxDepth = 20;
+
+        for (int i = 0; i < maxDepth; i++)
+        {
+            if (!visited.Add(currentId))
+                return false; // Cycle detected
+
+            if (currentId == epicId)
+                return true;
+
+            var workItem = await _db.WorkItems
+                .Where(wi => wi.Id == currentId && !wi.IsDeleted)
+                .Select(wi => new { wi.ParentWorkItemId })
+                .FirstOrDefaultAsync(ct);
+
+            if (workItem?.ParentWorkItemId is null)
+                return false;
+
+            currentId = workItem.ParentWorkItemId.Value;
+        }
+
+        return false;
+    }
+
+    private static PokerSessionDto MapToDto(PokerSession session)
+    {
+        return new PokerSessionDto
+        {
+            Id = session.Id,
+            EpicId = session.EpicId,
+            ItemId = session.ItemId,
+            CreatedByUserId = session.CreatedByUserId,
+            Scale = session.Scale,
+            CustomScaleValues = session.CustomScaleValues,
+            Status = session.Status,
+            AcceptedEstimate = session.AcceptedEstimate,
+            Round = session.Round,
+            ReviewSessionId = session.ReviewSessionId,
+            CreatedAt = session.CreatedAt,
+            UpdatedAt = session.UpdatedAt
+        };
+    }
 }

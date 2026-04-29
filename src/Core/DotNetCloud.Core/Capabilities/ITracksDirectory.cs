@@ -114,7 +114,7 @@ public sealed record CardSummary
     /// <summary>
     /// The card's priority.
     /// </summary>
-    public CardPriority Priority { get; init; }
+    public Priority Priority { get; init; }
 
     /// <summary>
     /// The card's due date, if any.

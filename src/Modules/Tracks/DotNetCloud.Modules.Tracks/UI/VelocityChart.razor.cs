@@ -13,7 +13,7 @@ public partial class VelocityChart : ComponentBase
 {
     [Inject] private ITracksApiClient ApiClient { get; set; } = default!;
 
-    [Parameter, EditorRequired] public Guid BoardId { get; set; }
+    [Parameter, EditorRequired] public Guid ProductId { get; set; }
 
     private readonly List<SprintVelocityDto> _velocityData = [];
     private bool _isLoading = true;
@@ -24,7 +24,7 @@ public partial class VelocityChart : ComponentBase
 
         try
         {
-            var data = await ApiClient.GetBoardVelocityAsync(BoardId);
+            var data = await ApiClient.GetVelocityDataAsync(ProductId);
             _velocityData.Clear();
             _velocityData.AddRange(data);
         }
@@ -40,9 +40,9 @@ public partial class VelocityChart : ComponentBase
 
     private string BuildVelocitySvg()
     {
-        var maxSp = _velocityData.Max(v => Math.Max(v.CommittedPoints, v.CompletedPoints));
+        var maxSp = _velocityData.Max(v => Math.Max(v.TotalStoryPoints, v.CompletedStoryPoints));
         if (maxSp == 0) maxSp = 1;
-        var avgLine = _velocityData.Average(v => v.CompletedPoints);
+        var avgLine = _velocityData.Average(v => v.CompletedStoryPoints);
 
         const int chartWidth = 600;
         const int chartHeight = 220;
@@ -85,22 +85,22 @@ public partial class VelocityChart : ComponentBase
 
             // Committed bar
             var committedX = groupCenter - barWidth - gapBetween / 2;
-            var committedH = (float)d.CommittedPoints / maxSp * plotH;
-            sb.Append(CultureInfo.InvariantCulture, $"<rect x=\"{committedX:F1}\" y=\"{YPos(d.CommittedPoints):F1}\" width=\"{barWidth:F1}\" height=\"{committedH:F1}\" fill=\"var(--color-primary-light, #a3c4f7)\" rx=\"2\" opacity=\"0.6\" />");
+            var committedH = (float)d.TotalStoryPoints / maxSp * plotH;
+            sb.Append(CultureInfo.InvariantCulture, $"<rect x=\"{committedX:F1}\" y=\"{YPos(d.TotalStoryPoints):F1}\" width=\"{barWidth:F1}\" height=\"{committedH:F1}\" fill=\"var(--color-primary-light, #a3c4f7)\" rx=\"2\" opacity=\"0.6\" />");
 
             // Completed bar
             var completedX = groupCenter + gapBetween / 2;
-            var completedH = (float)d.CompletedPoints / maxSp * plotH;
-            sb.Append(CultureInfo.InvariantCulture, $"<rect x=\"{completedX:F1}\" y=\"{YPos(d.CompletedPoints):F1}\" width=\"{barWidth:F1}\" height=\"{completedH:F1}\" fill=\"var(--color-primary, #4f8af7)\" rx=\"2\" />");
+            var completedH = (float)d.CompletedStoryPoints / maxSp * plotH;
+            sb.Append(CultureInfo.InvariantCulture, $"<rect x=\"{completedX:F1}\" y=\"{YPos(d.CompletedStoryPoints):F1}\" width=\"{barWidth:F1}\" height=\"{completedH:F1}\" fill=\"var(--color-primary, #4f8af7)\" rx=\"2\" />");
 
             // SP labels
-            if (d.CommittedPoints > 0)
-                sb.Append(CultureInfo.InvariantCulture, $"<text x=\"{committedX + barWidth / 2:F1}\" y=\"{YPos(d.CommittedPoints) - 4:F1}\" text-anchor=\"middle\" fill=\"var(--color-text-muted, #888)\" font-size=\"9\">{d.CommittedPoints}</text>");
-            if (d.CompletedPoints > 0)
-                sb.Append(CultureInfo.InvariantCulture, $"<text x=\"{completedX + barWidth / 2:F1}\" y=\"{YPos(d.CompletedPoints) - 4:F1}\" text-anchor=\"middle\" fill=\"var(--color-primary, #4f8af7)\" font-size=\"9\">{d.CompletedPoints}</text>");
+            if (d.TotalStoryPoints > 0)
+                sb.Append(CultureInfo.InvariantCulture, $"<text x=\"{committedX + barWidth / 2:F1}\" y=\"{YPos(d.TotalStoryPoints) - 4:F1}\" text-anchor=\"middle\" fill=\"var(--color-text-muted, #888)\" font-size=\"9\">{d.TotalStoryPoints}</text>");
+            if (d.CompletedStoryPoints > 0)
+                sb.Append(CultureInfo.InvariantCulture, $"<text x=\"{completedX + barWidth / 2:F1}\" y=\"{YPos(d.CompletedStoryPoints) - 4:F1}\" text-anchor=\"middle\" fill=\"var(--color-primary, #4f8af7)\" font-size=\"9\">{d.CompletedStoryPoints}</text>");
 
             // Sprint title label
-            var title = System.Net.WebUtility.HtmlEncode(TruncateTitle(d.Title, 10));
+            var title = System.Net.WebUtility.HtmlEncode(TruncateTitle(d.SprintTitle, 10));
             sb.Append(CultureInfo.InvariantCulture, $"<text x=\"{groupCenter:F1}\" y=\"{chartHeight - 5}\" text-anchor=\"middle\" fill=\"var(--color-text-muted, #888)\" font-size=\"10\">{title}</text>");
         }
 

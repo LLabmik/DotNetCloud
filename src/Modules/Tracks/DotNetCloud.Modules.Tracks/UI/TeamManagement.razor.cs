@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.UI.Shared.Services;
 using Microsoft.AspNetCore.Components;
@@ -12,6 +13,9 @@ public sealed partial class TeamManagement : ComponentBase
 {
     [Inject]
     private Services.ITracksApiClient Api { get; set; } = default!;
+
+    [Inject]
+    private IUserDirectory UserDirectory { get; set; } = default!;
 
     [Inject]
     private BrowserTimeProvider TimeProvider { get; set; } = default!;
@@ -51,7 +55,7 @@ public sealed partial class TeamManagement : ComponentBase
     private string _addMemberSearch = string.Empty;
     private string _addMemberRole = "Member";
     private Guid _selectedUserId;
-    private IReadOnlyList<UserSearchResultDto> _searchResults = [];
+    private IReadOnlyList<UserSearchResult> _searchResults = [];
     private System.Timers.Timer? _searchDebounce;
 
     /// <inheritdoc />
@@ -136,7 +140,7 @@ public sealed partial class TeamManagement : ComponentBase
     {
         try
         {
-            await Api.DeleteTeamAsync(teamId, false, CancellationToken.None);
+            await Api.DeleteTeamAsync(teamId);
             _selectedTeamId = null;
             _errorMessage = null;
             await OnRefreshRequested.InvokeAsync();
@@ -163,7 +167,7 @@ public sealed partial class TeamManagement : ComponentBase
         {
             try
             {
-                var results = await Api.SearchUsersAsync(_addMemberSearch.Trim(), CancellationToken.None);
+                var results = await UserDirectory.SearchUsersAsync(_addMemberSearch.Trim(), cancellationToken: CancellationToken.None);
                 await InvokeAsync(() =>
                 {
                     _searchResults = results;
@@ -178,7 +182,7 @@ public sealed partial class TeamManagement : ComponentBase
         _searchDebounce.Start();
     }
 
-    private void SelectUserForAdd(UserSearchResultDto user)
+    private void SelectUserForAdd(UserSearchResult user)
     {
         _selectedUserId = user.Id;
         _addMemberSearch = user.DisplayName;
@@ -200,7 +204,7 @@ public sealed partial class TeamManagement : ComponentBase
 
         try
         {
-            await Api.AddTeamMemberAsync(teamId, _selectedUserId, role, CancellationToken.None);
+            await Api.AddTeamMemberAsync(teamId, new AddTracksTeamMemberDto { UserId = _selectedUserId, Role = role });
             _addMemberSearch = string.Empty;
             _selectedUserId = Guid.Empty;
             _addMemberRole = "Member";

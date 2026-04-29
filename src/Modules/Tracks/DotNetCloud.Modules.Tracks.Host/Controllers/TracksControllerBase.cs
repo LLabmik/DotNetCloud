@@ -64,10 +64,10 @@ public abstract class TracksControllerBase : ControllerBase
     }
 
     /// <summary>
-    /// Checks whether a <see cref="ValidationException"/> represents a board-level "not found"
-    /// condition (board doesn't exist or user isn't a member).
+    /// Checks whether a <see cref="ValidationException"/> represents a product-level "not found"
+    /// condition.
     /// </summary>
-    protected static bool IsBoardNotFound(ValidationException ex)
+    protected static bool IsProductNotFound(ValidationException ex)
     {
         return ex.Errors.ContainsKey(ErrorCodes.BoardNotFound)
             || ex.Errors.ContainsKey(ErrorCodes.NotBoardMember);

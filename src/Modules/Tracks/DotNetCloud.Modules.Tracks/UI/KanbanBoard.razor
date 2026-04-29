@@ -5,15 +5,15 @@
     @* ── Board Header ── *@
     <div class="tracks-kanban-header">
         <h2>
-            @if (!string.IsNullOrEmpty(Board.Color))
+            @if (!string.IsNullOrEmpty(Product.Color))
             {
-                <span class="tracks-board-dot" style="background: @Board.Color;"></span>
+                <span class="tracks-board-dot" style="background: @Product.Color;"></span>
             }
-            @Board.Title
+            @Product.Name
         </h2>
         <div class="tracks-kanban-toolbar">
             <div class="tracks-filter-group">
-                <input type="text" class="tracks-search-input" placeholder="Filter cards..."
+                <input type="text" class="tracks-search-input" placeholder="Filter items..."
                        @bind="_filterText" @bind:event="oninput" />
                 <select class="tracks-filter-select" @bind="_priorityFilter">
                     <option value="">All priorities</option>
@@ -22,20 +22,20 @@
                     <option value="Medium">🟡 Medium</option>
                     <option value="Low">🟢 Low</option>
                 </select>
-                @if (Board.Labels.Count > 0)
+                @if (Labels is not null && Labels.Count > 0)
                 {
                     <select class="tracks-filter-select" @bind="_labelFilter">
                         <option value="">All labels</option>
-                        @foreach (var label in Board.Labels)
+                        @foreach (var label in Labels)
                         {
                             <option value="@label.Id">@label.Title</option>
                         }
                     </select>
                 }
-                @if (Board.Mode == BoardMode.Team && Sprints is not null && Sprints.Count > 0 && Sprints.Count > 8)
+                @if (Sprints is not null && Sprints.Count > 0 && Sprints.Count > 8)
                 {
                     <select class="tracks-filter-select" @bind="_sprintFilter">
-                        <option value="">All cards</option>
+                        <option value="">All items</option>
                         @foreach (var sprint in Sprints.Where(s => s.Status != SprintStatus.Completed))
                         {
                             <option value="@sprint.Id">@sprint.Title @(sprint.Status == SprintStatus.Active ? "✓" : "")</option>
@@ -48,8 +48,8 @@
         </div>
     </div>
 
-    @* ── Sprint Tabs (Team mode, ≤8 sprints) ── *@
-    @if (Board.Mode == BoardMode.Team && Sprints is not null && Sprints.Count > 0 && Sprints.Count <= 8)
+    @* ── Sprint Tabs (team context, ≤8 sprints) ── *@
+    @if (Sprints is not null && Sprints.Count > 0 && Sprints.Count <= 8)
     {
         <div class="tracks-sprint-tabs">
             <button class="tracks-sprint-tab @(string.IsNullOrEmpty(_sprintFilter) ? "active" : "")"
@@ -79,8 +79,8 @@
     <div class="tracks-kanban-columns" id="tracks-kanban-columns">
         @foreach (var swimlane in Swimlanes)
         {
-            var swimlaneCards = GetFilteredCards(swimlane.Id);
-            var isWipExceeded = swimlane.CardLimit.HasValue && swimlaneCards.Count >= swimlane.CardLimit.Value;
+            var swimlaneItems = GetFilteredWorkItems(swimlane.Id);
+            var isWipExceeded = swimlane.CardLimit.HasValue && swimlaneItems.Count >= swimlane.CardLimit.Value;
 
             <div class="tracks-kanban-column"
                  data-swimlane-id="@swimlane.Id">
@@ -92,12 +92,12 @@
                         }
                         <span>@swimlane.Title</span>
                         <span class="tracks-card-count @(isWipExceeded ? "wip-exceeded" : "")">
-                            @swimlaneCards.Count@(swimlane.CardLimit.HasValue ? $"/{swimlane.CardLimit}" : "")
+                            @swimlaneItems.Count@(swimlane.CardLimit.HasValue ? $"/{swimlane.CardLimit}" : "")
                         </span>
                     </div>
                     <div class="tracks-kanban-column-actions">
-                        <button class="tracks-icon-btn" title="Add card"
-                                @onclick="() => BeginAddCard(swimlane.Id)">+</button>
+                        <button class="tracks-icon-btn" title="Add item"
+                                @onclick="() => BeginAddItem(swimlane.Id)">+</button>
                         <button class="tracks-icon-btn" title="Delete swimlane"
                                 @onclick="() => DeleteSwimlaneAsync(swimlane.Id)">×</button>
                     </div>
@@ -107,37 +107,37 @@
                      @ondragover="HandleDragOver"
                      @ondragover:preventDefault
                      @ondrop="() => HandleDropOnSwimlane(swimlane.Id)">
-                    @foreach (var card in swimlaneCards)
+                    @foreach (var item in swimlaneItems)
                     {
-                        <div class="tracks-kanban-card @(card.IsArchived ? "archived" : "") @GetPriorityClass(card.Priority) @(_dropTargetCardId == card.Id ? "drop-target" : "")"
+                        <div class="tracks-kanban-card @(item.IsArchived ? "archived" : "") @GetPriorityClass(item.Priority) @(_dropTargetItemId == item.Id ? "drop-target" : "")"
                              draggable="true"
-                             data-card-id="@card.Id"
-                             @ondragstart="() => HandleDragStart(card)"
-                             @ondragenter="() => HandleDragEnterCard(card.Id)"
-                             @onclick="() => OnCardSelected.InvokeAsync(card.Id)">
+                             data-card-id="@item.Id"
+                             @ondragstart="() => HandleDragStart(item)"
+                             @ondragenter="() => HandleDragEnterItem(item.Id)"
+                             @onclick="() => OnWorkItemSelected.InvokeAsync(item.Id)">
 
-                            @* ── Card Header (board-colored) ── *@
+                            @* ── Card Header (product-colored) ── *@
                             <div class="tracks-card-header" style="@GetCardHeaderStyle()">
-                                <span class="tracks-card-number">#@card.CardNumber</span>
+                                <span class="tracks-card-number">#@item.ItemNumber</span>
                                 <div class="tracks-card-header-actions">
-                                    @if (card.Priority != CardPriority.None)
+                                    @if (item.Priority != Priority.None)
                                     {
-                                        <span class="tracks-card-priority-badge" title="@card.Priority">@GetPriorityIcon(card.Priority)</span>
+                                        <span class="tracks-card-priority-badge" title="@item.Priority">@GetPriorityIcon(item.Priority)</span>
                                     }
-                                    <a href="/apps/tracks/card/@card.CardNumber" target="_blank" class="tracks-open-newtab-btn"
+                                    <a href="/apps/tracks/item/@Product.Id/@item.ItemNumber" target="_blank" class="tracks-open-newtab-btn"
                                        title="Open in new tab" @onclick:stopPropagation>⧉</a>
                                 </div>
                             </div>
 
                             @* ── Card Body ── *@
                             <div class="tracks-card-body">
-                                <div class="tracks-card-title">@card.Title</div>
+                                <div class="tracks-card-title">@item.Title</div>
 
                                 @* ── Labels ── *@
-                                @if (card.Labels.Count > 0)
+                                @if (item.Labels.Count > 0)
                                 {
                                     <div class="tracks-card-labels">
-                                        @foreach (var label in card.Labels)
+                                        @foreach (var label in item.Labels)
                                         {
                                             <span class="tracks-card-label-pill"
                                                   style="background: @label.Color; color: @GetContrastTextColor(label.Color);">@label.Title</span>
@@ -147,72 +147,66 @@
 
                                 @* ── Metadata badges ── *@
                                 @{
-                                    var hasMeta = card.DueDate.HasValue || card.StoryPoints.HasValue ||
-                                                  card.Checklists.Count > 0 || card.CommentCount > 0 || card.AttachmentCount > 0;
+                                    var hasMeta = item.DueDate.HasValue || item.StoryPoints.HasValue ||
+                                                  (item.Checklists is not null && item.Checklists.Count > 0) ||
+                                                  item.CommentCount > 0 || item.AttachmentCount > 0;
                                 }
                                 @if (hasMeta)
                                 {
                                     <div class="tracks-card-meta">
-                                        @if (card.DueDate.HasValue)
+                                        @if (item.DueDate.HasValue)
                                         {
-                                            <span class="tracks-card-badge @(IsOverdue(card.DueDate.Value) ? "overdue" : IsDueSoon(card.DueDate.Value) ? "due-soon" : "")">
-                                                📅 @TimeProvider.ToLocal(card.DueDate.Value).ToString("MMM d")
+                                            <span class="tracks-card-badge @(IsOverdue(item.DueDate.Value) ? "overdue" : IsDueSoon(item.DueDate.Value) ? "due-soon" : "")">
+                                                📅 @TimeProvider.ToLocal(item.DueDate.Value).ToString("MMM d")
                                             </span>
                                         }
-                                        @if (card.StoryPoints.HasValue)
+                                        @if (item.StoryPoints.HasValue)
                                         {
-                                            <span class="tracks-card-badge">@card.StoryPoints SP</span>
+                                            <span class="tracks-card-badge">@item.StoryPoints SP</span>
                                         }
-                                        @if (card.Checklists.Count > 0)
+                                        @if (item.Checklists is not null && item.Checklists.Count > 0)
                                         {
-                                            var totalItems = card.Checklists.Sum(c => c.Items.Count);
-                                            var doneItems = card.Checklists.Sum(c => c.Items.Count(i => i.IsCompleted));
+                                            var totalItems = item.Checklists.Sum(c => c.Items.Count);
+                                            var doneItems = item.Checklists.Sum(c => c.Items.Count(i => i.IsCompleted));
                                             <span class="tracks-card-badge @(doneItems == totalItems && totalItems > 0 ? "complete" : "")">
                                                 ☑ @doneItems/@totalItems
                                             </span>
                                         }
-                                        @if (card.CommentCount > 0)
+                                        @if (item.CommentCount > 0)
                                         {
-                                            <span class="tracks-card-badge">💬 @card.CommentCount</span>
+                                            <span class="tracks-card-badge">💬 @item.CommentCount</span>
                                         }
-                                        @if (card.AttachmentCount > 0)
+                                        @if (item.AttachmentCount > 0)
                                         {
-                                            <span class="tracks-card-badge">📎 @card.AttachmentCount</span>
+                                            <span class="tracks-card-badge">📎 @item.AttachmentCount</span>
                                         }
                                     </div>
                                 }
 
-                                @* ── Sprint Badge (Team mode only) ── *@
-                                @if (Board.Mode == BoardMode.Team && !string.IsNullOrEmpty(card.SprintTitle) && string.IsNullOrEmpty(_sprintFilter))
+                                @* ── Sprint Badge ── *@
+                                @if (!string.IsNullOrEmpty(item.SprintTitle) && string.IsNullOrEmpty(_sprintFilter))
                                 {
-                                    <div class="tracks-card-sprint-badge">🏃 @card.SprintTitle</div>
+                                    <div class="tracks-card-sprint-badge">🏃 @item.SprintTitle</div>
                                 }
 
                                 @* ── Footer: Assignees ── *@
-                                @if (card.Assignments.Count > 0)
+                                @if (item.Assignments.Count > 0)
                                 {
                                     <div class="tracks-card-footer">
                                         <div class="tracks-card-assignees">
-                                            @foreach (var assign in card.Assignments.Take(3))
+                                            @foreach (var assign in item.Assignments.Take(3))
                                             {
-                                                @if (!string.IsNullOrEmpty(assign.AvatarUrl))
-                                                {
-                                                    <img class="tracks-card-avatar-img" src="@assign.AvatarUrl" alt="@(assign.DisplayName ?? "User")" title="@(assign.DisplayName ?? "User")" />
-                                                }
-                                                else
-                                                {
-                                                    <span class="tracks-card-avatar" title="@(assign.DisplayName ?? "User")">
-                                                        @GetInitials(assign.DisplayName)
-                                                    </span>
-                                                }
-                                            }
-                                            @if (card.Assignments.Count > 3)
-                                            {
-                                                <span class="tracks-card-avatar tracks-card-avatar-more">
-                                                    +@(card.Assignments.Count - 3)
+                                                <span class="tracks-card-avatar" title="@(assign.DisplayName ?? "User")">
+                                                    @GetInitials(assign.DisplayName)
                                                 </span>
                                             }
-                                            <span class="tracks-card-assignee-name">@string.Join(", ", card.Assignments.Select(a => a.DisplayName ?? "User"))</span>
+                                            @if (item.Assignments.Count > 3)
+                                            {
+                                                <span class="tracks-card-avatar tracks-card-avatar-more">
+                                                    +@(item.Assignments.Count - 3)
+                                                </span>
+                                            }
+                                            <span class="tracks-card-assignee-name">@string.Join(", ", item.Assignments.Select(a => a.DisplayName ?? "User"))</span>
                                         </div>
                                     </div>
                                 }
@@ -220,15 +214,15 @@
                         </div>
                     }
 
-                    @if (_addingCardToSwimlane == swimlane.Id)
+                    @if (_addingItemToSwimlane == swimlane.Id)
                     {
                         <div class="tracks-kanban-card-add">
-                            <input type="text" class="form-control" placeholder="Card title..."
-                                   @bind="_newCardTitle" @bind:event="oninput"
-                                   @onkeydown="HandleAddCardKeyDown" />
+                            <input type="text" class="form-control" placeholder="Title..."
+                                   @bind="_newItemTitle" @bind:event="oninput"
+                                   @onkeydown="HandleAddItemKeyDown" />
                             <div class="tracks-card-add-actions">
-                                <button class="btn btn-sm btn-primary" @onclick="SubmitNewCardAsync">Add</button>
-                                <button class="btn btn-sm btn-secondary" @onclick="CancelAddCard">Cancel</button>
+                                <button class="btn btn-sm btn-primary" @onclick="SubmitNewItemAsync">Add</button>
+                                <button class="btn btn-sm btn-secondary" @onclick="CancelAddItem">Cancel</button>
                             </div>
                         </div>
                     }
@@ -237,8 +231,6 @@
         }
 
         @* ── Add Swimlane Column ── *@
-        @if (!Board.LockSwimlanes)
-        {
         <div class="tracks-kanban-add-swimlane">
             @if (_showAddSwimlane)
             {
@@ -259,6 +251,5 @@
                 </button>
             }
         </div>
-        }
     </div>
 </div>

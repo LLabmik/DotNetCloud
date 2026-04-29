@@ -5,21 +5,21 @@ using Microsoft.AspNetCore.Components;
 namespace DotNetCloud.Modules.Tracks.UI;
 
 /// <summary>
-/// Multi-step wizard for creating a year sprint plan on a Team board.
+/// Multi-step wizard for creating a year sprint plan on an Epic.
 /// Steps: Plan Basics → Swimlane Definition → Sprint Schedule → Review &amp; Create.
 /// </summary>
 public partial class SprintPlanningWizard : ComponentBase
 {
     [Inject] private ITracksApiClient ApiClient { get; set; } = default!;
 
-    /// <summary>The board to create the sprint plan for.</summary>
-    [Parameter, EditorRequired] public BoardDto Board { get; set; } = default!;
+    /// <summary>The epic to create the sprint plan for.</summary>
+    [Parameter, EditorRequired] public WorkItemDto Epic { get; set; } = default!;
 
-    /// <summary>Existing swimlanes on the board (empty if new board).</summary>
-    [Parameter] public IReadOnlyList<BoardSwimlaneDto> ExistingSwimlanes { get; set; } = [];
+    /// <summary>Existing swimlanes on the epic (empty if new epic).</summary>
+    [Parameter] public IReadOnlyList<SwimlaneDto> ExistingSwimlanes { get; set; } = [];
 
     /// <summary>Called when the wizard completes successfully.</summary>
-    [Parameter] public EventCallback<SprintPlanOverviewDto> OnPlanCreated { get; set; }
+    [Parameter] public EventCallback<IReadOnlyList<SprintDto>> OnPlanCreated { get; set; }
 
     /// <summary>Called when the user cancels the wizard.</summary>
     [Parameter] public EventCallback OnCancel { get; set; }
@@ -57,7 +57,7 @@ public partial class SprintPlanningWizard : ComponentBase
             }
             else
             {
-                // Default swimlanes for a new team board
+                // Default swimlanes for a new epic
                 _swimlanes.AddRange([
                     new SwimlaneEntry { Title = "To Do" },
                     new SwimlaneEntry { Title = "In Progress" },
@@ -203,12 +203,12 @@ public partial class SprintPlanningWizard : ComponentBase
 
         try
         {
-            // 1. Create swimlanes if the board doesn't have them yet
+            // 1. Create swimlanes if the epic doesn't have them yet
             if (ExistingSwimlanes.Count == 0)
             {
                 for (var i = 0; i < _swimlanes.Count; i++)
                 {
-                    await ApiClient.CreateSwimlaneAsync(Board.Id, new CreateBoardSwimlaneDto
+                    await ApiClient.CreateWorkItemSwimlaneAsync(Epic.Id, new CreateSwimlaneDto
                     {
                         Title = _swimlanes[i].Title,
                         IsDone = _swimlanes[i].IsDone
@@ -220,21 +220,21 @@ public partial class SprintPlanningWizard : ComponentBase
             var dto = new CreateSprintPlanDto
             {
                 StartDate = _startDate,
-                SprintCount = _sprintSchedule.Count,
-                DefaultDurationWeeks = _defaultDurationWeeks
+                NumberOfSprints = _sprintSchedule.Count,
+                SprintDurationWeeks = _defaultDurationWeeks
             };
 
-            var overview = await ApiClient.CreateSprintPlanAsync(Board.Id, dto);
+            var overview = await ApiClient.CreateSprintPlanAsync(Epic.Id, dto);
 
             // 3. Adjust individual sprint durations that differ from the default
             if (overview is not null)
             {
-                for (var i = 0; i < _sprintSchedule.Count && i < overview.Sprints.Count; i++)
+                for (var i = 0; i < _sprintSchedule.Count && i < overview.Count; i++)
                 {
                     if (_sprintSchedule[i].DurationWeeks != _defaultDurationWeeks)
                     {
-                        var sprintId = overview.Sprints[i].Id;
-                        var adjusted = await ApiClient.AdjustSprintAsync(sprintId, new AdjustSprintDto
+                        var sprintId = overview[i].Id;
+                        var adjusted = await ApiClient.AdjustSprintDatesAsync(sprintId, new AdjustSprintDto
                         {
                             DurationWeeks = _sprintSchedule[i].DurationWeeks
                         });

@@ -28,7 +28,7 @@ public partial class TracksActivityFeed : ComponentBase, IDisposable
     protected override void OnInitialized()
     {
         TracksActivity.ActivityReceived += OnActivityReceived;
-        TracksActivity.CardAssignedToMe += OnCardAssignedToMe;
+        TracksActivity.WorkItemAssignedToMe += OnWorkItemAssignedToMe;
     }
 
     private void OnActivityReceived(TracksActivitySignal signal)
@@ -36,7 +36,7 @@ public partial class TracksActivityFeed : ComponentBase, IDisposable
         var item = new ActivityItem
         {
             Action = signal.Action,
-            BoardId = signal.BoardId,
+            ProductId = signal.ProductId,
             Timestamp = signal.Timestamp,
             IsNew = true
         };
@@ -52,12 +52,12 @@ public partial class TracksActivityFeed : ComponentBase, IDisposable
         RequestRender();
     }
 
-    private void OnCardAssignedToMe(Guid cardId, Guid boardId, Guid assignedByUserId)
+    private void OnWorkItemAssignedToMe(Guid workItemId, Guid productId, Guid assignedByUserId)
     {
         _assignmentAlert = new AssignmentAlert
         {
-            CardId = cardId,
-            BoardId = boardId,
+            WorkItemId = workItemId,
+            ProductId = productId,
             AssignedByUserId = assignedByUserId,
             Timestamp = DateTime.UtcNow
         };
@@ -97,16 +97,16 @@ public partial class TracksActivityFeed : ComponentBase, IDisposable
     /// <summary>Returns a human-readable label for a given Tracks action.</summary>
     protected static string GetActionText(string action) => action switch
     {
-        "card_created" => "Card created",
-        "card_moved" => "Card moved",
-        "card_updated" => "Card updated",
-        "card_deleted" => "Card deleted",
-        "card_assigned" => "Card assigned",
+        "workitem_created" => "Item created",
+        "workitem_moved" => "Item moved",
+        "workitem_updated" => "Item updated",
+        "workitem_deleted" => "Item deleted",
+        "workitem_assigned" => "Item assigned",
         "comment_added" => "Comment added",
         "sprint_started" => "Sprint started",
         "sprint_completed" => "Sprint completed",
-        "board_created" => "Board created",
-        "board_deleted" => "Board deleted",
+        "product_created" => "Product created",
+        "product_deleted" => "Product deleted",
         _ => action.Replace('_', ' ')
     };
 
@@ -126,14 +126,14 @@ public partial class TracksActivityFeed : ComponentBase, IDisposable
     public void Dispose()
     {
         TracksActivity.ActivityReceived -= OnActivityReceived;
-        TracksActivity.CardAssignedToMe -= OnCardAssignedToMe;
+        TracksActivity.WorkItemAssignedToMe -= OnWorkItemAssignedToMe;
     }
 
     /// <summary>An activity item displayed in the feed.</summary>
     internal sealed class ActivityItem
     {
         public required string Action { get; init; }
-        public required Guid BoardId { get; init; }
+        public required Guid ProductId { get; init; }
         public required DateTime Timestamp { get; init; }
         public bool IsNew { get; set; }
     }
@@ -141,8 +141,8 @@ public partial class TracksActivityFeed : ComponentBase, IDisposable
     /// <summary>An assignment alert for the current user.</summary>
     internal sealed class AssignmentAlert
     {
-        public required Guid CardId { get; init; }
-        public required Guid BoardId { get; init; }
+        public required Guid WorkItemId { get; init; }
+        public required Guid ProductId { get; init; }
         public required Guid AssignedByUserId { get; init; }
         public required DateTime Timestamp { get; init; }
     }

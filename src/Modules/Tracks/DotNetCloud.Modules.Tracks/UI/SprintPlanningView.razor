@@ -10,13 +10,13 @@
                 <span>📅 @Sprint.StartDate.Value.ToString("MMM d") – @Sprint.EndDate.Value.ToString("MMM d")</span>
             }
         </div>
-        <button class="btn btn-sm btn-outline" @onclick="OnClose">← Back to Board</button>
+        <button class="btn btn-sm btn-outline" @onclick="OnClose">← Back to Epic</button>
     </div>
 
     @* ── Capacity Bar ── *@
     <div class="tracks-sprint-capacity">
         @{
-            var committedSp = _sprintCards.Where(c => c.StoryPoints.HasValue).Sum(c => c.StoryPoints!.Value);
+            var committedSp = _sprintItems.Where(i => i.StoryPoints.HasValue).Sum(i => i.StoryPoints!.Value);
             var targetSp = _targetStoryPoints ?? 0;
             var capacityPct = targetSp > 0 ? Math.Min(100, committedSp * 100 / targetSp) : 0;
             var isOvercommitted = targetSp > 0 && committedSp > targetSp;
@@ -55,7 +55,7 @@
         <div class="tracks-planning-panel backlog">
             <div class="tracks-planning-panel-header">
                 <h3>Product Backlog</h3>
-                <span class="tracks-muted">@_backlogCards.Count cards</span>
+                <span class="tracks-muted">@_backlogItems.Count items</span>
             </div>
             <input type="text" class="form-control form-control-sm" placeholder="Search backlog..."
                    @bind="_backlogSearch" @bind:event="oninput" />
@@ -68,22 +68,22 @@
                 else
                 {
                     var filteredBacklog = GetFilteredBacklog();
-                    var priorityGroups = filteredBacklog.GroupBy(c => c.Priority)
+                    var priorityGroups = filteredBacklog.GroupBy(item => item.Priority)
                         .OrderByDescending(g => g.Key);
 
                     @foreach (var group in priorityGroups)
                     {
                         <div class="tracks-planning-priority-group">
                             <div class="tracks-planning-group-header">@GetPriorityLabel(group.Key)</div>
-                            @foreach (var card in group)
+                            @foreach (var item in group)
                             {
                                 <div class="tracks-planning-card"
-                                     @onclick="() => AddToSprintAsync(card.Id)">
-                                    <span class="tracks-card-number">#@card.CardNumber</span>
-                                    <span class="tracks-planning-card-title">@card.Title</span>
-                                    @if (card.StoryPoints.HasValue)
+                                     @onclick="() => AddToSprintAsync(item.Id)">
+                                    <span class="tracks-card-number">#@item.ItemNumber</span>
+                                    <span class="tracks-planning-card-title">@item.Title</span>
+                                    @if (item.StoryPoints.HasValue)
                                     {
-                                        <span class="tracks-sprint-card-sp">@card.StoryPoints SP</span>
+                                        <span class="tracks-sprint-card-sp">@item.StoryPoints SP</span>
                                     }
                                     else
                                     {
@@ -97,7 +97,7 @@
 
                     @if (filteredBacklog.Count == 0)
                     {
-                        <p class="tracks-muted">No backlog cards found.</p>
+                        <p class="tracks-muted">No backlog items found.</p>
                     }
                 }
             </div>
@@ -107,7 +107,7 @@
         <div class="tracks-planning-panel sprint">
             <div class="tracks-planning-panel-header">
                 <h3>Sprint Backlog</h3>
-                <span class="tracks-muted">@_sprintCards.Count cards · @committedSp SP</span>
+                <span class="tracks-muted">@_sprintItems.Count items · @committedSp SP</span>
             </div>
 
             <div class="tracks-planning-card-list">
@@ -117,24 +117,24 @@
                 }
                 else
                 {
-                    @* ── Committed Cards ── *@
-                    var estimated = _sprintCards.Where(c => c.StoryPoints.HasValue).ToList();
-                    var unestimated = _sprintCards.Where(c => !c.StoryPoints.HasValue).ToList();
+                    @* ── Committed Items ── *@
+                    var estimated = _sprintItems.Where(i => i.StoryPoints.HasValue).ToList();
+                    var unestimated = _sprintItems.Where(i => !i.StoryPoints.HasValue).ToList();
 
                     @if (estimated.Count > 0)
                     {
                         <div class="tracks-planning-group-header">Committed (@estimated.Count)</div>
-                        @foreach (var card in estimated)
+                        @foreach (var item in estimated)
                         {
-                            <div class="tracks-planning-card @(card.IsArchived ? "completed" : "")">
-                                <span class="tracks-sprint-card-status">@(card.IsArchived ? "✓" : "☐")</span>
-                                <span class="tracks-card-number">#@card.CardNumber</span>
-                                <span class="tracks-planning-card-title" @onclick="() => OnCardSelected.InvokeAsync(card.Id)">
-                                    @card.Title
+                            <div class="tracks-planning-card @(item.IsArchived ? "completed" : "")">
+                                <span class="tracks-sprint-card-status">@(item.IsArchived ? "✓" : "☐")</span>
+                                <span class="tracks-card-number">#@item.ItemNumber</span>
+                                <span class="tracks-planning-card-title" @onclick="() => OnWorkItemSelected.InvokeAsync(item.Id)">
+                                    @item.Title
                                 </span>
-                                <span class="tracks-sprint-card-sp">@card.StoryPoints SP</span>
+                                <span class="tracks-sprint-card-sp">@item.StoryPoints SP</span>
                                 <button class="tracks-remove-btn" title="Remove from sprint"
-                                        @onclick="() => RemoveFromSprintAsync(card.Id)">←</button>
+                                        @onclick="() => RemoveFromSprintAsync(item.Id)">←</button>
                             </div>
                         }
                     }
@@ -143,33 +143,33 @@
                     @if (unestimated.Count > 0)
                     {
                         <div class="tracks-planning-group-header needs-estimate">Needs Estimate (@unestimated.Count)</div>
-                        @foreach (var card in unestimated)
+                        @foreach (var item in unestimated)
                         {
                             <div class="tracks-planning-card needs-estimate">
                                 <span class="tracks-sprint-card-status">☐</span>
-                                <span class="tracks-card-number">#@card.CardNumber</span>
-                                <span class="tracks-planning-card-title" @onclick="() => OnCardSelected.InvokeAsync(card.Id)">
-                                    @card.Title
+                                <span class="tracks-card-number">#@item.ItemNumber</span>
+                                <span class="tracks-planning-card-title" @onclick="() => OnWorkItemSelected.InvokeAsync(item.Id)">
+                                    @item.Title
                                 </span>
                                 <span class="tracks-sprint-card-sp no-estimate">? SP</span>
                                 <button class="tracks-remove-btn" title="Remove from sprint"
-                                        @onclick="() => RemoveFromSprintAsync(card.Id)">←</button>
+                                        @onclick="() => RemoveFromSprintAsync(item.Id)">←</button>
                             </div>
                         }
                     }
 
-                    @if (_sprintCards.Count == 0)
+                    @if (_sprintItems.Count == 0)
                     {
-                        <p class="tracks-muted">No cards in this sprint. Add cards from the backlog.</p>
+                        <p class="tracks-muted">No items in this sprint. Add items from the backlog.</p>
                     }
                 }
             </div>
 
             @* ── Member Workload ── *@
             @{
-                var memberWorkload = _sprintCards
-                    .Where(c => !c.IsArchived)
-                    .SelectMany(c => c.Assignments.Select(a => new { a.UserId, DisplayName = a.DisplayName ?? "User", c.StoryPoints }))
+                var memberWorkload = _sprintItems
+                    .Where(i => !i.IsArchived)
+                    .SelectMany(i => i.Assignments.Select(a => new { a.UserId, DisplayName = a.DisplayName ?? "User", i.StoryPoints }))
                     .GroupBy(x => new { x.UserId, x.DisplayName })
                     .Select(g => new { g.Key.DisplayName, TotalSp = g.Sum(x => x.StoryPoints ?? 0), Count = g.Count() })
                     .OrderByDescending(m => m.TotalSp)
@@ -188,7 +188,7 @@
                             <div class="tracks-workload-bar-container">
                                 <div class="tracks-workload-bar" style="width: @barWidth%"></div>
                             </div>
-                            <span class="tracks-workload-sp">@member.TotalSp SP (@member.Count cards)</span>
+                            <span class="tracks-workload-sp">@member.TotalSp SP (@member.Count items)</span>
                         </div>
                     }
                 </div>
@@ -199,6 +199,6 @@
     @* ── Charts Section ── *@
     <div class="tracks-planning-charts">
         <SprintBurndownChart SprintId="Sprint.Id" />
-        <VelocityChart BoardId="BoardId" />
+        <VelocityChart ProductId="EpicId" />
     </div>
 </div>

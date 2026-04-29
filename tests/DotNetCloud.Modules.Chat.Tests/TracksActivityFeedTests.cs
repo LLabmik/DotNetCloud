@@ -28,7 +28,7 @@ public class TracksActivityFeedTests
         var assignmentFired = false;
 
         stub.ActivityReceived += _ => activityFired = true;
-        stub.CardAssignedToMe += (_, _, _) => assignmentFired = true;
+        stub.WorkItemAssignedToMe += (_, _, _) => assignmentFired = true;
 
         // Nothing should fire — these are events that never trigger on the null stub
         Assert.IsFalse(activityFired);
@@ -65,7 +65,7 @@ public class TracksActivityFeedTests
         service.RaiseActivity(new TracksActivitySignal
         {
             Action = "card_created",
-            BoardId = Guid.NewGuid(),
+            ProductId = Guid.NewGuid(),
             Timestamp = DateTime.UtcNow
         });
 
@@ -83,14 +83,14 @@ public class TracksActivityFeedTests
         service.RaiseActivity(new TracksActivitySignal
         {
             Action = "card_created",
-            BoardId = Guid.NewGuid(),
+            ProductId = Guid.NewGuid(),
             Timestamp = DateTime.UtcNow.AddSeconds(-10)
         });
 
         service.RaiseActivity(new TracksActivitySignal
         {
             Action = "card_moved",
-            BoardId = Guid.NewGuid(),
+            ProductId = Guid.NewGuid(),
             Timestamp = DateTime.UtcNow
         });
 
@@ -105,15 +105,15 @@ public class TracksActivityFeedTests
         var service = new FakeTracksActivityService(isActive: true);
         var component = CreateComponent(service);
         component.SimulateOnInitialized();
-        var cardId = Guid.NewGuid();
-        var boardId = Guid.NewGuid();
+        var workItemId = Guid.NewGuid();
+        var productId = Guid.NewGuid();
         var assignedBy = Guid.NewGuid();
 
-        service.RaiseCardAssigned(cardId, boardId, assignedBy);
+        service.RaiseWorkItemAssigned(workItemId, productId, assignedBy);
 
         Assert.IsNotNull(component.TestAssignmentAlert);
-        Assert.AreEqual(cardId, component.TestAssignmentAlert.CardId);
-        Assert.AreEqual(boardId, component.TestAssignmentAlert.BoardId);
+        Assert.AreEqual(workItemId, component.TestAssignmentAlert.WorkItemId);
+        Assert.AreEqual(productId, component.TestAssignmentAlert.ProductId);
     }
 
     [TestMethod]
@@ -123,7 +123,7 @@ public class TracksActivityFeedTests
         var component = CreateComponent(service);
         component.SimulateOnInitialized();
 
-        service.RaiseCardAssigned(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+        service.RaiseWorkItemAssigned(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
         Assert.IsNotNull(component.TestAssignmentAlert);
 
         component.SimulateDismissAssignment();
@@ -143,7 +143,7 @@ public class TracksActivityFeedTests
         service.RaiseActivity(new TracksActivitySignal
         {
             Action = "card_deleted",
-            BoardId = Guid.NewGuid(),
+            ProductId = Guid.NewGuid(),
             Timestamp = DateTime.UtcNow
         });
 
@@ -233,11 +233,11 @@ public class TracksActivityFeedTests
 
         public bool IsActive { get; }
         public event Action<TracksActivitySignal>? ActivityReceived;
-        public event Action<Guid, Guid, Guid>? CardAssignedToMe;
+        public event Action<Guid, Guid, Guid>? WorkItemAssignedToMe;
 
         public void RaiseActivity(TracksActivitySignal signal) => ActivityReceived?.Invoke(signal);
-        public void RaiseCardAssigned(Guid cardId, Guid boardId, Guid assignedBy) =>
-            CardAssignedToMe?.Invoke(cardId, boardId, assignedBy);
+        public void RaiseWorkItemAssigned(Guid workItemId, Guid productId, Guid assignedBy) =>
+            WorkItemAssignedToMe?.Invoke(workItemId, productId, assignedBy);
     }
 
     /// <summary>
@@ -248,7 +248,7 @@ public class TracksActivityFeedTests
         public bool IsActive => false;
 #pragma warning disable CS0067
         public event Action<TracksActivitySignal>? ActivityReceived;
-        public event Action<Guid, Guid, Guid>? CardAssignedToMe;
+        public event Action<Guid, Guid, Guid>? WorkItemAssignedToMe;
 #pragma warning restore CS0067
     }
 }
