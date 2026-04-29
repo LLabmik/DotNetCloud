@@ -32,13 +32,26 @@ else
             </div>
 
             <div class="form-group">
-                <label for="locale">Locale</label>
-                <InputText id="locale" class="input" @bind-Value="_model.Locale" />
+                <label for="locale">Language / Region</label>
+                <InputSelect id="locale" class="input" @bind-Value="_model!.Locale">
+                    @if (!LocaleOptions.Any(x => x.Code.Equals(_model!.Locale, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        <option value="@_model!.Locale">@_model!.Locale (current)</option>
+                    }
+                    @foreach (var item in LocaleOptions)
+                    {
+                        <option value="@item.Code">@item.Name</option>
+                    }
+                </InputSelect>
             </div>
 
             <div class="form-group">
                 <label for="timezone">Timezone</label>
-                <InputText id="timezone" class="input" @bind-Value="_model.Timezone" />
+                <InputText id="timezone" class="input" @bind-Value="_model!.Timezone" />
+                <span class="hint">e.g., UTC, America/New_York, Europe/London</span>
+                <button type="button" class="btn btn-sm btn-outline" style="margin-top: 6px;" @onclick="DetectTimezoneAsync" disabled="@_detectingTimezone">
+                    @(_detectingTimezone ? "Detecting..." : "Detect from browser")
+                </button>
             </div>
 
             <div class="form-group">
@@ -67,9 +80,11 @@ else
     [Inject] private DotNetCloudApiClient Api { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
     [Inject] private NavigationManager Nav { get; set; } = default!;
+    [Inject] private IJSRuntime JS { get; set; } = default!;
 
     private bool _loading = true;
     private bool _submitting;
+    private bool _detectingTimezone;
     private string? _errorMessage;
     private UpdateUserDto? _model;
     private double _quotaMb;
@@ -132,4 +147,72 @@ else
             _submitting = false;
         }
     }
+
+    private async Task DetectTimezoneAsync()
+    {
+        if (_model is null) return;
+        _detectingTimezone = true;
+        try
+        {
+            var tz = await JS.InvokeAsync<string>("dotnetcloud.getTimezone");
+            if (!string.IsNullOrWhiteSpace(tz))
+            {
+                _model.Timezone = tz;
+                Toast.ShowSuccess($"Timezone detected: {tz}");
+            }
+        }
+        catch
+        {
+            Toast.ShowError("Could not detect timezone.");
+        }
+        finally
+        {
+            _detectingTimezone = false;
+        }
+    }
+
+    private static readonly (string Code, string Name)[] LocaleOptions =
+    [
+        ("en-US", "English (United States)"),
+        ("en-GB", "English (United Kingdom)"),
+        ("en-CA", "English (Canada)"),
+        ("en-AU", "English (Australia)"),
+        ("en-NZ", "English (New Zealand)"),
+        ("de-DE", "German (Germany)"),
+        ("de-AT", "German (Austria)"),
+        ("de-CH", "German (Switzerland)"),
+        ("fr-FR", "French (France)"),
+        ("fr-CA", "French (Canada)"),
+        ("fr-BE", "French (Belgium)"),
+        ("fr-CH", "French (Switzerland)"),
+        ("es-ES", "Spanish (Spain)"),
+        ("es-MX", "Spanish (Mexico)"),
+        ("es-AR", "Spanish (Argentina)"),
+        ("it-IT", "Italian (Italy)"),
+        ("pt-BR", "Portuguese (Brazil)"),
+        ("pt-PT", "Portuguese (Portugal)"),
+        ("nl-NL", "Dutch (Netherlands)"),
+        ("nl-BE", "Dutch (Belgium)"),
+        ("sv-SE", "Swedish (Sweden)"),
+        ("nb-NO", "Norwegian (Norway)"),
+        ("da-DK", "Danish (Denmark)"),
+        ("fi-FI", "Finnish (Finland)"),
+        ("pl-PL", "Polish (Poland)"),
+        ("cs-CZ", "Czech (Czech Republic)"),
+        ("sk-SK", "Slovak (Slovakia)"),
+        ("hu-HU", "Hungarian (Hungary)"),
+        ("ro-RO", "Romanian (Romania)"),
+        ("hr-HR", "Croatian (Croatia)"),
+        ("bg-BG", "Bulgarian (Bulgaria)"),
+        ("ru-RU", "Russian (Russia)"),
+        ("uk-UA", "Ukrainian (Ukraine)"),
+        ("tr-TR", "Turkish (Turkey)"),
+        ("ar-SA", "Arabic (Saudi Arabia)"),
+        ("ar-AE", "Arabic (UAE)"),
+        ("he-IL", "Hebrew (Israel)"),
+        ("ja-JP", "Japanese (Japan)"),
+        ("ko-KR", "Korean (South Korea)"),
+        ("zh-CN", "Chinese Simplified (China)"),
+        ("zh-TW", "Chinese Traditional (Taiwan)"),
+    ];
 }

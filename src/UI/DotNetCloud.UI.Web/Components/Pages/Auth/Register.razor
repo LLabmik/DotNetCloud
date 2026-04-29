@@ -29,6 +29,61 @@
             </div>
 
             <div class="form-group">
+                <label for="register-locale">Language / Region</label>
+                <select id="register-locale" name="_model.Locale" class="input">
+                    <option value="en-US">English (United States)</option>
+                    <option value="en-GB">English (United Kingdom)</option>
+                    <option value="en-CA">English (Canada)</option>
+                    <option value="en-AU">English (Australia)</option>
+                    <option value="en-NZ">English (New Zealand)</option>
+                    <option value="de-DE">German (Germany)</option>
+                    <option value="de-AT">German (Austria)</option>
+                    <option value="de-CH">German (Switzerland)</option>
+                    <option value="fr-FR">French (France)</option>
+                    <option value="fr-CA">French (Canada)</option>
+                    <option value="fr-BE">French (Belgium)</option>
+                    <option value="fr-CH">French (Switzerland)</option>
+                    <option value="es-ES">Spanish (Spain)</option>
+                    <option value="es-MX">Spanish (Mexico)</option>
+                    <option value="es-AR">Spanish (Argentina)</option>
+                    <option value="it-IT">Italian (Italy)</option>
+                    <option value="pt-BR">Portuguese (Brazil)</option>
+                    <option value="pt-PT">Portuguese (Portugal)</option>
+                    <option value="nl-NL">Dutch (Netherlands)</option>
+                    <option value="nl-BE">Dutch (Belgium)</option>
+                    <option value="sv-SE">Swedish (Sweden)</option>
+                    <option value="nb-NO">Norwegian (Norway)</option>
+                    <option value="da-DK">Danish (Denmark)</option>
+                    <option value="fi-FI">Finnish (Finland)</option>
+                    <option value="pl-PL">Polish (Poland)</option>
+                    <option value="cs-CZ">Czech (Czech Republic)</option>
+                    <option value="sk-SK">Slovak (Slovakia)</option>
+                    <option value="hu-HU">Hungarian (Hungary)</option>
+                    <option value="ro-RO">Romanian (Romania)</option>
+                    <option value="hr-HR">Croatian (Croatia)</option>
+                    <option value="bg-BG">Bulgarian (Bulgaria)</option>
+                    <option value="ru-RU">Russian (Russia)</option>
+                    <option value="uk-UA">Ukrainian (Ukraine)</option>
+                    <option value="tr-TR">Turkish (Turkey)</option>
+                    <option value="ar-SA">Arabic (Saudi Arabia)</option>
+                    <option value="ar-AE">Arabic (UAE)</option>
+                    <option value="he-IL">Hebrew (Israel)</option>
+                    <option value="ja-JP">Japanese (Japan)</option>
+                    <option value="ko-KR">Korean (South Korea)</option>
+                    <option value="zh-CN">Chinese Simplified (China)</option>
+                    <option value="zh-TW">Chinese Traditional (Taiwan)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="register-timezone">Timezone</label>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <input type="text" id="register-timezone" name="_model.Timezone" class="input" value="@(_model?.Timezone ?? "UTC")" style="flex: 1;" placeholder="e.g. America/New_York" />
+                    <button type="button" class="btn btn-sm btn-outline" onclick="dotnetcloud.detectAndFillTimezone('register-timezone')">Detect</button>
+                </div>
+            </div>
+
+            <div class="form-group">
                 <label for="password">Password</label>
                 <InputText id="password" class="input" type="password" @bind-Value="_model!.Password" />
                 <ValidationMessage For="() => _model!.Password" />
@@ -39,8 +94,6 @@
                 <InputText id="confirmPassword" class="input" type="password" @bind-Value="_model!.ConfirmPassword" />
                 <ValidationMessage For="() => _model!.ConfirmPassword" />
             </div>
-
-            <input type="hidden" name="_model.Timezone" id="register-timezone" value="" />
 
             @if (!string.IsNullOrWhiteSpace(_errorMessage))
             {
@@ -71,8 +124,23 @@
         try {
             var tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
             if (tz) {
-                var el = document.getElementById('register-timezone');
-                if (el) el.value = tz;
+                var tzEl = document.getElementById('register-timezone');
+                if (tzEl) tzEl.value = tz;
+            }
+            var lang = navigator.language || (navigator.languages && navigator.languages[0]);
+            if (lang) {
+                var localeEl = document.getElementById('register-locale');
+                if (localeEl) {
+                    var options = Array.from(localeEl.options);
+                    var exact = options.find(function (o) { return o.value.toLowerCase() === lang.toLowerCase(); });
+                    if (exact) {
+                        localeEl.value = exact.value;
+                    } else {
+                        var prefix = lang.split('-')[0].toLowerCase();
+                        var prefixMatch = options.find(function (o) { return o.value.toLowerCase().startsWith(prefix + '-'); });
+                        if (prefixMatch) localeEl.value = prefixMatch.value;
+                    }
+                }
             }
         } catch (e) { }
     })();
@@ -113,7 +181,7 @@
                 UserName = _model.Email,
                 Email = _model.Email,
                 DisplayName = _model.DisplayName,
-                Locale = "en-US",
+                Locale = !string.IsNullOrWhiteSpace(_model.Locale) ? _model.Locale : "en-US",
                 Timezone = !string.IsNullOrWhiteSpace(_model.Timezone) ? _model.Timezone : "UTC",
                 CreatedAt = DateTime.UtcNow,
                 IsActive = true
@@ -146,6 +214,7 @@
         public string DisplayName { get; set; } = string.Empty;
         public string Password { get; set; } = string.Empty;
         public string ConfirmPassword { get; set; } = string.Empty;
+        public string Locale { get; set; } = "en-US";
         public string Timezone { get; set; } = "UTC";
     }
 }
