@@ -56,6 +56,7 @@ public sealed partial class TeamManagement : ComponentBase
     private string _addMemberRole = "Member";
     private Guid _selectedUserId;
     private IReadOnlyList<UserSearchResult> _searchResults = [];
+    private HashSet<Guid> _existingMemberIds = [];
     private System.Timers.Timer? _searchDebounce;
 
     /// <inheritdoc />
@@ -74,11 +75,12 @@ public sealed partial class TeamManagement : ComponentBase
         _teams = Teams;
     }
 
-    private void ExpandTeam(Guid teamId)
+    private async Task ExpandTeamAsync(Guid teamId)
     {
         if (_selectedTeamId == teamId)
         {
             _selectedTeamId = null;
+            _existingMemberIds.Clear();
             return;
         }
 
@@ -88,6 +90,16 @@ public sealed partial class TeamManagement : ComponentBase
         {
             _editName = team.Name;
             _editDescription = team.Description;
+        }
+
+        try
+        {
+            var members = await Api.ListTeamMembersAsync(teamId);
+            _existingMemberIds = members.Select(m => m.UserId).ToHashSet();
+        }
+        catch
+        {
+            _existingMemberIds = [];
         }
     }
 
@@ -170,7 +182,7 @@ public sealed partial class TeamManagement : ComponentBase
                 var results = await UserDirectory.SearchUsersAsync(_addMemberSearch.Trim(), cancellationToken: CancellationToken.None);
                 await InvokeAsync(() =>
                 {
-                    _searchResults = results;
+                    _searchResults = results.Where(r => !_existingMemberIds.Contains(r.Id)).ToList();
                     StateHasChanged();
                 });
             }

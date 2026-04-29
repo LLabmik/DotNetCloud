@@ -29,6 +29,7 @@ public class TracksDbContext : DbContext
     public DbSet<Activity> Activities => Set<Activity>();
     public DbSet<PokerSession> PokerSessions => Set<PokerSession>();
     public DbSet<PokerVote> PokerVotes => Set<PokerVote>();
+    public DbSet<Team> Teams => Set<Team>();
     public DbSet<TeamRole> TeamRoles => Set<TeamRole>();
     public DbSet<ProductTemplate> ProductTemplates => Set<ProductTemplate>();
     public DbSet<ItemTemplate> ItemTemplates => Set<ItemTemplate>();

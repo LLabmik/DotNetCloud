@@ -430,8 +430,8 @@ public sealed record CreateWorkItemDto
     public Priority Priority { get; init; }
     public DateTime? DueDate { get; init; }
     public int? StoryPoints { get; init; }
-    public List<Guid>? AssigneeIds { get; init; }
-    public List<Guid>? LabelIds { get; init; }
+    public List<Guid> AssigneeIds { get; init; } = [];
+    public List<Guid> LabelIds { get; init; } = [];
 }
 
 public sealed record UpdateWorkItemDto

@@ -45,7 +45,7 @@
                         <button class="btn btn-sm btn-outline" @onclick="() => OnTeamSelected.InvokeAsync(team.Id)">
                             View Boards
                         </button>
-                        <button class="btn btn-sm btn-outline" @onclick="() => ExpandTeam(team.Id)">
+                        <button class="btn btn-sm btn-outline" @onclick="() => ExpandTeamAsync(team.Id)">
                             @(_selectedTeamId == team.Id ? "Close" : "Manage")
                         </button>
                     </div>

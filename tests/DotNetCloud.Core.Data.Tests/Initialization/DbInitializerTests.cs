@@ -83,28 +83,15 @@ public class DbInitializerTests
 
         // Assert - Verify roles were seeded
         var roles = await _context.Roles.ToListAsync();
-        Assert.AreEqual(4, roles.Count, "Should seed 4 default roles");
-        Assert.IsTrue(roles.Any(r => r.Name == "Administrator"), "Should include Administrator role");
-        Assert.IsTrue(roles.Any(r => r.Name == "User"), "Should include User role");
-        Assert.IsTrue(roles.Any(r => r.Name == "Guest"), "Should include Guest role");
-        Assert.IsTrue(roles.Any(r => r.Name == "Moderator"), "Should include Moderator role");
+        Assert.AreEqual(3, roles.Count, "Should seed 3 default org roles");
+        Assert.IsTrue(roles.Any(r => r.Name == "Org Admin"), "Should include Org Admin role");
+        Assert.IsTrue(roles.Any(r => r.Name == "Org Manager"), "Should include Org Manager role");
+        Assert.IsTrue(roles.Any(r => r.Name == "Org Member"), "Should include Org Member role");
         Assert.IsTrue(roles.All(r => r.IsSystemRole), "All seeded roles should be system roles");
 
-        // Assert - Verify permissions were seeded
+        // Assert - Permissions seeding is deferred to a future phase
         var permissions = await _context.Permissions.ToListAsync();
-        Assert.IsTrue(permissions.Count >= 40, $"Should seed at least 40 permissions, got {permissions.Count}");
-        
-        // Verify core permissions
-        Assert.IsTrue(permissions.Any(p => p.Code == "core.admin"), "Should include core.admin permission");
-        Assert.IsTrue(permissions.Any(p => p.Code == "core.users.view"), "Should include core.users.view permission");
-        
-        // Verify files permissions
-        Assert.IsTrue(permissions.Any(p => p.Code == "files.upload"), "Should include files.upload permission");
-        Assert.IsTrue(permissions.Any(p => p.Code == "files.download"), "Should include files.download permission");
-        
-        // Verify chat permissions
-        Assert.IsTrue(permissions.Any(p => p.Code == "chat.send"), "Should include chat.send permission");
-        Assert.IsTrue(permissions.Any(p => p.Code == "chat.read"), "Should include chat.read permission");
+        Assert.AreEqual(0, permissions.Count, "Should not seed any permissions yet");
 
         // Assert - Verify system settings were seeded
         var settings = await _context.SystemSettings.ToListAsync();
@@ -135,11 +122,10 @@ public class DbInitializerTests
 
         // Assert - Verify no duplicates
         var roles = await _context.Roles.ToListAsync();
-        Assert.AreEqual(4, roles.Count, "Should still have exactly 4 roles after second initialization");
+        Assert.AreEqual(3, roles.Count, "Should still have exactly 3 org roles after second initialization");
 
         var permissions = await _context.Permissions.ToListAsync();
-        var permissionCount = permissions.Count;
-        Assert.IsTrue(permissionCount >= 40, "Should have seeded permissions");
+        Assert.AreEqual(0, permissions.Count, "Should not seed any permissions (deferred)");
 
         var settings = await _context.SystemSettings.ToListAsync();
         var settingsCount = settings.Count;
@@ -148,10 +134,7 @@ public class DbInitializerTests
         var allUsersGroupCount = await _context.Groups.CountAsync(g => g.IsAllUsersGroup);
         Assert.AreEqual(1, allUsersGroupCount, "Initializer should remain idempotent for the built-in All Users group");
 
-        // Verify no duplicate codes/keys
-        var distinctPermissionCodes = permissions.Select(p => p.Code).Distinct().Count();
-        Assert.AreEqual(permissionCount, distinctPermissionCodes, "All permission codes should be unique");
-
+        // Verify no duplicate keys in settings
         var distinctSettingKeys = settings.Select(s => new { s.Module, s.Key }).Distinct().Count();
         Assert.AreEqual(settingsCount, distinctSettingKeys, "All setting keys should be unique per module");
     }
@@ -181,57 +164,31 @@ public class DbInitializerTests
         await _initializer.InitializeAsync();
 
         // Assert
-        var adminRole = await _context.Roles.FirstOrDefaultAsync(r => r.Name == "Administrator");
-        Assert.IsNotNull(adminRole, "Administrator role should exist");
-        Assert.IsTrue(adminRole.IsSystemRole, "Administrator should be a system role");
-        Assert.IsFalse(string.IsNullOrEmpty(adminRole.Description), "Administrator should have a description");
+        var adminRole = await _context.Roles.FirstOrDefaultAsync(r => r.Name == "Org Admin");
+        Assert.IsNotNull(adminRole, "Org Admin role should exist");
+        Assert.IsTrue(adminRole.IsSystemRole, "Org Admin should be a system role");
+        Assert.IsFalse(string.IsNullOrEmpty(adminRole.Description), "Org Admin should have a description");
 
-        var userRole = await _context.Roles.FirstOrDefaultAsync(r => r.Name == "User");
-        Assert.IsNotNull(userRole, "User role should exist");
-        Assert.IsTrue(userRole.IsSystemRole, "User should be a system role");
-        Assert.IsFalse(string.IsNullOrEmpty(userRole.Description), "User should have a description");
+        var managerRole = await _context.Roles.FirstOrDefaultAsync(r => r.Name == "Org Manager");
+        Assert.IsNotNull(managerRole, "Org Manager role should exist");
+        Assert.IsTrue(managerRole.IsSystemRole, "Org Manager should be a system role");
+        Assert.IsFalse(string.IsNullOrEmpty(managerRole.Description), "Org Manager should have a description");
 
-        var guestRole = await _context.Roles.FirstOrDefaultAsync(r => r.Name == "Guest");
-        Assert.IsNotNull(guestRole, "Guest role should exist");
-        Assert.IsTrue(guestRole.IsSystemRole, "Guest should be a system role");
-        Assert.IsFalse(string.IsNullOrEmpty(guestRole.Description), "Guest should have a description");
-
-        var moderatorRole = await _context.Roles.FirstOrDefaultAsync(r => r.Name == "Moderator");
-        Assert.IsNotNull(moderatorRole, "Moderator role should exist");
-        Assert.IsTrue(moderatorRole.IsSystemRole, "Moderator should be a system role");
-        Assert.IsFalse(string.IsNullOrEmpty(moderatorRole.Description), "Moderator should have a description");
+        var memberRole = await _context.Roles.FirstOrDefaultAsync(r => r.Name == "Org Member");
+        Assert.IsNotNull(memberRole, "Org Member role should exist");
+        Assert.IsTrue(memberRole.IsSystemRole, "Org Member should be a system role");
+        Assert.IsFalse(string.IsNullOrEmpty(memberRole.Description), "Org Member should have a description");
     }
 
     [TestMethod]
-    public async Task InitializeAsync_SeedsPermissionsWithHierarchicalNaming()
+    public async Task InitializeAsync_PermissionsSeedingIsDeferred()
     {
         // Act
         await _initializer.InitializeAsync();
 
-        // Assert
+        // Assert — permissions seeding is deferred to a future phase
         var permissions = await _context.Permissions.ToListAsync();
-
-        // Verify hierarchical naming convention (module.action)
-        Assert.IsTrue(permissions.All(p => p.Code.Contains('.')), 
-            "All permission codes should follow hierarchical naming with dots");
-
-        // Verify core module permissions
-        var corePermissions = permissions.Where(p => p.Code.StartsWith("core.")).ToList();
-        Assert.IsTrue(corePermissions.Count >= 10, $"Should have at least 10 core permissions, got {corePermissions.Count}");
-
-        // Verify files module permissions
-        var filesPermissions = permissions.Where(p => p.Code.StartsWith("files.")).ToList();
-        Assert.IsTrue(filesPermissions.Count >= 5, $"Should have at least 5 files permissions, got {filesPermissions.Count}");
-
-        // Verify chat module permissions
-        var chatPermissions = permissions.Where(p => p.Code.StartsWith("chat.")).ToList();
-        Assert.IsTrue(chatPermissions.Count >= 5, $"Should have at least 5 chat permissions, got {chatPermissions.Count}");
-
-        // Verify all permissions have display names and descriptions
-        Assert.IsTrue(permissions.All(p => !string.IsNullOrEmpty(p.DisplayName)),
-            "All permissions should have display names");
-        Assert.IsTrue(permissions.All(p => !string.IsNullOrEmpty(p.Description)),
-            "All permissions should have descriptions");
+        Assert.AreEqual(0, permissions.Count, "Should not seed permissions (deferred to future phase)");
     }
 
     [TestMethod]
@@ -362,9 +319,9 @@ public class DbInitializerTests
     }
 
     [TestMethod]
-    public async Task InitializeAsync_WithExistingData_SkipsSeeding()
+    public async Task InitializeAsync_WithExistingData_StillSeedsWellKnownRoles()
     {
-        // Arrange - Pre-populate with one role
+        // Arrange - Pre-populate with one custom role (not a well-known org role)
         var existingRole = new DotNetCloud.Core.Data.Entities.Permissions.Role
         {
             Id = Guid.NewGuid(),
@@ -378,10 +335,13 @@ public class DbInitializerTests
         // Act
         await _initializer.InitializeAsync();
 
-        // Assert - Verify only the pre-existing role exists (no seeding occurred)
+        // Assert - Pre-existing role preserved, well-known org roles also seeded
         var roles = await _context.Roles.ToListAsync();
-        Assert.AreEqual(1, roles.Count, "Should not seed roles when data already exists");
-        Assert.AreEqual("PreExisting", roles[0].Name);
+        Assert.AreEqual(4, roles.Count, "Should preserve existing role and seed 3 well-known org roles");
+        Assert.IsTrue(roles.Any(r => r.Name == "PreExisting"), "Pre-existing role should be preserved");
+        Assert.IsTrue(roles.Any(r => r.Name == "Org Admin"), "Org Admin should be seeded");
+        Assert.IsTrue(roles.Any(r => r.Name == "Org Manager"), "Org Manager should be seeded");
+        Assert.IsTrue(roles.Any(r => r.Name == "Org Member"), "Org Member should be seeded");
     }
 
     [TestMethod]

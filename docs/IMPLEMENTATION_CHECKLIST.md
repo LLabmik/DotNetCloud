@@ -3645,11 +3645,13 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 ### Phase 4.2: Data Model And Module Scaffold
 
 - ✓ `DotNetCloud.Modules.Tracks/` — TracksModule.cs, TracksModuleManifest.cs
-- ✓ `DotNetCloud.Modules.Tracks.Data/` — TracksDbContext, 16 entity models, EF configurations, initial migration
+- ✓ `DotNetCloud.Modules.Tracks.Data/` — TracksDbContext, 17 entity models (incl. Team), EF configurations, 2 migrations
 - ✓ `DotNetCloud.Modules.Tracks.Host/` — gRPC host scaffold
 - ✓ Solution integration (DotNetCloud.sln)
 - ✓ Planning poker: PokerSession + PokerVote entities, DTOs, events, EF configs, gRPC RPCs, error codes
-- ✓ `TeamRole` entity (CoreTeamId, UserId, TracksTeamMemberRole) — Option C: Core teams + Tracks role overlay
+- ✓ `TeamRole` entity (TeamId FK → Team, UserId, TracksTeamMemberRole) — Option C: Core teams + Tracks role overlay
+- ✓ `Team` entity (Id, Name, Description, CreatedAt, CreatedByUserId) — stores team metadata
+- ✓ `TeamConfiguration.cs` — FK cascade from TeamRoles, index on Name
 - ✓ `TeamRoleConfiguration.cs` — unique index on (CoreTeamId, UserId), string conversion for Role
 - ✓ `Board.TeamId` (nullable Guid) — cross-DB reference to Core team, no FK enforcement
 
@@ -3691,7 +3693,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ DependenciesController (3 endpoints)
 - ✓ SprintsController — CRUD + start/complete + cards (9 endpoints)
 - ✓ TimeEntriesController — CRUD + timer (5 endpoints)
-- ✓ TeamsController — CRUD teams + members + transfer boards + team boards (10 endpoints)
+- ✓ TeamsController — CRUD teams + members + role management (9 endpoints, Owner/Manager-gated)
 
 #### gRPC
 
