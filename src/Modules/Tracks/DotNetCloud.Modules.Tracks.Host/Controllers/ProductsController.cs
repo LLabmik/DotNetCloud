@@ -170,7 +170,7 @@ public class ProductsController : TracksControllerBase
             var product = await _productService.UndeleteProductAsync(productId, ct);
             return Ok(Envelope(product));
         }
-        catch (InvalidOperationException ex)
+        catch (System.InvalidOperationException ex)
         {
             return NotFound(ErrorEnvelope(ErrorCodes.BoardNotFound, ex.Message));
         }

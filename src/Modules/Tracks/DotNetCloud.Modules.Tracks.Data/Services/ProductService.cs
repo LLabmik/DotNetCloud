@@ -188,13 +188,6 @@ public sealed class ProductService
             .Distinct()
             .ToList();
 
-        Dictionary<Guid, string>? displayNames = null;
-        if (deletedByUserIds.Count > 0)
-        {
-            // Try to resolve via IUserDirectory (may not be available from data layer)
-            displayNames = deletedByUserIds.ToDictionary(id => id, _ => (string?)null as string)!;
-        }
-
         return products.Select(p => new ProductDto
         {
             Id = p.Id,
@@ -256,7 +249,7 @@ public sealed class ProductService
             if (pokerSessionIds.Count > 0)
             {
                 await _db.PokerVotes
-                    .Where(pv => pokerSessionIds.Contains(pv.PokerSessionId))
+                    .Where(pv => pokerSessionIds.Contains(pv.SessionId))
                     .ExecuteDeleteAsync(ct);
 
                 await _db.PokerSessions
@@ -283,7 +276,7 @@ public sealed class ProductService
 
             // ChecklistItems → Checklists
             var checklistIds = await _db.Checklists
-                .Where(c => workItemIds.Contains(c.WorkItemId))
+                .Where(c => workItemIds.Contains(c.ItemId))
                 .Select(c => c.Id)
                 .ToListAsync(ct);
 
