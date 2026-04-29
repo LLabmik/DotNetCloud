@@ -102,6 +102,35 @@
                                     <button class="btn btn-sm btn-primary" @onclick="() => AddMemberAsync(team.Id)"
                                             disabled="@(_selectedUserId == Guid.Empty)">Add</button>
                                 </div>
+
+                                @if (_teamMembers.Count > 0)
+                                {
+                                    <div class="tracks-member-list">
+                                        @foreach (var member in _teamMembers)
+                                        {
+                                            <div class="tracks-member-row">
+                                                <span class="tracks-avatar-sm">@GetInitials(member.DisplayName)</span>
+                                                <div class="tracks-member-info">
+                                                    <span class="tracks-member-name">@member.DisplayName</span>
+                                                    <span class="tracks-member-date">@member.Role &middot; Joined @member.AssignedAt.ToString("MMM d, yyyy")</span>
+                                                </div>
+                                                <select class="tracks-filter-select" value="@member.Role.ToString()"
+                                                        @onchange="e => UpdateMemberRoleAsync(team.Id, member.UserId, e)">
+                                                    <option value="Member">Member</option>
+                                                    <option value="Manager">Manager</option>
+                                                    <option value="Owner">Owner</option>
+                                                </select>
+                                                <button class="btn btn-sm btn-outline tracks-remove-btn"
+                                                        @onclick="() => RemoveMemberAsync(team.Id, member.UserId)"
+                                                        title="Remove member">✕</button>
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                                else
+                                {
+                                    <p class="tracks-muted">No members to display.</p>
+                                }
                             </div>
 
                             @* ── Danger Zone ── *@

@@ -57,6 +57,7 @@ public sealed partial class TeamManagement : ComponentBase
     private Guid _selectedUserId;
     private IReadOnlyList<UserSearchResult> _searchResults = [];
     private HashSet<Guid> _existingMemberIds = [];
+    private List<TeamMemberViewModel> _teamMembers = [];
     private System.Timers.Timer? _searchDebounce;
 
     /// <inheritdoc />
@@ -92,14 +93,40 @@ public sealed partial class TeamManagement : ComponentBase
             _editDescription = team.Description;
         }
 
+        await LoadTeamMembersAsync(teamId);
+    }
+
+    private async Task LoadTeamMembersAsync(Guid teamId)
+    {
         try
         {
             var members = await Api.ListTeamMembersAsync(teamId);
             _existingMemberIds = members.Select(m => m.UserId).ToHashSet();
+
+            // Batch-resolve display names
+            var userIds = members.Select(m => m.UserId).ToList();
+            IReadOnlyDictionary<Guid, string> displayNames;
+            try
+            {
+                displayNames = await UserDirectory.GetDisplayNamesAsync(userIds, CancellationToken.None);
+            }
+            catch
+            {
+                displayNames = new Dictionary<Guid, string>();
+            }
+
+            _teamMembers = members.Select(m => new TeamMemberViewModel
+            {
+                UserId = m.UserId,
+                DisplayName = displayNames.TryGetValue(m.UserId, out var name) ? name : "Unknown User",
+                Role = m.Role,
+                AssignedAt = m.AssignedAt
+            }).ToList();
         }
         catch
         {
             _existingMemberIds = [];
+            _teamMembers = [];
         }
     }
 
@@ -222,6 +249,7 @@ public sealed partial class TeamManagement : ComponentBase
             _addMemberRole = "Member";
             _searchResults = [];
             _errorMessage = null;
+            await LoadTeamMembersAsync(teamId);
             await OnRefreshRequested.InvokeAsync();
         }
         catch (Exception ex)
@@ -236,6 +264,7 @@ public sealed partial class TeamManagement : ComponentBase
         {
             await Api.RemoveTeamMemberAsync(teamId, userId, CancellationToken.None);
             _errorMessage = null;
+            await LoadTeamMembersAsync(teamId);
             await OnRefreshRequested.InvokeAsync();
         }
         catch (Exception ex)
@@ -255,6 +284,7 @@ public sealed partial class TeamManagement : ComponentBase
         {
             await Api.UpdateTeamMemberRoleAsync(teamId, userId, role, CancellationToken.None);
             _errorMessage = null;
+            await LoadTeamMembersAsync(teamId);
             await OnRefreshRequested.InvokeAsync();
         }
         catch (Exception ex)
@@ -270,5 +300,16 @@ public sealed partial class TeamManagement : ComponentBase
         return parts.Length >= 2
             ? $"{parts[0][0]}{parts[1][0]}".ToUpperInvariant()
             : name[..Math.Min(2, name.Length)].ToUpperInvariant();
+    }
+
+    /// <summary>
+    /// View model for a team member displayed in the UI.
+    /// </summary>
+    private sealed class TeamMemberViewModel
+    {
+        public Guid UserId { get; init; }
+        public string DisplayName { get; init; } = string.Empty;
+        public TracksTeamMemberRole Role { get; init; }
+        public DateTime AssignedAt { get; init; }
     }
 }
