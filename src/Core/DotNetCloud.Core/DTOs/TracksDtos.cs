@@ -540,6 +540,11 @@ public sealed record MoveWorkItemDto
 {
     public required Guid TargetSwimlaneId { get; init; }
     public double? Position { get; init; }
+    /// <summary>
+    /// When true, the move will be rejected if the target swimlane has reached its CardLimit (WIP limit).
+    /// When false or null, the move will still succeed but the caller should show a soft warning.
+    /// </summary>
+    public bool? EnforceWipLimit { get; init; }
 }
 
 public sealed record AddWorkItemCommentDto

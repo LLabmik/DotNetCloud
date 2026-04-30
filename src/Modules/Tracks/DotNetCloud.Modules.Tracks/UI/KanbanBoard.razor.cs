@@ -31,6 +31,11 @@ public partial class KanbanBoard : ComponentBase
     [Parameter] public EventCallback<Guid> OnSwimlaneDeleted { get; set; }
     [Parameter] public EventCallback OnRefreshRequested { get; set; }
     [Parameter] public List<SprintDto>? Sprints { get; set; }
+    [Parameter] public bool EnforceWipStrictly { get; set; }
+
+    // WIP warning toast
+    private string? _wipWarningMessage;
+    private bool _showWipWarning;
 
     // Filters
     private string _filterText = "";
@@ -128,6 +133,29 @@ public partial class KanbanBoard : ComponentBase
         if (item.SwimlaneId == targetSwimlaneId && dropTarget is null) return;
         if (dropTarget == item.Id) return;
 
+        // ── WIP Limit Check (client-side preview) ──
+        var targetSwimlane = Swimlanes.FirstOrDefault(s => s.Id == targetSwimlaneId);
+        if (targetSwimlane?.CardLimit is > 0 && targetSwimlaneId != item.SwimlaneId)
+        {
+            var currentCount = WorkItemsBySwimlane.TryGetValue(targetSwimlaneId, out var existing)
+                ? existing.Count(wi => !wi.IsArchived)
+                : 0;
+
+            if (currentCount >= targetSwimlane.CardLimit.Value)
+            {
+                if (EnforceWipStrictly)
+                {
+                    _wipWarningMessage = $"Cannot move to '{targetSwimlane.Title}'. WIP limit of {targetSwimlane.CardLimit.Value} has been reached.";
+                    _showWipWarning = true;
+                    return;
+                }
+
+                // Soft warning
+                _wipWarningMessage = $"'{targetSwimlane.Title}' is at its WIP limit of {targetSwimlane.CardLimit.Value}. Item moved anyway.";
+                _showWipWarning = true;
+            }
+        }
+
         try
         {
             var targetItems = WorkItemsBySwimlane.TryGetValue(targetSwimlaneId, out var ti) ? ti : [];
@@ -183,13 +211,22 @@ public partial class KanbanBoard : ComponentBase
             var moved = await ApiClient.MoveWorkItemAsync(item.Id, new MoveWorkItemDto
             {
                 TargetSwimlaneId = targetSwimlaneId,
-                Position = position
+                Position = position,
+                EnforceWipLimit = EnforceWipStrictly ? true : null
             });
 
             if (moved is not null)
             {
+                _wipWarningMessage = null;
+                _showWipWarning = false;
                 await OnWorkItemMoved.InvokeAsync(moved);
             }
+        }
+        catch (Exception ex) when (ex.Message.Contains("Cannot move") || ex.Message.Contains("WIP limit"))
+        {
+            // Transition rule or WIP limit blocked the move
+            _wipWarningMessage = "Move blocked by workflow rules. Check swimlane transition settings.";
+            _showWipWarning = true;
         }
         catch
         {

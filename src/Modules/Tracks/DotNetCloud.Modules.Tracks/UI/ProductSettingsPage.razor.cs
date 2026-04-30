@@ -1,5 +1,6 @@
 using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs;
+using DotNetCloud.Modules.Tracks.Models;
 using DotNetCloud.Modules.Tracks.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
@@ -7,7 +8,7 @@ using Microsoft.AspNetCore.Components.Web;
 namespace DotNetCloud.Modules.Tracks.UI;
 
 /// <summary>
-/// Product settings page: General, Swimlanes, Members, Labels, Danger Zone.
+/// Product settings page: General, Swimlanes, Transition Rules, Members, Labels, Danger Zone.
 /// </summary>
 public partial class ProductSettingsPage : ComponentBase
 {
@@ -26,6 +27,12 @@ public partial class ProductSettingsPage : ComponentBase
 
     // Swimlanes
     private readonly List<SettingsSwimlane> _swimlanes = [];
+    private bool _enforceWipStrictly;
+
+    // Transition Rules
+    private readonly List<SwimlaneDto> _transitionSwimlanes = [];
+    private readonly Dictionary<(Guid, Guid), bool> _transitionRules = [];
+    private bool _transitionLoading;
 
     // Members
     private readonly List<ProductMemberDto> _members = [];
@@ -93,14 +100,40 @@ public partial class ProductSettingsPage : ComponentBase
             _labels.Clear();
             _labels.AddRange(await labelsTask);
 
+            var swimlanes = await swimlanesTask;
             _swimlanes.Clear();
-            _swimlanes.AddRange((await swimlanesTask).Select(s => new SettingsSwimlane
+            _swimlanes.AddRange(swimlanes.Select(s => new SettingsSwimlane
             {
                 Id = s.Id,
                 Title = s.Title,
                 IsDone = s.IsDone,
-                Position = s.Position
+                Position = s.Position,
+                CardLimit = s.CardLimit
             }));
+
+            // Store swimlanes for transition matrix
+            _transitionSwimlanes.Clear();
+            _transitionSwimlanes.AddRange(swimlanes);
+
+            // Load transition rules
+            _transitionLoading = true;
+            try
+            {
+                _transitionRules.Clear();
+                var rules = await ApiClient.GetSwimlaneTransitionMatrixAsync(Product.Id);
+                foreach (var rule in rules)
+                {
+                    _transitionRules[(rule.FromSwimlaneId, rule.ToSwimlaneId)] = rule.IsAllowed;
+                }
+            }
+            catch
+            {
+                // If transition rules endpoint doesn't exist yet, that's fine
+            }
+            finally
+            {
+                _transitionLoading = false;
+            }
         }
         catch (Exception ex)
         {
@@ -178,7 +211,8 @@ public partial class ProductSettingsPage : ComponentBase
             Id = Guid.NewGuid(),
             Title = "New Swimlane",
             IsDone = false,
-            Position = _swimlanes.Count
+            Position = _swimlanes.Count,
+            CardLimit = null
         });
     }
 
@@ -204,13 +238,17 @@ public partial class ProductSettingsPage : ComponentBase
             for (int i = 0; i < _swimlanes.Count; i++)
             {
                 var s = _swimlanes[i];
-                await ApiClient.CreateProductSwimlaneAsync(Product.Id, new CreateSwimlaneDto
+                var created = await ApiClient.CreateProductSwimlaneAsync(Product.Id, new CreateSwimlaneDto
                 {
                     Title = s.Title,
                     Color = null,
-                    CardLimit = null,
+                    CardLimit = s.CardLimit,
                     IsDone = s.IsDone
                 });
+
+                // Update the ID so the transition matrix can use the real ID
+                if (created is not null)
+                    _swimlanes[i] = s with { Id = created.Id };
             }
 
             _successMessage = "Swimlanes saved.";
@@ -444,13 +482,96 @@ public partial class ProductSettingsPage : ComponentBase
         _deleteConfirmName = "";
     }
 
+    // ── Transition Rules ───────────────────────────────────────
+
+    private void ToggleTransition(Guid fromId, Guid toId, bool isAllowed)
+    {
+        _transitionRules[(fromId, toId)] = isAllowed;
+    }
+
+    private void SetAllTransitions(bool allowed)
+    {
+        _transitionRules.Clear();
+        foreach (var from in _transitionSwimlanes)
+        {
+            foreach (var to in _transitionSwimlanes)
+            {
+                if (from.Id != to.Id)
+                    _transitionRules[(from.Id, to.Id)] = allowed;
+            }
+        }
+    }
+
+    private void SetLinearOnly()
+    {
+        _transitionRules.Clear();
+        for (int i = 0; i < _transitionSwimlanes.Count; i++)
+        {
+            for (int j = 0; j < _transitionSwimlanes.Count; j++)
+            {
+                if (i == j) continue;
+                // Only allow moving to the next column
+                _transitionRules[(_transitionSwimlanes[i].Id, _transitionSwimlanes[j].Id)] = (j == i + 1);
+            }
+        }
+    }
+
+    private void SetForwardOnly()
+    {
+        _transitionRules.Clear();
+        for (int i = 0; i < _transitionSwimlanes.Count; i++)
+        {
+            for (int j = 0; j < _transitionSwimlanes.Count; j++)
+            {
+                if (i == j) continue;
+                // Allow forward moves (to higher position) only
+                _transitionRules[(_transitionSwimlanes[i].Id, _transitionSwimlanes[j].Id)] = (j > i);
+            }
+        }
+    }
+
+    private async Task SaveTransitionRulesAsync()
+    {
+        _isSaving = true;
+        _errorMessage = null;
+        _successMessage = null;
+
+        try
+        {
+            var rules = _transitionRules.Select(kvp => new SetTransitionRuleDto
+            {
+                FromSwimlaneId = kvp.Key.Item1,
+                ToSwimlaneId = kvp.Key.Item2,
+                IsAllowed = kvp.Value
+            }).ToList();
+
+            await ApiClient.SetSwimlaneTransitionMatrixAsync(Product.Id, rules);
+            _successMessage = "Transition rules saved.";
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to save transition rules: {ex.Message}";
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private static string Truncate(string text, int maxLength)
+    {
+        if (string.IsNullOrEmpty(text)) return "";
+        return text.Length <= maxLength ? text : text[..maxLength] + "…";
+    }
+
     // ── Local Model ─────────────────────────────────────────
 
-    private sealed class SettingsSwimlane
+    private sealed record SettingsSwimlane
     {
         public Guid Id { get; set; }
         public string Title { get; set; } = "";
         public bool IsDone { get; set; }
         public double Position { get; set; }
+        public int? CardLimit { get; set; }
     }
 }

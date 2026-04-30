@@ -319,3 +319,17 @@
     margin-top: 0.75rem;
     width: 100%;
 }
+
+/* ── Dark Mode ── */
+
+:global(.dark-mode) .roadmap-loading {
+    color: var(--color-text-secondary);
+}
+
+:global(.dark-mode) .roadmap-item-count {
+    color: var(--color-text-secondary);
+}
+
+:global(.dark-mode) .roadmap-group-by label {
+    color: var(--color-text-secondary);
+}

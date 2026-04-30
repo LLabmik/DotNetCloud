@@ -1153,3 +1153,22 @@
         border-top: 1px solid var(--color-border);
     }
 }
+
+/* ── Dark Mode ── */
+
+:global(.dark-mode) .tracks-denied-card {
+    background: var(--color-surface);
+    border-color: var(--color-border);
+}
+
+:global(.dark-mode) .tracks-denied-card h2 {
+    color: var(--color-text);
+}
+
+:global(.dark-mode) .tracks-denied-card p {
+    color: var(--color-text-secondary);
+}
+
+:global(.dark-mode) ::deep .tracks-card-overlay {
+    background: rgba(0, 0, 0, 0.6);
+}

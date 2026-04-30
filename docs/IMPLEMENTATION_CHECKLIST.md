@@ -4871,3 +4871,45 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Capacity legend
 - ✓ `ITracksApiClient` + `TracksApiClient` extended with `GetProductCapacityAsync()`, `GetSprintCapacityAsync()`
 
+## Tracks Professionalization — Phase H
+
+### H-1: Dark Mode Enhancements
+- ✓ Dark mode overrides added to all 11 Tracks CSS files
+- ✓ `TracksPage.razor.css` — Kanban columns, cards, card count badges, comment code blocks, empty states, dialogs
+- ✓ `ProductDashboardView.razor.css` — KPI cards, chart cards, velocity bars
+- ✓ `WorkItemListView.razor.css` — Stats badges, danger buttons
+- ✓ `ProductRoadmapView.razor.css` — Loading states, labels
+- ✓ `ProductSettingsPage.razor.css` — Member names, icon buttons, transition matrix, WIP inputs
+- ✓ `AutomationRuleEditor.razor.css` — Rule cards, empty/loading states
+- ✓ `WorkItemFullscreenPage.razor.css` — Denied card, overlay opacity
+- ✓ `GoalsList.razor.css` — Goal cards, shadows
+- ✓ `CapacityWidget.razor.css` — Widget surface, bar tracks, overload badges
+- ✓ `GoalDetail.razor.css` — Detail cards, progress sections, status badges
+- ✓ `ChatActivityIndicator.razor.css` — Toast backgrounds, channel events
+
+### H-2: Swimlane Transition Rules
+- ✓ `SwimlaneTransitionRule` entity with EF config + composite unique index
+- ✓ `SwimlaneTransitionRuleConfiguration` — EF configuration with relationships
+- ✓ `SwimlaneTransitionRuleDto` and `SetTransitionRuleDto` in Models
+- ✓ `SwimlaneTransitionService` — CRUD transition matrix, validate moves, get allowed targets
+- ✓ `TracksDbContext` extended with `SwimlaneTransitionRules` DbSet
+- ✓ `TracksServiceRegistration` updated with `SwimlaneTransitionService`
+- ✓ `SwimlanesController` extended — GET/PUT transition matrix, GET allowed targets
+- ✓ `WorkItemService.MoveWorkItemAsync` checks transition rules before moves
+- ✓ `WorkItemsController.MoveWorkItemAsync` returns 409 Conflict for blocked transitions
+- ✓ `SwimlaneService.GetSwimlaneByIdAsync()` added
+- ✓ `ITracksApiClient` + `TracksApiClient` extended with transition matrix methods
+- ✓ `ProductSettingsPage.razor` — Transition Rules section with matrix UI + presets
+- ✓ `ProductSettingsPage.razor.cs` — Transition rule state management
+
+### H-3: WIP Limits Enforcement
+- ✓ `MoveWorkItemDto.EnforceWipLimit` field added
+- ✓ `WorkItemService.MoveWorkItemAsync` checks CardLimit with soft/hard enforcement
+- ✓ `WorkItemsController.MoveWorkItemAsync` returns 409 Conflict for blocked WIP moves
+- ✓ `KanbanBoard.razor` — WIP warning toast with icon, message, dismiss
+- ✓ `KanbanBoard.razor.cs` — `EnforceWipStrictly` parameter, client-side WIP check
+- ✓ `ProductSettingsPage.razor` — CardLimit input per swimlane + "Enforce WIP limits" checkbox
+- ✓ `ProductSettingsPage.razor.cs` — `SettingsSwimlane.CardLimit`, `_enforceWipStrictly` state
+- ✓ WIP toast CSS + transition matrix CSS styles
+
+

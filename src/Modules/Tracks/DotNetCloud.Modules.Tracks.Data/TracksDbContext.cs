@@ -50,6 +50,7 @@ public class TracksDbContext : DbContext
     public DbSet<AutomationRule> AutomationRules => Set<AutomationRule>();
     public DbSet<Goal> Goals => Set<Goal>();
     public DbSet<GoalWorkItem> GoalWorkItems => Set<GoalWorkItem>();
+    public DbSet<SwimlaneTransitionRule> SwimlaneTransitionRules => Set<SwimlaneTransitionRule>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

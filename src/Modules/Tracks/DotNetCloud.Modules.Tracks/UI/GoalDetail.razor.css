@@ -164,3 +164,18 @@
     height: 100%;
     border-radius: 2px;
 }
+
+/* ── Dark Mode ── */
+
+:global(.dark-mode) .goal-detail-card {
+    background: var(--color-surface);
+    border-color: var(--color-border);
+}
+
+:global(.dark-mode) .goal-detail-progress-section {
+    background: color-mix(in srgb, var(--color-bg) 80%, var(--color-surface) 20%);
+}
+
+:global(.dark-mode) .goal-detail-status {
+    background: color-mix(in srgb, var(--color-text) 10%, transparent);
+}

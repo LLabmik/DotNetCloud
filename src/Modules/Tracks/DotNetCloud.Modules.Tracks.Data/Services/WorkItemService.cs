@@ -7,10 +7,12 @@ namespace DotNetCloud.Modules.Tracks.Data.Services;
 public sealed class WorkItemService
 {
     private readonly TracksDbContext _db;
+    private readonly SwimlaneTransitionService _transitionService;
 
-    public WorkItemService(TracksDbContext db)
+    public WorkItemService(TracksDbContext db, SwimlaneTransitionService transitionService)
     {
         _db = db;
+        _transitionService = transitionService;
     }
 
     public async Task<WorkItemDto> CreateWorkItemAsync(
@@ -319,12 +321,61 @@ public sealed class WorkItemService
     public async Task<WorkItemDto> MoveWorkItemAsync(Guid workItemId, MoveWorkItemDto dto, CancellationToken ct)
     {
         var workItem = await _db.WorkItems
+            .Include(wi => wi.Swimlane)
             .FirstOrDefaultAsync(wi => wi.Id == workItemId, ct)
             ?? throw new InvalidOperationException($"Work item {workItemId} not found.");
 
         var targetSwimlane = await _db.Swimlanes
             .FirstOrDefaultAsync(s => s.Id == dto.TargetSwimlaneId && !s.IsArchived, ct)
             ?? throw new InvalidOperationException($"Target swimlane {dto.TargetSwimlaneId} not found or is archived.");
+
+        // ── Transition Rule Check ──
+        if (workItem.SwimlaneId.HasValue && workItem.SwimlaneId.Value != dto.TargetSwimlaneId)
+        {
+            (bool isAllowed, List<Guid> allowedTargetIds) = await _transitionService.ValidateTransitionAsync(
+                workItem.ProductId, workItem.SwimlaneId.Value, dto.TargetSwimlaneId, ct);
+
+            if (!isAllowed)
+            {
+                var allowedNames = new List<string>();
+                if (allowedTargetIds.Count > 0)
+                {
+                    var allowedSwimlanes = await _db.Swimlanes
+                        .Where(s => allowedTargetIds.Contains(s.Id))
+                        .Select(s => s.Title)
+                        .ToListAsync(ct);
+                    allowedNames.AddRange(allowedSwimlanes);
+                }
+
+                var allowedList = allowedNames.Count > 0
+                    ? string.Join(", ", allowedNames)
+                    : "none";
+
+                throw new InvalidOperationException(
+                    $"Cannot move from '{workItem.Swimlane?.Title ?? "unknown"}' to '{targetSwimlane.Title}'. " +
+                    $"Allowed transitions: {allowedList}.");
+            }
+        }
+
+        // ── WIP Limit Check ──
+        if (targetSwimlane.CardLimit.HasValue && targetSwimlane.CardLimit.Value > 0)
+        {
+            var currentCount = await _db.WorkItems
+                .CountAsync(wi => wi.SwimlaneId == dto.TargetSwimlaneId
+                               && wi.Id != workItemId
+                               && !wi.IsArchived, ct);
+
+            if (currentCount >= targetSwimlane.CardLimit.Value)
+            {
+                if (dto.EnforceWipLimit == true)
+                {
+                    throw new InvalidOperationException(
+                        $"Cannot move to '{targetSwimlane.Title}'. " +
+                        $"WIP limit of {targetSwimlane.CardLimit.Value} has been reached.");
+                }
+                // Soft enforcement: allow the move but the caller should warn
+            }
+        }
 
         workItem.SwimlaneId = dto.TargetSwimlaneId;
 

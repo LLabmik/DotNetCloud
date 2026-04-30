@@ -26,6 +26,7 @@ public static class TracksServiceRegistration
         services.AddScoped<SprintService>();
         services.AddScoped<SprintPlanningService>();
         services.AddScoped<SwimlaneService>();
+        services.AddScoped<SwimlaneTransitionService>();
         services.AddScoped<CommentService>();
         services.AddScoped<ChecklistService>();
         services.AddScoped<DependencyService>();

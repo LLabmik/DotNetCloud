@@ -128,6 +128,15 @@ public sealed class SwimlaneService
         return ordered.Select(s => MapToDto(s, s.WorkItems.Count(wi => !wi.IsArchived))).ToList();
     }
 
+    /// <summary>
+    /// Gets a swimlane entity by ID (not DTO). Used internally for transition rule lookups.
+    /// </summary>
+    public async Task<Swimlane?> GetSwimlaneByIdAsync(Guid swimlaneId, CancellationToken ct)
+    {
+        return await _db.Swimlanes
+            .FirstOrDefaultAsync(s => s.Id == swimlaneId && !s.IsArchived, ct);
+    }
+
     private static SwimlaneDto MapToDto(Swimlane swimlane, int cardCount)
     {
         return new SwimlaneDto

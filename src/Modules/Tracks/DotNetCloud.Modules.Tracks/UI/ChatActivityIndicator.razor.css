@@ -137,3 +137,23 @@
         opacity: 0.5;
     }
 }
+
+/* ── Dark Mode ── */
+
+:global(.dark-mode) .chat-activity-toast {
+    background: color-mix(in srgb, var(--color-primary) 8%, var(--color-surface));
+    border-color: color-mix(in srgb, var(--color-primary) 20%, transparent);
+}
+
+:global(.dark-mode) .chat-activity-toast-text {
+    color: var(--color-primary);
+}
+
+:global(.dark-mode) .chat-activity-channel-event {
+    background: color-mix(in srgb, var(--color-success) 8%, var(--color-surface));
+    border-color: color-mix(in srgb, var(--color-success) 20%, transparent);
+}
+
+:global(.dark-mode) .chat-channel-event-text {
+    color: var(--color-text);
+}

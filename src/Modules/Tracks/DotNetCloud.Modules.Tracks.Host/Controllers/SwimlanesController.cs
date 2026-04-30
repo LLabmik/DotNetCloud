@@ -1,6 +1,7 @@
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Modules.Tracks.Data.Services;
+using DotNetCloud.Modules.Tracks.Models;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DotNetCloud.Modules.Tracks.Host.Controllers;
@@ -12,14 +13,16 @@ namespace DotNetCloud.Modules.Tracks.Host.Controllers;
 public class SwimlanesController : TracksControllerBase
 {
     private readonly SwimlaneService _swimlaneService;
+    private readonly SwimlaneTransitionService _transitionService;
     private readonly ILogger<SwimlanesController> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SwimlanesController"/> class.
     /// </summary>
-    public SwimlanesController(SwimlaneService swimlaneService, ILogger<SwimlanesController> logger)
+    public SwimlanesController(SwimlaneService swimlaneService, SwimlaneTransitionService transitionService, ILogger<SwimlanesController> logger)
     {
         _swimlaneService = swimlaneService;
+        _transitionService = transitionService;
         _logger = logger;
     }
 
@@ -148,6 +151,73 @@ public class SwimlanesController : TracksControllerBase
         catch (System.InvalidOperationException ex)
         {
             return BadRequest(ErrorEnvelope(ErrorCodes.InvalidOperation, ex.Message));
+        }
+    }
+
+    // ─── Transition Rules ─────────────────────────────────────────
+
+    /// <summary>Gets the swimlane transition matrix for a product.</summary>
+    [HttpGet("api/v1/products/{productId:guid}/swimlane-transitions")]
+    public async Task<IActionResult> GetTransitionMatrixAsync(Guid productId, CancellationToken ct)
+    {
+        var caller = GetAuthenticatedCaller();
+        try
+        {
+            var rules = await _transitionService.GetTransitionMatrixAsync(productId, ct);
+            return Ok(Envelope(rules));
+        }
+        catch (NotFoundException ex)
+        {
+            return NotFound(ErrorEnvelope(ErrorCodes.NotFound, ex.Message));
+        }
+    }
+
+    /// <summary>Sets (replaces) the swimlane transition matrix for a product.</summary>
+    [HttpPut("api/v1/products/{productId:guid}/swimlane-transitions")]
+    public async Task<IActionResult> SetTransitionMatrixAsync(Guid productId, [FromBody] List<SetTransitionRuleDto> rules, CancellationToken ct)
+    {
+        var caller = GetAuthenticatedCaller();
+        try
+        {
+            var result = await _transitionService.SetTransitionMatrixAsync(productId, rules, ct);
+            return Ok(Envelope(result));
+        }
+        catch (NotFoundException ex)
+        {
+            return NotFound(ErrorEnvelope(ErrorCodes.NotFound, ex.Message));
+        }
+        catch (System.InvalidOperationException ex)
+        {
+            return BadRequest(ErrorEnvelope(ErrorCodes.InvalidOperation, ex.Message));
+        }
+    }
+
+    /// <summary>Gets the allowed target swimlanes for a given source swimlane.</summary>
+    [HttpGet("api/v1/swimlanes/{swimlaneId:guid}/allowed-targets")]
+    public async Task<IActionResult> GetAllowedTargetsAsync(Guid swimlaneId, CancellationToken ct)
+    {
+        var caller = GetAuthenticatedCaller();
+        try
+        {
+            // We need the product ID and swimlane ID; get product ID from the swimlane
+            var swimlane = await _swimlaneService.GetSwimlaneByIdAsync(swimlaneId, ct);
+            if (swimlane is null)
+                return NotFound(ErrorEnvelope(ErrorCodes.BoardSwimlaneNotFound, "Swimlane not found."));
+
+            // Determine product ID from container
+            var productId = swimlane.ContainerType == SwimlaneContainerType.Product
+                ? swimlane.ContainerId
+                : Guid.Empty; // For work-item swimlanes, we need the root product
+
+            if (productId == Guid.Empty)
+                return Ok(Envelope(Array.Empty<Guid>())); // No restrictions on sub-boards
+
+            var allowed = await _transitionService.GetAllowedTargetsAsync(productId, swimlaneId, ct);
+            return Ok(Envelope(allowed));
+        }
+        catch (NotFoundException ex)
+        {
+            return NotFound(ErrorEnvelope(ErrorCodes.BoardSwimlaneNotFound, ex.Message));
         }
     }
 }

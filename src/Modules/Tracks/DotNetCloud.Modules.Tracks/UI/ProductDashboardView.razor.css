@@ -326,3 +326,28 @@
     color: var(--color-muted);
     font-size: 13px;
 }
+
+/* ── Dark Mode ── */
+
+:global(.dark-mode) .tracks-dashboard-kpi {
+    background: var(--color-surface);
+    border-color: var(--color-border);
+}
+
+:global(.dark-mode) .tracks-dashboard-kpi-warning {
+    border-left-color: var(--color-warning);
+    background: color-mix(in srgb, var(--color-warning) 10%, var(--color-surface));
+}
+
+:global(.dark-mode) .tracks-dashboard-chart-card {
+    background: var(--color-surface);
+    border-color: var(--color-border);
+}
+
+:global(.dark-mode) .tracks-dashboard-velocity-bar-track {
+    background: color-mix(in srgb, var(--color-text) 8%, transparent);
+}
+
+:global(.dark-mode) .tracks-dashboard-empty-chart {
+    color: var(--color-text-secondary);
+}

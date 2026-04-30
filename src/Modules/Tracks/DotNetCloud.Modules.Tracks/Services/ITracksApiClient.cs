@@ -40,6 +40,10 @@ public interface ITracksApiClient
     Task DeleteSwimlaneAsync(Guid swimlaneId, CancellationToken ct = default);
     Task ReorderSwimlanesAsync(IReadOnlyList<Guid> swimlaneIds, CancellationToken ct = default);
 
+    // Swimlane Transition Rules
+    Task<IReadOnlyList<SwimlaneTransitionRuleDto>> GetSwimlaneTransitionMatrixAsync(Guid productId, CancellationToken ct = default);
+    Task<IReadOnlyList<SwimlaneTransitionRuleDto>> SetSwimlaneTransitionMatrixAsync(Guid productId, List<SetTransitionRuleDto> rules, CancellationToken ct = default);
+
     // Work Items
     Task<IReadOnlyList<WorkItemDto>> ListWorkItemsAsync(Guid swimlaneId, CancellationToken ct = default);
     Task<WorkItemDto?> GetWorkItemAsync(Guid workItemId, CancellationToken ct = default);

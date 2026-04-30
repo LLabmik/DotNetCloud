@@ -149,6 +149,18 @@ public sealed class TracksApiClient : ITracksApiClient
         await EnsureSuccessOrThrowAsync(response);
     }
 
+    // ── Swimlane Transition Rules ────────────────────────────
+
+    public async Task<IReadOnlyList<SwimlaneTransitionRuleDto>> GetSwimlaneTransitionMatrixAsync(Guid productId, CancellationToken ct = default)
+        => await ReadDataAsync<IReadOnlyList<SwimlaneTransitionRuleDto>>($"api/v1/products/{productId}/swimlane-transitions", ct) ?? [];
+
+    public async Task<IReadOnlyList<SwimlaneTransitionRuleDto>> SetSwimlaneTransitionMatrixAsync(Guid productId, List<SetTransitionRuleDto> rules, CancellationToken ct = default)
+    {
+        var response = await _httpClient.PutAsJsonAsync($"api/v1/products/{productId}/swimlane-transitions", rules, ct);
+        await EnsureSuccessOrThrowAsync(response);
+        return await ReadDataFromResponseAsync<IReadOnlyList<SwimlaneTransitionRuleDto>>(response, ct) ?? [];
+    }
+
     // ── Work Items ───────────────────────────────────────────
 
     public async Task<IReadOnlyList<WorkItemDto>> ListWorkItemsAsync(Guid swimlaneId, CancellationToken ct = default)

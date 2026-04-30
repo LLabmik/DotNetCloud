@@ -13,6 +13,16 @@
         </button>
     </div>
 
+    @* ── WIP Warning Toast ── *@
+    @if (_showWipWarning && _wipWarningMessage is not null)
+    {
+        <div class="tracks-wip-warning-toast @(_wipWarningMessage.Contains("blocked") ? "wip-blocked" : "")">
+            <span class="tracks-wip-warning-icon">@(_wipWarningMessage.Contains("blocked") ? "🚫" : "⚠️")</span>
+            <span class="tracks-wip-warning-text">@_wipWarningMessage</span>
+            <button class="tracks-wip-warning-close" @onclick="() => _showWipWarning = false">×</button>
+        </div>
+    }
+
     @* ── Board Header ── *@
     <div class="tracks-kanban-header">
         <h2>

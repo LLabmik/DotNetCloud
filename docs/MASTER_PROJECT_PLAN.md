@@ -112,6 +112,7 @@
 | Tracks Prof. — Phase E      | 3       | 3         | 0           | 0       |
 | Tracks Prof. — Phase F      | 3       | 3         | 0           | 0       |
 | Tracks Prof. — Phase G      | 4       | 4         | 0           | 0       |
+| Tracks Prof. — Phase H      | 3       | 3         | 0           | 0       |
 | Infrastructure              | Summary | 0         | 0           | 1       |
 | Documentation               | Summary | 0         | 0           | 1       |
 
@@ -2076,6 +2077,85 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ `ITracksApiClient` + `TracksApiClient` extended
 
 **Notes:** Default capacity target is 20 SP per member. Members are ranked by capacity percentage descending. Widget designed for placement on Product Dashboard.
+
+---
+
+## Tracks Professionalization — Phase H
+
+> Reference: `docs/TRACKS_REMAINING_GAPS_PLAN.md`
+> Phase H: Polish & Constraints — Dark Mode Enhancements, Swimlane Transition Rules, WIP Limits
+
+#### Step: tracks-prof-h1 - Dark Mode Enhancements
+
+**Status:** completed ✅
+**Duration:** ~3 hours
+**Deliverables:**
+- ✓ Dark mode overrides added to all 11 Tracks CSS files
+- ✓ `TracksPage.razor.css` — Kanban columns, cards, card count badges, comment code blocks, empty states, dialogs, WIP toast
+- ✓ `ProductDashboardView.razor.css` — KPI cards, chart cards, velocity bars
+- ✓ `WorkItemListView.razor.css` — Stats badges, danger buttons
+- ✓ `ProductRoadmapView.razor.css` — Loading states, labels
+- ✓ `ProductSettingsPage.razor.css` — Member names, icon buttons, transition matrix, WIP inputs
+- ✓ `AutomationRuleEditor.razor.css` — Rule cards, empty/loading states, errors
+- ✓ `WorkItemFullscreenPage.razor.css` — Denied card, overlay opacity
+- ✓ `GoalsList.razor.css` — Goal cards, shadows
+- ✓ `CapacityWidget.razor.css` — Widget surface, bar tracks, overload badges
+- ✓ `GoalDetail.razor.css` — Detail cards, progress sections, status badges
+- ✓ `ChatActivityIndicator.razor.css` — Toast backgrounds, channel events
+
+**Notes:** Used `:global(.dark-mode)` selector pattern for Blazor CSS isolation compatibility. Focus on surface backgrounds, border contrast, code blocks, and badge readability.
+
+#### Step: tracks-prof-h2 - Swimlane Transition Rules
+
+**Status:** completed ✅
+**Duration:** ~3 hours
+**Deliverables:**
+- ✓ `SwimlaneTransitionRule` entity with EF config + composite unique index
+- ✓ `SwimlaneTransitionRuleConfiguration` — EF configuration with Product/FromSwimlane/ToSwimlane relationships
+- ✓ `SwimlaneTransitionRuleDto` and `SetTransitionRuleDto` in `DotNetCloud.Modules.Tracks.Models`
+- ✓ `SwimlaneTransitionService` — CRUD transition matrix, validate moves, get allowed targets
+- ✓ `ValidateTransitionAsync()` — checks if from→to is allowed; returns (IsAllowed, AllowedTargetIds)
+- ✓ `GetAllowedTargetsAsync()` — returns empty (all allowed) when no rules configured (backward compatible)
+- ✓ `TracksDbContext` extended with `SwimlaneTransitionRules` DbSet
+- ✓ `TracksServiceRegistration` updated with `SwimlaneTransitionService`
+- ✓ `SwimlanesController` extended:
+  - `GET /api/v1/products/{id}/swimlane-transitions`
+  - `PUT /api/v1/products/{id}/swimlane-transitions` (replace matrix)
+  - `GET /api/v1/swimlanes/{id}/allowed-targets`
+- ✓ `WorkItemService.MoveWorkItemAsync` checks transition rules before allowing moves
+- ✓ `WorkItemsController.MoveWorkItemAsync` returns 409 Conflict for blocked transitions
+- ✓ `SwimlaneService.GetSwimlaneByIdAsync()` added for target resolution
+- ✓ `ITracksApiClient` + `TracksApiClient` extended with transition matrix methods
+- ✓ `ProductSettingsPage.razor` — Transition Rules section with matrix UI
+  - Checkbox grid: From rows × To columns
+  - Preset buttons: Allow All, Linear Only, Forward Only
+  - Save/load transition matrix via API
+- ✓ `ProductSettingsPage.razor.cs` — Transition rule state management
+
+**Notes:** No rules configured = all transitions allowed (backward compatible). When rules exist, missing entries are treated as disallowed. Blocked moves return 409 with descriptive error listing allowed targets.
+
+#### Step: tracks-prof-h3 - WIP Limits Enforcement
+
+**Status:** completed ✅
+**Duration:** ~2 hours
+**Deliverables:**
+- ✓ `MoveWorkItemDto.EnforceWipLimit` field added (bool?)
+- ✓ `WorkItemService.MoveWorkItemAsync` checks `CardLimit` before allowing moves
+  - `EnforceWipLimit == true` → throws InvalidOperationException (blocks move)
+  - No enforce → allows move but caller should warn (soft enforcement)
+- ✓ `WorkItemsController.MoveWorkItemAsync` returns 409 Conflict for blocked WIP moves
+- ✓ `KanbanBoard.razor` — WIP warning toast with icon, message, dismiss button
+- ✓ `KanbanBoard.razor.cs` — `EnforceWipStrictly` parameter, client-side WIP preview check
+  - Client-side: blocks if strict, shows warning if soft
+  - Server-side: catches "Cannot move" / "WIP limit" exceptions, shows error toast
+- ✓ WIP count color indicators in swimlane headers already existed (green/yellow/red)
+- ✓ `ProductSettingsPage.razor` — CardLimit number input in each swimlane row
+- ✓ `ProductSettingsPage.razor` — "Enforce WIP limits strictly" checkbox
+- ✓ `ProductSettingsPage.razor.cs` — `SettingsSwimlane.CardLimit` field, `_enforceWipStrictly` state
+- ✓ WIP toast CSS styles in `TracksPage.razor.css` (light + dark mode)
+- ✓ Transition matrix CSS styles in `ProductSettingsPage.razor.css`
+
+**Notes:** Soft enforcement by default (backward compatible). Strict mode must be explicitly enabled. KanbanBoard provides client-side preview before server call to avoid unnecessary network round-trips. Server-side enforcement is the authoritative check.
 
 ---
 

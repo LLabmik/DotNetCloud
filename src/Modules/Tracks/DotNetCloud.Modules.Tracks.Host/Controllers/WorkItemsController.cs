@@ -184,6 +184,10 @@ public class WorkItemsController : TracksControllerBase
             _logger.LogError(ex, "Failed to move work item {WorkItemId}", workItemId);
             if (ex.Message.Contains("not found"))
                 return NotFound(ErrorEnvelope(ErrorCodes.CardNotFound, ex.Message));
+            if (ex.Message.Contains("Cannot move from"))
+                return Conflict(ErrorEnvelope(ErrorCodes.InvalidOperation, ex.Message));
+            if (ex.Message.Contains("WIP limit"))
+                return Conflict(ErrorEnvelope(ErrorCodes.InvalidOperation, ex.Message));
             return BadRequest(ErrorEnvelope(ErrorCodes.BadRequest, ex.Message));
         }
     }

@@ -58,3 +58,101 @@
     flex-direction: column;
     gap: 4px;
 }
+
+/* ── Dark Mode ── */
+
+:global(.dark-mode) .tracks-member-name {
+    color: var(--color-text);
+}
+
+:global(.dark-mode) .tracks-icon-btn:hover {
+    background: color-mix(in srgb, var(--color-danger) 15%, transparent);
+}
+
+/* ── WIP Input ── */
+.tracks-swimlane-wip {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.tracks-wip-label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--color-muted);
+}
+
+.tracks-wip-input {
+    width: 52px;
+    text-align: center;
+}
+
+.tracks-settings-wip-options {
+    padding: 8px 0;
+}
+
+/* ── Transition Matrix ── */
+.tracks-transition-presets {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 12px;
+}
+
+.tracks-transition-matrix {
+    overflow-x: auto;
+    margin-bottom: 12px;
+}
+
+.tracks-transition-matrix-header,
+.tracks-transition-matrix-row {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.tracks-transition-corner,
+.tracks-transition-col-header,
+.tracks-transition-row-header {
+    width: 64px;
+    flex-shrink: 0;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--color-muted);
+    text-align: center;
+    padding: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tracks-transition-row-header {
+    text-align: right;
+    padding-right: 8px;
+}
+
+.tracks-transition-cell {
+    width: 40px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background 150ms;
+}
+
+.tracks-transition-cell:hover {
+    background: var(--color-bg);
+}
+
+.tracks-transition-cell.blocked {
+    background: color-mix(in srgb, var(--color-danger) 8%, transparent);
+}
+
+.tracks-transition-cell input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
+    accent-color: var(--color-primary);
+    cursor: pointer;
+}

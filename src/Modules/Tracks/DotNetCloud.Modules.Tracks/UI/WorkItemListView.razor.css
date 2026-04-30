@@ -452,3 +452,23 @@
     background: #fef2f2;
     color: #dc2626;
 }
+
+/* ── Dark Mode ── */
+
+:global(.dark-mode) .tracks-list-stat {
+    background: color-mix(in srgb, var(--color-text) 8%, transparent);
+}
+
+:global(.dark-mode) .tracks-list-stat-selected {
+    background: color-mix(in srgb, var(--color-primary) 20%, transparent);
+}
+
+:global(.dark-mode) .btn-danger {
+    color: #fca5a5;
+    border-color: #dc2626;
+}
+
+:global(.dark-mode) .btn-danger:hover {
+    background: color-mix(in srgb, #dc2626 15%, transparent);
+    color: #fca5a5;
+}

@@ -143,3 +143,23 @@
     border-radius: 50%;
     display: inline-block;
 }
+
+/* ── Dark Mode ── */
+
+:global(.dark-mode) .capacity-widget {
+    background: var(--color-surface);
+    border-color: var(--color-border);
+}
+
+:global(.dark-mode) .capacity-bar-track {
+    background: color-mix(in srgb, var(--color-text) 10%, transparent);
+}
+
+:global(.dark-mode) .capacity-empty,
+:global(.dark-mode) .capacity-loading {
+    color: var(--color-text-secondary);
+}
+
+:global(.dark-mode) .capacity-overload-badge {
+    background: color-mix(in srgb, #dc2626 15%, transparent);
+}

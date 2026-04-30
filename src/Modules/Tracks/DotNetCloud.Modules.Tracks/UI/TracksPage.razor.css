@@ -6772,3 +6772,145 @@
 ::deep .tracks-save-view-btn:hover {
     color: var(--color-text) !important;
 }
+
+/* ─────────── WIP Warning Toast ─────────── */
+
+::deep .tracks-wip-warning-toast {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    margin: 8px 20px;
+    background: color-mix(in srgb, var(--color-warning) 10%, var(--color-surface));
+    border: 1px solid color-mix(in srgb, var(--color-warning) 30%, transparent);
+    border-radius: var(--radius);
+    font-size: 13px;
+    animation: tracks-fade-in 200ms ease;
+}
+
+::deep .tracks-wip-warning-toast.wip-blocked {
+    background: color-mix(in srgb, var(--color-danger) 10%, var(--color-surface));
+    border-color: color-mix(in srgb, var(--color-danger) 30%, transparent);
+}
+
+::deep .tracks-wip-warning-icon {
+    font-size: 16px;
+    flex-shrink: 0;
+}
+
+::deep .tracks-wip-warning-text {
+    flex: 1;
+    color: var(--color-text);
+}
+
+::deep .tracks-wip-warning-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border: none;
+    background: transparent;
+    color: var(--color-muted);
+    cursor: pointer;
+    border-radius: 4px;
+    font-size: 14px;
+    flex-shrink: 0;
+}
+
+::deep .tracks-wip-warning-close:hover {
+    background: color-mix(in srgb, var(--color-text) 8%, transparent);
+    color: var(--color-text);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Dark Mode Overrides
+   ══════════════════════════════════════════════════════════════ */
+
+:global(.dark-mode) {
+    /* ── Kanban Columns ── */
+    ::deep .tracks-kanban-column {
+        background: color-mix(in srgb, var(--color-surface) 50%, var(--color-bg) 50%);
+        border-color: var(--color-border);
+    }
+
+    ::deep .tracks-kanban-column-header {
+        border-bottom-color: color-mix(in srgb, var(--color-border) 80%, transparent);
+    }
+
+    /* ── Kanban Cards ── */
+    ::deep .tracks-kanban-card {
+        border-color: color-mix(in srgb, var(--color-border) 70%, transparent);
+    }
+
+    ::deep .tracks-kanban-card:hover {
+        border-color: color-mix(in srgb, var(--color-primary) 50%, var(--color-border));
+        box-shadow: 0 3px 16px rgba(0, 0, 0, 0.3);
+    }
+
+    /* ── Card count badges ── */
+    ::deep .tracks-card-count {
+        background: color-mix(in srgb, var(--color-text-secondary) 15%, transparent);
+    }
+
+    ::deep .tracks-card-count.wip-exceeded {
+        background: color-mix(in srgb, var(--color-danger) 25%, transparent);
+        color: #fca5a5;
+    }
+
+    /* ── Card metadata badges ── */
+    ::deep .tracks-card-badge {
+        background: color-mix(in srgb, var(--color-text-secondary) 12%, transparent);
+        color: var(--color-text-secondary);
+    }
+
+    /* ── Empty states ── */
+    ::deep .tracks-empty-icon {
+        opacity: 0.4;
+    }
+
+    /* ── Comment code blocks ── */
+    ::deep .tracks-comment-body code {
+        background: color-mix(in srgb, var(--color-text) 8%, transparent);
+        color: var(--color-text);
+    }
+
+    ::deep .tracks-comment-body pre {
+        background: color-mix(in srgb, var(--color-text) 6%, transparent);
+        border: 1px solid var(--color-border);
+    }
+
+    /* ── Card detail panel sidebar ── */
+    ::deep .tracks-card-panel-sidebar {
+        background: color-mix(in srgb, var(--color-bg) 50%, var(--color-surface) 50%);
+    }
+
+    /* ── Swimlane headers with colored backgrounds ── */
+    ::deep .tracks-kanban-column-title {
+        color: var(--color-text);
+    }
+
+    /* ── Filter selects and search inputs ── */
+    ::deep .tracks-search-input,
+    ::deep .tracks-filter-select {
+        background: var(--color-surface);
+        color: var(--color-text);
+        border-color: var(--color-border);
+    }
+
+    /* ── Dialog overlays ── */
+    ::deep .tracks-dialog-backdrop {
+        background: rgba(0, 0, 0, 0.6);
+    }
+
+    /* ── WIP Warning Toast ── */
+    ::deep .tracks-wip-warning-toast {
+        background: color-mix(in srgb, var(--color-warning) 15%, var(--color-surface));
+        border-color: color-mix(in srgb, var(--color-warning) 40%, transparent);
+    }
+
+    ::deep .tracks-wip-warning-toast.wip-blocked {
+        background: color-mix(in srgb, var(--color-danger) 15%, var(--color-surface));
+        border-color: color-mix(in srgb, var(--color-danger) 40%, transparent);
+    }
+}
