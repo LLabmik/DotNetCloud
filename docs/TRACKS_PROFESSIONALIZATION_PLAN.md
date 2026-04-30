@@ -238,9 +238,20 @@ Each phase group should be built, tested, deployed, and user-tested before movin
 
 ## Post-Implementation: Remaining Gaps
 
-After these 10 items, the analysis identifies 17 more features for future phases:
-- Custom fields, Automation rules, Roadmap timeline, Command palette
-- Recurring work items, Comment reactions, Milestones, Capacity planning
-- Dark mode enhancements, Onboarding tour, Product templates UI
-- Import from CSV, Share/guest access, Goals/OKRs, Mobile notifications
-- Webhooks, Custom swimlane transition rules, Column constraints (WIP limits enforcement)
+> **Detailed plan moved to:** `docs/TRACKS_REMAINING_GAPS_PLAN.md`
+
+The analysis identifies 17 more features organized into 6 additional phases (D–I):
+
+| Phase | Features | Est. Hours |
+|-------|----------|------------|
+| **D: Data Foundation** | Custom fields, Milestones, Recurring work items | 12–14 |
+| **E: Collaboration** | Comment reactions, Guest access, Product templates UI | 12–14 |
+| **F: Power Tools** | Command palette, CSV import wizard, Webhooks (production-grade) | 16–19 |
+| **G: Planning** | Product roadmap, Automation rules, Goals/OKRs, Capacity planning | 14–17 |
+| **H: Polish** | Dark mode audit, Swimlane transition rules, WIP limit enforcement | 8–10 |
+| **I: Onboarding** | 10-step guided tour (saved for last) | 5 |
+| **Total** | | **67–79** |
+
+**Deferred:** Mobile notifications → `docs/PHASE_MOBILE_NOTIFICATIONS_PLAN.md` (TBD)
+
+See `docs/TRACKS_REMAINING_GAPS_PLAN.md` for full step-by-step details, file paths, entities, API endpoints, and verification steps.
