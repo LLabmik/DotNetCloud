@@ -183,7 +183,7 @@
                     <strong>Archive this product</strong>
                     <p>Archived products are hidden from the main view but can be restored.</p>
                 </div>
-                <button class="btn btn-outline" @onclick="ArchiveProductAsync"
+                <button class="btn btn-outline" @onclick="() => _showArchiveConfirm = true"
                         disabled="@Product.IsArchived">
                     @(Product.IsArchived ? "Already Archived" : "Archive Product")
                 </button>
@@ -195,21 +195,6 @@
                     <p>Transfer product ownership to another admin member. You will become an Admin.</p>
                 </div>
                 <button class="btn btn-outline" @onclick="() => _showTransferOwner = true">Transfer Ownership</button>
-                @if (_showTransferOwner)
-                {
-                    <div class="tracks-settings-transfer">
-                        <select class="form-control form-control-sm" @bind="_transferTargetUserId">
-                            <option value="">Select admin...</option>
-                            @foreach (var member in _members.Where(m => m.Role == ProductMemberRole.Admin && m.UserId != Product.OwnerId))
-                            {
-                                <option value="@member.UserId">@(member.DisplayName ?? member.UserId.ToString())</option>
-                            }
-                        </select>
-                        <button class="btn btn-sm btn-primary" @onclick="TransferOwnershipAsync"
-                                disabled="@string.IsNullOrEmpty(_transferTargetUserId)">Transfer</button>
-                        <button class="btn btn-sm btn-secondary" @onclick="() => _showTransferOwner = false">Cancel</button>
-                    </div>
-                }
             </div>
 
             <div class="tracks-danger-item">
@@ -218,20 +203,64 @@
                     <p>Permanently delete this product and all its data. This action cannot be undone.</p>
                 </div>
                 <button class="btn btn-danger" @onclick="() => _showDeleteConfirm = true">Delete Product</button>
-                @if (_showDeleteConfirm)
-                {
-                    <div class="tracks-settings-delete-confirm">
-                        <p class="tracks-danger-warning">⚠️ Are you sure? This will permanently delete all work items, comments, and data.</p>
-                        <input type="text" class="form-control form-control-sm" placeholder="Type product name to confirm"
-                               @bind="_deleteConfirmName" />
-                        <div class="tracks-danger-actions">
-                            <button class="btn btn-danger btn-sm" @onclick="PermanentDeleteAsync"
-                                    disabled="@(_deleteConfirmName != Product.Name)">Yes, Delete Forever</button>
-                            <button class="btn btn-secondary btn-sm" @onclick="CancelDeleteConfirm">Cancel</button>
-                        </div>
-                    </div>
-                }
             </div>
         </section>
+
+        @* ── Archive Confirmation Modal ── *@
+        <DncModal Title="Archive Product" StartVisible="@_showArchiveConfirm" OnClose="CancelArchiveConfirm">
+            <ChildContent>
+                <p>Are you sure you want to archive <strong>@Product.Name</strong>?</p>
+                <p class="tracks-modal-warning">Archived products are hidden from the main view but can be restored later.</p>
+            </ChildContent>
+            <Footer>
+                <button class="btn btn-primary" @onclick="ArchiveProductAsync" disabled="@_isSaving">
+                    @(_isSaving ? "Archiving..." : "Archive")
+                </button>
+                <button class="btn btn-secondary" @onclick="CancelArchiveConfirm">Cancel</button>
+            </Footer>
+        </DncModal>
+
+        @* ── Transfer Ownership Modal ── *@
+        <DncModal Title="Transfer Ownership" StartVisible="@_showTransferOwner" OnClose="CancelTransferOwner">
+            <ChildContent>
+                <p>Transfer ownership of <strong>@Product.Name</strong> to another admin. You will become an Admin.</p>
+                <p class="tracks-modal-warning">This action cannot be undone by you after the transfer.</p>
+                <div class="tracks-settings-transfer" style="margin-top: 1rem;">
+                    <select class="form-control form-control-sm" @bind="_transferTargetUserId">
+                        <option value="">Select admin...</option>
+                        @foreach (var member in _members.Where(m => m.Role == ProductMemberRole.Admin && m.UserId != Product.OwnerId))
+                        {
+                            <option value="@member.UserId">@(member.DisplayName ?? member.UserId.ToString())</option>
+                        }
+                    </select>
+                </div>
+            </ChildContent>
+            <Footer>
+                <button class="btn btn-primary" @onclick="TransferOwnershipAsync"
+                        disabled="@string.IsNullOrEmpty(_transferTargetUserId) || _isSaving">
+                    @(_isSaving ? "Transferring..." : "Transfer")
+                </button>
+                <button class="btn btn-secondary" @onclick="CancelTransferOwner">Cancel</button>
+            </Footer>
+        </DncModal>
+
+        @* ── Delete Product Confirmation Modal ── *@
+        <DncModal Title="Delete Product" StartVisible="@_showDeleteConfirm" OnClose="CancelDeleteConfirm" CloseOnOverlayClick="false">
+            <ChildContent>
+                <p>Are you sure you want to <strong>permanently delete</strong> @Product.Name?</p>
+                <p class="tracks-modal-warning">⚠️ This will permanently delete all work items, comments, and data. This action cannot be undone.</p>
+                <div style="margin-top: 1rem;">
+                    <input type="text" class="form-control form-control-sm" placeholder="Type product name to confirm"
+                           @bind="_deleteConfirmName" />
+                </div>
+            </ChildContent>
+            <Footer>
+                <button class="btn btn-danger" @onclick="PermanentDeleteAsync"
+                        disabled="@(_deleteConfirmName != Product.Name) || _isSaving">
+                    @(_isSaving ? "Deleting..." : "Yes, Delete Forever")
+                </button>
+                <button class="btn btn-secondary" @onclick="CancelDeleteConfirm">Cancel</button>
+            </Footer>
+        </DncModal>
     </div>
 </div>

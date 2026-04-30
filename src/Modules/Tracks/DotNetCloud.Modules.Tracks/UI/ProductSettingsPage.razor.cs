@@ -39,6 +39,7 @@ public partial class ProductSettingsPage : ComponentBase
     private string _newLabelColor = "#3b82f6";
 
     // Danger zone
+    private bool _showArchiveConfirm;
     private bool _showTransferOwner;
     private string _transferTargetUserId = "";
     private bool _showDeleteConfirm;
@@ -309,6 +310,7 @@ public partial class ProductSettingsPage : ComponentBase
 
     private async Task ArchiveProductAsync()
     {
+        _showArchiveConfirm = false;
         _isSaving = true;
         try
         {
@@ -334,11 +336,11 @@ public partial class ProductSettingsPage : ComponentBase
     {
         if (!Guid.TryParse(_transferTargetUserId, out var newOwnerId)) return;
 
+        _showTransferOwner = false;
         _isSaving = true;
         try
         {
             await ApiClient.UpdateProductMemberRoleAsync(Product.Id, newOwnerId, ProductMemberRole.Owner);
-            _showTransferOwner = false;
             _successMessage = "Ownership transferred.";
             await LoadDataAsync();
         }
@@ -356,6 +358,7 @@ public partial class ProductSettingsPage : ComponentBase
     {
         if (_deleteConfirmName != Product.Name) return;
 
+        _showDeleteConfirm = false;
         _isSaving = true;
         try
         {
@@ -385,6 +388,17 @@ public partial class ProductSettingsPage : ComponentBase
     {
         _showAddMember = true;
         _memberSearchTerm = "";
+    }
+
+    private void CancelArchiveConfirm()
+    {
+        _showArchiveConfirm = false;
+    }
+
+    private void CancelTransferOwner()
+    {
+        _showTransferOwner = false;
+        _transferTargetUserId = "";
     }
 
     private void CancelDeleteConfirm()

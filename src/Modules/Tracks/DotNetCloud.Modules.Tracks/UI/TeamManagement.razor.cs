@@ -41,6 +41,8 @@ public sealed partial class TeamManagement : ComponentBase
     private List<TracksTeamDto> _teams = [];
     private Guid? _selectedTeamId;
     private bool _showCreateDialog;
+    private bool _showDeleteTeamConfirm;
+    private Guid _teamToDeleteId;
     private string? _errorMessage;
 
     // Create form
@@ -177,6 +179,7 @@ public sealed partial class TeamManagement : ComponentBase
 
     private async Task DeleteTeamAsync(Guid teamId)
     {
+        _showDeleteTeamConfirm = false;
         try
         {
             await Api.DeleteTeamAsync(teamId);

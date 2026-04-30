@@ -136,7 +136,7 @@
                             @* ── Danger Zone ── *@
                             <div class="tracks-team-section tracks-danger-zone">
                                 <h4>Danger Zone</h4>
-                                <button class="btn btn-sm btn-danger" @onclick="() => DeleteTeamAsync(team.Id)">Delete Team</button>
+                                <button class="btn btn-sm btn-danger" @onclick="() => { _teamToDeleteId = team.Id; _showDeleteTeamConfirm = true; }">Delete Team</button>
                             </div>
                         </div>
                     }
@@ -173,6 +173,20 @@
             </div>
         </div>
     }
+
+    @* ── Delete Team Confirmation Modal ── *@
+    <DncModal Title="Delete Team" StartVisible="@_showDeleteTeamConfirm" OnClose="() => _showDeleteTeamConfirm = false">
+        <ChildContent>
+            <p>Are you sure you want to <strong>permanently delete</strong> this team?</p>
+            <p class="tracks-modal-warning">⚠️ This will remove the team and all associated data. This action cannot be undone.</p>
+        </ChildContent>
+        <Footer>
+            <button class="btn btn-danger" @onclick="() => DeleteTeamAsync(_teamToDeleteId)">
+                Yes, Delete Forever
+            </button>
+            <button class="btn btn-secondary" @onclick="() => _showDeleteTeamConfirm = false">Cancel</button>
+        </Footer>
+    </DncModal>
 
     @if (!string.IsNullOrEmpty(_errorMessage))
     {
