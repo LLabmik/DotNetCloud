@@ -55,6 +55,34 @@
             </div>
         }
 
+        @* Product-level sub-views (when viewing a product) *@
+        @if (_selectedProduct is not null && _view is TracksView.ProductKanban or TracksView.Backlog or TracksView.Timeline or TracksView.Calendar or TracksView.Settings)
+        {
+            <div class="tracks-sidebar-section">
+                @if (!_sidebarCollapsed)
+                {
+                    <div class="tracks-sidebar-section-header">
+                        <span>@_selectedProduct.Name</span>
+                    </div>
+                }
+                <button class="tracks-nav-item @(_view == TracksView.ProductKanban ? "active" : "")"
+                        @onclick="() => SelectProduct(_selectedProduct.Id)" title="Kanban Board">
+                    <span class="tracks-nav-icon">📋</span>
+                    @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Kanban</span> }
+                </button>
+                <button class="tracks-nav-item @(_view == TracksView.Calendar ? "active" : "")"
+                        @onclick="OpenCalendar" title="Calendar View">
+                    <span class="tracks-nav-icon">📅</span>
+                    @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Calendar</span> }
+                </button>
+                <button class="tracks-nav-item @(_view == TracksView.Settings ? "active" : "")"
+                        @onclick="OpenSettings" title="Product Settings">
+                    <span class="tracks-nav-icon">⚙️</span>
+                    @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Settings</span> }
+                </button>
+            </div>
+        }
+
         @* Epic-level sub-views (only when viewing an Epic) *@
         @if (_selectedEpic is not null && (_view is TracksView.EpicKanban or TracksView.Planning or TracksView.Wizard or TracksView.Backlog or TracksView.Timeline or TracksView.Review))
         {
@@ -98,11 +126,32 @@
                     <span class="tracks-nav-icon">🎯</span>
                     @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Review</span> }
                 </button>
+                <button class="tracks-nav-item @(_view == TracksView.Calendar ? "active" : "")"
+                        @onclick="OpenCalendar" title="Calendar View">
+                    <span class="tracks-nav-icon">📅</span>
+                    @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Calendar</span> }
+                </button>
+                <button class="tracks-nav-item @(_view == TracksView.Settings ? "active" : "")"
+                        @onclick="OpenSettings" title="Product Settings">
+                    <span class="tracks-nav-icon">⚙️</span>
+                    @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Settings</span> }
+                </button>
                 <button class="tracks-nav-item" @onclick="() => OpenEpicKanban(_selectedEpic.Id)" title="Back to Epic Kanban">
                     <span class="tracks-nav-icon">←</span>
                     @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Kanban</span> }
                 </button>
             </div>
+        }
+
+        @* Saved Views (when product is selected) *@
+        @if (_selectedProduct is not null && !_sidebarCollapsed)
+        {
+            <CustomViewsSidebar @ref="_customViewsSidebar"
+                                ProductId="_selectedProduct.Id"
+                                Collapsed="_sidebarCollapsed"
+                                SelectedViewId="_selectedViewId"
+                                OnViewSelected="HandleViewSelected"
+                                OnSaveCurrentView="HandleSaveCurrentView" />
         }
 
         @* Teams *@
@@ -339,7 +388,79 @@
                         }
                     }
                     break;
+
+                case TracksView.Calendar:
+                    @if (_selectedProduct is not null)
+                    {
+                        <WorkItemCalendarView Product="_selectedProduct"
+                                              Swimlanes="_currentSwimlanes"
+                                              WorkItemsBySwimlane="_currentWorkItems"
+                                              OnWorkItemSelected="SelectWorkItemByNumber"
+                                              OnItemsChanged="RefreshCurrentKanbanAsync" />
+
+                        @if (_selectedWorkItem is not null)
+                        {
+                            <WorkItemDetailPanel WorkItem="_selectedWorkItem"
+                                                 Product="_selectedProduct!"
+                                                 Members="_currentMembers"
+                                                 ProductLabels="_currentLabels"
+                                                 Sprints="_sprints"
+                                                 OnClose="CloseWorkItemDetail"
+                                                 OnWorkItemUpdated="HandleWorkItemUpdated"
+                                                 OnWorkItemDeleted="HandleWorkItemDeleted"
+                                                 OnOpenKanban="_ => Task.CompletedTask" />
+                        }
+                    }
+                    break;
+
+                case TracksView.Settings:
+                    @if (_selectedProduct is not null)
+                    {
+                        <ProductSettingsPage Product="_selectedProduct"
+                                             OnProductUpdated="HandleProductUpdated"
+                                             OnNavigateBack="() => NavigateToProductList()" />
+                    }
+                    break;
             }
         }
     </div>
 </div>
+
+@* ── Keyboard Shortcuts Modal ── *@
+@if (_showShortcutsModal)
+{
+    <TracksShortcutsModal OnClose="() => _showShortcutsModal = false" />
+}
+
+@* ── Undo Toast ── *@
+<UndoToast @ref="_undoToast"
+            Message="@_undoToastMessage"
+            OnUndo="@RestoreLastDeletedProductAsync" />
+
+@* ── Save View Dialog ── *@
+@if (_showSaveViewDialog)
+{
+    <div class="tracks-dialog-overlay" @onclick="HandleSaveViewCancel">
+        <div class="tracks-dialog tracks-save-view-dialog" @onclick:stopPropagation>
+            <h3>Save Current View</h3>
+            <div class="tracks-dialog-field">
+                <label for="save-view-name">View Name</label>
+                <input type="text" id="save-view-name" class="form-control"
+                       placeholder="e.g., My Sprint Overview"
+                       @bind="_newViewName"
+                       @onkeydown="HandleSaveViewNameKeyDown" />
+            </div>
+            <label class="tracks-checkbox-label">
+                <input type="checkbox" @bind="_newViewIsShared" />
+                <span>Share with team members</span>
+            </label>
+            <div class="tracks-dialog-actions">
+                <button class="btn btn-primary" @onclick="HandleSaveViewConfirm"
+                        disabled="@string.IsNullOrWhiteSpace(_newViewName)">
+                    Save View
+                </button>
+                <button class="btn btn-secondary" @onclick="HandleSaveViewCancel">Cancel</button>
+            </div>
+        </div>
+    </div>
+}

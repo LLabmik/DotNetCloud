@@ -1,4 +1,6 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
+using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Modules.Tracks.Services;
 using DotNetCloud.UI.Shared.Services;
@@ -49,6 +51,12 @@ public partial class WorkItemDetailPanel : ComponentBase, IDisposable
     private string _storyPoints = "";
     private string _newCommentContent = "";
     private bool _showCommentComposer;
+
+    // Mention typeahead
+    private MentionTypeahead? _mentionTypeahead;
+    private ElementReference _commentTextarea;
+    private int _mentionStartIndex = -1;
+    private string _mentionSearchTerm = "";
     private string _swimlaneName = "";
 
     // Pickers
@@ -91,6 +99,11 @@ public partial class WorkItemDetailPanel : ComponentBase, IDisposable
     private int _liveTrackedMinutes;
     private Timer? _liveTimer;
 
+    // Watcher state
+    private bool _isWatching;
+    private bool _isTogglingWatch;
+    private int _watcherCount;
+
     /// <inheritdoc />
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -115,7 +128,8 @@ public partial class WorkItemDetailPanel : ComponentBase, IDisposable
             ApiClient.ListAttachmentsAsync(WorkItem.Id),
             ApiClient.ListDependenciesAsync(WorkItem.Id),
             ApiClient.ListTimeEntriesAsync(WorkItem.Id),
-            ApiClient.GetWorkItemActivityAsync(WorkItem.Id)
+            ApiClient.GetWorkItemActivityAsync(WorkItem.Id),
+            LoadWatcherStateAsync() // Check if current user is watching
         };
 
         // Checklists only for Items without SubItems
@@ -145,6 +159,58 @@ public partial class WorkItemDetailPanel : ComponentBase, IDisposable
     {
         _checklists.Clear();
         _checklists.AddRange(await ApiClient.ListChecklistsAsync(WorkItem.Id));
+    }
+
+    /// <summary>
+    /// Checks if the current user is watching this work item and loads the watcher count.
+    /// Called when the detail panel opens.
+    /// </summary>
+    private async Task LoadWatcherStateAsync()
+    {
+        try
+        {
+            var watchers = await ApiClient.GetWatchersAsync(WorkItem.Id);
+            _watcherCount = watchers.Count;
+            // We don't have the current user ID here, so we rely on the watch/unwatch
+            // endpoint to determine state. We'll assume not watching until toggled.
+            _isWatching = false;
+        }
+        catch
+        {
+            // Watcher check failed — user can still manually toggle
+        }
+    }
+
+    /// <summary>
+    /// Toggles watching on/off for this work item.
+    /// When watching, you get notified about changes even if you're not assigned.
+    /// </summary>
+    private async Task ToggleWatchAsync()
+    {
+        if (_isTogglingWatch) return;
+        _isTogglingWatch = true;
+
+        try
+        {
+            if (_isWatching)
+            {
+                _watcherCount = await ApiClient.UnwatchWorkItemAsync(WorkItem.Id);
+                _isWatching = false;
+            }
+            else
+            {
+                _watcherCount = await ApiClient.WatchWorkItemAsync(WorkItem.Id);
+                _isWatching = true;
+            }
+        }
+        catch
+        {
+            // Toggle failed — revert visual state
+        }
+        finally
+        {
+            _isTogglingWatch = false;
+        }
     }
 
     private async Task LoadChildWorkItemsAsync()
@@ -325,6 +391,98 @@ public partial class WorkItemDetailPanel : ComponentBase, IDisposable
 
     // ── Comments ────────────────────────────────────────────
 
+    /// <summary>Handles keydown in the comment textarea. Detects @ for mention typeahead.</summary>
+    private async Task HandleCommentKeyDown(KeyboardEventArgs e)
+    {
+        // If typeahead is visible, let it handle navigation keys
+        if (_mentionTypeahead is not null && _mentionStartIndex >= 0)
+        {
+            if (e.Key is "ArrowDown" or "ArrowUp" or "Enter" or "Escape")
+            {
+                await _mentionTypeahead.HandleKeyDownAsync(e.Key);
+                return;
+            }
+        }
+    }
+
+    /// <summary>Handles keyup in the comment textarea. Tracks @ mention state.</summary>
+    private async Task HandleCommentKeyUp(KeyboardEventArgs e)
+    {
+        // Detect @ character typed — find the most recent @ before cursor
+        var content = _newCommentContent ?? "";
+        var atIndex = FindMentionAtSymbol(content);
+
+        if (atIndex >= 0 && (atIndex == 0 || content[atIndex - 1] == ' ' || content[atIndex - 1] == '\n'))
+        {
+            _mentionStartIndex = atIndex;
+            _mentionSearchTerm = content[(atIndex + 1)..];
+            
+            // Only show typeahead if search term doesn't contain spaces
+            if (!_mentionSearchTerm.Contains(' ') && _mentionTypeahead is not null)
+            {
+                await _mentionTypeahead.ShowAsync(_mentionSearchTerm, 0, 0);
+            }
+        }
+        else if (_mentionStartIndex >= 0)
+        {
+            // User is still typing the mention — update search
+            var searchTerm = content[(_mentionStartIndex + 1)..];
+            if (searchTerm.Contains(' ') || searchTerm.Contains('\n') || searchTerm.Length == 0)
+            {
+                // Mention ended
+                _mentionStartIndex = -1;
+                _mentionSearchTerm = "";
+                _mentionTypeahead?.Hide();
+            }
+        }
+        else
+        {
+            _mentionTypeahead?.Hide();
+        }
+    }
+
+    /// <summary>Finds the most recent @ symbol in the content that could be a mention start.</summary>
+    private static int FindMentionAtSymbol(string content)
+    {
+        // Find the last @ that isn't part of an email or preceded by a word character
+        for (int i = content.Length - 1; i >= 0; i--)
+        {
+            if (content[i] == '@')
+            {
+                // Check if it's preceded by whitespace, start of string, or newline
+                if (i == 0 || char.IsWhiteSpace(content[i - 1]))
+                    return i;
+                // If it's preceded by another @, it could be @@ escaping
+            }
+        }
+        return -1;
+    }
+
+    /// <summary>Called when a user is selected from the mention typeahead.</summary>
+    private async Task HandleMentionSelected(UserSearchResult user)
+    {
+        if (_mentionStartIndex < 0) return;
+
+        var content = _newCommentContent ?? "";
+        var before = content[.._mentionStartIndex];
+        var after = content[(_mentionStartIndex + 1 + _mentionSearchTerm.Length)..];
+        
+        // Insert @username followed by a space
+        _newCommentContent = $"{before}@{user.DisplayName.Replace(" ", "")} {after}";
+        _mentionStartIndex = -1;
+        _mentionSearchTerm = "";
+
+        // Focus back on textarea
+        StateHasChanged();
+    }
+
+    /// <summary>Called when the mention typeahead is dismissed.</summary>
+    private void HandleMentionDismissed()
+    {
+        _mentionStartIndex = -1;
+        _mentionSearchTerm = "";
+    }
+
     private async Task AddCommentAsync()
     {
         if (string.IsNullOrWhiteSpace(_newCommentContent)) return;
@@ -332,6 +490,17 @@ public partial class WorkItemDetailPanel : ComponentBase, IDisposable
         if (comment is not null) _comments.Insert(0, comment);
         _newCommentContent = "";
         _showCommentComposer = false;
+        _mentionStartIndex = -1;
+        _mentionSearchTerm = "";
+    }
+
+    private void CancelComment()
+    {
+        _newCommentContent = "";
+        _showCommentComposer = false;
+        _mentionStartIndex = -1;
+        _mentionSearchTerm = "";
+        _mentionTypeahead?.Hide();
     }
 
     private async Task DeleteCommentAsync(Guid commentId)
@@ -339,6 +508,31 @@ public partial class WorkItemDetailPanel : ComponentBase, IDisposable
         await ApiClient.DeleteCommentAsync(WorkItem.Id, commentId);
         _comments.RemoveAll(c => c.Id == commentId);
     }
+
+    /// <summary>
+    /// Renders comment content with @mentions highlighted as clickable links.
+    /// Uses regex to find @username patterns and wraps them in styled spans.
+    /// </summary>
+    private string RenderCommentContent(string? content)
+    {
+        if (string.IsNullOrWhiteSpace(content))
+            return "";
+
+        // First render markdown to HTML
+        var html = MdRenderer.RenderToHtml(content);
+
+        // Then highlight @mentions in the rendered HTML
+        // Match @username patterns (alphanumeric, hyphen, underscore, dot)
+        var mentionRegex = MentionHighlightRegex();
+        return mentionRegex.Replace(html, match =>
+        {
+            var username = match.Groups[1].Value;
+            return $"<span class=\"mention-highlight\" title=\"@{username}\">@{username}</span>";
+        });
+    }
+
+    [GeneratedRegex(@"(?<=^|\s)@([A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)", RegexOptions.Compiled)]
+    private static partial Regex MentionHighlightRegex();
 
     // ── Checklists ──────────────────────────────────────────
 

@@ -1,0 +1,237 @@
+@namespace DotNetCloud.Modules.Tracks.UI
+@using DotNetCloud.Core.DTOs
+
+<div class="tracks-settings-page">
+    <div class="tracks-settings-header">
+        <h2>Product Settings</h2>
+        <p class="tracks-settings-subtitle">Configure @Product.Name</p>
+    </div>
+
+    @if (_errorMessage is not null)
+    {
+        <div class="tracks-settings-error">@_errorMessage</div>
+    }
+    @if (_successMessage is not null)
+    {
+        <div class="tracks-settings-success">@_successMessage</div>
+    }
+
+    <div class="tracks-settings-sections">
+        @* ── General ── *@
+        <section class="tracks-settings-section">
+            <h3>General</h3>
+            <div class="tracks-settings-field">
+                <label for="settings-name">Product Name</label>
+                <input type="text" id="settings-name" class="form-control" @bind="_editName" />
+            </div>
+            <div class="tracks-settings-field">
+                <label for="settings-desc">Description</label>
+                <textarea id="settings-desc" class="form-control" rows="3" @bind="_editDescription"></textarea>
+            </div>
+            <div class="tracks-settings-field">
+                <label>Color</label>
+                <div class="tracks-settings-color-row">
+                    @foreach (var color in _colorPresets)
+                    {
+                        <button class="tracks-color-swatch @(_editColor == color ? "active" : "")"
+                                style="background: @color;"
+                                @onclick="() => _editColor = color"
+                                title="@color"
+                                type="button"></button>
+                    }
+                    <input type="color" class="tracks-color-custom" @bind="_editColor" />
+                </div>
+            </div>
+            <div class="tracks-settings-field">
+                <label class="tracks-checkbox-label">
+                    <input type="checkbox" @bind="_editSubItemsEnabled" />
+                    <span>Enable Sub-Items (hierarchical task breakdown)</span>
+                </label>
+            </div>
+            <button class="btn btn-primary" @onclick="SaveGeneralAsync" disabled="@_isSaving">
+                @(_isSaving ? "Saving..." : "Save Changes")
+            </button>
+        </section>
+
+        @* ── Swimlanes ── *@
+        <section class="tracks-settings-section">
+            <h3>Swimlanes</h3>
+            <p class="tracks-settings-hint">Default swimlanes for new products. Drag to reorder, edit names inline.</p>
+            <div class="tracks-settings-swimlane-list">
+                @for (int i = 0; i < _swimlanes.Count; i++)
+                {
+                    var swimlane = _swimlanes[i];
+                    var idx = i;
+                    <div class="tracks-settings-swimlane-row">
+                        <span class="tracks-swimlane-drag-handle">⋮⋮</span>
+                        <input type="text" class="form-control form-control-sm" @bind="_swimlanes[idx].Title" />
+                        <div class="tracks-swimlane-toggle">
+                            <label>
+                                <input type="checkbox" @bind="_swimlanes[idx].IsDone" />
+                                <span>Done</span>
+                            </label>
+                        </div>
+                        <button class="tracks-icon-btn" @onclick="() => RemoveSwimlane(idx)" title="Remove">×</button>
+                    </div>
+                }
+            </div>
+            <button class="btn btn-sm btn-outline" @onclick="AddSwimlane">+ Add Swimlane</button>
+            <div class="tracks-settings-section-actions">
+                <button class="btn btn-primary" @onclick="SaveSwimlanesAsync" disabled="@_isSaving">
+                    @(_isSaving ? "Saving..." : "Save Swimlanes")
+                </button>
+            </div>
+        </section>
+
+        @* ── Members ── *@
+        <section class="tracks-settings-section">
+            <h3>Members</h3>
+            <div class="tracks-settings-member-list">
+                @foreach (var member in _members)
+                {
+                    <div class="tracks-settings-member-row">
+                        <span class="tracks-member-avatar">@GetInitials(member.DisplayName)</span>
+                        <span class="tracks-member-name">@(member.DisplayName ?? member.UserId.ToString())</span>
+                        <select class="form-control form-control-sm" value="@member.Role.ToString()"
+                                @onchange="e => UpdateMemberRole(member.UserId, e)">
+                            <option value="Viewer">Viewer</option>
+                            <option value="Member">Member</option>
+                            <option value="Admin">Admin</option>
+                            @if (member.Role == ProductMemberRole.Owner)
+                            {
+                                <option value="Owner" selected>Owner</option>
+                            }
+                        </select>
+                        @if (member.Role != ProductMemberRole.Owner)
+                        {
+                            <button class="tracks-icon-btn" @onclick="() => RemoveMemberAsync(member.UserId)" title="Remove member">×</button>
+                        }
+                    </div>
+                }
+            </div>
+            @if (_showAddMember)
+            {
+                <div class="tracks-settings-add-member">
+                    <input type="text" class="form-control form-control-sm" placeholder="Search users..."
+                           @bind="_memberSearchTerm" @bind:event="oninput"
+                           @onkeyup="HandleMemberSearch" />
+                    @if (_memberSearchResults.Count > 0)
+                    {
+                        <div class="tracks-settings-member-dropdown">
+                            @foreach (var user in _memberSearchResults)
+                            {
+                                <button class="tracks-member-search-item"
+                                        @onclick="() => AddMemberAsync(user.Id)" type="button">
+                                    @user.DisplayName (@user.Email)
+                                </button>
+                            }
+                        </div>
+                    }
+                    <button class="btn btn-sm btn-secondary" @onclick="() => _showAddMember = false">Cancel</button>
+                </div>
+            }
+            else
+            {
+                <button class="btn btn-sm btn-outline" @onclick="StartAddMember">+ Add Member</button>
+            }
+        </section>
+
+        @* ── Labels ── *@
+        <section class="tracks-settings-section">
+            <h3>Labels</h3>
+            <div class="tracks-settings-label-list">
+                @foreach (var label in _labels)
+                {
+                    <div class="tracks-settings-label-row">
+                        <span class="tracks-label-color-dot" style="background: @label.Color;"></span>
+                        <span>@label.Title</span>
+                        <button class="tracks-icon-btn" @onclick="() => DeleteLabelAsync(label.Id)" title="Delete label">×</button>
+                    </div>
+                }
+            </div>
+            @if (_showCreateLabel)
+            {
+                <div class="tracks-settings-create-label">
+                    <input type="text" class="form-control form-control-sm" placeholder="Label name..."
+                           @bind="_newLabelTitle" />
+                    <div class="tracks-color-row">
+                        @foreach (var c in _labelColors)
+                        {
+                            <button class="tracks-color-swatch @(_newLabelColor == c ? "active" : "")"
+                                    style="background: @c;" @onclick="() => _newLabelColor = c" type="button"></button>
+                        }
+                    </div>
+                    <div class="tracks-settings-create-label-actions">
+                        <button class="btn btn-sm btn-primary" @onclick="CreateLabelAsync"
+                                disabled="@string.IsNullOrWhiteSpace(_newLabelTitle)">Create</button>
+                        <button class="btn btn-sm btn-secondary" @onclick="() => _showCreateLabel = false">Cancel</button>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <button class="btn btn-sm btn-outline" @onclick="() => _showCreateLabel = true">+ Create Label</button>
+            }
+        </section>
+
+        @* ── Danger Zone ── *@
+        <section class="tracks-settings-section tracks-settings-danger">
+            <h3>Danger Zone</h3>
+
+            <div class="tracks-danger-item">
+                <div class="tracks-danger-info">
+                    <strong>Archive this product</strong>
+                    <p>Archived products are hidden from the main view but can be restored.</p>
+                </div>
+                <button class="btn btn-outline" @onclick="ArchiveProductAsync"
+                        disabled="@Product.IsArchived">
+                    @(Product.IsArchived ? "Already Archived" : "Archive Product")
+                </button>
+            </div>
+
+            <div class="tracks-danger-item">
+                <div class="tracks-danger-info">
+                    <strong>Transfer ownership</strong>
+                    <p>Transfer product ownership to another admin member. You will become an Admin.</p>
+                </div>
+                <button class="btn btn-outline" @onclick="() => _showTransferOwner = true">Transfer Ownership</button>
+                @if (_showTransferOwner)
+                {
+                    <div class="tracks-settings-transfer">
+                        <select class="form-control form-control-sm" @bind="_transferTargetUserId">
+                            <option value="">Select admin...</option>
+                            @foreach (var member in _members.Where(m => m.Role == ProductMemberRole.Admin && m.UserId != Product.OwnerId))
+                            {
+                                <option value="@member.UserId">@(member.DisplayName ?? member.UserId.ToString())</option>
+                            }
+                        </select>
+                        <button class="btn btn-sm btn-primary" @onclick="TransferOwnershipAsync"
+                                disabled="@string.IsNullOrEmpty(_transferTargetUserId)">Transfer</button>
+                        <button class="btn btn-sm btn-secondary" @onclick="() => _showTransferOwner = false">Cancel</button>
+                    </div>
+                }
+            </div>
+
+            <div class="tracks-danger-item">
+                <div class="tracks-danger-info">
+                    <strong>Delete product</strong>
+                    <p>Permanently delete this product and all its data. This action cannot be undone.</p>
+                </div>
+                <button class="btn btn-danger" @onclick="() => _showDeleteConfirm = true">Delete Product</button>
+                @if (_showDeleteConfirm)
+                {
+                    <div class="tracks-settings-delete-confirm">
+                        <p class="tracks-danger-warning">⚠️ Are you sure? This will permanently delete all work items, comments, and data.</p>
+                        <input type="text" class="form-control form-control-sm" placeholder="Type product name to confirm"
+                               @bind="_deleteConfirmName" />
+                        <div class="tracks-danger-actions">
+                            <button class="btn btn-danger btn-sm" @onclick="PermanentDeleteAsync"
+                                    disabled="@(_deleteConfirmName != Product.Name)">Yes, Delete Forever</button>
+                            <button class="btn btn-secondary btn-sm" @onclick="CancelDeleteConfirm">Cancel</button>
+                        </div>
+                    </div>
+                }
+            </div>
+        </section>
+    </div>
+</div>

@@ -1,0 +1,111 @@
+@namespace DotNetCloud.Modules.Tracks.UI
+
+@* ── Keyboard Shortcuts Modal ── *@
+<div class="tracks-shortcuts-overlay" @onclick="OnClose">
+    <div class="tracks-shortcuts-modal" @onclick:stopPropagation>
+        <div class="tracks-shortcuts-header">
+            <h2>⌨️ Keyboard Shortcuts</h2>
+            <p class="tracks-shortcuts-subtitle">
+                Use these shortcuts to work faster. Press <kbd>?</kbd> anytime to see this reference.
+            </p>
+            <button class="tracks-close-btn" @onclick="OnClose" title="Close (or press Esc)">✕</button>
+        </div>
+
+        <div class="tracks-shortcuts-body">
+            <div class="tracks-shortcuts-section">
+                <h3>📝 Work Items</h3>
+                <div class="tracks-shortcut-row">
+                    <span class="tracks-shortcut-desc">Create a new work item</span>
+                    <span class="tracks-shortcut-keys"><kbd>N</kbd></span>
+                </div>
+                <div class="tracks-shortcut-row">
+                    <span class="tracks-shortcut-desc">Search or filter items</span>
+                    <span class="tracks-shortcut-keys"><kbd>/</kbd></span>
+                </div>
+                <div class="tracks-shortcut-row">
+                    <span class="tracks-shortcut-desc">Close detail panel or cancel</span>
+                    <span class="tracks-shortcut-keys"><kbd>Esc</kbd></span>
+                </div>
+                <div class="tracks-shortcut-row">
+                    <span class="tracks-shortcut-desc">Submit current form</span>
+                    <span class="tracks-shortcut-keys"><kbd>Ctrl</kbd> + <kbd>Enter</kbd></span>
+                </div>
+            </div>
+
+            <div class="tracks-shortcuts-section">
+                <h3>🧭 Navigation</h3>
+                <div class="tracks-shortcut-row">
+                    <span class="tracks-shortcut-desc">Go up one level (e.g., Feature → Epic)</span>
+                    <span class="tracks-shortcut-keys"><kbd>←</kbd></span>
+                </div>
+                <div class="tracks-shortcut-row">
+                    <span class="tracks-shortcut-desc">Go down one level (e.g., Epic → Feature)</span>
+                    <span class="tracks-shortcut-keys"><kbd>→</kbd></span>
+                </div>
+            </div>
+
+            <div class="tracks-shortcuts-section">
+                <h3>💡 Tips</h3>
+                <ul class="tracks-shortcuts-tips">
+                    <li>Shortcuts work when you're not typing in a text field.</li>
+                    <li>Press <kbd>?</kbd> at any time to see this reference again.</li>
+                    <li>Most actions also have buttons you can click if you prefer using your mouse.</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="tracks-shortcuts-footer">
+            <button class="btn btn-primary" @onclick="OnClose">Got it!</button>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Keyboard shortcuts modal — clean, accessible, non-technical-friendly */
+    .tracks-shortcuts-overlay {
+        position: fixed; inset: 0; z-index: 10001;
+        background: rgba(0,0,0,0.5);
+        display: flex; align-items: center; justify-content: center;
+    }
+    .tracks-shortcuts-modal {
+        background: var(--color-surface, #fff);
+        border-radius: 12px;
+        max-width: 560px; width: 90vw; max-height: 85vh;
+        overflow-y: auto;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    .tracks-shortcuts-header {
+        padding: 24px 24px 16px;
+        border-bottom: 1px solid var(--color-border, #e5e7eb);
+        position: relative;
+    }
+    .tracks-shortcuts-header h2 { margin: 0 0 4px; font-size: 1.25rem; }
+    .tracks-shortcuts-subtitle { margin: 0; color: var(--color-muted, #6b7280); font-size: 0.875rem; }
+    .tracks-shortcuts-body { padding: 20px 24px; }
+    .tracks-shortcuts-section { margin-bottom: 24px; }
+    .tracks-shortcuts-section h3 { font-size: 0.9375rem; margin: 0 0 12px; color: var(--color-text, #1a1a2e); }
+    .tracks-shortcut-row {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 8px 0; border-bottom: 1px solid var(--color-border-subtle, #f3f4f6);
+        gap: 16px;
+    }
+    .tracks-shortcut-desc { font-size: 0.875rem; color: var(--color-text, #1a1a2e); flex: 1; }
+    .tracks-shortcut-keys { display: flex; gap: 4px; align-items: center; flex-shrink: 0; }
+    kbd {
+        background: var(--color-bg, #f3f4f6);
+        border: 1px solid var(--color-border, #d1d5db);
+        border-radius: 4px; padding: 2px 7px;
+        font-family: monospace; font-size: 0.8125rem; font-weight: 600;
+        color: var(--color-text, #1a1a2e);
+    }
+    .tracks-shortcuts-tips { margin: 0; padding-left: 20px; }
+    .tracks-shortcuts-tips li { font-size: 0.8125rem; color: var(--color-muted, #6b7280); margin-bottom: 4px; }
+    .tracks-shortcuts-footer {
+        padding: 16px 24px; border-top: 1px solid var(--color-border, #e5e7eb);
+        display: flex; justify-content: flex-end;
+    }
+</style>
+
+@code {
+    [Parameter] public EventCallback OnClose { get; set; }
+}

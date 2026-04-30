@@ -591,3 +591,21 @@ public sealed record UpdateTeamMemberRoleDto
 {
     public required TracksTeamMemberRole Role { get; init; }
 }
+
+// ─── Custom Views ─────────────────────────────────────────────────────────
+
+/// <summary>DTO for a saved custom view/filter.</summary>
+public sealed record CustomViewDto
+{
+    public required Guid Id { get; init; }
+    public required Guid ProductId { get; init; }
+    public required Guid UserId { get; init; }
+    public required string Name { get; init; }
+    public required string FilterJson { get; init; }
+    public required string SortJson { get; init; }
+    public string? GroupBy { get; init; }
+    public required string Layout { get; init; }
+    public bool IsShared { get; init; }
+    public required DateTime CreatedAt { get; init; }
+    public required DateTime UpdatedAt { get; init; }
+}

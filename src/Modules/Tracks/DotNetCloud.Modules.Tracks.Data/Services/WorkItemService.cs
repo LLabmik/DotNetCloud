@@ -81,6 +81,14 @@ public sealed class WorkItemService
 
         _db.WorkItems.Add(workItem);
 
+        // Auto-subscribe the creator so they get notified of changes
+        _db.WorkItemWatchers.Add(new WorkItemWatcher
+        {
+            WorkItemId = workItem.Id,
+            UserId = createdByUserId,
+            SubscribedAt = DateTime.UtcNow
+        });
+
         if (dto.AssigneeIds is { Count: > 0 })
         {
             foreach (var userId in dto.AssigneeIds)
@@ -90,6 +98,17 @@ public sealed class WorkItemService
                     WorkItemId = workItem.Id,
                     UserId = userId
                 });
+
+                // Auto-subscribe assignees so they get notified of changes
+                if (userId != createdByUserId)
+                {
+                    _db.WorkItemWatchers.Add(new WorkItemWatcher
+                    {
+                        WorkItemId = workItem.Id,
+                        UserId = userId,
+                        SubscribedAt = DateTime.UtcNow
+                    });
+                }
             }
         }
 

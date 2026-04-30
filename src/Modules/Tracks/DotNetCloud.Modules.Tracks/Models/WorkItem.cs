@@ -41,4 +41,5 @@ public sealed class WorkItem
     public ICollection<SprintItem> SprintItems { get; set; } = new List<SprintItem>();
     public ICollection<Checklist> Checklists { get; set; } = new List<Checklist>();
     public ICollection<PokerSession> PokerSessions { get; set; } = new List<PokerSession>();
+    public ICollection<WorkItemWatcher> Watchers { get; set; } = new List<WorkItemWatcher>();
 }

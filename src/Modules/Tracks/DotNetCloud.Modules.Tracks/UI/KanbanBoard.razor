@@ -55,7 +55,14 @@
                     </select>
                 }
             </div>
-            <button class="btn btn-sm btn-outline" @onclick="() => OnRefreshRequested.InvokeAsync()">↻ Refresh</button>
+            <div class="tracks-toolbar-actions">
+                <button class="btn btn-sm btn-outline" @onclick="ExportToCsvAsync"
+                        disabled="@_isExporting"
+                        title="Download this board as a spreadsheet you can open in Excel or Google Sheets">
+                    📥 @(_isExporting ? "Preparing..." : "Export Spreadsheet")
+                </button>
+                <button class="btn btn-sm btn-outline" @onclick="() => OnRefreshRequested.InvokeAsync()">↻ Refresh</button>
+            </div>
         </div>
     </div>
 

@@ -5934,3 +5934,836 @@
     color: var(--color-warning, #f59e0b);
     font-weight: 600;
 }
+
+/* ─────────── Watch Button (detail panel header) ─────────── */
+
+::deep .tracks-watch-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-surface);
+    cursor: pointer;
+    font-size: 15px;
+    line-height: 1;
+    transition: all var(--transition);
+    position: relative;
+}
+
+::deep .tracks-watch-btn:hover {
+    background: var(--color-bg);
+    border-color: color-mix(in srgb, var(--color-primary) 40%, var(--color-border));
+}
+
+::deep .tracks-watch-btn.watching {
+    background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+    border-color: color-mix(in srgb, var(--color-primary) 40%, var(--color-border));
+}
+
+::deep .tracks-watch-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+::deep .tracks-watch-count {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--color-primary);
+    background: color-mix(in srgb, var(--color-primary) 20%, transparent);
+    border-radius: 100px;
+    padding: 0 5px;
+    min-width: 18px;
+    height: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+
+/* ─────────── Toolbar Actions Group ─────────── */
+
+::deep .tracks-toolbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Mention Typeahead
+   ══════════════════════════════════════════════════════════════ */
+
+::deep .mention-typeahead {
+    display: none;
+    position: absolute;
+    z-index: 1000;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    max-height: 280px;
+    overflow-y: auto;
+    min-width: 260px;
+    margin-top: 4px;
+}
+
+::deep .mention-typeahead.visible {
+    display: block;
+}
+
+::deep .mention-typeahead-loading,
+::deep .mention-typeahead-empty {
+    padding: 12px 16px;
+    color: var(--color-muted);
+    font-size: 13px;
+}
+
+::deep .mention-typeahead-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border: none;
+    background: transparent;
+    width: 100%;
+    text-align: left;
+    cursor: pointer;
+    transition: background var(--transition);
+    font-size: 13px;
+}
+
+::deep .mention-typeahead-item:hover,
+::deep .mention-typeahead-item.selected {
+    background: var(--color-bg);
+}
+
+::deep .mention-typeahead-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--color-primary);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+::deep .mention-typeahead-info {
+    display: flex;
+    flex-direction: column;
+}
+
+::deep .mention-typeahead-name {
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+::deep .mention-typeahead-email {
+    font-size: 11px;
+    color: var(--color-muted);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Mention Highlighting in Comments
+   ══════════════════════════════════════════════════════════════ */
+
+::deep .mention-highlight {
+    background: color-mix(in srgb, var(--color-primary) 15%, transparent);
+    color: var(--color-primary);
+    font-weight: 600;
+    padding: 1px 4px;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+::deep .mention-highlight:hover {
+    background: color-mix(in srgb, var(--color-primary) 25%, transparent);
+}
+
+/* ─────────── Comment Textarea & Typeahead Wrapper ─────────── */
+
+::deep .tracks-comment-input-wrapper {
+    position: relative;
+}
+
+::deep .tracks-comment-textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-size: 13px;
+    resize: vertical;
+    min-height: 70px;
+    outline: none;
+    transition: border-color var(--transition);
+    font-family: inherit;
+}
+
+::deep .tracks-comment-textarea:focus {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 15%, transparent);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Product Settings Page
+   ══════════════════════════════════════════════════════════════ */
+
+::deep .tracks-settings-page {
+    padding: 32px;
+    max-width: 780px;
+    margin: 0 auto;
+    overflow-y: auto;
+    height: 100%;
+}
+
+::deep .tracks-settings-header {
+    margin-bottom: 32px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--color-border);
+}
+
+::deep .tracks-settings-header h2 {
+    margin: 0 0 4px;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+::deep .tracks-settings-subtitle {
+    margin: 0;
+    color: var(--color-muted);
+    font-size: 14px;
+}
+
+::deep .tracks-settings-error {
+    padding: 10px 14px;
+    background: color-mix(in srgb, var(--color-danger, #ef4444) 10%, transparent);
+    color: var(--color-danger, #ef4444);
+    border-radius: var(--radius);
+    margin-bottom: 16px;
+    font-size: 13px;
+}
+
+::deep .tracks-settings-success {
+    padding: 10px 14px;
+    background: color-mix(in srgb, var(--color-success, #22c55e) 10%, transparent);
+    color: var(--color-success, #22c55e);
+    border-radius: var(--radius);
+    margin-bottom: 16px;
+    font-size: 13px;
+}
+
+::deep .tracks-settings-sections {
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+}
+
+::deep .tracks-settings-section {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: 24px;
+}
+
+::deep .tracks-settings-section h3 {
+    margin: 0 0 16px;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+::deep .tracks-settings-field {
+    margin-bottom: 14px;
+}
+
+::deep .tracks-settings-field label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    margin-bottom: 6px;
+}
+
+::deep .tracks-settings-hint {
+    font-size: 13px;
+    color: var(--color-muted);
+    margin: 0 0 14px;
+}
+
+::deep .tracks-settings-color-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+::deep .tracks-color-swatch {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: border-color var(--transition), transform var(--transition);
+}
+
+::deep .tracks-color-swatch:hover {
+    transform: scale(1.15);
+}
+
+::deep .tracks-color-swatch.active {
+    border-color: var(--color-text);
+    box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-text);
+}
+
+::deep .tracks-color-custom {
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    padding: 0;
+}
+
+::deep .tracks-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--color-text);
+}
+
+::deep .tracks-checkbox-label input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--color-primary);
+}
+
+::deep .tracks-settings-swimlane-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+
+::deep .tracks-settings-swimlane-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+}
+
+::deep .tracks-swimlane-drag-handle {
+    color: var(--color-muted);
+    cursor: grab;
+    font-size: 16px;
+    user-select: none;
+}
+
+::deep .tracks-swimlane-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+::deep .tracks-settings-member-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+::deep .tracks-settings-member-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+}
+
+::deep .tracks-member-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--color-primary);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+::deep .tracks-member-name {
+    flex: 1;
+    font-size: 13px;
+    color: var(--color-text);
+}
+
+::deep .tracks-settings-add-member {
+    margin-top: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+::deep .tracks-settings-member-dropdown {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+::deep .tracks-member-search-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 8px 12px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--color-text);
+    transition: background var(--transition);
+}
+
+::deep .tracks-member-search-item:hover {
+    background: var(--color-bg);
+}
+
+::deep .tracks-settings-label-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+
+::deep .tracks-settings-label-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    background: var(--color-bg);
+    border-radius: 20px;
+    font-size: 13px;
+    color: var(--color-text);
+}
+
+::deep .tracks-label-color-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+::deep .tracks-settings-create-label {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+::deep .tracks-color-row {
+    display: flex;
+    gap: 6px;
+}
+
+::deep .tracks-settings-create-label-actions {
+    display: flex;
+    gap: 8px;
+}
+
+::deep .tracks-settings-section-actions {
+    margin-top: 14px;
+}
+
+/* ─────────── Danger Zone ─────────── */
+
+::deep .tracks-settings-danger {
+    border-color: var(--color-danger, #ef4444);
+}
+
+::deep .tracks-settings-danger h3 {
+    color: var(--color-danger, #ef4444);
+}
+
+::deep .tracks-danger-item {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--color-border);
+    flex-wrap: wrap;
+}
+
+::deep .tracks-danger-item:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+::deep .tracks-danger-info strong {
+    display: block;
+    font-size: 14px;
+    color: var(--color-text);
+    margin-bottom: 4px;
+}
+
+::deep .tracks-danger-info p {
+    margin: 0;
+    font-size: 12px;
+    color: var(--color-muted);
+    max-width: 360px;
+}
+
+::deep .tracks-settings-transfer {
+    display: flex;
+    gap: 8px;
+    width: 100%;
+    margin-top: 8px;
+    align-items: center;
+}
+
+::deep .tracks-settings-delete-confirm {
+    width: 100%;
+    margin-top: 8px;
+    padding: 14px;
+    background: color-mix(in srgb, var(--color-danger, #ef4444) 8%, transparent);
+    border-radius: var(--radius);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+::deep .tracks-danger-warning {
+    margin: 0;
+    font-size: 13px;
+    color: var(--color-danger, #ef4444);
+    font-weight: 600;
+}
+
+::deep .tracks-danger-actions {
+    display: flex;
+    gap: 8px;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Calendar View
+   ══════════════════════════════════════════════════════════════ */
+
+::deep .tracks-calendar-view {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+}
+
+::deep .tracks-calendar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--color-border);
+    flex-shrink: 0;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+::deep .tracks-calendar-nav {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+::deep .tracks-calendar-nav h2 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--color-text);
+    min-width: 160px;
+    text-align: center;
+}
+
+::deep .tracks-calendar-nav-btn {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    color: var(--color-text);
+    cursor: pointer;
+    padding: 6px 12px;
+    font-size: 14px;
+    transition: background var(--transition);
+}
+
+::deep .tracks-calendar-nav-btn:hover {
+    background: var(--color-bg);
+}
+
+::deep .tracks-calendar-today-btn {
+    font-size: 12px;
+    padding: 6px 12px;
+}
+
+::deep .tracks-calendar-view-toggle {
+    display: flex;
+    gap: 4px;
+}
+
+::deep .tracks-calendar-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+}
+
+/* ─────────── Month Grid ─────────── */
+
+::deep .tracks-calendar-month-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    flex: 1;
+    overflow: hidden;
+}
+
+::deep .tracks-calendar-day-header {
+    padding: 8px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-muted);
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-surface);
+}
+
+::deep .tracks-calendar-day {
+    min-height: 100px;
+    border-right: 1px solid var(--color-border);
+    border-bottom: 1px solid var(--color-border);
+    padding: 6px;
+    overflow: hidden;
+    background: var(--color-surface);
+    transition: background var(--transition);
+}
+
+::deep .tracks-calendar-day:nth-child(7n) {
+    border-right: none;
+}
+
+::deep .tracks-calendar-day.other-month {
+    background: var(--color-bg);
+}
+
+::deep .tracks-calendar-day.other-month .tracks-calendar-day-number {
+    color: var(--color-muted);
+}
+
+::deep .tracks-calendar-day.today {
+    background: color-mix(in srgb, var(--color-primary) 5%, var(--color-surface));
+}
+
+::deep .tracks-calendar-day.today .tracks-calendar-day-number {
+    background: var(--color-primary);
+    color: #fff;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+::deep .tracks-calendar-day-number {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    margin-bottom: 4px;
+    padding: 2px;
+}
+
+::deep .tracks-calendar-day-items {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+::deep .tracks-calendar-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: var(--color-bg);
+    cursor: pointer;
+    font-size: 11px;
+    color: var(--color-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: background var(--transition);
+    border-left: 3px solid var(--color-border);
+}
+
+::deep .tracks-calendar-item:hover {
+    background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+}
+
+::deep .tracks-calendar-item.urgent { border-left-color: #ef4444; }
+::deep .tracks-calendar-item.high { border-left-color: #f97316; }
+::deep .tracks-calendar-item.medium { border-left-color: #eab308; }
+::deep .tracks-calendar-item.low { border-left-color: #22c55e; }
+
+::deep .tracks-calendar-item-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: currentColor;
+    opacity: 0.6;
+}
+
+::deep .tracks-calendar-item-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+::deep .tracks-calendar-item-more {
+    font-size: 11px;
+    color: var(--color-muted);
+    padding: 2px 6px;
+    cursor: pointer;
+}
+
+/* ─────────── Week Grid ─────────── */
+
+::deep .tracks-calendar-week-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    flex: 1;
+    overflow: hidden;
+}
+
+::deep .tracks-calendar-week-day {
+    border-right: 1px solid var(--color-border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+::deep .tracks-calendar-week-day:last-child {
+    border-right: none;
+}
+
+::deep .tracks-calendar-week-day.today {
+    background: color-mix(in srgb, var(--color-primary) 5%, var(--color-surface));
+}
+
+::deep .tracks-calendar-week-day-header {
+    padding: 10px 12px;
+    text-align: center;
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-surface);
+}
+
+::deep .tracks-calendar-week-day-name {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-muted);
+    text-transform: uppercase;
+}
+
+::deep .tracks-calendar-week-day-number {
+    display: block;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--color-text);
+    margin-top: 2px;
+}
+
+::deep .tracks-calendar-week-day.today .tracks-calendar-week-day-number {
+    color: var(--color-primary);
+}
+
+::deep .tracks-calendar-week-items {
+    flex: 1;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    overflow-y: auto;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Save View Dialog
+   ══════════════════════════════════════════════════════════════ */
+
+::deep .tracks-dialog-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+}
+
+::deep .tracks-dialog {
+    background: var(--color-surface);
+    border-radius: var(--radius);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    padding: 24px;
+    max-width: 420px;
+    width: 90%;
+}
+
+::deep .tracks-dialog h3 {
+    margin: 0 0 16px;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+::deep .tracks-dialog-field {
+    margin-bottom: 14px;
+}
+
+::deep .tracks-dialog-field label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    margin-bottom: 6px;
+}
+
+::deep .tracks-dialog-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+}
+
+/* ─────────── Saved Views Sidebar ─────────── */
+
+::deep .tracks-shared-icon {
+    font-size: 11px;
+    margin-left: auto;
+    opacity: 0.7;
+}
+
+::deep .tracks-save-view-btn {
+    font-style: italic;
+    color: var(--color-muted) !important;
+}
+
+::deep .tracks-save-view-btn:hover {
+    color: var(--color-text) !important;
+}

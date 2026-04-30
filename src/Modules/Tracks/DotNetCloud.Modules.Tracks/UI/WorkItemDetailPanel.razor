@@ -21,6 +21,24 @@
                 </span>
             </div>
             <div class="tracks-panel-header-actions">
+                @* Watcher button: allows users to subscribe to notifications for this item *@
+                <button class="tracks-watch-btn @(_isWatching ? "watching" : "")"
+                        @onclick="ToggleWatchAsync"
+                        disabled="@_isTogglingWatch"
+                        title="@(_isWatching ? "You are following this item. Click to unfollow." : "Follow this item to get notified of changes.")">
+                    @if (_isWatching)
+                    {
+                        <span>🔔</span>
+                        if (_watcherCount > 1)
+                        {
+                            <span class="tracks-watch-count">@_watcherCount</span>
+                        }
+                    }
+                    else
+                    {
+                        <span>🔕</span>
+                    }
+                </button>
                 <a href="/apps/tracks/item/@Product.Id/@WorkItem.ItemNumber" target="_blank" class="tracks-open-newtab-btn panel"
                    title="Open in new tab">⧉</a>
                 <button class="tracks-close-btn" @onclick="OnClose" title="Close">✕</button>
@@ -209,16 +227,23 @@
                     @if (_showCommentComposer)
                     {
                         <div class="tracks-comment-add">
-                            <MarkdownEditor Compact
-                                            Placeholder="Write a comment..."
-                                            Rows="2"
-                                            Content="@_newCommentContent"
-                                            ContentChanged="@(v => _newCommentContent = v)"
-                                            Renderer="MdRenderer" />
+                            <div class="tracks-comment-input-wrapper">
+                                <textarea class="form-control tracks-comment-textarea"
+                                          placeholder="Write a comment... Use @@ to mention someone"
+                                          rows="3"
+                                          @bind="_newCommentContent"
+                                          @bind:event="oninput"
+                                          @onkeydown="HandleCommentKeyDown"
+                                          @onkeyup="HandleCommentKeyUp"
+                                          @ref="_commentTextarea"></textarea>
+                                <MentionTypeahead @ref="_mentionTypeahead"
+                                                  OnUserSelected="HandleMentionSelected"
+                                                  OnDismiss="HandleMentionDismissed" />
+                            </div>
                             <div class="tracks-card-section-actions">
                                 <button class="btn btn-sm btn-primary" disabled="@string.IsNullOrWhiteSpace(_newCommentContent)"
                                         @onclick="AddCommentAsync">Comment</button>
-                                <button class="btn btn-sm btn-secondary" @onclick="() => _showCommentComposer = false">Cancel</button>
+                                <button class="btn btn-sm btn-secondary" @onclick="CancelComment">Cancel</button>
                             </div>
                         </div>
                     }
@@ -234,7 +259,7 @@
                                 <strong>@(comment.DisplayName ?? "User")</strong>
                                 <span class="tracks-comment-date">@TimeProvider.ToLocal(comment.CreatedAt).ToString("MMM d, h:mm tt")</span>
                             </div>
-                            <div class="tracks-comment-body markdown-body">@((MarkupString)MdRenderer.RenderToHtml(comment.Content))</div>
+                            <div class="tracks-comment-body markdown-body">@((MarkupString)RenderCommentContent(comment.Content))</div>
                             <div class="tracks-comment-actions">
                                 <button class="tracks-link-btn" @onclick="() => DeleteCommentAsync(comment.Id)">Delete</button>
                             </div>

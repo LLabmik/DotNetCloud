@@ -1,9 +1,12 @@
 using System.Security.Claims;
+using System.Text.Json;
 using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Modules.Tracks.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Components.Web;
+using Microsoft.JSInterop;
 
 namespace DotNetCloud.Modules.Tracks.UI;
 
@@ -17,8 +20,9 @@ public partial class TracksPage : ComponentBase, IDisposable
     [Inject] private ITracksSignalRService SignalRService { get; set; } = default!;
     [Inject] private AuthenticationStateProvider AuthStateProvider { get; set; } = default!;
     [Inject] private IOrganizationDirectory OrgDirectory { get; set; } = default!;
+    [Inject] private IJSRuntime JS { get; set; } = default!;
 
-    private enum TracksView { ProductList, ProductKanban, EpicKanban, FeatureKanban, Teams, Planning, Wizard, Backlog, Timeline, Review }
+    private enum TracksView { ProductList, ProductKanban, EpicKanban, FeatureKanban, Teams, Planning, Wizard, Backlog, Timeline, Review, Settings, Calendar }
 
     private TracksView _view = TracksView.ProductList;
     private bool _sidebarCollapsed;
@@ -58,12 +62,38 @@ public partial class TracksPage : ComponentBase, IDisposable
     private bool _isStartingReview;
     private string? _reviewStartError;
 
+    // Keyboard shortcuts
+    private bool _showShortcutsModal;
+    private DotNetObjectReference<TracksPage>? _jsRef;
+
+    // Undo toast
+    private UndoToast? _undoToast;
+    private string _undoToastMessage = "";
+    private Guid? _lastDeletedProductId;
+
+    // Saved views
+    private CustomViewsSidebar? _customViewsSidebar;
+    private Guid? _selectedViewId;
+    private bool _showSaveViewDialog;
+    private string _newViewName = "";
+    private bool _newViewIsShared;
+
     private SprintDto? PlannableSprint => _sprints.FirstOrDefault(s => s.Status is SprintStatus.Planning or SprintStatus.Active);
 
     protected override async Task OnInitializedAsync()
     {
         SubscribeToRealtimeEvents();
         await LoadInitialDataAsync();
+    }
+
+    /// <inheritdoc />
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _jsRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("tracksKeyboard.init", _jsRef);
+        }
     }
 
     private async Task LoadInitialDataAsync()
@@ -214,6 +244,20 @@ public partial class TracksPage : ComponentBase, IDisposable
         try
         {
             _selectedWorkItem = await ApiClient.GetWorkItemAsync(workItemId);
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to load work item: {ex.Message}";
+        }
+    }
+
+    /// <summary>Selects a work item by its product-scoped item number (used by calendar view).</summary>
+    private async Task SelectWorkItemByNumber(int itemNumber)
+    {
+        if (_selectedProduct is null) return;
+        try
+        {
+            _selectedWorkItem = await ApiClient.GetWorkItemByNumberAsync(_selectedProduct.Id, itemNumber);
         }
         catch (Exception ex)
         {
@@ -388,9 +432,44 @@ public partial class TracksPage : ComponentBase, IDisposable
 
     private async Task HandleProductDeleted(Guid productId)
     {
+        var deletedProduct = _products.FirstOrDefault(p => p.Id == productId);
         _products.RemoveAll(p => p.Id == productId);
         if (_selectedProduct?.Id == productId)
             NavigateToProductList();
+
+        // Show undo toast so users can recover accidentally deleted products
+        if (deletedProduct is not null && _undoToast is not null)
+        {
+            _lastDeletedProductId = productId;
+            _undoToastMessage = $"\"{deletedProduct.Name}\" moved to trash.";
+            await _undoToast.ShowAsync();
+        }
+    }
+
+    /// <summary>
+    /// Restores the most recently deleted product. Called from the Undo toast.
+    /// </summary>
+    private async Task RestoreLastDeletedProductAsync()
+    {
+        if (!_lastDeletedProductId.HasValue) return;
+
+        try
+        {
+            var restored = await ApiClient.RestoreProductAsync(_lastDeletedProductId.Value);
+            if (restored is not null)
+            {
+                _products.Insert(0, restored);
+                StateHasChanged();
+            }
+        }
+        catch
+        {
+            // Restore failed silently
+        }
+        finally
+        {
+            _lastDeletedProductId = null;
+        }
     }
 
     private async Task HandleProductRestored(ProductDto product)
@@ -450,6 +529,28 @@ public partial class TracksPage : ComponentBase, IDisposable
         _selectedWorkItem = null;
         _showSprints = false;
         _view = TracksView.Wizard;
+    }
+
+    private async Task OpenSettings()
+    {
+        _selectedWorkItem = null;
+        _showSprints = false;
+        
+        if (_selectedProduct is not null && _currentSwimlanes.Count == 0)
+            await LoadProductKanbanDataAsync();
+        
+        _view = TracksView.Settings;
+    }
+
+    private async Task OpenCalendar()
+    {
+        _selectedWorkItem = null;
+        _showSprints = false;
+        
+        if (_selectedProduct is not null && _currentSwimlanes.Count == 0)
+            await LoadProductKanbanDataAsync();
+        
+        _view = TracksView.Calendar;
     }
 
     private async Task OpenReview()
@@ -541,6 +642,74 @@ public partial class TracksPage : ComponentBase, IDisposable
         if (index >= 0) _products[index] = product;
     }
 
+    // ── Saved Views ─────────────────────────────────────────
+
+    private async Task HandleSaveCurrentView()
+    {
+        _showSaveViewDialog = true;
+        _newViewName = "";
+        _newViewIsShared = false;
+    }
+
+    private async Task HandleSaveViewConfirm()
+    {
+        if (string.IsNullOrWhiteSpace(_newViewName) || _selectedProduct is null) return;
+
+        try
+        {
+            var filterJson = JsonSerializer.Serialize(new { });
+            var sortJson = JsonSerializer.Serialize(new { });
+            var layout = _view switch
+            {
+                TracksView.ProductKanban or TracksView.EpicKanban or TracksView.FeatureKanban => "Kanban",
+                TracksView.Backlog => "Backlog",
+                TracksView.Timeline => "Timeline",
+                TracksView.Calendar => "Calendar",
+                _ => "Kanban"
+            };
+
+            await ApiClient.CreateCustomViewAsync(
+                _selectedProduct.Id, _newViewName.Trim(), filterJson, sortJson, null, layout, _newViewIsShared);
+
+            _showSaveViewDialog = false;
+            _customViewsSidebar?.LoadViewsAsync();
+        }
+        catch
+        {
+            // Save failed silently
+            _showSaveViewDialog = false;
+        }
+    }
+
+    private async Task HandleViewSelected(CustomViewDto view)
+    {
+        _selectedViewId = view.Id;
+
+        // Navigate to the appropriate view based on layout
+        _view = view.Layout switch
+        {
+            "Kanban" => GetKanbanView(),
+            "Backlog" => TracksView.Backlog,
+            "Timeline" => TracksView.Timeline,
+            "Calendar" => TracksView.Calendar,
+            _ => GetKanbanView()
+        };
+
+        StateHasChanged();
+    }
+
+    private void HandleSaveViewCancel()
+    {
+        _showSaveViewDialog = false;
+        _newViewName = "";
+    }
+
+    private async Task HandleSaveViewNameKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await HandleSaveViewConfirm();
+        else if (e.Key == "Escape") HandleSaveViewCancel();
+    }
+
     // ── Real-time Event Subscriptions ───────────────────────
 
     public void Dispose()
@@ -551,6 +720,75 @@ public partial class TracksPage : ComponentBase, IDisposable
         SignalRService.SprintActionReceived -= OnSprintActionReceived;
         SignalRService.ProductMemberActionReceived -= OnProductMemberActionReceived;
         SignalRService.ReviewSessionStateChanged -= OnReviewSessionStateChanged;
+        _jsRef?.Dispose();
+    }
+
+    // ── Keyboard Shortcuts ──────────────────────────────────
+
+    /// <summary>
+    /// Called from JavaScript when a key is pressed anywhere on the page.
+    /// Only handles shortcuts when the user is not typing in a text field
+    /// (except for Escape and ? which always work).
+    /// </summary>
+    [JSInvokable]
+    public async Task HandleKeyDownAsync(string key, bool ctrlKey, bool isInputFocused)
+    {
+        // Don't intercept when user is typing in a text field (except Escape and ?)
+        if (isInputFocused && key is not "Escape" and not "?")
+            return;
+
+        switch (key)
+        {
+            case "?":
+                _showShortcutsModal = !_showShortcutsModal;
+                StateHasChanged();
+                break;
+
+            case "Escape":
+                if (_showShortcutsModal)
+                {
+                    _showShortcutsModal = false;
+                    StateHasChanged();
+                }
+                else if (_selectedWorkItem is not null)
+                {
+                    CloseWorkItemDetail();
+                    StateHasChanged();
+                }
+                break;
+
+            case "n":
+            case "N":
+                // Open create wizard for current kanban view
+                if (_view is TracksView.ProductKanban or TracksView.EpicKanban or TracksView.FeatureKanban)
+                {
+                    // The kanban board has a "New" button — user can see the highlighted button
+                    // Press N to be reminded this shortcut exists
+                }
+                break;
+
+            case "/":
+                // Focus the search/filter input
+                await JS.InvokeVoidAsync("tracksKeyboard.focusSearch");
+                break;
+
+            case "ArrowLeft":
+                // Navigate up hierarchy: Feature → Epic → Product
+                if (_selectedFeature is not null && _selectedEpic is not null)
+                    await OpenEpicKanban(_selectedEpic.Id);
+                else if (_selectedEpic is not null)
+                    await SelectProduct(_selectedProduct!.Id);
+                break;
+
+            case "ArrowRight":
+                // Navigate down in hierarchy — handled contextually
+                break;
+
+            case "Enter" when ctrlKey:
+                // Ctrl+Enter — submit the currently focused form if any
+                await JS.InvokeVoidAsync("tracksKeyboard.submitActiveForm");
+                break;
+        }
     }
 
     private void SubscribeToRealtimeEvents()

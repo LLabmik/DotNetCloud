@@ -2,6 +2,7 @@ using DotNetCloud.Core.DTOs;
 using DotNetCloud.Modules.Tracks.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
+using Microsoft.JSInterop;
 
 namespace DotNetCloud.Modules.Tracks.UI;
 
@@ -34,6 +35,9 @@ public partial class BacklogView : ComponentBase
     private string _newCardTitle = "";
     private string _newCardSwimlaneId = "";
     private string _newCardPriority = "";
+
+    // Export
+    private bool _isExporting;
 
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
@@ -257,5 +261,45 @@ public partial class BacklogView : ComponentBase
 
         var luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
         return luminance > 0.179 ? "#1a1a2e" : "#ffffff";
+    }
+
+    // ── CSV Export ──────────────────────────────────────────
+
+    /// <summary>
+    /// Downloads the back-log as a spreadsheet (CSV file).
+    /// The file can be opened in Excel, Google Sheets, or Numbers.
+    /// </summary>
+    private async Task ExportToCsvAsync()
+    {
+        _isExporting = true;
+        try
+        {
+            Priority? priority = null;
+            if (!string.IsNullOrEmpty(_priorityFilter) && Enum.TryParse<Priority>(_priorityFilter, out var p))
+                priority = p;
+
+            var csvBytes = await ApiClient.ExportWorkItemsCsvAsync(
+                EpicId, swimlaneId: null, labelId: null, priority: priority);
+
+            await DownloadFileAsync(csvBytes, $"backlog-export-{DateTime.UtcNow:yyyy-MM-dd}.csv");
+        }
+        catch
+        {
+            // Export failed silently
+        }
+        finally
+        {
+            _isExporting = false;
+        }
+    }
+
+    /// <summary>
+    /// Triggers a browser file download using JavaScript interop.
+    /// </summary>
+    private async Task DownloadFileAsync(byte[] bytes, string fileName)
+    {
+        var base64 = Convert.ToBase64String(bytes);
+        await JS.InvokeVoidAsync("eval",
+            $"var a=document.createElement('a');a.href='data:text/csv;base64,{base64}';a.download='{fileName}';document.body.appendChild(a);a.click();document.body.removeChild(a);");
     }
 }

@@ -2,6 +2,7 @@ using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Modules.Tracks.Data;
 using DotNetCloud.Modules.Tracks.Data.Services;
+using DotNetCloud.Modules.Tracks.Host.Services;
 using DotNetCloud.Modules.Tracks.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -297,6 +298,211 @@ public class WorkItemsController : TracksControllerBase
             _logger.LogError(ex, "Failed to remove label {LabelId} from work item {WorkItemId}", labelId, workItemId);
             return NotFound(ErrorEnvelope(ErrorCodes.CardNotFound, ex.Message));
         }
+    }
+
+    // ─── Watchers ──────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Gets the list of users watching (subscribed to) a work item.
+    /// Watchers get notified when the item changes, even if they're not assigned.
+    /// </summary>
+    [HttpGet("workitems/{workItemId:guid}/watchers")]
+    public async Task<IActionResult> GetWatchersAsync(Guid workItemId, CancellationToken ct)
+    {
+        var caller = GetAuthenticatedCaller();
+        try
+        {
+            var watchers = await _db.WorkItemWatchers
+                .Where(w => w.WorkItemId == workItemId)
+                .Select(w => new { w.UserId, w.SubscribedAt })
+                .ToListAsync(ct);
+
+            return Ok(Envelope(watchers));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get watchers for work item {WorkItemId}", workItemId);
+            return NotFound(ErrorEnvelope(ErrorCodes.CardNotFound, ex.Message));
+        }
+    }
+
+    /// <summary>
+    /// Start watching a work item. You'll get notified when it's updated or commented on.
+    /// This is like "subscribing" to a ticket — you don't need to be assigned to follow along.
+    /// </summary>
+    [HttpPost("workitems/{workItemId:guid}/watch")]
+    public async Task<IActionResult> WatchAsync(Guid workItemId, CancellationToken ct)
+    {
+        var caller = GetAuthenticatedCaller();
+        try
+        {
+            var exists = await _db.WorkItemWatchers
+                .AnyAsync(w => w.WorkItemId == workItemId && w.UserId == caller.UserId, ct);
+
+            if (!exists)
+            {
+                _db.WorkItemWatchers.Add(new WorkItemWatcher
+                {
+                    WorkItemId = workItemId,
+                    UserId = caller.UserId,
+                    SubscribedAt = DateTime.UtcNow
+                });
+                await _db.SaveChangesAsync(ct);
+            }
+
+            var count = await _db.WorkItemWatchers
+                .CountAsync(w => w.WorkItemId == workItemId, ct);
+
+            return Ok(Envelope(new { watching = true, watcherCount = count }));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to watch work item {WorkItemId}", workItemId);
+            return BadRequest(ErrorEnvelope(ErrorCodes.BadRequest, ex.Message));
+        }
+    }
+
+    /// <summary>
+    /// Stop watching a work item. You'll no longer get notifications for changes.
+    /// </summary>
+    [HttpDelete("workitems/{workItemId:guid}/watch")]
+    public async Task<IActionResult> UnwatchAsync(Guid workItemId, CancellationToken ct)
+    {
+        var caller = GetAuthenticatedCaller();
+        try
+        {
+            var watcher = await _db.WorkItemWatchers
+                .FirstOrDefaultAsync(w => w.WorkItemId == workItemId && w.UserId == caller.UserId, ct);
+
+            if (watcher is not null)
+            {
+                _db.WorkItemWatchers.Remove(watcher);
+                await _db.SaveChangesAsync(ct);
+            }
+
+            var count = await _db.WorkItemWatchers
+                .CountAsync(w => w.WorkItemId == workItemId, ct);
+
+            return Ok(Envelope(new { watching = false, watcherCount = count }));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to unwatch work item {WorkItemId}", workItemId);
+            return BadRequest(ErrorEnvelope(ErrorCodes.BadRequest, ex.Message));
+        }
+    }
+
+    // ─── Export ────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Exports work items for a product as a CSV file.
+    /// The CSV can be opened directly in Excel, Google Sheets, or Numbers.
+    /// Supports optional filtering by swimlane, label, and priority.
+    /// </summary>
+    /// <param name="productId">The product whose work items to export.</param>
+    /// <param name="swimlaneId">Optional: filter to a specific swimlane/status column.</param>
+    /// <param name="labelId">Optional: filter to items with a specific label.</param>
+    /// <param name="priority">Optional: filter to items of a specific priority level.</param>
+    /// <param name="ct">Cancellation token.</param>
+    [HttpGet("products/{productId:guid}/work-items/export")]
+    public async Task<IActionResult> ExportWorkItemsCsvAsync(
+        Guid productId,
+        [FromQuery] Guid? swimlaneId = null,
+        [FromQuery] Guid? labelId = null,
+        [FromQuery] Priority? priority = null,
+        CancellationToken ct = default)
+    {
+        var caller = GetAuthenticatedCaller();
+
+        try
+        {
+            // Start with all non-deleted work items in the product
+            var query = _db.WorkItems
+                .Include(wi => wi.Assignments)
+                .Include(wi => wi.WorkItemLabels!)
+                    .ThenInclude(wl => wl.Label)
+                .Include(wi => wi.SprintItems!)
+                    .ThenInclude(si => si.Sprint)
+                .Include(wi => wi.Swimlane)
+                .Where(wi => wi.ProductId == productId && !wi.IsDeleted);
+
+            // Apply optional filters
+            if (swimlaneId.HasValue)
+                query = query.Where(wi => wi.SwimlaneId == swimlaneId.Value);
+
+            if (labelId.HasValue)
+                query = query.Where(wi => wi.WorkItemLabels!.Any(wl => wl.LabelId == labelId.Value));
+
+            if (priority.HasValue)
+                query = query.Where(wi => wi.Priority == priority.Value);
+
+            var workItems = await query
+                .OrderBy(wi => wi.SwimlaneId)
+                .ThenBy(wi => wi.Position)
+                .ToListAsync(ct);
+
+            // Map to minimal DTOs for CSV export
+            var dtos = workItems.Select(wi => new WorkItemDto
+            {
+                Id = wi.Id,
+                ProductId = wi.ProductId,
+                Type = wi.Type,
+                SwimlaneId = wi.SwimlaneId,
+                SwimlaneTitle = wi.Swimlane?.Title ?? "",
+                ItemNumber = wi.ItemNumber,
+                Title = wi.Title ?? "",
+                Description = wi.Description,
+                Position = wi.Position,
+                Priority = wi.Priority,
+                DueDate = wi.DueDate,
+                StoryPoints = wi.StoryPoints,
+                IsArchived = wi.IsArchived,
+                CommentCount = 0,
+                AttachmentCount = 0,
+                Assignments = wi.Assignments?.Select(a => new WorkItemAssignmentDto
+                {
+                    UserId = a.UserId,
+                    DisplayName = a.UserId.ToString(),
+                    AssignedAt = a.AssignedAt
+                }).ToList() ?? [],
+                Labels = wi.WorkItemLabels?.Select(wl => new LabelDto
+                {
+                    Id = wl.Label!.Id,
+                    ProductId = productId,
+                    Title = wl.Label.Title,
+                    Color = wl.Label.Color ?? "#6b7280",
+                    CreatedAt = wl.Label.CreatedAt
+                }).ToList() ?? [],
+                SprintId = wi.SprintItems?.FirstOrDefault()?.SprintId,
+                SprintTitle = wi.SprintItems?.FirstOrDefault()?.Sprint?.Title,
+                TotalTrackedMinutes = 0,
+                ETag = wi.ETag,
+                CreatedAt = wi.CreatedAt,
+                UpdatedAt = wi.UpdatedAt
+            }).ToList();
+
+            var csvBytes = WorkItemCsvExporter.ExportToCsv(dtos);
+            var productName = await _db.Products
+                .Where(p => p.Id == productId)
+                .Select(p => p.Name)
+                .FirstOrDefaultAsync(ct) ?? "work-items";
+
+            var fileName = $"{SanitizeFileName(productName)}-export-{DateTime.UtcNow:yyyy-MM-dd}.csv";
+            return File(csvBytes, "text/csv; charset=utf-8", fileName);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to export work items for product {ProductId}", productId);
+            return BadRequest(ErrorEnvelope(ErrorCodes.BadRequest, ex.Message));
+        }
+    }
+
+    /// <summary>Removes characters that are invalid in file names.</summary>
+    private static string SanitizeFileName(string name)
+    {
+        var invalid = Path.GetInvalidFileNameChars();
+        var sanitized = new string(name.Select(c => invalid.Contains(c) ? '_' : c).ToArray());
+        return string.IsNullOrWhiteSpace(sanitized) ? "export" : sanitized.Trim();
     }
 
     // ─── Helpers ───────────────────────────────────────────────────────

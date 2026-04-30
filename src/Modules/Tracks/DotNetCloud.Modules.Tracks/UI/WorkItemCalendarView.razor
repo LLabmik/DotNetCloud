@@ -1,0 +1,108 @@
+@namespace DotNetCloud.Modules.Tracks.UI
+@using DotNetCloud.Core.DTOs
+
+<div class="tracks-calendar-view">
+    @* ── Calendar Header ── *@
+    <div class="tracks-calendar-header">
+        <div class="tracks-calendar-nav">
+            <button class="tracks-calendar-nav-btn" @onclick="GoToPrevious" title="Previous">
+                ←
+            </button>
+            <h2>@_currentMonthName @_currentYear</h2>
+            <button class="tracks-calendar-nav-btn" @onclick="GoToNext" title="Next">
+                →
+            </button>
+            <button class="btn btn-sm btn-outline tracks-calendar-today-btn" @onclick="GoToToday">
+                Today
+            </button>
+        </div>
+        <div class="tracks-calendar-view-toggle">
+            <button class="btn btn-sm @(_viewMode == CalendarViewMode.Month ? "btn-primary" : "btn-outline")"
+                    @onclick="() => SetViewMode(CalendarViewMode.Month)">Month</button>
+            <button class="btn btn-sm @(_viewMode == CalendarViewMode.Week ? "btn-primary" : "btn-outline")"
+                    @onclick="() => SetViewMode(CalendarViewMode.Week)">Week</button>
+        </div>
+    </div>
+
+    @if (_isLoading)
+    {
+        <div class="tracks-calendar-loading">
+            <DncLoadingIndicator />
+        </div>
+    }
+    else
+    {
+        @if (_viewMode == CalendarViewMode.Month)
+        {
+            @* ── Month Grid ── *@
+            <div class="tracks-calendar-month-grid">
+                @* Day headers *@
+                @foreach (var dayName in _dayNames)
+                {
+                    <div class="tracks-calendar-day-header">@dayName</div>
+                }
+
+                @* Calendar cells *@
+                @foreach (var day in _calendarDays)
+                {
+                    <div class="tracks-calendar-day @(day.IsToday ? "today" : "") @(day.IsCurrentMonth ? "" : "other-month")"
+                         @ondrop="() => HandleDropOnDate(day.Date)"
+                         @ondragover:preventDefault>
+                        <div class="tracks-calendar-day-number">
+                            @day.Date.Day
+                        </div>
+                        <div class="tracks-calendar-day-items">
+                            @foreach (var item in day.Items.Take(4))
+                            {
+                                <div class="tracks-calendar-item @GetPriorityClass(item.Priority)"
+                                     draggable="true"
+                                     @ondragstart="() => HandleDragStart(item)"
+                                     @onclick="() => OnWorkItemSelected.InvokeAsync(item.ItemNumber)"
+                                     title="#@item.ItemNumber @item.Title (@item.Priority)">
+                                    <span class="tracks-calendar-item-dot"></span>
+                                    <span class="tracks-calendar-item-text">#@item.ItemNumber @item.Title</span>
+                                </div>
+                            }
+                            @if (day.Items.Count > 4)
+                            {
+                                <div class="tracks-calendar-item-more">
+                                    +@(day.Items.Count - 4) more
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            @* ── Week View ── *@
+            <div class="tracks-calendar-week-grid">
+                @foreach (var day in _weekDays)
+                {
+                    <div class="tracks-calendar-week-day @(day.IsToday ? "today" : "")">
+                        <div class="tracks-calendar-week-day-header">
+                            <span class="tracks-calendar-week-day-name">@day.Date.ToString("ddd")</span>
+                            <span class="tracks-calendar-week-day-number">@day.Date.Day</span>
+                        </div>
+                        <div class="tracks-calendar-week-items"
+                             @ondrop="() => HandleDropOnDate(day.Date)"
+                             @ondragover:preventDefault>
+                            @foreach (var item in day.Items)
+                            {
+                                <div class="tracks-calendar-item @GetPriorityClass(item.Priority)"
+                                     draggable="true"
+                                     @ondragstart="() => HandleDragStart(item)"
+                                     @onclick="() => OnWorkItemSelected.InvokeAsync(item.ItemNumber)"
+                                     title="#@item.ItemNumber @item.Title">
+                                    <span class="tracks-calendar-item-dot"></span>
+                                    <span class="tracks-calendar-item-text">#@item.ItemNumber @item.Title</span>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    }
+</div>

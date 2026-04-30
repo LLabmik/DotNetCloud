@@ -4608,3 +4608,47 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 ### Phase G — Tests
 - ✓ G1. Unit tests (Host transfer, mid-call invite, DM→Group, direct call, end-call permission)
 - ☐ G2. Integration / E2E tests
+
+---
+
+## Tracks Professionalization — Phase B
+
+### B-1: @Mentions in Comments
+- ✓ `MentionTypeahead.razor` component with user search dropdown
+- ✓ `@` triggers user search typeahead (max 8 results, 300ms debounce)
+- ✓ Mentioned user gets notification with link to work item
+- ✓ @username rendered as clickable highlighted link in comments
+- ✓ `UsersController` search endpoint via `IUserDirectory`
+- ✓ `SearchUsersAsync` added to `ITracksApiClient` / `TracksApiClient`
+- ✓ Mention-aware comment textarea in `WorkItemDetailPanel`
+
+### B-2: Product Settings Page
+- ✓ `ProductSettingsPage.razor` with full settings UI
+- ✓ General section: Name, description, color picker, Sub-Items toggle
+- ✓ Swimlanes section: Manage default swimlanes (add/remove/reorder/rename, toggle Done)
+- ✓ Members section: List members, change roles, remove, add new via user search
+- ✓ Labels section: Create/edit/delete product labels
+- ✓ Danger Zone: Archive product, Transfer ownership, Delete with confirmation
+- ✓ `TracksView.Settings` enum value
+- ✓ Settings gear icon in sidebar (product-level and epic-level)
+
+### B-3: Saved Filters / Custom Views
+- ✓ `CustomView` entity with migration
+- ✓ `CustomViewConfiguration` EF config (tracks schema, unique index)
+- ✓ `CustomViewService` data service (CRUD, auth checks)
+- ✓ `CustomViewsController` REST endpoints (list, create, update, delete)
+- ✓ `CustomViewDto` in TracksDtos.cs
+- ✓ `CustomViewsSidebar.razor` sidebar component
+- ✓ "Save Current View" dialog with name + shared toggle
+- ✓ API client methods (`ListCustomViewsAsync`, `CreateCustomViewAsync`, etc.)
+
+### B-4: Calendar View
+- ✓ `WorkItemCalendarView.razor` with month and week views
+- ✓ Month view: 7-column grid with items as colored priority bars
+- ✓ Week view: 7-column horizontal layout
+- ✓ Click item → opens detail panel via `SelectWorkItemByNumber`
+- ✓ Drag item to different date → change due date
+- ✓ Color-coded by priority level
+- ✓ Previous/Next month navigation + "Today" button
+- ✓ `TracksView.Calendar` enum value
+- ✓ Calendar icon in sidebar (product-level and epic-level)

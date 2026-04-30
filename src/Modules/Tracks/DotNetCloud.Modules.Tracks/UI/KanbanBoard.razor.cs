@@ -3,6 +3,7 @@ using DotNetCloud.Modules.Tracks.Services;
 using DotNetCloud.UI.Shared.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
+using Microsoft.JSInterop;
 
 namespace DotNetCloud.Modules.Tracks.UI;
 
@@ -36,6 +37,9 @@ public partial class KanbanBoard : ComponentBase
     private string _priorityFilter = "";
     private string _labelFilter = "";
     private string _sprintFilter = "";
+
+    // Export
+    private bool _isExporting;
 
     // Work item add
     private Guid? _addingItemToSwimlane;
@@ -413,5 +417,50 @@ public partial class KanbanBoard : ComponentBase
     {
         _showCreateWizard = false;
         await OnWorkItemCreated.InvokeAsync(item);
+    }
+
+    // ── CSV Export ──────────────────────────────────────────
+
+    /// <summary>
+    /// Downloads the current board view as a spreadsheet (CSV file).
+    /// The file can be opened in Excel, Google Sheets, or Numbers.
+    /// Respects any active filters so you export exactly what you see.
+    /// </summary>
+    private async Task ExportToCsvAsync()
+    {
+        _isExporting = true;
+        try
+        {
+            Priority? priorityFilter = null;
+            if (!string.IsNullOrEmpty(_priorityFilter) && Enum.TryParse<Priority>(_priorityFilter, out var p))
+                priorityFilter = p;
+
+            Guid? labelFilter = null;
+            if (!string.IsNullOrEmpty(_labelFilter) && Guid.TryParse(_labelFilter, out var lid))
+                labelFilter = lid;
+
+            var csvBytes = await ApiClient.ExportWorkItemsCsvAsync(
+                Product.Id, swimlaneId: null, labelId: labelFilter, priority: priorityFilter);
+
+            await DownloadFileAsync(csvBytes, $"{Product.Name}-kanban-{DateTime.UtcNow:yyyy-MM-dd}.csv");
+        }
+        catch
+        {
+            // Export failed silently — user can retry
+        }
+        finally
+        {
+            _isExporting = false;
+        }
+    }
+
+    /// <summary>
+    /// Triggers a browser file download using JavaScript interop.
+    /// </summary>
+    private async Task DownloadFileAsync(byte[] bytes, string fileName)
+    {
+        var base64 = Convert.ToBase64String(bytes);
+        await JS.InvokeVoidAsync("eval",
+            $"var a=document.createElement('a');a.href='data:text/csv;base64,{base64}';a.download='{fileName}';document.body.appendChild(a);a.click();document.body.removeChild(a);");
     }
 }

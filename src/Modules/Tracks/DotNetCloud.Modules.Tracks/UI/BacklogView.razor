@@ -1,4 +1,5 @@
 @namespace DotNetCloud.Modules.Tracks.UI
+@inject Microsoft.JSInterop.IJSRuntime JS
 
 <div class="tracks-backlog">
     @* ── Header ── *@
@@ -45,6 +46,11 @@
                         </button>
                     </div>
                 }
+                <button class="btn btn-sm btn-outline" @onclick="ExportToCsvAsync"
+                        disabled="@_isExporting"
+                        title="Download this back-log as a spreadsheet you can open in Excel or Google Sheets">
+                    📥 @(_isExporting ? "Preparing..." : "Export Spreadsheet")
+                </button>
                 <button class="btn btn-sm btn-outline" @onclick="RefreshBacklogAsync">↻ Refresh</button>
                 <button class="btn btn-sm btn-primary" @onclick="ToggleAddCard">＋ New Card</button>
             </div>

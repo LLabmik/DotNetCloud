@@ -35,6 +35,8 @@ public class TracksDbContext : DbContext
     public DbSet<ItemTemplate> ItemTemplates => Set<ItemTemplate>();
     public DbSet<ReviewSession> ReviewSessions => Set<ReviewSession>();
     public DbSet<ReviewSessionParticipant> ReviewSessionParticipants => Set<ReviewSessionParticipant>();
+    public DbSet<WorkItemWatcher> WorkItemWatchers => Set<WorkItemWatcher>();
+    public DbSet<CustomView> CustomViews => Set<CustomView>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

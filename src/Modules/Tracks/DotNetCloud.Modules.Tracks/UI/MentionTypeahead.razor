@@ -1,0 +1,29 @@
+@namespace DotNetCloud.Modules.Tracks.UI
+@using DotNetCloud.Core.Capabilities
+
+<div class="mention-typeahead @(_isVisible ? "visible" : "")" style="top: @(_topPx)px; left: @(_leftPx)px;">
+    @if (_isLoading)
+    {
+        <div class="mention-typeahead-loading">Searching...</div>
+    }
+    else if (_results.Count == 0 && !string.IsNullOrEmpty(_searchTerm))
+    {
+        <div class="mention-typeahead-empty">No users found</div>
+    }
+    else
+    {
+        @foreach (var user in _results)
+        {
+            <button class="mention-typeahead-item @(_selectedIndex == _results.IndexOf(user) ? "selected" : "")"
+                    @onclick="() => SelectUserAsync(user)"
+                    @onclick:preventDefault
+                    type="button">
+                <span class="mention-typeahead-avatar">@GetInitials(user.DisplayName)</span>
+                <div class="mention-typeahead-info">
+                    <span class="mention-typeahead-name">@user.DisplayName</span>
+                    <span class="mention-typeahead-email">@user.Email</span>
+                </div>
+            </button>
+        }
+    }
+</div>

@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs;
 
 namespace DotNetCloud.Modules.Tracks.Services;
@@ -50,6 +51,18 @@ public interface ITracksApiClient
     Task DeleteWorkItemAsync(Guid workItemId, CancellationToken ct = default);
     Task<WorkItemDto?> MoveWorkItemAsync(Guid workItemId, MoveWorkItemDto dto, CancellationToken ct = default);
     Task<IReadOnlyList<WorkItemDto>> GetChildWorkItemsAsync(Guid parentWorkItemId, CancellationToken ct = default);
+
+    // Export
+    /// <summary>Exports work items as a CSV file. Returns raw bytes.</summary>
+    Task<byte[]> ExportWorkItemsCsvAsync(Guid productId, Guid? swimlaneId = null, Guid? labelId = null, Priority? priority = null, CancellationToken ct = default);
+
+    // Watchers
+    /// <summary>Gets the list of user IDs watching a work item.</summary>
+    Task<IReadOnlyList<Guid>> GetWatchersAsync(Guid workItemId, CancellationToken ct = default);
+    /// <summary>Start watching a work item. Returns the new watcher count.</summary>
+    Task<int> WatchWorkItemAsync(Guid workItemId, CancellationToken ct = default);
+    /// <summary>Stop watching a work item. Returns the new watcher count.</summary>
+    Task<int> UnwatchWorkItemAsync(Guid workItemId, CancellationToken ct = default);
 
     // Work Item Assignments
     Task AssignUserAsync(Guid workItemId, Guid userId, CancellationToken ct = default);
@@ -143,4 +156,18 @@ public interface ITracksApiClient
     Task<PokerSessionDto?> RevealPokerSessionAsync(Guid sessionId, CancellationToken ct = default);
     Task<PokerSessionDto?> AcceptPokerEstimateAsync(Guid sessionId, string estimate, CancellationToken ct = default);
     Task<IReadOnlyList<PokerVoteStatusDto>> GetPokerVoteStatusAsync(Guid sessionId, CancellationToken ct = default);
+
+    // User Search (for @mentions)
+    /// <summary>Searches users by display name or email for @mention typeahead.</summary>
+    Task<IReadOnlyList<UserSearchResult>> SearchUsersAsync(string searchTerm, int maxResults = 8, CancellationToken ct = default);
+
+    // Custom Views (Saved Filters)
+    /// <summary>Lists saved custom views for a product.</summary>
+    Task<IReadOnlyList<CustomViewDto>> ListCustomViewsAsync(Guid productId, CancellationToken ct = default);
+    /// <summary>Creates a new saved custom view.</summary>
+    Task<CustomViewDto?> CreateCustomViewAsync(Guid productId, string name, string filterJson, string sortJson, string? groupBy, string layout, bool isShared, CancellationToken ct = default);
+    /// <summary>Updates a saved custom view.</summary>
+    Task<CustomViewDto?> UpdateCustomViewAsync(Guid productId, Guid viewId, string? name, string? filterJson, string? sortJson, string? groupBy, string? layout, bool? isShared, CancellationToken ct = default);
+    /// <summary>Deletes a saved custom view.</summary>
+    Task DeleteCustomViewAsync(Guid productId, Guid viewId, CancellationToken ct = default);
 }

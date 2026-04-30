@@ -106,6 +106,7 @@
 | DM & Host Calls — Phase B   | 2       | 0         | 0           | 2       |
 | DM & Host Calls — Phase C–G | 10      | 1         | 1           | 8       |
 | Shared File Folders         | 6       | 6         | 0           | 0       |
+| Tracks Prof. — Phase B      | 4       | 4         | 0           | 0       |
 | Infrastructure              | Summary | 0         | 0           | 1       |
 | Documentation               | Summary | 0         | 0           | 1       |
 
@@ -1791,6 +1792,81 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ `TracksPage.razor.css` — Full CSS for wizards, hierarchy indicators, type badges, depth styling
 
 **Notes:** Addresses user confusion about hierarchy levels. All kanban boards looked identical across Product/Epic/Feature/Item levels — now visually distinct with level indicators, type badges, and depth styling. Guided wizard creation replaces simple modal/inline forms. Builds with 0 errors, 435 core tests pass.
+
+---
+
+## Tracks Professionalization — Phase B
+
+> Reference: `docs/TRACKS_PROFESSIONALIZATION_PLAN.md`
+> Phase B: @Mentions, Product Settings, Saved Views, Calendar View
+
+#### Step: tracks-prof-b1 - @Mentions in Comments
+
+**Status:** completed ✅
+**Duration:** ~3 hours
+**Deliverables:**
+- ✓ `MentionTypeahead.razor` + `.razor.cs` — dropdown user search component with 300ms debounce
+- ✓ `UsersController` — `GET /api/v1/users/search` endpoint via `IUserDirectory`
+- ✓ `SearchUsersAsync` added to `ITracksApiClient` / `TracksApiClient`
+- ✓ Mention-aware comment textarea in `WorkItemDetailPanel` with `HandleCommentKeyDown/Up`
+- ✓ Mention highlighting in rendered comments via `RenderCommentContent()` and `MentionHighlightRegex`
+- ✓ @username rendered as styled clickable span in comment bodies
+- ✓ `MentionParser` already existed and is used by `TracksNotificationService` for notification delivery
+
+**Notes:** Full @mention flow: type @ → dropdown search with debounce → select user → @username inserted → comment saved → notification sent via existing `TracksNotificationService` → mention highlighted in rendered markdown. Max 8 results, 300ms debounce.
+
+#### Step: tracks-prof-b2 - Product Settings Page
+
+**Status:** completed ✅
+**Duration:** ~3 hours
+**Deliverables:**
+- ✓ `ProductSettingsPage.razor` + `.razor.cs` — Full settings page with 5 sections
+- ✓ General: Name, description, 10-color picker, Sub-Items toggle, Save button
+- ✓ Swimlanes: List, add, remove, rename inline, toggle Done flag, save recreates swimlanes
+- ✓ Members: List with avatars, role dropdown (Viewer/Member/Admin/Owner), remove, add via user search
+- ✓ Labels: Create/edit/delete with color picker
+- ✓ Danger Zone: Archive, Transfer ownership (to another admin), Delete with name confirmation
+- ✓ `TracksView.Settings` enum value
+- ✓ Settings gear icon ⚙️ in sidebar (product-level and epic-level)
+
+**Notes:** Full professional settings page. Swimlane save uses delete+recreate for simplicity. Member search reuses `SearchUsersAsync`. Transfer ownership updates member role to Owner.
+
+#### Step: tracks-prof-b3 - Saved Filters / Custom Views
+
+**Status:** completed ✅
+**Duration:** ~3 hours
+**Deliverables:**
+- ✓ `CustomView` entity (Id, ProductId, UserId, Name, FilterJson, SortJson, GroupBy, Layout, IsShared)
+- ✓ `CustomViewConfiguration` — EF config with tracks schema, unique index on (ProductId, UserId, Name)
+- ✓ `CustomViewService` — CRUD with authorization (only owner can update/delete)
+- ✓ `CustomViewsController` — REST endpoints: list, create, update, delete
+- ✓ `CustomViewDto` in `TracksDtos.cs`
+- ✓ `CustomViewsSidebar.razor` — lists saved views in sidebar with layout icons
+- ✓ "Save Current View" dialog with name input + shared toggle
+- ✓ View selection navigates to the saved layout (Kanban, Backlog, Timeline, Calendar)
+- ✓ `ITracksApiClient` / `TracksApiClient` methods for all CRUD operations
+- ✓ Migration scaffolded and built
+
+**Notes:** Saved views appear in sidebar under the product. Clicking a view applies the saved layout. Shared flag allows team-wide views. FilterJson/SortJson store serialized state for future filter/sort persistence.
+
+#### Step: tracks-prof-b4 - Calendar View
+
+**Status:** completed ✅
+**Duration:** ~3 hours
+**Deliverables:**
+- ✓ `WorkItemCalendarView.razor` + `.razor.cs` — Full calendar with month and week views
+- ✓ Month view: 7-column day grid, items shown as colored priority-coded bars
+- ✓ Week view: 7-column horizontal layout with larger day cells
+- ✓ Today highlighting with primary color background
+- ✓ Click item → opens detail panel via `SelectWorkItemByNumber`
+- ✓ Drag-and-drop items to different dates → updates due date
+- ✓ Color-coded by priority (urgent=red, high=orange, medium=yellow, low=green)
+- ✓ Previous/Next month navigation arrows + "Today" button
+- ✓ `TracksView.Calendar` enum value
+- ✓ Calendar icon 📅 in sidebar (product-level and epic-level)
+- ✓ Items limited to 4 per day with "+N more" overflow indicator
+
+**Notes:** Calendar reads work items from `WorkItemsBySwimlane`, filters to items with due dates. Drag-and-drop calls `UpdateWorkItemAsync` to change due date. Uses HTML5 drag events with `@ondragover:preventDefault`.
 
 ---
 

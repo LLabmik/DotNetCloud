@@ -37,6 +37,7 @@ public static class TracksServiceRegistration
         services.AddScoped<ActivityService>();
         services.AddScoped<ItemTemplateService>();
         services.AddScoped<ProductTemplateService>();
+        services.AddScoped<CustomViewService>();
 
         // Cross-module services
         services.AddScoped<ICardAttachmentCleanupService, AttachmentCleanupService>();

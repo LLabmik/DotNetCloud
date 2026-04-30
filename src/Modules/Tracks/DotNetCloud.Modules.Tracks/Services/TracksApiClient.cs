@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using System.Text.Json;
+using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs;
 
 namespace DotNetCloud.Modules.Tracks.Services;
@@ -208,6 +209,45 @@ public sealed class TracksApiClient : ITracksApiClient
 
     public async Task<IReadOnlyList<WorkItemDto>> GetChildWorkItemsAsync(Guid parentWorkItemId, CancellationToken ct = default)
         => await ReadDataAsync<IReadOnlyList<WorkItemDto>>($"api/v1/workitems/{parentWorkItemId}/children", ct) ?? [];
+
+    // ── Export ───────────────────────────────────────────────
+
+    public async Task<byte[]> ExportWorkItemsCsvAsync(Guid productId, Guid? swimlaneId = null, Guid? labelId = null, Priority? priority = null, CancellationToken ct = default)
+    {
+        var queryParams = new List<string>();
+        if (swimlaneId.HasValue) queryParams.Add($"swimlaneId={swimlaneId.Value}");
+        if (labelId.HasValue) queryParams.Add($"labelId={labelId.Value}");
+        if (priority.HasValue) queryParams.Add($"priority={priority.Value}");
+
+        var queryString = queryParams.Count > 0 ? "?" + string.Join("&", queryParams) : "";
+        var response = await _httpClient.GetAsync($"api/v1/products/{productId}/work-items/export{queryString}", ct);
+        await EnsureSuccessOrThrowAsync(response);
+        return await response.Content.ReadAsByteArrayAsync(ct);
+    }
+
+    // ── Watchers ───────────────────────────────────────────
+
+    public async Task<IReadOnlyList<Guid>> GetWatchersAsync(Guid workItemId, CancellationToken ct = default)
+    {
+        var result = await ReadDataAsync<List<WatcherDto>>($"api/v1/workitems/{workItemId}/watchers", ct);
+        return result?.Select(w => w.UserId).ToList() ?? [];
+    }
+
+    public async Task<int> WatchWorkItemAsync(Guid workItemId, CancellationToken ct = default)
+    {
+        var response = await _httpClient.PostAsync($"api/v1/workitems/{workItemId}/watch", null, ct);
+        await EnsureSuccessOrThrowAsync(response);
+        var result = await ReadDataFromResponseAsync<WatchResultDto>(response, ct);
+        return result?.WatcherCount ?? 0;
+    }
+
+    public async Task<int> UnwatchWorkItemAsync(Guid workItemId, CancellationToken ct = default)
+    {
+        var response = await _httpClient.DeleteAsync($"api/v1/workitems/{workItemId}/watch", ct);
+        await EnsureSuccessOrThrowAsync(response);
+        var result = await ReadDataFromResponseAsync<WatchResultDto>(response, ct);
+        return result?.WatcherCount ?? 0;
+    }
 
     // ── Work Item Assignments ────────────────────────────────
 
@@ -590,6 +630,52 @@ public sealed class TracksApiClient : ITracksApiClient
     public async Task<IReadOnlyList<PokerVoteStatusDto>> GetPokerVoteStatusAsync(Guid sessionId, CancellationToken ct = default)
         => await ReadDataAsync<IReadOnlyList<PokerVoteStatusDto>>($"api/v1/poker/{sessionId}/vote-status", ct) ?? [];
 
+    // ── User Search ──────────────────────────────────────────
+
+    public async Task<IReadOnlyList<UserSearchResult>> SearchUsersAsync(string searchTerm, int maxResults = 8, CancellationToken ct = default)
+        => await ReadDataAsync<IReadOnlyList<UserSearchResult>>($"api/v1/users/search?q={Uri.EscapeDataString(searchTerm)}&max={maxResults}", ct) ?? [];
+
+    // ── Custom Views ────────────────────────────────────────
+
+    public async Task<IReadOnlyList<CustomViewDto>> ListCustomViewsAsync(Guid productId, CancellationToken ct = default)
+        => await ReadDataAsync<IReadOnlyList<CustomViewDto>>($"api/v1/products/{productId}/views", ct) ?? [];
+
+    public async Task<CustomViewDto?> CreateCustomViewAsync(Guid productId, string name, string filterJson, string sortJson, string? groupBy, string layout, bool isShared, CancellationToken ct = default)
+    {
+        var response = await _httpClient.PostAsJsonAsync($"api/v1/products/{productId}/views", new
+        {
+            Name = name,
+            FilterJson = filterJson,
+            SortJson = sortJson,
+            GroupBy = groupBy,
+            Layout = layout,
+            IsShared = isShared
+        }, ct);
+        await EnsureSuccessOrThrowAsync(response);
+        return await ReadDataFromResponseAsync<CustomViewDto>(response, ct);
+    }
+
+    public async Task<CustomViewDto?> UpdateCustomViewAsync(Guid productId, Guid viewId, string? name, string? filterJson, string? sortJson, string? groupBy, string? layout, bool? isShared, CancellationToken ct = default)
+    {
+        var response = await _httpClient.PutAsJsonAsync($"api/v1/products/{productId}/views/{viewId}", new
+        {
+            Name = name,
+            FilterJson = filterJson,
+            SortJson = sortJson,
+            GroupBy = groupBy,
+            Layout = layout,
+            IsShared = isShared
+        }, ct);
+        await EnsureSuccessOrThrowAsync(response);
+        return await ReadDataFromResponseAsync<CustomViewDto>(response, ct);
+    }
+
+    public async Task DeleteCustomViewAsync(Guid productId, Guid viewId, CancellationToken ct = default)
+    {
+        var response = await _httpClient.DeleteAsync($"api/v1/products/{productId}/views/{viewId}", ct);
+        await EnsureSuccessOrThrowAsync(response);
+    }
+
     // ── Helpers ──────────────────────────────────────────────
 
     private async Task<T?> ReadDataAsync<T>(string url, CancellationToken ct)
@@ -662,4 +748,18 @@ public sealed class TracksApiClient : ITracksApiClient
         value = default;
         return false;
     }
+}
+
+// ── Internal DTOs for API deserialization ──────────────────────
+
+internal sealed record WatcherDto
+{
+    public Guid UserId { get; init; }
+    public DateTime SubscribedAt { get; init; }
+}
+
+internal sealed record WatchResultDto
+{
+    public bool Watching { get; init; }
+    public int WatcherCount { get; init; }
 }

@@ -1,0 +1,43 @@
+@namespace DotNetCloud.Modules.Tracks.UI
+@using DotNetCloud.Core.DTOs
+
+<div class="tracks-sidebar-section">
+    @if (!Collapsed)
+    {
+        <div class="tracks-sidebar-section-header">
+            <span>Saved Views</span>
+        </div>
+    }
+    @foreach (var view in _views)
+    {
+        <button class="tracks-nav-item @(SelectedViewId == view.Id ? "active" : "")"
+                @onclick="() => OnViewSelected.InvokeAsync(view)" title="@view.Name">
+            <span class="tracks-nav-icon">
+                @(view.Layout switch
+                {
+                    "Kanban" => "📋",
+                    "Backlog" => "📝",
+                    "List" => "📊",
+                    "Calendar" => "📅",
+                    "Timeline" => "📈",
+                    _ => "🔍"
+                })
+            </span>
+            @if (!Collapsed)
+            {
+                <span class="tracks-nav-text">@view.Name</span>
+                @if (view.IsShared)
+                {
+                    <span class="tracks-shared-icon" title="Shared with team">👥</span>
+                }
+            }
+        </button>
+    }
+    @if (!Collapsed)
+    {
+        <button class="tracks-nav-item tracks-save-view-btn" @onclick="OnSaveCurrentView" title="Save current view">
+            <span class="tracks-nav-icon">💾</span>
+            <span class="tracks-nav-text">Save Current View</span>
+        </button>
+    }
+</div>

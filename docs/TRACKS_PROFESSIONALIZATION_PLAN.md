@@ -93,10 +93,10 @@ DotNetCloud Tracks has a solid foundation: kanban boards, sprints, burndown char
 - Mention highlighting in rendered comments
 
 **Deliverables:**
-- ☐ `@` triggers user search typeahead (max 8 results)
-- ☐ Mentioned user gets notification with link to work item
-- ☐ @username rendered as clickable link in comments
-- ☐ Debounced search as user types (300ms)
+- ✓ `@` triggers user search typeahead (max 8 results)
+- ✓ Mentioned user gets notification with link to work item
+- ✓ @username rendered as clickable link in comments
+- ✓ Debounced search as user types (300ms)
 
 ---
 
@@ -109,11 +109,11 @@ DotNetCloud Tracks has a solid foundation: kanban boards, sprints, burndown char
 - Settings gear icon in sidebar
 
 **Sections:**
-- ☐ **General:** Name, description, color picker
-- ☐ **Swimlanes:** Manage default swimlanes (add/remove/reorder/rename, set Done)
-- ☐ **Members:** List members, change roles, remove
-- ☐ **Labels:** Manage product labels (create/edit/delete)
-- ☐ **Danger Zone:** Archive product, Transfer ownership, Delete product
+- ✓ **General:** Name, description, color picker
+- ✓ **Swimlanes:** Manage default swimlanes (add/remove/reorder/rename, set Done)
+- ✓ **Members:** List members, change roles, remove
+- ✓ **Labels:** Manage product labels (create/edit/delete)
+- ✓ **Danger Zone:** Archive product, Transfer ownership, Delete product
 
 ---
 
@@ -128,12 +128,12 @@ DotNetCloud Tracks has a solid foundation: kanban boards, sprints, burndown char
 - Save/load in `KanbanBoard.razor` and `BacklogView.razor`
 
 **Deliverables:**
-- ☐ Entity + migration + EF config
-- ☐ "Save current view" button in toolbar → name prompt
-- ☐ Saved views listed in sidebar under product
-- ☐ Click saved view to apply filters/sort/group
-- ☐ Delete/rename saved views
-- ☐ Share with team option (Shared boolean flag)
+- ✓ Entity + migration + EF config
+- ✓ "Save current view" button in toolbar → name prompt
+- ✓ Saved views listed in sidebar under product
+- ✓ Click saved view to apply filters/sort/group
+- ✓ Delete/rename saved views
+- ✓ Share with team option (Shared boolean flag)
 
 ---
 
@@ -147,13 +147,13 @@ DotNetCloud Tracks has a solid foundation: kanban boards, sprints, burndown char
 - Calendar icon in sidebar navigation
 
 **Deliverables:**
-- ☐ Month view (default): grid of days, items shown as colored bars
-- ☐ Week view: 7-column horizontal layout
-- ☐ Click item → opens detail panel
-- ☐ Drag item to different date → change due date
-- ☐ Color-coded by priority or swimlane
-- ☐ Previous/Next month navigation
-- ☐ "Today" button
+- ✓ Month view (default): grid of days, items shown as colored bars
+- ✓ Week view: 7-column horizontal layout
+- ✓ Click item → opens detail panel
+- ✓ Drag item to different date → change due date
+- ✓ Color-coded by priority or swimlane
+- ✓ Previous/Next month navigation
+- ✓ "Today" button
 
 ---
 
