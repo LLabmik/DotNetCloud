@@ -71,4 +71,21 @@ public class AnalyticsController : TracksControllerBase
             return NotFound(ErrorEnvelope(ErrorCodes.SprintNotFound, ex.Message));
         }
     }
+
+    /// <summary>Gets comprehensive dashboard data for a product.</summary>
+    [HttpGet("api/v1/products/{productId:guid}/dashboard")]
+    public async Task<IActionResult> GetProductDashboardAsync(Guid productId, CancellationToken ct)
+    {
+        var caller = GetAuthenticatedCaller();
+        try
+        {
+            var dashboard = await _analyticsService.GetProductDashboardAsync(productId, ct);
+            return Ok(Envelope(dashboard));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get dashboard for product {ProductId}", productId);
+            return BadRequest(ErrorEnvelope(ErrorCodes.BadRequest, ex.Message));
+        }
+    }
 }

@@ -395,6 +395,173 @@ public class WorkItemsController : TracksControllerBase
     // ─── Export ────────────────────────────────────────────────────────
 
     /// <summary>
+    /// Lists all non-deleted work items for a product across all swimlanes.
+    /// Supports optional filtering by swimlane, label, and priority.
+    /// </summary>
+    [HttpGet("products/{productId:guid}/work-items")]
+    public async Task<IActionResult> ListProductWorkItemsAsync(
+        Guid productId,
+        [FromQuery] Guid? swimlaneId = null,
+        [FromQuery] Guid? labelId = null,
+        [FromQuery] Priority? priority = null,
+        CancellationToken ct = default)
+    {
+        var caller = GetAuthenticatedCaller();
+        try
+        {
+            var query = _db.WorkItems
+                .Include(wi => wi.Assignments)
+                .Include(wi => wi.WorkItemLabels!)
+                    .ThenInclude(wl => wl.Label)
+                .Include(wi => wi.SprintItems!)
+                    .ThenInclude(si => si.Sprint)
+                .Include(wi => wi.Swimlane)
+                .Where(wi => wi.ProductId == productId && !wi.IsDeleted);
+
+            if (swimlaneId.HasValue)
+                query = query.Where(wi => wi.SwimlaneId == swimlaneId.Value);
+            if (labelId.HasValue)
+                query = query.Where(wi => wi.WorkItemLabels!.Any(wl => wl.LabelId == labelId.Value));
+            if (priority.HasValue)
+                query = query.Where(wi => wi.Priority == priority.Value);
+
+            var workItems = await query
+                .OrderBy(wi => wi.SwimlaneId)
+                .ThenBy(wi => wi.Position)
+                .ToListAsync(ct);
+
+            var dtos = workItems.Select(wi => new WorkItemDto
+            {
+                Id = wi.Id,
+                ProductId = wi.ProductId,
+                ParentWorkItemId = wi.ParentWorkItemId,
+                Type = wi.Type,
+                SwimlaneId = wi.SwimlaneId,
+                SwimlaneTitle = wi.Swimlane?.Title ?? "",
+                ItemNumber = wi.ItemNumber,
+                Title = wi.Title ?? "",
+                Description = wi.Description,
+                Position = wi.Position,
+                Priority = wi.Priority,
+                DueDate = wi.DueDate,
+                StoryPoints = wi.StoryPoints,
+                IsArchived = wi.IsArchived,
+                CommentCount = wi.Comments?.Count ?? 0,
+                AttachmentCount = wi.Attachments?.Count ?? 0,
+                Assignments = wi.Assignments?.Select(a => new WorkItemAssignmentDto
+                {
+                    UserId = a.UserId,
+                    DisplayName = a.UserId.ToString(),
+                    AssignedAt = a.AssignedAt
+                }).ToList() ?? [],
+                Labels = wi.WorkItemLabels?.Select(wl => new LabelDto
+                {
+                    Id = wl.Label!.Id,
+                    ProductId = productId,
+                    Title = wl.Label.Title,
+                    Color = wl.Label.Color ?? "#6b7280",
+                    CreatedAt = wl.Label.CreatedAt
+                }).ToList() ?? [],
+                SprintId = wi.SprintItems?.FirstOrDefault()?.SprintId,
+                SprintTitle = wi.SprintItems?.FirstOrDefault()?.Sprint?.Title,
+                TotalTrackedMinutes = 0,
+                ETag = wi.ETag,
+                CreatedAt = wi.CreatedAt,
+                UpdatedAt = wi.UpdatedAt
+            }).ToList();
+
+            return Ok(Envelope(dtos));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to list work items for product {ProductId}", productId);
+            return BadRequest(ErrorEnvelope(ErrorCodes.BadRequest, ex.Message));
+        }
+    }
+
+    /// <summary>
+    /// Performs a bulk action on multiple work items (archive, delete, move, label, assign, priority, sprint).
+    /// </summary>
+    [HttpPost("products/{productId:guid}/work-items/bulk")]
+    public async Task<IActionResult> BulkWorkItemActionAsync(
+        Guid productId, [FromBody] BulkWorkItemActionDto dto, CancellationToken ct)
+    {
+        var caller = GetAuthenticatedCaller();
+        try
+        {
+            if (dto.WorkItemIds.Count == 0)
+                return BadRequest(ErrorEnvelope(ErrorCodes.BadRequest, "No work item IDs provided."));
+
+            var items = await _db.WorkItems
+                .Where(wi => dto.WorkItemIds.Contains(wi.Id) && wi.ProductId == productId && !wi.IsDeleted)
+                .ToListAsync(ct);
+
+            if (items.Count == 0)
+                return NotFound(ErrorEnvelope(ErrorCodes.CardNotFound, "No matching work items found."));
+
+            switch (dto.Action)
+            {
+                case "archive":
+                    foreach (var item in items) item.IsArchived = true;
+                    break;
+                case "unarchive":
+                    foreach (var item in items) item.IsArchived = false;
+                    break;
+                case "delete":
+                    foreach (var item in items)
+                    {
+                        item.IsDeleted = true;
+                        item.DeletedAt = DateTime.UtcNow;
+                    }
+                    break;
+                case "move" when dto.TargetSwimlaneId.HasValue:
+                    var targetSwimlane = await _db.Swimlanes
+                        .FirstOrDefaultAsync(s => s.Id == dto.TargetSwimlaneId.Value, ct);
+                    if (targetSwimlane is null)
+                        return BadRequest(ErrorEnvelope(ErrorCodes.BadRequest, "Target swimlane not found."));
+                    foreach (var item in items) item.SwimlaneId = dto.TargetSwimlaneId.Value;
+                    break;
+                case "add-label" when dto.LabelId.HasValue:
+                    foreach (var item in items)
+                    {
+                        if (!await _db.WorkItemLabels.AnyAsync(wl => wl.WorkItemId == item.Id && wl.LabelId == dto.LabelId.Value, ct))
+                            _db.WorkItemLabels.Add(new WorkItemLabel { WorkItemId = item.Id, LabelId = dto.LabelId.Value });
+                    }
+                    break;
+                case "assign" when dto.AssigneeUserId.HasValue:
+                    foreach (var item in items)
+                    {
+                        if (!await _db.WorkItemAssignments.AnyAsync(a => a.WorkItemId == item.Id && a.UserId == dto.AssigneeUserId.Value, ct))
+                            _db.WorkItemAssignments.Add(new WorkItemAssignment { WorkItemId = item.Id, UserId = dto.AssigneeUserId.Value, AssignedAt = DateTime.UtcNow });
+                    }
+                    break;
+                case "set-priority" when dto.Priority.HasValue:
+                    foreach (var item in items) item.Priority = dto.Priority.Value;
+                    break;
+                case "assign-sprint" when dto.SprintId.HasValue:
+                    foreach (var item in items)
+                    {
+                        if (!await _db.SprintItems.AnyAsync(si => si.ItemId == item.Id && si.SprintId == dto.SprintId.Value, ct))
+                            _db.SprintItems.Add(new SprintItem { SprintId = dto.SprintId.Value, ItemId = item.Id, AddedAt = DateTime.UtcNow });
+                    }
+                    break;
+                default:
+                    return BadRequest(ErrorEnvelope(ErrorCodes.BadRequest, $"Unknown or incomplete bulk action: {dto.Action}"));
+            }
+
+            await _db.SaveChangesAsync(ct);
+            return Ok(Envelope(new { affected = items.Count }));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to perform bulk action on work items for product {ProductId}", productId);
+            return BadRequest(ErrorEnvelope(ErrorCodes.BadRequest, ex.Message));
+        }
+    }
+
+    // ─── Export ────────────────────────────────────────────────────────
+
+    /// <summary>
     /// Exports work items for a product as a CSV file.
     /// The CSV can be opened directly in Excel, Google Sheets, or Numbers.
     /// Supports optional filtering by swimlane, label, and priority.

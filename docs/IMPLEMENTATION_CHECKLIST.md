@@ -4652,3 +4652,38 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Previous/Next month navigation + "Today" button
 - ✓ `TracksView.Calendar` enum value
 - ✓ Calendar icon in sidebar (product-level and epic-level)
+
+---
+
+## Tracks Professionalization — Phase C
+
+### C-1: Table / List View
+- ✓ `WorkItemListView.razor` + `.razor.cs` + `.razor.css`
+- ✓ `TracksView.List` enum value + sidebar icon
+- ✓ Sortable columns (click header to sort asc/desc)
+- ✓ Column chooser dropdown (show/hide columns)
+- ✓ Multi-select checkboxes with bulk action toolbar (archive, delete, move, label, assign, priority, sprint)
+- ✓ Inline editing: double-click to edit title, priority, story points
+- ✓ Row click → opens detail panel
+- ✓ Group by dropdown: None, Assignee, Priority, Swimlane, Sprint, Type
+- ✓ Export to CSV from table view
+- ✓ Respects filter dropdowns (priority, swimlane, label)
+- ✓ `ListProductWorkItemsAsync` API endpoint (GET /api/v1/products/{productId}/work-items)
+- ✓ `BulkWorkItemActionAsync` API endpoint (POST /api/v1/products/{productId}/work-items/bulk)
+- ✓ `BulkWorkItemActionDto` request DTO
+- ✓ API client methods: `ListProductWorkItemsAsync`, `BulkWorkItemActionAsync`
+
+### C-2: Product Dashboard
+- ✓ `ProductDashboardView.razor` + `.razor.cs` + `.razor.css`
+- ✓ `TracksView.Dashboard` enum value + sidebar icon
+- ✓ KPI row: Total Items, Epics, Features, Active Sprints, Done This Week, Avg Cycle Time, Unassigned
+- ✓ Status breakdown: SVG donut chart by swimlane with legend
+- ✓ Priority breakdown: SVG bar chart (Urgent/High/Medium/Low/None)
+- ✓ Workload: SVG horizontal bar chart — story points per assignee
+- ✓ Velocity: last 6 completed sprints with progress bars
+- ✓ Recently Updated: feed of last 10 changed items with relative timestamps
+- ✓ Upcoming Due Dates: feed of items due this week with overdue highlighting
+- ✓ `ProductDashboardDto` + `StatusBreakdownDto` + `PriorityBreakdownDto` + `WorkloadDto` + `RecentlyUpdatedItemDto` + `UpcomingDueDateDto`
+- ✓ `GetProductDashboardAsync` in AnalyticsService
+- ✓ Dashboard API endpoint (GET /api/v1/products/{productId}/dashboard)
+- ✓ API client method: `GetProductDashboardAsync`

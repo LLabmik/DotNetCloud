@@ -107,6 +107,7 @@
 | DM & Host Calls — Phase C–G | 10      | 1         | 1           | 8       |
 | Shared File Folders         | 6       | 6         | 0           | 0       |
 | Tracks Prof. — Phase B      | 4       | 4         | 0           | 0       |
+| Tracks Prof. — Phase C      | 2       | 2         | 0           | 0       |
 | Infrastructure              | Summary | 0         | 0           | 1       |
 | Documentation               | Summary | 0         | 0           | 1       |
 
@@ -1867,6 +1868,55 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ Items limited to 4 per day with "+N more" overflow indicator
 
 **Notes:** Calendar reads work items from `WorkItemsBySwimlane`, filters to items with due dates. Drag-and-drop calls `UpdateWorkItemAsync` to change due date. Uses HTML5 drag events with `@ondragover:preventDefault`.
+
+---
+
+## Tracks Professionalization — Phase C
+
+> Reference: `docs/TRACKS_PROFESSIONALIZATION_PLAN.md`
+> Phase C: Table/List View, Product Dashboard
+
+#### Step: tracks-prof-c1 - Table / List View
+
+**Status:** completed ✅
+**Duration:** ~5 hours
+**Deliverables:**
+- ✓ `WorkItemListView.razor` + `.razor.cs` + `.razor.css` — Sortable, filterable data table
+- ✓ `TracksView.List` enum value + sidebar icon (📊)
+- ✓ Sortable columns: click column header to sort asc/desc
+- ✓ Column chooser dropdown to show/hide columns
+- ✓ Multi-select checkboxes with bulk action toolbar (archive, delete, move, label, assign, priority, sprint)
+- ✓ Inline editing: double-click to edit title, priority, story points (Enter to save, Esc to cancel)
+- ✓ Row click → opens detail panel via `OnWorkItemSelected`
+- ✓ Group by dropdown: None, Assignee, Priority, Swimlane, Sprint, Type
+- ✓ Export to CSV from table view
+- ✓ `ListProductWorkItemsAsync` API endpoint (GET /api/v1/products/{productId}/work-items)
+- ✓ `BulkWorkItemActionAsync` API endpoint (POST /api/v1/products/{productId}/work-items/bulk)
+- ✓ `BulkWorkItemActionDto` request DTO
+- ✓ API client methods: `ListProductWorkItemsAsync`, `BulkWorkItemActionAsync`
+
+**Notes:** Table view loads all product work items via new API. Client-side sorting, filtering, grouping. Bulk actions support archive, delete, move, label, assign, set priority, assign to sprint. Uses RenderFragment pattern for row rendering.
+
+#### Step: tracks-prof-c2 - Product Dashboard
+
+**Status:** completed ✅
+**Duration:** ~5 hours
+**Deliverables:**
+- ✓ `ProductDashboardView.razor` + `.razor.cs` + `.razor.css` — Product-level analytics dashboard
+- ✓ `TracksView.Dashboard` enum value + sidebar icon (📈)
+- ✓ KPI row: Total Items, Epics, Features, Active Sprints, Done This Week, Avg Cycle Time, Unassigned
+- ✓ Status breakdown: SVG donut chart by swimlane with color-coded legend
+- ✓ Priority breakdown: SVG bar chart (Urgent/High/Medium/Low/None)
+- ✓ Workload: SVG horizontal bar chart — story points per assignee (top 10)
+- ✓ Velocity: last 6 completed sprints with progress bars showing completed/total SP
+- ✓ Recently Updated: feed of last 10 changed items with relative timestamps ("3m ago", "2h ago")
+- ✓ Upcoming Due Dates: feed of items due this week with overdue red highlighting ("Today", "Tomorrow", "in 3d", "2d overdue")
+- ✓ `ProductDashboardDto` + `StatusBreakdownDto` + `PriorityBreakdownDto` + `WorkloadDto` + `RecentlyUpdatedItemDto` + `UpcomingDueDateDto` in TracksDtos.cs
+- ✓ `GetProductDashboardAsync` in AnalyticsService — aggregates all dashboard metrics
+- ✓ Dashboard API endpoint (GET /api/v1/products/{productId}/dashboard) in AnalyticsController
+- ✓ API client method: `GetProductDashboardAsync` in ITracksApiClient/TracksApiClient
+
+**Notes:** All charts use inline SVG (no external charting library needed). Dashboard is fully self-contained with its own data loading. KPI row shows at-a-glance metrics. Status donut chart uses swimlane colors. Priority bar chart uses standard red/orange/yellow/green colors. Workload chart capped at top 10 assignees.
 
 ---
 

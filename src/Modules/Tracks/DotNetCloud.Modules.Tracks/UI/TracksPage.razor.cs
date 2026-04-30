@@ -22,7 +22,7 @@ public partial class TracksPage : ComponentBase, IDisposable
     [Inject] private IOrganizationDirectory OrgDirectory { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
 
-    private enum TracksView { ProductList, ProductKanban, EpicKanban, FeatureKanban, Teams, Planning, Wizard, Backlog, Timeline, Review, Settings, Calendar }
+    private enum TracksView { ProductList, ProductKanban, EpicKanban, FeatureKanban, Teams, Planning, Wizard, Backlog, Timeline, Review, Settings, Calendar, List, Dashboard }
 
     private TracksView _view = TracksView.ProductList;
     private bool _sidebarCollapsed;
@@ -348,6 +348,10 @@ public partial class TracksPage : ComponentBase, IDisposable
             case TracksView.FeatureKanban:
                 await LoadFeatureKanbanDataAsync();
                 break;
+            case TracksView.List:
+            case TracksView.Dashboard:
+                // List and Dashboard load their own data; just trigger re-render
+                break;
         }
         StateHasChanged();
     }
@@ -553,6 +557,28 @@ public partial class TracksPage : ComponentBase, IDisposable
         _view = TracksView.Calendar;
     }
 
+    private async Task OpenList()
+    {
+        _selectedWorkItem = null;
+        _showSprints = false;
+        
+        if (_selectedProduct is not null && _currentSwimlanes.Count == 0)
+            await LoadProductKanbanDataAsync();
+        
+        _view = TracksView.List;
+    }
+
+    private async Task OpenDashboard()
+    {
+        _selectedWorkItem = null;
+        _showSprints = false;
+        
+        if (_selectedProduct is not null && _currentSwimlanes.Count == 0)
+            await LoadProductKanbanDataAsync();
+        
+        _view = TracksView.Dashboard;
+    }
+
     private async Task OpenReview()
     {
         if (_selectedEpic is null) return;
@@ -665,6 +691,8 @@ public partial class TracksPage : ComponentBase, IDisposable
                 TracksView.Backlog => "Backlog",
                 TracksView.Timeline => "Timeline",
                 TracksView.Calendar => "Calendar",
+                TracksView.List => "List",
+                TracksView.Dashboard => "Dashboard",
                 _ => "Kanban"
             };
 
@@ -692,6 +720,8 @@ public partial class TracksPage : ComponentBase, IDisposable
             "Backlog" => TracksView.Backlog,
             "Timeline" => TracksView.Timeline,
             "Calendar" => TracksView.Calendar,
+            "List" => TracksView.List,
+            "Dashboard" => TracksView.Dashboard,
             _ => GetKanbanView()
         };
 

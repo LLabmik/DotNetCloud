@@ -676,6 +676,32 @@ public sealed class TracksApiClient : ITracksApiClient
         await EnsureSuccessOrThrowAsync(response);
     }
 
+    // ── Dashboard ──────────────────────────────────────────
+
+    public Task<ProductDashboardDto?> GetProductDashboardAsync(Guid productId, CancellationToken ct = default)
+        => ReadDataAsync<ProductDashboardDto>($"api/v1/products/{productId}/dashboard", ct);
+
+    // ── Bulk Actions ───────────────────────────────────────
+
+    public async Task<IReadOnlyList<WorkItemDto>> ListProductWorkItemsAsync(
+        Guid productId, Guid? swimlaneId = null, Guid? labelId = null, Priority? priority = null, CancellationToken ct = default)
+    {
+        var queryParams = new List<string>();
+        if (swimlaneId.HasValue) queryParams.Add($"swimlaneId={swimlaneId.Value}");
+        if (labelId.HasValue) queryParams.Add($"labelId={labelId.Value}");
+        if (priority.HasValue) queryParams.Add($"priority={priority.Value}");
+        var queryString = queryParams.Count > 0 ? "?" + string.Join("&", queryParams) : "";
+        return await ReadDataAsync<IReadOnlyList<WorkItemDto>>($"api/v1/products/{productId}/work-items{queryString}", ct) ?? [];
+    }
+
+    public async Task<int> BulkWorkItemActionAsync(Guid productId, BulkWorkItemActionDto dto, CancellationToken ct = default)
+    {
+        var response = await _httpClient.PostAsJsonAsync($"api/v1/products/{productId}/work-items/bulk", dto, ct);
+        await EnsureSuccessOrThrowAsync(response);
+        var result = await ReadDataFromResponseAsync<BulkActionResultDto>(response, ct);
+        return result?.Affected ?? 0;
+    }
+
     // ── Helpers ──────────────────────────────────────────────
 
     private async Task<T?> ReadDataAsync<T>(string url, CancellationToken ct)
@@ -756,6 +782,11 @@ internal sealed record WatcherDto
 {
     public Guid UserId { get; init; }
     public DateTime SubscribedAt { get; init; }
+}
+
+internal sealed record BulkActionResultDto
+{
+    public int Affected { get; init; }
 }
 
 internal sealed record WatchResultDto

@@ -129,6 +129,13 @@ public interface ITracksApiClient
     Task<IReadOnlyList<SprintVelocityDto>> GetVelocityDataAsync(Guid productId, CancellationToken ct = default);
     Task<SprintReportDto?> GetSprintReportAsync(Guid sprintId, CancellationToken ct = default);
     Task<SprintBurndownDto?> GetBurndownDataAsync(Guid sprintId, CancellationToken ct = default);
+    Task<ProductDashboardDto?> GetProductDashboardAsync(Guid productId, CancellationToken ct = default);
+
+    // Bulk Actions
+    /// <summary>Performs a bulk action on multiple work items.</summary>
+    Task<int> BulkWorkItemActionAsync(Guid productId, BulkWorkItemActionDto dto, CancellationToken ct = default);
+    /// <summary>Lists all non-deleted work items for a product across all swimlanes.</summary>
+    Task<IReadOnlyList<WorkItemDto>> ListProductWorkItemsAsync(Guid productId, Guid? swimlaneId = null, Guid? labelId = null, Priority? priority = null, CancellationToken ct = default);
 
     // Teams
     Task<IReadOnlyList<TracksTeamDto>> ListTeamsAsync(CancellationToken ct = default);

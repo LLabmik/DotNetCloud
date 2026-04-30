@@ -1,0 +1,435 @@
+@namespace DotNetCloud.Modules.Tracks.UI
+
+<div class="tracks-list-view">
+    @* ── Header ── *@
+    <div class="tracks-list-header">
+        <div class="tracks-list-title-area">
+            <h2>📊 @Product.Name — List View</h2>
+            <div class="tracks-list-stats">
+                <span class="tracks-list-stat">@_allItems.Count total</span>
+                <span class="tracks-list-stat">@_filteredItems.Count shown</span>
+                @if (_selectedIds.Count > 0)
+                {
+                    <span class="tracks-list-stat tracks-list-stat-selected">@_selectedIds.Count selected</span>
+                }
+            </div>
+        </div>
+        <div class="tracks-list-toolbar">
+            <div class="tracks-filter-group">
+                <input type="text" class="tracks-search-input" placeholder="Filter by title or number..."
+                       @bind="_filterText" @bind:event="oninput" @bind:after="ApplyFiltersAndSort" />
+                <select class="tracks-filter-select" @bind="_priorityFilter" @bind:after="ApplyFiltersAndSort">
+                    <option value="">All priorities</option>
+                    <option value="Urgent">🔴 Urgent</option>
+                    <option value="High">🟠 High</option>
+                    <option value="Medium">🟡 Medium</option>
+                    <option value="Low">🟢 Low</option>
+                    <option value="None">No priority</option>
+                </select>
+                @if (Swimlanes.Count > 0)
+                {
+                    <select class="tracks-filter-select" @bind="_swimlaneFilter" @bind:after="ApplyFiltersAndSort">
+                        <option value="">All statuses</option>
+                        @foreach (var lane in Swimlanes)
+                        {
+                            <option value="@lane.Id">@lane.Title</option>
+                        }
+                    </select>
+                }
+                @if (Labels.Count > 0)
+                {
+                    <select class="tracks-filter-select" @bind="_labelFilter" @bind:after="ApplyFiltersAndSort">
+                        <option value="">All labels</option>
+                        @foreach (var label in Labels)
+                        {
+                            <option value="@label.Id">@label.Title</option>
+                        }
+                    </select>
+                }
+                <select class="tracks-filter-select" @bind="_groupBy" @bind:after="ApplyFiltersAndSort">
+                    <option value="">No grouping</option>
+                    <option value="Assignee">Group by Assignee</option>
+                    <option value="Priority">Group by Priority</option>
+                    <option value="Swimlane">Group by Status</option>
+                    <option value="Sprint">Group by Sprint</option>
+                    <option value="Type">Group by Type</option>
+                </select>
+            </div>
+            <div class="tracks-list-actions">
+                <div class="tracks-list-column-chooser">
+                    <button class="btn btn-sm btn-outline" @onclick="() => _showColumnChooser = !_showColumnChooser" title="Choose columns">⚙️ Columns</button>
+                    @if (_showColumnChooser)
+                    {
+                        <div class="tracks-list-column-chooser-dropdown">
+                            @foreach (var col in AllColumns)
+                            {
+                                <label class="tracks-list-column-chooser-item">
+                                    <input type="checkbox" checked="@_visibleColumns.Contains(col)" @onchange="() => ToggleColumn(col)" />
+                                    <span>@col</span>
+                                </label>
+                            }
+                        </div>
+                    }
+                </div>
+                <button class="btn btn-sm btn-outline" @onclick="ExportToCsvAsync" disabled="@_isExporting" title="Export to CSV">📥 @(_isExporting ? "Exporting..." : "CSV")</button>
+                <button class="btn btn-sm btn-outline" @onclick="() => LoadDataAsync()">↻ Refresh</button>
+            </div>
+        </div>
+    </div>
+
+    @* ── Bulk Toolbar ── *@
+    @if (_selectedIds.Count > 0)
+    {
+        <div class="tracks-list-bulk-toolbar">
+            <span class="tracks-list-bulk-label">@_selectedIds.Count selected —</span>
+            <button class="btn btn-sm btn-outline" @onclick="() => _ = BulkArchiveAsync()" disabled="@_isBulkActing">📦 Archive</button>
+            <button class="btn btn-sm btn-outline btn-danger" @onclick="() => _ = BulkDeleteAsync()" disabled="@_isBulkActing">🗑️ Delete</button>
+            @if (Swimlanes.Count > 0)
+            {
+                <div class="tracks-list-bulk-dropdown">
+                    <button class="btn btn-sm btn-outline" @onclick="() => _showBulkMoveDropdown = !_showBulkMoveDropdown">↔️ Move</button>
+                    @if (_showBulkMoveDropdown)
+                    {
+                        <div class="tracks-list-bulk-dropdown-menu">
+                            @foreach (var lane in Swimlanes)
+                            {
+                                <button class="tracks-list-bulk-dropdown-item" @onclick="() => { _bulkTargetSwimlaneId = lane.Id; _ = BulkMoveAsync(); }">@lane.Title</button>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+            @if (Labels.Count > 0)
+            {
+                <div class="tracks-list-bulk-dropdown">
+                    <button class="btn btn-sm btn-outline" @onclick="() => _showBulkLabelDropdown = !_showBulkLabelDropdown">🏷️ Label</button>
+                    @if (_showBulkLabelDropdown)
+                    {
+                        <div class="tracks-list-bulk-dropdown-menu">
+                            @foreach (var label in Labels)
+                            {
+                                <button class="tracks-list-bulk-dropdown-item" @onclick="() => { _bulkLabelId = label.Id; _ = BulkAddLabelAsync(); }"><span class="tracks-label-dot" style="background:@label.Color"></span> @label.Title</button>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+            <div class="tracks-list-bulk-dropdown">
+                <button class="btn btn-sm btn-outline" @onclick="() => _showBulkPriorityDropdown = !_showBulkPriorityDropdown">🚩 Priority</button>
+                @if (_showBulkPriorityDropdown)
+                {
+                    <div class="tracks-list-bulk-dropdown-menu">
+                        <button class="tracks-list-bulk-dropdown-item" @onclick="() => _ = BulkSetPriorityAsync(Priority.Urgent)">🔴 Urgent</button>
+                        <button class="tracks-list-bulk-dropdown-item" @onclick="() => _ = BulkSetPriorityAsync(Priority.High)">🟠 High</button>
+                        <button class="tracks-list-bulk-dropdown-item" @onclick="() => _ = BulkSetPriorityAsync(Priority.Medium)">🟡 Medium</button>
+                        <button class="tracks-list-bulk-dropdown-item" @onclick="() => _ = BulkSetPriorityAsync(Priority.Low)">🟢 Low</button>
+                        <button class="tracks-list-bulk-dropdown-item" @onclick="() => _ = BulkSetPriorityAsync(Priority.None)">No priority</button>
+                    </div>
+                }
+            </div>
+            @if (Members.Count > 0)
+            {
+                <div class="tracks-list-bulk-dropdown">
+                    <button class="btn btn-sm btn-outline" @onclick="() => _showBulkAssignDropdown = !_showBulkAssignDropdown">👤 Assign</button>
+                    @if (_showBulkAssignDropdown)
+                    {
+                        <div class="tracks-list-bulk-dropdown-menu">
+                            @foreach (var member in Members)
+                            {
+                                <button class="tracks-list-bulk-dropdown-item" @onclick="() => { _bulkAssigneeId = member.UserId; _ = BulkAssignAsync(); }">@member.DisplayName</button>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+            @if (Sprints is not null && Sprints.Count > 0)
+            {
+                <div class="tracks-list-bulk-dropdown">
+                    <button class="btn btn-sm btn-outline" @onclick="() => _showBulkSprintDropdown = !_showBulkSprintDropdown">🏃 Sprint</button>
+                    @if (_showBulkSprintDropdown)
+                    {
+                        <div class="tracks-list-bulk-dropdown-menu">
+                            @foreach (var sprint in Sprints.Where(s => s.Status != SprintStatus.Completed))
+                            {
+                                <button class="tracks-list-bulk-dropdown-item" @onclick="() => { _bulkSprintId = sprint.Id; _ = BulkAssignSprintAsync(); }">@sprint.Title</button>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    }
+
+    @* ── Content ── *@
+    @if (_isLoading)
+    {
+        <div class="tracks-list-loading"><DncLoadingIndicator /></div>
+    }
+    else if (_errorMessage is not null)
+    {
+        <DncErrorDisplay Message="@_errorMessage" />
+    }
+    else if (_allItems.Count == 0)
+    {
+        <div class="tracks-list-empty">
+            <div class="tracks-list-empty-icon">📭</div>
+            <h3>No work items yet</h3>
+            <p>Create items in the Kanban view first.</p>
+        </div>
+    }
+    else
+    {
+        <div class="tracks-list-select-all">
+            <label class="tracks-list-checkbox-label">
+                <input type="checkbox" checked="@_selectAll" @onchange="ToggleSelectAll" />
+                <span>Select all @_filteredItems.Count items</span>
+            </label>
+        </div>
+
+        <div class="tracks-list-table-wrapper">
+            <table class="tracks-list-table">
+                <thead>
+                    <tr>
+                        <th class="tracks-list-th tracks-list-th-check" style="width:40px">
+                            <input type="checkbox" checked="@_selectAll" @onchange="ToggleSelectAll" />
+                        </th>
+                        @foreach (var col in AllColumns)
+                        {
+                            @if (_visibleColumns.Contains(col))
+                            {
+                                <th class="tracks-list-th" style="cursor:pointer" @onclick='() => ToggleSort(col)'>
+                                    @GetColumnHeader(col)@GetSortIndicator(col)
+                                </th>
+                            }
+                        }
+                    </tr>
+                </thead>
+                @{
+                    // RenderFragment for a single table row — defined here so it's usable in tbody below
+                    RenderFragment<WorkItemDto> RenderRow = item => __builder =>
+                    {
+                        <tr class="tracks-list-row @(item.Priority == Priority.Urgent ? "priority-urgent" : item.Priority == Priority.High ? "priority-high" : "") @(_selectedIds.Contains(item.Id) ? "selected" : "")"
+                            @onclick="() => OnWorkItemSelected.InvokeAsync(item.Id)">
+                            <td class="tracks-list-td tracks-list-td-check" @onclick:stopPropagation>
+                                <input type="checkbox" checked="@_selectedIds.Contains(item.Id)" @onchange="() => ToggleItemSelection(item.Id)" />
+                            </td>
+                            @if (_visibleColumns.Contains("ItemNumber"))
+                            {
+                                <td class="tracks-list-td tracks-list-td-num"><span class="tracks-list-item-number">#@item.ItemNumber</span></td>
+                            }
+                            @if (_visibleColumns.Contains("Title"))
+                            {
+                                <td class="tracks-list-td tracks-list-td-title">
+                                    @if (_editingCellItemId == item.Id && _editingCellColumn == "Title")
+                                    {
+                                        <input type="text" class="tracks-list-inline-edit" value="@_editValue"
+                                               @oninput='(e) => _editValue = (string?)e.Value ?? ""'
+                                               @onkeydown='(e) => OnInlineEditKeyDown(item.Id, e)'
+                                               @onblur="CommitInlineEditAsync" autofocus />
+                                    }
+                                    else
+                                    {
+                                        <span class="tracks-list-title-text" @onclick:stopPropagation
+                                              @ondblclick='() => StartInlineEdit(item.Id, "Title")' title="Double-click to edit">
+                                            @GetTypeIcon(item.Type) @item.Title
+                                        </span>
+                                    }
+                                </td>
+                            }
+                            @if (_visibleColumns.Contains("Type"))
+                            {
+                                <td class="tracks-list-td">@item.Type</td>
+                            }
+                            @if (_visibleColumns.Contains("Priority"))
+                            {
+                                <td class="tracks-list-td">
+                                    @if (_editingCellItemId == item.Id && _editingCellColumn == "Priority")
+                                    {
+                                        <select class="tracks-list-inline-select" value="@_editValue"
+                                                @onchange='(e) => _editValue = (string?)e.Value ?? ""'
+                                                @onblur="CommitInlineEditAsync" autofocus>
+                                            <option value="">—</option>
+                                            <option value="Urgent">🔴 Urgent</option>
+                                            <option value="High">🟠 High</option>
+                                            <option value="Medium">🟡 Medium</option>
+                                            <option value="Low">🟢 Low</option>
+                                            <option value="None">No priority</option>
+                                        </select>
+                                    }
+                                    else
+                                    {
+                                        <span class="tracks-list-priority-cell" @onclick:stopPropagation
+                                              @ondblclick='() => StartInlineEdit(item.Id, "Priority")' title="Double-click to edit">
+                                            @if (item.Priority != Priority.None) { @GetPriorityIcon(item.Priority) @item.Priority.ToString() }
+                                            else { <span class="tracks-list-muted">—</span> }
+                                        </span>
+                                    }
+                                </td>
+                            }
+                            @if (_visibleColumns.Contains("Swimlane"))
+                            {
+                                <td class="tracks-list-td">
+                                    @if (!string.IsNullOrEmpty(item.SwimlaneTitle))
+                                    {
+                                        var sw = Swimlanes.FirstOrDefault(s => s.Id == item.SwimlaneId);
+                                        if (sw?.Color is not null)
+                                        {
+                                            <span class="tracks-list-swimlane-pill" style="background:@sw.Color;color:@GetContrastTextColor(sw.Color)">@item.SwimlaneTitle</span>
+                                        }
+                                        else { <span>@item.SwimlaneTitle</span> }
+                                    }
+                                    else { <span class="tracks-list-muted">—</span> }
+                                </td>
+                            }
+                            @if (_visibleColumns.Contains("Assignee"))
+                            {
+                                <td class="tracks-list-td"><span class="@(item.Assignments.Count == 0 ? "tracks-list-muted" : "")">@GetAssigneeDisplay(item)</span></td>
+                            }
+                            @if (_visibleColumns.Contains("StoryPoints"))
+                            {
+                                <td class="tracks-list-td tracks-list-td-sp">
+                                    @if (_editingCellItemId == item.Id && _editingCellColumn == "StoryPoints")
+                                    {
+                                        <input type="number" class="tracks-list-inline-edit tracks-list-inline-edit-sm" value="@_editValue"
+                                               @oninput='(e) => _editValue = (string?)e.Value ?? ""'
+                                               @onkeydown='(e) => OnInlineEditKeyDown(item.Id, e)'
+                                               @onblur="CommitInlineEditAsync" autofocus min="0" />
+                                    }
+                                    else
+                                    {
+                                        <span @onclick:stopPropagation @ondblclick='() => StartInlineEdit(item.Id, "StoryPoints")' title="Double-click to edit">@(item.StoryPoints?.ToString() ?? "—")</span>
+                                    }
+                                </td>
+                            }
+                            @if (_visibleColumns.Contains("DueDate"))
+                            {
+                                <td class="tracks-list-td">
+                                    @if (item.DueDate.HasValue)
+                                    {
+                                        var overdue = item.DueDate.Value.Date < DateTime.UtcNow.Date;
+                                        <span class="@(overdue ? "tracks-list-overdue" : "")">@item.DueDate.Value.ToString("MMM d")@(overdue ? " ⚠️" : "")</span>
+                                    }
+                                    else { <span class="tracks-list-muted">—</span> }
+                                </td>
+                            }
+                            @if (_visibleColumns.Contains("Labels"))
+                            {
+                                <td class="tracks-list-td">
+                                    @if (item.Labels.Count > 0)
+                                    {
+                                        <div class="tracks-list-labels">
+                                            @foreach (var label in item.Labels.Take(2))
+                                            {
+                                                <span class="tracks-list-label-pill" style="background:@label.Color;color:@GetContrastTextColor(label.Color)" title="@label.Title">@label.Title</span>
+                                            }
+                                            @if (item.Labels.Count > 2) { <span class="tracks-list-label-more">+@(item.Labels.Count - 2)</span> }
+                                        </div>
+                                    }
+                                    else { <span class="tracks-list-muted">—</span> }
+                                </td>
+                            }
+                            @if (_visibleColumns.Contains("Sprint"))
+                            {
+                                <td class="tracks-list-td"><span class="@(string.IsNullOrEmpty(item.SprintTitle) ? "tracks-list-muted" : "")">@(item.SprintTitle ?? "—")</span></td>
+                            }
+                        </tr>
+                    };
+                }
+                <tbody>
+                    @{
+                        var groupedItems = GetGroupedItems();
+                    }
+                    @if (groupedItems.Count > 0)
+                    {
+                        @foreach (var group in groupedItems)
+                        {
+                            <tr class="tracks-list-group-header-row">
+                                <td colspan="12"><span class="tracks-list-group-title">@(string.IsNullOrEmpty(group.Key) ? "Uncategorized" : group.Key)</span> <span class="tracks-list-group-count">@group.Count() items</span></td>
+                            </tr>
+                            @foreach (var item in group)
+                            {
+                                @RenderRow(item)
+                            }
+                        }
+                    }
+                    else
+                    {
+                        @foreach (var item in _filteredItems)
+                        {
+                            @RenderRow(item)
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        @if (_filteredItems.Count == 0 && _allItems.Count > 0)
+        {
+            <div class="tracks-list-empty"><p>No items match the current filters.</p></div>
+        }
+    }
+</div>
+
+@code {
+    private string GetColumnHeader(string col) => col switch
+    {
+        "ItemNumber" => "#", "Title" => "Title", "Type" => "Type",
+        "Priority" => "Priority", "Swimlane" => "Status", "Assignee" => "Assignee",
+        "StoryPoints" => "SP", "DueDate" => "Due", "Labels" => "Labels", "Sprint" => "Sprint",
+        _ => col
+    };
+
+    private string _editValue = "";
+
+    private void StartInlineEdit(Guid itemId, string column)
+    {
+        _editingCellItemId = itemId;
+        _editingCellColumn = column;
+        var item = _allItems.FirstOrDefault(i => i.Id == itemId);
+        _editValue = column switch
+        {
+            "Title" => item?.Title ?? "",
+            "Priority" => item?.Priority.ToString() ?? "",
+            "StoryPoints" => item?.StoryPoints?.ToString() ?? "",
+            _ => ""
+        };
+    }
+
+    private async Task CommitInlineEditAsync()
+    {
+        var itemId = _editingCellItemId;
+        var column = _editingCellColumn;
+        _editingCellItemId = null;
+        _editingCellColumn = null;
+        if (!itemId.HasValue || string.IsNullOrWhiteSpace(_editValue) || column is null) return;
+        try
+        {
+            UpdateWorkItemDto dto = column switch
+            {
+                "Title" => new UpdateWorkItemDto { Title = _editValue },
+                "Priority" when Enum.TryParse<Priority>(_editValue, out var p) => new UpdateWorkItemDto { Priority = p },
+                "StoryPoints" when int.TryParse(_editValue, out var sp) => new UpdateWorkItemDto { StoryPoints = sp },
+                _ => new UpdateWorkItemDto()
+            };
+            if (column is "Priority" && !Enum.TryParse<Priority>(_editValue, out _)) return;
+            if (column is "StoryPoints" && !int.TryParse(_editValue, out _)) return;
+            var updated = await ApiClient.UpdateWorkItemAsync(itemId.Value, dto);
+            if (updated is not null)
+            {
+                var index = _allItems.FindIndex(i => i.Id == itemId.Value);
+                if (index >= 0) _allItems[index] = updated;
+                ApplyFiltersAndSort();
+                await OnItemsChanged.InvokeAsync();
+            }
+        }
+        catch { }
+    }
+
+    private void CancelInlineEdit() { _editingCellItemId = null; _editingCellColumn = null; _editValue = ""; }
+
+    private async Task OnInlineEditKeyDown(Guid itemId, KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await CommitInlineEditAsync();
+        else if (e.Key == "Escape") CancelInlineEdit();
+    }
+}

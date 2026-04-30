@@ -322,4 +322,181 @@ public sealed class AnalyticsService
 
         return result;
     }
+
+    /// <summary>
+    /// Gets comprehensive dashboard data for a product, including status breakdown,
+    /// priority breakdown, workload, recent updates, and upcoming due dates.
+    /// </summary>
+    public async Task<ProductDashboardDto> GetProductDashboardAsync(Guid productId, CancellationToken ct)
+    {
+        var now = DateTime.UtcNow;
+        var weekAgo = now.AddDays(-7);
+
+        var product = await _db.Products
+            .Where(p => p.Id == productId)
+            .Select(p => new { p.Name })
+            .FirstOrDefaultAsync(ct);
+
+        var productName = product?.Name ?? "Unknown Product";
+
+        var nonDeletedItems = _db.WorkItems.Where(wi => wi.ProductId == productId && !wi.IsDeleted);
+
+        var totalItems = await nonDeletedItems.CountAsync(ct);
+        var totalEpics = await nonDeletedItems.CountAsync(wi => wi.Type == WorkItemType.Epic, ct);
+        var totalFeatures = await nonDeletedItems.CountAsync(wi => wi.Type == WorkItemType.Feature, ct);
+
+        var activeSprints = await _db.Sprints
+            .Where(s => s.Status == SprintStatus.Active && s.Epic!.ProductId == productId)
+            .CountAsync(ct);
+
+        // Done swimlane IDs
+        var doneSwimlaneIds = await _db.Swimlanes
+            .Where(s => s.ContainerType == SwimlaneContainerType.Product && s.ContainerId == productId && s.IsDone)
+            .Select(s => s.Id)
+            .ToListAsync(ct);
+
+        var completedItems = await nonDeletedItems
+            .Where(wi => wi.SwimlaneId != null && doneSwimlaneIds.Contains(wi.SwimlaneId.Value))
+            .Select(wi => new { wi.Id, wi.CreatedAt })
+            .ToListAsync(ct);
+
+        var completedItemIds = completedItems.Select(ci => ci.Id).ToHashSet();
+
+        // Items completed this week
+        var activitiesLastWeek = await _db.Activities
+            .Where(a => a.EntityType == "WorkItem" && a.ProductId == productId
+                && a.CreatedAt >= weekAgo && completedItemIds.Contains(a.EntityId) && a.Action.Contains("Move"))
+            .Select(a => new { a.EntityId })
+            .Distinct()
+            .CountAsync(ct);
+
+        // Average cycle time
+        var completionDates = await GetCompletionDatesAsync(completedItemIds, productId, ct);
+        double avgCycleTimeDays = 0;
+        if (completedItems.Count > 0)
+        {
+            var cycleTimes = completedItems
+                .Where(ci => completionDates.ContainsKey(ci.Id))
+                .Select(ci => (completionDates[ci.Id] - ci.CreatedAt).TotalDays)
+                .ToList();
+            avgCycleTimeDays = cycleTimes.Count > 0 ? Math.Round(cycleTimes.Average(), 1) : 0;
+        }
+
+        // Unassigned items (no assignments)
+        var unassignedItems = await nonDeletedItems
+            .Where(wi => !wi.Assignments!.Any())
+            .CountAsync(ct);
+
+        // Status breakdown: items per swimlane
+        var swimlanes = await _db.Swimlanes
+            .Where(s => s.ContainerType == SwimlaneContainerType.Product && s.ContainerId == productId && !s.IsArchived)
+            .OrderBy(s => s.Position)
+            .Select(s => new { s.Id, s.Title, s.Color })
+            .ToListAsync(ct);
+
+        var statusBreakdown = new List<StatusBreakdownDto>();
+        foreach (var lane in swimlanes)
+        {
+            var count = await nonDeletedItems.CountAsync(wi => wi.SwimlaneId == lane.Id, ct);
+            statusBreakdown.Add(new StatusBreakdownDto
+            {
+                SwimlaneId = lane.Id,
+                SwimlaneTitle = lane.Title,
+                Color = lane.Color,
+                Count = count
+            });
+        }
+
+        // Priority breakdown
+        var priorityCounts = await nonDeletedItems
+            .GroupBy(wi => wi.Priority)
+            .Select(g => new { Priority = g.Key, Count = g.Count() })
+            .ToListAsync(ct);
+
+        var priorityBreakdown = priorityCounts
+            .Where(pc => pc.Priority != Priority.None)
+            .Select(pc => new PriorityBreakdownDto { Priority = pc.Priority, Count = pc.Count })
+            .OrderByDescending(pb => (int)pb.Priority)
+            .ToList();
+
+        // Add None priority at the end
+        var noneCount = priorityCounts.FirstOrDefault(pc => pc.Priority == Priority.None)?.Count ?? 0;
+        if (noneCount > 0)
+            priorityBreakdown.Add(new PriorityBreakdownDto { Priority = Priority.None, Count = noneCount });
+
+        // Workload: story points per assignee
+        var workloadItems = await nonDeletedItems
+            .Where(wi => wi.Assignments!.Any() && wi.StoryPoints != null)
+            .SelectMany(wi => wi.Assignments!.Select(a => new { a.UserId, wi.StoryPoints }))
+            .ToListAsync(ct);
+
+        var workload = workloadItems
+            .GroupBy(a => a.UserId)
+            .Select(g => new WorkloadDto
+            {
+                UserId = g.Key,
+                DisplayName = g.Key.ToString(), // Will be resolved by the caller
+                AssignedItems = g.Count(),
+                TotalStoryPoints = g.Sum(x => x.StoryPoints ?? 0)
+            })
+            .OrderByDescending(w => w.TotalStoryPoints)
+            .Take(10)
+            .ToList();
+
+        // Recently updated items (last 10, non-deleted)
+        var recentlyUpdated = await nonDeletedItems
+            .OrderByDescending(wi => wi.UpdatedAt)
+            .Take(10)
+            .Select(wi => new RecentlyUpdatedItemDto
+            {
+                Id = wi.Id,
+                ItemNumber = wi.ItemNumber,
+                Title = wi.Title,
+                Type = wi.Type,
+                Priority = wi.Priority,
+                SwimlaneTitle = wi.Swimlane!.Title,
+                SprintId = wi.SprintItems!.Select(si => si.SprintId).FirstOrDefault(),
+                SprintTitle = wi.SprintItems!.Select(si => si.Sprint!.Title).FirstOrDefault(),
+                UpdatedAt = wi.UpdatedAt
+            })
+            .ToListAsync(ct);
+
+        // Upcoming due dates (items due this week, non-completed, non-deleted)
+        var upcomingDueDates = await nonDeletedItems
+            .Where(wi => wi.DueDate != null
+                && wi.DueDate >= now.Date
+                && wi.DueDate <= now.Date.AddDays(7)
+                && !(wi.SwimlaneId != null && doneSwimlaneIds.Contains(wi.SwimlaneId.Value)))
+            .OrderBy(wi => wi.DueDate)
+            .Take(10)
+            .Select(wi => new UpcomingDueDateDto
+            {
+                Id = wi.Id,
+                ItemNumber = wi.ItemNumber,
+                Title = wi.Title,
+                Type = wi.Type,
+                Priority = wi.Priority,
+                SwimlaneTitle = wi.Swimlane!.Title,
+                DueDate = wi.DueDate!.Value
+            })
+            .ToListAsync(ct);
+
+        return new ProductDashboardDto
+        {
+            ProductId = productId,
+            ProductName = productName,
+            TotalItems = totalItems,
+            TotalEpics = totalEpics,
+            TotalFeatures = totalFeatures,
+            ActiveSprints = activeSprints,
+            AvgCycleTimeDays = avgCycleTimeDays,
+            ItemsCompletedThisWeek = activitiesLastWeek,
+            UnassignedItems = unassignedItems,
+            StatusBreakdown = statusBreakdown,
+            PriorityBreakdown = priorityBreakdown,
+            Workload = workload,
+            RecentlyUpdated = recentlyUpdated,
+            UpcomingDueDates = upcomingDueDates
+        };
+    }
 }

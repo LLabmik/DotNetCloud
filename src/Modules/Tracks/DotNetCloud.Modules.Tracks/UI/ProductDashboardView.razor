@@ -1,0 +1,238 @@
+@namespace DotNetCloud.Modules.Tracks.UI
+
+<div class="tracks-dashboard">
+    @if (_isLoading)
+    {
+        <div class="tracks-dashboard-loading"><DncLoadingIndicator /></div>
+    }
+    else if (_errorMessage is not null)
+    {
+        <DncErrorDisplay Message="@_errorMessage" />
+    }
+    else if (_dashboard is not null)
+    {
+        @* ── Header ── *@
+        <div class="tracks-dashboard-header">
+            <h2>📈 @Product.Name — Dashboard</h2>
+            <button class="btn btn-sm btn-outline" @onclick="() => LoadDashboardAsync()">↻ Refresh</button>
+        </div>
+
+        @* ── KPI Row ── *@
+        <div class="tracks-dashboard-kpis">
+            <div class="tracks-dashboard-kpi">
+                <div class="tracks-dashboard-kpi-value">@_dashboard.TotalItems</div>
+                <div class="tracks-dashboard-kpi-label">Total Items</div>
+            </div>
+            <div class="tracks-dashboard-kpi">
+                <div class="tracks-dashboard-kpi-value">@_dashboard.TotalEpics</div>
+                <div class="tracks-dashboard-kpi-label">Epics</div>
+            </div>
+            <div class="tracks-dashboard-kpi">
+                <div class="tracks-dashboard-kpi-value">@_dashboard.TotalFeatures</div>
+                <div class="tracks-dashboard-kpi-label">Features</div>
+            </div>
+            <div class="tracks-dashboard-kpi">
+                <div class="tracks-dashboard-kpi-value">@_dashboard.ActiveSprints</div>
+                <div class="tracks-dashboard-kpi-label">Active Sprints</div>
+            </div>
+            <div class="tracks-dashboard-kpi">
+                <div class="tracks-dashboard-kpi-value">@_dashboard.ItemsCompletedThisWeek</div>
+                <div class="tracks-dashboard-kpi-label">Done This Week</div>
+            </div>
+            <div class="tracks-dashboard-kpi">
+                <div class="tracks-dashboard-kpi-value">@_dashboard.AvgCycleTimeDays.ToString("F1")d</div>
+                <div class="tracks-dashboard-kpi-label">Avg Cycle Time</div>
+            </div>
+            @if (_dashboard.UnassignedItems > 0)
+            {
+                <div class="tracks-dashboard-kpi tracks-dashboard-kpi-warning">
+                    <div class="tracks-dashboard-kpi-value">@_dashboard.UnassignedItems</div>
+                    <div class="tracks-dashboard-kpi-label">Unassigned</div>
+                </div>
+            }
+        </div>
+
+        @* ── Chart Grid ── *@
+        <div class="tracks-dashboard-grid">
+            @* Status Breakdown *@
+            <div class="tracks-dashboard-card">
+                <div class="tracks-dashboard-card-header">
+                    <h3>Status Breakdown</h3>
+                </div>
+                <div class="tracks-dashboard-card-body">
+                    @if (_dashboard.StatusBreakdown.Count > 0)
+                    {
+                        <div class="tracks-dashboard-donut-container">
+                            @((MarkupString)BuildDonutChart(_dashboard.StatusBreakdown))
+                        </div>
+                        <div class="tracks-dashboard-legend">
+                            @foreach (var segment in _dashboard.StatusBreakdown.Where(s => s.Count > 0))
+                            {
+                                <div class="tracks-dashboard-legend-item">
+                                    <span class="tracks-dashboard-legend-dot" style="background:@(segment.Color ?? GetDefaultColor(_dashboard.StatusBreakdown.IndexOf(segment)))"></span>
+                                    <span class="tracks-dashboard-legend-label">@segment.SwimlaneTitle</span>
+                                    <span class="tracks-dashboard-legend-value">@segment.Count</span>
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="tracks-dashboard-empty-chart">No status data</div>
+                    }
+                </div>
+            </div>
+
+            @* Priority Breakdown *@
+            <div class="tracks-dashboard-card">
+                <div class="tracks-dashboard-card-header">
+                    <h3>Priority Breakdown</h3>
+                </div>
+                <div class="tracks-dashboard-card-body">
+                    @if (_dashboard.PriorityBreakdown.Count > 0)
+                    {
+                        <div class="tracks-dashboard-chart-container">
+                            @((MarkupString)BuildBarChart(_dashboard.PriorityBreakdown))
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="tracks-dashboard-empty-chart">No priority data</div>
+                    }
+                </div>
+            </div>
+
+            @* Workload *@
+            <div class="tracks-dashboard-card">
+                <div class="tracks-dashboard-card-header">
+                    <h3>Workload (Story Points)</h3>
+                </div>
+                <div class="tracks-dashboard-card-body">
+                    @if (_dashboard.Workload.Count > 0)
+                    {
+                        <div class="tracks-dashboard-chart-container">
+                            @((MarkupString)BuildHorizontalBarChart(_dashboard.Workload))
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="tracks-dashboard-empty-chart">No workload data</div>
+                    }
+                </div>
+            </div>
+
+            @* Velocity (Last 6 Sprints) *@
+            <div class="tracks-dashboard-card">
+                <div class="tracks-dashboard-card-header">
+                    <h3>Velocity</h3>
+                    <span class="tracks-dashboard-card-subtitle">Last @_velocityData.Count completed sprints</span>
+                </div>
+                <div class="tracks-dashboard-card-body">
+                    @if (_velocityData.Count > 0)
+                    {
+                        <div class="tracks-dashboard-velocity-list">
+                            @foreach (var sprint in _velocityData.Take(6))
+                            {
+                                var pct = sprint.TotalStoryPoints > 0
+                                    ? (int)(sprint.CompletedStoryPoints / (double)sprint.TotalStoryPoints * 100) : 0;
+                                <div class="tracks-dashboard-velocity-item">
+                                    <div class="tracks-dashboard-velocity-info">
+                                        <span class="tracks-dashboard-velocity-name">@sprint.SprintTitle</span>
+                                        <span class="tracks-dashboard-velocity-points">@sprint.CompletedStoryPoints / @sprint.TotalStoryPoints SP</span>
+                                    </div>
+                                    <div class="tracks-dashboard-velocity-bar-track">
+                                        <div class="tracks-dashboard-velocity-bar-fill" style="width:@(Math.Min(pct, 100))%"></div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="tracks-dashboard-empty-chart">No velocity data yet</div>
+                    }
+                </div>
+            </div>
+
+            @* Recently Updated *@
+            <div class="tracks-dashboard-card">
+                <div class="tracks-dashboard-card-header">
+                    <h3>Recently Updated</h3>
+                </div>
+                <div class="tracks-dashboard-card-body">
+                    @if (_dashboard.RecentlyUpdated.Count > 0)
+                    {
+                        <div class="tracks-dashboard-feed">
+                            @foreach (var item in _dashboard.RecentlyUpdated)
+                            {
+                                <button class="tracks-dashboard-feed-item"
+                                        @onclick="() => OnWorkItemSelected.InvokeAsync(item.Id)">
+                                    <span class="tracks-dashboard-feed-icon">@GetTypeIcon(item.Type)</span>
+                                    <div class="tracks-dashboard-feed-content">
+                                        <span class="tracks-dashboard-feed-title">#@item.ItemNumber @item.Title</span>
+                                        <span class="tracks-dashboard-feed-meta">
+                                            @if (!string.IsNullOrEmpty(item.SwimlaneTitle))
+                                            {
+                                                <span>@item.SwimlaneTitle</span>
+                                            }
+                                            @if (item.Priority != Priority.None)
+                                            {
+                                                <span>· @GetPriorityIcon(item.Priority)</span>
+                                            }
+                                        </span>
+                                    </div>
+                                    <span class="tracks-dashboard-feed-time">@FormatRelativeTime(item.UpdatedAt)</span>
+                                </button>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="tracks-dashboard-empty-chart">No recent activity</div>
+                    }
+                </div>
+            </div>
+
+            @* Upcoming Due Dates *@
+            <div class="tracks-dashboard-card">
+                <div class="tracks-dashboard-card-header">
+                    <h3>Upcoming Due Dates</h3>
+                    <span class="tracks-dashboard-card-subtitle">This week</span>
+                </div>
+                <div class="tracks-dashboard-card-body">
+                    @if (_dashboard.UpcomingDueDates.Count > 0)
+                    {
+                        <div class="tracks-dashboard-feed">
+                            @foreach (var item in _dashboard.UpcomingDueDates)
+                            {
+                                var isOverdue = item.DueDate.Date < DateTime.UtcNow.Date;
+                                <button class="tracks-dashboard-feed-item @(isOverdue ? "overdue" : "")"
+                                        @onclick="() => OnWorkItemSelected.InvokeAsync(item.Id)">
+                                    <span class="tracks-dashboard-feed-icon">@GetTypeIcon(item.Type)</span>
+                                    <div class="tracks-dashboard-feed-content">
+                                        <span class="tracks-dashboard-feed-title">#@item.ItemNumber @item.Title</span>
+                                        <span class="tracks-dashboard-feed-meta">
+                                            @if (!string.IsNullOrEmpty(item.SwimlaneTitle))
+                                            {
+                                                <span>@item.SwimlaneTitle</span>
+                                            }
+                                            @if (item.Priority != Priority.None)
+                                            {
+                                                <span>· @GetPriorityIcon(item.Priority)</span>
+                                            }
+                                        </span>
+                                    </div>
+                                    <span class="tracks-dashboard-feed-time @(isOverdue ? "overdue" : "")">@FormatDueDate(item.DueDate)</span>
+                                </button>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="tracks-dashboard-empty-chart">No upcoming due dates</div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+</div>

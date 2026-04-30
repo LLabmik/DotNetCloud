@@ -56,7 +56,7 @@
         }
 
         @* Product-level sub-views (when viewing a product) *@
-        @if (_selectedProduct is not null && _view is TracksView.ProductKanban or TracksView.Backlog or TracksView.Timeline or TracksView.Calendar or TracksView.Settings)
+        @if (_selectedProduct is not null && _view is TracksView.ProductKanban or TracksView.Backlog or TracksView.Timeline or TracksView.Calendar or TracksView.Settings or TracksView.List or TracksView.Dashboard)
         {
             <div class="tracks-sidebar-section">
                 @if (!_sidebarCollapsed)
@@ -70,10 +70,20 @@
                     <span class="tracks-nav-icon">📋</span>
                     @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Kanban</span> }
                 </button>
+                <button class="tracks-nav-item @(_view == TracksView.List ? "active" : "")"
+                        @onclick="OpenList" title="Table View">
+                    <span class="tracks-nav-icon">📊</span>
+                    @if (!_sidebarCollapsed) { <span class="tracks-nav-text">List</span> }
+                </button>
                 <button class="tracks-nav-item @(_view == TracksView.Calendar ? "active" : "")"
                         @onclick="OpenCalendar" title="Calendar View">
                     <span class="tracks-nav-icon">📅</span>
                     @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Calendar</span> }
+                </button>
+                <button class="tracks-nav-item @(_view == TracksView.Dashboard ? "active" : "")"
+                        @onclick="OpenDashboard" title="Dashboard">
+                    <span class="tracks-nav-icon">📈</span>
+                    @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Dashboard</span> }
                 </button>
                 <button class="tracks-nav-item @(_view == TracksView.Settings ? "active" : "")"
                         @onclick="OpenSettings" title="Product Settings">
@@ -419,6 +429,53 @@
                         <ProductSettingsPage Product="_selectedProduct"
                                              OnProductUpdated="HandleProductUpdated"
                                              OnNavigateBack="() => NavigateToProductList()" />
+                    }
+                    break;
+
+                case TracksView.List:
+                    @if (_selectedProduct is not null)
+                    {
+                        <WorkItemListView Product="_selectedProduct"
+                                          Swimlanes="_currentSwimlanes"
+                                          Labels="_currentLabels"
+                                          Members="_currentMembers"
+                                          Sprints="_selectedEpic is not null ? _sprints : null"
+                                          OnWorkItemSelected="SelectWorkItem"
+                                          OnItemsChanged="RefreshCurrentKanbanAsync" />
+
+                        @if (_selectedWorkItem is not null)
+                        {
+                            <WorkItemDetailPanel WorkItem="_selectedWorkItem"
+                                                 Product="_selectedProduct!"
+                                                 Members="_currentMembers"
+                                                 ProductLabels="_currentLabels"
+                                                 Sprints="_selectedEpic is not null ? _sprints : null"
+                                                 OnClose="CloseWorkItemDetail"
+                                                 OnWorkItemUpdated="HandleWorkItemUpdated"
+                                                 OnWorkItemDeleted="HandleWorkItemDeleted"
+                                                 OnOpenKanban="_ => Task.CompletedTask" />
+                        }
+                    }
+                    break;
+
+                case TracksView.Dashboard:
+                    @if (_selectedProduct is not null)
+                    {
+                        <ProductDashboardView Product="_selectedProduct"
+                                              OnWorkItemSelected="SelectWorkItem" />
+
+                        @if (_selectedWorkItem is not null)
+                        {
+                            <WorkItemDetailPanel WorkItem="_selectedWorkItem"
+                                                 Product="_selectedProduct!"
+                                                 Members="_currentMembers"
+                                                 ProductLabels="_currentLabels"
+                                                 Sprints="_selectedEpic is not null ? _sprints : null"
+                                                 OnClose="CloseWorkItemDetail"
+                                                 OnWorkItemUpdated="HandleWorkItemUpdated"
+                                                 OnWorkItemDeleted="HandleWorkItemDeleted"
+                                                 OnOpenKanban="_ => Task.CompletedTask" />
+                        }
                     }
                     break;
             }

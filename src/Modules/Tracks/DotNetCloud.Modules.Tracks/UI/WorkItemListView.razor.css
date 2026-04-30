@@ -1,0 +1,454 @@
+/* ══════════════════════════════════════════════════════════════
+   WorkItemListView – Sortable data table with bulk actions
+   ══════════════════════════════════════════════════════════════ */
+
+.tracks-list-view {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+}
+
+/* ── Header ── */
+
+.tracks-list-header {
+    padding: 20px 24px 12px;
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-surface);
+    flex-shrink: 0;
+}
+
+.tracks-list-title-area {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    margin-bottom: 12px;
+}
+
+.tracks-list-title-area h2 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+.tracks-list-stats {
+    display: flex;
+    gap: 12px;
+}
+
+.tracks-list-stat {
+    font-size: 12px;
+    color: var(--color-muted);
+    background: var(--color-bg);
+    padding: 2px 8px;
+    border-radius: 10px;
+}
+
+.tracks-list-stat-selected {
+    background: color-mix(in srgb, var(--color-primary) 15%, transparent);
+    color: var(--color-primary);
+    font-weight: 600;
+}
+
+.tracks-list-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.tracks-filter-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.tracks-list-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* ── Column Chooser ── */
+
+.tracks-list-column-chooser {
+    position: relative;
+}
+
+.tracks-list-column-chooser-dropdown {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 4px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+    padding: 8px;
+    z-index: 100;
+    min-width: 180px;
+}
+
+.tracks-list-column-chooser-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    cursor: pointer;
+    border-radius: 4px;
+    font-size: 13px;
+    color: var(--color-text);
+}
+
+.tracks-list-column-chooser-item:hover {
+    background: var(--color-bg);
+}
+
+/* ── Bulk Toolbar ── */
+
+.tracks-list-bulk-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 24px;
+    background: color-mix(in srgb, var(--color-primary) 8%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--color-primary) 20%, var(--color-border));
+    flex-shrink: 0;
+    flex-wrap: wrap;
+}
+
+.tracks-list-bulk-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-primary);
+    margin-right: 4px;
+}
+
+.tracks-list-bulk-dropdown {
+    position: relative;
+}
+
+.tracks-list-bulk-dropdown-menu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    margin-top: 4px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+    z-index: 100;
+    min-width: 160px;
+    max-height: 240px;
+    overflow-y: auto;
+}
+
+.tracks-list-bulk-dropdown-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 8px 12px;
+    border: none;
+    background: transparent;
+    color: var(--color-text);
+    font-size: 13px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.tracks-list-bulk-dropdown-item:hover {
+    background: var(--color-bg);
+}
+
+.tracks-label-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 6px;
+}
+
+/* ── Select All ── */
+
+.tracks-list-select-all {
+    padding: 8px 24px;
+    background: var(--color-bg);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.tracks-list-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--color-muted);
+    cursor: pointer;
+}
+
+/* ── Group Headers ── */
+
+.tracks-list-group {
+    border-bottom: 2px solid var(--color-border);
+}
+
+.tracks-list-group-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 24px;
+    background: var(--color-bg);
+    border-bottom: 1px solid var(--color-border);
+    position: sticky;
+    top: 0;
+    z-index: 5;
+}
+
+.tracks-list-group-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--color-text);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.tracks-list-group-count {
+    font-size: 12px;
+    color: var(--color-muted);
+}
+
+/* ── Table ── */
+
+.tracks-list-table-wrapper {
+    overflow-x: auto;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+}
+
+.tracks-list-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    table-layout: fixed;
+}
+
+.tracks-list-th {
+    padding: 10px 12px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 12px;
+    color: var(--color-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    background: var(--color-surface);
+    border-bottom: 2px solid var(--color-border);
+    white-space: nowrap;
+    user-select: none;
+    position: sticky;
+    top: 0;
+    z-index: 4;
+}
+
+.tracks-list-th:hover {
+    color: var(--color-text);
+    background: var(--color-bg);
+}
+
+.tracks-list-th-check {
+    width: 40px;
+    text-align: center;
+    padding: 10px 8px;
+}
+
+/* ── Table Rows ── */
+
+.tracks-list-row {
+    cursor: pointer;
+    transition: background 120ms;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.tracks-list-row:hover {
+    background: color-mix(in srgb, var(--color-primary) 5%, transparent);
+}
+
+.tracks-list-row.selected {
+    background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+}
+
+.tracks-list-row.priority-urgent {
+    border-left: 3px solid #ef4444;
+}
+
+.tracks-list-row.priority-high {
+    border-left: 3px solid #f97316;
+}
+
+.tracks-list-td {
+    padding: 10px 12px;
+    color: var(--color-text);
+    vertical-align: middle;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tracks-list-td-check {
+    width: 40px;
+    text-align: center;
+    padding: 10px 8px;
+}
+
+.tracks-list-td-num {
+    font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+    font-size: 12px;
+    color: var(--color-muted);
+    width: 90px;
+}
+
+.tracks-list-td-title {
+    min-width: 200px;
+}
+
+.tracks-list-td-sp {
+    width: 60px;
+    text-align: center;
+}
+
+.tracks-list-item-number {
+    color: var(--color-muted);
+    font-weight: 500;
+}
+
+.tracks-list-title-text {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.tracks-list-muted {
+    color: var(--color-muted);
+}
+
+.tracks-list-overdue {
+    color: #ef4444;
+    font-weight: 600;
+}
+
+/* ── Pills & Badges ── */
+
+.tracks-list-swimlane-pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.tracks-list-labels {
+    display: flex;
+    gap: 4px;
+    flex-wrap: nowrap;
+    overflow: hidden;
+}
+
+.tracks-list-label-pill {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 8px;
+    font-size: 11px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.tracks-list-label-more {
+    font-size: 11px;
+    color: var(--color-muted);
+    white-space: nowrap;
+}
+
+.tracks-list-priority-cell {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+}
+
+/* ── Inline Edit ── */
+
+.tracks-list-inline-edit {
+    padding: 4px 8px;
+    border: 2px solid var(--color-primary);
+    border-radius: 4px;
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-size: 13px;
+    width: 100%;
+    outline: none;
+}
+
+.tracks-list-inline-edit-sm {
+    width: 60px;
+    text-align: center;
+}
+
+.tracks-list-inline-select {
+    padding: 4px 6px;
+    border: 2px solid var(--color-primary);
+    border-radius: 4px;
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-size: 12px;
+    outline: none;
+}
+
+/* ── Empty State ── */
+
+.tracks-list-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 24px;
+    color: var(--color-muted);
+    text-align: center;
+}
+
+.tracks-list-empty-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+}
+
+.tracks-list-empty h3 {
+    margin: 0 0 8px;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.tracks-list-empty p {
+    margin: 0;
+    font-size: 14px;
+}
+
+.tracks-list-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+}
+
+/* ── Danger Button ── */
+
+.btn-danger {
+    color: #ef4444;
+    border-color: #ef4444;
+}
+
+.btn-danger:hover {
+    background: #fef2f2;
+    color: #dc2626;
+}

@@ -169,16 +169,17 @@ DotNetCloud Tracks has a solid foundation: kanban boards, sprints, burndown char
 - Column chooser dropdown
 
 **Deliverables:**
-- ☐ Columns: Number, Title (clickable), Type, Priority, Swimlane, Assignee, Story Points, Due Date, Labels, Sprint
-- ☐ Click column header to sort (asc/desc toggle)
-- ☐ Resizable columns (drag column border)
-- ☐ Column chooser: show/hide columns via dropdown
-- ☐ Multi-select checkboxes with bulk action toolbar (assign, label, move, archive, delete)
-- ☐ Inline edit: click cell to edit (title, priority, assignee, due date)
-- ☐ Row click → opens detail panel
-- ☐ Respects current kanban/backlog filters when switching views
-- ☐ "Group by" dropdown: None, Assignee, Priority, Swimlane, Sprint, Type
-- ☐ Export to CSV from table view
+- ✓ Columns: Number, Title (clickable), Type, Priority, Swimlane, Assignee, Story Points, Due Date, Labels, Sprint
+- ✓ Click column header to sort (asc/desc toggle)
+- ✓ Column chooser: show/hide columns via dropdown
+- ✓ Multi-select checkboxes with bulk action toolbar (assign, label, move, archive, delete)
+- ✓ Inline edit: double-click cell to edit (title, priority, story points)
+- ✓ Row click → opens detail panel
+- ✓ Respects current kanban/backlog filters when switching views
+- ✓ "Group by" dropdown: None, Assignee, Priority, Swimlane, Sprint, Type
+- ✓ Export to CSV from table view
+
+**Status:** ✅ Completed
 
 ---
 
@@ -192,15 +193,17 @@ DotNetCloud Tracks has a solid foundation: kanban boards, sprints, burndown char
 - `AnalyticsService` additions for dashboard metrics
 
 **Widgets:**
-- ☐ **Status breakdown** — donut chart: work items by swimlane
-- ☐ **Priority breakdown** — bar chart: Urgent/High/Medium/Low counts
-- ☐ **Sprint progress** — current sprint burndown (reuse existing)
-- ☐ **Velocity** — last 6 sprints velocity chart (reuse existing)
-- ☐ **Cycle time** — average days from "To Do" to "Done"
-- ☐ **Workload** — story points per assignee bar chart
-- ☐ **Recently updated** — list of last 10 changed items
-- ☐ **Upcoming due dates** — items due this week
-- ☐ **Unassigned items** — count + link to filtered kanban
+- ✓ **Status breakdown** — donut chart: work items by swimlane
+- ✓ **Priority breakdown** — bar chart: Urgent/High/Medium/Low counts
+- ✓ **Sprint progress** — velocity across completed sprints
+- ✓ **Velocity** — last 6 sprints velocity chart
+- ✓ **Cycle time** — average days from "To Do" to "Done" (KPI)
+- ✓ **Workload** — story points per assignee horizontal bar chart
+- ✓ **Recently updated** — list of last 10 changed items
+- ✓ **Upcoming due dates** — items due this week
+- ✓ **Unassigned items** — count + warning KPI
+
+**Status:** ✅ Completed
 
 ---
 

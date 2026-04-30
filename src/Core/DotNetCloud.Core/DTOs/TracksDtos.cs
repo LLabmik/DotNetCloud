@@ -363,6 +363,85 @@ public sealed record SprintReportDto
     public int TotalStoryPoints { get; init; }
 }
 
+// ─── Dashboard DTOs ─────────────────────────────────────────────────────────
+
+public sealed record ProductDashboardDto
+{
+    public required Guid ProductId { get; init; }
+    public required string ProductName { get; init; }
+    public int TotalItems { get; init; }
+    public int TotalEpics { get; init; }
+    public int TotalFeatures { get; init; }
+    public int ActiveSprints { get; init; }
+    public double AvgCycleTimeDays { get; init; }
+    public int ItemsCompletedThisWeek { get; init; }
+    public int UnassignedItems { get; init; }
+    public List<StatusBreakdownDto> StatusBreakdown { get; init; } = new();
+    public List<PriorityBreakdownDto> PriorityBreakdown { get; init; } = new();
+    public List<WorkloadDto> Workload { get; init; } = new();
+    public List<RecentlyUpdatedItemDto> RecentlyUpdated { get; init; } = new();
+    public List<UpcomingDueDateDto> UpcomingDueDates { get; init; } = new();
+}
+
+public sealed record StatusBreakdownDto
+{
+    public required Guid SwimlaneId { get; init; }
+    public required string SwimlaneTitle { get; init; }
+    public string? Color { get; init; }
+    public int Count { get; init; }
+}
+
+public sealed record PriorityBreakdownDto
+{
+    public Priority Priority { get; init; }
+    public int Count { get; init; }
+}
+
+public sealed record WorkloadDto
+{
+    public required Guid UserId { get; init; }
+    public string? DisplayName { get; init; }
+    public int AssignedItems { get; init; }
+    public int TotalStoryPoints { get; init; }
+}
+
+public sealed record RecentlyUpdatedItemDto
+{
+    public required Guid Id { get; init; }
+    public int ItemNumber { get; init; }
+    public required string Title { get; init; }
+    public WorkItemType Type { get; init; }
+    public Priority Priority { get; init; }
+    public string? SwimlaneTitle { get; init; }
+    public Guid? SprintId { get; init; }
+    public string? SprintTitle { get; init; }
+    public required DateTime UpdatedAt { get; init; }
+}
+
+public sealed record UpcomingDueDateDto
+{
+    public required Guid Id { get; init; }
+    public int ItemNumber { get; init; }
+    public required string Title { get; init; }
+    public WorkItemType Type { get; init; }
+    public Priority Priority { get; init; }
+    public string? SwimlaneTitle { get; init; }
+    public required DateTime DueDate { get; init; }
+}
+
+// ─── Bulk Action DTOs ───────────────────────────────────────────────────────
+
+public sealed record BulkWorkItemActionDto
+{
+    public required List<Guid> WorkItemIds { get; init; }
+    public string? Action { get; init; }          // "archive", "delete", "move"
+    public Guid? TargetSwimlaneId { get; init; }  // For move action
+    public Guid? LabelId { get; init; }           // For add-label action
+    public Guid? AssigneeUserId { get; init; }     // For assign action
+    public Priority? Priority { get; init; }       // For set-priority action
+    public Guid? SprintId { get; init; }           // For assign-to-sprint action
+}
+
 // ─── Request DTOs ─────────────────────────────────────────────────────────
 
 public sealed record CreateProductDto
