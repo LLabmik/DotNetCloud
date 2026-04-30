@@ -56,7 +56,7 @@
         }
 
         @* Product-level sub-views (when viewing a product) *@
-        @if (_selectedProduct is not null && _view is TracksView.ProductKanban or TracksView.Backlog or TracksView.Timeline or TracksView.Calendar or TracksView.Settings or TracksView.List or TracksView.Dashboard)
+        @if (_selectedProduct is not null && _view is TracksView.ProductKanban or TracksView.Backlog or TracksView.Timeline or TracksView.Calendar or TracksView.Settings or TracksView.List or TracksView.Dashboard or TracksView.Roadmap)
         {
             <div class="tracks-sidebar-section">
                 @if (!_sidebarCollapsed)
@@ -84,6 +84,11 @@
                         @onclick="OpenDashboard" title="Dashboard">
                     <span class="tracks-nav-icon">📈</span>
                     @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Dashboard</span> }
+                </button>
+                <button class="tracks-nav-item @(_view == TracksView.Roadmap ? "active" : "")"
+                        @onclick="OpenRoadmap" title="Roadmap">
+                    <span class="tracks-nav-icon">🗺️</span>
+                    @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Roadmap</span> }
                 </button>
                 <button class="tracks-nav-item @(_view == TracksView.Settings ? "active" : "")"
                         @onclick="OpenSettings" title="Product Settings">
@@ -463,6 +468,27 @@
                     {
                         <ProductDashboardView Product="_selectedProduct"
                                               OnWorkItemSelected="SelectWorkItem" />
+
+                        @if (_selectedWorkItem is not null)
+                        {
+                            <WorkItemDetailPanel WorkItem="_selectedWorkItem"
+                                                 Product="_selectedProduct!"
+                                                 Members="_currentMembers"
+                                                 ProductLabels="_currentLabels"
+                                                 Sprints="_selectedEpic is not null ? _sprints : null"
+                                                 OnClose="CloseWorkItemDetail"
+                                                 OnWorkItemUpdated="HandleWorkItemUpdated"
+                                                 OnWorkItemDeleted="HandleWorkItemDeleted"
+                                                 OnOpenKanban="_ => Task.CompletedTask" />
+                        }
+                    }
+                    break;
+
+                case TracksView.Roadmap:
+                    @if (_selectedProduct is not null)
+                    {
+                        <ProductRoadmapView ProductId="_selectedProduct.Id"
+                                            OnWorkItemSelected="SelectWorkItem" />
 
                         @if (_selectedWorkItem is not null)
                         {

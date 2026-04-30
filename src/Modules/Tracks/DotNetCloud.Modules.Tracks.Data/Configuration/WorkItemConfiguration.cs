@@ -84,6 +84,10 @@ public sealed class WorkItemConfiguration : IEntityTypeConfiguration<WorkItem>
             .HasDatabaseName("ix_work_items_due_date")
             .HasFilter("\"DueDate\" IS NOT NULL");
 
+        builder.HasIndex(wi => wi.StartDate)
+            .HasDatabaseName("ix_work_items_start_date")
+            .HasFilter("\"StartDate\" IS NOT NULL");
+
         builder.HasIndex(wi => wi.Priority)
             .HasDatabaseName("ix_work_items_priority");
 

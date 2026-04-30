@@ -1,0 +1,114 @@
+@namespace DotNetCloud.Modules.Tracks.UI
+
+<div class="goal-detail">
+    <div class="goal-detail-header">
+        <button class="btn btn-sm" @onclick='() => OnClose.InvokeAsync()'>← Back</button>
+    </div>
+
+    @if (_isLoading)
+    {
+        <DncLoadingIndicator />
+    }
+    else if (_goal is null)
+    {
+        <p>Goal not found.</p>
+    }
+    else
+    {
+        <div class="goal-detail-card @(_goal.Status == "completed" ? "completed" : "")">
+            <div class="goal-detail-top">
+                <span class="goal-detail-type">@(_goal.Type == "objective" ? "🎯 Objective" : "📊 Key Result")</span>
+                <span class="goal-detail-status">@FormatStatus(_goal.Status)</span>
+            </div>
+
+            <h3>@_goal.Title</h3>
+
+            @if (!string.IsNullOrEmpty(_goal.Description))
+            {
+                <p class="goal-detail-desc">@_goal.Description</p>
+            }
+
+            <div class="goal-detail-progress-section">
+                <div class="goal-detail-progress-header">
+                    <span>Progress</span>
+                    <strong>@_goal.ProgressPercent.ToString("F0")%</strong>
+                </div>
+                <div class="goal-detail-progress-bar">
+                    <div class="goal-detail-progress-fill"
+                         style="width: @(_goal.ProgressPercent.ToString("F0"))%; background: @GetProgressColor(_goal.ProgressPercent)"></div>
+                </div>
+
+                @if (_goal.TargetValue.HasValue)
+                {
+                    <div class="goal-detail-values">
+                        <span>Current: <strong>@(_goal.CurrentValue ?? 0)</strong></span>
+                        <span>Target: <strong>@_goal.TargetValue</strong></span>
+                    </div>
+                }
+            </div>
+
+            <div class="goal-detail-meta">
+                <div class="goal-detail-meta-item">
+                    <label>Progress Type</label>
+                    <span>@(_goal.ProgressType == "automatic" ? "Automatic (linked items)" : "Manual")</span>
+                </div>
+                @if (_goal.DueDate.HasValue)
+                {
+                    <div class="goal-detail-meta-item">
+                        <label>Due Date</label>
+                        <span>@_goal.DueDate.Value.ToString("MMM d, yyyy")</span>
+                    </div>
+                }
+                <div class="goal-detail-meta-item">
+                    <label>Linked Items</label>
+                    <span>@_goal.CompletedLinkedWorkItemCount / @_goal.LinkedWorkItemCount</span>
+                </div>
+            </div>
+
+            @* Update progress manually *@
+            @if (_goal.ProgressType == "manual")
+            {
+                <div class="goal-detail-update">
+                    <h5>Update Progress</h5>
+                    <div class="goal-detail-update-row">
+                        <input type="number" class="form-control form-control-sm" @bind="_newCurrentValue"
+                               placeholder="Current value" />
+                        <button class="btn btn-primary btn-sm" @onclick="UpdateProgress"
+                                disabled="@_isUpdating">
+                            Update
+                        </button>
+                    </div>
+                </div>
+            }
+
+            @* Status actions *@
+            <div class="goal-detail-actions">
+                @if (_goal.Status != "completed")
+                {
+                    <button class="btn btn-outline btn-sm" @onclick='() => SetStatus("completed")'>Mark Complete</button>
+                }
+            </div>
+        </div>
+
+        @* Key Results (if objective) *@
+        @if (_goal.Type == "objective" && _keyResults.Count > 0)
+        {
+            <div class="goal-detail-kr-section">
+                <h5>Key Results</h5>
+                @foreach (var kr in _keyResults)
+                {
+                    <div class="goal-detail-kr-card">
+                        <div class="goal-detail-kr-header">
+                            <span>@kr.Title</span>
+                            <span class="goal-detail-kr-progress">@kr.ProgressPercent.ToString("F0")%</span>
+                        </div>
+                        <div class="goal-detail-kr-bar">
+                            <div class="goal-detail-kr-fill"
+                                 style="width: @(kr.ProgressPercent.ToString("F0"))%; background: @GetProgressColor(kr.ProgressPercent)"></div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    }
+</div>

@@ -1,0 +1,220 @@
+.automation-rules-editor {
+    padding: 1rem;
+}
+
+.automation-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.automation-header h4 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.automation-loading {
+    color: var(--color-text-secondary, #6b7280);
+    padding: 2rem;
+    text-align: center;
+}
+
+.automation-empty {
+    text-align: center;
+    padding: 2rem;
+    color: var(--color-text-secondary, #6b7280);
+}
+
+.automation-presets {
+    margin-top: 1.5rem;
+    text-align: left;
+}
+
+.automation-presets h5 {
+    font-size: 0.875rem;
+    margin-bottom: 0.5rem;
+}
+
+.automation-presets .btn {
+    display: block;
+    width: 100%;
+    margin-bottom: 0.375rem;
+    text-align: left;
+}
+
+/* Rule cards */
+.automation-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.automation-rule-card {
+    border: 1px solid var(--color-border, #e5e7eb);
+    border-radius: 8px;
+    padding: 0.75rem;
+    background: var(--color-surface, #fff);
+}
+
+.automation-rule-card.inactive {
+    opacity: 0.6;
+}
+
+.automation-rule-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.375rem;
+}
+
+.automation-rule-name {
+    font-weight: 600;
+    font-size: 0.875rem;
+}
+
+.automation-rule-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.automation-rule-summary {
+    font-size: 0.8125rem;
+    color: var(--color-text-secondary, #6b7280);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.automation-trigger-badge {
+    background: var(--color-surface-secondary, #f3f4f6);
+    padding: 1px 8px;
+    border-radius: 4px;
+    font-weight: 500;
+}
+
+.automation-rule-last-run {
+    font-size: 0.6875rem;
+    color: var(--color-text-tertiary, #9ca3af);
+    margin-top: 0.25rem;
+}
+
+/* Toggle */
+.automation-toggle {
+    position: relative;
+    display: inline-block;
+    width: 36px;
+    height: 20px;
+}
+
+.automation-toggle input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.automation-toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: var(--color-border, #d1d5db);
+    border-radius: 10px;
+    transition: background 0.2s;
+}
+
+.automation-toggle-slider::before {
+    content: "";
+    position: absolute;
+    height: 16px;
+    width: 16px;
+    left: 2px;
+    bottom: 2px;
+    background: #fff;
+    border-radius: 50%;
+    transition: transform 0.2s;
+}
+
+.automation-toggle input:checked + .automation-toggle-slider {
+    background: var(--color-primary, #2563eb);
+}
+
+.automation-toggle input:checked + .automation-toggle-slider::before {
+    transform: translateX(16px);
+}
+
+/* Modal */
+.automation-modal-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+}
+
+.automation-modal {
+    background: var(--color-surface, #fff);
+    border-radius: 12px;
+    padding: 1.5rem;
+    width: 560px;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+}
+
+.automation-modal h4 {
+    margin: 0 0 1rem;
+    font-size: 1.125rem;
+}
+
+.automation-form-field {
+    margin-bottom: 1rem;
+}
+
+.automation-form-field label {
+    display: block;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    margin-bottom: 0.25rem;
+    color: var(--color-text-primary, #111827);
+}
+
+.automation-actions-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+}
+
+.automation-action-row {
+    display: flex;
+    gap: 0.375rem;
+    align-items: center;
+}
+
+.automation-preview {
+    background: var(--color-surface-secondary, #f9fafb);
+    border-radius: 6px;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8125rem;
+    margin: 1rem 0;
+}
+
+.automation-preview strong {
+    margin-right: 0.375rem;
+}
+
+.automation-error {
+    color: var(--color-danger, #dc2626);
+    font-size: 0.8125rem;
+    margin-bottom: 0.5rem;
+}
+
+.automation-modal-actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+    margin-top: 1rem;
+}

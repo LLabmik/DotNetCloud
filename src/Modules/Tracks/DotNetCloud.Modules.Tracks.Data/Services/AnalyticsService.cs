@@ -499,4 +499,203 @@ public sealed class AnalyticsService
             UpcomingDueDates = upcomingDueDates
         };
     }
+
+    // ─── Roadmap ─────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Gets roadmap data for a product: epics and features with dates, organized on a timeline.
+    /// </summary>
+    public async Task<RoadmapDataDto> GetRoadmapDataAsync(Guid productId, CancellationToken ct)
+    {
+        var product = await _db.Products
+            .Where(p => p.Id == productId)
+            .Select(p => new { p.Name })
+            .FirstOrDefaultAsync(ct);
+
+        var productName = product?.Name ?? "Unknown Product";
+
+        // Get all non-deleted epics and features with dates
+        var items = await _db.WorkItems
+            .Where(wi => wi.ProductId == productId && !wi.IsDeleted
+                && (wi.Type == WorkItemType.Epic || wi.Type == WorkItemType.Feature)
+                && (wi.DueDate != null || wi.StartDate != null))
+            .Include(wi => wi.Swimlane)
+            .Include(wi => wi.Milestone)
+            .Include(wi => wi.Dependencies)
+                .ThenInclude(d => d.DependsOnWorkItem)
+            .Include(wi => wi.Assignments)
+            .OrderBy(wi => wi.StartDate ?? wi.DueDate ?? wi.CreatedAt)
+            .ToListAsync(ct);
+
+        // Resolve dependency IDs for the roadmap items
+        var roadmapItems = items.Select(wi => new RoadmapItemDto
+        {
+            Id = wi.Id,
+            ItemNumber = wi.ItemNumber,
+            Title = wi.Title,
+            Type = wi.Type,
+            Priority = wi.Priority,
+            SwimlaneTitle = wi.Swimlane?.Title,
+            SwimlaneColor = wi.Swimlane?.Color,
+            StartDate = wi.StartDate,
+            DueDate = wi.DueDate,
+            MilestoneId = wi.MilestoneId,
+            MilestoneTitle = wi.Milestone?.Title,
+            DependencyIds = wi.Dependencies
+                .Select(d => d.DependsOnWorkItemId)
+                .ToList(),
+            AssigneeUserId = wi.Assignments?.FirstOrDefault()?.UserId,
+            AssigneeDisplayName = wi.Assignments?.FirstOrDefault()?.UserId.ToString() // Resolved by UI
+        }).ToList();
+
+        // Get all milestones for the product
+        var milestones = await _db.Milestones
+            .Where(m => m.ProductId == productId)
+            .OrderBy(m => m.DueDate)
+            .Select(m => new MilestoneDto
+            {
+                Id = m.Id,
+                ProductId = m.ProductId,
+                Title = m.Title,
+                Description = m.Description,
+                DueDate = m.DueDate,
+                Status = m.Status,
+                Color = m.Color,
+                WorkItemCount = m.WorkItems.Count,
+                CompletedWorkItemCount = 0, // Computed below
+                CreatedAt = m.CreatedAt,
+                UpdatedAt = m.UpdatedAt
+            })
+            .ToListAsync(ct);
+
+        return new RoadmapDataDto
+        {
+            ProductId = productId,
+            ProductName = productName,
+            Items = roadmapItems,
+            Milestones = milestones
+        };
+    }
+
+    // ─── Capacity Planning ───────────────────────────────────────────────────
+
+    /// <summary>
+    /// Gets capacity data for a sprint: assigned vs. target story points.
+    /// </summary>
+    public async Task<SprintCapacityDto> GetSprintCapacityAsync(Guid sprintId, CancellationToken ct)
+    {
+        var sprint = await _db.Sprints
+            .Include(s => s.Epic)
+            .FirstOrDefaultAsync(s => s.Id == sprintId, ct);
+
+        if (sprint is null)
+            throw new InvalidOperationException($"Sprint with ID {sprintId} not found.");
+
+        var productId = sprint.Epic!.ProductId;
+
+        var sprintItemIds = await _db.SprintItems
+            .Where(si => si.SprintId == sprintId)
+            .Select(si => si.ItemId)
+            .ToListAsync(ct);
+
+        var totalStoryPoints = await _db.WorkItems
+            .Where(wi => sprintItemIds.Contains(wi.Id) && !wi.IsDeleted)
+            .SumAsync(wi => wi.StoryPoints ?? 0, ct);
+
+        var doneSwimlaneIds = await _db.Swimlanes
+            .Where(s => s.ContainerType == SwimlaneContainerType.Product && s.ContainerId == productId && s.IsDone)
+            .Select(s => s.Id)
+            .ToListAsync(ct);
+
+        var completedStoryPoints = await _db.WorkItems
+            .Where(wi => sprintItemIds.Contains(wi.Id) && !wi.IsDeleted
+                && wi.SwimlaneId != null && doneSwimlaneIds.Contains(wi.SwimlaneId.Value))
+            .SumAsync(wi => wi.StoryPoints ?? 0, ct);
+
+        return new SprintCapacityDto
+        {
+            SprintId = sprint.Id,
+            SprintTitle = sprint.Title,
+            TotalStoryPoints = totalStoryPoints,
+            TargetStoryPoints = sprint.TargetStoryPoints ?? 0,
+            CompletedStoryPoints = completedStoryPoints
+        };
+    }
+
+    /// <summary>
+    /// Gets capacity data per member across all active sprints in a product.
+    /// </summary>
+    public async Task<List<MemberCapacityDto>> GetMemberCapacityAsync(Guid productId, CancellationToken ct)
+    {
+        // Default capacity target: 20 story points per member (configurable threshold)
+        const int defaultCapacityTarget = 20;
+
+        // Get all active sprint item IDs for this product
+        var activeSprintItemIds = await _db.SprintItems
+            .Where(si => si.Sprint!.Status == SprintStatus.Active && si.Sprint!.Epic!.ProductId == productId)
+            .Select(si => new { si.ItemId, si.Sprint!.Title })
+            .ToListAsync(ct);
+
+        var activeItemIds = activeSprintItemIds.Select(si => si.ItemId).ToHashSet();
+        var sprintTitlesByItem = activeSprintItemIds
+            .GroupBy(si => si.ItemId)
+            .ToDictionary(g => g.Key, g => g.Select(x => x.Title).Distinct().ToList());
+
+        // Get assignees and their story points for items in active sprints
+        var assignments = await _db.WorkItemAssignments
+            .Where(a => activeItemIds.Contains(a.WorkItemId) && !a.WorkItem!.IsDeleted)
+            .Select(a => new
+            {
+                a.UserId,
+                a.WorkItem!.StoryPoints,
+                a.WorkItemId
+            })
+            .ToListAsync(ct);
+
+        var memberData = assignments
+            .GroupBy(a => a.UserId)
+            .Select(g =>
+            {
+                var storyPoints = g.Sum(a => a.StoryPoints ?? 0);
+                var itemCount = g.Select(a => a.WorkItemId).Distinct().Count();
+                var sprintTitles = g.SelectMany(a => sprintTitlesByItem.GetValueOrDefault(a.WorkItemId, []))
+                    .Distinct()
+                    .ToList();
+
+                return new MemberCapacityDto
+                {
+                    UserId = g.Key,
+                    DisplayName = g.Key.ToString(), // Will be resolved by the UI
+                    AssignedStoryPoints = storyPoints,
+                    AssignedItemCount = itemCount,
+                    CapacityPercent = defaultCapacityTarget > 0
+                        ? Math.Round((double)storyPoints / defaultCapacityTarget * 100.0, 1)
+                        : -1,
+                    SprintTitles = sprintTitles
+                };
+            })
+            .OrderByDescending(m => m.CapacityPercent)
+            .ToList();
+
+        return memberData;
+    }
+
+    /// <summary>
+    /// Gets full capacity overview for a product.
+    /// </summary>
+    public async Task<ProductCapacityDto> GetProductCapacityAsync(Guid productId, CancellationToken ct)
+    {
+        var members = await GetMemberCapacityAsync(productId, ct);
+        var totalPoints = members.Sum(m => m.AssignedStoryPoints);
+        var overloaded = members.Count(m => m.CapacityPercent > 90);
+
+        return new ProductCapacityDto
+        {
+            ProductId = productId,
+            Members = members,
+            TotalAssignedStoryPoints = totalPoints,
+            TotalMembers = members.Count,
+            OverloadedMembers = overloaded
+        };
+    }
 }

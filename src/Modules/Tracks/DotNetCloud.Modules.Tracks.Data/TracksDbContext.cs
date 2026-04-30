@@ -47,6 +47,9 @@ public class TracksDbContext : DbContext
     public DbSet<GuestPermission> GuestPermissions => Set<GuestPermission>();
     public DbSet<WebhookSubscription> WebhookSubscriptions => Set<WebhookSubscription>();
     public DbSet<WebhookDelivery> WebhookDeliveries => Set<WebhookDelivery>();
+    public DbSet<AutomationRule> AutomationRules => Set<AutomationRule>();
+    public DbSet<Goal> Goals => Set<Goal>();
+    public DbSet<GoalWorkItem> GoalWorkItems => Set<GoalWorkItem>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

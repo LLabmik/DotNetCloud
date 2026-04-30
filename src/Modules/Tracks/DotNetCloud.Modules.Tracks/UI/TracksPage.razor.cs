@@ -23,7 +23,7 @@ public partial class TracksPage : ComponentBase, IDisposable
     [Inject] private IUserDirectory UserDirectory { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
 
-    private enum TracksView { ProductList, ProductKanban, EpicKanban, FeatureKanban, Teams, Planning, Wizard, Backlog, Timeline, Review, Settings, Calendar, List, Dashboard }
+    private enum TracksView { ProductList, ProductKanban, EpicKanban, FeatureKanban, Teams, Planning, Wizard, Backlog, Timeline, Review, Settings, Calendar, List, Dashboard, Roadmap }
 
     private TracksView _view = TracksView.ProductList;
     private bool _sidebarCollapsed;
@@ -608,6 +608,17 @@ public partial class TracksPage : ComponentBase, IDisposable
             await LoadProductKanbanDataAsync();
         
         _view = TracksView.Dashboard;
+    }
+
+    private async Task OpenRoadmap()
+    {
+        _selectedWorkItem = null;
+        _showSprints = false;
+
+        if (_selectedProduct is not null && _currentSwimlanes.Count == 0)
+            await LoadProductKanbanDataAsync();
+
+        _view = TracksView.Roadmap;
     }
 
     private async Task OpenReview()

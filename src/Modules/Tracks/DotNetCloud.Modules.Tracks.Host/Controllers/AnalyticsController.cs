@@ -88,4 +88,54 @@ public class AnalyticsController : TracksControllerBase
             return BadRequest(ErrorEnvelope(ErrorCodes.BadRequest, ex.Message));
         }
     }
+
+    /// <summary>Gets roadmap data for a product (epics/features with dates and dependencies).</summary>
+    [HttpGet("api/v1/products/{productId:guid}/roadmap")]
+    public async Task<IActionResult> GetRoadmapDataAsync(Guid productId, CancellationToken ct)
+    {
+        var caller = GetAuthenticatedCaller();
+        try
+        {
+            var roadmap = await _analyticsService.GetRoadmapDataAsync(productId, ct);
+            return Ok(Envelope(roadmap));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get roadmap for product {ProductId}", productId);
+            return BadRequest(ErrorEnvelope(ErrorCodes.BadRequest, ex.Message));
+        }
+    }
+
+    /// <summary>Gets capacity data for a specific sprint.</summary>
+    [HttpGet("api/v1/sprints/{sprintId:guid}/capacity")]
+    public async Task<IActionResult> GetSprintCapacityAsync(Guid sprintId, CancellationToken ct)
+    {
+        var caller = GetAuthenticatedCaller();
+        try
+        {
+            var capacity = await _analyticsService.GetSprintCapacityAsync(sprintId, ct);
+            return Ok(Envelope(capacity));
+        }
+        catch (System.InvalidOperationException ex)
+        {
+            return NotFound(ErrorEnvelope(ErrorCodes.SprintNotFound, ex.Message));
+        }
+    }
+
+    /// <summary>Gets capacity data for all members in a product's active sprints.</summary>
+    [HttpGet("api/v1/products/{productId:guid}/analytics/capacity")]
+    public async Task<IActionResult> GetMemberCapacityAsync(Guid productId, CancellationToken ct)
+    {
+        var caller = GetAuthenticatedCaller();
+        try
+        {
+            var capacity = await _analyticsService.GetProductCapacityAsync(productId, ct);
+            return Ok(Envelope(capacity));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get capacity for product {ProductId}", productId);
+            return BadRequest(ErrorEnvelope(ErrorCodes.BadRequest, ex.Message));
+        }
+    }
 }

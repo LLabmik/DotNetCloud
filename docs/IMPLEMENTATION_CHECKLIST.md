@@ -4801,3 +4801,73 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `TracksServiceRegistration` updated with all new services + background service
 - ✓ `TracksModule.cs` updated to initialize WebhookEventHandler and subscribe to all events
 
+## Tracks Professionalization — Phase G
+
+### G-1: Product Roadmap
+- ✓ `RoadmapItemDto` + `RoadmapDataDto` in TracksDtos.cs
+- ✓ `ProductRoadmapView.razor` + `.razor.cs` + `.razor.css` — horizontal timeline with epics/features
+- ✓ Group by: Epic (default), Sprint, Assignee
+- ✓ Color coding by swimlane color or priority
+- ✓ SVG dependency arrows between dependent items
+- ✓ Today marker: vertical dashed line with "Today" label
+- ✓ Click item opens detail panel; click "Open Full Detail" triggers OnWorkItemSelected
+- ✓ Zoom toggle: Month / Quarter / Year view
+- ✓ Milestone diamond markers on timeline (from Phase D milestones)
+- ✓ Empty state: "No roadmap items. Create epics with due dates to see them here."
+- ✓ `TracksView.Roadmap` enum addition to TracksPage
+- ✓ Roadmap sidebar nav button (🗺️) in product sidebar
+- ✓ Controller: `GET /api/v1/products/{id}/roadmap` in AnalyticsController
+- ✓ `GetRoadmapDataAsync()` method in AnalyticsService
+- ✓ `StartDate` added to `WorkItem` model, `WorkItemDto`, `CreateWorkItemDto`, `UpdateWorkItemDto`
+- ✓ `StartDate` EF index in WorkItemConfiguration
+- ✓ `ITracksApiClient` + `TracksApiClient` extended with `GetRoadmapDataAsync()`
+
+### G-2: Automation Rules
+- ✓ `AutomationRule` entity — ProductId, Name, Trigger, ConditionsJson, ActionsJson, IsActive, CreatedByUserId, LastTriggeredAt
+- ✓ `AutomationRuleConfiguration` EF config with migration
+- ✓ `AutomationRuleDto`, `CreateAutomationRuleDto`, `UpdateAutomationRuleDto` in TracksDtos.cs
+- ✓ `AutomationRuleService` — CRUD + `EvaluateRulesAsync()` with condition parsing (equals, not_equals, contains, greater_than, less_than)
+- ✓ `IAutomationRuleExecutionService` interface in Services
+- ✓ `AutomationRuleExecutionService` — executes rule actions (add_label, remove_label, move_to_swimlane, assign, set_priority, set_field, add_comment, notify)
+- ✓ `AutomationRuleEventHandler` — subscribes to WorkItemCreated/Updated/Moved/Assigned events via IEventBus
+- ✓ `AutomationRulesController` — GET/POST/PUT/DELETE `/api/v1/products/{id}/automation-rules`
+- ✓ `AutomationRuleEditor.razor` + `.razor.cs` + `.razor.css` — rule builder in product settings
+- ✓ Trigger dropdown with human-readable labels
+- ✓ Action builder with dynamic parameters per action type
+- ✓ Rule preview: natural language summary
+- ✓ 3 pre-built template rules (done_label, urgent_notify, due_reminder)
+- ✓ Toggle to enable/disable individual rules
+- ✓ `TracksDbContext` extended with `AutomationRules`
+- ✓ `TracksServiceRegistration` updated with `AutomationRuleService`, `GoalService`, `IAutomationRuleExecutionService`
+- ✓ `TracksModule.cs` updated with `AutomationRuleEventHandler` subscriptions and cleanup
+
+### G-3: Goals / OKRs
+- ✓ `Goal` entity — ProductId, Title, Description, Type (objective/key_result), ParentGoalId, TargetValue, CurrentValue, ProgressType, Status, DueDate
+- ✓ `GoalWorkItem` junction entity linking work items to goals
+- ✓ `GoalConfiguration` + `GoalWorkItemConfiguration` EF configs with migration
+- ✓ `GoalDto`, `CreateGoalDto`, `UpdateGoalDto`, `LinkGoalWorkItemDto` in TracksDtos.cs
+- ✓ `GoalService` — CRUD + progress calculation (manual/automatic), status auto-computation, link/unlink work items
+- ✓ `GoalsController` — GET/POST/PUT/DELETE `/api/v1/products/{id}/goals` + link/unlink endpoints
+- ✓ `GoalsList.razor` + `.razor.cs` + `.razor.css` — hierarchical list with expand/collapse, progress bars, status badges
+- ✓ Key results nested under objectives with progress indicators
+- ✓ Create/edit modal with title, description, target/current values, progress type, due date
+- ✓ `GoalDetail.razor` + `.razor.cs` + `.razor.css` — detail panel with progress tracking and status management
+- ✓ Manual progress update with current value input
+- ✓ Status auto-computation based on progress percentage and due date
+- ✓ `TracksDbContext` extended with `Goals`, `GoalWorkItems`
+- ✓ `ITracksApiClient` + `TracksApiClient` extended with all goal methods
+
+### G-4: Capacity Planning
+- ✓ `SprintCapacityDto`, `MemberCapacityDto`, `ProductCapacityDto` in TracksDtos.cs
+- ✓ `GetSprintCapacityAsync()` in AnalyticsService — total/assigned/completed story points per sprint
+- ✓ `GetMemberCapacityAsync()` in AnalyticsService — story points per assignee across active sprints
+- ✓ `GetProductCapacityAsync()` in AnalyticsService — full capacity overview with overloaded count
+- ✓ Controller: `GET /api/v1/sprints/{sprintId}/capacity` in AnalyticsController
+- ✓ Controller: `GET /api/v1/products/{productId}/analytics/capacity` in AnalyticsController
+- ✓ `CapacityWidget.razor` + `.razor.cs` + `.razor.css` — horizontal bar chart per member
+- ✓ Color coding: green (< 60%), yellow (60-90%), orange (90-100%), red (> 100%)
+- ✓ Member name + avatar label, story points count, capacity percentage
+- ✓ Overloaded badge when members exceed 90% capacity
+- ✓ Capacity legend
+- ✓ `ITracksApiClient` + `TracksApiClient` extended with `GetProductCapacityAsync()`, `GetSprintCapacityAsync()`
+

@@ -190,6 +190,42 @@ public interface ITracksApiClient
     Task DeleteProductWebhookAsync(Guid productId, Guid subscriptionId, CancellationToken ct = default);
     /// <summary>Sends a test ping to a webhook subscription.</summary>
     Task<WebhookTestResult> TestProductWebhookAsync(Guid productId, Guid subscriptionId, CancellationToken ct = default);
+
+    // Roadmap
+    /// <summary>Gets roadmap data for a product.</summary>
+    Task<RoadmapDataDto?> GetRoadmapDataAsync(Guid productId, CancellationToken ct = default);
+
+    // Automation Rules
+    /// <summary>Lists all automation rules for a product.</summary>
+    Task<List<AutomationRuleDto>> ListAutomationRulesAsync(Guid productId, CancellationToken ct = default);
+    /// <summary>Creates a new automation rule.</summary>
+    Task<AutomationRuleDto?> CreateAutomationRuleAsync(Guid productId, CreateAutomationRuleDto dto, CancellationToken ct = default);
+    /// <summary>Updates an automation rule.</summary>
+    Task<AutomationRuleDto?> UpdateAutomationRuleAsync(Guid ruleId, UpdateAutomationRuleDto dto, CancellationToken ct = default);
+    /// <summary>Deletes an automation rule.</summary>
+    Task DeleteAutomationRuleAsync(Guid ruleId, CancellationToken ct = default);
+
+    // Goals / OKRs
+    /// <summary>Lists all goals for a product.</summary>
+    Task<List<GoalDto>> ListGoalsAsync(Guid productId, CancellationToken ct = default);
+    /// <summary>Gets a single goal.</summary>
+    Task<GoalDto?> GetGoalAsync(Guid goalId, CancellationToken ct = default);
+    /// <summary>Creates a new goal.</summary>
+    Task<GoalDto?> CreateGoalAsync(Guid productId, CreateGoalDto dto, CancellationToken ct = default);
+    /// <summary>Updates a goal.</summary>
+    Task<GoalDto?> UpdateGoalAsync(Guid goalId, UpdateGoalDto dto, CancellationToken ct = default);
+    /// <summary>Deletes a goal.</summary>
+    Task DeleteGoalAsync(Guid goalId, CancellationToken ct = default);
+    /// <summary>Links a work item to a goal.</summary>
+    Task LinkGoalWorkItemAsync(Guid goalId, LinkGoalWorkItemDto dto, CancellationToken ct = default);
+    /// <summary>Unlinks a work item from a goal.</summary>
+    Task UnlinkGoalWorkItemAsync(Guid goalId, Guid workItemId, CancellationToken ct = default);
+
+    // Capacity Planning
+    /// <summary>Gets capacity data for all members in a product's active sprints.</summary>
+    Task<ProductCapacityDto?> GetProductCapacityAsync(Guid productId, CancellationToken ct = default);
+    /// <summary>Gets capacity data for a specific sprint.</summary>
+    Task<SprintCapacityDto?> GetSprintCapacityAsync(Guid sprintId, CancellationToken ct = default);
 }
 
 /// <summary>

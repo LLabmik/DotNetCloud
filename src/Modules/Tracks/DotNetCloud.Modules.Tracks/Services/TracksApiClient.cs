@@ -748,6 +748,90 @@ public sealed class TracksApiClient : ITracksApiClient
         return new WebhookTestResult(false, null, 0, "Unable to parse response");
     }
 
+    // ── Roadmap ──────────────────────────────────────────────
+
+    public async Task<RoadmapDataDto?> GetRoadmapDataAsync(Guid productId, CancellationToken ct = default)
+        => await ReadDataAsync<RoadmapDataDto>($"api/v1/products/{productId}/roadmap", ct);
+
+    // ── Automation Rules ─────────────────────────────────────
+
+    public async Task<List<AutomationRuleDto>> ListAutomationRulesAsync(Guid productId, CancellationToken ct = default)
+    {
+        var result = await ReadDataAsync<List<AutomationRuleDto>>($"api/v1/products/{productId}/automation-rules", ct);
+        return result ?? new List<AutomationRuleDto>();
+    }
+
+    public async Task<AutomationRuleDto?> CreateAutomationRuleAsync(Guid productId, CreateAutomationRuleDto dto, CancellationToken ct = default)
+    {
+        var response = await _httpClient.PostAsJsonAsync($"api/v1/products/{productId}/automation-rules", dto, ct);
+        await EnsureSuccessOrThrowAsync(response);
+        return await ReadDataFromResponseAsync<AutomationRuleDto>(response, ct);
+    }
+
+    public async Task<AutomationRuleDto?> UpdateAutomationRuleAsync(Guid ruleId, UpdateAutomationRuleDto dto, CancellationToken ct = default)
+    {
+        var response = await _httpClient.PutAsJsonAsync($"api/v1/automation-rules/{ruleId}", dto, ct);
+        await EnsureSuccessOrThrowAsync(response);
+        return await ReadDataFromResponseAsync<AutomationRuleDto>(response, ct);
+    }
+
+    public async Task DeleteAutomationRuleAsync(Guid ruleId, CancellationToken ct = default)
+    {
+        var response = await _httpClient.DeleteAsync($"api/v1/automation-rules/{ruleId}", ct);
+        await EnsureSuccessOrThrowAsync(response);
+    }
+
+    // ── Goals / OKRs ─────────────────────────────────────────
+
+    public async Task<List<GoalDto>> ListGoalsAsync(Guid productId, CancellationToken ct = default)
+    {
+        var result = await ReadDataAsync<List<GoalDto>>($"api/v1/products/{productId}/goals", ct);
+        return result ?? new List<GoalDto>();
+    }
+
+    public async Task<GoalDto?> GetGoalAsync(Guid goalId, CancellationToken ct = default)
+        => await ReadDataAsync<GoalDto>($"api/v1/goals/{goalId}", ct);
+
+    public async Task<GoalDto?> CreateGoalAsync(Guid productId, CreateGoalDto dto, CancellationToken ct = default)
+    {
+        var response = await _httpClient.PostAsJsonAsync($"api/v1/products/{productId}/goals", dto, ct);
+        await EnsureSuccessOrThrowAsync(response);
+        return await ReadDataFromResponseAsync<GoalDto>(response, ct);
+    }
+
+    public async Task<GoalDto?> UpdateGoalAsync(Guid goalId, UpdateGoalDto dto, CancellationToken ct = default)
+    {
+        var response = await _httpClient.PutAsJsonAsync($"api/v1/goals/{goalId}", dto, ct);
+        await EnsureSuccessOrThrowAsync(response);
+        return await ReadDataFromResponseAsync<GoalDto>(response, ct);
+    }
+
+    public async Task DeleteGoalAsync(Guid goalId, CancellationToken ct = default)
+    {
+        var response = await _httpClient.DeleteAsync($"api/v1/goals/{goalId}", ct);
+        await EnsureSuccessOrThrowAsync(response);
+    }
+
+    public async Task LinkGoalWorkItemAsync(Guid goalId, LinkGoalWorkItemDto dto, CancellationToken ct = default)
+    {
+        var response = await _httpClient.PostAsJsonAsync($"api/v1/goals/{goalId}/work-items", dto, ct);
+        await EnsureSuccessOrThrowAsync(response);
+    }
+
+    public async Task UnlinkGoalWorkItemAsync(Guid goalId, Guid workItemId, CancellationToken ct = default)
+    {
+        var response = await _httpClient.DeleteAsync($"api/v1/goals/{goalId}/work-items/{workItemId}", ct);
+        await EnsureSuccessOrThrowAsync(response);
+    }
+
+    // ── Capacity Planning ────────────────────────────────────
+
+    public async Task<ProductCapacityDto?> GetProductCapacityAsync(Guid productId, CancellationToken ct = default)
+        => await ReadDataAsync<ProductCapacityDto>($"api/v1/products/{productId}/analytics/capacity", ct);
+
+    public async Task<SprintCapacityDto?> GetSprintCapacityAsync(Guid sprintId, CancellationToken ct = default)
+        => await ReadDataAsync<SprintCapacityDto>($"api/v1/sprints/{sprintId}/capacity", ct);
+
     // ── Helpers ──────────────────────────────────────────────
 
     private async Task<T?> ReadDataAsync<T>(string url, CancellationToken ct)

@@ -76,6 +76,7 @@ public sealed record WorkItemDto
     public string? Description { get; init; }
     public required double Position { get; init; }
     public Priority Priority { get; init; }
+    public DateTime? StartDate { get; init; }
     public DateTime? DueDate { get; init; }
     public int? StoryPoints { get; init; }
     public bool IsArchived { get; init; }
@@ -515,6 +516,7 @@ public sealed record CreateWorkItemDto
     public required string Title { get; init; }
     public string? Description { get; init; }
     public Priority Priority { get; init; }
+    public DateTime? StartDate { get; init; }
     public DateTime? DueDate { get; init; }
     public int? StoryPoints { get; init; }
     public List<Guid> AssigneeIds { get; init; } = [];
@@ -526,6 +528,7 @@ public sealed record UpdateWorkItemDto
     public string? Title { get; init; }
     public string? Description { get; init; }
     public Priority? Priority { get; init; }
+    public DateTime? StartDate { get; init; }
     public DateTime? DueDate { get; init; }
     public int? StoryPoints { get; init; }
     public bool? IsArchived { get; init; }
@@ -895,5 +898,160 @@ public sealed record InviteGuestDto
 public sealed record GrantPermissionDto
 {
     public string Permission { get; init; } = "view";
+}
+
+// ─── Roadmap DTOs ──────────────────────────────────────────────────────────
+
+/// <summary>An item on the product roadmap timeline.</summary>
+public sealed record RoadmapItemDto
+{
+    public required Guid Id { get; init; }
+    public int ItemNumber { get; init; }
+    public required string Title { get; init; }
+    public WorkItemType Type { get; init; }
+    public Priority Priority { get; init; }
+    public string? SwimlaneTitle { get; init; }
+    public string? SwimlaneColor { get; init; }
+    public DateTime? StartDate { get; init; }
+    public DateTime? DueDate { get; init; }
+    public Guid? MilestoneId { get; init; }
+    public string? MilestoneTitle { get; init; }
+    public List<Guid> DependencyIds { get; init; } = [];
+    public Guid? AssigneeUserId { get; init; }
+    public string? AssigneeDisplayName { get; init; }
+}
+
+/// <summary>Full roadmap data for a product.</summary>
+public sealed record RoadmapDataDto
+{
+    public required Guid ProductId { get; init; }
+    public required string ProductName { get; init; }
+    public List<RoadmapItemDto> Items { get; init; } = [];
+    public List<MilestoneDto> Milestones { get; init; } = [];
+}
+
+// ─── Automation Rule DTOs ──────────────────────────────────────────────────
+
+/// <summary>An automation rule definition.</summary>
+public sealed record AutomationRuleDto
+{
+    public required Guid Id { get; init; }
+    public required Guid ProductId { get; init; }
+    public required string Name { get; init; }
+    public required string Trigger { get; init; }
+    public required string ConditionsJson { get; init; }
+    public required string ActionsJson { get; init; }
+    public bool IsActive { get; init; }
+    public required Guid CreatedByUserId { get; init; }
+    public DateTime? LastTriggeredAt { get; init; }
+    public required DateTime CreatedAt { get; init; }
+    public required DateTime UpdatedAt { get; init; }
+}
+
+/// <summary>Request DTO for creating an automation rule.</summary>
+public sealed record CreateAutomationRuleDto
+{
+    public required string Name { get; init; }
+    public required string Trigger { get; init; }
+    public string ConditionsJson { get; init; } = "[]";
+    public string ActionsJson { get; init; } = "[]";
+    public bool IsActive { get; init; } = true;
+}
+
+/// <summary>Request DTO for updating an automation rule.</summary>
+public sealed record UpdateAutomationRuleDto
+{
+    public string? Name { get; init; }
+    public string? Trigger { get; init; }
+    public string? ConditionsJson { get; init; }
+    public string? ActionsJson { get; init; }
+    public bool? IsActive { get; init; }
+}
+
+// ─── Goal / OKR DTOs ──────────────────────────────────────────────────────
+
+/// <summary>A goal or key result.</summary>
+public sealed record GoalDto
+{
+    public required Guid Id { get; init; }
+    public required Guid ProductId { get; init; }
+    public required string Title { get; init; }
+    public string? Description { get; init; }
+    public string Type { get; init; } = "objective"; // "objective" or "key_result"
+    public Guid? ParentGoalId { get; init; }
+    public double? TargetValue { get; init; }
+    public double? CurrentValue { get; init; }
+    public string ProgressType { get; init; } = "manual"; // "manual" or "automatic"
+    public string Status { get; init; } = "not_started";
+    public DateTime? DueDate { get; init; }
+    public required Guid CreatedByUserId { get; init; }
+    public int LinkedWorkItemCount { get; init; }
+    public int CompletedLinkedWorkItemCount { get; init; }
+    public double ProgressPercent { get; init; }
+    public required DateTime CreatedAt { get; init; }
+    public required DateTime UpdatedAt { get; init; }
+}
+
+/// <summary>Request DTO for creating a goal.</summary>
+public sealed record CreateGoalDto
+{
+    public required string Title { get; init; }
+    public string? Description { get; init; }
+    public string Type { get; init; } = "objective";
+    public Guid? ParentGoalId { get; init; }
+    public double? TargetValue { get; init; }
+    public string ProgressType { get; init; } = "manual";
+    public DateTime? DueDate { get; init; }
+}
+
+/// <summary>Request DTO for updating a goal.</summary>
+public sealed record UpdateGoalDto
+{
+    public string? Title { get; init; }
+    public string? Description { get; init; }
+    public double? TargetValue { get; init; }
+    public double? CurrentValue { get; init; }
+    public string? ProgressType { get; init; }
+    public string? Status { get; init; }
+    public DateTime? DueDate { get; init; }
+}
+
+/// <summary>Request DTO for linking a work item to a goal.</summary>
+public sealed record LinkGoalWorkItemDto
+{
+    public required Guid WorkItemId { get; init; }
+}
+
+// ─── Capacity Planning DTOs ────────────────────────────────────────────────
+
+/// <summary>Capacity data for a single sprint.</summary>
+public sealed record SprintCapacityDto
+{
+    public required Guid SprintId { get; init; }
+    public required string SprintTitle { get; init; }
+    public int TotalStoryPoints { get; init; }
+    public int TargetStoryPoints { get; init; }
+    public int CompletedStoryPoints { get; init; }
+}
+
+/// <summary>Capacity data for a single team member.</summary>
+public sealed record MemberCapacityDto
+{
+    public required Guid UserId { get; init; }
+    public string? DisplayName { get; init; }
+    public int AssignedStoryPoints { get; init; }
+    public int AssignedItemCount { get; init; }
+    public double CapacityPercent { get; init; } // -1 = no target set, 0-200 = percentage
+    public List<string> SprintTitles { get; init; } = [];
+}
+
+/// <summary>Full capacity data for a product.</summary>
+public sealed record ProductCapacityDto
+{
+    public required Guid ProductId { get; init; }
+    public List<MemberCapacityDto> Members { get; init; } = [];
+    public int TotalAssignedStoryPoints { get; init; }
+    public int TotalMembers { get; init; }
+    public int OverloadedMembers { get; init; }
 }
 

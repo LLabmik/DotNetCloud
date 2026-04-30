@@ -50,6 +50,9 @@ public static class TracksServiceRegistration
         services.AddScoped<WebhookDeliveryService>();
         services.AddScoped<IWebhookDispatchService, WebhookDispatchService>();
         services.AddScoped<ICommandPaletteService, CommandPaletteService>();
+        services.AddScoped<AutomationRuleService>();
+        services.AddScoped<GoalService>();
+        services.AddScoped<IAutomationRuleExecutionService, AutomationRuleExecutionService>();
 
         // Cross-module services
         services.AddScoped<ICardAttachmentCleanupService, AttachmentCleanupService>();

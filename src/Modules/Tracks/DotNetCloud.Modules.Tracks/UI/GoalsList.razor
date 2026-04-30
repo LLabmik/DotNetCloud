@@ -1,0 +1,150 @@
+@namespace DotNetCloud.Modules.Tracks.UI
+
+<div class="goals-list">
+    <div class="goals-header">
+        <h4>Goals & OKRs</h4>
+        <button class="btn btn-primary btn-sm" @onclick="StartCreating">+ New Objective</button>
+    </div>
+
+    @if (_isLoading)
+    {
+        <p class="goals-loading">Loading goals...</p>
+    }
+    else if (_goals.Count == 0)
+    {
+        <div class="goals-empty">
+            <p>No goals yet. Set objectives and key results to track progress toward outcomes.</p>
+            <button class="btn btn-primary btn-sm" @onclick="StartCreating">Create First Objective</button>
+        </div>
+    }
+    else
+    {
+        <div class="goals-tree">
+            @foreach (var objective in _objectives)
+            {
+                var keyResults = _goals.Where(g => g.ParentGoalId == objective.Id).ToList();
+                var progressColor = GetProgressColor(objective.ProgressPercent);
+                var statusColor = GetStatusColor(objective.Status);
+
+                <div class="goal-card @(objective.Status == "completed" ? "completed" : "")"
+                     @onclick="() => OnGoalSelected.InvokeAsync(objective.Id)">
+                    <div class="goal-card-header">
+                        <span class="goal-type-badge">🎯 Objective</span>
+                        <span class="goal-status-badge" style="background: @statusColor">@FormatStatus(objective.Status)</span>
+                    </div>
+                    <div class="goal-card-title">@objective.Title</div>
+                    @if (!string.IsNullOrEmpty(objective.Description))
+                    {
+                        <div class="goal-card-desc">@Truncate(objective.Description, 120)</div>
+                    }
+                    <div class="goal-card-progress">
+                        <div class="goal-progress-bar">
+                            <div class="goal-progress-fill" style="width: @(objective.ProgressPercent.ToString("F0"))%; background: @progressColor"></div>
+                        </div>
+                        <span class="goal-progress-text">@objective.ProgressPercent.ToString("F0")%</span>
+                    </div>
+
+                    @* Key Results *@
+                    @if (keyResults.Count > 0)
+                    {
+                        <div class="goal-key-results">
+                            @foreach (var kr in keyResults)
+                            {
+                                var krColor = GetProgressColor(kr.ProgressPercent);
+                                <div class="goal-kr-row" @onclick:stopPropagation
+                                     @onclick="() => OnGoalSelected.InvokeAsync(kr.Id)">
+                                    <span class="goal-kr-dot" style="background: @krColor"></span>
+                                    <span class="goal-kr-title">@kr.Title</span>
+                                    <span class="goal-kr-progress">@kr.ProgressPercent.ToString("F0")%</span>
+                                    @if (kr.TargetValue.HasValue)
+                                    {
+                                        <span class="goal-kr-target">@kr.CurrentValue / @kr.TargetValue</span>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <button class="goal-add-kr-btn" @onclick:stopPropagation
+                                @onclick="() => StartCreatingKeyResult(objective.Id)">
+                            + Add Key Result
+                        </button>
+                    }
+
+                    @if (objective.LinkedWorkItemCount > 0)
+                    {
+                        <div class="goal-linked-items">
+                            📎 @objective.CompletedLinkedWorkItemCount / @objective.LinkedWorkItemCount work items
+                        </div>
+                    }
+
+                    @if (objective.DueDate.HasValue)
+                    {
+                        <div class="goal-due-date">
+                            Due @objective.DueDate.Value.ToString("MMM d, yyyy")
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    }
+
+    @* Create/Edit Modal *@
+    @if (_showCreateModal)
+    {
+        <div class="goals-modal-overlay" @onclick="() => _showCreateModal = false">
+            <div class="goals-modal" @onclick:stopPropagation>
+                <h4>@(_editingGoalId.HasValue ? "Edit Goal" : _creatingKeyResultForId.HasValue ? "New Key Result" : "New Objective")</h4>
+
+                <div class="goals-form-field">
+                    <label>Title</label>
+                    <input type="text" class="form-control" @bind="_editTitle"
+                           placeholder="@(_creatingKeyResultForId.HasValue ? "e.g., Increase user signups by 20%" : "e.g., Launch v2.0")" />
+                </div>
+
+                <div class="goals-form-field">
+                    <label>Description</label>
+                    <textarea class="form-control" @bind="_editDescription" rows="2"
+                              placeholder="Optional description..."></textarea>
+                </div>
+
+                <div class="goals-form-row">
+                    <div class="goals-form-field">
+                        <label>Target Value</label>
+                        <input type="number" class="form-control" @bind="_editTargetValue" placeholder="e.g., 100" />
+                    </div>
+                    <div class="goals-form-field">
+                        <label>Current Value</label>
+                        <input type="number" class="form-control" @bind="_editCurrentValue" placeholder="e.g., 45" />
+                    </div>
+                </div>
+
+                <div class="goals-form-field">
+                    <label>Progress Type</label>
+                    <select class="form-control" @bind="_editProgressType">
+                        <option value="manual">Manual</option>
+                        <option value="automatic">Automatic (from linked work items)</option>
+                    </select>
+                </div>
+
+                <div class="goals-form-field">
+                    <label>Due Date (optional)</label>
+                    <input type="date" class="form-control" @bind="_editDueDate" />
+                </div>
+
+                @if (!string.IsNullOrEmpty(_editError))
+                {
+                    <div class="goals-error">@_editError</div>
+                }
+
+                <div class="goals-modal-actions">
+                    <button class="btn btn-primary" @onclick="SaveGoal" disabled="@_isSaving">
+                        @(_isSaving ? "Saving..." : "Save")
+                    </button>
+                    <button class="btn btn-secondary" @onclick="() => _showCreateModal = false">Cancel</button>
+                </div>
+            </div>
+        </div>
+    }
+</div>

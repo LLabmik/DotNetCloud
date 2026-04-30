@@ -17,6 +17,7 @@ public sealed class WorkItem
     public string? Description { get; set; }
     public double Position { get; set; }
     public Priority Priority { get; set; } = Priority.None;
+    public DateTime? StartDate { get; set; }
     public DateTime? DueDate { get; set; }
     public int? StoryPoints { get; set; }
     public bool IsArchived { get; set; }

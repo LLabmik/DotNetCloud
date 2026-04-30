@@ -1,0 +1,171 @@
+@namespace DotNetCloud.Modules.Tracks.UI
+
+<div class="roadmap-view">
+    <div class="roadmap-toolbar">
+        <div class="roadmap-title-section">
+            <h3>@(_data?.ProductName ?? "Product") Roadmap</h3>
+            @if (_data?.Items.Count > 0)
+            {
+                <span class="roadmap-item-count">@_data.Items.Count items</span>
+            }
+        </div>
+        <div class="roadmap-controls">
+            <div class="roadmap-group-by">
+                <label>Group by:</label>
+                <select class="form-control form-control-sm" @bind="_groupBy">
+                    <option value="epic">Epic (default)</option>
+                    <option value="sprint">Sprint</option>
+                    <option value="assignee">Assignee</option>
+                </select>
+            </div>
+            <div class="roadmap-zoom">
+                <button class="btn btn-sm @(_zoomLevel == "month" ? "btn-primary" : "btn-secondary")"
+                        @onclick='() => SetZoom("month")'>Month</button>
+                <button class="btn btn-sm @(_zoomLevel == "quarter" ? "btn-primary" : "btn-secondary")"
+                        @onclick='() => SetZoom("quarter")'>Quarter</button>
+                <button class="btn btn-sm @(_zoomLevel == "year" ? "btn-primary" : "btn-secondary")"
+                        @onclick='() => SetZoom("year")'>Year</button>
+            </div>
+        </div>
+    </div>
+
+    @if (_isLoading)
+    {
+        <div class="roadmap-loading">
+            <DncLoadingIndicator />
+            <p>Loading roadmap...</p>
+        </div>
+    }
+    else if (_error is not null)
+    {
+        <div class="roadmap-error">
+            <DncErrorDisplay Message="@_error" />
+        </div>
+    }
+    else if (_data?.Items.Count == 0)
+    {
+        <div class="roadmap-empty">
+            <div class="roadmap-empty-icon">🗺️</div>
+            <h3>No roadmap items</h3>
+            <p>Create epics with due dates to see them here. Features with dates will also appear on the timeline.</p>
+        </div>
+    }
+    else
+    {
+        var data = _data!;
+        <div class="roadmap-timeline" @ref="_timelineRef">
+            @* Today marker *@
+            <div class="roadmap-today-marker" style="left: @(_todayPositionPercent.ToString("F2"))%">
+                <div class="roadmap-today-line"></div>
+                <span class="roadmap-today-label">Today</span>
+            </div>
+
+            @* Milestone diamonds *@
+            @foreach (var milestone in data.Milestones)
+            {
+                var milestonePos = GetDatePositionPercent(milestone.DueDate);
+                if (milestonePos >= 0 && milestonePos <= 100)
+                {
+                    <div class="roadmap-milestone" style="@GetMilestoneStyle(milestonePos)"
+                         title="@GetMilestoneTooltip(milestone)">
+                        <div class="roadmap-milestone-diamond" style="@GetMilestoneDiamondStyle(milestone)"></div>
+                        <span class="roadmap-milestone-label">@milestone.Title</span>
+                    </div>
+                }
+            }
+
+            @* Grouped item bars *@
+            @foreach (var group in _groupedItems)
+            {
+                <div class="roadmap-group">
+                    <div class="roadmap-group-header">@group.Key</div>
+                    <div class="roadmap-group-lane">
+                        @foreach (var item in group.Value)
+                        {
+                            var barStyle = GetBarStyle(item);
+
+                            <div class="roadmap-item-bar @(_selectedItem?.Id == item.Id ? "selected" : "")"
+                                 style="@barStyle"
+                                 @onclick='() => SelectItem(item)'
+                                 title="@item.Title (#@item.ItemNumber)">
+                                <span class="roadmap-item-bar-label">#@item.ItemNumber @item.Title</span>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
+            @* SVG dependency arrows *@
+            <svg class="roadmap-dependency-svg">
+                @foreach (var dep in _dependencyArrows)
+                {
+                    <path d="@dep.Path" stroke="#9ca3af" stroke-width="1.5" fill="none"
+                          marker-end="url(#arrowhead)" />
+                }
+                <defs>
+                    <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+                        <polygon points="0 0, 8 3, 0 6" fill="#9ca3af" />
+                    </marker>
+                </defs>
+            </svg>
+        </div>
+
+        @* Month/Quarter headers *@
+        <div class="roadmap-time-headers">
+            @foreach (var header in _timeHeaders)
+            {
+                <div class="roadmap-time-header @(header.IsCurrent ? "current" : "")"
+                     style="left: @(header.PositionPercent.ToString("F2"))%; width: @(header.WidthPercent.ToString("F2"))%">
+                    @header.Label
+                </div>
+            }
+        </div>
+
+        @* Detail panel *@
+        @if (_selectedItem is not null)
+        {
+            <div class="roadmap-detail-overlay" @onclick="CloseDetail">
+                <div class="roadmap-detail-panel" @onclick:stopPropagation>
+                    <div class="roadmap-detail-header">
+                        <span class="roadmap-detail-type">@_selectedItem.Type</span>
+                        <span class="roadmap-detail-number">#@_selectedItem.ItemNumber</span>
+                        <button class="roadmap-detail-close" @onclick="CloseDetail">✕</button>
+                    </div>
+                    <h4>@_selectedItem.Title</h4>
+                    @if (_selectedItem.DueDate.HasValue)
+                    {
+                        <div class="roadmap-detail-field">
+                            <label>Due Date</label>
+                            <span>@_selectedItem.DueDate.Value.ToString("MMM d, yyyy")</span>
+                        </div>
+                    }
+                    @if (_selectedItem.StartDate.HasValue)
+                    {
+                        <div class="roadmap-detail-field">
+                            <label>Start Date</label>
+                            <span>@_selectedItem.StartDate.Value.ToString("MMM d, yyyy")</span>
+                        </div>
+                    }
+                    @if (!string.IsNullOrEmpty(_selectedItem.MilestoneTitle))
+                    {
+                        <div class="roadmap-detail-field">
+                            <label>Milestone</label>
+                            <span>@_selectedItem.MilestoneTitle</span>
+                        </div>
+                    }
+                    @if (!string.IsNullOrEmpty(_selectedItem.AssigneeDisplayName))
+                    {
+                        <div class="roadmap-detail-field">
+                            <label>Assignee</label>
+                            <span>@_selectedItem.AssigneeDisplayName</span>
+                        </div>
+                    }
+                    <button class="btn btn-primary btn-sm roadmap-detail-open"
+                            @onclick="() => OpenWorkItem(_selectedItem)">
+                        Open Full Detail →
+                    </button>
+                </div>
+            </div>
+        }
+    }
+</div>

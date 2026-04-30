@@ -1,0 +1,66 @@
+@namespace DotNetCloud.Modules.Tracks.UI
+
+<div class="capacity-widget">
+    <div class="capacity-widget-header">
+        <h5>Team Capacity</h5>
+        @if (_capacity is not null)
+        {
+            <span class="capacity-summary">
+                @_capacity.TotalAssignedStoryPoints SP across @_capacity.TotalMembers members
+                @if (_capacity.OverloadedMembers > 0)
+                {
+                    <span class="capacity-overload-badge">@_capacity.OverloadedMembers overloaded</span>
+                }
+            </span>
+        }
+    </div>
+
+    @if (_isLoading)
+    {
+        <div class="capacity-loading">Loading...</div>
+    }
+    else if (_capacity is null || _capacity.Members.Count == 0)
+    {
+        <div class="capacity-empty">
+            <p>No active sprints with assigned work items.</p>
+        </div>
+    }
+    else
+    {
+        <div class="capacity-chart">
+            @foreach (var member in _capacity.Members)
+            {
+                var barColor = member.CapacityPercent switch
+                {
+                    > 100 => "#dc2626",
+                    >= 90 => "#f59e0b",
+                    >= 60 => "#fbbf24",
+                    _ => "#10b981"
+                };
+
+                <div class="capacity-row"
+                     title="@member.DisplayName: @member.AssignedStoryPoints SP (@member.AssignedItemCount items) — @member.CapacityPercent.ToString("F0")%">
+                    <div class="capacity-label">
+                        <span class="capacity-name">@(member.DisplayName ?? member.UserId.ToString()[..8])</span>
+                        <span class="capacity-items">@member.AssignedItemCount items</span>
+                    </div>
+                    <div class="capacity-bar-container">
+                        <div class="capacity-bar" style="width: @(Math.Min(member.CapacityPercent, 150).ToString("F0"))%; background: @barColor">
+                            <span class="capacity-bar-value">@member.AssignedStoryPoints SP</span>
+                        </div>
+                    </div>
+                    <span class="capacity-pct @(member.CapacityPercent > 100 ? "overloaded" : "")">
+                        @member.CapacityPercent.ToString("F0")%
+                    </span>
+                </div>
+            }
+        </div>
+
+        <div class="capacity-legend">
+            <span class="capacity-legend-item"><span class="capacity-legend-dot" style="background: #10b981"></span> Under 60%</span>
+            <span class="capacity-legend-item"><span class="capacity-legend-dot" style="background: #fbbf24"></span> 60–90%</span>
+            <span class="capacity-legend-item"><span class="capacity-legend-dot" style="background: #f59e0b"></span> 90–100%</span>
+            <span class="capacity-legend-item"><span class="capacity-legend-dot" style="background: #dc2626"></span> Over 100%</span>
+        </div>
+    }
+</div>

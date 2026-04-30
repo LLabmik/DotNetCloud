@@ -110,6 +110,8 @@
 | Tracks Prof. — Phase C      | 2       | 2         | 0           | 0       |
 | Tracks Prof. — Phase D      | 3       | 3         | 0           | 0       |
 | Tracks Prof. — Phase E      | 3       | 3         | 0           | 0       |
+| Tracks Prof. — Phase F      | 3       | 3         | 0           | 0       |
+| Tracks Prof. — Phase G      | 4       | 4         | 0           | 0       |
 | Infrastructure              | Summary | 0         | 0           | 1       |
 | Documentation               | Summary | 0         | 0           | 1       |
 
@@ -1984,6 +1986,96 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ Reuses existing `ProductTemplateService` and `ItemTemplateService`
 
 **Notes:** The controller exposes existing template services via REST. `TemplateSeedService` uses idempotent seeding — checks for existing built-in templates before inserting. Template creation from product serializes swimlane layout as JSON. Item templates support label and checklist inheritance.
+
+---
+
+## Tracks Professionalization — Phase G
+
+> Reference: `docs/TRACKS_REMAINING_GAPS_PLAN.md`
+> Phase G: Planning & Visualization — Product Roadmap, Automation Rules, Goals/OKRs, Capacity Planning
+> Depends on: Phase D (milestones for roadmap, custom fields for automation)
+
+#### Step: tracks-prof-g1 - Product Roadmap
+
+**Status:** completed ✅
+**Duration:** ~5 hours
+**Deliverables:**
+- ✓ `RoadmapItemDto` + `RoadmapDataDto` in TracksDtos.cs
+- ✓ `ProductRoadmapView.razor` + `.razor.cs` + `.razor.css` — horizontal timeline with epics/features
+- ✓ Group by: Epic (default), Sprint, Assignee
+- ✓ Color coding by swimlane color or priority
+- ✓ SVG dependency arrows between dependent items
+- ✓ Today marker: vertical dashed line with "Today" label
+- ✓ Click item opens detail panel; click "Open Full Detail" triggers OnWorkItemSelected
+- ✓ Zoom toggle: Month / Quarter / Year view with time headers
+- ✓ Milestone diamond markers on timeline (from Phase D milestones)
+- ✓ Empty state: "Create epics with due dates to see them here"
+- ✓ `TracksView.Roadmap` enum addition to TracksPage
+- ✓ Roadmap sidebar nav button (🗺️) in product sidebar
+- ✓ Controller: `GET /api/v1/products/{id}/roadmap` in AnalyticsController
+- ✓ `GetRoadmapDataAsync()` method in AnalyticsService
+- ✓ `StartDate` added to `WorkItem` model + DTOs with EF index
+
+**Notes:** Product-level roadmap distinct from existing sprint-level TimelineView. Uses computed timeline positioning from `DateTime` ranges. Dependency arrows rendered as SVG Bezier curves. Roadmap integration with Phase D milestones.
+
+#### Step: tracks-prof-g2 - Automation Rules
+
+**Status:** completed ✅
+**Duration:** ~5 hours
+**Deliverables:**
+- ✓ `AutomationRule` entity with ProductId, Name, Trigger, ConditionsJson, ActionsJson, IsActive, LastTriggeredAt
+- ✓ `AutomationRuleConfiguration` EF config + migration
+- ✓ `AutomationRuleService` — CRUD + `EvaluateRulesAsync()` with 6 operators (equals, not_equals, contains, greater_than, less_than)
+- ✓ `AutomationContext` record for passing swimlane change context
+- ✓ `AutomationCondition` and `AutomationAction` model classes
+- ✓ `IAutomationRuleExecutionService` interface in Services layer
+- ✓ `AutomationRuleExecutionService` in Data layer — executes 8 action types
+- ✓ `AutomationRuleEventHandler` — subscribes to WorkItemCreated/Moved/Updated/Assigned via IEventBus
+- ✓ `AutomationRulesController` — GET/POST/PUT/DELETE endpoints
+- ✓ `AutomationRuleEditor.razor` — rule builder UI with trigger dropdown, dynamic action parameters, toggle, 3 presets
+- ✓ `TracksDbContext` extended with `AutomationRules` DbSet
+- ✓ `TracksServiceRegistration` updated with all new services
+- ✓ `TracksModule.cs` updated with AutomationRuleEventHandler lifecycle
+
+**Notes:** Production-grade rule engine with condition parsing, JSON-serialized actions, event bus integration. Uses IServiceProvider-scoped resolution for Data layer access from Events layer. Actions support: add/remove label, move swimlane, assign user, set priority, set custom field, add system comment, notify.
+
+#### Step: tracks-prof-g3 - Goals / OKRs
+
+**Status:** completed ✅
+**Duration:** ~3 hours
+**Deliverables:**
+- ✓ `Goal` entity — self-referencing hierarchy (Objectives → Key Results via ParentGoalId)
+- ✓ `GoalWorkItem` junction entity for linking work items to goals
+- ✓ `GoalConfiguration` + `GoalWorkItemConfiguration` EF configs + migration
+- ✓ `GoalDto`, `CreateGoalDto`, `UpdateGoalDto`, `LinkGoalWorkItemDto`
+- ✓ `GoalService` — CRUD, manual/automatic progress, status auto-computation, link/unlink work items
+- ✓ `GoalsController` — full REST API with link/unlink endpoints
+- ✓ `GoalsList.razor` — hierarchical display with progress bars, status badges, add key result
+- ✓ `GoalDetail.razor` — detail view with manual progress update, mark complete action
+- ✓ Status computation: OnTrack (≥80%), AtRisk (50-79%), Behind (<50%), Completed (100%)
+- ✓ `TracksDbContext` extended with `Goals`, `GoalWorkItems` DbSets
+- ✓ `ITracksApiClient` + `TracksApiClient` extended with all goal methods
+
+**Notes:** Objectives and key results with manual or automatic progress tracking. Automatic progress calculates from linked work items completed vs. total. Status auto-computes based on progress percentage and due date proximity.
+
+#### Step: tracks-prof-g4 - Capacity Planning
+
+**Status:** completed ✅
+**Duration:** ~3 hours
+**Deliverables:**
+- ✓ `SprintCapacityDto`, `MemberCapacityDto`, `ProductCapacityDto`
+- ✓ `GetSprintCapacityAsync()` — story points assigned vs. target per sprint
+- ✓ `GetMemberCapacityAsync()` — story points per member across active sprints
+- ✓ `GetProductCapacityAsync()` — full capacity overview with overloaded count
+- ✓ Controller endpoints: sprint capacity + product capacity in AnalyticsController
+- ✓ `CapacityWidget.razor` — horizontal bar chart with color coding:
+  - Green (< 60%), Yellow (60-90%), Orange (90-100%), Red (> 100%)
+- ✓ Member name, item count, story points, capacity percentage
+- ✓ Overloaded badge for members above 90% capacity
+- ✓ Legend and summary stats
+- ✓ `ITracksApiClient` + `TracksApiClient` extended
+
+**Notes:** Default capacity target is 20 SP per member. Members are ranked by capacity percentage descending. Widget designed for placement on Product Dashboard.
 
 ---
 

@@ -26,6 +26,7 @@ public sealed class TracksModule : IModuleLifecycle
     private FileDeletedEventHandler? _fileDeletedHandler;
     private ChatMessageTracksHandler? _chatMessageHandler;
     private WebhookEventHandler? _webhookHandler;
+    private AutomationRuleEventHandler? _automationHandler;
 
     /// <inheritdoc />
     public IModuleManifest Manifest { get; } = new TracksModuleManifest();
@@ -84,8 +85,18 @@ public sealed class TracksModule : IModuleLifecycle
         await _eventBus.SubscribeAsync<SprintStartedEvent>(_webhookHandler, cancellationToken);
         await _eventBus.SubscribeAsync<SprintCompletedEvent>(_webhookHandler, cancellationToken);
         await _eventBus.SubscribeAsync<MilestoneReachedEvent>(_webhookHandler, cancellationToken);
+
+        // Register automation rule event handler — evaluates rules on work item events
+        _automationHandler = new AutomationRuleEventHandler(
+            context.Services,
+            context.Services.GetService<ILogger<AutomationRuleEventHandler>>() ?? NullLogger<AutomationRuleEventHandler>.Instance);
+        await _eventBus.SubscribeAsync<WorkItemCreatedEvent>(_automationHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<WorkItemMovedEvent>(_automationHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<WorkItemUpdatedEvent>(_automationHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<WorkItemAssignedEvent>(_automationHandler, cancellationToken);
+
         _initialized = true;
-        _logger?.LogInformation("Tracks module initialized successfully with real-time, cross-module, Chat integration, and webhook event handlers");
+        _logger?.LogInformation("Tracks module initialized successfully with real-time, cross-module, Chat integration, webhook, and automation event handlers");
     }
 
     /// <inheritdoc />
@@ -148,6 +159,14 @@ public sealed class TracksModule : IModuleLifecycle
                 await _eventBus.UnsubscribeAsync<SprintStartedEvent>(_webhookHandler, cancellationToken);
                 await _eventBus.UnsubscribeAsync<SprintCompletedEvent>(_webhookHandler, cancellationToken);
                 await _eventBus.UnsubscribeAsync<MilestoneReachedEvent>(_webhookHandler, cancellationToken);
+            }
+
+            if (_automationHandler is not null)
+            {
+                await _eventBus.UnsubscribeAsync<WorkItemCreatedEvent>(_automationHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<WorkItemMovedEvent>(_automationHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<WorkItemUpdatedEvent>(_automationHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<WorkItemAssignedEvent>(_automationHandler, cancellationToken);
             }
         }
 
