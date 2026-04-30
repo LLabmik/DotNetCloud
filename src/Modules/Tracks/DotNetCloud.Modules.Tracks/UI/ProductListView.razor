@@ -144,7 +144,7 @@
     <div class="tracks-wizard-overlay" @onclick="CancelDelete">
         <div class="tracks-confirm-dialog" @onclick:stopPropagation>
             <div class="tracks-confirm-icon">⚠️</div>
-            <h3>Delete &quot;@_deleteTarget.Name&quot;?</h3>
+            <h3>@($"Delete \"{_deleteTarget.Name}\"?")</h3>
             <p>This will mark the product for deletion. It can be restored within 30 days by an admin. <strong>After 30 days it will be permanently removed.</strong></p>
             <div class="tracks-confirm-actions">
                 <button class="btn btn-danger" @onclick="DeleteProductAsync" disabled="@_isDeleting">
