@@ -407,18 +407,21 @@
             }
 
             @* ── Reset Collection Confirmation Modal ── *@
-            <DncModal Title="Reset Photo Collection" StartVisible="@_showResetConfirm" OnClose="() => _showResetConfirm = false">
-                <ChildContent>
-                    <p>Are you sure you want to <strong>reset</strong> the photo collection?</p>
-                    <p class="tracks-modal-warning">⚠️ This deletes all indexed photo metadata (photos, albums, metadata, tags, shares, edit records). Your actual image files are NOT affected.</p>
-                </ChildContent>
-                <Footer>
-                    <button class="btn btn-danger" @onclick="ResetCollectionAsync" disabled="@_settingsResetting">
-                        @(_settingsResetting ? "Resetting..." : "Yes, Reset")
-                    </button>
-                    <button class="btn btn-secondary" @onclick="() => _showResetConfirm = false">Cancel</button>
-                </Footer>
-            </DncModal>
+            @if (_showResetConfirm)
+            {
+                <DncModal Title="Reset Photo Collection" StartVisible OnClose="() => _showResetConfirm = false">
+                    <ChildContent>
+                        <p>Are you sure you want to <strong>reset</strong> the photo collection?</p>
+                        <p class="tracks-modal-warning">⚠️ This deletes all indexed photo metadata (photos, albums, metadata, tags, shares, edit records). Your actual image files are NOT affected.</p>
+                    </ChildContent>
+                    <Footer>
+                        <button class="btn btn-danger" @onclick="ResetCollectionAsync" disabled="@_settingsResetting">
+                            @(_settingsResetting ? "Resetting..." : "Yes, Reset")
+                        </button>
+                        <button class="btn btn-secondary" @onclick="() => _showResetConfirm = false">Cancel</button>
+                    </Footer>
+                </DncModal>
+            }
 
             @* ─── Directory Browser Dialog ─── *@
             @if (_showDirBrowser)

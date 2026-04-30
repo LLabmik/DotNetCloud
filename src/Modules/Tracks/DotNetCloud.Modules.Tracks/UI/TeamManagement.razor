@@ -175,18 +175,21 @@
     }
 
     @* ── Delete Team Confirmation Modal ── *@
-    <DncModal Title="Delete Team" StartVisible="@_showDeleteTeamConfirm" OnClose="() => _showDeleteTeamConfirm = false">
-        <ChildContent>
-            <p>Are you sure you want to <strong>permanently delete</strong> this team?</p>
-            <p class="tracks-modal-warning">⚠️ This will remove the team and all associated data. This action cannot be undone.</p>
-        </ChildContent>
-        <Footer>
-            <button class="btn btn-danger" @onclick="() => DeleteTeamAsync(_teamToDeleteId)">
-                Yes, Delete Forever
-            </button>
-            <button class="btn btn-secondary" @onclick="() => _showDeleteTeamConfirm = false">Cancel</button>
-        </Footer>
-    </DncModal>
+    @if (_showDeleteTeamConfirm)
+    {
+        <DncModal Title="Delete Team" StartVisible OnClose="() => _showDeleteTeamConfirm = false">
+            <ChildContent>
+                <p>Are you sure you want to <strong>permanently delete</strong> this team?</p>
+                <p class="tracks-modal-warning">⚠️ This will remove the team and all associated data. This action cannot be undone.</p>
+            </ChildContent>
+            <Footer>
+                <button class="btn btn-danger" @onclick="() => DeleteTeamAsync(_teamToDeleteId)">
+                    Yes, Delete Forever
+                </button>
+                <button class="btn btn-secondary" @onclick="() => _showDeleteTeamConfirm = false">Cancel</button>
+            </Footer>
+        </DncModal>
+    }
 
     @if (!string.IsNullOrEmpty(_errorMessage))
     {
