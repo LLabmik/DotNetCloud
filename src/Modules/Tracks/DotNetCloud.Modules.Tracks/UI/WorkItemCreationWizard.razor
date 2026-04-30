@@ -158,7 +158,7 @@
                                         <button class="tracks-wizard-chip @(isSelected ? "selected" : "")"
                                                 @onclick="() => ToggleMember(member.UserId)" type="button">
                                             <span class="tracks-wizard-chip-avatar">@(member.DisplayName?[..1].ToUpperInvariant() ?? "?")</span>
-                                            <span>@(member.DisplayName ?? "User")</span>
+                                            <span>@(member.DisplayName ?? "Unknown User")</span>
                                             @if (isSelected)
                                             {
                                                 <span class="tracks-wizard-chip-check">✓</span>
@@ -254,7 +254,7 @@
                                         @foreach (var memberId in _selectedMemberIds)
                                         {
                                             var member = Members.FirstOrDefault(m => m.UserId == memberId);
-                                            <span class="tracks-wizard-review-chip">@(member?.DisplayName ?? memberId.ToString())</span>
+                                            <span class="tracks-wizard-review-chip">@(member?.DisplayName ?? "Unknown User")</span>
                                         }
                                     </div>
                                 </div>

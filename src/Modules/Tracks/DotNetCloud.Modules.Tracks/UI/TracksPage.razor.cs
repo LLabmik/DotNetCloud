@@ -20,6 +20,7 @@ public partial class TracksPage : ComponentBase, IDisposable
     [Inject] private ITracksSignalRService SignalRService { get; set; } = default!;
     [Inject] private AuthenticationStateProvider AuthStateProvider { get; set; } = default!;
     [Inject] private IOrganizationDirectory OrgDirectory { get; set; } = default!;
+    [Inject] private IUserDirectory UserDirectory { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
 
     private enum TracksView { ProductList, ProductKanban, EpicKanban, FeatureKanban, Teams, Planning, Wizard, Backlog, Timeline, Review, Settings, Calendar, List, Dashboard }
@@ -270,6 +271,33 @@ public partial class TracksPage : ComponentBase, IDisposable
         _selectedWorkItem = null;
     }
 
+    /// <summary>
+    /// Batch-resolves display names for all current product members via <see cref="IUserDirectory"/>.
+    /// Replaces each <see cref="ProductMemberDto"/> with a copy that has <see cref="ProductMemberDto.DisplayName"/> populated.
+    /// </summary>
+    private async Task ResolveMemberDisplayNamesAsync()
+    {
+        if (_currentMembers.Count == 0) return;
+
+        var userIds = _currentMembers.Select(m => m.UserId).Distinct().ToList();
+        try
+        {
+            var displayNames = await UserDirectory.GetDisplayNamesAsync(userIds, CancellationToken.None);
+            for (var i = 0; i < _currentMembers.Count; i++)
+            {
+                var member = _currentMembers[i];
+                if (member.DisplayName is null && displayNames.TryGetValue(member.UserId, out var name))
+                {
+                    _currentMembers[i] = member with { DisplayName = name };
+                }
+            }
+        }
+        catch
+        {
+            // If resolution fails, the UI will show fallback text
+        }
+    }
+
     // ── Kanban Data Loading ─────────────────────────────────
 
     private async Task LoadProductKanbanDataAsync()
@@ -288,6 +316,9 @@ public partial class TracksPage : ComponentBase, IDisposable
 
         _currentMembers.Clear();
         _currentMembers.AddRange(members);
+
+        // Resolve display names for members (server returns null for DisplayName)
+        await ResolveMemberDisplayNamesAsync();
 
         _currentWorkItems.Clear();
         foreach (var swimlane in _currentSwimlanes)

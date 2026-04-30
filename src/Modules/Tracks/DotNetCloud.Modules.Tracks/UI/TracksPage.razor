@@ -22,7 +22,7 @@
                     <span>Organization</span>
                 </div>
                 <select class="form-control form-control-sm" @bind="_selectedOrgId" @bind:after="OnOrgSelected">
-                    <option value="">Select...</option>
+                    <option value="">Personal</option>
                     @foreach (var org in _organizations)
                     {
                         <option value="@org.Id">@org.Name</option>
