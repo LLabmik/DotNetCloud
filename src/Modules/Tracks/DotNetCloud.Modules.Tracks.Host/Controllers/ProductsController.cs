@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Modules.Tracks.Data;
@@ -16,15 +17,17 @@ public class ProductsController : TracksControllerBase
 {
     private readonly ProductService _productService;
     private readonly TracksDbContext _db;
+    private readonly IUserDirectory _userDirectory;
     private readonly ILogger<ProductsController> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ProductsController"/> class.
     /// </summary>
-    public ProductsController(ProductService productService, TracksDbContext db, ILogger<ProductsController> logger)
+    public ProductsController(ProductService productService, TracksDbContext db, IUserDirectory userDirectory, ILogger<ProductsController> logger)
     {
         _productService = productService;
         _db = db;
+        _userDirectory = userDirectory;
         _logger = logger;
     }
 
@@ -227,6 +230,20 @@ public class ProductsController : TracksControllerBase
                     JoinedAt = pm.JoinedAt
                 })
                 .ToListAsync(ct);
+
+            // Resolve display names for all members
+            var userIds = members.Select(m => m.UserId).Distinct().ToList();
+            if (userIds.Count > 0)
+            {
+                var displayNames = await _userDirectory.GetDisplayNamesAsync(userIds, ct);
+                for (var i = 0; i < members.Count; i++)
+                {
+                    if (displayNames.TryGetValue(members[i].UserId, out var name))
+                    {
+                        members[i] = members[i] with { DisplayName = name };
+                    }
+                }
+            }
 
             return Ok(Envelope(members));
         }

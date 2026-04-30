@@ -91,8 +91,8 @@
                 {
                     <div class="tracks-settings-member-row">
                         <span class="tracks-member-avatar">@GetInitials(member.DisplayName)</span>
-                        <span class="tracks-member-name">@(member.DisplayName ?? member.UserId.ToString())</span>
-                        <select class="form-control form-control-sm" value="@member.Role.ToString()"
+                        <span class="tracks-member-name">@GetDisplayText(member.DisplayName)</span>
+                        <select class="form-control form-control-sm tracks-member-role-select" value="@member.Role.ToString()"
                                 @onchange="e => UpdateMemberRole(member.UserId, e)">
                             <option value="Viewer">Viewer</option>
                             <option value="Member">Member</option>

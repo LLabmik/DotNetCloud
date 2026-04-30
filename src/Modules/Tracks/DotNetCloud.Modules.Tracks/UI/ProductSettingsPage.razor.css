@@ -1,0 +1,60 @@
+/* Product Settings Page - Members */
+.tracks-settings-member-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+}
+
+.tracks-member-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--color-primary, #3b82f6);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.tracks-member-name {
+    flex: 1;
+    min-width: 0;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-text, #e2e8f0);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    line-height: 1.4;
+}
+
+.tracks-member-role-select {
+    width: 110px;
+    flex-shrink: 0;
+}
+
+.tracks-icon-btn {
+    background: none;
+    border: none;
+    color: var(--color-text-secondary, #94a3b8);
+    cursor: pointer;
+    font-size: 16px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    flex-shrink: 0;
+}
+
+.tracks-icon-btn:hover {
+    color: var(--color-danger, #ef4444);
+    background: var(--color-surface-hover, rgba(255,255,255,0.05));
+}
+
+.tracks-settings-member-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}

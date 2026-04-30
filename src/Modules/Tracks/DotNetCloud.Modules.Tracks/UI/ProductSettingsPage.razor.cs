@@ -12,6 +12,7 @@ namespace DotNetCloud.Modules.Tracks.UI;
 public partial class ProductSettingsPage : ComponentBase
 {
     [Inject] private ITracksApiClient ApiClient { get; set; } = default!;
+    [Inject] private IUserDirectory UserDirectory { get; set; } = default!;
 
     [Parameter, EditorRequired] public ProductDto Product { get; set; } = default!;
     [Parameter] public EventCallback<ProductDto> OnProductUpdated { get; set; }
@@ -86,6 +87,9 @@ public partial class ProductSettingsPage : ComponentBase
             _members.Clear();
             _members.AddRange(await membersTask);
 
+            // Resolve display names for members (server may return null)
+            await ResolveMemberDisplayNamesAsync();
+
             _labels.Clear();
             _labels.AddRange(await labelsTask);
 
@@ -101,6 +105,33 @@ public partial class ProductSettingsPage : ComponentBase
         catch (Exception ex)
         {
             _errorMessage = $"Failed to load data: {ex.Message}";
+        }
+    }
+
+    /// <summary>
+    /// Batch-resolves display names for all current product members via <see cref="IUserDirectory"/>.
+    /// Replaces each <see cref="ProductMemberDto"/> with a copy that has <see cref="ProductMemberDto.DisplayName"/> populated.
+    /// </summary>
+    private async Task ResolveMemberDisplayNamesAsync()
+    {
+        if (_members.Count == 0) return;
+
+        var userIds = _members.Select(m => m.UserId).Distinct().ToList();
+        try
+        {
+            var displayNames = await UserDirectory.GetDisplayNamesAsync(userIds, CancellationToken.None);
+            for (var i = 0; i < _members.Count; i++)
+            {
+                var member = _members[i];
+                if (member.DisplayName is null && displayNames.TryGetValue(member.UserId, out var name))
+                {
+                    _members[i] = member with { DisplayName = name };
+                }
+            }
+        }
+        catch
+        {
+            // If resolution fails, the UI will show fallback text
         }
     }
 
@@ -383,6 +414,12 @@ public partial class ProductSettingsPage : ComponentBase
             ? $"{parts[0][0]}{parts[1][0]}".ToUpperInvariant()
             : parts[0][..Math.Min(2, parts[0].Length)].ToUpperInvariant();
     }
+
+    /// <summary>
+    /// Returns the display text for a member, falling back to "Unknown User" if the name is null or empty.
+    /// </summary>
+    private static string GetDisplayText(string? displayName)
+        => string.IsNullOrWhiteSpace(displayName) ? "Unknown User" : displayName;
 
     private void StartAddMember()
     {
