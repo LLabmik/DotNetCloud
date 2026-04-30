@@ -1,0 +1,384 @@
+@namespace DotNetCloud.Modules.Tracks.UI
+@using DotNetCloud.Modules.Tracks.Models
+@inject DotNetCloud.Modules.Tracks.Services.ITracksApiClient ApiClient
+@inject NavigationManager Navigation
+
+@* Webhook management page — list, add, edit, delete, test webhook subscriptions *@
+
+<div class="wh-page">
+    <div class="wh-header">
+        <h1 class="wh-title">Webhooks</h1>
+        <p class="wh-description">
+            Configure HTTP callbacks for external integrations. Events are delivered with HMAC-SHA256 signatures
+            in the <code>X-DotNetCloud-Signature</code> header. Failed deliveries are retried up to 7 times
+            with exponential backoff.
+        </p>
+        <button class="wh-btn wh-btn-primary" @onclick="OpenCreateModal">
+            + Add Webhook
+        </button>
+    </div>
+
+    @if (_isLoading)
+    {
+        <div class="wh-loading">Loading webhooks...</div>
+    }
+    else if (_subscriptions.Count == 0)
+    {
+        <div class="wh-empty">
+            <div class="wh-empty-icon">🔗</div>
+            <p>No webhooks configured yet.</p>
+            <p class="wh-empty-hint">Create one to get notified when work items change.</p>
+        </div>
+    }
+    else
+    {
+        <div class="wh-list">
+            @foreach (var sub in _subscriptions)
+            {
+                <div class="wh-card @(sub.IsActive ? "" : "wh-card-inactive")">
+                    <div class="wh-card-main">
+                        <div class="wh-card-header">
+                            <span class="wh-card-status @(sub.IsActive ? "wh-status-active" : "wh-status-inactive")">
+                                @(sub.IsActive ? "Active" : "Inactive")
+                            </span>
+                            <span class="wh-card-url" title="@sub.Url">@TruncateUrl(sub.Url)</span>
+                        </div>
+                        <div class="wh-card-meta">
+                            <span>Created @sub.CreatedAt.ToString("MMM d, yyyy")</span>
+                            @if (sub.LastDeliveryAt.HasValue)
+                            {
+                                <span>· Last delivery: @sub.LastDeliveryAt.Value.ToString("MMM d, yyyy HH:mm")</span>
+                            }
+                            @if (sub.FailedDeliveryCount > 0)
+                            {
+                                <span class="wh-failures">· @sub.FailedDeliveryCount failures</span>
+                            }
+                        </div>
+                        <div class="wh-card-events">
+                            @foreach (var evt in GetEventTypes(sub.EventsJson))
+                            {
+                                <span class="wh-event-tag">@evt</span>
+                            }
+                        </div>
+                    </div>
+                    <div class="wh-card-actions">
+                        <button class="wh-btn wh-btn-sm" @onclick="() => TestWebhook(sub)" title="Send test ping">
+                            🧪
+                        </button>
+                        <button class="wh-btn wh-btn-sm" @onclick="() => OpenEditModal(sub)" title="Edit">
+                            ✏️
+                        </button>
+                        <button class="wh-btn wh-btn-sm wh-btn-danger" @onclick="() => DeleteWebhook(sub)" title="Delete">
+                            🗑
+                        </button>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
+    @* Create/Edit Modal *@
+    @if (_showModal)
+    {
+        <div class="wh-modal-overlay" @onclick="CloseModal">
+            <div class="wh-modal" @onclick:stopPropagation="true">
+                <div class="wh-modal-header">
+                    <h3>@(_editingSubscription is not null ? "Edit Webhook" : "Add Webhook")</h3>
+                    <button class="wh-modal-close" @onclick="CloseModal">&times;</button>
+                </div>
+                <div class="wh-modal-body">
+                    <div class="wh-form-group">
+                        <label class="wh-label">Payload URL *</label>
+                        <input type="url" class="wh-input" @bind="_formUrl" placeholder="https://example.com/webhook" />
+                    </div>
+                    <div class="wh-form-group">
+                        <label class="wh-label">Event Types *</label>
+                        <div class="wh-event-checkboxes">
+                            @foreach (var evt in _availableEvents)
+                            {
+                                <label class="wh-checkbox-label">
+                                    <input type="checkbox" checked="@_formEvents.Contains(evt)"
+                                           @onchange="(e) => ToggleEvent(evt, (bool)(e.Value ?? false))" />
+                                    <code>@evt</code>
+                                </label>
+                            }
+                        </div>
+                    </div>
+                    @if (_editingSubscription is not null)
+                    {
+                        <div class="wh-form-group">
+                            <label class="wh-checkbox-label">
+                                <input type="checkbox" checked="@_formIsActive"
+                                       @onchange="(e) => _formIsActive = (bool)(e.Value ?? false)" />
+                                Active
+                            </label>
+                        </div>
+                    }
+                </div>
+                <div class="wh-modal-footer">
+                    <button class="wh-btn wh-btn-secondary" @onclick="CloseModal">Cancel</button>
+                    <button class="wh-btn wh-btn-primary" @onclick="SaveWebhook" disabled="@(_saving)">
+                        @(_saving ? "Saving..." : "Save")
+                    </button>
+                </div>
+
+                @if (!string.IsNullOrEmpty(_error))
+                {
+                    <div class="wh-error">@_error</div>
+                }
+            </div>
+        </div>
+    }
+
+    @* Test result toast *@
+    @if (!string.IsNullOrEmpty(_testResult))
+    {
+        <div class="wh-toast @(_testSuccess ? "wh-toast-success" : "wh-toast-error")">
+            @_testResult
+        </div>
+    }
+</div>
+
+<style>
+    .wh-page { max-width: 800px; padding: 24px; }
+
+    .wh-header { margin-bottom: 24px; }
+    .wh-title { font-size: 22px; font-weight: 700; margin: 0 0 8px; color: var(--text-primary, #1a1a1a); }
+    .wh-description { font-size: 13px; color: var(--text-secondary, #888); margin: 0 0 16px; line-height: 1.5; }
+    .wh-description code { background: var(--surface-secondary, #f0f0f0); padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+
+    .wh-btn {
+        padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; border: none;
+        transition: opacity 0.15s; display: inline-flex; align-items: center; gap: 6px;
+    }
+    .wh-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .wh-btn-primary { background: var(--accent-color, #4f46e5); color: #fff; }
+    .wh-btn-secondary { background: var(--surface-secondary, #f0f0f0); color: var(--text-primary, #1a1a1a); border: 1px solid var(--border-color, #ddd); }
+    .wh-btn-sm { padding: 4px 8px; font-size: 14px; background: transparent; border: 1px solid var(--border-color, #ddd); border-radius: 6px; }
+    .wh-btn-danger { color: #ef4444; border-color: #fecaca; }
+    .wh-btn-danger:hover { background: #fef2f2; }
+
+    .wh-loading, .wh-empty { padding: 40px; text-align: center; color: var(--text-secondary, #888); }
+    .wh-empty-icon { font-size: 32px; margin-bottom: 8px; }
+    .wh-empty-hint { font-size: 12px; color: var(--text-tertiary, #aaa); }
+
+    .wh-list { display: flex; flex-direction: column; gap: 12px; }
+
+    .wh-card {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 14px 18px; border: 1px solid var(--border-color, #e0e0e0); border-radius: 10px;
+        background: var(--surface-bg, #fff);
+    }
+    .wh-card-inactive { opacity: 0.6; }
+
+    .wh-card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+    .wh-card-status { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; }
+    .wh-status-active { background: #dcfce7; color: #166534; }
+    .wh-status-inactive { background: #f3f4f6; color: #6b7280; }
+    .wh-card-url { font-size: 13px; font-weight: 500; color: var(--text-primary, #1a1a1a); max-width: 400px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .wh-card-meta { font-size: 11px; color: var(--text-tertiary, #aaa); margin-bottom: 6px; }
+    .wh-failures { color: #ef4444; }
+    .wh-card-events { display: flex; gap: 4px; flex-wrap: wrap; }
+    .wh-event-tag { font-size: 10px; padding: 1px 6px; background: var(--surface-secondary, #f0f0f0); border-radius: 3px; color: var(--text-secondary, #888); font-family: monospace; }
+    .wh-card-actions { display: flex; gap: 4px; flex-shrink: 0; }
+
+    .wh-modal-overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.45); display: flex; align-items: center; justify-content: center; z-index: 10000; }
+    .wh-modal { width: 480px; max-width: 95vw; background: var(--surface-bg, #fff); border-radius: 12px; box-shadow: 0 16px 48px rgba(0, 0, 0, 0.18); }
+    .wh-modal-wide { width: 640px; }
+    .wh-modal-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--border-color, #e0e0e0); }
+    .wh-modal-header h3 { margin: 0; font-size: 16px; }
+    .wh-modal-close { background: none; border: none; font-size: 22px; cursor: pointer; color: var(--text-secondary, #888); }
+    .wh-modal-body { padding: 20px; }
+    .wh-modal-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 20px; border-top: 1px solid var(--border-color, #e0e0e0); }
+
+    .wh-form-group { margin-bottom: 16px; }
+    .wh-label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px; color: var(--text-primary, #1a1a1a); }
+    .wh-input { width: 100%; padding: 8px 12px; border: 1px solid var(--border-color, #ddd); border-radius: 8px; font-size: 13px; background: var(--surface-bg, #fff); color: var(--text-primary, #1a1a1a); box-sizing: border-box; }
+
+    .wh-event-checkboxes { display: flex; flex-direction: column; gap: 8px; }
+    .wh-checkbox-label { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; color: var(--text-primary, #1a1a1a); }
+    .wh-checkbox-label code { font-size: 12px; background: var(--surface-secondary, #f0f0f0); padding: 2px 6px; border-radius: 4px; }
+
+    .wh-error { padding: 10px 20px; color: #ef4444; font-size: 13px; background: #fef2f2; border-top: 1px solid #fecaca; }
+
+    .wh-toast { position: fixed; bottom: 24px; right: 24px; padding: 10px 18px; border-radius: 8px; font-size: 13px; z-index: 10001; animation: wh-fade-in 0.2s; }
+    .wh-toast-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+    .wh-toast-error { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+
+    .wh-delivery-list { max-height: 300px; overflow-y: auto; }
+    .wh-delivery-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border-color-light, #f0f0f0); font-size: 12px; }
+    .wh-delivery-status { font-weight: 600; padding: 2px 6px; border-radius: 4px; min-width: 40px; text-align: center; }
+    .wh-delivery-event { font-family: monospace; font-size: 11px; }
+    .wh-delivery-time { color: var(--text-secondary, #888); margin-left: auto; }
+    .wh-delivery-duration { color: var(--text-tertiary, #aaa); min-width: 50px; text-align: right; }
+
+    @@keyframes wh-fade-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+    :global(.dark) .wh-modal { --surface-bg: #1e1e2e; --border-color: #3a3a4a; --text-primary: #e0e0e0; }
+</style>
+
+@code {
+    private List<WebhookSubscription> _subscriptions = [];
+    private bool _isLoading = true;
+    private bool _showModal;
+    private bool _saving;
+    private string? _error;
+    private WebhookSubscription? _editingSubscription;
+
+    private string _formUrl = string.Empty;
+    private List<string> _formEvents = [];
+    private bool _formIsActive = true;
+
+    private string? _testResult;
+    private bool _testSuccess;
+
+    private static readonly string[] _availableEvents =
+    [
+        "work_item.created", "work_item.updated", "work_item.deleted",
+        "work_item.moved", "comment.added", "sprint.started", "sprint.completed",
+        "milestone.reached"
+    ];
+
+    [Parameter] public Guid ProductId { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSubscriptionsAsync();
+    }
+
+    private async Task LoadSubscriptionsAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            _subscriptions = (await ApiClient.ListProductWebhooksAsync(ProductId)).ToList();
+        }
+        catch { }
+        finally { _isLoading = false; }
+    }
+
+    private void OpenCreateModal()
+    {
+        _editingSubscription = null;
+        _formUrl = string.Empty;
+        _formEvents = [];
+        _formIsActive = true;
+        _error = null;
+        _showModal = true;
+    }
+
+    private void OpenEditModal(WebhookSubscription sub)
+    {
+        _editingSubscription = sub;
+        _formUrl = sub.Url;
+        _formEvents = GetEventTypes(sub.EventsJson);
+        _formIsActive = sub.IsActive;
+        _error = null;
+        _showModal = true;
+    }
+
+    private void CloseModal()
+    {
+        _showModal = false;
+        _error = null;
+    }
+
+    private void ToggleEvent(string eventType, bool isChecked)
+    {
+        if (isChecked && !_formEvents.Contains(eventType))
+            _formEvents.Add(eventType);
+        else if (!isChecked)
+            _formEvents.Remove(eventType);
+    }
+
+    private async Task SaveWebhook()
+    {
+        if (string.IsNullOrWhiteSpace(_formUrl) || _formEvents.Count == 0)
+        {
+            _error = "URL and at least one event type are required.";
+            return;
+        }
+
+        _saving = true;
+        _error = null;
+
+        try
+        {
+            if (_editingSubscription is not null)
+            {
+                await ApiClient.UpdateProductWebhookAsync(ProductId, _editingSubscription.Id, _formUrl, _formEvents, _formIsActive);
+            }
+            else
+            {
+                await ApiClient.CreateProductWebhookAsync(ProductId, _formUrl, _formEvents);
+            }
+            _showModal = false;
+            await LoadSubscriptionsAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task DeleteWebhook(WebhookSubscription sub)
+    {
+        try
+        {
+            await ApiClient.DeleteProductWebhookAsync(ProductId, sub.Id);
+            await LoadSubscriptionsAsync();
+        }
+        catch { }
+    }
+
+    private async Task TestWebhook(WebhookSubscription sub)
+    {
+        try
+        {
+            var result = await ApiClient.TestProductWebhookAsync(ProductId, sub.Id);
+            _testSuccess = result.Success;
+            _testResult = result.Success
+                ? $"✅ Test ping succeeded — HTTP {result.StatusCode} in {result.DurationMs}ms"
+                : $"❌ Test ping failed — {result.Error ?? $"HTTP {result.StatusCode}"}";
+        }
+        catch (Exception ex)
+        {
+            _testSuccess = false;
+            _testResult = $"❌ Test ping error: {ex.Message}";
+        }
+
+        StateHasChanged();
+        await Task.Delay(5000);
+        _testResult = null;
+        StateHasChanged();
+    }
+
+    private static List<string> GetEventTypes(string eventsJson)
+    {
+        try
+        {
+            return System.Text.Json.JsonSerializer.Deserialize<List<string>>(eventsJson) ?? [];
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
+    private static string TruncateUrl(string url)
+    {
+        if (url.Length <= 60) return url;
+        return url[..30] + "..." + url[^27..];
+    }
+
+    private static string GetStatusClass(int? statusCode) => statusCode switch
+    {
+        >= 200 and < 300 => "wh-status-active",
+        null => "wh-status-inactive",
+        _ => "wh-failures"
+    };
+}

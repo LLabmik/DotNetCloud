@@ -549,6 +549,26 @@ public sealed record UpdateWorkItemCommentDto
     public required string Content { get; init; }
 }
 
+public sealed record CommentReactionDto
+{
+    public required Guid CommentId { get; init; }
+    public required Guid UserId { get; init; }
+    public required string Emoji { get; init; }
+    public required DateTime CreatedAt { get; init; }
+}
+
+public sealed record CommentReactionSummaryDto
+{
+    public required string Emoji { get; init; }
+    public required int Count { get; init; }
+    public bool ReactedByCurrentUser { get; init; }
+}
+
+public sealed record AddReactionDto
+{
+    public required string Emoji { get; init; }
+}
+
 public sealed record AddWorkItemDependencyDto
 {
     public required Guid DependsOnWorkItemId { get; init; }
@@ -835,3 +855,45 @@ public sealed record UpdateRecurringRuleDto
     public string? CronExpression { get; init; }
     public bool? IsActive { get; init; }
 }
+
+// ─── Share & Guest DTOs ───────────────────────────────────────────────────
+
+public sealed record WorkItemShareLinkDto
+{
+    public required Guid Id { get; init; }
+    public required Guid WorkItemId { get; init; }
+    public required string Token { get; init; }
+    public required string Permission { get; init; }
+    public DateTime? ExpiresAt { get; init; }
+    public bool IsActive { get; init; }
+    public required DateTime CreatedAt { get; init; }
+}
+
+public sealed record CreateShareLinkDto
+{
+    public string Permission { get; init; } = "view";
+    public int? ExpiresInDays { get; init; }
+}
+
+public sealed record GuestUserDto
+{
+    public required Guid Id { get; init; }
+    public required string Email { get; init; }
+    public string? DisplayName { get; init; }
+    public required Guid ProductId { get; init; }
+    public required string Status { get; init; }
+    public required Guid InvitedByUserId { get; init; }
+    public required DateTime CreatedAt { get; init; }
+}
+
+public sealed record InviteGuestDto
+{
+    public required string Email { get; init; }
+    public string? DisplayName { get; init; }
+}
+
+public sealed record GrantPermissionDto
+{
+    public string Permission { get; init; } = "view";
+}
+

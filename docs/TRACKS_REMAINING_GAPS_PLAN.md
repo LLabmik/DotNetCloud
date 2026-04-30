@@ -4,7 +4,7 @@
 > Research: `docs/TRACKS_COMPREHENSIVE_FEATURE_ANALYSIS.md`
 > Date: April 30, 2026
 > 
-> **Phases A–D are completed.** This plan covers the 17 remaining gaps, organized into Phases D–I, with Phase D now complete.
+> **Phases A–F are completed.** This plan covers the 17 remaining gaps, organized into Phases D–I, with Phases D, E, and F now complete.
 > Onboarding tour is saved for last (Phase I). Mobile notifications are deferred to `docs/PHASE_MOBILE_NOTIFICATIONS_PLAN.md`.
 
 ---
@@ -13,7 +13,7 @@
 
 DotNetCloud Tracks has a mature foundation: kanban boards, sprints, burndown, work item hierarchy, time tracking, dependencies, review sessions, planning poker, @mentions, watchers, calendar view, table view, dashboard, custom views, CSV export, keyboard shortcuts, and undo toast. This plan addresses the 17 remaining gaps identified in the competitive analysis against Jira, Linear, Asana, and Azure DevOps.
 
-**Total estimated effort: 67–79 hours across 6 phases (D–I).**
+**Total estimated effort: 67–79 hours across 6 phases (D–I). Phases A–F completed.**
 
 ---
 
@@ -212,9 +212,9 @@ Entities and services already exist (`ProductTemplate`, `ItemTemplate`, `Product
 
 ---
 
-## Phase F: Power Tools
+## Phase F: Power Tools ✅ COMPLETED
 
-**Estimate:** 16–19 hours · **Depends on:** Phase D (custom fields needed for CSV import column mapping)
+**Estimate:** 16–19 hours · **Depends on:** Phase D (custom fields needed for CSV import column mapping) · **Status: COMPLETED**
 **Purpose:** Advanced features for power users and external integrations.
 
 ### Step F-1: Command Palette (~4h)
@@ -226,14 +226,14 @@ A Ctrl+K command palette like Linear/Jira/VSCode — fast keyboard-driven naviga
 - `src/Modules/Tracks/DotNetCloud.Modules.Tracks/Services/CommandPaletteService.cs`
 
 **Deliverables:**
-- ☐ TracksCommandPalette.razor: modal overlay triggered by Ctrl+K (or Ctrl+P)
-- ☐ Fuzzy search across: work items (by number/title), products, sprints, saved views, recent items
-- ☐ Quick actions: "New epic in [product]", "Go to my items", "Toggle dark mode", "Open product settings", "Go to dashboard"
-- ☐ Keyboard navigation: Ctrl+K open, Esc close, ↑↓ arrows navigate, Enter select
-- ☐ Grouped results: Items, Products, Views, Actions (with section headers)
-- ☐ Result preview: secondary text line (product name, swimlane, assignee)
-- ☐ Recent items tracking: last 10 viewed work items stored in localStorage
-- ☐ CommandPaletteService: aggregates searchable items from WorkItemService, ProductService, SprintService, CustomViewService
+- ✓ TracksCommandPalette.razor: modal overlay triggered by Ctrl+K (or Ctrl+P)
+- ✓ Fuzzy search across: work items (by number/title), products, sprints, saved views, recent items
+- ✓ Quick actions: "New epic in [product]", "Go to my items", "Toggle dark mode", "Open product settings", "Go to dashboard"
+- ✓ Keyboard navigation: Ctrl+K open, Esc close, ↑↓ arrows navigate, Enter select
+- ✓ Grouped results: Items, Products, Views, Actions (with section headers)
+- ✓ Result preview: secondary text line (product name, swimlane, assignee)
+- ✓ Recent items tracking: last 10 viewed work items stored in localStorage
+- ✓ ICommandPaletteService + CommandPaletteService: aggregates searchable items from DbContext
 
 ### Step F-2: CSV Import Wizard (~5h)
 
@@ -245,17 +245,17 @@ Import work items from CSV with a multi-step wizard — field mapping, validatio
 - (Extend) `src/Modules/Tracks/DotNetCloud.Modules.Tracks.Host/Controllers/WorkItemsController.cs`
 
 **Deliverables:**
-- ☐ CsvImportWizard.razor: 5-step modal
+- ✓ CsvImportWizard.razor: 5-step modal
   - Step 1 — File upload: drag & drop zone, file picker button
   - Step 2 — Parse & preview: auto-detect delimiter (comma, tab, semicolon), show raw first 5 rows
   - Step 3 — Column mapping: dropdown per detected CSV column → map to Title, Description, Priority, Type, Story Points, Assignee (by email), Due Date, Labels, [custom fields from Phase D-1]
   - Step 4 — Validation: show row-level errors (missing required fields, invalid priorities, unknown users, bad dates)
   - Step 5 — Import: progress bar, X of Y items created, summary (success/fail counts)
-- ☐ CsvImportService: parse CSV (handles BOM, quoted fields, empty rows), validate rows, batch create via transaction
-- ☐ Controller: `POST /api/v1/products/{id}/work-items/import` (multipart form, returns import summary)
-- ☐ Duplicate detection: option to skip or error on matching title within same product
-- ☐ Dry-run mode: validate without creating (preview-only for user confidence)
-- ☐ Chunked import: process in batches of 50 to avoid request timeouts
+- ✓ CsvImportService: parse CSV (handles BOM, quoted fields, empty rows), validate rows, batch create via transaction
+- ✓ Controller: `POST /api/v1/products/{id}/work-items/import` (multipart form, returns import summary)
+- ✓ Duplicate detection: option to skip or error on matching title within same product
+- ✓ Dry-run mode: validate without creating (preview-only for user confidence)
+- ✓ Chunked import: process in batches of 50 to avoid request timeouts
 
 ### Step F-3: Webhooks (~9h)
 
@@ -279,25 +279,29 @@ Production-grade webhook system: HTTP callbacks for external integrations with r
 - `src/Modules/Tracks/DotNetCloud.Modules.Tracks/Events/WebhookEventHandler.cs`
 
 **Deliverables:**
-- ☐ WebhookSubscription entity: URL, secret, event type filter list, active flag
-- ☐ WebhookDelivery entity: full delivery audit trail with timing and response data
-- ☐ EF configurations + migrations for both entities
-- ☐ WebhookService: CRUD subscriptions, dispatch events to matching subscribers
-- ☐ WebhookDeliveryService: execute HTTP POST with HMAC-SHA256 signature in `X-DotNetCloud-Signature` header
-- ☐ WebhookRetryBackgroundService: retry failed deliveries with exponential backoff:
+- ✓ WebhookSubscription entity: URL, secret, event type filter list, active flag
+- ✓ WebhookDelivery entity: full delivery audit trail with timing and response data
+- ✓ EF configurations + migrations for both entities
+- ✓ WebhookService: CRUD subscriptions, dispatch events to matching subscribers
+- ✓ WebhookDeliveryService: execute HTTP POST with HMAC-SHA256 signature in `X-DotNetCloud-Signature` header
+- ✓ WebhookRetryBackgroundService: retry failed deliveries with exponential backoff:
   - Intervals: 1 min → 5 min → 15 min → 1 hour → 6 hours → 24 hours → 24 hours (max 7 retries)
   - Uses `PeriodicTimer` every 30 seconds to check for due retries
-- ☐ HMAC: SHA-256 HMAC computed from request body + subscription secret; hex-encoded
-- ☐ Event types supported:
+- ✓ HMAC: SHA-256 HMAC computed from request body + subscription secret; hex-encoded
+- ✓ Event types supported:
   - `work_item.created`, `work_item.updated`, `work_item.deleted`
   - `work_item.moved` (swimlane change)
   - `comment.added`
   - `sprint.started`, `sprint.completed`
   - `milestone.reached` (Phase D-2)
-- ☐ WebhookEventHandler: subscribes to IEventBus, dispatches to matching webhooks
-- ☐ WebhooksController: `GET/POST/PUT/DELETE /api/v1/products/{id}/webhooks`
-- ☐ WebhookDeliveriesController: `GET /api/v1/webhooks/{id}/deliveries` (paginated, filterable by status)
-- ☐ UI: Webhook management in product settings — list subscriptions, add/edit form, test button (sends ping event), recent delivery log with status badges and expandable payload
+- ✓ WebhookEventHandler: subscribes to IEventBus, dispatches to matching webhooks (via IWebhookDispatchService)
+- ✓ WebhooksController: `GET/POST/PUT/DELETE /api/v1/products/{id}/webhooks` + test endpoint
+- ✓ WebhookDeliveriesController: `GET /api/v1/webhooks/{id}/deliveries` (paginated)
+- ✓ UI: Webhook management in product settings — list subscriptions, add/edit form, test button, delivery log
+- ✓ IWebhookDispatchService + WebhookDispatchService: bridge between event handler and scoped data services
+- ✓ ICsvImportUiService + CsvImportUiService: bridge between UI layer and data layer for CSV import
+- ✓ ITracksApiClient extended with webhook methods
+- ✓ TracksModule.cs updated to subscribe WebhookEventHandler + MilestoneReachedEvent
 
 ### Phase F Verification
 

@@ -1,5 +1,6 @@
 using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs;
+using DotNetCloud.Modules.Tracks.Models;
 
 namespace DotNetCloud.Modules.Tracks.Services;
 
@@ -177,4 +178,21 @@ public interface ITracksApiClient
     Task<CustomViewDto?> UpdateCustomViewAsync(Guid productId, Guid viewId, string? name, string? filterJson, string? sortJson, string? groupBy, string? layout, bool? isShared, CancellationToken ct = default);
     /// <summary>Deletes a saved custom view.</summary>
     Task DeleteCustomViewAsync(Guid productId, Guid viewId, CancellationToken ct = default);
+
+    // Webhooks
+    /// <summary>Lists all webhook subscriptions for a product.</summary>
+    Task<IReadOnlyList<WebhookSubscription>> ListProductWebhooksAsync(Guid productId, CancellationToken ct = default);
+    /// <summary>Creates a new webhook subscription.</summary>
+    Task<WebhookSubscription?> CreateProductWebhookAsync(Guid productId, string url, List<string> eventTypes, CancellationToken ct = default);
+    /// <summary>Updates an existing webhook subscription.</summary>
+    Task<WebhookSubscription?> UpdateProductWebhookAsync(Guid productId, Guid subscriptionId, string url, List<string> eventTypes, bool isActive, CancellationToken ct = default);
+    /// <summary>Deletes a webhook subscription.</summary>
+    Task DeleteProductWebhookAsync(Guid productId, Guid subscriptionId, CancellationToken ct = default);
+    /// <summary>Sends a test ping to a webhook subscription.</summary>
+    Task<WebhookTestResult> TestProductWebhookAsync(Guid productId, Guid subscriptionId, CancellationToken ct = default);
 }
+
+/// <summary>
+/// Result of a webhook test ping.
+/// </summary>
+public sealed record WebhookTestResult(bool Success, int? StatusCode, long DurationMs, string? Error);

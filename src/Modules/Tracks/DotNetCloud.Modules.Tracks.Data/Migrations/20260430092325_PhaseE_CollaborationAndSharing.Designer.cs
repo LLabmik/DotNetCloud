@@ -3,6 +3,7 @@ using System;
 using DotNetCloud.Modules.Tracks.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace DotNetCloud.Modules.Tracks.Data.Migrations
 {
     [DbContext(typeof(TracksDbContext))]
-    partial class TracksDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260430092325_PhaseE_CollaborationAndSharing")]
+    partial class PhaseE_CollaborationAndSharing
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1157,117 +1160,6 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                     b.ToTable("TimeEntries");
                 });
 
-            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.WebhookDelivery", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
-
-                    b.Property<DateTime?>("DeliveredAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<long>("DurationMs")
-                        .HasColumnType("bigint");
-
-                    b.Property<string>("ErrorMessage")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<string>("EventType")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("PayloadJson")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("ResponseBody")
-                        .HasColumnType("text");
-
-                    b.Property<int?>("ResponseStatusCode")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("RetryCount")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid>("SubscriptionId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CreatedAt")
-                        .HasDatabaseName("ix_webhook_deliveries_created");
-
-                    b.HasIndex("SubscriptionId")
-                        .HasDatabaseName("ix_webhook_deliveries_subscription");
-
-                    b.ToTable("WebhookDeliveries");
-                });
-
-            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.WebhookSubscription", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
-
-                    b.Property<Guid>("CreatedByUserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("EventsJson")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int>("FailedDeliveryCount")
-                        .HasColumnType("integer");
-
-                    b.Property<bool>("IsActive")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(true);
-
-                    b.Property<DateTime?>("LastDeliveryAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("ProductId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Secret")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
-
-                    b.Property<string>("Url")
-                        .IsRequired()
-                        .HasMaxLength(2048)
-                        .HasColumnType("character varying(2048)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("IsActive")
-                        .HasDatabaseName("ix_webhook_subscriptions_active");
-
-                    b.HasIndex("ProductId")
-                        .HasDatabaseName("ix_webhook_subscriptions_product");
-
-                    b.ToTable("WebhookSubscriptions");
-                });
-
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.WorkItem", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1943,28 +1835,6 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                     b.Navigation("WorkItem");
                 });
 
-            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.WebhookDelivery", b =>
-                {
-                    b.HasOne("DotNetCloud.Modules.Tracks.Models.WebhookSubscription", "Subscription")
-                        .WithMany("Deliveries")
-                        .HasForeignKey("SubscriptionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Subscription");
-                });
-
-            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.WebhookSubscription", b =>
-                {
-                    b.HasOne("DotNetCloud.Modules.Tracks.Models.Product", "Product")
-                        .WithMany()
-                        .HasForeignKey("ProductId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Product");
-                });
-
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.WorkItem", b =>
                 {
                     b.HasOne("DotNetCloud.Modules.Tracks.Models.Milestone", "Milestone")
@@ -2183,11 +2053,6 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.Team", b =>
                 {
                     b.Navigation("TeamRoles");
-                });
-
-            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.WebhookSubscription", b =>
-                {
-                    b.Navigation("Deliveries");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.WorkItem", b =>

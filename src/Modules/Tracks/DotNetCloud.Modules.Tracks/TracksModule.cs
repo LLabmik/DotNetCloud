@@ -25,6 +25,7 @@ public sealed class TracksModule : IModuleLifecycle
     private TracksRealtimeEventHandler? _realtimeHandler;
     private FileDeletedEventHandler? _fileDeletedHandler;
     private ChatMessageTracksHandler? _chatMessageHandler;
+    private WebhookEventHandler? _webhookHandler;
 
     /// <inheritdoc />
     public IModuleManifest Manifest { get; } = new TracksModuleManifest();
@@ -71,9 +72,20 @@ public sealed class TracksModule : IModuleLifecycle
         await _eventBus.SubscribeAsync<MessageSentEvent>(_chatMessageHandler, cancellationToken);
         await _eventBus.SubscribeAsync<ChannelCreatedEvent>(_chatMessageHandler, cancellationToken);
         await _eventBus.SubscribeAsync<ChannelDeletedEvent>(_chatMessageHandler, cancellationToken);
-
+        // Register webhook event handler — dispatches events to webhook subscriptions
+        _webhookHandler = new WebhookEventHandler(
+            context.Services.GetRequiredService<IWebhookDispatchService>(),
+            context.Services.GetService<ILogger<WebhookEventHandler>>() ?? NullLogger<WebhookEventHandler>.Instance);
+        await _eventBus.SubscribeAsync<WorkItemCreatedEvent>(_webhookHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<WorkItemUpdatedEvent>(_webhookHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<WorkItemDeletedEvent>(_webhookHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<WorkItemMovedEvent>(_webhookHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<WorkItemCommentAddedEvent>(_webhookHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<SprintStartedEvent>(_webhookHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<SprintCompletedEvent>(_webhookHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<MilestoneReachedEvent>(_webhookHandler, cancellationToken);
         _initialized = true;
-        _logger?.LogInformation("Tracks module initialized successfully with real-time, cross-module, and Chat integration event handlers");
+        _logger?.LogInformation("Tracks module initialized successfully with real-time, cross-module, Chat integration, and webhook event handlers");
     }
 
     /// <inheritdoc />
@@ -124,6 +136,18 @@ public sealed class TracksModule : IModuleLifecycle
                 await _eventBus.UnsubscribeAsync<MessageSentEvent>(_chatMessageHandler, cancellationToken);
                 await _eventBus.UnsubscribeAsync<ChannelCreatedEvent>(_chatMessageHandler, cancellationToken);
                 await _eventBus.UnsubscribeAsync<ChannelDeletedEvent>(_chatMessageHandler, cancellationToken);
+            }
+
+            if (_webhookHandler is not null)
+            {
+                await _eventBus.UnsubscribeAsync<WorkItemCreatedEvent>(_webhookHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<WorkItemUpdatedEvent>(_webhookHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<WorkItemDeletedEvent>(_webhookHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<WorkItemMovedEvent>(_webhookHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<WorkItemCommentAddedEvent>(_webhookHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<SprintStartedEvent>(_webhookHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<SprintCompletedEvent>(_webhookHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<MilestoneReachedEvent>(_webhookHandler, cancellationToken);
             }
         }
 

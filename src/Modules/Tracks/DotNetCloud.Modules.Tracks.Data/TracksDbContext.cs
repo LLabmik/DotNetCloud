@@ -19,6 +19,7 @@ public class TracksDbContext : DbContext
     public DbSet<Label> Labels => Set<Label>();
     public DbSet<WorkItemLabel> WorkItemLabels => Set<WorkItemLabel>();
     public DbSet<WorkItemComment> WorkItemComments => Set<WorkItemComment>();
+    public DbSet<CommentReaction> CommentReactions => Set<CommentReaction>();
     public DbSet<WorkItemAttachment> WorkItemAttachments => Set<WorkItemAttachment>();
     public DbSet<Checklist> Checklists => Set<Checklist>();
     public DbSet<ChecklistItem> ChecklistItems => Set<ChecklistItem>();
@@ -41,6 +42,11 @@ public class TracksDbContext : DbContext
     public DbSet<WorkItemFieldValue> WorkItemFieldValues => Set<WorkItemFieldValue>();
     public DbSet<Milestone> Milestones => Set<Milestone>();
     public DbSet<RecurringRule> RecurringRules => Set<RecurringRule>();
+    public DbSet<WorkItemShareLink> WorkItemShareLinks => Set<WorkItemShareLink>();
+    public DbSet<GuestUser> GuestUsers => Set<GuestUser>();
+    public DbSet<GuestPermission> GuestPermissions => Set<GuestPermission>();
+    public DbSet<WebhookSubscription> WebhookSubscriptions => Set<WebhookSubscription>();
+    public DbSet<WebhookDelivery> WebhookDeliveries => Set<WebhookDelivery>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

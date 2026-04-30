@@ -2,6 +2,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs;
+using DotNetCloud.Modules.Tracks.Models;
 
 namespace DotNetCloud.Modules.Tracks.Services;
 
@@ -700,6 +701,51 @@ public sealed class TracksApiClient : ITracksApiClient
         await EnsureSuccessOrThrowAsync(response);
         var result = await ReadDataFromResponseAsync<BulkActionResultDto>(response, ct);
         return result?.Affected ?? 0;
+    }
+
+    // ── Webhooks ─────────────────────────────────────────────
+
+    public async Task<IReadOnlyList<WebhookSubscription>> ListProductWebhooksAsync(Guid productId, CancellationToken ct = default)
+        => await ReadDataAsync<IReadOnlyList<WebhookSubscription>>($"api/v1/products/{productId}/webhooks", ct) ?? [];
+
+    public async Task<WebhookSubscription?> CreateProductWebhookAsync(Guid productId, string url, List<string> eventTypes, CancellationToken ct = default)
+    {
+        var response = await _httpClient.PostAsJsonAsync($"api/v1/products/{productId}/webhooks", new { url, eventTypes }, ct);
+        await EnsureSuccessOrThrowAsync(response);
+        return await ReadDataFromResponseAsync<WebhookSubscription>(response, ct);
+    }
+
+    public async Task<WebhookSubscription?> UpdateProductWebhookAsync(Guid productId, Guid subscriptionId, string url, List<string> eventTypes, bool isActive, CancellationToken ct = default)
+    {
+        var response = await _httpClient.PutAsJsonAsync($"api/v1/products/{productId}/webhooks/{subscriptionId}", new { url, eventTypes, isActive }, ct);
+        await EnsureSuccessOrThrowAsync(response);
+        return await ReadDataFromResponseAsync<WebhookSubscription>(response, ct);
+    }
+
+    public async Task DeleteProductWebhookAsync(Guid productId, Guid subscriptionId, CancellationToken ct = default)
+    {
+        var response = await _httpClient.DeleteAsync($"api/v1/products/{productId}/webhooks/{subscriptionId}", ct);
+        await EnsureSuccessOrThrowAsync(response);
+    }
+
+    public async Task<WebhookTestResult> TestProductWebhookAsync(Guid productId, Guid subscriptionId, CancellationToken ct = default)
+    {
+        var response = await _httpClient.PostAsync($"api/v1/products/{productId}/webhooks/{subscriptionId}/test", null, ct);
+        await EnsureSuccessOrThrowAsync(response);
+
+        var json = await response.Content.ReadAsStringAsync(ct);
+        using var doc = JsonDocument.Parse(json);
+
+        if (TryGetPropertyIgnoreCase(doc.RootElement, "data", out var data))
+        {
+            var success = TryGetPropertyIgnoreCase(data, "success", out var s) && s.GetBoolean();
+            var statusCode = TryGetPropertyIgnoreCase(data, "statusCode", out var sc) ? sc.GetInt32() : (int?)null;
+            var durationMs = TryGetPropertyIgnoreCase(data, "durationMs", out var d) ? d.GetInt64() : 0;
+            var error = TryGetPropertyIgnoreCase(data, "error", out var e) ? e.GetString() : null;
+            return new WebhookTestResult(success, statusCode, durationMs, error);
+        }
+
+        return new WebhookTestResult(false, null, 0, "Unable to parse response");
     }
 
     // ── Helpers ──────────────────────────────────────────────

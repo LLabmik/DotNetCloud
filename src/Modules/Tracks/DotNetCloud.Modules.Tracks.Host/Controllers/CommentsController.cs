@@ -83,4 +83,47 @@ public class CommentsController : TracksControllerBase
                 : BadRequest(ErrorEnvelope(ErrorCodes.InvalidOperation, ex.Message));
         }
     }
+
+    // ── Reactions ──────────────────────────────────────────────────────────
+
+    /// <summary>Gets all reactions for a comment, grouped by emoji with counts.</summary>
+    [HttpGet("api/v1/comments/{commentId:guid}/reactions")]
+    public async Task<IActionResult> GetReactionsAsync(Guid commentId, CancellationToken ct)
+    {
+        var caller = GetAuthenticatedCaller();
+        var reactions = await _commentService.GetReactionsAsync(commentId, caller.UserId, ct);
+        return Ok(Envelope(reactions));
+    }
+
+    /// <summary>Adds an emoji reaction to a comment.</summary>
+    [HttpPost("api/v1/comments/{commentId:guid}/reactions")]
+    public async Task<IActionResult> AddReactionAsync(Guid commentId, [FromBody] AddReactionDto dto, CancellationToken ct)
+    {
+        var caller = GetAuthenticatedCaller();
+        try
+        {
+            var reaction = await _commentService.AddReactionAsync(commentId, caller.UserId, dto.Emoji.Trim(), ct);
+            return Created($"/api/v1/comments/{commentId}/reactions", Envelope(reaction));
+        }
+        catch (System.InvalidOperationException ex)
+        {
+            return BadRequest(ErrorEnvelope(ErrorCodes.InvalidOperation, ex.Message));
+        }
+    }
+
+    /// <summary>Removes a user's emoji reaction from a comment.</summary>
+    [HttpDelete("api/v1/comments/{commentId:guid}/reactions/{emoji}")]
+    public async Task<IActionResult> RemoveReactionAsync(Guid commentId, string emoji, CancellationToken ct)
+    {
+        var caller = GetAuthenticatedCaller();
+        try
+        {
+            await _commentService.RemoveReactionAsync(commentId, caller.UserId, emoji, ct);
+            return Ok(Envelope(new { removed = true }));
+        }
+        catch (System.InvalidOperationException ex)
+        {
+            return BadRequest(ErrorEnvelope(ErrorCodes.InvalidOperation, ex.Message));
+        }
+    }
 }

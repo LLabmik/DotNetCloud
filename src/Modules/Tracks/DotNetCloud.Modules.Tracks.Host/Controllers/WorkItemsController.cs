@@ -6,6 +6,7 @@ using DotNetCloud.Modules.Tracks.Host.Services;
 using DotNetCloud.Modules.Tracks.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace DotNetCloud.Modules.Tracks.Host.Controllers;
 
@@ -664,12 +665,121 @@ public class WorkItemsController : TracksControllerBase
         }
     }
 
+    // ─── CSV Import ────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Imports work items from a CSV file. Supports column mapping, validation,
+    /// and batch creation. Use dry-run mode to validate without creating.
+    /// </summary>
+    [HttpPost("products/{productId:guid}/work-items/import")]
+    [RequestSizeLimit(10 * 1024 * 1024)] // 10MB
+    public async Task<IActionResult> ImportWorkItemsCsvAsync(
+        Guid productId,
+        IFormFile file,
+        [FromQuery] Guid? swimlaneId = null,
+        [FromQuery] bool dryRun = false,
+        CancellationToken ct = default)
+    {
+        var caller = GetAuthenticatedCaller();
+
+        if (file is null || file.Length == 0)
+            return BadRequest(ErrorEnvelope(ErrorCodes.BadRequest, "No file uploaded."));
+
+        if (!file.FileName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
+            return BadRequest(ErrorEnvelope(ErrorCodes.BadRequest, "Only CSV files are supported."));
+
+        try
+        {
+            using var stream = file.OpenReadStream();
+
+            var csvService = HttpContext.RequestServices.GetRequiredService<CsvImportService>();
+
+            // Parse the CSV
+            var parseResult = await csvService.ParseCsvAsync(stream, ct);
+
+            // Build auto-mapping from headers
+            var mapping = AutoMapColumns(parseResult.Headers);
+
+            stream.Position = 0;
+
+            if (dryRun)
+            {
+                var validation = await csvService.ValidateCsvAsync(productId, stream, mapping, ct);
+                return Ok(Envelope(new
+                {
+                    dryRun = true,
+                    headers = parseResult.Headers,
+                    delimiter = parseResult.Delimiter,
+                    previewRows = parseResult.PreviewRows,
+                    totalRows = parseResult.TotalRows,
+                    validRowCount = validation.ValidRowCount,
+                    errors = validation.Errors
+                }));
+            }
+
+            var result = await csvService.ImportCsvAsync(
+                productId,
+                swimlaneId ?? Guid.Empty,
+                caller.UserId,
+                stream,
+                mapping,
+                skipDuplicates: false,
+                ct);
+
+            return Ok(Envelope(new
+            {
+                created = result.Created,
+                skipped = result.Skipped,
+                failed = result.Failed,
+                batchCount = result.BatchCount,
+                errors = result.Errors
+            }));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to import CSV for product {ProductId}", productId);
+            return BadRequest(ErrorEnvelope(ErrorCodes.BadRequest, ex.Message));
+        }
+    }
+
     /// <summary>Removes characters that are invalid in file names.</summary>
     private static string SanitizeFileName(string name)
     {
         var invalid = Path.GetInvalidFileNameChars();
         var sanitized = new string(name.Select(c => invalid.Contains(c) ? '_' : c).ToArray());
         return string.IsNullOrWhiteSpace(sanitized) ? "export" : sanitized.Trim();
+    }
+
+    /// <summary>
+    /// Automatically maps CSV column headers to known work item field names.
+    /// </summary>
+    private static CsvColumnMapping AutoMapColumns(List<string> headers)
+    {
+        var mapping = new CsvColumnMapping();
+
+        for (int i = 0; i < headers.Count; i++)
+        {
+            var header = headers[i].ToLowerInvariant().Trim();
+
+            if (header.Contains("title") || header.Contains("name") || header.Contains("summary"))
+                mapping.TitleColumn = i;
+            else if (header.Contains("desc"))
+                mapping.DescriptionColumn = i;
+            else if (header.Contains("prior"))
+                mapping.PriorityColumn = i;
+            else if (header.Contains("type") || header.Contains("kind"))
+                mapping.TypeColumn = i;
+            else if (header.Contains("point") || header.Contains("story") || header.Contains("estimate") || header.Contains("effort"))
+                mapping.StoryPointsColumn = i;
+            else if (header.Contains("assign") || header.Contains("email") || header.Contains("owner"))
+                mapping.AssigneeEmailColumn = i;
+            else if (header.Contains("due") || header.Contains("date") || header.Contains("deadline"))
+                mapping.DueDateColumn = i;
+            else if (header.Contains("label") || header.Contains("tag"))
+                mapping.LabelsColumn = i;
+        }
+
+        return mapping;
     }
 
     // ─── Helpers ───────────────────────────────────────────────────────

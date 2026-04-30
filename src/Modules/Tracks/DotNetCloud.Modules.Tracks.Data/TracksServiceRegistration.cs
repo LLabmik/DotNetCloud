@@ -41,6 +41,15 @@ public static class TracksServiceRegistration
         services.AddScoped<CustomFieldService>();
         services.AddScoped<MilestoneService>();
         services.AddScoped<RecurringWorkItemService>();
+        services.AddScoped<ShareLinkService>();
+        services.AddScoped<GuestAccessService>();
+        services.AddScoped<TemplateSeedService>();
+        services.AddScoped<CsvImportService>();
+        services.AddScoped<ICsvImportUiService, CsvImportUiService>();
+        services.AddScoped<WebhookService>();
+        services.AddScoped<WebhookDeliveryService>();
+        services.AddScoped<IWebhookDispatchService, WebhookDispatchService>();
+        services.AddScoped<ICommandPaletteService, CommandPaletteService>();
 
         // Cross-module services
         services.AddScoped<ICardAttachmentCleanupService, AttachmentCleanupService>();
@@ -48,6 +57,7 @@ public static class TracksServiceRegistration
         // Background services
         services.AddHostedService<ProductCleanupBackgroundService>();
         services.AddHostedService<RecurringWorkItemBackgroundService>();
+        services.AddHostedService<WebhookRetryBackgroundService>();
 
         return services;
     }

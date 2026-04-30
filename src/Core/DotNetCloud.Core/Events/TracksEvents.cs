@@ -173,3 +173,15 @@ public sealed record TeamDeletedEvent : IEvent
     public required Guid TeamId { get; init; }
     public required Guid DeletedByUserId { get; init; }
 }
+
+/// <summary>
+/// Raised when a milestone is reached (all work items completed).
+/// </summary>
+public sealed record MilestoneReachedEvent : IEvent
+{
+    public required Guid EventId { get; init; }
+    public required DateTime CreatedAt { get; init; }
+    public required Guid MilestoneId { get; init; }
+    public required Guid ProductId { get; init; }
+    public required string MilestoneTitle { get; init; }
+}

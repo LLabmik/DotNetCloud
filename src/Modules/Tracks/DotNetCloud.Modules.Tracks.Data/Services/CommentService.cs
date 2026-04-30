@@ -92,6 +92,135 @@ public sealed class CommentService
         await _db.SaveChangesAsync(ct);
     }
 
+    // ── Reactions ──────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Adds an emoji reaction from a user to a comment. If the user already reacted
+    /// with the same emoji, the operation is a no-op (idempotent).
+    /// </summary>
+    public async Task<CommentReactionDto> AddReactionAsync(
+        Guid commentId,
+        Guid userId,
+        string emoji,
+        CancellationToken ct)
+    {
+        // Verify comment exists
+        var commentExists = await _db.WorkItemComments
+            .IgnoreQueryFilters()
+            .AnyAsync(c => c.Id == commentId && !c.IsDeleted, ct);
+
+        if (!commentExists)
+            throw new InvalidOperationException("Comment not found.");
+
+        // Check for existing reaction (composite key)
+        var existing = await _db.CommentReactions
+            .FindAsync(new object[] { commentId, userId, emoji }, ct);
+
+        if (existing is not null)
+        {
+            return MapReaction(existing);
+        }
+
+        var reaction = new CommentReaction
+        {
+            CommentId = commentId,
+            UserId = userId,
+            Emoji = emoji,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _db.CommentReactions.Add(reaction);
+        await _db.SaveChangesAsync(ct);
+
+        return MapReaction(reaction);
+    }
+
+    /// <summary>
+    /// Removes a user's emoji reaction from a comment.
+    /// </summary>
+    public async Task RemoveReactionAsync(
+        Guid commentId,
+        Guid userId,
+        string emoji,
+        CancellationToken ct)
+    {
+        var reaction = await _db.CommentReactions
+            .FindAsync(new object[] { commentId, userId, emoji }, ct);
+
+        if (reaction is null)
+            throw new InvalidOperationException("Reaction not found.");
+
+        _db.CommentReactions.Remove(reaction);
+        await _db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>
+    /// Gets all reactions for a comment, grouped by emoji with counts.
+    /// </summary>
+    public async Task<List<CommentReactionSummaryDto>> GetReactionsAsync(
+        Guid commentId,
+        Guid? currentUserId,
+        CancellationToken ct)
+    {
+        var reactions = await _db.CommentReactions
+            .Where(r => r.CommentId == commentId)
+            .ToListAsync(ct);
+
+        return reactions
+            .GroupBy(r => r.Emoji)
+            .Select(g => new CommentReactionSummaryDto
+            {
+                Emoji = g.Key,
+                Count = g.Count(),
+                ReactedByCurrentUser = currentUserId.HasValue
+                    && g.Any(r => r.UserId == currentUserId.Value)
+            })
+            .OrderByDescending(s => s.Count)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Gets all reactions across multiple comments (for batch loading).
+    /// Returns a dictionary keyed by CommentId.
+    /// </summary>
+    public async Task<Dictionary<Guid, List<CommentReactionSummaryDto>>> GetReactionsForCommentsAsync(
+        IEnumerable<Guid> commentIds,
+        Guid? currentUserId,
+        CancellationToken ct)
+    {
+        var idSet = commentIds.ToHashSet();
+        if (idSet.Count == 0)
+            return new Dictionary<Guid, List<CommentReactionSummaryDto>>();
+
+        var reactions = await _db.CommentReactions
+            .Where(r => idSet.Contains(r.CommentId))
+            .ToListAsync(ct);
+
+        return reactions
+            .GroupBy(r => r.CommentId)
+            .ToDictionary(
+                g => g.Key,
+                g => g.GroupBy(r => r.Emoji)
+                    .Select(eg => new CommentReactionSummaryDto
+                    {
+                        Emoji = eg.Key,
+                        Count = eg.Count(),
+                        ReactedByCurrentUser = currentUserId.HasValue
+                            && eg.Any(r => r.UserId == currentUserId.Value)
+                    })
+                    .OrderByDescending(s => s.Count)
+                    .ToList()
+            );
+    }
+
+    private static CommentReactionDto MapReaction(CommentReaction r) => new()
+    {
+        CommentId = r.CommentId,
+        UserId = r.UserId,
+        Emoji = r.Emoji,
+        CreatedAt = r.CreatedAt
+    };
+
     private static WorkItemCommentDto Map(WorkItemComment c) => new()
     {
         Id = c.Id,

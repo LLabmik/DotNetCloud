@@ -4726,3 +4726,78 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Template JSON support: title, description, priority, storyPoints, labels, assigneeIds
 - ✓ Created work items link back to rule via `RecurringRuleId`
 - ✓ `Product` entity extended with `RecurringRules` navigation property
+
+## Tracks Professionalization — Phase E
+
+### E-1: Comment Reactions
+- ✓ `CommentReaction` entity with EF config + migration (composite key CommentId + UserId + Emoji)
+- ✓ `CommentReactionDto` and `CommentReactionSummaryDto` in DTOs
+- ✓ `AddReactionDto` for reaction creation requests
+- ✓ `CommentService` extended: `AddReactionAsync`, `RemoveReactionAsync`, `GetReactionsAsync`, `GetReactionsForCommentsAsync`
+- ✓ `CommentsController` extended: `GET /api/v1/comments/{id}/reactions`, `POST /api/v1/comments/{id}/reactions`, `DELETE /api/v1/comments/{id}/reactions/{emoji}`
+- ✓ Toggle behavior: add reaction → same emoji again removes it
+- ✓ Batch reaction loading for multiple comments via `GetReactionsForCommentsAsync`
+- ✓ `TracksDbContext` extended with `CommentReactions` DbSet
+
+### E-2: Share / Guest Access
+- ✓ `WorkItemShareLink` entity with EF config + migration (unique token, expiry, active flag)
+- ✓ `GuestUser` entity with EF config + migration (email, invite token, status lifecycle)
+- ✓ `GuestPermission` entity with EF config + migration (per-work-item access)
+- ✓ `SharePermission` and `GuestPermissionLevel` enums
+- ✓ `WorkItemShareLinkDto`, `CreateShareLinkDto`, `GuestUserDto`, `InviteGuestDto`, `GrantPermissionDto` in DTOs
+- ✓ `ShareLinkService`: generate/revoke share links, validate tokens, list by work item
+- ✓ `GuestAccessService`: invite, accept, revoke guests; grant/revoke per-work-item permissions; resolve effective permissions
+- ✓ `ShareLinksController`: `GET/POST /api/v1/work-items/{id}/share-links`, `DELETE /api/v1/share-links/{id}`
+- ✓ `GuestAccessController`: `GET/POST /api/v1/products/{id}/guests`, `DELETE /api/v1/guests/{id}`, `POST/DELETE /api/v1/guests/{id}/work-items/{id}/permissions`
+- ✓ Secure token generation via `RandomNumberGenerator` (32-byte URL-safe Base64)
+- ✓ Auto-deactivation of expired share links on validation
+- ✓ `TracksDbContext` extended with `WorkItemShareLinks`, `GuestUsers`, `GuestPermissions` DbSets
+- ✓ `TracksServiceRegistration` updated with `ShareLinkService`, `GuestAccessService`
+
+### E-3: Product Templates UI
+- ✓ `ProductTemplatesController`: `GET /api/v1/product-templates`, `GET /api/v1/product-templates/{id}`, `POST /api/v1/product-templates/{id}/create-product`, `POST /api/v1/products/{id}/save-as-template`, `GET /api/v1/products/{id}/item-templates`, `POST /api/v1/item-templates/{id}/create-item`
+- ✓ `TemplateSeedService`: idempotent seeding of 5 built-in templates on first access
+- ✓ 5 built-in templates: Software Project, Bug Tracker, Content Calendar, Simple Todo, Hiring Pipeline
+- ✓ `TracksServiceRegistration` updated with `TemplateSeedService`
+
+## Tracks Professionalization — Phase F
+
+### F-1: Command Palette
+- ✓ `ICommandPaletteService` interface + `CommandPaletteResult` + `PaletteItem` in `DotNetCloud.Modules.Tracks.Services`
+- ✓ `CommandPaletteService` in `DotNetCloud.Modules.Tracks.Data.Services` — uses TracksDbContext for fuzzy search
+- ✓ `TracksCommandPalette.razor` + `.razor.cs` — modal overlay triggered by Ctrl+K
+- ✓ Fuzzy search across work items (by number/title), products
+- ✓ Quick actions: New Epic, New Work Item, Go to My Items, Dashboard, Settings, Toggle Dark Mode, Shortcuts
+- ✓ Keyboard navigation: Ctrl+K open, Esc close, ↑↓ arrows, Enter select
+- ✓ Recent items tracking in localStorage
+- ✓ `TracksServiceRegistration` updated with `ICommandPaletteService`
+
+### F-2: CSV Import Wizard
+- ✓ `ICsvImportUiService` interface + `CsvParseResult`, `CsvColumnMapping`, `CsvRowError`, `CsvValidationResult`, `CsvImportResult` in Models
+- ✓ `CsvImportService` in Data.Services — parse, validate, import CSV with BOM handling and quoted fields
+- ✓ `CsvImportUiService` in Data.Services — implements ICsvImportUiService bridging to UI layer
+- ✓ `CsvImportWizard.razor` + `.razor.cs` — 5-step wizard: Upload → Preview → Map → Validate → Import
+- ✓ Auto-detect delimiter (comma, tab, semicolon, pipe)
+- ✓ Column mapping UI with auto-detection from headers
+- ✓ Duplicate detection and chunked import (batches of 50)
+- ✓ Controller: `POST /api/v1/products/{id}/work-items/import` with dry-run mode
+- ✓ `TracksDbContext` + `TracksServiceRegistration` updated
+
+### F-3: Webhooks
+- ✓ `WebhookSubscription` entity — URL, Secret (HMAC), EventsJson, IsActive
+- ✓ `WebhookDelivery` entity — EventType, PayloadJson, ResponseStatusCode, DurationMs, RetryCount
+- ✓ `WebhookSubscriptionConfiguration` + `WebhookDeliveryConfiguration` EF configs
+- ✓ `WebhookService` — CRUD subscriptions, GetMatchingSubscriptionsAsync, GenerateSecret, ComputeSignature (HMAC-SHA256)
+- ✓ `WebhookDeliveryService` — HTTP POST with `X-DotNetCloud-Signature` header, delivery recording
+- ✓ `WebhookRetryBackgroundService` — exponential backoff retry (1min→5min→15min→1h→6h→24h→24h, max 7)
+- ✓ `IWebhookDispatchService` in Services + `WebhookDispatchService` in Data.Services
+- ✓ `WebhookEventHandler` — subscribes to all Tracks events, dispatches via IWebhookDispatchService
+- ✓ `MilestoneReachedEvent` added to `TracksEvents.cs`
+- ✓ `WebhooksController` — GET/POST/PUT/DELETE + test endpoint
+- ✓ `WebhookDeliveriesController` — paginated delivery log
+- ✓ `WebhookManagementPage.razor` — list, add, edit, delete, test webhooks with toast notifications
+- ✓ `ITracksApiClient` + `TracksApiClient` extended with webhook methods + `WebhookTestResult`
+- ✓ `TracksDbContext` extended with `WebhookSubscriptions`, `WebhookDeliveries`
+- ✓ `TracksServiceRegistration` updated with all new services + background service
+- ✓ `TracksModule.cs` updated to initialize WebhookEventHandler and subscribe to all events
+

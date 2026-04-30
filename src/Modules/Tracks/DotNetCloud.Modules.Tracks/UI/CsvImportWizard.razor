@@ -1,0 +1,494 @@
+@namespace DotNetCloud.Modules.Tracks.UI
+@inherits CsvImportWizardBase
+@implements IDisposable
+
+@* 5-step CSV import wizard: Upload → Preview → Map → Validate → Import *@
+
+@if (_isVisible)
+{
+    <div class="csv-wizard-overlay" @onclick="Cancel">
+        <div class="csv-wizard-dialog" @onclick:stopPropagation="true" @onclick:preventDefault="true">
+            @* Header *@
+            <div class="csv-wizard-header">
+                <h2 class="csv-wizard-title">Import Work Items from CSV</h2>
+                <button class="csv-wizard-close" @onclick="Cancel" title="Close">&times;</button>
+            </div>
+
+            @* Step indicator *@
+            <div class="csv-wizard-steps">
+                @for (int i = 0; i < _steps.Length; i++)
+                {
+                    var step = _steps[i];
+                    var idx = i;
+                    var stepClass = idx == _currentStep ? "csv-step-active" :
+                                    idx < _currentStep ? "csv-step-done" : "csv-step-pending";
+                    <div class="csv-step @stepClass">
+                        <div class="csv-step-number">@(idx + 1)</div>
+                        <div class="csv-step-label">@step</div>
+                    </div>
+                }
+            </div>
+
+            @* Step content *@
+            <div class="csv-wizard-body">
+                @switch (_currentStep)
+                {
+                    case 0:
+                        @* Step 1: File Upload *@
+                        <div class="csv-upload-zone"
+                             @ondrop="HandleDrop"
+                             @ondragover="HandleDragOver"
+                             @ondragleave="() => _isDragOver = false"
+                             @onclick="OpenFilePicker">
+                            <InputFile OnChange="HandleFileSelected"
+                                       accept=".csv"
+                                       style="display:none"
+                                       @ref="_fileInputComponent" />
+                            <div class="csv-upload-icon">
+                                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                    <polyline points="17 8 12 3 7 8" />
+                                    <line x1="12" y1="3" x2="12" y2="15" />
+                                </svg>
+                            </div>
+                            <p class="csv-upload-text">
+                                <strong>Drag &amp; drop your CSV file here</strong><br />
+                                <span class="csv-upload-hint">or click to browse</span>
+                            </p>
+                            <button type="button" class="csv-btn csv-btn-primary" @onclick="OpenFilePicker">
+                                Browse Files
+                            </button>
+                            @if (_selectedFile is not null)
+                            {
+                                <p class="csv-file-name">📄 @_selectedFile.Name (@FormatFileSize(_selectedFile.Size))</p>
+                            }
+                        </div>
+                        break;
+
+                    case 1:
+                        @* Step 2: Parse & Preview *@
+                        @if (_parseResult is not null)
+                        {
+                            <div class="csv-preview-info">
+                                <span>Detected delimiter: <strong>@GetDelimiterName(_parseResult.Delimiter)</strong></span>
+                                <span>Total rows: <strong>@_parseResult.TotalRows</strong></span>
+                                <span>Columns: <strong>@_parseResult.Headers.Count</strong></span>
+                            </div>
+                            <div class="csv-table-wrapper">
+                                <table class="csv-table">
+                                    <thead>
+                                        <tr>
+                                            @foreach (var header in _parseResult.Headers)
+                                            {
+                                                <th>@header</th>
+                                            }
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var row in _parseResult.PreviewRows)
+                                        {
+                                            <tr>
+                                                @foreach (var cell in row)
+                                                {
+                                                    <td>@cell</td>
+                                                }
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                        break;
+
+                    case 2:
+                        @* Step 3: Column Mapping *@
+                        @if (_parseResult is not null)
+                        {
+                            <p class="csv-section-hint">Map each CSV column to a work item field. At minimum, map the Title column.</p>
+                            <div class="csv-mappings">
+                                @foreach (var field in _fieldMappings)
+                                {
+                                    <div class="csv-mapping-row">
+                                        <label class="csv-mapping-label">@field.Label</label>
+                                        <select class="csv-mapping-select" @bind="field.SelectedColumn">
+                                            <option value="-1">— Not mapped —</option>
+                                            @for (int i = 0; i < _parseResult.Headers.Count; i++)
+                                            {
+                                                <option value="@i">@_parseResult.Headers[i]</option>
+                                            }
+                                        </select>
+                                    </div>
+                                }
+                            </div>
+                        }
+                        break;
+
+                    case 3:
+                        @* Step 4: Validation *@
+                        @if (_validationResult is not null)
+                        {
+                            <div class="csv-validation-summary">
+                                <div class="csv-validation-stat csv-stat-ok">✅ @_validationResult.ValidRowCount valid rows</div>
+                                <div class="csv-validation-stat csv-stat-err">❌ @_validationResult.Errors.Count rows with errors</div>
+                            </div>
+                            @if (_validationResult.Errors.Count > 0)
+                            {
+                                <div class="csv-table-wrapper">
+                                    <table class="csv-table csv-table-errors">
+                                        <thead>
+                                            <tr>
+                                                <th style="width:60px">Row</th>
+                                                <th>Errors</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var err in _validationResult.Errors)
+                                            {
+                                                <tr>
+                                                    <td>@err.RowNumber</td>
+                                                    <td>
+                                                        @foreach (var msg in err.Errors)
+                                                        {
+                                                            <div class="csv-error-msg">⚠ @msg</div>
+                                                        }
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            }
+                        }
+                        break;
+
+                    case 4:
+                        @* Step 5: Import *@
+                        @if (_importResult is not null)
+                        {
+                            <div class="csv-import-summary">
+                                <div class="csv-import-stat">✅ @_importResult.Created items created</div>
+                                @if (_importResult.Skipped > 0)
+                                {
+                                    <div class="csv-import-stat csv-stat-warn">⏭ @_importResult.Skipped items skipped</div>
+                                }
+                                @if (_importResult.Failed > 0)
+                                {
+                                    <div class="csv-import-stat csv-stat-err">❌ @_importResult.Failed items failed</div>
+                                }
+                            </div>
+                            @if (_importResult.Errors.Count > 0)
+                            {
+                                <div class="csv-import-errors">
+                                    <h4>Import Errors</h4>
+                                    @foreach (var err in _importResult.Errors)
+                                    {
+                                        <div class="csv-error-msg">⚠ @err</div>
+                                    }
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <div class="csv-import-progress">
+                                <div class="csv-spinner"></div>
+                                <p>Importing work items...</p>
+                            </div>
+                        }
+                        break;
+                }
+            </div>
+
+            @* Footer actions *@
+            <div class="csv-wizard-footer">
+                <button type="button" class="csv-btn csv-btn-secondary" @onclick="Cancel">
+                    Cancel
+                </button>
+                @if (_currentStep > 0)
+                {
+                    <button type="button" class="csv-btn csv-btn-secondary" @onclick="GoBack">
+                        ← Back
+                    </button>
+                }
+                @if (_currentStep < 4)
+                {
+                    <button type="button" class="csv-btn csv-btn-primary" @onclick="GoNext"
+                            disabled="@(!CanGoNext)">
+                        @(_currentStep == 3 ? "Start Import" : "Next →")
+                    </button>
+                }
+                @if (_currentStep == 4)
+                {
+                    <button type="button" class="csv-btn csv-btn-primary" @onclick="Finish">
+                        Done
+                    </button>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .csv-wizard-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.45);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+    }
+
+    .csv-wizard-dialog {
+        width: 720px;
+        max-width: 95vw;
+        max-height: 85vh;
+        background: var(--surface-bg, #fff);
+        border-radius: 12px;
+        box-shadow: 0 16px 48px rgba(0, 0, 0, 0.18);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .csv-wizard-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 18px 24px;
+        border-bottom: 1px solid var(--border-color, #e0e0e0);
+    }
+
+    .csv-wizard-title {
+        font-size: 18px;
+        font-weight: 600;
+        margin: 0;
+        color: var(--text-primary, #1a1a1a);
+    }
+
+    .csv-wizard-close {
+        background: none;
+        border: none;
+        font-size: 24px;
+        cursor: pointer;
+        color: var(--text-secondary, #888);
+        padding: 0 4px;
+        line-height: 1;
+    }
+
+    .csv-wizard-steps {
+        display: flex;
+        padding: 16px 24px;
+        gap: 8px;
+        border-bottom: 1px solid var(--border-color, #e0e0e0);
+    }
+
+    .csv-step {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex: 1;
+        font-size: 13px;
+    }
+
+    .csv-step-number {
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        font-weight: 700;
+        flex-shrink: 0;
+    }
+
+    .csv-step-active .csv-step-number { background: var(--accent-color, #4f46e5); color: #fff; }
+    .csv-step-done .csv-step-number { background: #22c55e; color: #fff; }
+    .csv-step-pending .csv-step-number { background: var(--surface-secondary, #eee); color: var(--text-secondary, #888); }
+
+    .csv-step-label { color: var(--text-secondary, #888); }
+    .csv-step-active .csv-step-label { color: var(--text-primary, #1a1a1a); font-weight: 500; }
+
+    .csv-wizard-body {
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px 24px;
+    }
+
+    .csv-wizard-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        padding: 14px 24px;
+        border-top: 1px solid var(--border-color, #e0e0e0);
+    }
+
+    .csv-btn {
+        padding: 8px 18px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        border: none;
+        transition: opacity 0.15s;
+    }
+
+    .csv-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .csv-btn-primary { background: var(--accent-color, #4f46e5); color: #fff; }
+    .csv-btn-secondary { background: var(--surface-secondary, #f0f0f0); color: var(--text-primary, #1a1a1a); border: 1px solid var(--border-color, #ddd); }
+
+    .csv-upload-zone {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+        padding: 48px 24px;
+        border: 2px dashed var(--border-color, #ccc);
+        border-radius: 12px;
+        cursor: pointer;
+        text-align: center;
+        transition: border-color 0.2s, background 0.2s;
+    }
+
+    .csv-upload-zone:hover { border-color: var(--accent-color, #4f46e5); background: var(--surface-hover, #f8f8ff); }
+
+    .csv-upload-icon { color: var(--text-tertiary, #aaa); }
+    .csv-upload-text { color: var(--text-secondary, #888); font-size: 14px; line-height: 1.6; }
+    .csv-upload-hint { font-size: 12px; color: var(--text-tertiary, #aaa); }
+    .csv-file-name { font-size: 13px; color: var(--accent-color, #4f46e5); font-weight: 500; }
+
+    .csv-preview-info {
+        display: flex;
+        gap: 16px;
+        font-size: 13px;
+        color: var(--text-secondary, #888);
+        margin-bottom: 12px;
+    }
+
+    .csv-table-wrapper {
+        overflow-x: auto;
+        border: 1px solid var(--border-color, #e0e0e0);
+        border-radius: 8px;
+        max-height: 320px;
+        overflow-y: auto;
+    }
+
+    .csv-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+    }
+
+    .csv-table thead { position: sticky; top: 0; z-index: 1; }
+    .csv-table th {
+        background: var(--surface-secondary, #f5f5f5);
+        padding: 8px 12px;
+        text-align: left;
+        font-weight: 600;
+        color: var(--text-primary, #1a1a1a);
+        border-bottom: 1px solid var(--border-color, #ddd);
+        white-space: nowrap;
+    }
+
+    .csv-table td {
+        padding: 6px 12px;
+        border-bottom: 1px solid var(--border-color-light, #f0f0f0);
+        color: var(--text-primary, #1a1a1a);
+        max-width: 200px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .csv-section-hint { font-size: 13px; color: var(--text-secondary, #888); margin-bottom: 16px; }
+
+    .csv-mappings { display: flex; flex-direction: column; gap: 10px; }
+
+    .csv-mapping-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .csv-mapping-label {
+        width: 140px;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--text-primary, #1a1a1a);
+        flex-shrink: 0;
+    }
+
+    .csv-mapping-select {
+        flex: 1;
+        padding: 6px 10px;
+        border: 1px solid var(--border-color, #ddd);
+        border-radius: 6px;
+        font-size: 13px;
+        background: var(--surface-bg, #fff);
+        color: var(--text-primary, #1a1a1a);
+    }
+
+    .csv-validation-summary {
+        display: flex;
+        gap: 16px;
+        margin-bottom: 16px;
+    }
+
+    .csv-validation-stat,
+    .csv-import-stat {
+        font-size: 14px;
+        font-weight: 500;
+        padding: 8px 14px;
+        border-radius: 8px;
+    }
+
+    .csv-stat-ok { background: #dcfce7; color: #166534; }
+    .csv-stat-err { background: #fef2f2; color: #991b1b; }
+    .csv-stat-warn { background: #fefce8; color: #854d0e; }
+
+    .csv-error-msg { font-size: 12px; color: #991b1b; padding: 2px 0; }
+
+    .csv-import-summary {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+
+    .csv-import-errors { margin-top: 16px; }
+    .csv-import-errors h4 { font-size: 14px; color: var(--text-primary, #1a1a1a); margin-bottom: 8px; }
+
+    .csv-import-progress {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+        padding: 40px;
+        color: var(--text-secondary, #888);
+    }
+
+    .csv-spinner {
+        width: 32px;
+        height: 32px;
+        border: 3px solid var(--border-color, #ddd);
+        border-top-color: var(--accent-color, #4f46e5);
+        border-radius: 50%;
+        animation: csv-spin 0.7s linear infinite;
+    }
+
+    @@keyframes csv-spin { to { transform: rotate(360deg); } }
+
+    /* Dark mode */
+    :global(.dark) .csv-wizard-dialog,
+    :global([data-theme="dark"]) .csv-wizard-dialog {
+        --surface-bg: #1e1e2e;
+        --border-color: #3a3a4a;
+        --border-color-light: #2a2a3a;
+        --text-primary: #e0e0e0;
+        --text-secondary: #999;
+        --text-tertiary: #777;
+        --surface-secondary: #2a2a3a;
+        --surface-hover: #2a2a3a;
+    }
+</style>
