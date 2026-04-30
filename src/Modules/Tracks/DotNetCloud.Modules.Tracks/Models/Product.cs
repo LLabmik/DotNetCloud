@@ -26,4 +26,7 @@ public sealed class Product
     public ICollection<Label> Labels { get; set; } = new List<Label>();
     public ICollection<WorkItem> WorkItems { get; set; } = new List<WorkItem>();
     public ICollection<Activity> Activities { get; set; } = new List<Activity>();
+    public ICollection<CustomField> CustomFields { get; set; } = new List<CustomField>();
+    public ICollection<Milestone> Milestones { get; set; } = new List<Milestone>();
+    public ICollection<RecurringRule> RecurringRules { get; set; } = new List<RecurringRule>();
 }

@@ -42,4 +42,9 @@ public sealed class WorkItem
     public ICollection<Checklist> Checklists { get; set; } = new List<Checklist>();
     public ICollection<PokerSession> PokerSessions { get; set; } = new List<PokerSession>();
     public ICollection<WorkItemWatcher> Watchers { get; set; } = new List<WorkItemWatcher>();
+    public Guid? MilestoneId { get; set; }
+    public Milestone? Milestone { get; set; }
+    public ICollection<WorkItemFieldValue> FieldValues { get; set; } = new List<WorkItemFieldValue>();
+    public Guid? RecurringRuleId { get; set; }
+    public RecurringRule? RecurringRule { get; set; }
 }

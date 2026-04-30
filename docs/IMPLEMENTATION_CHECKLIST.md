@@ -4687,3 +4687,42 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `GetProductDashboardAsync` in AnalyticsService
 - ✓ Dashboard API endpoint (GET /api/v1/products/{productId}/dashboard)
 - ✓ API client method: `GetProductDashboardAsync`
+
+---
+
+## Tracks Professionalization — Phase D
+
+### D-1: Custom Fields
+- ✓ `CustomField` entity with EF config + migration (tracks schema)
+- ✓ `WorkItemFieldValue` entity with EF config + migration (composite unique index)
+- ✓ `CustomFieldType` enum in DTOs (Text, Number, Date, SingleSelect, MultiSelect, User)
+- ✓ `CustomFieldDto`, `CreateCustomFieldDto`, `UpdateCustomFieldDto`, `WorkItemFieldValueDto`, `SetFieldValueDto`, `BatchSetFieldValuesDto`
+- ✓ `CustomFieldService`: CRUD field definitions, get/set/batch field values, validation
+- ✓ `CustomFieldsController`: `GET/POST/PUT/DELETE /api/v1/products/{id}/custom-fields`
+- ✓ Field value endpoints: `GET/PUT/DELETE /api/v1/work-items/{id}/custom-field-values`
+- ✓ Field type validation: required fields, type validation, select options validated
+- ✓ `WorkItemDto` extended with `CustomFields` list and `MilestoneId`
+- ✓ `Product` entity extended with `CustomFields` navigation property
+- ✓ `WorkItem` entity extended with `FieldValues` and `MilestoneId` navigation properties
+
+### D-2: Milestones
+- ✓ `Milestone` entity with EF config + migration (tracks schema)
+- ✓ `MilestoneStatus` enum in DTOs (Upcoming, Active, Completed)
+- ✓ `MilestoneDto`, `CreateMilestoneDto`, `UpdateMilestoneDto`, `SetMilestoneStatusDto`
+- ✓ `MilestoneService`: CRUD, status transitions, work item counting, progress tracking
+- ✓ `MilestonesController`: `GET/POST/PUT/DELETE /api/v1/products/{id}/milestones`
+- ✓ Status endpoint: `PUT /api/v1/milestones/{id}/status`
+- ✓ Work items linkable to milestones via `MilestoneId` in `UpdateWorkItemDto`
+- ✓ `Product` entity extended with `Milestones` navigation property
+
+### D-3: Recurring Work Items
+- ✓ `RecurringRule` entity with EF config + migration (tracks schema)
+- ✓ `RecurringRuleDto`, `CreateRecurringRuleDto`, `UpdateRecurringRuleDto`
+- ✓ `RecurringWorkItemService`: CRUD rules + `ProcessDueRecurringItemsAsync()`
+- ✓ `RecurringWorkItemBackgroundService`: runs every 15 minutes via `PeriodicTimer`
+- ✓ `RecurringRulesController`: `GET/POST/PUT/DELETE /api/v1/products/{id}/recurring-rules`
+- ✓ Manual trigger endpoint: `POST /api/v1/recurring-rules/process`
+- ✓ Cron expression parsing via `Cronos` NuGet package
+- ✓ Template JSON support: title, description, priority, storyPoints, labels, assigneeIds
+- ✓ Created work items link back to rule via `RecurringRuleId`
+- ✓ `Product` entity extended with `RecurringRules` navigation property

@@ -37,6 +37,10 @@ public class TracksDbContext : DbContext
     public DbSet<ReviewSessionParticipant> ReviewSessionParticipants => Set<ReviewSessionParticipant>();
     public DbSet<WorkItemWatcher> WorkItemWatchers => Set<WorkItemWatcher>();
     public DbSet<CustomView> CustomViews => Set<CustomView>();
+    public DbSet<CustomField> CustomFields => Set<CustomField>();
+    public DbSet<WorkItemFieldValue> WorkItemFieldValues => Set<WorkItemFieldValue>();
+    public DbSet<Milestone> Milestones => Set<Milestone>();
+    public DbSet<RecurringRule> RecurringRules => Set<RecurringRule>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

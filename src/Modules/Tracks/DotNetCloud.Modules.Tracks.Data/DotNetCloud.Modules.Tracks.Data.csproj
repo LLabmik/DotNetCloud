@@ -22,6 +22,7 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="Cronos" />
     <!-- TODO: Add Pomelo.EntityFrameworkCore.MySql when .NET 10 compatible version is released -->
   </ItemGroup>
 

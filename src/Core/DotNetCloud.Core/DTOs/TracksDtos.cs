@@ -12,6 +12,8 @@ public enum PokerSessionStatus { Voting, Revealed, Completed, Cancelled }
 public enum PokerScale { Fibonacci, TShirt, PowersOfTwo, Custom }
 public enum ReviewSessionStatus { Active, Paused, Ended }
 public enum TracksTeamMemberRole { Member, Manager, Owner }
+public enum CustomFieldType { Text, Number, Date, SingleSelect, MultiSelect, User }
+public enum MilestoneStatus { Upcoming, Active, Completed }
 
 // ─── Response DTOs ────────────────────────────────────────────────────────
 
@@ -86,6 +88,9 @@ public sealed record WorkItemDto
     public Guid? SprintId { get; init; }
     public string? SprintTitle { get; init; }
     public int? TotalTrackedMinutes { get; init; }
+    public Guid? MilestoneId { get; init; }
+    public string? MilestoneTitle { get; init; }
+    public List<WorkItemFieldValueDto> CustomFields { get; init; } = new();
     public required string ETag { get; init; }
     public required DateTime CreatedAt { get; init; }
     public required DateTime UpdatedAt { get; init; }
@@ -524,6 +529,7 @@ public sealed record UpdateWorkItemDto
     public DateTime? DueDate { get; init; }
     public int? StoryPoints { get; init; }
     public bool? IsArchived { get; init; }
+    public Guid? MilestoneId { get; init; }
     public string? ETag { get; init; }
 }
 
@@ -687,4 +693,145 @@ public sealed record CustomViewDto
     public bool IsShared { get; init; }
     public required DateTime CreatedAt { get; init; }
     public required DateTime UpdatedAt { get; init; }
+}
+
+// ─── Custom Fields ──────────────────────────────────────────────────────
+
+/// <summary>DTO for a custom field definition.</summary>
+public sealed record CustomFieldDto
+{
+    public required Guid Id { get; init; }
+    public required Guid ProductId { get; init; }
+    public required string Name { get; init; }
+    public CustomFieldType Type { get; init; }
+    public string? OptionsJson { get; init; }
+    public bool IsRequired { get; init; }
+    public int Position { get; init; }
+    public required DateTime CreatedAt { get; init; }
+    public required DateTime UpdatedAt { get; init; }
+}
+
+/// <summary>Request DTO for creating a custom field.</summary>
+public sealed record CreateCustomFieldDto
+{
+    public required string Name { get; init; }
+    public CustomFieldType Type { get; init; } = CustomFieldType.Text;
+    public string? OptionsJson { get; init; }
+    public bool IsRequired { get; init; }
+}
+
+/// <summary>Request DTO for updating a custom field.</summary>
+public sealed record UpdateCustomFieldDto
+{
+    public string? Name { get; init; }
+    public CustomFieldType? Type { get; init; }
+    public string? OptionsJson { get; init; }
+    public bool? IsRequired { get; init; }
+}
+
+/// <summary>DTO for a work item field value.</summary>
+public sealed record WorkItemFieldValueDto
+{
+    public required Guid Id { get; init; }
+    public required Guid WorkItemId { get; init; }
+    public required Guid CustomFieldId { get; init; }
+    public string? CustomFieldName { get; init; }
+    public CustomFieldType FieldType { get; init; }
+    public string? Value { get; init; }
+    public required DateTime UpdatedAt { get; init; }
+}
+
+/// <summary>Request DTO for setting a custom field value.</summary>
+public sealed record SetFieldValueDto
+{
+    public required Guid CustomFieldId { get; init; }
+    public string? Value { get; init; }
+}
+
+/// <summary>Request DTO for batch updating field values on a work item.</summary>
+public sealed record BatchSetFieldValuesDto
+{
+    public required List<SetFieldValueDto> FieldValues { get; init; } = new();
+}
+
+// ─── Milestones ─────────────────────────────────────────────────────────
+
+/// <summary>DTO for a product milestone.</summary>
+public sealed record MilestoneDto
+{
+    public required Guid Id { get; init; }
+    public required Guid ProductId { get; init; }
+    public required string Title { get; init; }
+    public string? Description { get; init; }
+    public DateTime? DueDate { get; init; }
+    public MilestoneStatus Status { get; init; }
+    public string? Color { get; init; }
+    public int WorkItemCount { get; init; }
+    public int CompletedWorkItemCount { get; init; }
+    public required DateTime CreatedAt { get; init; }
+    public required DateTime UpdatedAt { get; init; }
+}
+
+/// <summary>Request DTO for creating a milestone.</summary>
+public sealed record CreateMilestoneDto
+{
+    public required string Title { get; init; }
+    public string? Description { get; init; }
+    public DateTime? DueDate { get; init; }
+    public string? Color { get; init; }
+}
+
+/// <summary>Request DTO for updating a milestone.</summary>
+public sealed record UpdateMilestoneDto
+{
+    public string? Title { get; init; }
+    public string? Description { get; init; }
+    public DateTime? DueDate { get; init; }
+    public string? Color { get; init; }
+}
+
+/// <summary>Request DTO for setting a milestone status.</summary>
+public sealed record SetMilestoneStatusDto
+{
+    public required MilestoneStatus Status { get; init; }
+}
+
+// ─── Recurring Rules ────────────────────────────────────────────────────
+
+/// <summary>DTO for a recurring work item rule.</summary>
+public sealed record RecurringRuleDto
+{
+    public required Guid Id { get; init; }
+    public required Guid ProductId { get; init; }
+    public required Guid SwimlaneId { get; init; }
+    public string? SwimlaneTitle { get; init; }
+    public WorkItemType Type { get; init; }
+    public required string TemplateJson { get; init; }
+    public required string CronExpression { get; init; }
+    public DateTime NextRunAt { get; init; }
+    public bool IsActive { get; init; }
+    public DateTime? LastRunAt { get; init; }
+    public required Guid CreatedByUserId { get; init; }
+    public required DateTime CreatedAt { get; init; }
+    public required DateTime UpdatedAt { get; init; }
+}
+
+/// <summary>Request DTO for creating a recurring rule.</summary>
+public sealed record CreateRecurringRuleDto
+{
+    public required Guid SwimlaneId { get; init; }
+    public WorkItemType Type { get; init; } = WorkItemType.Item;
+    public required string TemplateJson { get; init; }
+    public required string CronExpression { get; init; }
+    public bool IsActive { get; init; } = true;
+}
+
+/// <summary>Request DTO for updating a recurring rule.</summary>
+public sealed record UpdateRecurringRuleDto
+{
+    public Guid? SwimlaneId { get; init; }
+    public WorkItemType? Type { get; init; }
+    public string? TemplateJson { get; init; }
+    public string? CronExpression { get; init; }
+    public bool? IsActive { get; init; }
 }

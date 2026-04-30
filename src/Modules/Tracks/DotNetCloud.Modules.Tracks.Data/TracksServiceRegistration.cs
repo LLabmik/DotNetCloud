@@ -38,12 +38,16 @@ public static class TracksServiceRegistration
         services.AddScoped<ItemTemplateService>();
         services.AddScoped<ProductTemplateService>();
         services.AddScoped<CustomViewService>();
+        services.AddScoped<CustomFieldService>();
+        services.AddScoped<MilestoneService>();
+        services.AddScoped<RecurringWorkItemService>();
 
         // Cross-module services
         services.AddScoped<ICardAttachmentCleanupService, AttachmentCleanupService>();
 
         // Background services
         services.AddHostedService<ProductCleanupBackgroundService>();
+        services.AddHostedService<RecurringWorkItemBackgroundService>();
 
         return services;
     }
