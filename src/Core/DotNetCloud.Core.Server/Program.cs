@@ -1,9 +1,12 @@
 using DotNetCloud.Core.Auth.Extensions;
 using DotNetCloud.Core.Data.Context;
+using DotNetCloud.Core.Data.Services;
 using DotNetCloud.Core.Data.Extensions;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Data.Initialization;
 using DotNetCloud.Core.Localization;
+using DotNetCloud.Core.Modules;
+using DotNetCloud.Core.Schema.Services;
 using DotNetCloud.Core.Server.Configuration;
 using DotNetCloud.Core.Server.Extensions;
 using DotNetCloud.Core.Server.HealthChecks;
@@ -241,9 +244,9 @@ public class Program
         builder.Services.AddDbContext<SearchDbContext>(options =>
             ConfigureModuleDbContext(options, provider, connectionString));
 
-        // Register schema services for lazy module schema creation
-        builder.Services.AddSingleton<DbContextSchemaProvider>();
-        builder.Services.AddSingleton<ModuleSchemaService>();
+        // Register schema services for lazy module schema creation.
+        // SelfManagedSchemaProvider and ModuleSchemaService are registered by AddDotNetCloudDbContext.
+        builder.Services.AddSingleton<IModuleSchemaProvider, DbContextSchemaProvider>();
 
         builder.Services.AddFilesServices(builder.Configuration);
         builder.Services.AddChatServices(builder.Configuration);

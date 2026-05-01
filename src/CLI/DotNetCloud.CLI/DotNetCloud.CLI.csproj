@@ -22,6 +22,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\Core\DotNetCloud.Core\DotNetCloud.Core.csproj" />
     <ProjectReference Include="..\..\Core\DotNetCloud.Core.Data\DotNetCloud.Core.Data.csproj" />
+    <ProjectReference Include="..\..\Core\DotNetCloud.Core.Schema\DotNetCloud.Core.Schema.csproj" />
     <ProjectReference Include="..\..\Core\DotNetCloud.Core.ServiceDefaults\DotNetCloud.Core.ServiceDefaults.csproj" />
   </ItemGroup>
 

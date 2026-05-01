@@ -4970,6 +4970,12 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `ProcessSupervisor.SyncDiscoveredModulesToDatabaseAsync` — set `IsRequired` on newly discovered module records
 - ✓ `ModuleCommands` — guard stop/uninstall for required modules (already in Phase 3)
 - ✓ `SetupCommand` — use `RequiredModules.ModuleIds`, guard disabling required modules (already in Phase 3)
-### Phase 6 — install.sh ☐
+### Phase 6 — install.sh ✓
+- ✓ Create `DotNetCloud.Core.Schema` project to host `DbContextSchemaProvider`
+- ✓ Move `ModuleSchemaService` to `Core.Data` with `IEnumerable<IModuleSchemaProvider>` dispatch
+- ✓ Add `--migrate-only` flag to `SetupCommand` (mutually exclusive with `--beginner`)
+- ✓ `RunMigrateOnlyAsync` applies core migrations, syncs module registry, and initializes module schemas
+- ✓ Register `DbContextSchemaProvider` via `IModuleSchemaProvider` in both CLI `ServiceProviderFactory` and server `Program.cs`
+- ✓ Update `install.sh` fallback warning
 ### Phase 7 — Update Example module ☐
 

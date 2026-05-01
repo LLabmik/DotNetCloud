@@ -31,6 +31,9 @@ public static class Program
         // Setup wizard
         rootCommand.Subcommands.Add(SetupCommand.Create());
 
+        // Database migrations
+        rootCommand.Subcommands.Add(MigrateCommand.Create());
+
         // Service lifecycle
         rootCommand.Subcommands.Add(ServiceCommands.CreateStart());
         rootCommand.Subcommands.Add(ServiceCommands.CreateStop());

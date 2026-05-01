@@ -1,7 +1,7 @@
 using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Core.Data.Entities.Modules;
 using DotNetCloud.Core.Modules;
-using DotNetCloud.Core.Server.Services;
+using DotNetCloud.Core.Data.Services;
 using DotNetCloud.UI.Web.Services;
 using Microsoft.EntityFrameworkCore;
 

@@ -111,14 +111,15 @@ sudo chown -R dotnetcloud:dotnetcloud /opt/dotnetcloud
 
 #### Step 4: Run Database Migrations
 
-Migrations run automatically on startup, but you can run them explicitly:
+Migrations run automatically on startup, but you can run them explicitly before restarting
+to avoid a slow first request while schemas are applied:
 
 ```bash
-sudo -u dotnetcloud dotnetcloud setup \
-  --db-provider postgresql \
-  --connection-string "Host=localhost;Database=dotnetcloud;Username=dotnetcloud;Password=your-password" \
-  --migrate-only
+sudo -u dotnetcloud dotnetcloud migrate
 ```
+
+This applies pending migrations for the core schema and all installed modules.
+Equivalent to `dotnetcloud setup --migrate-only`.
 
 #### Step 5: Start the Service
 
@@ -192,7 +193,7 @@ Expand-Archive "$env:TEMP\dotnetcloud-${Version}.zip" -DestinationPath "C:\DotNe
 
 ```powershell
 Set-Location "C:\DotNetCloud\cli"
-.\dotnetcloud.exe setup --migrate-only
+.\dotnetcloud.exe migrate
 ```
 
 #### Step 5: Start the Service
@@ -265,7 +266,7 @@ If you prefer to apply migrations manually (recommended for large production dat
 2. Run migrations:
 
    ```bash
-   dotnetcloud setup --migrate-only
+   dotnetcloud migrate
    ```
 
 3. Start the service

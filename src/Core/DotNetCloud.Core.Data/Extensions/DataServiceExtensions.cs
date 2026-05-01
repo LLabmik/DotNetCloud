@@ -2,6 +2,7 @@ using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Core.Data.Initialization;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Data.Services;
+using DotNetCloud.Core.Modules;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -41,8 +42,9 @@ public static class DataServiceExtensions
         // Register DbInitializer
         services.AddScoped<DbInitializer>();
 
-        // Register schema services (SelfManagedSchemaProvider has no module dependencies)
-        services.AddSingleton<SelfManagedSchemaProvider>();
+        // Register schema services
+        services.AddSingleton<IModuleSchemaProvider, SelfManagedSchemaProvider>();
+        services.AddSingleton<ModuleSchemaService>();
 
         return services;
     }

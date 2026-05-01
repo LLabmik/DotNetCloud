@@ -10,6 +10,7 @@
       "src\\Core\\DotNetCloud.Core.Data\\DotNetCloud.Core.Data.csproj",
       "src\\Core\\DotNetCloud.Core.Data.SqlServer\\DotNetCloud.Core.Data.SqlServer.csproj",
       "src\\Core\\DotNetCloud.Core.Grpc\\DotNetCloud.Core.Grpc.csproj",
+      "src\\Core\\DotNetCloud.Core.Schema\\DotNetCloud.Core.Schema.csproj",
       "src\\Core\\DotNetCloud.Core.Server\\DotNetCloud.Core.Server.csproj",
       "src\\Core\\DotNetCloud.Core.ServiceDefaults\\DotNetCloud.Core.ServiceDefaults.csproj",
       "src\\Modules\\Chat\\DotNetCloud.Modules.Chat\\DotNetCloud.Modules.Chat.csproj",

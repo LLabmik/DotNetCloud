@@ -95,4 +95,13 @@ public class SetupCommandTests
 
         Assert.IsNotNull(option, "Expected --beginner option");
     }
+
+    [TestMethod]
+    public void Create_HasMigrateOnlyOption()
+    {
+        var command = SetupCommand.Create();
+        var option = command.Options.FirstOrDefault(o => o.Name == "--migrate-only");
+
+        Assert.IsNotNull(option, "Expected --migrate-only option");
+    }
 }

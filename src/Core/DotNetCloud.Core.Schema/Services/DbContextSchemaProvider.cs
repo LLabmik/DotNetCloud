@@ -16,7 +16,7 @@ using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-namespace DotNetCloud.Core.Server.Services;
+namespace DotNetCloud.Core.Schema.Services;
 
 /// <summary>
 /// Core-managed schema provider. Resolves a module's DbContext from DI and

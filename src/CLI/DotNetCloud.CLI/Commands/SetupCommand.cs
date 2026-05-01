@@ -30,11 +30,29 @@ internal static class SetupCommand
         {
             Description = "Use the recommended beginner-friendly setup for a local/home server install"
         };
+        var migrateOnlyOption = new Option<bool>("--migrate-only")
+        {
+            Description = "Apply pending database schema changes and exit. Run this after upgrading to bring the database up to date before starting the service. This is optional — the server applies migrations automatically on startup if you skip it. Equivalent to the standalone 'migrate' command."
+        };
 
         command.Options.Add(beginnerOption);
+        command.Options.Add(migrateOnlyOption);
         command.SetAction(parseResult =>
         {
             var beginnerMode = parseResult.GetValue(beginnerOption);
+            var migrateOnly = parseResult.GetValue(migrateOnlyOption);
+
+            if (beginnerMode && migrateOnly)
+            {
+                ConsoleOutput.WriteError("--beginner and --migrate-only cannot be used together.");
+                return Task.FromResult(1);
+            }
+
+            if (migrateOnly)
+            {
+                return RunMigrateOnlyAsync();
+            }
+
             return RunSetupWizardAsync(beginnerMode);
         });
         return command;
@@ -784,6 +802,92 @@ internal static class SetupCommand
                 config.EnableHttps ? config.HttpsPort : null,
                 config.EnableHttps);
         }
+
+        return 0;
+    }
+
+    /// <summary>
+    /// Non-interactive database migration and module registry sync.
+    /// Applies pending core migrations, syncs the enabled module list,
+    /// and ensures module schemas are created or migrated.
+    /// </summary>
+    internal static async Task<int> RunMigrateOnlyAsync()
+    {
+        ConsoleOutput.WriteHeader("DotNetCloud Database Migration");
+
+        if (!CliConfiguration.ConfigExists())
+        {
+            ConsoleOutput.WriteError("No configuration found. Run 'dotnetcloud setup --beginner' first.");
+            return 1;
+        }
+
+        var config = CliConfiguration.Load();
+
+        if (string.IsNullOrWhiteSpace(config.ConnectionString))
+        {
+            ConsoleOutput.WriteError("No database connection string configured.");
+            return 1;
+        }
+
+        await using var provider = ServiceProviderFactory.CreateFromConnectionString(config.ConnectionString);
+        if (provider is null)
+        {
+            ConsoleOutput.WriteError("Could not connect to the database. Check your connection string.");
+            return 1;
+        }
+
+        try
+        {
+            using var scope = provider.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<DotNetCloud.Core.Data.Context.CoreDbContext>();
+
+            ConsoleOutput.WriteInfo("Applying core database migrations...");
+            var pending = await db.Database.GetPendingMigrationsAsync();
+            if (pending.Any())
+            {
+                ConsoleOutput.WriteInfo($"Found {pending.Count()} pending migration(s).");
+                await db.Database.MigrateAsync();
+                ConsoleOutput.WriteSuccess("Core database migrations applied.");
+            }
+            else
+            {
+                ConsoleOutput.WriteSuccess("Core database is up to date (no pending migrations).");
+            }
+        }
+        catch (Exception ex)
+        {
+            ConsoleOutput.WriteError($"Database migration failed: {ex.Message}");
+            return 1;
+        }
+
+        await SyncEnabledModulesToDatabaseAsync(config);
+
+        // Ensure module schemas are created or migrated for all enabled modules.
+        try
+        {
+            var schemaService = provider.GetRequiredService<DotNetCloud.Core.Data.Services.ModuleSchemaService>();
+
+            using var scope = provider.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<DotNetCloud.Core.Data.Context.CoreDbContext>();
+            var installedModules = await db.InstalledModules
+                .Where(m => m.Status == "Enabled")
+                .ToListAsync();
+
+            foreach (var module in installedModules)
+            {
+                ConsoleOutput.WriteInfo($"Ensuring schema for module {module.ModuleId}...");
+                await schemaService.EnsureModuleSchemaAsync(module.ModuleId);
+            }
+
+            ConsoleOutput.WriteSuccess("Module schemas initialized.");
+        }
+        catch (Exception ex)
+        {
+            ConsoleOutput.WriteWarning($"Module schema initialization failed: {ex.Message}");
+            ConsoleOutput.WriteInfo("Module schemas will be initialized on server startup.");
+        }
+
+        ConsoleOutput.WriteSuccess("Database migration complete.");
 
         return 0;
     }

@@ -100,6 +100,7 @@
 | Required Modules Schema 3   | 12      | 12        | 0           | 0       |
 | Required Modules Schema 4   | 1       | 1         | 0           | 0       |
 | Required Modules Schema 5   | 3       | 3         | 0           | 0       |
+| Required Modules Schema 6   | 8       | 8         | 0           | 0       |
 | Phase 4.9                   | 42      | 42        | 0           | 0       |
 | Phase 4.10 — Hierarchy      | 17      | 14        | 0           | 3       |
 | Phase 5-8                   | Summary | 10        | 0           | 0       |
@@ -3421,3 +3422,11 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 - ✓ `SetupCommand` — use `RequiredModules.ModuleIds`, guard disabling required modules (completed in Phase 3)
 
 **Notes:** Phase 5 complete. The remaining gaps from previous phases are now closed: the admin API now rejects stop requests for required modules with a proper error code, the process supervisor now sets `IsRequired` when auto-registering discovered modules, and the CLI guards for stop/uninstall were already wired in Phase 3. Build passes with 0 errors; all core tests pass (612 total, 0 failures).
+
+### Step: req-modules-schema-6 — install.sh
+**Status:** completed ✓
+**Deliverables:**
+- ✓ `SetupCommand` — `--migrate-only` flag implemented: non-interactive core database migration and module registry sync
+- ✓ `install.sh` — fallback warning updated to remove "not yet implemented" text
+
+**Notes:** Phase 6 complete. Key architectural changes: (1) Created new `DotNetCloud.Core.Schema` project to host `DbContextSchemaProvider`, breaking the dependency on `Core.Server` for schema operations. The new project references all 11 module Data projects (one-way, no circular dependency). (2) Moved `ModuleSchemaService` to `Core.Data.Services` and changed it to use `IEnumerable<IModuleSchemaProvider>` via DI instead of concrete types. Both `SelfManagedSchemaProvider` (in `Core.Data`) and `DbContextSchemaProvider` (in `Core.Schema`) implement `IModuleSchemaProvider` and are registered by their respective hosts. (3) `--migrate-only` flag now fully applies pending core migrations, syncs the module registry, and initializes module schemas via `ModuleSchemaService.EnsureModuleSchemaAsync` — matching the server startup path. Build passes with 0 errors; all tests pass (CLI: 120, Core.Data: 177, Core: 435, Core.Server: 570).

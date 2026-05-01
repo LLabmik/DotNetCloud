@@ -41,6 +41,7 @@
     <ProjectReference Include="..\DotNetCloud.Core.Auth\DotNetCloud.Core.Auth.csproj" />
     <ProjectReference Include="..\DotNetCloud.Core.Data\DotNetCloud.Core.Data.csproj" />
     <ProjectReference Include="..\DotNetCloud.Core.Grpc\DotNetCloud.Core.Grpc.csproj" />
+    <ProjectReference Include="..\DotNetCloud.Core.Schema\DotNetCloud.Core.Schema.csproj" />
     <ProjectReference Include="..\DotNetCloud.Core.ServiceDefaults\DotNetCloud.Core.ServiceDefaults.csproj" />
     <ProjectReference Include="..\..\Modules\Calendar\DotNetCloud.Modules.Calendar.Data\DotNetCloud.Modules.Calendar.Data.csproj" />
     <ProjectReference Include="..\..\Modules\Calendar\DotNetCloud.Modules.Calendar.Host\DotNetCloud.Modules.Calendar.Host.csproj" />

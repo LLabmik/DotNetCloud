@@ -1,5 +1,7 @@
 using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Core.Data.Extensions;
+using DotNetCloud.Core.Modules;
+using DotNetCloud.Core.Schema.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -37,6 +39,7 @@ internal static class ServiceProviderFactory
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddDotNetCloudDbContext(config.ConnectionString);
+        services.AddSingleton<IModuleSchemaProvider, DbContextSchemaProvider>();
 
         return services.BuildServiceProvider();
     }
@@ -54,6 +57,7 @@ internal static class ServiceProviderFactory
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddDotNetCloudDbContext(connectionString);
+        services.AddSingleton<IModuleSchemaProvider, DbContextSchemaProvider>();
 
         return services.BuildServiceProvider();
     }

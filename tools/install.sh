@@ -652,10 +652,10 @@ post_upgrade() {
     # Run as root (this script already has root). The CLI's SudoHelper detects
     # root via geteuid() and skips sudo re-exec. Migrations only need database
     # access (from config), not service-user filesystem ownership.
-    if "${INSTALL_DIR}/dotnetcloud" setup --migrate-only 2>/dev/null; then
+    if "${INSTALL_DIR}/dotnetcloud" migrate 2>/dev/null; then
         ok "Database migrations complete."
     else
-        warn "Database migration skipped (--migrate-only not yet implemented or no migrations needed)."
+        warn "Database migration skipped (migrations will run automatically on next startup)."
         warn "Migrations will run automatically on next startup."
     fi
 
