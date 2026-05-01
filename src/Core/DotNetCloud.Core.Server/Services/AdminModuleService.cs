@@ -195,6 +195,7 @@ internal sealed class AdminModuleService : IAdminModuleService
             Version = entity.Version,
             Status = entity.Status,
             InstalledAt = entity.InstalledAt,
+            IsRequired = entity.IsRequired,
             GrantedCapabilities = entity.CapabilityGrants?
                 .Select(MapGrantToDto)
                 .ToList() ?? [],

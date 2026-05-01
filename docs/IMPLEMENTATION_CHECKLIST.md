@@ -4962,7 +4962,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Add `"schemaProvider": "self"` to Example module manifest.json
 - ✓ Build passes with 0 errors; all 18 test projects pass (5,104 tests, 0 failures)
 
-### Phase 4 — Seeding and DTO mapping ☐
+### Phase 4 — Seeding and DTO mapping ✓
 ### Phase 5 — Enforcement in API, CLI, and supervisor ☐
 ### Phase 6 — install.sh ☐
 ### Phase 7 — Update Example module ☐

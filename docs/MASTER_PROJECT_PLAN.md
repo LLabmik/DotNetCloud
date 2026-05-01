@@ -98,6 +98,7 @@
 | Required Modules Schema 1   | 5       | 5         | 0           | 0       |
 | Required Modules Schema 2   | 17      | 17        | 0           | 0       |
 | Required Modules Schema 3   | 12      | 12        | 0           | 0       |
+| Required Modules Schema 4   | 1       | 1         | 0           | 0       |
 | Phase 4.9                   | 42      | 42        | 0           | 0       |
 | Phase 4.10 — Hierarchy      | 17      | 14        | 0           | 3       |
 | Phase 5-8                   | Summary | 10        | 0           | 0       |
@@ -3399,4 +3400,12 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 - ✓ Add `"schemaProvider": "core"` to all 5 first-party `manifest.json` files (Contacts, Calendar, Notes, AI, Tracks)
 - ✓ Add `"schemaProvider": "self"` to Example module `manifest.json`
 
-**Notes:** Phase 3 complete — the key architectural change. Module database schemas are now created lazily when modules are installed, not unconditionally on server startup. The core server queries `InstalledModules` and only migrates schemas for installed modules. First-party modules use `DbContextSchemaProvider` (EF migrations driven by core). Third-party modules use `SelfManagedSchemaProvider` (self-migrate on startup). CLI commands set `IsRequired` and guard required modules but defer schema creation to server startup (CLI doesn't reference module projects). All test projects pass (5,104 tests, 0 failures). Phases 4-7 remain pending.
+**Notes:** Phase 3 complete — the key architectural change. Module database schemas are now created lazily when modules are installed, not unconditionally on server startup. The core server queries `InstalledModules` and only migrates schemas for installed modules. First-party modules use `DbContextSchemaProvider` (EF migrations driven by core). Third-party modules use `SelfManagedSchemaProvider` (self-migrate on startup). CLI commands set `IsRequired` and guard required modules but defer schema creation to server startup (CLI doesn't reference module projects). All test projects pass (5,104 tests, 0 failures). Phases 5-7 remain pending.
+
+### Step: req-modules-schema-4 — Seeding and DTO mapping
+**Status:** completed ✓
+**Deliverables:**
+- ✓ `SeedKnownModulesAsync` already sets `IsRequired` via `RequiredModules.IsRequired` (completed in Phase 3)
+- ✓ `AdminModuleService.MapToDto` maps `IsRequired = entity.IsRequired` to `ModuleDto`
+
+**Notes:** Phase 4 complete. The only code change was adding `IsRequired = entity.IsRequired` to the DTO mapping in `AdminModuleService.MapToDto`. The seeding path (`SeedKnownModulesAsync`) was already handled in Phase 3. `ModuleDto.IsRequired` was added in Phase 1. Build passes with 0 errors; all tests pass.
