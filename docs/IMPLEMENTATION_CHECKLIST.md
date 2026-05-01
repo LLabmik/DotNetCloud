@@ -4977,5 +4977,12 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `RunMigrateOnlyAsync` applies core migrations, syncs module registry, and initializes module schemas
 - ✓ Register `DbContextSchemaProvider` via `IModuleSchemaProvider` in both CLI `ServiceProviderFactory` and server `Program.cs`
 - ✓ Update `install.sh` fallback warning
-### Phase 7 — Update Example module ☐
+### Phase 7 — Update Example module ✓
+- ✓ Add `"schemaProvider": "self"` to Example module `manifest.json` (already present)
+- ✓ Update `ExampleDbContext` to inject `ITableNamingStrategy` and call `HasDefaultSchema`
+- ✓ Update `Program.cs` for self-managed migration pattern (`async Task Main`, env var, in-memory fallback)
+- ✓ Add `Npgsql.EntityFrameworkCore.PostgreSQL` and `Microsoft.EntityFrameworkCore.Design` package references
+- ✓ Create `ExampleDbContextFactory` for design-time EF tooling
+- ✓ Add EF `InitialCreate` migration for the `example` schema
+- ✓ Update `README.md` with schema management documentation
 

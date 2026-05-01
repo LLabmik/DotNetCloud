@@ -101,6 +101,7 @@
 | Required Modules Schema 4   | 1       | 1         | 0           | 0       |
 | Required Modules Schema 5   | 3       | 3         | 0           | 0       |
 | Required Modules Schema 6   | 8       | 8         | 0           | 0       |
+| Required Modules Schema 7   | 7       | 7         | 0           | 0       |
 | Phase 4.9                   | 42      | 42        | 0           | 0       |
 | Phase 4.10 — Hierarchy      | 17      | 14        | 0           | 3       |
 | Phase 5-8                   | Summary | 10        | 0           | 0       |
@@ -3430,3 +3431,17 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 - ✓ `install.sh` — fallback warning updated to remove "not yet implemented" text
 
 **Notes:** Phase 6 complete. Key architectural changes: (1) Created new `DotNetCloud.Core.Schema` project to host `DbContextSchemaProvider`, breaking the dependency on `Core.Server` for schema operations. The new project references all 11 module Data projects (one-way, no circular dependency). (2) Moved `ModuleSchemaService` to `Core.Data.Services` and changed it to use `IEnumerable<IModuleSchemaProvider>` via DI instead of concrete types. Both `SelfManagedSchemaProvider` (in `Core.Data`) and `DbContextSchemaProvider` (in `Core.Schema`) implement `IModuleSchemaProvider` and are registered by their respective hosts. (3) `--migrate-only` flag now fully applies pending core migrations, syncs the module registry, and initializes module schemas via `ModuleSchemaService.EnsureModuleSchemaAsync` — matching the server startup path. Build passes with 0 errors; all tests pass (CLI: 120, Core.Data: 177, Core: 435, Core.Server: 570).
+
+### Step: req-modules-schema-7 — Update Example Module as third-party reference
+**Status:** completed ✓
+**Deliverables:**
+- ✓ `manifest.json` — `"schemaProvider": "self"` already present
+- ✓ `ExampleDbContext` — inject `ITableNamingStrategy`, call `HasDefaultSchema` for self-managed schema
+- ✓ `Program.cs` — `async Task Main`, register naming strategy, read `DOTNETCLOUD_CONNECTION_STRING`, in-memory fallback, `MigrateAsync()` on startup
+- ✓ `DotNetCloud.Modules.Example.Host.csproj` — add `Npgsql.EntityFrameworkCore.PostgreSQL` package reference
+- ✓ `DotNetCloud.Modules.Example.Data.csproj` — add `Microsoft.EntityFrameworkCore.Design` package reference
+- ✓ `ExampleDbContextFactory` — design-time factory for EF Core CLI tools
+- ✓ EF `InitialCreate` migration — creates `example` schema with `Notes` table
+- ✓ `README.md` — document schema management: `schemaProvider`, `ITableNamingStrategy`, connection string, self-migrate pattern, in-memory fallback
+
+**Notes:** Phase 7 complete. The Example module is now the reference implementation for third-party module developers demonstrating the self-managed schema pattern. Key patterns: `"schemaProvider": "self"` in manifest prevents core from trying to migrate the module; `ITableNamingStrategy.GetSchemaForModule("example")` returns `"example"` schema; `DOTNETCLOUD_CONNECTION_STRING` env var is set by core server's `ProcessSupervisor`; module self-migrates on startup via `MigrateAsync()`; migration history table is scoped to `example` schema to avoid collisions; in-memory fallback for local development. Build passes with 0 errors; all 51 Example module tests pass.

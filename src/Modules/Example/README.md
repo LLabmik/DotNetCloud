@@ -90,6 +90,8 @@ Events follow these conventions:
 ### 5. Data Access (`Data/`)
 
 - Module-owned `DbContext` (separate from `CoreDbContext`)
+- Injects `ITableNamingStrategy` for provider-appropriate schema naming
+- Self-managed schema with `HasDefaultSchema` for table isolation
 - Standard EF Core entity configuration with fluent API
 - Works with PostgreSQL, SQL Server, and MariaDB
 
@@ -97,6 +99,71 @@ Events follow these conventions:
 
 - Self-contained Razor components in the module assembly
 - Loaded dynamically by the core web shell's module plugin system
+
+## Database Schema Management
+
+The Example module uses a **self-managed schema** pattern, which is the correct approach for all third-party modules. The module owns its database schema and migrations, independent of the DotNetCloud core.
+
+### `schemaProvider: "self"`
+
+The `manifest.json` declares `"schemaProvider": "self"`, which tells the core server: **"this module manages its own database schema — do not try to migrate it."** The core will skip this module during its schema management and will not attempt to create or migrate tables for it.
+
+Optional (third-party) modules should always use `"schemaProvider": "self"`. Required modules (files, chat, search) share the `core` schema and are migrated by the core server.
+
+### `ITableNamingStrategy` and Schema Naming
+
+The `ExampleDbContext` injects `ITableNamingStrategy` and calls `HasDefaultSchema`:
+
+```csharp
+public ExampleDbContext(DbContextOptions<ExampleDbContext> options, ITableNamingStrategy namingStrategy)
+    : base(options)
+{
+    _namingStrategy = namingStrategy;
+}
+
+protected override void OnModelCreating(ModelBuilder modelBuilder)
+{
+    modelBuilder.HasDefaultSchema(_namingStrategy.GetSchemaForModule("example"));
+    // ...
+}
+```
+
+`GetSchemaForModule("example")` returns `"example"` — the Example module is not architecturally required, so it gets its own dedicated schema. This keeps the module's tables isolated from the core and other modules.
+
+### Connection String
+
+The `DOTNETCLOUD_CONNECTION_STRING` environment variable is set by the core server's `ProcessSupervisor` when launching module processes. Modules read this at startup. For local development, the connection string can also be provided via `appsettings.json`:
+
+```json
+{
+  "ConnectionStrings": {
+    "DefaultConnection": "Host=localhost;Database=dotnetcloud;Username=dotnetcloud;Password=..."
+  }
+}
+```
+
+### Self-Migration on Startup
+
+When a real database connection string is available, the module calls `MigrateAsync()` at startup to ensure its schema is created and up-to-date:
+
+```csharp
+if (!string.IsNullOrEmpty(connectionString))
+{
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<ExampleDbContext>();
+    await db.Database.MigrateAsync();
+}
+```
+
+The migration history table is scoped to the `example` schema (`__EFMigrationsHistory` in the `example` schema) to avoid collisions with the core or other modules.
+
+### In-Memory Fallback for Development
+
+When no connection string is provided, the module falls back to an in-memory database. This makes local development frictionless — no database setup required:
+
+```bash
+dotnet run --project src/Modules/Example/DotNetCloud.Modules.Example.Host
+```
 
 ## How to Create Your Own Module
 
@@ -132,4 +199,4 @@ The host project can be run standalone for development:
 dotnet run --project src/Modules/Example/DotNetCloud.Modules.Example.Host
 ```
 
-The module uses an in-memory database by default. In production, the core server configures the real database connection.
+The module uses an in-memory database by default. To use a real PostgreSQL database, set the `DOTNETCLOUD_CONNECTION_STRING` environment variable or add a `ConnectionStrings:DefaultConnection` entry to `appsettings.json`. When a connection string is provided, the module will self-migrate its schema on startup.
