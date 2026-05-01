@@ -177,6 +177,15 @@
                 @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Teams</span> }
             </button>
         </div>
+
+        @* Show Tour (always available at bottom of sidebar) *@
+        <div class="tracks-nav tracks-nav--bottom">
+            <button class="tracks-nav-item tracks-nav-item--tour"
+                    @onclick="ShowTour" title="Show Tour">
+                <span class="tracks-nav-icon">🎓</span>
+                @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Show Tour</span> }
+            </button>
+        </div>
     </div>
 
     @* ── Main Content ── *@
@@ -207,10 +216,6 @@
                           @onclick="() => OpenFeatureKanban(_selectedFeature.Id)">#@_selectedFeature.ItemNumber @_selectedFeature.Title</span>
                 }
                 </div>
-                <button class="tracks-help-btn" @onclick="ToggleHelpMenu"
-                        title="Help & keyboard shortcuts">
-                    ?
-                </button>
             </div>
         }
 
@@ -554,25 +559,7 @@
     </div>
 }
 
-@* ── Help Menu Dropdown ── *@
-@if (_showHelpMenu)
-{
-    <div class="tracks-help-menu-overlay" @onclick="() => _showHelpMenu = false">
-        <div class="tracks-help-menu" @onclick:stopPropagation>
-            <button class="tracks-help-menu-item" @onclick="RestartTour">
-                🔄 Restart Tour
-            </button>
-            <button class="tracks-help-menu-item" @onclick="() => { _showHelpMenu = false; _showShortcutsModal = true; }">
-                ⌨️ Keyboard Shortcuts
-            </button>
-        </div>
-    </div>
-}
-
 @* ── Onboarding Tour ── *@
 <OnboardingTour @ref="_onboardingTour"
                 UserId="@_currentUserId"
-                TourId="tracks_v1"
-                OnTourFinished="() => { }"
-                OnRequestOpenWorkItem="HandleTourOpenWorkItem"
-                OnRequestCloseWorkItem="HandleTourCloseWorkItem" />
+                TourId="tracks_v1" />

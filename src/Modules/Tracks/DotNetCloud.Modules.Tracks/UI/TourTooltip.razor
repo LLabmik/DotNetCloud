@@ -1,9 +1,14 @@
 @namespace DotNetCloud.Modules.Tracks.UI
 @inherits TourTooltipBase
 
-@* Positioned tooltip for the onboarding tour. Rendered as a floating card near the target element. *@
+@* Centered tooltip card for the onboarding tour. *@
 
-<div class="tour-tooltip @($"tour-tooltip--{Position.ToString().ToLowerInvariant()}")" @onclick:stopPropagation>
+<div class="tour-tooltip" @onclick:stopPropagation>
+    @if (!string.IsNullOrWhiteSpace(Emoji))
+    {
+        <div class="tour-tooltip__emoji">@Emoji</div>
+    }
+
     <div class="tour-tooltip__step-indicator">@($"{CurrentStep + 1} of {TotalSteps}")</div>
 
     <h3 class="tour-tooltip__title">@Title</h3>
