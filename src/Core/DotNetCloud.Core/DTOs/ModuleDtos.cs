@@ -26,6 +26,11 @@ public class ModuleDto
     public string? Description { get; set; }
 
     /// <summary>
+    /// Gets or sets whether this module is architecturally required.
+    /// </summary>
+    public bool IsRequired { get; set; }
+
+    /// <summary>
     /// Gets or sets the module status (Enabled, Disabled, UpdateAvailable).
     /// </summary>
     public string Status { get; set; } = null!;

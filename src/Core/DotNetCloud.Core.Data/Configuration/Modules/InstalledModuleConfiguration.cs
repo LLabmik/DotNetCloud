@@ -39,6 +39,10 @@ public class InstalledModuleConfiguration : IEntityTypeConfiguration<InstalledMo
             .IsRequired()
             .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
+        builder.Property(m => m.IsRequired)
+            .IsRequired()
+            .HasDefaultValue(false);
+
         builder.Property(m => m.UpdatedAt)
             .IsRequired()
             .HasDefaultValueSql("CURRENT_TIMESTAMP");

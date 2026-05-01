@@ -112,6 +112,12 @@ public class InstalledModule
     public string Status { get; set; } = string.Empty;
 
     /// <summary>
+    /// Whether this module is architecturally required. Required modules cannot be
+    /// disabled or uninstalled and share the core database schema.
+    /// </summary>
+    public bool IsRequired { get; set; }
+
+    /// <summary>
     /// Timestamp when the module was first installed.
     /// </summary>
     /// <remarks>
