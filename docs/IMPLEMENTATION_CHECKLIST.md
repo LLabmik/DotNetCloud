@@ -4944,7 +4944,24 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Add backward-compatible single-parameter constructors to all 11 DbContexts
 - ✓ Build passes with 0 errors; all 21 test projects pass (5,763 tests, 0 failures)
 
-### Phase 3 — Lazy schema creation ☐
+### Phase 3 — Lazy schema creation ✓
+
+- ✓ Create `IModuleSchemaProvider` interface (`DotNetCloud.Core/Modules/IModuleSchemaProvider.cs`)
+- ✓ Add `SchemaProvider` field to `ModuleManifestData` (default `"self"`)
+- ✓ Create `DbContextSchemaProvider` in `DotNetCloud.Core.Server/Services/` — resolves module DbContexts from DI
+- ✓ Create `SelfManagedSchemaProvider` in `DotNetCloud.Core.Data/Services/` — no-op for self-managed modules
+- ✓ Create `ModuleSchemaService` in `DotNetCloud.Core.Server/Services/` — dispatches core-managed vs self-managed
+- ✓ Register `SelfManagedSchemaProvider` in `DataServiceExtensions.AddDotNetCloudDbContext`
+- ✓ Register `DbContextSchemaProvider` + `ModuleSchemaService` in server `ConfigureServices`
+- ✓ Gate core server `DbInitializer` on `InstalledModules` status (Enabled/Installing)
+- ✓ Trigger schema creation in `SeedKnownModulesAsync` for newly seeded modules
+- ✓ Set `IsRequired` on all `InstalledModule` creation paths (seed, setup, CLI install)
+- ✓ Update `SetupCommand` — use `RequiredModules.ModuleIds`, guard disabling required modules
+- ✓ Update `ModuleCommands` — guard stop/uninstall for required modules
+- ✓ Add `"schemaProvider": "core"` to Contacts, Calendar, Notes, AI, Tracks manifest.json files
+- ✓ Add `"schemaProvider": "self"` to Example module manifest.json
+- ✓ Build passes with 0 errors; all 18 test projects pass (5,104 tests, 0 failures)
+
 ### Phase 4 — Seeding and DTO mapping ☐
 ### Phase 5 — Enforcement in API, CLI, and supervisor ☐
 ### Phase 6 — install.sh ☐

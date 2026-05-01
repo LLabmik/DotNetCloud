@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Auth.Extensions;
+using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Core.Data.Extensions;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Data.Initialization;
@@ -117,95 +118,27 @@ public class Program
                 var oidcClientSeeder = scope.ServiceProvider.GetRequiredService<OidcClientSeeder>();
                 await oidcClientSeeder.SeedAsync();
 
-                // Ensure module data stores are initialized.
-                // In Development/Testing hosts (for example WebApplicationFactory integration tests),
-                // module DbContexts may intentionally use alternate providers and should not block startup.
-                if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Testing"))
+                // Only migrate modules that are installed. Module schemas are created
+                // lazily — when a module is first installed, its EF migrations are applied.
+                var dbContext = scope.ServiceProvider.GetRequiredService<CoreDbContext>();
+                var schemaService = scope.ServiceProvider.GetRequiredService<ModuleSchemaService>();
+                var installedModuleIds = await dbContext.InstalledModules
+                    .Where(m => m.Status == "Enabled" || m.Status == "Installing")
+                    .Select(m => m.ModuleId)
+                    .ToListAsync();
+
+                foreach (var moduleId in installedModuleIds)
                 {
                     try
                     {
-                        var filesDbContext = scope.ServiceProvider.GetRequiredService<FilesDbContext>();
-                        await MigrateFilesDatabaseAsync(filesDbContext, logger);
-
-                        var chatDbContext = scope.ServiceProvider.GetRequiredService<ChatDbContext>();
-                        await chatDbContext.Database.MigrateAsync();
-                        logger.LogInformation("Chat module database migrated");
-
-                        var contactsDbContext = scope.ServiceProvider.GetRequiredService<ContactsDbContext>();
-                        await EnsureModuleTablesCreatedAsync(contactsDbContext, "Contacts", logger);
-
-                        var calendarDbContext = scope.ServiceProvider.GetRequiredService<CalendarDbContext>();
-                        await EnsureModuleTablesCreatedAsync(calendarDbContext, "Calendars", logger);
-
-                        var notesDbContext = scope.ServiceProvider.GetRequiredService<NotesDbContext>();
-                        await EnsureModuleTablesCreatedAsync(notesDbContext, "Notes", logger);
-
-                        var tracksDbContext = scope.ServiceProvider.GetRequiredService<TracksDbContext>();
-                        await TracksDbInitializer.InitializeAsync(tracksDbContext, logger);
-
-                        var photosDbContext = scope.ServiceProvider.GetRequiredService<PhotosDbContext>();
-                        await photosDbContext.Database.MigrateAsync();
-                        logger.LogInformation("Photos module database migrated");
-
-                        var musicDbContext = scope.ServiceProvider.GetRequiredService<MusicDbContext>();
-                        await musicDbContext.Database.MigrateAsync();
-                        logger.LogInformation("Music module database migrated");
-
-                        var videoDbContext = scope.ServiceProvider.GetRequiredService<VideoDbContext>();
-                        await videoDbContext.Database.MigrateAsync();
-                        logger.LogInformation("Video module database migrated");
-
-                        var aiDbContext = scope.ServiceProvider.GetRequiredService<AiDbContext>();
-                        await EnsureModuleTablesCreatedAsync(aiDbContext, "Conversations", logger);
-
-                        var searchDbContext = scope.ServiceProvider.GetRequiredService<SearchDbContext>();
-                        await EnsureModuleTablesCreatedAsync(searchDbContext, "SearchIndexEntries", logger);
+                        await schemaService.EnsureModuleSchemaAsync(moduleId, CancellationToken.None);
                     }
-                    catch (InvalidOperationException ex)
+                    catch (Exception ex) when (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Testing"))
                     {
                         logger.LogWarning(ex,
-                            "Skipping module table bootstrap in {Environment} environment due to provider configuration.",
-                            app.Environment.EnvironmentName);
+                            "Skipping schema creation for {ModuleId} in {Environment} environment.",
+                            moduleId, app.Environment.EnvironmentName);
                     }
-                }
-                else
-                {
-                    var filesDbContext = scope.ServiceProvider.GetRequiredService<FilesDbContext>();
-                    await MigrateFilesDatabaseAsync(filesDbContext, logger);
-
-                    var chatDbContext = scope.ServiceProvider.GetRequiredService<ChatDbContext>();
-                    await chatDbContext.Database.MigrateAsync();
-                    logger.LogInformation("Chat module database migrated");
-
-                    var contactsDbContext = scope.ServiceProvider.GetRequiredService<ContactsDbContext>();
-                    await EnsureModuleTablesCreatedAsync(contactsDbContext, "Contacts", logger);
-
-                    var calendarDbContext = scope.ServiceProvider.GetRequiredService<CalendarDbContext>();
-                    await EnsureModuleTablesCreatedAsync(calendarDbContext, "Calendars", logger);
-
-                    var notesDbContext = scope.ServiceProvider.GetRequiredService<NotesDbContext>();
-                    await EnsureModuleTablesCreatedAsync(notesDbContext, "Notes", logger);
-
-                    var tracksDbContext = scope.ServiceProvider.GetRequiredService<TracksDbContext>();
-                    await TracksDbInitializer.InitializeAsync(tracksDbContext, logger);
-
-                    var photosDbContext = scope.ServiceProvider.GetRequiredService<PhotosDbContext>();
-                    await photosDbContext.Database.MigrateAsync();
-                    logger.LogInformation("Photos module database migrated");
-
-                    var musicDbContext = scope.ServiceProvider.GetRequiredService<MusicDbContext>();
-                    await musicDbContext.Database.MigrateAsync();
-                    logger.LogInformation("Music module database migrated");
-
-                    var videoDbContext = scope.ServiceProvider.GetRequiredService<VideoDbContext>();
-                    await videoDbContext.Database.MigrateAsync();
-                    logger.LogInformation("Video module database migrated");
-
-                    var aiDbContext = scope.ServiceProvider.GetRequiredService<AiDbContext>();
-                    await EnsureModuleTablesCreatedAsync(aiDbContext, "Conversations", logger);
-
-                    var searchDbContext = scope.ServiceProvider.GetRequiredService<SearchDbContext>();
-                    await EnsureModuleTablesCreatedAsync(searchDbContext, "SearchIndexEntries", logger);
                 }
 
                 // Mark the application as ready for traffic now that DB is initialized
@@ -307,6 +240,11 @@ public class Program
             ConfigureModuleDbContext(options, provider, connectionString));
         builder.Services.AddDbContext<SearchDbContext>(options =>
             ConfigureModuleDbContext(options, provider, connectionString));
+
+        // Register schema services for lazy module schema creation
+        builder.Services.AddSingleton<DbContextSchemaProvider>();
+        builder.Services.AddSingleton<ModuleSchemaService>();
+
         builder.Services.AddFilesServices(builder.Configuration);
         builder.Services.AddChatServices(builder.Configuration);
         builder.Services.AddContactsServices(builder.Configuration);

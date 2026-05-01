@@ -40,6 +40,13 @@ internal sealed record ModuleManifestData
 
     /// <summary>Memory limit in MB override, or null for default.</summary>
     public int? MemoryLimitMb { get; init; }
+
+    /// <summary>
+    /// How the module's database schema is managed.
+    /// "core" = core server runs migrations. "self" = module process self-migrates.
+    /// Defaults to "self" when absent.
+    /// </summary>
+    public string SchemaProvider { get; init; } = "self";
 }
 
 /// <summary>

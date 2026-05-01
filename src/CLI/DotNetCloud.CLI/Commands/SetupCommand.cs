@@ -454,8 +454,8 @@ internal static class SetupCommand
         // ───────────────────────────────────────────────
         ConsoleOutput.WriteStep(7, TotalSteps, "Module Selection");
 
-        // Files and Chat are required core modules — always enabled.
-        var requiredModules = new[] { "dotnetcloud.files", "dotnetcloud.chat" };
+        // Files, Chat, and Search are required core modules — always enabled.
+        var requiredModules = DotNetCloud.Core.Modules.RequiredModules.ModuleIds;
         var optionalModules = new[]
         {
             "dotnetcloud.contacts",
@@ -472,7 +472,7 @@ internal static class SetupCommand
             config.EnabledModules.Add(moduleId);
         }
 
-        ConsoleOutput.WriteInfo("Required modules (always enabled): dotnetcloud.files, dotnetcloud.chat");
+        ConsoleOutput.WriteInfo($"Required modules (always enabled): {string.Join(", ", requiredModules)}");
 
         if (beginnerMode)
         {
@@ -824,6 +824,7 @@ internal static class SetupCommand
                         Version = "1.0.0",
                         Status = "Enabled",
                         InstalledAt = DateTime.UtcNow,
+                        IsRequired = DotNetCloud.Core.Modules.RequiredModules.IsRequired(moduleId),
                     });
                     continue;
                 }
@@ -837,7 +838,8 @@ internal static class SetupCommand
             foreach (var installed in installedModules)
             {
                 if (!selectedModules.Contains(installed.ModuleId) &&
-                    string.Equals(installed.Status, "Enabled", StringComparison.OrdinalIgnoreCase))
+                    string.Equals(installed.Status, "Enabled", StringComparison.OrdinalIgnoreCase) &&
+                    !DotNetCloud.Core.Modules.RequiredModules.IsRequired(installed.ModuleId))
                 {
                     installed.Status = "Disabled";
                 }

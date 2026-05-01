@@ -97,6 +97,7 @@
 | Phase 4.8                   | 8       | 8         | 0           | 0       |
 | Required Modules Schema 1   | 5       | 5         | 0           | 0       |
 | Required Modules Schema 2   | 17      | 17        | 0           | 0       |
+| Required Modules Schema 3   | 12      | 12        | 0           | 0       |
 | Phase 4.9                   | 42      | 42        | 0           | 0       |
 | Phase 4.10 — Hierarchy      | 17      | 14        | 0           | 3       |
 | Phase 5-8                   | Summary | 10        | 0           | 0       |
@@ -3380,4 +3381,22 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 - ✓ All 13 design-time factories pass naming strategy to DbContext constructors
 - ✓ Backward-compatible single-parameter constructors on all DbContexts
 
-**Notes:** Phase 2 complete. Schema mapping is now centralized in `RequiredModules.GetSchemaName`. Required modules (files, chat, search) map to the `core` schema. Optional modules get dedicated schemas (contacts, calendar, notes, tracks, photos, music, video, ai). Previously hardcoded schema strings in Photos/Music/Video DbContexts replaced with strategy calls. All 21 test projects pass (5,763 tests, 0 failures). Phases 3-7 remain pending.
+**Notes:** Phase 2 complete. Schema mapping is now centralized in `RequiredModules.GetSchemaName`. Required modules (files, chat, search) map to the `core` schema. Optional modules get dedicated schemas (contacts, calendar, notes, tracks, photos, music, video, ai). Previously hardcoded schema strings in Photos/Music/Video DbContexts replaced with strategy calls. All test projects pass.
+
+### Step: req-modules-schema-3 — Lazy schema creation
+**Status:** completed ✓
+**Deliverables:**
+- ✓ Create `IModuleSchemaProvider` interface (`DotNetCloud.Core/Modules/IModuleSchemaProvider.cs`)
+- ✓ Add `SchemaProvider` field to `ModuleManifestData` (defaults to `"self"`)
+- ✓ Create `DbContextSchemaProvider` — resolves module DbContext from DI, applies EF migrations for first-party modules
+- ✓ Create `SelfManagedSchemaProvider` — no-op provider for third-party/self-managed modules
+- ✓ Create `ModuleSchemaService` — dispatches to correct provider based on module's schema strategy
+- ✓ Register schema services in DI (`SelfManagedSchemaProvider` in `DataServiceExtensions`, `DbContextSchemaProvider` + `ModuleSchemaService` in server `ConfigureServices`)
+- ✓ Gate core server `DbInitializer` on `InstalledModules` — only runs migrations for modules with status `Enabled` or `Installing`
+- ✓ Trigger schema creation in `SeedKnownModulesAsync` — newly seeded modules get `IsRequired` set and schema created
+- ✓ Update `SetupCommand` — use `RequiredModules.ModuleIds`, set `IsRequired`, guard required modules from being disabled
+- ✓ Update `ModuleCommands` — set `IsRequired` on install, guard stop/uninstall for required modules
+- ✓ Add `"schemaProvider": "core"` to all 5 first-party `manifest.json` files (Contacts, Calendar, Notes, AI, Tracks)
+- ✓ Add `"schemaProvider": "self"` to Example module `manifest.json`
+
+**Notes:** Phase 3 complete — the key architectural change. Module database schemas are now created lazily when modules are installed, not unconditionally on server startup. The core server queries `InstalledModules` and only migrates schemas for installed modules. First-party modules use `DbContextSchemaProvider` (EF migrations driven by core). Third-party modules use `SelfManagedSchemaProvider` (self-migrate on startup). CLI commands set `IsRequired` and guard required modules but defer schema creation to server startup (CLI doesn't reference module projects). All test projects pass (5,104 tests, 0 failures). Phases 4-7 remain pending.

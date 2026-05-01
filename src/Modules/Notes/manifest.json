@@ -24,5 +24,6 @@
     "ContactCreatedEvent",
     "CalendarEventCreatedEvent"
   ],
-  "minCoreVersion": "1.0.0"
+  "minCoreVersion": "1.0.0",
+  "schemaProvider": "core"
 }

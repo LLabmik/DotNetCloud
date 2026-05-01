@@ -1,5 +1,7 @@
 using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Core.Data.Entities.Modules;
+using DotNetCloud.Core.Modules;
+using DotNetCloud.Core.Server.Services;
 using DotNetCloud.UI.Web.Services;
 using Microsoft.EntityFrameworkCore;
 
@@ -99,6 +101,7 @@ internal sealed class ModuleUiRegistrationHostedService : BackgroundService
 
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ModuleUiRegistry _moduleUiRegistry;
+    private readonly ModuleSchemaService _moduleSchemaService;
     private readonly ILogger<ModuleUiRegistrationHostedService> _logger;
     private bool _initialSeedDone;
     private IReadOnlyDictionary<string, string> _lastInstalledModuleStatuses =
@@ -107,10 +110,12 @@ internal sealed class ModuleUiRegistrationHostedService : BackgroundService
     public ModuleUiRegistrationHostedService(
         IServiceScopeFactory scopeFactory,
         ModuleUiRegistry moduleUiRegistry,
+        ModuleSchemaService moduleSchemaService,
         ILogger<ModuleUiRegistrationHostedService> logger)
     {
         _scopeFactory = scopeFactory;
         _moduleUiRegistry = moduleUiRegistry;
+        _moduleSchemaService = moduleSchemaService;
         _logger = logger;
     }
 
@@ -193,6 +198,7 @@ internal sealed class ModuleUiRegistrationHostedService : BackgroundService
 
             var existingSet = existingIds.ToHashSet(StringComparer.OrdinalIgnoreCase);
             var added = 0;
+            var newModuleIds = new List<string>();
 
             foreach (var descriptor in KnownModuleUiDescriptors)
             {
@@ -205,8 +211,10 @@ internal sealed class ModuleUiRegistrationHostedService : BackgroundService
                     Version = "1.0.0",
                     Status = "Enabled",
                     InstalledAt = DateTime.UtcNow,
+                    IsRequired = RequiredModules.IsRequired(descriptor.ModuleId),
                 });
 
+                newModuleIds.Add(descriptor.ModuleId);
                 added++;
                 _logger.LogInformation("Auto-registered built-in module {ModuleId}", descriptor.ModuleId);
             }
@@ -215,6 +223,12 @@ internal sealed class ModuleUiRegistrationHostedService : BackgroundService
             {
                 await dbContext.SaveChangesAsync(cancellationToken);
                 _logger.LogInformation("Seeded {Count} built-in modules into database", added);
+
+                // Create database schemas for newly seeded modules
+                foreach (var moduleId in newModuleIds)
+                {
+                    await _moduleSchemaService.EnsureModuleSchemaAsync(moduleId, cancellationToken);
+                }
             }
         }
         catch (Exception ex)

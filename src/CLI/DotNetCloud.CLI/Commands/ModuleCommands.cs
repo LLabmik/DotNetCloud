@@ -151,6 +151,12 @@ internal static class ModuleCommands
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(moduleId);
 
+        if (newStatus == "Disabled" && DotNetCloud.Core.Modules.RequiredModules.IsRequired(moduleId))
+        {
+            ConsoleOutput.WriteError($"Module '{moduleId}' is architecturally required and cannot be stopped or disabled.");
+            return 1;
+        }
+
         await using var provider = ServiceProviderFactory.CreateFromConfig();
         if (provider is null) return 1;
 
@@ -222,11 +228,13 @@ internal static class ModuleCommands
             ModuleId = moduleId,
             Version = "1.0.0",
             Status = "Enabled",
-            InstalledAt = DateTime.UtcNow
+            InstalledAt = DateTime.UtcNow,
+            IsRequired = DotNetCloud.Core.Modules.RequiredModules.IsRequired(moduleId),
         });
 
         await db.SaveChangesAsync();
         ConsoleOutput.WriteSuccess($"Module '{moduleId}' installed and enabled.");
+        ConsoleOutput.WriteInfo("Database schema will be created on next server restart.");
         ConsoleOutput.WriteInfo("Restart the server to load the module: dotnetcloud restart");
 
         return 0;
@@ -235,6 +243,12 @@ internal static class ModuleCommands
     private static async Task<int> UninstallModuleAsync(string moduleId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(moduleId);
+
+        if (DotNetCloud.Core.Modules.RequiredModules.IsRequired(moduleId))
+        {
+            ConsoleOutput.WriteError($"Module '{moduleId}' is architecturally required and cannot be uninstalled.");
+            return 1;
+        }
 
         if (!ConsoleOutput.PromptConfirm($"Uninstall module '{moduleId}'? This may remove module data."))
         {
