@@ -1,0 +1,30 @@
+@namespace DotNetCloud.Modules.Tracks.UI
+@inherits TourTooltipBase
+
+@* Positioned tooltip for the onboarding tour. Rendered as a floating card near the target element. *@
+
+<div class="tour-tooltip @($"tour-tooltip--{Position.ToString().ToLowerInvariant()}")" @onclick:stopPropagation>
+    <div class="tour-tooltip__step-indicator">@($"{CurrentStep + 1} of {TotalSteps}")</div>
+
+    <h3 class="tour-tooltip__title">@Title</h3>
+    @if (!string.IsNullOrWhiteSpace(Description))
+    {
+        <p class="tour-tooltip__description">@Description</p>
+    }
+
+    <div class="tour-tooltip__actions">
+        @if (CurrentStep > 0)
+        {
+            <button class="btn btn-secondary btn-sm" @onclick="() => OnPrevious.InvokeAsync()">
+                ← Back
+            </button>
+        }
+        <div class="tour-tooltip__spacer"></div>
+        <button class="btn btn-ghost btn-sm tour-tooltip__skip" @onclick="() => OnSkip.InvokeAsync()">
+            Skip tour
+        </button>
+        <button class="btn btn-primary btn-sm" @onclick="() => OnNext.InvokeAsync()">
+            @(CurrentStep < TotalSteps - 1 ? "Next →" : "Finish ✓")
+        </button>
+    </div>
+</div>

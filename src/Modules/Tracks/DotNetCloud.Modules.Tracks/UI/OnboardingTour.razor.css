@@ -1,0 +1,178 @@
+/* ══════════════════════════════════════════════════════════════
+   Onboarding Tour Styles
+   Scoped to OnboardingTour.razor; uses ::deep for tooltip.
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── Overlay ── */
+
+.onboarding-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    z-index: 9000;
+    animation: tour-fade-in 200ms ease-out;
+}
+
+/* Overlay cutout — JavaScript creates a transparent hole over the target */
+::deep .tour-highlight-cutout {
+    position: fixed;
+    z-index: 9001;
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55);
+    border-radius: 8px;
+    transition: all 300ms ease;
+    pointer-events: none;
+}
+
+/* ── Tooltip Wrapper ── */
+
+.onboarding-tooltip-wrapper {
+    position: fixed;
+    z-index: 9002;
+    transition: all 300ms ease;
+}
+
+/* ── Tooltip Card ── */
+
+::deep .tour-tooltip {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    padding: 24px;
+    min-width: 340px;
+    max-width: 420px;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.25), 0 4px 12px rgba(0, 0, 0, 0.15);
+    animation: tour-tooltip-in 250ms ease-out;
+}
+
+/* ── Step Indicator ── */
+
+::deep .tour-tooltip__step-indicator {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+}
+
+/* ── Title ── */
+
+::deep .tour-tooltip__title {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--color-text);
+    margin: 0 0 8px;
+    line-height: 1.3;
+}
+
+/* ── Description ── */
+
+::deep .tour-tooltip__description {
+    font-size: 14px;
+    color: var(--color-muted);
+    margin: 0 0 20px;
+    line-height: 1.6;
+}
+
+/* ── Actions Row ── */
+
+::deep .tour-tooltip__actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+::deep .tour-tooltip__spacer {
+    flex: 1;
+}
+
+::deep .tour-tooltip__skip {
+    color: var(--color-muted);
+    font-size: 13px;
+}
+
+::deep .tour-tooltip__skip:hover {
+    color: var(--color-text);
+}
+
+/* ── Position adjustments ── */
+
+::deep .tour-tooltip--center {
+    text-align: center;
+}
+
+::deep .tour-tooltip--center .tour-tooltip__actions {
+    justify-content: center;
+}
+
+::deep .tour-tooltip--left {
+    margin-right: 12px;
+}
+
+::deep .tour-tooltip--right {
+    margin-left: 12px;
+}
+
+::deep .tour-tooltip--top {
+    margin-bottom: 12px;
+}
+
+::deep .tour-tooltip--bottom {
+    margin-top: 12px;
+}
+
+/* ── Animations ── */
+
+@keyframes tour-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes tour-tooltip-in {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ── Dark Mode ── */
+
+:global(.dark-mode) ::deep .tour-tooltip {
+    background: var(--color-surface);
+    border-color: var(--color-border);
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5), 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+:global(.dark-mode) .onboarding-overlay {
+    background: rgba(0, 0, 0, 0.7);
+}
+
+/* ── Mobile Responsive ── */
+
+@media (max-width: 480px) {
+    ::deep .tour-tooltip {
+        min-width: auto;
+        max-width: calc(100vw - 32px);
+        padding: 20px;
+    }
+
+    ::deep .tour-tooltip__title {
+        font-size: 16px;
+    }
+
+    ::deep .tour-tooltip__description {
+        font-size: 13px;
+    }
+
+    .onboarding-tooltip-wrapper {
+        /* On mobile, position center-bottom so it doesn't overlap the target */
+        left: 16px !important;
+        right: 16px !important;
+        bottom: 24px !important;
+        top: auto !important;
+    }
+}

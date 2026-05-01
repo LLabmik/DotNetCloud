@@ -21,6 +21,7 @@ public partial class TracksPage : ComponentBase, IDisposable
     [Inject] private AuthenticationStateProvider AuthStateProvider { get; set; } = default!;
     [Inject] private IOrganizationDirectory OrgDirectory { get; set; } = default!;
     [Inject] private IUserDirectory UserDirectory { get; set; } = default!;
+    [Inject] private IOnboardingStateService OnboardingState { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
 
     private enum TracksView { ProductList, ProductKanban, EpicKanban, FeatureKanban, Teams, Planning, Wizard, Backlog, Timeline, Review, Settings, Calendar, List, Dashboard, Roadmap }
@@ -79,6 +80,12 @@ public partial class TracksPage : ComponentBase, IDisposable
     private string _newViewName = "";
     private bool _newViewIsShared;
 
+    // Tour & help menu
+    private OnboardingTour? _onboardingTour;
+    private string? _currentUserId;
+    private bool _showHelpMenu;
+    private bool _tourInitialized;
+
     private SprintDto? PlannableSprint => _sprints.FirstOrDefault(s => s.Status is SprintStatus.Planning or SprintStatus.Active);
 
     protected override async Task OnInitializedAsync()
@@ -94,6 +101,19 @@ public partial class TracksPage : ComponentBase, IDisposable
         {
             _jsRef = DotNetObjectReference.Create(this);
             await JS.InvokeVoidAsync("tracksKeyboard.init", _jsRef);
+            await InitializeTourAsync();
+        }
+    }
+
+    private async Task InitializeTourAsync()
+    {
+        if (_tourInitialized) return;
+        _tourInitialized = true;
+
+        _currentUserId = (await GetCurrentUserIdAsync())?.ToString();
+        if (_onboardingTour is not null && !string.IsNullOrWhiteSpace(_currentUserId))
+        {
+            await _onboardingTour.InitializeAsync();
         }
     }
 
@@ -780,6 +800,87 @@ public partial class TracksPage : ComponentBase, IDisposable
     {
         if (e.Key == "Enter") await HandleSaveViewConfirm();
         else if (e.Key == "Escape") HandleSaveViewCancel();
+    }
+
+    // ── Onboarding Tour ─────────────────────────────────────
+
+    /// <summary>
+    /// Toggles the help menu dropdown (from the ? button in the breadcrumb).
+    /// </summary>
+    private void ToggleHelpMenu()
+    {
+        _showHelpMenu = !_showHelpMenu;
+    }
+
+    /// <summary>
+    /// Restarts the onboarding tour from step 1. Called from the help menu.
+    /// </summary>
+    private async Task RestartTour()
+    {
+        _showHelpMenu = false;
+        if (_onboardingTour is not null && !string.IsNullOrWhiteSpace(_currentUserId))
+        {
+            await _onboardingTour.ShowAsync();
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>
+    /// Opens the first available work item for the tour step 5 (Work Item Details).
+    /// Picks the first item from the first non-empty swimlane in the current kanban.
+    /// </summary>
+    private async Task HandleTourOpenWorkItem()
+    {
+        if (_selectedWorkItem is not null) return; // Already open
+
+        // Find the first work item in any swimlane
+        foreach (var (_, items) in _currentWorkItems)
+        {
+            if (items.Count > 0)
+            {
+                await SelectWorkItem(items[0].Id);
+                StateHasChanged();
+                return;
+            }
+        }
+
+        // If no items exist, try to create a sample one for demo purposes
+        if (_selectedProduct is not null && _currentSwimlanes.Count > 0)
+        {
+            try
+            {
+                var firstSwimlane = _currentSwimlanes[0];
+                var sampleItem = await ApiClient.CreateItemAsync(firstSwimlane.Id, new CreateWorkItemDto
+                {
+                    Title = "Sample Tour Item",
+                    Priority = Priority.Medium,
+                });
+
+                if (sampleItem is not null)
+                {
+                    await SelectWorkItem(sampleItem.Id);
+                    // Add to local state so it's visible
+                    if (_currentWorkItems.TryGetValue(firstSwimlane.Id, out var laneItems))
+                    {
+                        laneItems.Add(sampleItem);
+                    }
+                    StateHasChanged();
+                }
+            }
+            catch
+            {
+                // Creating a sample item failed — the tour will show the detail panel description anyway
+            }
+        }
+    }
+
+    /// <summary>
+    /// Closes the work item detail panel (for tour step transitions).
+    /// </summary>
+    private async Task HandleTourCloseWorkItem()
+    {
+        CloseWorkItemDetail();
+        StateHasChanged();
     }
 
     // ── Real-time Event Subscriptions ───────────────────────

@@ -185,6 +185,7 @@
         @if (_selectedProduct is not null)
         {
             <div class="tracks-breadcrumb">
+                <div class="tracks-breadcrumb-path">
                 @if (_selectedOrgId.HasValue)
                 {
                     var orgName = _organizations.FirstOrDefault(o => o.Id == _selectedOrgId)?.Name ?? "Org";
@@ -205,6 +206,11 @@
                     <span class="tracks-breadcrumb-item active"
                           @onclick="() => OpenFeatureKanban(_selectedFeature.Id)">#@_selectedFeature.ItemNumber @_selectedFeature.Title</span>
                 }
+                </div>
+                <button class="tracks-help-btn" @onclick="ToggleHelpMenu"
+                        title="Help & keyboard shortcuts">
+                    ?
+                </button>
             </div>
         }
 
@@ -547,3 +553,26 @@
         </div>
     </div>
 }
+
+@* ── Help Menu Dropdown ── *@
+@if (_showHelpMenu)
+{
+    <div class="tracks-help-menu-overlay" @onclick="() => _showHelpMenu = false">
+        <div class="tracks-help-menu" @onclick:stopPropagation>
+            <button class="tracks-help-menu-item" @onclick="RestartTour">
+                🔄 Restart Tour
+            </button>
+            <button class="tracks-help-menu-item" @onclick="() => { _showHelpMenu = false; _showShortcutsModal = true; }">
+                ⌨️ Keyboard Shortcuts
+            </button>
+        </div>
+    </div>
+}
+
+@* ── Onboarding Tour ── *@
+<OnboardingTour @ref="_onboardingTour"
+                UserId="@_currentUserId"
+                TourId="tracks_v1"
+                OnTourFinished="() => { }"
+                OnRequestOpenWorkItem="HandleTourOpenWorkItem"
+                OnRequestCloseWorkItem="HandleTourCloseWorkItem" />

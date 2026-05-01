@@ -1,0 +1,29 @@
+@namespace DotNetCloud.Modules.Tracks.UI
+@inherits OnboardingTourBase
+@implements IDisposable
+
+@* ── Onboarding Tour ───────────────────────────────────────
+   Full-screen guided tour overlay with element highlighting.
+   Manages a 10-step tour covering all Tracks features.
+   ─────────────────────────────────────────────────────────── *@
+
+@if (_isVisible)
+{
+    @* Semi-transparent overlay *@
+    <div class="onboarding-overlay" @onclick="() => { }">
+    </div>
+
+    @* Tooltip positioned relative to the highlighted target *@
+    <div class="onboarding-tooltip-wrapper" style="@_tooltipStyle">
+        <TourTooltip Title="@_currentStepDef.Title"
+                     Description="@_currentStepDef.Description"
+                     CurrentStep="@_currentStep"
+                     TotalSteps="@_steps.Count"
+                     Position="@_currentStepDef.Position"
+                     OnPrevious="GoToPreviousAsync"
+                     OnNext="GoToNextAsync"
+                     OnSkip="SkipTourAsync" />
+    </div>
+
+    @* Spot highlight (ring around the target element) — rendered via JS-driven CSS *@
+}

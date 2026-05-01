@@ -4,8 +4,8 @@
 > Research: `docs/TRACKS_COMPREHENSIVE_FEATURE_ANALYSIS.md`
 > Date: April 30, 2026
 > 
-> **Phases A–F are completed.** This plan covers the 17 remaining gaps, organized into Phases D–I, with Phases D, E, and F now complete.
-> Onboarding tour is saved for last (Phase I). Mobile notifications are deferred to `docs/PHASE_MOBILE_NOTIFICATIONS_PLAN.md`.
+> **Phases A–F and I are completed.** This plan covers the 17 remaining gaps, organized into Phases D–I, with Phases D, E, F, and I now complete.
+> Onboarding tour is saved for last (Phase I) and is now complete. Mobile notifications are deferred to `docs/PHASE_MOBILE_NOTIFICATIONS_PLAN.md`.
 
 ---
 
@@ -13,7 +13,7 @@
 
 DotNetCloud Tracks has a mature foundation: kanban boards, sprints, burndown, work item hierarchy, time tracking, dependencies, review sessions, planning poker, @mentions, watchers, calendar view, table view, dashboard, custom views, CSV export, keyboard shortcuts, and undo toast. This plan addresses the 17 remaining gaps identified in the competitive analysis against Jira, Linear, Asana, and Azure DevOps.
 
-**Total estimated effort: 67–79 hours across 6 phases (D–I). Phases A–F completed.**
+**Total estimated effort: 67–79 hours across 6 phases (D–I). Phases A–F and I completed.**
 
 ---
 
@@ -553,35 +553,41 @@ Define which swimlanes can transition to which — enforce workflow rules like "
 
 ---
 
-## Phase I: Onboarding Tour
+## Phase I: Onboarding Tour ✅ COMPLETED
 
-**Estimate:** 5 hours · **Depends on:** ALL phases (covers everything)
+**Estimate:** 5 hours · **Depends on:** ALL phases (covers everything) · **Status: COMPLETED**
 **Purpose:** Guided first-time experience that shows users every feature — from basic kanban to advanced roadmap, automation, and webhooks.
 
 ### Step I-1: Onboarding Tour Framework (~2h)
 
 **Files:**
-- `src/Modules/Tracks/DotNetCloud.Modules.Tracks/UI/OnboardingTour.razor` + `.razor.cs`
-- `src/Modules/Tracks/DotNetCloud.Modules.Tracks/UI/TourTooltip.razor`
-- `src/Modules/Tracks/DotNetCloud.Modules.Tracks/Services/OnboardingStateService.cs`
-- (Extend) `src/Modules/Tracks/DotNetCloud.Modules.Tracks/UI/TracksPage.razor` (mount tour)
+- ✓ `src/Modules/Tracks/DotNetCloud.Modules.Tracks/UI/OnboardingTour.razor` + `.razor.cs`
+- ✓ `src/Modules/Tracks/DotNetCloud.Modules.Tracks/UI/TourTooltip.razor` + `.razor.cs`
+- ✓ `src/Modules/Tracks/DotNetCloud.Modules.Tracks/Services/OnboardingStateService.cs`
+- ✓ `src/Modules/Tracks/DotNetCloud.Modules.Tracks/UI/OnboardingTour.razor.css` (styles)
+- ✓ `src/UI/DotNetCloud.UI.Web/wwwroot/js/tracks-tour.js` (JS interop)
+- ✓ (Extend) `src/Modules/Tracks/DotNetCloud.Modules.Tracks/UI/TracksPage.razor` (mount tour)
+- ✓ (Extend) `src/Modules/Tracks/DotNetCloud.Modules.Tracks/UI/TracksPage.razor.cs` (tour integration)
+- ✓ (Extend) `src/Modules/Tracks/DotNetCloud.Modules.Tracks/UI/TracksPage.razor.css` (help menu styles)
+- ✓ (Extend) `src/UI/DotNetCloud.UI.Web/Components/App.razor` (JS script reference)
 
 **Deliverables:**
-- ☐ OnboardingTour.razor: manages tour state machine, step progression, overlay rendering
-- ☐ TourTooltip.razor: positioned tooltip with title, description, optional image/screenshot, next/prev/skip buttons, step counter ("3 of 10")
-- ☐ Semi-transparent overlay: highlights the target element, dims everything else
-- ☐ Tooltip positioning: auto-calculated (above/below/left/right of target) based on viewport space
-- ☐ Auto-scroll: if target element is not in viewport, smooth-scroll to it before showing tooltip
-- ☐ OnboardingStateService: localStorage-based persistence
-  - `IsCompleted(userId, tourId)` → bool
-  - `GetCurrentStep(userId, tourId)` → int
-  - `SetStep(userId, tourId, step)` → void
-  - `MarkCompleted(userId, tourId)` → void
-- ☐ TracksPage.razor: loads tour state on mount, triggers tour if not completed for this user
-- ☐ Progress persistence: user can close mid-tour → next visit resumes from last step
-- ☐ "Skip tour" button always visible during tour
-- ☐ "Restart tour" option in help menu (⋮ in sidebar or ? icon in top bar)
-- ☐ "What's new" badge: shown on help icon when new tour steps are added in future phases
+- ✓ OnboardingTour.razor: manages tour state machine, step progression, overlay rendering
+- ✓ TourTooltip.razor: positioned tooltip with title, description, next/prev/skip buttons, step counter ("N of 10")
+- ✓ Semi-transparent overlay: highlights the target element, dims everything else
+- ✓ Tooltip positioning: auto-calculated (above/below/left/right of target) based on viewport space via JS interop
+- ✓ Auto-scroll: if target element is not in viewport, smooth-scroll to it before showing tooltip
+- ✓ OnboardingStateService: localStorage-based persistence
+  - ✓ `IsCompletedAsync(userId, tourId)` → bool
+  - ✓ `GetCurrentStepAsync(userId, tourId)` → int
+  - ✓ `SetStepAsync(userId, tourId, step)` → void
+  - ✓ `MarkCompletedAsync(userId, tourId)` → void
+  - ✓ `ResetAsync(userId, tourId)` → void (for restart)
+- ✓ TracksPage.razor: loads tour state on mount, triggers tour if not completed for this user
+- ✓ Progress persistence: user can close mid-tour → next visit resumes from last step
+- ✓ "Skip tour" button always visible during tour
+- ✓ "Restart tour" option in help menu (? icon in breadcrumb bar)
+- ✓ Help menu dropdown with keyboard shortcuts link
 
 ### Step I-2: Tour Content & Steps (~3h)
 
@@ -589,29 +595,29 @@ Define which swimlanes can transition to which — enforce workflow rules like "
 
 | Step | Title | Target Element | Content |
 |------|-------|---------------|---------|
-| 1 | Welcome | Center screen (no target) | "Welcome to DotNetCloud Tracks! Let's take a quick tour to get you familiar with everything. (3 minutes)" |
-| 2 | Products | Product list in sidebar | "Products are your project containers. Each product has its own boards, sprints, and settings. Click a product to dive in." |
-| 3 | Kanban Board | Kanban board main area | "This is your Kanban board. Swimlanes represent workflow stages. Drag cards between columns to update their status." |
-| 4 | Creating Work Items | + button in toolbar | "Click the + button to create work items. Tracks supports Epics (big goals), Features, Items, and Sub-Items in a hierarchy." |
-| 5 | Work Item Details | (Programmatically open a work item detail panel) | "The detail panel shows everything about a work item: description, comments, attachments, assignments, labels, custom fields, watchers, and dependencies." |
-| 6 | Views | View switcher icons in sidebar | "Switch between Kanban, Backlog, List, Calendar, Timeline, Roadmap, and Dashboard views. Each gives a different perspective on your work." |
-| 7 | Sprints | Sprint panel in sidebar | "Sprints are time-boxed iterations. Plan sprints from the backlog, track progress with burndown charts, and review velocity over time." |
-| 8 | Filters & Search | Filter bar + Ctrl+K hint | "Filter by text, priority, label, or sprint. Save your filters as Custom Views. Press Ctrl+K anytime to open the command palette for quick navigation." |
-| 9 | Product Settings | Settings gear icon | "Product Settings is where you configure swimlanes, labels, members, custom fields, automation rules, webhooks, templates, and more." |
-| 10 | Done | Center screen | "You're all set! Create your first work item or explore the dashboard. Replay this tour anytime from the help menu." |
+| ✓ 1 | Welcome | Center screen (no target) | "Welcome to DotNetCloud Tracks! Let's take a quick tour to get you familiar with everything. (3 minutes)" |
+| ✓ 2 | Products | Product list in sidebar | "Products are your project containers. Each product has its own boards, sprints, and settings." |
+| ✓ 3 | Kanban Board | Kanban board main area | "This is your Kanban board. Swimlanes represent workflow stages. Drag cards between columns to update their status." |
+| ✓ 4 | Creating Work Items | + button in toolbar | "Click the + button to create work items. Tracks supports Epics, Features, Items, and Sub-Items in a hierarchy." |
+| ✓ 5 | Work Item Details | Detail panel (auto-opens sample item) | "The detail panel shows description, comments, attachments, assignments, labels, custom fields, watchers, and dependencies." |
+| ✓ 6 | Views | View switcher icons in sidebar | "Switch between Kanban, List, Calendar, Dashboard, Roadmap, and Settings. Each gives a different perspective." |
+| ✓ 7 | Sprints | Sprint panel in sidebar | "Sprints are time-boxed iterations. Plan sprints from the backlog, track progress with burndown charts, and review velocity." |
+| ✓ 8 | Filters & Search | Filter bar + Ctrl+K hint | "Filter by text, priority, label, or sprint. Save filters as Custom Views. Ctrl+K for command palette." |
+| ✓ 9 | Product Settings | Settings gear icon | "Configure swimlanes, labels, members, custom fields, automation rules, webhooks, templates, and more." |
+| ✓ 10 | Done | Center screen | "You're all set! Create your first work item or explore the dashboard. Replay this tour anytime from the help menu." |
 
 **Deliverables:**
-- ☐ Step 1: Welcome overlay (centered, no highlight), "Start Tour" button
-- ☐ Step 2: Highlight product sidebar, tooltip positioned to right
-- ☐ Step 3: Highlight kanban board, explain drag-and-drop
-- ☐ Step 4: Highlight create button in toolbar
-- ☐ Step 5: Programmatically open a sample work item, highlight detail panel
-- ☐ Step 6: Highlight view switcher icons, brief description of each
-- ☐ Step 7: Highlight sprint panel (or create sample sprint if none exists for demo)
-- ☐ Step 8: Highlight filter/search bar, mention Ctrl+K shortcut
-- ☐ Step 9: Highlight settings gear icon
-- ☐ Step 10: Celebration overlay with confetti or checkmark animation
-- ☐ Each step: Prev / Next / Skip buttons, "N of 10" progress indicator
+- ✓ Step 1: Welcome overlay (centered, no highlight), "Start Tour" button
+- ✓ Step 2: Highlight product sidebar, tooltip positioned to right
+- ✓ Step 3: Highlight kanban board, explain drag-and-drop
+- ✓ Step 4: Highlight create button in toolbar
+- ✓ Step 5: Programmatically open a sample work item (or first available), highlight detail panel
+- ✓ Step 6: Highlight view switcher icons in sidebar
+- ✓ Step 7: Highlight sprint panel in sidebar
+- ✓ Step 8: Highlight filter/search bar, mention Ctrl+K shortcut
+- ✓ Step 9: Highlight settings gear icon
+- ✓ Step 10: Celebration overlay with emoji animation
+- ✓ Each step: Prev / Next / Skip buttons, "N of 10" progress indicator
 
 ### Phase I Verification
 
@@ -634,7 +640,7 @@ Define which swimlanes can transition to which — enforce workflow rules like "
 | **F** | Power Tools | Command palette, CSV import, Webhooks | 16–19 | D (custom fields → CSV mapping) |
 | **G** | Planning & Visualization | Roadmap, Automation, Goals/OKRs, Capacity | 14–17 | D (milestones, custom fields → automation) |
 | **H** | Polish & Constraints | Dark mode audit, Transition rules, WIP limits | 8–10 | All previous (audit) |
-| **I** | Onboarding Tour | Tour framework + 10-step content | 5 | ALL (covers everything) |
+| **I** | Onboarding Tour | Tour framework + 10-step content | 5 | ALL (covers everything) | ✅ COMPLETED |
 | **—** | **Deferred** | Mobile notifications | — | → `docs/PHASE_MOBILE_NOTIFICATIONS_PLAN.md` |
 
 | | |
