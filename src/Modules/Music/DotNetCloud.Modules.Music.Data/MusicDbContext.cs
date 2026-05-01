@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Modules.Music.Data.Configuration;
 using DotNetCloud.Modules.Music.Models;
 using Microsoft.EntityFrameworkCore;
@@ -10,12 +11,23 @@ namespace DotNetCloud.Modules.Music.Data;
 /// </summary>
 public class MusicDbContext : DbContext
 {
+    private readonly ITableNamingStrategy _namingStrategy;
+
     /// <summary>
     /// Initializes a new instance of the <see cref="MusicDbContext"/> class.
     /// </summary>
     public MusicDbContext(DbContextOptions<MusicDbContext> options)
+        : this(options, new PostgreSqlNamingStrategy())
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="MusicDbContext"/> class with a specific naming strategy.
+    /// </summary>
+    public MusicDbContext(DbContextOptions<MusicDbContext> options, ITableNamingStrategy namingStrategy)
         : base(options)
     {
+        _namingStrategy = namingStrategy;
     }
 
     /// <summary>Artists in the music library.</summary>
@@ -60,8 +72,8 @@ public class MusicDbContext : DbContext
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.HasDefaultSchema(_namingStrategy.GetSchemaForModule("music"));
         base.OnModelCreating(modelBuilder);
-        modelBuilder.HasDefaultSchema("music");
 
         modelBuilder.ApplyConfiguration(new ArtistConfiguration());
         modelBuilder.ApplyConfiguration(new MusicAlbumConfiguration());

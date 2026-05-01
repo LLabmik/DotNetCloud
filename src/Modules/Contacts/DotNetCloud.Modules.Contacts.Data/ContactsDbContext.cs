@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Modules.Contacts.Data.Configuration;
 using DotNetCloud.Modules.Contacts.Models;
 using Microsoft.EntityFrameworkCore;
@@ -10,12 +11,23 @@ namespace DotNetCloud.Modules.Contacts.Data;
 /// </summary>
 public class ContactsDbContext : DbContext
 {
+    private readonly ITableNamingStrategy _namingStrategy;
+
     /// <summary>
     /// Initializes a new instance of the <see cref="ContactsDbContext"/> class.
     /// </summary>
     public ContactsDbContext(DbContextOptions<ContactsDbContext> options)
+        : this(options, new PostgreSqlNamingStrategy())
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ContactsDbContext"/> class with a specific naming strategy.
+    /// </summary>
+    public ContactsDbContext(DbContextOptions<ContactsDbContext> options, ITableNamingStrategy namingStrategy)
         : base(options)
     {
+        _namingStrategy = namingStrategy;
     }
 
     /// <summary>Contact records.</summary>
@@ -48,6 +60,7 @@ public class ContactsDbContext : DbContext
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.HasDefaultSchema(_namingStrategy.GetSchemaForModule("contacts"));
         base.OnModelCreating(modelBuilder);
 
         modelBuilder.ApplyConfiguration(new ContactConfiguration());

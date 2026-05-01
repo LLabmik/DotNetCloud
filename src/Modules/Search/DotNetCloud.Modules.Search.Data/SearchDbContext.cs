@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Modules.Search.Data.Configuration;
 using DotNetCloud.Modules.Search.Data.Models;
 using Microsoft.EntityFrameworkCore;
@@ -22,12 +23,23 @@ namespace DotNetCloud.Modules.Search.Data;
 /// </remarks>
 public class SearchDbContext : DbContext
 {
+    private readonly ITableNamingStrategy _namingStrategy;
+
     /// <summary>
     /// Initializes a new instance of the <see cref="SearchDbContext"/> class.
     /// </summary>
     public SearchDbContext(DbContextOptions<SearchDbContext> options)
+        : this(options, new PostgreSqlNamingStrategy())
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="SearchDbContext"/> class with a specific naming strategy.
+    /// </summary>
+    public SearchDbContext(DbContextOptions<SearchDbContext> options, ITableNamingStrategy namingStrategy)
         : base(options)
     {
+        _namingStrategy = namingStrategy;
     }
 
     /// <summary>The centralized search index entries.</summary>
@@ -39,6 +51,7 @@ public class SearchDbContext : DbContext
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.HasDefaultSchema(_namingStrategy.GetSchemaForModule("search"));
         base.OnModelCreating(modelBuilder);
 
         modelBuilder.ApplyConfiguration(new SearchIndexEntryConfiguration());

@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Modules.Contacts.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
@@ -28,6 +29,7 @@ public class ContactsDbContextSqlServerDesignTimeFactory : IDesignTimeDbContextF
             sqlOptions.MigrationsAssembly(typeof(ContactsDbContextSqlServerDesignTimeFactory).Assembly.FullName);
         });
 
-        return new ContactsDbContext(options.Options);
+        var namingStrategy = new SqlServerNamingStrategy();
+        return new ContactsDbContext(options.Options, namingStrategy);
     }
 }

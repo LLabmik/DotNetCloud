@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Modules.Calendar.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
@@ -28,6 +29,7 @@ public class CalendarDbContextSqlServerDesignTimeFactory : IDesignTimeDbContextF
             sqlOptions.MigrationsAssembly(typeof(CalendarDbContextSqlServerDesignTimeFactory).Assembly.FullName);
         });
 
-        return new CalendarDbContext(options.Options);
+        var namingStrategy = new SqlServerNamingStrategy();
+        return new CalendarDbContext(options.Options, namingStrategy);
     }
 }

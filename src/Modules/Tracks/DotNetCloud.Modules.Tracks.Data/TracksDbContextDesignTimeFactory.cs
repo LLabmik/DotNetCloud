@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Data.Naming;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
@@ -20,6 +21,7 @@ public class TracksDbContextDesignTimeFactory : IDesignTimeDbContextFactory<Trac
             npgsqlOptions.CommandTimeout(30);
         });
 
-        return new TracksDbContext(options.Options);
+        var namingStrategy = new PostgreSqlNamingStrategy();
+        return new TracksDbContext(options.Options, namingStrategy);
     }
 }

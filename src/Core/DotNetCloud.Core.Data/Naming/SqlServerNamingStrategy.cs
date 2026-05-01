@@ -1,3 +1,5 @@
+using DotNetCloud.Core.Modules;
+
 namespace DotNetCloud.Core.Data.Naming;
 
 /// <summary>
@@ -11,8 +13,7 @@ public class SqlServerNamingStrategy : ITableNamingStrategy
 
     public string? GetSchemaForModule(string moduleName)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(moduleName);
-        return moduleName.ToLowerInvariant();
+        return RequiredModules.GetSchemaName(moduleName);
     }
 
     public string GetTableName(string entityName, string moduleName)

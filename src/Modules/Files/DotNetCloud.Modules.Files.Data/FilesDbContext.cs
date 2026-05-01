@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Modules.Files.Data.Configuration;
 using DotNetCloud.Modules.Files.Models;
 using Microsoft.EntityFrameworkCore;
@@ -21,12 +22,23 @@ namespace DotNetCloud.Modules.Files.Data;
 /// </remarks>
 public class FilesDbContext : DbContext
 {
+    private readonly ITableNamingStrategy _namingStrategy;
+
     /// <summary>
     /// Initializes a new instance of the <see cref="FilesDbContext"/> class.
     /// </summary>
     public FilesDbContext(DbContextOptions<FilesDbContext> options)
+        : this(options, new PostgreSqlNamingStrategy())
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="FilesDbContext"/> class with a specific naming strategy.
+    /// </summary>
+    public FilesDbContext(DbContextOptions<FilesDbContext> options, ITableNamingStrategy namingStrategy)
         : base(options)
     {
+        _namingStrategy = namingStrategy;
     }
 
     /// <summary>File and folder nodes in the tree.</summary>
@@ -77,6 +89,7 @@ public class FilesDbContext : DbContext
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.HasDefaultSchema(_namingStrategy.GetSchemaForModule("files"));
         base.OnModelCreating(modelBuilder);
 
         modelBuilder.ApplyConfiguration(new FileNodeConfiguration());

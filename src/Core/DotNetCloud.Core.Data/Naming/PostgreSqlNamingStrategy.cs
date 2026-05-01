@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using DotNetCloud.Core.Modules;
 
 namespace DotNetCloud.Core.Data.Naming;
 
@@ -13,8 +14,7 @@ public class PostgreSqlNamingStrategy : ITableNamingStrategy
 
     public string? GetSchemaForModule(string moduleName)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(moduleName);
-        return moduleName.ToLowerInvariant();
+        return RequiredModules.GetSchemaName(moduleName);
     }
 
     public string GetTableName(string entityName, string moduleName)

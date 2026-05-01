@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Modules.Video.Data.Configuration;
 using DotNetCloud.Modules.Video.Models;
 using Microsoft.EntityFrameworkCore;
@@ -10,12 +11,23 @@ namespace DotNetCloud.Modules.Video.Data;
 /// </summary>
 public class VideoDbContext : DbContext
 {
+    private readonly ITableNamingStrategy _namingStrategy;
+
     /// <summary>
     /// Initializes a new instance of the <see cref="VideoDbContext"/> class.
     /// </summary>
     public VideoDbContext(DbContextOptions<VideoDbContext> options)
+        : this(options, new PostgreSqlNamingStrategy())
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="VideoDbContext"/> class with a specific naming strategy.
+    /// </summary>
+    public VideoDbContext(DbContextOptions<VideoDbContext> options, ITableNamingStrategy namingStrategy)
         : base(options)
     {
+        _namingStrategy = namingStrategy;
     }
 
     /// <summary>Videos in the library.</summary>
@@ -45,8 +57,8 @@ public class VideoDbContext : DbContext
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.HasDefaultSchema(_namingStrategy.GetSchemaForModule("video"));
         base.OnModelCreating(modelBuilder);
-        modelBuilder.HasDefaultSchema("video");
 
         modelBuilder.ApplyConfiguration(new VideoConfiguration());
         modelBuilder.ApplyConfiguration(new VideoMetadataConfiguration());

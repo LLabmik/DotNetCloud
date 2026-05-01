@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Modules.Photos.Data.Configuration;
 using DotNetCloud.Modules.Photos.Models;
 using Microsoft.EntityFrameworkCore;
@@ -21,12 +22,23 @@ namespace DotNetCloud.Modules.Photos.Data;
 /// </remarks>
 public class PhotosDbContext : DbContext
 {
+    private readonly ITableNamingStrategy _namingStrategy;
+
     /// <summary>
     /// Initializes a new instance of the <see cref="PhotosDbContext"/> class.
     /// </summary>
     public PhotosDbContext(DbContextOptions<PhotosDbContext> options)
+        : this(options, new PostgreSqlNamingStrategy())
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="PhotosDbContext"/> class with a specific naming strategy.
+    /// </summary>
+    public PhotosDbContext(DbContextOptions<PhotosDbContext> options, ITableNamingStrategy namingStrategy)
         : base(options)
     {
+        _namingStrategy = namingStrategy;
     }
 
     /// <summary>Photos in the gallery.</summary>
@@ -53,8 +65,8 @@ public class PhotosDbContext : DbContext
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.HasDefaultSchema(_namingStrategy.GetSchemaForModule("photos"));
         base.OnModelCreating(modelBuilder);
-        modelBuilder.HasDefaultSchema("photos");
 
         modelBuilder.ApplyConfiguration(new PhotoConfiguration());
         modelBuilder.ApplyConfiguration(new AlbumConfiguration());

@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Modules.Tracks.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -9,7 +10,18 @@ namespace DotNetCloud.Modules.Tracks.Data;
 /// </summary>
 public class TracksDbContext : DbContext
 {
-    public TracksDbContext(DbContextOptions<TracksDbContext> options) : base(options) { }
+    private readonly ITableNamingStrategy _namingStrategy;
+
+    public TracksDbContext(DbContextOptions<TracksDbContext> options)
+        : this(options, new PostgreSqlNamingStrategy())
+    {
+    }
+
+    public TracksDbContext(DbContextOptions<TracksDbContext> options, ITableNamingStrategy namingStrategy)
+        : base(options)
+    {
+        _namingStrategy = namingStrategy;
+    }
 
     public DbSet<Product> Products => Set<Product>();
     public DbSet<ProductMember> ProductMembers => Set<ProductMember>();
@@ -54,6 +66,7 @@ public class TracksDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.HasDefaultSchema(_namingStrategy.GetSchemaForModule("tracks"));
         base.OnModelCreating(modelBuilder);
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(TracksDbContext).Assembly);
     }

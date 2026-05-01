@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Modules.Notes.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
@@ -28,6 +29,7 @@ public class NotesDbContextSqlServerDesignTimeFactory : IDesignTimeDbContextFact
             sqlOptions.MigrationsAssembly(typeof(NotesDbContextSqlServerDesignTimeFactory).Assembly.FullName);
         });
 
-        return new NotesDbContext(options.Options);
+        var namingStrategy = new SqlServerNamingStrategy();
+        return new NotesDbContext(options.Options, namingStrategy);
     }
 }

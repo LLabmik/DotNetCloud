@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Data.Naming;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
@@ -20,6 +21,7 @@ public class NotesDbContextDesignTimeFactory : IDesignTimeDbContextFactory<Notes
             npgsqlOptions.CommandTimeout(30);
         });
 
-        return new NotesDbContext(options.Options);
+        var namingStrategy = new PostgreSqlNamingStrategy();
+        return new NotesDbContext(options.Options, namingStrategy);
     }
 }

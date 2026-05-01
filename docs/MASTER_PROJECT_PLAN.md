@@ -95,6 +95,8 @@
 | Phase 4.6                   | 4       | 4         | 0           | 0       |
 | Phase 4.7                   | 6       | 6         | 0           | 0       |
 | Phase 4.8                   | 8       | 8         | 0           | 0       |
+| Required Modules Schema 1   | 5       | 5         | 0           | 0       |
+| Required Modules Schema 2   | 17      | 17        | 0           | 0       |
 | Phase 4.9                   | 42      | 42        | 0           | 0       |
 | Phase 4.10 — Hierarchy      | 17      | 14        | 0           | 3       |
 | Phase 5-8                   | Summary | 10        | 0           | 0       |
@@ -3349,3 +3351,33 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 - ✓ Keep sync clients ignoring `_DotNetCloud` admin shares in v1
 
 **Notes:** The search and media integration step is now complete. Mounted search indexing/navigation remains in place, 4.6 media integration persists per-user per-module source lists for owned folders plus `_DotNetCloud` admin shared mounts, and the client selective-sync layer now canonicalizes root-relative paths, hard-excludes `_DotNetCloud` from sync decisions, and locks that virtual root as unchecked in the SyncTray folder browser so users cannot opt it back in. Focused validation passed via `dotnet test tests/DotNetCloud.Client.Core.Tests/DotNetCloud.Client.Core.Tests.csproj --no-restore --filter "FullyQualifiedName~SelectiveSyncConfigTests"`, `dotnet test tests/DotNetCloud.Client.SyncTray.Tests/DotNetCloud.Client.SyncTray.Tests.csproj --no-restore --filter "FullyQualifiedName~FolderBrowserViewModelTests|FullyQualifiedName~FolderBrowserItemViewModelTests"`, `dotnet test tests/DotNetCloud.Core.Server.Tests/DotNetCloud.Core.Server.Tests.csproj --no-restore --filter "FullyQualifiedName~MediaFolderImportServiceTests"`, `dotnet test tests/DotNetCloud.Core.Server.Tests/DotNetCloud.Core.Server.Tests.csproj --no-restore --filter "FullyQualifiedName~MediaLibraryControllerTests"`, `dotnet test tests/DotNetCloud.Integration.Tests/DotNetCloud.Integration.Tests.csproj --no-restore --filter "FullyQualifiedName~MediaLibraryEndpointIntegrationTests"`, and `dotnet test tests/DotNetCloud.Integration.Tests/DotNetCloud.Integration.Tests.csproj --no-restore --filter "FullyQualifiedName~AdminSharedFoldersEndpointTests"`. 4.7 verification coverage now includes explicit Core.Server tests for shared-mount media scan enumeration, stale-index cleanup, and media-library shared-source API responses, plus core-host integration coverage for media-library paths/scan routing and Files-host integration coverage for shared-folder admin endpoints, `_DotNetCloud` listing, nested virtual browsing, and mounted write rejection.
+
+---
+
+## Required Modules & Schema Separation
+
+> **Reference:** `docs/REQUIRED_MODULES_AND_SCHEMA_SEPARATION_PLAN.md`  
+> **Depends on:** Phase 0 Foundation (multi-database infrastructure, `ITableNamingStrategy`, module DbContexts)
+
+### Step: req-modules-schema-1 — Authority and database foundation
+**Status:** completed ✓
+**Deliverables:**
+- ✓ Create `RequiredModules` static registry (`DotNetCloud.Core/Modules/RequiredModules.cs`)
+- ✓ Add `IsRequired` to `InstalledModule` entity and EF configuration
+- ✓ Generate EF migration `AddIsRequiredToInstalledModule` for CoreDbContext
+- ✓ Add `IsRequired` to `ModuleDto`
+- ✓ Drop and recreate database with core migrations only
+
+**Notes:** Phase 1 complete. `RequiredModules.ModuleIds` defines `dotnetcloud.files`, `dotnetcloud.chat`, `dotnetcloud.search` as architecturally required. `IsRequired` flag persists in the `InstalledModules` table. `GetSchemaName` maps required modules to `"core"` schema and optional modules to their short-name schema.
+
+### Step: req-modules-schema-2 — Schema enforcement in naming strategies
+**Status:** completed ✓
+**Deliverables:**
+- ✓ `PostgreSqlNamingStrategy.GetSchemaForModule` delegates to `RequiredModules.GetSchemaName`
+- ✓ `SqlServerNamingStrategy.GetSchemaForModule` delegates to `RequiredModules.GetSchemaName`
+- ✓ `MariaDbNamingStrategy.GetTableName` uses `RequiredModules.GetSchemaName` for prefix
+- ✓ All 11 module DbContexts inject `ITableNamingStrategy` and call `HasDefaultSchema`
+- ✓ All 13 design-time factories pass naming strategy to DbContext constructors
+- ✓ Backward-compatible single-parameter constructors on all DbContexts
+
+**Notes:** Phase 2 complete. Schema mapping is now centralized in `RequiredModules.GetSchemaName`. Required modules (files, chat, search) map to the `core` schema. Optional modules get dedicated schemas (contacts, calendar, notes, tracks, photos, music, video, ai). Previously hardcoded schema strings in Photos/Music/Video DbContexts replaced with strategy calls. All 21 test projects pass (5,763 tests, 0 failures). Phases 3-7 remain pending.

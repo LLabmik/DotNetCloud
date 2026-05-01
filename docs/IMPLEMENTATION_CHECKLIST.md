@@ -4913,3 +4913,40 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ WIP toast CSS + transition matrix CSS styles
 
 
+## Required Modules & Schema Separation
+
+> **Reference:** `docs/REQUIRED_MODULES_AND_SCHEMA_SEPARATION_PLAN.md`
+
+### Phase 1 — Authority and database foundation ✓
+
+- ✓ Create `RequiredModules` static registry (`DotNetCloud.Core/Modules/RequiredModules.cs`)
+- ✓ Add `IsRequired` to `InstalledModule` entity and EF configuration
+- ✓ Generate EF migration `AddIsRequiredToInstalledModule` for CoreDbContext
+- ✓ Add `IsRequired` to `ModuleDto`
+
+### Phase 2 — Schema enforcement in naming strategies ✓
+
+- ✓ Update `PostgreSqlNamingStrategy.GetSchemaForModule` to delegate to `RequiredModules.GetSchemaName`
+- ✓ Update `SqlServerNamingStrategy.GetSchemaForModule` to delegate to `RequiredModules.GetSchemaName`
+- ✓ Update `MariaDbNamingStrategy.GetTableName` to use `RequiredModules.GetSchemaName` for prefix
+- ✓ Update `FilesDbContext` — inject `ITableNamingStrategy`, add `HasDefaultSchema("files")` → `core`
+- ✓ Update `ChatDbContext` — inject `ITableNamingStrategy`, add `HasDefaultSchema("chat")` → `core`
+- ✓ Update `SearchDbContext` — inject `ITableNamingStrategy`, add `HasDefaultSchema("search")` → `core`
+- ✓ Update `ContactsDbContext` — inject `ITableNamingStrategy`, add `HasDefaultSchema("contacts")` → `contacts`
+- ✓ Update `CalendarDbContext` — inject `ITableNamingStrategy`, add `HasDefaultSchema("calendar")` → `calendar`
+- ✓ Update `NotesDbContext` — inject `ITableNamingStrategy`, add `HasDefaultSchema("notes")` → `notes`
+- ✓ Update `TracksDbContext` — inject `ITableNamingStrategy`, add `HasDefaultSchema("tracks")` → `tracks`
+- ✓ Update `PhotosDbContext` — replace hardcoded `"photos"` with `GetSchemaForModule("photos")`
+- ✓ Update `MusicDbContext` — replace hardcoded `"music"` with `GetSchemaForModule("music")`
+- ✓ Update `VideoDbContext` — replace hardcoded `"video"` with `GetSchemaForModule("video")`
+- ✓ Update `AiDbContext` — inject `ITableNamingStrategy`, add `HasDefaultSchema("ai")` → `ai`
+- ✓ Update all 13 `DesignTimeFactory` files to pass naming strategy
+- ✓ Add backward-compatible single-parameter constructors to all 11 DbContexts
+- ✓ Build passes with 0 errors; all 21 test projects pass (5,763 tests, 0 failures)
+
+### Phase 3 — Lazy schema creation ☐
+### Phase 4 — Seeding and DTO mapping ☐
+### Phase 5 — Enforcement in API, CLI, and supervisor ☐
+### Phase 6 — install.sh ☐
+### Phase 7 — Update Example module ☐
+

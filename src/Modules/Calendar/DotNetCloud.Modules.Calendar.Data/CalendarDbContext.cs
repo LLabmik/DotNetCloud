@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Modules.Calendar.Data.Configuration;
 using DotNetCloud.Modules.Calendar.Models;
 using Microsoft.EntityFrameworkCore;
@@ -10,12 +11,23 @@ namespace DotNetCloud.Modules.Calendar.Data;
 /// </summary>
 public class CalendarDbContext : DbContext
 {
+    private readonly ITableNamingStrategy _namingStrategy;
+
     /// <summary>
     /// Initializes a new instance of the <see cref="CalendarDbContext"/> class.
     /// </summary>
     public CalendarDbContext(DbContextOptions<CalendarDbContext> options)
+        : this(options, new PostgreSqlNamingStrategy())
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="CalendarDbContext"/> class with a specific naming strategy.
+    /// </summary>
+    public CalendarDbContext(DbContextOptions<CalendarDbContext> options, ITableNamingStrategy namingStrategy)
         : base(options)
     {
+        _namingStrategy = namingStrategy;
     }
 
     /// <summary>Calendar collections.</summary>
@@ -39,6 +51,7 @@ public class CalendarDbContext : DbContext
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.HasDefaultSchema(_namingStrategy.GetSchemaForModule("calendar"));
         base.OnModelCreating(modelBuilder);
 
         modelBuilder.ApplyConfiguration(new CalendarConfiguration());

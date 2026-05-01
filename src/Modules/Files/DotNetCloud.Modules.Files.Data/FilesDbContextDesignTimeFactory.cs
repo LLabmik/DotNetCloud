@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Data.Naming;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
@@ -21,6 +22,7 @@ public class FilesDbContextDesignTimeFactory : IDesignTimeDbContextFactory<Files
             npgsqlOptions.CommandTimeout(30);
         });
 
-        return new FilesDbContext(options.Options);
+        var namingStrategy = new PostgreSqlNamingStrategy();
+        return new FilesDbContext(options.Options, namingStrategy);
     }
 }

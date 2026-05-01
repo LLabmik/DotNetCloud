@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Modules.Chat.Data.Configuration;
 using DotNetCloud.Modules.Chat.Models;
 using Microsoft.EntityFrameworkCore;
@@ -21,12 +22,23 @@ namespace DotNetCloud.Modules.Chat.Data;
 /// </remarks>
 public class ChatDbContext : DbContext
 {
+    private readonly ITableNamingStrategy _namingStrategy;
+
     /// <summary>
     /// Initializes a new instance of the <see cref="ChatDbContext"/> class.
     /// </summary>
     public ChatDbContext(DbContextOptions<ChatDbContext> options)
+        : this(options, new PostgreSqlNamingStrategy())
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ChatDbContext"/> class with a specific naming strategy.
+    /// </summary>
+    public ChatDbContext(DbContextOptions<ChatDbContext> options, ITableNamingStrategy namingStrategy)
         : base(options)
     {
+        _namingStrategy = namingStrategy;
     }
 
     /// <summary>Chat channels (public, private, DM, group).</summary>
@@ -71,6 +83,7 @@ public class ChatDbContext : DbContext
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.HasDefaultSchema(_namingStrategy.GetSchemaForModule("chat"));
         base.OnModelCreating(modelBuilder);
 
         modelBuilder.ApplyConfiguration(new ChannelConfiguration());

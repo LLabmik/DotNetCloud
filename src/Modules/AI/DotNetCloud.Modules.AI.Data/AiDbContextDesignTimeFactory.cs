@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Data.Naming;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
@@ -14,6 +15,7 @@ public sealed class AiDbContextDesignTimeFactory : IDesignTimeDbContextFactory<A
         var optionsBuilder = new DbContextOptionsBuilder<AiDbContext>();
         optionsBuilder.UseNpgsql("Host=localhost;Database=dotnetcloud_ai;Username=dotnetcloud;Password=dev");
 
-        return new AiDbContext(optionsBuilder.Options);
+        var namingStrategy = new PostgreSqlNamingStrategy();
+        return new AiDbContext(optionsBuilder.Options, namingStrategy);
     }
 }

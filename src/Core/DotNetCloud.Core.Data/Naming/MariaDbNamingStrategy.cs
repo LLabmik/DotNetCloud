@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using DotNetCloud.Core.Modules;
 
 namespace DotNetCloud.Core.Data.Naming;
 
@@ -23,7 +24,7 @@ public class MariaDbNamingStrategy : ITableNamingStrategy
         ArgumentException.ThrowIfNullOrWhiteSpace(entityName);
         ArgumentException.ThrowIfNullOrWhiteSpace(moduleName);
 
-        var prefix = moduleName.ToLowerInvariant();
+        var prefix = RequiredModules.GetSchemaName(moduleName);
         var tableName = ConvertToPascalCaseToSnakeCase(entityName);
         return $"{prefix}_{tableName}";
     }

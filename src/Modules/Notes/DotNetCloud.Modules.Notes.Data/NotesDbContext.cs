@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Modules.Notes.Data.Configuration;
 using DotNetCloud.Modules.Notes.Models;
 using Microsoft.EntityFrameworkCore;
@@ -9,10 +10,24 @@ namespace DotNetCloud.Modules.Notes.Data;
 /// </summary>
 public class NotesDbContext : DbContext
 {
+    private readonly ITableNamingStrategy _namingStrategy;
+
     /// <summary>
     /// Initializes a new instance of the <see cref="NotesDbContext"/> class.
     /// </summary>
-    public NotesDbContext(DbContextOptions<NotesDbContext> options) : base(options) { }
+    public NotesDbContext(DbContextOptions<NotesDbContext> options)
+        : this(options, new PostgreSqlNamingStrategy())
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="NotesDbContext"/> class with a specific naming strategy.
+    /// </summary>
+    public NotesDbContext(DbContextOptions<NotesDbContext> options, ITableNamingStrategy namingStrategy)
+        : base(options)
+    {
+        _namingStrategy = namingStrategy;
+    }
 
     /// <summary>Notes.</summary>
     public DbSet<Note> Notes => Set<Note>();
@@ -35,6 +50,7 @@ public class NotesDbContext : DbContext
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.HasDefaultSchema(_namingStrategy.GetSchemaForModule("notes"));
         base.OnModelCreating(modelBuilder);
         modelBuilder.ApplyConfiguration(new NoteConfiguration());
         modelBuilder.ApplyConfiguration(new NoteFolderConfiguration());

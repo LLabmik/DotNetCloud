@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Data.Naming;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
@@ -27,6 +28,7 @@ public class VideoDbContextDesignTimeFactory : IDesignTimeDbContextFactory<Video
             npgsqlOptions.CommandTimeout(30);
         });
 
-        return new VideoDbContext(options.Options);
+        var namingStrategy = new PostgreSqlNamingStrategy();
+        return new VideoDbContext(options.Options, namingStrategy);
     }
 }
