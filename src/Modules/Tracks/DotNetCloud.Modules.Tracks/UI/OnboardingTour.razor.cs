@@ -180,6 +180,7 @@ public class OnboardingTourBase : ComponentBase, IDisposable
 
         _isVisible = true;
         await ApplyTooltipPositionAsync();
+        StateHasChanged();
     }
 
     /// <summary>
