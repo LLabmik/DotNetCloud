@@ -168,14 +168,21 @@ public class AdminController : ControllerBase
     [HttpPost("modules/{moduleId}/stop")]
     public async Task<IActionResult> StopModuleAsync(string moduleId, CancellationToken cancellationToken)
     {
-        var stopped = await _moduleService.StopModuleAsync(moduleId, cancellationToken);
-        if (!stopped)
+        try
         {
-            return NotFound(new { success = false, error = new { code = "MODULE_NOT_FOUND", message = $"Module '{moduleId}' not found." } });
-        }
+            var stopped = await _moduleService.StopModuleAsync(moduleId, cancellationToken);
+            if (!stopped)
+            {
+                return NotFound(new { success = false, error = new { code = "MODULE_NOT_FOUND", message = $"Module '{moduleId}' not found." } });
+            }
 
-        _logger.LogInformation("Module {ModuleId} stopped by admin", moduleId);
-        return Ok(new { success = true, message = $"Module '{moduleId}' stopped successfully." });
+            _logger.LogInformation("Module {ModuleId} stopped by admin", moduleId);
+            return Ok(new { success = true, message = $"Module '{moduleId}' stopped successfully." });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { success = false, error = new { code = "MODULE_REQUIRED", message = ex.Message } });
+        }
     }
 
     /// <summary>

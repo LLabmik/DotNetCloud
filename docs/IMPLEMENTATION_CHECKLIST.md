@@ -4963,7 +4963,13 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Build passes with 0 errors; all 18 test projects pass (5,104 tests, 0 failures)
 
 ### Phase 4 — Seeding and DTO mapping ✓
-### Phase 5 — Enforcement in API, CLI, and supervisor ☐
+### Phase 5 — Enforcement in API, CLI, and supervisor ✓
+
+- ✓ `AdminModuleService.StopModuleAsync` — guard against stopping required modules
+- ✓ `AdminController.StopModuleAsync` — catch `InvalidOperationException`, return 400 with `MODULE_REQUIRED` code
+- ✓ `ProcessSupervisor.SyncDiscoveredModulesToDatabaseAsync` — set `IsRequired` on newly discovered module records
+- ✓ `ModuleCommands` — guard stop/uninstall for required modules (already in Phase 3)
+- ✓ `SetupCommand` — use `RequiredModules.ModuleIds`, guard disabling required modules (already in Phase 3)
 ### Phase 6 — install.sh ☐
 ### Phase 7 — Update Example module ☐
 

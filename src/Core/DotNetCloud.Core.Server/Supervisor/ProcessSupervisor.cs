@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Core.Data.Entities.Modules;
 using DotNetCloud.Core.Grpc.Lifecycle;
+using DotNetCloud.Core.Modules;
 using DotNetCloud.Core.Modules.Supervisor;
 using DotNetCloud.Core.Server.ModuleLoading;
 using Microsoft.EntityFrameworkCore;
@@ -736,6 +737,7 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
                     Version = manifest.Version,
                     Status = "Enabled",
                     InstalledAt = DateTime.UtcNow,
+                    IsRequired = RequiredModules.IsRequired(module.ModuleId),
                 });
 
                 added++;

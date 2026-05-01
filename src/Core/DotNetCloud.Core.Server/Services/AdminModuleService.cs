@@ -1,6 +1,7 @@
 using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Core.Data.Entities.Modules;
 using DotNetCloud.Core.DTOs;
+using DotNetCloud.Core.Modules;
 using DotNetCloud.Core.Modules.Supervisor;
 using DotNetCloud.Core.Services;
 using Microsoft.EntityFrameworkCore;
@@ -88,6 +89,12 @@ internal sealed class AdminModuleService : IAdminModuleService
         if (module is null)
         {
             return false;
+        }
+
+        if (module.IsRequired)
+        {
+            throw new InvalidOperationException(
+                $"Module '{moduleId}' is architecturally required and cannot be stopped.");
         }
 
         await _processSupervisor.StopModuleAsync(moduleId, cancellationToken);

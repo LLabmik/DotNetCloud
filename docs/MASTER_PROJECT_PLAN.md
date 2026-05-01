@@ -99,6 +99,7 @@
 | Required Modules Schema 2   | 17      | 17        | 0           | 0       |
 | Required Modules Schema 3   | 12      | 12        | 0           | 0       |
 | Required Modules Schema 4   | 1       | 1         | 0           | 0       |
+| Required Modules Schema 5   | 3       | 3         | 0           | 0       |
 | Phase 4.9                   | 42      | 42        | 0           | 0       |
 | Phase 4.10 — Hierarchy      | 17      | 14        | 0           | 3       |
 | Phase 5-8                   | Summary | 10        | 0           | 0       |
@@ -3409,3 +3410,14 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 - ✓ `AdminModuleService.MapToDto` maps `IsRequired = entity.IsRequired` to `ModuleDto`
 
 **Notes:** Phase 4 complete. The only code change was adding `IsRequired = entity.IsRequired` to the DTO mapping in `AdminModuleService.MapToDto`. The seeding path (`SeedKnownModulesAsync`) was already handled in Phase 3. `ModuleDto.IsRequired` was added in Phase 1. Build passes with 0 errors; all tests pass.
+
+### Step: req-modules-schema-5 — Enforcement in API, CLI, and supervisor
+**Status:** completed ✓
+**Deliverables:**
+- ✓ `AdminModuleService.StopModuleAsync` — guard against stopping required modules (throws `InvalidOperationException`)
+- ✓ `AdminController.StopModuleAsync` — catch `InvalidOperationException`, return 400 with `MODULE_REQUIRED` code
+- ✓ `ProcessSupervisor.SyncDiscoveredModulesToDatabaseAsync` — set `IsRequired` on newly discovered module records
+- ✓ `ModuleCommands` — guard stop/uninstall for required modules (completed in Phase 3)
+- ✓ `SetupCommand` — use `RequiredModules.ModuleIds`, guard disabling required modules (completed in Phase 3)
+
+**Notes:** Phase 5 complete. The remaining gaps from previous phases are now closed: the admin API now rejects stop requests for required modules with a proper error code, the process supervisor now sets `IsRequired` when auto-registering discovered modules, and the CLI guards for stop/uninstall were already wired in Phase 3. Build passes with 0 errors; all core tests pass (612 total, 0 failures).
