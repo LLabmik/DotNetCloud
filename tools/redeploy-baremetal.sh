@@ -180,6 +180,12 @@ if [[ -d "$INSTALL_SERVER_DIR" ]]; then
     sudo cp -r "$OUTPUT_DIR"/* "$INSTALL_SERVER_DIR/"
 fi
 
+info "Running database migrations..."
+sudo dotnetcloud migrate || {
+    error "Database migration failed. Check logs and retry."
+    exit 1
+}
+
 info "Starting $SERVICE_NAME..."
 if ! start_service; then
     error "Failed to start $SERVICE_NAME (requires systemd permission)."
