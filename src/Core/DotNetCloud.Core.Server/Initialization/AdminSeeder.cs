@@ -1,5 +1,8 @@
+using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Core.Data.Entities.Identity;
+using DotNetCloud.Core.Data.Entities.Organizations;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
@@ -25,17 +28,20 @@ internal sealed class AdminSeeder
 {
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly RoleManager<ApplicationRole> _roleManager;
+    private readonly CoreDbContext _dbContext;
     private readonly IConfiguration _configuration;
     private readonly ILogger<AdminSeeder> _logger;
 
     public AdminSeeder(
         UserManager<ApplicationUser> userManager,
         RoleManager<ApplicationRole> roleManager,
+        CoreDbContext dbContext,
         IConfiguration configuration,
         ILogger<AdminSeeder> logger)
     {
         _userManager = userManager;
         _roleManager = roleManager;
+        _dbContext = dbContext;
         _configuration = configuration;
         _logger = logger;
     }
@@ -119,7 +125,46 @@ internal sealed class AdminSeeder
             throw new InvalidOperationException($"Admin role assignment failed: {errors}");
         }
 
+        // Add admin to all organizations as a member, which implicitly adds them
+        // to the built-in All Users group.
+        await AddAdminToAllOrganizationsAsync(user);
+
         _logger.LogInformation("Admin user {Email} created and assigned Administrator role.", email);
+    }
+
+    /// <summary>
+    /// Adds the admin user to all existing organizations so they appear in the
+    /// built-in All Users group.
+    /// </summary>
+    private async Task AddAdminToAllOrganizationsAsync(ApplicationUser user)
+    {
+        var organizations = await _dbContext.Organizations
+            .Where(o => !o.IsDeleted)
+            .ToListAsync();
+
+        foreach (var org in organizations)
+        {
+            var alreadyMember = await _dbContext.OrganizationMembers
+                .AnyAsync(m => m.OrganizationId == org.Id && m.UserId == user.Id);
+
+            if (alreadyMember)
+                continue;
+
+            _dbContext.OrganizationMembers.Add(new OrganizationMember
+            {
+                OrganizationId = org.Id,
+                UserId = user.Id,
+                AddedAt = DateTime.UtcNow
+            });
+        }
+
+        if (organizations.Count > 0)
+        {
+            await _dbContext.SaveChangesAsync();
+            _logger.LogInformation(
+                "Added admin user {Email} to {Count} organization(s).",
+                user.Email, organizations.Count);
+        }
     }
 
     private async Task EnsureAdministratorRoleExistsAsync()

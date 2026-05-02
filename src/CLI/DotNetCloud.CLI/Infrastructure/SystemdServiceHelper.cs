@@ -29,6 +29,36 @@ internal static class SystemdServiceHelper
     }
 
     /// <summary>
+    /// Changes ownership of a file to the dotnetcloud service user so the server
+    /// process can read it (e.g., the one-time admin seed file).
+    /// </summary>
+    /// <param name="filePath">Absolute path to the file.</param>
+    public static void FixOwnership(string filePath)
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+
+        if (!File.Exists(filePath))
+            return;
+
+        try
+        {
+            var psi = new ProcessStartInfo("chown", $"{ServiceUser}:{ServiceGroup} \"{filePath}\"")
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false
+            };
+            using var proc = Process.Start(psi);
+            proc?.WaitForExit(5000);
+        }
+        catch
+        {
+            // Best effort — server will still try to read the file.
+        }
+    }
+
+    /// <summary>
     /// Applies security hardening directives to the systemd service unit file
     /// and reloads systemd. Call this after setup completes successfully.
     /// </summary>

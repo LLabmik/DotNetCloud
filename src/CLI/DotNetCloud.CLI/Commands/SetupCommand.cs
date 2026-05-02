@@ -699,6 +699,9 @@ internal static class SetupCommand
             {
                 File.SetUnixFileMode(seedFilePath,
                     UnixFileMode.UserRead | UnixFileMode.UserWrite);
+
+                // Change ownership to the service user so the server process can read it.
+                SystemdServiceHelper.FixOwnership(seedFilePath);
             }
         }
         catch (Exception ex)
