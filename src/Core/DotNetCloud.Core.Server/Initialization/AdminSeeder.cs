@@ -154,7 +154,8 @@ internal sealed class AdminSeeder
             {
                 OrganizationId = org.Id,
                 UserId = user.Id,
-                AddedAt = DateTime.UtcNow
+                JoinedAt = DateTime.UtcNow,
+                IsActive = true
             });
         }
 
