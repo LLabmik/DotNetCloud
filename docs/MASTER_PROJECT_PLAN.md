@@ -107,7 +107,7 @@
 | Phase 5-8                   | Summary | 10        | 0           | 0       |
 | Phase 8 (Full-Text Search)  | 18      | 18        | 0           | 0       |
 | Phase 7 (Video Calling)     | 11      | 11        | 0           | 0       |
-| Phase 9                     | 7       | 5         | 0           | 2       |
+| Phase 9                     | 7       | 4         | 1           | 2       |
 | Phase 11 (Auto-Updates)     | 16      | 7         | 0           | 9       |
 | DM & Host Calls — Phase A   | 3       | 3         | 0           | 0       |
 | DM & Host Calls — Phase B   | 2       | 0         | 0           | 2       |
@@ -2731,6 +2731,7 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 - ✓ `AiAdminSettings.razor` / `.razor.cs` — Blazor admin UI with provider-aware sections
 - ✓ `IAiSettingsProvider` / `AiSettingsProvider` — DB-first settings with IConfiguration fallback
 - ✓ `OllamaClient` dynamic base URL from settings (live reconfiguration, no restart)
+- ✓ Fixed admin system setting persistence under the global no-tracking `CoreDbContext` configuration; update/delete paths now use tracked entities and are covered by regression tests
 - ✓ DB seed: 7 AI settings via `DbInitializer` with backfill for existing databases
 - ✓ Provider selection: Ollama (local), OpenAI, Anthropic — auth fields shown/hidden per provider
 - ☐ Full OpenAI-compatible request routing (Authorization header, API paths)
@@ -2738,7 +2739,7 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 - ☐ Per-user API key storage (encrypted)
 - ☐ Rate limiting per user
 
-**Notes:** Admin settings infrastructure complete. Ollama fully working via DB settings. OpenAI/Anthropic provider routing pending.
+**Notes:** Admin settings infrastructure complete. Ollama fully working via DB settings, and `/admin/settings` persistence was verified in production on 2026-05-02 after fixing write paths for the app-wide no-tracking EF configuration. OpenAI/Anthropic provider routing pending.
 
 ### Section: Phase 9.7 — Module Integration
 **Status:** pending ☐

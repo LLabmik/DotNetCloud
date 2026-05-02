@@ -4072,6 +4072,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `IAiSettingsProvider` / `AiSettingsProvider` — DB-backed settings (SystemSettings table) with IConfiguration fallback
 - ✓ `OllamaClient` uses dynamic base URL from `IAiSettingsProvider` (no restart needed)
 - ✓ `AiChatController` uses `IAiSettingsProvider` for default model
+- ✓ Fix system settings persistence under global no-tracking EF configuration so `/admin/settings` updates and deletes save correctly in production
 - ✓ DB seed: 7 AI settings in `DbInitializer` (Provider, ApiBaseUrl, ApiKey, OrgId, DefaultModel, MaxTokens, RequestTimeoutSeconds)
 - ✓ `DbInitializer` upgraded to backfill missing settings on existing databases
 - ✓ Provider selection: Ollama (local), OpenAI, Anthropic

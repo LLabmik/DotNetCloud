@@ -15,6 +15,7 @@ namespace DotNetCloud.Core.Auth.Tests.Services;
 [TestClass]
 public class AdminSettingsServiceTests
 {
+    private string _databaseName = null!;
     private CoreDbContext _dbContext = null!;
     private Mock<ILogger<AdminSettingsService>> _loggerMock = null!;
     private AdminSettingsService _service = null!;
@@ -22,10 +23,8 @@ public class AdminSettingsServiceTests
     [TestInitialize]
     public void Setup()
     {
-        var options = new DbContextOptionsBuilder<CoreDbContext>()
-            .UseInMemoryDatabase($"SettingsTests_{Guid.NewGuid()}")
-            .Options;
-        _dbContext = new CoreDbContext(options, new PostgreSqlNamingStrategy());
+        _databaseName = $"SettingsTests_{Guid.NewGuid()}";
+        _dbContext = CreateDbContext();
 
         _loggerMock = new Mock<ILogger<AdminSettingsService>>();
 
@@ -159,7 +158,15 @@ public class AdminSettingsServiceTests
         Assert.AreEqual("60", result.Value);
         Assert.AreEqual("New timeout", result.Description);
 
-        var count = await _dbContext.SystemSettings
+        await using var verifyContext = CreateDbContext();
+        var dbSetting = await verifyContext.SystemSettings
+            .FirstOrDefaultAsync(s => s.Module == "core" && s.Key == "Timeout");
+
+        Assert.IsNotNull(dbSetting);
+        Assert.AreEqual("60", dbSetting.Value);
+        Assert.AreEqual("New timeout", dbSetting.Description);
+
+        var count = await verifyContext.SystemSettings
             .CountAsync(s => s.Module == "core" && s.Key == "Timeout");
         Assert.AreEqual(1, count);
     }
@@ -195,5 +202,15 @@ public class AdminSettingsServiceTests
 
         // Assert
         Assert.IsFalse(result);
+    }
+
+    private CoreDbContext CreateDbContext()
+    {
+        var options = new DbContextOptionsBuilder<CoreDbContext>()
+            .UseInMemoryDatabase(_databaseName)
+            .UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking)
+            .Options;
+
+        return new CoreDbContext(options, new PostgreSqlNamingStrategy());
     }
 }

@@ -64,6 +64,7 @@ public sealed class AdminSettingsService : IAdminSettingsService
         ArgumentNullException.ThrowIfNull(dto);
 
         var existing = await _dbContext.SystemSettings
+            .AsTracking()
             .FirstOrDefaultAsync(s => s.Module == module && s.Key == key);
 
         if (existing is not null)
@@ -100,6 +101,7 @@ public sealed class AdminSettingsService : IAdminSettingsService
         ArgumentNullException.ThrowIfNull(key);
 
         var setting = await _dbContext.SystemSettings
+            .AsTracking()
             .FirstOrDefaultAsync(s => s.Module == module && s.Key == key);
 
         if (setting is null)
