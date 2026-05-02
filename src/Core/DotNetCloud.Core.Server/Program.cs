@@ -30,6 +30,7 @@ using DotNetCloud.Modules.Bookmarks.Data;
 using DotNetCloud.Modules.Email.Data;
 using DotNetCloud.Modules.AI.Data;
 using DotNetCloud.Modules.Search;
+using DotNetCloud.Modules.Search.Client;
 using DotNetCloud.Modules.Search.Data;
 using DotNetCloud.Modules.Files.Services;
 using DotNetCloud.UI.Web.Client.Services;
@@ -287,6 +288,7 @@ public class Program
         builder.Services.AddVideoServices(builder.Configuration);
         builder.Services.AddAiServices(builder.Configuration);
         builder.Services.AddSearchServices(builder.Configuration);
+        builder.Services.AddSearchFtsClient(builder.Configuration);
         builder.Services.AddBookmarksServices(builder.Configuration);
         builder.Services.AddEmailServices(builder.Configuration);
         builder.Services.AddSingleton<DotNetCloud.Modules.Files.Data.Services.Background.IAdminSharedFolderReindexDispatcher>(sp =>
