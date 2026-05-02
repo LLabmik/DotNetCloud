@@ -1,0 +1,573 @@
+@page "/bookmarks"
+@namespace DotNetCloud.Modules.Bookmarks.UI
+
+@inject IBookmarksApiClient ApiClient
+@inject IJSRuntime JSRuntime
+
+<div class="bookmarks-layout">
+    @* ── Sidebar ── *@
+    <div class="bookmarks-sidebar @(_sidebarCollapsed ? "collapsed" : "")">
+        <div class="bookmarks-sidebar-header">
+            @if (!_sidebarCollapsed)
+            {
+                <h3>Bookmarks</h3>
+            }
+            <button class="bookmarks-sidebar-toggle" @onclick="ToggleSidebar"
+                    title="@(_sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar")">
+                <span>@(_sidebarCollapsed ? "▶" : "◀")</span>
+            </button>
+        </div>
+
+        @if (!_sidebarCollapsed)
+        {
+            <div class="bookmarks-sidebar-actions">
+                <button class="bookmarks-btn bookmarks-btn-primary" @onclick="BeginAdd" title="Add bookmark">
+                    <span>+ New</span>
+                </button>
+                <button class="bookmarks-btn bookmarks-btn-secondary" @onclick="BeginAddFolder" title="New folder">
+                    <span>+ Folder</span>
+                </button>
+            </div>
+
+            <div class="bookmarks-sidebar-section">
+                <div class="bookmarks-sidebar-section-header">
+                    <span>Views</span>
+                </div>
+                <button class="bookmarks-nav-item @(_selectedFolderId is null && !_showFavorites ? "active" : "")"
+                        @onclick="() => SelectFolder(null)">
+                    <span>📑</span>
+                    <span class="bookmarks-nav-text">All Bookmarks</span>
+                </button>
+                <button class="bookmarks-nav-item @(_showFavorites ? "active" : "")"
+                        @onclick="() => { _showFavorites = true; _selectedFolderId = null; }">
+                    <span>⭐</span>
+                    <span class="bookmarks-nav-text">Favorites</span>
+                </button>
+            </div>
+
+            <div class="bookmarks-sidebar-section">
+                <div class="bookmarks-sidebar-section-header">
+                    <span>Folders</span>
+                </div>
+                @foreach (var folder in _folders)
+                {
+                    <button class="bookmarks-nav-item @(_selectedFolderId == folder.Id ? "active" : "")"
+                            @onclick="() => SelectFolder(folder.Id)" title="@folder.Name">
+                        <span class="bookmarks-folder-dot" style="background: @(folder.Color ?? "#6b7280");"></span>
+                        <span class="bookmarks-nav-text">@folder.Name</span>
+                    </button>
+                }
+                @if (_folders.Count == 0)
+                {
+                    <div class="bookmarks-sidebar-empty">No folders yet</div>
+                }
+            </div>
+
+            <div class="bookmarks-sidebar-section">
+                <div class="bookmarks-sidebar-section-header">
+                    <span>Tools</span>
+                </div>
+                <button class="bookmarks-nav-item" @onclick="BeginImport">
+                    <span>📥</span>
+                    <span class="bookmarks-nav-text">Import</span>
+                </button>
+                <button class="bookmarks-nav-item" @onclick="ExportBookmarks">
+                    <span>📤</span>
+                    <span class="bookmarks-nav-text">Export</span>
+                </button>
+            </div>
+        }
+    </div>
+
+    @* ── Main Content ── *@
+    <div class="bookmarks-main">
+        @if (_isLoading)
+        {
+            <DncLoadingIndicator />
+        }
+        else if (_errorMessage is not null)
+        {
+            <DncErrorDisplay Message="@_errorMessage" />
+        }
+        else if (_importing)
+        {
+            @* Import view *@
+            <div class="bookmarks-import-view">
+                <h3>Import Bookmarks</h3>
+                <p>Select an HTML bookmarks file exported from your browser.</p>
+                <InputFile OnChange="HandleFileSelected" accept=".html,.htm" />
+                @if (_importResult is not null)
+                {
+                    <div class="bookmarks-import-result">
+                        <span class="bookmarks-import-stat">Imported: @_importResult.ImportedCount</span>
+                        <span class="bookmarks-import-stat">Folders: @_importResult.FolderCount</span>
+                        <span class="bookmarks-import-stat">Skipped: @_importResult.SkippedCount</span>
+                        @if (_importResult.Errors.Count > 0)
+                        {
+                            <ul class="bookmarks-import-errors">
+                                @foreach (var err in _importResult.Errors)
+                                {
+                                    <li>@err</li>
+                                }
+                            </ul>
+                        }
+                    </div>
+                }
+                <button class="bookmarks-btn bookmarks-btn-secondary" @onclick="() => _importing = false">Done</button>
+            </div>
+        }
+        else if (_searchQuery is not null)
+        {
+            @* Search Results *@
+            <div class="bookmarks-search-bar">
+                <input class="bookmarks-search-input" @bind="_searchQuery" @bind:event="oninput"
+                       placeholder="Search bookmarks..." />
+                <button class="bookmarks-btn bookmarks-btn-secondary" @onclick="() => _searchQuery = null">✕</button>
+            </div>
+            @if (_searchResults.Count > 0)
+            {
+                <BookmarkGrid Items="_searchResults" OnSelect="SelectBookmark" OnToggleFavorite="ToggleFavorite"
+                              OnDelete="DeleteBookmark" OnFetchPreview="FetchPreview" />
+            }
+            else
+            {
+                <div class="bookmarks-empty">
+                    <h3>No results for "@_searchQuery"</h3>
+                </div>
+            }
+        }
+        else if (_editingBookmark is not null)
+        {
+            @* Add/Edit Bookmark *@
+            <BookmarkEditForm Bookmark="_editingBookmark" Folders="_folders"
+                              OnSave="SaveBookmarkAsync" OnCancel="CancelEdit" />
+        }
+        else if (_editingFolder is not null)
+        {
+            @* Add/Edit Folder *@
+            <div class="bookmarks-edit-panel">
+                <h3>@(_editingFolder.Id == Guid.Empty ? "New Folder" : "Edit Folder")</h3>
+                <div class="bookmarks-form-group">
+                    <label>Name</label>
+                    <input class="bookmarks-input" @bind="_editingFolder.Name" />
+                </div>
+                <div class="bookmarks-form-group">
+                    <label>Color</label>
+                    <input type="color" class="bookmarks-color-picker" @bind="_editingFolder.Color" />
+                </div>
+                <div class="bookmarks-form-actions">
+                    <button class="bookmarks-btn bookmarks-btn-primary" @onclick="SaveFolderAsync">Save</button>
+                    <button class="bookmarks-btn bookmarks-btn-secondary" @onclick="CancelEdit">Cancel</button>
+                </div>
+            </div>
+        }
+        else if (_selectedBookmark is not null)
+        {
+            @* Detail View *@
+            <div class="bookmarks-detail">
+                <div class="bookmarks-detail-header">
+                    <button class="bookmarks-btn bookmarks-btn-secondary" @onclick="() => { _selectedBookmark = null; _selectedPreview = null; }">
+                        ← Back
+                    </button>
+                    <div class="bookmarks-detail-actions">
+                        <button class="bookmarks-btn bookmarks-btn-secondary" @onclick='() => BeginEdit(_selectedBookmark)'>Edit</button>
+                        <button class="bookmarks-btn bookmarks-btn-secondary"
+                                @onclick='() => ToggleFavorite(_selectedBookmark)'>
+                            @(_selectedBookmark.IsFavorite ? "★" : "☆")
+                        </button>
+                        <button class="bookmarks-btn bookmarks-btn-secondary"
+                                @onclick='() => FetchPreview(_selectedBookmark)'>Fetch Preview</button>
+                        <button class="bookmarks-btn bookmarks-btn-danger"
+                                @onclick='() => DeleteBookmark(_selectedBookmark)'>Delete</button>
+                    </div>
+                </div>
+
+                <h2>@(_selectedBookmark.Title)</h2>
+                <a href="@_selectedBookmark.Url" target="_blank" rel="noopener" class="bookmarks-url">@_selectedBookmark.Url</a>
+
+                @if (_selectedBookmark.Description is not null)
+                {
+                    <p class="bookmarks-description">@_selectedBookmark.Description</p>
+                }
+                @if (_selectedBookmark.Notes is not null)
+                {
+                    <div class="bookmarks-notes">
+                        <h4>Notes</h4>
+                        <p>@_selectedBookmark.Notes</p>
+                    </div>
+                }
+
+                @* Preview *@
+                @if (_selectedPreview is not null)
+                {
+                    <div class="bookmarks-preview-card">
+                        <h4>Preview</h4>
+                        @if (_selectedPreview.Status == BookmarkPreviewStatus.Fetching)
+                        {
+                            <DncLoadingIndicator />
+                        }
+                        else if (_selectedPreview.Status == BookmarkPreviewStatus.Ok)
+                        {
+                            <div class="bookmarks-preview-content">
+                                @if (_selectedPreview.PreviewImageUrl is not null)
+                                {
+                                    <img src="@_selectedPreview.PreviewImageUrl" alt="Preview" class="bookmarks-preview-image" />
+                                }
+                                @if (_selectedPreview.FaviconUrl is not null)
+                                {
+                                    <img src="@_selectedPreview.FaviconUrl" alt="" class="bookmarks-favicon" width="16" height="16" />
+                                }
+                                @if (_selectedPreview.SiteName is not null)
+                                {
+                                    <span class="bookmarks-site-name">@_selectedPreview.SiteName</span>
+                                }
+                                @if (_selectedPreview.ResolvedTitle is not null)
+                                {
+                                    <h5>@_selectedPreview.ResolvedTitle</h5>
+                                }
+                                @if (_selectedPreview.ResolvedDescription is not null)
+                                {
+                                    <p>@_selectedPreview.ResolvedDescription</p>
+                                }
+                            </div>
+                        }
+                        else if (_selectedPreview.Status == BookmarkPreviewStatus.Failed)
+                        {
+                            <p class="bookmarks-preview-error">Preview fetch failed: @_selectedPreview.ErrorMessage</p>
+                        }
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            @* Bookmark List/Grid *@
+            <div class="bookmarks-toolbar">
+                <div class="bookmarks-search-bar">
+                    <input class="bookmarks-search-input" @bind="_searchInput" @bind:event="oninput"
+                           placeholder="Search bookmarks..." />
+                    <button class="bookmarks-btn bookmarks-btn-primary" @onclick="DoSearch"
+                            disabled="@(string.IsNullOrWhiteSpace(_searchInput))">
+                        🔍
+                    </button>
+                </div>
+                <div class="bookmarks-view-toggle">
+                    <button class="bookmarks-btn bookmarks-btn-secondary @(_viewMode == BookmarkViewMode.Grid ? "active" : "")"
+                            @onclick="() => _viewMode = BookmarkViewMode.Grid" title="Grid view">▦</button>
+                    <button class="bookmarks-btn bookmarks-btn-secondary @(_viewMode == BookmarkViewMode.List ? "active" : "")"
+                            @onclick="() => _viewMode = BookmarkViewMode.List" title="List view">☰</button>
+                </div>
+            </div>
+
+            @if (_bookmarks.Count > 0)
+            {
+                if (_viewMode == BookmarkViewMode.Grid)
+                {
+                    <BookmarkGrid Items="_bookmarks" OnSelect="SelectBookmark" OnToggleFavorite="ToggleFavorite"
+                                  OnDelete="DeleteBookmark" OnFetchPreview="FetchPreview" />
+                }
+                else
+                {
+                    <BookmarkList Items="_bookmarks" OnSelect="SelectBookmark" OnToggleFavorite="ToggleFavorite"
+                                  OnDelete="DeleteBookmark" />
+                }
+            }
+            else
+            {
+                <div class="bookmarks-empty">
+                    <div class="bookmarks-empty-icon">📑</div>
+                    <h3>No bookmarks yet</h3>
+                    <p>Add your first bookmark to get started, or import from your browser.</p>
+                    <button class="bookmarks-btn bookmarks-btn-primary" @onclick="BeginAdd">+ Add Bookmark</button>
+                </div>
+            }
+        }
+    </div>
+</div>
+
+@code {
+    private enum BookmarkViewMode { Grid, List }
+
+    private bool _sidebarCollapsed;
+    private bool _isLoading = true;
+    private string? _errorMessage;
+    private BookmarkViewMode _viewMode = BookmarkViewMode.Grid;
+
+    private List<BookmarkItem> _bookmarks = [];
+    private List<BookmarkFolder> _folders = [];
+    private BookmarkItem? _selectedBookmark;
+    private BookmarkPreview? _selectedPreview;
+    private Guid? _selectedFolderId;
+    private bool _showFavorites;
+
+    // Edit state
+    private BookmarkItem? _editingBookmark;
+    private BookmarkFolder? _editingFolder;
+    private string _searchInput = string.Empty;
+    private string? _searchQuery;
+    private List<BookmarkItem> _searchResults = [];
+
+    // Import state
+    private bool _importing;
+    private BookmarkImportResult? _importResult;
+    private Stream? _importFileStream;
+    private string _importFileName = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var collapsed = await JSRuntime.InvokeAsync<string>("localStorage.getItem", new object?[] { "dotnetcloud.sidebar:bookmarks" });
+            if (bool.TryParse(collapsed ?? "false", out var parsed))
+                _sidebarCollapsed = parsed;
+        }
+        catch { }
+
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        _isLoading = true;
+        _errorMessage = null;
+        try
+        {
+            _folders = (await ApiClient.ListFoldersAsync()).ToList();
+            _bookmarks = (await ApiClient.ListAsync(folderId: _selectedFolderId)).ToList();
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to load bookmarks: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void ToggleSidebar()
+    {
+        _sidebarCollapsed = !_sidebarCollapsed;
+        try
+        {
+            _ = JSRuntime.InvokeVoidAsync("localStorage.setItem",
+                new object?[] { "dotnetcloud.sidebar:bookmarks", _sidebarCollapsed.ToString().ToLowerInvariant() });
+        }
+        catch { }
+    }
+
+    private async Task SelectFolder(Guid? folderId)
+    {
+        _selectedFolderId = folderId;
+        _showFavorites = false;
+        _selectedBookmark = null;
+        _editingBookmark = null;
+        _searchQuery = null;
+        await ReloadAsync();
+    }
+
+    private async Task SelectBookmark(BookmarkItem item)
+    {
+        _selectedBookmark = item;
+        _editingBookmark = null;
+        // Load preview
+        try
+        {
+            _selectedPreview = await ApiClient.GetPreviewAsync(item.Id);
+        }
+        catch { _selectedPreview = null; }
+    }
+
+    private void BeginAdd()
+    {
+        _editingBookmark = new BookmarkItem { FolderId = _selectedFolderId };
+        _selectedBookmark = null;
+    }
+
+    private void BeginEdit(BookmarkItem item)
+    {
+        _editingBookmark = item;
+        _selectedBookmark = null;
+    }
+
+    private void BeginAddFolder()
+    {
+        _editingFolder = new BookmarkFolder { Color = "#6b7280" };
+    }
+
+    private async Task SaveBookmarkAsync(BookmarkItem item)
+    {
+        try
+        {
+            if (item.Id == Guid.Empty)
+            {
+                var request = new CreateBookmarkRequest
+                {
+                    Url = item.Url,
+                    Title = !string.IsNullOrWhiteSpace(item.Title) ? item.Title : null,
+                    Description = item.Description,
+                    Notes = item.Notes,
+                    Tags = !string.IsNullOrWhiteSpace(item.TagsJson)
+                        ? System.Text.Json.JsonSerializer.Deserialize<List<string>>(item.TagsJson)
+                        : null,
+                    FolderId = item.FolderId
+                };
+                await ApiClient.CreateAsync(request);
+            }
+            else
+            {
+                var request = new UpdateBookmarkRequest
+                {
+                    Url = item.Url,
+                    Title = item.Title,
+                    Description = item.Description,
+                    Notes = item.Notes,
+                    Tags = !string.IsNullOrWhiteSpace(item.TagsJson)
+                        ? System.Text.Json.JsonSerializer.Deserialize<List<string>>(item.TagsJson)
+                        : null,
+                    FolderId = item.FolderId
+                };
+                await ApiClient.UpdateAsync(item.Id, request);
+            }
+            CancelEdit();
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to save bookmark: {ex.Message}";
+        }
+    }
+
+    private async Task SaveFolderAsync()
+    {
+        if (_editingFolder is null) return;
+
+        try
+        {
+            if (_editingFolder.Id == Guid.Empty)
+            {
+                await ApiClient.CreateFolderAsync(new CreateBookmarkFolderRequest
+                {
+                    Name = _editingFolder.Name,
+                    Color = _editingFolder.Color
+                });
+            }
+            else
+            {
+                await ApiClient.UpdateFolderAsync(_editingFolder.Id, new UpdateBookmarkFolderRequest
+                {
+                    Name = _editingFolder.Name,
+                    Color = _editingFolder.Color
+                });
+            }
+            CancelEdit();
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to save folder: {ex.Message}";
+        }
+    }
+
+    private async Task ToggleFavorite(BookmarkItem item)
+    {
+        try
+        {
+            await ApiClient.UpdateAsync(item.Id, new UpdateBookmarkRequest { IsFavorite = !item.IsFavorite });
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to update bookmark: {ex.Message}";
+        }
+    }
+
+    private async Task DeleteBookmark(BookmarkItem item)
+    {
+        try
+        {
+            await ApiClient.DeleteAsync(item.Id);
+            if (_selectedBookmark?.Id == item.Id)
+                _selectedBookmark = null;
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to delete bookmark: {ex.Message}";
+        }
+    }
+
+    private async Task FetchPreview(BookmarkItem item)
+    {
+        try
+        {
+            await ApiClient.FetchPreviewAsync(item.Id);
+            if (_selectedBookmark?.Id == item.Id)
+                _selectedPreview = await ApiClient.GetPreviewAsync(item.Id);
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to fetch preview: {ex.Message}";
+        }
+    }
+
+    private void CancelEdit()
+    {
+        _editingBookmark = null;
+        _editingFolder = null;
+    }
+
+    private async Task DoSearch()
+    {
+        if (string.IsNullOrWhiteSpace(_searchInput)) return;
+        _searchQuery = _searchInput;
+        try
+        {
+            _searchResults = (await ApiClient.SearchAsync(_searchQuery)).ToList();
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Search failed: {ex.Message}";
+        }
+    }
+
+    private void BeginImport()
+    {
+        _importing = true;
+        _importResult = null;
+    }
+
+    private async Task HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        if (e.File is null) return;
+
+        try
+        {
+            _importFileStream = e.File.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+            _importFileName = e.File.Name;
+            _importResult = await ApiClient.ImportAsync(_importFileStream, _importFileName, _selectedFolderId);
+        }
+        catch (Exception ex)
+        {
+            _importResult = new BookmarkImportResult
+            {
+                Errors = { $"Import failed: {ex.Message}" }
+            };
+        }
+    }
+
+    private async Task ExportBookmarks()
+    {
+        try
+        {
+            var bytes = await ApiClient.ExportAsync(_selectedFolderId);
+            var base64 = Convert.ToBase64String(bytes);
+            await JSRuntime.InvokeVoidAsync("downloadFile",
+                new object[] { "bookmarks.html", "text/html", base64 });
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Export failed: {ex.Message}";
+        }
+    }
+}

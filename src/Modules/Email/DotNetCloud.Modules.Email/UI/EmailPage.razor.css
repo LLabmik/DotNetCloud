@@ -1,0 +1,603 @@
+/* ══════════════════════════════════════════════════════════════
+   Email Module – Master Stylesheet
+   Scoped to EmailPage.razor; uses ::deep for child components.
+   ══════════════════════════════════════════════════════════════ */
+
+/* ─────────── Layout ─────────── */
+
+.email-layout {
+    display: flex;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.email-sidebar {
+    width: 240px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--color-surface);
+    border-right: 1px solid var(--color-border);
+    overflow-y: auto;
+    transition: width 200ms ease;
+}
+
+.email-sidebar.collapsed {
+    width: 52px;
+    overflow: hidden;
+}
+
+.email-sidebar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 12px 8px;
+    border-bottom: 1px solid var(--color-border);
+    min-height: 48px;
+}
+
+.email-sidebar.collapsed .email-sidebar-header {
+    justify-content: center;
+    padding: 16px 6px 8px;
+}
+
+.email-sidebar-toggle {
+    background: none;
+    border: none;
+    color: var(--color-muted);
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: var(--radius);
+    font-size: 11px;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.email-sidebar-toggle:hover {
+    background: var(--color-bg);
+    color: var(--color-text);
+}
+
+.email-sidebar.collapsed .email-nav-text,
+.email-sidebar.collapsed .email-sidebar-section-header,
+.email-sidebar.collapsed .email-sidebar-actions,
+.email-sidebar.collapsed .email-sidebar-empty {
+    display: none;
+}
+
+.email-sidebar.collapsed .email-nav-item {
+    justify-content: center;
+    padding: 8px;
+}
+
+/* ─────────── Sidebar Actions ─────────── */
+
+.email-sidebar-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px 12px 8px;
+}
+
+/* ─────────── Sidebar Sections ─────────── */
+
+.email-sidebar-section {
+    padding: 8px 0;
+}
+
+.email-sidebar-section-header {
+    padding: 0 12px 4px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--color-muted);
+    letter-spacing: 0.5px;
+}
+
+.email-sidebar-empty {
+    padding: 8px 12px;
+    color: var(--color-muted);
+    font-size: 13px;
+}
+
+.email-select {
+    width: calc(100% - 24px);
+    margin: 0 12px;
+    padding: 6px 8px;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    color: var(--color-text);
+    font-size: 12px;
+}
+
+/* ─────────── Nav Items ─────────── */
+
+.email-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 6px 12px;
+    background: none;
+    border: none;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    font-size: 13px;
+    text-align: left;
+    transition: background var(--transition), color var(--transition);
+}
+
+.email-nav-item:hover {
+    background: var(--color-bg);
+    color: var(--color-text);
+}
+
+.email-nav-item.active {
+    background: color-mix(in srgb, var(--color-primary) 15%, transparent);
+    color: var(--color-primary);
+    font-weight: 500;
+}
+
+.email-nav-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ─────────── Main ─────────── */
+
+.email-main {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+    background: var(--color-bg);
+    min-height: 0;
+}
+
+/* ─────────── Buttons ─────────── */
+
+.email-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 12px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-surface);
+    color: var(--color-text);
+    cursor: pointer;
+    font-size: 13px;
+    white-space: nowrap;
+    transition: background var(--transition), border-color var(--transition);
+}
+
+.email-btn:hover {
+    background: var(--color-bg);
+}
+
+.email-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.email-btn-primary {
+    background: var(--color-primary);
+    color: #fff;
+    border-color: var(--color-primary);
+}
+
+.email-btn-primary:hover {
+    opacity: 0.9;
+}
+
+.email-btn-danger {
+    color: var(--color-danger, #dc3545);
+}
+
+.email-btn-danger:hover {
+    background: var(--color-danger, #dc3545);
+    color: #fff;
+    border-color: var(--color-danger, #dc3545);
+}
+
+/* ─────────── Tabs ─────────── */
+
+.email-tabs {
+    display: flex;
+    gap: 0;
+    margin: 16px 0;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+
+.email-tab {
+    flex: 1;
+    padding: 8px 16px;
+    background: var(--color-surface);
+    border: none;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    font-size: 13px;
+    transition: background var(--transition), color var(--transition);
+}
+
+.email-tab.active {
+    background: var(--color-primary);
+    color: #fff;
+}
+
+.email-tab:not(.active):hover {
+    background: var(--color-bg);
+}
+
+/* ─────────── Forms ─────────── */
+
+.email-panel {
+    max-width: 600px;
+}
+
+.email-panel h3,
+.email-rules-panel h3 {
+    margin: 0 0 16px;
+    color: var(--color-text);
+}
+
+.email-form-group {
+    margin-bottom: 12px;
+}
+
+.email-form-group label {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--color-muted);
+    text-transform: uppercase;
+}
+
+.email-form-row {
+    display: flex;
+    gap: 16px;
+    align-items: flex-end;
+}
+
+.email-form-check {
+    display: flex;
+    align-items: center;
+    padding-bottom: 12px;
+}
+
+.email-form-check label {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 13px;
+    color: var(--color-text);
+    cursor: pointer;
+}
+
+.email-input {
+    width: 100%;
+    padding: 8px 12px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    color: var(--color-text);
+    font-size: 14px;
+    box-sizing: border-box;
+}
+
+.email-input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+}
+
+.email-compose-body {
+    resize: vertical;
+    min-height: 200px;
+    font-family: inherit;
+}
+
+.email-form-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+}
+
+/* ─────────── Thread List ─────────── */
+
+.email-thread-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    background: var(--color-border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    border: 1px solid var(--color-border);
+}
+
+.email-thread-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: var(--color-surface);
+    cursor: pointer;
+    transition: background var(--transition);
+    gap: 12px;
+}
+
+.email-thread-card:hover {
+    background: var(--color-bg);
+}
+
+.email-thread-subject {
+    font-weight: 500;
+    color: var(--color-text);
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+
+.email-thread-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+    font-size: 12px;
+    color: var(--color-muted);
+}
+
+.email-thread-participants {
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.email-thread-count {
+    background: var(--color-bg);
+    padding: 1px 6px;
+    border-radius: 10px;
+    font-size: 11px;
+}
+
+/* ─────────── Thread Detail ─────────── */
+
+.email-thread-detail {
+    max-width: 800px;
+}
+
+.email-thread-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+
+.email-thread-header h3 {
+    margin: 0;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.email-thread-actions {
+    display: flex;
+    gap: 4px;
+}
+
+/* ─────────── Messages ─────────── */
+
+.email-message {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 12px;
+}
+
+.email-message.unread {
+    border-left: 3px solid var(--color-primary);
+}
+
+.email-message-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.email-message-from {
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.email-message-date {
+    font-size: 12px;
+    color: var(--color-muted);
+}
+
+.email-message-body {
+    color: var(--color-text-secondary);
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.email-attachments {
+    margin-top: 12px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.email-attachment-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    font-size: 12px;
+    color: var(--color-text-secondary);
+}
+
+/* ─────────── Compose ─────────── */
+
+::deep .email-compose-panel {
+    max-width: 700px;
+}
+
+::deep .email-compose-panel h3 {
+    margin: 0 0 16px;
+    color: var(--color-text);
+}
+
+/* ─────────── Rules ─────────── */
+
+.email-rules-panel {
+    max-width: 700px;
+}
+
+.email-rules-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+}
+
+.email-rules-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.email-rule-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+}
+
+.email-rule-card.disabled {
+    opacity: 0.5;
+}
+
+.email-rule-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.email-rule-priority {
+    font-size: 12px;
+    color: var(--color-muted);
+}
+
+.email-rule-disabled {
+    font-size: 11px;
+    color: var(--color-danger, #dc3545);
+    background: color-mix(in srgb, var(--color-danger, #dc3545) 10%, transparent);
+    padding: 1px 6px;
+    border-radius: 10px;
+}
+
+.email-rule-actions {
+    display: flex;
+    gap: 4px;
+}
+
+/* ─────────── Rule Editor ─────────── */
+
+::deep .email-rule-edit-panel {
+    margin-top: 16px;
+}
+
+::deep .email-rule-edit-panel h3 {
+    margin: 0 0 16px;
+}
+
+::deep .email-rule-section {
+    margin-bottom: 20px;
+    padding: 16px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+}
+
+::deep .email-rule-section h4 {
+    margin: 0 0 4px;
+    font-size: 14px;
+}
+
+::deep .email-rule-hint {
+    margin: 0 0 12px;
+    font-size: 12px;
+    color: var(--color-muted);
+}
+
+::deep .email-rule-condition-group {
+    margin-bottom: 12px;
+    padding: 12px;
+    background: var(--color-bg);
+    border-radius: var(--radius);
+    border: 1px solid var(--color-border);
+}
+
+::deep .email-rule-group-header {
+    margin-bottom: 8px;
+}
+
+::deep .email-rule-condition-row,
+::deep .email-rule-action-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+    align-items: center;
+}
+
+::deep .email-rule-condition-row .email-input,
+::deep .email-rule-action-row .email-input {
+    flex: 1;
+    min-width: 0;
+}
+
+/* ─────────── Empty State ─────────── */
+
+.email-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    text-align: center;
+}
+
+.email-empty-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+    opacity: 0.5;
+}
+
+.email-empty h3 {
+    margin: 0 0 8px;
+    color: var(--color-text);
+}
+
+.email-empty p {
+    margin: 0 0 16px;
+    color: var(--color-text-secondary);
+}

@@ -1,0 +1,90 @@
+@namespace DotNetCloud.Modules.Bookmarks.UI
+@using DotNetCloud.Modules.Bookmarks.Models
+
+<div class="bookmarks-edit-panel">
+    <h3>@(Bookmark.Id == Guid.Empty ? "Add Bookmark" : "Edit Bookmark")</h3>
+
+    <div class="bookmarks-form-group">
+        <label>URL</label>
+        <input class="bookmarks-input" @bind="Bookmark.Url" placeholder="https://..." />
+    </div>
+
+    <div class="bookmarks-form-group">
+        <label>Title</label>
+        <input class="bookmarks-input" @bind="Bookmark.Title" placeholder="Optional title" />
+    </div>
+
+    <div class="bookmarks-form-group">
+        <label>Folder</label>
+        <select class="bookmarks-input" @bind="Bookmark.FolderId">
+            <option value="">No folder</option>
+            @foreach (var folder in Folders)
+            {
+                <option value="@folder.Id">@folder.Name</option>
+            }
+        </select>
+    </div>
+
+    <div class="bookmarks-form-group">
+        <label>Description</label>
+        <textarea class="bookmarks-input bookmarks-textarea" @bind="Bookmark.Description"
+                  rows="2" placeholder="Optional description"></textarea>
+    </div>
+
+    <div class="bookmarks-form-group">
+        <label>Notes</label>
+        <textarea class="bookmarks-input bookmarks-textarea" @bind="Bookmark.Notes"
+                  rows="3" placeholder="Optional notes"></textarea>
+    </div>
+
+    <div class="bookmarks-form-group">
+        <label>Tags (comma-separated)</label>
+        <input class="bookmarks-input" @bind="_tagsInput" placeholder="tag1, tag2, tag3" />
+    </div>
+
+    <div class="bookmarks-form-actions">
+        <button class="bookmarks-btn bookmarks-btn-primary" @onclick="HandleSave">Save</button>
+        <button class="bookmarks-btn bookmarks-btn-secondary" @onclick="() => OnCancel?.Invoke()">Cancel</button>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public required BookmarkItem Bookmark { get; set; }
+    [Parameter, EditorRequired] public required IReadOnlyList<BookmarkFolder> Folders { get; set; }
+    [Parameter] public Func<BookmarkItem, Task>? OnSave { get; set; }
+    [Parameter] public Action? OnCancel { get; set; }
+
+    private string _tagsInput = string.Empty;
+
+    protected override void OnParametersSet()
+    {
+        if (!string.IsNullOrWhiteSpace(Bookmark.TagsJson))
+        {
+            try
+            {
+                var tags = System.Text.Json.JsonSerializer.Deserialize<List<string>>(Bookmark.TagsJson);
+                if (tags is not null)
+                    _tagsInput = string.Join(", ", tags);
+            }
+            catch { }
+        }
+    }
+
+    private async Task HandleSave()
+    {
+        // Serialize tags
+        if (!string.IsNullOrWhiteSpace(_tagsInput))
+        {
+            var tags = _tagsInput.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(t => t.Length > 0).ToList();
+            Bookmark.TagsJson = System.Text.Json.JsonSerializer.Serialize(tags);
+        }
+        else
+        {
+            Bookmark.TagsJson = null;
+        }
+
+        if (OnSave is not null)
+            await OnSave.Invoke(Bookmark);
+    }
+}

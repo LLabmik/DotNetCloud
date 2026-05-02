@@ -1,0 +1,8 @@
+syntax = "proto3";
+
+package dotnetcloud.email;
+
+option csharp_namespace = "DotNetCloud.Modules.Email.Host.Services";
+
+service EmailService {
+}

@@ -1,0 +1,20 @@
+{
+  "id": "dotnetcloud.bookmarks",
+  "name": "Bookmarks",
+  "version": "1.0.0",
+  "description": "Private bookmark management with folder organization, import/export, and rich preview scraping.",
+  "author": "DotNetCloud",
+  "requiredCapabilities": [
+    "INotificationService",
+    "ICurrentUserContext",
+    "IAuditLogger"
+  ],
+  "publishedEvents": [
+    "BookmarkCreatedEvent",
+    "BookmarkUpdatedEvent",
+    "BookmarkDeletedEvent"
+  ],
+  "subscribedEvents": [],
+  "minCoreVersion": "1.0.0",
+  "schemaProvider": "core"
+}

@@ -67,6 +67,12 @@
     <ProjectReference Include="..\..\Modules\Video\DotNetCloud.Modules.Video.Host\DotNetCloud.Modules.Video.Host.csproj" />
     <ProjectReference Include="..\..\Modules\AI\DotNetCloud.Modules.AI\DotNetCloud.Modules.AI.csproj" />
     <ProjectReference Include="..\..\Modules\AI\DotNetCloud.Modules.AI.Data\DotNetCloud.Modules.AI.Data.csproj" />
+    <ProjectReference Include="..\..\Modules\Bookmarks\DotNetCloud.Modules.Bookmarks\DotNetCloud.Modules.Bookmarks.csproj" />
+    <ProjectReference Include="..\..\Modules\Bookmarks\DotNetCloud.Modules.Bookmarks.Data\DotNetCloud.Modules.Bookmarks.Data.csproj" />
+    <ProjectReference Include="..\..\Modules\Bookmarks\DotNetCloud.Modules.Bookmarks.Host\DotNetCloud.Modules.Bookmarks.Host.csproj" />
+    <ProjectReference Include="..\..\Modules\Email\DotNetCloud.Modules.Email\DotNetCloud.Modules.Email.csproj" />
+    <ProjectReference Include="..\..\Modules\Email\DotNetCloud.Modules.Email.Data\DotNetCloud.Modules.Email.Data.csproj" />
+    <ProjectReference Include="..\..\Modules\Email\DotNetCloud.Modules.Email.Host\DotNetCloud.Modules.Email.Host.csproj" />
     <ProjectReference Include="..\..\Modules\Search\DotNetCloud.Modules.Search\DotNetCloud.Modules.Search.csproj" />
     <ProjectReference Include="..\..\Modules\Search\DotNetCloud.Modules.Search.Data\DotNetCloud.Modules.Search.Data.csproj" />
     <ProjectReference Include="..\..\Modules\Search\DotNetCloud.Modules.Search.Host\DotNetCloud.Modules.Search.Host.csproj" />

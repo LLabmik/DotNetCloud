@@ -1,0 +1,25 @@
+{
+  "id": "dotnetcloud.email",
+  "name": "Email",
+  "version": "1.0.0",
+  "description": "Integrated email with IMAP/SMTP and Gmail providers, threading, server-side rules/filters, and search integration.",
+  "author": "DotNetCloud",
+  "requiredCapabilities": [
+    "INotificationService",
+    "ICurrentUserContext",
+    "IAuditLogger",
+    "IContactDirectory",
+    "IStorageProvider"
+  ],
+  "publishedEvents": [
+    "EmailAccountAddedEvent",
+    "EmailAccountRemovedEvent",
+    "EmailThreadCreatedEvent",
+    "EmailMessageReceivedEvent",
+    "EmailSentEvent",
+    "EmailRuleTriggeredEvent"
+  ],
+  "subscribedEvents": [],
+  "minCoreVersion": "1.0.0",
+  "schemaProvider": "core"
+}

@@ -478,6 +478,65 @@ public static class ErrorCodes
     /// <summary>Error code for video concurrent stream limit exceeded.</summary>
     public const string VideoStreamLimitExceeded = "VIDEO_STREAM_LIMIT_EXCEEDED";
 
+    // Bookmarks
+    /// <summary>Error code for bookmark not found.</summary>
+    public const string BookmarkNotFound = "BOOKMARK_NOT_FOUND";
+
+    /// <summary>Error code for bookmark folder not found.</summary>
+    public const string BookmarkFolderNotFound = "BOOKMARK_FOLDER_NOT_FOUND";
+
+    /// <summary>Error code for bookmark folder already exists.</summary>
+    public const string BookmarkFolderAlreadyExists = "BOOKMARK_FOLDER_ALREADY_EXISTS";
+
+    /// <summary>Error code for bookmark already exists (duplicate URL).</summary>
+    public const string BookmarkAlreadyExists = "BOOKMARK_ALREADY_EXISTS";
+
+    /// <summary>Error code for invalid bookmark URL.</summary>
+    public const string InvalidBookmarkUrl = "BOOKMARK_INVALID_URL";
+
+    /// <summary>Error code for bookmark preview fetch failure.</summary>
+    public const string BookmarkPreviewFailed = "BOOKMARK_PREVIEW_FAILED";
+
+    /// <summary>Error code for bookmark import failure.</summary>
+    public const string BookmarkImportFailed = "BOOKMARK_IMPORT_FAILED";
+
+    /// <summary>Error code for bookmark export failure.</summary>
+    public const string BookmarkExportFailed = "BOOKMARK_EXPORT_FAILED";
+
+    // Email
+    /// <summary>Error code for email account not found.</summary>
+    public const string EmailAccountNotFound = "EMAIL_ACCOUNT_NOT_FOUND";
+
+    /// <summary>Error code for email account already exists.</summary>
+    public const string EmailAccountAlreadyExists = "EMAIL_ACCOUNT_ALREADY_EXISTS";
+
+    /// <summary>Error code for invalid email credentials.</summary>
+    public const string EmailCredentialInvalid = "EMAIL_CREDENTIAL_INVALID";
+
+    /// <summary>Error code for email provider error.</summary>
+    public const string EmailProviderError = "EMAIL_PROVIDER_ERROR";
+
+    /// <summary>Error code for Gmail OAuth failure.</summary>
+    public const string EmailGmailOAuthFailed = "EMAIL_GMAIL_OAUTH_FAILED";
+
+    /// <summary>Error code for email thread not found.</summary>
+    public const string EmailThreadNotFound = "EMAIL_THREAD_NOT_FOUND";
+
+    /// <summary>Error code for email message not found.</summary>
+    public const string EmailMessageNotFound = "EMAIL_MESSAGE_NOT_FOUND";
+
+    /// <summary>Error code for email send failure.</summary>
+    public const string EmailSendFailed = "EMAIL_SEND_FAILED";
+
+    /// <summary>Error code for email sync failure.</summary>
+    public const string EmailSyncFailed = "EMAIL_SYNC_FAILED";
+
+    /// <summary>Error code for email rule not found.</summary>
+    public const string EmailRuleNotFound = "EMAIL_RULE_NOT_FOUND";
+
+    /// <summary>Error code for invalid email rule definition.</summary>
+    public const string EmailRuleInvalid = "EMAIL_RULE_INVALID";
+
     // General
     /// <summary>Error code for unknown error.</summary>
     public const string UnknownError = "UNKNOWN_ERROR";

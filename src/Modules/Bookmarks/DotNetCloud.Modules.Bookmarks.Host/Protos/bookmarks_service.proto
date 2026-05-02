@@ -1,0 +1,8 @@
+syntax = "proto3";
+
+package dotnetcloud.bookmarks;
+
+option csharp_namespace = "DotNetCloud.Modules.Bookmarks.Host.Services";
+
+service BookmarksService {
+}

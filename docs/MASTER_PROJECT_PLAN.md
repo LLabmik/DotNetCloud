@@ -105,6 +105,7 @@
 | Phase 4.9                   | 42      | 42        | 0           | 0       |
 | Phase 4.10 — Hierarchy      | 17      | 14        | 0           | 3       |
 | Phase 5-8                   | Summary | 10        | 0           | 0       |
+| Phase 6 (Email & Bookmarks) | 8       | 8         | 0           | 0       |
 | Phase 8 (Full-Text Search)  | 18      | 18        | 0           | 0       |
 | Phase 7 (Video Calling)     | 11      | 11        | 0           | 0       |
 | Phase 9                     | 7       | 4         | 1           | 2       |

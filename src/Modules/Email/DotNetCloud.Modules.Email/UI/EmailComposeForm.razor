@@ -1,0 +1,97 @@
+@namespace DotNetCloud.Modules.Email.UI
+@using DotNetCloud.Modules.Email.Models
+@using DotNetCloud.Modules.Email.Services
+
+<div class="email-compose-panel">
+    <h3>Compose</h3>
+
+    <div class="email-form-group">
+        <label>From</label>
+        <select class="email-input" @bind="_selectedFromAccountId">
+            @foreach (var acct in Accounts)
+            {
+                <option value="@acct.Id">@acct.DisplayName (@acct.EmailAddress)</option>
+            }
+        </select>
+    </div>
+
+    <div class="email-form-group">
+        <label>To</label>
+        <input class="email-input" @bind="_toInput" placeholder="recipient@example.com" />
+    </div>
+
+    <div class="email-form-group">
+        <label>Subject</label>
+        <input class="email-input" @bind="_subject" placeholder="Email subject" />
+    </div>
+
+    <div class="email-form-group">
+        <label>Message</label>
+        <textarea class="email-input email-compose-body" @bind="_bodyText" rows="12"></textarea>
+    </div>
+
+    <div class="email-form-actions">
+        <button class="email-btn email-btn-primary" @onclick="HandleSend"
+                disabled="@(string.IsNullOrWhiteSpace(_toInput) || string.IsNullOrWhiteSpace(_subject))">
+            Send
+        </button>
+        <button class="email-btn email-btn-secondary" @onclick="() => OnCancel?.Invoke()">Cancel</button>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public required EmailSendRequest Compose { get; set; }
+    [Parameter, EditorRequired] public required IReadOnlyList<EmailAccount> Accounts { get; set; }
+    [Parameter] public Func<EmailSendRequest, Task>? OnSend { get; set; }
+    [Parameter] public Action? OnCancel { get; set; }
+
+    private Guid? _selectedFromAccountId;
+    private string _toInput = string.Empty;
+    private string _subject = string.Empty;
+    private string _bodyText = string.Empty;
+
+    protected override void OnParametersSet()
+    {
+        if (Accounts.Count > 0 && _selectedFromAccountId is null)
+            _selectedFromAccountId = Accounts[0].Id;
+
+        if (Compose.To.Count > 0)
+        {
+            var first = Compose.To[0];
+            _toInput = !string.IsNullOrWhiteSpace(first.Name)
+                ? $"{first.Name} <{first.Email}>"
+                : first.Email;
+        }
+
+        if (!string.IsNullOrWhiteSpace(Compose.Subject) && string.IsNullOrWhiteSpace(_subject))
+            _subject = Compose.Subject;
+    }
+
+    private async Task HandleSend()
+    {
+        // Parse recipients
+        var recipients = new List<EmailAddressDto>();
+        foreach (var part in _toInput.Split(',', StringSplitOptions.TrimEntries))
+        {
+            if (string.IsNullOrWhiteSpace(part)) continue;
+            var match = System.Text.RegularExpressions.Regex.Match(part, @"^(.*?)\s*<(.+?)>\s*$");
+            if (match.Success)
+                recipients.Add(new EmailAddressDto { Name = match.Groups[1].Value.Trim().Trim('"'), Email = match.Groups[2].Value.Trim() });
+            else
+                recipients.Add(new EmailAddressDto { Name = null, Email = part.Trim() });
+        }
+
+        var finalRequest = new EmailSendRequest
+        {
+            To = recipients,
+            Subject = _subject,
+            BodyPlainText = _bodyText,
+            BodyHtml = null,
+            Cc = null,
+            Bcc = null
+        };
+
+        if (OnSend is not null)
+            await OnSend.Invoke(finalRequest);
+    }
+}

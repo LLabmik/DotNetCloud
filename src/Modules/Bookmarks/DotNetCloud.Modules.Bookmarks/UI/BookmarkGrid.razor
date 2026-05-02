@@ -1,0 +1,59 @@
+@namespace DotNetCloud.Modules.Bookmarks.UI
+@using DotNetCloud.Modules.Bookmarks.Models
+
+<div class="bookmarks-grid">
+    @foreach (var item in Items)
+    {
+        <div class="bookmarks-card @(item.IsFavorite ? "favorite" : "")"
+             @onclick="() => OnSelect(item)">
+            <div class="bookmarks-card-header">
+                @if (item.Preview?.FaviconUrl is not null)
+                {
+                    <img src="@item.Preview.FaviconUrl" alt="" class="bookmarks-card-favicon"
+                         width="16" height="16" />
+                }
+                <h4 class="bookmarks-card-title">
+                    @(string.IsNullOrWhiteSpace(item.Title) ? item.Url : item.Title)
+                </h4>
+            </div>
+            @if (item.Preview?.Status == BookmarkPreviewStatus.Ok)
+            {
+                @if (item.Preview.PreviewImageUrl is not null)
+                {
+                    <div class="bookmarks-card-image">
+                        <img src="@item.Preview.PreviewImageUrl" alt="" loading="lazy" />
+                    </div>
+                }
+                @if (item.Preview.SiteName is not null)
+                {
+                    <span class="bookmarks-card-site">@item.Preview.SiteName</span>
+                }
+                @if (item.Preview.ResolvedDescription is not null)
+                {
+                    <p class="bookmarks-card-desc">@item.Preview.ResolvedDescription</p>
+                }
+            }
+            <div class="bookmarks-card-actions">
+                <button class="bookmarks-card-btn" title="Favorite"
+                        @onclick="() => OnToggleFavorite(item)"
+                        @onclick:stopPropagation="true">
+                    @(item.IsFavorite ? "★" : "☆")
+                </button>
+                <button class="bookmarks-card-btn" title="Fetch preview"
+                        @onclick="() => OnFetchPreview(item)"
+                        @onclick:stopPropagation="true">🔍</button>
+                <button class="bookmarks-card-btn bookmarks-card-btn-danger" title="Delete"
+                        @onclick="() => OnDelete(item)"
+                        @onclick:stopPropagation="true">✕</button>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public required IReadOnlyList<BookmarkItem> Items { get; set; }
+    [Parameter] public Func<BookmarkItem, Task> OnSelect { get; set; } = _ => Task.CompletedTask;
+    [Parameter] public Func<BookmarkItem, Task> OnToggleFavorite { get; set; } = _ => Task.CompletedTask;
+    [Parameter] public Func<BookmarkItem, Task> OnDelete { get; set; } = _ => Task.CompletedTask;
+    [Parameter] public Func<BookmarkItem, Task> OnFetchPreview { get; set; } = _ => Task.CompletedTask;
+}

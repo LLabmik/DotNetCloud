@@ -1,0 +1,52 @@
+@namespace DotNetCloud.Modules.Bookmarks.UI
+@using DotNetCloud.Modules.Bookmarks.Models
+
+<div class="bookmarks-table-wrap">
+    <table class="bookmarks-table">
+        <thead>
+            <tr>
+                <th></th>
+                <th>Title</th>
+                <th>URL</th>
+                <th>Folder</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in Items)
+            {
+                <tr class="bookmarks-table-row @(item.IsFavorite ? "favorite" : "")"
+                    @onclick="() => OnSelect(item)">
+                    <td>
+                        @if (item.Preview?.FaviconUrl is not null)
+                        {
+                            <img src="@item.Preview.FaviconUrl" alt="" width="16" height="16" />
+                        }
+                    </td>
+                    <td>@(string.IsNullOrWhiteSpace(item.Title) ? "(untitled)" : item.Title)</td>
+                    <td class="bookmarks-table-url">@item.Url</td>
+                    <td>@(item.Folder?.Name ?? "-")</td>
+                    <td>
+                        <div class="bookmarks-table-actions">
+                            <button class="bookmarks-card-btn"
+                                    @onclick="() => OnToggleFavorite(item)"
+                                    @onclick:stopPropagation="true"
+                                    title="Favorite">@(item.IsFavorite ? "★" : "☆")</button>
+                            <button class="bookmarks-card-btn bookmarks-card-btn-danger"
+                                    @onclick="() => OnDelete(item)"
+                                    @onclick:stopPropagation="true"
+                                    title="Delete">✕</button>
+                        </div>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public required IReadOnlyList<BookmarkItem> Items { get; set; }
+    [Parameter] public Func<BookmarkItem, Task> OnSelect { get; set; } = _ => Task.CompletedTask;
+    [Parameter] public Func<BookmarkItem, Task> OnToggleFavorite { get; set; } = _ => Task.CompletedTask;
+    [Parameter] public Func<BookmarkItem, Task> OnDelete { get; set; } = _ => Task.CompletedTask;
+}

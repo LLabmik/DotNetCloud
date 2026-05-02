@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>DotNetCloud.Modules.Bookmarks.Host</RootNamespace>
+    <AssemblyName>dotnetcloud.bookmarks</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <PublishWithPackageReferences>false</PublishWithPackageReferences>
+    <PublishReadyToCompile>false</PublishReadyToCompile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Grpc.AspNetCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
+    <PackageReference Include="OpenIddict.Validation.AspNetCore" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Protobuf Include="Protos\bookmarks_service.proto" GrpcServices="Server" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DotNetCloud.Modules.Bookmarks\DotNetCloud.Modules.Bookmarks.csproj" />
+    <ProjectReference Include="..\DotNetCloud.Modules.Bookmarks.Data\DotNetCloud.Modules.Bookmarks.Data.csproj" />
+    <ProjectReference Include="..\..\..\Core\DotNetCloud.Core.Grpc\DotNetCloud.Core.Grpc.csproj" />
+    <ProjectReference Include="..\..\Search\DotNetCloud.Modules.Search.Client\DotNetCloud.Modules.Search.Client.csproj" />
+  </ItemGroup>
+
+</Project>

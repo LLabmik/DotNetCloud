@@ -19,13 +19,19 @@
     <!-- Diff / document -->
     <PackageVersion Include="DiffPlex" Version="1.7.2" />
     <PackageVersion Include="DocumentFormat.OpenXml" Version="3.3.0" />
+    <!-- Google APIs -->
+    <PackageVersion Include="Google.Apis.Auth" Version="1.73.0" />
+    <PackageVersion Include="Google.Apis.Gmail.v1" Version="1.73.0.3987" />
     <!-- gRPC / Protobuf -->
     <PackageVersion Include="Google.Protobuf" Version="3.31.1" />
     <PackageVersion Include="Grpc.AspNetCore" Version="2.71.0" />
     <PackageVersion Include="Grpc.Core.Testing" Version="2.46.6" />
     <PackageVersion Include="Grpc.Net.Client" Version="2.71.0" />
     <PackageVersion Include="Grpc.Tools" Version="2.72.0" />
+    <!-- Email -->
+    <PackageVersion Include="MailKit" Version="4.16.0" />
     <!-- HTML / Markdown -->
+    <PackageVersion Include="AngleSharp" Version="0.17.1" />
     <PackageVersion Include="HtmlSanitizer" Version="9.0.892" />
     <PackageVersion Include="Markdig" Version="1.1.1" />
     <!-- ASP.NET Core -->

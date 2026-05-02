@@ -26,6 +26,8 @@ using DotNetCloud.Modules.Notes.Data;
 using DotNetCloud.Modules.Photos.Data;
 using DotNetCloud.Modules.Tracks.Data;
 using DotNetCloud.Modules.Video.Data;
+using DotNetCloud.Modules.Bookmarks.Data;
+using DotNetCloud.Modules.Email.Data;
 using DotNetCloud.Modules.AI.Data;
 using DotNetCloud.Modules.Search;
 using DotNetCloud.Modules.Search.Data;
@@ -265,6 +267,10 @@ public class Program
             ConfigureModuleDbContext(options, provider, connectionString));
         builder.Services.AddDbContext<SearchDbContext>(options =>
             ConfigureModuleDbContext(options, provider, connectionString));
+        builder.Services.AddDbContext<BookmarksDbContext>(options =>
+            ConfigureModuleDbContext(options, provider, connectionString));
+        builder.Services.AddDbContext<EmailDbContext>(options =>
+            ConfigureModuleDbContext(options, provider, connectionString));
 
         // Register schema services for lazy module schema creation.
         // SelfManagedSchemaProvider and ModuleSchemaService are registered by AddDotNetCloudDbContext.
@@ -281,12 +287,16 @@ public class Program
         builder.Services.AddVideoServices(builder.Configuration);
         builder.Services.AddAiServices(builder.Configuration);
         builder.Services.AddSearchServices(builder.Configuration);
+        builder.Services.AddBookmarksServices(builder.Configuration);
+        builder.Services.AddEmailServices(builder.Configuration);
         builder.Services.AddSingleton<DotNetCloud.Modules.Files.Data.Services.Background.IAdminSharedFolderReindexDispatcher>(sp =>
             new InProcessAdminSharedFolderReindexDispatcher(sp.GetService<DotNetCloud.Modules.Search.Services.SearchReindexBackgroundService>()));
         // Register ISearchableModule implementations for search indexing
         builder.Services.AddScoped<DotNetCloud.Core.Capabilities.ISearchableModule, DotNetCloud.Modules.Files.Data.Services.FilesSearchableModule>();
         builder.Services.AddScoped<DotNetCloud.Core.Capabilities.ISearchableModule, DotNetCloud.Modules.Notes.Data.Services.NotesSearchableModule>();
         builder.Services.AddScoped<DotNetCloud.Core.Capabilities.ISearchableModule, DotNetCloud.Modules.Calendar.Data.Services.CalendarSearchableModule>();
+        builder.Services.AddScoped<DotNetCloud.Core.Capabilities.ISearchableModule, DotNetCloud.Modules.Bookmarks.Data.Services.BookmarksSearchableModule>();
+        builder.Services.AddScoped<DotNetCloud.Core.Capabilities.ISearchableModule, DotNetCloud.Modules.Email.Data.Services.EmailSearchableModule>();
         builder.Services.AddSingleton<IEventBus, InProcessEventBus>();
         builder.Services.AddSingleton<DotNetCloud.Core.Capabilities.ICrossModuleLinkResolver, CrossModuleLinkResolver>();
         builder.Services.AddSingleton<DotNetCloud.Core.Services.IBackgroundServiceTracker, DotNetCloud.Core.Services.BackgroundServiceTracker>();
@@ -1052,7 +1062,9 @@ public class Program
                 typeof(DotNetCloud.Modules.Calendar.UI.CalendarPage).Assembly,
                 typeof(DotNetCloud.Modules.Contacts.UI.ContactsPage).Assembly,
                 typeof(DotNetCloud.Modules.Tracks.UI.TracksPage).Assembly,
-                typeof(DotNetCloud.Modules.Files.UI.FileBrowser).Assembly);
+                typeof(DotNetCloud.Modules.Files.UI.FileBrowser).Assembly,
+                typeof(DotNetCloud.Modules.Bookmarks.UI.BookmarksPage).Assembly,
+                typeof(DotNetCloud.Modules.Email.UI.EmailPage).Assembly);
     }
 
     private static void MapCollaboraReverseProxy(WebApplication app)

@@ -1,0 +1,157 @@
+@namespace DotNetCloud.Modules.Email.UI
+@using DotNetCloud.Modules.Email.Models
+
+<div class="email-rule-edit-panel">
+    <h3>@(Rule.Id == Guid.Empty ? "New Rule" : "Edit Rule")</h3>
+
+    <div class="email-form-group">
+        <label>Rule Name</label>
+        <input class="email-input" @bind="Rule.Name" placeholder="e.g., Mark newsletters as read" />
+    </div>
+
+    <div class="email-form-group">
+        <label>Applies To</label>
+        <select class="email-input" @bind="_selectedAccountId">
+            <option value="">All Accounts</option>
+            @foreach (var acct in Accounts)
+            {
+                <option value="@acct.Id">@acct.DisplayName</option>
+            }
+        </select>
+    </div>
+
+    <div class="email-form-row">
+        <div class="email-form-group">
+            <label>Priority</label>
+            <input class="email-input" type="number" @bind="Rule.Priority" min="0" max="100" />
+        </div>
+        <div class="email-form-group email-form-check">
+            <label>
+                <input type="checkbox" @bind="Rule.IsEnabled" />
+                Enabled
+            </label>
+        </div>
+        <div class="email-form-group email-form-check">
+            <label>
+                <input type="checkbox" @bind="Rule.StopProcessing" />
+                Stop processing
+            </label>
+        </div>
+    </div>
+
+    @* Conditions *@
+    <div class="email-rule-section">
+        <h4>Conditions</h4>
+        <p class="email-rule-hint">Define when this rule should trigger.</p>
+
+        @foreach (var group in Rule.ConditionGroups ?? Enumerable.Empty<EmailRuleConditionGroup>())
+        {
+            <div class="email-rule-condition-group">
+                <div class="email-rule-group-header">
+                    <select class="email-input" @bind="group.MatchMode">
+                        <option value="@ConditionMatchMode.All">Match ALL</option>
+                        <option value="@ConditionMatchMode.Any">Match ANY</option>
+                    </select>
+                </div>
+                @foreach (var cond in group.Conditions ?? Enumerable.Empty<EmailRuleCondition>())
+                {
+                    <div class="email-rule-condition-row">
+                        <select class="email-input" @bind="cond.Field">
+                            <option value="@EmailRuleField.Subject">Subject</option>
+                            <option value="@EmailRuleField.From">From</option>
+                            <option value="@EmailRuleField.To">To</option>
+                            <option value="@EmailRuleField.Body">Body</option>
+                            <option value="@EmailRuleField.Cc">Cc</option>
+                            <option value="@EmailRuleField.HasAttachment">Has Attachment</option>
+                        </select>
+                        <select class="email-input" @bind="cond.Operator">
+                            <option value="@EmailRuleOperator.Contains">Contains</option>
+                            <option value="@EmailRuleOperator.Equals">Equals</option>
+                            <option value="@EmailRuleOperator.StartsWith">Starts with</option>
+                            <option value="@EmailRuleOperator.EndsWith">Ends with</option>
+                            <option value="@EmailRuleOperator.Regex">Regex</option>
+                        </select>
+                        <input class="email-input" @bind="cond.Value" placeholder="Value" />
+                    </div>
+                }
+            </div>
+        }
+
+        <button class="email-btn email-btn-secondary" @onclick="AddConditionGroup">+ Condition Group</button>
+    </div>
+
+    @* Actions *@
+    <div class="email-rule-section">
+        <h4>Actions</h4>
+        <p class="email-rule-hint">What happens when the rule matches.</p>
+
+        @foreach (var action in Rule.Actions ?? Enumerable.Empty<EmailRuleAction>())
+        {
+            <div class="email-rule-action-row">
+                <select class="email-input" @bind="action.ActionType">
+                    <option value="@EmailRuleActionType.MarkRead">Mark as Read</option>
+                    <option value="@EmailRuleActionType.MarkUnread">Mark as Unread</option>
+                    <option value="@EmailRuleActionType.Star">Star</option>
+                    <option value="@EmailRuleActionType.Unstar">Unstar</option>
+                    <option value="@EmailRuleActionType.ApplyLabel">Apply Label</option>
+                    <option value="@EmailRuleActionType.MoveToFolder">Move to Folder</option>
+                    <option value="@EmailRuleActionType.Archive">Archive</option>
+                </select>
+                @if (action.ActionType is EmailRuleActionType.ApplyLabel or EmailRuleActionType.MoveToFolder)
+                {
+                    <input class="email-input" @bind="action.TargetValue" placeholder="Target folder/label" />
+                }
+            </div>
+        }
+
+        <button class="email-btn email-btn-secondary" @onclick="AddAction">+ Action</button>
+    </div>
+
+    <div class="email-form-actions">
+        <button class="email-btn email-btn-primary" @onclick="HandleSave">Save</button>
+        <button class="email-btn email-btn-secondary" @onclick="() => OnCancel?.Invoke()">Cancel</button>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public required EmailRule Rule { get; set; }
+    [Parameter, EditorRequired] public required IReadOnlyList<EmailAccount> Accounts { get; set; }
+    [Parameter] public Func<EmailRule, Task>? OnSave { get; set; }
+    [Parameter] public Action? OnCancel { get; set; }
+
+    private Guid? _selectedAccountId;
+
+    protected override void OnParametersSet()
+    {
+        Rule.ConditionGroups ??= new List<EmailRuleConditionGroup>();
+        Rule.Actions ??= new List<EmailRuleAction>();
+    }
+
+    private void AddConditionGroup()
+    {
+        Rule.ConditionGroups!.Add(new EmailRuleConditionGroup
+        {
+            Id = Guid.NewGuid(),
+            MatchMode = ConditionMatchMode.All,
+            Conditions = new List<EmailRuleCondition>
+            {
+                new() { Id = Guid.NewGuid(), Field = EmailRuleField.Subject, Operator = EmailRuleOperator.Contains, Value = "" }
+            }
+        });
+    }
+
+    private void AddAction()
+    {
+        Rule.Actions!.Add(new EmailRuleAction
+        {
+            Id = Guid.NewGuid(),
+            ActionType = EmailRuleActionType.MarkRead
+        });
+    }
+
+    private async Task HandleSave()
+    {
+        if (OnSave is not null)
+            await OnSave.Invoke(Rule);
+    }
+}

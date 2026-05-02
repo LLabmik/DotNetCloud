@@ -4090,6 +4090,120 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 
 ---
 
+## Phase 6: Email & Bookmarks
+
+### Phase 6.1 — Skeletons + Contracts ✅
+
+#### Step 6.1.1 — NuGet Packages
+- ✓ MailKit 4.16.0, Google.Apis.Gmail.v1 1.73.0.3987, Google.Apis.Auth 1.73.0, AngleSharp 0.17.1
+- ✓ All packages added to Directory.Packages.props
+
+#### Step 6.1.2 — Bookmarks Module Projects
+- ✓ `DotNetCloud.Modules.Bookmarks/` — Core project (SDK=Razor, net10.0)
+- ✓ `DotNetCloud.Modules.Bookmarks.Data/` — Data project (SDK=default, net10.0)
+- ✓ `DotNetCloud.Modules.Bookmarks.Host/` — Host project (SDK=Web, net10.0)
+- ✓ BookmarksModuleManifest.cs — Id="dotnetcloud.bookmarks"
+- ✓ BookmarksModule.cs — IModuleLifecycle
+- ✓ Models: BookmarkFolder, BookmarkItem, BookmarkPreview
+- ✓ Events: BookmarkCreatedEvent, BookmarkUpdatedEvent, BookmarkDeletedEvent
+- ✓ Services: IBookmarkService, IBookmarkFolderService, IBookmarkImportExportService, IBookmarkPreviewService
+- ✓ UI: _Imports.razor, BookmarksPage.razor (minimal shell)
+- ✓ manifest.json
+
+#### Step 6.1.3 — Email Module Projects
+- ✓ `DotNetCloud.Modules.Email/` — Core project (SDK=Razor, net10.0)
+- ✓ `DotNetCloud.Modules.Email.Data/` — Data project (SDK=default, net10.0)
+- ✓ `DotNetCloud.Modules.Email.Host/` — Host project (SDK=Web, net10.0)
+- ✓ EmailModuleManifest.cs — Id="dotnetcloud.email"
+- ✓ EmailModule.cs — IModuleLifecycle
+- ✓ Models: EmailAccount, EmailMailbox, EmailThread, EmailMessage, EmailAttachment, EmailRule, EmailRuleConditionGroup, EmailRuleCondition, EmailRuleAction
+- ✓ Events: 6 event types (AccountAdded/Removed, ThreadCreated, MessageReceived, Sent, RuleTriggered)
+- ✓ Services: IEmailAccountService, IEmailProvider, IEmailRuleService, IEmailSyncService, IEmailSendService
+- ✓ EmailCredentialEncryptionService — IDataProtector with per-user sub-purpose
+- ✓ UI: _Imports.razor, EmailPage.razor
+
+#### Step 6.1.4 — Infrastructure Wiring
+- ✓ Both modules added to DotNetCloud.sln and DotNetCloud.CI.slnf
+- ✓ Core.Server/Program.cs — DbContext registrations, service registrations, Blazor assembly references
+- ✓ Core.Server.csproj — Project references for all 6 new projects
+- ✓ ErrorCodes.cs — 18 new error codes (Bookmarks + Email)
+- ✓ Build: 0 errors
+
+### Phase 6.2 — Bookmarks CRUD ✅
+
+#### Step 6.2.1 — Service Implementation
+- ✓ BookmarkService — Full CRUD with soft-delete, URL normalization, search event publishing
+- ✓ BookmarkFolderService — Full CRUD with cascade soft-delete
+- ✓ BookmarkImportExportService — HTML import (Netscape format) and export with AngleSharp
+
+#### Step 6.2.2 — REST API
+- ✓ BookmarksController — List/Get/Create/Update/Delete/Search for bookmarks and folders
+- ✓ Import/Export endpoints
+- ✓ Preview endpoints (Fetch/Get)
+- ✓ Envelope response format following existing module patterns
+
+#### Step 6.2.3 — Search Integration
+- ✓ SearchIndexRequestEvent published after Create (Index), Update (Index), Delete (Remove)
+- ✓ BookmarksSearchableModule — ISearchableModule for Bookmark entities
+
+#### Step 6.2.4 — Database
+- ✓ EF Core migration: InitialCreate generated for BookmarksDbContext
+
+### Phase 6.3 — Bookmarks Rich Previews ✅
+
+#### Step 6.3.1 — SafeUrlFetcher
+- ✓ SSRF-safe HTTP pipeline: scheme validation, IP blocklist, DNS re-validation
+- ✓ Custom ConnectCallback for socket-level IP validation
+- ✓ Manual redirect loop (max 5), each redirect re-validated
+- ✓ Timeouts: Connect=5s, Overall=15s
+- ✓ Response size limit: 1 MB
+- ✓ Content-Type whitelist: text/html, application/xhtml+xml
+
+#### Step 6.3.2 — BookmarkPreviewFetchService
+- ✓ AngleSharp HTML parsing with OG/Twitter card extraction
+- ✓ Metadata priority: OG → Twitter → standard HTML elements
+- ✓ Favicon, preview image, canonical URL resolution
+- ✓ Auto-update bookmark title if user hasn't set custom one
+- ✓ Stale preview refresh: background batch refresh (7+ days old, 50 per batch)
+
+### Phase 6.4 — Email Account Management ✅
+- ✓ EmailAccount CRUD with credential encryption (EmailAccountService + EmailCredentialEncryptionService)
+- ✓ ImapSmtpEmailProvider — IMAP/SMTP operations via MailKit
+- ✓ GmailEmailProvider — Gmail API operations via Google.Apis.Gmail.v1
+- ✓ Gmail OAuth start/complete endpoints (configuration-based)
+- ✓ EF Core migration: InitialCreate generated for EmailDbContext
+- ✓ Account management UI (Blazor) — Add IMAP/SMTP and Gmail OAuth forms in EmailPage.razor
+
+### Phase 6.5 — Email Sync Ingest ✅
+- ✓ IEmailProvider abstraction with ImapSmtpEmailProvider and GmailEmailProvider
+- ✓ EmailSyncBackgroundService with PeriodicTimer (5-min interval)
+- ✓ Mailbox discovery, sync status tracking, provider-to-DB upsert
+- ✓ Full MIME message normalization to EmailMessage/EmailThread entities — Thread building via Message-Id/In-Reply-To/References headers, body preview extraction with MIME part traversal, attachment records, deleted message detection, sync watermark tracking in both ImapSmtpEmailProvider + GmailEmailProvider
+- ✓ Thread UI (Blazor) — Thread list and thread detail with message display in EmailPage.razor
+
+### Phase 6.6 — Send/Compose ✅
+- ✓ SMTP send via ImapSmtpEmailProvider (MailKit SmtpClient)
+- ✓ Gmail send via GmailEmailProvider (Gmail API)
+- ✓ EmailSendService — resolves provider, creates sent-message record, publishes EmailSentEvent
+- ✓ Compose UI with contact autocomplete (Blazor) — EmailComposeForm with recipient parsing, subject, body in EmailPage.razor
+
+### Phase 6.7 — Rules/Filters ✅
+- ✓ Email rule evaluation engine (priority-ordered, All/Any condition match, stop-processing flag)
+- ✓ Rules CRUD API + nested condition groups/conditions/actions
+- ✓ Manual rule run (RunRulesAsync) against unread messages
+- ✓ Provider action application (mark read, move, label, archive, star)
+- ✓ Rule editor UI (Blazor) — EditRuleForm with condition group builder and action selector in EmailPage.razor
+
+### Phase 6.8 — Search Integration ✅
+- ✓ ISearchableModule for Email (EmailSearchableModule — EmailThread entities)
+- ✓ ISearchableModule for Bookmarks (BookmarksSearchableModule — Bookmark entities)
+- ✓ SearchIndexRequestEvent published on bookmark CRUD
+- ✓ SearchIndexRequestEvent published on email thread creation/update during sync (both providers)
+- ✓ EmailSentEvent + EmailRuleTriggeredEvent published for search indexing
+- ✓ Cross-module search quality verification — Both ISearchableModule implementations verified, search index events fire from all CRUD/sync paths, IEventBus wired into both email providers
+
+---
+
 ## Phase 8: Full-Text Search Module (from FULL_TEXT_SEARCH_IMPLEMENTATION_PLAN.md)
 
 ### Phase 2: Search Module Scaffold ✅
