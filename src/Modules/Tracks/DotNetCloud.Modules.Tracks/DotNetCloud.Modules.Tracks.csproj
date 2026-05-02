@@ -29,4 +29,14 @@
 
   <!-- UI adaptation complete (Steps 9-11) -->
 
+  <!-- Exclude manifest.json from publish: modules are discovered via a separate
+       modules/ directory at runtime, not from the server publish output root. -->
+  <ItemGroup>
+    <Content Remove="manifest.json" />
+    <None Include="manifest.json">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+      <CopyToPublishDirectory>Never</CopyToPublishDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

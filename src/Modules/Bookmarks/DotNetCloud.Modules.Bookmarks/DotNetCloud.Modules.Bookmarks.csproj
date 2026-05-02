@@ -23,4 +23,14 @@
     <ProjectReference Include="..\..\..\UI\DotNetCloud.UI.Shared\DotNetCloud.UI.Shared.csproj" />
   </ItemGroup>
 
+  <!-- Exclude manifest.json from publish: modules are discovered via a separate
+       modules/ directory at runtime, not from the server publish output root. -->
+  <ItemGroup>
+    <Content Remove="manifest.json" />
+    <None Include="manifest.json">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+      <CopyToPublishDirectory>Never</CopyToPublishDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>
