@@ -96,7 +96,23 @@ internal sealed class ModuleUiRegistrationHostedService : BackgroundService
             Icon: "🤖",
             SortOrder: 100,
             RouteKey: "ai.page",
-            ComponentType: typeof(DotNetCloud.Modules.AI.UI.AiChatPage))
+            ComponentType: typeof(DotNetCloud.Modules.AI.UI.AiChatPage)),
+        new(
+            ModuleId: "dotnetcloud.bookmarks",
+            Label: "Bookmarks",
+            Href: "/apps/bookmarks",
+            Icon: "🔖",
+            SortOrder: 110,
+            RouteKey: "bookmarks.page",
+            ComponentType: typeof(DotNetCloud.Modules.Bookmarks.UI.BookmarksPage)),
+        new(
+            ModuleId: "dotnetcloud.email",
+            Label: "Email",
+            Href: "/apps/email",
+            Icon: "✉️",
+            SortOrder: 120,
+            RouteKey: "email.page",
+            ComponentType: typeof(DotNetCloud.Modules.Email.UI.EmailPage))
     ];
 
     private readonly IServiceScopeFactory _scopeFactory;
