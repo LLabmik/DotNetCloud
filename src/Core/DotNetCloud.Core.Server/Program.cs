@@ -83,6 +83,19 @@ public class Program
             WebRootPath = Path.Combine(appBasePath, "wwwroot")
         });
 
+        // Load CLI config.json from DOTNETCLOUD_CONFIG_DIR as an additional
+        // configuration source. This is the single source of truth for the
+        // database connection string, shared with the CLI.
+        var configDir = Environment.GetEnvironmentVariable("DOTNETCLOUD_CONFIG_DIR");
+        if (!string.IsNullOrEmpty(configDir))
+        {
+            var configJsonPath = Path.Combine(configDir, "config.json");
+            if (File.Exists(configJsonPath))
+            {
+                builder.Configuration.AddJsonFile(configJsonPath, optional: true, reloadOnChange: false);
+            }
+        }
+
         ConfigureServices(builder);
 
         var app = builder.Build();
@@ -213,9 +226,18 @@ public class Program
             .SetApplicationName("DotNetCloud")
             .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeysPath));
 
-        // Add database
+        // Resolve database connection string. The CLI's config.json uses the
+        // flat key "connectionString"; ASP.NET convention uses "ConnectionStrings:DefaultConnection".
+        // Check both so the single config.json file is the source of truth.
         var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-            ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+            ?? builder.Configuration["connectionString"];
+
+        if (string.IsNullOrEmpty(connectionString))
+        {
+            throw new InvalidOperationException(
+                "Connection string not found. Set 'ConnectionStrings:DefaultConnection' in appsettings.json " +
+                "or 'connectionString' in config.json (DOTNETCLOUD_CONFIG_DIR).");
+        }
         builder.Services.AddDotNetCloudDbContext(connectionString);
 
         // Register in-process module data services for interactive module UI actions,
