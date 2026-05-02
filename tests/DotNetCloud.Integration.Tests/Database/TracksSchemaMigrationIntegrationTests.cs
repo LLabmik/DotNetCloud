@@ -17,6 +17,8 @@ namespace DotNetCloud.Integration.Tests.Database;
 public sealed class TracksSchemaMigrationIntegrationTests
 {
     private const string DefaultAdminConnectionString = "Host=localhost;Database=postgres;Username=postgres;Password=postgres";
+    private const string MigrationDatabasePrefix = "tracks_swimlane_migration_";
+    private static readonly TimeSpan StaleDatabaseThreshold = TimeSpan.FromMinutes(15);
 
     [TestMethod]
     public async Task TracksDbInitializer_LegacyListSchema_MigratesToSwimlaneSchema()
@@ -24,11 +26,12 @@ public sealed class TracksSchemaMigrationIntegrationTests
         var adminConnectionString = Environment.GetEnvironmentVariable("DOTNETCLOUD_TEST_POSTGRES_CONNECTION")
             ?? DefaultAdminConnectionString;
 
-        var databaseName = $"tracks_swimlane_migration_{Guid.NewGuid():N}";
+        var databaseName = $"{MigrationDatabasePrefix}{Guid.NewGuid():N}";
         var testConnectionString = BuildDatabaseConnectionString(adminConnectionString, databaseName);
 
         try
         {
+            await CleanupStaleDatabasesAsync(adminConnectionString, MigrationDatabasePrefix, StaleDatabaseThreshold);
             await CreateDatabaseAsync(adminConnectionString, databaseName);
 
             await using (var setupContext = CreateTracksContext(testConnectionString))
@@ -127,20 +130,73 @@ public sealed class TracksSchemaMigrationIntegrationTests
             await using var connection = new NpgsqlConnection(adminConnectionString);
             await connection.OpenAsync();
 
-            await using var command = connection.CreateCommand();
-            command.CommandText = $"""
-                SELECT pg_terminate_backend(pid)
-                FROM pg_stat_activity
-                WHERE datname = '{databaseName}' AND pid <> pg_backend_pid();
-
-                DROP DATABASE IF EXISTS \"{databaseName}\";
-                """;
-            await command.ExecuteNonQueryAsync();
+            await DropDatabaseAsync(connection, databaseName);
         }
         catch (NpgsqlException)
         {
             // Best-effort cleanup for disposable test databases.
         }
+    }
+
+    private static async Task CleanupStaleDatabasesAsync(string adminConnectionString, string databasePrefix, TimeSpan minimumAge)
+    {
+        try
+        {
+            await using var connection = new NpgsqlConnection(adminConnectionString);
+            await connection.OpenAsync();
+
+            var databaseNames = new List<string>();
+
+            await using (var command = connection.CreateCommand())
+            {
+                command.CommandText = """
+                    SELECT d.datname
+                    FROM pg_database d
+                    WHERE d.datname LIKE @pattern
+                      AND EXTRACT(EPOCH FROM now() - (pg_stat_file('base/' || d.oid || '/PG_VERSION')).modification) >= @minimumAgeSeconds
+                      AND NOT EXISTS (
+                          SELECT 1
+                          FROM pg_stat_activity a
+                          WHERE a.datname = d.datname
+                            AND a.pid <> pg_backend_pid()
+                      );
+                    """;
+
+                command.Parameters.AddWithValue("@pattern", $"{databasePrefix}%");
+                command.Parameters.AddWithValue("@minimumAgeSeconds", minimumAge.TotalSeconds);
+
+                await using var reader = await command.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    databaseNames.Add(reader.GetString(0));
+                }
+            }
+
+            foreach (var staleDatabaseName in databaseNames)
+            {
+                await DropDatabaseAsync(connection, staleDatabaseName);
+            }
+        }
+        catch (NpgsqlException)
+        {
+            // Best-effort cleanup for stale disposable test databases.
+        }
+    }
+
+    private static async Task DropDatabaseAsync(NpgsqlConnection connection, string databaseName)
+    {
+        var quotedDatabaseName = $"\"{databaseName.Replace("\"", "\"\"")}\"";
+
+        await using var command = connection.CreateCommand();
+        command.CommandText = $"""
+            SELECT pg_terminate_backend(pid)
+            FROM pg_stat_activity
+            WHERE datname = @databaseName AND pid <> pg_backend_pid();
+
+            DROP DATABASE IF EXISTS {quotedDatabaseName};
+            """;
+        command.Parameters.AddWithValue("@databaseName", databaseName);
+        await command.ExecuteNonQueryAsync();
     }
 
     private static async Task RewindTracksSchemaToLegacyListNamesAsync(TracksDbContext context)
