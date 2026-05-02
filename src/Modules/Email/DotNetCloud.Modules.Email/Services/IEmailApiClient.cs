@@ -39,6 +39,7 @@ public interface IEmailApiClient
 /// </summary>
 public sealed record GmailOAuthStartResult
 {
+    [System.Text.Json.Serialization.JsonPropertyName("authUrl")]
     public string AuthorizationUrl { get; init; } = string.Empty;
     public string State { get; init; } = string.Empty;
 }

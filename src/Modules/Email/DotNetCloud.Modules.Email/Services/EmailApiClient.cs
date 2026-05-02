@@ -65,14 +65,14 @@ public sealed class EmailApiClient : IEmailApiClient
 
     public async Task<GmailOAuthStartResult?> StartGmailOAuthAsync(CancellationToken ct = default)
     {
-        var response = await _httpClient.GetAsync("api/v1/email/gmail/auth/start", ct);
+        var response = await _httpClient.PostAsync("api/v1/email/gmail/oauth/start", null, ct);
         await EnsureSuccessOrThrowAsync(response);
         return await ReadDataFromResponseAsync<GmailOAuthStartResult>(response, ct);
     }
 
     public async Task<EmailAccount?> CompleteGmailOAuthAsync(string state, string code, CancellationToken ct = default)
     {
-        var response = await _httpClient.PostAsJsonAsync("api/v1/email/gmail/auth/complete",
+        var response = await _httpClient.PostAsJsonAsync("api/v1/email/gmail/oauth/complete",
             new { state, code }, ct);
         await EnsureSuccessOrThrowAsync(response);
         return await ReadDataFromResponseAsync<EmailAccount>(response, ct);

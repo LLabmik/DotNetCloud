@@ -35,6 +35,18 @@ public class GmailOAuthController : EmailControllerBase
     }
 
     /// <summary>
+    /// Checks if Gmail OAuth is configured.
+    /// </summary>
+    [HttpGet("status")]
+    public IActionResult Status()
+    {
+        var clientId = _configuration["Email:Gmail:ClientId"];
+        var redirectUri = _configuration["Email:Gmail:RedirectUri"];
+        var configured = !string.IsNullOrWhiteSpace(clientId) && !string.IsNullOrWhiteSpace(redirectUri);
+        return Ok(Envelope(new { configured }));
+    }
+
+    /// <summary>
     /// Starts the Gmail OAuth flow. Returns the authorization URL and state token.
     /// </summary>
     [HttpPost("start")]
@@ -46,7 +58,7 @@ public class GmailOAuthController : EmailControllerBase
         if (string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(redirectUri))
         {
             _logger.LogError("Gmail OAuth is not configured (missing ClientId or RedirectUri)");
-            return StatusCode(500, ErrorEnvelope(ErrorCodes.EmailGmailOAuthFailed, "Gmail OAuth is not configured."));
+            return BadRequest(ErrorEnvelope(ErrorCodes.EmailGmailOAuthFailed, "Gmail OAuth is not configured."));
         }
 
         var state = Guid.NewGuid().ToString("N");
