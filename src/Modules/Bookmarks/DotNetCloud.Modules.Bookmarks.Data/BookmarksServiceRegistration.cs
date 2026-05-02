@@ -19,6 +19,7 @@ public static class BookmarksServiceRegistration
         services.AddScoped<IBookmarkFolderService, BookmarkFolderService>();
         services.AddScoped<IBookmarkImportExportService, BookmarkImportExportService>();
         services.AddScoped<IBookmarkPreviewService, BookmarkPreviewFetchService>();
+        services.AddSingleton<SafeUrlFetcher>();
         return services;
     }
 }
