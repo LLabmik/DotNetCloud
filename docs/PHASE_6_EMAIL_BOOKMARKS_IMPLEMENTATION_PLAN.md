@@ -152,6 +152,7 @@
 
 - ☐ Implement `ImapSmtpEmailProvider` using MailKit
 - ☐ Implement `GmailEmailProvider` using Gmail API
+- ☐ Gmail OAuth setup guide: [docs/admin/GMAIL_OAUTH_SETUP.md](admin/GMAIL_OAUTH_SETUP.md)
 
 ### Sync strategy
 
