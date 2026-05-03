@@ -21,9 +21,8 @@ public interface IEmailApiClient
     // Sync
     Task TriggerSyncAsync(Guid accountId, CancellationToken ct = default);
 
-    // Gmail OAuth
-    Task<GmailOAuthStartResult?> StartGmailOAuthAsync(CancellationToken ct = default);
-    Task<EmailAccount?> CompleteGmailOAuthAsync(string state, string code, CancellationToken ct = default);
+    // Gmail OAuth status (the OAuth flow itself uses full page redirects, not API calls)
+    Task<bool> CheckGmailOAuthConfiguredAsync(CancellationToken ct = default);
 
     // Rules
     Task<IReadOnlyList<EmailRule>> ListRulesAsync(Guid? accountId = null, CancellationToken ct = default);
@@ -34,12 +33,4 @@ public interface IEmailApiClient
     Task<int> RunRulesAsync(Guid? accountId = null, Guid? mailboxId = null, CancellationToken ct = default);
 }
 
-/// <summary>
-/// Result of starting Gmail OAuth flow.
-/// </summary>
-public sealed record GmailOAuthStartResult
-{
-    [System.Text.Json.Serialization.JsonPropertyName("authUrl")]
-    public string AuthorizationUrl { get; init; } = string.Empty;
-    public string State { get; init; } = string.Empty;
-}
+

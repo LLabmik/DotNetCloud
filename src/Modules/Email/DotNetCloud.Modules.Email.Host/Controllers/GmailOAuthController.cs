@@ -11,9 +11,15 @@ namespace DotNetCloud.Modules.Email.Host.Controllers;
 
 /// <summary>
 /// Controller for Gmail OAuth 2.0 authorization flow.
+///
+/// Standard web-server OAuth 2.0 flow:
+///   1. User clicks "Connect Gmail" in Blazor UI
+///   2. Browser navigates to GET /api/v1/email/gmail/oauth/start
+///   3. Server validates config, builds Google auth URL, redirects user to Google
+///   4. Google authenticates user and redirects back to our callback URL
+///   5. Server exchanges code for tokens, creates account, stores tokens
+///   6. Server redirects user to /apps/email?gmail=connected
 /// </summary>
-[ApiController]
-[Authorize(AuthenticationSchemes = "Identity.Application,OpenIddict.Validation.AspNetCore")]
 [Route("api/v1/email/gmail/oauth")]
 public class GmailOAuthController : EmailControllerBase
 {
@@ -21,6 +27,10 @@ public class GmailOAuthController : EmailControllerBase
     private readonly EmailCredentialEncryptionService _encryption;
     private readonly IConfiguration _configuration;
     private readonly ILogger<GmailOAuthController> _logger;
+
+    // Cookie name for temporarily storing OAuth state (CSRF protection).
+    // Set as a short-lived cookie before redirecting to Google; verified on callback.
+    private const string StateCookieName = "DotNetCloud.GmailOAuth.State";
 
     public GmailOAuthController(
         IEmailAccountService accountService,
@@ -38,27 +48,24 @@ public class GmailOAuthController : EmailControllerBase
     /// Checks if Gmail OAuth is configured.
     /// </summary>
     [HttpGet("status")]
+    [Authorize(AuthenticationSchemes = "Identity.Application,OpenIddict.Validation.AspNetCore")]
     public IActionResult Status()
     {
-        var clientId = _configuration["Email:Gmail:ClientId"];
-        var redirectUri = _configuration["Email:Gmail:RedirectUri"];
-        var configured = !string.IsNullOrWhiteSpace(clientId) && !string.IsNullOrWhiteSpace(redirectUri);
+        var configured = IsConfigured();
         return Ok(Envelope(new { configured }));
     }
 
     /// <summary>
-    /// Starts the Gmail OAuth flow. Returns the authorization URL and state token.
+    /// Starts the Gmail OAuth flow by redirecting the user's browser to Google.
     /// </summary>
-    [HttpPost("start")]
+    [HttpGet("start")]
+    [Authorize(AuthenticationSchemes = "Identity.Application,OpenIddict.Validation.AspNetCore")]
     public IActionResult Start()
     {
-        var clientId = _configuration["Email:Gmail:ClientId"];
-        var redirectUri = _configuration["Email:Gmail:RedirectUri"];
-
-        if (string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(redirectUri))
+        if (!IsConfigured(out var clientId, out var redirectUri))
         {
             _logger.LogError("Gmail OAuth is not configured (missing ClientId or RedirectUri)");
-            return BadRequest(ErrorEnvelope(ErrorCodes.EmailGmailOAuthFailed, "Gmail OAuth is not configured."));
+            return Redirect("/apps/email?gmail=error&reason=not_configured");
         }
 
         var state = Guid.NewGuid().ToString("N");
@@ -72,32 +79,63 @@ public class GmailOAuthController : EmailControllerBase
             + "&access_type=offline"
             + "&prompt=consent";
 
-        _logger.LogInformation("Gmail OAuth flow started (state={State})", state);
-        return Ok(new { authUrl, state });
+        // Store state in a short-lived cookie for CSRF validation on callback
+        Response.Cookies.Append(StateCookieName, state, new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = true,
+            SameSite = SameSiteMode.Lax,
+            MaxAge = TimeSpan.FromMinutes(10)
+        });
+
+        _logger.LogInformation("Gmail OAuth flow started, redirecting to Google (state={State})", state);
+        return Redirect(authUrl);
     }
 
     /// <summary>
-    /// Completes the Gmail OAuth flow. Exchanges the authorization code for tokens and creates the account.
+    /// Handles the callback from Google after the user authorizes the app.
+    /// Exchanges the authorization code for tokens and creates the account.
     /// </summary>
-    [HttpPost("complete")]
-    public async Task<IActionResult> Complete([FromBody] GmailOAuthCompleteRequest request)
+    [HttpGet("complete")]
+    public async Task<IActionResult> Complete([FromQuery] string? code, [FromQuery] string? state, [FromQuery] string? error)
     {
-        var caller = GetAuthenticatedCaller();
-        var clientId = _configuration["Email:Gmail:ClientId"];
-        var clientSecret = _configuration["Email:Gmail:ClientSecret"];
-        var redirectUri = _configuration["Email:Gmail:RedirectUri"];
+        // If user denied access, Google sends ?error=access_denied
+        if (!string.IsNullOrWhiteSpace(error))
+        {
+            _logger.LogWarning("Gmail OAuth denied by user (error={Error})", error);
+            return Redirect("/apps/email?gmail=denied");
+        }
 
-        if (string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(clientSecret) || string.IsNullOrWhiteSpace(redirectUri))
+        if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(state))
+        {
+            _logger.LogError("Gmail OAuth callback missing code or state");
+            return Redirect("/apps/email?gmail=error&reason=invalid_callback");
+        }
+
+        // Validate state cookie to prevent CSRF
+        var expectedState = Request.Cookies[StateCookieName];
+        if (string.IsNullOrWhiteSpace(expectedState) || !string.Equals(state, expectedState, StringComparison.Ordinal))
+        {
+            _logger.LogError("Gmail OAuth state mismatch (expected={Expected}, got={Got})", expectedState, state);
+            return Redirect("/apps/email?gmail=error&reason=state_mismatch");
+        }
+
+        // Clear the state cookie
+        Response.Cookies.Delete(StateCookieName);
+
+        var caller = GetAuthenticatedCaller();
+
+        if (!IsConfigured(out var clientId, out var clientSecret, out var redirectUri))
         {
             _logger.LogError("Gmail OAuth is not configured");
-            return StatusCode(500, ErrorEnvelope(ErrorCodes.EmailGmailOAuthFailed, "Gmail OAuth is not configured."));
+            return Redirect("/apps/email?gmail=error&reason=not_configured");
         }
 
         // Exchange authorization code for tokens
         using var httpClient = new HttpClient();
         var tokenParams = new Dictionary<string, string>
         {
-            ["code"] = request.Code,
+            ["code"] = code,
             ["client_id"] = clientId,
             ["client_secret"] = clientSecret,
             ["redirect_uri"] = redirectUri,
@@ -114,14 +152,14 @@ public class GmailOAuthController : EmailControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to exchange Gmail OAuth code for tokens");
-            return StatusCode(502, ErrorEnvelope(ErrorCodes.EmailGmailOAuthFailed, "Failed to contact Google OAuth endpoint."));
+            return Redirect("/apps/email?gmail=error&reason=token_exchange_failed");
         }
 
         if (!tokenResponse.IsSuccessStatusCode)
         {
             var errorBody = await tokenResponse.Content.ReadAsStringAsync();
             _logger.LogError("Gmail OAuth token exchange failed: {StatusCode} {Error}", (int)tokenResponse.StatusCode, errorBody);
-            return StatusCode(502, ErrorEnvelope(ErrorCodes.EmailGmailOAuthFailed, "Google rejected the authorization code."));
+            return Redirect("/apps/email?gmail=error&reason=google_rejected");
         }
 
         var tokenJson = await tokenResponse.Content.ReadAsStringAsync();
@@ -135,7 +173,7 @@ public class GmailOAuthController : EmailControllerBase
         if (string.IsNullOrWhiteSpace(accessToken))
         {
             _logger.LogError("Gmail OAuth response missing access_token");
-            return StatusCode(502, ErrorEnvelope(ErrorCodes.EmailGmailOAuthFailed, "Invalid token response from Google."));
+            return Redirect("/apps/email?gmail=error&reason=invalid_token_response");
         }
 
         // Fetch user profile to get email address
@@ -170,20 +208,32 @@ public class GmailOAuthController : EmailControllerBase
             ProviderType = EmailProviderType.Gmail,
             DisplayName = emailAddress,
             EmailAddress = emailAddress,
-            CredentialsJson = tokenBlob
+            CredentialsJson = encryptedBlob
         }, caller);
 
         _logger.LogInformation("Gmail OAuth flow completed for user {UserId}, account {AccountId}", caller.UserId, account.Id);
-        return Ok(new { account.Id, account.DisplayName, account.EmailAddress });
+        return Redirect("/apps/email?gmail=connected&account=" + account.Id.ToString("N"));
     }
-}
 
-/// <summary>Request DTO for completing Gmail OAuth.</summary>
-public sealed record GmailOAuthCompleteRequest
-{
-    /// <summary>The authorization code from Google.</summary>
-    public required string Code { get; init; }
+    private bool IsConfigured()
+    {
+        var clientId = _configuration["Email:Gmail:ClientId"];
+        var redirectUri = _configuration["Email:Gmail:RedirectUri"];
+        return !string.IsNullOrWhiteSpace(clientId) && !string.IsNullOrWhiteSpace(redirectUri);
+    }
 
-    /// <summary>The state token returned from the start endpoint.</summary>
-    public required string State { get; init; }
+    private bool IsConfigured(out string clientId, out string redirectUri)
+    {
+        clientId = _configuration["Email:Gmail:ClientId"] ?? "";
+        redirectUri = _configuration["Email:Gmail:RedirectUri"] ?? "";
+        return !string.IsNullOrWhiteSpace(clientId) && !string.IsNullOrWhiteSpace(redirectUri);
+    }
+
+    private bool IsConfigured(out string clientId, out string clientSecret, out string redirectUri)
+    {
+        clientId = _configuration["Email:Gmail:ClientId"] ?? "";
+        clientSecret = _configuration["Email:Gmail:ClientSecret"] ?? "";
+        redirectUri = _configuration["Email:Gmail:RedirectUri"] ?? "";
+        return !string.IsNullOrWhiteSpace(clientId) && !string.IsNullOrWhiteSpace(clientSecret) && !string.IsNullOrWhiteSpace(redirectUri);
+    }
 }

@@ -61,22 +61,27 @@ public sealed class EmailApiClient : IEmailApiClient
         await EnsureSuccessOrThrowAsync(response);
     }
 
-    // ── Gmail OAuth ──────────────────────────────────────────
+    // ── Gmail OAuth status ───────────────────────────────────
+    // The OAuth flow itself uses full page redirects (browser navigates to
+    // /api/v1/email/gmail/oauth/start, Google redirects back to .../complete).
+    // This method just checks if OAuth is configured so the UI can show/hide
+    // the "Connect Gmail" button.
 
-    public async Task<GmailOAuthStartResult?> StartGmailOAuthAsync(CancellationToken ct = default)
+    public async Task<bool> CheckGmailOAuthConfiguredAsync(CancellationToken ct = default)
     {
-        var response = await _httpClient.PostAsync("api/v1/email/gmail/oauth/start", null, ct);
-        await EnsureSuccessOrThrowAsync(response);
-        return await ReadDataFromResponseAsync<GmailOAuthStartResult>(response, ct);
+        try
+        {
+            var response = await _httpClient.GetAsync("api/v1/email/gmail/oauth/status", ct);
+            var result = await ReadDataFromResponseAsync<GmailOAuthStatusResult>(response, ct);
+            return result?.Configured ?? false;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
-    public async Task<EmailAccount?> CompleteGmailOAuthAsync(string state, string code, CancellationToken ct = default)
-    {
-        var response = await _httpClient.PostAsJsonAsync("api/v1/email/gmail/oauth/complete",
-            new { state, code }, ct);
-        await EnsureSuccessOrThrowAsync(response);
-        return await ReadDataFromResponseAsync<EmailAccount>(response, ct);
-    }
+    private sealed record GmailOAuthStatusResult { public bool Configured { get; init; } }
 
     // ── Rules ────────────────────────────────────────────────
 

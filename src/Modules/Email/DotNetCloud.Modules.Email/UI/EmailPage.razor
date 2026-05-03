@@ -2,6 +2,7 @@
 
 @inject IEmailApiClient ApiClient
 @inject IJSRuntime JSRuntime
+@inject NavigationManager _navigation
 
 <div class="email-layout">
     @* ── Sidebar ── *@
@@ -84,6 +85,13 @@
 
     @* ── Main Content ── *@
     <div class="email-main">
+        @if (_gmailMessage is not null)
+        {
+            <div class="email-banner @(_gmailMessage.Contains("successfully") ? "success" : "warning")">
+                <span>@_gmailMessage</span>
+                <button class="email-banner-close" @onclick='() => _gmailMessage = null'>×</button>
+            </div>
+        }
         @if (_isLoading)
         {
             <DncLoadingIndicator />
@@ -100,8 +108,11 @@
                 <div class="email-tabs">
                     <button class="email-tab @(_addAccountType == "imap" ? "active" : "")"
                             @onclick='() => _addAccountType = "imap"'>IMAP / SMTP</button>
-                    <button class="email-tab @(_addAccountType == "gmail" ? "active" : "")"
-                            @onclick='() => _addAccountType = "gmail"'>Gmail (OAuth)</button>
+                    @if (_gmailOAuthConfigured)
+                    {
+                        <button class="email-tab @(_addAccountType == "gmail" ? "active" : "")"
+                                @onclick='() => _addAccountType = "gmail"'>Gmail (OAuth)</button>
+                    }
                 </div>
 
                 @if (_addAccountType == "imap")
@@ -348,6 +359,8 @@
     private int _smtpPort = 587;
     private string _imapUser = string.Empty;
     private string _imapPassword = string.Empty;
+    private bool _gmailOAuthConfigured;
+    private string? _gmailMessage;
 
     protected override async Task OnInitializedAsync()
     {
@@ -359,6 +372,35 @@
                 _sidebarCollapsed = parsed;
         }
         catch { }
+
+        // Check for Gmail OAuth callback parameters
+        var uri = new Uri(_navigation.Uri);
+        var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
+        if (query.TryGetValue("gmail", out var gmailStatus))
+        {
+            if (gmailStatus == "connected")
+            {
+                _gmailMessage = "Gmail account connected successfully!";
+            }
+            else if (gmailStatus == "denied")
+            {
+                _gmailMessage = "Gmail authorization was cancelled.";
+            }
+            else if (gmailStatus == "error")
+            {
+                query.TryGetValue("reason", out var reasonValues);
+                var reason = reasonValues.ToString();
+                _gmailMessage = reason switch
+                {
+                    "not_configured" => "Gmail OAuth is not configured by the server administrator.",
+                    "token_exchange_failed" => "Failed to contact Google. Please try again.",
+                    "google_rejected" => "Google rejected the authorization. The code may have expired.",
+                    "state_mismatch" => "Security check failed. Please try again.",
+                    "invalid_callback" => "Invalid response from Google. Please try again.",
+                    _ => "Gmail OAuth failed. Please try again."
+                };
+            }
+        }
 
         try
         {
@@ -374,10 +416,15 @@
         {
             _errorMessage = $"Failed to load: {ex.Message}";
         }
-        finally
+
+        // Check Gmail OAuth status (non-blocking, best-effort)
+        try
         {
-            _isLoading = false;
+            _gmailOAuthConfigured = await ApiClient.CheckGmailOAuthConfiguredAsync();
         }
+        catch { _gmailOAuthConfigured = false; }
+
+        _isLoading = false;
     }
 
     private void ToggleSidebar()
@@ -511,19 +558,9 @@
 
     private async Task StartGmailOAuth()
     {
-        try
-        {
-            var oauth = await ApiClient.StartGmailOAuthAsync();
-            if (oauth is not null)
-            {
-                await JSRuntime.InvokeVoidAsync("window.open",
-                    new object?[] { oauth.AuthorizationUrl, "_blank" });
-            }
-        }
-        catch (Exception ex)
-        {
-            _errorMessage = $"Failed to start Gmail OAuth: {ex.Message}";
-        }
+        // Navigate the browser to the OAuth start endpoint, which will
+        // redirect the user to Google for authorization.
+        _navigation.NavigateTo("/api/v1/email/gmail/oauth/start", forceLoad: true);
     }
 
     private async Task SyncAccount()
