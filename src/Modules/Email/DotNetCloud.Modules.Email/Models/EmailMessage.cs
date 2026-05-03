@@ -47,6 +47,9 @@ public sealed class EmailMessage
     /// <summary>Text preview of the body (first 500 chars).</summary>
     public string? BodyPreview { get; set; }
 
+    /// <summary>Full HTML body content of the message.</summary>
+    public string? BodyHtml { get; set; }
+
     /// <summary>When the message was received (or the Date header value).</summary>
     public DateTime? DateReceived { get; set; }
 

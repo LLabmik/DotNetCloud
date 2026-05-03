@@ -22,6 +22,9 @@ public interface IEmailAccountService
 
     /// <summary>Deletes an account and all associated data.</summary>
     Task DeleteAsync(Guid id, CallerContext caller, CancellationToken ct = default);
+
+    /// <summary>Lists mailboxes for an account.</summary>
+    Task<IReadOnlyList<EmailMailbox>> ListMailboxesAsync(Guid accountId, CallerContext caller, CancellationToken ct = default);
 }
 
 /// <summary>Request DTO for creating an email account.</summary>

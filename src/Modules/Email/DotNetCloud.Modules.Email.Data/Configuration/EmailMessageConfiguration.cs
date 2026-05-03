@@ -23,6 +23,7 @@ public sealed class EmailMessageConfiguration : IEntityTypeConfiguration<EmailMe
         builder.Property(m => m.BccJson).HasColumnType("jsonb");
         builder.Property(m => m.Subject).IsRequired().HasMaxLength(500);
         builder.Property(m => m.BodyPreview).HasColumnType("text");
+        builder.Property(m => m.BodyHtml).HasColumnType("text");
         builder.Property(m => m.FlagsJson).HasColumnType("jsonb");
         builder.Property(m => m.CreatedAt).IsRequired().HasDefaultValueSql("CURRENT_TIMESTAMP");
         builder.Property(m => m.UpdatedAt).IsRequired().HasDefaultValueSql("CURRENT_TIMESTAMP");

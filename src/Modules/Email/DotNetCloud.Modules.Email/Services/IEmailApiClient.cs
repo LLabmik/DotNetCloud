@@ -15,6 +15,16 @@ public interface IEmailApiClient
     Task<EmailAccount?> UpdateAccountAsync(Guid id, UpdateEmailAccountRequest request, CancellationToken ct = default);
     Task DeleteAccountAsync(Guid id, CancellationToken ct = default);
 
+    // Mailboxes
+    Task<IReadOnlyList<EmailMailbox>> ListMailboxesAsync(Guid accountId, CancellationToken ct = default);
+
+    // Threads
+    Task<IReadOnlyList<EmailThread>> ListThreadsAsync(Guid accountId, Guid mailboxId, CancellationToken ct = default);
+    Task<IReadOnlyList<EmailMessage>> ListThreadMessagesAsync(Guid threadId, CancellationToken ct = default);
+
+    // Messages
+    Task<string?> GetMessageBodyAsync(Guid messageId, CancellationToken ct = default);
+
     // Send
     Task SendAsync(Guid accountId, EmailSendRequest request, CancellationToken ct = default);
 

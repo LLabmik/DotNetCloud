@@ -52,7 +52,21 @@ public sealed class ImapSmtpEmailProvider : IEmailProvider
             ? client.PersonalNamespaces[0]
             : new FolderNamespace('/', "");
         var folders = await client.GetFoldersAsync(ns, cancellationToken: ct);
-        return folders.Select(f => MapFolderToMailbox(f, account.Id)).ToList();
+        var mailboxes = folders.Select(f => MapFolderToMailbox(f, account.Id)).ToList();
+
+        // INBOX is a special IMAP folder that may NOT be returned by GetFoldersAsync
+        // on many servers (it's accessed via client.Inbox). Ensure it's included.
+        var hasInbox = mailboxes.Any(m => m.ProviderId.Equals("INBOX", StringComparison.OrdinalIgnoreCase));
+        if (!hasInbox)
+        {
+            var inboxFolder = client.Inbox;
+            if (inboxFolder is not null)
+            {
+                mailboxes.Add(MapFolderToMailbox(inboxFolder, account.Id));
+            }
+        }
+
+        return mailboxes;
     }
 
     /// <inheritdoc />
@@ -68,10 +82,36 @@ public sealed class ImapSmtpEmailProvider : IEmailProvider
         var result = new EmailSyncResult();
         var touchedThreadIds = new HashSet<Guid>();
 
-        // Search for new messages since last UID
-        var uids = lastUid > 0
-            ? await folder.SearchAsync(SearchQuery.Uids(new UniqueIdRange(new UniqueId(lastUid + 1), UniqueId.MaxValue)), ct)
-            : await folder.SearchAsync(SearchQuery.All, ct);
+        // Fetch all messages by index range (more reliable than UID search across servers).
+        // If we have a watermark, only fetch messages newer than the last known UID by
+        // searching UIDs above the watermark; otherwise fetch everything.
+        UniqueIdSet uids;
+        if (lastUid > 0)
+        {
+            var searchResult = await folder.SearchAsync(
+                SearchQuery.Uids(new UniqueIdRange(new UniqueId(lastUid + 1), UniqueId.MaxValue)), ct);
+            uids = new UniqueIdSet();
+            foreach (var u in searchResult) uids.Add(u);
+        }
+        else
+        {
+            // First sync: fetch all messages by index, then convert to UIDs
+            // This is more reliable than SearchQuery.All on some IMAP servers
+            if (folder.Count == 0)
+            {
+                await folder.CloseAsync(cancellationToken: ct);
+                return result;
+            }
+
+            var summaries = await folder.FetchAsync(0, -1,
+                MessageSummaryItems.UniqueId, ct);
+            uids = new UniqueIdSet();
+            foreach (var s in summaries)
+                uids.Add(s.UniqueId);
+        }
+
+        _logger.LogInformation("IMAP mailbox {Mailbox}: processing {Count} messages (lastUid={LastUid})",
+            mailbox.ProviderId, uids.Count, lastUid);
 
         if (uids.Count == 0)
         {
@@ -111,15 +151,29 @@ public sealed class ImapSmtpEmailProvider : IEmailProvider
                 var thread = await FindOrCreateThreadAsync(account.Id, account.OwnerId, messageId,
                     inReplyTo, references, summary.Envelope?.Subject ?? "(No Subject)", ct);
 
-                // Check if this message already exists
+                // Check if this message already exists in this mailbox
+                // NOTE: UIDs are per-folder on IMAP, so we must scope by MailboxId.
                 var existing = await _db.EmailMessages
                     .FirstOrDefaultAsync(m => m.AccountId == account.Id
+                        && m.MailboxId == mailbox.Id
                         && m.ProviderMessageId == summary.UniqueId.Id.ToString(), ct);
 
                 if (existing is not null)
                 {
                     // Update flags
                     UpdateMessageFlags(existing, summary.Flags ?? MessageFlags.None);
+
+                    // Populate BodyHtml if missing (e.g. from before migration)
+                    if (string.IsNullOrWhiteSpace(existing.BodyHtml))
+                    {
+                        var (_, htmlBody) = await ExtractBodyAsync(folder, summary, client, ct);
+                        if (!string.IsNullOrWhiteSpace(htmlBody))
+                        {
+                            existing.BodyHtml = htmlBody;
+                            existing.UpdatedAt = DateTime.UtcNow;
+                        }
+                    }
+
                     result.UpdatedMessages++;
                     continue;
                 }
@@ -137,8 +191,8 @@ public sealed class ImapSmtpEmailProvider : IEmailProvider
                     .Select(m => new EmailAddressDto { Name = m.Name, Email = m.Address })
                     .ToList() ?? [];
 
-                // Extract body preview
-                var bodyPreview = await ExtractBodyPreviewAsync(folder, summary, client, ct);
+                // Extract body preview and full HTML body
+                var (bodyPreview, bodyHtml) = await ExtractBodyAsync(folder, summary, client, ct);
 
                 var emailMessage = new EmailMessage
                 {
@@ -154,6 +208,7 @@ public sealed class ImapSmtpEmailProvider : IEmailProvider
                     CcJson = cc.Count > 0 ? JsonSerializer.Serialize(cc) : "[]",
                     Subject = summary.Envelope?.Subject ?? "(No Subject)",
                     BodyPreview = bodyPreview,
+                    BodyHtml = bodyHtml,
                     DateReceived = summary.InternalDate?.UtcDateTime ?? summary.Envelope?.Date?.UtcDateTime,
                     DateSent = summary.Envelope?.Date?.UtcDateTime,
                     IsRead = summary.Flags?.HasFlag(MessageFlags.Seen) ?? false,
@@ -355,6 +410,14 @@ public sealed class ImapSmtpEmailProvider : IEmailProvider
     private async Task<EmailThread> FindOrCreateThreadAsync(Guid accountId, Guid ownerId,
         string messageId, string? inReplyTo, string? references, string subject, CancellationToken ct)
     {
+        // First, try to find existing thread by ProviderThreadId (unique per account)
+        var existingThread = await _db.EmailThreads
+            .FirstOrDefaultAsync(t => t.AccountId == accountId
+                && t.ProviderThreadId == messageId, ct);
+
+        if (existingThread is not null)
+            return existingThread;
+
         // Try to find parent message by In-Reply-To or References
         var parentMessageId = inReplyTo ?? references?.Split(' ', StringSplitOptions.RemoveEmptyEntries).LastOrDefault();
 
@@ -373,12 +436,12 @@ public sealed class ImapSmtpEmailProvider : IEmailProvider
             }
 
             // Check if a thread already references this parent by References
-            var existingThread = await _db.EmailThreads
+            var refThread = await _db.EmailThreads
                 .FirstOrDefaultAsync(t => t.AccountId == accountId
                     && t.Subject == subject
                     && t.LastMessageAt >= DateTime.UtcNow.AddDays(-30), ct);
-            if (existingThread is not null)
-                return existingThread;
+            if (refThread is not null)
+                return refThread;
         }
 
         // Create new thread
@@ -396,54 +459,41 @@ public sealed class ImapSmtpEmailProvider : IEmailProvider
         return thread;
     }
 
-    private static async Task<string?> ExtractBodyPreviewAsync(IMailFolder folder, IMessageSummary summary,
+    private static async Task<(string? Preview, string? HtmlBody)> ExtractBodyAsync(IMailFolder folder, IMessageSummary summary,
         ImapClient client, CancellationToken ct)
     {
         try
         {
-            if (summary.Body is BodyPartText textPart)
+            // Full message fetch gives us MimeKit-decoded content (handles
+            // quoted-printable, base64, charset conversion automatically)
+            var message = await folder.GetMessageAsync(summary.UniqueId, ct);
+
+            // Capture full HTML body (rich content, formatting, images)
+            var htmlBody = message.HtmlBody;
+
+            // Build preview: prefer plain text; fall back to stripped HTML
+            var text = message.TextBody;
+            string? preview;
+            if (!string.IsNullOrWhiteSpace(text))
             {
-                var stream = await folder.GetStreamAsync(summary.UniqueId, textPart, ct);
-                using var reader = new StreamReader(stream);
-                var text = await reader.ReadToEndAsync(ct);
-                if (!string.IsNullOrWhiteSpace(text))
-                {
-                    return text.Length <= 500 ? text.Trim() : text[..500].Trim();
-                }
-                return null;
+                preview = text.Length <= 500 ? text.Trim() : text[..500].Trim();
+            }
+            else if (!string.IsNullOrWhiteSpace(htmlBody))
+            {
+                var stripped = System.Text.RegularExpressions.Regex.Replace(htmlBody, "<[^>]+>", " ");
+                stripped = System.Net.WebUtility.HtmlDecode(stripped);
+                preview = stripped.Length <= 500 ? stripped.Trim() : stripped[..500].Trim();
+            }
+            else
+            {
+                preview = null;
             }
 
-            if (summary.Body is BodyPartMultipart multipart)
-            {
-                // Try to find a plain text part
-                var plainPart = FindFirstTextPart(multipart, "text/plain")
-                    ?? FindFirstTextPart(multipart, "text/html");
-
-                if (plainPart is not null)
-                {
-                    var stream = await folder.GetStreamAsync(summary.UniqueId, plainPart, ct);
-                    using var reader = new StreamReader(stream);
-                    var html = await reader.ReadToEndAsync(ct);
-
-                    if (!string.IsNullOrWhiteSpace(html))
-                    {
-                        if (plainPart.ContentType?.MimeType == "text/html")
-                        {
-                            // Strip HTML tags for preview
-                            var stripped = System.Text.RegularExpressions.Regex.Replace(html, "<[^>]+>", " ");
-                            stripped = System.Net.WebUtility.HtmlDecode(stripped);
-                            return stripped.Length <= 500 ? stripped.Trim() : stripped[..500].Trim();
-                        }
-                        return html.Length <= 500 ? html.Trim() : html[..500].Trim();
-                    }
-                }
-            }
-
-            return null;
+            return (preview, htmlBody);
         }
         catch (Exception)
         {
-            return null;
+            return (null, null);
         }
     }
 
@@ -497,6 +547,11 @@ public sealed class ImapSmtpEmailProvider : IEmailProvider
         return JsonSerializer.Deserialize<Dictionary<string, uint>>(account.SyncStateJson) ?? [];
     }
 
+    private static readonly JsonSerializerOptions _credentialSerializerOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
+
     private ImapSmtpCredentials GetCredentials(EmailAccount account)
     {
         if (account.EncryptedCredentialBlob is null)
@@ -504,7 +559,7 @@ public sealed class ImapSmtpEmailProvider : IEmailProvider
 
         var bytes = _encryption.Unprotect(account.EncryptedCredentialBlob, account.OwnerId);
         var json = System.Text.Encoding.UTF8.GetString(bytes);
-        return JsonSerializer.Deserialize<ImapSmtpCredentials>(json)
+        return JsonSerializer.Deserialize<ImapSmtpCredentials>(json, _credentialSerializerOptions)
             ?? throw new InvalidOperationException("Failed to deserialize IMAP/SMTP credentials.");
     }
 

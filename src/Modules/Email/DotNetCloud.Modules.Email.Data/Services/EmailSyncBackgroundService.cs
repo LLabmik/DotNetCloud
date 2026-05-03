@@ -162,12 +162,19 @@ public sealed class EmailSyncBackgroundService : BackgroundService, IEmailSyncSe
 
             await db.SaveChangesAsync(ct);
 
+            // Reload mailboxes from DB to get correct IDs (the objects from
+            // ListMailboxesAsync have locally-generated IDs that may differ)
+            var dbMailboxes = await db.EmailMailboxes
+                .AsNoTracking()
+                .Where(m => m.AccountId == account.Id)
+                .ToListAsync(ct);
+
             // Sync each mailbox
             var totalNew = 0;
             var totalUpdated = 0;
             var totalDeleted = 0;
 
-            foreach (var mailbox in mailboxes.Where(m => (m.SyncFlags & (int)MailboxFlags.Inbox) != 0))
+            foreach (var mailbox in dbMailboxes)
             {
                 var result = await provider.SyncMailboxAsync(account, mailbox, ct);
                 totalNew += result.NewMessages;

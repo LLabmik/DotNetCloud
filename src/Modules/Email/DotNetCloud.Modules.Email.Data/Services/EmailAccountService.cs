@@ -36,6 +36,22 @@ public sealed class EmailAccountService : IEmailAccountService
     }
 
     /// <inheritdoc />
+    public async Task<IReadOnlyList<EmailMailbox>> ListMailboxesAsync(Guid accountId, CallerContext caller, CancellationToken ct = default)
+    {
+        // Verify ownership
+        var owns = await _db.EmailAccounts
+            .AnyAsync(a => a.Id == accountId && a.OwnerId == caller.UserId, ct);
+
+        if (!owns)
+            throw new ValidationException(ErrorCodes.EmailAccountNotFound, "Email account not found.");
+
+        return await _db.EmailMailboxes.AsNoTracking()
+            .Where(m => m.AccountId == accountId)
+            .OrderBy(m => m.DisplayName)
+            .ToListAsync(ct);
+    }
+
+    /// <inheritdoc />
     public async Task<EmailAccount?> GetAsync(Guid id, CallerContext caller, CancellationToken ct = default)
     {
         return await _db.EmailAccounts.AsNoTracking()

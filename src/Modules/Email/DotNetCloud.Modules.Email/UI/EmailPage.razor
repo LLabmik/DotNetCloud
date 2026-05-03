@@ -74,14 +74,42 @@
                 </button>
                 @if (_selectedAccount is not null)
                 {
-                    <button class="email-nav-item" @onclick="SyncAccount">
-                        <span>🔄</span>
-                        <span class="email-nav-text">Sync Now</span>
+                    <button class="email-nav-item" @onclick="SyncAccount" disabled="@_isSyncing">
+                        <span>@(_isSyncing ? "⏳" : "🔄")</span>
+                        <span class="email-nav-text">@(_isSyncing ? "Syncing..." : "Sync Now")</span>
+                    </button>
+                    <button class="email-nav-item email-nav-item-danger"
+                            @onclick="() => _confirmDeleteAccount = true">
+                        <span>🗑️</span>
+                        <span class="email-nav-text">Delete Account</span>
                     </button>
                 }
             </div>
         }
     </div>
+
+    @* ── Delete Account Confirmation Modal ── *@
+    @if (_confirmDeleteAccount && _selectedAccount is not null)
+    {
+        <div class="email-modal-backdrop" @onclick="() => _confirmDeleteAccount = false">
+            <div class="email-modal email-modal-sm" @onclick:stopPropagation>
+                <div class="email-modal-header">
+                    <h3>Delete Account</h3>
+                    <button class="email-modal-close" @onclick="() => _confirmDeleteAccount = false">✕</button>
+                </div>
+                <div class="email-modal-body">
+                    <p>Are you sure you want to delete the email account <strong>@_selectedAccount.EmailAddress</strong>?</p>
+                    <p class="email-text-danger">This will permanently remove the account and all synced messages. This cannot be undone.</p>
+                </div>
+                <div class="email-modal-footer">
+                    <button class="email-btn email-btn-secondary"
+                            @onclick="() => _confirmDeleteAccount = false">Cancel</button>
+                    <button class="email-btn email-btn-danger"
+                            @onclick="ConfirmDeleteAccount">Delete Account</button>
+                </div>
+            </div>
+        </div>
+    }
 
     @* ── Main Content ── *@
     <div class="email-main">
@@ -250,19 +278,42 @@
                 {
                     @foreach (var msg in _threadMessages.OrderBy(m => m.DateReceived ?? m.CreatedAt))
                     {
-                        <div class="email-message @(msg.IsRead ? "" : "unread")">
-                            <div class="email-message-header">
+                        var isExpanded = _expandedMessageId == msg.Id;
+                        var isLoadingBody = _loadingBodyMessageId == msg.Id;
+                        var bodyHtml = isExpanded && _expandedMessageBodies.TryGetValue(msg.Id, out var html) ? html : null;
+
+                        <div class="email-message @(msg.IsRead ? "" : "unread") @(isExpanded ? "expanded" : "")">
+                            <div class="email-message-header" @onclick="() => ToggleMessageBody(msg.Id)">
                                 <span class="email-message-from">
                                     @FormatFrom(msg.FromJson)
                                 </span>
                                 <span class="email-message-date">
                                     @(msg.DateReceived?.ToString("g") ?? msg.CreatedAt.ToString("g"))
                                 </span>
+                                <span class="email-message-expand-icon">@(isExpanded ? "▾" : "▸")</span>
                             </div>
                             <div class="email-message-body">
-                                @if (!string.IsNullOrWhiteSpace(msg.BodyPreview))
+                                @if (!isExpanded)
                                 {
-                                    <p>@msg.BodyPreview</p>
+                                    @if (!string.IsNullOrWhiteSpace(msg.BodyPreview))
+                                    {
+                                        <p class="email-message-preview">@msg.BodyPreview</p>
+                                    }
+                                }
+                                else if (isLoadingBody)
+                                {
+                                    <div class="email-body-loading">Loading message content...</div>
+                                }
+                                else if (!string.IsNullOrWhiteSpace(bodyHtml))
+                                {
+                                    <div class="email-body-html">@((MarkupString)bodyHtml)</div>
+                                }
+                                else
+                                {
+                                    @if (!string.IsNullOrWhiteSpace(msg.BodyPreview))
+                                    {
+                                        <p class="email-message-preview">@msg.BodyPreview</p>
+                                    }
                                 }
                                 @if (msg.Attachments is { Count: > 0 })
                                 {
@@ -349,6 +400,10 @@
     private List<EmailMailbox> _mailboxes = [];
     private List<EmailThread> _threads = [];
     private List<EmailMessage> _threadMessages = [];
+    private readonly Dictionary<Guid, string> _expandedMessageBodies = [];
+    private Guid? _expandedMessageId;
+    private Guid? _loadingBodyMessageId;
+    private bool _isSyncing;
     private List<EmailRule> _rules = [];
 
     private EmailAccount? _selectedAccount;
@@ -373,6 +428,7 @@
     private string _imapPassword = string.Empty;
     private bool _gmailOAuthConfigured;
     private string? _gmailMessage;
+    private bool _confirmDeleteAccount;
 
     protected override async Task OnInitializedAsync()
     {
@@ -422,6 +478,7 @@
             {
                 _selectedAccount = _accounts[0];
                 _selectedAccountId = _accounts[0].Id;
+                await LoadMailboxesAsync();
             }
         }
         catch (Exception ex)
@@ -457,6 +514,20 @@
         _selectedMailbox = null;
         _selectedThread = null;
         _threads.Clear();
+        await LoadMailboxesAsync();
+    }
+
+    private async Task LoadMailboxesAsync()
+    {
+        if (_selectedAccount is null) return;
+        try
+        {
+            _mailboxes = (await ApiClient.ListMailboxesAsync(_selectedAccount.Id)).ToList();
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to load mailboxes: {ex.Message}";
+        }
     }
 
     private async Task SelectMailbox(EmailMailbox mailbox)
@@ -465,13 +536,64 @@
         _selectedThread = null;
         _showRules = false;
         _composing = null;
-        _threads.Clear();
+
+        if (_selectedAccount is null) return;
+        try
+        {
+            _threads = (await ApiClient.ListThreadsAsync(_selectedAccount.Id, mailbox.Id)).ToList();
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to load messages: {ex.Message}";
+        }
     }
 
     private async Task SelectThread(EmailThread thread)
     {
         _selectedThread = thread;
-        _threadMessages.Clear();
+        _expandedMessageId = null;
+        _expandedMessageBodies.Clear();
+        _loadingBodyMessageId = null;
+        try
+        {
+            _threadMessages = (await ApiClient.ListThreadMessagesAsync(thread.Id)).ToList();
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to load messages: {ex.Message}";
+        }
+    }
+
+    private async Task ToggleMessageBody(Guid messageId)
+    {
+        if (_expandedMessageId == messageId)
+        {
+            // Collapse
+            _expandedMessageId = null;
+            return;
+        }
+
+        _expandedMessageId = messageId;
+
+        // If already cached, just show it
+        if (_expandedMessageBodies.ContainsKey(messageId))
+            return;
+
+        // Fetch the full HTML body
+        _loadingBodyMessageId = messageId;
+        try
+        {
+            var html = await ApiClient.GetMessageBodyAsync(messageId);
+            _expandedMessageBodies[messageId] = html ?? string.Empty;
+        }
+        catch (Exception ex)
+        {
+            _expandedMessageBodies[messageId] = $"<p class=\"email-body-error\">Failed to load message content: {ex.Message}</p>";
+        }
+        finally
+        {
+            _loadingBodyMessageId = null;
+        }
     }
 
     private void BeginCompose()
@@ -560,6 +682,7 @@
             {
                 _selectedAccount = _accounts[0];
                 _selectedAccountId = _accounts[0].Id;
+                await LoadMailboxesAsync();
             }
         }
         catch (Exception ex)
@@ -578,13 +701,48 @@
     private async Task SyncAccount()
     {
         if (_selectedAccount is null) return;
+        _isSyncing = true;
+        _errorMessage = null;
         try
         {
             await ApiClient.TriggerSyncAsync(_selectedAccount.Id);
+
+            // Reload mailboxes and current view after sync
+            _mailboxes = (await ApiClient.ListMailboxesAsync(_selectedAccount.Id)).ToList();
+            if (_selectedMailbox is not null)
+            {
+                _threads = (await ApiClient.ListThreadsAsync(_selectedAccount.Id, _selectedMailbox.Id)).ToList();
+            }
+            _selectedThread = null;
+            _threadMessages.Clear();
+            _expandedMessageId = null;
+            _expandedMessageBodies.Clear();
         }
         catch (Exception ex)
         {
             _errorMessage = $"Sync failed: {ex.Message}";
+        }
+        finally
+        {
+            _isSyncing = false;
+        }
+    }
+
+    private async Task ConfirmDeleteAccount()
+    {
+        if (_selectedAccount is null) return;
+        try
+        {
+            await ApiClient.DeleteAccountAsync(_selectedAccount.Id);
+            _confirmDeleteAccount = false;
+            _accounts = (await ApiClient.ListAccountsAsync()).ToList();
+            _selectedAccount = null;
+            _selectedAccountId = Guid.Empty;
+            _mailboxes.Clear();
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to delete account: {ex.Message}";
         }
     }
 

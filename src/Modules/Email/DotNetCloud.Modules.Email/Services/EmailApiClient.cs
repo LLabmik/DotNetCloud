@@ -45,6 +45,32 @@ public sealed class EmailApiClient : IEmailApiClient
         await EnsureSuccessOrThrowAsync(response);
     }
 
+    // ── Mailboxes ────────────────────────────────────────────
+
+    public async Task<IReadOnlyList<EmailMailbox>> ListMailboxesAsync(Guid accountId, CancellationToken ct = default)
+        => await ReadDataAsync<IReadOnlyList<EmailMailbox>>($"api/v1/email/accounts/{accountId}/mailboxes", ct) ?? [];
+
+    // ── Threads ──────────────────────────────────────────────
+
+    public async Task<IReadOnlyList<EmailThread>> ListThreadsAsync(Guid accountId, Guid mailboxId, CancellationToken ct = default)
+        => await ReadDataAsync<IReadOnlyList<EmailThread>>($"api/v1/email/accounts/{accountId}/mailboxes/{mailboxId}/threads", ct) ?? [];
+
+    public async Task<IReadOnlyList<EmailMessage>> ListThreadMessagesAsync(Guid threadId, CancellationToken ct = default)
+        => await ReadDataAsync<IReadOnlyList<EmailMessage>>($"api/v1/email/threads/{threadId}/messages", ct) ?? [];
+
+    // ── Messages ─────────────────────────────────────────────
+
+    public async Task<string?> GetMessageBodyAsync(Guid messageId, CancellationToken ct = default)
+    {
+        var result = await ReadDataAsync<MessageBodyResult>($"api/v1/email/messages/{messageId}/body", ct);
+        return result?.BodyHtml;
+    }
+
+    private sealed record MessageBodyResult
+    {
+        public string? BodyHtml { get; init; }
+    }
+
     // ── Send ─────────────────────────────────────────────────
 
     public async Task SendAsync(Guid accountId, EmailSendRequest request, CancellationToken ct = default)

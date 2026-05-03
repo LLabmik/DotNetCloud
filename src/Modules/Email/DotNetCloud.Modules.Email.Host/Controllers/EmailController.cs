@@ -1,7 +1,9 @@
 using DotNetCloud.Core.Errors;
+using DotNetCloud.Modules.Email.Data;
 using DotNetCloud.Modules.Email.Services;
 using DotNetCloud.Modules.Search.Client;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace DotNetCloud.Modules.Email.Host.Controllers;
 
@@ -16,6 +18,7 @@ public class EmailController : EmailControllerBase
     private readonly IEmailSendService _sendService;
     private readonly IEmailSyncService _syncService;
     private readonly ISearchFtsClient? _searchFtsClient;
+    private readonly EmailDbContext _db;
     private readonly ILogger<EmailController> _logger;
 
     /// <summary>
@@ -27,6 +30,7 @@ public class EmailController : EmailControllerBase
         IEmailSendService sendService,
         IEmailSyncService syncService,
         ISearchFtsClient? searchFtsClient,
+        EmailDbContext db,
         ILogger<EmailController> logger)
     {
         _accountService = accountService;
@@ -34,6 +38,7 @@ public class EmailController : EmailControllerBase
         _sendService = sendService;
         _syncService = syncService;
         _searchFtsClient = searchFtsClient;
+        _db = db;
         _logger = logger;
     }
 
@@ -160,6 +165,136 @@ public class EmailController : EmailControllerBase
         {
             await _syncService.SyncAccountAsync(id);
             return Ok(Envelope(new { syncing = true }));
+        }
+        catch (ValidationException ex)
+        {
+            return BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
+        }
+    }
+
+    // ── Mailboxes ──────────────────────────────────────────
+
+    /// <summary>Lists mailboxes for an email account.</summary>
+    [HttpGet("accounts/{id:guid}/mailboxes")]
+    public async Task<IActionResult> ListMailboxes(Guid id)
+    {
+        try
+        {
+            var caller = GetAuthenticatedCaller();
+            var mailboxes = await _accountService.ListMailboxesAsync(id, caller);
+            return Ok(Envelope(mailboxes));
+        }
+        catch (ValidationException ex)
+        {
+            return ex.ErrorCode switch
+            {
+                ErrorCodes.EmailAccountNotFound => NotFound(ErrorEnvelope(ex.ErrorCode, ex.Message)),
+                _ => BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message))
+            };
+        }
+    }
+
+    // ── Threads ────────────────────────────────────────────
+
+    /// <summary>Lists threads for a mailbox.</summary>
+    [HttpGet("accounts/{id:guid}/mailboxes/{mailboxId:guid}/threads")]
+    public async Task<IActionResult> ListThreads(Guid id, Guid mailboxId)
+    {
+        try
+        {
+            var caller = GetAuthenticatedCaller();
+
+            // Verify account ownership
+            var account = await _db.EmailAccounts
+                .AsNoTracking()
+                .FirstOrDefaultAsync(a => a.Id == id && a.OwnerId == caller.UserId);
+
+            if (account is null)
+                return NotFound(ErrorEnvelope(ErrorCodes.EmailAccountNotFound, "Email account not found."));
+
+            // Find threads that have at least one message in this mailbox
+            var threadIdsInMailbox = await _db.EmailMessages
+                .AsNoTracking()
+                .Where(m => m.MailboxId == mailboxId && m.AccountId == id)
+                .Select(m => m.ThreadId)
+                .Distinct()
+                .ToListAsync();
+
+            var threads = await _db.EmailThreads
+                .AsNoTracking()
+                .Where(t => threadIdsInMailbox.Contains(t.Id))
+                .OrderByDescending(t => t.LastMessageAt)
+                .Take(100)
+                .ToListAsync();
+
+            return Ok(Envelope(threads));
+        }
+        catch (ValidationException ex)
+        {
+            return BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
+        }
+    }
+
+    /// <summary>Lists messages in a thread.</summary>
+    [HttpGet("threads/{threadId:guid}/messages")]
+    public async Task<IActionResult> ListThreadMessages(Guid threadId)
+    {
+        try
+        {
+            var caller = GetAuthenticatedCaller();
+
+            var thread = await _db.EmailThreads
+                .AsNoTracking()
+                .FirstOrDefaultAsync(t => t.Id == threadId);
+
+            if (thread is null)
+                return NotFound(ErrorEnvelope("thread_not_found", "Thread not found."));
+
+            var account = await _db.EmailAccounts
+                .AsNoTracking()
+                .FirstOrDefaultAsync(a => a.Id == thread.AccountId && a.OwnerId == caller.UserId);
+
+            if (account is null)
+                return NotFound(ErrorEnvelope(ErrorCodes.EmailAccountNotFound, "Email account not found."));
+
+            var messages = await _db.EmailMessages
+                .AsNoTracking()
+                .Include(m => m.Attachments)
+                .Where(m => m.ThreadId == threadId)
+                .OrderBy(m => m.DateReceived)
+                .ToListAsync();
+
+            return Ok(Envelope(messages));
+        }
+        catch (ValidationException ex)
+        {
+            return BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
+        }
+    }
+
+    /// <summary>Gets the full HTML body of a message.</summary>
+    [HttpGet("messages/{messageId:guid}/body")]
+    public async Task<IActionResult> GetMessageBody(Guid messageId)
+    {
+        try
+        {
+            var caller = GetAuthenticatedCaller();
+
+            var message = await _db.EmailMessages
+                .AsNoTracking()
+                .FirstOrDefaultAsync(m => m.Id == messageId);
+
+            if (message is null)
+                return NotFound(ErrorEnvelope("message_not_found", "Message not found."));
+
+            var account = await _db.EmailAccounts
+                .AsNoTracking()
+                .FirstOrDefaultAsync(a => a.Id == message.AccountId && a.OwnerId == caller.UserId);
+
+            if (account is null)
+                return NotFound(ErrorEnvelope(ErrorCodes.EmailAccountNotFound, "Email account not found."));
+
+            return Ok(Envelope(new { bodyHtml = message.BodyHtml ?? "" }));
         }
         catch (ValidationException ex)
         {
