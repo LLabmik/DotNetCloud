@@ -151,13 +151,28 @@
                         <button class="email-btn email-btn-secondary" @onclick="CancelAddAccount">Cancel</button>
                     </div>
                 }
-                else
+                @if (_addAccountType == "gmail")
                 {
-                    <p>Connect your Gmail account via Google OAuth.</p>
-                    <div class="email-form-actions">
-                        <button class="email-btn email-btn-primary" @onclick="StartGmailOAuth">Connect Gmail</button>
-                        <button class="email-btn email-btn-secondary" @onclick="CancelAddAccount">Cancel</button>
-                    </div>
+                    @if (_gmailOAuthConfigured)
+                    {
+                        <p>Connect your Gmail account via Google OAuth.</p>
+                        <div class="email-form-actions">
+                            <button class="email-btn email-btn-primary" @onclick="StartGmailOAuth">Connect Gmail</button>
+                            <button class="email-btn email-btn-secondary" @onclick="CancelAddAccount">Cancel</button>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="email-info-message">
+                            <p><strong>Gmail OAuth not yet configured.</strong></p>
+                            <p>The server administrator needs to set up a Google Cloud OAuth 2.0 client.
+                            Once configured, users will be able to connect their Gmail accounts here.</p>
+                            <p><small>See the DotNetCloud documentation for setup instructions.</small></p>
+                        </div>
+                        <div class="email-form-actions">
+                            <button class="email-btn email-btn-secondary" @onclick="CancelAddAccount">Cancel</button>
+                        </div>
+                    }
                 }
             </div>
         }

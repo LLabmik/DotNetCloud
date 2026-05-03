@@ -236,25 +236,28 @@ public class GmailOAuthController : EmailControllerBase
     }
 
     /// <summary>
-    /// Gets the Gmail OAuth client ID. Uses the configured value, or falls back
-    /// to the built-in DotNetCloud default. Server admins can override via
-    /// appsettings.json ("Email:Gmail:ClientId").
+    /// Gets the Gmail OAuth client ID.
+    ///
+    /// The DotNetCloud project registers a single Google Cloud OAuth 2.0 client
+    /// (Web application type) that all installations share — like Thunderbird does
+    /// with Mozilla's client. The built-in default is that shared client ID.
+    ///
+    /// Server admins who want to use their own Google Cloud project can override
+    /// via appsettings.json: "Email:Gmail:ClientId".
     /// </summary>
     private string GetClientId()
     {
         return _configuration["Email:Gmail:ClientId"]
-            ?? "DOTNETCLOUD_GMALL_CLIENT_ID_PLACEHOLDER";
+            ?? ""; // TODO: Replace with DotNetCloud project's registered Google OAuth client ID
     }
 
     /// <summary>
-    /// Gets the Gmail OAuth client secret. Uses the configured value, or falls
-    /// back to the built-in DotNetCloud default. Server admins can override via
-    /// appsettings.json ("Email:Gmail:ClientSecret").
+    /// Gets the Gmail OAuth client secret. See <see cref="GetClientId"/>.
     /// </summary>
     private string GetClientSecret()
     {
         return _configuration["Email:Gmail:ClientSecret"]
-            ?? "DOTNETCLOUD_GMALL_CLIENT_SECRET_PLACEHOLDER";
+            ?? ""; // TODO: Replace with DotNetCloud project's registered Google OAuth client secret
     }
 
     /// <summary>
