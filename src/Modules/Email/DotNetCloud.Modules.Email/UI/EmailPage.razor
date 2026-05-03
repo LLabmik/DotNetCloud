@@ -108,11 +108,8 @@
                 <div class="email-tabs">
                     <button class="email-tab @(_addAccountType == "imap" ? "active" : "")"
                             @onclick='() => _addAccountType = "imap"'>IMAP / SMTP</button>
-                    @if (_gmailOAuthConfigured)
-                    {
-                        <button class="email-tab @(_addAccountType == "gmail" ? "active" : "")"
-                                @onclick='() => _addAccountType = "gmail"'>Gmail (OAuth)</button>
-                    }
+                    <button class="email-tab @(_addAccountType == "gmail" ? "active" : "")"
+                            @onclick='() => _addAccountType = "gmail"'>Gmail (OAuth)</button>
                 </div>
 
                 @if (_addAccountType == "imap")

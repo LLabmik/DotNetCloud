@@ -217,23 +217,60 @@ public class GmailOAuthController : EmailControllerBase
 
     private bool IsConfigured()
     {
-        var clientId = _configuration["Email:Gmail:ClientId"];
-        var redirectUri = _configuration["Email:Gmail:RedirectUri"];
-        return !string.IsNullOrWhiteSpace(clientId) && !string.IsNullOrWhiteSpace(redirectUri);
+        return !string.IsNullOrWhiteSpace(GetClientId());
     }
 
     private bool IsConfigured(out string clientId, out string redirectUri)
     {
-        clientId = _configuration["Email:Gmail:ClientId"] ?? "";
-        redirectUri = _configuration["Email:Gmail:RedirectUri"] ?? "";
+        clientId = GetClientId();
+        redirectUri = GetRedirectUri();
         return !string.IsNullOrWhiteSpace(clientId) && !string.IsNullOrWhiteSpace(redirectUri);
     }
 
     private bool IsConfigured(out string clientId, out string clientSecret, out string redirectUri)
     {
-        clientId = _configuration["Email:Gmail:ClientId"] ?? "";
-        clientSecret = _configuration["Email:Gmail:ClientSecret"] ?? "";
-        redirectUri = _configuration["Email:Gmail:RedirectUri"] ?? "";
+        clientId = GetClientId();
+        clientSecret = GetClientSecret();
+        redirectUri = GetRedirectUri();
         return !string.IsNullOrWhiteSpace(clientId) && !string.IsNullOrWhiteSpace(clientSecret) && !string.IsNullOrWhiteSpace(redirectUri);
+    }
+
+    /// <summary>
+    /// Gets the Gmail OAuth client ID. Uses the configured value, or falls back
+    /// to the built-in DotNetCloud default. Server admins can override via
+    /// appsettings.json ("Email:Gmail:ClientId").
+    /// </summary>
+    private string GetClientId()
+    {
+        return _configuration["Email:Gmail:ClientId"]
+            ?? "DOTNETCLOUD_GMALL_CLIENT_ID_PLACEHOLDER";
+    }
+
+    /// <summary>
+    /// Gets the Gmail OAuth client secret. Uses the configured value, or falls
+    /// back to the built-in DotNetCloud default. Server admins can override via
+    /// appsettings.json ("Email:Gmail:ClientSecret").
+    /// </summary>
+    private string GetClientSecret()
+    {
+        return _configuration["Email:Gmail:ClientSecret"]
+            ?? "DOTNETCLOUD_GMALL_CLIENT_SECRET_PLACEHOLDER";
+    }
+
+    /// <summary>
+    /// Gets the redirect URI for Gmail OAuth callbacks. Auto-detected from the
+    /// current request's host, or overridden via appsettings.json.
+    /// </summary>
+    private string GetRedirectUri()
+    {
+        var configured = _configuration["Email:Gmail:RedirectUri"];
+        if (!string.IsNullOrWhiteSpace(configured))
+            return configured;
+
+        // Auto-detect from the current request
+        var request = HttpContext.Request;
+        var scheme = request.Scheme;
+        var host = request.Host.Value;
+        return $"{scheme}://{host}/api/v1/email/gmail/oauth/complete";
     }
 }
