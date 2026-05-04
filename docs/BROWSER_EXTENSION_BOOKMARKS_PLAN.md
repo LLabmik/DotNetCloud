@@ -1,7 +1,7 @@
 # Browser Bookmarks Extension — Implementation Plan
 
 **Date:** 2026-05-04  
-**Status:** Phase 1 Complete — Server-Side Extension Support Done  
+**Status:** Phase 2 Complete — Extension Project Scaffold Done  
 **Phase:** Post-Phase-6 (Bookmarks server module complete)
 
 ---
@@ -123,9 +123,21 @@ src/Clients/DotNetCloud.Client.BrowserExtension/
 
 ## Phase 1: Server-Side Extension Support
 
-> All server changes must pass `dotnet build DotNetCloud.CI.slnf` and `dotnet test DotNetCloud.CI.slnf` before Phase 2 begins.
+**STATUS:** ✅ COMPLETED (verified 2026-05-04)
+
+> All server changes passed `dotnet build DotNetCloud.CI.slnf` and `dotnet test DotNetCloud.CI.slnf`.
+
+**Deliverables:**
+- ✓ Device Authorization Grant enabled (`AllowDeviceCodeFlow()` in `AuthServiceExtensions.cs`)
+- ✓ `bookmarks:read` and `bookmarks:write` scopes registered
+- ✓ Browser extension OIDC client registered (`dotnetcloud-browser-extension` in `OidcClientSeeder.cs`)
+- ✓ Delta sync endpoint: `GET /api/v1/bookmarks/sync/changes?since=...` with `BookmarkSyncChangesResult`
+- ✓ Batch operations endpoint: `POST /api/v1/bookmarks/batch` with `BatchRequest`/`BatchResponse`
+- ✓ `IBookmarkService.GetSyncChangesAsync()` and `IBookmarkService.BatchAsync()` implemented
 
 ### Step 1.1 — Enable Device Authorization Grant
+
+**Status:** completed ✅
 
 **File:** `src/Core/DotNetCloud.Core.Auth/Extensions/AuthServiceExtensions.cs`
 
@@ -162,6 +174,8 @@ options.RegisterScopes(
 
 ### Step 1.2 — Register Extension OIDC Client
 
+**Status:** completed ✅
+
 **File:** `src/Core/DotNetCloud.Core.Server/Initialization/OidcClientSeeder.cs`
 
 Add a new client registration alongside `dotnetcloud-desktop` and `dotnetcloud-mobile`:
@@ -193,6 +207,8 @@ await manager.CreateAsync(new OpenIddictApplicationDescriptor
 ---
 
 ### Step 1.3 — Delta Sync Endpoint
+
+**Status:** completed ✅
 
 **File:** `src/Modules/Bookmarks/DotNetCloud.Modules.Bookmarks.Host/Controllers/BookmarksController.cs`
 
@@ -253,6 +269,8 @@ Task<BookmarkSyncChangesResult> GetSyncChangesAsync(
 
 ### Step 1.4 — Batch Operations Endpoint
 
+**Status:** completed ✅
+
 **File:** `src/Modules/Bookmarks/DotNetCloud.Modules.Bookmarks.Host/Controllers/BookmarksController.cs`
 
 Add a batch endpoint for efficient initial sync and bulk operations.
@@ -300,7 +318,29 @@ POST /api/v1/bookmarks/batch
 
 ## Phase 2: Extension Project Scaffold
 
+**STATUS:** ✅ COMPLETED (2026-05-04)
+
+**Deliverables:**
+- ✓ Project structure: `package.json`, `tsconfig.json`, `jest.config.js`, `.gitignore`
+- ✓ Dual manifests: `manifest.chrome.json` (MV3), `manifest.firefox.json` (MV3)
+- ✓ API types layer: `src/api/types.ts` — all DTOs matching server (BookmarkItem, BookmarkFolder, SyncChangesResponse, BatchRequest, etc.)
+- ✓ API client: `src/api/client.ts` — typed fetch wrapper with all CRUD + sync + batch methods, AbortSignal support, ApiError on non-2xx
+- ✓ Auth attachment: `src/api/auth.ts` — `getAuthHeaders()` + `isAuthenticated()`
+- ✓ Vite config: `vite.config.ts` — dual-browser output via `--mode chrome`/`--mode firefox`, manifest + icon copy plugins
+- ✓ Build scripts: `build-extension.ps1` (PowerShell/Windows), `build-extension.sh` (Bash/Linux)
+- ✓ Background service worker: `src/background/service-worker.ts` — alarm handler, install/update hooks
+- ✓ Auth modules: `src/auth/device-flow.ts` (RFC 8628 device flow initiator + poller), `src/auth/token-manager.ts` (storage, refresh, alarm scheduling)
+- ✓ Sync engine: `src/sync/mapping-store.ts` — bidirectional bookmark↔server ID maps via `chrome.storage.local`
+- ✓ Popup scaffold: `popup.html`, `popup.ts` (auth screen + main UI router), `styles/popup.css` (full design system)
+- ✓ Placeholder icons: 16×16, 48×48, 128×128 PNG
+
+**Notes:** Phase 2 complete. All scaffold files created. Extension can be built with `npm install && npm run build` (both Chrome and Firefox). The popup shows an auth screen that initiates OAuth2 Device Flow, opens the verification tab, and polls for the token. On success, transitions to a placeholder main UI. Full popup panels (Save/Browse/Search) deferred to Phase 5.
+
+---
+
 ### Step 2.1 — Project Initialization
+
+**Status:** completed ✅
 
 Create `src/Clients/DotNetCloud.Client.BrowserExtension/`:
 
@@ -360,6 +400,8 @@ Create `src/Clients/DotNetCloud.Client.BrowserExtension/`:
 ---
 
 ### Step 2.2 — Dual Manifests
+
+**Status:** completed ✅
 
 **`manifest.chrome.json`** (MV3):
 ```json
@@ -422,6 +464,8 @@ Create `src/Clients/DotNetCloud.Client.BrowserExtension/`:
 ---
 
 ### Step 2.3 — API Client Layer
+
+**Status:** completed ✅
 
 **`src/api/types.ts`** — TypeScript interfaces matching server DTOs:
 
