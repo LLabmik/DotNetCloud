@@ -5,9 +5,8 @@ namespace DotNetCloud.Modules.Files.Data;
 
 /// <summary>
 /// Provides atomic reference count operations on <see cref="Models.FileChunk"/> rows
-/// using raw SQL to avoid EF in-memory read-modify-write race conditions.
-/// All mutations use PostgreSQL row-level locking via UPDATE to guarantee correct counts
-/// even under concurrent access.
+/// using <c>ExecuteUpdateAsync</c> to issue a single UPDATE statement
+/// — no prior read is needed, avoiding EF in-memory read-modify-write race conditions.
 /// Falls back to EF change tracking when using InMemory provider (unit tests).
 /// </summary>
 internal static class ChunkReferenceHelper
@@ -29,15 +28,13 @@ internal static class ChunkReferenceHelper
             return;
         }
 
-        await db.Database.ExecuteSqlRawAsync(
-            """
-            UPDATE "FileChunks"
-            SET "ReferenceCount" = "ReferenceCount" + 1,
-                "LastReferencedAt" = NOW()
-            WHERE "Id" = {0}
-            """,
-            [chunkId],
-            cancellationToken);
+        await db.FileChunks
+            .Where(c => c.Id == chunkId)
+            .ExecuteUpdateAsync(
+                setters => setters
+                    .SetProperty(c => c.ReferenceCount, c => c.ReferenceCount + 1)
+                    .SetProperty(c => c.LastReferencedAt, _ => DateTime.UtcNow),
+                cancellationToken);
     }
 
     /// <summary>
@@ -54,14 +51,13 @@ internal static class ChunkReferenceHelper
             return;
         }
 
-        await db.Database.ExecuteSqlRawAsync(
-            """
-            UPDATE "FileChunks"
-            SET "ReferenceCount" = GREATEST("ReferenceCount" - 1, 0)
-            WHERE "Id" = {0}
-            """,
-            [chunkId],
-            cancellationToken);
+        await db.FileChunks
+            .Where(c => c.Id == chunkId)
+            .ExecuteUpdateAsync(
+                setters => setters
+                    .SetProperty(c => c.ReferenceCount, c => Math.Max(c.ReferenceCount - 1, 0))
+                    .SetProperty(c => c.LastReferencedAt, _ => DateTime.UtcNow),
+                cancellationToken);
     }
 
     /// <summary>Returns true when the context is backed by the EF InMemory provider (test scenarios).</summary>

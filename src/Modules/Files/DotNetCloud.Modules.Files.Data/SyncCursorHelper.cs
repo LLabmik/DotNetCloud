@@ -50,10 +50,10 @@ internal static class SyncCursorHelper
         // ToListAsync first — .SingleAsync() would fail with InvalidOperationException.
         var nextSequence = (await db.Database.SqlQueryRaw<long>(
             """
-            INSERT INTO "UserSyncCounters" ("UserId", "CurrentSequence", "UpdatedAt")
+            INSERT INTO "core"."UserSyncCounters" ("UserId", "CurrentSequence", "UpdatedAt")
             VALUES ({0}, 1, NOW())
             ON CONFLICT ("UserId") DO UPDATE
-            SET "CurrentSequence" = "UserSyncCounters"."CurrentSequence" + 1,
+            SET "CurrentSequence" = "core"."UserSyncCounters"."CurrentSequence" + 1,
                 "UpdatedAt" = NOW()
             RETURNING "CurrentSequence"
             """,
