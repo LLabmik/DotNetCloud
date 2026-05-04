@@ -29,13 +29,13 @@ DotNetCloud gives you full control of your data by running your own cloud server
 | 👤 **Contacts**         | Contact management with CardDAV support                                                                                                | ✅ Phase 3        |
 | 📅 **Calendar**         | Events, scheduling, CalDAV support                                                                                                     | ✅ Phase 3        |
 | 📝 **Notes**            | Markdown-based note taking                                                                                                             | ✅ Phase 3        |
-| 📋 **Tracks**           | Kanban boards and project management                                                                                                   | 🔄 Rearchitecting |
+| 📋 **Tracks**           | Kanban boards and project management                                                                                                   | ✅ Phase 4        |
 | 🖼️ **Photos**           | Photo library, albums, geo-clustering, slideshow, editing                                                                              | ✅ Phase 5        |
 | 🎵 **Music**            | Music player with equalizer, playlists, favorites, Subsonic API                                                                        | ✅ Phase 5        |
 | 🎬 **Video**            | Video library, collections, subtitles, watch progress, streaming                                                                       | ✅ Phase 5        |
-| 📧 **Email**            | Integrated email client (SMTP/IMAP/Gmail)                                                                                              | Phase 6           |
-| 🔖 **Bookmarks**        | Browser bookmark sync via extension                                                                                                    | Phase 6           |
-| 📹 **Video Calls**      | WebRTC video calling and screen sharing                                                                                                | 🔄 In Progress   |
+| 📧 **Email**            | Integrated email client (SMTP/IMAP/Gmail)                                                                                              | ✅ Phase 6        |
+| 🔖 **Bookmarks**        | Browser bookmark sync via extension                                                                                                    | ✅ Phase 6        |
+| 📹 **Video Calls**      | WebRTC video calling and screen sharing                                                                                                | ✅ Phase 7        |
 | 🔍 **Search**           | Full-text search across all modules                                                                                                    | ✅ Phase 8        |
 | 🤖 **AI Assistant**     | LLM-powered assistant via Ollama (local) or Claude/OpenAI (cloud)                                                                      | ✅ Phase 9        |
 | 🔒 **E2EE**             | Optional zero-knowledge encryption                                                                                                     | Phase 10          |
@@ -56,7 +56,7 @@ See [MASTER_PROJECT_PLAN.md](docs/MASTER_PROJECT_PLAN.md) for the full phased im
 | **Phase 7**  | Video Calling + Screen Sharing                                                                                                                          | 🔄 In Progress   |
 | **Phase 8**  | Search                                                                                                                                                  | ✅ Complete       |
 | **Phase 9**  | AI Assistant                                                                                                                                            | ✅ Complete       |
-| **Phase 10** | End-to-End Encryption (E2EE)                                                                                                                            | ⬜ Planned        |
+| **Phase 10** | End-to-End Encryption (E2EE)                                                                                                                            | 🔜 Future         |
 | **Phase 11** | Auto-Updates — server, CLI, admin UI, desktop, Android                                                                                                  | ✅ Complete       |
 
 ---
