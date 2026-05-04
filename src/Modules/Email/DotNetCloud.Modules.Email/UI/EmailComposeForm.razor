@@ -1,6 +1,8 @@
 @namespace DotNetCloud.Modules.Email.UI
+@using Microsoft.Extensions.Logging
 @using DotNetCloud.Modules.Email.Models
 @using DotNetCloud.Modules.Email.Services
+@inject ILogger<EmailComposeForm> _logger
 
 <div class="email-compose-card">
     @* ── Header ── *@
@@ -164,9 +166,14 @@
 
     private async Task HandleSend()
     {
+        _logger.LogInformation("HandleSend called. _toInput='{To}', _subject='{Subj}', _bodyText.Length={Len}, OnSend is null={Null}",
+            _toInput, _subject, _bodyText?.Length ?? 0, OnSend is null);
+
         var recipients = ParseRecipients(_toInput);
         var ccList = ParseRecipients(_ccInput);
         var bccList = ParseRecipients(_bccInput);
+
+        _logger.LogInformation("HandleSend parsed {Recipients} recipients", recipients.Count);
 
         var finalRequest = new EmailSendRequest
         {
@@ -179,7 +186,15 @@
         };
 
         if (OnSend is not null)
+        {
+            _logger.LogInformation("HandleSend invoking OnSend callback");
             await OnSend.Invoke(finalRequest);
+            _logger.LogInformation("HandleSend OnSend callback completed");
+        }
+        else
+        {
+            _logger.LogWarning("HandleSend: OnSend is null, cannot send");
+        }
     }
 
     private static List<EmailAddressDto> ParseRecipients(string input)

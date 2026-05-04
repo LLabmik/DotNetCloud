@@ -139,19 +139,29 @@ public class EmailController : EmailControllerBase
     [HttpPost("accounts/{id:guid}/send")]
     public async Task<IActionResult> Send(Guid id, [FromBody] EmailSendRequest request)
     {
+        _logger.LogInformation("EmailController.Send called: accountId={Id}, To={To}, Subject={Subj}",
+            id, request.To?.Count, request.Subject);
         try
         {
             var caller = GetAuthenticatedCaller();
+            _logger.LogInformation("EmailController.Send: caller authenticated, userId={UserId}", caller.UserId);
             await _sendService.SendAsync(id, request, caller);
+            _logger.LogInformation("EmailController.Send: succeeded");
             return Ok(Envelope(new { sent = true }));
         }
         catch (ValidationException ex)
         {
+            _logger.LogWarning("EmailController.Send: ValidationException - {Code}: {Msg}", ex.ErrorCode, ex.Message);
             return ex.ErrorCode switch
             {
                 ErrorCodes.EmailAccountNotFound => NotFound(ErrorEnvelope(ex.ErrorCode, ex.Message)),
                 _ => BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message))
             };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "EmailController.Send: unhandled exception");
+            throw;
         }
     }
 

@@ -1,8 +1,10 @@
 @namespace DotNetCloud.Modules.Email.UI
+@using Microsoft.Extensions.Logging
 
 @inject IEmailApiClient ApiClient
 @inject IJSRuntime JSRuntime
 @inject NavigationManager _navigation
+@inject ILogger<EmailPage> _logger
 
 <div class="email-layout">
     @* ── Sidebar ── *@
@@ -215,7 +217,7 @@
                 @if (_editingRule is not null)
                 {
                     <EditRuleForm Rule="_editingRule" Accounts="_accounts"
-                                  OnSave="SaveRuleAsync" OnCancel="() => _editingRule = null" />
+                                  OnSave="SaveRuleAsync" OnCancel="CancelEditRule" />
                 }
                 else if (_rules.Count > 0)
                 {
@@ -253,7 +255,7 @@
         {
             @* ── Compose ── *@
             <EmailComposeForm Compose="_composing" Accounts="_accounts" IsReply="_isReply"
-                              OnSend="request => SendEmailAsync(request)" OnCancel="() => { _composing = null; _isReply = false; }" />
+                              OnSend="request => SendEmailAsync(request)" OnCancel="CancelCompose" />
         }
         else if (_selectedThread is not null)
         {
@@ -617,16 +619,36 @@
 
     private async Task SendEmailAsync(EmailSendRequest request)
     {
-        if (_selectedAccount is null) return;
+        _logger.LogInformation("SendEmailAsync called. _selectedAccount is null={Null}, accountId={Id}, To={To}, Subject={Subj}",
+            _selectedAccount is null, _selectedAccount?.Id, request.To?.Count, request.Subject);
+
+        if (_selectedAccount is null)
+        {
+            _logger.LogWarning("SendEmailAsync: _selectedAccount is null, aborting");
+            return;
+        }
+
         try
         {
+            _logger.LogInformation("SendEmailAsync: calling ApiClient.SendAsync for account {Id}", _selectedAccount.Id);
             await ApiClient.SendAsync(_selectedAccount.Id, request);
+            _logger.LogInformation("SendEmailAsync: ApiClient.SendAsync succeeded");
             _composing = null;
+            StateHasChanged();
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex, "SendEmailAsync: ApiClient.SendAsync failed");
             _errorMessage = $"Failed to send: {ex.Message}";
+            StateHasChanged();
         }
+    }
+
+    private void CancelCompose()
+    {
+        _composing = null;
+        _isReply = false;
+        StateHasChanged();
     }
 
     private void BeginAddAccount()
@@ -652,7 +674,7 @@
                 imapUseSsl = true,
                 smtpHost = _smtpHost,
                 smtpPort = _smtpPort,
-                smtpUseStartTls = true,
+                smtpUseStartTls = _smtpPort != 465,
                 username = _imapUser,
                 password = _imapPassword
             });
@@ -743,6 +765,12 @@
         };
     }
 
+    private void CancelEditRule()
+    {
+        _editingRule = null;
+        StateHasChanged();
+    }
+
     private async Task SaveRuleAsync(EmailRule rule)
     {
         try
@@ -772,10 +800,12 @@
             }
             _editingRule = null;
             _rules = (await ApiClient.ListRulesAsync(_selectedAccountId)).ToList();
+            StateHasChanged();
         }
         catch (Exception ex)
         {
             _errorMessage = $"Failed to save rule: {ex.Message}";
+            StateHasChanged();
         }
     }
 

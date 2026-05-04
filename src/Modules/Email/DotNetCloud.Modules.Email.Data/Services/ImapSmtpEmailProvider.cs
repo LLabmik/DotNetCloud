@@ -302,6 +302,9 @@ public sealed class ImapSmtpEmailProvider : IEmailProvider
     {
         var creds = GetCredentials(account);
 
+        _logger.LogInformation("SMTP Send: connecting to {Host}:{Port}, StartTls={StartTls}, Username={User}",
+            creds.SmtpHost, creds.SmtpPort, creds.SmtpUseStartTls, creds.Username);
+
         var message = new MimeMessage();
         message.From.Add(new MailboxAddress(account.DisplayName, account.EmailAddress));
         message.Subject = request.Subject;
@@ -329,10 +332,15 @@ public sealed class ImapSmtpEmailProvider : IEmailProvider
         message.Body = builder.ToMessageBody();
 
         using var client = new SmtpClient();
+
+        _logger.LogInformation("SMTP Send: connecting...");
         await client.ConnectAsync(creds.SmtpHost, creds.SmtpPort,
-            creds.SmtpUseStartTls ? SecureSocketOptions.StartTls : SecureSocketOptions.SslOnConnect, ct);
+            SecureSocketOptions.Auto, ct);
+        _logger.LogInformation("SMTP Send: connected, authenticating...");
         await client.AuthenticateAsync(creds.Username, creds.Password, ct);
+        _logger.LogInformation("SMTP Send: authenticated, sending message...");
         await client.SendAsync(message, ct);
+        _logger.LogInformation("SMTP Send: message sent, disconnecting...");
         await client.DisconnectAsync(true, ct);
 
         _logger.LogInformation("Email sent via SMTP to {Recipients}", string.Join(", ", request.To.Select(t => t.Email)));

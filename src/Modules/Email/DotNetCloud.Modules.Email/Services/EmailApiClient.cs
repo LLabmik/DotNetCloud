@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using DotNetCloud.Modules.Email.Models;
+using Microsoft.Extensions.Logging;
 
 namespace DotNetCloud.Modules.Email.Services;
 
@@ -10,11 +11,13 @@ namespace DotNetCloud.Modules.Email.Services;
 public sealed class EmailApiClient : IEmailApiClient
 {
     private readonly HttpClient _httpClient;
+    private readonly ILogger<EmailApiClient> _logger;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-    public EmailApiClient(HttpClient httpClient)
+    public EmailApiClient(HttpClient httpClient, ILogger<EmailApiClient> logger)
     {
         _httpClient = httpClient;
+        _logger = logger;
     }
 
     // ── Accounts ─────────────────────────────────────────────
@@ -75,8 +78,21 @@ public sealed class EmailApiClient : IEmailApiClient
 
     public async Task SendAsync(Guid accountId, EmailSendRequest request, CancellationToken ct = default)
     {
-        var response = await _httpClient.PostAsJsonAsync($"api/v1/email/accounts/{accountId}/send", request, ct);
-        await EnsureSuccessOrThrowAsync(response);
+        var url = $"api/v1/email/accounts/{accountId}/send";
+        _logger.LogInformation("EmailApiClient.SendAsync: POST {Url} with To={To}, Subject={Subj}",
+            url, request.To?.Count, request.Subject);
+        try
+        {
+            var response = await _httpClient.PostAsJsonAsync(url, request, ct);
+            _logger.LogInformation("EmailApiClient.SendAsync: received status {Status}", (int)response.StatusCode);
+            await EnsureSuccessOrThrowAsync(response);
+            _logger.LogInformation("EmailApiClient.SendAsync: succeeded");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "EmailApiClient.SendAsync: failed");
+            throw;
+        }
     }
 
     // ── Sync ─────────────────────────────────────────────────

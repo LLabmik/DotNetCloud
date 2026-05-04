@@ -48,10 +48,44 @@ public sealed class EmailSendService : IEmailSendService
         await provider.SendAsync(account, request, ct);
 
         var bodyText = request.BodyPlainText ?? request.BodyHtml ?? "";
+        var now = DateTime.UtcNow;
+
+        // Find existing thread (for replies) or create a new one for this sent message.
+        EmailThread thread;
+        if (request.InReplyToMessageId is not null)
+        {
+            var parent = await _db.EmailMessages
+                .AsNoTracking()
+                .FirstOrDefaultAsync(m => m.AccountId == account.Id && m.MessageIdHeader == request.InReplyToMessageId, ct);
+            if (parent is not null)
+                thread = await _db.EmailThreads.FirstAsync(t => t.Id == parent.ThreadId, ct);
+            else
+                thread = null!;
+        }
+        else
+        {
+            thread = null!;
+        }
+
+        if (thread is null)
+        {
+            thread = new EmailThread
+            {
+                AccountId = account.Id,
+                Subject = request.Subject,
+                ProviderThreadId = $"sent-{Guid.NewGuid():N}",
+                ParticipantsJson = "[]",
+                MessageCount = 0,
+                CreatedAt = now,
+                UpdatedAt = now
+            };
+            _db.EmailThreads.Add(thread);
+        }
 
         var sentMessage = new EmailMessage
         {
             AccountId = account.Id,
+            ThreadId = thread.Id,
             ProviderMessageId = $"sent-{Guid.NewGuid():N}",
             Subject = request.Subject,
             BodyPreview = bodyText.Length > 0 ? bodyText[..Math.Min(500, bodyText.Length)] : null,
@@ -60,9 +94,13 @@ public sealed class EmailSendService : IEmailSendService
             ToJson = System.Text.Json.JsonSerializer.Serialize(request.To),
             CcJson = request.Cc is { Count: > 0 } ? System.Text.Json.JsonSerializer.Serialize(request.Cc) : "[]",
             BccJson = request.Bcc is { Count: > 0 } ? System.Text.Json.JsonSerializer.Serialize(request.Bcc) : "[]",
-            DateReceived = DateTime.UtcNow,
+            DateReceived = now,
             IsRead = true
         };
+
+        thread.MessageCount++;
+        thread.LastMessageAt = now;
+        thread.UpdatedAt = now;
 
         _db.EmailMessages.Add(sentMessage);
         await _db.SaveChangesAsync(ct);
