@@ -5225,25 +5225,50 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Server-wins conflict resolution (always applies server state)
 - ✓ Service worker integration (startPullSync/stopPullSync controlled by auth state)
 
-### Phase 5: Popup UI ☐
+### Phase 5: Popup UI ✅
 
-#### Step 5.1 — Auth Screen ☐
+#### Step 5.1 — Auth Screen ✅
 - ✓ Server URL input + "Connect" button (completed as scaffold)
 
-#### Step 5.2 — Main Popup Structure ☐
+#### Step 5.2 — Main Popup Structure ✅
 - ✓ Header, tab nav, status footer (completed as scaffold)
+- ✓ Tab switching logic with dynamic panel loading
+- ✓ Error handling per panel with retry button
 
-#### Step 5.3 — Save Panel ☐
-- ☐ `SavePanel.ts` — auto-fill URL/title from active tab, folder picker, tags, notes
+#### Step 5.3 — Save Panel ✅
+- ✓ `SavePanel.ts` — auto-fill URL/title from active tab via `chrome.tabs.query`
+- ✓ Folder picker with lazy-loaded indented folder tree (topological sort)
+- ✓ Tags input with chip rendering (Enter/comma to add, × to remove)
+- ✓ Notes textarea with collapse/expand toggle
+- ✓ Save/Update button — detects existing bookmark by URL search, shows "Update Bookmark" for duplicates
+- ✓ Success toast with auto-close (800ms) after save
+- ✓ Last-used folder persistence via `chrome.storage.local`
+- ✓ Fire-and-forget preview trigger after create
 
-#### Step 5.4 — Browse Panel ☐
-- ☐ `BrowsePanel.ts` — folder tree navigation, bookmark list with favicons, infinite scroll
+#### Step 5.4 — Browse Panel ✅
+- ✓ `BrowsePanel.ts` — folder tree navigation with breadcrumb trail
+- ✓ Clickable breadcrumb links for backtracking
+- ✓ Bookmark list with favicons from Google's favicon service (`www.google.com/s2/favicons`)
+- ✓ Folder/bookmark separation with visual divider
+- ✓ Infinite scroll (load next 20 on scroll to bottom)
+- ✓ Right-click context menu: Open in New Tab, Copy URL, Delete
+- ✓ Refresh button to reload current folder
+- ✓ Empty state messaging
 
-#### Step 5.5 — Search Panel ☐
-- ☐ `SearchPanel.ts` — debounced search, result display with folder path, recent bookmarks
+#### Step 5.5 — Search Panel ✅
+- ✓ `SearchPanel.ts` — debounced search (300ms) via `GET /api/v1/bookmarks/search`
+- ✓ Results display with favicon, title, domain URL, and folder path breadcrumb
+- ✓ Click result → `chrome.tabs.create({ url })` + close popup
+- ✓ Empty query → show "Recently Added" bookmarks
+- ✓ "No results" state with hint text
+- ✓ Search failure state with retry guidance
 
-#### Step 5.6 — Sync Status Footer ☐
-- ✓ Basic status footer scaffold (completed as scaffold)
+#### Step 5.6 — Sync Status Footer ✅
+- ✓ Real-time sync status with color-coded dot (green = recent, amber = old, red = error, grey = offline)
+- ✓ Auto-refresh every 15 seconds
+- ✓ Click footer → sync details overlay showing last sync time and synced bookmark count
+- ✓ "Sync Now" button in overlay to trigger manual pull cycle
+- ✓ Cursor-based time display ("Synced just now", "Synced X min ago", "Synced X hours ago")
 
 ### Phase 6: Build, Tests & Docs ☐
 

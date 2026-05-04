@@ -127,7 +127,7 @@
 | Browser Ext — Phase 2       | 8       | 8         | 0           | 0       |
 | Browser Ext — Phase 3       | 3       | 3         | 0           | 0       |
 | Browser Ext — Phase 4       | 4       | 4         | 0           | 0       |
-| Browser Ext — Phase 5       | 6       | 0         | 0           | 6       |
+| Browser Ext — Phase 5       | 6       | 6         | 0           | 0       |
 | Browser Ext — Phase 6       | 3       | 0         | 0           | 3       |
 
 Maintenance note: local install/setup health verification now follows configured Kestrel ports and accepts self-signed local HTTPS during startup checks. Fresh Linux installs now invoke `dotnetcloud setup --beginner` by default, which auto-selects the recommended local PostgreSQL path and then branches cleanly between the three real deployment shapes: private/local test, public behind a reverse proxy, and public served directly by DotNetCloud itself. The local branch uses self-signed HTTPS on DotNetCloud directly. The reverse-proxy public branch keeps DotNetCloud on local HTTP and ends with explicit reverse-proxy/TLS guidance instead of pretending automatic public-certificate setup exists; it now also points beginners to a dedicated Apache-first reverse-proxy guide with a Caddy alternative. The public-direct branch lets the user point DotNetCloud at an existing public certificate file and explains the extra tradeoffs, while still explicitly recommending a reverse proxy for most public installs because it simplifies ports 80/443, TLS renewal, and future services on the same machine. All branches print explicit direct local access URLs and health probe URLs and end with a plain-language summary of the selected defaults plus the beginner user's next steps. Upgrade runs now also end with a plain-language summary that confirms existing data/configuration were preserved, states clearly whether a one-time setup review is still required, and re-shows the access URLs plus the user's next step. This also clarifies the internal app defaults HTTP `5080` / HTTPS `5443` versus reverse-proxy/public HTTPS ports such as `15443`. Windows now has a separate IIS-first installation path via `tools/install-windows.ps1`, with IIS reverse proxying to `http://localhost:5080`, a beginner-focused IIS guide, a dedicated architecture rationale note, native Windows Service hosting support in the core server, and machine-level config/data environment propagation during setup and service runtime so Windows self-hosters do not need to follow the Linux installer path. The bare-metal redeploy helper now also repairs build-output ownership and purges stale normal and malformed Debug output trees before Release build/publish runs so local Linux redeploys do not inherit broken artifacts from prior attempts.
@@ -3516,16 +3516,31 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 - `npm run build:firefox` — 14 modules, clean build
 - `npm test` — 3 suites, 37 tests, all passing
 
-### Phase 5: Popup UI ☐
+### Phase 5: Popup UI ✅
 
-**Status:** pending
+**Status:** completed
 **Steps:**
-- ☐ Step 5.1 — Auth Screen (complete as scaffold)
-- ☐ Step 5.2 — Main Popup Structure (complete as scaffold)
-- ☐ Step 5.3 — Save Panel (`SavePanel.ts`)
-- ☐ Step 5.4 — Browse Panel (`BrowsePanel.ts`)
-- ☐ Step 5.5 — Search Panel (`SearchPanel.ts`)
-- ☐ Step 5.6 — Sync Status Footer (complete as scaffold)
+- ✓ Step 5.1 — Auth Screen (complete as scaffold)
+- ✓ Step 5.2 — Main Popup Structure (complete as scaffold; tab switching wired)
+- ✓ Step 5.3 — Save Panel (`SavePanel.ts`)
+- ✓ Step 5.4 — Browse Panel (`BrowsePanel.ts`)
+- ✓ Step 5.5 — Search Panel (`SearchPanel.ts`)
+- ✓ Step 5.6 — Sync Status Footer (complete as scaffold; live status + details overlay)
+
+**Deliverables:**
+- ✓ `src/popup/components/SavePanel.ts` — Full save panel: auto-fill URL/title from active tab, folder picker (lazy-loaded indented tree), tags with chip UI, collapsible notes, save/update detection, last-folder memory, success toast with auto-close, fire-and-forget preview trigger
+- ✓ `src/popup/components/BrowsePanel.ts` — Browse panel: breadcrumb navigation, folder tree browsing, bookmark list with Google favicons, infinite scroll (20 per page), right-click context menu (open/copy/delete), refresh button, empty state
+- ✓ `src/popup/components/SearchPanel.ts` — Search panel: 300ms debounced search, results with favicon/URL/folder-path, click-to-open, recent bookmarks on empty query, no-results state, failure state
+- ✓ `src/popup/popup.ts` — Rewired with real panel imports, tab switching, error handling per panel, live sync status footer with 15s auto-refresh, click-for-details overlay with "Sync Now" button
+- ✓ `src/popup/styles/popup.css` — Full component styles: save panel (inputs, selects, tags, notes toggle), browse panel (breadcrumb, items, context menu), search panel (input, results, recent header), sync details overlay, scrollbar styling, panel error state
+
+**Notes:** Phase 5 complete. The popup now has fully functional Save, Browse, and Search panels. The Save panel auto-detects existing bookmarks (switches to "Update Bookmark" mode), supports tag chips, collapsible notes, and persists the last-used folder. The Browse panel provides breadcrumb navigation, favicons, infinite scroll, and a right-click context menu. The Search panel debounces input at 300ms, shows recent bookmarks when empty, and displays folder paths in results. The sync status footer shows real-time status with color-coded dots, auto-refreshes every 15s, and clicking opens a details overlay with last sync time, bookmark count, and manual "Sync Now" trigger.
+
+**Build verification:**
+- `npx tsc --noEmit` — zero TypeScript errors
+- `npm run build:chrome` — 17 modules, clean build
+- `npm run build:firefox` — 17 modules, clean build
+- `npm test` — 3 suites, 37 tests, all passing (no regressions)
 
 ### Phase 6: Build, Tests & Docs ☐
 
