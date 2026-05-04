@@ -28,6 +28,16 @@ public static class AuthorizationPolicies
     public const string RequireFilesWrite = "RequireFilesWrite";
 
     /// <summary>
+    /// Policy name that requires the <c>bookmarks.read</c> permission.
+    /// </summary>
+    public const string RequireBookmarksRead = "RequireBookmarksRead";
+
+    /// <summary>
+    /// Policy name that requires the <c>bookmarks.write</c> permission.
+    /// </summary>
+    public const string RequireBookmarksWrite = "RequireBookmarksWrite";
+
+    /// <summary>
     /// Registers all DotNetCloud authorization policies into the provided options.
     /// </summary>
     /// <param name="options">The <see cref="AuthorizationOptions"/> to configure.</param>
@@ -50,5 +60,15 @@ public static class AuthorizationPolicies
             policy => policy
                 .RequireAuthenticatedUser()
                 .AddRequirements(new PermissionRequirement("files.write")));
+
+        options.AddPolicy(RequireBookmarksRead,
+            policy => policy
+                .RequireAuthenticatedUser()
+                .AddRequirements(new PermissionRequirement("bookmarks.read")));
+
+        options.AddPolicy(RequireBookmarksWrite,
+            policy => policy
+                .RequireAuthenticatedUser()
+                .AddRequirements(new PermissionRequirement("bookmarks.write")));
     }
 }

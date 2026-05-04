@@ -95,6 +95,11 @@ public class OidcClientSeederSecurityTests
 
         foreach (var descriptor in descriptors)
         {
+            // The browser extension uses the device authorization flow, which has no
+            // redirect URI and thus cannot use PKCE. All other clients must use PKCE.
+            if (descriptor.ClientId == "dotnetcloud-browser-extension")
+                continue;
+
             Assert.IsTrue(
                 descriptor.Requirements.Contains(Requirements.Features.ProofKeyForCodeExchange),
                 $"Client '{descriptor.ClientId}' MUST require PKCE to prevent auth code interception attacks");
@@ -128,6 +133,24 @@ public class OidcClientSeederSecurityTests
 
         foreach (var descriptor in descriptors)
         {
+            // The browser extension uses the device authorization flow (RFC 8628),
+            // not the authorization code flow, so it doesn't need AuthorizationCode grant.
+            if (descriptor.ClientId == "dotnetcloud-browser-extension")
+            {
+                Assert.IsTrue(
+                    descriptor.Permissions.Contains(Permissions.GrantTypes.DeviceCode),
+                    $"Client '{descriptor.ClientId}' must support device code grant");
+
+                // Device-code client must NOT use insecure implicit or client credentials grants
+                Assert.IsFalse(
+                    descriptor.Permissions.Contains(Permissions.GrantTypes.Implicit),
+                    $"Client '{descriptor.ClientId}' must NOT support implicit grant (insecure)");
+                Assert.IsFalse(
+                    descriptor.Permissions.Contains(Permissions.GrantTypes.ClientCredentials),
+                    $"Client '{descriptor.ClientId}' must NOT support client credentials grant");
+                continue;
+            }
+
             Assert.IsTrue(
                 descriptor.Permissions.Contains(Permissions.GrantTypes.AuthorizationCode),
                 $"Client '{descriptor.ClientId}' must support authorization code grant");
@@ -165,8 +188,8 @@ public class OidcClientSeederSecurityTests
 
         // CreateAsync should never be called for existing clients
         manager.Verify(m => m.CreateAsync(It.IsAny<OpenIddictApplicationDescriptor>(), It.IsAny<CancellationToken>()), Times.Never);
-        // UpdateAsync should be called instead
-        manager.Verify(m => m.UpdateAsync(It.IsAny<object>(), It.IsAny<OpenIddictApplicationDescriptor>(), It.IsAny<CancellationToken>()), Times.Exactly(2));
+        // UpdateAsync should be called instead (3 clients: desktop, mobile, browser extension)
+        manager.Verify(m => m.UpdateAsync(It.IsAny<object>(), It.IsAny<OpenIddictApplicationDescriptor>(), It.IsAny<CancellationToken>()), Times.Exactly(3));
     }
 
     // ──── Helpers ─────────────────────────────────────────────────────────────

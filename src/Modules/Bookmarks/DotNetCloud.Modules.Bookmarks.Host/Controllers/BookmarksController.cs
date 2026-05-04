@@ -305,4 +305,64 @@ public class BookmarksController : BookmarksControllerBase
             return BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
         }
     }
+
+    // ── Delta Sync ─────────────────────────────────────────
+
+    /// <summary>Returns bookmark changes since a timestamp for incremental sync.</summary>
+    [HttpGet("sync/changes")]
+    public async Task<IActionResult> GetSyncChanges(
+        [FromQuery] DateTimeOffset? since,
+        [FromQuery] int limit = 100)
+    {
+        try
+        {
+            var caller = GetAuthenticatedCaller();
+            var sinceValue = since ?? DateTimeOffset.UtcNow.AddDays(-1);
+            var result = await _bookmarkService.GetSyncChangesAsync(sinceValue, Math.Clamp(limit, 1, 500), caller);
+
+            // Set ETag based on nextCursor for HTTP caching
+            var etag = $"\"{result.NextCursor.Ticks}\"";
+            if (Request.Headers.IfNoneMatch.ToString() == etag)
+                return StatusCode(304);
+
+            Response.Headers.ETag = etag;
+
+            return Ok(new
+            {
+                success = true,
+                data = result
+            });
+        }
+        catch (ValidationException ex)
+        {
+            return BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
+        }
+    }
+
+    // ── Batch Operations ───────────────────────────────────
+
+    /// <summary>Processes a batch of bookmark operations for efficient initial sync.</summary>
+    [HttpPost("batch")]
+    public async Task<IActionResult> Batch([FromBody] BatchRequest request)
+    {
+        try
+        {
+            var totalOps = (request.Creates?.Count ?? 0)
+                         + (request.Updates?.Count ?? 0)
+                         + (request.Deletes?.Count ?? 0)
+                         + (request.FolderCreates?.Count ?? 0)
+                         + (request.FolderDeletes?.Count ?? 0);
+
+            if (totalOps > 500)
+                return BadRequest(ErrorEnvelope(ErrorCodes.ValidationError, "Batch request exceeds maximum of 500 operations."));
+
+            var caller = GetAuthenticatedCaller();
+            var results = await _bookmarkService.BatchAsync(request, caller);
+            return Ok(new { success = true, data = new { results } });
+        }
+        catch (ValidationException ex)
+        {
+            return BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
+        }
+    }
 }

@@ -115,12 +115,18 @@ public static class AuthServiceExtensions
                 options.AllowAuthorizationCodeFlow();
                 options.AllowRefreshTokenFlow();
                 options.AllowClientCredentialsFlow();
+                options.AllowDeviceAuthorizationFlow();
+
+                // Device authorization endpoint for browser extension OAuth2 Device Grant
+                options.SetDeviceAuthorizationEndpointUris("/connect/device");
+                // End-user verification endpoint (where users enter the device user code)
+                options.SetEndUserVerificationEndpointUris("/connect/deviceverify");
 
                 // PKCE required for public clients
                 options.RequireProofKeyForCodeExchange();
 
                 // Scopes
-                options.RegisterScopes("openid", "profile", "email", "offline_access", "files:read", "files:write");
+                options.RegisterScopes("openid", "profile", "email", "offline_access", "files:read", "files:write", "bookmarks:read", "bookmarks:write");
 
                 // Token lifetimes
                 options.SetAccessTokenLifetime(
@@ -185,7 +191,15 @@ public static class AuthServiceExtensions
             .AddPolicy(AuthorizationPolicies.RequireFilesWrite,
                 policy => policy
                     .RequireAuthenticatedUser()
-                    .AddRequirements(new PermissionRequirement("files.write")));
+                    .AddRequirements(new PermissionRequirement("files.write")))
+            .AddPolicy(AuthorizationPolicies.RequireBookmarksRead,
+                policy => policy
+                    .RequireAuthenticatedUser()
+                    .AddRequirements(new PermissionRequirement("bookmarks.read")))
+            .AddPolicy(AuthorizationPolicies.RequireBookmarksWrite,
+                policy => policy
+                    .RequireAuthenticatedUser()
+                    .AddRequirements(new PermissionRequirement("bookmarks.write")));
 
         services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();
 

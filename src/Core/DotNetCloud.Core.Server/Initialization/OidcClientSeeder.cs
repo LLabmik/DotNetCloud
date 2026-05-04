@@ -101,8 +101,30 @@ internal sealed class OidcClientSeeder
             },
         };
 
+        var extensionDescriptor = new OpenIddictApplicationDescriptor
+        {
+            ClientId = "dotnetcloud-browser-extension",
+            DisplayName = "DotNetCloud Browser Extension",
+            ClientType = ClientTypes.Public,
+            ConsentType = ConsentTypes.Explicit,
+            Permissions =
+            {
+                Permissions.Endpoints.Token,
+                Permissions.Prefixes.Endpoint + "device_authorization",
+                Permissions.GrantTypes.DeviceCode,
+                Permissions.GrantTypes.RefreshToken,
+                Permissions.Prefixes.Scope + Scopes.OpenId,
+                Permissions.Prefixes.Scope + Scopes.Profile,
+                Permissions.Prefixes.Scope + Scopes.Email,
+                Permissions.Prefixes.Scope + Scopes.OfflineAccess,
+                Permissions.Prefixes.Scope + "bookmarks:read",
+                Permissions.Prefixes.Scope + "bookmarks:write",
+            },
+        };
+
         await UpsertClientAsync(desktopDescriptor);
         await UpsertClientAsync(mobileDescriptor);
+        await UpsertClientAsync(extensionDescriptor);
     }
 
     private async Task UpsertClientAsync(OpenIddictApplicationDescriptor descriptor)
