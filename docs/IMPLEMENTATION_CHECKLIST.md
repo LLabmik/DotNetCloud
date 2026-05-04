@@ -950,8 +950,22 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 
 - ✓ `dotnetcloud backup` - Create backup
 - ✓ `dotnetcloud backup --output {path}` - Backup to specific location
-- ✓ `dotnetcloud restore {file}` - Restore from backup
+- ✓ `dotnetcloud backup --db-dump` - Include database dump (pg_dump/mysqldump/sqlcmd)
+- ✓ `dotnetcloud backup --server {url}` - Trigger backup via server API
+- ✓ `dotnetcloud restore {file}` - Restore from backup (with optional DB restore)
+- ✓ `dotnetcloud restore {file}` with `database.sql` - Restore includes DB dump
 - ✓ `dotnetcloud backup --schedule daily` - Schedule automatic backups
+
+##### Backup Service (Server-Side)
+
+- ✓ `IBackupService` interface in `DotNetCloud.Core`
+- ✓ `BackupService` implementation in server with file + DB dump backup
+- ✓ `POST /api/v1/core/admin/backup/run` - Trigger backup via API
+- ✓ `GET /api/v1/core/admin/backup/status` - Get backup status
+- ✓ `POST /api/v1/core/admin/backup/restore` - Restore from backup
+- ✓ `BackupHostedService` - Background service for scheduled backups
+- ✓ Admin UI "Run Backup Now" button at `/admin/backup`
+- ✓ Backup settings synced between UI and server (system settings table)
 
 ##### Miscellaneous Commands
 
@@ -965,7 +979,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ `CliConfigTests` — 16 tests (defaults, JSON roundtrip, save/load)
 - ✓ `ConsoleOutputTests` — 16 tests (FormatStatus color indicators, case insensitivity)
 - ✓ `SetupCommandTests` — 9 tests (MaskConnectionString, command structure)
-- ✓ `CommandStructureTests` — 25 tests (all commands, subcommands, options, arguments)
+- ✓ `CommandStructureTests` — 28 tests (all commands, subcommands, options, arguments; incl. --db-dump, --server)
 - ✓ `SystemdServiceHelperTests` — 15 tests (Type=forking, PIDFile, no ExecStop, hardening, systemd format validation)
 
 ---

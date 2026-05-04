@@ -1086,6 +1086,44 @@ public sealed class DotNetCloudApiClient
         return body;
     }
 
+    // -----------------------------------------------------------------------
+    // Backup (Admin)
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Triggers an immediate backup on the server.
+    /// </summary>
+    /// <param name="outputPath">Optional explicit output path for the backup archive.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The backup result.</returns>
+    public async Task<BackupResult?> RunBackupAsync(string? outputPath = null, CancellationToken ct = default)
+    {
+        var url = "api/v1/core/admin/backup/run";
+        if (!string.IsNullOrWhiteSpace(outputPath))
+            url += $"?outputPath={Uri.EscapeDataString(outputPath)}";
+
+        var response = await _http.PostAsync(url, null, ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await ReadApiErrorMessageAsync(response, ct);
+            throw new HttpRequestException(error, null, response.StatusCode);
+        }
+
+        var envelope = await response.Content.ReadFromJsonAsync<ApiEnvelope<BackupResult>>(JsonOptions, ct);
+        return envelope?.Data;
+    }
+
+    /// <summary>
+    /// Gets the current backup status (whether a backup is running and last backup info).
+    /// </summary>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The backup status.</returns>
+    public async Task<BackupStatusInfo?> GetBackupStatusAsync(CancellationToken ct = default)
+    {
+        var envelope = await _http.GetFromJsonAsync<ApiEnvelope<BackupStatusInfo>>(
+            "api/v1/core/admin/backup/status", JsonOptions, ct);
+        return envelope?.Data;
+    }
 }
 
 /// <summary>

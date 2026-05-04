@@ -194,6 +194,23 @@ public class CommandStructureTests
     }
 
     [TestMethod]
+    public void BackupCommand_HasDbDumpOption()
+    {
+        var command = BackupCommands.Create();
+        var option = command.Options.FirstOrDefault(o => o.Name == "--db-dump");
+        Assert.IsNotNull(option, "Expected --db-dump option");
+        Assert.IsInstanceOfType(option, typeof(Option<bool>));
+    }
+
+    [TestMethod]
+    public void BackupCommand_HasServerOption()
+    {
+        var command = BackupCommands.Create();
+        var option = command.Options.FirstOrDefault(o => o.Name == "--server");
+        Assert.IsNotNull(option, "Expected --server option");
+    }
+
+    [TestMethod]
     public void BackupCommand_HasRestoreAndScheduleSubcommands()
     {
         var command = BackupCommands.Create();

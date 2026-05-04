@@ -476,6 +476,9 @@ public class Program
         builder.Services.AddHostedService<NotificationEventSubscriber>();
         builder.Services.AddHostedService<SearchEventSubscriber>();
 
+        // Register backup services
+        builder.Services.AddDotNetCloudBackupServices();
+
         // Configure forwarded headers for reverse proxy support.
         // SECURITY: Only trust forwarded headers from known proxies to prevent IP spoofing.
         // By default, ASP.NET Core only trusts loopback (127.0.0.1, ::1).

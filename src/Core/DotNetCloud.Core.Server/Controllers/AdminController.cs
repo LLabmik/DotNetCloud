@@ -9,7 +9,7 @@ using System.Globalization;
 namespace DotNetCloud.Core.Server.Controllers;
 
 /// <summary>
-/// Admin management endpoints for system settings, module management, and health checks.
+/// Admin management endpoints for system settings, module management, health checks, and backups.
 /// </summary>
 [ApiController]
 [Route("api/v1/core/admin")]
@@ -20,6 +20,7 @@ public class AdminController : ControllerBase
     private readonly IAdminModuleService _moduleService;
     private readonly HealthCheckService _healthCheckService;
     private readonly IBackgroundServiceTracker _backgroundServiceTracker;
+    private readonly IBackupService _backupService;
     private readonly ILogger<AdminController> _logger;
 
     /// <summary>
@@ -30,12 +31,14 @@ public class AdminController : ControllerBase
         IAdminModuleService moduleService,
         HealthCheckService healthCheckService,
         IBackgroundServiceTracker backgroundServiceTracker,
+        IBackupService backupService,
         ILogger<AdminController> logger)
     {
         _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
         _moduleService = moduleService ?? throw new ArgumentNullException(nameof(moduleService));
         _healthCheckService = healthCheckService ?? throw new ArgumentNullException(nameof(healthCheckService));
         _backgroundServiceTracker = backgroundServiceTracker ?? throw new ArgumentNullException(nameof(backgroundServiceTracker));
+        _backupService = backupService ?? throw new ArgumentNullException(nameof(backupService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -247,6 +250,110 @@ public class AdminController : ControllerBase
         _logger.LogInformation("Capability {Capability} revoked from module {ModuleId} by admin",
             capability, moduleId);
         return Ok(new { success = true, message = $"Capability '{capability}' revoked from module '{moduleId}'." });
+    }
+
+    // ---------------------------------------------------------------------------
+    // Backup & Restore
+    // ---------------------------------------------------------------------------
+
+    /// <summary>
+    /// Trigger an immediate backup of the DotNetCloud instance.
+    /// Uses the configured backup settings from system settings.
+    /// </summary>
+    /// <param name="outputPath">Optional explicit output path for the backup archive.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The backup result with archive path and file count.</returns>
+    [HttpPost("backup/run")]
+    public async Task<IActionResult> RunBackupAsync(
+        [FromQuery] string? outputPath = null,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Backup triggered by admin");
+
+        // Read settings from system settings to build BackupOptions
+        var settings = await _settingsService.ListSettingsAsync("dotnetcloud.core");
+        var options = BuildBackupOptionsFromSettings(settings, outputPath);
+
+        var result = await _backupService.CreateBackupAsync(outputPath, options, cancellationToken);
+
+        if (!result.Success)
+        {
+            _logger.LogWarning("Backup triggered by admin failed: {Error}", result.ErrorMessage);
+            return StatusCode(500, new { success = false, error = new { code = "BACKUP_FAILED", message = result.ErrorMessage } });
+        }
+
+        _logger.LogInformation("Backup triggered by admin completed: {Path} ({Count} files, {Size:N0} bytes)",
+            result.FilePath, result.FileCount, result.SizeBytes);
+        return Ok(new { success = true, data = result });
+    }
+
+    /// <summary>
+    /// Gets the current backup status.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Whether a backup is running and info about the last backup.</returns>
+    [HttpGet("backup/status")]
+    public async Task<IActionResult> GetBackupStatusAsync(CancellationToken cancellationToken = default)
+    {
+        var status = await _backupService.GetStatusAsync(cancellationToken);
+        return Ok(new { success = true, data = status });
+    }
+
+    /// <summary>
+    /// Restore from a backup archive.
+    /// </summary>
+    /// <param name="filePath">Path to the backup archive file on the server.</param>
+    /// <param name="restoreDatabase">Whether to also restore the database from the archive.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The restore result.</returns>
+    [HttpPost("backup/restore")]
+    public async Task<IActionResult> RestoreBackupAsync(
+        [FromQuery] string filePath,
+        [FromQuery] bool restoreDatabase = false,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(filePath))
+        {
+            return BadRequest(new { success = false, error = new { code = "INVALID_FILE", message = "File path is required." } });
+        }
+
+        _logger.LogWarning("Restore from backup triggered by admin: {FilePath}", filePath);
+
+        var options = new RestoreOptions { RestoreDatabase = restoreDatabase };
+        var result = await _backupService.RestoreBackupAsync(filePath, options, cancellationToken);
+
+        if (!result.Success)
+        {
+            return StatusCode(500, new { success = false, error = new { code = "RESTORE_FAILED", message = result.ErrorMessage } });
+        }
+
+        return Ok(new { success = true, data = result });
+    }
+
+    private static BackupOptions BuildBackupOptionsFromSettings(IReadOnlyList<SystemSettingDto> settings, string? outputPath)
+    {
+        var options = new BackupOptions();
+
+        foreach (var setting in settings)
+        {
+            switch (setting.Key)
+            {
+                case "Backup:IncludeDatabase":
+                    options.IncludeDatabaseDump = bool.TryParse(setting.Value, out var includeDb) ? includeDb : true;
+                    break;
+                case "Backup:IncludeFileStorage":
+                    options.IncludeFileStorage = bool.TryParse(setting.Value, out var includeFiles) ? includeFiles : true;
+                    break;
+                case "Backup:IncludeModuleData":
+                    options.IncludeModuleData = bool.TryParse(setting.Value, out var includeModules) ? includeModules : true;
+                    break;
+                case "Backup:Directory":
+                    options.BackupDirectory = setting.Value;
+                    break;
+            }
+        }
+
+        return options;
     }
 
     // ---------------------------------------------------------------------------

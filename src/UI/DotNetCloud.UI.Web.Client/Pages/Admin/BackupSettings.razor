@@ -1,6 +1,7 @@
 @page "/admin/backup"
 @rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveAutoRenderMode(prerender: false))
 @attribute [Authorize(Policy = "RequireAdmin")]
+@using DotNetCloud.Core.DTOs
 
 <PageTitle>Backup &amp; Restore - DotNetCloud</PageTitle>
 
@@ -169,6 +170,56 @@ else
         </section>
     </div>
 
+    <!-- Run Backup Now -->
+    <section class="settings-section">
+        <h2>Manual Backup</h2>
+        <p class="text-muted">
+            Trigger an immediate backup using the current settings.
+            @if (_backupStatus?.IsRunning == true)
+            {
+                <span class="badge badge-warning">A backup is currently running...</span>
+            }
+        </p>
+        <div class="form-actions">
+            <button class="btn btn-primary" @onclick="RunBackupNowAsync" disabled="@_runningBackup">
+                @if (_runningBackup)
+                {
+                    <span>Running backup...</span>
+                }
+                else
+                {
+                    <span>Run Backup Now</span>
+                }
+            </button>
+        </div>
+        @if (_lastBackupResult is not null)
+        {
+            <div class="backup-result @(_lastBackupResult.Success ? "backup-result-success" : "backup-result-failure")">
+                <p>
+                    <strong>Last backup:</strong>
+                    @if (_lastBackupResult.Success)
+                    {
+                        <span>Completed ✅</span>
+                    }
+                    else
+                    {
+                        <span>Failed ❌</span>
+                    }
+                </p>
+                @if (_lastBackupResult.Success)
+                {
+                    <p>File: <code>@_lastBackupResult.FilePath</code></p>
+                    <p>Files archived: @_lastBackupResult.FileCount</p>
+                    <p>Size: @FormatSize(_lastBackupResult.SizeBytes)</p>
+                }
+                else
+                {
+                    <p>Error: @_lastBackupResult.ErrorMessage</p>
+                }
+            </div>
+        }
+    </section>
+
     <div class="form-actions">
         <button class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">
             @(_saving ? "Saving..." : "Save Settings")
@@ -186,6 +237,9 @@ else
 
     private bool _loading = true;
     private bool _saving;
+    private bool _runningBackup;
+    private BackupResult? _lastBackupResult;
+    private BackupStatusInfo? _backupStatus;
     private ConfirmDialog _confirmDialog = default!;
 
     // Form fields
@@ -318,4 +372,46 @@ else
 
     private static UpsertSystemSettingDto Str(string value, string? description = null) =>
         new() { Value = value, Description = description };
+
+    private async Task RunBackupNowAsync()
+    {
+        if (_runningBackup) return;
+
+        _runningBackup = true;
+        _lastBackupResult = null;
+        try
+        {
+            var result = await Api.RunBackupAsync();
+            _lastBackupResult = result;
+            if (result?.Success == true)
+            {
+                Toast.ShowSuccess($"Backup completed: {result.FilePath}");
+            }
+            else
+            {
+                Toast.ShowError($"Backup failed: {result?.ErrorMessage ?? "Unknown error"}");
+            }
+        }
+        catch (Exception ex)
+        {
+            _lastBackupResult = new BackupResult { Success = false, ErrorMessage = ex.Message };
+            Toast.ShowError($"Backup failed: {ex.Message}");
+        }
+        finally
+        {
+            _runningBackup = false;
+            _backupStatus = await Api.GetBackupStatusAsync();
+        }
+    }
+
+    private static string FormatSize(long bytes)
+    {
+        if (bytes < 1024)
+            return $"{bytes} B";
+        if (bytes < 1024 * 1024)
+            return $"{bytes / 1024.0:F1} KB";
+        if (bytes < 1024 * 1024 * 1024)
+            return $"{bytes / (1024.0 * 1024.0):F1} MB";
+        return $"{bytes / (1024.0 * 1024.0 * 1024.0):F2} GB";
+    }
 }
