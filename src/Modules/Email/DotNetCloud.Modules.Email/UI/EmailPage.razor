@@ -278,42 +278,31 @@
                 {
                     @foreach (var msg in _threadMessages.OrderBy(m => m.DateReceived ?? m.CreatedAt))
                     {
-                        var isExpanded = _expandedMessageId == msg.Id;
                         var isLoadingBody = _loadingBodyMessageId == msg.Id;
-                        var bodyHtml = isExpanded && _expandedMessageBodies.TryGetValue(msg.Id, out var html) ? html : null;
+                        _expandedMessageBodies.TryGetValue(msg.Id, out var bodyHtml);
 
-                        <div class="email-message @(msg.IsRead ? "" : "unread") @(isExpanded ? "expanded" : "")">
-                            <div class="email-message-header" @onclick="() => ToggleMessageBody(msg.Id)">
+                        // When no BodyHtml from server, convert plain text preview to formatted HTML
+                        var displayHtml = !isLoadingBody && string.IsNullOrWhiteSpace(bodyHtml)
+                            ? ConvertPlainTextToHtml(msg.BodyPreview)
+                            : bodyHtml;
+
+                        <div class="email-message @(msg.IsRead ? "" : "unread") expanded">
+                            <div class="email-message-header">
                                 <span class="email-message-from">
                                     @FormatFrom(msg.FromJson)
                                 </span>
                                 <span class="email-message-date">
                                     @(msg.DateReceived?.ToString("g") ?? msg.CreatedAt.ToString("g"))
                                 </span>
-                                <span class="email-message-expand-icon">@(isExpanded ? "▾" : "▸")</span>
                             </div>
                             <div class="email-message-body">
-                                @if (!isExpanded)
-                                {
-                                    @if (!string.IsNullOrWhiteSpace(msg.BodyPreview))
-                                    {
-                                        <p class="email-message-preview">@msg.BodyPreview</p>
-                                    }
-                                }
-                                else if (isLoadingBody)
+                                @if (isLoadingBody)
                                 {
                                     <div class="email-body-loading">Loading message content...</div>
                                 }
-                                else if (!string.IsNullOrWhiteSpace(bodyHtml))
+                                else if (!string.IsNullOrWhiteSpace(displayHtml))
                                 {
-                                    <div class="email-body-html">@((MarkupString)bodyHtml)</div>
-                                }
-                                else
-                                {
-                                    @if (!string.IsNullOrWhiteSpace(msg.BodyPreview))
-                                    {
-                                        <p class="email-message-preview">@msg.BodyPreview</p>
-                                    }
+                                    <div class="email-body-html">@((MarkupString)displayHtml)</div>
                                 }
                                 @if (msg.Attachments is { Count: > 0 })
                                 {
@@ -401,7 +390,6 @@
     private List<EmailThread> _threads = [];
     private List<EmailMessage> _threadMessages = [];
     private readonly Dictionary<Guid, string> _expandedMessageBodies = [];
-    private Guid? _expandedMessageId;
     private Guid? _loadingBodyMessageId;
     private bool _isSyncing;
     private List<EmailRule> _rules = [];
@@ -551,12 +539,17 @@
     private async Task SelectThread(EmailThread thread)
     {
         _selectedThread = thread;
-        _expandedMessageId = null;
         _expandedMessageBodies.Clear();
         _loadingBodyMessageId = null;
         try
         {
             _threadMessages = (await ApiClient.ListThreadMessagesAsync(thread.Id)).ToList();
+
+            // Load all message bodies upfront — no expand/collapse, messages always shown in full
+            foreach (var msg in _threadMessages)
+            {
+                _ = LoadMessageBodyAsync(msg.Id);
+            }
         }
         catch (Exception ex)
         {
@@ -564,23 +557,13 @@
         }
     }
 
-    private async Task ToggleMessageBody(Guid messageId)
+    private async Task LoadMessageBodyAsync(Guid messageId)
     {
-        if (_expandedMessageId == messageId)
-        {
-            // Collapse
-            _expandedMessageId = null;
-            return;
-        }
-
-        _expandedMessageId = messageId;
-
-        // If already cached, just show it
         if (_expandedMessageBodies.ContainsKey(messageId))
             return;
 
-        // Fetch the full HTML body
         _loadingBodyMessageId = messageId;
+        StateHasChanged();
         try
         {
             var html = await ApiClient.GetMessageBodyAsync(messageId);
@@ -592,7 +575,9 @@
         }
         finally
         {
-            _loadingBodyMessageId = null;
+            if (_loadingBodyMessageId == messageId)
+                _loadingBodyMessageId = null;
+            StateHasChanged();
         }
     }
 
@@ -715,7 +700,6 @@
             }
             _selectedThread = null;
             _threadMessages.Clear();
-            _expandedMessageId = null;
             _expandedMessageBodies.Clear();
         }
         catch (Exception ex)
@@ -849,5 +833,100 @@
         }
         catch { }
         return "Unknown";
+    }
+
+    /// <summary>
+    /// Converts a plain-text email body (with <c>&gt;</c> quote markers) into formatted HTML.
+    /// Used as a fallback when <see cref="EmailMessage.BodyHtml"/> is null.
+    /// </summary>
+    private static string ConvertPlainTextToHtml(string? plainText)
+    {
+        if (string.IsNullOrWhiteSpace(plainText))
+            return string.Empty;
+
+        var lines = plainText.Split('\n');
+        var html = new System.Text.StringBuilder();
+        var quoteDepth = 0;
+
+        foreach (var rawLine in lines)
+        {
+            var line = rawLine.TrimEnd('\r');
+
+            // Detect quote depth from leading '>' characters
+            var depth = 0;
+            var content = line;
+            while (content.StartsWith('>'))
+            {
+                depth++;
+                content = content.AsSpan(1).TrimStart().ToString();
+            }
+
+            if (depth > 0)
+            {
+                // Close excess quote levels
+                while (quoteDepth > depth)
+                {
+                    html.AppendLine("</blockquote>");
+                    quoteDepth--;
+                }
+                // Open needed quote levels
+                while (quoteDepth < depth)
+                {
+                    html.AppendLine("<blockquote>");
+                    quoteDepth++;
+                }
+                // Render quoted content line
+                var escaped = System.Net.WebUtility.HtmlEncode(content);
+                escaped = Linkify(escaped);
+                html.Append("<p>").Append(escaped).AppendLine("</p>");
+            }
+            else
+            {
+                // Close all quotes when returning to unquoted text
+                while (quoteDepth > 0)
+                {
+                    html.AppendLine("</blockquote>");
+                    quoteDepth--;
+                }
+
+                // Separator lines (dashes, underscores, equals)
+                if (line.Length >= 3 && line.All(c => c is '-' or '=' or '_'))
+                {
+                    html.AppendLine("<hr>");
+                }
+                else if (string.IsNullOrWhiteSpace(line))
+                {
+                    html.AppendLine("<br>");
+                }
+                else
+                {
+                    var escaped = System.Net.WebUtility.HtmlEncode(line);
+                    escaped = Linkify(escaped);
+                    html.Append("<p>").Append(escaped).AppendLine("</p>");
+                }
+            }
+        }
+
+        // Close any remaining open quotes
+        while (quoteDepth > 0)
+        {
+            html.AppendLine("</blockquote>");
+            quoteDepth--;
+        }
+
+        return html.ToString().TrimEnd();
+    }
+
+    /// <summary>
+    /// Converts bare URLs in escaped text to HTML anchor tags.
+    /// Must be called on already-HTML-escaped text.
+    /// </summary>
+    private static string Linkify(string escaped)
+    {
+        return System.Text.RegularExpressions.Regex.Replace(
+            escaped,
+            @"(https?://[^\s<>""'()]+)",
+            "<a href=\"$1\" target=\"_blank\" rel=\"noopener noreferrer\">$1</a>"
+        );
     }
 }

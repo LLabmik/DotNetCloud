@@ -36,7 +36,7 @@ public sealed class EmailMessageConfiguration : IEntityTypeConfiguration<EmailMe
 
         builder.HasIndex(m => m.ThreadId).HasDatabaseName("ix_email_messages_thread_id");
         builder.HasIndex(m => m.AccountId).HasDatabaseName("ix_email_messages_account_id");
-        builder.HasIndex(m => new { m.AccountId, m.ProviderMessageId }).IsUnique().HasDatabaseName("ix_email_messages_account_provider");
+        builder.HasIndex(m => new { m.AccountId, m.MailboxId, m.ProviderMessageId }).IsUnique().HasDatabaseName("ix_email_messages_account_mailbox_provider");
         builder.HasIndex(m => m.DateReceived).HasDatabaseName("ix_email_messages_date_received");
     }
 }
