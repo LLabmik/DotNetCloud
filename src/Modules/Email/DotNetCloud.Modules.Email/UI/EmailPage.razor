@@ -252,24 +252,24 @@
         else if (_composing is not null)
         {
             @* ── Compose ── *@
-            <EmailComposeForm Compose="_composing" Accounts="_accounts"
-                              OnSend="request => SendEmailAsync(request)" OnCancel="() => _composing = null" />
+            <EmailComposeForm Compose="_composing" Accounts="_accounts" IsReply="_isReply"
+                              OnSend="request => SendEmailAsync(request)" OnCancel="() => { _composing = null; _isReply = false; }" />
         }
         else if (_selectedThread is not null)
         {
             @* ── Thread Detail ── *@
             <div class="email-thread-detail">
                 <div class="email-thread-header">
-                    <button class="email-btn email-btn-secondary"
+                    <button class="email-btn email-btn-ghost email-thread-back"
                             @onclick="() => { _selectedThread = null; }">
                         ← Back
                     </button>
                     <h3>@_selectedThread.Subject</h3>
                     <div class="email-thread-actions">
-                        <button class="email-btn email-btn-secondary" @onclick="() => ReplyToThread(_selectedThread)">
+                        <button class="email-btn email-btn-primary email-btn-reply" @onclick="() => ReplyToThread(_selectedThread)">
                             ↩ Reply
                         </button>
-                        <button class="email-btn email-btn-secondary" @onclick="() => ForwardThread(_selectedThread)">
+                        <button class="email-btn email-btn-secondary email-btn-forward" @onclick="() => ForwardThread(_selectedThread)">
                             → Forward
                         </button>
                     </div>
@@ -383,6 +383,7 @@
 @code {
     private bool _sidebarCollapsed;
     private bool _isLoading = true;
+    private bool _isReply;
     private string? _errorMessage;
 
     private List<EmailAccount> _accounts = [];
@@ -584,6 +585,7 @@
     private void BeginCompose()
     {
         if (_selectedAccount is null) return;
+        _isReply = false;
         _composing = new EmailSendRequest
         {
             To = [],
@@ -594,6 +596,7 @@
     private void ReplyToThread(EmailThread thread)
     {
         if (_selectedAccount is null) return;
+        _isReply = true;
         _composing = new EmailSendRequest
         {
             To = [],
@@ -604,6 +607,7 @@
     private void ForwardThread(EmailThread thread)
     {
         if (_selectedAccount is null) return;
+        _isReply = true;
         _composing = new EmailSendRequest
         {
             To = [],

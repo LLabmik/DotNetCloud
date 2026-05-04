@@ -2,40 +2,107 @@
 @using DotNetCloud.Modules.Email.Models
 @using DotNetCloud.Modules.Email.Services
 
-<div class="email-compose-panel">
-    <h3>Compose</h3>
-
-    <div class="email-form-group">
-        <label>From</label>
-        <select class="email-input" @bind="_selectedFromAccountId">
-            @foreach (var acct in Accounts)
-            {
-                <option value="@acct.Id">@acct.DisplayName (@acct.EmailAddress)</option>
-            }
-        </select>
+<div class="email-compose-card">
+    @* ── Header ── *@
+    <div class="email-compose-header">
+        <div class="email-compose-header-left">
+            <span class="email-compose-icon">@(IsReply ? "↩" : "✏️")</span>
+            <h3>@(IsReply ? "Reply" : "New Message")</h3>
+        </div>
+        <button class="email-compose-close" @onclick="() => OnCancel?.Invoke()" title="Discard draft">✕</button>
     </div>
 
-    <div class="email-form-group">
-        <label>To</label>
-        <input class="email-input" @bind="_toInput" placeholder="recipient@example.com" />
+    @* ── Body ── *@
+    <div class="email-compose-body">
+        @* From *@
+        <div class="email-compose-row">
+            <span class="email-compose-label">From</span>
+            <select class="email-compose-select" @bind="_selectedFromAccountId">
+                @foreach (var acct in Accounts)
+                {
+                    <option value="@acct.Id">@acct.DisplayName &lt;@acct.EmailAddress&gt;</option>
+                }
+            </select>
+        </div>
+
+        @* To + Cc/Bcc toggle *@
+        <div class="email-compose-row">
+            <span class="email-compose-label">To</span>
+            <div class="email-compose-field-group">
+                <input class="email-compose-input" @bind="_toInput"
+                       placeholder="Recipient email address" />
+                <button class="email-compose-link" @onclick="ToggleCcBcc" type="button"
+                        title="Add Cc/Bcc recipients">
+                    Cc @( _showCc || _showBcc ? "▾" : "▸" )
+                </button>
+            </div>
+        </div>
+
+        @if (_showCc)
+        {
+            <div class="email-compose-row">
+                <span class="email-compose-label">Cc</span>
+                <input class="email-compose-input" @bind="_ccInput"
+                       placeholder="Carbon copy recipients" />
+            </div>
+        }
+
+        @if (_showBcc)
+        {
+            <div class="email-compose-row">
+                <span class="email-compose-label">Bcc</span>
+                <input class="email-compose-input" @bind="_bccInput"
+                       placeholder="Blind carbon copy recipients" />
+            </div>
+        }
+
+        @* Subject *@
+        <div class="email-compose-row">
+            <span class="email-compose-label">Subj</span>
+            <input class="email-compose-input" @bind="_subject"
+                   placeholder="Subject" />
+        </div>
+
+        @* Divider *@
+        <div class="email-compose-divider"></div>
+
+        @* Message Body *@
+        <div class="email-compose-body-area">
+            @* Formatting toolbar (placeholder — future rich text) *@
+            <div class="email-compose-toolbar">
+                <button class="email-compose-toolbar-btn" disabled title="Bold (Ctrl+B)"><strong>B</strong></button>
+                <button class="email-compose-toolbar-btn" disabled title="Italic (Ctrl+I)"><em>I</em></button>
+                <button class="email-compose-toolbar-btn" disabled title="Underline (Ctrl+U)"><u>U</u></button>
+                <span class="email-compose-toolbar-sep"></span>
+                <button class="email-compose-toolbar-btn" disabled title="Insert link">🔗</button>
+                <button class="email-compose-toolbar-btn" disabled title="Insert bullet list">•</button>
+                <button class="email-compose-toolbar-btn" disabled title="Insert numbered list">1.</button>
+                <span class="email-compose-toolbar-sep"></span>
+                <button class="email-compose-toolbar-btn" disabled title="Quote text">❝</button>
+            </div>
+            <textarea class="email-compose-textarea" @bind="_bodyText" rows="14"
+                      placeholder="Write your message…"></textarea>
+        </div>
     </div>
 
-    <div class="email-form-group">
-        <label>Subject</label>
-        <input class="email-input" @bind="_subject" placeholder="Email subject" />
-    </div>
-
-    <div class="email-form-group">
-        <label>Message</label>
-        <textarea class="email-input email-compose-body" @bind="_bodyText" rows="12"></textarea>
-    </div>
-
-    <div class="email-form-actions">
-        <button class="email-btn email-btn-primary" @onclick="HandleSend"
-                disabled="@(string.IsNullOrWhiteSpace(_toInput) || string.IsNullOrWhiteSpace(_subject))">
-            Send
-        </button>
-        <button class="email-btn email-btn-secondary" @onclick="() => OnCancel?.Invoke()">Cancel</button>
+    @* ── Footer ── *@
+    <div class="email-compose-footer">
+        <div class="email-compose-footer-left">
+            <button class="email-btn email-btn-primary email-btn-send" @onclick="HandleSend"
+                    disabled="@(string.IsNullOrWhiteSpace(_toInput) || string.IsNullOrWhiteSpace(_subject))">
+                <span class="email-btn-send-icon">📤</span> Send
+            </button>
+            <button class="email-btn email-btn-secondary" @onclick="() => OnCancel?.Invoke()">
+                Discard
+            </button>
+        </div>
+        <div class="email-compose-footer-right">
+            <span class="email-compose-footer-hint">
+                @(!string.IsNullOrWhiteSpace(_toInput) && !string.IsNullOrWhiteSpace(_subject)
+                    ? "Ready to send"
+                    : "Enter a recipient and subject to send")
+            </span>
+        </div>
     </div>
 </div>
 
@@ -44,11 +111,16 @@
     [Parameter, EditorRequired] public required IReadOnlyList<EmailAccount> Accounts { get; set; }
     [Parameter] public Func<EmailSendRequest, Task>? OnSend { get; set; }
     [Parameter] public Action? OnCancel { get; set; }
+    [Parameter] public bool IsReply { get; set; }
 
     private Guid? _selectedFromAccountId;
     private string _toInput = string.Empty;
+    private string _ccInput = string.Empty;
+    private string _bccInput = string.Empty;
     private string _subject = string.Empty;
     private string _bodyText = string.Empty;
+    private bool _showCc;
+    private bool _showBcc;
 
     protected override void OnParametersSet()
     {
@@ -63,23 +135,38 @@
                 : first.Email;
         }
 
+        if (Compose.Cc is { Count: > 0 })
+            _ccInput = string.Join(", ", Compose.Cc.Select(a => a.Name is not null ? $"{a.Name} <{a.Email}>" : a.Email));
+
+        if (Compose.Bcc is { Count: > 0 })
+            _bccInput = string.Join(", ", Compose.Bcc.Select(a => a.Name is not null ? $"{a.Name} <{a.Email}>" : a.Email));
+
         if (!string.IsNullOrWhiteSpace(Compose.Subject) && string.IsNullOrWhiteSpace(_subject))
             _subject = Compose.Subject;
     }
 
+    private void ToggleCcBcc()
+    {
+        if (!_showCc && !_showBcc)
+        {
+            _showCc = true;
+        }
+        else if (_showCc && !_showBcc)
+        {
+            _showBcc = true;
+        }
+        else
+        {
+            _showCc = false;
+            _showBcc = false;
+        }
+    }
+
     private async Task HandleSend()
     {
-        // Parse recipients
-        var recipients = new List<EmailAddressDto>();
-        foreach (var part in _toInput.Split(',', StringSplitOptions.TrimEntries))
-        {
-            if (string.IsNullOrWhiteSpace(part)) continue;
-            var match = System.Text.RegularExpressions.Regex.Match(part, @"^(.*?)\s*<(.+?)>\s*$");
-            if (match.Success)
-                recipients.Add(new EmailAddressDto { Name = match.Groups[1].Value.Trim().Trim('"'), Email = match.Groups[2].Value.Trim() });
-            else
-                recipients.Add(new EmailAddressDto { Name = null, Email = part.Trim() });
-        }
+        var recipients = ParseRecipients(_toInput);
+        var ccList = ParseRecipients(_ccInput);
+        var bccList = ParseRecipients(_bccInput);
 
         var finalRequest = new EmailSendRequest
         {
@@ -87,11 +174,26 @@
             Subject = _subject,
             BodyPlainText = _bodyText,
             BodyHtml = null,
-            Cc = null,
-            Bcc = null
+            Cc = ccList.Count > 0 ? ccList : null,
+            Bcc = bccList.Count > 0 ? bccList : null
         };
 
         if (OnSend is not null)
             await OnSend.Invoke(finalRequest);
+    }
+
+    private static List<EmailAddressDto> ParseRecipients(string input)
+    {
+        var result = new List<EmailAddressDto>();
+        foreach (var part in input.Split(',', StringSplitOptions.TrimEntries))
+        {
+            if (string.IsNullOrWhiteSpace(part)) continue;
+            var match = System.Text.RegularExpressions.Regex.Match(part, @"^(.*?)\s*<(.+?)>\s*$");
+            if (match.Success)
+                result.Add(new EmailAddressDto { Name = match.Groups[1].Value.Trim().Trim('"'), Email = match.Groups[2].Value.Trim() });
+            else
+                result.Add(new EmailAddressDto { Name = null, Email = part.Trim() });
+        }
+        return result;
     }
 }
