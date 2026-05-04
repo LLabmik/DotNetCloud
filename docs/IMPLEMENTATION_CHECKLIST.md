@@ -5202,7 +5202,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 #### Step 4.1 — ID Mapping Store ✓
 - ✓ `src/sync/mapping-store.ts` — bidirectional browser↔server ID maps (completed as scaffold)
 - ✓ Full bidirectional ID mapping API (getServerId, getBrowserNodeId, setMapping, removeMapping, get/setCursor, clearAll)
-- ☐ Full test coverage for mapping store (deferred to Phase 6)
+- ✓ Full test coverage for mapping store (completed in Phase 6: 18 tests)
 
 #### Step 4.2 — Initial Sync ✓
 - ✓ `src/sync/initial-sync.ts` — server-first full sync algorithm
@@ -5270,16 +5270,21 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ "Sync Now" button in overlay to trigger manual pull cycle
 - ✓ Cursor-based time display ("Synced just now", "Synced X min ago", "Synced X hours ago")
 
-### Phase 6: Build, Tests & Docs ☐
+### Phase 6: Build, Tests & Docs ✅
 
-#### Step 6.1 — Build Pipeline ☐
+#### Step 6.1 — Build Pipeline ✅
 - ✓ `vite.config.ts` — dual-browser output (completed as scaffold)
 - ✓ `build-extension.ps1` / `build-extension.sh` (completed as scaffold)
 
-#### Step 6.2 — Unit Tests ☐
+#### Step 6.2 — Unit Tests ✅
 - ✓ Auth module tests (37 tests, completed in Phase 3)
-- ☐ Sync engine tests (mapping-store, initial-sync, push-sync, conflict-resolution)
+- ✓ `tests/mapping-store.test.ts` — 18 tests covering set/get/remove/clear/cursor for both bookmark and folder maps, persistence across calls, reverse lookup
+- ✓ `tests/initial-sync.test.ts` — 7 tests covering auth guard, folder tree reconstruction, browser-only bookmarks batch, pagination, cursor persistence, isInitialSyncInProgress flag lifecycle
+- ✓ `tests/push-sync.test.ts` — 5 tests covering lifecycle (start/stop, idempotency), listener registration for all 4 bookmark events
+- ✓ `tests/conflict-resolution.test.ts` — 12 tests covering server-wins (title/URL conflict), deletion handling (bookmark + folder), missing mapping guards, folder application (create/update), bookmark creation, pull cycle guards (no cursor, not authed)
+- ✓ All 79 tests pass: `npm test` clean, `npx tsc --noEmit` clean, `npm run build:chrome` clean
 
-#### Step 6.3 — Documentation Updates ☐
-- ☐ Add Browser Extension section to MASTER_PROJECT_PLAN.md
+#### Step 6.3 — Documentation Updates ✅
+- ✓ Updated IMPLEMENTATION_CHECKLIST.md — Phase 6 marked complete
+- ✓ Updated MASTER_PROJECT_PLAN.md — Phase 6 status/details updated
 

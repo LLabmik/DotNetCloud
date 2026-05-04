@@ -3508,7 +3508,7 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 - ✓ `src/sync/pull-sync.ts` — `startPullSync()` / `stopPullSync()` + `runPullCycle()`. Applies server folder changes (create/update title), bookmark changes (create/update title/url/move), and deletions (removeTree for folders, remove for bookmarks). Multi-page support via immediate follow-up cycles when `hasMore` is true.
 - ✓ Integration: `src/background/service-worker.ts` updated to start push/pull sync on auth, listen to `chrome.storage.onChanged` for auth state transitions, run initial sync when no cursor exists, and route `bookmark-pull` alarms to `runPullCycle()`.
 
-**Tests:** 37 existing unit tests all pass (no regressions). Full sync engine test coverage deferred to Phase 6.
+**Tests:** 37 existing unit tests all pass (no regressions). Full sync engine test coverage completed in Phase 6 (42 new tests across mapping-store, initial-sync, push-sync, and conflict-resolution suites).
 
 **Build verification:**
 - `npx tsc --noEmit` — zero TypeScript errors
@@ -3542,10 +3542,25 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 - `npm run build:firefox` — 17 modules, clean build
 - `npm test` — 3 suites, 37 tests, all passing (no regressions)
 
-### Phase 6: Build, Tests & Docs ☐
+### Phase 6: Build, Tests & Docs ✅
 
-**Status:** pending
+**Status:** completed
 **Steps:**
-- ☐ Step 6.1 — Build Pipeline (complete as scaffold)
-- ☐ Step 6.2 — Unit Tests (auth tests complete; sync tests pending)
-- ☐ Step 6.3 — Documentation Updates
+- ✓ Step 6.1 — Build Pipeline (vite.config.ts, build-extension.ps1, build-extension.sh all present and working)
+- ✓ Step 6.2 — Unit Tests (4 new test suites: mapping-store, initial-sync, push-sync, conflict-resolution)
+- ✓ Step 6.3 — Documentation Updates (IMPLEMENTATION_CHECKLIST.md + MASTER_PROJECT_PLAN.md updated)
+
+**Deliverables:**
+- ✓ `tests/mapping-store.test.ts` — 18 tests: setMapping/getServerId/getBrowserNodeId round-trip (bookmark + folder), reverse lookup, removeMapping (clears both directions, type isolation), cursor get/set/overwrite, clearAll (mappings + cursor), persistence
+- ✓ `tests/initial-sync.test.ts` — 7 tests: throws when not authenticated, folder tree reconstruction with parent chain, cursor persistence after sync, browser-only bookmark batch upload, empty batch handling, pagination, isInitialSyncInProgress lifecycle
+- ✓ `tests/push-sync.test.ts` — 5 tests: start/stop lifecycle (idempotent), listener registration (all 4 bookmark events), listener removal on stop
+- ✓ `tests/conflict-resolution.test.ts` — 12 tests: server-wins on title conflict, server-wins on URL conflict, bookmark deletion via deletedIds, folder deletion via deletedFolderIds, missing mapping for deletedId (no crash), missing mapping for deletedFolderId (no crash), new server folder creation, folder title update, new server bookmark creation, skip pull when no cursor, skip pull when not authenticated
+- ✓ `tests/setup.ts` — Extended with `BookmarksMock` class (full chrome.bookmarks API simulation: getTree, getChildren, get, create, update, move, remove, removeTree, onCreated/onRemoved/onChanged/onMoved event emitters)
+
+**Notes:** Phase 6 complete. All 7 test suites pass (79 tests total), TypeScript typecheck is clean, and both Chrome and Firefox builds succeed. The test infrastructure was extended with a comprehensive `BookmarksMock` that simulates the Chrome bookmarks API, including event dispatching for onCreated/onRemoved/onChanged/onMoved. The mapping-store tests verify bidirectional ID persistence and lifecycle. Initial-sync tests verify the server-first algorithm. Push-sync tests verify listener registration (debounced API call verification is inherently integration-level). Conflict-resolution tests verify server-wins semantics, deletion handling, and guard conditions. Build pipeline (vite.config.ts + build scripts) was already complete from Phase 2 and required no changes.
+
+**Build verification:**
+- `npm test` — 7 suites, 79 tests, all passing
+- `npx tsc --noEmit` — zero TypeScript errors
+- `npm run build:chrome` — 17 modules, clean build
+- `npm run build:firefox` — 17 modules, clean build
