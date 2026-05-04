@@ -126,7 +126,7 @@
 | Browser Ext — Phase 1       | 4       | 4         | 0           | 0       |
 | Browser Ext — Phase 2       | 8       | 8         | 0           | 0       |
 | Browser Ext — Phase 3       | 3       | 3         | 0           | 0       |
-| Browser Ext — Phase 4       | 4       | 0         | 0           | 4       |
+| Browser Ext — Phase 4       | 4       | 4         | 0           | 0       |
 | Browser Ext — Phase 5       | 6       | 0         | 0           | 6       |
 | Browser Ext — Phase 6       | 3       | 0         | 0           | 3       |
 
@@ -3493,14 +3493,28 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 
 **Notes:** Phase 3 complete. OAuth2 Device Authorization Grant flow implemented end-to-end. Device flow initiator posts to `/connect/device`, opens the verification URI in a new tab, and polls `/connect/token` with proper error handling (`authorization_pending`, `slow_down`, `access_denied`, `expired_token`). Token manager persists tokens to `chrome.storage.local`, auto-refreshes within 60s of expiry via `chrome.alarms`, and handles `invalid_grant`/`revoked` by clearing tokens. All error cases covered. Test coverage: 37 unit tests across 3 test suites, all passing. Build and typecheck clean.
 
-### Phase 4: Sync Engine ☐
+### Phase 4: Sync Engine ✅
 
-**Status:** pending
+**Status:** completed
 **Steps:**
-- ☐ Step 4.1 — ID Mapping Store (`mapping-store.ts` scaffold complete, needs tests)
-- ☐ Step 4.2 — Initial Sync (`initial-sync.ts`)
-- ☐ Step 4.3 — Incremental Push (`push-sync.ts`)
-- ☐ Step 4.4 — Incremental Pull (`pull-sync.ts`)
+- ✓ Step 4.1 — ID Mapping Store (`mapping-store.ts` scaffold was complete; no code changes needed)
+- ✓ Step 4.2 — Initial Sync (`initial-sync.ts` — server-first full sync with topological folder sort, browser-only bookmark batch upload, `isInitialSyncInProgress` guard flag)
+- ✓ Step 4.3 — Incremental Push (`push-sync.ts` — all 4 chrome.bookmarks event handlers with 500ms debounce, root node guards, offline pending queue)
+- ✓ Step 4.4 — Incremental Pull (`pull-sync.ts` — 5-min chrome.alarms poll, server-wins conflict resolution, pagination, cursor tracking)
+
+**Deliverables:**
+- ✓ `src/sync/initial-sync.ts` — `runInitialSync()` with full algorithm (fetch server tree → build browser tree → top-sort folders → create/map folders → create/map bookmarks → batch-upload browser-only items → set cursor)
+- ✓ `src/sync/push-sync.ts` — `startPushSync()` / `stopPushSync()` with handlers for onCreated (create bookmark/folder + store mapping), onRemoved (delete + remove mapping), onChanged (update title/url), onMoved (update folderId). Debounced 500ms per node ID. Skips `"0"/"1"/"2"/"3"` root nodes and events during initial sync. Pending operations queued in `chrome.storage.local` when offline.
+- ✓ `src/sync/pull-sync.ts` — `startPullSync()` / `stopPullSync()` + `runPullCycle()`. Applies server folder changes (create/update title), bookmark changes (create/update title/url/move), and deletions (removeTree for folders, remove for bookmarks). Multi-page support via immediate follow-up cycles when `hasMore` is true.
+- ✓ Integration: `src/background/service-worker.ts` updated to start push/pull sync on auth, listen to `chrome.storage.onChanged` for auth state transitions, run initial sync when no cursor exists, and route `bookmark-pull` alarms to `runPullCycle()`.
+
+**Tests:** 37 existing unit tests all pass (no regressions). Full sync engine test coverage deferred to Phase 6.
+
+**Build verification:**
+- `npx tsc --noEmit` — zero TypeScript errors
+- `npm run build:chrome` — 14 modules, clean build
+- `npm run build:firefox` — 14 modules, clean build
+- `npm test` — 3 suites, 37 tests, all passing
 
 ### Phase 5: Popup UI ☐
 

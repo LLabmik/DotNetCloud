@@ -5197,23 +5197,33 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `tests/auth-api.test.ts` — 5 tests (getAuthHeaders, isAuthenticated, null states)
 - ✓ All tests pass with mocked `chrome.*` APIs and fetch interceptor
 
-### Phase 4: Sync Engine ☐
+### Phase 4: Sync Engine ✓
 
-#### Step 4.1 — ID Mapping Store ☐
+#### Step 4.1 — ID Mapping Store ✓
 - ✓ `src/sync/mapping-store.ts` — bidirectional browser↔server ID maps (completed as scaffold)
-- ☐ Full test coverage for mapping store
+- ✓ Full bidirectional ID mapping API (getServerId, getBrowserNodeId, setMapping, removeMapping, get/setCursor, clearAll)
+- ☐ Full test coverage for mapping store (deferred to Phase 6)
 
-#### Step 4.2 — Initial Sync ☐
-- ☐ `src/sync/initial-sync.ts` — server-first full sync algorithm
-- ☐ Folder tree reconstruction, browser-only bookmark detection, batch create
+#### Step 4.2 — Initial Sync ✓
+- ✓ `src/sync/initial-sync.ts` — server-first full sync algorithm
+- ✓ Folder tree reconstruction (topological sort, parent-before-child creation)
+- ✓ Browser-only bookmark detection + batch create with clientRef→serverId mapping
+- ✓ `isInitialSyncInProgress` flag for push-sync guard
+- ✓ Service worker integration with auth-driven initialization
 
-#### Step 4.3 — Incremental Push ☐
-- ☐ `src/sync/push-sync.ts` — `chrome.bookmarks` event listeners → API calls
-- ☐ Debounced 500ms per node ID, guards for root nodes + in-progress sync
+#### Step 4.3 — Incremental Push ✓
+- ✓ `src/sync/push-sync.ts` — all 4 `chrome.bookmarks` event listeners (onCreated, onRemoved, onChanged, onMoved)
+- ✓ Debounced 500ms per node ID to coalesce rapid changes
+- ✓ Guards for browser root nodes and in-progress initial sync
+- ✓ Pending operations queue for offline periods (flush on reconnect)
+- ✓ Server API calls: create/update/delete bookmark, create/update/delete folder, move
 
-#### Step 4.4 — Incremental Pull ☐
-- ☐ `src/sync/pull-sync.ts` — 5-min `chrome.alarms` poll cycle
-- ☐ Server change application to browser tree, cursor update
+#### Step 4.4 — Incremental Pull ✓
+- ✓ `src/sync/pull-sync.ts` — 5-min `chrome.alarms` periodic poll
+- ✓ Full pull cycle: fetch changes → apply folders → apply bookmarks → process deletions → update cursor
+- ✓ Pagination support (hasMore → immediate follow-up cycles)
+- ✓ Server-wins conflict resolution (always applies server state)
+- ✓ Service worker integration (startPullSync/stopPullSync controlled by auth state)
 
 ### Phase 5: Popup UI ☐
 
