@@ -50,10 +50,10 @@ See [MASTER_PROJECT_PLAN.md](docs/MASTER_PROJECT_PLAN.md) for the full phased im
 | **Phase 1**  | Files + Desktop Sync Client — file browser, upload/download, sharing, Collabora editing, bulk operations, trash, tags, versioning, Windows & Linux sync | ✅ Complete       |
 | **Phase 2**  | Chat + Notifications + Android — real-time messaging, push notifications, Android MAUI client                                                           | ✅ Complete       |
 | **Phase 3**  | Contacts + Calendar + Notes + NextCloud Migration                                                                                                       | ✅ Complete       |
-| **Phase 4**  | Project Management (Tracks)                                                                                                                             | 🔄 Rearchitecting |
+| **Phase 4**  | Project Management (Tracks)                                                                                                                             | ✅ Complete       |
 | **Phase 5**  | Photos + Music + Video                                                                                                                                  | ✅ Complete       |
-| **Phase 6**  | Email + Bookmarks                                                                                                                                       | ⬜ Planned        |
-| **Phase 7**  | Video Calling + Screen Sharing                                                                                                                          | 🔄 In Progress   |
+| **Phase 6**  | Email + Bookmarks                                                                                                                                       | ✅ Complete       |
+| **Phase 7**  | Video Calling + Screen Sharing                                                                                                                          | ✅ Complete       |
 | **Phase 8**  | Search                                                                                                                                                  | ✅ Complete       |
 | **Phase 9**  | AI Assistant                                                                                                                                            | ✅ Complete       |
 | **Phase 10** | End-to-End Encryption (E2EE)                                                                                                                            | 🔜 Future         |
