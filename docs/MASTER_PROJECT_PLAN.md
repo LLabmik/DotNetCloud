@@ -123,6 +123,12 @@
 | Tracks Prof. — Phase H      | 3       | 3         | 0           | 0       |
 | Infrastructure              | Summary | 0         | 0           | 1       |
 | Documentation               | Summary | 0         | 0           | 1       |
+| Browser Ext — Phase 1       | 4       | 4         | 0           | 0       |
+| Browser Ext — Phase 2       | 8       | 8         | 0           | 0       |
+| Browser Ext — Phase 3       | 3       | 3         | 0           | 0       |
+| Browser Ext — Phase 4       | 4       | 0         | 0           | 4       |
+| Browser Ext — Phase 5       | 6       | 0         | 0           | 6       |
+| Browser Ext — Phase 6       | 3       | 0         | 0           | 3       |
 
 Maintenance note: local install/setup health verification now follows configured Kestrel ports and accepts self-signed local HTTPS during startup checks. Fresh Linux installs now invoke `dotnetcloud setup --beginner` by default, which auto-selects the recommended local PostgreSQL path and then branches cleanly between the three real deployment shapes: private/local test, public behind a reverse proxy, and public served directly by DotNetCloud itself. The local branch uses self-signed HTTPS on DotNetCloud directly. The reverse-proxy public branch keeps DotNetCloud on local HTTP and ends with explicit reverse-proxy/TLS guidance instead of pretending automatic public-certificate setup exists; it now also points beginners to a dedicated Apache-first reverse-proxy guide with a Caddy alternative. The public-direct branch lets the user point DotNetCloud at an existing public certificate file and explains the extra tradeoffs, while still explicitly recommending a reverse proxy for most public installs because it simplifies ports 80/443, TLS renewal, and future services on the same machine. All branches print explicit direct local access URLs and health probe URLs and end with a plain-language summary of the selected defaults plus the beginner user's next steps. Upgrade runs now also end with a plain-language summary that confirms existing data/configuration were preserved, states clearly whether a one-time setup review is still required, and re-shows the access URLs plus the user's next step. This also clarifies the internal app defaults HTTP `5080` / HTTPS `5443` versus reverse-proxy/public HTTPS ports such as `15443`. Windows now has a separate IIS-first installation path via `tools/install-windows.ps1`, with IIS reverse proxying to `http://localhost:5080`, a beginner-focused IIS guide, a dedicated architecture rationale note, native Windows Service hosting support in the core server, and machine-level config/data environment propagation during setup and service runtime so Windows self-hosters do not need to follow the Linux installer path. The bare-metal redeploy helper now also repairs build-output ownership and purges stale normal and malformed Debug output trees before Release build/publish runs so local Linux redeploys do not inherit broken artifacts from prior attempts.
 
@@ -3447,3 +3453,70 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 - ✓ `README.md` — document schema management: `schemaProvider`, `ITableNamingStrategy`, connection string, self-migrate pattern, in-memory fallback
 
 **Notes:** Phase 7 complete. The Example module is now the reference implementation for third-party module developers demonstrating the self-managed schema pattern. Key patterns: `"schemaProvider": "self"` in manifest prevents core from trying to migrate the module; `ITableNamingStrategy.GetSchemaForModule("example")` returns `"example"` schema; `DOTNETCLOUD_CONNECTION_STRING` env var is set by core server's `ProcessSupervisor`; module self-migrates on startup via `MigrateAsync()`; migration history table is scoped to `example` schema to avoid collisions; in-memory fallback for local development. Build passes with 0 errors; all 51 Example module tests pass.
+
+---
+
+## Browser Extension
+
+### Phase 1: Server-Side Extension Support ✅
+
+**Deliverables:**
+- ✓ Device Authorization Grant enabled (`AllowDeviceCodeFlow()` in `AuthServiceExtensions.cs`)
+- ✓ `bookmarks:read` and `bookmarks:write` scopes registered
+- ✓ Browser extension OIDC client registered (`dotnetcloud-browser-extension` in `OidcClientSeeder.cs`)
+- ✓ Delta sync endpoint: `GET /api/v1/bookmarks/sync/changes?since=...` with `BookmarkSyncChangesResult`
+- ✓ Batch operations endpoint: `POST /api/v1/bookmarks/batch` with `BatchRequest`/`BatchResponse`
+- ✓ `IBookmarkService.GetSyncChangesAsync()` and `IBookmarkService.BatchAsync()` implemented
+
+### Phase 2: Extension Project Scaffold ✅
+
+**Deliverables:**
+- ✓ Project structure: `package.json`, `tsconfig.json`, `jest.config.js`, `.gitignore`, `vite.config.ts`
+- ✓ Dual manifests: `manifest.chrome.json` (MV3), `manifest.firefox.json` (MV3, FF ≥ 109)
+- ✓ Build scripts: `build-extension.ps1` (PowerShell), `build-extension.sh` (Bash)
+- ✓ API types (full DTOs in `src/api/types.ts`)
+- ✓ API client (typed fetch wrapper in `src/api/client.ts`)
+- ✓ Auth attachment (`src/api/auth.ts`)
+- ✓ Device flow initiator (`src/auth/device-flow.ts`) — full RFC 8628
+- ✓ Token manager (`src/auth/token-manager.ts`) — storage, refresh, alarm scheduling
+- ✓ Background service worker (`src/background/service-worker.ts`) — alarm handler, install hooks
+- ✓ Popup scaffold (`popup.html`, `popup.ts`, `styles/popup.css`)
+- ✓ Placeholder icons: 16×16, 48×48, 128×128 PNG
+
+### Phase 3: Authentication ✅
+
+**Deliverables:**
+- ✓ `src/auth/device-flow.ts` — `initiateDeviceFlow()` + `pollForToken()` with RFC 8628 compliance
+- ✓ `src/auth/token-manager.ts` — full token lifecycle (store, get, refresh, clear, scheduleRefresh, handleAlarm)
+- ✓ Background service worker alarm routing for `token-refresh`
+- ✓ Auth popup screen with device flow UI (server URL input, user code display, verification tab launch)
+
+**Notes:** Phase 3 complete. OAuth2 Device Authorization Grant flow implemented end-to-end. Device flow initiator posts to `/connect/device`, opens the verification URI in a new tab, and polls `/connect/token` with proper error handling (`authorization_pending`, `slow_down`, `access_denied`, `expired_token`). Token manager persists tokens to `chrome.storage.local`, auto-refreshes within 60s of expiry via `chrome.alarms`, and handles `invalid_grant`/`revoked` by clearing tokens. All error cases covered. Test coverage: 37 unit tests across 3 test suites, all passing. Build and typecheck clean.
+
+### Phase 4: Sync Engine ☐
+
+**Status:** pending
+**Steps:**
+- ☐ Step 4.1 — ID Mapping Store (`mapping-store.ts` scaffold complete, needs tests)
+- ☐ Step 4.2 — Initial Sync (`initial-sync.ts`)
+- ☐ Step 4.3 — Incremental Push (`push-sync.ts`)
+- ☐ Step 4.4 — Incremental Pull (`pull-sync.ts`)
+
+### Phase 5: Popup UI ☐
+
+**Status:** pending
+**Steps:**
+- ☐ Step 5.1 — Auth Screen (complete as scaffold)
+- ☐ Step 5.2 — Main Popup Structure (complete as scaffold)
+- ☐ Step 5.3 — Save Panel (`SavePanel.ts`)
+- ☐ Step 5.4 — Browse Panel (`BrowsePanel.ts`)
+- ☐ Step 5.5 — Search Panel (`SearchPanel.ts`)
+- ☐ Step 5.6 — Sync Status Footer (complete as scaffold)
+
+### Phase 6: Build, Tests & Docs ☐
+
+**Status:** pending
+**Steps:**
+- ☐ Step 6.1 — Build Pipeline (complete as scaffold)
+- ☐ Step 6.2 — Unit Tests (auth tests complete; sync tests pending)
+- ☐ Step 6.3 — Documentation Updates

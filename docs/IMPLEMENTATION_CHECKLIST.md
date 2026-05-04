@@ -5101,3 +5101,150 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Add EF `InitialCreate` migration for the `example` schema
 - ✓ Update `README.md` with schema management documentation
 
+---
+
+## Browser Extension
+
+### Phase 1: Server-Side Extension Support ✅
+
+> All server changes passed `dotnet build DotNetCloud.CI.slnf` and `dotnet test DotNetCloud.CI.slnf`.
+
+#### Step 1.1 — Enable Device Authorization Grant ✅
+- ✓ `AllowDeviceCodeFlow()` enabled in `AuthServiceExtensions.cs`
+- ✓ Device endpoint URI configured (`/connect/device`)
+- ✓ `bookmarks:read` and `bookmarks:write` scopes registered
+
+#### Step 1.2 — Register Extension OIDC Client ✅
+- ✓ `dotnetcloud-browser-extension` client registered in `OidcClientSeeder.cs`
+- ✓ Public client with device code + refresh token grant types
+
+#### Step 1.3 — Delta Sync Endpoint ✅
+- ✓ `GET /api/v1/bookmarks/sync/changes?since=...` with `BookmarkSyncChangesResult`
+- ✓ `IBookmarkService.GetSyncChangesAsync()` implemented
+
+#### Step 1.4 — Batch Operations Endpoint ✅
+- ✓ `POST /api/v1/bookmarks/batch` with `BatchRequest`/`BatchResponse`
+- ✓ `IBookmarkService.BatchAsync()` implemented
+
+### Phase 2: Extension Project Scaffold ✅
+
+#### Step 2.1 — Project Initialization ✅
+- ✓ `package.json` — scripts (build, test, typecheck, dev), dependencies
+- ✓ `tsconfig.json` — ES2022, strict mode, bundler resolution
+- ✓ `jest.config.js` — ts-jest preset
+- ✓ `.gitignore`
+
+#### Step 2.2 — Dual Manifests ✅
+- ✓ `manifest.chrome.json` (MV3) — permissions, service worker, popup, icons
+- ✓ `manifest.firefox.json` (MV3, FF ≥ 109) — browser_specific_settings
+- ✓ `vite.config.ts` — dual-browser output via `--mode chrome`/`--mode firefox`
+
+#### Step 2.3 — API Client Layer ✅
+- ✓ `src/api/types.ts` — all DTOs (BookmarkItem, BookmarkFolder, SyncChangesResponse, BatchRequest, etc.)
+- ✓ `src/api/client.ts` — typed fetch wrapper with all CRUD + sync + batch methods, AbortSignal support, ApiError on non-2xx
+- ✓ `src/api/auth.ts` — `getAuthHeaders()` + `isAuthenticated()`
+
+#### Step 2.4 — Auth Modules ✅
+- ✓ `src/auth/device-flow.ts` — `initiateDeviceFlow()` + `pollForToken()` (RFC 8628)
+- ✓ `src/auth/token-manager.ts` — `getAccessToken()`, `refresh()`, `clearTokens()`, `scheduleRefresh()`, `handleAlarm()`
+
+#### Step 2.5 — Background Service Worker ✅
+- ✓ `src/background/service-worker.ts` — alarm handler, install/update hooks, startup refresh scheduling
+
+#### Step 2.6 — Popup Scaffold ✅
+- ✓ `src/popup/popup.html` — 380px fixed layout
+- ✓ `src/popup/popup.ts` — auth screen + device flow initiation + main UI placeholder
+- ✓ `src/popup/styles/popup.css` — full design system (auth screen, main UI, tabs, status footer, spinner)
+
+#### Step 2.7 — Build Scripts ✅
+- ✓ `build-extension.ps1` (PowerShell/Windows) — `npm run build` + zip packaging
+- ✓ `build-extension.sh` (Bash/Linux) — equivalent for Linux/macOS
+
+#### Step 2.8 — Icons ✅
+- ✓ Placeholder icons: 16×16, 48×48, 128×128 PNG
+
+### Phase 3: Authentication ✅
+
+> Phase 3 implements the complete OAuth2 Device Authorization Grant flow (RFC 8628).
+> The extension authenticates via device code flow — no passwords stored in the extension.
+> Token auto-refresh is scheduled via chrome.alarms before expiry.
+> Test coverage: 37 unit tests passing, all build/typecheck clean.
+
+#### Step 3.1 — Device Flow Initiator ✅
+- ✓ `src/auth/device-flow.ts` — full RFC 8628 implementation
+- ✓ `initiateDeviceFlow(serverUrl)` — POST to `/connect/device` with client credentials and scope
+- ✓ `pollForToken(serverUrl, state)` — polls `/connect/token` with proper error handling
+- ✓ Error handling: `authorization_pending` (keep polling), `slow_down` (increase interval), `access_denied` (throw), `expired_token` (throw)
+- ✓ Token stored via `TokenManager.storeTokens()` on success
+- ✓ Verifies scope includes `bookmarks:read` and `bookmarks:write`
+- ✓ Supports AbortSignal for cancellation
+- ✓ Deadline enforcement: exits when device code expires
+
+#### Step 3.2 — Token Manager ✅
+- ✓ `src/auth/token-manager.ts` — full token lifecycle management
+- ✓ `TokenManager.storeTokens()` — persists to `chrome.storage.local` + schedules refresh
+- ✓ `TokenManager.getTokens()` — reads stored TokenSet
+- ✓ `TokenManager.getAccessToken()` — returns valid token, auto-refreshes within 60s of expiry
+- ✓ `TokenManager.refresh()` — POST to `/connect/token` with refresh_token; handles `invalid_grant`/`revoked` (clears tokens)
+- ✓ `TokenManager.clearTokens()` — removes tokens + clears refresh alarm
+- ✓ `TokenManager.scheduleRefresh()` — creates `chrome.alarms` alarm to fire 60s before expiry
+- ✓ `TokenManager.handleAlarm(alarm)` — routes `token-refresh` alarm to `refresh()`
+- ✓ Background service worker: `chrome.alarms.onAlarm` listener + startup refresh scheduling
+
+#### Step 3.3 — Auth Test Coverage ✅
+- ✓ `tests/device-flow.test.ts` — 10 tests (initiation, polling, error handling, abort, deadline)
+- ✓ `tests/token-manager.test.ts` — 22 tests (store/get/refresh/clear/schedule/handleAlarm)
+- ✓ `tests/auth-api.test.ts` — 5 tests (getAuthHeaders, isAuthenticated, null states)
+- ✓ All tests pass with mocked `chrome.*` APIs and fetch interceptor
+
+### Phase 4: Sync Engine ☐
+
+#### Step 4.1 — ID Mapping Store ☐
+- ✓ `src/sync/mapping-store.ts` — bidirectional browser↔server ID maps (completed as scaffold)
+- ☐ Full test coverage for mapping store
+
+#### Step 4.2 — Initial Sync ☐
+- ☐ `src/sync/initial-sync.ts` — server-first full sync algorithm
+- ☐ Folder tree reconstruction, browser-only bookmark detection, batch create
+
+#### Step 4.3 — Incremental Push ☐
+- ☐ `src/sync/push-sync.ts` — `chrome.bookmarks` event listeners → API calls
+- ☐ Debounced 500ms per node ID, guards for root nodes + in-progress sync
+
+#### Step 4.4 — Incremental Pull ☐
+- ☐ `src/sync/pull-sync.ts` — 5-min `chrome.alarms` poll cycle
+- ☐ Server change application to browser tree, cursor update
+
+### Phase 5: Popup UI ☐
+
+#### Step 5.1 — Auth Screen ☐
+- ✓ Server URL input + "Connect" button (completed as scaffold)
+
+#### Step 5.2 — Main Popup Structure ☐
+- ✓ Header, tab nav, status footer (completed as scaffold)
+
+#### Step 5.3 — Save Panel ☐
+- ☐ `SavePanel.ts` — auto-fill URL/title from active tab, folder picker, tags, notes
+
+#### Step 5.4 — Browse Panel ☐
+- ☐ `BrowsePanel.ts` — folder tree navigation, bookmark list with favicons, infinite scroll
+
+#### Step 5.5 — Search Panel ☐
+- ☐ `SearchPanel.ts` — debounced search, result display with folder path, recent bookmarks
+
+#### Step 5.6 — Sync Status Footer ☐
+- ✓ Basic status footer scaffold (completed as scaffold)
+
+### Phase 6: Build, Tests & Docs ☐
+
+#### Step 6.1 — Build Pipeline ☐
+- ✓ `vite.config.ts` — dual-browser output (completed as scaffold)
+- ✓ `build-extension.ps1` / `build-extension.sh` (completed as scaffold)
+
+#### Step 6.2 — Unit Tests ☐
+- ✓ Auth module tests (37 tests, completed in Phase 3)
+- ☐ Sync engine tests (mapping-store, initial-sync, push-sync, conflict-resolution)
+
+#### Step 6.3 — Documentation Updates ☐
+- ☐ Add Browser Extension section to MASTER_PROJECT_PLAN.md
+
