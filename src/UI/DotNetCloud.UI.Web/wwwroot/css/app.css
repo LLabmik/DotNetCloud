@@ -6090,3 +6090,220 @@ textarea.form-control {
     background: #e2e8f0;
 }
 
+/* ============================================================
+   Module Help Content Styles (global — used by child content components)
+   ============================================================ */
+
+.help-content {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.help-section {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: 24px 28px;
+    box-shadow: var(--shadow-sm);
+    transition: box-shadow var(--transition);
+}
+
+.help-section:hover {
+    box-shadow: var(--shadow);
+}
+
+.help-section-title {
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--color-text);
+    margin: 0 0 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--color-border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.help-section > p {
+    margin: 0 0 10px;
+    color: var(--color-text-secondary);
+    line-height: 1.7;
+    font-size: 14px;
+}
+
+.help-section > p:last-child {
+    margin-bottom: 0;
+}
+
+.help-section ul,
+.help-section ol {
+    margin: 8px 0 8px 0;
+    padding-left: 20px;
+    color: var(--color-text-secondary);
+    font-size: 14px;
+    line-height: 1.7;
+}
+
+.help-section li {
+    margin-bottom: 6px;
+}
+
+.help-section li:last-child {
+    margin-bottom: 0;
+}
+
+/* ── Step-by-step instructions ── */
+.help-steps {
+    list-style: none;
+    counter-reset: help-step;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.help-steps li {
+    counter-increment: help-step;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 16px;
+    background: var(--color-bg);
+    border-radius: var(--radius);
+    color: var(--color-text-secondary);
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+.help-steps li::before {
+    content: counter(help-step);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    min-width: 26px;
+    border-radius: 50%;
+    background: var(--color-primary);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+/* ── Tips list ── */
+.help-tips {
+    list-style: none;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.help-tips li {
+    padding: 10px 14px 10px 36px;
+    position: relative;
+    color: var(--color-text-secondary);
+    font-size: 14px;
+    line-height: 1.6;
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-radius: var(--radius);
+}
+
+.dark-mode .help-tips li {
+    background: #052e16;
+    border-color: #166534;
+}
+
+.help-tips li::before {
+    content: "💡";
+    position: absolute;
+    left: 10px;
+    top: 10px;
+    font-size: 14px;
+}
+
+/* ── FAQ ── */
+.help-faq {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.help-faq dt {
+    font-weight: 600;
+    color: var(--color-text);
+    padding: 14px 16px 4px;
+    font-size: 14px;
+}
+
+.help-faq dd {
+    color: var(--color-text-secondary);
+    margin: 0;
+    padding: 0 16px 14px;
+    font-size: 14px;
+    line-height: 1.7;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.help-faq dt:first-of-type {
+    padding-top: 0;
+}
+
+.help-faq dd:last-of-type {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+/* ── Inline code ── */
+.help-content code {
+    background: var(--color-bg);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", Consolas, monospace;
+    color: #e11d48;
+    border: 1px solid var(--color-border);
+}
+
+.dark-mode .help-content code {
+    color: #fda4af;
+}
+
+.help-content strong {
+    color: var(--color-text);
+    font-weight: 600;
+}
+
+/* ── Keyboard shortcuts ── */
+.help-content kbd {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    font-size: 12px;
+    font-family: inherit;
+    font-weight: 500;
+    color: var(--color-text);
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    box-shadow: 0 1px 0 var(--color-border);
+    line-height: 1.6;
+}
+
+/* ── Horizontal rule inside sections ── */
+.help-section hr {
+    border: none;
+    border-top: 1px solid var(--color-border);
+    margin: 16px 0;
+}
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+    .help-section {
+        padding: 20px;
+    }
+}
+
