@@ -78,6 +78,7 @@
 | Sync Verification           | 1       | 1         | 0           | 0       |
 | Sync Hardening P0           | 3       | 3         | 0           | 0       |
 | Calendar Recurrence+Org     | 6       | 6         | 0           | 0       |
+| Module Help Sidebar         | 1       | 1         | 0           | 0       |
 | Client Security Remediation | 1       | 1         | 0           | 0       |
 | Phase 3.1                   | 4       | 4         | 0           | 0       |
 | Phase 3.2                   | 6       | 6         | 0           | 0       |
@@ -3564,3 +3565,22 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 - `npx tsc --noEmit` — zero TypeScript errors
 - `npm run build:chrome` — 17 modules, clean build
 - `npm run build:firefox` — 17 modules, clean build
+
+---
+
+## Module Help Sidebar
+
+**Status:** completed ✅
+
+**Goal:** Add in-app usage help for every module via "Help" link pinned to each module's sidebar.
+
+**Deliverables:**
+- ✓ `ModuleHelpLink.razor` + `.css` — shared help link component (icon-only when collapsed)
+- ✓ `ModuleHelp.razor` + `.css` — parameterized route `/apps/{Module}/help` with breadcrumb, back button, module-not-found fallback
+- ✓ 13 module help route wrappers (`UI.Web/Components/Pages/Modules/Help/*.razor`)
+- ✓ 12 module help content components (one per module in each module's UI folder)
+- ✓ Example module: new collapsible sidebar + help content + refactored layout
+- ✓ Help link added to all 13 module sidebars
+- ✓ Project references added for modules needing `UI.Shared`
+
+**Notes:** All modules now have in-app help accessible from their sidebar. The Example module serves as a reference pattern for new modules. Help content for Files, Notes, AI, Calendar, and Contacts was informed by existing `docs/user/*.md` files; original content was written for Chat, Bookmarks, Email, Music, Photos, Tracks, and Video.

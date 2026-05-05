@@ -142,6 +142,8 @@
                 <button class="btn btn-sm btn-primary" @onclick="ImportCalendarAsync" style="margin-top:8px;">Import</button>
             </div>
         }
+
+        <DotNetCloud.UI.Shared.Components.Navigation.ModuleHelpLink ModuleId="calendar" Collapsed="_sidebarCollapsed" />
     </div>
     <div class="calendar-main">
         @if (!string.IsNullOrWhiteSpace(_operationError))

@@ -1,0 +1,10 @@
+@page "/apps/music/help"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@using DotNetCloud.Modules.Music.UI
+
+<PageTitle>Music Help - DotNetCloud</PageTitle>
+
+<ModuleHelp Module="music">
+    <MusicHelpContent />
+</ModuleHelp>

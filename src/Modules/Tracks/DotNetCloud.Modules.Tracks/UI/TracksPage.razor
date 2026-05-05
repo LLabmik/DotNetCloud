@@ -1,4 +1,5 @@
 @namespace DotNetCloud.Modules.Tracks.UI
+@using DotNetCloud.UI.Shared.Components.Navigation
 
 <div class="tracks-layout">
     @* ── Sidebar ── *@
@@ -186,7 +187,7 @@
                 @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Show Tour</span> }
             </button>
         </div>
-    </div>
+        <ModuleHelpLink ModuleId="tracks" Collapsed="_sidebarCollapsed" />    </div>
 
     @* ── Main Content ── *@
     <div class="tracks-main">

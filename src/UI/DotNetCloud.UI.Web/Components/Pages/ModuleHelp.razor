@@ -1,0 +1,80 @@
+@page "/apps/{Module}/help"
+@rendermode InteractiveServer
+@attribute [Authorize]
+
+@*
+    Help page layout for modules. Renders shared chrome (breadcrumb, back button, title)
+    around module-specific help content passed as ChildContent.
+
+    This parameterized route also serves as a fallback for unknown modules,
+    showing a "module not found" state when no specific route wrapper matches.
+*@
+
+<PageTitle>@ModuleName Help - DotNetCloud</PageTitle>
+
+<div class="module-help-page">
+    <nav class="help-breadcrumb" aria-label="Breadcrumb">
+        <a href="/apps" class="help-breadcrumb-link">Apps</a>
+        <span class="help-breadcrumb-separator">›</span>
+        <a href="/apps/@Module" class="help-breadcrumb-link">@ModuleName</a>
+        <span class="help-breadcrumb-separator">›</span>
+        <span class="help-breadcrumb-current">Help</span>
+    </nav>
+
+    <div class="help-header">
+        <a href="/apps/@Module" class="btn btn-outline help-back-button">
+            ← Back to @ModuleName
+        </a>
+        <h1 class="help-title">@ModuleName Help</h1>
+    </div>
+
+    @if (_moduleFound)
+    {
+        @ChildContent
+    }
+    else
+    {
+        <div class="help-not-found">
+            <h2>Module not found</h2>
+            <p>The module "<strong>@Module</strong>" was not found. Please check the URL and try again.</p>
+            <a href="/apps" class="btn btn-primary">Browse Apps</a>
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>The module identifier from the URL (e.g., "files", "notes").</summary>
+    [Parameter]
+    public string Module { get; set; } = string.Empty;
+
+    /// <summary>Module-specific help content rendered inside the shared layout.</summary>
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    private string ModuleName => ModuleNameMap.TryGetValue(Module, out var name) ? name : Module;
+    private bool _moduleFound;
+
+    private static readonly Dictionary<string, string> ModuleNameMap = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["files"] = "Files",
+        ["notes"] = "Notes",
+        ["ai"] = "AI Assistant",
+        ["calendar"] = "Calendar",
+        ["contacts"] = "Contacts",
+        ["chat"] = "Chat",
+        ["bookmarks"] = "Bookmarks",
+        ["email"] = "Email",
+        ["music"] = "Music",
+        ["photos"] = "Photos",
+        ["tracks"] = "Tracks",
+        ["video"] = "Video",
+        ["example"] = "Example",
+    };
+
+    private static readonly HashSet<string> KnownModules = [.. ModuleNameMap.Keys];
+
+    protected override void OnInitialized()
+    {
+        _moduleFound = KnownModules.Contains(Module);
+    }
+}

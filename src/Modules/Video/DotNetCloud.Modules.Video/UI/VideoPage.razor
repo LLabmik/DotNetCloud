@@ -1,4 +1,5 @@
 @namespace DotNetCloud.Modules.Video.UI
+@using DotNetCloud.UI.Shared.Components.Navigation
 
 @using DotNetCloud.Core.DTOs
 @using DotNetCloud.Core.Authorization
@@ -102,6 +103,8 @@
                 }
             </div>
         }
+
+        <ModuleHelpLink ModuleId="video" Collapsed="_sidebarCollapsed" />
     </aside>
 
     @* ─── Main Content ─── *@

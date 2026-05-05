@@ -1,0 +1,10 @@
+@page "/apps/contacts/help"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@using DotNetCloud.Modules.Contacts.UI
+
+<PageTitle>Contacts Help - DotNetCloud</PageTitle>
+
+<ModuleHelp Module="contacts">
+    <ContactsHelpContent />
+</ModuleHelp>

@@ -1,0 +1,10 @@
+@page "/apps/notes/help"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@using DotNetCloud.Modules.Notes.UI
+
+<PageTitle>Notes Help - DotNetCloud</PageTitle>
+
+<ModuleHelp Module="notes">
+    <NotesHelpContent />
+</ModuleHelp>

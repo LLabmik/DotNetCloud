@@ -1,0 +1,37 @@
+@namespace DotNetCloud.UI.Shared.Components.Navigation
+@inject NavigationManager Navigation
+
+@*
+    Help link component pinned to the bottom of module sidebars.
+    Navigates to /apps/{Module}/help when clicked.
+    When Collapsed is true, only the icon is shown.
+*@
+
+<div class="module-help-link @(Collapsed ? "collapsed" : "")">
+    <div class="help-separator"></div>
+    <button class="help-button"
+            @onclick="NavigateToHelp"
+            title="Help"
+            aria-label="Help for @ModuleId">
+        <span class="help-icon" aria-hidden="true">❓</span>
+        @if (!Collapsed)
+        {
+            <span class="help-text">Help</span>
+        }
+    </button>
+</div>
+
+@code {
+    /// <summary>The module identifier used in the URL path (e.g., "files", "notes").</summary>
+    [Parameter, EditorRequired]
+    public string ModuleId { get; set; } = string.Empty;
+
+    /// <summary>Whether the parent sidebar is collapsed (icon-only mode).</summary>
+    [Parameter]
+    public bool Collapsed { get; set; }
+
+    private void NavigateToHelp()
+    {
+        Navigation.NavigateTo($"/apps/{ModuleId}/help");
+    }
+}

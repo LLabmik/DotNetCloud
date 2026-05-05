@@ -1,0 +1,53 @@
+@namespace DotNetCloud.Modules.AI.UI
+
+@*
+    Help content for the AI Assistant module.
+    Based on docs/user/AI_ASSISTANT.md.
+*@
+
+<div class="help-content">
+    <section class="help-section">
+        <h2 class="help-section-title">Overview</h2>
+        <p>The AI Assistant lets you have multi-turn conversations with a large language model (LLM) directly in your DotNetCloud instance. Use it for brainstorming, writing assistance, code help, summarization, translation, and more.</p>
+        <p>Your conversations are private. Only you can see your chat history.</p>
+    </section>
+
+    <section class="help-section">
+        <h2 class="help-section-title">Getting Started</h2>
+        <ol class="help-steps">
+            <li>Open <strong>AI Assistant</strong> from the left sidebar.</li>
+            <li>If the AI backend is available, you'll see the welcome screen.</li>
+            <li>Click the <strong>+</strong> button in the sidebar header to start a new chat.</li>
+        </ol>
+        <p>If you see a warning that "Ollama is not reachable," the AI backend may be down or not configured. Contact your administrator.</p>
+    </section>
+
+    <section class="help-section">
+        <h2 class="help-section-title">Conversations</h2>
+        <p><strong>Starting a conversation:</strong> Click <strong>+</strong> to create a new chat. Type your message and press <strong>Enter</strong> to send. The assistant responds in real time with streaming output.</p>
+        <p><strong>Selecting a model:</strong> Use the model dropdown in the sidebar to choose which AI model to use. Smaller models respond faster; larger models produce higher-quality responses.</p>
+        <p><strong>Switching conversations:</strong> Click any conversation in the sidebar to load it. Conversations are sorted with the most recently updated at the top.</p>
+        <p><strong>Renaming:</strong> Double-click the conversation title to edit it.</p>
+        <p><strong>Deleting:</strong> Hover over a conversation and click the <strong>✕</strong> button.</p>
+    </section>
+
+    <section class="help-section">
+        <h2 class="help-section-title">Tips &amp; Tricks</h2>
+        <ul class="help-tips">
+            <li>Be specific in your prompts for better responses.</li>
+            <li>Use multi-turn conversations to refine answers iteratively.</li>
+            <li>Switch to a larger model for complex tasks requiring deeper reasoning.</li>
+            <li>Your conversation history is preserved across sessions.</li>
+        </ul>
+    </section>
+
+    <section class="help-section">
+        <h2 class="help-section-title">FAQ</h2>
+        <dl class="help-faq">
+            <dt>Why is the AI assistant not responding?</dt>
+            <dd>The AI backend may be down. Check with your administrator that Ollama or your configured provider is running.</dd>
+            <dt>Can I use multiple models in one conversation?</dt>
+            <dd>No. Each conversation remembers the model it was created with. Start a new conversation to switch models.</dd>
+        </dl>
+    </section>
+</div>

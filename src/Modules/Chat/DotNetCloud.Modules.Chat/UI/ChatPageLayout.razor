@@ -1,4 +1,5 @@
 @namespace DotNetCloud.Modules.Chat.UI
+@using DotNetCloud.UI.Shared.Components.Navigation
 
 @*
     Chat page layout orchestrator - Composes ChannelList, ChannelHeader,
@@ -16,6 +17,8 @@
                      OnCreateChannel="@HandleCreateChannel"
                      OnChannelReordered="@HandleChannelReordered"
                      OnNewDm="@HandleOpenDmUserPicker" />
+
+        <ModuleHelpLink ModuleId="chat" Collapsed="false" />
     </div>
 
     <div class="chat-main">

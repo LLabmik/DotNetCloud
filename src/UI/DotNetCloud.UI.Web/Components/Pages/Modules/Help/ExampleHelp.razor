@@ -1,0 +1,10 @@
+@page "/apps/example/help"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@using DotNetCloud.Modules.Example.UI
+
+<PageTitle>Example Help - DotNetCloud</PageTitle>
+
+<ModuleHelp Module="example">
+    <ExampleHelpContent />
+</ModuleHelp>

@@ -1,0 +1,143 @@
+.module-help-page {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 24px 32px;
+}
+
+.help-breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 16px;
+    font-size: 13px;
+}
+
+.help-breadcrumb-link {
+    color: var(--color-accent);
+    text-decoration: none;
+}
+
+.help-breadcrumb-link:hover {
+    text-decoration: underline;
+}
+
+.help-breadcrumb-separator {
+    color: var(--color-muted);
+}
+
+.help-breadcrumb-current {
+    color: var(--color-text-secondary);
+}
+
+.help-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 32px;
+}
+
+.help-back-button {
+    flex-shrink: 0;
+}
+
+.help-title {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+.help-not-found {
+    text-align: center;
+    padding: 48px 24px;
+}
+
+.help-not-found h2 {
+    font-size: 20px;
+    color: var(--color-text);
+    margin-bottom: 12px;
+}
+
+.help-not-found p {
+    color: var(--color-text-secondary);
+    margin-bottom: 24px;
+}
+
+/* Shared help content styling */
+.help-content {
+    color: var(--color-text);
+    line-height: 1.6;
+}
+
+.help-section {
+    margin-bottom: 32px;
+}
+
+.help-section-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--color-text);
+    margin-bottom: 12px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.help-section p {
+    margin-bottom: 8px;
+    color: var(--color-text-secondary);
+}
+
+.help-section ul,
+.help-section ol {
+    margin: 8px 0 8px 20px;
+    color: var(--color-text-secondary);
+}
+
+.help-section li {
+    margin-bottom: 4px;
+}
+
+.help-steps {
+    list-style: decimal;
+    padding-left: 20px;
+}
+
+.help-steps li {
+    margin-bottom: 8px;
+    color: var(--color-text-secondary);
+}
+
+.help-tips {
+    list-style: disc;
+    padding-left: 20px;
+}
+
+.help-tips li {
+    margin-bottom: 8px;
+    color: var(--color-text-secondary);
+}
+
+.help-faq dt {
+    font-weight: 600;
+    color: var(--color-text);
+    margin-top: 16px;
+    margin-bottom: 4px;
+}
+
+.help-faq dd {
+    color: var(--color-text-secondary);
+    margin-left: 0;
+    margin-bottom: 8px;
+}
+
+.help-content code {
+    background: var(--color-bg);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 13px;
+    color: var(--color-accent);
+}
+
+.help-content strong {
+    color: var(--color-text);
+}

@@ -1,0 +1,108 @@
+.example-sidebar {
+    width: 240px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--color-surface);
+    border-right: 1px solid var(--color-border);
+    overflow-y: auto;
+    transition: width 200ms ease;
+}
+
+.example-sidebar.collapsed {
+    width: 52px;
+    overflow: hidden;
+}
+
+.example-sidebar .sidebar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 12px 8px;
+    border-bottom: 1px solid var(--color-border);
+    min-height: 48px;
+    gap: 8px;
+}
+
+.example-sidebar.collapsed .sidebar-header {
+    justify-content: center;
+    padding: 16px 6px 8px;
+}
+
+.example-sidebar .sidebar-title {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--color-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.example-sidebar .sidebar-toggle {
+    background: none;
+    border: none;
+    color: var(--color-muted);
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: var(--radius);
+    font-size: 11px;
+    line-height: 1;
+    flex-shrink: 0;
+    transition: background var(--transition), color var(--transition);
+}
+
+.example-sidebar .sidebar-toggle:hover {
+    background: var(--color-bg);
+    color: var(--color-text);
+}
+
+.example-sidebar .sidebar-nav-list {
+    display: flex;
+    flex-direction: column;
+    padding: 8px;
+    gap: 2px;
+    margin: 0;
+    list-style: none;
+    flex: 1 1 auto;
+}
+
+.example-sidebar .sidebar-nav-item {
+    list-style: none;
+}
+
+.example-sidebar .sidebar-nav-link {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border: none;
+    background: transparent;
+    color: var(--color-text-secondary);
+    font-size: 13px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    text-align: left;
+    width: 100%;
+    transition: background var(--transition), color var(--transition);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    box-sizing: border-box;
+    text-decoration: none;
+}
+
+.example-sidebar .sidebar-nav-link:hover {
+    background: var(--color-bg);
+    color: var(--color-text);
+}
+
+.example-sidebar .sidebar-nav-item.active .sidebar-nav-link {
+    background: var(--color-accent-subtle);
+    color: var(--color-text);
+}
+
+.example-sidebar.collapsed .sidebar-nav-link {
+    justify-content: center;
+    padding: 8px;
+}

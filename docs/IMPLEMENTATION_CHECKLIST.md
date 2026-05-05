@@ -5302,3 +5302,53 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Updated IMPLEMENTATION_CHECKLIST.md — Phase 6 marked complete
 - ✓ Updated MASTER_PROJECT_PLAN.md — Phase 6 status/details updated
 
+---
+
+## Module Help Sidebar (Standalone Feature)
+
+**Goal:** Add in-app usage help for every module via "Help" link pinned to each module's sidebar.
+
+#### Shared Infrastructure ✅
+- ✓ Create `ModuleHelpLink.razor` shared component in `UI.Shared/Components/Navigation/`
+- ✓ Create `ModuleHelpLink.razor.css` with help link styling (icon-only when collapsed, separator above)
+- ✓ Create `ModuleHelp.razor` parameterized route handler at `/apps/{Module}/help` with breadcrumb, back button, and module-not-found fallback
+- ✓ Create `ModuleHelp.razor.css` with help page layout and shared help content styles
+
+#### Module Help Route Wrappers ✅
+- ✓ Create 13 route wrappers in `UI.Web/Components/Pages/Modules/Help/` — one per module (Files, Notes, AI, Calendar, Contacts, Chat, Bookmarks, Email, Music, Photos, Tracks, Video, Example)
+- ✓ Each wrapper delegates to `<ModuleHelp>` with module-specific help content
+
+#### Module Help Content Components ✅
+- ✓ Create 12 help content Razor components — one per module in each module's `UI/` folder
+- ✓ Modules with existing docs (Files, Notes, AI, Calendar, Contacts) informed by `docs/user/*.md`
+- ✓ Modules without docs (Chat, Bookmarks, Email, Music, Photos, Tracks, Video) have original write-ups
+- ✓ All follow standard structure: Overview → Features → How-To → Tips & FAQ
+
+#### Example Module Reference ✅
+- ✓ Create `ExampleSidebar.razor` collapsible sidebar with help link pinned at bottom
+- ✓ Create `ExampleSidebar.razor.css` with sidebar styling
+- ✓ Create `ExampleHelpContent.razor` as reference template for other modules
+- ✓ Refactor `ExampleNotesPage.razor` to sidebar + main content layout
+- ✓ Create `ExampleNotesPage.razor.css` for layout styling
+
+#### Sidebar Help Link Integration ✅
+- ✓ Add help link to `FileSidebar.razor`
+- ✓ Add help link to `ChatPageLayout.razor` sidebar
+- ✓ Add help link to `ContactsPage.razor` sidebar
+- ✓ Add help link to `CalendarPage.razor` sidebar
+- ✓ Add help link to `NotesPage.razor` sidebar
+- ✓ Add help link to `TracksPage.razor` sidebar
+- ✓ Add help link to `PhotosPage.razor` sidebar
+- ✓ Add help link to `MusicPage.razor` sidebar
+- ✓ Add help link to `VideoPage.razor` sidebar
+- ✓ Add help link to `AiChatPage.razor` sidebar
+- ✓ Add help link to `BookmarksPage.razor` sidebar
+- ✓ Add help link to `EmailPage.razor` sidebar
+
+#### Build & Validation ✅
+- ✓ `dotnet build DotNetCloud.CI.slnf` — zero errors
+- ✓ All 13 modules have help links in their sidebars
+- ✓ All 12 help content components authored and accessible
+- ✓ Unknown module route shows "Module not found" gracefully
+- ✓ Project references added for modules that needed `UI.Shared`
+

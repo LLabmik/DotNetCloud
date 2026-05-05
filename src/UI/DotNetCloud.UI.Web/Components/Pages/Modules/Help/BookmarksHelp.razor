@@ -1,0 +1,10 @@
+@page "/apps/bookmarks/help"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@using DotNetCloud.Modules.Bookmarks.UI
+
+<PageTitle>Bookmarks Help - DotNetCloud</PageTitle>
+
+<ModuleHelp Module="bookmarks">
+    <BookmarksHelpContent />
+</ModuleHelp>

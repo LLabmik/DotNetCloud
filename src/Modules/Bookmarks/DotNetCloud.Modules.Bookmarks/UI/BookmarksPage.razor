@@ -1,4 +1,5 @@
 @namespace DotNetCloud.Modules.Bookmarks.UI
+@using DotNetCloud.UI.Shared.Components.Navigation
 
 @inject IBookmarksApiClient ApiClient
 @inject IJSRuntime JSRuntime
@@ -76,6 +77,8 @@
                 </button>
             </div>
         }
+
+        <ModuleHelpLink ModuleId="bookmarks" Collapsed="_sidebarCollapsed" />
     </div>
 
     @* ── Main Content ── *@

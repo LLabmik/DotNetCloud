@@ -1,0 +1,76 @@
+@namespace DotNetCloud.Modules.Example.UI
+@using DotNetCloud.UI.Shared.Components.Navigation
+@using Microsoft.JSInterop
+@inject IJSRuntime JSRuntime
+
+@*
+    Example module sidebar - Navigation panel for the Example module.
+    Serves as a reference implementation for other module sidebars.
+    Includes a help link pinned to the bottom.
+*@
+
+<nav class="example-sidebar @(_sidebarCollapsed ? "collapsed" : "")" aria-label="Example navigation">
+    <div class="sidebar-header">
+        @if (!_sidebarCollapsed)
+        {
+            <h3 class="sidebar-title">Example</h3>
+        }
+        <button class="sidebar-toggle" @onclick="ToggleCollapsed" title="@(_sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar")">
+            <span>@(_sidebarCollapsed ? "▶" : "◀")</span>
+        </button>
+    </div>
+    <ul class="sidebar-nav-list">
+        <li class="sidebar-nav-item active">
+            <a href="#" class="sidebar-nav-link"
+               title="Notes"
+               @onclick="() => NavigateToNotes()"
+               @onclick:preventDefault>
+                <span class="nav-icon" aria-hidden="true">📝</span>
+                @if (!_sidebarCollapsed)
+                {
+                    <span class="nav-label">Notes</span>
+                }
+            </a>
+        </li>
+    </ul>
+
+    <ModuleHelpLink ModuleId="example" Collapsed="_sidebarCollapsed" />
+</nav>
+
+@code {
+    private bool _sidebarCollapsed;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var stored = await JSRuntime.InvokeAsync<string?>("localStorage.getItem", "example_sidebar_collapsed");
+            if (bool.TryParse(stored, out var collapsed))
+            {
+                _sidebarCollapsed = collapsed;
+            }
+        }
+        catch
+        {
+            // localStorage not available during pre-rendering
+        }
+    }
+
+    private async Task ToggleCollapsed()
+    {
+        _sidebarCollapsed = !_sidebarCollapsed;
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("localStorage.setItem", "example_sidebar_collapsed", _sidebarCollapsed.ToString());
+        }
+        catch
+        {
+            // Silently fail during pre-rendering
+        }
+    }
+
+    private void NavigateToNotes()
+    {
+        // Already on the notes page; no navigation needed.
+    }
+}
