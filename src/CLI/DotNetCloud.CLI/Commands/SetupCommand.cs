@@ -317,7 +317,7 @@ internal static class SetupCommand
         // Step 4: MFA setup prompt
         // ───────────────────────────────────────────────
         ConsoleOutput.WriteStep(4, TotalSteps, "Multi-Factor Authentication");
-        var enableMfa = ConsoleOutput.PromptConfirm("Enable TOTP MFA for admin account?", defaultValue: true);
+        var enableMfa = PromptTotpWithHelp();
         if (enableMfa)
         {
             ConsoleOutput.WriteInfo("MFA will be configured on first login via the web UI.");
@@ -1562,5 +1562,73 @@ internal static class SetupCommand
         {
             return false;
         }
+    }
+
+    /// <summary>
+    /// Prompts the user to enable TOTP MFA, with a <c>?</c> option that explains what TOTP is.
+    /// Loops until the user answers Y or N.
+    /// </summary>
+    private static bool PromptTotpWithHelp()
+    {
+        while (true)
+        {
+            Console.ForegroundColor = ConsoleColor.DarkGray;
+            Console.Write("  Enable TOTP MFA for admin account? [Y/n/?]: ");
+            Console.ResetColor();
+
+            var input = Console.ReadLine()?.Trim().ToUpperInvariant();
+            switch (input)
+            {
+                case "Y":
+                case "YES":
+                    return true;
+                case "N":
+                case "NO":
+                    return false;
+                case "?":
+                    PrintTotpExplanation();
+                    Console.WriteLine();
+                    break;
+                case "":
+                    return true; // default
+                default:
+                    ConsoleOutput.WriteInfo("Please answer Y (yes), N (no), or ? for help.");
+                    Console.WriteLine();
+                    break;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Prints an explanation of TOTP so the user can make an informed decision.
+    /// </summary>
+    private static void PrintTotpExplanation()
+    {
+        Console.ForegroundColor = ConsoleColor.Cyan;
+        Console.WriteLine();
+        Console.WriteLine("  ── What is TOTP? ──────────────────────────────────────────────");
+        Console.ResetColor();
+        Console.WriteLine();
+        Console.WriteLine("  TOTP (Time-based One-Time Password) is a multi-factor");
+        Console.WriteLine("  authentication (MFA) method defined in RFC 6238.");
+        Console.WriteLine();
+        Console.WriteLine("  When enabled:");
+        Console.WriteLine("    • The server generates a secret key and displays a QR code");
+        Console.WriteLine("      during your first login.");
+        Console.WriteLine("    • You scan that QR code with an authenticator app");
+        Console.WriteLine("      (Google Authenticator, Authy, 1Password, Bitwarden, etc.).");
+        Console.WriteLine("    • The app generates a new 6-digit code every 30 seconds");
+        Console.WriteLine("      based on the shared secret and the current time.");
+        Console.WriteLine("    • Every login requires BOTH your password AND the current");
+        Console.WriteLine("      code from your authenticator app — a significant security");
+        Console.WriteLine("      improvement over a password alone.");
+        Console.WriteLine();
+        Console.WriteLine("  Without TOTP, anyone who learns your password can log in.");
+        Console.WriteLine("  With TOTP, they would also need physical access to your phone.");
+        Console.WriteLine();
+        Console.WriteLine("  ─────────────────────────────────────────────────────────────────");
+        Console.WriteLine();
+        Console.Write("  Press Enter to return to the prompt...");
+        Console.ReadLine();
     }
 }

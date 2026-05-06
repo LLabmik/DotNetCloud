@@ -1,0 +1,251 @@
+@page "/auth/mfa-setup"
+@using Microsoft.AspNetCore.Identity
+@using DotNetCloud.Core.Data.Entities.Identity
+@using DotNetCloud.Core.DTOs
+@using DotNetCloud.Core.Services
+@layout AuthLayout
+@rendermode InteractiveServer
+@attribute [Authorize]
+
+<PageTitle>Set Up MFA - DotNetCloud</PageTitle>
+
+<div class="auth-container">
+    <div class="auth-card">
+        <div class="auth-header">
+            <img class="auth-logo" src="/_content/DotNetCloud.UI.Web/logo.png" alt="DotNetCloud" />
+            <h1>Set Up Two-Factor Authentication</h1>
+            <p>Strengthen your account security with an authenticator app</p>
+        </div>
+
+        @if (_state == SetupState.Loading)
+        {
+            <div class="mfa-setup-loading">
+                <div class="spinner"></div>
+                <p>Preparing your setup key...</p>
+            </div>
+        }
+        else if (_state == SetupState.Ready)
+        {
+            <div class="mfa-setup-steps">
+                <div class="setup-step">
+                    <span class="step-number">1</span>
+                    <div class="step-content">
+                        <strong>Install an authenticator app</strong>
+                        <p>Use Google Authenticator, Authy, 1Password, Bitwarden, or any TOTP-compatible app on your phone.</p>
+                    </div>
+                </div>
+
+                <div class="setup-step">
+                    <span class="step-number">2</span>
+                    <div class="step-content">
+                        <strong>Scan the QR code</strong>
+                        <p>Open your authenticator app and scan the code below, or enter the key manually.</p>
+                    </div>
+                </div>
+
+                <div id="mfa-qr-container" class="mfa-qr-container"></div>
+
+                <div class="mfa-manual-key">
+                    <details>
+                        <summary>Can't scan the code? Enter key manually</summary>
+                        <div class="manual-key-box">
+                            <code id="mfa-shared-key">@_setup?.SharedKey</code>
+                            <button type="button" class="btn btn-sm btn-outline" onclick="navigator.clipboard?.writeText('@_setup?.SharedKey')">Copy</button>
+                        </div>
+                    </details>
+                </div>
+
+                <div class="setup-step">
+                    <span class="step-number">3</span>
+                    <div class="step-content">
+                        <strong>Verify the code</strong>
+                        <p>Enter the 6-digit code from your authenticator app to confirm setup.</p>
+                    </div>
+                </div>
+
+                <EditForm Model="_verifyModel" OnValidSubmit="VerifyAsync" FormName="mfa-setup-verify">
+                    <div class="form-group">
+                        <label for="verify-code">Verification Code</label>
+                        <InputText id="verify-code" class="input input-code" @bind-Value="_verifyModel!.Code"
+                                   placeholder="000000" maxlength="6" />
+                        <ValidationMessage For="@(() => _verifyModel!.Code)" />
+                    </div>
+
+                    @if (!string.IsNullOrWhiteSpace(_errorMessage))
+                    {
+                        <div class="alert alert-danger">@_errorMessage</div>
+                    }
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary btn-full" disabled="@_submitting">
+                            @(_submitting ? "Verifying..." : "Verify & Enable")
+                        </button>
+                    </div>
+                </EditForm>
+            </div>
+        }
+        else if (_state == SetupState.Verified)
+        {
+            <div class="mfa-setup-success">
+                <div class="success-icon">✓</div>
+                <h2>MFA Enabled Successfully!</h2>
+                <p>Your account is now protected with two-factor authentication.</p>
+
+                <div class="backup-codes-section">
+                    <h3>Backup Codes</h3>
+                    <p class="text-muted">Save these single-use backup codes in a safe place. You can use them to sign in if you lose access to your authenticator app.</p>
+                    <div class="backup-codes-list">
+                        @foreach (var singleCode in _backupCodes?.Codes ?? [])
+                        {
+                            <span class="backup-code">@singleCode</span>
+                        }
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline" onclick="navigator.clipboard?.writeText('@string.Join("\n", _backupCodes?.Codes ?? [])')">Copy All</button>
+                </div>
+
+                <div class="form-actions">
+                    <a href="@_returnUrl" class="btn btn-primary btn-full">Continue</a>
+                </div>
+            </div>
+        }
+        else if (_state == SetupState.Error)
+        {
+            <div class="mfa-setup-error">
+                <div class="alert alert-danger">@_errorMessage</div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-primary btn-full" @onclick="InitSetupAsync">Try Again</button>
+                </div>
+            </div>
+        }
+
+        <div class="auth-footer">
+            <a href="@_returnUrl">Skip for now</a>
+        </div>
+    </div>
+</div>
+
+@code {
+    private enum SetupState { Loading, Ready, Verified, Error }
+
+    private SetupState _state = SetupState.Loading;
+    private TotpSetupResponse? _setup;
+    private BackupCodesResponse? _backupCodes;
+    private string? _errorMessage;
+    private bool _submitting;
+    private TotpVerifyModel _verifyModel = new();
+    private string _returnUrl = "/";
+
+    [Inject] private IMfaService MfaService { get; set; } = default!;
+    [Inject] private SignInManager<ApplicationUser> SignInManager { get; set; } = default!;
+    [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
+    [Inject] private NavigationManager Navigation { get; set; } = default!;
+    [Inject] private IJSRuntime Js { get; set; } = default!;
+
+    [SupplyParameterFromQuery]
+    private string? ReturnUrl { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _returnUrl = IsSafeLocalReturnUrl(ReturnUrl) ? ReturnUrl! : "/";
+        await InitSetupAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_state == SetupState.Ready && _setup is not null && firstRender is false)
+        {
+            await Js.InvokeVoidAsync("dotnetcloudMfaQr.render",
+                "mfa-qr-container", _setup.QrCodeUri, 220, "#000000", "#ffffff");
+        }
+    }
+
+    private async Task InitSetupAsync()
+    {
+        _state = SetupState.Loading;
+        _errorMessage = null;
+
+        try
+        {
+            var user = await UserManager.GetUserAsync(SignInManager.Context.User);
+            if (user is null)
+            {
+                _errorMessage = "Could not identify the current user. Please log in again.";
+                _state = SetupState.Error;
+                return;
+            }
+
+            _setup = await MfaService.GetTotpSetupAsync(user.Id);
+            _state = SetupState.Ready;
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to initialize MFA setup: {ex.Message}";
+            _state = SetupState.Error;
+        }
+    }
+
+    private async Task VerifyAsync()
+    {
+        _errorMessage = null;
+        _submitting = true;
+
+        try
+        {
+            var user = await UserManager.GetUserAsync(SignInManager.Context.User);
+            if (user is null)
+            {
+                _errorMessage = "Could not identify the current user. Please log in again.";
+                _state = SetupState.Error;
+                return;
+            }
+
+            var verified = await MfaService.VerifyTotpAsync(user.Id, _verifyModel.Code.Trim());
+            if (!verified)
+            {
+                _errorMessage = "Invalid code. Please check the code in your authenticator app and try again.";
+                return;
+            }
+
+            // Enable MFA for the user
+            var result = await UserManager.SetTwoFactorEnabledAsync(user, true);
+            if (!result.Succeeded)
+            {
+                _errorMessage = $"Failed to enable MFA: {string.Join(", ", result.Errors.Select(e => e.Description))}";
+                return;
+            }
+
+            // Generate backup codes
+            _backupCodes = await MfaService.GenerateBackupCodesAsync(user.Id);
+
+            // Sign out and re-sign-in to refresh the authentication cookie with MFA claim
+            await SignInManager.SignOutAsync();
+            await SignInManager.SignInAsync(user, isPersistent: true);
+
+            _state = SetupState.Verified;
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"An error occurred: {ex.Message}";
+            _state = SetupState.Error;
+        }
+        finally
+        {
+            _submitting = false;
+        }
+    }
+
+    private static bool IsSafeLocalReturnUrl(string? returnUrl)
+    {
+        return !string.IsNullOrWhiteSpace(returnUrl)
+            && returnUrl.StartsWith("/", StringComparison.Ordinal)
+            && !returnUrl.StartsWith("//", StringComparison.Ordinal);
+    }
+
+    private sealed class TotpVerifyModel
+    {
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Verification code is required.")]
+        [System.ComponentModel.DataAnnotations.StringLength(6, MinimumLength = 6, ErrorMessage = "Code must be 6 digits.")]
+        [System.ComponentModel.DataAnnotations.RegularExpression("^[0-9]{6}$", ErrorMessage = "Code must be 6 digits.")]
+        public string Code { get; set; } = string.Empty;
+    }
+}

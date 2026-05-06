@@ -177,6 +177,10 @@ else
                     <span class="badge @(_profile.IsMfaEnabled ? "badge-success" : "badge-muted")">
                         @(_profile.IsMfaEnabled ? "Enabled" : "Disabled")
                     </span>
+                    @if (!_profile.IsMfaEnabled)
+                    {
+                        <a href="/auth/mfa-setup" class="btn btn-sm btn-outline" style="margin-left: 8px;">Set up</a>
+                    }
                 </dd>
                 <dt>Member Since</dt>
                 <dd>@_profile.CreatedAt.ToString("MMMM d, yyyy")</dd>
