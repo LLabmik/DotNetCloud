@@ -558,9 +558,11 @@ internal static class SetupCommand
         {
             if (beginnerMode)
             {
-                config.CollaboraMode = "None";
-                ConsoleOutput.WriteInfo("Skipping document editing on the first install to keep setup simple.");
-                ConsoleOutput.WriteInfo("You can enable it later with: sudo dotnetcloud collabora-install");
+                config.CollaboraMode = "BuiltIn";
+                ConsoleOutput.WriteSuccess("Collabora CODE will be installed automatically for in-browser document editing.");
+                ConsoleOutput.WriteInfo("CODE supports ~10-20 concurrent editors. Upgrade to a paid Collabora Online");
+                ConsoleOutput.WriteInfo("license and switch to External mode later for unlimited concurrent users.");
+                ConsoleOutput.WriteInfo("If installation fails, retry with: sudo dotnetcloud collabora-install");
             }
             else
             {
