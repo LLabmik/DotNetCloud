@@ -1,0 +1,228 @@
+@namespace DotNetCloud.Modules.Email.UI
+@using Microsoft.Extensions.Logging
+@using DotNetCloud.Core.Capabilities
+@using DotNetCloud.Modules.Email.Services
+@inject ILogger<FilePickerModal> _logger
+@inject IFileDirectory? _fileDirectory
+@inject IEmailApiClient _apiClient
+@inject ICurrentUserContext _currentUserContext
+
+@* File picker modal for browsing and attaching files from the Files module. *@
+<div class="email-modal-backdrop" @onclick="CancelClicked">
+    <div class="email-modal email-modal-lg" @onclick:stopPropagation>
+        <div class="email-modal-header">
+            <h3>Browse Files</h3>
+            <button class="email-modal-close" @onclick="CancelClicked" title="Close">✕</button>
+        </div>
+        <div class="email-modal-body">
+            @if (_fileDirectory is null)
+            {
+                <div class="email-empty">
+                    <p>The Files module is not available.</p>
+                </div>
+            }
+            else if (_isLoading)
+            {
+                <div class="email-empty"><p>Loading files...</p></div>
+            }
+            else if (_errorMessage is not null)
+            {
+                <div class="email-empty">
+                    <p class="email-text-danger">@_errorMessage</p>
+                </div>
+            }
+            else if (_files.Count == 0)
+            {
+                <div class="email-empty">
+                    <p>No files found.</p>
+                </div>
+            }
+            else
+            {
+                @* Breadcrumb navigation *@
+                <div class="email-file-picker-breadcrumb">
+                    <button class="email-btn email-btn-ghost" @onclick="NavigateToRoot"
+                            disabled="@(_currentParentId is null)" title="Root folder">
+                        📁 Root
+                    </button>
+                    @if (_currentParentId is not null)
+                    {
+                        <span class="email-file-picker-sep">/</span>
+                        <span class="email-file-picker-current">@_currentFolderName</span>
+                    }
+                </div>
+
+                @* File/folder list *@
+                <div class="email-file-picker-list">
+                    @foreach (var file in _files)
+                    {
+                        var isSelected = _selectedFileId == file.Id;
+                        var isFolder = file.NodeType == "Folder";
+                        var icon = isFolder ? "📁" : GetFileTypeIcon(file.MimeType);
+                        var sizeStr = isFolder ? "" : FormatFileSize(file.Size);
+
+                        <div class="email-file-picker-item @(isSelected ? "selected" : "") @(isFolder ? "folder" : "file")"
+                             @onclick="() => HandleItemClick(file.Id, file.Name, isFolder)">
+                            <span class="email-file-picker-icon">@icon</span>
+                            <span class="email-file-picker-name">@file.Name</span>
+                            <span class="email-file-picker-size">@sizeStr</span>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+        <div class="email-modal-footer">
+            <button class="email-btn email-btn-secondary" @onclick="CancelClicked">Cancel</button>
+            <button class="email-btn email-btn-primary" @onclick="AttachSelected"
+                    disabled="@(_selectedFileId is null || _isAttaching)">
+                @(_isAttaching ? "Attaching..." : "Attach Selected")
+            </button>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public required EventCallback<List<ComposeAttachment>> OnFilesSelected { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private List<FileNodeInfo> _files = [];
+    private Guid? _currentParentId;
+    private string _currentFolderName = "";
+    private Guid? _selectedFileId;
+    private bool _isLoading = true;
+    private bool _isAttaching;
+    private string? _errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadFilesAsync();
+    }
+
+    private async Task LoadFilesAsync()
+    {
+        if (_fileDirectory is null) return;
+        _isLoading = true;
+        _errorMessage = null;
+        try
+        {
+            var caller = await GetCallerUserIdAsync();
+            if (caller is null) return;
+            _files = (await _fileDirectory.ListChildrenAsync(caller.Value, _currentParentId)).ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to list files for file picker");
+            _errorMessage = "Failed to load files.";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task HandleItemClick(Guid id, string name, bool isFolder)
+    {
+        if (isFolder)
+            await NavigateToFolder(id, name);
+        else
+            SelectFile(id);
+    }
+
+    private async Task NavigateToFolder(Guid folderId, string folderName)
+    {
+        _currentParentId = folderId;
+        _currentFolderName = folderName;
+        _selectedFileId = null;
+        await LoadFilesAsync();
+    }
+
+    private async Task NavigateToRoot()
+    {
+        _currentParentId = null;
+        _currentFolderName = "";
+        _selectedFileId = null;
+        await LoadFilesAsync();
+    }
+
+    private void SelectFile(Guid fileId)
+    {
+        _selectedFileId = _selectedFileId == fileId ? null : fileId;
+    }
+
+    private async Task AttachSelected()
+    {
+        if (_selectedFileId is null || _fileDirectory is null) return;
+        _isAttaching = true;
+        try
+        {
+            var caller = await GetCallerUserIdAsync();
+            if (caller is null) return;
+
+            var fileInfo = await _fileDirectory.GetFileInfoAsync(caller.Value, _selectedFileId.Value);
+            if (fileInfo is null) return;
+
+            var result = await _apiClient.AttachFromFilesModuleAsync(_selectedFileId.Value);
+
+            var attachment = new ComposeAttachment
+            {
+                StorageKey = result.StorageKey,
+                FileName = result.FileName,
+                ContentType = result.ContentType,
+                Size = result.Size
+            };
+
+            await OnFilesSelected.InvokeAsync([attachment]);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to attach file from Files module");
+            _errorMessage = "Failed to attach selected file.";
+        }
+        finally
+        {
+            _isAttaching = false;
+        }
+    }
+
+    private async Task<Guid?> GetCallerUserIdAsync()
+    {
+        try
+        {
+            var caller = _currentUserContext.GetCurrentCaller();
+            return caller?.UserId;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private async Task CancelClicked()
+    {
+        await OnCancel.InvokeAsync();
+    }
+
+    private static string GetFileTypeIcon(string? mimeType)
+    {
+        if (string.IsNullOrWhiteSpace(mimeType)) return "📄";
+        var type = mimeType.ToLowerInvariant();
+        if (type.StartsWith("image/")) return "🖼️";
+        if (type == "application/pdf") return "📄";
+        if (type.StartsWith("text/")) return "📝";
+        if (type.StartsWith("audio/")) return "🎵";
+        if (type.StartsWith("video/")) return "🎬";
+        if (type.Contains("spreadsheet") || type.Contains("excel") || type.Contains("csv")) return "📊";
+        if (type.Contains("presentation") || type.Contains("powerpoint") || type.Contains("slides")) return "📽️";
+        if (type.Contains("word") || type.Contains("document")) return "📝";
+        if (type.Contains("zip") || type.Contains("rar") || type.Contains("gzip") || type.Contains("7z") || type.Contains("tar")) return "📦";
+        return "📄";
+    }
+
+    private static string FormatFileSize(long bytes)
+    {
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
+        if (bytes < 1024 * 1024 * 1024) return $"{bytes / (1024.0 * 1024):F1} MB";
+        return $"{bytes / (1024.0 * 1024 * 1024):F2} GB";
+    }
+}

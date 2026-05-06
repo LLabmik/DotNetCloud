@@ -26,6 +26,7 @@ public class EmailController : EmailControllerBase
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly EmailDbContext _db;
     private readonly ILogger<EmailController> _logger;
+    private readonly DotNetCloud.Core.Capabilities.IFileDirectory? _fileDirectory;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="EmailController"/> class.
@@ -40,7 +41,8 @@ public class EmailController : EmailControllerBase
         IEventBus eventBus,
         IHttpClientFactory httpClientFactory,
         EmailDbContext db,
-        ILogger<EmailController> logger)
+        ILogger<EmailController> logger,
+        DotNetCloud.Core.Capabilities.IFileDirectory? fileDirectory = null)
     {
         _accountService = accountService;
         _ruleService = ruleService;
@@ -52,6 +54,7 @@ public class EmailController : EmailControllerBase
         _httpClientFactory = httpClientFactory;
         _db = db;
         _logger = logger;
+        _fileDirectory = fileDirectory;
     }
 
     // ── Accounts ───────────────────────────────────────────
@@ -579,6 +582,44 @@ public class EmailController : EmailControllerBase
                 storageKey = result.StorageKey,
                 fileName = file.FileName,
                 contentType = file.ContentType,
+                size = result.Size,
+                contentHash = result.ContentHash
+            }));
+        }
+        catch (ValidationException ex)
+        {
+            return BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
+        }
+    }
+
+    /// <summary>Attaches a file from the Files module as an email attachment.</summary>
+    [HttpPost("attach-from-files/{fileNodeId:guid}")]
+    public async Task<IActionResult> AttachFromFilesModule(Guid fileNodeId)
+    {
+        try
+        {
+            if (_fileDirectory is null)
+                return BadRequest(ErrorEnvelope("files_module_unavailable", "The Files module is not available."));
+
+            var caller = GetAuthenticatedCaller();
+
+            var stream = await _fileDirectory.OpenReadAsync(caller.UserId, fileNodeId, HttpContext.RequestAborted);
+            if (stream is null)
+                return NotFound(ErrorEnvelope("file_not_found", "File not found or inaccessible."));
+
+            // Resolve file metadata from the Files module
+            var fileInfo = await _fileDirectory.GetFileInfoAsync(caller.UserId, fileNodeId, HttpContext.RequestAborted);
+            var fileName = fileInfo?.Name ?? "attachment";
+            var contentType = fileInfo?.MimeType ?? "application/octet-stream";
+
+            await using var streamToStore = stream;
+            var result = await _attachmentStorage.StoreAsync(streamToStore, fileName, contentType, HttpContext.RequestAborted);
+
+            return Ok(Envelope(new
+            {
+                storageKey = result.StorageKey,
+                fileName,
+                contentType,
                 size = result.Size,
                 contentHash = result.ContentHash
             }));

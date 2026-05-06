@@ -148,6 +148,29 @@ public sealed class EmailApiClient : IEmailApiClient
         };
     }
 
+    // ── Files Module Attachments ──────────────────────────
+
+    public async Task<UploadAttachmentResult> AttachFromFilesModuleAsync(Guid fileNodeId, CancellationToken ct = default)
+    {
+        var response = await _httpClient.PostAsync($"api/v1/email/attach-from-files/{fileNodeId}", null, ct);
+        await EnsureSuccessOrThrowAsync(response);
+
+        var json = await response.Content.ReadAsStringAsync(ct);
+        using var document = JsonDocument.Parse(json);
+
+        if (!TryGetPropertyIgnoreCase(document.RootElement, "data", out var dataElement))
+            throw new HttpRequestException("Invalid attach-from-files response format.");
+
+        return new UploadAttachmentResult
+        {
+            StorageKey = dataElement.GetProperty("storageKey").GetString()!,
+            FileName = dataElement.GetProperty("fileName").GetString()!,
+            ContentType = dataElement.GetProperty("contentType").GetString()!,
+            Size = dataElement.GetProperty("size").GetInt64(),
+            ContentHash = dataElement.GetProperty("contentHash").GetString()!
+        };
+    }
+
     // ── Sync ─────────────────────────────────────────────────
 
     public async Task TriggerSyncAsync(Guid accountId, CancellationToken ct = default)

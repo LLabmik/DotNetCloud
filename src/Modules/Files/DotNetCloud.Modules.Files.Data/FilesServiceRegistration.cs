@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Files.Data.Services;
@@ -59,6 +60,7 @@ public static class FilesServiceRegistration
         services.AddScoped<IFileService, FileService>();
         services.AddScoped<IChunkedUploadService, ChunkedUploadService>();
         services.AddScoped<IDownloadService, DownloadService>();
+        services.AddScoped<IFileDirectory, FileDirectoryService>();
         services.AddScoped<IVersionService, VersionService>();
         services.AddScoped<IShareService, ShareService>();
         services.AddScoped<ITrashService, TrashService>();

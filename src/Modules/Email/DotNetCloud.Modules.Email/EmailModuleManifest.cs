@@ -25,6 +25,7 @@ public sealed class EmailModuleManifest : IModuleManifest
         nameof(Core.Capabilities.ICurrentUserContext),
         nameof(Core.Capabilities.IAuditLogger),
         nameof(Core.Capabilities.IContactDirectory),
+        nameof(Core.Capabilities.IFileDirectory),
         nameof(Core.Capabilities.IStorageProvider)
     };
 

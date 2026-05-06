@@ -176,7 +176,7 @@
                     <span>📎</span> Attach from computer
                     <InputFile OnChange="@OnFilesSelected" accept="*/*" hidden />
                 </label>
-                <button class="email-btn email-btn-secondary" @onclick="BrowseFiles" disabled title="Coming soon">
+                <button class="email-btn email-btn-secondary" @onclick="BrowseFiles">
                     <span>📁</span> Browse Files
                 </button>
             </div>
@@ -247,6 +247,11 @@
     </div>
 </div>
 
+@if (_showFilePicker)
+{
+    <FilePickerModal OnFilesSelected="OnFilePickerResult" OnCancel="CancelFilePicker" />
+}
+
 @code {
     [Parameter, EditorRequired] public required EmailSendRequest Compose { get; set; }
     [Parameter, EditorRequired] public required IReadOnlyList<EmailAccount> Accounts { get; set; }
@@ -268,6 +273,7 @@
     private readonly List<ComposeAttachment> _attachments = [];
     private string? _uploadError;
     private bool _isUploading;
+    private bool _showFilePicker;
 
     // Autocomplete state
     private string _activeAutocomplete = string.Empty;
@@ -603,9 +609,21 @@
 
     private void BrowseFiles()
     {
-        // TODO: Implement Files module browser integration.
-        // This will call the Files module REST API to list the user's files
-        // and allow selecting files to attach by storage key.
+        _showFilePicker = true;
+        StateHasChanged();
+    }
+
+    private async Task OnFilePickerResult(List<ComposeAttachment> selectedFiles)
+    {
+        _showFilePicker = false;
+        _attachments.AddRange(selectedFiles);
+        StateHasChanged();
+    }
+
+    private void CancelFilePicker()
+    {
+        _showFilePicker = false;
+        StateHasChanged();
     }
 
     private async Task HandleSend()

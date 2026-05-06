@@ -38,6 +38,9 @@ public interface IEmailApiClient
     /// <summary>Detaches an attachment to the Files module.</summary>
     Task DetachAttachmentAsync(Guid attachmentId, Guid? targetFolderId = null, CancellationToken ct = default);
 
+    /// <summary>Attaches a file from the Files module as an email attachment.</summary>
+    Task<UploadAttachmentResult> AttachFromFilesModuleAsync(Guid fileNodeId, CancellationToken ct = default);
+
     // Sync
     Task TriggerSyncAsync(Guid accountId, CancellationToken ct = default);
 

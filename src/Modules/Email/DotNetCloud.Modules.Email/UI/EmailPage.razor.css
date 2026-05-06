@@ -1410,7 +1410,7 @@
    MODALS
    ═══════════════════════════════════════════ */
 
-.email-modal-backdrop {
+::deep .email-modal-backdrop {
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.5);
@@ -1426,7 +1426,7 @@
     to { opacity: 1; }
 }
 
-.email-modal {
+::deep .email-modal {
     background: var(--color-surface);
     border-radius: 12px;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
@@ -1447,7 +1447,7 @@
     width: 400px;
 }
 
-.email-modal-header {
+::deep .email-modal-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -1455,14 +1455,14 @@
     border-bottom: 1px solid var(--color-border);
 }
 
-.email-modal-header h3 {
+::deep .email-modal-header h3 {
     margin: 0;
     font-size: 18px;
     font-weight: 600;
     color: var(--color-text);
 }
 
-.email-modal-close {
+::deep .email-modal-close {
     width: 32px;
     height: 32px;
     display: flex;
@@ -1477,28 +1477,28 @@
     transition: background 0.15s ease, color 0.15s ease;
 }
 
-.email-modal-close:hover {
+::deep .email-modal-close:hover {
     background: var(--color-bg);
     color: var(--color-text);
 }
 
-.email-modal-body {
+::deep .email-modal-body {
     padding: 20px 24px 24px;
     overflow-y: auto;
     flex: 1;
 }
 
-.email-modal-body p {
+::deep .email-modal-body p {
     margin: 0 0 12px;
     color: var(--color-text-secondary);
     line-height: 1.5;
 }
 
-.email-modal-body strong {
+::deep .email-modal-body strong {
     color: var(--color-text);
 }
 
-.email-modal-footer {
+::deep .email-modal-footer {
     display: flex;
     justify-content: flex-end;
     gap: 8px;
@@ -1509,4 +1509,95 @@
 
 .email-text-danger {
     color: var(--color-danger, #dc3545) !important;
+}
+
+/* ── File Picker Modal (deep in child components) ── */
+
+::deep .email-modal-lg {
+    width: 700px;
+    max-height: 80vh;
+}
+
+::deep .email-file-picker-breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 0 12px;
+    border-bottom: 1px solid var(--color-border);
+    margin-bottom: 12px;
+}
+
+::deep .email-file-picker-sep {
+    color: var(--color-text-secondary);
+    font-size: 14px;
+}
+
+::deep .email-file-picker-current {
+    color: var(--color-text);
+    font-size: 14px;
+    font-weight: 500;
+}
+
+::deep .email-file-picker-list {
+    max-height: 50vh;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+::deep .email-file-picker-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.1s ease;
+    user-select: none;
+}
+
+::deep .email-file-picker-item:hover {
+    background: var(--color-bg);
+}
+
+::deep .email-file-picker-item.selected {
+    background: color-mix(in srgb, var(--color-primary) 15%, transparent);
+    outline: 1px solid var(--color-primary);
+}
+
+::deep .email-file-picker-icon {
+    font-size: 20px;
+    flex-shrink: 0;
+    width: 28px;
+    text-align: center;
+}
+
+::deep .email-file-picker-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--color-text);
+    font-size: 14px;
+}
+
+::deep .email-file-picker-size {
+    color: var(--color-text-secondary);
+    font-size: 12px;
+    flex-shrink: 0;
+    margin-left: auto;
+}
+
+::deep .email-file-picker-item.folder .email-file-picker-name {
+    font-weight: 500;
+}
+
+::deep .email-file-picker-item.folder {
+    cursor: pointer;
+}
+
+::deep .email-file-picker-item.folder:hover {
+    background: color-mix(in srgb, var(--color-primary) 10%, transparent);
 }
