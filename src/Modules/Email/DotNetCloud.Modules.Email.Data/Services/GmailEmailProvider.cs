@@ -193,6 +193,20 @@ public sealed class GmailEmailProvider : IEmailProvider
                 };
 
                 _db.EmailMessages.Add(emailMessage);
+
+                // Merge new message participants into thread ParticipantsJson
+                var currentParticipants = JsonSerializer.Deserialize<List<EmailAddressDto>>(thread.ParticipantsJson) ?? [];
+                var fromAddresses = JsonSerializer.Deserialize<List<EmailAddressDto>>(emailMessage.FromJson) ?? [];
+                var toAddresses = JsonSerializer.Deserialize<List<EmailAddressDto>>(emailMessage.ToJson) ?? [];
+                List<EmailAddressDto> ccAddresses = [];
+                if (!string.IsNullOrWhiteSpace(emailMessage.CcJson) && emailMessage.CcJson != "[]")
+                    ccAddresses = JsonSerializer.Deserialize<List<EmailAddressDto>>(emailMessage.CcJson) ?? [];
+                var mergedParticipants = currentParticipants
+                    .Concat(fromAddresses).Concat(toAddresses).Concat(ccAddresses)
+                    .DistinctBy(a => a.Email.ToLowerInvariant())
+                    .ToList();
+                thread.ParticipantsJson = JsonSerializer.Serialize(mergedParticipants);
+
                 thread.MessageCount++;
                 thread.LastMessageAt = emailMessage.DateReceived ?? emailMessage.CreatedAt;
                 touchedThreadIds.Add(thread.Id);

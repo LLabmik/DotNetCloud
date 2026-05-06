@@ -537,7 +537,31 @@
         if (_selectedAccount is null) return;
         try
         {
-            _mailboxes = (await ApiClient.ListMailboxesAsync(_selectedAccount.Id)).ToList();
+            _mailboxes = (await ApiClient.ListMailboxesAsync(_selectedAccount.Id))
+                .OrderBy(mb =>
+                {
+                    if ((mb.SyncFlags & (int)MailboxFlags.Inbox) != 0) return 0;
+                    if ((mb.SyncFlags & (int)MailboxFlags.Sent) != 0) return 1;
+                    if ((mb.SyncFlags & (int)MailboxFlags.Drafts) != 0) return 2;
+                    return 10;
+                })
+                .ThenBy(mb => mb.SortOrder)
+                .ToList();
+
+            // Auto-select Inbox if no mailbox is currently selected
+            if (_selectedMailbox is null)
+            {
+                var inbox = _mailboxes.FirstOrDefault(mb =>
+                    (mb.SyncFlags & (int)MailboxFlags.Inbox) != 0);
+                if (inbox is not null)
+                {
+                    await SelectMailbox(inbox);
+                }
+                else if (_mailboxes.Count > 0)
+                {
+                    await SelectMailbox(_mailboxes[0]);
+                }
+            }
         }
         catch (Exception ex)
         {

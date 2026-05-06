@@ -2,6 +2,7 @@ using DotNetCloud.Core.Errors;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Email.Data;
 using DotNetCloud.Modules.Email.Data.Services;
+using DotNetCloud.Modules.Email.Models;
 using DotNetCloud.Modules.Email.Services;
 using DotNetCloud.Modules.Search.Client;
 using Microsoft.AspNetCore.Mvc;
@@ -247,6 +248,75 @@ public class EmailController : EmailControllerBase
                 .OrderByDescending(t => t.LastMessageAt)
                 .Take(100)
                 .ToListAsync();
+
+            // Determine mailbox type for display logic
+            var mailbox = await _db.EmailMailboxes
+                .AsNoTracking()
+                .FirstOrDefaultAsync(m => m.Id == mailboxId);
+            var isSentMailbox = mailbox is not null &&
+                (mailbox.SyncFlags & (int)MailboxFlags.Sent) != 0;
+
+            // For threads with empty ParticipantsJson (existing data before sync fix),
+            // compute participants from the latest message in this mailbox
+            var emptyThreads = threads.Where(t => t.ParticipantsJson is "[]" or null).ToList();
+            if (emptyThreads.Count > 0)
+            {
+                var emptyThreadIds = emptyThreads.Select(t => t.Id).ToList();
+                var latestMessages = await _db.EmailMessages
+                    .AsNoTracking()
+                    .Where(m => emptyThreadIds.Contains(m.ThreadId) && m.MailboxId == mailboxId)
+                    .GroupBy(m => m.ThreadId)
+                    .Select(g => new
+                    {
+                        ThreadId = g.Key,
+                        FromJson = g.OrderByDescending(m => m.DateReceived ?? m.CreatedAt)
+                            .Select(m => m.FromJson).FirstOrDefault(),
+                        ToJson = g.OrderByDescending(m => m.DateReceived ?? m.CreatedAt)
+                            .Select(m => m.ToJson).FirstOrDefault()
+                    })
+                    .ToListAsync();
+
+                foreach (var thread in emptyThreads)
+                {
+                    var msg = latestMessages.FirstOrDefault(x => x.ThreadId == thread.Id);
+                    if (msg is not null)
+                    {
+                        // Sent mailbox → show recipients; otherwise show sender
+                        thread.ParticipantsJson = isSentMailbox
+                            ? (msg.ToJson ?? msg.FromJson ?? "[]")
+                            : (msg.FromJson ?? msg.ToJson ?? "[]");
+                    }
+                }
+            }
+
+            // For Sent mailbox, also override already-populated threads to show recipients
+            if (isSentMailbox)
+            {
+                var populatedThreadIds = threads.Where(t => t.ParticipantsJson is not "[]" and not null)
+                    .Select(t => t.Id).ToList();
+                if (populatedThreadIds.Count > 0)
+                {
+                    var latestToJson = await _db.EmailMessages
+                        .AsNoTracking()
+                        .Where(m => populatedThreadIds.Contains(m.ThreadId) && m.MailboxId == mailboxId)
+                        .GroupBy(m => m.ThreadId)
+                        .Select(g => new
+                        {
+                            ThreadId = g.Key,
+                            ToJson = g.OrderByDescending(m => m.DateReceived ?? m.CreatedAt)
+                                .Select(m => m.ToJson)
+                                .FirstOrDefault()
+                        })
+                        .ToDictionaryAsync(k => k.ThreadId, v => v.ToJson);
+                    foreach (var thread in threads)
+                    {
+                        if (latestToJson.TryGetValue(thread.Id, out var toJson) && toJson is not null && toJson != "[]")
+                        {
+                            thread.ParticipantsJson = toJson;
+                        }
+                    }
+                }
+            }
 
             return Ok(Envelope(threads));
         }

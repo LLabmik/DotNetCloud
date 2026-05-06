@@ -116,6 +116,19 @@ public sealed class EmailSendService : IEmailSendService
 
         _db.EmailMessages.Add(sentMessage);
 
+        // Merge sent message participants into thread ParticipantsJson
+        var currentParticipants = System.Text.Json.JsonSerializer.Deserialize<List<EmailAddressDto>>(thread.ParticipantsJson) ?? [];
+        var fromAddresses = System.Text.Json.JsonSerializer.Deserialize<List<EmailAddressDto>>(sentMessage.FromJson) ?? [];
+        var toAddresses = System.Text.Json.JsonSerializer.Deserialize<List<EmailAddressDto>>(sentMessage.ToJson) ?? [];
+        List<EmailAddressDto> ccAddresses = [];
+        if (!string.IsNullOrWhiteSpace(sentMessage.CcJson) && sentMessage.CcJson != "[]")
+            ccAddresses = System.Text.Json.JsonSerializer.Deserialize<List<EmailAddressDto>>(sentMessage.CcJson) ?? [];
+        var mergedParticipants = currentParticipants
+            .Concat(fromAddresses).Concat(toAddresses).Concat(ccAddresses)
+            .DistinctBy(a => a.Email.ToLowerInvariant())
+            .ToList();
+        thread.ParticipantsJson = System.Text.Json.JsonSerializer.Serialize(mergedParticipants);
+
         // Persist attachment records for sent message
         if (request.Attachments is { Count: > 0 })
         {
