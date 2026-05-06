@@ -106,6 +106,14 @@ public sealed class EmailSendService : IEmailSendService
         thread.LastMessageAt = now;
         thread.UpdatedAt = now;
 
+        // Associate the sent message with the account's Sent Items mailbox
+        var sentMailbox = await _db.EmailMailboxes
+            .AsNoTracking()
+            .FirstOrDefaultAsync(m => m.AccountId == account.Id
+                && (m.SyncFlags & (int)MailboxFlags.Sent) == (int)MailboxFlags.Sent, ct);
+        if (sentMailbox is not null)
+            sentMessage.MailboxId = sentMailbox.Id;
+
         _db.EmailMessages.Add(sentMessage);
 
         // Persist attachment records for sent message

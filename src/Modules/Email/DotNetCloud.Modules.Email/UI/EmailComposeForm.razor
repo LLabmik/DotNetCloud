@@ -131,9 +131,19 @@
     @* ── Footer ── *@
     <div class="email-compose-footer">
         <div class="email-compose-footer-left">
-            <button class="email-btn email-btn-primary email-btn-send" @onclick="HandleSend"
-                    disabled="@(string.IsNullOrWhiteSpace(_toInput) || string.IsNullOrWhiteSpace(_subject) || _isUploading)">
-                <span class="email-btn-send-icon">📤</span> Send
+            <button class="email-btn email-btn-primary email-btn-send"
+                    @onclick="HandleSend"
+                    disabled="@(string.IsNullOrWhiteSpace(_toInput) || string.IsNullOrWhiteSpace(_subject) || _isUploading || IsSending)">
+                @if (IsSending)
+                {
+                    <span class="email-btn-spinner"></span>
+                    <text> Sending...</text>
+                }
+                else
+                {
+                    <span class="email-btn-send-icon">📤</span>
+                    <text> Send</text>
+                }
             </button>
             <button class="email-btn email-btn-secondary" @onclick="() => OnCancel?.Invoke()">
                 Discard
@@ -159,6 +169,7 @@
     [Parameter] public Func<EmailSendRequest, Task>? OnSend { get; set; }
     [Parameter] public Action? OnCancel { get; set; }
     [Parameter] public bool IsReply { get; set; }
+    [Parameter] public bool IsSending { get; set; }
 
     private Guid? _selectedFromAccountId;
     private string _toInput = string.Empty;

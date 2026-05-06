@@ -1187,6 +1187,28 @@
     line-height: 1;
 }
 
+/* ── Send button spinner ── */
+
+::deep .email-btn-spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: email-btn-spin 0.6s linear infinite;
+    vertical-align: middle;
+}
+
+@keyframes email-btn-spin {
+    to { transform: rotate(360deg); }
+}
+
+::deep .email-btn-send:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
 /* ─────────── Rules ─────────── */
 
 .email-rules-panel {
