@@ -28,6 +28,16 @@ public interface IEmailApiClient
     // Send
     Task SendAsync(Guid accountId, EmailSendRequest request, CancellationToken ct = default);
 
+    // Attachments
+    /// <summary>Downloads an attachment and returns the stream with metadata.</summary>
+    Task<(Stream Stream, string FileName, string ContentType)> DownloadAttachmentAsync(Guid attachmentId, CancellationToken ct = default);
+
+    /// <summary>Uploads a file as a temp compose attachment. Returns storage metadata.</summary>
+    Task<UploadAttachmentResult> UploadAttachmentAsync(Stream content, string fileName, string contentType, CancellationToken ct = default);
+
+    /// <summary>Detaches an attachment to the Files module.</summary>
+    Task DetachAttachmentAsync(Guid attachmentId, Guid? targetFolderId = null, CancellationToken ct = default);
+
     // Sync
     Task TriggerSyncAsync(Guid accountId, CancellationToken ct = default);
 
@@ -41,6 +51,25 @@ public interface IEmailApiClient
     Task<EmailRule?> UpdateRuleAsync(Guid id, UpdateEmailRuleRequest request, CancellationToken ct = default);
     Task DeleteRuleAsync(Guid id, CancellationToken ct = default);
     Task<int> RunRulesAsync(Guid? accountId = null, Guid? mailboxId = null, CancellationToken ct = default);
+}
+
+/// <summary>Result of uploading a temp compose attachment.</summary>
+public sealed record UploadAttachmentResult
+{
+    /// <summary>Storage key for later reference in EmailSendRequest.</summary>
+    public required string StorageKey { get; init; }
+
+    /// <summary>Original filename.</summary>
+    public required string FileName { get; init; }
+
+    /// <summary>MIME content type.</summary>
+    public required string ContentType { get; init; }
+
+    /// <summary>File size in bytes.</summary>
+    public long Size { get; init; }
+
+    /// <summary>SHA-256 content hash.</summary>
+    public required string ContentHash { get; init; }
 }
 
 

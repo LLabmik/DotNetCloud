@@ -35,7 +35,12 @@ public sealed class EmailSearchableModule : ISearchableModule
             .Where(t => t.MessageCount > 0)
             .ToListAsync(ct);
 
-        return threads.Select(ToSearchDocument).ToList();
+        var documents = new List<SearchDocument>();
+        foreach (var thread in threads)
+        {
+            documents.Add(await ToSearchDocumentWithAttachmentsAsync(thread, ct));
+        }
+        return documents;
     }
 
     /// <inheritdoc />
@@ -47,28 +52,41 @@ public sealed class EmailSearchableModule : ISearchableModule
         var thread = await _db.EmailThreads.AsNoTracking()
             .FirstOrDefaultAsync(t => t.Id == id, ct);
 
-        return thread is null ? null : ToSearchDocument(thread);
+        return thread is null ? null : await ToSearchDocumentWithAttachmentsAsync(thread, ct);
     }
 
-    private static SearchDocument ToSearchDocument(Models.EmailThread t)
+    private async Task<SearchDocument> ToSearchDocumentWithAttachmentsAsync(Models.EmailThread thread, CancellationToken ct)
     {
         var metadata = new Dictionary<string, string>
         {
-            ["AccountId"] = t.AccountId.ToString(),
-            ["MessageCount"] = t.MessageCount.ToString()
+            ["AccountId"] = thread.AccountId.ToString(),
+            ["MessageCount"] = thread.MessageCount.ToString()
         };
+
+        // Include attachment filenames in searchable content
+        var attachmentNames = await _db.EmailMessages
+            .AsNoTracking()
+            .Where(m => m.ThreadId == thread.Id)
+            .SelectMany(m => m.Attachments)
+            .Select(a => a.FileName)
+            .Distinct()
+            .ToListAsync(ct);
+
+        var attachmentContent = attachmentNames.Count > 0
+            ? " " + string.Join(" ", attachmentNames)
+            : "";
 
         return new SearchDocument
         {
             ModuleId = "email",
-            EntityId = t.Id.ToString(),
+            EntityId = thread.Id.ToString(),
             EntityType = "EmailThread",
-            Title = t.Subject,
-            Content = $"{t.Subject} {t.Snippet ?? ""}",
-            Summary = t.Snippet,
+            Title = thread.Subject,
+            Content = $"{thread.Subject} {thread.Snippet ?? ""}{attachmentContent}",
+            Summary = thread.Snippet,
             OwnerId = Guid.Empty, // Email threads are tied to accounts; search handles ownership via account association
-            CreatedAt = t.CreatedAt,
-            UpdatedAt = t.UpdatedAt,
+            CreatedAt = thread.CreatedAt,
+            UpdatedAt = thread.UpdatedAt,
             Metadata = metadata
         };
     }

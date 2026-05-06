@@ -24,6 +24,14 @@ public static class EmailServiceRegistration
         services.AddSingleton<EmailSyncBackgroundService>();
         services.AddSingleton<IEmailSyncService>(sp => sp.GetRequiredService<EmailSyncBackgroundService>());
         services.AddHostedService(sp => sp.GetRequiredService<EmailSyncBackgroundService>());
+
+        // Attachment storage
+        services.Configure<AttachmentStorageOptions>(configuration.GetSection("Email:AttachmentStorage"));
+        services.AddScoped<IAttachmentStorage, FileSystemAttachmentStorage>();
+
+        // Temp attachment cleanup background job
+        services.AddHostedService<CleanupTempAttachmentsBackgroundService>();
+
         return services;
     }
 }

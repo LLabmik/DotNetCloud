@@ -3,6 +3,7 @@
 @using DotNetCloud.Modules.Email.Models
 @using DotNetCloud.Modules.Email.Services
 @inject ILogger<EmailComposeForm> _logger
+@inject IEmailApiClient _apiClient
 
 <div class="email-compose-card">
     @* ── Header ── *@
@@ -68,6 +69,46 @@
         @* Divider *@
         <div class="email-compose-divider"></div>
 
+        @* Attachments *@
+        <div class="email-compose-attachments @(!_attachments.Any() ? "empty" : "")">
+            @if (_attachments.Any())
+            {
+                <div class="email-compose-attachments-list">
+                    @foreach (var att in _attachments)
+                    {
+                        var icon = GetComposeFileTypeIcon(att.ContentType);
+                        var sizeStr = FormatComposeFileSize(att.Size);
+                        <div class="email-compose-attachment-item">
+                            <span class="email-compose-attachment-icon">@icon</span>
+                            <span class="email-compose-attachment-name">@att.FileName</span>
+                            <span class="email-compose-attachment-size">@sizeStr</span>
+                            <button class="email-compose-attachment-remove" @onclick="() => RemoveAttachment(att)" title="Remove attachment">✕</button>
+                        </div>
+                    }
+                </div>
+            }
+            <div class="email-compose-attachment-actions">
+                <label class="email-btn email-btn-secondary email-compose-attach-btn">
+                    <span>📎</span> Attach from computer
+                    <InputFile OnChange="@OnFilesSelected" accept="*/*" hidden />
+                </label>
+                <button class="email-btn email-btn-secondary" @onclick="BrowseFiles" disabled title="Coming soon">
+                    <span>📁</span> Browse Files
+                </button>
+            </div>
+            @if (_uploadError is not null)
+            {
+                <div class="email-compose-attachment-error">@_uploadError</div>
+            }
+            @if (_isUploading)
+            {
+                <div class="email-compose-upload-progress">
+                    <div class="email-compose-upload-bar"></div>
+                    <span>Uploading...</span>
+                </div>
+            }
+        </div>
+
         @* Message Body *@
         <div class="email-compose-body-area">
             @* Formatting toolbar (placeholder — future rich text) *@
@@ -91,7 +132,7 @@
     <div class="email-compose-footer">
         <div class="email-compose-footer-left">
             <button class="email-btn email-btn-primary email-btn-send" @onclick="HandleSend"
-                    disabled="@(string.IsNullOrWhiteSpace(_toInput) || string.IsNullOrWhiteSpace(_subject))">
+                    disabled="@(string.IsNullOrWhiteSpace(_toInput) || string.IsNullOrWhiteSpace(_subject) || _isUploading)">
                 <span class="email-btn-send-icon">📤</span> Send
             </button>
             <button class="email-btn email-btn-secondary" @onclick="() => OnCancel?.Invoke()">
@@ -100,6 +141,10 @@
         </div>
         <div class="email-compose-footer-right">
             <span class="email-compose-footer-hint">
+                @if (_attachments.Count > 0)
+                {
+                    <text>@_attachments.Count attachment(s) — </text>
+                }
                 @(!string.IsNullOrWhiteSpace(_toInput) && !string.IsNullOrWhiteSpace(_subject)
                     ? "Ready to send"
                     : "Enter a recipient and subject to send")
@@ -123,6 +168,11 @@
     private string _bodyText = string.Empty;
     private bool _showCc;
     private bool _showBcc;
+
+    // Attachment state
+    private readonly List<ComposeAttachment> _attachments = [];
+    private string? _uploadError;
+    private bool _isUploading;
 
     protected override void OnParametersSet()
     {
@@ -164,6 +214,62 @@
         }
     }
 
+    private async Task OnFilesSelected(InputFileChangeEventArgs e)
+    {
+        _uploadError = null;
+        const long maxSize = 25 * 1024 * 1024; // 25 MB
+
+        foreach (var file in e.GetMultipleFiles(maximumFileCount: 10))
+        {
+            // Client-side size check
+            if (file.Size > maxSize)
+            {
+                _uploadError = $"File \"{file.Name}\" exceeds the 25 MB limit. Large files can be shared via the Files module.";
+                continue;
+            }
+
+            try
+            {
+                _isUploading = true;
+                StateHasChanged();
+
+                await using var stream = file.OpenReadStream(maxAllowedSize: maxSize);
+                var result = await _apiClient.UploadAttachmentAsync(stream, file.Name, file.ContentType);
+
+                _attachments.Add(new ComposeAttachment
+                {
+                    StorageKey = result.StorageKey,
+                    FileName = result.FileName,
+                    ContentType = result.ContentType,
+                    Size = result.Size
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to upload attachment {FileName}", file.Name);
+                _uploadError = $"Failed to upload \"{file.Name}\": {ex.Message}";
+            }
+            finally
+            {
+                _isUploading = false;
+                StateHasChanged();
+            }
+        }
+    }
+
+    private void RemoveAttachment(ComposeAttachment att)
+    {
+        _attachments.Remove(att);
+        StateHasChanged();
+    }
+
+    private void BrowseFiles()
+    {
+        // TODO: Implement Files module browser integration.
+        // This will call the Files module REST API to list the user's files
+        // and allow selecting files to attach by storage key.
+    }
+
     private async Task HandleSend()
     {
         _logger.LogInformation("HandleSend called. _toInput='{To}', _subject='{Subj}', _bodyText.Length={Len}, OnSend is null={Null}",
@@ -182,7 +288,16 @@
             BodyPlainText = _bodyText,
             BodyHtml = null,
             Cc = ccList.Count > 0 ? ccList : null,
-            Bcc = bccList.Count > 0 ? bccList : null
+            Bcc = bccList.Count > 0 ? bccList : null,
+            Attachments = _attachments.Count > 0
+                ? _attachments.Select(a => new EmailAttachmentRef
+                {
+                    StorageKey = a.StorageKey,
+                    FileName = a.FileName,
+                    ContentType = a.ContentType,
+                    Size = a.Size
+                }).ToList()
+                : null
         };
 
         if (OnSend is not null)
@@ -210,5 +325,29 @@
                 result.Add(new EmailAddressDto { Name = null, Email = part.Trim() });
         }
         return result;
+    }
+
+    private static string GetComposeFileTypeIcon(string contentType)
+    {
+        if (string.IsNullOrWhiteSpace(contentType)) return "📎";
+        var type = contentType.ToLowerInvariant();
+        if (type.StartsWith("image/")) return "🖼️";
+        if (type == "application/pdf") return "📄";
+        if (type is "application/zip" or "application/x-rar-compressed" or "application/gzip" or "application/x-7z-compressed" or "application/x-tar") return "📦";
+        if (type.StartsWith("text/")) return "📝";
+        if (type.StartsWith("audio/")) return "🎵";
+        if (type.StartsWith("video/")) return "🎬";
+        if (type.Contains("spreadsheet") || type.Contains("excel") || type.Contains("csv")) return "📊";
+        if (type.Contains("presentation") || type.Contains("powerpoint") || type.Contains("slides")) return "📽️";
+        if (type.Contains("word") || type.Contains("document")) return "📃";
+        return "📎";
+    }
+
+    private static string FormatComposeFileSize(long bytes)
+    {
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
+        if (bytes < 1024 * 1024 * 1024) return $"{bytes / (1024.0 * 1024):F1} MB";
+        return $"{bytes / (1024.0 * 1024 * 1024):F2} GB";
     }
 }

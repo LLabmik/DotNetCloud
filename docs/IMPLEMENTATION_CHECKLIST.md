@@ -4216,6 +4216,32 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ EmailSentEvent + EmailRuleTriggeredEvent published for search indexing
 - ✓ Cross-module search quality verification — Both ISearchableModule implementations verified, search index events fire from all CRUD/sync paths, IEventBus wired into both email providers
 
+### Phase 6.9 — Email Attachments ✅
+- ✓ `IAttachmentStorage` interface with `StoreAsync`, `OpenReadAsync`, `DeleteAsync`, `GetSizeAsync`
+- ✓ `AttachmentStorageResult` record (StorageKey, ContentHash, Size, StoredAt)
+- ✓ `FileSystemAttachmentStorage` — content-addressable SHA-256 prefix directory storage
+- ✓ `AttachmentStorageOptions` with configurable base path and 25 MB max size
+- ✓ Services registered in EmailServiceRegistration.cs (IAttachmentStorage, CleanupTempAttachmentsBackgroundService)
+- ✓ IMAP sync downloads attachment content via MimeKit, stores via IAttachmentStorage, populates StorageKey/ContentHash
+- ✓ Gmail sync downloads attachment content via Gmail API `Users.Messages.Attachments.Get`, stores via IAttachmentStorage
+- ✓ Inline image (Content-ID) support for both providers
+- ✓ `GET /api/v1/email/attachments/{attachmentId}/download` endpoint with ownership verification
+- ✓ `POST /api/v1/email/upload-attachment` endpoint with 25 MB limit enforcement
+- ✓ `POST /api/v1/email/attachments/{attachmentId}/detach` endpoint publishing `EmailAttachmentDetachedEvent`
+- ✓ `IEmailApiClient` / `EmailApiClient` — DownloadAttachmentAsync, UploadAttachmentAsync, DetachAttachmentAsync
+- ✓ `EmailSendRequest.Attachments` property + `EmailAttachmentRef` record for outbound attachments
+- ✓ IMAP/SMTP SendAsync with MIME multipart attachment support via MimeKit BodyBuilder
+- ✓ Gmail SendAsync switched from manual string MIME to MimeKit with attachment support
+- ✓ EmailSendService persists attachment records after successful send
+- ✅ Compose form attachment UI (EmailComposeForm.razor): InputFile upload, attachment chips with remove, upload progress indicator
+- ✓ Clickable attachment download chips with file type icons and formatted size in EmailPage.razor
+- ✓ "Save to Files" (detach) button on attachment chips
+- ✓ `EmailAttachmentDetachedEvent` registered in EmailModuleManifest
+- ✓ `CleanupTempAttachmentsBackgroundService` — hourly cleanup of orphaned files older than 24h
+- ✓ EmailSearchableModule includes attachment filenames in searchable content
+- ✓ Attachment UI styling: download chips, compose attachment items, upload progress, save-to-files button
+- ✓ Build: 0 errors, all email tests pass
+
 ---
 
 ## Phase 8: Full-Text Search Module (from FULL_TEXT_SEARCH_IMPLEMENTATION_PLAN.md)

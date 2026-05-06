@@ -6,6 +6,7 @@ using DotNetCloud.Modules.Email.Models;
 using DotNetCloud.Modules.Email.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using AttachmentStorageResult = DotNetCloud.Modules.Email.Services.AttachmentStorageResult;
 
 namespace DotNetCloud.Modules.Email.Data.Services;
 
@@ -18,17 +19,20 @@ public sealed class EmailSendService : IEmailSendService
     private readonly EmailDbContext _db;
     private readonly IEnumerable<IEmailProvider> _providers;
     private readonly IEventBus _eventBus;
+    private readonly IAttachmentStorage _attachmentStorage;
     private readonly ILogger<EmailSendService> _logger;
 
     public EmailSendService(
         EmailDbContext db,
         IEnumerable<IEmailProvider> providers,
         IEventBus eventBus,
+        IAttachmentStorage attachmentStorage,
         ILogger<EmailSendService> logger)
     {
         _db = db;
         _providers = providers;
         _eventBus = eventBus;
+        _attachmentStorage = attachmentStorage;
         _logger = logger;
     }
 
@@ -103,6 +107,33 @@ public sealed class EmailSendService : IEmailSendService
         thread.UpdatedAt = now;
 
         _db.EmailMessages.Add(sentMessage);
+
+        // Persist attachment records for sent message
+        if (request.Attachments is { Count: > 0 })
+        {
+            foreach (var attRef in request.Attachments)
+            {
+                var size = attRef.Size;
+                if (size <= 0)
+                {
+                    // Try to get size from storage if not provided in request
+                    size = await _attachmentStorage.GetSizeAsync(attRef.StorageKey, ct);
+                }
+
+                _db.EmailAttachments.Add(new EmailAttachment
+                {
+                    Message = sentMessage,
+                    FileName = attRef.FileName,
+                    ContentType = attRef.ContentType,
+                    Size = size,
+                    StorageKey = attRef.StorageKey,
+                    ContentHash = null, // Not hashed during upload; stores as StorageKey
+                    ContentId = attRef.ContentId,
+                    CreatedAt = DateTime.UtcNow
+                });
+            }
+        }
+
         await _db.SaveChangesAsync(ct);
 
         _logger.LogInformation("Email sent from account {AccountId} to {Recipients}, messageId={MessageId}",

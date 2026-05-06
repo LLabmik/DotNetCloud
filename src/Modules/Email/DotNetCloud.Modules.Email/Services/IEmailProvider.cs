@@ -68,6 +68,31 @@ public sealed record EmailSendRequest
 
     /// <summary>References header values (for threading).</summary>
     public IReadOnlyList<string>? References { get; init; }
+
+    /// <summary>Attachments to include when sending. Null = no attachments.</summary>
+    public IReadOnlyList<EmailAttachmentRef>? Attachments { get; init; }
+}
+
+/// <summary>Reference to an attachment for outbound email.</summary>
+public sealed record EmailAttachmentRef
+{
+    /// <summary>Storage key from pre-upload (browser upload or Files module ref).</summary>
+    public required string StorageKey { get; init; }
+
+    /// <summary>Original filename to use in the MIME message.</summary>
+    public required string FileName { get; init; }
+
+    /// <summary>MIME content type.</summary>
+    public required string ContentType { get; init; }
+
+    /// <summary>File size in bytes.</summary>
+    public long Size { get; init; }
+
+    /// <summary>Optional Content-ID for inline embedding.</summary>
+    public string? ContentId { get; init; }
+
+    /// <summary>Whether this is an inline image (vs. regular attachment).</summary>
+    public bool IsInline { get; init; }
 }
 
 /// <summary>An action to apply to one or more messages.</summary>

@@ -145,3 +145,36 @@ public sealed record EmailRuleTriggeredEvent : IEvent
     /// <summary>Actions that were executed.</summary>
     public required IReadOnlyList<string> ExecutedActions { get; init; }
 }
+
+/// <summary>
+/// Published when an email attachment is detached/saved to the Files module.
+/// </summary>
+public sealed record EmailAttachmentDetachedEvent : IEvent
+{
+    /// <inheritdoc />
+    public required Guid EventId { get; init; }
+
+    /// <inheritdoc />
+    public required DateTime CreatedAt { get; init; }
+
+    /// <summary>The attachment ID.</summary>
+    public required Guid AttachmentId { get; init; }
+
+    /// <summary>Storage key for the attachment content.</summary>
+    public required string StorageKey { get; init; }
+
+    /// <summary>Original filename.</summary>
+    public required string FileName { get; init; }
+
+    /// <summary>MIME content type.</summary>
+    public required string ContentType { get; init; }
+
+    /// <summary>File size in bytes.</summary>
+    public long Size { get; init; }
+
+    /// <summary>Owner user ID.</summary>
+    public required Guid OwnerId { get; init; }
+
+    /// <summary>Optional target folder ID in the Files module.</summary>
+    public Guid? TargetFolderId { get; init; }
+}

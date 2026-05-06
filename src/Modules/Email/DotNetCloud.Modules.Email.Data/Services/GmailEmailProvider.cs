@@ -13,6 +13,9 @@ using Google.Apis.Gmail.v1.Data;
 using Google.Apis.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using MimeKit;
+using MimeKit.Text;
+using GmailMessagePart = Google.Apis.Gmail.v1.Data.MessagePart;
 
 namespace DotNetCloud.Modules.Email.Data.Services;
 
@@ -25,17 +28,20 @@ public sealed class GmailEmailProvider : IEmailProvider
     private readonly EmailDbContext _db;
     private readonly EmailCredentialEncryptionService _encryption;
     private readonly IEventBus _eventBus;
+    private readonly IAttachmentStorage _attachmentStorage;
     private readonly ILogger<GmailEmailProvider> _logger;
 
     public GmailEmailProvider(
         EmailDbContext db,
         EmailCredentialEncryptionService encryption,
         IEventBus eventBus,
+        IAttachmentStorage attachmentStorage,
         ILogger<GmailEmailProvider> logger)
     {
         _db = db;
         _encryption = encryption;
         _eventBus = eventBus;
+        _attachmentStorage = attachmentStorage;
         _logger = logger;
     }
 
@@ -166,22 +172,10 @@ public sealed class GmailEmailProvider : IEmailProvider
                 thread.LastMessageAt = emailMessage.DateReceived ?? emailMessage.CreatedAt;
                 touchedThreadIds.Add(thread.Id);
 
-                // Process attachments
+                // Process attachments (download content via Gmail API)
                 if (message.Payload.Parts is not null)
                 {
-                    foreach (var part in message.Payload.Parts)
-                    {
-                        if (!string.IsNullOrWhiteSpace(part.Filename) && part.Body?.AttachmentId is not null)
-                        {
-                            _db.EmailAttachments.Add(new EmailAttachment
-                            {
-                                Message = emailMessage,
-                                FileName = part.Filename,
-                                ContentType = part.MimeType ?? "application/octet-stream",
-                                Size = part.Body.Size.GetValueOrDefault()
-                            });
-                        }
-                    }
+                    await ProcessGmailAttachmentsAsync(service, message, emailMessage, ct);
                 }
 
                 result.NewMessages++;
@@ -223,8 +217,76 @@ public sealed class GmailEmailProvider : IEmailProvider
     {
         var service = await CreateGmailServiceAsync(account, ct);
 
-        var mimeMessage = BuildMimeMessage(account, request);
-        var raw = Convert.ToBase64String(Encoding.UTF8.GetBytes(mimeMessage))
+        // Build MIME message using MimeKit for proper multipart support with attachments
+        var message = new MimeMessage();
+        message.From.Add(new MailboxAddress(account.DisplayName, account.EmailAddress));
+        message.Subject = request.Subject;
+
+        foreach (var recipient in request.To)
+            message.To.Add(new MailboxAddress(recipient.Name ?? "", recipient.Email));
+
+        if (request.Cc is not null)
+            foreach (var cc in request.Cc)
+                message.Cc.Add(new MailboxAddress(cc.Name ?? "", cc.Email));
+
+        if (request.Bcc is not null)
+            foreach (var bcc in request.Bcc)
+                message.Bcc.Add(new MailboxAddress(bcc.Name ?? "", bcc.Email));
+
+        if (request.InReplyToMessageId is not null)
+            message.InReplyTo = request.InReplyToMessageId;
+
+        var builder = new BodyBuilder();
+        if (request.BodyHtml is not null)
+            builder.HtmlBody = request.BodyHtml;
+        if (request.BodyPlainText is not null)
+            builder.TextBody = request.BodyPlainText;
+
+        // Add attachments from request
+        if (request.Attachments is { Count: > 0 })
+        {
+            foreach (var attRef in request.Attachments)
+            {
+                try
+                {
+                    var stream = await _attachmentStorage.OpenReadAsync(attRef.StorageKey, ct);
+                    if (stream is null)
+                    {
+                        _logger.LogWarning("Attachment storage key not found: {StorageKey}, skipping", attRef.StorageKey);
+                        continue;
+                    }
+
+                    await using (stream)
+                    {
+                        await using var readStream = new MemoryStream();
+                        await stream.CopyToAsync(readStream, ct);
+                        var bytes = readStream.ToArray();
+                        var contentTypeObj = MimeKit.ContentType.Parse(attRef.ContentType);
+
+                        if (attRef.IsInline && attRef.ContentId is not null)
+                        {
+                            builder.LinkedResources.Add(attRef.FileName, bytes, contentTypeObj);
+                            builder.LinkedResources.Last().ContentId = attRef.ContentId;
+                        }
+                        else
+                        {
+                            builder.Attachments.Add(attRef.FileName, bytes, contentTypeObj);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to attach file {FileName} (key={StorageKey}), skipping", attRef.FileName, attRef.StorageKey);
+                }
+            }
+        }
+
+        message.Body = builder.ToMessageBody();
+
+        // Encode MIME message to base64url for Gmail API
+        await using var memStream = new MemoryStream();
+        await message.WriteToAsync(memStream, ct);
+        var raw = Convert.ToBase64String(memStream.ToArray())
             .Replace('+', '-').Replace('/', '_').Replace("=", "");
 
         var gmailMessage = new Message { Raw = raw };
@@ -369,7 +431,7 @@ public sealed class GmailEmailProvider : IEmailProvider
         return thread;
     }
 
-    private static string? ExtractBodyPreview(MessagePart payload)
+    private static string? ExtractBodyPreview(GmailMessagePart payload)
     {
         try
         {
@@ -412,7 +474,7 @@ public sealed class GmailEmailProvider : IEmailProvider
         }
     }
 
-    private static MessagePart? FindPartByMimeType(MessagePart parent, string mimeType)
+    private static GmailMessagePart? FindPartByMimeType(GmailMessagePart parent, string mimeType)
     {
         if (parent.Parts is null) return null;
 
@@ -605,6 +667,72 @@ public sealed class GmailEmailProvider : IEmailProvider
             DisplayName = label.Name ?? labelId,
             SyncFlags = (int)flags
         };
+    }
+
+    private async Task ProcessGmailAttachmentsAsync(GmailService service, Message message, EmailMessage emailMessage, CancellationToken ct)
+    {
+        if (message.Payload?.Parts is null)
+            return;
+
+        foreach (var part in message.Payload.Parts)
+        {
+            if (string.IsNullOrWhiteSpace(part.Filename) || part.Body?.AttachmentId is null)
+                continue;
+
+            var fileName = part.Filename;
+            var contentType = part.MimeType ?? "application/octet-stream";
+
+            try
+            {
+                // Download attachment content via Gmail API
+                var attachReq = service.Users.Messages.Attachments.Get("me", message.Id, part.Body.AttachmentId);
+                var attachmentData = await attachReq.ExecuteAsync(ct);
+
+                if (attachmentData?.Data is null)
+                {
+                    // Store metadata only
+                    _db.EmailAttachments.Add(new EmailAttachment
+                    {
+                        Message = emailMessage,
+                        FileName = fileName,
+                        ContentType = contentType,
+                        Size = part.Body.Size.GetValueOrDefault()
+                    });
+                    continue;
+                }
+
+                // Decode base64url data
+                var bytes = Convert.FromBase64String(DecodeBase64Url(attachmentData.Data));
+                await using var memStream = new MemoryStream(bytes);
+                var result = await _attachmentStorage.StoreAsync(memStream, fileName, contentType, ct);
+
+                var emailAttachment = new EmailAttachment
+                {
+                    Message = emailMessage,
+                    FileName = fileName,
+                    ContentType = contentType,
+                    Size = result.Size,
+                    StorageKey = result.StorageKey,
+                    ContentHash = result.ContentHash,
+                    ContentId = string.IsNullOrWhiteSpace(part.Body.AttachmentId) ? null : part.Body.AttachmentId,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                _db.EmailAttachments.Add(emailAttachment);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to download Gmail attachment {FileName} for message {MsgId}", fileName, message.Id);
+                // Store metadata only as fallback
+                _db.EmailAttachments.Add(new EmailAttachment
+                {
+                    Message = emailMessage,
+                    FileName = fileName,
+                    ContentType = contentType,
+                    Size = part.Body.Size.GetValueOrDefault()
+                });
+            }
+        }
     }
 
     private static string BuildMimeMessage(EmailAccount account, EmailSendRequest request)

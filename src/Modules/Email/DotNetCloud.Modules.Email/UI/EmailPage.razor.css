@@ -665,20 +665,92 @@
 .email-attachments {
     margin-top: 12px;
     display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.email-attachment-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
 }
 
 .email-attachment-chip {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 4px 8px;
+    gap: 6px;
+    padding: 6px 10px;
     background: var(--color-bg);
     border: 1px solid var(--color-border);
     border-radius: var(--radius);
     font-size: 12px;
+    color: var(--color-text);
+    text-decoration: none;
+    cursor: pointer;
+    transition: background var(--transition), border-color var(--transition), box-shadow var(--transition);
+    max-width: 300px;
+    flex: 1;
+    min-width: 0;
+}
+
+.email-attachment-chip:hover {
+    background: var(--color-surface);
+    border-color: var(--color-primary);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    color: var(--color-primary);
+}
+
+.email-attachment-chip:active {
+    background: color-mix(in srgb, var(--color-primary) 8%, transparent);
+}
+
+.email-attachment-icon {
+    font-size: 16px;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.email-attachment-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 500;
+    min-width: 0;
+}
+
+.email-attachment-size {
+    flex-shrink: 0;
+    font-size: 11px;
+    color: var(--color-muted);
+    margin-left: auto;
+}
+
+.email-attachment-save-btn {
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--color-border);
+    background: var(--color-bg);
     color: var(--color-text-secondary);
+    cursor: pointer;
+    border-radius: var(--radius);
+    font-size: 13px;
+    line-height: 1;
+    flex-shrink: 0;
+    transition: background var(--transition), border-color var(--transition), color var(--transition);
+}
+
+.email-attachment-save-btn:hover:not(:disabled) {
+    background: var(--color-surface);
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+}
+
+.email-attachment-save-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 /* ─────────── Compose Card ─────────── */
@@ -858,6 +930,144 @@
     height: 1px;
     background: var(--color-border);
     margin: 0;
+}
+
+/* ── Compose Attachments ── */
+
+::deep .email-compose-attachments {
+    padding: 8px 20px;
+    border-bottom: 1px solid var(--color-border);
+}
+
+::deep .email-compose-attachments.empty {
+    padding: 4px 20px;
+}
+
+::deep .email-compose-attachments-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 8px;
+}
+
+::deep .email-compose-attachment-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    font-size: 13px;
+}
+
+::deep .email-compose-attachment-icon {
+    font-size: 16px;
+    flex-shrink: 0;
+    line-height: 1;
+}
+
+::deep .email-compose-attachment-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 500;
+    color: var(--color-text);
+    min-width: 0;
+}
+
+::deep .email-compose-attachment-size {
+    flex-shrink: 0;
+    font-size: 11px;
+    color: var(--color-muted);
+}
+
+::deep .email-compose-attachment-remove {
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    color: var(--color-muted);
+    cursor: pointer;
+    border-radius: 4px;
+    font-size: 13px;
+    line-height: 1;
+    flex-shrink: 0;
+    transition: background var(--transition), color var(--transition);
+}
+
+::deep .email-compose-attachment-remove:hover {
+    background: rgba(220, 53, 69, 0.1);
+    color: var(--color-danger, #dc3545);
+}
+
+::deep .email-compose-attachment-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+::deep .email-compose-attach-btn {
+    cursor: pointer;
+    position: relative;
+}
+
+::deep .email-compose-attach-btn input[type=file] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+    overflow: hidden;
+}
+
+::deep .email-compose-attachment-error {
+    margin-top: 6px;
+    padding: 6px 10px;
+    background: rgba(220, 53, 69, 0.08);
+    border: 1px solid rgba(220, 53, 69, 0.2);
+    border-radius: var(--radius);
+    font-size: 12px;
+    color: var(--color-danger, #dc3545);
+}
+
+::deep .email-compose-upload-progress {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--color-muted);
+}
+
+::deep .email-compose-upload-bar {
+    width: 120px;
+    height: 4px;
+    background: var(--color-bg);
+    border-radius: 2px;
+    overflow: hidden;
+    position: relative;
+}
+
+::deep .email-compose-upload-bar::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -40%;
+    width: 40%;
+    height: 100%;
+    background: var(--color-primary);
+    border-radius: 2px;
+    animation: email-upload-indeterminate 1.2s ease infinite;
+}
+
+@keyframes email-upload-indeterminate {
+    0% { left: -40%; width: 40%; }
+    50% { left: 30%; width: 50%; }
+    100% { left: 100%; width: 40%; }
 }
 
 /* ── Toolbar ── */

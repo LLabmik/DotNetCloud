@@ -1,5 +1,7 @@
 using DotNetCloud.Core.Errors;
+using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Email.Data;
+using DotNetCloud.Modules.Email.Data.Services;
 using DotNetCloud.Modules.Email.Services;
 using DotNetCloud.Modules.Search.Client;
 using Microsoft.AspNetCore.Mvc;
@@ -18,6 +20,8 @@ public class EmailController : EmailControllerBase
     private readonly IEmailSendService _sendService;
     private readonly IEmailSyncService _syncService;
     private readonly ISearchFtsClient? _searchFtsClient;
+    private readonly IAttachmentStorage _attachmentStorage;
+    private readonly IEventBus _eventBus;
     private readonly EmailDbContext _db;
     private readonly ILogger<EmailController> _logger;
 
@@ -30,6 +34,8 @@ public class EmailController : EmailControllerBase
         IEmailSendService sendService,
         IEmailSyncService syncService,
         ISearchFtsClient? searchFtsClient,
+        IAttachmentStorage attachmentStorage,
+        IEventBus eventBus,
         EmailDbContext db,
         ILogger<EmailController> logger)
     {
@@ -38,6 +44,8 @@ public class EmailController : EmailControllerBase
         _sendService = sendService;
         _syncService = syncService;
         _searchFtsClient = searchFtsClient;
+        _attachmentStorage = attachmentStorage;
+        _eventBus = eventBus;
         _db = db;
         _logger = logger;
     }
@@ -412,6 +420,145 @@ public class EmailController : EmailControllerBase
             var caller = GetAuthenticatedCaller();
             var count = await _ruleService.RunRulesAsync(caller, accountId, mailboxId);
             return Ok(Envelope(new { executed = count }));
+        }
+        catch (ValidationException ex)
+        {
+            return BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
+        }
+    }
+
+    // ── Attachments ─────────────────────────────────────────
+
+    /// <summary>Downloads an attachment by ID.</summary>
+    [HttpGet("attachments/{attachmentId:guid}/download")]
+    public async Task<IActionResult> DownloadAttachment(Guid attachmentId, [FromQuery] bool inline = false)
+    {
+        try
+        {
+            var caller = GetAuthenticatedCaller();
+
+            var attachment = await _db.EmailAttachments
+                .AsNoTracking()
+                .Include(a => a.Message)
+                .FirstOrDefaultAsync(a => a.Id == attachmentId);
+
+            if (attachment is null)
+                return NotFound(ErrorEnvelope("attachment_not_found", "Attachment not found."));
+
+            // Verify caller ownership via the parent account
+            var account = await _db.EmailAccounts
+                .AsNoTracking()
+                .FirstOrDefaultAsync(a => a.Id == attachment.Message!.AccountId && a.OwnerId == caller.UserId);
+
+            if (account is null)
+                return Forbid();
+
+            if (string.IsNullOrWhiteSpace(attachment.StorageKey))
+                return NotFound(ErrorEnvelope("attachment_not_stored",
+                    "This attachment was synced before content storage was implemented. Please re-sync the account."));
+
+            var stream = await _attachmentStorage.OpenReadAsync(attachment.StorageKey, HttpContext.RequestAborted);
+            if (stream is null)
+                return NotFound(ErrorEnvelope("attachment_not_found", "Attachment content not found on disk."));
+
+            var disposition = inline ? "inline" : "attachment";
+            Response.Headers.Append("Content-Disposition", $"{disposition}; filename=\"{attachment.FileName}\"");
+
+            return File(stream, attachment.ContentType, attachment.FileName);
+        }
+        catch (ValidationException ex)
+        {
+            return BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
+        }
+    }
+
+    /// <summary>Uploads a temporary attachment for use in compose. Stores via IAttachmentStorage.</summary>
+    [HttpPost("upload-attachment")]
+    [RequestSizeLimit(26 * 1024 * 1024)] // 26 MB (slightly above 25 MB limit to allow header overhead)
+    [RequestFormLimits(MultipartBodyLengthLimit = 26 * 1024 * 1024)]
+    public async Task<IActionResult> UploadAttachment(IFormFile file)
+    {
+        try
+        {
+            if (file is null || file.Length == 0)
+                return BadRequest(ErrorEnvelope("no_file", "No file provided."));
+
+            // Enforce 25 MB max file size
+            const long maxSize = 25 * 1024 * 1024; // 25 MB
+            if (file.Length > maxSize)
+            {
+                return StatusCode(413, new
+                {
+                    success = false,
+                    error = new
+                    {
+                        code = "file_too_large",
+                        message = "Files over 25 MB can be shared via the Files module."
+                    }
+                });
+            }
+
+            await using var stream = file.OpenReadStream();
+            var result = await _attachmentStorage.StoreAsync(stream, file.FileName, file.ContentType, HttpContext.RequestAborted);
+
+            return Ok(Envelope(new
+            {
+                storageKey = result.StorageKey,
+                fileName = file.FileName,
+                contentType = file.ContentType,
+                size = result.Size,
+                contentHash = result.ContentHash
+            }));
+        }
+        catch (ValidationException ex)
+        {
+            return BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
+        }
+    }
+
+    /// <summary>Detaches an attachment to the Files module. Publishes EmailAttachmentDetachedEvent.</summary>
+    [HttpPost("attachments/{attachmentId:guid}/detach")]
+    public async Task<IActionResult> DetachAttachment(Guid attachmentId, [FromQuery] Guid? targetFolderId)
+    {
+        try
+        {
+            var caller = GetAuthenticatedCaller();
+
+            var attachment = await _db.EmailAttachments
+                .AsNoTracking()
+                .Include(a => a.Message)
+                .FirstOrDefaultAsync(a => a.Id == attachmentId);
+
+            if (attachment is null)
+                return NotFound(ErrorEnvelope("attachment_not_found", "Attachment not found."));
+
+            // Verify caller ownership
+            var account = await _db.EmailAccounts
+                .AsNoTracking()
+                .FirstOrDefaultAsync(a => a.Id == attachment.Message!.AccountId && a.OwnerId == caller.UserId);
+
+            if (account is null)
+                return Forbid();
+
+            if (string.IsNullOrWhiteSpace(attachment.StorageKey))
+                return BadRequest(ErrorEnvelope("attachment_not_stored",
+                    "This attachment was synced before content storage was implemented."));
+
+            // Publish event for Files module handler
+            await _eventBus.PublishAsync(new EmailAttachmentDetachedEvent
+            {
+                EventId = Guid.NewGuid(),
+                CreatedAt = DateTime.UtcNow,
+                AttachmentId = attachmentId,
+                StorageKey = attachment.StorageKey,
+                FileName = attachment.FileName,
+                ContentType = attachment.ContentType,
+                Size = attachment.Size,
+                OwnerId = caller.UserId,
+                TargetFolderId = targetFolderId
+            }, caller, HttpContext.RequestAborted);
+
+            return Ok(Envelope(new { detached = true }));
         }
         catch (ValidationException ex)
         {

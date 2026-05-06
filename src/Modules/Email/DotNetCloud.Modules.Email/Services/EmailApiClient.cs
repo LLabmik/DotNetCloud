@@ -95,6 +95,59 @@ public sealed class EmailApiClient : IEmailApiClient
         }
     }
 
+    // ── Attachments ──────────────────────────────────────────
+
+    public async Task<(Stream Stream, string FileName, string ContentType)> DownloadAttachmentAsync(Guid attachmentId, CancellationToken ct = default)
+    {
+        var response = await _httpClient.GetAsync($"api/v1/email/attachments/{attachmentId}/download", HttpCompletionOption.ResponseHeadersRead, ct);
+        await EnsureSuccessOrThrowAsync(response);
+
+        var fileName = "attachment";
+        if (response.Content.Headers.ContentDisposition?.FileName is { } fname)
+            fileName = fname;
+
+        var contentType = response.Content.Headers.ContentType?.MediaType ?? "application/octet-stream";
+        var stream = await response.Content.ReadAsStreamAsync(ct);
+
+        return (stream, fileName, contentType);
+    }
+
+    public async Task DetachAttachmentAsync(Guid attachmentId, Guid? targetFolderId = null, CancellationToken ct = default)
+    {
+        var url = $"api/v1/email/attachments/{attachmentId}/detach";
+        if (targetFolderId.HasValue)
+            url += $"?targetFolderId={targetFolderId.Value}";
+
+        var response = await _httpClient.PostAsync(url, null, ct);
+        await EnsureSuccessOrThrowAsync(response);
+    }
+
+    public async Task<UploadAttachmentResult> UploadAttachmentAsync(Stream content, string fileName, string contentType, CancellationToken ct = default)
+    {
+        using var formContent = new MultipartFormDataContent();
+        var streamContent = new StreamContent(content);
+        streamContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(contentType);
+        formContent.Add(streamContent, "file", fileName);
+
+        var response = await _httpClient.PostAsync("api/v1/email/upload-attachment", formContent, ct);
+        await EnsureSuccessOrThrowAsync(response);
+
+        var json = await response.Content.ReadAsStringAsync(ct);
+        using var document = JsonDocument.Parse(json);
+
+        if (!TryGetPropertyIgnoreCase(document.RootElement, "data", out var dataElement))
+            throw new HttpRequestException("Invalid upload response format.");
+
+        return new UploadAttachmentResult
+        {
+            StorageKey = dataElement.GetProperty("storageKey").GetString()!,
+            FileName = dataElement.GetProperty("fileName").GetString()!,
+            ContentType = dataElement.GetProperty("contentType").GetString()!,
+            Size = dataElement.GetProperty("size").GetInt64(),
+            ContentHash = dataElement.GetProperty("contentHash").GetString()!
+        };
+    }
+
     // ── Sync ─────────────────────────────────────────────────
 
     public async Task TriggerSyncAsync(Guid accountId, CancellationToken ct = default)

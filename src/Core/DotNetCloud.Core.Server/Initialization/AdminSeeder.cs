@@ -138,6 +138,12 @@ internal sealed class AdminSeeder
     /// </summary>
     private async Task AddAdminToAllOrganizationsAsync(ApplicationUser user)
     {
+        if (_dbContext is null)
+        {
+            _logger.LogWarning("CoreDbContext not available; skipping organization membership for admin user.");
+            return;
+        }
+
         var organizations = await _dbContext.Organizations
             .Where(o => !o.IsDeleted)
             .ToListAsync();

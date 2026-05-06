@@ -26,17 +26,20 @@ public sealed class ImapSmtpEmailProvider : IEmailProvider
     private readonly EmailDbContext _db;
     private readonly EmailCredentialEncryptionService _encryption;
     private readonly IEventBus _eventBus;
+    private readonly IAttachmentStorage _attachmentStorage;
     private readonly ILogger<ImapSmtpEmailProvider> _logger;
 
     public ImapSmtpEmailProvider(
         EmailDbContext db,
         EmailCredentialEncryptionService encryption,
         IEventBus eventBus,
+        IAttachmentStorage attachmentStorage,
         ILogger<ImapSmtpEmailProvider> logger)
     {
         _db = db;
         _encryption = encryption;
         _eventBus = eventBus;
+        _attachmentStorage = attachmentStorage;
         _logger = logger;
     }
 
@@ -166,11 +169,19 @@ public sealed class ImapSmtpEmailProvider : IEmailProvider
                     // Populate BodyHtml if missing (e.g. from before migration)
                     if (string.IsNullOrWhiteSpace(existing.BodyHtml))
                     {
-                        var (_, htmlBody) = await ExtractBodyAsync(folder, summary, client, ct);
-                        if (!string.IsNullOrWhiteSpace(htmlBody))
+                        try
                         {
-                            existing.BodyHtml = htmlBody;
-                            existing.UpdatedAt = DateTime.UtcNow;
+                            var msg = await folder.GetMessageAsync(summary.UniqueId, ct);
+                            var (_, htmlBody) = ExtractBodyFromMimeMessage(msg);
+                            if (!string.IsNullOrWhiteSpace(htmlBody))
+                            {
+                                existing.BodyHtml = htmlBody;
+                                existing.UpdatedAt = DateTime.UtcNow;
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "Failed to fetch full message for body extraction UID={Uid}", summary.UniqueId.Id);
                         }
                     }
 
@@ -191,8 +202,19 @@ public sealed class ImapSmtpEmailProvider : IEmailProvider
                     .Select(m => new EmailAddressDto { Name = m.Name, Email = m.Address })
                     .ToList() ?? [];
 
-                // Extract body preview and full HTML body
-                var (bodyPreview, bodyHtml) = await ExtractBodyAsync(folder, summary, client, ct);
+                // Fetch full MIME message for body extraction and attachment content
+                MimeMessage? fullMessage = null;
+                try
+                {
+                    fullMessage = await folder.GetMessageAsync(summary.UniqueId, ct);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to fetch full message UID={Uid}", summary.UniqueId.Id);
+                }
+
+                // Extract body from full message
+                var (bodyPreview, bodyHtml) = ExtractBodyFromMimeMessage(fullMessage);
 
                 var emailMessage = new EmailMessage
                 {
@@ -221,22 +243,15 @@ public sealed class ImapSmtpEmailProvider : IEmailProvider
                 thread.LastMessageAt = emailMessage.DateReceived ?? emailMessage.CreatedAt;
                 touchedThreadIds.Add(thread.Id);
 
-                // Process attachments
-                if (summary.Attachments is not null)
+                // Process attachments (download content and store via IAttachmentStorage)
+                if (fullMessage is not null)
                 {
-                    foreach (var attach in summary.Attachments)
-                    {
-                        if (attach is BodyPartBasic bp && !string.IsNullOrWhiteSpace(bp.ContentDescription))
-                        {
-                            _db.EmailAttachments.Add(new EmailAttachment
-                            {
-                                Message = emailMessage,
-                                FileName = bp.ContentDescription ?? bp.PartSpecifier ?? "attachment",
-                                ContentType = bp.ContentType?.MimeType ?? "application/octet-stream",
-                                Size = bp.Octets > 0 ? (long)bp.Octets : 0
-                            });
-                        }
-                    }
+                    await ProcessMimeMessageAttachmentsAsync(fullMessage, emailMessage, ct);
+                }
+                else
+                {
+                    // Fallback: store metadata only from summary
+                    await ProcessAttachmentMetadataOnlyAsync(summary, emailMessage, ct);
                 }
 
                 result.NewMessages++;
@@ -325,6 +340,45 @@ public sealed class ImapSmtpEmailProvider : IEmailProvider
             builder.HtmlBody = request.BodyHtml;
         if (request.BodyPlainText is not null)
             builder.TextBody = request.BodyPlainText;
+
+        // Add attachments from request
+        if (request.Attachments is { Count: > 0 })
+        {
+            foreach (var attRef in request.Attachments)
+            {
+                try
+                {
+                    var stream = await _attachmentStorage.OpenReadAsync(attRef.StorageKey, ct);
+                    if (stream is null)
+                    {
+                        _logger.LogWarning("Attachment storage key not found: {StorageKey}, skipping", attRef.StorageKey);
+                        continue;
+                    }
+
+                    await using (stream)
+                    {
+                        await using var memStream = new MemoryStream();
+                        await stream.CopyToAsync(memStream, ct);
+                        var bytes = memStream.ToArray();
+                        var contentTypeObj = MimeKit.ContentType.Parse(attRef.ContentType);
+
+                        if (attRef.IsInline && attRef.ContentId is not null)
+                        {
+                            builder.LinkedResources.Add(attRef.FileName, bytes, contentTypeObj);
+                            builder.LinkedResources.Last().ContentId = attRef.ContentId;
+                        }
+                        else
+                        {
+                            builder.Attachments.Add(attRef.FileName, bytes, contentTypeObj);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to attach file {FileName} (key={StorageKey}), skipping", attRef.FileName, attRef.StorageKey);
+                }
+            }
+        }
 
         if (request.InReplyToMessageId is not null)
             message.InReplyTo = request.InReplyToMessageId;
@@ -467,19 +521,15 @@ public sealed class ImapSmtpEmailProvider : IEmailProvider
         return thread;
     }
 
-    private static async Task<(string? Preview, string? HtmlBody)> ExtractBodyAsync(IMailFolder folder, IMessageSummary summary,
-        ImapClient client, CancellationToken ct)
+    private static (string? Preview, string? HtmlBody) ExtractBodyFromMimeMessage(MimeMessage? message)
     {
+        if (message is null)
+            return (null, null);
+
         try
         {
-            // Full message fetch gives us MimeKit-decoded content (handles
-            // quoted-printable, base64, charset conversion automatically)
-            var message = await folder.GetMessageAsync(summary.UniqueId, ct);
-
-            // Capture full HTML body (rich content, formatting, images)
             var htmlBody = message.HtmlBody;
 
-            // Build preview: prefer plain text; fall back to stripped HTML
             var text = message.TextBody;
             string? preview;
             if (!string.IsNullOrWhiteSpace(text))
@@ -502,6 +552,120 @@ public sealed class ImapSmtpEmailProvider : IEmailProvider
         catch (Exception)
         {
             return (null, null);
+        }
+    }
+
+    private async Task ProcessMimeMessageAttachmentsAsync(MimeMessage message, EmailMessage emailMessage, CancellationToken ct)
+    {
+        // Process regular attachments
+        foreach (var attachment in message.Attachments)
+        {
+            var fileName = attachment.ContentDisposition?.FileName
+                ?? attachment.ContentType?.Name
+                ?? "attachment";
+            var contentType = attachment.ContentType?.MimeType ?? "application/octet-stream";
+            var isInline = attachment.IsAttachment == false;
+
+            try
+            {
+                await using var memStream = new MemoryStream();
+                if (attachment is MimePart mimePart && mimePart.Content is not null)
+                {
+                    await mimePart.Content.DecodeToAsync(memStream, ct);
+                }
+                else if (attachment is MessagePart messagePart && messagePart.Message is not null)
+                {
+                    // Embedded message as attachment
+                    await messagePart.Message.WriteToAsync(memStream, ct);
+                }
+                else
+                {
+                    continue;
+                }
+
+                memStream.Position = 0;
+                var result = await _attachmentStorage.StoreAsync(memStream, fileName, contentType, ct);
+
+                var emailAttachment = new EmailAttachment
+                {
+                    Message = emailMessage,
+                    FileName = fileName,
+                    ContentType = contentType,
+                    Size = result.Size,
+                    StorageKey = result.StorageKey,
+                    ContentHash = result.ContentHash,
+                    ContentId = attachment.ContentId,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                _db.EmailAttachments.Add(emailAttachment);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to process attachment {FileName} for message {MessageId}", fileName, emailMessage.Id);
+            }
+        }
+
+        // Process inline/linked resources (images embedded in HTML, etc.)
+        // MimeMessage.BodyParts gives us all MIME parts including those with ContentId
+        foreach (var bodyPart in message.BodyParts)
+        {
+            if (bodyPart is MimePart mimePart && !string.IsNullOrWhiteSpace(mimePart.ContentId))
+            {
+                // Check if this was already added as an attachment
+                if (_db.EmailAttachments.Local.Any(a => a.ContentId == mimePart.ContentId))
+                    continue;
+
+                var fileName = mimePart.ContentId ?? mimePart.ContentType?.Name ?? "inline-image";
+                var contentType = mimePart.ContentType?.MimeType ?? "application/octet-stream";
+
+                try
+                {
+                    await using var inlineStream = new MemoryStream();
+                    if (mimePart.Content is null) continue;
+                    await mimePart.Content.DecodeToAsync(inlineStream, ct);
+                    inlineStream.Position = 0;
+                    var result = await _attachmentStorage.StoreAsync(inlineStream, fileName, contentType, ct);
+
+                    var emailAttachment = new EmailAttachment
+                    {
+                        Message = emailMessage,
+                        FileName = fileName,
+                        ContentType = contentType,
+                        Size = result.Size,
+                        StorageKey = result.StorageKey,
+                        ContentHash = result.ContentHash,
+                        ContentId = mimePart.ContentId,
+                        CreatedAt = DateTime.UtcNow
+                    };
+
+                    _db.EmailAttachments.Add(emailAttachment);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to process inline resource {ContentId} for message {MessageId}", mimePart.ContentId, emailMessage.Id);
+                }
+            }
+        }
+    }
+
+    private async Task ProcessAttachmentMetadataOnlyAsync(IMessageSummary summary, EmailMessage emailMessage, CancellationToken ct)
+    {
+        if (summary.Attachments is null)
+            return;
+
+        foreach (var attach in summary.Attachments)
+        {
+            if (attach is BodyPartBasic bp && !string.IsNullOrWhiteSpace(bp.ContentDescription))
+            {
+                _db.EmailAttachments.Add(new EmailAttachment
+                {
+                    Message = emailMessage,
+                    FileName = bp.ContentDescription ?? bp.PartSpecifier ?? "attachment",
+                    ContentType = bp.ContentType?.MimeType ?? "application/octet-stream",
+                    Size = bp.Octets > 0 ? (long)bp.Octets : 0
+                });
+            }
         }
     }
 

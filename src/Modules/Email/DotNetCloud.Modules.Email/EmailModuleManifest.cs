@@ -36,7 +36,8 @@ public sealed class EmailModuleManifest : IModuleManifest
         nameof(EmailThreadCreatedEvent),
         nameof(EmailMessageReceivedEvent),
         nameof(EmailSentEvent),
-        nameof(EmailRuleTriggeredEvent)
+        nameof(EmailRuleTriggeredEvent),
+        nameof(EmailAttachmentDetachedEvent)
     };
 
     /// <inheritdoc />

@@ -314,7 +314,24 @@
                                     <div class="email-attachments">
                                         @foreach (var att in msg.Attachments)
                                         {
-                                            <span class="email-attachment-chip">📎 @att.FileName</span>
+                                            var downloadUrl = $"/api/v1/email/attachments/{att.Id}/download";
+                                            var fileIcon = GetFileTypeIcon(att.ContentType);
+                                            var sizeFormatted = FormatFileSize(att.Size);
+                                            var isDetaching = _detachingAttachmentId == att.Id;
+                                            <div class="email-attachment-item">
+                                                <a href="@downloadUrl" class="email-attachment-chip" download="@att.FileName" title="@att.FileName (@sizeFormatted)">
+                                                    <span class="email-attachment-icon">@fileIcon</span>
+                                                    <span class="email-attachment-name">@att.FileName</span>
+                                                    <span class="email-attachment-size">@sizeFormatted</span>
+                                                </a>
+                                                @if (!string.IsNullOrWhiteSpace(att.StorageKey))
+                                                {
+                                                    <button class="email-attachment-save-btn" @onclick="() => DetachAttachment(att.Id)"
+                                                            disabled="@isDetaching" title="Save to Files">
+                                                        @(isDetaching ? "⏳" : "📁")
+                                                    </button>
+                                                }
+                                            </div>
                                         }
                                     </div>
                                 }
@@ -408,6 +425,9 @@
 
     private EmailSendRequest? _composing;
     private bool _showRules;
+
+    // Detach state
+    private Guid? _detachingAttachmentId;
 
     // Add account state
     private bool _showAddAccount;
@@ -837,6 +857,26 @@
         }
     }
 
+    private async Task DetachAttachment(Guid attachmentId)
+    {
+        _detachingAttachmentId = attachmentId;
+        StateHasChanged();
+        try
+        {
+            await ApiClient.DetachAttachmentAsync(attachmentId);
+            _logger.LogInformation("Attachment {AttachmentId} detached to Files module", attachmentId);
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to save to Files: {ex.Message}";
+        }
+        finally
+        {
+            _detachingAttachmentId = null;
+            StateHasChanged();
+        }
+    }
+
     private static string MailboxIcon(EmailMailbox mb)
     {
         if ((mb.SyncFlags & (int)MailboxFlags.Inbox) != 0) return "📥";
@@ -870,6 +910,55 @@
         }
         catch { }
         return "Unknown";
+    }
+
+    /// <summary>
+    /// Returns a file type icon emoji based on the MIME content type.
+    /// </summary>
+    private static string GetFileTypeIcon(string contentType)
+    {
+        if (string.IsNullOrWhiteSpace(contentType))
+            return "📎";
+
+        var type = contentType.ToLowerInvariant();
+
+        if (type.StartsWith("image/"))
+            return "🖼️";
+        if (type == "application/pdf")
+            return "📄";
+        if (type is "application/zip" or "application/x-rar-compressed"
+            or "application/gzip" or "application/x-7z-compressed"
+            or "application/x-tar")
+            return "📦";
+        if (type.StartsWith("text/"))
+            return "📝";
+        if (type.StartsWith("audio/"))
+            return "🎵";
+        if (type.StartsWith("video/"))
+            return "🎬";
+        if (type.Contains("spreadsheet") || type.Contains("excel") || type.Contains("csv"))
+            return "📊";
+        if (type.Contains("presentation") || type.Contains("powerpoint") || type.Contains("slides"))
+            return "📽️";
+        if (type.Contains("word") || type.Contains("document"))
+            return "📃";
+
+        return "📎";
+    }
+
+    /// <summary>
+    /// Formats a file size in bytes to a human-readable string.
+    /// </summary>
+    private static string FormatFileSize(long bytes)
+    {
+        if (bytes < 1024)
+            return $"{bytes} B";
+        if (bytes < 1024 * 1024)
+            return $"{bytes / 1024.0:F1} KB";
+        if (bytes < 1024 * 1024 * 1024)
+            return $"{bytes / (1024.0 * 1024):F1} MB";
+
+        return $"{bytes / (1024.0 * 1024 * 1024):F2} GB";
     }
 
     /// <summary>
