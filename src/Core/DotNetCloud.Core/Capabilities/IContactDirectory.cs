@@ -46,4 +46,19 @@ public interface IContactDirectory : ICapabilityInterface
         string query,
         int maxResults = 20,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Searches contacts owned by a user by display name or email address (case-insensitive substring match).
+    /// Returns results with associated email addresses, suitable for autocomplete UIs.
+    /// </summary>
+    /// <param name="userId">The owner's user ID.</param>
+    /// <param name="query">Search query string (matched against display name and email addresses).</param>
+    /// <param name="maxResults">Maximum number of results to return.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Contact search results with email addresses matching the query.</returns>
+    Task<IReadOnlyList<ContactSearchResult>> SearchContactsWithEmailsAsync(
+        Guid userId,
+        string query,
+        int maxResults = 10,
+        CancellationToken cancellationToken = default);
 }

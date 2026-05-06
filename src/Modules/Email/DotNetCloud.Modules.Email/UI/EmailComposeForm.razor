@@ -2,8 +2,11 @@
 @using Microsoft.Extensions.Logging
 @using DotNetCloud.Modules.Email.Models
 @using DotNetCloud.Modules.Email.Services
+@using DotNetCloud.Core.Capabilities
 @inject ILogger<EmailComposeForm> _logger
 @inject IEmailApiClient _apiClient
+@inject IContactDirectory _contactDirectory
+@inject ICurrentUserContext _currentUserContext
 
 <div class="email-compose-card">
     @* ── Header ── *@
@@ -32,8 +35,35 @@
         <div class="email-compose-row">
             <span class="email-compose-label">To</span>
             <div class="email-compose-field-group">
-                <input class="email-compose-input" @bind="_toInput"
-                       placeholder="Recipient email address" />
+                <div class="email-compose-autocomplete">
+                    <input class="email-compose-input"
+                           @oninput='(e) => OnToInputChanged(e)'
+                           @onkeydown='(e) => OnSuggestionKeydown(e, "to")'
+                           @onfocus='() => _activeAutocomplete = "to"'
+                           @onblur="OnAutocompleteBlur"
+                           value="@_toInput"
+                           placeholder="Recipient email address"
+                           autocomplete="off" />
+                    @if (_activeAutocomplete == "to" && _toSuggestions.Count > 0)
+                    {
+                        <div class="email-contact-suggestions">
+                            @for (var i = 0; i < _toSuggestions.Count; i++)
+                            {
+                                var s = _toSuggestions[i];
+                                var isSelected = i == _toSelectedIndex;
+                                <div class="email-contact-suggestion @(isSelected ? "selected" : "")"
+                                     @onmousedown='() => SelectSuggestion(s, "to")'
+                                     @onmouseenter='() => _toSelectedIndex = i'>
+                                    <span class="email-contact-suggestion-name">@s.DisplayName</span>
+                                    @foreach (var (addr, label) in s.Emails)
+                                    {
+                                        <span class="email-contact-suggestion-email">@addr</span>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
                 <button class="email-compose-link" @onclick="ToggleCcBcc" type="button"
                         title="Add Cc/Bcc recipients">
                     Cc @( _showCc || _showBcc ? "▾" : "▸" )
@@ -45,8 +75,35 @@
         {
             <div class="email-compose-row">
                 <span class="email-compose-label">Cc</span>
-                <input class="email-compose-input" @bind="_ccInput"
-                       placeholder="Carbon copy recipients" />
+                <div class="email-compose-autocomplete">
+                    <input class="email-compose-input"
+                           @oninput='(e) => OnCcInputChanged(e)'
+                           @onkeydown='(e) => OnSuggestionKeydown(e, "cc")'
+                           @onfocus='() => _activeAutocomplete = "cc"'
+                           @onblur="OnAutocompleteBlur"
+                           value="@_ccInput"
+                           placeholder="Carbon copy recipients"
+                           autocomplete="off" />
+                    @if (_activeAutocomplete == "cc" && _ccSuggestions.Count > 0)
+                    {
+                        <div class="email-contact-suggestions">
+                            @for (var i = 0; i < _ccSuggestions.Count; i++)
+                            {
+                                var s = _ccSuggestions[i];
+                                var isSelected = i == _ccSelectedIndex;
+                                <div class="email-contact-suggestion @(isSelected ? "selected" : "")"
+                                     @onmousedown='() => SelectSuggestion(s, "cc")'
+                                     @onmouseenter='() => _ccSelectedIndex = i'>
+                                    <span class="email-contact-suggestion-name">@s.DisplayName</span>
+                                    @foreach (var (addr, label) in s.Emails)
+                                    {
+                                        <span class="email-contact-suggestion-email">@addr</span>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
             </div>
         }
 
@@ -54,8 +111,35 @@
         {
             <div class="email-compose-row">
                 <span class="email-compose-label">Bcc</span>
-                <input class="email-compose-input" @bind="_bccInput"
-                       placeholder="Blind carbon copy recipients" />
+                <div class="email-compose-autocomplete">
+                    <input class="email-compose-input"
+                           @oninput='(e) => OnBccInputChanged(e)'
+                           @onkeydown='(e) => OnSuggestionKeydown(e, "bcc")'
+                           @onfocus='() => _activeAutocomplete = "bcc"'
+                           @onblur="OnAutocompleteBlur"
+                           value="@_bccInput"
+                           placeholder="Blind carbon copy recipients"
+                           autocomplete="off" />
+                    @if (_activeAutocomplete == "bcc" && _bccSuggestions.Count > 0)
+                    {
+                        <div class="email-contact-suggestions">
+                            @for (var i = 0; i < _bccSuggestions.Count; i++)
+                            {
+                                var s = _bccSuggestions[i];
+                                var isSelected = i == _bccSelectedIndex;
+                                <div class="email-contact-suggestion @(isSelected ? "selected" : "")"
+                                     @onmousedown='() => SelectSuggestion(s, "bcc")'
+                                     @onmouseenter='() => _bccSelectedIndex = i'>
+                                    <span class="email-contact-suggestion-name">@s.DisplayName</span>
+                                    @foreach (var (addr, label) in s.Emails)
+                                    {
+                                        <span class="email-contact-suggestion-email">@addr</span>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
             </div>
         }
 
@@ -185,6 +269,16 @@
     private string? _uploadError;
     private bool _isUploading;
 
+    // Autocomplete state
+    private string _activeAutocomplete = string.Empty;
+    private List<ContactSearchResult> _toSuggestions = [];
+    private List<ContactSearchResult> _ccSuggestions = [];
+    private List<ContactSearchResult> _bccSuggestions = [];
+    private int _toSelectedIndex;
+    private int _ccSelectedIndex;
+    private int _bccSelectedIndex;
+    private CancellationTokenSource? _debounceCts;
+
     protected override void OnParametersSet()
     {
         if (Accounts.Count > 0 && _selectedFromAccountId is null)
@@ -222,6 +316,239 @@
         {
             _showCc = false;
             _showBcc = false;
+        }
+    }
+
+    // ── Autocomplete ──────────────────────────────────────────────
+
+    private async Task OnToInputChanged(ChangeEventArgs e)
+    {
+        _toInput = e.Value?.ToString() ?? string.Empty;
+        await TriggerDebouncedSearch("to", _toInput);
+    }
+
+    private async Task OnCcInputChanged(ChangeEventArgs e)
+    {
+        _ccInput = e.Value?.ToString() ?? string.Empty;
+        await TriggerDebouncedSearch("cc", _ccInput);
+    }
+
+    private async Task OnBccInputChanged(ChangeEventArgs e)
+    {
+        _bccInput = e.Value?.ToString() ?? string.Empty;
+        await TriggerDebouncedSearch("bcc", _bccInput);
+    }
+
+    private async Task TriggerDebouncedSearch(string field, string input)
+    {
+        _debounceCts?.Cancel();
+        _debounceCts = new CancellationTokenSource();
+        var token = _debounceCts.Token;
+
+        // Get the last token for multi-recipient fields
+        var query = GetLastRecipientToken(input);
+        if (string.IsNullOrWhiteSpace(query) || query.Length < 2)
+        {
+            ClearSuggestions(field);
+            return;
+        }
+
+        try
+        {
+            await Task.Delay(300, token);
+        }
+        catch (TaskCanceledException)
+        {
+            return;
+        }
+
+        if (token.IsCancellationRequested)
+            return;
+
+        var caller = _currentUserContext.GetCurrentCaller();
+        if (caller is null)
+            return;
+
+        try
+        {
+            var results = await _contactDirectory.SearchContactsWithEmailsAsync(
+                caller.UserId, query, maxResults: 10, token);
+
+            if (!token.IsCancellationRequested)
+            {
+                // Filter out already-added addresses
+                var existingAddresses = ParseRecipients(input)
+                    .Select(r => r.Email.ToLowerInvariant())
+                    .ToHashSet();
+
+                var filtered = results
+                    .Select(r => new ContactSearchResult
+                    {
+                        ContactId = r.ContactId,
+                        DisplayName = r.DisplayName,
+                        Emails = r.Emails
+                            .Where(e => !existingAddresses.Contains(e.Address.ToLowerInvariant()))
+                            .ToList()
+                    })
+                    .Where(r => r.Emails.Count > 0)
+                    .ToList();
+
+                SetSuggestions(field, filtered);
+                SetSelectedIndex(field, 0);
+            }
+        }
+        catch
+        {
+            // Degrade gracefully if contact directory is unavailable
+            ClearSuggestions(field);
+        }
+    }
+
+    private static string GetLastRecipientToken(string input)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+            return string.Empty;
+
+        var parts = input.Split(',', StringSplitOptions.TrimEntries);
+        return parts.Length > 0 ? parts[^1] : string.Empty;
+    }
+
+    private void OnSuggestionKeydown(KeyboardEventArgs e, string field)
+    {
+        var suggestions = GetSuggestionsList(field);
+        var selectedIndex = GetSelectedIndex(field);
+
+        switch (e.Key)
+        {
+            case "ArrowDown":
+                SetSelectedIndex(field, Math.Min(selectedIndex + 1, suggestions.Count - 1));
+                break;
+            case "ArrowUp":
+                SetSelectedIndex(field, Math.Max(selectedIndex - 1, 0));
+                break;
+            case "Enter":
+                if (selectedIndex >= 0 && selectedIndex < suggestions.Count)
+                {
+                    SelectSuggestion(suggestions[selectedIndex], field);
+                }
+                break;
+            case "Escape":
+                ClearSuggestions(field);
+                break;
+        }
+    }
+
+    private void SelectSuggestion(ContactSearchResult result, string field)
+    {
+        var currentInput = GetInputValue(field);
+        var prefix = GetInputPrefix(currentInput);
+        var primaryEmail = result.Emails.FirstOrDefault().Address;
+
+        var entry = string.IsNullOrWhiteSpace(result.DisplayName)
+            ? primaryEmail
+            : $"{result.DisplayName} <{primaryEmail}>";
+
+        var newValue = string.IsNullOrWhiteSpace(prefix)
+            ? entry
+            : $"{prefix}{entry}";
+
+        SetInputValue(field, newValue);
+        ClearSuggestions(field);
+        StateHasChanged();
+    }
+
+    private void OnAutocompleteBlur(FocusEventArgs e)
+    {
+        // Small delay to allow suggestion click to register first
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(150);
+            await InvokeAsync(() =>
+            {
+                _activeAutocomplete = string.Empty;
+                ClearSuggestions("to");
+                ClearSuggestions("cc");
+                ClearSuggestions("bcc");
+                StateHasChanged();
+            });
+        });
+    }
+
+    // ── Autocomplete helpers ─────────────────────────────────────
+
+    private string GetInputValue(string field) => field switch
+    {
+        "to" => _toInput,
+        "cc" => _ccInput,
+        "bcc" => _bccInput,
+        _ => string.Empty
+    };
+
+    private void SetInputValue(string field, string value)
+    {
+        switch (field)
+        {
+            case "to": _toInput = value; break;
+            case "cc": _ccInput = value; break;
+            case "bcc": _bccInput = value; break;
+        }
+    }
+
+    private static string GetInputPrefix(string input)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+            return string.Empty;
+
+        var lastComma = input.LastIndexOf(',');
+        if (lastComma < 0)
+            return string.Empty;
+
+        return input[..(lastComma + 1)] + " ";
+    }
+
+    private List<ContactSearchResult> GetSuggestionsList(string field) => field switch
+    {
+        "to" => _toSuggestions,
+        "cc" => _ccSuggestions,
+        "bcc" => _bccSuggestions,
+        _ => []
+    };
+
+    private void SetSuggestions(string field, List<ContactSearchResult> suggestions)
+    {
+        switch (field)
+        {
+            case "to": _toSuggestions = suggestions; break;
+            case "cc": _ccSuggestions = suggestions; break;
+            case "bcc": _bccSuggestions = suggestions; break;
+        }
+    }
+
+    private void ClearSuggestions(string field)
+    {
+        switch (field)
+        {
+            case "to": _toSuggestions = []; _toSelectedIndex = 0; break;
+            case "cc": _ccSuggestions = []; _ccSelectedIndex = 0; break;
+            case "bcc": _bccSuggestions = []; _bccSelectedIndex = 0; break;
+        }
+    }
+
+    private int GetSelectedIndex(string field) => field switch
+    {
+        "to" => _toSelectedIndex,
+        "cc" => _ccSelectedIndex,
+        "bcc" => _bccSelectedIndex,
+        _ => 0
+    };
+
+    private void SetSelectedIndex(string field, int index)
+    {
+        switch (field)
+        {
+            case "to": _toSelectedIndex = index; break;
+            case "cc": _ccSelectedIndex = index; break;
+            case "bcc": _bccSelectedIndex = index; break;
         }
     }
 

@@ -23,6 +23,7 @@ public static class ContactsServiceRegistration
         services.AddScoped<IVCardService, VCardService>();
         services.AddScoped<IContactRelatedEntitiesService, ContactRelatedEntitiesService>();
         services.AddScoped<IImportProvider, ContactsImportProvider>();
+        services.AddScoped<IContactDirectory, ContactDirectoryService>();
 
         // Avatar/attachment storage path
         var storagePath = configuration.GetValue<string>("Contacts:StoragePath");
