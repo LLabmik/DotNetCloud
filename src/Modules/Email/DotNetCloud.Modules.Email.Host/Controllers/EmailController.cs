@@ -22,6 +22,7 @@ public class EmailController : EmailControllerBase
     private readonly ISearchFtsClient? _searchFtsClient;
     private readonly IAttachmentStorage _attachmentStorage;
     private readonly IEventBus _eventBus;
+    private readonly IHttpClientFactory _httpClientFactory;
     private readonly EmailDbContext _db;
     private readonly ILogger<EmailController> _logger;
 
@@ -36,6 +37,7 @@ public class EmailController : EmailControllerBase
         ISearchFtsClient? searchFtsClient,
         IAttachmentStorage attachmentStorage,
         IEventBus eventBus,
+        IHttpClientFactory httpClientFactory,
         EmailDbContext db,
         ILogger<EmailController> logger)
     {
@@ -46,6 +48,7 @@ public class EmailController : EmailControllerBase
         _searchFtsClient = searchFtsClient;
         _attachmentStorage = attachmentStorage;
         _eventBus = eventBus;
+        _httpClientFactory = httpClientFactory;
         _db = db;
         _logger = logger;
     }
@@ -516,7 +519,7 @@ public class EmailController : EmailControllerBase
         }
     }
 
-    /// <summary>Detaches an attachment to the Files module. Publishes EmailAttachmentDetachedEvent.</summary>
+    /// <summary>Saves an email attachment to the Files module via the chunked upload API.</summary>
     [HttpPost("attachments/{attachmentId:guid}/detach")]
     public async Task<IActionResult> DetachAttachment(Guid attachmentId, [FromQuery] Guid? targetFolderId)
     {
@@ -542,23 +545,132 @@ public class EmailController : EmailControllerBase
 
             if (string.IsNullOrWhiteSpace(attachment.StorageKey))
                 return BadRequest(ErrorEnvelope("attachment_not_stored",
-                    "This attachment was synced before content storage was implemented."));
+                    "This attachment was synced before content storage was implemented. Re-sync to download content."));
 
-            // Publish event for Files module handler
-            await _eventBus.PublishAsync(new EmailAttachmentDetachedEvent
+            // Read attachment content from email storage
+            var contentStream = await _attachmentStorage.OpenReadAsync(attachment.StorageKey, HttpContext.RequestAborted);
+            if (contentStream is null)
+                return BadRequest(ErrorEnvelope("attachment_content_missing",
+                    "Attachment content is no longer available in storage."));
+
+            await using (contentStream)
             {
-                EventId = Guid.NewGuid(),
-                CreatedAt = DateTime.UtcNow,
-                AttachmentId = attachmentId,
-                StorageKey = attachment.StorageKey,
-                FileName = attachment.FileName,
-                ContentType = attachment.ContentType,
-                Size = attachment.Size,
-                OwnerId = caller.UserId,
-                TargetFolderId = targetFolderId
-            }, caller, HttpContext.RequestAborted);
+                using var ms = new MemoryStream();
+                await contentStream.CopyToAsync(ms, HttpContext.RequestAborted);
+                var data = ms.ToArray();
 
-            return Ok(Envelope(new { detached = true }));
+                // SHA-256 hash required by Files chunked upload API
+                var hash = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(data));
+
+                // Build an HTTP client that calls the same server's Files API,
+                // forwarding the caller's auth credentials (Bearer token or session cookie).
+                var baseUrl = $"{Request.Scheme}://{Request.Host}";
+                var httpClient = _httpClientFactory.CreateClient("FilesApiInternal");
+                httpClient.BaseAddress = new Uri(baseUrl);
+
+                var authHeader = Request.Headers.Authorization.ToString();
+                if (!string.IsNullOrEmpty(authHeader))
+                {
+                    httpClient.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", authHeader);
+                }
+                else if (Request.Headers.TryGetValue("Cookie", out var cookieHeader))
+                {
+                    httpClient.DefaultRequestHeaders.TryAddWithoutValidation("Cookie", cookieHeader.ToString());
+                }
+
+                // Step 1 — Initiate upload session
+                var initiatePayload = System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    fileName = attachment.FileName,
+                    parentId = targetFolderId,
+                    totalSize = data.LongLength,
+                    mimeType = attachment.ContentType,
+                    chunkHashes = new[] { hash }
+                });
+
+                var initiateResp = await httpClient.PostAsync(
+                    "api/v1/files/upload/initiate",
+                    new StringContent(initiatePayload, System.Text.Encoding.UTF8, "application/json"),
+                    HttpContext.RequestAborted);
+
+                if (!initiateResp.IsSuccessStatusCode)
+                {
+                    var err = await initiateResp.Content.ReadAsStringAsync(HttpContext.RequestAborted);
+                    _logger.LogError("Files upload initiate failed ({Status}): {Error}", initiateResp.StatusCode, err);
+                    return StatusCode(502, ErrorEnvelope("files_upload_failed",
+                        "Failed to initiate upload to Files module."));
+                }
+
+                using var initiateDoc = System.Text.Json.JsonDocument.Parse(
+                    await initiateResp.Content.ReadAsStringAsync(HttpContext.RequestAborted));
+                var sessionData = initiateDoc.RootElement.GetProperty("data");
+                var sessionId = sessionData.GetProperty("sessionId").GetGuid();
+                var existingChunks = sessionData.TryGetProperty("existingChunks", out var ec)
+                    ? ec.EnumerateArray().Select(x => x.GetString()!).ToHashSet(StringComparer.OrdinalIgnoreCase)
+                    : [];
+
+                // Step 2 — Upload chunk (skipped if server already has it via content-hash dedup)
+                if (!existingChunks.Contains(hash))
+                {
+                    var chunkContent = new ByteArrayContent(data);
+                    chunkContent.Headers.ContentType =
+                        new System.Net.Http.Headers.MediaTypeHeaderValue("application/octet-stream");
+                    var chunkResp = await httpClient.PutAsync(
+                        $"api/v1/files/upload/{sessionId}/chunks/{hash}",
+                        chunkContent,
+                        HttpContext.RequestAborted);
+
+                    if (!chunkResp.IsSuccessStatusCode)
+                    {
+                        var err = await chunkResp.Content.ReadAsStringAsync(HttpContext.RequestAborted);
+                        _logger.LogError("Files chunk upload failed ({Status}): {Error}", chunkResp.StatusCode, err);
+                        return StatusCode(502, ErrorEnvelope("files_upload_failed",
+                            "Failed to upload attachment content to Files module."));
+                    }
+                }
+
+                // Step 3 — Complete upload and create file node
+                var completeResp = await httpClient.PostAsync(
+                    $"api/v1/files/upload/{sessionId}/complete",
+                    content: null,
+                    HttpContext.RequestAborted);
+
+                if (!completeResp.IsSuccessStatusCode)
+                {
+                    var err = await completeResp.Content.ReadAsStringAsync(HttpContext.RequestAborted);
+                    _logger.LogError("Files upload complete failed ({Status}): {Error}", completeResp.StatusCode, err);
+                    return StatusCode(502, ErrorEnvelope("files_upload_failed",
+                        "Failed to finalise upload in Files module."));
+                }
+
+                using var completeDoc = System.Text.Json.JsonDocument.Parse(
+                    await completeResp.Content.ReadAsStringAsync(HttpContext.RequestAborted));
+                var nodeData = completeDoc.RootElement.GetProperty("data");
+                var fileNodeId = nodeData.GetProperty("id").GetGuid();
+                var savedFileName = nodeData.TryGetProperty("name", out var nameEl)
+                    ? nameEl.GetString()
+                    : attachment.FileName;
+
+                _logger.LogInformation(
+                    "Attachment {AttachmentId} ({FileName}) saved to Files module as node {FileNodeId}",
+                    attachmentId, attachment.FileName, fileNodeId);
+
+                // Publish audit event (fire-and-forget; no handler required)
+                await _eventBus.PublishAsync(new EmailAttachmentDetachedEvent
+                {
+                    EventId = Guid.NewGuid(),
+                    CreatedAt = DateTime.UtcNow,
+                    AttachmentId = attachmentId,
+                    StorageKey = attachment.StorageKey,
+                    FileName = attachment.FileName,
+                    ContentType = attachment.ContentType,
+                    Size = attachment.Size,
+                    OwnerId = caller.UserId,
+                    TargetFolderId = targetFolderId
+                }, caller, HttpContext.RequestAborted);
+
+                return Ok(Envelope(new { detached = true, fileNodeId, fileName = savedFileName }));
+            }
         }
         catch (ValidationException ex)
         {

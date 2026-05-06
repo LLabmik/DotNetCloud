@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace DotNetCloud.Modules.Email.Models;
 
 /// <summary>
@@ -33,5 +35,6 @@ public sealed class EmailAttachment
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     /// <summary>Parent message navigation property.</summary>
+    [JsonIgnore]
     public EmailMessage? Message { get; set; }
 }

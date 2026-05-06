@@ -32,6 +32,15 @@ public static class EmailServiceRegistration
         // Temp attachment cleanup background job
         services.AddHostedService<CleanupTempAttachmentsBackgroundService>();
 
+        // HTTP client factory used by EmailController for cross-module calls (e.g. Save to Files).
+        // Bypasses SSL validation because the server uses a self-signed certificate and the call
+        // is internal (same process / loopback) — not exposed to untrusted networks.
+        services.AddHttpClient("FilesApiInternal")
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+            {
+                ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+            });
+
         return services;
     }
 }

@@ -185,6 +185,28 @@ public sealed class ImapSmtpEmailProvider : IEmailProvider
                         }
                     }
 
+                    // Backfill attachment content for existing messages that were synced
+                    // before attachment support was added (no records in EmailAttachments).
+                    if (summary.Attachments is not null && summary.Attachments.Any())
+                    {
+                        var hasStoredAttachments = await _db.EmailAttachments
+                            .AnyAsync(a => a.MessageId == existing.Id, ct);
+
+                        if (!hasStoredAttachments)
+                        {
+                            try
+                            {
+                                var msg = await folder.GetMessageAsync(summary.UniqueId, ct);
+                                await ProcessMimeMessageAttachmentsAsync(msg, existing, ct);
+                                _logger.LogInformation("Backfilled attachment content for existing message {MessageId}", existing.Id);
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogWarning(ex, "Failed to backfill attachments for message {MessageId}", existing.Id);
+                            }
+                        }
+                    }
+
                     result.UpdatedMessages++;
                     continue;
                 }

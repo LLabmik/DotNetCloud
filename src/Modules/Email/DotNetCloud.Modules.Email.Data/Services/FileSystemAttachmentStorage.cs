@@ -36,9 +36,17 @@ public sealed class FileSystemAttachmentStorage : IAttachmentStorage
     public FileSystemAttachmentStorage(IOptions<AttachmentStorageOptions> options, ILogger<FileSystemAttachmentStorage> logger)
     {
         var opts = options.Value;
-        _basePath = string.IsNullOrWhiteSpace(opts.BasePath)
-            ? Path.Combine(AppContext.BaseDirectory, "email-attachments")
-            : opts.BasePath;
+        if (!string.IsNullOrWhiteSpace(opts.BasePath))
+        {
+            _basePath = opts.BasePath;
+        }
+        else
+        {
+            var dataDir = Environment.GetEnvironmentVariable("DOTNETCLOUD_DATA_DIR");
+            if (string.IsNullOrWhiteSpace(dataDir))
+                dataDir = "/var/lib/dotnetcloud";
+            _basePath = Path.Combine(dataDir, "email-attachments");
+        }
         _maxAttachmentSize = opts.MaxAttachmentSize;
         _logger = logger;
 

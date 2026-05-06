@@ -99,15 +99,40 @@ public sealed class GmailEmailProvider : IEmailProvider
                     .FirstOrDefaultAsync(m => m.AccountId == account.Id
                         && m.ProviderMessageId == msgRef.Id, ct);
 
+                // Get full message with payload (used for both backfill and new messages)
+                var getReq = service.Users.Messages.Get("me", msgRef.Id);
+                getReq.Format = UsersResource.MessagesResource.GetRequest.FormatEnum.Full;
+
                 if (existing is not null)
                 {
+                    // Backfill attachment content for existing messages that were synced
+                    // before attachment support was added (no records in EmailAttachments).
+                    var fullMsg = await getReq.ExecuteAsync(ct);
+                    if (fullMsg?.Payload?.Parts is not null)
+                    {
+                        var hasMsgAttachments = fullMsg.Payload.Parts
+                            .Any(p => !string.IsNullOrWhiteSpace(p.Filename));
+                        var hasStoredAttachments = await _db.EmailAttachments
+                            .AnyAsync(a => a.MessageId == existing.Id, ct);
+
+                        if (hasMsgAttachments && !hasStoredAttachments)
+                        {
+                            try
+                            {
+                                await ProcessGmailAttachmentsAsync(service, fullMsg, existing, ct);
+                                _logger.LogInformation("Backfilled attachment content for existing Gmail message {MessageId}", existing.Id);
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogWarning(ex, "Failed to backfill attachments for Gmail message {MessageId}", existing.Id);
+                            }
+                        }
+                    }
+
                     result.UpdatedMessages++;
                     continue;
                 }
 
-                // Get full message with payload
-                var getReq = service.Users.Messages.Get("me", msgRef.Id);
-                getReq.Format = UsersResource.MessagesResource.GetRequest.FormatEnum.Full;
                 var message = await getReq.ExecuteAsync(ct);
 
                 if (message?.Payload is null) continue;
