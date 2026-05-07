@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Constants;
 using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Core.Data.Entities.Settings;
 using DotNetCloud.Core.DTOs;
@@ -63,6 +64,9 @@ public sealed class AdminSettingsService : IAdminSettingsService
         ArgumentNullException.ThrowIfNull(key);
         ArgumentNullException.ThrowIfNull(dto);
 
+        // Mutual exclusion validation: Demo Mode and Closed System cannot both be enabled
+        await ValidateMutualExclusionAsync(module, key, dto.Value);
+
         var existing = await _dbContext.SystemSettings
             .AsTracking()
             .FirstOrDefaultAsync(s => s.Module == module && s.Key == key);
@@ -92,6 +96,53 @@ public sealed class AdminSettingsService : IAdminSettingsService
 
         await _dbContext.SaveChangesAsync();
         return MapToDto(existing);
+    }
+
+    /// <summary>
+    /// Validates that Demo Mode and Closed System mode are not both enabled simultaneously.
+    /// </summary>
+    private async Task ValidateMutualExclusionAsync(string module, string key, string newValue)
+    {
+        // Only validate core module settings
+        if (module != SystemSettingKeys.CoreModule)
+            return;
+
+        // Only validate the boolean "true" state
+        if (newValue != "true")
+            return;
+
+        if (key == SystemSettingKeys.DemoModeEnabled)
+        {
+            // Check if ClosedSystemEnabled is already "true"
+            var closedSetting = await _dbContext.SystemSettings
+                .AsNoTracking()
+                .FirstOrDefaultAsync(s =>
+                    s.Module == SystemSettingKeys.CoreModule &&
+                    s.Key == SystemSettingKeys.ClosedSystemEnabled);
+
+            if (closedSetting?.Value == "true")
+            {
+                throw new InvalidOperationException(
+                    "Cannot enable Demo Mode while Closed System mode is active. " +
+                    "Disable Closed System mode first.");
+            }
+        }
+        else if (key == SystemSettingKeys.ClosedSystemEnabled)
+        {
+            // Check if DemoModeEnabled is already "true"
+            var demoSetting = await _dbContext.SystemSettings
+                .AsNoTracking()
+                .FirstOrDefaultAsync(s =>
+                    s.Module == SystemSettingKeys.CoreModule &&
+                    s.Key == SystemSettingKeys.DemoModeEnabled);
+
+            if (demoSetting?.Value == "true")
+            {
+                throw new InvalidOperationException(
+                    "Cannot enable Closed System mode while Demo Mode is active. " +
+                    "Disable Demo Mode first.");
+            }
+        }
     }
 
     /// <inheritdoc/>

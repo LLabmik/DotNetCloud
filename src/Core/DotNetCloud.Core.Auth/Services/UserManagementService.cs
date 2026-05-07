@@ -1,5 +1,7 @@
+using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Data.Entities.Identity;
 using DotNetCloud.Core.DTOs;
+using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -13,6 +15,7 @@ namespace DotNetCloud.Core.Auth.Services;
 public sealed class UserManagementService : IUserManagementService
 {
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly IEventBus _eventBus;
     private readonly ILogger<UserManagementService> _logger;
 
     /// <summary>
@@ -20,9 +23,11 @@ public sealed class UserManagementService : IUserManagementService
     /// </summary>
     public UserManagementService(
         UserManager<ApplicationUser> userManager,
+        IEventBus eventBus,
         ILogger<UserManagementService> logger)
     {
         _userManager = userManager;
+        _eventBus = eventBus;
         _logger = logger;
     }
 
@@ -171,6 +176,24 @@ public sealed class UserManagementService : IUserManagementService
         }
 
         _logger.LogInformation("User {UserId} deleted", userId);
+
+        // Publish event so modules can clean up user data (e.g., Files quota, sync devices, etc.)
+        try
+        {
+            await _eventBus.PublishAsync(new UserDeletedEvent
+            {
+                EventId = Guid.NewGuid(),
+                CreatedAt = DateTime.UtcNow,
+                UserId = userId,
+                DeletedAt = DateTime.UtcNow
+            }, CallerContext.CreateSystemContext(), CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            // Event publishing is best-effort; don't fail the deletion if publishing fails
+            _logger.LogError(ex, "Failed to publish UserDeletedEvent for user {UserId}", userId);
+        }
+
         return true;
     }
 
@@ -252,6 +275,8 @@ public sealed class UserManagementService : IUserManagementService
             EmailConfirmed = user.EmailConfirmed,
             CreatedAt = user.CreatedAt,
             LastLoginAt = user.LastLoginAt,
+            IsDemoUser = user.IsDemoUser,
+            DemoExpiresAt = user.IsDemoUser ? user.CreatedAt.AddDays(5) : null,
             Roles = roles.ToList(),
         };
     }

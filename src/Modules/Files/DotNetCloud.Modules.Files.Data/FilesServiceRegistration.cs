@@ -81,6 +81,11 @@ public static class FilesServiceRegistration
         services.AddSingleton<IEventHandler<FileUploadedEvent>>(sp =>
             sp.GetRequiredService<FileUploadedThumbnailHandler>());
 
+        // User deletion cleanup — removes all files data when a user is deleted
+        services.AddSingleton<Events.UserDeletedEventSubscriber>();
+        services.AddSingleton<IEventHandler<UserDeletedEvent>>(sp =>
+            sp.GetRequiredService<Events.UserDeletedEventSubscriber>());
+
         // WOPI / Collabora services (Scoped for DB access)
         services.AddScoped<IWopiService, WopiService>();
         services.AddScoped<IWopiTokenService, WopiTokenService>();

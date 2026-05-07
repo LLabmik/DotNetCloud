@@ -12,19 +12,20 @@
 
 1. [Pre-Implementation Setup](#pre-implementation-setup)
 2. [Phase 0: Foundation](#phase-0-foundation)
-3. [Phase 1: Files (Public Launch)](#phase-1-files-public-launch)
-4. [Phase 2: Chat & Notifications](#phase-2-chat--notifications)
-5. [Phase 3: Contacts, Calendar & Notes](#phase-3-contacts-calendar--notes)
-6. [Phase 4: Project Management (Tracks)](#phase-4-project-management-tracks)
-7. [Phase 5: Media (Photos, Music, Video)](#phase-5-media-photos-music-video)
-8. [Phase 6: Email & Bookmarks](#phase-6-email--bookmarks)
-9. [Phase 7: Video Calling & Screen Sharing](#phase-7-video-calling--screen-sharing)
-10. [Phase 8: Search, Auto-Updates & Polish](#phase-8-search-auto-updates--polish)
-11. [Phase 9: AI Assistant](#phase-9-ai-assistant)
-12. [Phase 10: End-to-End Encryption (E2EE)](#phase-10-end-to-end-encryption-e2ee)
-13. [Phase 11: Auto-Updates](#phase-11-auto-updates)
-14. [Infrastructure & DevOps](#infrastructure--devops)
-15. [Documentation & Support](#documentation--support)
+3. [Demo Mode — Restricted Trial Accounts](#demo-mode--restricted-trial-accounts)
+4. [Phase 1: Files (Public Launch)](#phase-1-files-public-launch)
+5. [Phase 2: Chat & Notifications](#phase-2-chat--notifications)
+6. [Phase 3: Contacts, Calendar & Notes](#phase-3-contacts-calendar--notes)
+7. [Phase 4: Project Management (Tracks)](#phase-4-project-management-tracks)
+8. [Phase 5: Media (Photos, Music, Video)](#phase-5-media-photos-music-video)
+9. [Phase 6: Email & Bookmarks](#phase-6-email--bookmarks)
+10. [Phase 7: Video Calling & Screen Sharing](#phase-7-video-calling--screen-sharing)
+11. [Phase 8: Search, Auto-Updates & Polish](#phase-8-search-auto-updates--polish)
+12. [Phase 9: AI Assistant](#phase-9-ai-assistant)
+13. [Phase 10: End-to-End Encryption (E2EE)](#phase-10-end-to-end-encryption-e2ee)
+14. [Phase 11: Auto-Updates](#phase-11-auto-updates)
+15. [Infrastructure & DevOps](#infrastructure--devops)
+16. [Documentation & Support](#documentation--support)
 
 ---
 
@@ -1350,6 +1351,67 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Application runs on Linux (CI workflows run on ubuntu-latest)
 - ✓ Logs are written to file (Serilog file sink with rotation and retention)
 - ✓ Health checks are working (MapDotNetCloudHealthChecks — database, startup, module)
+
+---
+
+## Demo Mode — Restricted Trial Accounts
+
+**Goal:** Add a `DemoModeEnabled` system setting for self-registered trial accounts with 750 MB storage, no email sending, and auto-deletion after 5 days.
+
+### Phase 0: User Deletion Cascade Infrastructure
+
+- ✓ Create `UserDeletedEvent` event class
+- ✓ Publish `UserDeletedEvent` from `UserManagementService.DeleteUserAsync`
+- ✓ Files module subscribes to `UserDeletedEvent` and cleans up user data:
+  - ✓ Delete `FileQuota` records
+  - ✓ Delete `SyncDevice` records
+  - ✓ Delete `UserSyncCounter` records
+  - ✓ Delete `ChunkedUploadSession` records
+  - ✓ Delete `FileNode` records (user-owned files)
+  - ✓ Clean up physical files (content-address aware chunk deletion)
+
+### Phase 1: Data Model & System Setting
+
+- ✓ Add `IsDemoUser` property to `ApplicationUser` entity
+- ✓ Configure `IsDemoUser` in EF Core (`IsRequired`, `HasDefaultValue(false)`, filtered index)
+- ✓ Add `DemoModeEnabled` constant to `SystemSettingKeys`
+- ☐ Scaffold EF migration for `IsDemoUser` column
+
+### Phase 2: Registration Gate
+
+- ✓ Modify `AuthService.RegisterAsync` to set `IsDemoUser` for self-registered users when demo mode is active
+- ✓ Set 750 MB quota for demo users via runtime `IQuotaService` resolution
+- ✓ Update `Register.razor` to show demo mode notice and set `IsDemoUser`
+- ✓ Defense-in-depth mutual exclusion validation (Demo Mode + Closed System)
+
+### Phase 3: Email Sending Block
+
+- ✓ Block email sending for demo users in `EmailSendService.SendAsync`
+- ✓ Clear `EMAIL_SENDING_DISABLED_DEMO` validation error
+
+### Phase 4: Auto-Delete Background Service
+
+- ✓ Create `DemoAccountCleanupService` (hourly polling, 5-day expiry)
+- ✓ Register in server DI (`Program.cs`)
+
+### Phase 5: UI Demo Banner
+
+- ✓ Add `IsDemoUser` and `DemoExpiresAt` to `UserDto`
+- ✓ Create `DemoBanner.razor` component (days remaining, color-coded alerts)
+- ✓ Integrate banner into `MainLayout.razor`
+
+### Phase 6: Admin Settings Validation
+
+- ✓ Mutual exclusion validation in `AdminSettingsService.UpsertSettingAsync`
+- ✓ Cannot enable Demo Mode and Closed System simultaneously
+
+### Verification
+
+- ☐ Integration test: register demo user → verify `IsDemoUser=true` → verify quota 750MB
+- ☐ Integration test: demo user sends email → blocked with clear error
+- ☐ Integration test: expired demo account auto-deleted by cleanup service
+- ☐ Manual test: demo banner displays with correct days remaining
+- ☐ Manual test: admin settings mutual exclusion enforced
 
 ---
 

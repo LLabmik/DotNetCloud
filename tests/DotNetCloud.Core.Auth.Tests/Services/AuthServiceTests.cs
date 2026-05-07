@@ -21,6 +21,7 @@ public class AuthServiceTests
     private Mock<SignInManager<ApplicationUser>> _signInManagerMock = null!;
     private Mock<IOpenIddictTokenManager> _tokenManagerMock = null!;
     private Mock<IAdminSettingsService> _adminSettingsMock = null!;
+    private Mock<IServiceProvider> _serviceProviderMock = null!;
     private Mock<ILogger<AuthService>> _loggerMock = null!;
     private AuthService _service = null!;
     private static readonly CallerContext SystemCaller =
@@ -44,6 +45,7 @@ public class AuthServiceTests
         _tokenManagerMock = new Mock<IOpenIddictTokenManager>();
         _loggerMock = new Mock<ILogger<AuthService>>();
         _adminSettingsMock = new Mock<IAdminSettingsService>();
+        _serviceProviderMock = new Mock<IServiceProvider>();
 
         // By default, return null (setting not found) so existing tests use normal flow
         _adminSettingsMock
@@ -55,6 +57,7 @@ public class AuthServiceTests
             _signInManagerMock.Object,
             _tokenManagerMock.Object,
             _adminSettingsMock.Object,
+            _serviceProviderMock.Object,
             _loggerMock.Object);
     }
 

@@ -28,6 +28,15 @@
         }
         else
         {
+            @if (_demoModeEnabled)
+            {
+                <div class="alert alert-info" role="alert">
+                    <strong>🎉 Free 5-Day Trial</strong>
+                    You're creating a free trial account with 750 MB storage.
+                    Email sending is not available in trial mode.
+                    Your account and all data will be automatically deleted after 5 days.
+                </div>
+            }
 
         <EditForm Model="_model" OnValidSubmit="RegisterAsync" FormName="register">
             <DataAnnotationsValidator />
@@ -174,6 +183,7 @@
     private bool _success;
     private string? _errorMessage;
     private bool _closedSystemEnabled;
+    private bool _demoModeEnabled;
 
     protected override async Task OnInitializedAsync()
     {
@@ -181,14 +191,19 @@
 
         try
         {
-            var setting = await AdminSettingsService.GetSettingAsync(
+            var closedSetting = await AdminSettingsService.GetSettingAsync(
                 SystemSettingKeys.CoreModule, SystemSettingKeys.ClosedSystemEnabled);
-            _closedSystemEnabled = setting?.Value == "true";
+            _closedSystemEnabled = closedSetting?.Value == "true";
+
+            var demoSetting = await AdminSettingsService.GetSettingAsync(
+                SystemSettingKeys.CoreModule, SystemSettingKeys.DemoModeEnabled);
+            _demoModeEnabled = demoSetting?.Value == "true";
         }
         catch
         {
             // If we can't reach the settings service, assume open registration
             _closedSystemEnabled = false;
+            _demoModeEnabled = false;
         }
     }
 
@@ -207,6 +222,8 @@
         _submitting = true;
         try
         {
+            var isDemoUser = _demoModeEnabled;
+
             var user = new ApplicationUser
             {
                 UserName = _model.Email,
@@ -215,7 +232,8 @@
                 Locale = !string.IsNullOrWhiteSpace(_model.Locale) ? _model.Locale : "en-US",
                 Timezone = !string.IsNullOrWhiteSpace(_model.Timezone) ? _model.Timezone : "UTC",
                 CreatedAt = DateTime.UtcNow,
-                IsActive = true
+                IsActive = true,
+                IsDemoUser = isDemoUser
             };
 
             var result = await UserManager.CreateAsync(user, _model.Password);

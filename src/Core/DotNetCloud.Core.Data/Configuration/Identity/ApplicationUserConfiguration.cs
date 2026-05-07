@@ -52,6 +52,16 @@ public class ApplicationUserConfiguration : IEntityTypeConfiguration<Application
             .IsRequired()
             .HasDefaultValue(false);
 
+        // IsDemoUser required with default value
+        builder.Property(u => u.IsDemoUser)
+            .IsRequired()
+            .HasDefaultValue(false);
+
+        // Index for demo user cleanup queries
+        builder.HasIndex(u => u.IsDemoUser)
+            .HasDatabaseName("IX_ApplicationUsers_IsDemoUser")
+            .HasFilter("\"IsDemoUser\" = true");
+
         // Indexes for common queries
         builder.HasIndex(u => u.DisplayName)
             .HasDatabaseName("IX_ApplicationUsers_DisplayName");

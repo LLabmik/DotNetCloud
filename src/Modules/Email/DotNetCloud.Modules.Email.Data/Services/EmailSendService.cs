@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Email.Events;
@@ -17,6 +18,7 @@ namespace DotNetCloud.Modules.Email.Data.Services;
 public sealed class EmailSendService : IEmailSendService
 {
     private readonly EmailDbContext _db;
+    private readonly CoreDbContext _coreDb;
     private readonly IEnumerable<IEmailProvider> _providers;
     private readonly IEventBus _eventBus;
     private readonly IAttachmentStorage _attachmentStorage;
@@ -24,12 +26,14 @@ public sealed class EmailSendService : IEmailSendService
 
     public EmailSendService(
         EmailDbContext db,
+        CoreDbContext coreDb,
         IEnumerable<IEmailProvider> providers,
         IEventBus eventBus,
         IAttachmentStorage attachmentStorage,
         ILogger<EmailSendService> logger)
     {
         _db = db;
+        _coreDb = coreDb;
         _providers = providers;
         _eventBus = eventBus;
         _attachmentStorage = attachmentStorage;
@@ -39,6 +43,21 @@ public sealed class EmailSendService : IEmailSendService
     /// <inheritdoc />
     public async Task SendAsync(Guid accountId, EmailSendRequest request, CallerContext caller, CancellationToken ct = default)
     {
+        // Block email sending for demo users (skip for system callers)
+        if (caller.Type == CallerType.User && caller.UserId != Guid.Empty)
+        {
+            var isDemoUser = await _coreDb.Users
+                .AsNoTracking()
+                .AnyAsync(u => u.Id == caller.UserId && u.IsDemoUser, ct);
+
+            if (isDemoUser)
+            {
+                throw new ValidationException(
+                    "EMAIL_SENDING_DISABLED_DEMO",
+                    "Email sending is not available in demo mode. Upgrade to a full account to send emails.");
+            }
+        }
+
         var account = await _db.EmailAccounts
             .FirstOrDefaultAsync(a => a.Id == accountId && a.OwnerId == caller.UserId && !a.IsDeleted, ct)
             ?? throw new ValidationException(ErrorCodes.EmailAccountNotFound, "Email account not found.");

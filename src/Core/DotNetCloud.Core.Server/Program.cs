@@ -479,6 +479,9 @@ public class Program
         // Register backup services
         builder.Services.AddDotNetCloudBackupServices();
 
+        // Register demo account cleanup service
+        builder.Services.AddHostedService<DemoAccountCleanupService>();
+
         // Configure forwarded headers for reverse proxy support.
         // SECURITY: Only trust forwarded headers from known proxies to prevent IP spoofing.
         // By default, ASP.NET Core only trusts loopback (127.0.0.1, ::1).

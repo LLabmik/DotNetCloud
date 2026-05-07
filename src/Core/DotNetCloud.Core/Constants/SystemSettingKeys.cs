@@ -33,4 +33,27 @@ public static class SystemSettingKeys
     /// Default value for <see cref="ClosedSystemEnabled"/> when the setting is not present.
     /// </summary>
     public const string ClosedSystemEnabledDefault = "false";
+
+    // ──────────────────────────────────────────────
+    //  Demo Mode Settings
+    // ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Setting key for demo/trial mode. When <c>"true"</c>, self-registered accounts
+    /// are created as trial accounts with 750 MB storage, no email sending, and
+    /// auto-deletion after 5 days. Admin-created accounts are exempt.
+    /// </summary>
+    /// <remarks>
+    /// <b>Module:</b> <see cref="CoreModule"/><br/>
+    /// <b>Type:</b> <see cref="bool"/> serialized as <c>"true"</c> or <c>"false"</c><br/>
+    /// <b>Default:</b> <c>"false"</c> (demo mode disabled)<br/>
+    /// <b>Mutual exclusion:</b> Cannot be enabled simultaneously with
+    /// <see cref="ClosedSystemEnabled"/>.
+    /// </remarks>
+    public const string DemoModeEnabled = "DemoModeEnabled";
+
+    /// <summary>
+    /// Default value for <see cref="DemoModeEnabled"/> when the setting is not present.
+    /// </summary>
+    public const string DemoModeEnabledDefault = "false";
 }

@@ -55,4 +55,13 @@ public class ApplicationUser : IdentityUser<Guid>
     /// Default is <c>false</c>.
     /// </summary>
     public bool PasswordChangeRequired { get; set; } = false;
+
+    /// <summary>
+    /// Gets or sets whether this user is a demo/trial account.
+    /// Demo users have restricted storage (750 MB), no email sending, and are
+    /// auto-deleted after 5 days. Only set for self-registered users when
+    /// <c>DemoModeEnabled</c> system setting is <c>"true"</c>.
+    /// Default is <c>false</c>.
+    /// </summary>
+    public bool IsDemoUser { get; set; } = false;
 }

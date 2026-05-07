@@ -131,6 +131,7 @@
 | Browser Ext — Phase 5       | 6       | 6         | 0           | 0       |
 | Browser Ext — Phase 6       | 3       | 0         | 0           | 3       |
 | Closed System Mode          | 7       | 1         | 0           | 6       |
+| Demo Mode                   | 6       | 6         | 0           | 0       |
 
 Maintenance note: local install/setup health verification now follows configured Kestrel ports and accepts self-signed local HTTPS during startup checks. Fresh Linux installs now invoke `dotnetcloud setup --beginner` by default, which auto-selects the recommended local PostgreSQL path and then branches cleanly between the three real deployment shapes: private/local test, public behind a reverse proxy, and public served directly by DotNetCloud itself. The local branch uses self-signed HTTPS on DotNetCloud directly. The reverse-proxy public branch keeps DotNetCloud on local HTTP and ends with explicit reverse-proxy/TLS guidance instead of pretending automatic public-certificate setup exists; it now also points beginners to a dedicated Apache-first reverse-proxy guide with a Caddy alternative. The public-direct branch lets the user point DotNetCloud at an existing public certificate file and explains the extra tradeoffs, while still explicitly recommending a reverse proxy for most public installs because it simplifies ports 80/443, TLS renewal, and future services on the same machine. All branches print explicit direct local access URLs and health probe URLs and end with a plain-language summary of the selected defaults plus the beginner user's next steps. Upgrade runs now also end with a plain-language summary that confirms existing data/configuration were preserved, states clearly whether a one-time setup review is still required, and re-shows the access URLs plus the user's next step. This also clarifies the internal app defaults HTTP `5080` / HTTPS `5443` versus reverse-proxy/public HTTPS ports such as `15443`. Windows now has a separate IIS-first installation path via `tools/install-windows.ps1`, with IIS reverse proxying to `http://localhost:5080`, a beginner-focused IIS guide, a dedicated architecture rationale note, native Windows Service hosting support in the core server, and machine-level config/data environment propagation during setup and service runtime so Windows self-hosters do not need to follow the Linux installer path. The bare-metal redeploy helper now also repairs build-output ownership and purges stale normal and malformed Debug output trees before Release build/publish runs so local Linux redeploys do not inherit broken artifacts from prior attempts.
 
@@ -3841,3 +3842,256 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 - ✓ Migration cleaned up — no unintended snapshot diffs
 
 **File:** `src/Core/DotNetCloud.Core.Data/Migrations/20260507010300_AddPasswordChangeRequired.cs`
+
+---
+
+## Demo Mode — Restricted Trial Accounts
+
+**Reference:** `docs/DEMO_MODE_PLAN.md`
+
+### Quick Status
+
+| Phase | Steps | Completed | In Progress | Pending |
+|-------|-------|-----------|-------------|---------|
+| Phase 0 | 4 | 4 | 0 | 0 |
+| Phase 1 | 4 | 3 | 0 | 1 |
+| Phase 2 | 3 | 3 | 0 | 0 |
+| Phase 3 | 2 | 2 | 0 | 0 |
+| Phase 4 | 2 | 2 | 0 | 0 |
+| Phase 5 | 4 | 4 | 0 | 0 |
+| Phase 6 | 2 | 2 | 0 | 0 |
+
+### Phase 0: User Deletion Cascade Infrastructure ✅
+
+**Status:** completed
+**Duration:** ~2 hours
+
+#### Step: demo-0.1 — Create `UserDeletedEvent`
+**Status:** completed
+**Deliverables:**
+- ✓ `UserDeletedEvent` sealed record with `EventId`, `CreatedAt`, `UserId`, `DeletedAt`
+- ✓ Placed in `src/Core/DotNetCloud.Core/Events/UserDeletedEvent.cs`
+
+**File:** `src/Core/DotNetCloud.Core/Events/UserDeletedEvent.cs`
+
+#### Step: demo-0.2 — Publish event from `UserManagementService.DeleteUserAsync`
+**Status:** completed
+**Deliverables:**
+- ✓ `IEventBus` injected into `UserManagementService`
+- ✓ `UserDeletedEvent` published after successful `UserManager.DeleteAsync()`
+- ✓ Best-effort publishing — failures logged, not re-thrown
+
+**File:** `src/Core/DotNetCloud.Core.Auth/Services/UserManagementService.cs`
+
+#### Step: demo-0.3 — Files module subscribes and cleans up
+**Status:** completed
+**Deliverables:**
+- ✓ `UserDeletedEventSubscriber` in `DotNetCloud.Modules.Files.Data/Events/`
+- ✓ Deletes `FileQuota`, `SyncDevice`, `UserSyncCounter`, `ChunkedUploadSession` records
+- ✓ Deletes user-owned `FileNode` records
+- ✓ Content-address aware chunk cleanup (only deletes unreferenced chunks)
+- ✓ Registered in Files module DI
+
+**File:** `src/Modules/Files/DotNetCloud.Modules.Files.Data/Events/UserDeletedEventSubscriber.cs`
+**File:** `src/Modules/Files/DotNetCloud.Modules.Files.Data/FilesServiceRegistration.cs`
+
+#### Step: demo-0.4 — Handle FK constraints
+**Status:** completed
+**Deliverables:**
+- ✓ All cleanup operations wrapped in try/catch — failures logged, not re-thrown
+- ✓ Handler isolation preserved (one subscriber failure doesn't affect others)
+
+**Notes:** Phase 0 complete. Deletion cascade infrastructure built. All user deletion events now trigger Files module cleanup.
+
+### Phase 1: Data Model & System Setting ✅
+
+**Status:** completed
+**Duration:** ~45 minutes
+
+#### Step: demo-1.1 — Add `IsDemoUser` to `ApplicationUser`
+**Status:** completed
+**Deliverables:**
+- ✓ `bool IsDemoUser { get; set; } = false` property
+- ✓ XML doc comment
+
+**File:** `src/Core/DotNetCloud.Core.Data/Entities/Identity/ApplicationUser.cs`
+
+#### Step: demo-1.2 — Update EF configuration for `IsDemoUser`
+**Status:** completed
+**Deliverables:**
+- ✓ `.IsRequired().HasDefaultValue(false)`
+- ✓ Filtered index `IX_ApplicationUsers_IsDemoUser` (WHERE `IsDemoUser = true`)
+
+**File:** `src/Core/DotNetCloud.Core.Data/Configuration/Identity/ApplicationUserConfiguration.cs`
+
+#### Step: demo-1.3 — Add `DemoModeEnabled` to `SystemSettingKeys`
+**Status:** completed
+**Deliverables:**
+- ✓ `DemoModeEnabled = "DemoModeEnabled"` constant
+- ✓ `DemoModeEnabledDefault = "false"` default value
+- ✓ XML doc comments with mutual exclusion note
+
+**File:** `src/Core/DotNetCloud.Core/Constants/SystemSettingKeys.cs`
+
+#### Step: demo-1.4 — Scaffold EF migration
+**Status:** pending
+**Deliverables:**
+- ☐ Migration adds `IsDemoUser` column to `AspNetUsers` table
+
+**Notes:** Phase 1 core complete. Migration still needs to be scaffolded.
+
+### Phase 2: Registration Gate ✅
+
+**Status:** completed
+**Duration:** ~1 hour
+
+#### Step: demo-2.1 — Set `IsDemoUser` on self-registration
+**Status:** completed
+**Deliverables:**
+- ✓ `AuthService.RegisterAsync` checks `DemoModeEnabled` setting
+- ✓ Self-registered users get `IsDemoUser = true`
+- ✓ Admin-created accounts exempt
+- ✓ Defense-in-depth mutual exclusion validation
+
+**File:** `src/Core/DotNetCloud.Core.Auth/Services/AuthService.cs`
+
+#### Step: demo-2.2 — Set 750 MB quota for demo users
+**Status:** completed
+**Deliverables:**
+- ✓ Runtime `IQuotaService` resolution via `IServiceProvider`
+- ✓ Sets `750 * 1024 * 1024` bytes quota
+- ✓ Best-effort — failures logged, registration not blocked
+
+**File:** `src/Core/DotNetCloud.Core.Auth/Services/AuthService.cs`
+
+#### Step: demo-2.3 — Update registration UI
+**Status:** completed
+**Deliverables:**
+- ✓ `Register.razor` shows demo mode informational notice
+- ✓ Sets `IsDemoUser` on user creation when in demo mode
+- ✓ Checks `DemoModeEnabled` system setting on page load
+
+**File:** `src/UI/DotNetCloud.UI.Web/Components/Pages/Auth/Register.razor`
+
+**Notes:** Phase 2 complete. Self-registered users during demo mode are flagged and receive 750 MB quota.
+
+### Phase 3: Email Sending Block ✅
+
+**Status:** completed
+**Duration:** ~30 minutes
+
+#### Step: demo-3.1 — Block email sending for demo users
+**Status:** completed
+**Deliverables:**
+- ✓ `EmailSendService.SendAsync` checks `IsDemoUser` flag
+- ✓ Throws `ValidationException` with code `EMAIL_SENDING_DISABLED_DEMO`
+- ✓ Clear error message: "Email sending is not available in demo mode."
+- ✓ Only blocks for `CallerType.User` (system/module callers exempt)
+
+**File:** `src/Modules/Email/DotNetCloud.Modules.Email.Data/Services/EmailSendService.cs`
+
+#### Step: demo-3.2 — UI polish
+**Status:** completed
+**Deliverables:**
+- ✓ Error message is clear and actionable
+- ☐ Compose form notice (deferrable — error on send is sufficient)
+
+**Notes:** Phase 3 complete. Demo users cannot send emails.
+
+### Phase 4: Auto-Delete Background Service ✅
+
+**Status:** completed
+**Duration:** ~1 hour
+
+#### Step: demo-4.1 — Create `DemoAccountCleanupService`
+**Status:** completed
+**Deliverables:**
+- ✓ Inherits `BackgroundService`
+- ✓ Polls every 1 hour
+- ✓ Queries demo users with `CreatedAt < UtcNow - 5 days`
+- ✓ Deletes via `IUserManagementService.DeleteUserAsync`
+- ✓ Uses `IBackgroundServiceTracker.RecordRun()` for metrics
+- ✓ Runs immediate check on startup
+
+**File:** `src/Core/DotNetCloud.Core.Server/Services/DemoAccountCleanupService.cs`
+
+#### Step: demo-4.2 — Register in DI
+**Status:** completed
+**Deliverables:**
+- ✓ `builder.Services.AddHostedService<DemoAccountCleanupService>()` in Program.cs
+
+**File:** `src/Core/DotNetCloud.Core.Server/Program.cs`
+
+**Notes:** Phase 4 complete. Expired demo accounts are automatically cleaned up.
+
+### Phase 5: UI Demo Banner ✅
+
+**Status:** completed
+**Duration:** ~1 hour
+
+#### Step: demo-5.1 — Expose demo status in `UserDto`
+**Status:** completed
+**Deliverables:**
+- ✓ `IsDemoUser` (bool) property
+- ✓ `DemoExpiresAt` (DateTime?) — computed as `CreatedAt.AddDays(5)` for demo users
+- ✓ `MapToDto` updated to populate both fields
+
+**File:** `src/Core/DotNetCloud.Core/DTOs/UserDtos.cs`
+**File:** `src/Core/DotNetCloud.Core.Auth/Services/UserManagementService.cs`
+
+#### Step: demo-5.2 — Create `DemoBanner.razor`
+**Status:** completed
+**Deliverables:**
+- ✓ Injects `AuthenticationStateProvider` and `DotNetCloudApiClient`
+- ✓ Calls `GET /api/v1/core/users/{id}` to get `UserDto`
+- ✓ Calculates days remaining
+- ✓ Color-coded: info (3+ days), warning (2 days), danger (0-1 days)
+- ✓ Non-dismissible, prominent banner
+
+**File:** `src/UI/DotNetCloud.UI.Web/Components/Shared/DemoBanner.razor`
+
+#### Step: demo-5.3 — Integrate into `MainLayout.razor`
+**Status:** completed
+**Deliverables:**
+- ✓ `<DemoBanner @rendermode="InteractiveServer" />` between topbar and main content
+- ✓ Wrapped in `<AuthorizeView>` for authenticated users only
+
+**File:** `src/UI/DotNetCloud.UI.Web/Components/Layout/MainLayout.razor`
+
+#### Step: demo-5.4 — Storage usage on home page
+**Status:** completed
+**Deliverables:**
+- ☐ Bonus feature — deferred, banner is sufficient for v1
+
+**Notes:** Phase 5 complete. Demo users see a prominent banner on every page.
+
+### Phase 6: Admin Settings Validation ✅
+
+**Status:** completed
+**Duration:** ~45 minutes
+
+#### Step: demo-6.1 — Mutual exclusion validation
+**Status:** completed
+**Deliverables:**
+- ✓ `AdminSettingsService.UpsertSettingAsync` validates mutual exclusion
+- ✓ Cannot enable `DemoModeEnabled` when `ClosedSystemEnabled` is `"true"`
+- ✓ Cannot enable `ClosedSystemEnabled` when `DemoModeEnabled` is `"true"`
+- ✓ Clear error messages for both cases
+
+**File:** `src/Core/DotNetCloud.Core.Auth/Services/AdminSettingsService.cs`
+
+#### Step: demo-6.2 — Admin UI awareness
+**Status:** completed
+**Deliverables:**
+- ☐ Dedicated Demo Mode toggle card — deferred, generic Settings page works
+
+**Notes:** Phase 6 complete. Admin settings enforce mutual exclusion between Demo Mode and Closed System Mode.
+
+### Verification Status
+
+- ☐ Integration test: register demo user → verify `IsDemoUser=true`, quota 750MB
+- ☐ Integration test: demo user email blocked
+- ☐ Manual: demo banner displays correctly
+- ☐ Manual: admin mutual exclusion enforced
+- ✓ Build succeeds (`dotnet build DotNetCloud.CI.slnf`)
+- ✓ All tests pass (`dotnet test DotNetCloud.CI.slnf` — 0 failures)

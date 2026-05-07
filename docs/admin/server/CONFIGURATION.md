@@ -1,6 +1,6 @@
 # DotNetCloud Server — Configuration Reference
 
-> **Last Updated:** 2026-03-07  
+> **Last Updated:** 2026-05-07  
 > **Applies To:** DotNetCloud 1.0.x  
 > **Audience:** System administrators
 
@@ -19,9 +19,11 @@
 9. [Telemetry (OpenTelemetry)](#telemetry-opentelemetry)
 10. [API Versioning](#api-versioning)
 11. [Security Headers](#security-headers)
-12. [Files Module](#files-module)
-13. [Chat Module](#chat-module)
-14. [Environment Variable Reference](#environment-variable-reference)
+12. [System Settings (Admin Dashboard)](#system-settings-admin-dashboard)
+13. [Files Module](#files-module)
+14. [Chat Module](#chat-module)
+15. [Video Module](#video-module)
+16. [Environment Variable Reference](#environment-variable-reference)
 
 ---
 
@@ -548,6 +550,97 @@ When Collabora is enabled, the Content-Security-Policy must allow framing from t
   }
 }
 ```
+
+---
+
+## System Settings (Admin Dashboard)
+
+System settings are managed through the Admin Dashboard at `/admin/settings` or via the REST API at `PUT /api/v1/core/admin/settings/{key}`. They are stored in the database and persist across server restarts.
+
+All core system settings belong to the `dotnetcloud.core` module.
+
+### Closed System Mode
+
+**Setting key:** `ClosedSystemEnabled`  
+**Module:** `dotnetcloud.core`  
+**Default:** `false`
+
+When enabled, self-registration is disabled and only administrators can create user accounts. New admin-created accounts are forced to change their password on first login.
+
+| Value | Effect |
+|---|---|
+| `"false"` (default) | Open registration — anyone can sign up |
+| `"true"` | Closed registration — only admins can create accounts |
+
+**Mutual exclusion:** Closed System Mode cannot be enabled simultaneously with Demo Mode. Attempting to do so returns a validation error.
+
+**Setting it via API:**
+
+```bash
+curl -X PUT "https://localhost:15443/api/v1/core/admin/settings/dotnetcloud.core/ClosedSystemEnabled" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"value": "true", "description": "Disable self-registration"}'
+```
+
+---
+
+### Demo Mode (Trial Accounts)
+
+**Setting key:** `DemoModeEnabled`  
+**Module:** `dotnetcloud.core`  
+**Default:** `false`
+
+When enabled, new self-registered accounts become **trial accounts** with the following restrictions:
+
+| Restriction | Detail |
+|---|---|
+| **Storage quota** | 750 MB (786,432,000 bytes) |
+| **Email sending** | Blocked — demo users cannot send emails |
+| **Account lifetime** | 5 days from creation |
+| **Auto-deletion** | Expired accounts are permanently deleted with all data |
+| **UI banner** | Non-dismissible banner on every page showing days remaining |
+
+**Key behaviors:**
+
+- **Only self-registered users** become demo users. Admin-created accounts are **always exempt**.
+- **Disabling Demo Mode** does NOT upgrade existing demo users — they stay restricted until expiry.
+- **No upgrade path** — demo accounts cannot be converted to full accounts within the trial period.
+
+**Days-remaining banner styling:**
+
+| Days Left | Banner Style |
+|---|---|
+| 3–5 days | Informational (blue) — "⏳ Demo Account — X days remaining" |
+| 2 days | Warning (amber) — "🟡 Demo Account — 2 days remaining" |
+| 1 day | Danger (red) — "🔴 Demo Account — 1 day remaining" |
+| 0 days (expired) | Danger (red) — "⚠️ Your demo account has expired" |
+
+**Mutual exclusion:** Demo Mode cannot be enabled simultaneously with Closed System Mode. Attempting to do so returns a validation error.
+
+**Setting it via API:**
+
+```bash
+curl -X PUT "https://localhost:15443/api/v1/core/admin/settings/dotnetcloud.core/DemoModeEnabled" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"value": "true", "description": "Enable trial accounts"}'
+```
+
+**Cleanup service:**
+
+The `DemoAccountCleanupService` runs every hour and deletes demo accounts older than 5 days. Deletion cascades: the `UserDeletedEvent` triggers the Files module to clean up all user data (quotas, sync devices, file nodes, physical storage).
+
+**Monitoring:**
+
+The cleanup service reports to the `IBackgroundServiceTracker`. Check its status via:
+
+```bash
+curl "https://localhost:15443/api/v1/core/admin/health" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Look for `"Demo Account Cleanup"` in the background services status.
 
 ---
 

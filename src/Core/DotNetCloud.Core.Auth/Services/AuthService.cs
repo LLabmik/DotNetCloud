@@ -4,6 +4,7 @@ using DotNetCloud.Core.Data.Entities.Identity;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Services;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using OpenIddict.Abstractions;
 
@@ -22,6 +23,7 @@ public sealed class AuthService : IAuthService
     private readonly SignInManager<ApplicationUser> _signInManager;
     private readonly IOpenIddictTokenManager _tokenManager;
     private readonly IAdminSettingsService _adminSettingsService;
+    private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<AuthService> _logger;
 
     /// <summary>
@@ -32,12 +34,14 @@ public sealed class AuthService : IAuthService
         SignInManager<ApplicationUser> signInManager,
         IOpenIddictTokenManager tokenManager,
         IAdminSettingsService adminSettingsService,
+        IServiceProvider serviceProvider,
         ILogger<AuthService> logger)
     {
         _userManager = userManager;
         _signInManager = signInManager;
         _tokenManager = tokenManager;
         _adminSettingsService = adminSettingsService;
+        _serviceProvider = serviceProvider;
         _logger = logger;
     }
 
@@ -58,6 +62,24 @@ public sealed class AuthService : IAuthService
                 "Self-registration is disabled. Contact your system administrator to request an account.");
         }
 
+        // Check demo mode — self-registered users become demo users
+        var demoSetting = await _adminSettingsService.GetSettingAsync(
+            SystemSettingKeys.CoreModule, SystemSettingKeys.DemoModeEnabled);
+
+        var isDemoMode = demoSetting?.Value == "true";
+        var isAdmin = caller.HasRole("Administrator");
+
+        // Defense in depth: mutual exclusion check
+        if (isDemoMode && closedSetting?.Value == "true")
+        {
+            _logger.LogError(
+                "Configuration error: both DemoModeEnabled and ClosedSystemEnabled are true");
+            throw new InvalidOperationException(
+                "System configuration error: Demo Mode and Closed System cannot both be enabled.");
+        }
+
+        var isDemoUser = isDemoMode && !isAdmin;
+
         var user = new ApplicationUser
         {
             UserName = request.Email,
@@ -67,11 +89,12 @@ public sealed class AuthService : IAuthService
                 : request.DisplayName,
             Locale = request.Locale,
             Timezone = request.Timezone,
+            IsDemoUser = isDemoUser,
         };
 
         // Use PasswordChangeRequired from the request (set by admin form).
         // Non-admin callers (self-registration) leave this false by default.
-        if (caller.HasRole("Administrator"))
+        if (isAdmin)
         {
             user.PasswordChangeRequired = request.PasswordChangeRequired;
         }
@@ -84,7 +107,15 @@ public sealed class AuthService : IAuthService
             throw new InvalidOperationException($"Registration failed: {errors}");
         }
 
-        _logger.LogInformation("User {UserId} registered with email {Email}", user.Id, user.Email);
+        _logger.LogInformation(
+            "User {UserId} registered with email {Email} (DemoUser={IsDemoUser})",
+            user.Id, user.Email, isDemoUser);
+
+        // Set 750 MB quota for demo users
+        if (isDemoUser)
+        {
+            await SetDemoUserQuotaAsync(user.Id, caller);
+        }
 
         var requiresEmailConfirmation = _userManager.Options.SignIn.RequireConfirmedEmail;
         if (requiresEmailConfirmation)
@@ -101,6 +132,67 @@ public sealed class AuthService : IAuthService
             Email = user.Email!,
             RequiresEmailConfirmation = requiresEmailConfirmation,
         };
+    }
+
+    /// <summary>
+    /// Sets a 750 MB storage quota for a newly registered demo user.
+    /// Resolves <c>IQuotaService</c> from the Files module at runtime via
+    /// <see cref="IServiceProvider"/> to avoid a compile-time project reference.
+    /// </summary>
+    private async Task SetDemoUserQuotaAsync(Guid userId, CallerContext caller)
+    {
+        const long demoQuotaBytes = 750L * 1024 * 1024; // 786,432,000 bytes
+
+        try
+        {
+            // Resolve IQuotaService at runtime (lives in Files module, not a
+            // compile-time dependency of Core.Auth). Using the interface from
+            // the shared SDK is not possible, so we use reflection-free
+            // service locator with the concrete interface name.
+            var quotaServiceType = Type.GetType(
+                "DotNetCloud.Modules.Files.Services.IQuotaService, DotNetCloud.Modules.Files",
+                throwOnError: false);
+
+            if (quotaServiceType is not null)
+            {
+                var quotaService = _serviceProvider.GetService(quotaServiceType);
+                if (quotaService is not null)
+                {
+                    var setQuotaMethod = quotaServiceType.GetMethod("SetQuotaAsync");
+                    if (setQuotaMethod is not null)
+                    {
+                        var task = (Task)setQuotaMethod.Invoke(quotaService,
+                            [userId, demoQuotaBytes, caller, CancellationToken.None])!;
+                        await task;
+
+                        _logger.LogInformation(
+                            "Set {QuotaBytes} bytes demo quota for user {UserId}",
+                            demoQuotaBytes,
+                            userId);
+                    }
+                }
+                else
+                {
+                    _logger.LogWarning(
+                        "IQuotaService not available in DI; demo quota not set for user {UserId}",
+                        userId);
+                }
+            }
+            else
+            {
+                _logger.LogWarning(
+                    "Files module not loaded; demo quota not set for user {UserId}",
+                    userId);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Quota setting is best-effort for demo mode; don't fail registration
+            _logger.LogWarning(
+                ex,
+                "Failed to set demo quota for user {UserId}",
+                userId);
+        }
     }
 
     /// <inheritdoc/>

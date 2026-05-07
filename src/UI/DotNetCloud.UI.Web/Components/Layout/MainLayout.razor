@@ -57,6 +57,11 @@
         </header>
 
         <main class="page-content">
+            <AuthorizeView>
+                <Authorized>
+                    <DemoBanner @rendermode="InteractiveServer" />
+                </Authorized>
+            </AuthorizeView>
             <article class="content-area">
                 <ErrorBoundary @ref="_errorBoundary">
                     <ChildContent>

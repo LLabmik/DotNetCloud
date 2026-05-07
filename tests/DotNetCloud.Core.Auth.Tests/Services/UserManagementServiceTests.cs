@@ -1,6 +1,7 @@
 using DotNetCloud.Core.Auth.Services;
 using DotNetCloud.Core.Data.Entities.Identity;
 using DotNetCloud.Core.DTOs;
+using DotNetCloud.Core.Events;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -39,9 +40,11 @@ public class UserManagementServiceTests
             storeMock.Object, null, null, null, null, null, null, null, null);
 
         _loggerMock = new Mock<ILogger<UserManagementService>>();
+        var eventBusMock = new Mock<IEventBus>();
 
         _service = new UserManagementService(
             _userManagerMock.Object,
+            eventBusMock.Object,
             _loggerMock.Object);
     }
 

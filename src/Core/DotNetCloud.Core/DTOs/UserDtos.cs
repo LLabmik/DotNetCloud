@@ -59,6 +59,18 @@ public class UserDto
     /// Gets or sets the user's assigned roles.
     /// </summary>
     public ICollection<string> Roles { get; set; } = new List<string>();
+
+    /// <summary>
+    /// Gets or sets a value indicating whether this user is a demo/trial account.
+    /// Demo users have restricted storage and are auto-deleted after 5 days.
+    /// </summary>
+    public bool IsDemoUser { get; set; }
+
+    /// <summary>
+    /// Gets or sets the date and time when the demo account expires.
+    /// Computed as <c>CreatedAt + 5 days</c> for demo users; <see langword="null"/> for regular users.
+    /// </summary>
+    public DateTime? DemoExpiresAt { get; set; }
 }
 
 /// <summary>
