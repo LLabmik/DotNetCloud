@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.Constants;
 using DotNetCloud.Core.Data.Entities.Identity;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Services;
@@ -20,6 +21,7 @@ public sealed class AuthService : IAuthService
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly SignInManager<ApplicationUser> _signInManager;
     private readonly IOpenIddictTokenManager _tokenManager;
+    private readonly IAdminSettingsService _adminSettingsService;
     private readonly ILogger<AuthService> _logger;
 
     /// <summary>
@@ -29,11 +31,13 @@ public sealed class AuthService : IAuthService
         UserManager<ApplicationUser> userManager,
         SignInManager<ApplicationUser> signInManager,
         IOpenIddictTokenManager tokenManager,
+        IAdminSettingsService adminSettingsService,
         ILogger<AuthService> logger)
     {
         _userManager = userManager;
         _signInManager = signInManager;
         _tokenManager = tokenManager;
+        _adminSettingsService = adminSettingsService;
         _logger = logger;
     }
 
@@ -41,6 +45,18 @@ public sealed class AuthService : IAuthService
     public async Task<RegisterResponse> RegisterAsync(RegisterRequest request, CallerContext caller)
     {
         ArgumentNullException.ThrowIfNull(request);
+
+        // Check closed system mode — block self-registration if enabled
+        var closedSetting = await _adminSettingsService.GetSettingAsync(
+            SystemSettingKeys.CoreModule, SystemSettingKeys.ClosedSystemEnabled);
+
+        if (closedSetting?.Value == "true" && !caller.HasRole("Administrator"))
+        {
+            _logger.LogWarning(
+                "Registration blocked: closed system mode is enabled and caller is not an administrator");
+            throw new InvalidOperationException(
+                "Self-registration is disabled. Contact your system administrator to request an account.");
+        }
 
         var user = new ApplicationUser
         {
@@ -52,6 +68,13 @@ public sealed class AuthService : IAuthService
             Locale = request.Locale,
             Timezone = request.Timezone,
         };
+
+        // Use PasswordChangeRequired from the request (set by admin form).
+        // Non-admin callers (self-registration) leave this false by default.
+        if (caller.HasRole("Administrator"))
+        {
+            user.PasswordChangeRequired = request.PasswordChangeRequired;
+        }
 
         var result = await _userManager.CreateAsync(user, request.Password);
         if (!result.Succeeded)
@@ -136,6 +159,14 @@ public sealed class AuthService : IAuthService
                 _logger.LogWarning("Login failed: invalid TOTP code for user {UserId}", user.Id);
                 throw new UnauthorizedAccessException("Invalid MFA code.");
             }
+        }
+
+        // In closed system mode, do not issue tokens until password is changed
+        if (user.PasswordChangeRequired)
+        {
+            _logger.LogWarning(
+                "Login blocked for user {UserId}: password change required (closed system mode)", user.Id);
+            throw new InvalidOperationException("PASSWORD_CHANGE_REQUIRED");
         }
 
         user.LastLoginAt = DateTime.UtcNow;

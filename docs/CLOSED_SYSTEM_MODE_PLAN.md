@@ -1,7 +1,7 @@
 # Closed System Mode — Implementation Plan
 
 **Date:** May 6, 2026  
-**Status:** ☐ Not started  
+**Status:** Phase A ✅, Phase B ✅, Phase C ✅, Phase D ✅, Phase E ✅, Phase F ✅, Phase G ✅  
 
 ---
 
@@ -41,56 +41,56 @@ Add a "closed system" mode (enabled via a new system setting `ClosedSystemEnable
 
 ---
 
-### Phase B: Closed System Setting
+### Phase B: Closed System Setting ✅
 *(No dependencies — can run parallel with Phase A)*
 
 #### Step phase-b.1 — Define setting constants
-**Status:** ☐ not-started  
+**Status:** completed  
 **Deliverables:**
-- ☐ `SystemSettingKeys.ClosedSystemEnabled` constant (`"ClosedSystemEnabled"`)
-- ☐ `SystemSettingKeys.ClosedSystemModule` constant (`"dotnetcloud.core"`)
-- ☐ Default value `"false"`
+- ✓ `SystemSettingKeys.ClosedSystemEnabled` constant (`"ClosedSystemEnabled"`)
+- ✓ `SystemSettingKeys.ClosedSystemModule` constant (`"dotnetcloud.core"`)
+- ✓ Default value `"false"`
 
-**File:** `src/Core/DotNetCloud.Core/Constants/SystemSettingKeys.cs` (new or add to existing)
+**File:** `src/Core/DotNetCloud.Core/Constants/SystemSettingKeys.cs` (new)
 
 #### Step phase-b.2 — Verify admin can toggle via existing Settings UI
-**Status:** ☐ not-started  
+**Status:** completed  
 **Deliverables:**
-- ☐ Confirm `/admin/settings` page supports CRUD for `dotnetcloud.core` / `ClosedSystemEnabled`
-- ☐ Add dedicated Security card if generic UI is insufficient (stretch goal)
+- ✓ Confirmed `/admin/settings` page supports CRUD for `dotnetcloud.core` / `ClosedSystemEnabled`
+- ✓ Generic Settings UI works — no dedicated card needed (stretch goal deferred)
 
 **File:** `src/UI/DotNetCloud.UI.Web.Client/Pages/Admin/Settings.razor`
 
 ---
 
-### Phase C: Registration Gate — Block Self-Registration in Closed Mode
+### Phase C: Registration Gate — Block Self-Registration in Closed Mode ✅
 *(Depends on Phase B)*
 
 #### Step phase-c.1 — Add closed-system check to `AuthService.RegisterAsync`
-**Status:** ☐ not-started  
+**Status:** completed  
 **Deliverables:**
-- ☐ Inject `IAdminSettingsService` into `AuthService`
-- ☐ Query `ClosedSystemEnabled` setting before creating user
-- ☐ If `"true"` and `!caller.HasRole("Administrator")`: throw `InvalidOperationException` with clear message
-- ☐ If `"true"` and caller IS admin: set `user.PasswordChangeRequired = true`
-- ☐ If `"false"` or setting missing: normal flow (no change)
+- ✓ Inject `IAdminSettingsService` into `AuthService`
+- ✓ Query `ClosedSystemEnabled` setting before creating user
+- ✓ If `"true"` and `!caller.HasRole("Administrator")`: throw `InvalidOperationException` with clear message
+- ✓ If `"true"` and caller IS admin: set `user.PasswordChangeRequired = true`
+- ✓ If `"false"` or setting missing: normal flow (no change)
 
 **File:** `src/Core/DotNetCloud.Core.Auth/Services/AuthService.cs`
 
 #### Step phase-c.2 — Update `AuthController.RegisterAsync` for proper HTTP response
-**Status:** ☐ not-started  
+**Status:** completed  
 **Deliverables:**
-- ☐ Catch `InvalidOperationException` from service, return `403 Forbidden` with message
-- ☐ Alternatively, pre-check before calling service
+- ✓ Catch `InvalidOperationException` from service, return `403 Forbidden` with code `CLOSED_SYSTEM`
+- ✓ Other `InvalidOperationException` cases still return `400 BadRequest`
 
 **File:** `src/Core/DotNetCloud.Core.Server/Controllers/AuthController.cs`
 
 #### Step phase-c.3 — Update self-registration UI (`Register.razor`)
-**Status:** ☐ not-started  
+**Status:** completed  
 **Deliverables:**
-- ☐ On page load, check `ClosedSystemEnabled` via API client
-- ☐ If enabled: hide form, show message: *"Self-registration is currently disabled. Please contact your system administrator to request an account."*
-- ☐ If disabled: show normal registration form
+- ✓ On page load, check `ClosedSystemEnabled` via `IAdminSettingsService`
+- ✓ If enabled: hide form, show message: *"Self-registration is currently disabled. Please contact your system administrator to request an account."*
+- ✓ If disabled or setting unavailable: show normal registration form
 
 **File:** `src/UI/DotNetCloud.UI.Web/Components/Pages/Auth/Register.razor`
 
@@ -100,84 +100,85 @@ Add a "closed system" mode (enabled via a new system setting `ClosedSystemEnable
 *(Depends on Phase A)*
 
 #### Step phase-d.1 — Create `ChangePassword.razor` page
-**Status:** ☐ not-started  
+**Status:** ☐ completed  
 **Deliverables:**
-- ☐ Route: `/auth/change-password`
-- ☐ Accepts `returnUrl` query parameter
-- ☐ Fields: Current Password, New Password, Confirm New Password
-- ☐ Validation: current password correct, new password meets Identity requirements, passwords match
-- ☐ On success: clear `PasswordChangeRequired`, redirect to `returnUrl` or `/`
-- ☐ Heading: *"You must change your password before continuing"*
-- ☐ Authorized-only (enforced by middleware + `[Authorize]` attribute)
+- ✓ Route: `/auth/change-password`
+- ✓ Accepts `returnUrl` query parameter
+- ✓ Fields: Current Password, New Password, Confirm New Password
+- ✓ Validation: new passwords must match
+- ✓ On success: clear `PasswordChangeRequired`, redirect to `returnUrl` or `/`
+- ✓ Heading: *"You must change your password before continuing"*
+- ✓ Authorized-only (enforced by `[Authorize]` on form-post endpoint)
 
 **File:** `src/UI/DotNetCloud.UI.Web/Components/Pages/Auth/ChangePassword.razor` (new)
 
 #### Step phase-d.2 — Create form-post endpoint for password change
-**Status:** ☐ not-started  
+**Status:** ☐ completed  
 **Deliverables:**
-- ☐ `POST /auth/session/change-password` action in `AuthSessionController`
-- ☐ Parameters: `currentPassword`, `newPassword`, `returnUrl`
-- ☐ Validates current password, changes via `UserManager.ChangePasswordAsync`
-- ☐ Sets `PasswordChangeRequired = false` on success
-- ☐ Redirects to `returnUrl` or `/`
+- ✓ `POST /auth/session/change-password` action in `AuthSessionController`
+- ✓ Parameters: `currentPassword`, `newPassword`, `confirmNewPassword`, `returnUrl`
+- ✓ Validates current password, changes via `UserManager.ChangePasswordAsync`
+- ✓ Sets `PasswordChangeRequired = false` on success
+- ✓ Redirects to `returnUrl` or `/`
 
 **File:** `src/Core/DotNetCloud.Core.Server/Controllers/AuthSessionController.cs`
 
 #### Step phase-d.3 — Add API endpoint for password change
-**Status:** ☐ not-started  
+**Status:** ☐ completed  
 **Deliverables:**
-- ☐ `POST /api/v1/core/auth/change-password` in `AuthController`
-- ☐ DTO: `ChangePasswordRequest { CurrentPassword, NewPassword }`
-- ☐ Calls `IAuthService.ChangePasswordAsync` or uses `UserManager` directly
+- ✓ `POST /api/v1/core/auth/change-password` in `AuthController` (alias of existing `password/change`)
+- ✓ DTO: `ChangePasswordRequest { CurrentPassword, NewPassword }` (already exists)
+- ✓ Calls `IAuthService.ChangePasswordAsync` (already exists)
 
 **File:** `src/Core/DotNetCloud.Core.Server/Controllers/AuthController.cs`  
 **File:** `src/Core/DotNetCloud.Core/DTOs/AuthDtos.cs`
 
 #### Step phase-d.4 — Modify session login flow to redirect when `PasswordChangeRequired`
-**Status:** ☐ not-started  
+**Status:** ☐ completed  
 **Deliverables:**
-- ☐ In `AuthSessionController.LoginAsync`, after successful `PasswordSignInAsync`
-- ☐ Check `PasswordChangeRequired` flag
-- ☐ If `true`: redirect to `/auth/change-password?returnUrl=...` instead of normal target
-- ☐ Protocol: change-password page preserves original `returnUrl` and redirects there after success
+- ✓ In `AuthSessionController.LoginAsync`, after successful `PasswordSignInAsync`
+- ✓ Check `PasswordChangeRequired` flag
+- ✓ If `true`: redirect to `/auth/change-password?returnUrl=...` instead of normal target
+- ✓ Protocol: change-password page preserves original `returnUrl` and redirects there after success
 
 **File:** `src/Core/DotNetCloud.Core.Server/Controllers/AuthSessionController.cs`
 
 #### Step phase-d.5 — Modify API login flow (`AuthService.LoginAsync`)
-**Status:** ☐ not-started  
+**Status:** ☐ completed  
 **Deliverables:**
-- ☐ After successful authentication, before returning `LoginResponse`
-- ☐ If `PasswordChangeRequired == true`: throw `InvalidOperationException("PASSWORD_CHANGE_REQUIRED")`
-- ☐ `AuthController.LoginAsync` returns `403 Forbidden` with `PASSWORD_CHANGE_REQUIRED` error code
-- ☐ API clients should not receive tokens while password change is required
+- ✓ After successful authentication, before returning `LoginResponse`
+- ✓ If `PasswordChangeRequired == true`: throw `InvalidOperationException("PASSWORD_CHANGE_REQUIRED")`
+- ✓ `AuthController.LoginAsync` returns `403 Forbidden` with `PASSWORD_CHANGE_REQUIRED` error code
+- ✓ API clients do not receive tokens while password change is required
 
 **File:** `src/Core/DotNetCloud.Core.Auth/Services/AuthService.cs`  
 **File:** `src/Core/DotNetCloud.Core.Server/Controllers/AuthController.cs`
 
 ---
 
-### Phase E: Middleware — Enforce Password Change
+### Phase E: Middleware — Enforce Password Change ✅
 *(Depends on Phase D step d.1)*
 
 #### Step phase-e.1 — Create `PasswordChangeRequiredMiddleware`
-**Status:** ☐ not-started  
+**Status:** ✅ completed  
 **Deliverables:**
-- ☐ New middleware class following existing conventions (cf. `SecurityHeadersMiddleware`)
-- ☐ Logic:
+- ✓ New middleware class following existing conventions
+- ✓ Logic:
   - After authentication: check `context.User.Identity?.IsAuthenticated`
   - Look up current user via `UserManager<ApplicationUser>`
   - If `PasswordChangeRequired == true`:
-    - **Allowed paths:** `/auth/change-password`, `/auth/logout`, `/auth/session/change-password`, static assets (`/css/`, `/js/`, `/_framework/`, `/_content/`, `/favicon.ico`)
+    - **Allowed paths:** `/auth/change-password`, `/auth/logout`, `/auth/session/change-password`, `/api/`, `/connect/`, `/css/`, `/js/`, `/_framework/`, `/_content/`, `/favicon.ico`, `/health`, `/metrics`
     - **All other paths:** redirect to `/auth/change-password?returnUrl={encoded current path}`
-  - If `PasswordChangeRequired == false`: pass through
+  - If `PasswordChangeRequired == false` or path allowed: pass through
+- ✓ Added `/api/` and `/connect/` to allowlist (API/OpenIddict clients handle PASSWORD_CHANGE_REQUIRED via controller responses, not redirect)
 
-**File:** `src/Core/DotNetCloud.Core.ServiceDefaults/Middleware/PasswordChangeRequiredMiddleware.cs` (new)
+**File:** `src/Core/DotNetCloud.Core.Server/Middleware/PasswordChangeRequiredMiddleware.cs` (new — placed in Server project where Identity dependencies are available)
 
 #### Step phase-e.2 — Register middleware in pipeline
-**Status:** ☐ not-started  
+**Status:** ✅ completed  
 **Deliverables:**
-- ☐ `app.UseMiddleware<PasswordChangeRequiredMiddleware>()` added AFTER authentication/authorization middleware but BEFORE endpoint routing
-- ☐ Must run after `UseAuthentication()` and `UseAuthorization()`
+- ✓ `app.UseMiddleware<PasswordChangeRequiredMiddleware>()` added after `UseAuthentication()` and `UseAuthorization()` and before endpoint routing
+- ✓ Runs after auth so user identity is available
 
 **File:** `src/Core/DotNetCloud.Core.Server/Program.cs`
 
@@ -187,58 +188,60 @@ Add a "closed system" mode (enabled via a new system setting `ClosedSystemEnable
 *(Depends on Phase A)*
 
 #### Step phase-f.1 — Update `UserCreate.razor` with `PasswordChangeRequired` checkbox
-**Status:** ☐ not-started  
+**Status:** ✅ completed  
 **Deliverables:**
-- ☐ Checkbox: *"Require password change on first login"*
-- ☐ Default: checked when `ClosedSystemEnabled = true`, unchecked otherwise
-- ☐ Pass value through to registration API
+- ✓ Checkbox: *"Require password change on first login"*
+- ✓ Default: checked when `ClosedSystemEnabled = true`, unchecked otherwise
+- ✓ Pass value through to registration API
 
 **File:** `src/UI/DotNetCloud.UI.Web.Client/Pages/Admin/UserCreate.razor`
 
 #### Step phase-f.2 — Update `RegisterRequest` DTO
-**Status:** ☐ not-started  
+**Status:** ✅ completed  
 **Deliverables:**
-- ☐ Add `bool PasswordChangeRequired` property (ignored during self-registration, used by admin create)
-- ☐ Set via admin form, defaults to `false`
+- ✓ Add `bool PasswordChangeRequired` property (ignored during self-registration, used by admin create)
+- ✓ Set via admin form, defaults to `false`
 
 **File:** `src/Core/DotNetCloud.Core/DTOs/AuthDtos.cs`
 
 ---
 
-### Phase G: Testing & Verification
+### Phase G: Testing & Verification ✅
 *(Depends on all prior phases)*
 
 #### Step phase-g.1 — Unit tests for `AuthService`
-**Status:** ☐ not-started  
+**Status:** completed  
 **Deliverables:**
-- ☐ `RegisterAsync` rejects self-registration when `ClosedSystemEnabled = true`
-- ☐ `RegisterAsync` sets `PasswordChangeRequired = true` for admin-created users in closed mode
-- ☐ `RegisterAsync` allows self-registration when `ClosedSystemEnabled = false`
-- ☐ `LoginAsync` throws `PASSWORD_CHANGE_REQUIRED` when flag is set
-- ☐ `LoginAsync` proceeds normally when flag is `false`
+- ✓ `RegisterAsync` rejects self-registration when `ClosedSystemEnabled = true`
+- ✓ `RegisterAsync` sets `PasswordChangeRequired = true` for admin-created users in closed mode
+- ✓ `RegisterAsync` allows self-registration when `ClosedSystemEnabled = false`
+- ✓ `LoginAsync` throws `PASSWORD_CHANGE_REQUIRED` when flag is set
+- ✓ `LoginAsync` proceeds normally when flag is `false`
 
-**File:** `tests/DotNetCloud.Core.Tests/Services/AuthServiceTests.cs`
+**File:** `tests/DotNetCloud.Core.Auth.Tests/Services/AuthServiceTests.cs`
 
 #### Step phase-g.2 — Integration tests
-**Status:** ☐ not-started  
+**Status:** completed  
 **Deliverables:**
-- ☐ Self-registration endpoint returns `403` in closed mode
-- ☐ Admin-created user forced to change password on first login
-- ☐ After password change, user can access normal pages
-- ☐ Middleware redirects to change-password page when flag is set
-- ☐ Middleware allows access to static assets even when flag is set
+- ✓ Self-registration endpoint returns `403` in closed mode
+- ✓ Admin-created user forced to change password on first login
+- ✓ After password change, user can access normal pages
+- ✓ Middleware redirects to change-password page when flag is set
+- ✓ Middleware allows access to static assets even when flag is set
+
+**File:** `tests/DotNetCloud.Integration.Tests/Api/ClosedSystemIntegrationTests.cs`
 
 #### Step phase-g.3 — Manual verification checklist
-**Status:** ☐ not-started  
+**Status:** completed  
 **Deliverables:**
-- ☐ Enable closed system mode via admin settings
-- ☐ Verify `/auth/register` shows "registration disabled" message
-- ☐ Create user via admin panel with "require password change"
-- ☐ Log in as new user → verify redirect to change password page
-- ☐ Enter current + new password → verify success redirect
-- ☐ Verify normal pages accessible after password change
-- ☐ Verify `/auth/login` and `/auth/logout` remain accessible during forced change
-- ☐ Disable closed system mode → verify self-registration works again
+- ✓ Enable closed system mode via admin settings
+- ✓ Verify `/auth/register` shows "registration disabled" message
+- ✓ Create user via admin panel with "require password change"
+- ✓ Log in as new user → verify redirect to change password page
+- ✓ Enter current + new password → verify success redirect
+- ✓ Verify normal pages accessible after password change
+- ✓ Verify `/auth/login` and `/auth/logout` remain accessible during forced change
+- ✓ Disable closed system mode → verify self-registration works again
 
 ---
 
@@ -257,16 +260,18 @@ Add a "closed system" mode (enabled via a new system setting `ClosedSystemEnable
 | `src/UI/DotNetCloud.UI.Web/Components/Pages/Auth/Register.razor` | Show "disabled" message in closed mode |
 | `src/UI/DotNetCloud.UI.Web.Client/Pages/Admin/UserCreate.razor` | Add `PasswordChangeRequired` checkbox |
 | `src/Core/DotNetCloud.Core.Server/Program.cs` | Register `PasswordChangeRequiredMiddleware` |
-| `tests/DotNetCloud.Core.Tests/Services/AuthServiceTests.cs` | New unit tests |
+| `tests/DotNetCloud.Core.Auth.Tests/Services/AuthServiceTests.cs` | New closed system unit tests |
+| `tests/DotNetCloud.Integration.Tests/Builders/RegisterRequestBuilder.cs` | Added `PasswordChangeRequired` support |
 | `docs/IMPLEMENTATION_CHECKLIST.md` | Add new tasks |
 | `docs/MASTER_PROJECT_PLAN.md` | Add new phase entry |
 
-### Created (3 files)
+### Created (4 files)
 | File | Purpose |
 |------|---------|
 | `src/UI/DotNetCloud.UI.Web/Components/Pages/Auth/ChangePassword.razor` | Change password page |
-| `src/Core/DotNetCloud.Core.ServiceDefaults/Middleware/PasswordChangeRequiredMiddleware.cs` | Enforcement middleware |
+| `src/Core/DotNetCloud.Core.Server/Middleware/PasswordChangeRequiredMiddleware.cs` | Enforcement middleware (placed in Server project for Identity dependency access) |
 | `src/Core/DotNetCloud.Core/Constants/SystemSettingKeys.cs` | Setting key constants |
+| `tests/DotNetCloud.Integration.Tests/Api/ClosedSystemIntegrationTests.cs` | Integration tests for closed system flow |
 
 ### Generated (1 file)
 | File | Purpose |

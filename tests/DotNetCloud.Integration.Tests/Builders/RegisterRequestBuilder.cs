@@ -12,12 +12,14 @@ internal sealed class RegisterRequestBuilder
     private string _displayName = "Integration Test User";
     private string _locale = "en-US";
     private string _timezone = "UTC";
+    private bool _passwordChangeRequired;
 
     public RegisterRequestBuilder WithEmail(string email) { _email = email; return this; }
     public RegisterRequestBuilder WithPassword(string password) { _password = password; return this; }
     public RegisterRequestBuilder WithDisplayName(string name) { _displayName = name; return this; }
     public RegisterRequestBuilder WithLocale(string locale) { _locale = locale; return this; }
     public RegisterRequestBuilder WithTimezone(string tz) { _timezone = tz; return this; }
+    public RegisterRequestBuilder WithPasswordChangeRequired(bool required) { _passwordChangeRequired = required; return this; }
 
     public RegisterRequest Build()
     {
@@ -28,6 +30,7 @@ internal sealed class RegisterRequestBuilder
             DisplayName = _displayName,
             Locale = _locale,
             Timezone = _timezone,
+            PasswordChangeRequired = _passwordChangeRequired,
         };
     }
 }

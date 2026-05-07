@@ -57,6 +57,18 @@ public sealed class AuthSessionController : ControllerBase
             if (result.Succeeded)
             {
                 await UpdateLastLoginAsync(email);
+
+                // Check if password change is required (closed system mode)
+                var user = await _userManager.FindByEmailAsync(email);
+                if (user is not null && user.PasswordChangeRequired)
+                {
+                    _logger.LogInformation(
+                        "Password change required for user {UserId}, redirecting to change-password page", user.Id);
+                    var safeReturn = IsSafeLocalReturnUrl(returnUrl) ? returnUrl! : "/";
+                    var encodedReturn = Uri.EscapeDataString(safeReturn);
+                    return LocalRedirect($"/auth/change-password?returnUrl={encodedReturn}");
+                }
+
                 var target = await ResolvePostLoginTargetAsync(email, returnUrl);
                 return LocalRedirect(target);
             }
@@ -82,6 +94,54 @@ public sealed class AuthSessionController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Changes the current user's password (form-post flow).
+    /// Used for the forced password change on first login in closed system mode.
+    /// </summary>
+    [HttpPost("change-password")]
+    [Authorize]
+    public async Task<IActionResult> ChangePasswordPostAsync(
+        [FromForm] string currentPassword,
+        [FromForm] string newPassword,
+        [FromForm] string confirmNewPassword,
+        [FromForm] string? returnUrl = null)
+    {
+        var safeReturn = IsSafeLocalReturnUrl(returnUrl) ? returnUrl! : "/";
+
+        if (string.IsNullOrWhiteSpace(currentPassword))
+            return RedirectToChangePassword("Current password is required.", safeReturn);
+
+        if (string.IsNullOrWhiteSpace(newPassword))
+            return RedirectToChangePassword("New password is required.", safeReturn);
+
+        if (newPassword != confirmNewPassword)
+            return RedirectToChangePassword("New passwords do not match.", safeReturn);
+
+        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrWhiteSpace(userId) || !Guid.TryParse(userId, out var userGuid))
+            return RedirectToChangePassword("Authentication error. Please sign out and try again.", safeReturn);
+
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user is null)
+            return RedirectToChangePassword("User not found. Please sign out and try again.", safeReturn);
+
+        var changeResult = await _userManager.ChangePasswordAsync(user, currentPassword, newPassword);
+        if (!changeResult.Succeeded)
+        {
+            var errors = string.Join(" ", changeResult.Errors.Select(e => e.Description));
+            _logger.LogWarning("Password change failed for user {UserId}: {Errors}", user.Id, errors);
+            return RedirectToChangePassword(errors, safeReturn);
+        }
+
+        user.PasswordChangeRequired = false;
+        await _userManager.UpdateAsync(user);
+
+        _logger.LogInformation("Password changed for user {UserId} (forced change)", user.Id);
+
+        var encodedReturn = Uri.EscapeDataString(safeReturn);
+        return LocalRedirect($"/auth/change-password?returnUrl={encodedReturn}&changed=true");
+    }
+
     private IActionResult RedirectToLogin(string error, string? returnUrl, string? email)
     {
         var safeReturn = IsSafeLocalReturnUrl(returnUrl) ? returnUrl! : "/";
@@ -89,6 +149,14 @@ public sealed class AuthSessionController : ControllerBase
         var encodedReturn = Uri.EscapeDataString(safeReturn);
         var encodedEmail = Uri.EscapeDataString(email ?? string.Empty);
         return LocalRedirect($"/auth/login?returnUrl={encodedReturn}&error={encodedError}&email={encodedEmail}");
+    }
+
+    private IActionResult RedirectToChangePassword(string error, string? returnUrl)
+    {
+        var safeReturn = IsSafeLocalReturnUrl(returnUrl) ? returnUrl! : "/";
+        var encodedError = Uri.EscapeDataString(error);
+        var encodedReturn = Uri.EscapeDataString(safeReturn);
+        return LocalRedirect($"/auth/change-password?returnUrl={encodedReturn}&error={encodedError}");
     }
 
     private static bool IsSafeLocalReturnUrl(string? returnUrl)

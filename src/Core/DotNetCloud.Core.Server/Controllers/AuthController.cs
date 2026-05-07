@@ -50,6 +50,11 @@ public class AuthController : ControllerBase
         {
             return BadRequest(new { success = false, error = new { code = "VALIDATION_ERROR", message = ex.Message } });
         }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("Self-registration is disabled"))
+        {
+            _logger.LogWarning("Registration blocked: closed system mode is active");
+            return StatusCode(403, new { success = false, error = new { code = "CLOSED_SYSTEM", message = ex.Message } });
+        }
         catch (InvalidOperationException ex)
         {
             _logger.LogWarning("Registration failed: {Message}", ex.Message);
@@ -81,6 +86,11 @@ public class AuthController : ControllerBase
         {
             _logger.LogInformation("MFA required for {Email}", request.Email);
             return Accepted(new { success = false, error = new { code = "MFA_REQUIRED", message = "Multi-factor authentication required" } });
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("PASSWORD_CHANGE_REQUIRED"))
+        {
+            _logger.LogWarning("Login blocked for {Email}: password change required (closed system mode)", request.Email);
+            return StatusCode(403, new { success = false, error = new { code = "PASSWORD_CHANGE_REQUIRED", message = "You must change your password before continuing." } });
         }
     }
 
@@ -203,6 +213,7 @@ public class AuthController : ControllerBase
     /// </summary>
     /// <param name="request">Request with current and new passwords.</param>
     /// <returns>Confirmation that the password was changed.</returns>
+    [HttpPost("change-password")]
     [HttpPost("password/change")]
     [Authorize]
     public async Task<IActionResult> ChangePasswordAsync([FromBody] ChangePasswordRequest request)

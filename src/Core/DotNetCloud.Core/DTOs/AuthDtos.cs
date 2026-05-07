@@ -92,6 +92,13 @@ public sealed class RegisterRequest
     /// Gets or sets the user's preferred timezone (e.g., "UTC"). Defaults to "UTC".
     /// </summary>
     public string Timezone { get; set; } = "UTC";
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the user must change their password on first login.
+    /// This is used by administrators when creating accounts in closed system mode.
+    /// Ignored during self-registration.
+    /// </summary>
+    public bool PasswordChangeRequired { get; set; }
 }
 
 /// <summary>

@@ -50,6 +50,14 @@
             </button>
         </div>
 
+        <div class="form-group checkbox-group">
+            <label class="checkbox-label">
+                <InputCheckbox @bind-Value="_model.PasswordChangeRequired" />
+                <span>Require password change on first login</span>
+            </label>
+            <span class="hint">User will be redirected to set a new password after their first login.</span>
+        </div>
+
         @if (!string.IsNullOrWhiteSpace(_errorMessage))
         {
             <div class="alert alert-danger">@_errorMessage</div>
@@ -73,6 +81,22 @@
     private bool _submitting;
     private bool _detectingTimezone;
     private string? _errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Default the "require password change" checkbox based on closed system mode
+        try
+        {
+            var setting = await Api.GetSettingAsync(
+                DotNetCloud.Core.Constants.SystemSettingKeys.CoreModule,
+                DotNetCloud.Core.Constants.SystemSettingKeys.ClosedSystemEnabled);
+            _model.PasswordChangeRequired = setting?.Value == "true";
+        }
+        catch
+        {
+            // Default to unchecked if the setting can't be read
+        }
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {

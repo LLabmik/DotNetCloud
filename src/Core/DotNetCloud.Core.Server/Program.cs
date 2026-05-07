@@ -300,7 +300,7 @@ public class Program
         builder.Services.AddScoped<DotNetCloud.Core.Capabilities.ISearchableModule, DotNetCloud.Modules.Bookmarks.Data.Services.BookmarksSearchableModule>();
         builder.Services.AddScoped<DotNetCloud.Core.Capabilities.ISearchableModule, DotNetCloud.Modules.Email.Data.Services.EmailSearchableModule>();
         builder.Services.AddSingleton<IEventBus, InProcessEventBus>();
-        builder.Services.AddSingleton<DotNetCloud.Core.Capabilities.ICrossModuleLinkResolver, CrossModuleLinkResolver>();
+        builder.Services.AddScoped<DotNetCloud.Core.Capabilities.ICrossModuleLinkResolver, CrossModuleLinkResolver>();
         builder.Services.AddSingleton<DotNetCloud.Core.Services.IBackgroundServiceTracker, DotNetCloud.Core.Services.BackgroundServiceTracker>();
 
         // Update service — queries GitHub Releases API with caching
@@ -1023,6 +1023,11 @@ public class Program
 
         app.UseAuthentication();
         app.UseAuthorization();
+
+        // Password change enforcement — redirects authenticated users with PasswordChangeRequired=true
+        // to the change-password page. Must run after authentication/authorization so the user
+        // identity is available, but before endpoint routing so the redirect happens early.
+        app.UseMiddleware<PasswordChangeRequiredMiddleware>();
 
         // Rate limiting — MUST come after UseAuthentication so the GlobalLimiter
         // can distinguish authenticated (200 req/60s per user) from anonymous

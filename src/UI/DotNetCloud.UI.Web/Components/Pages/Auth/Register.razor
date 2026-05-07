@@ -1,6 +1,8 @@
 @page "/auth/register"
 @using Microsoft.AspNetCore.Identity
+@using DotNetCloud.Core.Constants
 @using DotNetCloud.Core.Data.Entities.Identity
+@using DotNetCloud.Core.Services
 @layout AuthLayout
 
 <PageTitle>Register - DotNetCloud</PageTitle>
@@ -12,6 +14,20 @@
             <h1>DotNetCloud</h1>
             <p>Create your account</p>
         </div>
+
+        @if (_closedSystemEnabled)
+        {
+            <div class="alert alert-warning" role="alert">
+                <strong>Self-registration is currently disabled.</strong>
+                Please contact your system administrator to request an account.
+            </div>
+            <div class="auth-footer">
+                <span>Already have an account?</span>
+                <a href="/auth/login">Sign in</a>
+            </div>
+        }
+        else
+        {
 
         <EditForm Model="_model" OnValidSubmit="RegisterAsync" FormName="register">
             <DataAnnotationsValidator />
@@ -116,6 +132,7 @@
             <span>Already have an account?</span>
             <a href="/auth/login">Sign in</a>
         </div>
+        }
     </div>
 </div>
 
@@ -148,6 +165,7 @@
 
 @code {
     [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
+    [Inject] private IAdminSettingsService AdminSettingsService { get; set; } = default!;
 
     [SupplyParameterFromForm]
     private RegisterFormModel? _model { get; set; }
@@ -155,10 +173,23 @@
     private bool _submitting;
     private bool _success;
     private string? _errorMessage;
+    private bool _closedSystemEnabled;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         _model ??= new();
+
+        try
+        {
+            var setting = await AdminSettingsService.GetSettingAsync(
+                SystemSettingKeys.CoreModule, SystemSettingKeys.ClosedSystemEnabled);
+            _closedSystemEnabled = setting?.Value == "true";
+        }
+        catch
+        {
+            // If we can't reach the settings service, assume open registration
+            _closedSystemEnabled = false;
+        }
     }
 
     private async Task RegisterAsync()

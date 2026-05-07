@@ -5397,31 +5397,31 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Migration `AddPasswordChangeRequired` adds column to `AspNetUsers` table
 
 ### Phase B: Closed System Setting
-- ☐ Define `SystemSettingKeys.ClosedSystemEnabled` constant
-- ☐ Verify admin can toggle via existing Settings UI
+- ✓ Define `SystemSettingKeys.ClosedSystemEnabled` constant
+- ✓ Verify admin can toggle via existing Settings UI
 
-### Phase C: Registration Gate — Block Self-Registration in Closed Mode
-- ☐ Add closed-system check to `AuthService.RegisterAsync`
-- ☐ Update `AuthController.RegisterAsync` for proper HTTP response (`403 Forbidden`)
-- ☐ Update self-registration UI (`Register.razor`) with "registration disabled" message
+### Phase C: Registration Gate — Block Self-Registration in Closed Mode ✅
+- ✓ Add closed-system check to `AuthService.RegisterAsync`
+- ✓ Update `AuthController.RegisterAsync` for proper HTTP response (`403 Forbidden`)
+- ✓ Update self-registration UI (`Register.razor`) with "registration disabled" message
 
 ### Phase D: Password Change on First Login
-- ☐ Create `ChangePassword.razor` page
-- ☐ Create form-post endpoint for password change
-- ☐ Add API endpoint for password change
-- ☐ Modify session login flow to redirect when `PasswordChangeRequired`
-- ☐ Modify API login flow (`AuthService.LoginAsync`)
+- ✓ Create `ChangePassword.razor` page
+- ✓ Create form-post endpoint for password change
+- ✓ Add API endpoint for password change
+- ✓ Modify session login flow to redirect when `PasswordChangeRequired`
+- ✓ Modify API login flow (`AuthService.LoginAsync`)
 
-### Phase E: Middleware — Enforce Password Change
-- ☐ Create `PasswordChangeRequiredMiddleware`
-- ☐ Register middleware in pipeline
+### Phase E: Middleware — Enforce Password Change ✅
+- ✓ Create `PasswordChangeRequiredMiddleware`
+- ✓ Register middleware in pipeline
 
-### Phase F: Admin User Creation UI Updates
-- ☐ Update `UserCreate.razor` with `PasswordChangeRequired` checkbox
-- ☐ Update `RegisterRequest` DTO
+### Phase F: Admin User Creation UI Updates ✅
+- ✓ Update `UserCreate.razor` with `PasswordChangeRequired` checkbox
+- ✓ Update `RegisterRequest` DTO
 
-### Phase G: Testing & Verification
-- ☐ Unit tests for `AuthService`
-- ☐ Integration tests
-- ☐ Manual verification checklist
+### Phase G: Testing & Verification ✅
+- ✓ Unit tests for `AuthService` (5 new tests: closed system register/login scenarios)
+- ✓ Integration tests (5 new tests: HTTP-level closed system flow)
+- ✓ Manual verification checklist
 

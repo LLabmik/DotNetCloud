@@ -1,7 +1,9 @@
 using DotNetCloud.Core.Auth.Services;
 using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.Constants;
 using DotNetCloud.Core.Data.Entities.Identity;
 using DotNetCloud.Core.DTOs;
+using DotNetCloud.Core.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -18,6 +20,7 @@ public class AuthServiceTests
     private Mock<UserManager<ApplicationUser>> _userManagerMock = null!;
     private Mock<SignInManager<ApplicationUser>> _signInManagerMock = null!;
     private Mock<IOpenIddictTokenManager> _tokenManagerMock = null!;
+    private Mock<IAdminSettingsService> _adminSettingsMock = null!;
     private Mock<ILogger<AuthService>> _loggerMock = null!;
     private AuthService _service = null!;
     private static readonly CallerContext SystemCaller =
@@ -40,11 +43,18 @@ public class AuthServiceTests
 
         _tokenManagerMock = new Mock<IOpenIddictTokenManager>();
         _loggerMock = new Mock<ILogger<AuthService>>();
+        _adminSettingsMock = new Mock<IAdminSettingsService>();
+
+        // By default, return null (setting not found) so existing tests use normal flow
+        _adminSettingsMock
+            .Setup(s => s.GetSettingAsync(It.IsAny<string>(), It.IsAny<string>()))
+            .ReturnsAsync((SystemSettingDto?)null);
 
         _service = new AuthService(
             _userManagerMock.Object,
             _signInManagerMock.Object,
             _tokenManagerMock.Object,
+            _adminSettingsMock.Object,
             _loggerMock.Object);
     }
 
@@ -118,6 +128,125 @@ public class AuthServiceTests
         {
             // Expected
         }
+    }
+
+    // ---------------------------------------------------------------------------
+    // RegisterAsync — Closed System Mode
+    // ---------------------------------------------------------------------------
+
+    [TestMethod]
+    public async Task RegisterAsync_ClosedSystemEnabled_NonAdmin_ThrowsInvalidOperationException()
+    {
+        // Arrange
+        var request = new RegisterRequest
+        {
+            Email = "selfreg@example.com",
+            Password = "P@ssw0rd!",
+            DisplayName = "Self Registrant",
+        };
+
+        // Enable closed system mode
+        _adminSettingsMock
+            .Setup(s => s.GetSettingAsync(SystemSettingKeys.CoreModule, SystemSettingKeys.ClosedSystemEnabled))
+            .ReturnsAsync(new SystemSettingDto
+            {
+                Module = SystemSettingKeys.CoreModule,
+                Key = SystemSettingKeys.ClosedSystemEnabled,
+                Value = "true",
+            });
+
+        // Act & Assert
+        try
+        {
+            await _service.RegisterAsync(request, SystemCaller);
+            Assert.Fail("Expected InvalidOperationException");
+        }
+        catch (InvalidOperationException ex)
+        {
+            Assert.IsTrue(ex.Message.Contains("Self-registration is disabled", StringComparison.Ordinal),
+                "Exception message should indicate self-registration is disabled");
+        }
+    }
+
+    [TestMethod]
+    public async Task RegisterAsync_ClosedSystemEnabled_Admin_SetsPasswordChangeRequired()
+    {
+        // Arrange
+        var request = new RegisterRequest
+        {
+            Email = "admincreated@example.com",
+            Password = "P@ssw0rd!",
+            DisplayName = "Admin Created User",
+            PasswordChangeRequired = true,
+        };
+
+        // Enable closed system mode
+        _adminSettingsMock
+            .Setup(s => s.GetSettingAsync(SystemSettingKeys.CoreModule, SystemSettingKeys.ClosedSystemEnabled))
+            .ReturnsAsync(new SystemSettingDto
+            {
+                Module = SystemSettingKeys.CoreModule,
+                Key = SystemSettingKeys.ClosedSystemEnabled,
+                Value = "true",
+            });
+
+        ApplicationUser? createdUser = null;
+        _userManagerMock
+            .Setup(m => m.CreateAsync(It.IsAny<ApplicationUser>(), request.Password))
+            .ReturnsAsync(IdentityResult.Success)
+            .Callback<ApplicationUser, string>((u, _) =>
+            {
+                u.Id = Guid.NewGuid();
+                createdUser = u;
+            });
+
+        var adminCaller = new CallerContext(
+            Guid.NewGuid(),
+            new[] { "Administrator" },
+            DotNetCloud.Core.Authorization.CallerType.User);
+
+        // Act
+        var response = await _service.RegisterAsync(request, adminCaller);
+
+        // Assert
+        Assert.IsNotNull(createdUser, "User should have been created");
+        Assert.IsTrue(createdUser!.PasswordChangeRequired,
+            "Admin-created user should have PasswordChangeRequired = true");
+        Assert.AreEqual(request.Email, response.Email);
+    }
+
+    [TestMethod]
+    public async Task RegisterAsync_ClosedSystemDisabled_AllowsSelfRegistration()
+    {
+        // Arrange
+        var request = new RegisterRequest
+        {
+            Email = "selfreg@example.com",
+            Password = "P@ssw0rd!",
+            DisplayName = "Self Registrant",
+        };
+
+        // Explicitly set closed system to "false"
+        _adminSettingsMock
+            .Setup(s => s.GetSettingAsync(SystemSettingKeys.CoreModule, SystemSettingKeys.ClosedSystemEnabled))
+            .ReturnsAsync(new SystemSettingDto
+            {
+                Module = SystemSettingKeys.CoreModule,
+                Key = SystemSettingKeys.ClosedSystemEnabled,
+                Value = "false",
+            });
+
+        _userManagerMock
+            .Setup(m => m.CreateAsync(It.IsAny<ApplicationUser>(), request.Password))
+            .ReturnsAsync(IdentityResult.Success)
+            .Callback<ApplicationUser, string>((u, _) => { u.Id = Guid.NewGuid(); });
+
+        // Act
+        var response = await _service.RegisterAsync(request, SystemCaller);
+
+        // Assert
+        Assert.AreEqual(request.Email, response.Email,
+            "Self-registration should succeed when closed system mode is disabled");
     }
 
     // ---------------------------------------------------------------------------
@@ -300,6 +429,77 @@ public class AuthServiceTests
         {
             return ex;
         }
+    }
+
+    // ---------------------------------------------------------------------------
+    // LoginAsync — Closed System Mode
+    // ---------------------------------------------------------------------------
+
+    [TestMethod]
+    public async Task LoginAsync_PasswordChangeRequired_ThrowsInvalidOperationException()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var user = new ApplicationUser
+        {
+            Id = userId,
+            Email = "user@example.com",
+            UserName = "user@example.com",
+            DisplayName = "Test User",
+            IsActive = true,
+            PasswordChangeRequired = true,
+        };
+        var request = new LoginRequest { Email = "user@example.com", Password = "P@ssw0rd!" };
+
+        _userManagerMock.Setup(m => m.FindByEmailAsync(request.Email)).ReturnsAsync(user);
+        _userManagerMock.Setup(m => m.IsLockedOutAsync(user)).ReturnsAsync(false);
+        _userManagerMock.Setup(m => m.CheckPasswordAsync(user, request.Password)).ReturnsAsync(true);
+        _userManagerMock.Setup(m => m.ResetAccessFailedCountAsync(user)).ReturnsAsync(IdentityResult.Success);
+        _userManagerMock.Setup(m => m.GetTwoFactorEnabledAsync(user)).ReturnsAsync(false);
+
+        // Act & Assert
+        try
+        {
+            await _service.LoginAsync(request, SystemCaller);
+            Assert.Fail("Expected InvalidOperationException");
+        }
+        catch (InvalidOperationException ex)
+        {
+            Assert.AreEqual("PASSWORD_CHANGE_REQUIRED", ex.Message,
+                "Login should be blocked with PASSWORD_CHANGE_REQUIRED when flag is set");
+        }
+    }
+
+    [TestMethod]
+    public async Task LoginAsync_PasswordChangeNotRequired_ReturnsLoginResponse()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var user = new ApplicationUser
+        {
+            Id = userId,
+            Email = "user@example.com",
+            UserName = "user@example.com",
+            DisplayName = "Test User",
+            IsActive = true,
+            PasswordChangeRequired = false,
+        };
+        var request = new LoginRequest { Email = "user@example.com", Password = "P@ssw0rd!" };
+
+        _userManagerMock.Setup(m => m.FindByEmailAsync(request.Email)).ReturnsAsync(user);
+        _userManagerMock.Setup(m => m.IsLockedOutAsync(user)).ReturnsAsync(false);
+        _userManagerMock.Setup(m => m.CheckPasswordAsync(user, request.Password)).ReturnsAsync(true);
+        _userManagerMock.Setup(m => m.ResetAccessFailedCountAsync(user)).ReturnsAsync(IdentityResult.Success);
+        _userManagerMock.Setup(m => m.GetTwoFactorEnabledAsync(user)).ReturnsAsync(false);
+        _userManagerMock.Setup(m => m.UpdateAsync(user)).ReturnsAsync(IdentityResult.Success);
+
+        // Act
+        var response = await _service.LoginAsync(request, SystemCaller);
+
+        // Assert
+        Assert.AreEqual(userId, response.UserId);
+        Assert.AreEqual("Test User", response.DisplayName);
+        Assert.AreEqual("Bearer", response.TokenType);
     }
 
     // ---------------------------------------------------------------------------
