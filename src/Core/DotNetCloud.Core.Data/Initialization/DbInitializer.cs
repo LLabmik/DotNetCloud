@@ -448,6 +448,20 @@ public class DbInitializer
             new SystemSetting
             {
                 Module = "dotnetcloud.core",
+                Key = "ClosedSystemEnabled",
+                Value = "false",
+                Description = "When true, self-registration is disabled and only administrators can create accounts"
+            },
+            new SystemSetting
+            {
+                Module = "dotnetcloud.core",
+                Key = "DemoModeEnabled",
+                Value = "false",
+                Description = "When true, self-registered accounts become trial accounts (750 MB, no email, auto-delete after 5 days)"
+            },
+            new SystemSetting
+            {
+                Module = "dotnetcloud.core",
                 Key = "MaxLoginAttempts",
                 Value = "5",
                 Description = "Maximum failed login attempts before account lockout"
