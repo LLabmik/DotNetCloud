@@ -47,6 +47,11 @@ public class ApplicationUserConfiguration : IEntityTypeConfiguration<Application
             .IsRequired()
             .HasDefaultValue(true);
 
+        // PasswordChangeRequired required with default value
+        builder.Property(u => u.PasswordChangeRequired)
+            .IsRequired()
+            .HasDefaultValue(false);
+
         // Indexes for common queries
         builder.HasIndex(u => u.DisplayName)
             .HasDatabaseName("IX_ApplicationUsers_DisplayName");

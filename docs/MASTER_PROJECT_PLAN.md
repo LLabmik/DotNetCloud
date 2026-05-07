@@ -130,6 +130,7 @@
 | Browser Ext — Phase 4       | 4       | 4         | 0           | 0       |
 | Browser Ext — Phase 5       | 6       | 6         | 0           | 0       |
 | Browser Ext — Phase 6       | 3       | 0         | 0           | 3       |
+| Closed System Mode          | 7       | 1         | 0           | 6       |
 
 Maintenance note: local install/setup health verification now follows configured Kestrel ports and accepts self-signed local HTTPS during startup checks. Fresh Linux installs now invoke `dotnetcloud setup --beginner` by default, which auto-selects the recommended local PostgreSQL path and then branches cleanly between the three real deployment shapes: private/local test, public behind a reverse proxy, and public served directly by DotNetCloud itself. The local branch uses self-signed HTTPS on DotNetCloud directly. The reverse-proxy public branch keeps DotNetCloud on local HTTP and ends with explicit reverse-proxy/TLS guidance instead of pretending automatic public-certificate setup exists; it now also points beginners to a dedicated Apache-first reverse-proxy guide with a Caddy alternative. The public-direct branch lets the user point DotNetCloud at an existing public certificate file and explains the extra tradeoffs, while still explicitly recommending a reverse proxy for most public installs because it simplifies ports 80/443, TLS renewal, and future services on the same machine. All branches print explicit direct local access URLs and health probe URLs and end with a plain-language summary of the selected defaults plus the beginner user's next steps. Upgrade runs now also end with a plain-language summary that confirms existing data/configuration were preserved, states clearly whether a one-time setup review is still required, and re-shows the access URLs plus the user's next step. This also clarifies the internal app defaults HTTP `5080` / HTTPS `5443` versus reverse-proxy/public HTTPS ports such as `15443`. Windows now has a separate IIS-first installation path via `tools/install-windows.ps1`, with IIS reverse proxying to `http://localhost:5080`, a beginner-focused IIS guide, a dedicated architecture rationale note, native Windows Service hosting support in the core server, and machine-level config/data environment propagation during setup and service runtime so Windows self-hosters do not need to follow the Linux installer path. The bare-metal redeploy helper now also repairs build-output ownership and purges stale normal and malformed Debug output trees before Release build/publish runs so local Linux redeploys do not inherit broken artifacts from prior attempts.
 
@@ -3584,3 +3585,49 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 - ✓ Project references added for modules needing `UI.Shared`
 
 **Notes:** All modules now have in-app help accessible from their sidebar. The Example module serves as a reference pattern for new modules. Help content for Files, Notes, AI, Calendar, and Contacts was informed by existing `docs/user/*.md` files; original content was written for Chat, Bookmarks, Email, Music, Photos, Tracks, and Video.
+
+---
+
+## Closed System Mode
+
+**Reference:** `docs/CLOSED_SYSTEM_MODE_PLAN.md`
+
+### Quick Status
+
+| Phase | Steps | Completed | In Progress | Pending |
+|-------|-------|-----------|-------------|---------|
+| Phase A | 3 | 3 | 0 | 0 |
+| Phase B | 2 | 0 | 0 | 2 |
+| Phase C | 3 | 0 | 0 | 3 |
+| Phase D | 5 | 0 | 0 | 5 |
+| Phase E | 2 | 0 | 0 | 2 |
+| Phase F | 2 | 0 | 0 | 2 |
+| Phase G | 3 | 0 | 0 | 3 |
+
+### Phase A: Data Model — `PasswordChangeRequired` Flag ✅
+
+**Status:** completed  
+**Duration:** ~30 minutes
+
+#### Step: phase-a.1 — Add `PasswordChangeRequired` property to `ApplicationUser`
+**Status:** completed  
+**Deliverables:**
+- ✓ `bool PasswordChangeRequired { get; set; } = false` property on `ApplicationUser`
+- ✓ XML doc comment
+
+**File:** `src/Core/DotNetCloud.Core.Data/Entities/Identity/ApplicationUser.cs`
+
+#### Step: phase-a.2 — Update EF configuration
+**Status:** completed  
+**Deliverables:**
+- ✓ `.IsRequired().HasDefaultValue(false)` for new property
+
+**File:** `src/Core/DotNetCloud.Core.Data/Configuration/Identity/ApplicationUserConfiguration.cs`
+
+#### Step: phase-a.3 — Scaffold EF migration
+**Status:** completed  
+**Deliverables:**
+- ✓ Migration `AddPasswordChangeRequired` adds column `PasswordChangeRequired` to `AspNetUsers` table
+- ✓ Migration cleaned up — no unintended snapshot diffs
+
+**File:** `src/Core/DotNetCloud.Core.Data/Migrations/20260507010300_AddPasswordChangeRequired.cs`

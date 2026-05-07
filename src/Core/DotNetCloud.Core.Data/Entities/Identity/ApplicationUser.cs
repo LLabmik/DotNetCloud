@@ -48,4 +48,11 @@ public class ApplicationUser : IdentityUser<Guid>
     /// Inactive users cannot log in.
     /// </summary>
     public bool IsActive { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets whether the user must change their password on next login.
+    /// Used in closed system mode where admins create accounts with an initial password.
+    /// Default is <c>false</c>.
+    /// </summary>
+    public bool PasswordChangeRequired { get; set; } = false;
 }
