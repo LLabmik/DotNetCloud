@@ -1,3 +1,5 @@
+using System.Web;
+using DotNetCloud.Core.Auth.Configuration;
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Constants;
 using DotNetCloud.Core.Data.Entities.Identity;
@@ -6,6 +8,7 @@ using DotNetCloud.Core.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using OpenIddict.Abstractions;
 
 namespace DotNetCloud.Core.Auth.Services;
@@ -23,6 +26,8 @@ public sealed class AuthService : IAuthService
     private readonly SignInManager<ApplicationUser> _signInManager;
     private readonly IOpenIddictTokenManager _tokenManager;
     private readonly IAdminSettingsService _adminSettingsService;
+    private readonly ITransactionalEmailSender _emailSender;
+    private readonly SmtpOptions _smtpOptions;
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<AuthService> _logger;
 
@@ -34,6 +39,8 @@ public sealed class AuthService : IAuthService
         SignInManager<ApplicationUser> signInManager,
         IOpenIddictTokenManager tokenManager,
         IAdminSettingsService adminSettingsService,
+        ITransactionalEmailSender emailSender,
+        IOptions<SmtpOptions> smtpOptions,
         IServiceProvider serviceProvider,
         ILogger<AuthService> logger)
     {
@@ -41,6 +48,8 @@ public sealed class AuthService : IAuthService
         _signInManager = signInManager;
         _tokenManager = tokenManager;
         _adminSettingsService = adminSettingsService;
+        _emailSender = emailSender;
+        _smtpOptions = smtpOptions.Value;
         _serviceProvider = serviceProvider;
         _logger = logger;
     }
@@ -121,9 +130,28 @@ public sealed class AuthService : IAuthService
         if (requiresEmailConfirmation)
         {
             var confirmToken = await _userManager.GenerateEmailConfirmationTokenAsync(user);
-            // TODO Phase 0.x: send confirmation email; for now log the token
             _logger.LogInformation(
                 "Email confirmation token for {UserId}: {Token}", user.Id, confirmToken);
+
+            var encodedToken = HttpUtility.UrlEncode(confirmToken);
+            var confirmUrl = $"{_smtpOptions.BaseUrl.TrimEnd('/')}/auth/confirm-email?userId={user.Id}&token={encodedToken}";
+            var htmlBody = $"""
+                <p>Welcome to DotNetCloud!</p>
+                <p>Please confirm your email address by clicking the link below:</p>
+                <p><a href="{confirmUrl}">Confirm Email</a></p>
+                <p>If the link does not work, copy and paste this URL into your browser:</p>
+                <p>{confirmUrl}</p>
+                """;
+
+            try
+            {
+                await _emailSender.SendAsync(user.Email!, user.DisplayName ?? user.Email!,
+                    "Confirm your DotNetCloud account", htmlBody);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to send confirmation email to {Email}", user.Email);
+            }
         }
 
         return new RegisterResponse
@@ -368,9 +396,30 @@ public sealed class AuthService : IAuthService
         }
 
         var token = await _userManager.GeneratePasswordResetTokenAsync(user);
-        // TODO Phase 0.x: send reset email; for now log the token
         _logger.LogInformation(
             "Password reset token for {UserId}: {Token}", user.Id, token);
+
+        var encodedToken = HttpUtility.UrlEncode(token);
+        var encodedEmail = HttpUtility.UrlEncode(email);
+        var resetUrl = $"{_smtpOptions.BaseUrl.TrimEnd('/')}/auth/reset-password?email={encodedEmail}&token={encodedToken}";
+        var htmlBody = $"""
+            <p>A password reset was requested for your DotNetCloud account.</p>
+            <p>Click the link below to reset your password:</p>
+            <p><a href="{resetUrl}">Reset Password</a></p>
+            <p>If the link does not work, copy and paste this URL into your browser:</p>
+            <p>{resetUrl}</p>
+            <p>If you did not request this, you can safely ignore this email.</p>
+            """;
+
+        try
+        {
+            await _emailSender.SendAsync(user.Email!, user.DisplayName ?? user.Email!,
+                "Reset your DotNetCloud password", htmlBody);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send password reset email to {Email}", user.Email);
+        }
     }
 
     /// <inheritdoc/>

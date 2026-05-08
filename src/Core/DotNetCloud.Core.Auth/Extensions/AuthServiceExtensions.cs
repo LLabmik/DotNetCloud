@@ -204,6 +204,12 @@ public static class AuthServiceExtensions
         services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();
 
         // -----------------------------------------------------------------
+        // SMTP transactional email
+        // -----------------------------------------------------------------
+        services.Configure<SmtpOptions>(config.GetSection(SmtpOptions.SectionName));
+        services.AddScoped<ITransactionalEmailSender, SmtpEmailSender>();
+
+        // -----------------------------------------------------------------
         // Domain services
         // -----------------------------------------------------------------
         services.AddScoped<IAuthService, AuthService>();

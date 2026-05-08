@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Auth.Configuration;
 using DotNetCloud.Core.Auth.Services;
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Constants;
@@ -6,6 +7,7 @@ using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Moq;
 using OpenIddict.Abstractions;
 
@@ -21,6 +23,8 @@ public class AuthServiceTests
     private Mock<SignInManager<ApplicationUser>> _signInManagerMock = null!;
     private Mock<IOpenIddictTokenManager> _tokenManagerMock = null!;
     private Mock<IAdminSettingsService> _adminSettingsMock = null!;
+    private Mock<ITransactionalEmailSender> _emailSenderMock = null!;
+    private IOptions<SmtpOptions> _smtpOptions = null!;
     private Mock<IServiceProvider> _serviceProviderMock = null!;
     private Mock<ILogger<AuthService>> _loggerMock = null!;
     private AuthService _service = null!;
@@ -45,6 +49,8 @@ public class AuthServiceTests
         _tokenManagerMock = new Mock<IOpenIddictTokenManager>();
         _loggerMock = new Mock<ILogger<AuthService>>();
         _adminSettingsMock = new Mock<IAdminSettingsService>();
+        _emailSenderMock = new Mock<ITransactionalEmailSender>();
+        _smtpOptions = Options.Create(new SmtpOptions());
         _serviceProviderMock = new Mock<IServiceProvider>();
 
         // By default, return null (setting not found) so existing tests use normal flow
@@ -57,6 +63,8 @@ public class AuthServiceTests
             _signInManagerMock.Object,
             _tokenManagerMock.Object,
             _adminSettingsMock.Object,
+            _emailSenderMock.Object,
+            _smtpOptions,
             _serviceProviderMock.Object,
             _loggerMock.Object);
     }
