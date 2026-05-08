@@ -21,74 +21,71 @@
             </button>
         </div>
 
-        @if (!_sidebarCollapsed)
+        <div class="email-sidebar-actions">
+            <button class="email-btn email-btn-primary" @onclick="BeginCompose" title="Compose">
+                <span>+ Compose</span>
+            </button>
+            <button class="email-btn email-btn-secondary" @onclick="BeginAddAccount">
+                <span>+ Account</span>
+            </button>
+        </div>
+
+        @* Account selector *@
+        @if (_accounts.Count > 0)
         {
-            <div class="email-sidebar-actions">
-                <button class="email-btn email-btn-primary" @onclick="BeginCompose" title="Compose">
-                    <span>+ Compose</span>
-                </button>
-                <button class="email-btn email-btn-secondary" @onclick="BeginAddAccount">
-                    <span>+ Account</span>
-                </button>
-            </div>
-
-            @* Account selector *@
-            @if (_accounts.Count > 0)
-            {
-                <div class="email-sidebar-section">
-                    <div class="email-sidebar-section-header">
-                        <span>Accounts</span>
-                    </div>
-                    <select class="email-select" @bind="_selectedAccountId" @bind:after="OnAccountSelected">
-                        @foreach (var acct in _accounts)
-                        {
-                            <option value="@acct.Id">@acct.DisplayName</option>
-                        }
-                    </select>
-                </div>
-            }
-
-            @* Mailboxes *@
-            @if (_mailboxes.Any())
-            {
-                <div class="email-sidebar-section">
-                    <div class="email-sidebar-section-header">
-                        <span>Folders</span>
-                    </div>
-                    @foreach (var mb in _mailboxes)
-                    {
-                        <button class="email-nav-item @(_selectedMailbox?.Id == mb.Id ? "active" : "")"
-                                @onclick="() => SelectMailbox(mb)">
-                            <span>@MailboxIcon(mb)</span>
-                            <span class="email-nav-text">@mb.DisplayName</span>
-                        </button>
-                    }
-                </div>
-            }
-
             <div class="email-sidebar-section">
                 <div class="email-sidebar-section-header">
-                    <span>Settings</span>
+                    <span>Accounts</span>
                 </div>
-                <button class="email-nav-item @(_showRules ? "active" : "")"
-                        @onclick="() => { _showRules = true; _selectedMailbox = null; _composing = null; }">
-                    <span>⚙️</span>
-                    <span class="email-nav-text">Rules</span>
-                </button>
-                @if (_selectedAccount is not null)
+                <select class="email-select" @bind="_selectedAccountId" @bind:after="OnAccountSelected">
+                    @foreach (var acct in _accounts)
+                    {
+                        <option value="@acct.Id">@acct.DisplayName</option>
+                    }
+                </select>
+            </div>
+        }
+
+        @* Mailboxes *@
+        @if (_mailboxes.Any())
+        {
+            <div class="email-sidebar-section">
+                <div class="email-sidebar-section-header">
+                    <span>Folders</span>
+                </div>
+                @foreach (var mb in _mailboxes)
                 {
-                    <button class="email-nav-item" @onclick="SyncAccount" disabled="@_isSyncing">
-                        <span>@(_isSyncing ? "⏳" : "🔄")</span>
-                        <span class="email-nav-text">@(_isSyncing ? "Syncing..." : "Sync Now")</span>
-                    </button>
-                    <button class="email-nav-item email-nav-item-danger"
-                            @onclick="() => _confirmDeleteAccount = true">
-                        <span>🗑️</span>
-                        <span class="email-nav-text">Delete Account</span>
+                    <button class="email-nav-item @(_selectedMailbox?.Id == mb.Id ? "active" : "")"
+                            @onclick="() => SelectMailbox(mb)" title="@mb.DisplayName">
+                        <span>@MailboxIcon(mb)</span>
+                        <span class="email-nav-text">@mb.DisplayName</span>
                     </button>
                 }
             </div>
         }
+
+        <div class="email-sidebar-section">
+            <div class="email-sidebar-section-header">
+                <span>Settings</span>
+            </div>
+            <button class="email-nav-item @(_showRules ? "active" : "")"
+                    @onclick="() => { _showRules = true; _selectedMailbox = null; _composing = null; }" title="Rules">
+                <span>⚙️</span>
+                <span class="email-nav-text">Rules</span>
+            </button>
+            @if (_selectedAccount is not null)
+            {
+                <button class="email-nav-item" @onclick="SyncAccount" disabled="@_isSyncing" title="Sync">
+                    <span>@(_isSyncing ? "⏳" : "🔄")</span>
+                    <span class="email-nav-text">@(_isSyncing ? "Syncing..." : "Sync Now")</span>
+                </button>
+                <button class="email-nav-item email-nav-item-danger"
+                        @onclick="() => _confirmDeleteAccount = true" title="Delete Account">
+                    <span>🗑️</span>
+                    <span class="email-nav-text">Delete Account</span>
+                </button>
+            }
+        </div>
 
         <ModuleHelpLink ModuleId="email" Collapsed="_sidebarCollapsed" />
     </div>

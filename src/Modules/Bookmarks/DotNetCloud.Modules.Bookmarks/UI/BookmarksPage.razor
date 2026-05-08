@@ -18,65 +18,62 @@
             </button>
         </div>
 
-        @if (!_sidebarCollapsed)
-        {
-            <div class="bookmarks-sidebar-actions">
-                <button class="bookmarks-btn bookmarks-btn-primary" @onclick="BeginAdd" title="Add bookmark">
-                    <span>+ New</span>
-                </button>
-                <button class="bookmarks-btn bookmarks-btn-secondary" @onclick="BeginAddFolder" title="New folder">
-                    <span>+ Folder</span>
-                </button>
-            </div>
+        <div class="bookmarks-sidebar-actions">
+            <button class="bookmarks-btn bookmarks-btn-primary" @onclick="BeginAdd" title="Add bookmark">
+                <span>+ New</span>
+            </button>
+            <button class="bookmarks-btn bookmarks-btn-secondary" @onclick="BeginAddFolder" title="New folder">
+                <span>+ Folder</span>
+            </button>
+        </div>
 
-            <div class="bookmarks-sidebar-section">
-                <div class="bookmarks-sidebar-section-header">
-                    <span>Views</span>
-                </div>
-                <button class="bookmarks-nav-item @(_selectedFolderId is null && !_showFavorites ? "active" : "")"
-                        @onclick="() => SelectFolder(null)">
-                    <span>📑</span>
-                    <span class="bookmarks-nav-text">All Bookmarks</span>
-                </button>
-                <button class="bookmarks-nav-item @(_showFavorites ? "active" : "")"
-                        @onclick="() => { _showFavorites = true; _selectedFolderId = null; }">
-                    <span>⭐</span>
-                    <span class="bookmarks-nav-text">Favorites</span>
-                </button>
+        <div class="bookmarks-sidebar-section">
+            <div class="bookmarks-sidebar-section-header">
+                <span>Views</span>
             </div>
+            <button class="bookmarks-nav-item @(_selectedFolderId is null && !_showFavorites ? "active" : "")"
+                    @onclick="() => SelectFolder(null)" title="All Bookmarks">
+                <span>📑</span>
+                <span class="bookmarks-nav-text">All Bookmarks</span>
+            </button>
+            <button class="bookmarks-nav-item @(_showFavorites ? "active" : "")"
+                    @onclick="() => { _showFavorites = true; _selectedFolderId = null; }" title="Favorites">
+                <span>⭐</span>
+                <span class="bookmarks-nav-text">Favorites</span>
+            </button>
+        </div>
 
-            <div class="bookmarks-sidebar-section">
-                <div class="bookmarks-sidebar-section-header">
-                    <span>Folders</span>
-                </div>
-                @foreach (var folder in _folders)
-                {
-                    <button class="bookmarks-nav-item @(_selectedFolderId == folder.Id ? "active" : "")"
-                            @onclick="() => SelectFolder(folder.Id)" title="@folder.Name">
-                        <span class="bookmarks-folder-dot" style="background: @(folder.Color ?? "#6b7280");"></span>
-                        <span class="bookmarks-nav-text">@folder.Name</span>
-                    </button>
-                }
-                @if (_folders.Count == 0)
-                {
-                    <div class="bookmarks-sidebar-empty">No folders yet</div>
-                }
+        <div class="bookmarks-sidebar-section">
+            <div class="bookmarks-sidebar-section-header">
+                <span>Folders</span>
             </div>
+            @foreach (var folder in _folders)
+            {
+                <button class="bookmarks-nav-item @(_selectedFolderId == folder.Id ? "active" : "")"
+                        @onclick="() => SelectFolder(folder.Id)" title="@folder.Name">
+                    <span class="bookmarks-folder-dot" style="background: @(folder.Color ?? "#6b7280");"></span>
+                    <span class="bookmarks-nav-text">@folder.Name</span>
+                </button>
+            }
+            @if (_folders.Count == 0)
+            {
+                <div class="bookmarks-sidebar-empty">No folders yet</div>
+            }
+        </div>
 
-            <div class="bookmarks-sidebar-section">
-                <div class="bookmarks-sidebar-section-header">
-                    <span>Tools</span>
-                </div>
-                <button class="bookmarks-nav-item" @onclick="BeginImport">
-                    <span>📥</span>
-                    <span class="bookmarks-nav-text">Import</span>
-                </button>
-                <button class="bookmarks-nav-item" @onclick="ExportBookmarks">
-                    <span>📤</span>
-                    <span class="bookmarks-nav-text">Export</span>
-                </button>
+        <div class="bookmarks-sidebar-section">
+            <div class="bookmarks-sidebar-section-header">
+                <span>Tools</span>
             </div>
-        }
+            <button class="bookmarks-nav-item" @onclick="BeginImport" title="Import">
+                <span>📥</span>
+                <span class="bookmarks-nav-text">Import</span>
+            </button>
+            <button class="bookmarks-nav-item" @onclick="ExportBookmarks" title="Export">
+                <span>📤</span>
+                <span class="bookmarks-nav-text">Export</span>
+            </button>
+        </div>
 
         <ModuleHelpLink ModuleId="bookmarks" Collapsed="_sidebarCollapsed" />
     </div>

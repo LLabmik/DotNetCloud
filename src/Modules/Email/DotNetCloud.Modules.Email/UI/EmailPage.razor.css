@@ -62,7 +62,8 @@
 .email-sidebar.collapsed .email-nav-text,
 .email-sidebar.collapsed .email-sidebar-section-header,
 .email-sidebar.collapsed .email-sidebar-actions,
-.email-sidebar.collapsed .email-sidebar-empty {
+.email-sidebar.collapsed .email-sidebar-empty,
+.email-sidebar.collapsed .email-select {
     display: none;
 }
 
