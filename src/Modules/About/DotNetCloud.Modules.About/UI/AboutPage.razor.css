@@ -1,0 +1,404 @@
+/* ═══════════════════════════════════════════════════════
+   About Module – Master Stylesheet
+   Scoped to AboutPage.razor
+   ═══════════════════════════════════════════════════════ */
+
+/* ─────────── Layout ─────────── */
+
+.about-layout {
+    display: flex;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+}
+
+/* ─────────── Sidebar ─────────── */
+
+.about-sidebar {
+    width: 240px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--color-surface);
+    border-right: 1px solid var(--color-border);
+    overflow-y: auto;
+    transition: width var(--transition);
+}
+
+.about-sidebar.collapsed {
+    width: 52px;
+    overflow: hidden;
+}
+
+.about-sidebar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 12px 8px;
+    border-bottom: 1px solid var(--color-border);
+    min-height: 48px;
+}
+
+.about-sidebar.collapsed .about-sidebar-header {
+    justify-content: center;
+    padding: 16px 6px 8px;
+}
+
+.about-sidebar-title {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--color-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.about-sidebar-toggle {
+    background: none;
+    border: none;
+    color: var(--color-muted);
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: var(--radius);
+    font-size: 11px;
+    line-height: 1;
+    flex-shrink: 0;
+    transition: background var(--transition), color var(--transition);
+}
+
+.about-sidebar-toggle:hover {
+    background: var(--color-bg);
+    color: var(--color-text);
+}
+
+/* ─────────── Sidebar Sections ─────────── */
+
+.about-sidebar-section {
+    padding: 8px 0;
+}
+
+.about-sidebar-section-header {
+    padding: 0 12px 4px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--color-muted);
+    letter-spacing: 0.5px;
+}
+
+.about-sidebar.collapsed .about-sidebar-section-header,
+.about-sidebar.collapsed .about-nav-text {
+    display: none;
+}
+
+/* ─────────── Nav Items ─────────── */
+
+.about-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 6px 12px;
+    background: none;
+    border: none;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    font-size: 13px;
+    text-align: left;
+    transition: background var(--transition), color var(--transition);
+}
+
+.about-nav-item:hover {
+    background: var(--color-bg);
+    color: var(--color-text);
+}
+
+.about-nav-item.active {
+    background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+    color: var(--color-primary);
+    font-weight: 500;
+}
+
+.about-sidebar.collapsed .about-nav-item {
+    justify-content: center;
+    padding: 8px;
+}
+
+.about-nav-icon {
+    flex-shrink: 0;
+    width: 20px;
+    text-align: center;
+    font-size: 14px;
+}
+
+.about-nav-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ─────────── Main Content ─────────── */
+
+.about-main {
+    flex: 1;
+    overflow-y: auto;
+    padding: 32px 40px;
+    background: var(--color-bg);
+    min-height: 0;
+}
+
+.about-page-header {
+    margin-bottom: 28px;
+}
+
+.about-page-header h1 {
+    margin: 0 0 6px;
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--color-text);
+    letter-spacing: -0.5px;
+}
+
+.about-page-subtitle {
+    margin: 0;
+    font-size: 15px;
+    color: var(--color-text-secondary);
+}
+
+/* ─────────── Cards ─────────── */
+
+.about-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: 24px;
+    margin-bottom: 20px;
+    max-width: 800px;
+}
+
+.about-card h2 {
+    margin: 0 0 12px;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.about-card p {
+    margin: 0 0 10px;
+    font-size: 14px;
+    line-height: 1.65;
+    color: var(--color-text-secondary);
+}
+
+.about-card p:last-child {
+    margin-bottom: 0;
+}
+
+/* ─────────── Architecture Grid ─────────── */
+
+.about-arch-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px;
+}
+
+.about-arch-item {
+    padding: 14px 16px;
+    background: var(--color-bg);
+    border-radius: calc(var(--radius) - 2px);
+    border: 1px solid var(--color-border);
+}
+
+.about-arch-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text);
+    margin-bottom: 4px;
+}
+
+.about-arch-desc {
+    font-size: 12px;
+    color: var(--color-text-secondary);
+    line-height: 1.5;
+}
+
+/* ─────────── License Grid ─────────── */
+
+.about-license-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.about-license-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+}
+
+.about-license-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-text);
+}
+
+/* ─────────── Badges ─────────── */
+
+.about-badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 100px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.about-badge-version {
+    background: var(--color-primary);
+    color: #fff;
+}
+
+.about-license-badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 100px;
+    font-size: 11px;
+    font-weight: 600;
+    background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+    color: var(--color-primary);
+}
+
+.about-license-tag {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 100px;
+    font-size: 11px;
+    font-weight: 500;
+    background: var(--color-bg);
+    color: var(--color-text-secondary);
+    border: 1px solid var(--color-border);
+    white-space: nowrap;
+}
+
+.about-license-mpl {
+    background: color-mix(in srgb, var(--color-warning) 10%, transparent);
+    color: var(--color-warning);
+    border-color: color-mix(in srgb, var(--color-warning) 25%, transparent);
+}
+
+/* ─────────── Tables ─────────── */
+
+.about-table-wrap {
+    overflow-x: auto;
+}
+
+.about-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.about-table th {
+    text-align: left;
+    padding: 8px 12px;
+    border-bottom: 2px solid var(--color-border);
+    color: var(--color-muted);
+    font-weight: 500;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.about-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--color-border);
+    color: var(--color-text);
+    vertical-align: middle;
+}
+
+.about-table tr:last-child td {
+    border-bottom: none;
+}
+
+.about-table-label {
+    width: 160px;
+    font-weight: 500;
+    color: var(--color-text-secondary) !important;
+    font-size: 12px;
+}
+
+/* ─────────── Package Grid ─────────── */
+
+.about-package-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.about-package-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 6px 12px;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: calc(var(--radius) - 2px);
+    font-size: 13px;
+}
+
+.about-package-name {
+    color: var(--color-text);
+    font-weight: 500;
+}
+
+.about-package-name code {
+    font-size: 12px;
+    background: var(--color-surface);
+    padding: 1px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--color-border);
+}
+
+/* ─────────── Repo Link ─────────── */
+
+.about-repo-link {
+    margin-top: 8px !important;
+    padding-top: 16px;
+    border-top: 1px solid var(--color-border);
+}
+
+.about-repo-link a {
+    font-size: 13px;
+    font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+}
+
+/* ─────────── Attribution Note ─────────── */
+
+.about-attribution-note {
+    max-width: 800px;
+    padding: 14px 18px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    border-left: 3px solid var(--color-muted);
+}
+
+.about-attribution-note p {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--color-text-secondary);
+}
+
+.about-attribution-note code {
+    font-size: 11px;
+    background: var(--color-bg);
+    padding: 1px 5px;
+    border-radius: 3px;
+}

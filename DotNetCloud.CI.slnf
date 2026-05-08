@@ -52,6 +52,8 @@
       "src\\Modules\\Email\\DotNetCloud.Modules.Email\\DotNetCloud.Modules.Email.csproj",
       "src\\Modules\\Email\\DotNetCloud.Modules.Email.Data\\DotNetCloud.Modules.Email.Data.csproj",
       "src\\Modules\\Email\\DotNetCloud.Modules.Email.Host\\DotNetCloud.Modules.Email.Host.csproj",
+      "src\\Modules\\About\\DotNetCloud.Modules.About\\DotNetCloud.Modules.About.csproj",
+      "src\\Modules\\About\\DotNetCloud.Modules.About.Host\\DotNetCloud.Modules.About.Host.csproj",
       "src\\UI\\DotNetCloud.UI.Shared\\DotNetCloud.UI.Shared.csproj",
       "src\\UI\\DotNetCloud.UI.Web\\DotNetCloud.UI.Web.csproj",
       "src\\UI\\DotNetCloud.UI.Web.Client\\DotNetCloud.UI.Web.Client.csproj",

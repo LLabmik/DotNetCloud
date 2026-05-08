@@ -1079,7 +1079,8 @@ public class Program
                 typeof(DotNetCloud.Modules.Tracks.UI.TracksPage).Assembly,
                 typeof(DotNetCloud.Modules.Files.UI.FileBrowser).Assembly,
                 typeof(DotNetCloud.Modules.Bookmarks.UI.BookmarksPage).Assembly,
-                typeof(DotNetCloud.Modules.Email.UI.EmailPage).Assembly);
+                typeof(DotNetCloud.Modules.Email.UI.EmailPage).Assembly,
+                typeof(DotNetCloud.Modules.About.UI.AboutPage).Assembly);
     }
 
     private static void MapCollaboraReverseProxy(WebApplication app)

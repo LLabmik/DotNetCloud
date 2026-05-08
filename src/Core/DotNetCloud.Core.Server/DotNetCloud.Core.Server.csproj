@@ -73,6 +73,8 @@
     <ProjectReference Include="..\..\Modules\Email\DotNetCloud.Modules.Email\DotNetCloud.Modules.Email.csproj" />
     <ProjectReference Include="..\..\Modules\Email\DotNetCloud.Modules.Email.Data\DotNetCloud.Modules.Email.Data.csproj" />
     <ProjectReference Include="..\..\Modules\Email\DotNetCloud.Modules.Email.Host\DotNetCloud.Modules.Email.Host.csproj" />
+    <ProjectReference Include="..\..\Modules\About\DotNetCloud.Modules.About\DotNetCloud.Modules.About.csproj" />
+    <ProjectReference Include="..\..\Modules\About\DotNetCloud.Modules.About.Host\DotNetCloud.Modules.About.Host.csproj" />
     <ProjectReference Include="..\..\Modules\Search\DotNetCloud.Modules.Search\DotNetCloud.Modules.Search.csproj" />
     <ProjectReference Include="..\..\Modules\Search\DotNetCloud.Modules.Search.Data\DotNetCloud.Modules.Search.Data.csproj" />
     <ProjectReference Include="..\..\Modules\Search\DotNetCloud.Modules.Search.Host\DotNetCloud.Modules.Search.Host.csproj" />

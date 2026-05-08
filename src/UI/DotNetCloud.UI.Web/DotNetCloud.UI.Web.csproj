@@ -30,6 +30,7 @@
     <ProjectReference Include="..\..\Modules\AI\DotNetCloud.Modules.AI\DotNetCloud.Modules.AI.csproj" />
     <ProjectReference Include="..\..\Modules\Bookmarks\DotNetCloud.Modules.Bookmarks\DotNetCloud.Modules.Bookmarks.csproj" />
     <ProjectReference Include="..\..\Modules\Email\DotNetCloud.Modules.Email\DotNetCloud.Modules.Email.csproj" />
+    <ProjectReference Include="..\..\Modules\About\DotNetCloud.Modules.About\DotNetCloud.Modules.About.csproj" />
     <ProjectReference Include="..\..\Modules\Tracks\DotNetCloud.Modules.Tracks\DotNetCloud.Modules.Tracks.csproj" />
     <ProjectReference Include="..\..\Modules\Example\DotNetCloud.Modules.Example\DotNetCloud.Modules.Example.csproj" />
     <ProjectReference Include="..\DotNetCloud.UI.Web.Client\DotNetCloud.UI.Web.Client.csproj" />

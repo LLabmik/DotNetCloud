@@ -36,6 +36,7 @@
 | Phase 0.17                  | 10      | 10        | 0           | 0       |
 | Phase 0.18                  | 8       | 8         | 0           | 0       |
 | Phase 0.19                  | 11      | 11        | 0           | 0       |
+| Phase 0.20 (About)          | 3       | 3         | 0           | 0       |
 | Phase 1.1                   | 6       | 6         | 0           | 0       |
 | Phase 1.2                   | 5       | 5         | 0           | 0       |
 | Phase 1.3                   | 15      | 15        | 0           | 0       |
@@ -4095,3 +4096,28 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 - ☐ Manual: admin mutual exclusion enforced
 - ✓ Build succeeds (`dotnet build DotNetCloud.CI.slnf`)
 - ✓ All tests pass (`dotnet test DotNetCloud.CI.slnf` — 0 failures)
+
+### Section: Phase 0.20 — About Module
+
+**Status:** completed
+**Depends on:** Phase 0 Foundation (module system, Blazor UI infrastructure)
+
+**Description:** Create an About module that displays platform technical information, version details, and open-source attributions. This module has no database — it is purely display-driven, reading version information from assembly metadata at runtime.
+
+**Steps:**
+- ✅ Create `DotNetCloud.Modules.About/` — Core Razor library with AboutModule, AboutModuleManifest, UI components
+- ✅ Create `DotNetCloud.Modules.About.Host/` — Host executable with lifecycle service and health check
+- ✅ Wire into solution (sln, slnf, Core.Server, UI.Web, ModuleUiRegistrationHostedService, ModuleHelp)
+- ✅ Version section reads `AssemblyInformationalVersionAttribute` (source of truth: `Directory.Build.props`)
+- ✅ Attributions section covers all OSS components (bundled JS, NuGet packages, Docker images)
+
+**Deliverables:**
+- ✓ AboutPage.razor with three sections: Overview, Version, Attributions
+- ✓ Complete OSS attributions: Highlight.js (BSD-3), Butterchurn (MIT), QRCode.js (MIT), MediaPipe (Apache-2.0), webextension-polyfill (MPL-2.0), 37 NuGet packages, Docker images
+- ✓ Sidebar navigation with collapsible sidebar + localStorage persistence
+- ✓ Help page at `/apps/about/help`
+- ✓ Module registered at `/apps/about` in the main nav
+- ✓ Build: 0 errors, 0 warnings
+- ✓ All existing tests pass
+
+**Notes:** About module is the first module without a Data sub-project. Versions auto-update on rebuild because they come from assembly attributes set by `Directory.Build.props`. Adding a new OSS dependency requires updating the attribution table in `AboutPage.razor`. Future: consider extracting attributions into a shared data file if the list grows.

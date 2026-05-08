@@ -5487,3 +5487,31 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Integration tests (5 new tests: HTTP-level closed system flow)
 - ✓ Manual verification checklist
 
+### Phase H: About Module ✅
+
+#### Step H.1 — About Module Projects
+- ✓ `DotNetCloud.Modules.About/` — Core project (SDK=Razor, net10.0)
+- ✓ `DotNetCloud.Modules.About.Host/` — Host project (SDK=Web, net10.0)
+- ✓ AboutModuleManifest.cs — Id="dotnetcloud.about"
+- ✓ AboutModule.cs — IModuleLifecycle (no database, display-only)
+- ✓ UI: _Imports.razor, AboutPage.razor, AboutHelpContent.razor
+- ✓ Host: Program.cs, AboutLifecycleService.cs, AboutHealthCheck.cs
+
+#### Step H.2 — About Page Content
+- ✓ Overview section — platform description, architecture, license info
+- ✓ Version section — reads assembly metadata (InformationalVersion, FileVersion, Runtime, OS, Architecture)
+- ✓ Attributions section — complete list of bundled JS libraries (Highlight.js, Butterchurn, QRCode.js, MediaPipe, webextension-polyfill)
+- ✓ Attributions section — complete list of NuGet packages with licenses (37 entries)
+- ✓ Attributions section — Docker base images
+
+#### Step H.3 — Infrastructure Wiring
+- ✓ Both projects added to DotNetCloud.sln and DotNetCloud.CI.slnf
+- ✓ Core.Server/Program.cs — Blazor assembly reference
+- ✓ Core.Server.csproj — Project references for both projects
+- ✓ DotNetCloud.UI.Web.csproj — Project reference for help page
+- ✓ ModuleUiRegistrationHostedService.cs — ModuleUiDescriptor entry
+- ✓ ModuleHelp.razor — "about" added to ModuleNameMap
+- ✓ AboutHelp.razor — Help route page created
+- ✓ About.razor — Route wrapper at `/apps/about` with ModulePageHost
+- ✓ Build: 0 errors, 0 warnings
+
