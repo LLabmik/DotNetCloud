@@ -86,8 +86,15 @@ public partial class ReviewSessionHost : ComponentBase, IDisposable
 
     private async Task LoadPokerIfActiveAsync()
     {
-        // Poker sessions are now separate; try to load the latest active one for this epic
-        // TODO: Add API to query active poker session by epic & review session
+        try
+        {
+            _activePoker = await ApiClient.GetActivePokerSessionByReviewSessionAsync(Session.Id);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to load active poker session for review session {SessionId}", Session.Id);
+            _activePoker = null;
+        }
     }
 
     private async Task LoadItemsAsync()

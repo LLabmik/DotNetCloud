@@ -1,149 +1,85 @@
-using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Modules.Tracks.Data;
 using DotNetCloud.Modules.Tracks.Data.Services;
 using DotNetCloud.Modules.Tracks.Models;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging.Abstractions;
-using Moq;
-using DotNetCloud.Core.Events;
 
 namespace DotNetCloud.Modules.Tracks.Tests;
 
 [TestClass]
 public class SwimlaneServiceTests
 {
-    private TracksDbContext _db;
-    private SwimlaneService _service;
-    private BoardService _boardService;
-    private CallerContext _caller;
-    private Board _board;
+    private TracksDbContext _db = null!;
+    private SwimlaneService _service = null!;
 
     [TestInitialize]
-    public async Task Setup()
+    public void Setup()
     {
         _db = TestHelpers.CreateDb();
-        _caller = TestHelpers.CreateCaller();
-        var activityService = new ActivityService(_db, NullLogger<ActivityService>.Instance);
-        var teamService = new TeamService(_db, new Mock<IEventBus>().Object, NullLogger<TeamService>.Instance);
-        _boardService = new BoardService(_db, new Mock<IEventBus>().Object, activityService, teamService, NullLogger<BoardService>.Instance);
-        _service = new SwimlaneService(_db, _boardService, activityService, NullLogger<SwimlaneService>.Instance);
-        _board = await TestHelpers.SeedBoardAsync(_db, _caller.UserId);
+        _service = new SwimlaneService(_db);
     }
 
     [TestCleanup]
     public void Cleanup() => _db.Dispose();
 
-    // ─── Create ───────────────────────────────────────────────────────
-
     [TestMethod]
-    public async Task CreateList_ValidDto_ReturnsList()
+    public async Task CreateSwimlaneAsync_CreatesSwimlaneOnProduct()
     {
-        var dto = new CreateBoardSwimlaneDto { Title = "To Do", Color = "#00FF00", CardLimit = 5 };
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var dto = new CreateSwimlaneDto { Title = "To Do" };
 
-        var result = await _service.CreateSwimlaneAsync(_board.Id, dto, _caller);
+        var result = await _service.CreateSwimlaneAsync(SwimlaneContainerType.Product, product.Id, dto, CancellationToken.None);
 
-        Assert.IsNotNull(result);
         Assert.AreEqual("To Do", result.Title);
-        Assert.AreEqual("#00FF00", result.Color);
-        Assert.AreEqual(5, result.CardLimit);
-        Assert.AreEqual(_board.Id, result.BoardId);
+        Assert.AreEqual(SwimlaneContainerType.Product, result.ContainerType);
+        Assert.AreEqual(product.Id, result.ContainerId);
     }
 
     [TestMethod]
-    public async Task CreateList_PositionAppendsAfterLast()
+    public async Task GetSwimlanesAsync_ReturnsSwimlanesForContainer()
     {
-        await _service.CreateSwimlaneAsync(_board.Id, new CreateBoardSwimlaneDto { Title = "First" }, _caller);
-        var second = await _service.CreateSwimlaneAsync(_board.Id, new CreateBoardSwimlaneDto { Title = "Second" }, _caller);
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        await _service.CreateSwimlaneAsync(SwimlaneContainerType.Product, product.Id, new CreateSwimlaneDto { Title = "A" }, CancellationToken.None);
+        await _service.CreateSwimlaneAsync(SwimlaneContainerType.Product, product.Id, new CreateSwimlaneDto { Title = "B" }, CancellationToken.None);
 
-        Assert.IsTrue(second.Position > 0);
+        var result = await _service.GetSwimlanesAsync(SwimlaneContainerType.Product, product.Id, CancellationToken.None);
+
+        Assert.AreEqual(2, result.Count);
     }
 
     [TestMethod]
-    public async Task CreateList_AsViewer_Throws()
+    public async Task UpdateSwimlaneAsync_UpdatesTitle()
     {
-        var viewerCaller = TestHelpers.CreateCaller();
-        await TestHelpers.AddMemberAsync(_db, _board.Id, viewerCaller.UserId, BoardMemberRole.Viewer);
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var created = await _service.CreateSwimlaneAsync(SwimlaneContainerType.Product, product.Id, new CreateSwimlaneDto { Title = "Old" }, CancellationToken.None);
+        var dto = new UpdateSwimlaneDto { Title = "New" };
 
-        await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
-            () => _service.CreateSwimlaneAsync(_board.Id, new CreateBoardSwimlaneDto { Title = "Nope" }, viewerCaller));
-    }
+        var result = await _service.UpdateSwimlaneAsync(created.Id, dto, CancellationToken.None);
 
-    // ─── Get Lists ────────────────────────────────────────────────────
-
-    [TestMethod]
-    public async Task GetLists_ReturnsOrderedLists()
-    {
-        await _service.CreateSwimlaneAsync(_board.Id, new CreateBoardSwimlaneDto { Title = "A" }, _caller);
-        await _service.CreateSwimlaneAsync(_board.Id, new CreateBoardSwimlaneDto { Title = "B" }, _caller);
-
-        var results = await _service.GetSwimlanesAsync(_board.Id, _caller);
-
-        Assert.AreEqual(2, results.Count);
-        Assert.AreEqual("A", results[0].Title);
-        Assert.AreEqual("B", results[1].Title);
+        Assert.AreEqual("New", result.Title);
     }
 
     [TestMethod]
-    public async Task GetLists_ExcludesArchived()
+    public async Task DeleteSwimlaneAsync_DeletesSwimlane()
     {
-        var list = await TestHelpers.SeedSwimlaneAsync(_db, _board.Id, "Archived");
-        list.IsArchived = true;
-        await _db.SaveChangesAsync();
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var created = await _service.CreateSwimlaneAsync(SwimlaneContainerType.Product, product.Id, new CreateSwimlaneDto { Title = "To Delete" }, CancellationToken.None);
 
-        var results = await _service.GetSwimlanesAsync(_board.Id, _caller);
+        await _service.DeleteSwimlaneAsync(created.Id, CancellationToken.None);
 
-        Assert.AreEqual(0, results.Count);
-    }
-
-    // ─── Update ───────────────────────────────────────────────────────
-
-    [TestMethod]
-    public async Task UpdateList_ChangesTitle()
-    {
-        var list = await TestHelpers.SeedSwimlaneAsync(_db, _board.Id);
-
-        var result = await _service.UpdateSwimlaneAsync(list.Id, new UpdateBoardSwimlaneDto { Title = "Updated" }, _caller);
-
-        Assert.AreEqual("Updated", result.Title);
-    }
-
-    // ─── Delete (Archive) ────────────────────────────────────────────
-
-    [TestMethod]
-    public async Task DeleteList_ArchivesList()
-    {
-        var list = await TestHelpers.SeedSwimlaneAsync(_db, _board.Id);
-
-        await _service.DeleteSwimlaneAsync(list.Id, _caller);
-
-        var dbList = await _db.BoardSwimlanes.FindAsync(list.Id);
-        Assert.IsTrue(dbList!.IsArchived);
+        var result = await _service.GetSwimlaneByIdAsync(created.Id, CancellationToken.None);
+        Assert.IsNull(result);
     }
 
     [TestMethod]
-    public async Task DeleteList_AsMember_Throws()
+    public async Task ReorderSwimlanesAsync_UpdatesPositions()
     {
-        var memberCaller = TestHelpers.CreateCaller();
-        await TestHelpers.AddMemberAsync(_db, _board.Id, memberCaller.UserId, BoardMemberRole.Member);
-        var list = await TestHelpers.SeedSwimlaneAsync(_db, _board.Id);
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var a = await _service.CreateSwimlaneAsync(SwimlaneContainerType.Product, product.Id, new CreateSwimlaneDto { Title = "A" }, CancellationToken.None);
+        var b = await _service.CreateSwimlaneAsync(SwimlaneContainerType.Product, product.Id, new CreateSwimlaneDto { Title = "B" }, CancellationToken.None);
 
-        await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
-            () => _service.DeleteSwimlaneAsync(list.Id, memberCaller));
-    }
+        var result = await _service.ReorderSwimlanesAsync([b.Id, a.Id], CancellationToken.None);
 
-    // ─── Reorder ──────────────────────────────────────────────────────
-
-    [TestMethod]
-    public async Task ReorderLists_UpdatesPositions()
-    {
-        var list1 = await TestHelpers.SeedSwimlaneAsync(_db, _board.Id, "First");
-        var list2 = await TestHelpers.SeedSwimlaneAsync(_db, _board.Id, "Second");
-
-        await _service.ReorderSwimlanesAsync(_board.Id, [list2.Id, list1.Id], _caller);
-
-        var reordered1 = await _db.BoardSwimlanes.FindAsync(list1.Id);
-        var reordered2 = await _db.BoardSwimlanes.FindAsync(list2.Id);
-        Assert.IsTrue(reordered2!.Position < reordered1!.Position);
+        Assert.AreEqual(2, result.Count);
+        Assert.IsTrue(result.First(s => s.Id == b.Id).Position < result.First(s => s.Id == a.Id).Position);
     }
 }

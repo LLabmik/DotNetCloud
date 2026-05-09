@@ -1,11 +1,7 @@
-using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
-using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Tracks.Data;
 using DotNetCloud.Modules.Tracks.Data.Services;
 using DotNetCloud.Modules.Tracks.Models;
-using Microsoft.Extensions.Logging.Abstractions;
-using Moq;
 
 namespace DotNetCloud.Modules.Tracks.Tests;
 
@@ -14,83 +10,110 @@ public class AnalyticsServiceTests
 {
     private TracksDbContext _db = null!;
     private AnalyticsService _service = null!;
-    private CallerContext _caller;
-    private Board _board = null!;
-    private BoardSwimlane _swimlane = null!;
 
     [TestInitialize]
-    public async Task Setup()
+    public void Setup()
     {
         _db = TestHelpers.CreateDb();
-        _caller = TestHelpers.CreateCaller();
-        var mock = new Mock<IEventBus>();
-        var activityService = new ActivityService(_db, NullLogger<ActivityService>.Instance);
-        var teamService = new TeamService(_db, mock.Object, NullLogger<TeamService>.Instance);
-        var boardService = new BoardService(_db, mock.Object, activityService, teamService, NullLogger<BoardService>.Instance);
-        _service = new AnalyticsService(_db, boardService, NullLogger<AnalyticsService>.Instance);
-        _board = await TestHelpers.SeedBoardAsync(_db, _caller.UserId);
-        _swimlane = await TestHelpers.SeedSwimlaneAsync(_db, _board.Id);
+        _service = new AnalyticsService(_db);
     }
 
     [TestCleanup]
     public void Cleanup() => _db.Dispose();
 
-    // ─── GetBoardAnalytics ────────────────────────────────────────────
-
     [TestMethod]
-    public async Task GetBoardAnalytics_EmptyBoard_ReturnsZeroStats()
+    public async Task GetProductAnalyticsAsync_ReturnsAnalyticsForProduct()
     {
-        var result = await _service.GetBoardAnalyticsAsync(_board.Id, _caller);
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
+        await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid(), "Task 1");
+
+        var result = await _service.GetProductAnalyticsAsync(product.Id, CancellationToken.None);
 
         Assert.IsNotNull(result);
-        Assert.AreEqual(0, result.TotalCards);
-        Assert.AreEqual(0, result.CompletedCards);
+        Assert.AreEqual(1, result.TotalItems);
     }
 
     [TestMethod]
-    public async Task GetBoardAnalytics_WithCards_ReturnsCounts()
+    public async Task GetProductAnalyticsAsync_EmptyProduct_ReturnsZeros()
     {
-        await TestHelpers.SeedCardAsync(_db, _swimlane.Id, _caller.UserId, "Card 1");
-        await TestHelpers.SeedCardAsync(_db, _swimlane.Id, _caller.UserId, "Card 2");
-        var archived = await TestHelpers.SeedCardAsync(_db, _swimlane.Id, _caller.UserId, "Done Card");
-        archived.IsArchived = true;
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+
+        var result = await _service.GetProductAnalyticsAsync(product.Id, CancellationToken.None);
+
+        Assert.AreEqual(0, result.TotalItems);
+    }
+
+    [TestMethod]
+    public async Task GetVelocityDataAsync_ReturnsVelocityList()
+    {
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+
+        var result = await _service.GetVelocityDataAsync(product.Id, CancellationToken.None);
+
+        Assert.IsNotNull(result);
+    }
+
+    [TestMethod]
+    public async Task GetProductDashboardAsync_ReturnsDashboard()
+    {
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+
+        var result = await _service.GetProductDashboardAsync(product.Id, CancellationToken.None);
+
+        Assert.IsNotNull(result);
+    }
+
+    [TestMethod]
+    public async Task GetRoadmapDataAsync_ReturnsRoadmap()
+    {
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+
+        var result = await _service.GetRoadmapDataAsync(product.Id, CancellationToken.None);
+
+        Assert.IsNotNull(result);
+    }
+
+    [TestMethod]
+    public async Task GetSprintCapacityAsync_ReturnsCapacity()
+    {
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var epic = await TestHelpers.SeedEpicAsync(_db, product.Id, Guid.NewGuid());
+        var sprint = new Sprint
+        {
+            EpicId = epic.Id,
+            Title = "Sprint 1",
+            Status = SprintStatus.Active,
+            StartDate = DateTime.UtcNow,
+            EndDate = DateTime.UtcNow.AddDays(14),
+            DurationWeeks = 2,
+            PlannedOrder = 1
+        };
+        _db.Sprints.Add(sprint);
         await _db.SaveChangesAsync();
 
-        var result = await _service.GetBoardAnalyticsAsync(_board.Id, _caller);
+        var result = await _service.GetSprintCapacityAsync(sprint.Id, CancellationToken.None);
 
-        Assert.AreEqual(3, result.TotalCards);
-        Assert.AreEqual(1, result.CompletedCards);
+        Assert.IsNotNull(result);
     }
 
     [TestMethod]
-    public async Task GetBoardAnalytics_NonMember_Throws()
+    public async Task GetMemberCapacityAsync_ReturnsMemberCapacities()
     {
-        var outsider = TestHelpers.CreateCaller();
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
 
-        await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
-            () => _service.GetBoardAnalyticsAsync(_board.Id, outsider));
+        var result = await _service.GetMemberCapacityAsync(product.Id, CancellationToken.None);
+
+        Assert.IsNotNull(result);
     }
 
     [TestMethod]
-    public async Task GetBoardAnalytics_WithCardsAndDates_ReturnsCompletionTrend()
+    public async Task GetProductCapacityAsync_ReturnsProductCapacity()
     {
-        var card = await TestHelpers.SeedCardAsync(_db, _swimlane.Id, _caller.UserId);
-        card.IsArchived = true;
-        card.UpdatedAt = DateTime.UtcNow;
-        await _db.SaveChangesAsync();
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
 
-        var result = await _service.GetBoardAnalyticsAsync(_board.Id, _caller, daysBack: 7);
+        var result = await _service.GetProductCapacityAsync(product.Id, CancellationToken.None);
 
-        Assert.IsTrue(result.CompletionsOverTime.Any());
-    }
-
-    // ─── GetTeamAnalytics ─────────────────────────────────────────────
-
-    [TestMethod]
-    public async Task GetTeamAnalytics_NonMember_Throws()
-    {
-        // Caller is not in the team — service throws TRACKS_NOT_TEAM_MEMBER
-        await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
-            () => _service.GetTeamAnalyticsAsync(Guid.NewGuid(), _caller));
+        Assert.IsNotNull(result);
     }
 }

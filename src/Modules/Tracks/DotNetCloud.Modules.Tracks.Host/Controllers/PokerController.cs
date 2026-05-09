@@ -52,6 +52,17 @@ public class PokerController : TracksControllerBase
             : Ok(Envelope(session));
     }
 
+    /// <summary>Gets the currently active poker session for a review session.</summary>
+    [HttpGet("api/v1/review-sessions/{reviewSessionId:guid}/poker")]
+    public async Task<IActionResult> GetActiveByReviewSessionAsync(Guid reviewSessionId, CancellationToken ct)
+    {
+        var caller = GetAuthenticatedCaller();
+        var session = await _pokerService.GetActiveSessionByReviewSessionAsync(reviewSessionId, ct);
+        return session is null
+            ? NotFound(ErrorEnvelope(ErrorCodes.PokerSessionNotFound, "No active poker session found for this review session."))
+            : Ok(Envelope(session));
+    }
+
     /// <summary>Submits or updates a vote in a poker session.</summary>
     [HttpPost("api/v1/poker/{sessionId:guid}/vote")]
     public async Task<IActionResult> SubmitVoteAsync(Guid sessionId, [FromBody] SubmitPokerVoteDto dto, CancellationToken ct)

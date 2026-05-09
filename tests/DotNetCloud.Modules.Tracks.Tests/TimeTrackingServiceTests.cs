@@ -1,193 +1,155 @@
-using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
-using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Tracks.Data;
 using DotNetCloud.Modules.Tracks.Data.Services;
 using DotNetCloud.Modules.Tracks.Models;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging.Abstractions;
-using Moq;
 
 namespace DotNetCloud.Modules.Tracks.Tests;
 
 [TestClass]
 public class TimeTrackingServiceTests
 {
-    private TracksDbContext _db;
-    private TimeTrackingService _service;
-    private CallerContext _caller;
-    private Board _board;
-    private Card _card;
+    private TracksDbContext _db = null!;
+    private TimeTrackingService _service = null!;
 
     [TestInitialize]
-    public async Task Setup()
+    public void Setup()
     {
         _db = TestHelpers.CreateDb();
-        _caller = TestHelpers.CreateCaller();
-        var activityService = new ActivityService(_db, NullLogger<ActivityService>.Instance);
-        var teamService = new TeamService(_db, new Mock<IEventBus>().Object, NullLogger<TeamService>.Instance);
-        var boardService = new BoardService(_db, new Mock<IEventBus>().Object, activityService, teamService, NullLogger<BoardService>.Instance);
-        _service = new TimeTrackingService(_db, boardService, activityService, NullLogger<TimeTrackingService>.Instance);
-        _board = await TestHelpers.SeedBoardAsync(_db, _caller.UserId);
-        var list = await TestHelpers.SeedSwimlaneAsync(_db, _board.Id);
-        _card = await TestHelpers.SeedCardAsync(_db, list.Id, _caller.UserId);
+        _service = new TimeTrackingService(_db);
     }
 
     [TestCleanup]
     public void Cleanup() => _db.Dispose();
 
-    // ─── Manual Entry ─────────────────────────────────────────────────
-
     [TestMethod]
-    public async Task CreateTimeEntry_WithDuration_ReturnsEntry()
+    public async Task AddManualEntryAsync_CreatesTimeEntry()
     {
-        var dto = new CreateTimeEntryDto
-        {
-            StartTime = DateTime.UtcNow.AddHours(-2),
-            DurationMinutes = 120,
-            Description = "Worked on feature"
-        };
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
+        var userId = Guid.NewGuid();
+        var dto = new CreateTimeEntryDto { DurationMinutes = 30, Description = "Development" };
 
-        var result = await _service.CreateTimeEntryAsync(_card.Id, dto, _caller);
+        var result = await _service.AddManualEntryAsync(item.Id, userId, dto, CancellationToken.None);
 
-        Assert.IsNotNull(result);
-        Assert.AreEqual(120, result.DurationMinutes);
-        Assert.AreEqual("Worked on feature", result.Description);
-        Assert.AreEqual(_caller.UserId, result.UserId);
+        Assert.AreEqual(30, result.DurationMinutes);
+        Assert.AreEqual("Development", result.Description);
+        Assert.AreEqual(userId, result.UserId);
     }
 
     [TestMethod]
-    public async Task CreateTimeEntry_WithEndTime_CalculatesDuration()
+    public async Task GetTimeEntriesByWorkItemAsync_ReturnsEntries()
     {
-        var start = DateTime.UtcNow.AddHours(-3);
-        var end = DateTime.UtcNow;
-        var dto = new CreateTimeEntryDto
-        {
-            StartTime = start,
-            EndTime = end
-        };
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
+        var userId = Guid.NewGuid();
+        await _service.AddManualEntryAsync(item.Id, userId, new CreateTimeEntryDto { DurationMinutes = 15 }, CancellationToken.None);
+        await _service.AddManualEntryAsync(item.Id, userId, new CreateTimeEntryDto { DurationMinutes = 45 }, CancellationToken.None);
 
-        var result = await _service.CreateTimeEntryAsync(_card.Id, dto, _caller);
+        var result = await _service.GetTimeEntriesByWorkItemAsync(item.Id, CancellationToken.None);
 
-        Assert.IsTrue(result.DurationMinutes >= 179); // ~180 minutes
+        Assert.AreEqual(2, result.Count);
     }
 
     [TestMethod]
-    public async Task CreateTimeEntry_EndBeforeStart_Throws()
+    public async Task GetTimeEntriesByUserAsync_ReturnsUserEntries()
     {
-        var dto = new CreateTimeEntryDto
-        {
-            StartTime = DateTime.UtcNow,
-            EndTime = DateTime.UtcNow.AddHours(-1)
-        };
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
+        var userId = Guid.NewGuid();
+        await _service.AddManualEntryAsync(item.Id, userId, new CreateTimeEntryDto { DurationMinutes = 30 }, CancellationToken.None);
 
-        await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
-            () => _service.CreateTimeEntryAsync(_card.Id, dto, _caller));
+        var result = await _service.GetTimeEntriesByUserAsync(userId, CancellationToken.None);
+
+        Assert.AreEqual(1, result.Count);
     }
 
     [TestMethod]
-    public async Task CreateTimeEntry_NoDurationNoEndTime_Throws()
+    public async Task DeleteEntryAsync_RemovesEntry()
     {
-        var dto = new CreateTimeEntryDto { StartTime = DateTime.UtcNow };
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
+        var userId = Guid.NewGuid();
+        var entry = await _service.AddManualEntryAsync(item.Id, userId, new CreateTimeEntryDto { DurationMinutes = 30 }, CancellationToken.None);
 
-        await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
-            () => _service.CreateTimeEntryAsync(_card.Id, dto, _caller));
+        await _service.DeleteEntryAsync(entry.Id, CancellationToken.None);
+
+        var result = await _service.GetTimeEntriesByWorkItemAsync(item.Id, CancellationToken.None);
+        Assert.AreEqual(0, result.Count);
     }
 
-    // ─── Timer ────────────────────────────────────────────────────────
-
     [TestMethod]
-    public async Task StartTimer_CreatesRunningEntry()
+    public async Task StartTimerAsync_CreatesActiveTimer()
     {
-        var result = await _service.StartTimerAsync(_card.Id, _caller);
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
+        var userId = Guid.NewGuid();
 
-        Assert.IsNotNull(result);
+        var result = await _service.StartTimerAsync(item.Id, userId, CancellationToken.None);
+
+        Assert.AreEqual(userId, result.UserId);
+        Assert.AreEqual(item.Id, result.WorkItemId);
+        Assert.IsNotNull(result.StartTime);
         Assert.IsNull(result.EndTime);
-        Assert.AreEqual(0, result.DurationMinutes);
     }
 
     [TestMethod]
-    public async Task StartTimer_AlreadyRunning_Throws()
+    public async Task StopTimerAsync_StopsActiveTimer()
     {
-        await _service.StartTimerAsync(_card.Id, _caller);
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
+        var userId = Guid.NewGuid();
+        await _service.StartTimerAsync(item.Id, userId, CancellationToken.None);
 
-        await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
-            () => _service.StartTimerAsync(_card.Id, _caller));
-    }
-
-    [TestMethod]
-    public async Task StopTimer_CalculatesDuration()
-    {
-        // Seed a timer that started 5 minutes ago
-        var entry = new TimeEntry
-        {
-            CardId = _card.Id,
-            UserId = _caller.UserId,
-            StartTime = DateTime.UtcNow.AddMinutes(-5),
-            DurationMinutes = 0
-        };
-        _db.TimeEntries.Add(entry);
-        await _db.SaveChangesAsync();
-
-        var result = await _service.StopTimerAsync(_card.Id, _caller);
+        var result = await _service.StopTimerAsync(item.Id, userId, CancellationToken.None);
 
         Assert.IsNotNull(result.EndTime);
-        Assert.IsTrue(result.DurationMinutes >= 1); // Minimum 1 minute
+        Assert.IsTrue(result.DurationMinutes > 0);
     }
 
     [TestMethod]
-    public async Task StopTimer_NoRunningTimer_Throws()
+    public async Task GetActiveTimerAsync_ReturnsRunningTimer()
     {
-        await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
-            () => _service.StopTimerAsync(_card.Id, _caller));
-    }
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
+        var userId = Guid.NewGuid();
+        await _service.StartTimerAsync(item.Id, userId, CancellationToken.None);
 
-    // ─── Get Entries ──────────────────────────────────────────────────
+        var result = await _service.GetActiveTimerAsync(userId, CancellationToken.None);
 
-    [TestMethod]
-    public async Task GetTimeEntries_ReturnsEntries()
-    {
-        await _service.CreateTimeEntryAsync(_card.Id, new CreateTimeEntryDto { StartTime = DateTime.UtcNow, DurationMinutes = 30 }, _caller);
-        await _service.CreateTimeEntryAsync(_card.Id, new CreateTimeEntryDto { StartTime = DateTime.UtcNow, DurationMinutes = 60 }, _caller);
-
-        var results = await _service.GetTimeEntriesAsync(_card.Id, _caller);
-
-        Assert.AreEqual(2, results.Count);
-    }
-
-    // ─── Total Minutes ────────────────────────────────────────────────
-
-    [TestMethod]
-    public async Task GetTotalMinutes_SumsCorrectly()
-    {
-        await _service.CreateTimeEntryAsync(_card.Id, new CreateTimeEntryDto { StartTime = DateTime.UtcNow, DurationMinutes = 30 }, _caller);
-        await _service.CreateTimeEntryAsync(_card.Id, new CreateTimeEntryDto { StartTime = DateTime.UtcNow, DurationMinutes = 45 }, _caller);
-
-        var total = await _service.GetTotalMinutesAsync(_card.Id);
-
-        Assert.AreEqual(75, total);
-    }
-
-    // ─── Delete Entry ─────────────────────────────────────────────────
-
-    [TestMethod]
-    public async Task DeleteTimeEntry_AsOwner_Deletes()
-    {
-        var entry = await _service.CreateTimeEntryAsync(_card.Id, new CreateTimeEntryDto { StartTime = DateTime.UtcNow, DurationMinutes = 30 }, _caller);
-
-        await _service.DeleteTimeEntryAsync(entry.Id, _caller);
-
-        Assert.IsFalse(await _db.TimeEntries.AnyAsync(t => t.Id == entry.Id));
+        Assert.IsNotNull(result);
+        Assert.IsNotNull(result.StartTime);
+        Assert.IsNull(result.EndTime);
     }
 
     [TestMethod]
-    public async Task DeleteTimeEntry_AsOtherUser_Throws()
+    public async Task GetActiveTimerAsync_NoActiveTimer_ReturnsNull()
     {
-        var entry = await _service.CreateTimeEntryAsync(_card.Id, new CreateTimeEntryDto { StartTime = DateTime.UtcNow, DurationMinutes = 30 }, _caller);
+        var userId = Guid.NewGuid();
 
-        var otherCaller = TestHelpers.CreateCaller();
+        var result = await _service.GetActiveTimerAsync(userId, CancellationToken.None);
 
-        await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
-            () => _service.DeleteTimeEntryAsync(entry.Id, otherCaller));
+        Assert.IsNull(result);
+    }
+
+    [TestMethod]
+    public async Task GetTotalMinutesForWorkItemAsync_ReturnsTotal()
+    {
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
+        var userId = Guid.NewGuid();
+        await _service.AddManualEntryAsync(item.Id, userId, new CreateTimeEntryDto { DurationMinutes = 30 }, CancellationToken.None);
+        await _service.AddManualEntryAsync(item.Id, userId, new CreateTimeEntryDto { DurationMinutes = 45 }, CancellationToken.None);
+
+        var result = await _service.GetTotalMinutesForWorkItemAsync(item.Id, CancellationToken.None);
+
+        Assert.AreEqual(75, result);
     }
 }

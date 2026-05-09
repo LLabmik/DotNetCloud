@@ -29,6 +29,15 @@
                 }
             </div>
 
+            @* Error banner *@
+            @if (_errorMessage is not null)
+            {
+                <div class="csv-error-banner">
+                    <span>⚠ @_errorMessage</span>
+                    <button class="csv-error-dismiss" @onclick="() => _errorMessage = null" title="Dismiss">&times;</button>
+                </div>
+            }
+
             @* Step content *@
             <div class="csv-wizard-body">
                 @switch (_currentStep)
@@ -466,6 +475,29 @@
         gap: 12px;
         padding: 40px;
         color: var(--text-secondary, #888);
+    }
+
+    .csv-error-banner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 16px;
+        margin: 0 24px;
+        background: #fef2f2;
+        color: #991b1b;
+        border: 1px solid #fecaca;
+        border-radius: 8px;
+        font-size: 13px;
+    }
+
+    .csv-error-dismiss {
+        background: none;
+        border: none;
+        font-size: 18px;
+        cursor: pointer;
+        color: #991b1b;
+        padding: 0 4px;
+        line-height: 1;
     }
 
     .csv-spinner {

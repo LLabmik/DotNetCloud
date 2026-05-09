@@ -7,28 +7,28 @@ package dotnetcloud.tracks;
 // TracksGrpcService: gRPC service for the Tracks module.
 // The core server calls these RPCs to interact with the Tracks module.
 service TracksGrpcService {
-  // Creates a new board.
-  rpc CreateBoard (CreateBoardRequest) returns (BoardResponse);
+  // Creates a new product.
+  rpc CreateProduct (CreateProductRequest) returns (ProductResponse);
 
-  // Gets a board by ID.
-  rpc GetBoard (GetBoardRequest) returns (BoardResponse);
+  // Gets a product by ID.
+  rpc GetProduct (GetProductRequest) returns (ProductResponse);
 
-  // Lists boards for a user.
-  rpc ListBoards (ListBoardsRequest) returns (ListBoardsResponse);
+  // Lists products for a user.
+  rpc ListProducts (ListProductsRequest) returns (ListProductsResponse);
 
-  // Creates a new swimlane in a board.
+  // Creates a new swimlane in a product.
   rpc CreateSwimlane (CreateSwimlaneRequest) returns (SwimlaneResponse);
 
-  // Creates a new card in a swimlane.
-  rpc CreateCard (CreateCardRequest) returns (CardResponse);
+  // Creates a new work item in a swimlane.
+  rpc CreateWorkItem (CreateWorkItemRequest) returns (WorkItemResponse);
 
-  // Gets a card by ID.
-  rpc GetCard (GetCardRequest) returns (CardResponse);
+  // Gets a work item by ID.
+  rpc GetWorkItem (GetWorkItemRequest) returns (WorkItemResponse);
 
-  // Moves a card to a different swimlane or position.
-  rpc MoveCard (MoveCardRequest) returns (CardResponse);
+  // Moves a work item to a different swimlane or position.
+  rpc MoveWorkItem (MoveWorkItemRequest) returns (WorkItemResponse);
 
-  // Starts a planning poker session for a card.
+  // Starts a planning poker session for a work item.
   rpc StartPokerSession (StartPokerSessionRequest) returns (PokerSessionResponse);
 
   // Submits a vote in a poker session.
@@ -40,16 +40,16 @@ service TracksGrpcService {
   // Accepts an estimate and completes a poker session.
   rpc AcceptPokerEstimate (AcceptPokerEstimateRequest) returns (PokerSessionResponse);
 
-  // Creates a sprint year plan for a team board.
+  // Creates a sprint plan for a product.
   rpc CreateSprintPlan (CreateSprintPlanRequest) returns (SprintPlanResponse);
 
-  // Gets the sprint plan overview for a board.
+  // Gets the sprint plan overview for a product.
   rpc GetSprintPlan (GetSprintPlanRequest) returns (SprintPlanResponse);
 
   // Adjusts a sprint's duration and cascades date changes.
   rpc AdjustSprint (AdjustSprintRequest) returns (SprintPlanResponse);
 
-  // Starts a review session on a board.
+  // Starts a review session on a product.
   rpc StartReviewSession (StartReviewSessionRequest) returns (ReviewSessionResponse);
 
   // Gets a review session by ID.
@@ -58,8 +58,8 @@ service TracksGrpcService {
   // Joins an existing review session.
   rpc JoinReviewSession (JoinReviewSessionRequest) returns (ReviewSessionResponse);
 
-  // Sets the current card in a review session.
-  rpc SetReviewCurrentCard (SetReviewCurrentCardRequest) returns (ReviewSessionResponse);
+  // Sets the current work item in a review session.
+  rpc SetReviewCurrentItem (SetReviewCurrentItemRequest) returns (ReviewSessionResponse);
 
   // Ends a review session.
   rpc EndReviewSession (EndReviewSessionRequest) returns (ReviewSessionResponse);
@@ -74,9 +74,9 @@ service TracksGrpcService {
   rpc GetSearchableDocument (GetSearchableDocumentRequest) returns (SearchableDocumentResponse);
 }
 
-// --- CreateBoard ---
+// --- CreateProduct ---
 
-message CreateBoardRequest {
+message CreateProductRequest {
   string user_id = 1;
   string title = 2;
   string description = 3;
@@ -84,38 +84,38 @@ message CreateBoardRequest {
   string mode = 5;             // Personal or Team
 }
 
-message BoardResponse {
+message ProductResponse {
   bool success = 1;
   string error_message = 2;
-  BoardMessage board = 3;
+  ProductMessage product = 3;
 }
 
-// --- GetBoard ---
+// --- GetProduct ---
 
-message GetBoardRequest {
-  string board_id = 1;
+message GetProductRequest {
+  string product_id = 1;
   string user_id = 2;
 }
 
-// --- ListBoards ---
+// --- ListProducts ---
 
-message ListBoardsRequest {
+message ListProductsRequest {
   string user_id = 1;
   int32 skip = 2;
   int32 take = 3;
   bool include_archived = 4;
 }
 
-message ListBoardsResponse {
+message ListProductsResponse {
   bool success = 1;
   string error_message = 2;
-  repeated BoardMessage boards = 3;
+  repeated ProductMessage products = 3;
 }
 
 // --- CreateSwimlane ---
 
 message CreateSwimlaneRequest {
-  string board_id = 1;
+  string product_id = 1;
   string user_id = 2;
   string title = 3;
   string color = 4;
@@ -124,12 +124,12 @@ message CreateSwimlaneRequest {
 message SwimlaneResponse {
   bool success = 1;
   string error_message = 2;
-  BoardSwimlaneMessage swimlane = 3;
+  SwimlaneMessage swimlane = 3;
 }
 
-// --- CreateCard ---
+// --- CreateWorkItem ---
 
-message CreateCardRequest {
+message CreateWorkItemRequest {
   string swimlane_id = 1;
   string user_id = 2;
   string title = 3;
@@ -139,23 +139,23 @@ message CreateCardRequest {
   int32 story_points = 7;
 }
 
-message CardResponse {
+message WorkItemResponse {
   bool success = 1;
   string error_message = 2;
-  CardMessage card = 3;
+  WorkItemMessage work_item = 3;
 }
 
-// --- GetCard ---
+// --- GetWorkItem ---
 
-message GetCardRequest {
-  string card_id = 1;
+message GetWorkItemRequest {
+  string work_item_id = 1;
   string user_id = 2;
 }
 
-// --- MoveCard ---
+// --- MoveWorkItem ---
 
-message MoveCardRequest {
-  string card_id = 1;
+message MoveWorkItemRequest {
+  string work_item_id = 1;
   string user_id = 2;
   string target_swimlane_id = 3;
   double position = 4;
@@ -163,7 +163,7 @@ message MoveCardRequest {
 
 // --- Shared Messages ---
 
-message BoardMessage {
+message ProductMessage {
   string id = 1;
   string owner_id = 2;
   string title = 3;
@@ -174,25 +174,25 @@ message BoardMessage {
   string created_at = 8;      // ISO 8601 timestamp
   string updated_at = 9;
   int32 swimlane_count = 10;
-  int32 card_count = 11;
+  int32 item_count = 11;
   int32 member_count = 12;
   string mode = 13;            // Personal or Team
 }
 
-message BoardSwimlaneMessage {
+message SwimlaneMessage {
   string id = 1;
-  string board_id = 2;
+  string product_id = 2;
   string title = 3;
   double position = 4;
   string color = 5;
-  int32 card_limit = 6;       // 0 = no limit
+  int32 item_limit = 6;       // 0 = no limit
   bool is_archived = 7;
   string created_at = 8;
   string updated_at = 9;
-  int32 card_count = 10;
+  int32 item_count = 10;
 }
 
-message CardMessage {
+message WorkItemMessage {
   string id = 1;
   string swimlane_id = 2;
   string title = 3;
@@ -210,14 +210,14 @@ message CardMessage {
   int32 attachment_count = 15;
   int32 checklist_item_count = 16;
   int32 checklist_completed_count = 17;
-  repeated string assigned_user_ids = 18;
+  repeated string assignee_ids = 18;
   repeated string label_ids = 19;
 }
 
 // --- Planning Poker ---
 
 message StartPokerSessionRequest {
-  string card_id = 1;
+  string work_item_id = 1;
   string user_id = 2;
   string scale = 3;            // Fibonacci, TShirt, PowersOfTwo, Custom
   string custom_scale_values = 4;  // JSON array, only when scale=Custom
@@ -249,8 +249,8 @@ message PokerSessionResponse {
 
 message PokerSessionMessage {
   string id = 1;
-  string card_id = 2;
-  string board_id = 3;
+  string work_item_id = 2;
+  string product_id = 3;
   string created_by_user_id = 4;
   string scale = 5;
   string custom_scale_values = 6;
@@ -272,7 +272,7 @@ message PokerVoteMessage {
 // --- Sprint Plan ---
 
 message CreateSprintPlanRequest {
-  string board_id = 1;
+  string product_id = 1;
   string user_id = 2;
   string start_date = 3;       // ISO 8601 date
   int32 sprint_count = 4;
@@ -280,7 +280,7 @@ message CreateSprintPlanRequest {
 }
 
 message GetSprintPlanRequest {
-  string board_id = 1;
+  string product_id = 1;
   string user_id = 2;
 }
 
@@ -298,7 +298,7 @@ message SprintPlanResponse {
 }
 
 message SprintPlanOverviewMessage {
-  string board_id = 1;
+  string product_id = 1;
   repeated SprintPlanItemMessage sprints = 2;
   int32 total_weeks = 3;
   string plan_start_date = 4;
@@ -313,14 +313,14 @@ message SprintPlanItemMessage {
   string status = 5;
   int32 duration_weeks = 6;
   int32 planned_order = 7;
-  int32 card_count = 8;
+  int32 item_count = 8;
   int32 total_story_points = 9;
 }
 
 // --- Review Session ---
 
 message StartReviewSessionRequest {
-  string board_id = 1;
+  string product_id = 1;
   string user_id = 2;
 }
 
@@ -334,10 +334,10 @@ message JoinReviewSessionRequest {
   string user_id = 2;
 }
 
-message SetReviewCurrentCardRequest {
+message SetReviewCurrentItemRequest {
   string session_id = 1;
   string user_id = 2;
-  string card_id = 3;
+  string work_item_id = 3;
 }
 
 message EndReviewSessionRequest {
@@ -353,9 +353,9 @@ message ReviewSessionResponse {
 
 message ReviewSessionMessage {
   string id = 1;
-  string board_id = 2;
+  string product_id = 2;
   string host_user_id = 3;
-  string current_card_id = 4;
+  string current_work_item_id = 4;
   string status = 5;
   string created_at = 6;
   string ended_at = 7;

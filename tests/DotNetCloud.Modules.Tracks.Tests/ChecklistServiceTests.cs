@@ -1,130 +1,125 @@
-using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
-using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Tracks.Data;
 using DotNetCloud.Modules.Tracks.Data.Services;
 using DotNetCloud.Modules.Tracks.Models;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging.Abstractions;
-using Moq;
 
 namespace DotNetCloud.Modules.Tracks.Tests;
 
 [TestClass]
 public class ChecklistServiceTests
 {
-    private TracksDbContext _db;
-    private ChecklistService _service;
-    private CallerContext _caller;
-    private Board _board;
-    private Card _card;
+    private TracksDbContext _db = null!;
+    private ChecklistService _service = null!;
 
     [TestInitialize]
-    public async Task Setup()
+    public void Setup()
     {
         _db = TestHelpers.CreateDb();
-        _caller = TestHelpers.CreateCaller();
-        var activityService = new ActivityService(_db, NullLogger<ActivityService>.Instance);
-        var teamService = new TeamService(_db, new Mock<IEventBus>().Object, NullLogger<TeamService>.Instance);
-        var boardService = new BoardService(_db, new Mock<IEventBus>().Object, activityService, teamService, NullLogger<BoardService>.Instance);
-        _service = new ChecklistService(_db, boardService, activityService, NullLogger<ChecklistService>.Instance);
-        _board = await TestHelpers.SeedBoardAsync(_db, _caller.UserId);
-        var list = await TestHelpers.SeedSwimlaneAsync(_db, _board.Id);
-        _card = await TestHelpers.SeedCardAsync(_db, list.Id, _caller.UserId);
+        _service = new ChecklistService(_db);
     }
 
     [TestCleanup]
     public void Cleanup() => _db.Dispose();
 
-    // ─── Create Checklist ─────────────────────────────────────────────
-
     [TestMethod]
-    public async Task CreateChecklist_ValidTitle_ReturnsChecklist()
+    public async Task CreateChecklistAsync_CreatesChecklist()
     {
-        var result = await _service.CreateChecklistAsync(_card.Id, "Requirements", _caller);
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
+        var dto = new CreateChecklistDto { Title = "Acceptance Criteria" };
 
-        Assert.IsNotNull(result);
-        Assert.AreEqual("Requirements", result.Title);
-        Assert.AreEqual(_card.Id, result.CardId);
+        var result = await _service.CreateChecklistAsync(item.Id, dto, CancellationToken.None);
+
+        Assert.AreEqual("Acceptance Criteria", result.Title);
+        Assert.AreEqual(item.Id, result.ItemId);
     }
 
     [TestMethod]
-    public async Task CreateChecklist_PositionAppendsAfterLast()
+    public async Task GetChecklistsByItemAsync_ReturnsChecklists()
     {
-        var first = await _service.CreateChecklistAsync(_card.Id, "First", _caller);
-        var second = await _service.CreateChecklistAsync(_card.Id, "Second", _caller);
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
+        await _service.CreateChecklistAsync(item.Id, new CreateChecklistDto { Title = "Checklist A" }, CancellationToken.None);
+        await _service.CreateChecklistAsync(item.Id, new CreateChecklistDto { Title = "Checklist B" }, CancellationToken.None);
 
-        Assert.IsTrue(second.Position > first.Position);
+        var result = await _service.GetChecklistsByItemAsync(item.Id, CancellationToken.None);
+
+        Assert.AreEqual(2, result.Count);
     }
 
-    // ─── Get Checklists ───────────────────────────────────────────────
-
     [TestMethod]
-    public async Task GetChecklists_ReturnsOrderedWithItems()
+    public async Task DeleteChecklistAsync_RemovesChecklist()
     {
-        var cl = await _service.CreateChecklistAsync(_card.Id, "CL", _caller);
-        await _service.AddItemAsync(cl.Id, "Item 1", _caller);
-        await _service.AddItemAsync(cl.Id, "Item 2", _caller);
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
+        var checklist = await _service.CreateChecklistAsync(item.Id, new CreateChecklistDto { Title = "To Delete" }, CancellationToken.None);
 
-        var results = await _service.GetChecklistsAsync(_card.Id, _caller);
+        await _service.DeleteChecklistAsync(checklist.Id, CancellationToken.None);
 
-        Assert.AreEqual(1, results.Count);
-        Assert.AreEqual(2, results[0].Items.Count);
+        var result = await _service.GetChecklistsByItemAsync(item.Id, CancellationToken.None);
+        Assert.AreEqual(0, result.Count);
     }
 
-    // ─── Delete Checklist ─────────────────────────────────────────────
-
     [TestMethod]
-    public async Task DeleteChecklist_RemovesChecklistAndItems()
+    public async Task AddChecklistItemAsync_AddsItemToChecklist()
     {
-        var cl = await _service.CreateChecklistAsync(_card.Id, "Doomed", _caller);
-        await _service.AddItemAsync(cl.Id, "Item", _caller);
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
+        var checklist = await _service.CreateChecklistAsync(item.Id, new CreateChecklistDto { Title = "Tasks" }, CancellationToken.None);
 
-        await _service.DeleteChecklistAsync(cl.Id, _caller);
+        var result = await _service.AddChecklistItemAsync(checklist.Id, new AddChecklistItemDto { Title = "Do the thing" }, CancellationToken.None);
 
-        Assert.IsFalse(await _db.CardChecklists.AnyAsync(c => c.Id == cl.Id));
-        Assert.IsFalse(await _db.ChecklistItems.AnyAsync(i => i.ChecklistId == cl.Id));
-    }
-
-    // ─── Add Item ─────────────────────────────────────────────────────
-
-    [TestMethod]
-    public async Task AddItem_ValidTitle_ReturnsItem()
-    {
-        var cl = await _service.CreateChecklistAsync(_card.Id, "CL", _caller);
-
-        var result = await _service.AddItemAsync(cl.Id, "Do something", _caller);
-
-        Assert.IsNotNull(result);
-        Assert.AreEqual("Do something", result.Title);
+        Assert.AreEqual("Do the thing", result.Title);
         Assert.IsFalse(result.IsCompleted);
     }
 
-    // ─── Toggle Item ──────────────────────────────────────────────────
-
     [TestMethod]
-    public async Task ToggleItem_FlipsCompletionStatus()
+    public async Task ToggleChecklistItemAsync_TogglesCompletion()
     {
-        var cl = await _service.CreateChecklistAsync(_card.Id, "CL", _caller);
-        var item = await _service.AddItemAsync(cl.Id, "Toggle me", _caller);
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
+        var checklist = await _service.CreateChecklistAsync(item.Id, new CreateChecklistDto { Title = "Tasks" }, CancellationToken.None);
+        var checkItem = await _service.AddChecklistItemAsync(checklist.Id, new AddChecklistItemDto { Title = "Step 1" }, CancellationToken.None);
 
-        var toggled = await _service.ToggleItemAsync(item.Id, _caller);
-        Assert.IsTrue(toggled.IsCompleted);
+        await _service.ToggleChecklistItemAsync(checkItem.Id, CancellationToken.None);
 
-        var toggledBack = await _service.ToggleItemAsync(item.Id, _caller);
-        Assert.IsFalse(toggledBack.IsCompleted);
+        var updated = await _service.GetChecklistsByItemAsync(item.Id, CancellationToken.None);
+        Assert.IsTrue(updated.First().Items.First(i => i.Id == checkItem.Id).IsCompleted);
     }
 
-    // ─── Delete Item ──────────────────────────────────────────────────
+    [TestMethod]
+    public async Task ToggleChecklistItemAsync_Twice_ReturnsToUnchecked()
+    {
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
+        var checklist = await _service.CreateChecklistAsync(item.Id, new CreateChecklistDto { Title = "Tasks" }, CancellationToken.None);
+        var checkItem = await _service.AddChecklistItemAsync(checklist.Id, new AddChecklistItemDto { Title = "Step 1" }, CancellationToken.None);
+        await _service.ToggleChecklistItemAsync(checkItem.Id, CancellationToken.None);
+
+        await _service.ToggleChecklistItemAsync(checkItem.Id, CancellationToken.None);
+
+        var updated = await _service.GetChecklistsByItemAsync(item.Id, CancellationToken.None);
+        Assert.IsFalse(updated.First().Items.First(i => i.Id == checkItem.Id).IsCompleted);
+    }
 
     [TestMethod]
-    public async Task DeleteItem_RemovesItem()
+    public async Task DeleteChecklistItemAsync_RemovesItem()
     {
-        var cl = await _service.CreateChecklistAsync(_card.Id, "CL", _caller);
-        var item = await _service.AddItemAsync(cl.Id, "Doomed", _caller);
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
+        var checklist = await _service.CreateChecklistAsync(item.Id, new CreateChecklistDto { Title = "Tasks" }, CancellationToken.None);
+        var checkItem = await _service.AddChecklistItemAsync(checklist.Id, new AddChecklistItemDto { Title = "Step 1" }, CancellationToken.None);
 
-        await _service.DeleteItemAsync(item.Id, _caller);
+        await _service.DeleteChecklistItemAsync(checkItem.Id, CancellationToken.None);
 
-        Assert.IsFalse(await _db.ChecklistItems.AnyAsync(i => i.Id == item.Id));
+        var result = await _service.GetChecklistsByItemAsync(item.Id, CancellationToken.None);
+        Assert.AreEqual(0, result.First().Items.Count);
     }
 }

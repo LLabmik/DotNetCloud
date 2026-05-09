@@ -619,6 +619,9 @@ public sealed class TracksApiClient : ITracksApiClient
     public Task<PokerSessionDto?> GetPokerSessionAsync(Guid sessionId, CancellationToken ct = default)
         => ReadDataAsync<PokerSessionDto>($"api/v1/poker/{sessionId}", ct);
 
+    public Task<PokerSessionDto?> GetActivePokerSessionByReviewSessionAsync(Guid reviewSessionId, CancellationToken ct = default)
+        => ReadDataAsync<PokerSessionDto>($"api/v1/review-sessions/{reviewSessionId}/poker", ct);
+
     public async Task<PokerSessionDto?> SubmitPokerVoteAsync(Guid sessionId, SubmitPokerVoteDto dto, CancellationToken ct = default)
     {
         var response = await _httpClient.PostAsJsonAsync($"api/v1/poker/{sessionId}/vote", dto, ct);

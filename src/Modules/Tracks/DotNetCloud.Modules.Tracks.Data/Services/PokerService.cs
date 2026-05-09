@@ -58,6 +58,17 @@ public sealed class PokerService
         return session is null ? null : MapToDto(session);
     }
 
+    public async Task<PokerSessionDto?> GetActiveSessionByReviewSessionAsync(Guid reviewSessionId, CancellationToken ct)
+    {
+        var session = await _db.PokerSessions
+            .Include(ps => ps.Votes)
+            .Where(ps => ps.ReviewSessionId == reviewSessionId && ps.Status != PokerSessionStatus.Completed)
+            .OrderByDescending(ps => ps.CreatedAt)
+            .FirstOrDefaultAsync(ct);
+
+        return session is null ? null : MapToDto(session);
+    }
+
     public async Task<PokerSessionDto> SubmitVoteAsync(Guid sessionId, Guid userId, SubmitPokerVoteDto dto, CancellationToken ct)
     {
         var session = await _db.PokerSessions

@@ -18,56 +18,56 @@ public class TracksCapabilityTests
     }
 
     [TestMethod]
-    public void ITracksDirectory_HasBoardMethods()
+    public void ITracksDirectory_HasProductMethods()
     {
         // Assert
         var type = typeof(ITracksDirectory);
-        Assert.IsNotNull(type.GetMethod("GetBoardTitleAsync"));
-        Assert.IsNotNull(type.GetMethod("GetBoardTitlesAsync"));
-        Assert.IsNotNull(type.GetMethod("SearchBoardsAsync"));
+        Assert.IsNotNull(type.GetMethod("GetProductTitleAsync"));
+        Assert.IsNotNull(type.GetMethod("GetProductTitlesAsync"));
+        Assert.IsNotNull(type.GetMethod("SearchProductsAsync"));
     }
 
     [TestMethod]
-    public void ITracksDirectory_HasCardMethods()
+    public void ITracksDirectory_HasWorkItemMethods()
     {
         // Assert
         var type = typeof(ITracksDirectory);
-        Assert.IsNotNull(type.GetMethod("GetCardTitleAsync"));
-        Assert.IsNotNull(type.GetMethod("GetCardTitlesAsync"));
-        Assert.IsNotNull(type.GetMethod("SearchCardsAsync"));
+        Assert.IsNotNull(type.GetMethod("GetWorkItemTitleAsync"));
+        Assert.IsNotNull(type.GetMethod("GetWorkItemTitlesAsync"));
+        Assert.IsNotNull(type.GetMethod("SearchWorkItemsAsync"));
     }
 
     [TestMethod]
-    public void CardSummary_CanBeCreated()
+    public void WorkItemSummary_CanBeCreated()
     {
         // Arrange & Act
-        var summary = new CardSummary
+        var summary = new WorkItemSummary
         {
             Id = Guid.NewGuid(),
             Title = "Fix the bug",
-            BoardId = Guid.NewGuid(),
-            BoardTitle = "Dev Board",
+            ProductId = Guid.NewGuid(),
+            ProductTitle = "Dev Product",
             Priority = Priority.High,
             DueDate = DateTime.UtcNow.AddDays(3)
         };
 
         // Assert
         Assert.AreEqual("Fix the bug", summary.Title);
-        Assert.AreEqual("Dev Board", summary.BoardTitle);
+        Assert.AreEqual("Dev Product", summary.ProductTitle);
         Assert.AreEqual(Priority.High, summary.Priority);
         Assert.IsNotNull(summary.DueDate);
     }
 
     [TestMethod]
-    public void CardSummary_OptionalFields_DefaultCorrectly()
+    public void WorkItemSummary_OptionalFields_DefaultCorrectly()
     {
         // Arrange & Act
-        var summary = new CardSummary
+        var summary = new WorkItemSummary
         {
             Id = Guid.NewGuid(),
             Title = "Test",
-            BoardId = Guid.NewGuid(),
-            BoardTitle = "Board"
+            ProductId = Guid.NewGuid(),
+            ProductTitle = "Product"
         };
 
         // Assert

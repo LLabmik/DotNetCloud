@@ -35,6 +35,8 @@ public class CsvImportWizardBase : ComponentBase, IDisposable
     protected CsvValidationResult? _validationResult;
     protected CsvImportResult? _importResult;
 
+    protected string? _errorMessage;
+
     protected List<FieldMapping> _fieldMappings = [];
 
     /// <summary>
@@ -114,8 +116,7 @@ public class CsvImportWizardBase : ComponentBase, IDisposable
         }
         catch (Exception ex)
         {
-            // TODO: Show error toast
-            Console.WriteLine($"CSV parse error: {ex.Message}");
+            _errorMessage = $"Failed to parse CSV file: {ex.Message}";
         }
     }
 
@@ -135,6 +136,8 @@ public class CsvImportWizardBase : ComponentBase, IDisposable
     protected async Task GoNext()
     {
         if (!CanGoNext) return;
+
+        _errorMessage = null;
 
         if (_currentStep == 2)
         {
@@ -156,6 +159,7 @@ public class CsvImportWizardBase : ComponentBase, IDisposable
 
     protected void GoBack()
     {
+        _errorMessage = null;
         if (_currentStep > 0)
             _currentStep--;
     }
@@ -176,7 +180,7 @@ public class CsvImportWizardBase : ComponentBase, IDisposable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"CSV validation error: {ex.Message}");
+            _errorMessage = $"Validation failed: {ex.Message}";
         }
     }
 
@@ -196,7 +200,6 @@ public class CsvImportWizardBase : ComponentBase, IDisposable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"CSV import error: {ex.Message}");
             _importResult = new CsvImportResult
             {
                 Created = 0,

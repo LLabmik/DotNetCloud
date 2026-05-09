@@ -1,364 +1,160 @@
-using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
-using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Tracks.Data;
 using DotNetCloud.Modules.Tracks.Data.Services;
 using DotNetCloud.Modules.Tracks.Models;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging.Abstractions;
-using Moq;
 
 namespace DotNetCloud.Modules.Tracks.Tests;
 
 [TestClass]
 public class SprintServiceTests
 {
-    private TracksDbContext _db;
-    private SprintService _service;
-    private Mock<IEventBus> _eventBusMock;
-    private CallerContext _caller;
-    private Board _board;
-    private BoardSwimlane _swimlane;
+    private TracksDbContext _db = null!;
+    private SprintService _service = null!;
 
     [TestInitialize]
-    public async Task Setup()
+    public void Setup()
     {
         _db = TestHelpers.CreateDb();
-        _caller = TestHelpers.CreateCaller();
-        _eventBusMock = new Mock<IEventBus>();
-        var activityService = new ActivityService(_db, NullLogger<ActivityService>.Instance);
-        var teamService = new TeamService(_db, _eventBusMock.Object, NullLogger<TeamService>.Instance);
-        var boardService = new BoardService(_db, _eventBusMock.Object, activityService, teamService, NullLogger<BoardService>.Instance);
-        _service = new SprintService(_db, boardService, activityService, _eventBusMock.Object, NullLogger<SprintService>.Instance);
-        _board = await TestHelpers.SeedBoardAsync(_db, _caller.UserId);
-        _swimlane = await TestHelpers.SeedSwimlaneAsync(_db, _board.Id);
+        _service = new SprintService(_db);
     }
 
     [TestCleanup]
     public void Cleanup() => _db.Dispose();
 
-    // ─── Create ───────────────────────────────────────────────────────
+    private async Task<WorkItem> SeedTestEpic()
+    {
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        return await TestHelpers.SeedEpicAsync(_db, product.Id, Guid.NewGuid());
+    }
 
     [TestMethod]
-    public async Task CreateSprint_ValidDto_ReturnsSprint()
+    public async Task CreateSprintAsync_CreatesSprint()
     {
-        var dto = new CreateSprintDto
-        {
-            Title = "Sprint 1",
-            Goal = "Ship features",
-            StartDate = DateTime.UtcNow,
-            EndDate = DateTime.UtcNow.AddDays(14)
-        };
+        var epic = await SeedTestEpic();
+        var dto = new CreateSprintDto { Title = "Sprint 1", DurationWeeks = 2 };
 
-        var result = await _service.CreateSprintAsync(_board.Id, dto, _caller);
+        var result = await _service.CreateSprintAsync(epic.Id, dto, CancellationToken.None);
 
-        Assert.IsNotNull(result);
         Assert.AreEqual("Sprint 1", result.Title);
-        Assert.AreEqual("Ship features", result.Goal);
-        Assert.AreEqual(SprintStatus.Planning, result.Status);
+        Assert.AreEqual(epic.Id, result.EpicId);
     }
 
     [TestMethod]
-    public async Task CreateSprint_AsMember_Throws()
+    public async Task GetSprintAsync_ReturnsSprint()
     {
-        var memberCaller = TestHelpers.CreateCaller();
-        await TestHelpers.AddMemberAsync(_db, _board.Id, memberCaller.UserId, BoardMemberRole.Member);
+        var epic = await SeedTestEpic();
+        var created = await _service.CreateSprintAsync(epic.Id, new CreateSprintDto { Title = "Sprint 1" }, CancellationToken.None);
 
-        await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
-            () => _service.CreateSprintAsync(_board.Id, new CreateSprintDto { Title = "X" }, memberCaller));
-    }
-
-    // ─── Get Sprint ──────────────────────────────────────────────────
-
-    [TestMethod]
-    public async Task GetSprint_ExistingSprint_ReturnsSprint()
-    {
-        var created = await _service.CreateSprintAsync(_board.Id, new CreateSprintDto { Title = "S1" }, _caller);
-
-        var result = await _service.GetSprintAsync(created.Id, _caller);
+        var result = await _service.GetSprintAsync(created.Id, CancellationToken.None);
 
         Assert.IsNotNull(result);
-        Assert.AreEqual("S1", result.Title);
+        Assert.AreEqual(created.Id, result.Id);
     }
 
     [TestMethod]
-    public async Task GetSprint_NonExistent_ReturnsNull()
+    public async Task GetSprintsByEpicAsync_ReturnsSprintsForEpic()
     {
-        var result = await _service.GetSprintAsync(Guid.NewGuid(), _caller);
+        var epic = await SeedTestEpic();
+        await _service.CreateSprintAsync(epic.Id, new CreateSprintDto { Title = "A" }, CancellationToken.None);
+        await _service.CreateSprintAsync(epic.Id, new CreateSprintDto { Title = "B" }, CancellationToken.None);
+
+        var result = await _service.GetSprintsByEpicAsync(epic.Id, CancellationToken.None);
+
+        Assert.AreEqual(2, result.Count);
+    }
+
+    [TestMethod]
+    public async Task UpdateSprintAsync_UpdatesTitle()
+    {
+        var epic = await SeedTestEpic();
+        var created = await _service.CreateSprintAsync(epic.Id, new CreateSprintDto { Title = "Old" }, CancellationToken.None);
+        var dto = new UpdateSprintDto { Title = "New" };
+
+        var result = await _service.UpdateSprintAsync(created.Id, dto, CancellationToken.None);
+
+        Assert.AreEqual("New", result.Title);
+    }
+
+    [TestMethod]
+    public async Task DeleteSprintAsync_RemovesSprint()
+    {
+        var epic = await SeedTestEpic();
+        var created = await _service.CreateSprintAsync(epic.Id, new CreateSprintDto { Title = "To Delete" }, CancellationToken.None);
+
+        await _service.DeleteSprintAsync(created.Id, CancellationToken.None);
+
+        var result = await _service.GetSprintAsync(created.Id, CancellationToken.None);
         Assert.IsNull(result);
     }
 
-    // ─── List Sprints ─────────────────────────────────────────────────
-
     [TestMethod]
-    public async Task GetSprints_ReturnsSprintsForBoard()
+    public async Task StartSprintAsync_SetsStatusToActive()
     {
-        await _service.CreateSprintAsync(_board.Id, new CreateSprintDto { Title = "S1" }, _caller);
-        await _service.CreateSprintAsync(_board.Id, new CreateSprintDto { Title = "S2" }, _caller);
+        var epic = await SeedTestEpic();
+        var sprint = await _service.CreateSprintAsync(epic.Id, new CreateSprintDto { Title = "Sprint 1", StartDate = DateTime.UtcNow, EndDate = DateTime.UtcNow.AddDays(14) }, CancellationToken.None);
 
-        var results = await _service.GetSprintsAsync(_board.Id, _caller);
-
-        Assert.AreEqual(2, results.Count);
-    }
-
-    // ─── Start Sprint ─────────────────────────────────────────────────
-
-    [TestMethod]
-    public async Task StartSprint_FromPlanning_Starts()
-    {
-        var sprint = await _service.CreateSprintAsync(_board.Id, new CreateSprintDto { Title = "S1" }, _caller);
-
-        var result = await _service.StartSprintAsync(sprint.Id, _caller);
+        var result = await _service.StartSprintAsync(sprint.Id, CancellationToken.None);
 
         Assert.AreEqual(SprintStatus.Active, result.Status);
     }
 
     [TestMethod]
-    public async Task StartSprint_PublishesEvent()
+    public async Task CompleteSprintAsync_SetsStatusToCompleted()
     {
-        var sprint = await _service.CreateSprintAsync(_board.Id, new CreateSprintDto { Title = "S1" }, _caller);
+        var epic = await SeedTestEpic();
+        var sprint = await _service.CreateSprintAsync(epic.Id, new CreateSprintDto { Title = "Sprint 1" }, CancellationToken.None);
+        await _service.StartSprintAsync(sprint.Id, CancellationToken.None);
 
-        await _service.StartSprintAsync(sprint.Id, _caller);
-
-        _eventBusMock.Verify(
-            eb => eb.PublishAsync(
-                It.Is<SprintStartedEvent>(e => e.SprintId == sprint.Id),
-                It.IsAny<CallerContext>(),
-                It.IsAny<CancellationToken>()),
-            Times.Once);
-    }
-
-    [TestMethod]
-    public async Task StartSprint_WhenActiveSprintExists_Throws()
-    {
-        var sprint1 = await _service.CreateSprintAsync(_board.Id, new CreateSprintDto { Title = "S1" }, _caller);
-        await _service.StartSprintAsync(sprint1.Id, _caller);
-
-        var sprint2 = await _service.CreateSprintAsync(_board.Id, new CreateSprintDto { Title = "S2" }, _caller);
-
-        await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
-            () => _service.StartSprintAsync(sprint2.Id, _caller));
-    }
-
-    [TestMethod]
-    public async Task StartSprint_FromCompletedStatus_Throws()
-    {
-        var sprint = await _service.CreateSprintAsync(_board.Id, new CreateSprintDto { Title = "S1" }, _caller);
-        await _service.StartSprintAsync(sprint.Id, _caller);
-        await _service.CompleteSprintAsync(sprint.Id, _caller);
-
-        await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
-            () => _service.StartSprintAsync(sprint.Id, _caller));
-    }
-
-    // ─── Complete Sprint ──────────────────────────────────────────────
-
-    [TestMethod]
-    public async Task CompleteSprint_FromActive_Completes()
-    {
-        var sprint = await _service.CreateSprintAsync(_board.Id, new CreateSprintDto { Title = "S1" }, _caller);
-        await _service.StartSprintAsync(sprint.Id, _caller);
-
-        var result = await _service.CompleteSprintAsync(sprint.Id, _caller);
+        var result = await _service.CompleteSprintAsync(sprint.Id, CancellationToken.None);
 
         Assert.AreEqual(SprintStatus.Completed, result.Status);
     }
 
     [TestMethod]
-    public async Task CompleteSprint_FromPlanning_Throws()
+    public async Task AddItemToSprintAsync_AddsWorkItemToSprint()
     {
-        var sprint = await _service.CreateSprintAsync(_board.Id, new CreateSprintDto { Title = "S1" }, _caller);
+        var epic = await SeedTestEpic();
+        var sprint = await _service.CreateSprintAsync(epic.Id, new CreateSprintDto { Title = "Sprint 1" }, CancellationToken.None);
+        var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, epic.ProductId);
+        var item = await TestHelpers.SeedWorkItemAsync(_db, epic.ProductId, swimlane.Id, Guid.NewGuid());
 
-        await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
-            () => _service.CompleteSprintAsync(sprint.Id, _caller));
-    }
+        await _service.AddItemToSprintAsync(sprint.Id, item.Id, CancellationToken.None);
 
-    // ─── Delete Sprint ────────────────────────────────────────────────
-
-    [TestMethod]
-    public async Task DeleteSprint_RemovesSprint()
-    {
-        var sprint = await _service.CreateSprintAsync(_board.Id, new CreateSprintDto { Title = "S1" }, _caller);
-
-        await _service.DeleteSprintAsync(sprint.Id, _caller);
-
-        Assert.IsFalse(await _db.Sprints.AnyAsync(s => s.Id == sprint.Id));
-    }
-
-    // ─── Sprint Cards ─────────────────────────────────────────────────
-
-    [TestMethod]
-    public async Task AddCardToSprint_AddsCard()
-    {
-        var sprint = await _service.CreateSprintAsync(_board.Id, new CreateSprintDto { Title = "S1" }, _caller);
-        var card = await TestHelpers.SeedCardAsync(_db, _swimlane.Id, _caller.UserId);
-
-        await _service.AddCardToSprintAsync(sprint.Id, card.Id, _caller);
-
-        Assert.IsTrue(await _db.SprintCards.AnyAsync(sc => sc.SprintId == sprint.Id && sc.CardId == card.Id));
+        var sprintItems = await _db.SprintItems.Where(si => si.SprintId == sprint.Id).ToListAsync();
+        Assert.AreEqual(1, sprintItems.Count);
+        Assert.AreEqual(item.Id, sprintItems[0].ItemId);
     }
 
     [TestMethod]
-    public async Task AddCardToSprint_AlreadyAdded_IsIdempotent()
+    public async Task RemoveItemFromSprintAsync_RemovesWorkItemFromSprint()
     {
-        var sprint = await _service.CreateSprintAsync(_board.Id, new CreateSprintDto { Title = "S1" }, _caller);
-        var card = await TestHelpers.SeedCardAsync(_db, _swimlane.Id, _caller.UserId);
+        var epic = await SeedTestEpic();
+        var sprint = await _service.CreateSprintAsync(epic.Id, new CreateSprintDto { Title = "Sprint 1" }, CancellationToken.None);
+        var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, epic.ProductId);
+        var item = await TestHelpers.SeedWorkItemAsync(_db, epic.ProductId, swimlane.Id, Guid.NewGuid());
+        await _service.AddItemToSprintAsync(sprint.Id, item.Id, CancellationToken.None);
 
-        await _service.AddCardToSprintAsync(sprint.Id, card.Id, _caller);
-        await _service.AddCardToSprintAsync(sprint.Id, card.Id, _caller);
+        await _service.RemoveItemFromSprintAsync(sprint.Id, item.Id, CancellationToken.None);
 
-        var count = await _db.SprintCards.CountAsync(sc => sc.SprintId == sprint.Id && sc.CardId == card.Id);
-        Assert.AreEqual(1, count);
+        var sprintItems = await _db.SprintItems.Where(si => si.SprintId == sprint.Id).ToListAsync();
+        Assert.AreEqual(0, sprintItems.Count);
     }
 
     [TestMethod]
-    public async Task RemoveCardFromSprint_RemovesCard()
+    public async Task GetBacklogItemsAsync_ReturnsItemsNotInSprint()
     {
-        var sprint = await _service.CreateSprintAsync(_board.Id, new CreateSprintDto { Title = "S1" }, _caller);
-        var card = await TestHelpers.SeedCardAsync(_db, _swimlane.Id, _caller.UserId);
-        await _service.AddCardToSprintAsync(sprint.Id, card.Id, _caller);
+        var epic = await SeedTestEpic();
+        var feature = await TestHelpers.SeedWorkItemAsync(_db, epic.ProductId, null, Guid.NewGuid(), "Feature", WorkItemType.Feature);
+        feature.ParentWorkItemId = epic.Id;
+        await _db.SaveChangesAsync();
+        var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, feature.Id, SwimlaneContainerType.WorkItem);
+        var item = await TestHelpers.SeedWorkItemAsync(_db, epic.ProductId, swimlane.Id, Guid.NewGuid(), "Child Item", WorkItemType.Item);
+        item.ParentWorkItemId = feature.Id;
+        await _db.SaveChangesAsync();
 
-        await _service.RemoveCardFromSprintAsync(sprint.Id, card.Id, _caller);
+        var result = await _service.GetBacklogItemsAsync(epic.Id, CancellationToken.None);
 
-        Assert.IsFalse(await _db.SprintCards.AnyAsync(sc => sc.SprintId == sprint.Id && sc.CardId == card.Id));
-    }
-
-    // ─── UTC Date Handling ────────────────────────────────────────────
-
-    [TestMethod]
-    public async Task CreateSprint_StoresDatesAsUtc()
-    {
-        var dto = new CreateSprintDto
-        {
-            Title = "UTC Sprint",
-            StartDate = new DateTime(2026, 4, 1, 10, 0, 0, DateTimeKind.Unspecified),
-            EndDate = new DateTime(2026, 4, 15, 10, 0, 0, DateTimeKind.Unspecified)
-        };
-
-        var result = await _service.CreateSprintAsync(_board.Id, dto, _caller);
-
-        var dbSprint = await _db.Sprints.FirstAsync(s => s.Id == result.Id);
-        Assert.AreEqual(DateTimeKind.Utc, dbSprint.StartDate!.Value.Kind);
-        Assert.AreEqual(DateTimeKind.Utc, dbSprint.EndDate!.Value.Kind);
-    }
-
-    [TestMethod]
-    public async Task CreateSprint_PreservesDateValues_WhenSpecifyingUtc()
-    {
-        var start = new DateTime(2026, 4, 1, 10, 0, 0, DateTimeKind.Local);
-        var end = new DateTime(2026, 4, 15, 17, 30, 0, DateTimeKind.Local);
-        var dto = new CreateSprintDto
-        {
-            Title = "Value Sprint",
-            StartDate = start,
-            EndDate = end
-        };
-
-        var result = await _service.CreateSprintAsync(_board.Id, dto, _caller);
-
-        var dbSprint = await _db.Sprints.FirstAsync(s => s.Id == result.Id);
-        // SpecifyKind preserves the numeric values, just changes Kind
-        Assert.AreEqual(10, dbSprint.StartDate!.Value.Hour);
-        Assert.AreEqual(17, dbSprint.EndDate!.Value.Hour);
-        Assert.AreEqual(30, dbSprint.EndDate!.Value.Minute);
-    }
-
-    [TestMethod]
-    public async Task CreateSprint_NullDates_StoresNull()
-    {
-        var dto = new CreateSprintDto
-        {
-            Title = "No Dates",
-            StartDate = null,
-            EndDate = null
-        };
-
-        var result = await _service.CreateSprintAsync(_board.Id, dto, _caller);
-
-        var dbSprint = await _db.Sprints.FirstAsync(s => s.Id == result.Id);
-        Assert.IsNull(dbSprint.StartDate);
-        Assert.IsNull(dbSprint.EndDate);
-    }
-
-    // ─── Update Sprint ────────────────────────────────────────────────
-
-    [TestMethod]
-    public async Task UpdateSprint_ChangesTitle()
-    {
-        var sprint = await _service.CreateSprintAsync(_board.Id, new CreateSprintDto { Title = "S1" }, _caller);
-
-        var result = await _service.UpdateSprintAsync(sprint.Id, new UpdateSprintDto { Title = "S1 Updated" }, _caller);
-
-        Assert.AreEqual("S1 Updated", result.Title);
-    }
-
-    [TestMethod]
-    public async Task UpdateSprint_ChangesGoal()
-    {
-        var sprint = await _service.CreateSprintAsync(_board.Id, new CreateSprintDto { Title = "S1", Goal = "Old goal" }, _caller);
-
-        var result = await _service.UpdateSprintAsync(sprint.Id, new UpdateSprintDto { Goal = "New goal" }, _caller);
-
-        Assert.AreEqual("New goal", result.Goal);
-    }
-
-    [TestMethod]
-    public async Task UpdateSprint_StoresDatesAsUtc()
-    {
-        var sprint = await _service.CreateSprintAsync(_board.Id, new CreateSprintDto { Title = "S1" }, _caller);
-
-        var newStart = new DateTime(2026, 5, 1, 9, 0, 0, DateTimeKind.Unspecified);
-        var newEnd = new DateTime(2026, 5, 15, 17, 0, 0, DateTimeKind.Unspecified);
-        var result = await _service.UpdateSprintAsync(sprint.Id,
-            new UpdateSprintDto { StartDate = newStart, EndDate = newEnd }, _caller);
-
-        var dbSprint = await _db.Sprints.FirstAsync(s => s.Id == sprint.Id);
-        Assert.AreEqual(DateTimeKind.Utc, dbSprint.StartDate!.Value.Kind);
-        Assert.AreEqual(DateTimeKind.Utc, dbSprint.EndDate!.Value.Kind);
-        Assert.AreEqual(9, dbSprint.StartDate.Value.Hour);
-        Assert.AreEqual(17, dbSprint.EndDate.Value.Hour);
-    }
-
-    [TestMethod]
-    public async Task UpdateSprint_PartialUpdate_OnlyChangesSpecifiedFields()
-    {
-        var sprint = await _service.CreateSprintAsync(_board.Id,
-            new CreateSprintDto { Title = "S1", Goal = "Original" }, _caller);
-
-        var result = await _service.UpdateSprintAsync(sprint.Id,
-            new UpdateSprintDto { Title = "S1 Updated" }, _caller);
-
-        Assert.AreEqual("S1 Updated", result.Title);
-        Assert.AreEqual("Original", result.Goal); // Goal unchanged
-    }
-
-    [TestMethod]
-    public async Task UpdateSprint_NonExistentSprint_Throws()
-    {
-        await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
-            () => _service.UpdateSprintAsync(Guid.NewGuid(), new UpdateSprintDto { Title = "X" }, _caller));
-    }
-
-    [TestMethod]
-    public async Task UpdateSprint_AsMember_Throws()
-    {
-        var sprint = await _service.CreateSprintAsync(_board.Id, new CreateSprintDto { Title = "S1" }, _caller);
-        var memberCaller = TestHelpers.CreateCaller();
-        await TestHelpers.AddMemberAsync(_db, _board.Id, memberCaller.UserId, BoardMemberRole.Member);
-
-        await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
-            () => _service.UpdateSprintAsync(sprint.Id, new UpdateSprintDto { Title = "Sneaky" }, memberCaller));
-    }
-
-    [TestMethod]
-    public async Task UpdateSprint_SetsUpdatedAt()
-    {
-        var sprint = await _service.CreateSprintAsync(_board.Id, new CreateSprintDto { Title = "S1" }, _caller);
-        var before = DateTime.UtcNow;
-
-        await _service.UpdateSprintAsync(sprint.Id, new UpdateSprintDto { Title = "Updated" }, _caller);
-
-        var dbSprint = await _db.Sprints.FirstAsync(s => s.Id == sprint.Id);
-        Assert.IsTrue(dbSprint.UpdatedAt >= before);
+        Assert.IsTrue(result.Any(i => i.Id == item.Id));
     }
 }

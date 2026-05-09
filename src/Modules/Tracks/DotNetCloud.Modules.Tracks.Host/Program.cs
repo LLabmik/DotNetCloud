@@ -38,7 +38,12 @@ app.MapControllers();
 // Health check endpoint
 app.MapHealthChecks("/health");
 
-// TODO: Seed built-in product templates on startup (ProductTemplateService.SeedBuiltInTemplatesAsync)
+// Seed built-in product templates on startup (idempotent)
+using (var scope = app.Services.CreateScope())
+{
+    var templateSeeder = scope.ServiceProvider.GetRequiredService<TemplateSeedService>();
+    await templateSeeder.EnsureSeededAsync(CancellationToken.None);
+}
 
 // Minimal info endpoint
 app.MapGet("/", () => Results.Ok(new

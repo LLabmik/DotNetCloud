@@ -1,96 +1,83 @@
-using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
-using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Tracks.Data;
 using DotNetCloud.Modules.Tracks.Data.Services;
 using DotNetCloud.Modules.Tracks.Models;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging.Abstractions;
-using Moq;
 
 namespace DotNetCloud.Modules.Tracks.Tests;
 
 [TestClass]
 public class AttachmentServiceTests
 {
-    private TracksDbContext _db;
-    private AttachmentService _service;
-    private CallerContext _caller;
-    private Board _board;
-    private Card _card;
+    private TracksDbContext _db = null!;
+    private AttachmentService _service = null!;
 
     [TestInitialize]
-    public async Task Setup()
+    public void Setup()
     {
         _db = TestHelpers.CreateDb();
-        _caller = TestHelpers.CreateCaller();
-        var activityService = new ActivityService(_db, NullLogger<ActivityService>.Instance);
-        var teamService = new TeamService(_db, new Mock<IEventBus>().Object, NullLogger<TeamService>.Instance);
-        var boardService = new BoardService(_db, new Mock<IEventBus>().Object, activityService, teamService, NullLogger<BoardService>.Instance);
-        _service = new AttachmentService(_db, boardService, activityService, NullLogger<AttachmentService>.Instance);
-        _board = await TestHelpers.SeedBoardAsync(_db, _caller.UserId);
-        var list = await TestHelpers.SeedSwimlaneAsync(_db, _board.Id);
-        _card = await TestHelpers.SeedCardAsync(_db, list.Id, _caller.UserId);
+        _service = new AttachmentService(_db);
     }
 
     [TestCleanup]
     public void Cleanup() => _db.Dispose();
 
-    // ─── Add Attachment ───────────────────────────────────────────────
-
     [TestMethod]
-    public async Task AddAttachment_WithFileNodeId_ReturnsAttachment()
+    public async Task AddAttachmentAsync_AddsAttachmentToWorkItem()
     {
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
+        var userId = Guid.NewGuid();
         var fileNodeId = Guid.NewGuid();
 
-        var result = await _service.AddAttachmentAsync(_card.Id, "doc.pdf", fileNodeId, null, _caller);
+        var result = await _service.AddAttachmentAsync(item.Id, userId, "report.pdf", 1024, "application/pdf", fileNodeId, null, CancellationToken.None);
 
-        Assert.IsNotNull(result);
-        Assert.AreEqual("doc.pdf", result.FileName);
-        Assert.AreEqual(fileNodeId, result.FileNodeId);
-        Assert.IsNull(result.Url);
-        Assert.AreEqual(_caller.UserId, result.AddedByUserId);
+        Assert.AreEqual("report.pdf", result.FileName);
+        Assert.AreEqual(1024, result.FileSize);
+        Assert.AreEqual(item.Id, result.WorkItemId);
     }
 
     [TestMethod]
-    public async Task AddAttachment_WithUrl_ReturnsAttachment()
+    public async Task GetAttachmentsByWorkItemAsync_ReturnsAttachments()
     {
-        var result = await _service.AddAttachmentAsync(_card.Id, "link.html", null, "https://example.com", _caller);
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
+        var userId = Guid.NewGuid();
+        var fileNodeId = Guid.NewGuid();
+        await _service.AddAttachmentAsync(item.Id, userId, "a.pdf", 100, "application/pdf", fileNodeId, null, CancellationToken.None);
+        await _service.AddAttachmentAsync(item.Id, userId, "b.pdf", 200, "application/pdf", fileNodeId, null, CancellationToken.None);
 
-        Assert.IsNotNull(result);
-        Assert.AreEqual("https://example.com", result.Url);
-        Assert.IsNull(result.FileNodeId);
-    }
+        var result = await _service.GetAttachmentsByWorkItemAsync(item.Id, CancellationToken.None);
 
-    // ─── Get Attachments ──────────────────────────────────────────────
-
-    [TestMethod]
-    public async Task GetAttachments_ReturnsAttachments()
-    {
-        await _service.AddAttachmentAsync(_card.Id, "file1.txt", null, null, _caller);
-        await _service.AddAttachmentAsync(_card.Id, "file2.txt", null, null, _caller);
-
-        var results = await _service.GetAttachmentsAsync(_card.Id, _caller);
-
-        Assert.AreEqual(2, results.Count);
-    }
-
-    // ─── Remove Attachment ────────────────────────────────────────────
-
-    [TestMethod]
-    public async Task RemoveAttachment_RemovesFromDb()
-    {
-        var attachment = await _service.AddAttachmentAsync(_card.Id, "doomed.txt", null, null, _caller);
-
-        await _service.RemoveAttachmentAsync(attachment.Id, _caller);
-
-        Assert.IsFalse(await _db.CardAttachments.AnyAsync(a => a.Id == attachment.Id));
+        Assert.AreEqual(2, result.Count);
     }
 
     [TestMethod]
-    public async Task RemoveAttachment_NonExistent_Throws()
+    public async Task RemoveAttachmentAsync_DeletesAttachment()
     {
-        await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
-            () => _service.RemoveAttachmentAsync(Guid.NewGuid(), _caller));
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
+        var userId = Guid.NewGuid();
+        var fileNodeId = Guid.NewGuid();
+        var attachment = await _service.AddAttachmentAsync(item.Id, userId, "tmp.pdf", 50, "application/pdf", fileNodeId, null, CancellationToken.None);
+
+        await _service.RemoveAttachmentAsync(attachment.Id, CancellationToken.None);
+
+        var result = await _service.GetAttachmentsByWorkItemAsync(item.Id, CancellationToken.None);
+        Assert.AreEqual(0, result.Count);
+    }
+
+    [TestMethod]
+    public async Task GetAttachmentsByWorkItemAsync_NoAttachments_ReturnsEmptyList()
+    {
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
+
+        var result = await _service.GetAttachmentsByWorkItemAsync(item.Id, CancellationToken.None);
+
+        Assert.AreEqual(0, result.Count);
     }
 }

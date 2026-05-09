@@ -1,131 +1,149 @@
-using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
-using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Tracks.Data;
 using DotNetCloud.Modules.Tracks.Data.Services;
 using DotNetCloud.Modules.Tracks.Models;
-using Microsoft.Extensions.Logging.Abstractions;
-using Moq;
 
 namespace DotNetCloud.Modules.Tracks.Tests;
 
 [TestClass]
 public class CommentServiceTests
 {
-    private TracksDbContext _db;
-    private CommentService _service;
-    private Mock<IEventBus> _eventBusMock;
-    private CallerContext _caller;
-    private Board _board;
-    private BoardSwimlane _swimlane;
-    private Card _card;
+    private TracksDbContext _db = null!;
+    private CommentService _service = null!;
 
     [TestInitialize]
-    public async Task Setup()
+    public void Setup()
     {
         _db = TestHelpers.CreateDb();
-        _caller = TestHelpers.CreateCaller();
-        _eventBusMock = new Mock<IEventBus>();
-        var activityService = new ActivityService(_db, NullLogger<ActivityService>.Instance);
-        var teamService = new TeamService(_db, _eventBusMock.Object, NullLogger<TeamService>.Instance);
-        var boardService = new BoardService(_db, _eventBusMock.Object, activityService, teamService, NullLogger<BoardService>.Instance);
-        _service = new CommentService(_db, boardService, activityService, _eventBusMock.Object, NullLogger<CommentService>.Instance);
-        _board = await TestHelpers.SeedBoardAsync(_db, _caller.UserId);
-        _swimlane = await TestHelpers.SeedSwimlaneAsync(_db, _board.Id);
-        _card = await TestHelpers.SeedCardAsync(_db, _swimlane.Id, _caller.UserId);
+        _service = new CommentService(_db);
     }
 
     [TestCleanup]
     public void Cleanup() => _db.Dispose();
 
-    // ─── Create ───────────────────────────────────────────────────────
-
     [TestMethod]
-    public async Task CreateComment_ValidContent_ReturnsComment()
+    public async Task CreateCommentAsync_CreatesComment()
     {
-        var result = await _service.CreateCommentAsync(_card.Id, "Hello world", _caller);
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
+        var userId = Guid.NewGuid();
+        var dto = new AddWorkItemCommentDto { Content = "Hello world" };
 
-        Assert.IsNotNull(result);
+        var result = await _service.CreateCommentAsync(item.Id, userId, dto, CancellationToken.None);
+
         Assert.AreEqual("Hello world", result.Content);
-        Assert.AreEqual(_caller.UserId, result.UserId);
-        Assert.AreEqual(_card.Id, result.CardId);
+        Assert.AreEqual(userId, result.UserId);
+        Assert.AreEqual(item.Id, result.WorkItemId);
     }
 
     [TestMethod]
-    public async Task CreateComment_PublishesEvent()
+    public async Task GetCommentsByWorkItemAsync_ReturnsComments()
     {
-        await _service.CreateCommentAsync(_card.Id, "Event comment", _caller);
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
+        var userId = Guid.NewGuid();
+        await _service.CreateCommentAsync(item.Id, userId, new AddWorkItemCommentDto { Content = "First" }, CancellationToken.None);
+        await _service.CreateCommentAsync(item.Id, userId, new AddWorkItemCommentDto { Content = "Second" }, CancellationToken.None);
 
-        _eventBusMock.Verify(
-            eb => eb.PublishAsync(
-                It.Is<CardCommentAddedEvent>(e => e.CardId == _card.Id),
-                It.IsAny<CallerContext>(),
-                It.IsAny<CancellationToken>()),
-            Times.Once);
+        var result = await _service.GetCommentsByWorkItemAsync(item.Id, 0, 50, CancellationToken.None);
+
+        Assert.AreEqual(2, result.Count);
     }
 
-    // ─── Get Comments ─────────────────────────────────────────────────
-
     [TestMethod]
-    public async Task GetComments_ReturnsOrderedComments()
+    public async Task GetCommentsByWorkItemAsync_SupportsPagination()
     {
-        await _service.CreateCommentAsync(_card.Id, "First", _caller);
-        await _service.CreateCommentAsync(_card.Id, "Second", _caller);
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
+        var userId = Guid.NewGuid();
+        await _service.CreateCommentAsync(item.Id, userId, new AddWorkItemCommentDto { Content = "A" }, CancellationToken.None);
+        await _service.CreateCommentAsync(item.Id, userId, new AddWorkItemCommentDto { Content = "B" }, CancellationToken.None);
+        await _service.CreateCommentAsync(item.Id, userId, new AddWorkItemCommentDto { Content = "C" }, CancellationToken.None);
 
-        var results = await _service.GetCommentsAsync(_card.Id, _caller);
+        var page1 = await _service.GetCommentsByWorkItemAsync(item.Id, 0, 2, CancellationToken.None);
+        var page2 = await _service.GetCommentsByWorkItemAsync(item.Id, 2, 2, CancellationToken.None);
 
-        Assert.AreEqual(2, results.Count);
-        Assert.AreEqual("First", results[0].Content);
-        Assert.AreEqual("Second", results[1].Content);
+        Assert.AreEqual(2, page1.Count);
+        Assert.AreEqual(1, page2.Count);
     }
 
-    // ─── Update ───────────────────────────────────────────────────────
-
     [TestMethod]
-    public async Task UpdateComment_AsAuthor_Updates()
+    public async Task UpdateCommentAsync_UpdatesContent()
     {
-        var comment = await _service.CreateCommentAsync(_card.Id, "Original", _caller);
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
+        var userId = Guid.NewGuid();
+        var comment = await _service.CreateCommentAsync(item.Id, userId, new AddWorkItemCommentDto { Content = "Original" }, CancellationToken.None);
 
-        var result = await _service.UpdateCommentAsync(comment.Id, "Updated", _caller);
+        var result = await _service.UpdateCommentAsync(comment.Id, userId, new UpdateWorkItemCommentDto { Content = "Updated" }, CancellationToken.None);
 
         Assert.AreEqual("Updated", result.Content);
     }
 
     [TestMethod]
-    public async Task UpdateComment_AsOtherUser_Throws()
+    public async Task DeleteCommentAsync_RemovesComment()
     {
-        var comment = await _service.CreateCommentAsync(_card.Id, "Original", _caller);
-        var otherCaller = TestHelpers.CreateCaller();
-        await TestHelpers.AddMemberAsync(_db, _board.Id, otherCaller.UserId, BoardMemberRole.Member);
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
+        var userId = Guid.NewGuid();
+        var comment = await _service.CreateCommentAsync(item.Id, userId, new AddWorkItemCommentDto { Content = "To delete" }, CancellationToken.None);
 
-        await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
-            () => _service.UpdateCommentAsync(comment.Id, "Hacked", otherCaller));
-    }
+        await _service.DeleteCommentAsync(comment.Id, userId, CancellationToken.None);
 
-    // ─── Delete ───────────────────────────────────────────────────────
-
-    [TestMethod]
-    public async Task DeleteComment_AsAuthor_SoftDeletes()
-    {
-        var comment = await _service.CreateCommentAsync(_card.Id, "Doomed", _caller);
-
-        await _service.DeleteCommentAsync(comment.Id, _caller);
-
-        var dbComment = await _db.CardComments.FindAsync(comment.Id);
-        Assert.IsTrue(dbComment!.IsDeleted);
+        var result = await _service.GetCommentsByWorkItemAsync(item.Id, 0, 50, CancellationToken.None);
+        Assert.AreEqual(0, result.Count);
     }
 
     [TestMethod]
-    public async Task DeleteComment_AsAdmin_SoftDeletes()
+    public async Task AddReactionAsync_AddsReactionToComment()
     {
-        var authorCaller = TestHelpers.CreateCaller();
-        await TestHelpers.AddMemberAsync(_db, _board.Id, authorCaller.UserId, BoardMemberRole.Member);
-        var comment = await _service.CreateCommentAsync(_card.Id, "Author comment", authorCaller);
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
+        var userId = Guid.NewGuid();
+        var comment = await _service.CreateCommentAsync(item.Id, userId, new AddWorkItemCommentDto { Content = "Nice!" }, CancellationToken.None);
 
-        // Owner (who is Admin+) can delete other's comments
-        await _service.DeleteCommentAsync(comment.Id, _caller);
+        var result = await _service.AddReactionAsync(comment.Id, userId, "👍", CancellationToken.None);
 
-        var dbComment = await _db.CardComments.FindAsync(comment.Id);
-        Assert.IsTrue(dbComment!.IsDeleted);
+        Assert.AreEqual("👍", result.Emoji);
+        Assert.AreEqual(userId, result.UserId);
+    }
+
+    [TestMethod]
+    public async Task RemoveReactionAsync_RemovesReaction()
+    {
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
+        var userId = Guid.NewGuid();
+        var comment = await _service.CreateCommentAsync(item.Id, userId, new AddWorkItemCommentDto { Content = "Nice!" }, CancellationToken.None);
+        await _service.AddReactionAsync(comment.Id, userId, "👍", CancellationToken.None);
+
+        await _service.RemoveReactionAsync(comment.Id, userId, "👍", CancellationToken.None);
+
+        var reactions = await _service.GetReactionsAsync(comment.Id, null, CancellationToken.None);
+        Assert.AreEqual(0, reactions.Count);
+    }
+
+    [TestMethod]
+    public async Task GetReactionsAsync_ReturnsReactionSummaries()
+    {
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
+        var userId = Guid.NewGuid();
+        var comment = await _service.CreateCommentAsync(item.Id, userId, new AddWorkItemCommentDto { Content = "Great!" }, CancellationToken.None);
+        await _service.AddReactionAsync(comment.Id, userId, "👍", CancellationToken.None);
+        await _service.AddReactionAsync(comment.Id, Guid.NewGuid(), "👍", CancellationToken.None);
+
+        var result = await _service.GetReactionsAsync(comment.Id, null, CancellationToken.None);
+
+        Assert.AreEqual(1, result.Count);
+        Assert.AreEqual(2, result[0].Count);
     }
 }

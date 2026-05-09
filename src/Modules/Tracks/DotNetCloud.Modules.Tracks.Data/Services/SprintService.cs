@@ -188,7 +188,7 @@ public sealed class SprintService
             .ToListAsync(ct);
 
         var items = await _db.WorkItems
-            .Where(wi => featureIds.Contains(wi.ParentWorkItemId!.Value)
+            .Where(wi => wi.ParentWorkItemId != null && featureIds.Contains(wi.ParentWorkItemId.Value)
                 && wi.Type == WorkItemType.Item
                 && !wi.IsDeleted
                 && !wi.IsArchived

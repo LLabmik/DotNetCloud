@@ -41,9 +41,9 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
     }
 
     /// <inheritdoc />
-    public override async Task<BoardResponse> CreateBoard(CreateBoardRequest request, ServerCallContext context)
+    public override async Task<ProductResponse> CreateProduct(CreateProductRequest request, ServerCallContext context)
     {
-        _logger.LogInformation("CreateBoard (Product) called for user {UserId}", request.UserId);
+        _logger.LogInformation("CreateProduct called for user {UserId}", request.UserId);
         try
         {
             var ownerId = Guid.Parse(request.UserId);
@@ -56,33 +56,33 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
             };
             var product = await _productService.CreateProductAsync(
                 Guid.Empty, ownerId, dto, context.CancellationToken);
-            return new BoardResponse { Success = true, Board = MapProduct(product) };
+            return new ProductResponse { Success = true, Product = MapProduct(product) };
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "CreateBoard failed");
-            return new BoardResponse { Success = false, ErrorMessage = ex.Message };
+            _logger.LogError(ex, "CreateProduct failed");
+            return new ProductResponse { Success = false, ErrorMessage = ex.Message };
         }
     }
 
     /// <inheritdoc />
-    public override async Task<BoardResponse> GetBoard(GetBoardRequest request, ServerCallContext context)
+    public override async Task<ProductResponse> GetProduct(GetProductRequest request, ServerCallContext context)
     {
         try
         {
-            var productId = Guid.Parse(request.BoardId);
+            var productId = Guid.Parse(request.ProductId);
             var product = await _productService.GetProductAsync(productId, context.CancellationToken);
-            return new BoardResponse { Success = true, Board = MapProduct(product) };
+            return new ProductResponse { Success = true, Product = MapProduct(product) };
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "GetBoard failed");
-            return new BoardResponse { Success = false, ErrorMessage = ex.Message };
+            _logger.LogError(ex, "GetProduct failed");
+            return new ProductResponse { Success = false, ErrorMessage = ex.Message };
         }
     }
 
     /// <inheritdoc />
-    public override async Task<ListBoardsResponse> ListBoards(ListBoardsRequest request, ServerCallContext context)
+    public override async Task<ListProductsResponse> ListProducts(ListProductsRequest request, ServerCallContext context)
     {
         try
         {
@@ -92,15 +92,15 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
             if (request.IncludeArchived == false)
                 products = products.Where(p => !p.IsArchived).ToList();
 
-            var response = new ListBoardsResponse { Success = true };
+            var response = new ListProductsResponse { Success = true };
             foreach (var product in products)
-                response.Boards.Add(MapProduct(product));
+                response.Products.Add(MapProduct(product));
             return response;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "ListBoards failed");
-            return new ListBoardsResponse { Success = false, ErrorMessage = ex.Message };
+            _logger.LogError(ex, "ListProducts failed");
+            return new ListProductsResponse { Success = false, ErrorMessage = ex.Message };
         }
     }
 
@@ -109,7 +109,7 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
     {
         try
         {
-            var containerId = Guid.Parse(request.BoardId);
+            var containerId = Guid.Parse(request.ProductId);
             var dto = new CreateSwimlaneDto
             {
                 Title = request.Title,
@@ -127,7 +127,7 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
     }
 
     /// <inheritdoc />
-    public override async Task<CardResponse> CreateCard(CreateCardRequest request, ServerCallContext context)
+    public override async Task<WorkItemResponse> CreateWorkItem(CreateWorkItemRequest request, ServerCallContext context)
     {
         try
         {
@@ -148,37 +148,37 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
             };
             var workItem = await _workItemService.CreateWorkItemAsync(
                 Guid.Empty, swimlaneId, WorkItemType.Epic, userId, dto, context.CancellationToken);
-            return new CardResponse { Success = true, Card = MapWorkItem(workItem) };
+            return new WorkItemResponse { Success = true, WorkItem = MapWorkItem(workItem) };
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "CreateCard failed");
-            return new CardResponse { Success = false, ErrorMessage = ex.Message };
+            _logger.LogError(ex, "CreateWorkItem failed");
+            return new WorkItemResponse { Success = false, ErrorMessage = ex.Message };
         }
     }
 
     /// <inheritdoc />
-    public override async Task<CardResponse> GetCard(GetCardRequest request, ServerCallContext context)
+    public override async Task<WorkItemResponse> GetWorkItem(GetWorkItemRequest request, ServerCallContext context)
     {
         try
         {
-            var workItemId = Guid.Parse(request.CardId);
+            var workItemId = Guid.Parse(request.WorkItemId);
             var workItem = await _workItemService.GetWorkItemAsync(workItemId, context.CancellationToken);
-            return new CardResponse { Success = true, Card = MapWorkItem(workItem) };
+            return new WorkItemResponse { Success = true, WorkItem = MapWorkItem(workItem) };
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "GetCard failed");
-            return new CardResponse { Success = false, ErrorMessage = ex.Message };
+            _logger.LogError(ex, "GetWorkItem failed");
+            return new WorkItemResponse { Success = false, ErrorMessage = ex.Message };
         }
     }
 
     /// <inheritdoc />
-    public override async Task<CardResponse> MoveCard(MoveCardRequest request, ServerCallContext context)
+    public override async Task<WorkItemResponse> MoveWorkItem(MoveWorkItemRequest request, ServerCallContext context)
     {
         try
         {
-            var workItemId = Guid.Parse(request.CardId);
+            var workItemId = Guid.Parse(request.WorkItemId);
             var dto = new MoveWorkItemDto
             {
                 TargetSwimlaneId = Guid.Parse(request.TargetSwimlaneId),
@@ -186,25 +186,25 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
             };
             var workItem = await _workItemService.MoveWorkItemAsync(
                 workItemId, dto, context.CancellationToken);
-            return new CardResponse { Success = true, Card = MapWorkItem(workItem) };
+            return new WorkItemResponse { Success = true, WorkItem = MapWorkItem(workItem) };
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "MoveCard failed");
-            return new CardResponse { Success = false, ErrorMessage = ex.Message };
+            _logger.LogError(ex, "MoveWorkItem failed");
+            return new WorkItemResponse { Success = false, ErrorMessage = ex.Message };
         }
     }
 
     /// <inheritdoc />
     public override async Task<PokerSessionResponse> StartPokerSession(StartPokerSessionRequest request, ServerCallContext context)
     {
-        _logger.LogInformation("StartPokerSession called for item {ItemId} by user {UserId}", request.CardId, request.UserId);
+        _logger.LogInformation("StartPokerSession called for item {ItemId} by user {UserId}", request.WorkItemId, request.UserId);
         try
         {
             var userId = Guid.Parse(request.UserId);
             var dto = new CreatePokerSessionDto
             {
-                ItemId = Guid.Parse(request.CardId),
+                ItemId = Guid.Parse(request.WorkItemId),
                 Scale = Enum.TryParse<PokerScale>(request.Scale, true, out var scale) ? scale : PokerScale.Fibonacci,
                 CustomScaleValues = string.IsNullOrEmpty(request.CustomScaleValues) ? null : request.CustomScaleValues
             };
@@ -283,8 +283,8 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
                 SprintDurationWeeks = request.DefaultDurationWeeks
             };
             var sprints = await _sprintPlanningService.CreateSprintPlanAsync(
-                Guid.Parse(request.BoardId), dto, context.CancellationToken);
-            return new SprintPlanResponse { Success = true, Overview = MapSprintPlanOverview(sprints, Guid.Parse(request.BoardId)) };
+                Guid.Parse(request.ProductId), dto, context.CancellationToken);
+            return new SprintPlanResponse { Success = true, Overview = MapSprintPlanOverview(sprints, Guid.Parse(request.ProductId)) };
         }
         catch (Exception ex)
         {
@@ -298,7 +298,7 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
     {
         try
         {
-            var epicId = Guid.Parse(request.BoardId);
+            var epicId = Guid.Parse(request.ProductId);
             var sprints = await _sprintPlanningService.GetSprintPlanAsync(epicId, context.CancellationToken);
             return new SprintPlanResponse { Success = true, Overview = MapSprintPlanOverview(sprints, epicId) };
         }
@@ -341,7 +341,7 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
         {
             var hostUserId = Guid.Parse(request.UserId);
             var session = await _reviewSessionService.StartReviewSessionAsync(
-                Guid.Parse(request.BoardId), hostUserId, context.CancellationToken);
+                Guid.Parse(request.ProductId), hostUserId, context.CancellationToken);
             return new ReviewSessionResponse { Success = true, Session = MapReviewSession(session) };
         }
         catch (Exception ex)
@@ -390,17 +390,17 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
     }
 
     /// <inheritdoc />
-    public override async Task<ReviewSessionResponse> SetReviewCurrentCard(SetReviewCurrentCardRequest request, ServerCallContext context)
+    public override async Task<ReviewSessionResponse> SetReviewCurrentItem(SetReviewCurrentItemRequest request, ServerCallContext context)
     {
         try
         {
             var session = await _reviewSessionService.SetCurrentItemAsync(
-                Guid.Parse(request.SessionId), Guid.Parse(request.CardId), context.CancellationToken);
+                Guid.Parse(request.SessionId), Guid.Parse(request.WorkItemId), context.CancellationToken);
             return new ReviewSessionResponse { Success = true, Session = MapReviewSession(session) };
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "SetReviewCurrentCard failed");
+            _logger.LogError(ex, "SetReviewCurrentItem failed");
             return new ReviewSessionResponse { Success = false, ErrorMessage = ex.Message };
         }
     }
@@ -447,8 +447,8 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
         var msg = new PokerSessionMessage
         {
             Id = dto.Id.ToString(),
-            CardId = dto.ItemId.ToString(),
-            BoardId = dto.EpicId.ToString(),
+            WorkItemId = dto.ItemId.ToString(),
+            ProductId = dto.EpicId.ToString(),
             CreatedByUserId = dto.CreatedByUserId.ToString(),
             Scale = dto.Scale.ToString(),
             CustomScaleValues = dto.CustomScaleValues ?? "",
@@ -461,9 +461,9 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
         return msg;
     }
 
-    private static BoardMessage MapProduct(ProductDto dto)
+    private static ProductMessage MapProduct(ProductDto dto)
     {
-        return new BoardMessage
+        return new ProductMessage
         {
             Id = dto.Id.ToString(),
             OwnerId = dto.OwnerId.ToString(),
@@ -475,31 +475,31 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
             CreatedAt = dto.CreatedAt.ToString("O"),
             UpdatedAt = dto.UpdatedAt.ToString("O"),
             SwimlaneCount = dto.SwimlaneCount,
-            CardCount = dto.EpicCount,
+            ItemCount = dto.EpicCount,
             MemberCount = dto.MemberCount,
             Mode = ""
         };
     }
 
-    private static BoardSwimlaneMessage MapSwimlane(SwimlaneDto dto)
+    private static SwimlaneMessage MapSwimlane(SwimlaneDto dto)
     {
-        return new BoardSwimlaneMessage
+        return new SwimlaneMessage
         {
             Id = dto.Id.ToString(),
-            BoardId = dto.ContainerId.ToString(),
+            ProductId = dto.ContainerId.ToString(),
             Title = dto.Title,
             Position = dto.Position,
             Color = dto.Color ?? "",
-            CardLimit = dto.CardLimit ?? 0,
+            ItemLimit = dto.CardLimit ?? 0,
             CreatedAt = dto.CreatedAt.ToString("O"),
             UpdatedAt = dto.UpdatedAt.ToString("O"),
-            CardCount = dto.CardCount
+            ItemCount = dto.CardCount
         };
     }
 
-    private static CardMessage MapWorkItem(WorkItemDto dto)
+    private static WorkItemMessage MapWorkItem(WorkItemDto dto)
     {
-        var msg = new CardMessage
+        var msg = new WorkItemMessage
         {
             Id = dto.Id.ToString(),
             SwimlaneId = dto.SwimlaneId.ToString(),
@@ -518,7 +518,7 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
             AttachmentCount = dto.AttachmentCount
         };
         foreach (var a in dto.Assignments)
-            msg.AssignedUserIds.Add(a.UserId.ToString());
+            msg.AssigneeIds.Add(a.UserId.ToString());
         foreach (var l in dto.Labels)
             msg.LabelIds.Add(l.Id.ToString());
         return msg;
@@ -528,7 +528,7 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
     {
         var msg = new SprintPlanOverviewMessage
         {
-            BoardId = epicId.ToString(),
+            ProductId = epicId.ToString(),
             TotalWeeks = sprints.Sum(s => s.DurationWeeks ?? 0),
             PlanStartDate = sprints.FirstOrDefault()?.StartDate?.ToString("O") ?? "",
             PlanEndDate = sprints.LastOrDefault()?.EndDate?.ToString("O") ?? ""
@@ -544,7 +544,7 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
                 Status = s.Status.ToString(),
                 DurationWeeks = s.DurationWeeks ?? 0,
                 PlannedOrder = s.PlannedOrder ?? 0,
-                CardCount = s.ItemCount,
+                ItemCount = s.ItemCount,
                 TotalStoryPoints = s.TargetStoryPoints ?? 0
             });
         }
@@ -556,9 +556,9 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
         var msg = new ReviewSessionMessage
         {
             Id = dto.Id.ToString(),
-            BoardId = dto.EpicId.ToString(),
+            ProductId = dto.EpicId.ToString(),
             HostUserId = dto.HostUserId.ToString(),
-            CurrentCardId = dto.CurrentItemId?.ToString() ?? "",
+            CurrentWorkItemId = dto.CurrentItemId?.ToString() ?? "",
             Status = dto.Status.ToString(),
             CreatedAt = dto.CreatedAt.ToString("O"),
             EndedAt = dto.EndedAt?.ToString("O") ?? ""
