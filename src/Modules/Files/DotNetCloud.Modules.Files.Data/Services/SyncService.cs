@@ -254,7 +254,7 @@ internal sealed class SyncService : ISyncService
     }
 
     /// <inheritdoc />
-    public async Task<SyncTreeNodeDto> GetFolderTreeAsync(Guid? folderId, CallerContext caller, CancellationToken cancellationToken = default)
+    public async Task<SyncTreeNodeDto> GetFolderTreeAsync(Guid? folderId, CallerContext caller, bool metadataOnly = false, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(caller);
 
@@ -265,7 +265,7 @@ internal sealed class SyncService : ISyncService
                 .FirstOrDefaultAsync(n => n.Id == folderId.Value && n.OwnerId == caller.UserId, cancellationToken)
                 ?? throw new NotFoundException("FileNode", folderId.Value);
 
-            return await BuildTreeNodeAsync(folder, caller.UserId, cancellationToken);
+            return await BuildTreeNodeAsync(folder, caller.UserId, metadataOnly, cancellationToken);
         }
 
         // Build a virtual root containing all root-level nodes
@@ -279,7 +279,7 @@ internal sealed class SyncService : ISyncService
         var children = new List<SyncTreeNodeDto>();
         foreach (var node in rootNodes)
         {
-            children.Add(await BuildTreeNodeAsync(node, caller.UserId, cancellationToken));
+            children.Add(await BuildTreeNodeAsync(node, caller.UserId, metadataOnly, cancellationToken));
         }
 
         return new SyncTreeNodeDto
@@ -409,7 +409,7 @@ internal sealed class SyncService : ISyncService
         return new SyncReconcileResultDto { Actions = actions };
     }
 
-    private async Task<SyncTreeNodeDto> BuildTreeNodeAsync(FileNode node, Guid ownerId, CancellationToken cancellationToken)
+    private async Task<SyncTreeNodeDto> BuildTreeNodeAsync(FileNode node, Guid ownerId, bool metadataOnly, CancellationToken cancellationToken)
     {
         var children = new List<SyncTreeNodeDto>();
 
@@ -424,7 +424,7 @@ internal sealed class SyncService : ISyncService
 
             foreach (var child in childNodes)
             {
-                children.Add(await BuildTreeNodeAsync(child, ownerId, cancellationToken));
+                children.Add(await BuildTreeNodeAsync(child, ownerId, metadataOnly, cancellationToken));
             }
         }
 
@@ -433,7 +433,7 @@ internal sealed class SyncService : ISyncService
             NodeId = node.Id,
             Name = node.Name,
             NodeType = node.NodeType.ToString(),
-            ContentHash = node.ContentHash,
+            ContentHash = metadataOnly ? null : node.ContentHash,
             Size = node.Size,
             UpdatedAt = node.UpdatedAt,
             Children = children,

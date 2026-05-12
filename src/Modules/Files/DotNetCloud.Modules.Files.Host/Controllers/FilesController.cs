@@ -524,6 +524,8 @@ public class FilesController : FilesControllerBase
     /// Downloads a raw chunk by its SHA-256 hash. Used by sync clients for efficient chunk retrieval.
     /// Supports <c>If-None-Match</c> conditional requests — returns <c>304 Not Modified</c>
     /// if the client's cached chunk is still current.
+    /// Supports HTTP <c>Range</c> requests — returns <c>206 Partial Content</c>
+    /// for partial chunk downloads (e.g., streaming hydration in VFS clients).
     /// </summary>
     [HttpGet("chunks/{chunkHash}")]
     public Task<IActionResult> DownloadChunkByHashAsync(string chunkHash) => ExecuteAsync(async () =>
@@ -545,7 +547,8 @@ public class FilesController : FilesControllerBase
 
         Response.Headers.ETag = etag;
         Response.Headers.CacheControl = "private, max-age=31536000, immutable";
-        return File(stream, "application/octet-stream", enableRangeProcessing: false);
+        Response.Headers.AcceptRanges = "bytes";
+        return File(stream, "application/octet-stream", enableRangeProcessing: true);
     });
 
     /// <summary>

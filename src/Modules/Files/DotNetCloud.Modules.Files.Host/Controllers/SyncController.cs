@@ -62,13 +62,16 @@ public class SyncController : FilesControllerBase
 
     /// <summary>
     /// Gets a full folder tree snapshot with content hashes.
+    /// Use <c>?metadataOnly=true</c> to omit content hashes for lighter payloads
+    /// (e.g., VFS placeholder creation where only names/sizes/timestamps are needed).
     /// </summary>
     [HttpGet("tree")]
     [EnableRateLimiting("module-sync-tree")]
     public Task<IActionResult> GetTreeAsync(
-        [FromQuery] Guid? folderId) => ExecuteAsync(async () =>
+        [FromQuery] Guid? folderId,
+        [FromQuery] bool metadataOnly = false) => ExecuteAsync(async () =>
     {
-        var tree = await _syncService.GetFolderTreeAsync(folderId, GetAuthenticatedCaller());
+        var tree = await _syncService.GetFolderTreeAsync(folderId, GetAuthenticatedCaller(), metadataOnly);
         return Ok(tree);
     });
 

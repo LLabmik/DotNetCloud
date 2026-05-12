@@ -23,7 +23,11 @@ public interface ISyncService
     Task<PagedSyncChangesDto> GetChangesSinceCursorAsync(string? cursor, Guid? folderId, int limit, CallerContext caller, CancellationToken cancellationToken = default);
 
     /// <summary>Gets a full folder tree snapshot with content hashes for sync comparison.</summary>
-    Task<SyncTreeNodeDto> GetFolderTreeAsync(Guid? folderId, CallerContext caller, CancellationToken cancellationToken = default);
+    /// <param name="folderId">Optional folder to scope the tree to.</param>
+    /// <param name="caller">The authenticated caller context.</param>
+    /// <param name="metadataOnly">When <c>true</c>, omits <c>ContentHash</c> fields to reduce payload size for VFS placeholder creation.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task<SyncTreeNodeDto> GetFolderTreeAsync(Guid? folderId, CallerContext caller, bool metadataOnly = false, CancellationToken cancellationToken = default);
 
     /// <summary>Reconciles the client's file state against the server and produces sync actions.</summary>
     Task<SyncReconcileResultDto> ReconcileAsync(SyncReconcileRequestDto request, CallerContext caller, CancellationToken cancellationToken = default);

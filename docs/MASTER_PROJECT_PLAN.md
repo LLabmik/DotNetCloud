@@ -133,6 +133,12 @@
 | Browser Ext — Phase 6       | 3       | 0         | 0           | 3       |
 | Closed System Mode          | 7       | 1         | 0           | 6       |
 | Demo Mode                   | 6       | 6         | 0           | 0       |
+| VFS Phase 1 (Server)        | 2       | 2         | 0           | 0       |
+| VFS Phase 2 (Core)          | 5       | 0         | 0           | 5       |
+| VFS Phase 3 (Windows)       | 3       | 0         | 0           | 3       |
+| VFS Phase 4 (Linux)         | 4       | 0         | 0           | 4       |
+| VFS Phase 5 (UI)            | 3       | 0         | 0           | 3       |
+| VFS Phase 6 (Testing)       | 3       | 0         | 0           | 3       |
 
 Maintenance note: local install/setup health verification now follows configured Kestrel ports and accepts self-signed local HTTPS during startup checks. Fresh Linux installs now invoke `dotnetcloud setup --beginner` by default, which auto-selects the recommended local PostgreSQL path and then branches cleanly between the three real deployment shapes: private/local test, public behind a reverse proxy, and public served directly by DotNetCloud itself. The local branch uses self-signed HTTPS on DotNetCloud directly. The reverse-proxy public branch keeps DotNetCloud on local HTTP and ends with explicit reverse-proxy/TLS guidance instead of pretending automatic public-certificate setup exists; it now also points beginners to a dedicated Apache-first reverse-proxy guide with a Caddy alternative. The public-direct branch lets the user point DotNetCloud at an existing public certificate file and explains the extra tradeoffs, while still explicitly recommending a reverse proxy for most public installs because it simplifies ports 80/443, TLS renewal, and future services on the same machine. All branches print explicit direct local access URLs and health probe URLs and end with a plain-language summary of the selected defaults plus the beginner user's next steps. Upgrade runs now also end with a plain-language summary that confirms existing data/configuration were preserved, states clearly whether a one-time setup review is still required, and re-shows the access URLs plus the user's next step. This also clarifies the internal app defaults HTTP `5080` / HTTPS `5443` versus reverse-proxy/public HTTPS ports such as `15443`. Windows now has a separate IIS-first installation path via `tools/install-windows.ps1`, with IIS reverse proxying to `http://localhost:5080`, a beginner-focused IIS guide, a dedicated architecture rationale note, native Windows Service hosting support in the core server, and machine-level config/data environment propagation during setup and service runtime so Windows self-hosters do not need to follow the Linux installer path. The bare-metal redeploy helper now also repairs build-output ownership and purges stale normal and malformed Debug output trees before Release build/publish runs so local Linux redeploys do not inherit broken artifacts from prior attempts.
 
@@ -4121,3 +4127,45 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 - ✓ All existing tests pass
 
 **Notes:** About module is the first module without a Data sub-project. Versions auto-update on rebuild because they come from assembly attributes set by `Directory.Build.props`. Adding a new OSS dependency requires updating the attribution table in `AboutPage.razor`. Future: consider extracting attributions into a shared data file if the list grows.
+
+---
+
+## Virtual File Syncing — Files On-Demand
+
+> **Reference:** `docs/VIRTUAL_FILE_SYNCING_PLAN.md`  
+> **Feature:** Files appear locally with metadata only; content downloads on first access
+
+### Section: VFS Phase 1 — Server-Side Prerequisites
+
+**Status:** completed  
+**Machine:** `mint22`  
+**Depends on:** nothing  
+**Blocks:** VFS Phase 2 (core abstractions)
+
+#### Step: vfs-1.1 — Range Header Support on Chunk Download
+**Status:** completed ✅  
+**Files modified:**
+- `src/Modules/Files/DotNetCloud.Modules.Files.Host/Controllers/FilesController.cs`
+
+**Deliverables:**
+- ✓ `enableRangeProcessing: true` on `DownloadChunkByHashAsync` endpoint
+- ✓ `Accept-Ranges: bytes` response header added
+- ✓ Chunk endpoint returns `206 Partial Content` for `Range` requests (ASP.NET Core handles automatically)
+- ✓ Full-file download (no Range header) still returns `200 OK` unchanged
+- ✓ `Content-Range` header present in partial responses
+
+**Notes:** Change was trivial — flip `enableRangeProcessing` from `false` to `true` and add `AcceptRanges` header. ASP.NET Core's built-in range processing handles everything else including `Content-Range` header and `416 Range Not Satisfiable`.
+
+#### Step: vfs-1.2 — `?metadataOnly=true` on Tree Endpoint
+**Status:** completed ✅  
+**Files modified:**
+- `src/Modules/Files/DotNetCloud.Modules.Files/Services/ISyncService.cs` — added `bool metadataOnly` parameter
+- `src/Modules/Files/DotNetCloud.Modules.Files.Data/Services/SyncService.cs` — `BuildTreeNodeAsync` conditionally skips `ContentHash`
+- `src/Modules/Files/DotNetCloud.Modules.Files.Host/Controllers/SyncController.cs` — accepts `metadataOnly` query param
+
+**Deliverables:**
+- ✓ `GET /api/v1/sync/tree?metadataOnly=true` returns tree without `contentHash` fields
+- ✓ Default behavior (`metadataOnly=false` or omitted) unchanged — all fields present
+- ✓ Backward compatible — existing clients unaffected
+
+**Notes:** Content hashes are omitted at the DTO construction level (not via JSON serialization attributes), so the full response shape is preserved but with null `contentHash` fields. This is simpler and more explicit than conditional serialization.

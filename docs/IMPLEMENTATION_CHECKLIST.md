@@ -26,6 +26,7 @@
 14. [Phase 11: Auto-Updates](#phase-11-auto-updates)
 15. [Infrastructure & DevOps](#infrastructure--devops)
 16. [Documentation & Support](#documentation--support)
+17. [Virtual File Syncing — Files On-Demand](#virtual-file-syncing--files-on-demand)
 
 ---
 
@@ -5514,4 +5515,54 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ AboutHelp.razor — Help route page created
 - ✓ About.razor — Route wrapper at `/apps/about` with ModulePageHost
 - ✓ Build: 0 errors, 0 warnings
+
+---
+
+## Virtual File Syncing — Files On-Demand
+
+> **Reference:** `docs/VIRTUAL_FILE_SYNCING_PLAN.md`
+
+### Phase 1 — Server-Side Prerequisites
+
+#### Step 1.1 — Range Header Support on Chunk Download
+- ✓ Enable `enableRangeProcessing: true` on chunk download endpoint
+- ✓ Add `Accept-Ranges: bytes` response header
+- ✓ Chunk endpoint returns `206 Partial Content` for `Range` requests
+- ✓ Full-file download (no Range header) still returns `200 OK` unchanged
+- ✓ `Content-Range` header present in partial responses (ASP.NET Core automatic)
+
+#### Step 1.2 — `?metadataOnly=true` on Tree Endpoint
+- ✓ Add `metadataOnly` query parameter to `GET /api/v1/sync/tree`
+- ✓ Add `bool metadataOnly` parameter to `ISyncService.GetFolderTreeAsync`
+- ✓ `BuildTreeNodeAsync` skips `ContentHash` when `metadataOnly=true`
+- ✓ `SyncController.GetTreeAsync` accepts and forwards `metadataOnly` parameter
+
+### Phase 2 — Core Abstraction Layer
+- ☐ `IVirtualFileProvider` interface
+- ☐ `HydrationState` enum + `LocalFileRecord.HydrationState` property
+- ☐ Schema evolution for `HydrationState` column
+- ☐ `VirtualFileSettings` class
+- ☐ `VirtualFileSyncEngine` class
+- ☐ DI registration for VFS services
+
+### Phase 3 — Windows Implementation
+- ☐ P/Invoke wrappers for Cloud Filter API
+- ☐ `CloudFilterSyncProvider : IVirtualFileProvider`
+- ☐ Shell integration (icon overlays, context menu)
+
+### Phase 4 — Linux Implementation
+- ☐ FUSE dependency & project setup
+- ☐ `FuseSyncFilesystem : IVirtualFileProvider`
+- ☐ Local content cache with LRU eviction
+- ☐ Installer integration
+
+### Phase 5 — SyncTray UI Integration
+- ☐ "Storage Mode" setting in SettingsViewModel
+- ☐ Wire VFS lifecycle in App.axaml.cs
+- ☐ VFS status in TrayViewModel
+
+### Phase 6 — Testing & Validation
+- ☐ Unit tests for VirtualFileSyncEngine
+- ☐ Integration tests for on-demand hydration
+- ☐ End-to-end tests (placeholder → access → hydrate → dehydrate)
 
