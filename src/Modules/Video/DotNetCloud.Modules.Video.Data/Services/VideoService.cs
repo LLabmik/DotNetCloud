@@ -36,7 +36,7 @@ public sealed class VideoService : IVideoService
     {
         var existing = await _db.Videos
             .IgnoreQueryFilters()
-            .FirstOrDefaultAsync(v => v.FileNodeId == fileNodeId && !v.IsDeleted, cancellationToken);
+            .FirstOrDefaultAsync(v => v.FileNodeId == fileNodeId && v.OwnerId == ownerId && !v.IsDeleted, cancellationToken);
 
         if (existing is not null)
         {

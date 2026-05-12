@@ -50,9 +50,9 @@ public sealed class PhotoConfiguration : IEntityTypeConfiguration<Photo>
         builder.HasIndex(p => p.OwnerId)
             .HasDatabaseName("ix_photos_owner_id");
 
-        builder.HasIndex(p => p.FileNodeId)
+        builder.HasIndex(p => new { p.FileNodeId, p.OwnerId })
             .IsUnique()
-            .HasDatabaseName("uq_photos_file_node_id");
+            .HasDatabaseName("uq_photos_file_node_owner_id");
 
         builder.HasIndex(p => new { p.OwnerId, p.TakenAt })
             .HasDatabaseName("ix_photos_owner_taken_at");

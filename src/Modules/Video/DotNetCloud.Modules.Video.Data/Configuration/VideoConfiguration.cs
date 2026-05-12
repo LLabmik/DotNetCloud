@@ -25,7 +25,7 @@ public sealed class VideoConfiguration : IEntityTypeConfiguration<Models.Video>
         // Thumbnail blob — no max length (variable-size JPEG)
         builder.Property(v => v.ThumbnailPoster).HasColumnName("thumbnail_poster");
 
-        builder.HasIndex(v => v.FileNodeId).IsUnique().HasDatabaseName("uq_videos_file_node_id");
+        builder.HasIndex(v => new { v.FileNodeId, v.OwnerId }).IsUnique().HasDatabaseName("uq_videos_file_node_owner_id");
         builder.HasIndex(v => v.OwnerId).HasDatabaseName("ix_videos_owner_id");
         builder.HasIndex(v => v.Title).HasDatabaseName("ix_videos_title");
         builder.HasIndex(v => new { v.OwnerId, v.CreatedAt }).HasDatabaseName("ix_videos_owner_created_at");

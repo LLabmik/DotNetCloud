@@ -33,7 +33,7 @@ public sealed class PhotoIndexingCallback : IPhotoIndexingCallback
     public async Task IndexPhotoAsync(Guid fileNodeId, string fileName, string mimeType, long sizeBytes, Guid ownerId, string? storagePath = null, CancellationToken cancellationToken = default)
     {
         // Check for existing photo record (idempotent re-scan support)
-        var existing = await _photoService.GetByFileNodeIdAsync(fileNodeId, cancellationToken);
+        var existing = await _photoService.GetByFileNodeIdAsync(fileNodeId, ownerId, cancellationToken);
         if (existing is not null)
         {
             _logger.LogDebug("Photo already exists for FileNode {FileNodeId} (PhotoId {PhotoId}), skipping insert", fileNodeId, existing.Id);

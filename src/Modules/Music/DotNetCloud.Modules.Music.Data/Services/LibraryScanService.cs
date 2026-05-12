@@ -67,10 +67,10 @@ public sealed class LibraryScanService
         Stream? audioStream = null,
         CancellationToken cancellationToken = default)
     {
-        // Check if already indexed
+        // Check if already indexed for this user
         var existing = await _db.Tracks
             .IgnoreQueryFilters()
-            .FirstOrDefaultAsync(t => t.FileNodeId == fileNodeId, cancellationToken);
+            .FirstOrDefaultAsync(t => t.FileNodeId == fileNodeId && t.OwnerId == ownerId, cancellationToken);
 
         if (existing is not null && !existing.IsDeleted)
         {
@@ -281,7 +281,7 @@ public sealed class LibraryScanService
 
             var existingTrack = await _db.Tracks
                 .IgnoreQueryFilters()
-                .FirstOrDefaultAsync(t => t.FileNodeId == file.FileNodeId, cancellationToken);
+                .FirstOrDefaultAsync(t => t.FileNodeId == file.FileNodeId && t.OwnerId == ownerId, cancellationToken);
 
             try
             {

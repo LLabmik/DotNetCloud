@@ -28,7 +28,7 @@ public sealed class TrackConfiguration : IEntityTypeConfiguration<Track>
             .HasForeignKey(t => t.AlbumId)
             .OnDelete(DeleteBehavior.SetNull);
 
-        builder.HasIndex(t => t.FileNodeId).IsUnique().HasDatabaseName("uq_tracks_file_node_id");
+        builder.HasIndex(t => new { t.FileNodeId, t.OwnerId }).IsUnique().HasDatabaseName("uq_tracks_file_node_owner_id");
         builder.HasIndex(t => t.OwnerId).HasDatabaseName("ix_tracks_owner_id");
         builder.HasIndex(t => t.Title).HasDatabaseName("ix_tracks_title");
         builder.HasIndex(t => t.AlbumId).HasDatabaseName("ix_tracks_album_id");

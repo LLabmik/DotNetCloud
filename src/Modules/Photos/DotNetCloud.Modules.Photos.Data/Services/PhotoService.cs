@@ -33,12 +33,12 @@ public sealed class PhotoService : IPhotoService
     /// <summary>
     /// Gets an existing photo by its FileNode ID, or null if not found.
     /// </summary>
-    internal async Task<PhotoDto?> GetByFileNodeIdAsync(Guid fileNodeId, CancellationToken cancellationToken = default)
+    internal async Task<PhotoDto?> GetByFileNodeIdAsync(Guid fileNodeId, Guid ownerId, CancellationToken cancellationToken = default)
     {
         var photo = await _db.Photos
             .Include(p => p.Metadata)
             .Include(p => p.Tags)
-            .FirstOrDefaultAsync(p => p.FileNodeId == fileNodeId, cancellationToken);
+            .FirstOrDefaultAsync(p => p.FileNodeId == fileNodeId && p.OwnerId == ownerId, cancellationToken);
 
         return photo is not null ? MapToDto(photo) : null;
     }
