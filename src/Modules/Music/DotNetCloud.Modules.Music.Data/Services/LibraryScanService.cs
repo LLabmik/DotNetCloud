@@ -78,7 +78,147 @@ public sealed class LibraryScanService
             return existing;
         }
 
-        // Extract metadata: prefer stream (reassembled from chunks) → file path → filename fallback.
+        // ── Cross-owner dedup: try to reuse metadata from another owner's index ──
+        Track? sourceTrack = null;
+        string? contentHash = null;
+        string? dedupStrategy = null;
+
+        // Strategy 1: Same FileNodeId (admin shares — same FileNode visible to all users)
+        sourceTrack = await _db.Tracks
+            .Include(t => t.TrackArtists).ThenInclude(ta => ta.Artist)
+            .Include(t => t.TrackGenres).ThenInclude(tg => tg.Genre)
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(t => t.FileNodeId == fileNodeId && t.OwnerId != ownerId && !t.IsDeleted,
+                cancellationToken);
+
+        if (sourceTrack is not null)
+        {
+            dedupStrategy = "FileNodeId";
+        }
+        else
+        {
+            // Strategy 2: Same ContentHash (different uploads of identical file content)
+            contentHash = await LookupContentHashAsync(fileNodeId, cancellationToken);
+
+            if (contentHash is not null)
+            {
+                sourceTrack = await _db.Tracks
+                    .Include(t => t.TrackArtists).ThenInclude(ta => ta.Artist)
+                    .Include(t => t.TrackGenres).ThenInclude(tg => tg.Genre)
+                    .IgnoreQueryFilters()
+                    .FirstOrDefaultAsync(t => t.ContentHash == contentHash && t.OwnerId != ownerId && !t.IsDeleted,
+                        cancellationToken);
+
+                if (sourceTrack is not null)
+                    dedupStrategy = "ContentHash";
+            }
+        }
+
+        if (sourceTrack is not null)
+        {
+            _logger.LogInformation(
+                "Cross-owner dedup ({Strategy}): reusing metadata from track {SourceTrackId} for FileNode {FileNodeId}",
+                dedupStrategy, sourceTrack.Id, fileNodeId);
+
+            // Copy artist for the current owner
+            var sourceArtistName = sourceTrack.TrackArtists
+                .FirstOrDefault(ta => ta.IsPrimary)?.Artist?.Name
+                ?? sourceTrack.TrackArtists.FirstOrDefault()?.Artist?.Name
+                ?? "Unknown Artist";
+
+            var dedupArtist = await GetOrCreateArtistAsync(sourceArtistName, ownerId, cancellationToken);
+
+            // Copy album if the source has one
+            MusicAlbum? dedupAlbum = null;
+            if (sourceTrack.AlbumId.HasValue && sourceTrack.Album is not null)
+            {
+                dedupAlbum = await GetOrCreateAlbumAsync(
+                    sourceTrack.Album.Title, dedupArtist.Id, ownerId, sourceTrack.Album.Year, cancellationToken);
+            }
+
+            // Copy genre junctions
+            Genre? dedupGenre = null;
+            var sourceGenre = sourceTrack.TrackGenres.FirstOrDefault()?.Genre;
+            if (sourceGenre is not null)
+                dedupGenre = await GetOrCreateGenreAsync(sourceGenre.Name, cancellationToken);
+
+            // Create the new track for this owner — copy all metadata fields
+            var dedupTrack = new Track
+            {
+                FileNodeId = fileNodeId,
+                OwnerId = ownerId,
+                Title = sourceTrack.Title,
+                FileName = sourceTrack.FileName,
+                MimeType = sourceTrack.MimeType,
+                TrackNumber = sourceTrack.TrackNumber,
+                DiscNumber = sourceTrack.DiscNumber,
+                DurationTicks = sourceTrack.DurationTicks,
+                SizeBytes = sourceTrack.SizeBytes,
+                Bitrate = sourceTrack.Bitrate,
+                SampleRate = sourceTrack.SampleRate,
+                Channels = sourceTrack.Channels,
+                AlbumId = dedupAlbum?.Id,
+                Year = sourceTrack.Year,
+                ContentHash = contentHash,
+                MusicBrainzRecordingId = sourceTrack.MusicBrainzRecordingId,
+            };
+
+            _db.Tracks.Add(dedupTrack);
+            await _db.SaveChangesAsync(cancellationToken);
+
+            // Store ContentHash for future cross-owner reuse (may be null from Strategy 1)
+            if (dedupTrack.ContentHash is null)
+            {
+                dedupTrack.ContentHash = await LookupContentHashAsync(fileNodeId, cancellationToken);
+                if (dedupTrack.ContentHash is not null)
+                    await _db.SaveChangesAsync(cancellationToken);
+            }
+
+            // Create track-artist association
+            _db.TrackArtists.Add(new TrackArtist
+            {
+                TrackId = dedupTrack.Id,
+                ArtistId = dedupArtist.Id,
+                IsPrimary = true
+            });
+
+            // Create track-genre association
+            if (dedupGenre is not null)
+            {
+                _db.TrackGenres.Add(new TrackGenre
+                {
+                    TrackId = dedupTrack.Id,
+                    GenreId = dedupGenre.Id
+                });
+            }
+
+            // Update album total duration
+            if (dedupAlbum is not null)
+            {
+                dedupAlbum.TotalDurationTicks = await _db.Tracks
+                    .Where(t => t.AlbumId == dedupAlbum.Id)
+                    .SumAsync(t => t.DurationTicks, cancellationToken);
+            }
+
+            await _db.SaveChangesAsync(cancellationToken);
+
+            _logger.LogInformation(
+                "Indexed track {TrackId} '{Title}' by '{Artist}' on '{Album}' (dedup from {SourceTrackId})",
+                dedupTrack.Id, dedupTrack.Title, dedupArtist.Name, dedupAlbum?.Title ?? "(none)", sourceTrack.Id);
+
+            await _eventBus.PublishAsync(new SearchIndexRequestEvent
+            {
+                EventId = Guid.NewGuid(),
+                CreatedAt = DateTime.UtcNow,
+                ModuleId = "music",
+                EntityId = dedupTrack.Id.ToString(),
+                Action = SearchIndexAction.Index
+            }, new CallerContext(ownerId, ["user"], CallerType.User), cancellationToken);
+
+            return dedupTrack;
+        }
+
+        // ── No cross-owner match — extract metadata from the file ──
         AudioMetadata? metadata = null;
         if (audioStream is not null)
         {
@@ -88,6 +228,45 @@ public sealed class LibraryScanService
         if (metadata is null && metadataFilePath is not null)
         {
             metadata = _metadataService.ExtractMetadata(metadataFilePath);
+        }
+
+        // Filepath fallback: if TagLib# produced garbage, merge with Artist/Album/Track
+        // parsed from directory structure when available.
+        if (metadata is not null && metadataFilePath is not null)
+        {
+            var parsed = TryParseMetadataFromPath(metadataFilePath, fileName);
+            if (parsed is not null)
+            {
+                var hasGarbageArtist = IsGarbageValue(metadata.Artist);
+                var hasGarbageAlbum = IsGarbageValue(metadata.Album);
+                var hasGarbageTitle = IsGarbageValue(metadata.Title);
+
+                if (hasGarbageArtist || hasGarbageAlbum || hasGarbageTitle)
+                {
+                    metadata = new AudioMetadata
+                    {
+                        Title = hasGarbageTitle
+                            ? (parsed.Title ?? Path.GetFileNameWithoutExtension(fileName))
+                            : metadata.Title,
+                        Artist = (hasGarbageArtist && !string.IsNullOrWhiteSpace(parsed.Artist))
+                            ? parsed.Artist
+                            : metadata.Artist,
+                        Album = (hasGarbageAlbum && !string.IsNullOrWhiteSpace(parsed.Album))
+                            ? parsed.Album
+                            : metadata.Album,
+                        AlbumArtist = metadata.AlbumArtist,
+                        TrackNumber = metadata.TrackNumber,
+                        DiscNumber = metadata.DiscNumber,
+                        Year = metadata.Year,
+                        Genre = metadata.Genre,
+                        DurationTicks = metadata.DurationTicks,
+                        Bitrate = metadata.Bitrate,
+                        SampleRate = metadata.SampleRate,
+                        Channels = metadata.Channels,
+                        HasEmbeddedArt = metadata.HasEmbeddedArt,
+                    };
+                }
+            }
         }
 
         if (metadata is null)
@@ -172,6 +351,11 @@ public sealed class LibraryScanService
         track.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(cancellationToken);
+
+        // Store ContentHash for future cross-owner reuse
+        track.ContentHash = await LookupContentHashAsync(fileNodeId, cancellationToken);
+        if (track.ContentHash is not null)
+            await _db.SaveChangesAsync(cancellationToken);
 
         // Create track-artist association
         var trackArtistExists = await _db.TrackArtists
@@ -503,6 +687,61 @@ public sealed class LibraryScanService
         if (name.StartsWith("An ", StringComparison.OrdinalIgnoreCase))
             return name[3..] + ", An";
         return name;
+    }
+
+    /// <summary>
+    /// Parses artist and album names from a file path using the standard
+    /// music library convention: Artist/Album/Track.ext.
+    /// </summary>
+    private static AudioMetadata? TryParseMetadataFromPath(string filePath, string fileName)
+    {
+        var parentDir = Path.GetDirectoryName(filePath);
+        if (string.IsNullOrEmpty(parentDir))
+            return null;
+
+        var grandparentDir = Path.GetDirectoryName(parentDir);
+
+        return new AudioMetadata
+        {
+            Artist = grandparentDir is not null ? Path.GetFileName(grandparentDir) ?? "Unknown Artist" : "Unknown Artist",
+            Album = Path.GetFileName(parentDir) ?? "Unknown Album",
+            Title = Path.GetFileNameWithoutExtension(fileName) ?? "Unknown Track"
+        };
+    }
+
+    /// <summary>
+    /// Heuristic: returns true if a TagLib#-extracted value looks like garbage
+    /// (empty/whitespace, or numeric-only like "01" leaked from a track-number field).
+    /// </summary>
+    private static bool IsGarbageValue(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return true;
+
+        // Numeric-only values (e.g., "01", "123") are almost certainly not real names
+        if (int.TryParse(value, out _))
+            return true;
+
+        return false;
+    }
+
+    /// <summary>
+    /// Looks up the SHA-256 content hash for a FileNode from the Files module.
+    /// Returns null if the FileNode doesn't exist or has no hash.
+    /// </summary>
+    private async Task<string?> LookupContentHashAsync(Guid fileNodeId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await _db.Database
+                .SqlQueryRaw<string>(@"SELECT ""ContentHash"" FROM core.""FileNodes"" WHERE ""Id"" = {0}", fileNodeId)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Could not look up ContentHash for FileNode {FileNodeId}", fileNodeId);
+            return null;
+        }
     }
 
     /// <summary>
