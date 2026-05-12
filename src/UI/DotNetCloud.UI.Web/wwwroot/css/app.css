@@ -6059,14 +6059,16 @@ textarea.form-control {
 }
 
 .gmp-eq-preset-btn {
-    padding: 5px 14px;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 3px 6px 3px 12px;
     border: 1px solid var(--color-border, #e2e8f0);
     border-radius: 999px;
     background: var(--color-surface, #ffffff);
     font-size: 0.75rem;
     font-weight: 500;
     color: var(--color-text-secondary, #64748b);
-    cursor: pointer;
     transition: all var(--transition, 200ms ease);
 }
 
@@ -6079,6 +6081,49 @@ textarea.form-control {
     background: var(--color-primary, #3b82f6);
     color: #fff;
     border-color: var(--color-primary, #3b82f6);
+}
+
+.gmp-eq-preset-name {
+    padding: 2px 2px;
+    border: none;
+    background: none;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+}
+
+.gmp-eq-preset-default,
+.gmp-eq-preset-delete {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    font-size: 0.7rem;
+    color: inherit;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity var(--transition, 200ms ease), background var(--transition, 200ms ease);
+}
+
+.gmp-eq-preset-btn:hover .gmp-eq-preset-default,
+.gmp-eq-preset-btn:hover .gmp-eq-preset-delete {
+    opacity: 0.7;
+}
+
+.gmp-eq-preset-default:hover,
+.gmp-eq-preset-delete:hover {
+    opacity: 1 !important;
+    background: rgb(0 0 0 / 10%);
+}
+
+.gmp-eq-preset-btn.active .gmp-eq-preset-default:hover,
+.gmp-eq-preset-btn.active .gmp-eq-preset-delete:hover {
+    background: rgb(255 255 255 / 20%);
 }
 
 .gmp-eq-bands {

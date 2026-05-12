@@ -150,8 +150,17 @@
             <div class="gmp-eq-presets">
                 @foreach (var preset in Playback.EqPresets)
                 {
-                    <button class="gmp-eq-preset-btn @(Playback.ActivePresetId == preset.Id ? "active" : "")"
-                            @onclick="() => ApplyPresetAsync(preset)">@preset.Name</button>
+                    <span class="gmp-eq-preset-btn @(Playback.ActivePresetId == preset.Id ? "active" : "")">
+                        <button class="gmp-eq-preset-name"
+                                @onclick="() => ApplyPresetAsync(preset)">@preset.Name</button>
+                        <button class="gmp-eq-preset-default" title="Set as default EQ"
+                                @onclick="() => SetDefaultPresetAsync(preset)">✓</button>
+                        @if (!preset.IsBuiltIn)
+                        {
+                            <button class="gmp-eq-preset-delete" title="Delete preset"
+                                    @onclick="() => DeletePresetAsync(preset)">✕</button>
+                        }
+                    </span>
                 }
             </div>
             <div class="gmp-eq-bands">
@@ -384,6 +393,42 @@
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to save EQ preset");
+        }
+    }
+
+    private async Task SetDefaultPresetAsync(EqPresetDto preset)
+    {
+        try
+        {
+            var caller = await GetCallerAsync();
+            await Playback.SetDefaultPresetAsync(preset.Id, caller);
+            if (_jsInitialized)
+            {
+                await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.setEqBands", Playback.EqBands);
+            }
+            SaveSettingDebounced(EqBandsKey, JsonSerializer.Serialize(Playback.EqBands));
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to set default EQ preset");
+        }
+    }
+
+    private async Task DeletePresetAsync(EqPresetDto preset)
+    {
+        try
+        {
+            var caller = await GetCallerAsync();
+            await Playback.DeletePresetAsync(preset.Id, caller);
+            if (_jsInitialized)
+            {
+                await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.setEqBands", Playback.EqBands);
+            }
+            SaveSettingDebounced(EqBandsKey, JsonSerializer.Serialize(Playback.EqBands));
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to delete EQ preset");
         }
     }
 

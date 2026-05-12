@@ -398,6 +398,28 @@ public sealed class MusicPlaybackState
         }
     }
 
+    /// <summary>Deletes a user-created EQ preset.</summary>
+    public async Task DeletePresetAsync(Guid presetId, CallerContext caller)
+    {
+        await _eqPresetService.DeletePresetAsync(presetId, caller);
+        EqPresets.RemoveAll(p => p.Id == presetId);
+        if (ActivePresetId == presetId)
+        {
+            ActivePresetId = null;
+            Array.Clear(EqBands);
+        }
+        NotifyChanged();
+    }
+
+    /// <summary>Sets a preset as the active default EQ.</summary>
+    public async Task SetDefaultPresetAsync(Guid presetId, CallerContext caller)
+    {
+        await _eqPresetService.SetActivePresetAsync(presetId, caller);
+        var preset = EqPresets.Find(p => p.Id == presetId);
+        if (preset is not null)
+            ApplyPreset(preset);
+    }
+
     /// <summary>Saves the current EQ bands as a named preset.</summary>
     public async Task<EqPresetDto?> SavePresetAsync(string name, CallerContext caller)
     {
