@@ -1,8 +1,10 @@
 using DotNetCloud.Client.Core.Auth;
 using DotNetCloud.Client.Core;
+using DotNetCloud.Client.Core.LocalState;
 using DotNetCloud.Client.Core.SelectiveSync;
 using DotNetCloud.Client.Core.Sync;
 using DotNetCloud.Client.Core.SyncIgnore;
+using DotNetCloud.Client.Core.VirtualFiles;
 using DotNetCloud.Client.SyncTray.Notifications;
 using DotNetCloud.Client.SyncTray.Startup;
 using DotNetCloud.Client.SyncTray.ViewModels;
@@ -208,7 +210,9 @@ public sealed class SettingsViewModelTests
             chatMock.Setup(c => c.ConnectAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
             var notifMock = new Mock<INotificationService>();
-            var trayVm = new TrayViewModel(syncMock.Object, chatMock.Object, notifMock.Object, NullLogger<TrayViewModel>.Instance);
+            var vfsSettings = new VirtualFileSettings();
+            var stateDbMock = new Mock<ILocalStateDb>();
+            var trayVm = new TrayViewModel(syncMock.Object, chatMock.Object, notifMock.Object, vfsSettings, stateDbMock.Object, NullLogger<TrayViewModel>.Instance);
             var oauth2Mock = new Mock<IOAuth2Service>();
             var startupManager = new Mock<IDesktopStartupManager>();
             startupManager.Setup(m => m.TryApplyStartOnLogin(It.IsAny<bool>())).Returns(true);
@@ -220,6 +224,7 @@ public sealed class SettingsViewModelTests
                 new Mock<ISyncIgnoreParser>().Object,
                 new Mock<ISelectiveSyncConfig>().Object,
                 startupManager.Object,
+                vfsSettings,
                 NullLogger<SettingsViewModel>.Instance,
                 settingsPath);
 
@@ -233,6 +238,7 @@ public sealed class SettingsViewModelTests
                 new Mock<ISyncIgnoreParser>().Object,
                 new Mock<ISelectiveSyncConfig>().Object,
                 startupManager.Object,
+                vfsSettings,
                 NullLogger<SettingsViewModel>.Instance,
                 settingsPath);
 
@@ -265,7 +271,9 @@ public sealed class SettingsViewModelTests
             chatMock.Setup(c => c.ConnectAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
             var notifMock = new Mock<INotificationService>();
-            var trayVm = new TrayViewModel(syncMock.Object, chatMock.Object, notifMock.Object, NullLogger<TrayViewModel>.Instance);
+            var vfsSettings = new VirtualFileSettings();
+            var stateDbMock = new Mock<ILocalStateDb>();
+            var trayVm = new TrayViewModel(syncMock.Object, chatMock.Object, notifMock.Object, vfsSettings, stateDbMock.Object, NullLogger<TrayViewModel>.Instance);
             var startupManager = new DesktopStartupManager(
                 NullLogger<DesktopStartupManager>.Instance,
                 trayExecutablePathProvider: () => trayExecutablePath,
@@ -279,6 +287,7 @@ public sealed class SettingsViewModelTests
                 new Mock<ISyncIgnoreParser>().Object,
                 new Mock<ISelectiveSyncConfig>().Object,
                 startupManager,
+                vfsSettings,
                 NullLogger<SettingsViewModel>.Instance,
                 settingsPath);
 
@@ -299,6 +308,7 @@ public sealed class SettingsViewModelTests
                 new Mock<ISyncIgnoreParser>().Object,
                 new Mock<ISelectiveSyncConfig>().Object,
                 startupManager,
+                vfsSettings,
                 NullLogger<SettingsViewModel>.Instance,
                 settingsPath);
 
@@ -331,7 +341,9 @@ public sealed class SettingsViewModelTests
             chatMock.Setup(c => c.ConnectAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
             var notifMock = new Mock<INotificationService>();
-            var trayVm = new TrayViewModel(syncMock.Object, chatMock.Object, notifMock.Object, NullLogger<TrayViewModel>.Instance);
+            var vfsSettings = new VirtualFileSettings();
+            var stateDbMock = new Mock<ILocalStateDb>();
+            var trayVm = new TrayViewModel(syncMock.Object, chatMock.Object, notifMock.Object, vfsSettings, stateDbMock.Object, NullLogger<TrayViewModel>.Instance);
             var startupManager = new DesktopStartupManager(
                 NullLogger<DesktopStartupManager>.Instance,
                 trayExecutablePathProvider: () => trayExecutablePath,
@@ -345,6 +357,7 @@ public sealed class SettingsViewModelTests
                 new Mock<ISyncIgnoreParser>().Object,
                 new Mock<ISelectiveSyncConfig>().Object,
                 startupManager,
+                vfsSettings,
                 NullLogger<SettingsViewModel>.Instance,
                 settingsPath);
 
@@ -366,6 +379,7 @@ public sealed class SettingsViewModelTests
                 new Mock<ISyncIgnoreParser>().Object,
                 new Mock<ISelectiveSyncConfig>().Object,
                 startupManager,
+                vfsSettings,
                 NullLogger<SettingsViewModel>.Instance,
                 settingsPath);
 
@@ -426,7 +440,12 @@ public sealed class SettingsViewModelTests
         chatMock.Setup(c => c.ConnectAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
         var notifMock = new Mock<INotificationService>();
-        var trayVm = new TrayViewModel(syncMock.Object, chatMock.Object, notifMock.Object, NullLogger<TrayViewModel>.Instance);
+        var vfsSettings = new VirtualFileSettings();
+        var stateDbMock = new Mock<ILocalStateDb>();
+        var trayVm = new TrayViewModel(
+            syncMock.Object, chatMock.Object, notifMock.Object,
+            vfsSettings, stateDbMock.Object,
+            NullLogger<TrayViewModel>.Instance);
 
         var oauth2Mock = new Mock<IOAuth2Service>();
         var startupManager = new Mock<IDesktopStartupManager>();
@@ -437,6 +456,7 @@ public sealed class SettingsViewModelTests
             new Mock<ISyncIgnoreParser>().Object,
             new Mock<ISelectiveSyncConfig>().Object,
             startupManager.Object,
+            vfsSettings,
             NullLogger<SettingsViewModel>.Instance);
 
         return (settingsVm, syncMock, oauth2Mock, notifMock);

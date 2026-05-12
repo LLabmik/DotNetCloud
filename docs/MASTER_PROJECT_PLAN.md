@@ -137,7 +137,7 @@
 | VFS Phase 2 (Core)          | 5       | 5         | 0           | 0       |
 | VFS Phase 3 (Windows)       | 3       | 3         | 0           | 0       |
 | VFS Phase 4 (Linux)         | 4       | 0         | 0           | 4       |
-| VFS Phase 5 (UI)            | 3       | 0         | 0           | 3       |
+| VFS Phase 5 (UI)            | 3       | 3         | 0           | 0       |
 | VFS Phase 6 (Testing)       | 3       | 0         | 0           | 3       |
 
 Maintenance note: local install/setup health verification now follows configured Kestrel ports and accepts self-signed local HTTPS during startup checks. Fresh Linux installs now invoke `dotnetcloud setup --beginner` by default, which auto-selects the recommended local PostgreSQL path and then branches cleanly between the three real deployment shapes: private/local test, public behind a reverse proxy, and public served directly by DotNetCloud itself. The local branch uses self-signed HTTPS on DotNetCloud directly. The reverse-proxy public branch keeps DotNetCloud on local HTTP and ends with explicit reverse-proxy/TLS guidance instead of pretending automatic public-certificate setup exists; it now also points beginners to a dedicated Apache-first reverse-proxy guide with a Caddy alternative. The public-direct branch lets the user point DotNetCloud at an existing public certificate file and explains the extra tradeoffs, while still explicitly recommending a reverse proxy for most public installs because it simplifies ports 80/443, TLS renewal, and future services on the same machine. All branches print explicit direct local access URLs and health probe URLs and end with a plain-language summary of the selected defaults plus the beginner user's next steps. Upgrade runs now also end with a plain-language summary that confirms existing data/configuration were preserved, states clearly whether a one-time setup review is still required, and re-shows the access URLs plus the user's next step. This also clarifies the internal app defaults HTTP `5080` / HTTPS `5443` versus reverse-proxy/public HTTPS ports such as `15443`. Windows now has a separate IIS-first installation path via `tools/install-windows.ps1`, with IIS reverse proxying to `http://localhost:5080`, a beginner-focused IIS guide, a dedicated architecture rationale note, native Windows Service hosting support in the core server, and machine-level config/data environment propagation during setup and service runtime so Windows self-hosters do not need to follow the Linux installer path. The bare-metal redeploy helper now also repairs build-output ownership and purges stale normal and malformed Debug output trees before Release build/publish runs so local Linux redeploys do not inherit broken artifacts from prior attempts.
@@ -4404,6 +4404,57 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 - ✓ Tests: 203/203 Client.Core tests pass
 
 **Notes:** The platform-conditional registration uses `OperatingSystem.IsWindows()` runtime check. Shell integration (icon overlays, context menu) handled automatically by the Cloud Filter API via `CfRegisterSyncRoot` registration flags — no custom shell extension DLL needed.
+
+### Section: VFS Phase 5 — SyncTray UI Integration
+
+**Status:** completed ✅  
+**Machine:** `Windows11-TestDNC`  
+**Depends on:** VFS Phase 3 (Windows Cloud Filter API), VFS Phase 4 (Linux FUSE — provider infrastructure ready)  
+**Blocks:** VFS Phase 6 (Testing & Validation)
+
+#### Step: vfs-5.1 — Storage Mode Setting in SettingsViewModel
+**Status:** completed ✅  
+**Files modified:**
+- `src/Clients/DotNetCloud.Client.SyncTray/ViewModels/SettingsViewModel.cs`
+- `src/Clients/DotNetCloud.Client.SyncTray/Views/SettingsWindow.axaml`
+- `src/Clients/DotNetCloud.Client.SyncTray/Views/MessageBoxDialog.axaml` + `.axaml.cs` (new)
+- `src/Clients/DotNetCloud.Client.SyncTray/ViewModels/EnumConverters.cs` (new)
+
+**Deliverables:**
+- ✓ `VirtualFileSettings` injected into `SettingsViewModel`
+- ✓ `StorageMode` property with confirmation dialog on mode switch
+- ✓ `MaxCacheSizeMb` property persisted alongside local settings
+- ✓ Radio buttons in General tab: "Download all files" / "Files on-demand"
+- ✓ Help text explaining each mode
+- ✓ Confirmation dialog (`MessageBoxDialog`) for mode switches
+- ✓ VFS fields added to `SyncTrayLocalSettings` for persistence across restarts
+
+**Notes:** `EnumConverters.IsEqual`/`IsNotEqual` create for clean radio-button binding to enums in Avalonia.
+
+#### Step: vfs-5.2 — Wire VFS Lifecycle in App.axaml.cs
+**Status:** completed ✅  
+**File modified:** `src/Clients/DotNetCloud.Client.SyncTray/App.axaml.cs`
+
+**Deliverables:**
+- ✓ `VirtualFileSettings` and `VirtualFileSyncEngine` resolved at startup
+- ✓ `IVirtualFileProvider.InitializeAsync()` called for each context when `StorageMode == FilesOnDemand`
+- ✓ `IVirtualFileProvider.ShutdownAsync()` called during graceful shutdown (`RunShutdownCleanup`)
+- ✓ Sync context built from `SyncContextRegistration` with `StateDatabasePath = Path.Combine(DataDirectory, "state.db")`
+
+**Notes:** VFS initialization happens after `LoadContextsAsync()` completes, before `RefreshAccountsAsync()`.
+
+#### Step: vfs-5.3 — VFS Status in TrayViewModel
+**Status:** completed ✅  
+**File modified:** `src/Clients/DotNetCloud.Client.SyncTray/ViewModels/TrayViewModel.cs`
+
+**Deliverables:**
+- ✓ `CloudOnlyFileCount`, `HydratedFileCount`, `CacheSizeBytes`, `IsHydrating`, `HydrationFileName` properties
+- ✓ 30-second periodic `RefreshVfsStatsAsync()` timer queries `LocalStateDb.GetAllFileRecordsAsync()` per context
+- ✓ Tooltip shows VFS status: "☁ N online  ✓ N local"
+- ✓ Transient hydration notification in tooltip: "⬇ Hydrating filename..."
+- ✓ VFS counts reset when switching back to `DownloadAll` mode
+
+**Notes:** `CacheSizeBytes` reflects `VirtualFileSettings.MaxCacheSizeBytes`. Actual cache usage tracking deferred to Phase 4 (LRU cache manager).
 
 ---
 

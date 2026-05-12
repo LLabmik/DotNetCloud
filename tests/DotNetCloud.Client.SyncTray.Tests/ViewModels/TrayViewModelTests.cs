@@ -1,5 +1,7 @@
 using DotNetCloud.Client.Core;
+using DotNetCloud.Client.Core.LocalState;
 using DotNetCloud.Client.Core.Sync;
+using DotNetCloud.Client.Core.VirtualFiles;
 using DotNetCloud.Client.SyncTray.Notifications;
 using DotNetCloud.Client.SyncTray.ViewModels;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -564,7 +566,12 @@ public sealed class TrayViewModelTests
         chatMock.Setup(c => c.ConnectAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
         var notifMock = new Mock<INotificationService>();
-        var vm = new TrayViewModel(syncMock.Object, chatMock.Object, notifMock.Object, NullLogger<TrayViewModel>.Instance);
+        var vfsSettings = new VirtualFileSettings();
+        var stateDbMock = new Mock<ILocalStateDb>();
+        var vm = new TrayViewModel(
+            syncMock.Object, chatMock.Object, notifMock.Object,
+            vfsSettings, stateDbMock.Object,
+            NullLogger<TrayViewModel>.Instance);
 
         return (vm, syncMock, chatMock, notifMock);
     }

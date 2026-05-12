@@ -9,6 +9,7 @@ using DotNetCloud.Client.Core.LocalState;
 using DotNetCloud.Client.Core.SelectiveSync;
 using DotNetCloud.Client.Core.Sync;
 using DotNetCloud.Client.Core.SyncIgnore;
+using DotNetCloud.Client.Core.VirtualFiles;
 using DotNetCloud.Client.SyncTray.Startup;
 using DotNetCloud.Client.SyncTray.Views;
 using Microsoft.Extensions.Logging;
@@ -67,6 +68,9 @@ public sealed class SettingsViewModel : ViewModelBase
 
     // Update settings
     private bool _autoCheckForUpdates = true;
+
+    // VFS (virtual file system / files on-demand) settings
+    private readonly VirtualFileSettings _vfsSettings;
 
     // ── Properties ────────────────────────────────────────────────────────
 
@@ -305,6 +309,61 @@ public sealed class SettingsViewModel : ViewModelBase
         }
     }
 
+    // ── VFS (files on-demand) properties ──────────────────────────────────
+
+    /// <summary>Storage mode: download all files eagerly or use placeholders with on-demand hydration.</summary>
+    public VirtualFileStorageMode StorageMode
+    {
+        get => _vfsSettings.StorageMode;
+        set
+        {
+            if (_vfsSettings.StorageMode == value)
+                return;
+
+            if (value == VirtualFileStorageMode.FilesOnDemand)
+            {
+                _ = ShowModeSwitchConfirmationAsync(
+                    "Switch to Files On-Demand",
+                    "Unpinned files will become online-only placeholders. " +
+                    "Local content will be freed as space is needed.",
+                    async () =>
+                    {
+                        _vfsSettings.StorageMode = value;
+                        OnPropertyChanged();
+                        await PersistVirtualFileSettingsAsync();
+                    });
+            }
+            else
+            {
+                _ = ShowModeSwitchConfirmationAsync(
+                    "Switch to Download All",
+                    "This will download all files from the server. " +
+                    "This may take a while for large accounts.",
+                    async () =>
+                    {
+                        _vfsSettings.StorageMode = value;
+                        OnPropertyChanged();
+                        await PersistVirtualFileSettingsAsync();
+                    });
+            }
+        }
+    }
+
+    /// <summary>Maximum cache size in MB (0 = no limit). Used on Linux; Windows manages cache via Cloud Filter API.</summary>
+    public long MaxCacheSizeMb
+    {
+        get => _vfsSettings.MaxCacheSizeBytes > 0 ? _vfsSettings.MaxCacheSizeBytes / (1024 * 1024) : 0;
+        set
+        {
+            var bytes = value * (1024 * 1024);
+            if (_vfsSettings.MaxCacheSizeBytes == bytes)
+                return;
+            _vfsSettings.MaxCacheSizeBytes = bytes;
+            OnPropertyChanged();
+            _ = PersistVirtualFileSettingsAsync();
+        }
+    }
+
     // ── Commands ──────────────────────────────────────────────────────────
 
     /// <summary>Opens the Add Account dialog and completes the OAuth2 flow on confirmation.</summary>
@@ -344,6 +403,7 @@ public sealed class SettingsViewModel : ViewModelBase
         ISyncIgnoreParser syncIgnore,
         ISelectiveSyncConfig selectiveSync,
         IDesktopStartupManager startupManager,
+        VirtualFileSettings vfsSettings,
         ILogger<SettingsViewModel> logger,
         string? localSettingsPath = null)
     {
@@ -353,6 +413,7 @@ public sealed class SettingsViewModel : ViewModelBase
         _syncIgnore = syncIgnore;
         _selectiveSync = selectiveSync;
         _startupManager = startupManager;
+        _vfsSettings = vfsSettings;
         _logger = logger;
         _localSettingsPath = localSettingsPath ?? GetDefaultLocalSettingsPath();
 
@@ -772,6 +833,19 @@ public sealed class SettingsViewModel : ViewModelBase
             _startOnLogin = settings.StartOnLogin;
             _isMuteChatNotifications = settings.IsMuteChatNotifications;
             _autoCheckForUpdates = settings.AutoCheckForUpdates;
+
+            // Restore VFS settings
+            if (settings.StorageMode != _vfsSettings.StorageMode)
+            {
+                _vfsSettings.StorageMode = settings.StorageMode;
+                OnPropertyChanged(nameof(StorageMode));
+            }
+
+            if (settings.MaxCacheSizeBytes > 0 && _vfsSettings.MaxCacheSizeBytes != settings.MaxCacheSizeBytes)
+            {
+                _vfsSettings.MaxCacheSizeBytes = settings.MaxCacheSizeBytes;
+                OnPropertyChanged(nameof(MaxCacheSizeMb));
+            }
         }
         catch (Exception ex)
         {
@@ -795,6 +869,8 @@ public sealed class SettingsViewModel : ViewModelBase
                     StartOnLogin = _startOnLogin,
                     IsMuteChatNotifications = _isMuteChatNotifications,
                     AutoCheckForUpdates = _autoCheckForUpdates,
+                    StorageMode = _vfsSettings.StorageMode,
+                    MaxCacheSizeBytes = _vfsSettings.MaxCacheSizeBytes,
                 },
                 new JsonSerializerOptions { WriteIndented = true });
         }
@@ -913,6 +989,51 @@ public sealed class SettingsViewModel : ViewModelBase
             IsLoadingConflicts = false;
         }
     }
+
+    // ── VFS helpers ───────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Persists the current <see cref="VirtualFileSettings"/> to the local settings file.
+    /// </summary>
+    private async Task PersistVirtualFileSettingsAsync()
+    {
+        try
+        {
+            await PersistLocalSettingsAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to persist virtual file settings.");
+        }
+    }
+
+    /// <summary>
+    /// Shows a confirmation dialog before switching storage modes.
+    /// Only shows on Windows (Avalonia desktop); on headless/Linux tray it fires directly.
+    /// </summary>
+    private async Task ShowModeSwitchConfirmationAsync(
+        string title, string message, Func<Task> onConfirmed)
+    {
+        try
+        {
+            var confirmed = await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(async () =>
+            {
+                var dialog = new MessageBoxDialog(title, message, MessageBoxButtons.YesNo);
+                var tcs = new TaskCompletionSource<bool>();
+                dialog.Closed += (_, _) => tcs.TrySetResult(dialog.DialogResult == MessageBoxResult.Yes);
+                dialog.Show();
+                return await tcs.Task;
+            });
+
+            if (confirmed)
+                await onConfirmed();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Confirmation dialog failed — applying mode switch directly.");
+            await onConfirmed();
+        }
+    }
 }
 
 internal sealed class SyncTrayLocalSettings
@@ -922,6 +1043,10 @@ internal sealed class SyncTrayLocalSettings
     public bool IsMuteChatNotifications { get; init; }
 
     public bool AutoCheckForUpdates { get; init; } = true;
+
+    public VirtualFileStorageMode StorageMode { get; init; } = VirtualFileStorageMode.DownloadAll;
+
+    public long MaxCacheSizeBytes { get; init; }
 }
 
 // ── Command helpers ────────────────────────────────────────────────────────────

@@ -1,6 +1,8 @@
 using System.Collections.ObjectModel;
 using DotNetCloud.Client.Core;
+using DotNetCloud.Client.Core.LocalState;
 using DotNetCloud.Client.Core.Sync;
+using DotNetCloud.Client.Core.VirtualFiles;
 using DotNetCloud.Client.SyncTray.Notifications;
 using Microsoft.Extensions.Logging;
 
@@ -52,6 +54,16 @@ public sealed class TrayViewModel : ViewModelBase
     // Per-sync-cycle notification aggregation keyed by context ID.
     private readonly Dictionary<Guid, List<string>> _cycleErrors = [];
     private readonly Dictionary<Guid, (int Uploads, int Downloads)> _cycleTransfers = [];
+
+    // VFS (files on-demand) status
+    private readonly VirtualFileSettings _vfsSettings;
+    private readonly ILocalStateDb _localStateDb;
+    private Timer? _vfsStatusTimer;
+    private int _cloudOnlyFileCount;
+    private int _hydratedFileCount;
+    private long _cacheSizeBytes;
+    private bool _isHydrating;
+    private string? _hydrationFileName;
 
     // ── Properties ────────────────────────────────────────────────────────
 
@@ -132,6 +144,43 @@ public sealed class TrayViewModel : ViewModelBase
         private set => SetProperty(ref _updateVersion, value);
     }
 
+    // ── VFS (files on-demand) properties ──────────────────────────────────
+
+    /// <summary>Number of cloud-only (placeholder) files.</summary>
+    public int CloudOnlyFileCount
+    {
+        get => _cloudOnlyFileCount;
+        private set => SetProperty(ref _cloudOnlyFileCount, value);
+    }
+
+    /// <summary>Number of hydrated (locally cached) files.</summary>
+    public int HydratedFileCount
+    {
+        get => _hydratedFileCount;
+        private set => SetProperty(ref _hydratedFileCount, value);
+    }
+
+    /// <summary>Current size of the local content cache in bytes.</summary>
+    public long CacheSizeBytes
+    {
+        get => _cacheSizeBytes;
+        private set => SetProperty(ref _cacheSizeBytes, value);
+    }
+
+    /// <summary>Whether a file is currently being hydrated (downloaded on demand).</summary>
+    public bool IsHydrating
+    {
+        get => _isHydrating;
+        private set => SetProperty(ref _isHydrating, value);
+    }
+
+    /// <summary>Name of the file currently being hydrated, if any.</summary>
+    public string? HydrationFileName
+    {
+        get => _hydrationFileName;
+        private set => SetProperty(ref _hydrationFileName, value);
+    }
+
     /// <summary>Snapshot list of connected account view-models.</summary>
     public IReadOnlyList<AccountViewModel> Accounts => _accountList;
 
@@ -153,11 +202,15 @@ public sealed class TrayViewModel : ViewModelBase
         ISyncContextManager syncManager,
         IChatSignalRClient chatSignalRClient,
         INotificationService notifications,
+        VirtualFileSettings vfsSettings,
+        ILocalStateDb localStateDb,
         ILogger<TrayViewModel> logger)
     {
         _syncManager = syncManager;
         _chatSignalRClient = chatSignalRClient;
         _notifications = notifications;
+        _vfsSettings = vfsSettings;
+        _localStateDb = localStateDb;
         _logger = logger;
         _notifications.OnNotificationActivated = OnNotificationActivated;
 
@@ -177,6 +230,16 @@ public sealed class TrayViewModel : ViewModelBase
             state: null,
             dueTime: TimeSpan.FromHours(1),
             period: TimeSpan.FromHours(1));
+
+        // Start 30-second VFS status refresh when FilesOnDemand is active.
+        if (_vfsSettings.StorageMode == VirtualFileStorageMode.FilesOnDemand)
+        {
+            _vfsStatusTimer = new Timer(
+                _ => _ = RefreshVfsStatsAsync(),
+                state: null,
+                dueTime: TimeSpan.FromSeconds(5),
+                period: TimeSpan.FromSeconds(30));
+        }
 
         _ = Task.Run(async () =>
         {
@@ -337,6 +400,45 @@ public sealed class TrayViewModel : ViewModelBase
                 result.ReleaseUrl,
                 groupKey: "updates",
                 replaceKey: "update-available");
+        }
+    }
+
+    // ── VFS status helpers ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Periodically refreshes VFS file counts from the local state database.
+    /// Updates cloud-only vs hydrated file counts and cache size for the tray tooltip.
+    /// </summary>
+    private async Task RefreshVfsStatsAsync()
+    {
+        try
+        {
+            var registrations = await _syncManager.GetContextsAsync();
+            int totalCloudOnly = 0;
+            int totalHydrated = 0;
+
+            foreach (var reg in registrations)
+            {
+                var dbPath = Path.Combine(reg.DataDirectory, "state.db");
+                var records = await _localStateDb.GetAllFileRecordsAsync(dbPath);
+                foreach (var record in records)
+                {
+                    if (record.HydrationState == HydrationState.CloudOnly)
+                        totalCloudOnly++;
+                    else
+                        totalHydrated++;
+                }
+            }
+
+            CloudOnlyFileCount = totalCloudOnly;
+            HydratedFileCount = totalHydrated;
+            CacheSizeBytes = _vfsSettings.MaxCacheSizeBytes;
+
+            UpdateAggregateState();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to refresh VFS stats.");
         }
     }
 
@@ -729,6 +831,15 @@ public sealed class TrayViewModel : ViewModelBase
             TrayState.Paused => "DotNetCloud Sync \u2014 paused",
             _ => $"DotNetCloud Sync \u2014 up to date ({_accountList.Count} account(s))",
         };
+
+        // Append VFS status if FilesOnDemand mode is active.
+        if (_vfsSettings.StorageMode == VirtualFileStorageMode.FilesOnDemand)
+        {
+            var vfsSuffix = _isHydrating && !string.IsNullOrEmpty(_hydrationFileName)
+                ? $" | \u2B07 Hydrating {_hydrationFileName}..."
+                : $" | \u2601 {_cloudOnlyFileCount} online  \u2713 {_hydratedFileCount} local";
+            baseTooltip += vfsSuffix;
+        }
 
         Tooltip = AppendChatSummary(baseTooltip);
     }

@@ -10,6 +10,7 @@ using DotNetCloud.Client.Core.SelectiveSync;
 using DotNetCloud.Client.Core.Services;
 using DotNetCloud.Client.Core.Sync;
 using DotNetCloud.Client.Core.SyncIgnore;
+using DotNetCloud.Client.Core.VirtualFiles;
 using DotNetCloud.Client.SyncTray.Notifications;
 using DotNetCloud.Client.SyncTray.Services;
 using DotNetCloud.Client.SyncTray.Startup;
@@ -30,6 +31,8 @@ public partial class App : Application
     private TrayIconManager? _trayIconManager;
     private ISyncContextManager? _syncManager;
     private UpdateCheckBackgroundService? _updateChecker;
+    private VirtualFileSyncEngine? _vfsEngine;
+    private VirtualFileSettings? _vfsSettings;
     private CancellationTokenSource? _cts;
     private int _shutdownRequested;
     private int _cleanupDone;
@@ -55,6 +58,8 @@ public partial class App : Application
             startupManager.TryEnsureApplicationLauncher();
 
             _syncManager = _services.GetRequiredService<ISyncContextManager>();
+            _vfsEngine = _services.GetRequiredService<VirtualFileSyncEngine>();
+            _vfsSettings = _services.GetRequiredService<VirtualFileSettings>();
             _trayIconManager = _services.GetRequiredService<TrayIconManager>();
 
             _trayIconManager.Initialize();
@@ -157,12 +162,47 @@ public partial class App : Application
             await _syncManager.LoadContextsAsync(cancellationToken);
             logger.LogInformation("Sync context manager loaded.");
 
+            // Initialize VFS provider when FilesOnDemand mode is active.
+            if (_vfsEngine is not null && _vfsSettings is not null &&
+                _vfsSettings.StorageMode == VirtualFileStorageMode.FilesOnDemand)
+            {
+                var registrations = await _syncManager.GetContextsAsync();
+                foreach (var reg in registrations)
+                {
+                    logger.LogInformation(
+                        "Initializing VFS provider for {DisplayName} (FilesOnDemand mode).",
+                        reg.DisplayName);
+                    try
+                    {
+                        var syncContext = new SyncContext
+                        {
+                            Id = reg.Id,
+                            ServerBaseUrl = reg.ServerBaseUrl,
+                            UserId = reg.UserId,
+                            LocalFolderPath = reg.LocalFolderPath,
+                            StateDatabasePath = Path.Combine(reg.DataDirectory, "state.db"),
+                            AccountKey = reg.AccountKey,
+                            DisplayName = reg.DisplayName,
+                            FullScanInterval = reg.FullScanInterval,
+                            UploadLimitKbps = reg.UploadLimitKbps,
+                            DownloadLimitKbps = reg.DownloadLimitKbps,
+                        };
+                        await _vfsEngine.VirtualFileProvider.InitializeAsync(syncContext, cancellationToken);
+                    }
+                    catch (Exception initEx)
+                    {
+                        logger.LogWarning(initEx, "VFS provider initialization failed for {DisplayName}.",
+                            reg.DisplayName);
+                    }
+                }
+            }
+
             var trayVm = _services.GetRequiredService<TrayViewModel>();
             await trayVm.RefreshAccountsAsync();
 
             // First-run onboarding: prompt for account when none exist.
-            var contexts = await _syncManager.GetContextsAsync();
-            if (contexts.Count == 0)
+            var contexts2 = await _syncManager.GetContextsAsync();
+            if (contexts2.Count == 0)
             {
                 logger.LogInformation("No sync accounts configured. Launching first-run add-account flow.");
                 await Dispatcher.UIThread.InvokeAsync(async () =>
@@ -243,6 +283,14 @@ public partial class App : Application
         try
         { _updateChecker?.Dispose(); }
         catch { /* best-effort */ }
+
+        // Shut down VFS provider (unregister sync root / unmount FUSE).
+        if (_vfsEngine is not null)
+        {
+            try
+            { _vfsEngine.VirtualFileProvider.ShutdownAsync().GetAwaiter().GetResult(); }
+            catch { /* best-effort */ }
+        }
 
         // Stop all sync engines gracefully.
         if (_syncManager is not null)

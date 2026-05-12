@@ -1,0 +1,70 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="DotNetCloud.Client.SyncTray.Views.MessageBoxDialog"
+        Title="{Binding Title}"
+        Width="400"
+        MinWidth="320"
+        MinHeight="180"
+        SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        RequestedThemeVariant="Dark"
+        Background="#0D1118"
+        Foreground="#E6ECF5"
+        CanResize="False"
+        ShowInTaskbar="False">
+
+    <Window.Styles>
+        <Style Selector="Button">
+            <Setter Property="Background" Value="#243146" />
+            <Setter Property="BorderBrush" Value="#334663" />
+            <Setter Property="Foreground" Value="#EFF4FF" />
+            <Setter Property="Padding" Value="16,8" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+
+        <Style Selector="Button:pointerover">
+            <Setter Property="Background" Value="#2D3E58" />
+        </Style>
+
+        <Style Selector="Button:pressed">
+            <Setter Property="Background" Value="#1D2A3D" />
+        </Style>
+
+        <Style Selector="Button.primary">
+            <Setter Property="Background" Value="#0E6CB8" />
+            <Setter Property="BorderBrush" Value="#2193E6" />
+        </Style>
+
+        <Style Selector="Button.danger">
+            <Setter Property="Background" Value="#5D2530" />
+            <Setter Property="BorderBrush" Value="#8B3446" />
+        </Style>
+    </Window.Styles>
+
+    <DockPanel Margin="20">
+
+        <!-- Message -->
+        <TextBlock DockPanel.Dock="Top"
+                   Text="{Binding Message}"
+                   TextWrapping="Wrap"
+                   FontSize="13"
+                   LineHeight="20"
+                   Margin="0,8,0,20" />
+
+        <!-- Buttons -->
+        <StackPanel DockPanel.Dock="Bottom"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Spacing="8">
+            <Button Name="NoButton"
+                    Content="Cancel"
+                    Click="OnNoClick" />
+            <Button Name="YesButton"
+                    Content="{Binding YesText}"
+                    Classes="primary"
+                    Click="OnYesClick" />
+        </StackPanel>
+
+    </DockPanel>
+</Window>

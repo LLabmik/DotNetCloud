@@ -5557,10 +5557,10 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ☐ Local content cache with LRU eviction
 - ☐ Installer integration
 
-### Phase 5 — SyncTray UI Integration
-- ☐ "Storage Mode" setting in SettingsViewModel
-- ☐ Wire VFS lifecycle in App.axaml.cs
-- ☐ VFS status in TrayViewModel
+### Phase 5 — SyncTray UI Integration ✅
+- ✓ "Storage Mode" setting in SettingsViewModel + SettingsWindow.axaml
+- ✓ Wire VFS lifecycle in App.axaml.cs
+- ✓ VFS status in TrayViewModel (tooltip, periodic refresh)
 
 ### Phase 6 — Testing & Validation
 - ☐ Unit tests for VirtualFileSyncEngine

@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="clr-namespace:DotNetCloud.Client.SyncTray.ViewModels"
+        xmlns:vf="clr-namespace:DotNetCloud.Client.Core.VirtualFiles;assembly=DotNetCloud.Client.Core"
         x:Class="DotNetCloud.Client.SyncTray.Views.SettingsWindow"
         Title="DotNetCloud Sync — Settings"
         Width="520"
@@ -214,26 +215,76 @@
 
             <!-- ── General ── -->
             <TabItem Header="General">
-                <StackPanel Margin="8" Spacing="12">
-                    <CheckBox Content="Start DotNetCloud Sync at graphical login"
-                              ToolTip.Tip="Creates a Linux desktop-session autostart entry for SyncTray. SyncTray starts SyncService automatically."
-                              IsChecked="{Binding StartOnLogin}" />
-                    <CheckBox Content="Mute chat notifications"
-                              ToolTip.Tip="Suppress desktop chat popups from chat messages and mentions"
-                              IsChecked="{Binding IsMuteChatNotifications}" />
-                    <Separator />
-                    <TextBlock Text="Bandwidth limits" FontWeight="SemiBold" />
-                    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" RowSpacing="6">
-                        <TextBlock Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" Text="Upload (KB/s, 0 = unlimited)" Margin="0,0,12,0" />
-                        <NumericUpDown Grid.Row="0" Grid.Column="1"
-                                       Value="{Binding UploadLimitKbps}"
-                                       Minimum="0" Maximum="100000" />
-                        <TextBlock Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" Text="Download (KB/s, 0 = unlimited)" Margin="0,0,12,0" />
-                        <NumericUpDown Grid.Row="1" Grid.Column="1"
-                                       Value="{Binding DownloadLimitKbps}"
-                                       Minimum="0" Maximum="100000" />
-                    </Grid>
-                </StackPanel>
+                <ScrollViewer>
+                    <StackPanel Margin="8" Spacing="12">
+
+                        <CheckBox Content="Start DotNetCloud Sync at graphical login"
+                                  ToolTip.Tip="Creates a Linux desktop-session autostart entry for SyncTray. SyncTray starts SyncService automatically."
+                                  IsChecked="{Binding StartOnLogin}" />
+                        <CheckBox Content="Mute chat notifications"
+                                  ToolTip.Tip="Suppress desktop chat popups from chat messages and mentions"
+                                  IsChecked="{Binding IsMuteChatNotifications}" />
+                        <Separator />
+
+                        <!-- ── Storage Mode (VFS / Files On-Demand) ── -->
+                        <TextBlock Text="Storage Mode"
+                                   FontWeight="SemiBold"
+                                   FontSize="13" />
+                        <TextBlock Text="Choose how files are stored on this device."
+                                   FontSize="11"
+                                   Foreground="#8A9AB5" />
+                        <RadioButton Content="Download all files"
+                                     ToolTip.Tip="All files are downloaded to this device. Uses more disk space but all files are always available offline."
+                                     IsChecked="{Binding StorageMode, Converter={x:Static vm:EnumConverters.IsEqual}, ConverterParameter={x:Static vf:VirtualFileStorageMode.DownloadAll}}" />
+                        <RadioButton Content="Files on-demand (placeholder sync)"
+                                     ToolTip.Tip="Files appear as placeholders. Content downloads only when you open a file. Saves disk space."
+                                     IsChecked="{Binding StorageMode, Converter={x:Static vm:EnumConverters.IsEqual}, ConverterParameter={x:Static vf:VirtualFileStorageMode.FilesOnDemand}}" />
+                        <TextBlock Text="☁ Files on-demand creates metadata-only placeholders — content is downloaded on first access."
+                                   FontSize="11"
+                                   Foreground="#6B8AAB"
+                                   TextWrapping="Wrap"
+                                   IsVisible="{Binding StorageMode, Converter={x:Static vm:EnumConverters.IsEqual}, ConverterParameter={x:Static vf:VirtualFileStorageMode.FilesOnDemand}}" />
+                        <TextBlock Text="⬇ Download all keeps everything local. Best for offline use and fast access."
+                                   FontSize="11"
+                                   Foreground="#6B8AAB"
+                                   TextWrapping="Wrap"
+                                   IsVisible="{Binding StorageMode, Converter={x:Static vm:EnumConverters.IsNotEqual}, ConverterParameter={x:Static vf:VirtualFileStorageMode.FilesOnDemand}}" />
+
+                        <!-- Cache size (Linux-focused, shown on all but best-effort on Windows) -->
+                        <Separator />
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Local Cache Size (Linux)"
+                                       FontWeight="SemiBold"
+                                       FontSize="12" />
+                            <TextBlock Text="Maximum disk space for cached file content. 0 = no limit."
+                                       FontSize="11"
+                                       Foreground="#8A9AB5" />
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                <NumericUpDown Grid.Column="0"
+                                               Value="{Binding MaxCacheSizeMb}"
+                                               Minimum="0" Maximum="1048576"
+                                               Increment="256" />
+                                <TextBlock Grid.Column="1"
+                                           Text="MB"
+                                           VerticalAlignment="Center"
+                                           Foreground="#8A9AB5" />
+                            </Grid>
+                        </StackPanel>
+
+                        <Separator />
+                        <TextBlock Text="Bandwidth limits" FontWeight="SemiBold" />
+                        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" RowSpacing="6">
+                            <TextBlock Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" Text="Upload (KB/s, 0 = unlimited)" Margin="0,0,12,0" />
+                            <NumericUpDown Grid.Row="0" Grid.Column="1"
+                                           Value="{Binding UploadLimitKbps}"
+                                           Minimum="0" Maximum="100000" />
+                            <TextBlock Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" Text="Download (KB/s, 0 = unlimited)" Margin="0,0,12,0" />
+                            <NumericUpDown Grid.Row="1" Grid.Column="1"
+                                           Value="{Binding DownloadLimitKbps}"
+                                           Minimum="0" Maximum="100000" />
+                        </Grid>
+                    </StackPanel>
+                </ScrollViewer>
             </TabItem>
 
             <!-- ── Ignored Files ── -->

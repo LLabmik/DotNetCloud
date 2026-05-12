@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 20260512 (VFS Phase 3 complete — Windows Cloud Filter API implemented on Windows11-TestDNC)
+Last updated: 20260512 (VFS Phase 5 complete — SyncTray UI Integration on Windows11-TestDNC)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -51,12 +51,15 @@ Archived context:
 - All prior Phase 2, chat, pre-Linux sync remediation, SyncTray icon enhancement work is complete and archived.
 - VFS Phase 1 (server-side prerequisites) complete on `mint22`. Range header support and `metadataOnly` tree endpoint deployed.
 - VFS Phase 2 (core abstraction layer) complete on `Windows11-TestDNC`.
-- VFS Phase 3 (Windows Cloud Filter API) complete on `Windows11-TestDNC`:
-  - `CfApiTypes.cs` + `CfApiNative.cs` — P/Invoke wrappers for cfapi.dll (11 functions, 15+ structs/enums)
-  - `CloudFilterSyncProvider` — full `IVirtualFileProvider` implementation with sync root registration, placeholder creation, on-demand hydration, pin/unpin, dehydrate
-  - `CloudFilterCallbacks` — managed callback delegates pinned via `GCHandle` (FETCH_DATA, VALIDATE_DATA, FETCH_PLACEHOLDERS, CANCEL_FETCH_DATA, NOTIFY_*)
-  - DI: `CloudFilterSyncProvider` registered on Windows; `NoOpVirtualFileProvider` fallback for other platforms
-  - Build: 0 errors. Tests: 203/203 pass (Client.Core).
+- VFS Phase 3 (Windows Cloud Filter API) complete on `Windows11-TestDNC`.
+- VFS Phase 4 (Linux FUSE) — `FuseSyncFilesystem` stub exists in DI; full implementation pending on `mint-dnc-client`.
+- VFS Phase 5 (SyncTray UI Integration) complete on `Windows11-TestDNC`:
+  - Storage Mode setting in SettingsViewModel + General tab radio buttons
+  - `MessageBoxDialog` for mode switch confirmation
+  - VFS lifecycle wired in `App.axaml.cs` (initialize on startup, shutdown on exit)
+  - VFS status indicators in TrayViewModel (cloud-only/hydrated counts, tooltip)
+  - 30-second periodic refresh from LocalStateDb
+  - Build: 0 errors. Tests: 106/106 pass (SyncTray). 203/203 pass (Client.Core).
 
 ## Environment
 
@@ -78,26 +81,35 @@ Archived context:
 
 ## Active Handoff
 
-**Status:** VFS Phase 5 ready for `Windows11-TestDNC` (2026-05-12)  
-**Blocked by:** nothing — Phase 3 (Windows Cloud Filter API) complete  
-**Blocks:** nothing (final client-side VFS step for SyncTray)
+**Status:** VFS Phase 6 ready for `Windows11-TestDNC` (2026-05-12)  
+**Blocked by:** nothing — Phase 5 (SyncTray UI) complete  
+**Blocks:** nothing (final VFS validation phase)
 
-### Task: Implement Phase 5 — SyncTray UI Integration
+### Task: Implement Phase 6 — Testing & Validation
 
-All specs and code templates are in `docs/VIRTUAL_FILE_SYNCING_PLAN.md` — read the Phase 5 section.
+All specs and test scenarios are in `docs/VIRTUAL_FILE_SYNCING_PLAN.md` — read the Phase 6 section.
 
-**What to implement (3 steps):**
+**What to implement:**
 
-1. **Step 5.1** — Add "Storage Mode" setting to SettingsViewModel:
-   - `src/Clients/DotNetCloud.Client.SyncTray/ViewModels/SettingsViewModel.cs`
-   - `src/Clients/DotNetCloud.Client.SyncTray/Views/SettingsWindow.axaml`
-   - Add `StorageMode` and `MaxCacheSizeMb` properties with persistence
-   - Radio buttons: "Download all files" / "Files on-demand"
-   - Confirmation dialogs for mode switches
+1. **Step 6.1** — Unit Tests (15+ tests in `tests/DotNetCloud.Client.Core.Tests/VirtualFiles/`):
+   - `VirtualFileSyncEngineTests.cs` — mode switching, placeholder creation, hydration dispatch
+   - `VirtualFileSettingsTests.cs` — serialization, pin list management
+   - `CloudFilterSyncProviderTests.cs` — with mocked CfApi (unit-testable logic only)
+   - Key scenarios: SyncAsync/FilesOnDemand creates placeholders, ModeSwitch hydration/dehydration, HydrateFile/AlreadyHydrated skips, DehydrateFile/Pinned no-ops
 
-2. **Step 5.2** — Wire VFS lifecycle in App.axaml.cs:
-   - `src/Clients/DotNetCloud.Client.SyncTray/App.axaml.cs`
-   - Call `IVirtualFileProvider.InitializeAsync()` on startup when `FilesOnDemand`
+2. **Step 6.2** — Windows Integration Tests (environment-gated: Windows 10 1709+):
+   - Manual test scenarios TC-VFS-W1 through TC-VFS-W11
+   - Register sync root, cloud-only placeholders, on-demand hydration, pin/free-up, mode switches
+
+3. **Step 6.3** — Linux Integration Tests (environment-gated: Linux + fuse3):
+   - Manual test scenarios for FUSE filesystem
+   - Assign to `mint-dnc-client` when Linux provider is ready
+
+**Deliverables:**
+- ☐ 15+ unit tests covering VirtualFileSyncEngine, settings
+- ☐ All tests pass: `dotnet test tests/DotNetCloud.Client.Core.Tests/`
+- ☐ Windows integration test scenarios documented
+- ☐ Linux integration test scenarios documented (deferred to Phase 4 completion)
    - Call `IVirtualFileProvider.ShutdownAsync()` on graceful shutdown
 
 3. **Step 5.3** — VFS status in TrayViewModel:
