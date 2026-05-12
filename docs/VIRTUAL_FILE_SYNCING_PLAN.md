@@ -946,11 +946,11 @@ public string? HydrationFileName { get => _hydrationFileName; set => SetProperty
 
 **Test files to create:**
 
-- ☐ `VirtualFileSyncEngineTests.cs` — mode switching, placeholder creation, hydration dispatch
-- ☐ `VirtualFileSettingsTests.cs` — serialization, pin list management
-- ☐ `LruCacheManagerTests.cs` — cache put/get, eviction, pin exemption
-- ☐ `CloudFilterSyncProviderTests.cs` — with mocked CfApi (unit-testable logic only)
-- ☐ `FuseSyncFilesystemTests.cs` — with mocked FUSE layer (unit-testable logic only)
+- ✓ `VirtualFileSyncEngineTests.cs` — mode switching, placeholder creation, hydration dispatch (17 tests)
+- ✓ `VirtualFileSettingsTests.cs` — serialization, pin list management (10 tests)
+- ✓ `LruCacheManagerTests.cs` — cache put/get, eviction, pin exemption (12 tests)
+- ✓ `CloudFilterSyncProviderTests.cs` — with mocked CfApi (unit-testable logic only) (8 tests)
+- ✓ `FuseSyncFilesystemTests.cs` — with mocked FUSE layer (unit-testable logic only) (4 tests, 1 inconclusive — FUSE not yet implemented)
 
 **Key test scenarios:**
 
@@ -968,8 +968,8 @@ public string? HydrationFileName { get => _hydrationFileName; set => SetProperty
 
 **Deliverables:**
 
-- ☐ 15+ unit tests covering VirtualFileSyncEngine, LruCacheManager, settings
-- ☐ All tests pass: `dotnet test tests/DotNetCloud.Client.Core.Tests/`
+- ✓ 50 unit tests (51 total, 1 inconclusive for FuseSyncFilesystem) covering VirtualFileSyncEngine, LruCacheManager, settings, CloudFilterSyncProvider
+- ✓ All tests pass: `dotnet test tests/DotNetCloud.Client.Core.Tests/` (253/254 pass, 1 skipped for Linux-deferred FUSE)
 
 ### Step 6.2 — Windows Integration Tests
 

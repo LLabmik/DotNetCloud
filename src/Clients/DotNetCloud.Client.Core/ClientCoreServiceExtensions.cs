@@ -78,6 +78,7 @@ public static class ClientCoreServiceExtensions
         else
             services.AddSingleton<IVirtualFileProvider, NoOpVirtualFileProvider>(); // macOS stub
 
+        services.AddSingleton<LruCacheManager>();
         services.AddSingleton<VirtualFileSyncEngine>();
 
         return services;

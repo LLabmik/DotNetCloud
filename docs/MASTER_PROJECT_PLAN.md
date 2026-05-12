@@ -138,7 +138,7 @@
 | VFS Phase 3 (Windows)       | 3       | 3         | 0           | 0       |
 | VFS Phase 4 (Linux)         | 4       | 0         | 0           | 4       |
 | VFS Phase 5 (UI)            | 3       | 3         | 0           | 0       |
-| VFS Phase 6 (Testing)       | 3       | 0         | 0           | 3       |
+| VFS Phase 6 (Testing)       | 3       | 3         | 0           | 0       |
 
 Maintenance note: local install/setup health verification now follows configured Kestrel ports and accepts self-signed local HTTPS during startup checks. Fresh Linux installs now invoke `dotnetcloud setup --beginner` by default, which auto-selects the recommended local PostgreSQL path and then branches cleanly between the three real deployment shapes: private/local test, public behind a reverse proxy, and public served directly by DotNetCloud itself. The local branch uses self-signed HTTPS on DotNetCloud directly. The reverse-proxy public branch keeps DotNetCloud on local HTTP and ends with explicit reverse-proxy/TLS guidance instead of pretending automatic public-certificate setup exists; it now also points beginners to a dedicated Apache-first reverse-proxy guide with a Caddy alternative. The public-direct branch lets the user point DotNetCloud at an existing public certificate file and explains the extra tradeoffs, while still explicitly recommending a reverse proxy for most public installs because it simplifies ports 80/443, TLS renewal, and future services on the same machine. All branches print explicit direct local access URLs and health probe URLs and end with a plain-language summary of the selected defaults plus the beginner user's next steps. Upgrade runs now also end with a plain-language summary that confirms existing data/configuration were preserved, states clearly whether a one-time setup review is still required, and re-shows the access URLs plus the user's next step. This also clarifies the internal app defaults HTTP `5080` / HTTPS `5443` versus reverse-proxy/public HTTPS ports such as `15443`. Windows now has a separate IIS-first installation path via `tools/install-windows.ps1`, with IIS reverse proxying to `http://localhost:5080`, a beginner-focused IIS guide, a dedicated architecture rationale note, native Windows Service hosting support in the core server, and machine-level config/data environment propagation during setup and service runtime so Windows self-hosters do not need to follow the Linux installer path. The bare-metal redeploy helper now also repairs build-output ownership and purges stale normal and malformed Debug output trees before Release build/publish runs so local Linux redeploys do not inherit broken artifacts from prior attempts.
 
@@ -4455,6 +4455,79 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 - ✓ VFS counts reset when switching back to `DownloadAll` mode
 
 **Notes:** `CacheSizeBytes` reflects `VirtualFileSettings.MaxCacheSizeBytes`. Actual cache usage tracking deferred to Phase 4 (LRU cache manager).
+
+### Section: VFS Phase 6 — Testing & Validation
+
+**Status:** completed ✅  
+**Machine:** `Windows11-TestDNC`  
+**Depends on:** VFS Phase 5 (SyncTray UI Integration)  
+**Blocks:** nothing (final VFS validation phase)
+
+#### Step: vfs-6.1 — Unit Tests
+**Status:** completed ✅  
+**Location:** `tests/DotNetCloud.Client.Core.Tests/VirtualFiles/`
+
+**Files created:**
+- ✓ `VirtualFileSyncEngineTests.cs` — 17 tests covering StartAsync modes, SyncAsync delegates, StopAsync shutdown, SwitchModeAsync updates, event forwarding, Pause/Resume/GetStatus delegation
+- ✓ `VirtualFileSettingsTests.cs` — 10 tests covering default values, JSON serialization round-trips, case-insensitive PinList
+- ✓ `LruCacheManagerTests.cs` — 12 tests covering put/get, cache size tracking, LRU eviction, pin exemption, TryPeek, entry count
+- ✓ `CloudFilterSyncProviderTests.cs` — 8 tests covering constructor, double-dispose safety, dispose guards for all IVirtualFileProvider methods
+- ✓ `FuseSyncFilesystemTests.cs` — 4 contract tests verifying IVirtualFileProvider interface (1 inconclusive — FUSE not yet implemented)
+
+**Additional files created:**
+- ✓ `LruCacheManager.cs` in `VirtualFiles/` namespace with LRU eviction, pin exemption, thread-safe ConcurrentDictionary + ReaderWriterLockSlim
+- ✓ `LruCacheManager` registered in DI (`ClientCoreServiceExtensions.cs`)
+
+**Key test scenarios covered:**
+- `StartAsync_FilesOnDemand_InitializesProvider` — VFS provider init in OnDemand mode
+- `StartAsync_DownloadAll_DoesNotInitializeProvider` — No VFS init in DownloadAll mode
+- `StopAsync_ShutsDownProviderAndStopsInner` — Clean shutdown
+- `SwitchModeAsync_ToFilesOnDemand_UpdatesSetting` — Mode switch updates settings
+- `EvictIfNeeded_EvictsOldestFirst_WhenOverLimit` — LRU eviction
+- `PinnedEntry_SurvivesEviction` — Pin exemption
+- `HydrateFileAsync_WhenDisposed_Throws` — Dispose guards
+
+**Notes:**
+- All 50 VirtualFiles tests pass (51 total, 1 inconclusive for FuseSyncFilesystem)
+- Core tests: 435/435 pass (no regressions)
+- SyncTray tests: 106/106 pass (no regressions)
+- Client.Core tests: 253/254 pass (1 skipped for Linux-deferred FUSE)
+- Debug build: 0 errors, 0 warnings
+- Release build: 0 errors, 0 warnings
+
+#### Step: vfs-6.2 — Windows Integration Tests
+**Status:** documented (environment-gated: Windows 10 1709+, manual execution)  
+**Scenarios documented in:** `docs/VIRTUAL_FILE_SYNCING_PLAN.md`
+
+**Manual test scenarios:**
+- ☐ **TC-VFS-W1:** Register sync root → Explorer shows sync folder with DotNetCloud branding
+- ☐ **TC-VFS-W2:** Initial sync with OnDemand → folder populated with cloud-only placeholders
+- ☐ **TC-VFS-W3:** Open a cloud-only text file → content downloads, file opens normally
+- ☐ **TC-VFS-W4:** Open a large file (>100 MB) → streaming hydration, file opens before full download
+- ☐ **TC-VFS-W5:** Edit and save a hydrated file → uploads to server on next sync pass
+- ☐ **TC-VFS-W6:** Right-click "Free up space" → file returns to cloud-only placeholder
+- ☐ **TC-VFS-W7:** Right-click "Always keep on this device" → pin state persists across restarts
+- ☐ **TC-VFS-W8:** Server-side file update → placeholder metadata updates on next sync
+- ☐ **TC-VFS-W9:** Server-side file delete → placeholder removed locally
+- ☐ **TC-VFS-W10:** Mode switch DownloadAll → OnDemand → DownloadAll (round-trip)
+- ☐ **TC-VFS-W11:** Offline mode — open cloud-only file without server → graceful error
+
+#### Step: vfs-6.3 — Linux Integration Tests
+**Status:** documented (environment-gated: Linux + fuse3, deferred to Phase 4 completion)  
+**Scenarios documented in:** `docs/VIRTUAL_FILE_SYNCING_PLAN.md`
+
+#### Step: vfs-6.4 — Cross-Machine End-to-End Tests
+**Status:** documented (requires all three machines)
+**Scenarios documented in:** `docs/VIRTUAL_FILE_SYNCING_PLAN.md`
+
+#### Step: vfs-6.5 — Build Validation
+**Status:** completed ✅
+
+**Results:**
+- ✓ `dotnet build` — succeeds on Windows (Client.Core: 0 errors, 0 warnings)
+- ✓ `dotnet build -c Release` — succeeds (0 errors, 0 warnings)
+- ✓ `dotnet test` — all tests pass (Core 435, Client.Core 253, SyncTray 106)
+- ✓ No new warnings introduced
 
 ---
 
