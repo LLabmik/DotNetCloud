@@ -535,9 +535,9 @@ enum CF_OPERATION_TYPE : uint
 
 **Deliverables:**
 
-- ☐ `CfApiNative.cs` — all P/Invoke declarations
-- ☐ `CfApiTypes.cs` — all structs, enums, flags, and callback delegate types
-- ☐ Build succeeds on Windows with `#if WINDOWS_BUILD` conditional compilation
+- ✓ `CfApiNative.cs` — all P/Invoke declarations using `[LibraryImport]`
+- ✓ `CfApiTypes.cs` — all structs, enums, flags, and callback delegate types
+- ✓ Build succeeds on Windows with `<AllowUnsafeBlocks>` conditional in csproj
 
 ### Step 3.2 — Implement `CloudFilterSyncProvider : IVirtualFileProvider`
 
@@ -581,14 +581,14 @@ The callbacks are invoked by Windows when it needs data or notifies us of events
 
 **Deliverables:**
 
-- ☐ `CloudFilterSyncProvider` implementing `IVirtualFileProvider`
-- ☐ `CloudFilterCallbacks` with all callback implementations
-- ☐ Sync root registration with Windows shell
-- ☐ Placeholder creation from server tree
-- ☐ On-demand hydration with streaming chunk download
-- ☐ Pin/unpin support
-- ☐ Error handling for network/server failures
-- ☐ Conditional compilation: `#if WINDOWS_BUILD`
+- ✓ `CloudFilterSyncProvider` implementing `IVirtualFileProvider`
+- ✓ `CloudFilterCallbacks` with all callback implementations
+- ✓ Sync root registration with Windows shell via `CfRegisterSyncRoot` + `CfConnectSyncRoot`
+- ✓ Placeholder creation from server tree via `CfCreatePlaceholders`
+- ✓ On-demand hydration with chunk download via `CfExecute(TRANSFER_DATA)`
+- ✓ Pin/unpin support via `CfSetPinState` + `VirtualFileSettings.PinList`
+- ✓ Error handling for network/server failures (graceful `ACK_DATA` with error)
+- ✓ DI wiring: `CloudFilterSyncProvider` registered on Windows, `NoOpVirtualFileProvider` fallback
 
 ### Step 3.3 — Shell Integration (Icon Overlays + Context Menu)
 

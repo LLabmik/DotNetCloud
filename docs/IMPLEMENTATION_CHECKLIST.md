@@ -5545,10 +5545,11 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `VirtualFileSyncEngine` class wrapping `ISyncEngine` with mode switch logic
 - ✓ DI registration + `NoOpVirtualFileProvider` stub for unsupported platforms
 
-### Phase 3 — Windows Implementation
-- ☐ P/Invoke wrappers for Cloud Filter API
-- ☐ `CloudFilterSyncProvider : IVirtualFileProvider`
-- ☐ Shell integration (icon overlays, context menu)
+### Phase 3 — Windows Implementation ✅
+- ✓ P/Invoke wrappers for Cloud Filter API (`CfApiNative.cs`, `CfApiTypes.cs`)
+- ✓ `CloudFilterSyncProvider : IVirtualFileProvider` (with `CloudFilterCallbacks`)
+- ✓ DI wiring: `CloudFilterSyncProvider` registered on Windows
+- ☐ Shell integration (icon overlays, context menu) — deferred to later phase
 
 ### Phase 4 — Linux Implementation
 - ☐ FUSE dependency & project setup

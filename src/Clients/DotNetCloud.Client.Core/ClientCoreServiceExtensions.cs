@@ -3,6 +3,7 @@ using DotNetCloud.Client.Core.Auth;
 using DotNetCloud.Client.Core.Conflict;
 using DotNetCloud.Client.Core.LocalState;
 using DotNetCloud.Client.Core.Platform;
+using DotNetCloud.Client.Core.Platform.Windows;
 using DotNetCloud.Client.Core.SelectiveSync;
 using DotNetCloud.Client.Core.Services;
 using DotNetCloud.Client.Core.Sync;
@@ -68,10 +69,14 @@ public static class ClientCoreServiceExtensions
         services.AddSingleton<VirtualFileSettings>();
 
         // Platform-specific IVirtualFileProvider
-        // Phase 2: NoOpVirtualFileProvider for all platforms.
-        // Phase 3 will replace with CloudFilterSyncProvider on Windows.
-        // Phase 4 will replace with FuseSyncFilesystem on Linux.
-        services.AddSingleton<IVirtualFileProvider, NoOpVirtualFileProvider>();
+        // Phase 3: CloudFilterSyncProvider on Windows (Cloud Filter API).
+        // Phase 4: FuseSyncFilesystem on Linux.
+        if (OperatingSystem.IsWindows())
+            services.AddSingleton<IVirtualFileProvider, CloudFilterSyncProvider>();
+        else if (OperatingSystem.IsLinux())
+            services.AddSingleton<IVirtualFileProvider, NoOpVirtualFileProvider>(); // Will be FuseSyncFilesystem in Phase 4
+        else
+            services.AddSingleton<IVirtualFileProvider, NoOpVirtualFileProvider>(); // macOS stub
 
         services.AddSingleton<VirtualFileSyncEngine>();
 

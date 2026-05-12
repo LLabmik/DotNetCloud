@@ -14,9 +14,10 @@
     </AssemblyAttribute>
   </ItemGroup>
 
-  <!-- Windows-specific: VSS shadow copy support via System.Management (WMI). -->
+  <!-- Windows-specific: VSS shadow copy support via System.Management (WMI) and Cloud Filter API (cfapi.dll) P/Invoke. -->
   <PropertyGroup Condition="'$(OS)' == 'Windows_NT'">
     <DefineConstants>$(DefineConstants);WINDOWS_BUILD</DefineConstants>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup Condition="'$(OS)' == 'Windows_NT'">
     <PackageReference Include="System.Management" />

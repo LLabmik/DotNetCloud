@@ -1,12 +1,14 @@
 # Client/Server Mediation Handoff
 
-Last updated: 20260512 (VFS Phase 2 complete — core abstraction layer implemented on Windows11-TestDNC)
+Last updated: 20260512 (VFS Phase 3 complete — Windows Cloud Filter API implemented on Windows11-TestDNC)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
 Archived context:
 - Historical completed updates are in `CLIENT_SERVER_MEDIATION_ARCHIVE.md`.
 - Additional history remains available in git.
+- VFS Phase 3 (Windows Cloud Filter API) completed on Windows11-TestDNC (2026-05-12).
+- VFS Phase 2 (core abstraction layer) completed on Windows11-TestDNC (previously).
 
 ## Process Rules
 
@@ -48,13 +50,13 @@ Archived context:
 
 - All prior Phase 2, chat, pre-Linux sync remediation, SyncTray icon enhancement work is complete and archived.
 - VFS Phase 1 (server-side prerequisites) complete on `mint22`. Range header support and `metadataOnly` tree endpoint deployed.
-- VFS Phase 2 (core abstraction layer) complete on `Windows11-TestDNC`:
-  - `IVirtualFileProvider` interface defined with 8 methods + XML doc comments
-  - `HydrationState` enum + `LocalFileRecord.HydrationState` property + schema evolution
-  - `VirtualFileSettings` class + `VirtualFileStorageMode` enum
-  - `VirtualFileSyncEngine` wrapping `ISyncEngine` with mode switch logic
-  - `NoOpVirtualFileProvider` stub + DI registration in `ClientCoreServiceExtensions`
-  - Build: 0 errors. Tests: 203/203 pass (Client.Core), full suite passes.
+- VFS Phase 2 (core abstraction layer) complete on `Windows11-TestDNC`.
+- VFS Phase 3 (Windows Cloud Filter API) complete on `Windows11-TestDNC`:
+  - `CfApiTypes.cs` + `CfApiNative.cs` — P/Invoke wrappers for cfapi.dll (11 functions, 15+ structs/enums)
+  - `CloudFilterSyncProvider` — full `IVirtualFileProvider` implementation with sync root registration, placeholder creation, on-demand hydration, pin/unpin, dehydrate
+  - `CloudFilterCallbacks` — managed callback delegates pinned via `GCHandle` (FETCH_DATA, VALIDATE_DATA, FETCH_PLACEHOLDERS, CANCEL_FETCH_DATA, NOTIFY_*)
+  - DI: `CloudFilterSyncProvider` registered on Windows; `NoOpVirtualFileProvider` fallback for other platforms
+  - Build: 0 errors. Tests: 203/203 pass (Client.Core).
 
 ## Environment
 
@@ -76,36 +78,38 @@ Archived context:
 
 ## Active Handoff
 
-**Status:** VFS Phase 3 ready for `Windows11-TestDNC` (2026-05-12)  
-**Blocked by:** nothing — Phase 2 (core abstractions) complete  
-**Blocks:** Phase 4 (Linux FUSE), Phase 5 (SyncTray UI)
+**Status:** VFS Phase 5 ready for `Windows11-TestDNC` (2026-05-12)  
+**Blocked by:** nothing — Phase 3 (Windows Cloud Filter API) complete  
+**Blocks:** nothing (final client-side VFS step for SyncTray)
 
-### Task: Implement Phase 3 — Windows Cloud Filter API Provider
+### Task: Implement Phase 5 — SyncTray UI Integration
 
-All specs and code templates are in `docs/VIRTUAL_FILE_SYNCING_PLAN.md` — read the Phase 3 section.
+All specs and code templates are in `docs/VIRTUAL_FILE_SYNCING_PLAN.md` — read the Phase 5 section.
 
 **What to implement (3 steps):**
 
-1. **Step 3.1** — Create P/Invoke wrappers for Cloud Filter API (`cfapi.dll`):
-   - `src/Clients/DotNetCloud.Client.Core/Platform/Windows/CfApi/CfApiNative.cs` — `[DllImport]` wrappers for essential functions
-   - `src/Clients/DotNetCloud.Client.Core/Platform/Windows/CfApi/CfApiTypes.cs` — structs, enums, and constants
-   - Key functions: `CfRegisterSyncRoot`, `CfCreatePlaceholders`, `CfExecute`, `CfSetPinState`, `CfUpdatePlaceholder`, `CfUnregisterSyncRoot`
+1. **Step 5.1** — Add "Storage Mode" setting to SettingsViewModel:
+   - `src/Clients/DotNetCloud.Client.SyncTray/ViewModels/SettingsViewModel.cs`
+   - `src/Clients/DotNetCloud.Client.SyncTray/Views/SettingsWindow.axaml`
+   - Add `StorageMode` and `MaxCacheSizeMb` properties with persistence
+   - Radio buttons: "Download all files" / "Files on-demand"
+   - Confirmation dialogs for mode switches
 
-2. **Step 3.2** — Create `CloudFilterSyncProvider : IVirtualFileProvider`:
-   - `src/Clients/DotNetCloud.Client.Core/Platform/Windows/CloudFilterSyncProvider.cs`
-   - Implements all 8 interface methods using Cloud Filter API
-   - Registers sync root at `InitializeAsync`, creates placeholders via `CfCreatePlaceholders`, hydrates via `CfExecute` + chunk download, etc.
+2. **Step 5.2** — Wire VFS lifecycle in App.axaml.cs:
+   - `src/Clients/DotNetCloud.Client.SyncTray/App.axaml.cs`
+   - Call `IVirtualFileProvider.InitializeAsync()` on startup when `FilesOnDemand`
+   - Call `IVirtualFileProvider.ShutdownAsync()` on graceful shutdown
 
-3. **Step 3.3** — Wire up in DI:
-   - Replace `NoOpVirtualFileProvider` with `CloudFilterSyncProvider` in `ClientCoreServiceExtensions.cs` (Windows branch)
-   - Update `VirtualFileSyncEngine` integration as needed
+3. **Step 5.3** — VFS status in TrayViewModel:
+   - `src/Clients/DotNetCloud.Client.SyncTray/ViewModels/TrayViewModel.cs`
+   - Add `CloudOnlyFileCount`, `HydratedFileCount`, `CacheSizeBytes`, `IsHydrating` properties
+   - Show hydration progress indicator in tray UI
 
 **Prerequisites (already in place):**
 - `IVirtualFileProvider` interface (Phase 2)
-- `HydrationState` enum + `LocalFileRecord.HydrationState` (Phase 2)
+- `CloudFilterSyncProvider` on Windows (Phase 3)
 - `VirtualFileSettings` + `VirtualFileSyncEngine` (Phase 2)
-- Server: Range header + `metadataOnly` tree endpoint (Phase 1, deployed on `mint22`)
-- Build: 0 errors. Tests: full suite passes.
+- Build: 0 errors. Tests: 203/203 pass.
 
 **Pre-commit checklist:**
 - Run `dotnet build` — must succeed with 0 errors
@@ -113,7 +117,7 @@ All specs and code templates are in `docs/VIRTUAL_FILE_SYNCING_PLAN.md` — read
 - Delete any unexpected untracked files before committing
 
 **Post-completion:**
-- Update `docs/VIRTUAL_FILE_SYNCING_PLAN.md` — mark Phase 3 deliverables ✓
-- Update `docs/IMPLEMENTATION_CHECKLIST.md` — mark Phase 3 checkboxes ✓
-- Update `docs/MASTER_PROJECT_PLAN.md` — update VFS Phase 3 status + deliverables
+- Update `docs/VIRTUAL_FILE_SYNCING_PLAN.md` — mark Phase 5 deliverables ✓
+- Update `docs/IMPLEMENTATION_CHECKLIST.md` — mark Phase 5 checkboxes ✓
+- Update `docs/MASTER_PROJECT_PLAN.md` — update VFS Phase 5 status + deliverables
  
