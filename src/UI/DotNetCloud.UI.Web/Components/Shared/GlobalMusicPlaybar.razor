@@ -23,27 +23,39 @@
                 {
                     <img src="@MusicPlaybackState.GetAlbumArtUrl(Playback.NowPlaying.AlbumId.Value)" alt=""
                          onerror="this.style.display='none';this.nextElementSibling.style.display='block'" />
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none" style="display:none;width:100%;height:100%">
-                        <defs><linearGradient id="gmpbg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#cbd5e1"/><stop offset="100%" stop-color="#94a3b8"/></linearGradient></defs>
-                        <rect width="200" height="200" rx="12" fill="url(#gmpbg)"/>
-                        <circle cx="100" cy="96" r="56" fill="#475569" opacity="0.55"/>
-                        <circle cx="100" cy="96" r="12" fill="#cbd5e1"/>
-                        <circle cx="100" cy="96" r="4" fill="#475569"/>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none"
+                         style="display:none;width:100%;height:100%">
+                        <defs>
+                            <linearGradient id="gmpbg" x1="0" y1="0" x2="1" y2="1">
+                                <stop offset="0%" stop-color="#cbd5e1" />
+                                <stop offset="100%" stop-color="#94a3b8" />
+                            </linearGradient>
+                        </defs>
+                        <rect width="200" height="200" rx="12" fill="url(#gmpbg)" />
+                        <circle cx="100" cy="96" r="56" fill="#475569" opacity="0.55" />
+                        <circle cx="100" cy="96" r="12" fill="#cbd5e1" />
+                        <circle cx="100" cy="96" r="4" fill="#475569" />
                     </svg>
                 }
                 else
                 {
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none" style="width:100%;height:100%">
-                        <defs><linearGradient id="gmpbg2" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#cbd5e1"/><stop offset="100%" stop-color="#94a3b8"/></linearGradient></defs>
-                        <rect width="200" height="200" rx="12" fill="url(#gmpbg2)"/>
-                        <circle cx="100" cy="96" r="56" fill="#475569" opacity="0.55"/>
-                        <circle cx="100" cy="96" r="12" fill="#cbd5e1"/>
-                        <circle cx="100" cy="96" r="4" fill="#475569"/>
+                        <defs>
+                            <linearGradient id="gmpbg2" x1="0" y1="0" x2="1" y2="1">
+                                <stop offset="0%" stop-color="#cbd5e1" />
+                                <stop offset="100%" stop-color="#94a3b8" />
+                            </linearGradient>
+                        </defs>
+                        <rect width="200" height="200" rx="12" fill="url(#gmpbg2)" />
+                        <circle cx="100" cy="96" r="56" fill="#475569" opacity="0.55" />
+                        <circle cx="100" cy="96" r="12" fill="#cbd5e1" />
+                        <circle cx="100" cy="96" r="4" fill="#475569" />
                     </svg>
                 }
             </div>
             <div class="gmp-text">
-                <a class="gmp-title" href="" @onclick="NavigateToMusicPage" @onclick:preventDefault>@Playback.NowPlaying.Title</a>
+                <a class="gmp-title" href="" @onclick="NavigateToMusicPage"
+                   @onclick:preventDefault>@Playback.NowPlaying.Title</a>
                 <span class="gmp-artist-album">
                     <span>@Playback.NowPlaying.ArtistName</span>
                     @if (!string.IsNullOrEmpty(Playback.NowPlaying.AlbumTitle))
@@ -64,7 +76,8 @@
                     <span class="@(Playback.Shuffle ? "active-control" : "")">⇄</span>
                 </button>
                 <button class="gmp-btn" @onclick="PlayPreviousAsync" title="Previous">⏮</button>
-                <button class="gmp-btn gmp-play-pause" @onclick="TogglePlayPauseAsync" title="@(Playback.IsPlaying ? "Pause" : "Play")">
+                <button class="gmp-btn gmp-play-pause" @onclick="TogglePlayPauseAsync"
+                        title="@(Playback.IsPlaying ? "Pause" : "Play")">
                     @(Playback.IsPlaying ? "⏸" : "▶")
                 </button>
                 <button class="gmp-btn" @onclick="PlayNextAsync" title="Next">⏭</button>
@@ -73,137 +86,165 @@
                         @(Playback.Repeat == RepeatMode.One ? "🔂" : "🔁")
                     </span>
                 </button>
-                <span class="gmp-repeat-label">@(Playback.Repeat == RepeatMode.Off ? "Off" : Playback.Repeat == RepeatMode.All ? "All" : "One")</span>
-            </div>
-            <div class="gmp-progress">
-                <span class="gmp-time">@MusicPlaybackState.FormatDuration(Playback.PlaybackPosition)</span>
-                <div class="gmp-progress-bar" @onclick="SeekAsync">
-                    <div class="gmp-progress-fill" style="width: @Playback.GetProgressPercent()%"></div>
+                <span class="gmp-repeat-label">@(Playback.Repeat == RepeatMode.Off ? "Off" : Playback.Repeat ==
+                                    RepeatMode.All ? "All" : "One")</span>
                 </div>
-                <span class="gmp-time">@MusicPlaybackState.FormatDuration(Playback.NowPlaying.Duration)</span>
+                <div class="gmp-progress">
+                    <span class="gmp-time">@MusicPlaybackState.FormatDuration(Playback.PlaybackPosition)</span>
+                    <div class="gmp-progress-bar" @onclick="SeekAsync">
+                        <div class="gmp-progress-fill" style="width: @Playback.GetProgressPercent()%"></div>
+                    </div>
+                    <span class="gmp-time">@MusicPlaybackState.FormatDuration(Playback.NowPlaying.Duration)</span>
+                </div>
             </div>
-        </div>
 
-        <div class="gmp-extras">
-            <button class="gmp-btn" @onclick="Playback.ToggleQueue" title="Queue">
-                <span class="@(Playback.ShowQueue ? "active-control" : "")">☰</span>
-            </button>
-            <button class="gmp-btn" @onclick="ToggleEqualizerAsync" title="Equalizer">
-                <span class="@(Playback.ShowEqualizer ? "active-control" : "")">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
-                        <line x1="3" y1="14" x2="3" y2="5"/><line x1="8" y1="14" x2="8" y2="3"/><line x1="13" y1="14" x2="13" y2="7"/>
-                        <circle cx="3" cy="5" r="1.5" fill="currentColor" stroke="none"/><circle cx="8" cy="3" r="1.5" fill="currentColor" stroke="none"/><circle cx="13" cy="7" r="1.5" fill="currentColor" stroke="none"/>
-                    </svg>
-                </span>
-            </button>
-            <div class="gmp-volume">
-                <button class="gmp-btn" @onclick="ToggleMuteAsync" title="Volume">
-                    @(Playback.Muted ? "🔇" : Playback.Volume > 50 ? "🔊" : "🔉")
+            <div class="gmp-extras">
+                <button class="gmp-btn" @onclick="Playback.ToggleQueue" title="Queue">
+                    <span class="@(Playback.ShowQueue ? "active-control" : "")">☰</span>
                 </button>
-                <input type="range" min="0" max="100" value="@Playback.Volume"
-                       @oninput="OnVolumeChangedAsync" class="gmp-volume-slider" />
-            </div>
-            <button class="gmp-btn gmp-close-btn" @onclick="StopAsync" title="Stop">✕</button>
-        </div>
-    </div>
-
-    @* ─── Queue Slide-Out Panel ─── *@
-    @if (Playback.ShowQueue)
-    {
-        <aside class="gmp-queue-panel">
-            <div class="gmp-panel-header">
-                <h4>Play Queue</h4>
-                <button class="btn-icon" @onclick="Playback.ToggleQueue">✕</button>
-            </div>
-            <div class="gmp-queue-list">
-                @if (Playback.Queue.Count == 0)
-                {
-                    <p class="gmp-queue-empty">Queue is empty</p>
-                }
-                @foreach (var (track, index) in Playback.Queue.Select((t, i) => (t, i)))
-                {
-                    <div class="gmp-queue-item @(Playback.NowPlaying?.Id == track.Id ? "playing" : "")">
-                        <span class="gmp-queue-num">@(index + 1)</span>
-                        <div class="gmp-queue-info" @onclick="() => Playback.PlayQueueAt(index)" style="cursor:pointer">
-                            <span>@track.Title</span>
-                            <span class="gmp-queue-artist">@track.ArtistName</span>
-                        </div>
-                        <button class="gmp-queue-remove" @onclick="() => Playback.RemoveFromQueue(index)">✕</button>
-                    </div>
-                }
-            </div>
-        </aside>
-    }
-
-    @* ─── Equalizer Slide-Out Panel ─── *@
-    @if (Playback.ShowEqualizer)
-    {
-        <aside class="gmp-eq-panel">
-            <div class="gmp-panel-header">
-                <h4>Equalizer</h4>
-                <div class="gmp-eq-header-actions">
-                    <button class="btn-icon btn-small" title="Reset to flat" @onclick="ResetEqAsync">⟲</button>
-                    <button class="btn-icon btn-small" title="Save as preset" @onclick="Playback.ToggleSavePresetDialog">💾</button>
-                    <button class="btn-icon" @onclick="Playback.ToggleEqualizer">✕</button>
-                </div>
-            </div>
-            <div class="gmp-eq-presets">
-                @foreach (var preset in Playback.EqPresets)
-                {
-                    <span class="gmp-eq-preset-btn @(Playback.ActivePresetId == preset.Id ? "active" : "")">
-                        <button class="gmp-eq-preset-name"
-                                @onclick="() => ApplyPresetAsync(preset)">@preset.Name</button>
-                        <button class="gmp-eq-preset-default" title="Set as default EQ"
-                                @onclick="() => SetDefaultPresetAsync(preset)">✓</button>
-                        @if (!preset.IsBuiltIn)
-                        {
-                            <button class="gmp-eq-preset-delete" title="Delete preset"
-                                    @onclick="() => DeletePresetAsync(preset)">✕</button>
-                        }
+                <button class="gmp-btn" @onclick="ToggleEqualizerAsync" title="Equalizer">
+                    <span class="@(Playback.ShowEqualizer ? "active-control" : "")">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none"
+                             stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+                            <line x1="3" y1="14" x2="3" y2="5" />
+                            <line x1="8" y1="14" x2="8" y2="3" />
+                            <line x1="13" y1="14" x2="13" y2="7" />
+                            <circle cx="3" cy="5" r="1.5" fill="currentColor" stroke="none" />
+                            <circle cx="8" cy="3" r="1.5" fill="currentColor" stroke="none" />
+                            <circle cx="13" cy="7" r="1.5" fill="currentColor" stroke="none" />
+                        </svg>
                     </span>
-                }
-            </div>
-            <div class="gmp-eq-bands">
-                @for (int i = 0; i < Playback.EqBands.Length; i++)
-                {
-                    var bandIndex = i;
-                    <div class="gmp-eq-band">
-                        <input type="range" min="-12" max="12" step="0.5"
-                               value="@Playback.EqBands[bandIndex]"
-                               @oninput="(e) => OnEqBandChangedAsync(bandIndex, e)"
-                               orient="vertical" class="gmp-eq-slider" />
-                        <span class="gmp-eq-label">@MusicPlaybackState.BandLabels[bandIndex]</span>
-                    </div>
-                }
-            </div>
-        </aside>
-    }
-
-    @* ─── Save EQ Preset Dialog ─── *@
-    @if (Playback.ShowSavePresetDialog)
-    {
-        <div class="gmp-dialog-overlay" @onclick="Playback.ToggleSavePresetDialog">
-            <div class="gmp-dialog-panel" @onclick:stopPropagation="true">
-                <h4>Save EQ Preset</h4>
-                <div class="gmp-dialog-form">
-                    <label>Preset Name
-                        <input type="text" @bind="_newPresetName" placeholder="My Custom Preset" />
-                    </label>
+                </button>
+                <div class="gmp-volume">
+                    <button class="gmp-btn" @onclick="ToggleMuteAsync" title="Volume">
+                        @(Playback.Muted ? "🔇" : Playback.Volume > 50 ? "🔊" : "🔉")
+                    </button>
+                    <input type="range" min="0" max="100" value="@Playback.Volume" @oninput="OnVolumeChangedAsync"
+                           class="gmp-volume-slider" />
                 </div>
-                <div class="gmp-dialog-actions">
-                    <button class="btn-primary" @onclick="SavePresetAsync" disabled="@string.IsNullOrWhiteSpace(_newPresetName)">Save</button>
-                    <button class="btn-secondary" @onclick="Playback.ToggleSavePresetDialog">Cancel</button>
-                </div>
+                <button class="gmp-btn gmp-close-btn" @onclick="StopAsync" title="Stop">✕</button>
             </div>
         </div>
-    }
-}
+
+        @* ─── Queue Slide-Out Panel ─── *@
+        @if (Playback.ShowQueue)
+        {
+            <aside class="gmp-queue-panel">
+                <div class="gmp-panel-header">
+                    <h4>Play Queue</h4>
+                    <button class="btn-icon" @onclick="Playback.ToggleQueue">✕</button>
+                </div>
+                <div class="gmp-queue-list">
+                    @if (Playback.Queue.Count == 0)
+                    {
+                        <p class="gmp-queue-empty">Queue is empty</p>
+                    }
+                    @foreach (var (track, index) in Playback.Queue.Select((t, i) => (t, i)))
+                    {
+                        <div class="gmp-queue-item @(Playback.NowPlaying?.Id == track.Id ? "playing" : "")">
+                            <span class="gmp-queue-num">@(index + 1)</span>
+                            <div class="gmp-queue-info" @onclick="() => Playback.PlayQueueAt(index)" style="cursor:pointer">
+                                <span>@track.Title</span>
+                                <span class="gmp-queue-artist">@track.ArtistName</span>
+                            </div>
+                            <button class="gmp-queue-remove" @onclick="() => Playback.RemoveFromQueue(index)">✕</button>
+                        </div>
+                    }
+                </div>
+            </aside>
+        }
+
+        @* ─── Equalizer Slide-Out Panel ─── *@
+        @if (Playback.ShowEqualizer)
+        {
+            <aside class="gmp-eq-panel">
+                <div class="gmp-panel-header">
+                    <h4>Equalizer</h4>
+                    <div class="gmp-eq-header-actions">
+                        <button class="btn-icon btn-small" title="Reset to flat" @onclick="ResetEqAsync">⟲</button>
+                        <button class="btn-icon btn-small" title="Save as preset"
+                                @onclick="Playback.ToggleSavePresetDialog">💾</button>
+                        <button class="btn-icon" @onclick="Playback.ToggleEqualizer">✕</button>
+                    </div>
+                </div>
+                <div class="gmp-eq-presets">
+                    @foreach (var preset in Playback.EqPresets)
+                    {
+                        <span class="gmp-eq-preset-btn @(Playback.ActivePresetId == preset.Id ? "active" : "")">
+                            <button class="gmp-eq-preset-name" @onclick="() => ApplyPresetAsync(preset)">@preset.Name</button>
+                            <button class="gmp-eq-preset-default" title="Set as default EQ"
+                                    @onclick="() => SetDefaultPresetAsync(preset)">@(Playback.DefaultPresetId == preset.Id ? "☑" :
+                                "☐")</button>
+                                @if (!preset.IsBuiltIn)
+                                {
+                                    <button class="gmp-eq-preset-delete" title="Delete preset"
+                                            @onclick="() => DeletePresetAsync(preset)">✕</button>
+                                }
+                            </span>
+                        }
+                    </div>
+                    <div class="gmp-eq-bands">
+                        @for (int i = 0; i < Playback.EqBands.Length; i++)
+                        {
+                            var bandIndex = i;
+                            <div class="gmp-eq-band">
+                                <input type="range" min="-12" max="12" step="0.5" value="@Playback.EqBands[bandIndex]"
+                                       @oninput="(e) => OnEqBandChangedAsync(bandIndex, e)" orient="vertical" class="gmp-eq-slider" />
+                                <span class="gmp-eq-label">@MusicPlaybackState.BandLabels[bandIndex]</span>
+                            </div>
+                        }
+                    </div>
+                </aside>
+            }
+
+            @* ─── Save EQ Preset Dialog ─── *@
+            @if (Playback.ShowSavePresetDialog)
+            {
+                <div class="gmp-dialog-overlay" @onclick="Playback.ToggleSavePresetDialog">
+                    <div class="gmp-dialog-panel" @onclick:stopPropagation="true">
+                        <h4>Save EQ Preset</h4>
+                        <div class="gmp-dialog-form">
+                            <label>Preset Name
+                                <input type="text" @bind="_newPresetName" @bind:after="OnPresetNameChanged"
+                                       placeholder="My Custom Preset" />
+                            </label>
+
+                            @if (Playback.EqPresets.Count > 0)
+                            {
+                                <div class="gmp-dialog-preset-list">
+                                    <span class="gmp-dialog-preset-list-label">Or overwrite an existing preset:</span>
+                                    @foreach (var preset in Playback.EqPresets)
+                                    {
+                                        <div class="gmp-dialog-preset-item @(_selectedPresetId == preset.Id ? "selected" : "")"
+                                             @onclick="() => SelectPreset(preset)">
+                                            <span class="gmp-dialog-preset-name">@preset.Name</span>
+                                            @if (_selectedPresetId == preset.Id)
+                                            {
+                                                <span class="gmp-dialog-preset-check">✓</span>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+                        <div class="gmp-dialog-actions">
+                            <button class="btn btn-primary" @onclick="SavePresetAsync"
+                                    disabled="@string.IsNullOrWhiteSpace(_newPresetName)">
+                                @(_selectedPresetId.HasValue ? "Update" : "Save")
+                            </button>
+                            <button class="btn btn-secondary" @onclick="Playback.ToggleSavePresetDialog">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            }
+        }
 
 @code {
     private bool _musicModuleEnabled;
     private bool _jsInitialized;
     private DotNetObjectReference<GlobalMusicPlaybar>? _dotNetRef;
     private string _newPresetName = string.Empty;
+    private Guid? _selectedPresetId;
 
     // ── Settings persistence ──
     private const string SettingsModule = "dotnetcloud.music";
@@ -387,12 +428,32 @@
         try
         {
             var caller = await GetCallerAsync();
-            await Playback.SavePresetAsync(_newPresetName, caller);
+            await Playback.SavePresetAsync(_newPresetName, caller, _selectedPresetId);
             _newPresetName = string.Empty;
+            _selectedPresetId = null;
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to save EQ preset");
+        }
+    }
+
+    private void SelectPreset(EqPresetDto preset)
+    {
+        _selectedPresetId = preset.Id;
+        _newPresetName = preset.Name;
+    }
+
+    private void OnPresetNameChanged()
+    {
+        // Clear the preset selection if the user edits the name away from the selected preset's name
+        if (_selectedPresetId.HasValue)
+        {
+            var selected = Playback.EqPresets.FirstOrDefault(p => p.Id == _selectedPresetId.Value);
+            if (selected is null || _newPresetName != selected.Name)
+            {
+                _selectedPresetId = null;
+            }
         }
     }
 

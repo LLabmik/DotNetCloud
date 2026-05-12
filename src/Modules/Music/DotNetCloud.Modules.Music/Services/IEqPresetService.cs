@@ -23,6 +23,9 @@ public interface IEqPresetService
     /// <summary>Deletes a custom preset.</summary>
     Task DeletePresetAsync(Guid presetId, CallerContext caller, CancellationToken cancellationToken = default);
 
+    /// <summary>Returns the caller's active (default) EQ preset ID, or null if none set.</summary>
+    Task<Guid?> GetActivePresetIdAsync(CallerContext caller, CancellationToken cancellationToken = default);
+
     /// <summary>Sets the active equalizer preset for the caller.</summary>
     Task SetActivePresetAsync(Guid? presetId, CallerContext caller, CancellationToken cancellationToken = default);
 }

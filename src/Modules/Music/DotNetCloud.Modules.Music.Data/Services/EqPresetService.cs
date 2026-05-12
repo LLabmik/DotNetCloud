@@ -118,12 +118,23 @@ public sealed class EqPresetService : IEqPresetService
             .Include(p => p.ActiveEqPreset)
             .FirstOrDefaultAsync(p => p.UserId == userId, cancellationToken);
 
-        if (prefs is not null) return prefs;
+        if (prefs is not null)
+            return prefs;
 
         prefs = new UserMusicPreference { UserId = userId };
         _db.UserMusicPreferences.Add(prefs);
         await _db.SaveChangesAsync(cancellationToken);
         return prefs;
+    }
+
+    /// <summary>
+    /// Returns the user's active EQ preset ID, or null if none set.
+    /// </summary>
+    public async Task<Guid?> GetActivePresetIdAsync(CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        var prefs = await _db.UserMusicPreferences
+            .FirstOrDefaultAsync(p => p.UserId == caller.UserId, cancellationToken);
+        return prefs?.ActiveEqPresetId;
     }
 
     /// <summary>

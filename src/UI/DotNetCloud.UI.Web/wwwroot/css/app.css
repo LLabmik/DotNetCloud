@@ -6106,13 +6106,13 @@ textarea.form-control {
     font-size: 0.7rem;
     color: inherit;
     cursor: pointer;
-    opacity: 0;
+    opacity: 0.7;
     transition: opacity var(--transition, 200ms ease), background var(--transition, 200ms ease);
 }
 
 .gmp-eq-preset-btn:hover .gmp-eq-preset-default,
 .gmp-eq-preset-btn:hover .gmp-eq-preset-delete {
-    opacity: 0.7;
+    opacity: 1;
 }
 
 .gmp-eq-preset-default:hover,
@@ -6223,6 +6223,51 @@ textarea.form-control {
     justify-content: flex-end;
     gap: 8px;
     margin-top: 20px;
+}
+
+.gmp-dialog-preset-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 200px;
+    overflow-y: auto;
+    margin-top: 4px;
+}
+
+.gmp-dialog-preset-list-label {
+    font-size: 0.75rem;
+    color: var(--color-text-tertiary, #94a3b8);
+    margin-bottom: 2px;
+}
+
+.gmp-dialog-preset-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 10px;
+    border-radius: var(--radius, 8px);
+    cursor: pointer;
+    transition: background var(--transition, 200ms ease);
+    user-select: none;
+}
+
+.gmp-dialog-preset-item:hover {
+    background: var(--color-bg, #f5f7fa);
+}
+
+.gmp-dialog-preset-item.selected {
+    background: var(--color-primary-light, rgba(59, 130, 246, 0.1));
+    color: var(--color-primary, #3b82f6);
+    font-weight: 600;
+}
+
+.gmp-dialog-preset-name {
+    font-size: 0.8125rem;
+}
+
+.gmp-dialog-preset-check {
+    font-size: 0.75rem;
+    color: var(--color-primary, #3b82f6);
 }
 
 /* ── Responsive — Global music playbar ── */

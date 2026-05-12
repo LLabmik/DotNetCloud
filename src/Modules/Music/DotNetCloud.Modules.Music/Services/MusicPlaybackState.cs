@@ -60,6 +60,9 @@ public sealed class MusicPlaybackState
     /// <summary>The currently applied EQ preset ID, if any.</summary>
     public Guid? ActivePresetId { get; private set; }
 
+    /// <summary>The user's default EQ preset ID, if any.</summary>
+    public Guid? DefaultPresetId { get; private set; }
+
     /// <summary>Cached EQ presets list. Loaded lazily on first EQ panel open.</summary>
     public List<EqPresetDto> EqPresets { get; } = [];
 
@@ -122,7 +125,8 @@ public sealed class MusicPlaybackState
     /// </summary>
     public void PlayQueue(List<TrackDto> tracks)
     {
-        if (tracks.Count == 0) return;
+        if (tracks.Count == 0)
+            return;
         Queue.Clear();
         Queue.AddRange(tracks);
         QueueIndex = 0;
@@ -143,7 +147,8 @@ public sealed class MusicPlaybackState
     /// <summary>Sets the playing state explicitly.</summary>
     public void SetPlaying(bool playing)
     {
-        if (IsPlaying == playing) return;
+        if (IsPlaying == playing)
+            return;
         IsPlaying = playing;
         NotifyChanged();
     }
@@ -153,7 +158,8 @@ public sealed class MusicPlaybackState
     /// </summary>
     public TrackDto? PlayNext()
     {
-        if (Queue.Count == 0) return null;
+        if (Queue.Count == 0)
+            return null;
 
         if (Repeat == RepeatMode.One && NowPlaying is not null)
         {
@@ -196,7 +202,8 @@ public sealed class MusicPlaybackState
     /// </summary>
     public TrackDto? PlayPrevious()
     {
-        if (Queue.Count == 0) return null;
+        if (Queue.Count == 0)
+            return null;
 
         if (PlaybackPosition.TotalSeconds > 3)
         {
@@ -329,7 +336,8 @@ public sealed class MusicPlaybackState
         if (index >= 0 && index < Queue.Count)
         {
             Queue.RemoveAt(index);
-            if (index < QueueIndex) QueueIndex--;
+            if (index < QueueIndex)
+                QueueIndex--;
             NotifyChanged();
         }
     }
@@ -337,7 +345,8 @@ public sealed class MusicPlaybackState
     /// <summary>Jumps to and plays a specific index in the queue.</summary>
     public void PlayQueueAt(int index)
     {
-        if (index < 0 || index >= Queue.Count) return;
+        if (index < 0 || index >= Queue.Count)
+            return;
         QueueIndex = index;
         NowPlaying = Queue[index];
         IsPlaying = true;
@@ -384,12 +393,14 @@ public sealed class MusicPlaybackState
     /// <summary>Loads EQ presets from the database (cached after first call).</summary>
     public async Task LoadEqPresetsAsync(CallerContext caller)
     {
-        if (EqPresetsLoaded) return;
+        if (EqPresetsLoaded)
+            return;
         try
         {
             var presets = await _eqPresetService.ListPresetsAsync(caller);
             EqPresets.Clear();
             EqPresets.AddRange(presets);
+            DefaultPresetId = await _eqPresetService.GetActivePresetIdAsync(caller);
             EqPresetsLoaded = true;
         }
         catch
@@ -408,6 +419,10 @@ public sealed class MusicPlaybackState
             ActivePresetId = null;
             Array.Clear(EqBands);
         }
+        if (DefaultPresetId == presetId)
+        {
+            DefaultPresetId = null;
+        }
         NotifyChanged();
     }
 
@@ -415,13 +430,15 @@ public sealed class MusicPlaybackState
     public async Task SetDefaultPresetAsync(Guid presetId, CallerContext caller)
     {
         await _eqPresetService.SetActivePresetAsync(presetId, caller);
+        DefaultPresetId = presetId;
         var preset = EqPresets.Find(p => p.Id == presetId);
         if (preset is not null)
             ApplyPreset(preset);
+        NotifyChanged();
     }
 
-    /// <summary>Saves the current EQ bands as a named preset.</summary>
-    public async Task<EqPresetDto?> SavePresetAsync(string name, CallerContext caller)
+    /// <summary>Saves the current EQ bands as a named preset, or overwrites an existing one if <paramref name="presetId"/> is provided.</summary>
+    public async Task<EqPresetDto?> SavePresetAsync(string name, CallerContext caller, Guid? presetId = null)
     {
         var bands = new Dictionary<string, double>();
         for (int i = 0; i < EqBands.Length && i < BandLabels.Length; i++)
@@ -430,12 +447,27 @@ public sealed class MusicPlaybackState
         }
 
         var dto = new SaveEqPresetDto { Name = name.Trim(), Bands = bands };
-        var created = await _eqPresetService.CreatePresetAsync(dto, caller);
-        EqPresets.Add(created);
-        ActivePresetId = created.Id;
+
+        EqPresetDto result;
+        if (presetId.HasValue)
+        {
+            result = await _eqPresetService.UpdatePresetAsync(presetId.Value, dto, caller);
+            var idx = EqPresets.FindIndex(p => p.Id == presetId.Value);
+            if (idx >= 0)
+                EqPresets[idx] = result;
+            else
+                EqPresets.Add(result);
+        }
+        else
+        {
+            result = await _eqPresetService.CreatePresetAsync(dto, caller);
+            EqPresets.Add(result);
+        }
+
+        ActivePresetId = result.Id;
         ShowSavePresetDialog = false;
         NotifyChanged();
-        return created;
+        return result;
     }
 
     // ────────────────────────────────────────────────────────
@@ -470,7 +502,8 @@ public sealed class MusicPlaybackState
     /// <summary>Toggles the starred state of the currently playing track.</summary>
     public async Task ToggleStarNowPlayingAsync(CallerContext caller)
     {
-        if (NowPlaying is null) return;
+        if (NowPlaying is null)
+            return;
         await _playbackService.ToggleStarAsync(NowPlaying.Id, StarredItemType.Track, caller);
         NowPlaying = NowPlaying with { IsStarred = !NowPlaying.IsStarred };
         NotifyChanged();
@@ -479,7 +512,8 @@ public sealed class MusicPlaybackState
     /// <summary>Records a play event for the current track.</summary>
     public async Task RecordPlayAsync(CallerContext caller)
     {
-        if (NowPlaying is null) return;
+        if (NowPlaying is null)
+            return;
         await _playbackService.RecordPlayAsync(NowPlaying.Id, (int)NowPlaying.Duration.TotalSeconds, caller);
     }
 
@@ -490,7 +524,8 @@ public sealed class MusicPlaybackState
     /// <summary>Gets the current playback progress as a percentage (0–100).</summary>
     public double GetProgressPercent()
     {
-        if (NowPlaying is null || NowPlaying.Duration.TotalSeconds < 1) return 0;
+        if (NowPlaying is null || NowPlaying.Duration.TotalSeconds < 1)
+            return 0;
         return PlaybackPosition.TotalSeconds / NowPlaying.Duration.TotalSeconds * 100;
     }
 
