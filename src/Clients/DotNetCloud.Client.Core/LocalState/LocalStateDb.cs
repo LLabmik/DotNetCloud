@@ -613,6 +613,13 @@ public sealed class LocalStateDb : ILocalStateDb
         var pendingCols3 = await GetColumnNamesAsync(conn, "PendingOperations", cancellationToken);
         if (!pendingCols3.Contains("LinkTarget"))
             await ExecuteNonQueryAsync(conn, "ALTER TABLE PendingOperations ADD COLUMN LinkTarget TEXT NULL", cancellationToken);
+
+        // Add HydrationState column to FileRecords for virtual file (files on-demand) support
+        var fileRecordCols2 = await GetColumnNamesAsync(conn, "FileRecords", cancellationToken);
+        if (!fileRecordCols2.Contains("HydrationState"))
+            await ExecuteNonQueryAsync(conn,
+                "ALTER TABLE FileRecords ADD COLUMN HydrationState INTEGER NOT NULL DEFAULT 0",
+                cancellationToken);
     }
 
     private static async Task<HashSet<string>> GetColumnNamesAsync(SqliteConnection conn, string tableName, CancellationToken cancellationToken)

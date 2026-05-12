@@ -1,6 +1,25 @@
 namespace DotNetCloud.Client.Core.LocalState;
 
 /// <summary>
+/// Tracks whether a local file has its content downloaded (hydrated)
+/// or exists only as a metadata placeholder (cloud-only).
+/// </summary>
+public enum HydrationState
+{
+    /// <summary>Content is downloaded and available locally.</summary>
+    Hydrated = 0,
+
+    /// <summary>Metadata-only placeholder. Content downloads on first access.</summary>
+    CloudOnly = 1,
+
+    /// <summary>Content is downloaded and pinned — exempt from dehydration/eviction.</summary>
+    Pinned = 2,
+
+    /// <summary>Content is being downloaded right now.</summary>
+    Downloading = 3,
+}
+
+/// <summary>
 /// Tracks the sync state of a local file.
 /// </summary>
 public sealed class LocalFileRecord
@@ -31,4 +50,7 @@ public sealed class LocalFileRecord
 
     /// <summary>Symlink target path stored at last sync. Non-null only for symbolic link nodes.</summary>
     public string? LinkTarget { get; set; }
+
+    /// <summary>Virtual file hydration state. Defaults to Hydrated for backward compatibility.</summary>
+    public HydrationState HydrationState { get; set; } = HydrationState.Hydrated;
 }

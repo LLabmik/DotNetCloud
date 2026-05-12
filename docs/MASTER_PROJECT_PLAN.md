@@ -134,7 +134,7 @@
 | Closed System Mode          | 7       | 1         | 0           | 6       |
 | Demo Mode                   | 6       | 6         | 0           | 0       |
 | VFS Phase 1 (Server)        | 2       | 2         | 0           | 0       |
-| VFS Phase 2 (Core)          | 5       | 0         | 0           | 5       |
+| VFS Phase 2 (Core)          | 5       | 5         | 0           | 0       |
 | VFS Phase 3 (Windows)       | 3       | 0         | 0           | 3       |
 | VFS Phase 4 (Linux)         | 4       | 0         | 0           | 4       |
 | VFS Phase 5 (UI)            | 3       | 0         | 0           | 3       |
@@ -4169,3 +4169,68 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 - ✓ Backward compatible — existing clients unaffected
 
 **Notes:** Content hashes are omitted at the DTO construction level (not via JSON serialization attributes), so the full response shape is preserved but with null `contentHash` fields. This is simpler and more explicit than conditional serialization.
+
+### Section: VFS Phase 2 — Core Abstraction Layer
+
+**Status:** completed ✅  
+**Machine:** `Windows11-TestDNC`  
+**Depends on:** VFS Phase 1 (server-side prerequisites)  
+**Blocks:** VFS Phase 3 (Windows), VFS Phase 4 (Linux)
+
+#### Step: vfs-2.1 — Define `IVirtualFileProvider` Interface
+**Status:** completed ✅  
+**File created:** `src/Clients/DotNetCloud.Client.Core/VirtualFiles/IVirtualFileProvider.cs`  
+**Deliverables:**
+- ✓ `IVirtualFileProvider` interface with `InitializeAsync`, `CreatePlaceholdersAsync`, `HydrateFileAsync`, `DehydrateFileAsync`, `PinFileAsync`, `UnpinFileAsync`, `IsHydratedAsync`, `ShutdownAsync`
+- ✓ XML doc comments on all members
+- ✓ Inherits `IAsyncDisposable`
+
+**Notes:** Platform-agnostic interface. Real implementations (CloudFilterSyncProvider for Windows, FuseSyncFilesystem for Linux) deferred to Phases 3 and 4 respectively.
+
+#### Step: vfs-2.2 — Add `HydrationState` to `LocalFileRecord`
+**Status:** completed ✅  
+**Files modified:**
+- `src/Clients/DotNetCloud.Client.Core/LocalState/Entities/LocalFileRecord.cs`
+- `src/Clients/DotNetCloud.Client.Core/LocalState/LocalStateDb.cs`
+
+**Deliverables:**
+- ✓ `HydrationState` enum with values: `Hydrated(0)`, `CloudOnly(1)`, `Pinned(2)`, `Downloading(3)`
+- ✓ `LocalFileRecord.HydrationState` property added (default `Hydrated` for backward compat)
+- ✓ Schema evolution adds `HydrationState INTEGER NOT NULL DEFAULT 0` to `FileRecords` table
+
+**Notes:** Default `Hydrated` ensures existing databases (pre-VFS) treat all files as fully downloaded — no migration issues.
+
+#### Step: vfs-2.3 — Create `VirtualFileSettings`
+**Status:** completed ✅  
+**File created:** `src/Clients/DotNetCloud.Client.Core/VirtualFiles/VirtualFileSettings.cs`  
+**Deliverables:**
+- ✓ `VirtualFileSettings` class with `StorageMode`, `MaxCacheSizeBytes`, `PinList`
+- ✓ `VirtualFileStorageMode` enum (`DownloadAll(0)`, `FilesOnDemand(1)`)
+- ✓ `PinList` uses `StringComparer.OrdinalIgnoreCase` for case-insensitive path matching
+- ✓ JSON-serializable for persistence alongside existing settings
+
+**Notes:** Default storage mode is `DownloadAll` — existing behavior unchanged. Users opt into files on-demand.
+
+#### Step: vfs-2.4 — Create `VirtualFileSyncEngine`
+**Status:** completed ✅  
+**File created:** `src/Clients/DotNetCloud.Client.Core/VirtualFiles/VirtualFileSyncEngine.cs`  
+**Deliverables:**
+- ✓ `VirtualFileSyncEngine` class wrapping `ISyncEngine`
+- ✓ Event forwarding (`StatusChanged`, `FileTransferProgress`, `FileTransferComplete`)
+- ✓ Metadata-only sync awareness when `StorageMode == FilesOnDemand`
+- ✓ `SwitchModeAsync()` for `DownloadAll` ↔ `FilesOnDemand` transitions
+- ✓ `StartAsync` initializes `IVirtualFileProvider` in `FilesOnDemand` mode
+- ✓ `StopAsync` shuts down `IVirtualFileProvider`
+
+**Notes:** Phase 2 is the abstraction layer — `SyncAsync` in `FilesOnDemand` mode currently delegates to inner engine for placeholder creation. Full integration with the sync pipeline (placeholder creation from tree) will be refined in Phases 3/4 when platform providers exist.
+
+#### Step: vfs-2.5 — Register VFS Services in DI
+**Status:** completed ✅  
+**File modified:** `src/Clients/DotNetCloud.Client.Core/ClientCoreServiceExtensions.cs`  
+**Deliverables:**
+- ✓ `VirtualFileSettings` registered as singleton
+- ✓ `IVirtualFileProvider` registered as `NoOpVirtualFileProvider` (all platforms — Phase 2 stub)
+- ✓ `VirtualFileSyncEngine` registered as singleton
+- ✓ `NoOpVirtualFileProvider` stub for unsupported platforms
+
+**Notes:** Real platform providers (`CloudFilterSyncProvider` for Windows, `FuseSyncFilesystem` for Linux) will replace the stub in Phases 3 and 4 respectively.

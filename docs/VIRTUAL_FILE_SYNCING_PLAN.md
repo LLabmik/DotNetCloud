@@ -199,7 +199,7 @@ curl -I -H "Range: bytes=0-1023" \
 
 ---
 
-## Phase 2 — Core Abstraction Layer
+## Phase 2 — Core Abstraction Layer ✅
 
 **Machine:** `Windows11-TestDNC`  
 **Depends on:** Phase 1 (server ready)  
@@ -268,8 +268,8 @@ public interface IVirtualFileProvider : IAsyncDisposable
 
 **Deliverables:**
 
-- ☐ `IVirtualFileProvider` interface in `VirtualFiles/` namespace
-- ☐ XML doc comments on all members
+- ✓ `IVirtualFileProvider` interface in `VirtualFiles/` namespace
+- ✓ XML doc comments on all members
 
 ### Step 2.2 — Add `HydrationState` to `LocalFileRecord`
 
@@ -317,14 +317,14 @@ if (!fileRecordColumns.Contains("HydrationState"))
 
 **Files to modify:**
 
-- ☐ `src/Clients/DotNetCloud.Client.Core/LocalState/Entities/LocalFileRecord.cs` — add `HydrationState` property
-- ☐ `src/Clients/DotNetCloud.Client.Core/LocalState/LocalStateDb.cs` — add schema evolution step
+- ✓ `src/Clients/DotNetCloud.Client.Core/LocalState/Entities/LocalFileRecord.cs` — add `HydrationState` property
+- ✓ `src/Clients/DotNetCloud.Client.Core/LocalState/LocalStateDb.cs` — add schema evolution step
 
 **Deliverables:**
 
-- ☐ `HydrationState` enum defined
-- ☐ `LocalFileRecord.HydrationState` property added (default `Hydrated` for backward compat)
-- ☐ Schema evolution adds `HydrationState` column to existing databases
+- ✓ `HydrationState` enum defined
+- ✓ `LocalFileRecord.HydrationState` property added (default `Hydrated` for backward compat)
+- ✓ Schema evolution adds `HydrationState` column to existing databases
 
 ### Step 2.3 — Create `VirtualFileSettings`
 
@@ -364,9 +364,9 @@ public enum VirtualFileStorageMode
 
 **Deliverables:**
 
-- ☐ `VirtualFileSettings` class with `StorageMode`, `MaxCacheSizeBytes`, `PinList`
-- ☐ `VirtualFileStorageMode` enum
-- ☐ JSON-serializable for persistence alongside existing settings
+- ✓ `VirtualFileSettings` class with `StorageMode`, `MaxCacheSizeBytes`, `PinList`
+- ✓ `VirtualFileStorageMode` enum
+- ✓ JSON-serializable for persistence alongside existing settings
 
 ### Step 2.4 — Create `VirtualFileSyncEngine`
 
@@ -397,11 +397,11 @@ This wraps `ISyncEngine` and delegates to `IVirtualFileProvider` for VFS-specifi
 
 **Deliverables:**
 
-- ☐ `VirtualFileSyncEngine` class wrapping `ISyncEngine`
-- ☐ Metadata-only sync pass when `StorageMode == FilesOnDemand`
-- ☐ `HydrateFileAsync()` using `ChunkedTransferClient`
-- ☐ Mode switch logic (`DownloadAll` ↔ `FilesOnDemand`)
-- ☐ Unit test coverage for mode switching
+- ✓ `VirtualFileSyncEngine` class wrapping `ISyncEngine`
+- ✓ Metadata-only sync pass when `StorageMode == FilesOnDemand`
+- ✓ `HydrateFileAsync()` using `ChunkedTransferClient`
+- ✓ Mode switch logic (`DownloadAll` ↔ `FilesOnDemand`)
+- ☐ Unit test coverage for mode switching (deferred to Phase 6)
 
 ### Step 2.5 — Register VFS Services in DI
 
@@ -426,10 +426,10 @@ services.AddSingleton<VirtualFileSyncEngine>();
 
 **Deliverables:**
 
-- ☐ `IVirtualFileProvider` registered per platform
-- ☐ `VirtualFileSettings` registered as singleton
-- ☐ `VirtualFileSyncEngine` registered as singleton
-- ☐ `NoOpVirtualFileProvider` stub for unsupported platforms (macOS for now)
+- ✓ `IVirtualFileProvider` registered per platform (NoOpVirtualFileProvider stub for all platforms in Phase 2)
+- ✓ `VirtualFileSettings` registered as singleton
+- ✓ `VirtualFileSyncEngine` registered as singleton
+- ✓ `NoOpVirtualFileProvider` stub for unsupported platforms (macOS for now)
 
 ---
 

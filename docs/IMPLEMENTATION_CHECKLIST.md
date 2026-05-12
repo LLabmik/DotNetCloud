@@ -5537,13 +5537,13 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `BuildTreeNodeAsync` skips `ContentHash` when `metadataOnly=true`
 - ✓ `SyncController.GetTreeAsync` accepts and forwards `metadataOnly` parameter
 
-### Phase 2 — Core Abstraction Layer
-- ☐ `IVirtualFileProvider` interface
-- ☐ `HydrationState` enum + `LocalFileRecord.HydrationState` property
-- ☐ Schema evolution for `HydrationState` column
-- ☐ `VirtualFileSettings` class
-- ☐ `VirtualFileSyncEngine` class
-- ☐ DI registration for VFS services
+### Phase 2 — Core Abstraction Layer ✅
+- ✓ `IVirtualFileProvider` interface in `VirtualFiles/` namespace with XML doc comments
+- ✓ `HydrationState` enum + `LocalFileRecord.HydrationState` property
+- ✓ Schema evolution for `HydrationState` column in `LocalStateDb.RunSchemaEvolutionAsync`
+- ✓ `VirtualFileSettings` class + `VirtualFileStorageMode` enum
+- ✓ `VirtualFileSyncEngine` class wrapping `ISyncEngine` with mode switch logic
+- ✓ DI registration + `NoOpVirtualFileProvider` stub for unsupported platforms
 
 ### Phase 3 — Windows Implementation
 - ☐ P/Invoke wrappers for Cloud Filter API

@@ -8,6 +8,7 @@ using DotNetCloud.Client.Core.Services;
 using DotNetCloud.Client.Core.Sync;
 using DotNetCloud.Client.Core.SyncIgnore;
 using DotNetCloud.Client.Core.Transfer;
+using DotNetCloud.Client.Core.VirtualFiles;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DotNetCloud.Client.Core;
@@ -19,7 +20,7 @@ public static class ClientCoreServiceExtensions
 {
     /// <summary>
     /// Adds Client.Core services (API client, auth, sync engine, transfer, conflict resolver,
-    /// local state DB, and selective sync config) to the service collection.
+    /// local state DB, selective sync config, and virtual file system) to the service collection.
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <param name="tokenStoreDirectory">Directory for secure token storage.</param>
@@ -62,6 +63,17 @@ public static class ClientCoreServiceExtensions
 
         // Update checking service (public endpoint — no auth required).
         services.AddHttpClient<IClientUpdateService, ClientUpdateService>();
+
+        // ── Virtual file system (files on-demand) ────────────────────────
+        services.AddSingleton<VirtualFileSettings>();
+
+        // Platform-specific IVirtualFileProvider
+        // Phase 2: NoOpVirtualFileProvider for all platforms.
+        // Phase 3 will replace with CloudFilterSyncProvider on Windows.
+        // Phase 4 will replace with FuseSyncFilesystem on Linux.
+        services.AddSingleton<IVirtualFileProvider, NoOpVirtualFileProvider>();
+
+        services.AddSingleton<VirtualFileSyncEngine>();
 
         return services;
     }

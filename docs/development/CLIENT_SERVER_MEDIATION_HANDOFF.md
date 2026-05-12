@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 20260512 (VFS Phase 1 complete — server-side prerequisites deployed on mint22)
+Last updated: 20260512 (VFS Phase 2 complete — core abstraction layer implemented on Windows11-TestDNC)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -48,6 +48,13 @@ Archived context:
 
 - All prior Phase 2, chat, pre-Linux sync remediation, SyncTray icon enhancement work is complete and archived.
 - VFS Phase 1 (server-side prerequisites) complete on `mint22`. Range header support and `metadataOnly` tree endpoint deployed.
+- VFS Phase 2 (core abstraction layer) complete on `Windows11-TestDNC`:
+  - `IVirtualFileProvider` interface defined with 8 methods + XML doc comments
+  - `HydrationState` enum + `LocalFileRecord.HydrationState` property + schema evolution
+  - `VirtualFileSettings` class + `VirtualFileStorageMode` enum
+  - `VirtualFileSyncEngine` wrapping `ISyncEngine` with mode switch logic
+  - `NoOpVirtualFileProvider` stub + DI registration in `ClientCoreServiceExtensions`
+  - Build: 0 errors. Tests: 203/203 pass (Client.Core), full suite passes.
 
 ## Environment
 
@@ -69,36 +76,36 @@ Archived context:
 
 ## Active Handoff
 
-**Status:** VFS Phase 2 ready for `Windows11-TestDNC` (2026-05-12)  
-**Blocked by:** nothing — Phase 1 (server-side) complete and deployed on `mint22`  
-**Blocks:** Phase 3 (Windows Cloud Filter), Phase 4 (Linux FUSE)
+**Status:** VFS Phase 3 ready for `Windows11-TestDNC` (2026-05-12)  
+**Blocked by:** nothing — Phase 2 (core abstractions) complete  
+**Blocks:** Phase 4 (Linux FUSE), Phase 5 (SyncTray UI)
 
-### Task: Implement Phase 2 — Core Abstraction Layer
+### Task: Implement Phase 3 — Windows Cloud Filter API Provider
 
-All specs and code templates are in `docs/VIRTUAL_FILE_SYNCING_PLAN.md` — read the Phase 2 section.
+All specs and code templates are in `docs/VIRTUAL_FILE_SYNCING_PLAN.md` — read the Phase 3 section.
 
-**What to implement (5 steps):**
+**What to implement (3 steps):**
 
-1. **Step 2.1** — Create `IVirtualFileProvider` interface in `src/Clients/DotNetCloud.Client.Core/VirtualFiles/IVirtualFileProvider.cs`. Copy the full interface from the plan (includes `InitializeAsync`, `CreatePlaceholdersAsync`, `HydrateFileAsync`, `DehydrateFileAsync`, `PinFileAsync`, `UnpinFileAsync`, `IsHydratedAsync`, `ShutdownAsync`).
+1. **Step 3.1** — Create P/Invoke wrappers for Cloud Filter API (`cfapi.dll`):
+   - `src/Clients/DotNetCloud.Client.Core/Platform/Windows/CfApi/CfApiNative.cs` — `[DllImport]` wrappers for essential functions
+   - `src/Clients/DotNetCloud.Client.Core/Platform/Windows/CfApi/CfApiTypes.cs` — structs, enums, and constants
+   - Key functions: `CfRegisterSyncRoot`, `CfCreatePlaceholders`, `CfExecute`, `CfSetPinState`, `CfUpdatePlaceholder`, `CfUnregisterSyncRoot`
 
-2. **Step 2.2** — Add `HydrationState` enum and `HydrationState` property to `LocalFileRecord`:
-   - `src/Clients/DotNetCloud.Client.Core/LocalState/Entities/LocalFileRecord.cs` — add `HydrationState` property (default `Hydrated`)
-   - `src/Clients/DotNetCloud.Client.Core/LocalState/LocalStateDb.cs` — add schema evolution for `HydrationState` column (`ALTER TABLE FileRecords ADD COLUMN HydrationState INTEGER NOT NULL DEFAULT 0`)
-   - Enum: `Hydrated=0`, `CloudOnly=1`, `Pinned=2`, `Downloading=3`
+2. **Step 3.2** — Create `CloudFilterSyncProvider : IVirtualFileProvider`:
+   - `src/Clients/DotNetCloud.Client.Core/Platform/Windows/CloudFilterSyncProvider.cs`
+   - Implements all 8 interface methods using Cloud Filter API
+   - Registers sync root at `InitializeAsync`, creates placeholders via `CfCreatePlaceholders`, hydrates via `CfExecute` + chunk download, etc.
 
-3. **Step 2.3** — Create `VirtualFileSettings` class in `src/Clients/DotNetCloud.Client.Core/VirtualFiles/VirtualFileSettings.cs` with `StorageMode` (DownloadAll/FilesOnDemand enum), `MaxCacheSizeBytes` (long), `PinList` (HashSet<string>).
+3. **Step 3.3** — Wire up in DI:
+   - Replace `NoOpVirtualFileProvider` with `CloudFilterSyncProvider` in `ClientCoreServiceExtensions.cs` (Windows branch)
+   - Update `VirtualFileSyncEngine` integration as needed
 
-4. **Step 2.4** — Create `VirtualFileSyncEngine` in `src/Clients/DotNetCloud.Client.Core/VirtualFiles/VirtualFileSyncEngine.cs`. Wraps `ISyncEngine`. Key behaviors documented in plan table (metadata-only sync, on-demand hydration, mode switch, etc.).
-
-5. **Step 2.5** — Register VFS services in DI in `src/Clients/DotNetCloud.Client.Core/ClientCoreServiceExtensions.cs`:
-   - `VirtualFileSettings` as singleton
-   - `IVirtualFileProvider` per platform (use `NoOpVirtualFileProvider` stub for now — platforms get real impls in Phase 3/4)
-   - `VirtualFileSyncEngine` as singleton
-   - Create `NoOpVirtualFileProvider` stub for unsupported platforms
-
-**Server-side prerequisites (already deployed on mint22):**
-- `GET /api/v1/files/chunks/{chunkHash}` — now supports `Range` header (returns 206 Partial Content)
-- `GET /api/v1/sync/tree?metadataOnly=true` — returns tree without `contentHash` fields
+**Prerequisites (already in place):**
+- `IVirtualFileProvider` interface (Phase 2)
+- `HydrationState` enum + `LocalFileRecord.HydrationState` (Phase 2)
+- `VirtualFileSettings` + `VirtualFileSyncEngine` (Phase 2)
+- Server: Range header + `metadataOnly` tree endpoint (Phase 1, deployed on `mint22`)
+- Build: 0 errors. Tests: full suite passes.
 
 **Pre-commit checklist:**
 - Run `dotnet build` — must succeed with 0 errors
@@ -106,8 +113,7 @@ All specs and code templates are in `docs/VIRTUAL_FILE_SYNCING_PLAN.md` — read
 - Delete any unexpected untracked files before committing
 
 **Post-completion:**
-- Update `docs/VIRTUAL_FILE_SYNCING_PLAN.md` — mark Phase 2 deliverables ✓
-- Update `docs/IMPLEMENTATION_CHECKLIST.md` — mark Phase 2 checkboxes ✓
-- Update `docs/MASTER_PROJECT_PLAN.md` — update VFS Phase 2 status + deliverables
-- Update this Active Handoff for the next phase
+- Update `docs/VIRTUAL_FILE_SYNCING_PLAN.md` — mark Phase 3 deliverables ✓
+- Update `docs/IMPLEMENTATION_CHECKLIST.md` — mark Phase 3 checkboxes ✓
+- Update `docs/MASTER_PROJECT_PLAN.md` — update VFS Phase 3 status + deliverables
  
