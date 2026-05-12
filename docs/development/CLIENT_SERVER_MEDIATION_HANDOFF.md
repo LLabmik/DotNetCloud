@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 20260512 (VFS Phase 5 complete — SyncTray UI Integration on Windows11-TestDNC)
+Last updated: 20260512 (VFS Phase 6 complete — Testing & Validation on Windows11-TestDNC)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -53,13 +53,12 @@ Archived context:
 - VFS Phase 2 (core abstraction layer) complete on `Windows11-TestDNC`.
 - VFS Phase 3 (Windows Cloud Filter API) complete on `Windows11-TestDNC`.
 - VFS Phase 4 (Linux FUSE) — `FuseSyncFilesystem` stub exists in DI; full implementation pending on `mint-dnc-client`.
-- VFS Phase 5 (SyncTray UI Integration) complete on `Windows11-TestDNC`:
-  - Storage Mode setting in SettingsViewModel + General tab radio buttons
-  - `MessageBoxDialog` for mode switch confirmation
-  - VFS lifecycle wired in `App.axaml.cs` (initialize on startup, shutdown on exit)
-  - VFS status indicators in TrayViewModel (cloud-only/hydrated counts, tooltip)
-  - 30-second periodic refresh from LocalStateDb
-  - Build: 0 errors. Tests: 106/106 pass (SyncTray). 203/203 pass (Client.Core).
+- VFS Phase 5 (SyncTray UI Integration) complete on `Windows11-TestDNC` (archived).
+- VFS Phase 6 (Testing & Validation) complete on `Windows11-TestDNC`:
+  - 50 unit tests (51 total, 1 inconclusive for Linux FUSE)
+  - `LruCacheManager` class created + DI registered
+  - Windows/Linux/E2E test scenarios documented
+  - Build: 0 errors. Tests: Core 435, Client.Core 253/254, SyncTray 106.
 
 ## Environment
 
@@ -81,55 +80,57 @@ Archived context:
 
 ## Active Handoff
 
-**Status:** VFS Phase 6 ready for `Windows11-TestDNC` (2026-05-12)  
-**Blocked by:** nothing — Phase 5 (SyncTray UI) complete  
-**Blocks:** nothing (final VFS validation phase)
+**Status:** VFS Phase 4 (Linux FUSE) ready for `mint-dnc-client` (2026-05-12)  
+**Blocked by:** nothing — VFS Phase 3 (Windows), Phase 5 (UI), Phase 6 (Testing) complete  
+**Blocks:** VFS manual integration testing (Steps 6.2-6.4)
 
-### Task: Implement Phase 6 — Testing & Validation
+### Task: Implement VFS Phase 4 — Linux FUSE Filesystem
 
-All specs and test scenarios are in `docs/VIRTUAL_FILE_SYNCING_PLAN.md` — read the Phase 6 section.
+All specs and design details are in `docs/VIRTUAL_FILE_SYNCING_PLAN.md` — read the Phase 4 section.
 
 **What to implement:**
 
-1. **Step 6.1** — Unit Tests (15+ tests in `tests/DotNetCloud.Client.Core.Tests/VirtualFiles/`):
-   - `VirtualFileSyncEngineTests.cs` — mode switching, placeholder creation, hydration dispatch
-   - `VirtualFileSettingsTests.cs` — serialization, pin list management
-   - `CloudFilterSyncProviderTests.cs` — with mocked CfApi (unit-testable logic only)
-   - Key scenarios: SyncAsync/FilesOnDemand creates placeholders, ModeSwitch hydration/dehydration, HydrateFile/AlreadyHydrated skips, DehydrateFile/Pinned no-ops
+1. **Step 4.1** — FUSE dependency & project setup:
+   - Add `Tmds.Fuse` NuGet package (Linux-conditional in `DotNetCloud.Client.Core.csproj`)
+   - Add `fusermount`/`fuse3` dependency check in app startup
+   - Create `src/Clients/DotNetCloud.Client.Core/Platform/Linux/` directory structure
 
-2. **Step 6.2** — Windows Integration Tests (environment-gated: Windows 10 1709+):
-   - Manual test scenarios TC-VFS-W1 through TC-VFS-W11
-   - Register sync root, cloud-only placeholders, on-demand hydration, pin/free-up, mode switches
+2. **Step 4.2** — `FuseSyncFilesystem : IVirtualFileProvider`:
+   - Implement `InitializeAsync` — mount FUSE at sync folder
+   - Implement `CreatePlaceholdersAsync` — show full directory listing via FUSE getattr/readdir
+   - Implement `HydrateFileAsync` — download content on file open (FUSE read operation)
+   - Implement `DehydrateFileAsync` — replace content with placeholder (metadata-only)
+   - Implement `PinFileAsync` / `UnpinFileAsync` — update pin list
+   - Implement `IsHydratedAsync` — check if file has local content
+   - Implement `ShutdownAsync` — unmount via `fusermount -u`
 
-3. **Step 6.3** — Linux Integration Tests (environment-gated: Linux + fuse3):
-   - Manual test scenarios for FUSE filesystem
-   - Assign to `mint-dnc-client` when Linux provider is ready
+3. **Step 4.3** — Content cache with `LruCacheManager`:
+   - Cache recently-accessed file chunks
+   - Evict LRU entries when over `MaxCacheSizeBytes`
+   - Pin list exemption from eviction
+   - Wire cache into FUSE read path
 
-**Deliverables:**
-- ☐ 15+ unit tests covering VirtualFileSyncEngine, settings
-- ☐ All tests pass: `dotnet test tests/DotNetCloud.Client.Core.Tests/`
-- ☐ Windows integration test scenarios documented
-- ☐ Linux integration test scenarios documented (deferred to Phase 4 completion)
-   - Call `IVirtualFileProvider.ShutdownAsync()` on graceful shutdown
+4. **Step 4.4** — Installer integration:
+   - Check `fuse3` availability and print clear error if missing
+   - Add user to `fuse` group if needed
+   - Update `scripts/install.sh` with FUSE dependency
 
-3. **Step 5.3** — VFS status in TrayViewModel:
-   - `src/Clients/DotNetCloud.Client.SyncTray/ViewModels/TrayViewModel.cs`
-   - Add `CloudOnlyFileCount`, `HydratedFileCount`, `CacheSizeBytes`, `IsHydrating` properties
-   - Show hydration progress indicator in tray UI
-
-**Prerequisites (already in place):**
-- `IVirtualFileProvider` interface (Phase 2)
-- `CloudFilterSyncProvider` on Windows (Phase 3)
-- `VirtualFileSettings` + `VirtualFileSyncEngine` (Phase 2)
-- Build: 0 errors. Tests: 203/203 pass.
+**Reference files (already on main):**
+- `src/Clients/DotNetCloud.Client.Core/VirtualFiles/IVirtualFileProvider.cs` — interface
+- `src/Clients/DotNetCloud.Client.Core/VirtualFiles/VirtualFileSyncEngine.cs` — engine wrapper
+- `src/Clients/DotNetCloud.Client.Core/VirtualFiles/VirtualFileSettings.cs` — settings
+- `src/Clients/DotNetCloud.Client.Core/VirtualFiles/LruCacheManager.cs` — cache (created in Phase 6)
+- `src/Clients/DotNetCloud.Client.Core/Platform/Windows/CloudFilterSyncProvider.cs` — reference implementation
+- `tests/DotNetCloud.Client.Core.Tests/VirtualFiles/FuseSyncFilesystemTests.cs` — contract tests
 
 **Pre-commit checklist:**
 - Run `dotnet build` — must succeed with 0 errors
-- Run `dotnet test` — all tests must pass
+- Run `dotnet test tests/DotNetCloud.Client.Core.Tests/` — all tests must pass
+- Run `dotnet test tests/DotNetCloud.Client.Client.SyncTray.Tests/` — all tests must pass
 - Delete any unexpected untracked files before committing
 
 **Post-completion:**
-- Update `docs/VIRTUAL_FILE_SYNCING_PLAN.md` — mark Phase 5 deliverables ✓
-- Update `docs/IMPLEMENTATION_CHECKLIST.md` — mark Phase 5 checkboxes ✓
-- Update `docs/MASTER_PROJECT_PLAN.md` — update VFS Phase 5 status + deliverables
+- Update `docs/VIRTUAL_FILE_SYNCING_PLAN.md` — mark Phase 4 deliverables ✓
+- Update `docs/IMPLEMENTATION_CHECKLIST.md` — mark Phase 4 checkboxes ✓
+- Update `docs/MASTER_PROJECT_PLAN.md` — update VFS Phase 4 status + deliverables
  

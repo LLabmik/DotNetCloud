@@ -29,6 +29,40 @@ TC-1.54 (100MB+ file upload retest) **PASSED** on Windows. Bug found during test
 
 ---
 
+## Archived: VFS Phase 5 — SyncTray UI Integration (2026-05-12)
+
+**Original target:** Windows11-TestDNC
+
+Completed deliverables:
+- Storage Mode setting in SettingsViewModel + General tab radio buttons
+- `MessageBoxDialog` for mode switch confirmation
+- VFS lifecycle wired in `App.axaml.cs` (initialize on startup, shutdown on exit)
+- VFS status indicators in TrayViewModel (cloud-only/hydrated counts, tooltip)
+- 30-second periodic refresh from LocalStateDb
+- Build: 0 errors. Tests: 106/106 pass (SyncTray). 203/203 pass (Client.Core).
+
+---
+
+## Archived: VFS Phase 6 — Testing & Validation (2026-05-12)
+
+**Original target:** Windows11-TestDNC
+
+Completed deliverables:
+- 50 unit tests (51 total, 1 inconclusive for Linux FUSE) in `tests/DotNetCloud.Client.Core.Tests/VirtualFiles/`
+  - `VirtualFileSyncEngineTests.cs` (17 tests): mode switching, sync delegates, shutdown, event forwarding
+  - `VirtualFileSettingsTests.cs` (10 tests): defaults, JSON round-trip, PinList
+  - `LruCacheManagerTests.cs` (12 tests): put/get, size tracking, LRU eviction, pin exemption
+  - `CloudFilterSyncProviderTests.cs` (8 tests): constructor, double-dispose, dispose guards
+  - `FuseSyncFilesystemTests.cs` (4 tests): contract validation (1 inconclusive — FUSE not yet implemented)
+- `LruCacheManager` class created + DI registered
+- Windows integration test scenarios documented (TC-VFS-W1 through W11)
+- Linux integration test scenarios documented (TC-VFS-L1 through L11)
+- Cross-machine E2E test scenarios documented (TC-VFS-E2E-1 through 4)
+- Build validation: Debug 0 errors/warnings, Release 0 errors/warnings
+- All tests pass: Core 435, Client.Core 253/254 (1 deferred), SyncTray 106
+
+---
+
 ## Archived: WS-4 API Verification Bootstrap — Token Acquisition Investigation COMPLETE (2026-03-25)
 
 **Original target:** monolith (Windows 11)
