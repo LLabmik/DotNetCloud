@@ -734,7 +734,7 @@ public sealed class LibraryScanService
         try
         {
             return await _db.Database
-                .SqlQueryRaw<string>(@"SELECT ""ContentHash"" FROM core.""FileNodes"" WHERE ""Id"" = {0}", fileNodeId)
+                .SqlQueryRaw<string>(@"SELECT ""ContentHash"" AS ""Value"" FROM core.""FileNodes"" WHERE ""Id"" = {0}", fileNodeId)
                 .FirstOrDefaultAsync(cancellationToken);
         }
         catch (Exception ex)
