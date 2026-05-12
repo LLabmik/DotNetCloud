@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 20260329 (SyncTray icon enhancement — add status symbols to tray icons)
+Last updated: 20260512 (VFS Phase 1 complete — server-side prerequisites deployed on mint22)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -46,22 +46,8 @@ Archived context:
 
 ## Current Status
 
-- All prior Phase 2, chat, and pre-Linux sync remediation work is complete and archived.
-- P0 server-side sync hardening deployed and verified on `mint22`.
-- Upload hardening story: CLOSED (2026-03-15). All machines verified.
-- Deletion propagation story: **CLOSED** (2026-03-16). All three machines verified.
-  - Linux client (`mint-dnc-client`): verified 2026-03-16 ~03:00Z
-  - Windows client (`Windows11-TestDNC`): verified 2026-03-16 ~08:16Z. Bug fixed: `RemoveFileRecordsUnderPathAsync` path separator on Windows.
-  - Server (`mint22`): confirmed stable 2026-03-16. Zero ERR entries, both nodes soft-deleted, no 5xx.
-- Duplicate controller fix: CLOSED (2026-03-18). Deployed and verified on `mint22`. Files endpoint returns 401, service healthy.
-- Windows IIS + Service Validation: **COMPLETE** (2026-03-21). Three startup blockers resolved. IIS reverse proxy configured and verified (URL Rewrite + ARR). HTTP (port 80) and HTTPS (port 443) both proxy to Kestrel :5080. Self-signed localhost cert bound.
-- File browser child count fix: **DEPLOYED** (2026-03-21). `mint22` redeployed; service stable.
-- `mint22` connectivity diagnosis: **COMPLETE** (2026-03-22). Current deployment listens directly on HTTPS `:5443`; no listener exists on `:15443`.
-- Security audit desktop client validation on `Windows11-TestDNC`: **COMPLETE** (2026-03-23).
-- Security audit closeout + merge validation on `mint22`: **COMPLETE** (2026-03-23).
-- Post-closeout Windows runtime smoke: **COMPLETE** (2026-03-23). 4/4 targeted tests passed; login launch path verified reachable.
-- **Active cycle (20260328–20260329):** WS-4 live verification 58/66 passed. Windows Phase C complete (8 pass, 2 deferred, 1 skip). Linux Phase C complete (10 pass, 1 skip). Both deferred Windows tests (TC-1.52 conflict, TC-1.53 offline) passed on Linux.
-- **Current (20260329):** SyncTray icon enhancement — symbol overlays verified on Linux. 85/85 tests pass. Visual + programmatic verification complete.
+- All prior Phase 2, chat, pre-Linux sync remediation, SyncTray icon enhancement work is complete and archived.
+- VFS Phase 1 (server-side prerequisites) complete on `mint22`. Range header support and `metadataOnly` tree endpoint deployed.
 
 ## Environment
 
@@ -83,8 +69,45 @@ Archived context:
 
 ## Active Handoff
 
-**Status:** IDLE — no pending handoff
-**Last completed:** SyncTray icon enhancement Linux verification (2026-03-29)
+**Status:** VFS Phase 2 ready for `Windows11-TestDNC` (2026-05-12)  
+**Blocked by:** nothing — Phase 1 (server-side) complete and deployed on `mint22`  
+**Blocks:** Phase 3 (Windows Cloud Filter), Phase 4 (Linux FUSE)
 
-All icon symbol overlays verified on Linux. 85/85 tests pass. No outstanding cross-machine work.
+### Task: Implement Phase 2 — Core Abstraction Layer
+
+All specs and code templates are in `docs/VIRTUAL_FILE_SYNCING_PLAN.md` — read the Phase 2 section.
+
+**What to implement (5 steps):**
+
+1. **Step 2.1** — Create `IVirtualFileProvider` interface in `src/Clients/DotNetCloud.Client.Core/VirtualFiles/IVirtualFileProvider.cs`. Copy the full interface from the plan (includes `InitializeAsync`, `CreatePlaceholdersAsync`, `HydrateFileAsync`, `DehydrateFileAsync`, `PinFileAsync`, `UnpinFileAsync`, `IsHydratedAsync`, `ShutdownAsync`).
+
+2. **Step 2.2** — Add `HydrationState` enum and `HydrationState` property to `LocalFileRecord`:
+   - `src/Clients/DotNetCloud.Client.Core/LocalState/Entities/LocalFileRecord.cs` — add `HydrationState` property (default `Hydrated`)
+   - `src/Clients/DotNetCloud.Client.Core/LocalState/LocalStateDb.cs` — add schema evolution for `HydrationState` column (`ALTER TABLE FileRecords ADD COLUMN HydrationState INTEGER NOT NULL DEFAULT 0`)
+   - Enum: `Hydrated=0`, `CloudOnly=1`, `Pinned=2`, `Downloading=3`
+
+3. **Step 2.3** — Create `VirtualFileSettings` class in `src/Clients/DotNetCloud.Client.Core/VirtualFiles/VirtualFileSettings.cs` with `StorageMode` (DownloadAll/FilesOnDemand enum), `MaxCacheSizeBytes` (long), `PinList` (HashSet<string>).
+
+4. **Step 2.4** — Create `VirtualFileSyncEngine` in `src/Clients/DotNetCloud.Client.Core/VirtualFiles/VirtualFileSyncEngine.cs`. Wraps `ISyncEngine`. Key behaviors documented in plan table (metadata-only sync, on-demand hydration, mode switch, etc.).
+
+5. **Step 2.5** — Register VFS services in DI in `src/Clients/DotNetCloud.Client.Core/ClientCoreServiceExtensions.cs`:
+   - `VirtualFileSettings` as singleton
+   - `IVirtualFileProvider` per platform (use `NoOpVirtualFileProvider` stub for now — platforms get real impls in Phase 3/4)
+   - `VirtualFileSyncEngine` as singleton
+   - Create `NoOpVirtualFileProvider` stub for unsupported platforms
+
+**Server-side prerequisites (already deployed on mint22):**
+- `GET /api/v1/files/chunks/{chunkHash}` — now supports `Range` header (returns 206 Partial Content)
+- `GET /api/v1/sync/tree?metadataOnly=true` — returns tree without `contentHash` fields
+
+**Pre-commit checklist:**
+- Run `dotnet build` — must succeed with 0 errors
+- Run `dotnet test` — all tests must pass
+- Delete any unexpected untracked files before committing
+
+**Post-completion:**
+- Update `docs/VIRTUAL_FILE_SYNCING_PLAN.md` — mark Phase 2 deliverables ✓
+- Update `docs/IMPLEMENTATION_CHECKLIST.md` — mark Phase 2 checkboxes ✓
+- Update `docs/MASTER_PROJECT_PLAN.md` — update VFS Phase 2 status + deliverables
+- Update this Active Handoff for the next phase
  
