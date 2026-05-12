@@ -807,6 +807,24 @@
     padding: 4px 8px;
 }
 
+.artists-page-edge-name {
+    min-width: 0;
+    max-width: 220px;
+    font-size: 0.8125rem;
+    color: var(--color-text, #1e293b);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.artists-page-edge-name-start {
+    text-align: left;
+}
+
+.artists-page-edge-name-end {
+    text-align: right;
+}
+
 .artists-page-info-more {
     color: var(--color-muted, #94a3b8);
 }
@@ -854,6 +872,24 @@
     color: var(--color-text-secondary, #64748b);
     white-space: nowrap;
     padding: 4px 8px;
+}
+
+.albums-page-edge-name {
+    min-width: 0;
+    max-width: 220px;
+    font-size: 0.8125rem;
+    color: var(--color-text, #1e293b);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.albums-page-edge-name-start {
+    text-align: left;
+}
+
+.albums-page-edge-name-end {
+    text-align: right;
 }
 
 .albums-page-info-more {

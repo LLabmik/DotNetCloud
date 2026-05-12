@@ -394,9 +394,17 @@
                     <button class="btn-icon" @onclick="PrevArtistPageAsync" disabled="@(_artistPage == 0)" title="Previous page">
                         <span>◀</span>
                     </button>
+                    @if (!string.IsNullOrWhiteSpace(FirstArtistOnPageName))
+                    {
+                        <span class="artists-page-edge-name artists-page-edge-name-start" title="@FirstArtistOnPageName">@FirstArtistOnPageName</span>
+                    }
                     <div class="artists-page-info">
                         <span>Showing @(_totalArtists == 0 ? 0 : _artistPage * _artistPageSize + 1)-@Math.Min((_artistPage + 1) * _artistPageSize, _totalArtists) of @_totalArtists artists</span>
                     </div>
+                    @if (!string.IsNullOrWhiteSpace(LastArtistOnPageName))
+                    {
+                        <span class="artists-page-edge-name artists-page-edge-name-end" title="@LastArtistOnPageName">@LastArtistOnPageName</span>
+                    }
                     <button class="btn-icon" @onclick="NextArtistPageAsync" disabled="@(!_hasMoreArtists)" title="Next page">
                         <span>▶</span>
                     </button>
@@ -518,9 +526,17 @@
                     <button class="btn-icon" @onclick="PrevAlbumPageAsync" disabled="@(_albumPage == 0)" title="Previous page">
                         <span>◀</span>
                     </button>
+                    @if (!string.IsNullOrWhiteSpace(FirstAlbumOnPageName))
+                    {
+                        <span class="albums-page-edge-name albums-page-edge-name-start" title="@FirstAlbumOnPageName">@FirstAlbumOnPageName</span>
+                    }
                     <div class="albums-page-info">
                         <span>Showing @(_albums.Count == 0 ? 0 : _albumPage * _albumPageSize + 1)-@(_albumPage * _albumPageSize + _albums.Count) of @_totalAlbums albums</span>
                     </div>
+                    @if (!string.IsNullOrWhiteSpace(LastAlbumOnPageName))
+                    {
+                        <span class="albums-page-edge-name albums-page-edge-name-end" title="@LastAlbumOnPageName">@LastAlbumOnPageName</span>
+                    }
                     <button class="btn-icon" @onclick="NextAlbumPageAsync" disabled="@(!_hasMoreAlbums)" title="Next page">
                         <span>▶</span>
                     </button>

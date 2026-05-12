@@ -33,11 +33,15 @@ public partial class MusicPage : IAsyncDisposable
     private int _artistPageSize = 50;
     private int _totalArtists;
     private bool _hasMoreArtists;
+    private string FirstArtistOnPageName => _artists.Count > 0 ? _artists[0].Name : string.Empty;
+    private string LastArtistOnPageName => _artists.Count > 0 ? _artists[^1].Name : string.Empty;
     private List<MusicAlbumDto> _albums = [];
     private int _albumPage = 0;
     private int _albumPageSize = 50;
     private int _totalAlbums;
     private bool _hasMoreAlbums;
+    private string FirstAlbumOnPageName => _albums.Count > 0 ? _albums[0].Title ?? string.Empty : string.Empty;
+    private string LastAlbumOnPageName => _albums.Count > 0 ? _albums[^1].Title ?? string.Empty : string.Empty;
     private List<MusicAlbumDto> _recentAlbums = [];
     private List<TrackDto> _newTracks = [];
     private List<TrackDto> _recommendations = [];
