@@ -127,6 +127,15 @@ public partial class App : Application
         // Sync context manager (replaces the former SyncService process).
         services.AddSyncContextManager();
 
+        // Core client services: API client, token store, chunked transfer, virtual file
+        // system (VirtualFileSettings, IVirtualFileProvider, LruCacheManager,
+        // VirtualFileSyncEngine), and other shared infrastructure.
+        var coreDataRoot = Environment.GetEnvironmentVariable("DOTNETCLOUD_DATA_ROOT")
+            ?? (OperatingSystem.IsWindows()
+                ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "DotNetCloud", "Sync")
+                : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "share", "DotNetCloud", "Sync"));
+        services.AddDotNetCloudClientCore(coreDataRoot);
+
         // Startup integration for Linux XDG autostart.
         services.AddSingleton<IDesktopStartupManager, DesktopStartupManager>();
 
