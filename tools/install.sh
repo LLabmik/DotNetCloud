@@ -291,6 +291,19 @@ check_prerequisites() {
         $SUDO apt-get update -qq && $SUDO apt-get install -y -qq ffmpeg
     fi
 
+    # ── FUSE filesystem (Files On-Demand for SyncTray desktop client) ────
+    if ! command -v fusermount3 &>/dev/null; then
+        info "Installing fuse3 for virtual file system support..."
+        $SUDO apt-get update -qq && $SUDO apt-get install -y -qq fuse3
+    fi
+
+    if ! groups "$USER" | grep -q '\bfuse\b' 2>/dev/null; then
+        warn "Your user is not in the 'fuse' group. Virtual file system (Files On-Demand)"
+        warn "will not work until you add yourself to the fuse group:"
+        warn "  sudo usermod -a -G fuse $USER"
+        warn "  (log out and back in for this to take effect)"
+    fi
+
     ok "Prerequisites satisfied."
 }
 

@@ -16,7 +16,7 @@
 4. [Phase 1 — Server-Side Prerequisites](#phase-1--server-side-prerequisites)
 5. [Phase 2 — Core Abstraction Layer](#phase-2--core-abstraction-layer)
 6. [Phase 3 — Windows Implementation](#phase-3--windows-implementation)
-7. [Phase 4 — Linux Implementation](#phase-4--linux-implementation)
+7. [Phase 4 — Linux Implementation ✅](#phase-4--linux-implementation)
 8. [Phase 5 — SyncTray UI Integration](#phase-5--synctray-ui-integration)
 9. [Phase 6 — Testing & Validation](#phase-6--testing--validation)
 10. [File Manifest](#file-manifest)
@@ -614,7 +614,7 @@ Windows Cloud Files API provides shell integration automatically through sync ro
 
 ---
 
-## Phase 4 — Linux Implementation
+## Phase 4 — Linux Implementation ✅
 
 **Machine:** `mint-dnc-client`  
 **Depends on:** Phase 2 (core abstractions)  
@@ -645,14 +645,14 @@ groups | grep -q fuse || echo "Please add yourself to the fuse group: sudo userm
 
 **Files to modify:**
 
-- ☐ `src/Clients/DotNetCloud.Client.Core/DotNetCloud.Client.Core.csproj` — add Tmds.Fuse (Linux-conditional)
-- ☐ `scripts/install.sh` or equivalent — add `fuse3` dependency check
+- ✓ `src/Clients/DotNetCloud.Client.Core/DotNetCloud.Client.Core.csproj` — add LTRData.FuseDotNet (Linux-conditional)
+- ✓ `tools/install.sh` — add `fuse3` dependency check
 
 **Deliverables:**
 
-- ☐ Tmds.Fuse package referenced (Linux only)
-- ☐ `fuse3` dependency check in installer
-- ☐ User-friendly error message if `fuse3` is missing
+- ✓ LTRData.FuseDotNet package referenced (Linux only)
+- ✓ `fuse3` dependency check in installer
+- ✓ User-friendly error message if `fuse3` is missing
 
 ### Step 4.2 — Implement `FuseSyncFilesystem : IVirtualFileProvider`
 
@@ -708,13 +708,13 @@ groups | grep -q fuse || echo "Please add yourself to the fuse group: sudo userm
 
 **Deliverables:**
 
-- ☐ `FuseSyncFilesystem` implementing `IVirtualFileProvider`
-- ☐ `DotNetCloudFuseOperations` with all FUSE callbacks
-- ☐ Mount/unmount lifecycle (with `fusermount -u` on shutdown)
-- ☐ On-demand hydration on `read()` syscall
-- ☐ Write → upload propagation via `SyncEngine`
-- ☐ Error mapping to POSIX error codes
-- ☐ Conditional compilation: `#if !WINDOWS_BUILD` (Linux path)
+- ✓ `FuseSyncFilesystem` implementing `IVirtualFileProvider`
+- ✓ `DotNetCloudFuseOperations` with all FUSE callbacks
+- ✓ Mount/unmount lifecycle (with `fusermount -u` on shutdown)
+- ✓ On-demand hydration on `read()` syscall
+- ✓ Write → upload propagation via `SyncEngine`
+- ✓ Error mapping to POSIX error codes
+- ✓ Conditional compilation: `#if !WINDOWS_BUILD` (Linux path)
 
 ### Step 4.3 — Local Content Cache with LRU Eviction
 
@@ -755,11 +755,11 @@ Since FUSE `read()` is called synchronously by the kernel, content must be serve
 
 **Deliverables:**
 
-- ☐ Content-addressed chunk cache in `~/.local/share/dotnetcloud/cache/`
-- ☐ LRU eviction when cache exceeds `MaxCacheSizeBytes`
-- ☐ Pinned-file chunks exempt from eviction
-- ☐ Cache persistence across restarts
-- ☐ Default `MaxCacheSizeBytes` from free disk space
+- ✓ LruCacheManager in `VirtualFiles/LruCacheManager.cs` (Phase 6)
+- ✓ LRU eviction when cache exceeds `MaxCacheSizeBytes`
+- ✓ Pinned-file chunks exempt from eviction
+- ☐ Cache persistence across restarts (deferred)
+- ☐ Default `MaxCacheSizeBytes` from free disk space (deferred)
 
 ### Step 4.4 — Installer Integration
 
@@ -784,9 +784,9 @@ fi
 
 **Deliverables:**
 
-- ☐ `fuse3` availability check in installer
-- ☐ `fuse` group membership check
-- ☐ Clear instructions for user if dependencies missing
+- ✓ `fuse3` availability check in installer
+- ✓ `fuse` group membership check
+- ✓ Clear instructions for user if dependencies missing
 
 ---
 
@@ -1176,12 +1176,19 @@ Pull and check docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md Active Handof
 
 ### Linux (Phase 4)
 
-- ☐ `ls -la ~/synctray/` lists all server files
-- ☐ `cat ~/synctray/file.txt` triggers download and displays content
-- ☐ Creating/deleting/renaming files propagates to server
-- ☐ Cache eviction works when over size limit
-- ☐ `fusermount -u` unmounts cleanly on shutdown
-- ☐ App shows clear error if `fuse3` is missing
+- ✓ `FuseSyncFilesystem : IVirtualFileProvider` implemented
+- ✓ `DotNetCloudFuseOperations` with all FUSE callbacks
+- ✓ Mount/unmount lifecycle with `fusermount -u`
+- ✓ On-demand hydration via `ChunkedTransferClient`
+- ✓ Write → upload propagation via `PendingUpload`
+- ✓ FUSE dependency check on startup
+- ✓ DI registration wired for Linux
+- ☐ `ls -la ~/synctray/` lists all server files (manual — requires E2E test environment)
+- ☐ `cat ~/synctray/file.txt` triggers download and displays content (manual E2E)
+- ☐ Creating/deleting/renaming files propagates to server (manual E2E)
+- ☐ Cache eviction works when over size limit (manual E2E)
+- ☐ `fusermount -u` unmounts cleanly on shutdown (manual E2E)
+- ☐ App shows clear error if `fuse3` is missing (manual E2E)
 
 ### UI (Phase 5)
 

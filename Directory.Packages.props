@@ -29,6 +29,7 @@
     <PackageVersion Include="Grpc.Net.Client" Version="2.71.0" />
     <PackageVersion Include="Grpc.Tools" Version="2.72.0" />
     <!-- Email -->
+    <PackageVersion Include="LTRData.FuseDotNet" Version="1.0.0.14" />
     <PackageVersion Include="MailKit" Version="4.16.0" />
     <!-- HTML / Markdown -->
     <PackageVersion Include="AngleSharp" Version="0.17.1" />

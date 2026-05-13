@@ -23,6 +23,14 @@
     <PackageReference Include="System.Management" />
   </ItemGroup>
 
+  <!-- Linux-specific: FUSE filesystem support via LTRData.FuseDotNet -->
+  <PropertyGroup Condition="'$(OS)' == 'Unix' Or '$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Linux)))' == 'true'">
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(OS)' == 'Unix' Or '$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Linux)))' == 'true'">
+    <PackageReference Include="LTRData.FuseDotNet" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="DiffPlex" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />

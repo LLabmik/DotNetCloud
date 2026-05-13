@@ -14,26 +14,46 @@ namespace DotNetCloud.Client.Core.Tests.VirtualFiles;
 public sealed class FuseSyncFilesystemTests
 {
     // ── IVirtualFileProvider contract validation ───────────────────────
-    // The FuseSyncFilesystem implements IVirtualFileProvider, which defines:
-    //   - InitializeAsync
-    //   - CreatePlaceholdersAsync
-    //   - HydrateFileAsync
-    //   - DehydrateFileAsync
-    //   - PinFileAsync / UnpinFileAsync
-    //   - IsHydratedAsync
-    //   - ShutdownAsync
+    // The FuseSyncFilesystem (Phase 4 — Linux FUSE) implements IVirtualFileProvider.
+    // On non-Linux platforms, FuseSyncFilesystem is excluded by conditional compilation
+    // and NoOpVirtualFileProvider is used instead.
     // Full integration tests are environment-gated (Linux + fuse3) and
     // documented under VFS Phase 6 in VIRTUAL_FILE_SYNCING_PLAN.md.
-    //
-    // When FuseSyncFilesystem is implemented (Phase 4), add unit tests here
-    // using a mocked FUSE layer (e.g., ITmdsFuseOperations or equivalent).
 
     [TestMethod]
-    public void IVirtualFileProvider_Interface_NotYetImplemented()
+    public void FuseSyncFilesystem_ClassExists_OnLinux()
     {
-        // FuseSyncFilesystem is scheduled for Phase 4 (Linux FUSE).
-        // This test will be updated once the class exists.
-        Assert.Inconclusive("FuseSyncFilesystem not yet implemented (Phase 4 - Linux FUSE).");
+        // Verify the FuseSyncFilesystem type exists (Linux-only via conditional compilation).
+        var fuseType = typeof(IVirtualFileProvider).Assembly.GetType(
+            "DotNetCloud.Client.Core.Platform.Linux.FuseSyncFilesystem");
+        Assert.IsNotNull(fuseType, "FuseSyncFilesystem type should exist.");
+        Assert.IsTrue(typeof(IVirtualFileProvider).IsAssignableFrom(fuseType),
+            "FuseSyncFilesystem should implement IVirtualFileProvider.");
+        Assert.IsTrue(typeof(IAsyncDisposable).IsAssignableFrom(fuseType),
+            "FuseSyncFilesystem should implement IAsyncDisposable.");
+    }
+
+    [TestMethod]
+    public void FuseSyncFilesystem_HasRequiredDependencies()
+    {
+        var fuseType = typeof(IVirtualFileProvider).Assembly.GetType(
+            "DotNetCloud.Client.Core.Platform.Linux.FuseSyncFilesystem");
+        if (fuseType == null)
+            Assert.Inconclusive("FuseSyncFilesystem not available on this platform.");
+
+        var ctors = fuseType!.GetConstructors();
+        Assert.IsTrue(ctors.Length > 0, "FuseSyncFilesystem should have at least one constructor.");
+
+        var ctor = ctors[0];
+        var parms = ctor.GetParameters();
+        Assert.IsTrue(parms.Any(p => p.ParameterType.Name.Contains("IChunkedTransferClient")),
+            "FuseSyncFilesystem should depend on IChunkedTransferClient.");
+        Assert.IsTrue(parms.Any(p => p.ParameterType.Name.Contains("ILocalStateDb")),
+            "FuseSyncFilesystem should depend on ILocalStateDb.");
+        Assert.IsTrue(parms.Any(p => p.ParameterType.Name.Contains("VirtualFileSettings")),
+            "FuseSyncFilesystem should depend on VirtualFileSettings.");
+        Assert.IsTrue(parms.Any(p => p.ParameterType.Name.Contains("LruCacheManager")),
+            "FuseSyncFilesystem should depend on LruCacheManager.");
     }
 
     [TestMethod]

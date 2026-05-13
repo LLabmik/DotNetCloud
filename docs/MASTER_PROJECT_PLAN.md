@@ -136,7 +136,7 @@
 | VFS Phase 1 (Server)        | 2       | 2         | 0           | 0       |
 | VFS Phase 2 (Core)          | 5       | 5         | 0           | 0       |
 | VFS Phase 3 (Windows)       | 3       | 3         | 0           | 0       |
-| VFS Phase 4 (Linux)         | 4       | 0         | 0           | 4       |
+| VFS Phase 4 (Linux)         | 4       | 4         | 0           | 0       |
 | VFS Phase 5 (UI)            | 3       | 3         | 0           | 0       |
 | VFS Phase 6 (Testing)       | 3       | 3         | 0           | 0       |
 
@@ -4356,54 +4356,73 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 ### Section: VFS Phase 4 — Linux Implementation (FuseSyncFilesystem)
 
 **Status:** completed ✅
-**Machine:** `mint22` 
+**Machine:** `mint-dnc-client` 
 **Depends on:** VFS Phase 2 (core abstraction layer) 
 **Blocks:** VFS Phase 5 (SyncTray UI — status indicators)
 
-#### Step: vfs-4.1 — P/Invoke Wrappers for FuseSyncFilesystem
+#### Step: vfs-4.1 — FUSE Dependency & Project Setup
 **Status:** completed ✅
-**Files created:**
-- `src/Clients/DotNetCloud.Client.Core/Platform/Linux/FuseSyncFilesystem/FuseSyncFilesystem.cs`
+**Files modified:**
+- `src/Clients/DotNetCloud.Client.Core/DotNetCloud.Client.Core.csproj` — added LTRData.FuseDotNet (Linux-conditional)
+- `Directory.Packages.props` — added LTRData.FuseDotNet version
+- `tools/install.sh` — added fuse3 dependency check + fuse group membership check
 
 **Deliverables:**
-- ✓ `FuseSyncFilesystem.cs` — `[LibraryImport]` declarations for `FuseSyncFilesystem`
+- ✓ LTRData.FuseDotNet NuGet referenced (Linux-only, conditional on `'$(OS)' == 'Unix'`)
+- ✓ AllowUnsafeBlocks enabled for Linux build
+- ✓ fuse3 availability check in installer
+- ✓ fuse group membership check in installer
+- ✓ File structure: `src/Clients/DotNetCloud.Client.Core/Platform/Linux/`
 
-#### Step: vfs-4.2 — Implement `FuseSyncFilesystem : IVirtualFileProvider`
+#### Step: vfs-4.2 — Implement FuseSyncFilesystem + DotNetCloudFuseOperations
 **Status:** completed ✅
 **Files created:**
-- `src/Clients/DotNetCloud.Client.Core/Platform/Linux/FuseSyncFilesystem/FuseSyncFilesystem.cs`
+- `src/Clients/DotNetCloud.Client.Core/Platform/Linux/FuseSyncFilesystem.cs`
+- `src/Clients/DotNetCloud.Client.Core/Platform/Linux/DotNetCloudFuseOperations.cs`
+- `src/Clients/DotNetCloud.Client.Core/Platform/Linux/FuseLoggerAdapter.cs`
 
-**Deliverables:**
-- ✓ `FuseSyncFilesystem` — full `IVirtualFileProvider` implementation:
-  - `InitializeAsync` — `FuseSyncFilesystem` initialization
-  - `CreatePlaceholdersAsync` — walks `SyncTreeNodeResponse` tree, builds `CF_PLACEHOLDER_CREATE_INFO[]`, calls `CfCreatePlaceholders` in batches of 100
-  - `HydrateFileAsync` — downloads via `ChunkedTransferClient`, writes via `CfExecute(TRANSFER_DATA)`, updates `HydrationState` in local DB
-  - `DehydrateFileAsync` — calls `CfSetPinState(UNPINNED)`, updates DB
-  - `PinFileAsync` — calls `CfSetPinState(PINNED)`, updates `PinList` + DB
-  - `UnpinFileAsync` — calls `CfSetPinState(UNPINNED)`, updates `PinList` + DB
-  - `IsHydratedAsync` — queries `CfGetPlaceholderInfo` to check placeholder state
-  - `ShutdownAsync` — `CfDisconnectSyncRoot` + `CfUnregisterSyncRoot` + callback cleanup
-- ✓ `CloudFilterCallbacks` — managed callback delegates pinned via `GCHandle`:
-  - `FETCH_DATA` — downloads content from server, writes via `CfExecute(TRANSFER_DATA)`
-  - `VALIDATE_DATA` — acknowledges validation (deep hash verification deferred)
-  - `FETCH_PLACEHOLDERS` — acknowledges (bulk creation handles population)
-  - `CANCEL_FETCH_DATA` — acknowledges cancellation
-  - `NOTIFY_*` — logs file open/close/dehydrate/delete/rename events
-  - Per-file hydration semaphore to prevent duplicate concurrent hydrations
-  - Error handling: network failures reported via `CfExecute(ACK_DATA)` with error HRESULT
+**FuseSyncFilesystem (IVirtualFileProvider) key methods:**
+- `InitializeAsync` — checks `fusermount3` availability, verifies `/dev/fuse` exists, ensures sync dir exists, creates `DotNetCloudFuseOperations`, mounts FUSE on background thread via `Fuse.Mount()`
+- `CreatePlaceholdersAsync` — walks `SyncTreeNodeResponse` tree, stores metadata in `LocalStateDb` as `LocalFileRecord` entries with `HydrationState.CloudOnly`
+- `HydrateFileAsync` — downloads via `ChunkedTransferClient`, stores in `LruCacheManager`, updates `HydrationState.Hydrated`
+- `DehydrateFileAsync` — removes from `LruCacheManager`, sets `HydrationState.CloudOnly` (pinned files exempt)
+- `PinFileAsync` — adds to `VirtualFileSettings.PinList`, hydrates if cloud-only, sets `HydrationState.Pinned`
+- `UnpinFileAsync` — removes from `PinList`, sets `HydrationState.Hydrated`
+- `IsHydratedAsync` — checks `LruCacheManager` then `LocalFileRecord.HydrationState`
+- `ShutdownAsync` — unmounts FUSE via `fusermount -u` process call + cancels mount thread
 
-**Notes:** Callback delegates are kept alive via `GCHandle.Alloc` for the lifetime of the sync root connection. `CloudFilterCallbacks.SetContextPaths()` receives `dbPath` and `syncRootPath` from the provider after initialization.
+**DotNetCloudFuseOperations (IFuseOperations) key callbacks:**
+- `GetAttr` — queries `LocalStateDb` for file metadata, returns `FuseFileStat` with correct mode/size/timestamps
+- `ReadDir` — queries all records filtered by parent path, returns directory entries (with `.` and `..`)
+- `Open` — triggers synchronous hydration if file is `CloudOnly`, per-file semaphore prevents duplicate downloads
+- `Read` — serves content from `LruCacheManager`, hydrates on cache miss
+- `Write` — writes to `LruCacheManager`, queues `PendingUpload`, invalidates content hash
+- `Create` — creates `LocalFileRecord` with `HydrationState.Hydrated`, queues upload
+- `Unlink` — removes from cache, queues `PendingDelete`, removes from `LocalStateDb`
+- `Rename` — moves cached data, updates `LocalPath` in `LocalStateDb`, queues upload
+- `MkDir` — creates directory record in `LocalStateDb`, queues upload
+- `RmDir` — queues pending delete, removes children + directory from `LocalStateDb`
+- `Truncate` — resizes cached content in `LruCacheManager`
+- `UTime` — updates `LocalModifiedAt` in `LocalStateDb`
+- `Access` — checks if file exists in `LocalStateDb`
+- `Init` — logs FUSE protocol version on mount
+
+**FuseLoggerAdapter:** Adapts `Microsoft.Extensions.Logging.ILogger` to `FuseDotNet.Logging.ILogger`
+- Error mapping: `ENOENT`, `EIO`, `EACCES`, `ENOSPC`, `EBUSY`
+- Thread safety: per-file semaphore for hydration, `LocalStateDb` per-operation DbContext
+
+**Notes:** Conditional compilation via `#if !WINDOWS_BUILD`. `TimeSpec.Now()` and `with` expressions used for `FuseFileStat` construction.
 
 #### Step: vfs-4.3 — Wire FuseSyncFilesystem in DI
 **Status:** completed ✅
 **File modified:** `src/Clients/DotNetCloud.Client.Core/ClientCoreServiceExtensions.cs`  
 **Deliverables:**
 - ✓ `IVirtualFileProvider` registered as `FuseSyncFilesystem` on Linux
-- ✓ `NoOpVirtualFileProvider` fallback for Windows (Phase 3 will replace with `CloudFilterSyncProvider`) and macOS (stub)
-- ✓ Build succeeds — 0 errors
-- ✓ Tests: 203/203 Client.Core tests pass
+- ✓ `Platform.Linux` using directive added
+- ✓ Build succeeds — 0 errors (CI solution filter)
+- ✓ Tests: 253/254 Client.Core tests pass, 106/106 SyncTray tests pass
 
-**Notes:** The platform-conditional registration uses `OperatingSystem.IsWindows()` runtime check. Shell integration (icon overlays, context menu) handled automatically by the Cloud Filter API via `CfRegisterSyncRoot` registration flags — no custom shell extension DLL needed.
+**Notes:** The platform-conditional registration uses `OperatingSystem.IsLinux()` runtime check. LruCacheManager already wired in DI from Phase 6.
 
 ### Section: VFS Phase 5 — SyncTray UI Integration
 

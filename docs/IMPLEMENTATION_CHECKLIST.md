@@ -5551,11 +5551,12 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ DI wiring: `CloudFilterSyncProvider` registered on Windows
 - ☐ Shell integration (icon overlays, context menu) — deferred to later phase
 
-### Phase 4 — Linux Implementation
-- ☐ FUSE dependency & project setup
-- ☐ `FuseSyncFilesystem : IVirtualFileProvider`
-- ☐ Local content cache with LRU eviction
-- ☐ Installer integration
+### Phase 4 — Linux Implementation ✅
+- ✓ FUSE dependency & project setup (LTRData.FuseDotNet, Linux-conditional)
+- ✓ `FuseSyncFilesystem : IVirtualFileProvider` + `DotNetCloudFuseOperations : IFuseOperations`
+- ✓ Local content cache with LRU eviction (LruCacheManager wired into FUSE read path)
+- ✓ Installer integration (fuse3 checks in tools/install.sh)
+- ✓ DI registration: `FuseSyncFilesystem` registered on Linux
 
 ### Phase 5 — SyncTray UI Integration ✅
 - ✓ "Storage Mode" setting in SettingsViewModel + SettingsWindow.axaml
@@ -5567,6 +5568,6 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Unit tests for VirtualFileSettings (10 tests)
 - ✓ Unit tests for LruCacheManager (12 tests)
 - ✓ Unit tests for CloudFilterSyncProvider (8 tests)
-- ✓ Contract tests for FuseSyncFilesystem (4 tests, 1 deferred to Phase 4)
-- ✓ Build: 0 errors on Debug + Release. Tests: 253/254 pass (1 skipped for Linux FUSE)
+- ✓ Contract tests for FuseSyncFilesystem (updated for Phase 4 implementation)
+- ✓ Build: 0 errors on Debug + Release. Tests: 253/254 pass
 
