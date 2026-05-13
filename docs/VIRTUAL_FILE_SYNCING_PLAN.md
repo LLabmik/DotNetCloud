@@ -39,11 +39,11 @@
 
 **Platform strategy:**
 
-| Platform | Technology | Shell Integration |
-|----------|-----------|-------------------|
-| Windows | Cloud Filter API (`cfapi.dll`) — same API as OneDrive | Cloud icon overlays (☁), right-click pin/free-up, status column in Explorer |
-| Linux | FUSE (`Tmds.Fuse`) — filesystem in userspace | File manager displays full directory listing; tray app shows VFS status |
-| macOS | File Provider Extension | Deferred to future macOS contributor |
+| Platform | Technology                                            | Shell Integration                                                           |
+| -------- | ----------------------------------------------------- | --------------------------------------------------------------------------- |
+| Windows  | Cloud Filter API (`cfapi.dll`) — same API as OneDrive | Cloud icon overlays (☁), right-click pin/free-up, status column in Explorer |
+| Linux    | FUSE (`Tmds.Fuse`) — filesystem in userspace          | File manager displays full directory listing; tray app shows VFS status     |
+| macOS    | File Provider Extension                               | Deferred to future macOS contributor                                        |
 
 **Non-goals for initial release:**
 
@@ -57,25 +57,25 @@
 
 ### Existing infrastructure (reusable as-is)
 
-| Component | File | Role in VFS |
-|-----------|------|-------------|
-| `ISyncEngine` / `SyncEngine` | `src/Clients/DotNetCloud.Client.Core/Sync/` | Central sync coordinator — will be wrapped by `VirtualFileSyncEngine` |
-| `IChunkedTransferClient` | `src/Clients/DotNetCloud.Client.Core/Transfer/` | Chunked delta downloads — reused for on-demand hydration |
-| `ILocalStateDb` | `src/Clients/DotNetCloud.Client.Core/LocalState/` | SQLite metadata store — becomes the VFS metadata cache |
-| `LocalFileRecord` | `src/Clients/DotNetCloud.Client.Core/LocalState/Entities/` | Per-file tracking — gains `HydrationState` field |
-| `IDotNetCloudApiClient` | `src/Clients/DotNetCloud.Client.Core/Api/` | HTTP client for server communication — chunk download with Range support |
-| `ISelectiveSyncConfig` | `src/Clients/DotNetCloud.Client.Core/SelectiveSync/` | Per-folder sync toggles — VFS is a superset: everything visible, only accessed files downloaded |
-| `SettingsViewModel` | `src/Clients/DotNetCloud.Client.SyncTray/ViewModels/` | Settings UI — gains "Storage mode" toggle |
-| `App.axaml.cs` | `src/Clients/DotNetCloud.Client.SyncTray/` | DI root + lifecycle — wires VFS provider |
+| Component                    | File                                                       | Role in VFS                                                                                     |
+| ---------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `ISyncEngine` / `SyncEngine` | `src/Clients/DotNetCloud.Client.Core/Sync/`                | Central sync coordinator — will be wrapped by `VirtualFileSyncEngine`                           |
+| `IChunkedTransferClient`     | `src/Clients/DotNetCloud.Client.Core/Transfer/`            | Chunked delta downloads — reused for on-demand hydration                                        |
+| `ILocalStateDb`              | `src/Clients/DotNetCloud.Client.Core/LocalState/`          | SQLite metadata store — becomes the VFS metadata cache                                          |
+| `LocalFileRecord`            | `src/Clients/DotNetCloud.Client.Core/LocalState/Entities/` | Per-file tracking — gains `HydrationState` field                                                |
+| `IDotNetCloudApiClient`      | `src/Clients/DotNetCloud.Client.Core/Api/`                 | HTTP client for server communication — chunk download with Range support                        |
+| `ISelectiveSyncConfig`       | `src/Clients/DotNetCloud.Client.Core/SelectiveSync/`       | Per-folder sync toggles — VFS is a superset: everything visible, only accessed files downloaded |
+| `SettingsViewModel`          | `src/Clients/DotNetCloud.Client.SyncTray/ViewModels/`      | Settings UI — gains "Storage mode" toggle                                                       |
+| `App.axaml.cs`               | `src/Clients/DotNetCloud.Client.SyncTray/`                 | DI root + lifecycle — wires VFS provider                                                        |
 
 ### Server API endpoints (already exist)
 
-| Endpoint | Purpose for VFS |
-|----------|----------------|
-| `GET /api/v1/sync/tree` | Full metadata tree → placeholder creation |
-| `GET /api/v1/sync/changes?cursor=...` | Cursor-based delta → update placeholder metadata |
-| `GET /api/v1/files/{nodeId}/chunks/{hash}` | Chunk download → on-demand hydration (needs Range header verification) |
-| `POST /api/v1/files/upload/initiate` | Chunked upload → works normally (file is hydrated when user modifies it) |
+| Endpoint                                   | Purpose for VFS                                                          |
+| ------------------------------------------ | ------------------------------------------------------------------------ |
+| `GET /api/v1/sync/tree`                    | Full metadata tree → placeholder creation                                |
+| `GET /api/v1/sync/changes?cursor=...`      | Cursor-based delta → update placeholder metadata                         |
+| `GET /api/v1/files/{nodeId}/chunks/{hash}` | Chunk download → on-demand hydration (needs Range header verification)   |
+| `POST /api/v1/files/upload/initiate`       | Chunked upload → works normally (file is hydrated when user modifies it) |
 
 ---
 
@@ -165,6 +165,7 @@
 **Goal:** The chunk download endpoint must support HTTP `Range` headers so the VFS layer can request partial file content during streaming hydration (e.g., a media player seeking within a large file).
 
 **What to verify:**
+
 ```bash
 curl -I -H "Range: bytes=0-1023" \
   "https://mint22:5443/api/v1/files/{nodeId}/chunks/{chunkHash}"
@@ -306,6 +307,7 @@ public enum HydrationState
 ```
 
 **Schema evolution (in `LocalStateDb.RunSchemaEvolutionAsync`):**
+
 ```csharp
 // Add HydrationState column to FileRecords for virtual file support
 var fileRecordColumns = await GetColumnNamesAsync(conn, "FileRecords", cancellationToken);
@@ -376,18 +378,19 @@ This wraps `ISyncEngine` and delegates to `IVirtualFileProvider` for VFS-specifi
 
 **Key behaviors:**
 
-| Scenario | Behavior |
-|----------|----------|
-| `SyncAsync()` with `FilesOnDemand` | Calls `IVirtualFileProvider.CreatePlaceholdersAsync()` instead of downloading content. Metadata sync only. |
-| File opened by user (cloud-only) | `IVirtualFileProvider` callback → `HydrateFileAsync()` → `ChunkedTransferClient` downloads → placeholder hydrated |
-| File modified by user (hydrated) | Normal upload via `SyncEngine` — file is already local |
-| Mode switch: `FilesOnDemand` → `DownloadAll` | Hydrates all non-pinned, non-hydrated files |
-| Mode switch: `DownloadAll` → `FilesOnDemand` | Dehydrates all un-pinned files (replaces with placeholders) |
-| Server delete of cloud-only file | Remove placeholder (no content to delete) |
-| Server update of cloud-only file | Update placeholder metadata (size, timestamp) — no content download |
-| Server update of hydrated file | Invalidate hydration state → re-download on next access, or download immediately |
+| Scenario                                     | Behavior                                                                                                          |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `SyncAsync()` with `FilesOnDemand`           | Calls `IVirtualFileProvider.CreatePlaceholdersAsync()` instead of downloading content. Metadata sync only.        |
+| File opened by user (cloud-only)             | `IVirtualFileProvider` callback → `HydrateFileAsync()` → `ChunkedTransferClient` downloads → placeholder hydrated |
+| File modified by user (hydrated)             | Normal upload via `SyncEngine` — file is already local                                                            |
+| Mode switch: `FilesOnDemand` → `DownloadAll` | Hydrates all non-pinned, non-hydrated files                                                                       |
+| Mode switch: `DownloadAll` → `FilesOnDemand` | Dehydrates all un-pinned files (replaces with placeholders)                                                       |
+| Server delete of cloud-only file             | Remove placeholder (no content to delete)                                                                         |
+| Server update of cloud-only file             | Update placeholder metadata (size, timestamp) — no content download                                               |
+| Server update of hydrated file               | Invalidate hydration state → re-download on next access, or download immediately                                  |
 
 **Dependencies injected:**
+
 - `ISyncEngine` — the underlying sync engine (wrapped)
 - `IVirtualFileProvider` — platform-specific VFS operations
 - `IChunkedTransferClient` — chunk download for hydration
@@ -442,6 +445,7 @@ services.AddSingleton<VirtualFileSyncEngine>();
 ### Step 3.1 — P/Invoke Wrappers for Cloud Filter API (`cfapi.dll`)
 
 **Files:**
+
 - `src/Clients/DotNetCloud.Client.Core/Platform/Windows/CfApi/CfApiNative.cs`
 - `src/Clients/DotNetCloud.Client.Core/Platform/Windows/CfApi/CfApiTypes.cs`
 
@@ -449,17 +453,17 @@ The Cloud Filter API is a native Windows API in `cfapi.dll`. We wrap the essenti
 
 **Key functions to wrap:**
 
-| Function | Purpose |
-|----------|---------|
-| `CfRegisterSyncRoot` | Register the sync folder as a sync root with the Windows shell |
-| `CfUnregisterSyncRoot` | Remove the sync root registration |
-| `CfCreatePlaceholders` | Create metadata-only placeholder files from a directory tree |
-| `CfUpdatePlaceholder` | Update placeholder metadata (size, timestamps) |
-| `CfExecute` | Execute operations on placeholder files (transfer data, dehydrate, etc.) |
-| `CfSetPinState` | Set pin state (pinned / unpinned) for a placeholder |
-| `CfGetPlaceholderInfo` | Query placeholder state and attributes |
-| `CfConnectSyncRoot` | Connect to an existing sync root (for reconnection after restart) |
-| `CfDisconnectSyncRoot` | Disconnect from a sync root |
+| Function               | Purpose                                                                  |
+| ---------------------- | ------------------------------------------------------------------------ |
+| `CfRegisterSyncRoot`   | Register the sync folder as a sync root with the Windows shell           |
+| `CfUnregisterSyncRoot` | Remove the sync root registration                                        |
+| `CfCreatePlaceholders` | Create metadata-only placeholder files from a directory tree             |
+| `CfUpdatePlaceholder`  | Update placeholder metadata (size, timestamps)                           |
+| `CfExecute`            | Execute operations on placeholder files (transfer data, dehydrate, etc.) |
+| `CfSetPinState`        | Set pin state (pinned / unpinned) for a placeholder                      |
+| `CfGetPlaceholderInfo` | Query placeholder state and attributes                                   |
+| `CfConnectSyncRoot`    | Connect to an existing sync root (for reconnection after restart)        |
+| `CfDisconnectSyncRoot` | Disconnect from a sync root                                              |
 
 **Key types/enums:**
 
@@ -529,6 +533,7 @@ enum CF_OPERATION_TYPE : uint
 ```
 
 **Implementation notes:**
+
 - Use `Microsoft.Windows.CsWin32` source generator for automatic P/Invoke generation if available at implementation time. Otherwise, manual `[DllImport("cfapi.dll")]` declarations.
 - All callbacks must be implemented as managed delegates pinned via `GCHandle` to prevent garbage collection while native code holds references.
 - The `CF_CALLBACK_REGISTRATION` struct defines which callbacks we register and must remain alive for the lifetime of the sync root connection.
@@ -542,6 +547,7 @@ enum CF_OPERATION_TYPE : uint
 ### Step 3.2 — Implement `CloudFilterSyncProvider : IVirtualFileProvider`
 
 **Files:**
+
 - `src/Clients/DotNetCloud.Client.Core/Platform/Windows/CloudFilterSyncProvider.cs`
 - `src/Clients/DotNetCloud.Client.Core/Platform/Windows/CloudFilterCallbacks.cs`
 
@@ -549,33 +555,34 @@ enum CF_OPERATION_TYPE : uint
 
 **`CloudFilterSyncProvider` key methods:**
 
-| Method | Implementation |
-|--------|---------------|
-| `InitializeAsync` | `CfConnectSyncRoot` (if reconnecting) or `CfRegisterSyncRoot` with callback table |
+| Method                    | Implementation                                                                                   |
+| ------------------------- | ------------------------------------------------------------------------------------------------ |
+| `InitializeAsync`         | `CfConnectSyncRoot` (if reconnecting) or `CfRegisterSyncRoot` with callback table                |
 | `CreatePlaceholdersAsync` | Walk `SyncTreeNodeResponse` tree → build `CF_PLACEHOLDER_CREATE_INFO[]` → `CfCreatePlaceholders` |
-| `HydrateFileAsync` | Download chunks via `ChunkedTransferClient` → `CfExecute(CF_OPERATION_TYPE_TRANSFER_DATA)` |
-| `DehydrateFileAsync` | `CfExecute(CF_OPERATION_TYPE_DEHYDRATE)` |
-| `PinFileAsync` | `CfSetPinState(CF_PIN_STATE_PINNED)` + update `VirtualFileSettings.PinList` |
-| `UnpinFileAsync` | `CfSetPinState(CF_PIN_STATE_UNPINNED)` + remove from `VirtualFileSettings.PinList` |
-| `IsHydratedAsync` | `CfGetPlaceholderInfo` → check if `CF_PLACEHOLDER_STATE` includes hydrated |
-| `ShutdownAsync` | `CfDisconnectSyncRoot` + `CfUnregisterSyncRoot` |
+| `HydrateFileAsync`        | Download chunks via `ChunkedTransferClient` → `CfExecute(CF_OPERATION_TYPE_TRANSFER_DATA)`       |
+| `DehydrateFileAsync`      | `CfExecute(CF_OPERATION_TYPE_DEHYDRATE)`                                                         |
+| `PinFileAsync`            | `CfSetPinState(CF_PIN_STATE_PINNED)` + update `VirtualFileSettings.PinList`                      |
+| `UnpinFileAsync`          | `CfSetPinState(CF_PIN_STATE_UNPINNED)` + remove from `VirtualFileSettings.PinList`               |
+| `IsHydratedAsync`         | `CfGetPlaceholderInfo` → check if `CF_PLACEHOLDER_STATE` includes hydrated                       |
+| `ShutdownAsync`           | `CfDisconnectSyncRoot` + `CfUnregisterSyncRoot`                                                  |
 
 **`CloudFilterCallbacks` — the core on-demand machinery:**
 
 The callbacks are invoked by Windows when it needs data or notifies us of events.
 
-| Callback | Trigger | Action |
-|----------|---------|--------|
-| `FETCH_DATA` | User/app opens a cloud-only file | Download requested byte range from server → write via `CfExecute(TRANSFER_DATA)` |
-| `VALIDATE_DATA` | Windows wants to verify local content | Compare local content hash against server's `ContentHash` |
-| `FETCH_PLACEHOLDERS` | Explorer enumerates a directory | Query `LocalStateDb` for children → return placeholder metadata |
-| `NOTIFY_FILE_OPEN_COMPLETION` | File opened (read or write) | Update access time for LRU tracking |
-| `NOTIFY_FILE_CLOSE_COMPLETION` | File closed | If modified, queue for upload; update hydration state |
-| `NOTIFY_DELETE` | User deletes a placeholder | Queue delete operation for server propagation |
-| `NOTIFY_RENAME` | User renames a placeholder | Queue rename operation for server propagation |
-| `NOTIFY_DEHYDRATE` | Windows wants to free space | Allow dehydration if not pinned |
+| Callback                       | Trigger                               | Action                                                                           |
+| ------------------------------ | ------------------------------------- | -------------------------------------------------------------------------------- |
+| `FETCH_DATA`                   | User/app opens a cloud-only file      | Download requested byte range from server → write via `CfExecute(TRANSFER_DATA)` |
+| `VALIDATE_DATA`                | Windows wants to verify local content | Compare local content hash against server's `ContentHash`                        |
+| `FETCH_PLACEHOLDERS`           | Explorer enumerates a directory       | Query `LocalStateDb` for children → return placeholder metadata                  |
+| `NOTIFY_FILE_OPEN_COMPLETION`  | File opened (read or write)           | Update access time for LRU tracking                                              |
+| `NOTIFY_FILE_CLOSE_COMPLETION` | File closed                           | If modified, queue for upload; update hydration state                            |
+| `NOTIFY_DELETE`                | User deletes a placeholder            | Queue delete operation for server propagation                                    |
+| `NOTIFY_RENAME`                | User renames a placeholder            | Queue rename operation for server propagation                                    |
+| `NOTIFY_DEHYDRATE`             | Windows wants to free space           | Allow dehydration if not pinned                                                  |
 
 **Error handling in callbacks:**
+
 - Network errors during `FETCH_DATA`: report failure via `CfExecute(ACK_DATA)` with error → Windows shows "File unavailable" to the user
 - Server unreachable: fail gracefully, do not crash the sync root
 
@@ -602,6 +609,7 @@ Windows Cloud Files API provides shell integration automatically through sync ro
 - ✓ Right-click context menu: "Always keep on this device" / "Free up space" — handled by `CF_HYDRATION_POLICY`
 
 **Registry keys (set by `CfRegisterSyncRoot`):**
+
 - The sync root provider identity is registered under `HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\SyncRootManager\`
 - Icon resources are specified in the sync root registration
 
@@ -634,11 +642,13 @@ Windows Cloud Files API provides shell integration automatically through sync ro
 **Dependency check (in installer/startup):**
 
 The tray app should check for `fusermount3` on startup and show a clear error if missing:
+
 ```bash
 which fusermount3 || echo "Please install fuse3: sudo apt install fuse3"
 ```
 
 User must be in the `fuse` group:
+
 ```bash
 groups | grep -q fuse || echo "Please add yourself to the fuse group: sudo usermod -a -G fuse $USER"
 ```
@@ -657,54 +667,55 @@ groups | grep -q fuse || echo "Please add yourself to the fuse group: sudo userm
 ### Step 4.2 — Implement `FuseSyncFilesystem : IVirtualFileProvider`
 
 **Files:**
+
 - `src/Clients/DotNetCloud.Client.Core/Platform/Linux/FuseSyncFilesystem.cs`
 - `src/Clients/DotNetCloud.Client.Core/Platform/Linux/DotNetCloudFuseOperations.cs`
 
 `FuseSyncFilesystem` mounts a FUSE filesystem at the sync folder path. The FUSE filesystem presents the server's file tree as a local directory — metadata comes from `LocalStateDb`, content downloads on `read()`.
 
-**Mount strategy:** Mount FUSE directly at the sync folder path. The sync folder *is* the virtual filesystem — no separate mount point. This matches user expectation: "my sync folder just works."
+**Mount strategy:** Mount FUSE directly at the sync folder path. The sync folder _is_ the virtual filesystem — no separate mount point. This matches user expectation: "my sync folder just works."
 
 **`FuseSyncFilesystem` lifecycle:**
 
-| Method | Implementation |
-|--------|---------------|
-| `InitializeAsync` | Ensure sync folder exists, mount FUSE at that path via `Tmds.Fuse` |
-| `CreatePlaceholdersAsync` | Store full tree metadata in `LocalStateDb` (files appear via `getattr`/`readdir`) |
-| `HydrateFileAsync` | Download content via `ChunkedTransferClient`, write to cache, update `HydrationState` |
-| `DehydrateFileAsync` | Remove cached content chunks, set `HydrationState = CloudOnly` |
-| `PinFileAsync` | Set `HydrationState = Pinned`, add to `VirtualFileSettings.PinList` |
-| `UnpinFileAsync` | Set `HydrationState = Hydrated`, remove from `VirtualFileSettings.PinList` |
-| `IsHydratedAsync` | Check `LocalFileRecord.HydrationState != CloudOnly` |
-| `ShutdownAsync` | Unmount FUSE via `fusermount -u` |
+| Method                    | Implementation                                                                        |
+| ------------------------- | ------------------------------------------------------------------------------------- |
+| `InitializeAsync`         | Ensure sync folder exists, mount FUSE at that path via `Tmds.Fuse`                    |
+| `CreatePlaceholdersAsync` | Store full tree metadata in `LocalStateDb` (files appear via `getattr`/`readdir`)     |
+| `HydrateFileAsync`        | Download content via `ChunkedTransferClient`, write to cache, update `HydrationState` |
+| `DehydrateFileAsync`      | Remove cached content chunks, set `HydrationState = CloudOnly`                        |
+| `PinFileAsync`            | Set `HydrationState = Pinned`, add to `VirtualFileSettings.PinList`                   |
+| `UnpinFileAsync`          | Set `HydrationState = Hydrated`, remove from `VirtualFileSettings.PinList`            |
+| `IsHydratedAsync`         | Check `LocalFileRecord.HydrationState != CloudOnly`                                   |
+| `ShutdownAsync`           | Unmount FUSE via `fusermount -u`                                                      |
 
 **`DotNetCloudFuseOperations` — FUSE callbacks:**
 
-| FUSE Operation | Implementation |
-|---------------|---------------|
-| `getattr(path)` | Query `LocalStateDb` for file metadata → return `Stat` struct (size, mode, timestamps, uid/gid) |
-| `readdir(path)` | Query `LocalStateDb` for children of directory → return `DirectoryEntry[]` |
-| `open(path, flags)` | If file is `CloudOnly` and `flags` include `O_RDONLY` or `O_RDWR`, trigger hydration |
-| `read(path, offset, size, fileInfo)` | If hydrated, read from local cache; if cloud-only, hydrate first then read |
-| `write(path, offset, data, fileInfo)` | Write to local cache, mark file as locally modified → upload on next sync |
-| `create(path, mode)` | Create placeholder, queue `PendingOperation` for upload |
-| `unlink(path)` | Queue delete for server propagation, remove from `LocalStateDb` |
-| `rename(oldPath, newPath)` | Queue rename for server propagation, update `LocalStateDb` |
-| `mkdir(path, mode)` | Create directory in `LocalStateDb`, queue create for server |
-| `rmdir(path)` | Remove directory from `LocalStateDb`, queue delete for server |
-| `truncate(path, size)` | Resize cached content, mark as locally modified |
-| `utimens(path, atime, mtime)` | Update timestamps in `LocalStateDb` |
+| FUSE Operation                        | Implementation                                                                                  |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `getattr(path)`                       | Query `LocalStateDb` for file metadata → return `Stat` struct (size, mode, timestamps, uid/gid) |
+| `readdir(path)`                       | Query `LocalStateDb` for children of directory → return `DirectoryEntry[]`                      |
+| `open(path, flags)`                   | If file is `CloudOnly` and `flags` include `O_RDONLY` or `O_RDWR`, trigger hydration            |
+| `read(path, offset, size, fileInfo)`  | If hydrated, read from local cache; if cloud-only, hydrate first then read                      |
+| `write(path, offset, data, fileInfo)` | Write to local cache, mark file as locally modified → upload on next sync                       |
+| `create(path, mode)`                  | Create placeholder, queue `PendingOperation` for upload                                         |
+| `unlink(path)`                        | Queue delete for server propagation, remove from `LocalStateDb`                                 |
+| `rename(oldPath, newPath)`            | Queue rename for server propagation, update `LocalStateDb`                                      |
+| `mkdir(path, mode)`                   | Create directory in `LocalStateDb`, queue create for server                                     |
+| `rmdir(path)`                         | Remove directory from `LocalStateDb`, queue delete for server                                   |
+| `truncate(path, size)`                | Resize cached content, mark as locally modified                                                 |
+| `utimens(path, atime, mtime)`         | Update timestamps in `LocalStateDb`                                                             |
 
 **Thread safety:** FUSE operations are called from multiple kernel threads. All `LocalStateDb` access must be thread-safe (it already is — each operation creates a new `DbContext` instance). File downloads during `read()` must be serialized per file to avoid duplicate downloads.
 
 **Error mapping:**
 
-| Condition | FUSE error |
-|-----------|-----------|
-| File not in metadata cache | `ENOENT` (No such file) |
-| Server unreachable during hydration | `EIO` (I/O error) |
-| Permission denied (restricted folder) | `EACCES` |
-| Disk full during hydration | `ENOSPC` |
-| File is downloading | `EAGAIN` (try again — transient) |
+| Condition                             | FUSE error                       |
+| ------------------------------------- | -------------------------------- |
+| File not in metadata cache            | `ENOENT` (No such file)          |
+| Server unreachable during hydration   | `EIO` (I/O error)                |
+| Permission denied (restricted folder) | `EACCES`                         |
+| Disk full during hydration            | `ENOSPC`                         |
+| File is downloading                   | `EAGAIN` (try again — transient) |
 
 **Deliverables:**
 
@@ -725,6 +736,7 @@ Since FUSE `read()` is called synchronously by the kernel, content must be serve
 **Cache directory:** `~/.local/share/dotnetcloud/cache/`
 
 **Cache structure:**
+
 ```
 ~/.local/share/dotnetcloud/cache/
 ├── chunks/
@@ -737,14 +749,15 @@ Since FUSE `read()` is called synchronously by the kernel, content must be serve
 
 **Key methods:**
 
-| Method | Purpose |
-|--------|---------|
-| `GetChunkAsync(hash)` | Return cached chunk stream, update access time. Return `null` if not cached. |
-| `PutChunkAsync(hash, stream)` | Store chunk in cache, update total size. Trigger eviction if over limit. |
-| `EvictAsync(targetBytes)` | Evict least-recently-used non-pinned chunks until cache ≤ `targetBytes`. |
-| `RemoveFileAsync(nodeId)` | Remove all chunks belonging to a file (on dehydration). |
+| Method                        | Purpose                                                                      |
+| ----------------------------- | ---------------------------------------------------------------------------- |
+| `GetChunkAsync(hash)`         | Return cached chunk stream, update access time. Return `null` if not cached. |
+| `PutChunkAsync(hash, stream)` | Store chunk in cache, update total size. Trigger eviction if over limit.     |
+| `EvictAsync(targetBytes)`     | Evict least-recently-used non-pinned chunks until cache ≤ `targetBytes`.     |
+| `RemoveFileAsync(nodeId)`     | Remove all chunks belonging to a file (on dehydration).                      |
 
 **Eviction policy:**
+
 1. Collect all cached chunks with their last-access times
 2. Exclude chunks belonging to pinned files
 3. Sort by ascending last-access time
@@ -766,6 +779,7 @@ Since FUSE `read()` is called synchronously by the kernel, content must be serve
 **File:** `scripts/install.sh` (or equivalent install script)
 
 Add pre-flight checks:
+
 ```bash
 # Check for fuse3
 if ! command -v fusermount3 &> /dev/null; then
@@ -798,6 +812,7 @@ fi
 ### Step 5.1 — Add "Storage Mode" Setting to SettingsViewModel
 
 **Files:**
+
 - `src/Clients/DotNetCloud.Client.SyncTray/ViewModels/SettingsViewModel.cs`
 - `src/Clients/DotNetCloud.Client.SyncTray/Views/SettingsWindow.axaml`
 
@@ -868,12 +883,14 @@ if (_virtualFileSettings.StorageMode == VirtualFileStorageMode.FilesOnDemand)
 ```
 
 **Shutdown changes:**
+
 ```csharp
 // Before disposing other services:
 await _virtualFileProvider.ShutdownAsync(ct);
 ```
 
 **DI wiring (in `BuildServices`):**
+
 ```csharp
 services.AddSingleton<VirtualFileSyncEngine>();
 // VirtualFileSyncEngine replaces direct ISyncEngine usage when VFS is active
@@ -907,6 +924,7 @@ public string? HydrationFileName { get => _hydrationFileName; set => SetProperty
 ```
 
 **Tray tooltip integration:**
+
 - When VFS is active, show "☁ 1,234 files online | ✓ 56 files local"
 - During hydration: "⬇ Downloading vacation-photos.zip..."
 - Update counts periodically (every 30 seconds) by querying `LocalStateDb`
@@ -954,17 +972,17 @@ public string? HydrationFileName { get => _hydrationFileName; set => SetProperty
 
 **Key test scenarios:**
 
-| Test | Description |
-|------|-------------|
+| Test                                                      | Description                                                                  |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------- |
 | `SyncAsync_FilesOnDemand_CreatesPlaceholdersNotDownloads` | When mode is OnDemand, sync pass creates placeholders instead of downloading |
-| `SyncAsync_DownloadAll_DownloadsAllContent` | When mode is DownloadAll, behavior unchanged from current |
-| `ModeSwitch_DownloadAllToOnDemand_DehydratesUnpinned` | Switching modes dehydrates files not in pin list |
-| `ModeSwitch_OnDemandToDownloadAll_HydratesAll` | Switching modes downloads all files |
-| `HydrateFile_CloudOnly_DownloadsContent` | Hydration downloads content via ChunkedTransferClient |
-| `HydrateFile_AlreadyHydrated_SkipsDownload` | No redundant download for hydrated files |
-| `DehydrateFile_Pinned_ThrowsOrNoOps` | Pinned files cannot be dehydrated |
-| `LruCache_EvictsOldestFirst` | Eviction removes least-recently-used chunks |
-| `LruCache_PinnedExempt` | Pinned file chunks survive eviction |
+| `SyncAsync_DownloadAll_DownloadsAllContent`               | When mode is DownloadAll, behavior unchanged from current                    |
+| `ModeSwitch_DownloadAllToOnDemand_DehydratesUnpinned`     | Switching modes dehydrates files not in pin list                             |
+| `ModeSwitch_OnDemandToDownloadAll_HydratesAll`            | Switching modes downloads all files                                          |
+| `HydrateFile_CloudOnly_DownloadsContent`                  | Hydration downloads content via ChunkedTransferClient                        |
+| `HydrateFile_AlreadyHydrated_SkipsDownload`               | No redundant download for hydrated files                                     |
+| `DehydrateFile_Pinned_ThrowsOrNoOps`                      | Pinned files cannot be dehydrated                                            |
+| `LruCache_EvictsOldestFirst`                              | Eviction removes least-recently-used chunks                                  |
+| `LruCache_PinnedExempt`                                   | Pinned file chunks survive eviction                                          |
 
 **Deliverables:**
 
@@ -1046,76 +1064,76 @@ All three machines participate. Coordination via `docs/development/CLIENT_SERVER
 
 **Client.Core — VirtualFiles namespace (`src/Clients/DotNetCloud.Client.Core/VirtualFiles/`):**
 
-| File | Purpose |
-|------|---------|
-| `IVirtualFileProvider.cs` | Platform-agnostic VFS interface |
+| File                       | Purpose                                                     |
+| -------------------------- | ----------------------------------------------------------- |
+| `IVirtualFileProvider.cs`  | Platform-agnostic VFS interface                             |
 | `VirtualFileSyncEngine.cs` | Wraps SyncEngine, delegates VFS ops to IVirtualFileProvider |
-| `VirtualFileSettings.cs` | Storage mode, cache size, pin list |
-| `LruCacheManager.cs` | LRU content chunk cache for Linux |
+| `VirtualFileSettings.cs`   | Storage mode, cache size, pin list                          |
+| `LruCacheManager.cs`       | LRU content chunk cache for Linux                           |
 
 **Client.Core — Windows platform (`src/Clients/DotNetCloud.Client.Core/Platform/Windows/`):**
 
-| File | Purpose |
-|------|---------|
-| `CfApi/CfApiNative.cs` | P/Invoke declarations for `cfapi.dll` |
-| `CfApi/CfApiTypes.cs` | CF_* structs, enums, flags, callback delegates |
-| `CloudFilterSyncProvider.cs` | `IVirtualFileProvider` implementation for Windows |
-| `CloudFilterCallbacks.cs` | CF callback implementations (FETCH_DATA, VALIDATE_DATA, etc.) |
+| File                         | Purpose                                                       |
+| ---------------------------- | ------------------------------------------------------------- |
+| `CfApi/CfApiNative.cs`       | P/Invoke declarations for `cfapi.dll`                         |
+| `CfApi/CfApiTypes.cs`        | CF\_\* structs, enums, flags, callback delegates              |
+| `CloudFilterSyncProvider.cs` | `IVirtualFileProvider` implementation for Windows             |
+| `CloudFilterCallbacks.cs`    | CF callback implementations (FETCH_DATA, VALIDATE_DATA, etc.) |
 
 **Client.Core — Linux platform (`src/Clients/DotNetCloud.Client.Core/Platform/Linux/`):**
 
-| File | Purpose |
-|------|---------|
-| `FuseSyncFilesystem.cs` | `IVirtualFileProvider` implementation for Linux (mount/umount) |
+| File                           | Purpose                                                              |
+| ------------------------------ | -------------------------------------------------------------------- |
+| `FuseSyncFilesystem.cs`        | `IVirtualFileProvider` implementation for Linux (mount/umount)       |
 | `DotNetCloudFuseOperations.cs` | FUSE operation implementations (getattr, readdir, read, write, etc.) |
 
 **Client.Core — Stub (`src/Clients/DotNetCloud.Client.Core/Platform/`):**
 
-| File | Purpose |
-|------|---------|
+| File                         | Purpose                                                        |
+| ---------------------------- | -------------------------------------------------------------- |
 | `NoOpVirtualFileProvider.cs` | Throws `PlatformNotSupportedException` — for macOS/unsupported |
 
 **Tests (`tests/DotNetCloud.Client.Core.Tests/VirtualFiles/`):**
 
-| File | Purpose |
-|------|---------|
-| `VirtualFileSyncEngineTests.cs` | Mode switching, hydration, dehydration logic |
-| `VirtualFileSettingsTests.cs` | Settings serialization, pin list |
-| `LruCacheManagerTests.cs` | Cache eviction, pin exemption |
+| File                              | Purpose                                           |
+| --------------------------------- | ------------------------------------------------- |
+| `VirtualFileSyncEngineTests.cs`   | Mode switching, hydration, dehydration logic      |
+| `VirtualFileSettingsTests.cs`     | Settings serialization, pin list                  |
+| `LruCacheManagerTests.cs`         | Cache eviction, pin exemption                     |
 | `CloudFilterSyncProviderTests.cs` | Mock-backed unit tests for Windows provider logic |
-| `FuseSyncFilesystemTests.cs` | Mock-backed unit tests for Linux provider logic |
+| `FuseSyncFilesystemTests.cs`      | Mock-backed unit tests for Linux provider logic   |
 
 ### Modified Files (10 total)
 
 **Client.Core:**
 
-| File | Change |
-|------|--------|
-| `LocalState/Entities/LocalFileRecord.cs` | Add `HydrationState` property |
-| `LocalState/LocalStateDb.cs` | Add `HydrationState` column to schema evolution |
-| `ClientCoreServiceExtensions.cs` | Register `IVirtualFileProvider`, `VirtualFileSettings`, `VirtualFileSyncEngine`, `LruCacheManager` |
-| `DotNetCloud.Client.Core.csproj` | Add `Tmds.Fuse` package reference (Linux-conditional) |
+| File                                     | Change                                                                                             |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `LocalState/Entities/LocalFileRecord.cs` | Add `HydrationState` property                                                                      |
+| `LocalState/LocalStateDb.cs`             | Add `HydrationState` column to schema evolution                                                    |
+| `ClientCoreServiceExtensions.cs`         | Register `IVirtualFileProvider`, `VirtualFileSettings`, `VirtualFileSyncEngine`, `LruCacheManager` |
+| `DotNetCloud.Client.Core.csproj`         | Add `Tmds.Fuse` package reference (Linux-conditional)                                              |
 
 **SyncTray:**
 
-| File | Change |
-|------|--------|
-| `App.axaml.cs` | Wire VFS lifecycle (init on start, shutdown on exit), use `VirtualFileSyncEngine` |
-| `ViewModels/SettingsViewModel.cs` | Add `StorageMode`, `MaxCacheSizeMb` properties, mode-switch commands |
-| `Views/SettingsWindow.axaml` | Storage mode radio buttons, cache size slider, pinned files list |
-| `ViewModels/TrayViewModel.cs` | VFS status properties (cloud-only count, hydration progress) |
+| File                              | Change                                                                            |
+| --------------------------------- | --------------------------------------------------------------------------------- |
+| `App.axaml.cs`                    | Wire VFS lifecycle (init on start, shutdown on exit), use `VirtualFileSyncEngine` |
+| `ViewModels/SettingsViewModel.cs` | Add `StorageMode`, `MaxCacheSizeMb` properties, mode-switch commands              |
+| `Views/SettingsWindow.axaml`      | Storage mode radio buttons, cache size slider, pinned files list                  |
+| `ViewModels/TrayViewModel.cs`     | VFS status properties (cloud-only count, hydration progress)                      |
 
 **Server (handoff to `mint22`):**
 
-| File | Change |
-|------|--------|
+| File                                        | Change                                                      |
+| ------------------------------------------- | ----------------------------------------------------------- |
 | `FilesController` or chunk-serving endpoint | Verify/add `Range` header support for `206 Partial Content` |
-| Sync tree endpoint | Optionally add `?metadataOnly=true` to skip content hashes |
+| Sync tree endpoint                          | Optionally add `?metadataOnly=true` to skip content hashes  |
 
 **Scripts:**
 
-| File | Change |
-|------|--------|
+| File                 | Change                                                   |
+| -------------------- | -------------------------------------------------------- |
 | `scripts/install.sh` | Add `fuse3` dependency check and user group instructions |
 
 ---
@@ -1208,19 +1226,19 @@ Pull and check docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md Active Handof
 
 ## Decisions & Rationale
 
-| Decision | Rationale |
-|----------|-----------|
-| **FUSE library: `Tmds.Fuse` first** | Pure .NET bindings, no native compilation. If insufficient for production, fall back to `libfuse3` P/Invoke. `IVirtualFileProvider` insulates from this choice. |
-| **Mount FUSE at sync folder path** | Matches user expectation — "my sync folder just works." No separate virtual mount point to explain. |
-| **`StorageMode` defaults to `DownloadAll`** | Preserves backward compatibility. Existing users see no change. VFS is opt-in. |
-| **`HydrationState` defaults to `Hydrated`** | Backward compatible — existing records in `LocalStateDb` have content downloaded. |
-| **LRU cache: 10% of free disk (1 GB–100 GB range)** | Conservative default that scales with disk size. User-adjustable. |
-| **`VirtualFileSyncEngine` wraps `SyncEngine`** | Does not duplicate sync logic. All existing sync features (cursor, conflict resolution, chunked transfer) are reused. |
-| **Windows CF API via manual P/Invoke** | No mature community NuGet package for Cloud Filter API. `Microsoft.Windows.CsWin32` can auto-generate if available. |
-| **Callback delegates pinned via `GCHandle`** | Native CF API holds function pointers indefinitely. Managed delegates must not be garbage collected while sync root is connected. |
-| **Pinned files exempt from eviction and dehydration** | User explicitly requested "always keep on this device." This is the contract. |
-| **Network errors during `read()` return `EIO`** | Standard POSIX behavior for I/O errors. Applications handle this gracefully (show error dialog, not crash). |
-| **No macOS in initial scope** | `NoOpVirtualFileProvider` stub throws `PlatformNotSupportedException`. macOS File Provider Extension is a separate, sandboxed app extension that requires a dedicated contributor. |
+| Decision                                              | Rationale                                                                                                                                                                          |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **FUSE library: `Tmds.Fuse` first**                   | Pure .NET bindings, no native compilation. If insufficient for production, fall back to `libfuse3` P/Invoke. `IVirtualFileProvider` insulates from this choice.                    |
+| **Mount FUSE at sync folder path**                    | Matches user expectation — "my sync folder just works." No separate virtual mount point to explain.                                                                                |
+| **`StorageMode` defaults to `DownloadAll`**           | Preserves backward compatibility. Existing users see no change. VFS is opt-in.                                                                                                     |
+| **`HydrationState` defaults to `Hydrated`**           | Backward compatible — existing records in `LocalStateDb` have content downloaded.                                                                                                  |
+| **LRU cache: 10% of free disk (1 GB–100 GB range)**   | Conservative default that scales with disk size. User-adjustable.                                                                                                                  |
+| **`VirtualFileSyncEngine` wraps `SyncEngine`**        | Does not duplicate sync logic. All existing sync features (cursor, conflict resolution, chunked transfer) are reused.                                                              |
+| **Windows CF API via manual P/Invoke**                | No mature community NuGet package for Cloud Filter API. `Microsoft.Windows.CsWin32` can auto-generate if available.                                                                |
+| **Callback delegates pinned via `GCHandle`**          | Native CF API holds function pointers indefinitely. Managed delegates must not be garbage collected while sync root is connected.                                                  |
+| **Pinned files exempt from eviction and dehydration** | User explicitly requested "always keep on this device." This is the contract.                                                                                                      |
+| **Network errors during `read()` return `EIO`**       | Standard POSIX behavior for I/O errors. Applications handle this gracefully (show error dialog, not crash).                                                                        |
+| **No macOS in initial scope**                         | `NoOpVirtualFileProvider` stub throws `PlatformNotSupportedException`. macOS File Provider Extension is a separate, sandboxed app extension that requires a dedicated contributor. |
 
 ---
 

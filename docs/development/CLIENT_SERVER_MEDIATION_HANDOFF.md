@@ -5,6 +5,7 @@ Last updated: 20260512 (VFS all phases complete — IDLE; manual E2E testing rem
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
 Archived context:
+
 - Historical completed updates are in `CLIENT_SERVER_MEDIATION_ARCHIVE.md`.
 - Additional history remains available in git.
 - VFS Phase 3 (Windows Cloud Filter API) completed on Windows11-TestDNC (2026-05-12).
@@ -13,12 +14,14 @@ Archived context:
 ## Process Rules
 
 **Agent autonomy (CRITICAL):**
+
 - Both client and server agents work autonomously — they do NOT ask the moderator for context or permission.
 - Agents pull the latest `main`, read the **Active Handoff** section, and execute the work described there independently.
 - All actionable items, blockers, and technical details go directly in this document (committed to `main`).
 - No moderator involvement in technical decisions, code reviews, or work coordination.
 
 **Handoff management:**
+
 - Put all technical findings, debugging conclusions, and next-step details in this document.
 - Assistant (current agent) commits their findings/work and updates the **Active Handoff** section with actionable next steps for the other client.
 - Assistant pushes commits to `main`.
@@ -33,6 +36,7 @@ Archived context:
 - Other agent pulls latest, reads the handoff, and takes action without asking questions.
 
 **Document maintenance:**
+
 - Pre-commit archive rule (MANDATORY): before committing this file, move all completed/older handoff tasks to `CLIENT_SERVER_MEDIATION_ARCHIVE.md`.
 - Keep only the single current task in **Active Handoff** (one active block only).
 - If a task is completed, archive it first, then replace **Active Handoff** with the next task.
@@ -67,12 +71,12 @@ Archived context:
 
 ## Environment
 
-| Role | Machine | Detail |
-|---|---|---|
-| Server | `mint22` | `https://mint22:5443/` |
-| Client | `Windows11-TestDNC` | Sync dir: `C:\Users\benk\Documents\synctray` |
-| Client | `mint-dnc-client` | Linux Mint 22 validation host for desktop sync client implementation + E2E testing |
-| Android Client | `monolith` | Android MAUI app development + emulator testing (Windows 11) |
+| Role           | Machine             | Detail                                                                             |
+| -------------- | ------------------- | ---------------------------------------------------------------------------------- |
+| Server         | `mint22`            | `https://mint22:5443/`                                                             |
+| Client         | `Windows11-TestDNC` | Sync dir: `C:\Users\benk\Documents\synctray`                                       |
+| Client         | `mint-dnc-client`   | Linux Mint 22 validation host for desktop sync client implementation + E2E testing |
+| Android Client | `monolith`          | Android MAUI app development + emulator testing (Windows 11)                       |
 
 ## Key Carry-Forward Contracts
 
@@ -88,6 +92,7 @@ Archived context:
 **Status:** IDLE — all VFS implementation phases complete (2026-05-12)
 
 **Completed phases:**
+
 - VFS Phase 1 (server-side prerequisites) — `mint22`
 - VFS Phase 2 (core abstraction layer) — `Windows11-TestDNC`
 - VFS Phase 3 (Windows Cloud Filter API) — `Windows11-TestDNC`
@@ -96,9 +101,11 @@ Archived context:
 - VFS Phase 6 (testing & validation) — `Windows11-TestDNC`
 
 **Remaining work:** Manual E2E tests (Steps 6.2-6.4 in `docs/VIRTUAL_FILE_SYNCING_PLAN.md`) require cross-machine coordination. Not yet scheduled.
-   - Update `scripts/install.sh` with FUSE dependency
+
+- Update `scripts/install.sh` with FUSE dependency
 
 **Reference files (already on main):**
+
 - `src/Clients/DotNetCloud.Client.Core/VirtualFiles/IVirtualFileProvider.cs` — interface
 - `src/Clients/DotNetCloud.Client.Core/VirtualFiles/VirtualFileSyncEngine.cs` — engine wrapper
 - `src/Clients/DotNetCloud.Client.Core/VirtualFiles/VirtualFileSettings.cs` — settings
@@ -107,13 +114,14 @@ Archived context:
 - `tests/DotNetCloud.Client.Core.Tests/VirtualFiles/FuseSyncFilesystemTests.cs` — contract tests
 
 **Pre-commit checklist:**
+
 - Run `dotnet build` — must succeed with 0 errors
 - Run `dotnet test tests/DotNetCloud.Client.Core.Tests/` — all tests must pass
 - Run `dotnet test tests/DotNetCloud.Client.Client.SyncTray.Tests/` — all tests must pass
 - Delete any unexpected untracked files before committing
 
 **Post-completion:**
+
 - Update `docs/VIRTUAL_FILE_SYNCING_PLAN.md` — mark Phase 4 deliverables ✓
 - Update `docs/IMPLEMENTATION_CHECKLIST.md` — mark Phase 4 checkboxes ✓
 - Update `docs/MASTER_PROJECT_PLAN.md` — update VFS Phase 4 status + deliverables
- 
