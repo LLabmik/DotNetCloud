@@ -90,6 +90,7 @@ public sealed class LibraryScanService
 
         // Strategy 1: Same FileNodeId (same file visible to multiple users via sharing)
         sourceTrack = await _db.Tracks
+            .Include(t => t.Album)
             .Include(t => t.TrackArtists).ThenInclude(ta => ta.Artist)
             .Include(t => t.TrackGenres).ThenInclude(tg => tg.Genre)
             .IgnoreQueryFilters()
@@ -108,6 +109,7 @@ public sealed class LibraryScanService
             if (contentHash is not null)
             {
                 sourceTrack = await _db.Tracks
+                    .Include(t => t.Album)
                     .Include(t => t.TrackArtists).ThenInclude(ta => ta.Artist)
                     .Include(t => t.TrackGenres).ThenInclude(tg => tg.Genre)
                     .IgnoreQueryFilters()

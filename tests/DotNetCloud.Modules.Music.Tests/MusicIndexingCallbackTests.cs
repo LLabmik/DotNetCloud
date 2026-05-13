@@ -109,10 +109,14 @@ public class MusicIndexingCallbackTests
         // Act: User B scans the same FileNodeId
         await _callback.IndexAudioAsync(fileNodeId, "muduzz.flac", "audio/flac", 30_000_000, userB);
 
-        // Assert: User B now has a track for this FileNodeId
-        var userBTrack = _db.Tracks.FirstOrDefault(t => t.FileNodeId == fileNodeId && t.OwnerId == userB);
+        // Assert: User B now has a track for this FileNodeId with cloned metadata
+        var userBTrack = _db.Tracks
+            .Include(t => t.Album)
+            .FirstOrDefault(t => t.FileNodeId == fileNodeId && t.OwnerId == userB);
         Assert.IsNotNull(userBTrack, "User B should have a cloned track");
         Assert.AreEqual("Muduzz", userBTrack.Title);
+        Assert.IsNotNull(userBTrack.Album, "Album should be cloned along with track metadata");
+        Assert.AreEqual("IM The Supervisor", userBTrack.Album!.Title);
     }
 
     [TestMethod]
@@ -180,6 +184,29 @@ public class MusicIndexingCallbackTests
         // Assert: Only one track exists
         var count = _db.Tracks.Count(t => t.FileNodeId == fileNodeId && t.OwnerId == ownerId);
         Assert.AreEqual(1, count);
+    }
+
+    [TestMethod]
+    public async Task IndexFileAsync_CrossOwner_SourceWithoutAlbum_StillClonesTrack()
+    {
+        // Arrange: User A has a track with no album
+        var fileNodeId = Guid.NewGuid();
+        var userA = Guid.NewGuid();
+        var userB = Guid.NewGuid();
+
+        var sourceArtist = await TestHelpers.SeedArtistAsync(_db, "Solo Artist", null, userA);
+        var sourceTrack = await TestHelpers.SeedTrackAsync(_db, null, "Standalone Track", ownerId: userA);
+        sourceTrack.FileNodeId = fileNodeId;
+        await _db.SaveChangesAsync();
+
+        // Act: User B scans the same FileNodeId
+        await _callback.IndexAudioAsync(fileNodeId, "standalone.flac", "audio/flac", 10_000, userB);
+
+        // Assert: User B gets a track with no album (graceful handling)
+        var userBTrack = _db.Tracks.FirstOrDefault(t => t.FileNodeId == fileNodeId && t.OwnerId == userB);
+        Assert.IsNotNull(userBTrack, "User B should still get a track even if source has no album");
+        Assert.AreEqual("Standalone Track", userBTrack.Title);
+        Assert.IsNull(userBTrack.AlbumId, "AlbumId should be null if source had no album");
     }
 
     [TestMethod]

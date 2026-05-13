@@ -87,7 +87,8 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
 
         foreach (var filePath in files)
         {
-            if (cancellationToken.IsCancellationRequested) break;
+            if (cancellationToken.IsCancellationRequested)
+                break;
 
             try
             {
@@ -548,7 +549,8 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
     {
         var fileName = Path.GetFileName(filePath);
         var fileInfo = new FileInfo(filePath);
-        if (!fileInfo.Exists) return false;
+        if (!fileInfo.Exists)
+            return false;
 
         // Compute content hash for dedup
         await using var stream = File.OpenRead(filePath);

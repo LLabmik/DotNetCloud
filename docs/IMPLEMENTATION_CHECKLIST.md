@@ -4019,6 +4019,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Step 5.9 — Music Data Model & Migrations
 - ✓ Step 5.10 — Music Library Scanning
   - ✓ **Bug fix (2026-05-12):** Restored cross-owner copy in `LibraryScanService.IndexFileAsync`. When another user already indexed a file, metadata is cloned to the current user's library (skipping expensive TagLib/ffmpeg extraction). Copy is strictly read-only on source data — only CREATEs new records for the current owner. Safety audit log added to verify source track is never modified.
+  - ✓ **Bug fix (2026-05-13):** Added missing `.Include(t => t.Album)` to both cross-owner copy EF Core queries. Without this, `sourceTrack.Album` was always null even when `AlbumId` was set, causing album metadata to never be cloned (all tracks showed `(none)` for album).
 - ✓ Step 5.11 — Music Core Services
 - ✓ Step 5.12 — Music Streaming & Equalizer
 - ✓ Step 5.13 — Subsonic API Compatibility

@@ -2334,6 +2334,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ `AlbumArtService` — embedded art extraction, folder art fallback, thumbnail caching
 - ✓ Supported formats: MP3, FLAC, OGG, AAC/M4A, OPUS, WAV, WMA
 - ✓ **Bug fix (2026-05-12):** Restored cross-owner copy feature in `IndexFileAsync` with safety audit. When another user has already indexed a file, metadata is cloned to the current user's library (avoiding expensive re-extraction). Cross-owner copy is READ-ONLY on source data — never modifies or deletes other users' tracks. Added safety audit log that re-queries the source track after cloning and logs CRITICAL if it was unexpectedly modified.
+- ✓ **Bug fix (2026-05-13):** Fixed critical bug where cross-owner copy was missing `.Include(t => t.Album)` in both Strategy 1 and Strategy 2 EF Core queries. This caused `sourceTrack.Album` to always be null even when `AlbumId` was set, so album metadata was never cloned. All cloned tracks appeared with `(none)` for albums. Added test verifying album cloning across owners.
 
 ---
 
