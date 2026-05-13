@@ -49,13 +49,18 @@ Archived context:
 ## Current Status
 
 - All prior Phase 2, chat, pre-Linux sync remediation, SyncTray icon enhancement work is complete and archived.
-- VFS Phase 1 (server-side prerequisites) complete on `mint22`. Range header support and `metadataOnly` tree endpoint deployed.
+- VFS Phase 1 (server-side prerequisites) complete on `mint22`.
 - VFS Phase 2 (core abstraction layer) complete on `Windows11-TestDNC`.
 - VFS Phase 3 (Windows Cloud Filter API) complete on `Windows11-TestDNC`.
-- VFS Phase 4 (Linux FUSE) — `FuseSyncFilesystem` stub exists in DI; full implementation pending on `mint-dnc-client`.
+- VFS Phase 4 (Linux FUSE) complete on `mint-dnc-client`:
+  - `FuseSyncFilesystem : IVirtualFileProvider` with mount/unmount lifecycle
+  - `DotNetCloudFuseOperations : IFuseOperations` with all FUSE callbacks
+  - `LruCacheManager` wired into FUSE read path
+  - DI registration: `FuseSyncFilesystem` on Linux
+  - Build: 0 errors (CI solution filter). Tests: 253/254 Client.Core pass, 106/106 SyncTray pass.
 - VFS Phase 5 (SyncTray UI Integration) complete on `Windows11-TestDNC` (archived).
 - VFS Phase 6 (Testing & Validation) complete on `Windows11-TestDNC`:
-  - 50 unit tests (51 total, 1 inconclusive for Linux FUSE)
+  - 50+ unit tests across all VFS components
   - `LruCacheManager` class created + DI registered
   - Windows/Linux/E2E test scenarios documented
   - Build: 0 errors. Tests: Core 435, Client.Core 253/254, SyncTray 106.
@@ -80,9 +85,9 @@ Archived context:
 
 ## Active Handoff
 
-**Status:** VFS Phase 4 (Linux FUSE) ready for `mint-dnc-client` (2026-05-12)  
-**Blocked by:** nothing — VFS Phase 3 (Windows), Phase 5 (UI), Phase 6 (Testing) complete  
-**Blocks:** VFS manual integration testing (Steps 6.2-6.4)
+**Status:** All VFS phases complete (2026-05-12)  
+**Blocked by:** nothing  
+**Next:** Manual E2E testing (VFS Steps 6.2-6.4) requires cross-machine coordination across all three machines.
 
 ### Task: Implement VFS Phase 4 — Linux FUSE Filesystem
 
