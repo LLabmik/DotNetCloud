@@ -382,6 +382,23 @@ public sealed class TrayIconManager : IDisposable
         var loggerFactory = _services.GetRequiredService<ILoggerFactory>();
         var vm = new UpdateViewModel(updateService, backgroundService, loggerFactory.CreateLogger<UpdateViewModel>());
         var dialog = new UpdateDialog(vm);
+
+        // When the update has been applied and a restart is needed,
+        // close the dialog and shut down the app so the updater script
+        // can replace the old binary and relaunch.
+        vm.RestartRequired += (_, _) =>
+        {
+            _logger.LogInformation("Update applied. Shutting down for restart.");
+            dialog.Close();
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime lifetime)
+                {
+                    lifetime.Shutdown();
+                }
+            });
+        };
+
         dialog.Show();
     }
 

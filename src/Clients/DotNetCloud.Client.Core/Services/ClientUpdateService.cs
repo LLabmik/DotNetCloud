@@ -124,21 +124,140 @@ public sealed class ClientUpdateService : IClientUpdateService
     }
 
     /// <inheritdoc/>
-    public Task ApplyUpdateAsync(string downloadPath, CancellationToken ct = default)
+    public async Task ApplyUpdateAsync(string downloadPath, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(downloadPath);
 
         if (!File.Exists(downloadPath))
             throw new FileNotFoundException("Downloaded update file not found.", downloadPath);
 
-        // The actual apply strategy depends on the platform.
-        // For now, log the path and leave the caller to handle restart logic.
-        // A future iteration will implement OS-specific apply (tar extract on Linux,
-        // updater.exe on Windows).
-        _logger.LogInformation(
-            "Update apply requested for {Path}. Manual restart/replacement required in current version.",
-            downloadPath);
+        var installDir = AppContext.BaseDirectory;
+        _logger.LogInformation("Applying update from {Path} to {InstallDir}.", downloadPath, installDir);
 
+        if (OperatingSystem.IsLinux())
+        {
+            await ApplyUpdateLinuxAsync(downloadPath, installDir, ct);
+        }
+        else if (OperatingSystem.IsWindows())
+        {
+            await ApplyUpdateWindowsAsync(downloadPath, installDir, ct);
+        }
+        else
+        {
+            _logger.LogWarning("Update apply not implemented for the current platform.");
+        }
+    }
+
+    private async Task ApplyUpdateLinuxAsync(string archivePath, string installDir, CancellationToken ct)
+    {
+        // Stage 1: extract the tarball to a temp directory.
+        var extractDir = Path.Combine(
+            Path.GetTempPath(),
+            "DotNetCloud",
+            "updates",
+            "extract-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(extractDir);
+
+        _logger.LogInformation("Extracting tarball to {ExtractDir}...", extractDir);
+
+        var process = new System.Diagnostics.Process
+        {
+            StartInfo = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "tar",
+                Arguments = $"xzf \"{archivePath}\" -C \"{extractDir}\"",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            }
+        };
+        process.Start();
+        await process.WaitForExitAsync(ct);
+        if (process.ExitCode != 0)
+        {
+            var error = await process.StandardError.ReadToEndAsync(ct);
+            throw new InvalidOperationException($"Failed to extract update archive (exit code {process.ExitCode}): {error}");
+        }
+
+        // Stage 2: locate the payload directory.
+        // Expected structure: {extractDir}/linux-x64/payload/SyncTray/
+        var payloadDir = FindPayloadDirectory(extractDir);
+        if (payloadDir is null)
+        {
+            throw new InvalidOperationException(
+                "Could not locate payload directory in the update archive.");
+        }
+
+        // Stage 3: create a restart script that replaces the running binary then relaunches.
+        var scriptPath = Path.Combine(Path.GetTempPath(), "DotNetCloud", "updates",
+            "apply-" + Guid.NewGuid().ToString("N") + ".sh");
+
+        var scriptContent = $"#!/usr/bin/env bash\n" +
+                            $"# Auto-generated update script for DotNetCloud SyncTray\n" +
+                            $"sleep 1\n" +
+                            $"cp -rf \"{payloadDir}/\"* \"{installDir}/\"\n" +
+                            $"chmod +x \"{installDir}/dotnetcloud-sync-tray\"\n" +
+                            $"exec \"{installDir}/dotnetcloud-sync-tray\"\n";
+
+        await File.WriteAllTextAsync(scriptPath, scriptContent, ct);
+
+        // Set execute permission on Linux only.
+        if (OperatingSystem.IsLinux())
+        {
+            File.SetUnixFileMode(scriptPath,
+                UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute |
+                UnixFileMode.GroupRead | UnixFileMode.GroupExecute |
+                UnixFileMode.OtherRead | UnixFileMode.OtherExecute);
+        }
+
+        _logger.LogInformation("Restart script created at {ScriptPath}. Launching updater.", scriptPath);
+
+        // Stage 4: launch the updater script and exit the current process.
+        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+        {
+            FileName = scriptPath,
+            UseShellExecute = true,
+            CreateNoWindow = true,
+        });
+
+        // Signal the UI/ caller to exit gracefully.
+        _logger.LogInformation("Updater launched. Requesting application shutdown.");
+    }
+
+    private static string? FindPayloadDirectory(string extractDir)
+    {
+        // Walk into the extracted tree to find the payload directory.
+        // Expected: {extractDir}/linux-x64/payload/SyncTray/
+        // or any path ending in /payload/SyncTray or containing the binary.
+        foreach (var dir in Directory.EnumerateDirectories(extractDir, "*", SearchOption.AllDirectories))
+        {
+            var dirName = Path.GetFileName(dir);
+            if (string.Equals(dirName, "SyncTray", StringComparison.OrdinalIgnoreCase))
+            {
+                var parentDir = Path.GetFileName(Path.GetDirectoryName(dir));
+                if (string.Equals(parentDir, "payload", StringComparison.OrdinalIgnoreCase))
+                {
+                    return dir;
+                }
+            }
+
+            // Direct match: the binary is directly inside.
+            if (File.Exists(Path.Combine(dir, "dotnetcloud-sync-tray")))
+            {
+                return dir;
+            }
+        }
+        return null;
+    }
+
+    private Task ApplyUpdateWindowsAsync(string archivePath, string installDir, CancellationToken ct)
+    {
+        // Windows update apply — deferred. On Windows the zip-based update
+        // will use a similar updater-helper pattern.
+        _logger.LogInformation(
+            "Windows update apply from {Path} to {InstallDir} is not yet implemented.",
+            archivePath, installDir);
         return Task.CompletedTask;
     }
 
@@ -284,6 +403,13 @@ public sealed class ClientUpdateService : IClientUpdateService
     private static string? InferPlatform(string fileName)
     {
         var lower = fileName.ToLowerInvariant();
+
+        // Only match desktop-client assets — skip server-only tarballs
+        // (e.g. "dotnetcloud-0.3.0-linux-x64.tar.gz" vs
+        //  "dotnetcloud-desktop-client-linux-x64-0.3.0.tar.gz").
+        if (!lower.Contains("desktop-client"))
+            return null;
+
         if (lower.Contains("linux-x64")) return "linux-x64";
         if (lower.Contains("linux-arm64")) return "linux-arm64";
         if (lower.Contains("win-x64") || lower.Contains("windows")) return "win-x64";

@@ -97,7 +97,7 @@ public sealed class ClientUpdateServiceTests
                         prerelease = false,
                         assets = new[]
                         {
-                            new { name = "dotnetcloud-99.0.0-linux-x64.tar.gz", browser_download_url = "https://example.com/dl", size = 5000, content_type = "application/gzip" }
+                            new { name = "dotnetcloud-desktop-client-linux-x64-99.0.0.tar.gz", browser_download_url = "https://example.com/dl", size = 5000, content_type = "application/gzip" }
                         }
                     }
                 };
@@ -197,6 +197,55 @@ public sealed class ClientUpdateServiceTests
         await svc.CheckForUpdateAsync();
 
         Assert.IsFalse(eventFired);
+    }
+
+    // ── GitHub fallback: asset platform inference ─────────────────────────
+
+    [TestMethod]
+    public async Task CheckForUpdateAsync_GitHubFallback_FiltersToDesktopClientAssets()
+    {
+        // When falling back to GitHub, only "desktop-client" assets should
+        // get a non-null platform. Server-only tarballs should be excluded.
+        var releases = new[]
+        {
+            new
+            {
+                tag_name = "v99.0.0",
+                html_url = "https://github.com/LLabmik/DotNetCloud/releases/tag/v99.0.0",
+                body = "Release",
+                published_at = DateTimeOffset.UtcNow.ToString("o"),
+                prerelease = false,
+                assets = new object[]
+                {
+                    new { name = "dotnetcloud-99.0.0-linux-x64.tar.gz",              browser_download_url = "https://example.com/srv", size = 5000, content_type = "application/gzip" },
+                    new { name = "dotnetcloud-desktop-client-linux-x64-99.0.0.tar.gz", browser_download_url = "https://example.com/cli", size = 3000, content_type = "application/gzip" },
+                    new { name = "dotnetcloud-desktop-client-win-x64-99.0.0.zip",       browser_download_url = "https://example.com/win", size = 2000, content_type = "application/zip" },
+                }
+            }
+        };
+
+        var handler = CreateMockHandler(JsonSerializer.Serialize(releases, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+        var http = new HttpClient(handler); // No BaseAddress → forces GitHub path.
+        var svc = new ClientUpdateService(http, NullLogger<ClientUpdateService>.Instance);
+
+        var result = await svc.CheckForUpdateAsync();
+
+        Assert.IsTrue(result.IsUpdateAvailable);
+        Assert.AreEqual("99.0.0", result.LatestVersion);
+
+        // The server-only asset should have no platform.
+        var srvAsset = result.Assets.FirstOrDefault(a => a.Name.Contains("dotnetcloud-99.0.0-linux-x64"));
+        Assert.IsNotNull(srvAsset);
+        Assert.IsNull(srvAsset!.Platform, "Server-only asset should have null platform.");
+
+        // Desktop-client assets should have their platform inferred.
+        var linuxAsset = result.Assets.FirstOrDefault(a => a.Name.Contains("desktop-client-linux-x64"));
+        Assert.IsNotNull(linuxAsset);
+        Assert.AreEqual("linux-x64", linuxAsset!.Platform);
+
+        var winAsset = result.Assets.FirstOrDefault(a => a.Name.Contains("desktop-client-win-x64"));
+        Assert.IsNotNull(winAsset);
+        Assert.AreEqual("win-x64", winAsset!.Platform);
     }
 
     // ── DownloadUpdateAsync ───────────────────────────────────────────────

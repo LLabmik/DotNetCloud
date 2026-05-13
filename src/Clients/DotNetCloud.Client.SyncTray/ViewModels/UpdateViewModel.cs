@@ -8,6 +8,15 @@ using Microsoft.Extensions.Logging;
 namespace DotNetCloud.Client.SyncTray.ViewModels;
 
 /// <summary>
+/// Event args for restart-required notification.
+/// </summary>
+public sealed class RestartRequiredEventArgs : EventArgs
+{
+    /// <summary>Path to the downloaded update archive.</summary>
+    public required string DownloadedFilePath { get; init; }
+}
+
+/// <summary>
 /// View-model for the Update dialog.  Displays current vs. latest version,
 /// release notes, download progress, and actions.
 /// </summary>
@@ -129,6 +138,11 @@ public sealed class UpdateViewModel : ViewModelBase
     /// <summary>Whether the dialog should close (bound by the view).</summary>
     public bool ShouldClose { get; private set; }
 
+    /// <summary>
+    /// Raised after the update has been applied and the application should restart.
+    /// </summary>
+    public event EventHandler<RestartRequiredEventArgs>? RestartRequired;
+
     // ── Constructor ───────────────────────────────────────────────────────
 
     /// <summary>Initializes a new <see cref="UpdateViewModel"/>.</summary>
@@ -198,8 +212,21 @@ public sealed class UpdateViewModel : ViewModelBase
             });
 
             _downloadedFilePath = await _updateService.DownloadUpdateAsync(PlatformAsset, progress);
-            StatusMessage = "Download complete. Restart to apply the update.";
+            StatusMessage = "Applying update…";
+
+            // Apply the update (extracts archive and launches restart script).
+            await _updateService.ApplyUpdateAsync(_downloadedFilePath);
+
+            StatusMessage = "Restarting…";
             OnPropertyChanged(nameof(IsDownloadComplete));
+
+            // Signal that the app should restart.
+            RestartRequired?.Invoke(this, new RestartRequiredEventArgs
+            {
+                DownloadedFilePath = _downloadedFilePath,
+            });
+            ShouldClose = true;
+            OnPropertyChanged(nameof(ShouldClose));
         }
         catch (OperationCanceledException)
         {
