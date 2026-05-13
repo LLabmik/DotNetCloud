@@ -12,7 +12,25 @@
 # =============================================================================
 set -euo pipefail
 
-VERSION="${1:-0.1.4-alpha}"
+# ── Derive version from latest git tag, fall back to Directory.Build.props ──
+_get_version() {
+  local repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.."; pwd)"
+  # Prefer the latest git tag (strip leading 'v')
+  local tag="$(git -C "$repo_root" describe --tags --match 'v*' --abbrev=0 2>/dev/null || true)"
+  if [[ -n "$tag" ]]; then
+    echo "${tag#v}"
+    return
+  fi
+  # Fall back to Directory.Build.props
+  local props_file="$repo_root/Directory.Build.props"
+  local major="$(grep -oP '<MajorVersion>\K[^<]+' "$props_file")"
+  local minor="$(grep -oP '<MinorVersion>\K[^<]+' "$props_file")"
+  local patch="$(grep -oP '<PatchVersion>\K[^<]+' "$props_file")"
+  local prerelease="$(grep -oP '<PreReleaseVersion>\K[^<]+' "$props_file")"
+  echo "${major}.${minor}.${patch}-${prerelease}"
+}
+
+VERSION="${1:-$(_get_version)}"
 CONFIGURATION="${2:-Release}"
 OUTPUT_DIR="${3:-./artifacts/installers}"
 

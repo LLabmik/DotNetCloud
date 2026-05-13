@@ -15,13 +15,35 @@
 # =============================================================================
 
 param(
-    [string]$Version = "0.1.7-alpha",
+    [string]$Version = "",
     [string]$Configuration = "Release",
     [string]$OutputDir = "./artifacts/installers",
     [switch]$BuildMsix
 )
 
 $ErrorActionPreference = "Stop"
+
+# ── Derive version from latest git tag, fall back to Directory.Build.props ──
+function Get-Version {
+    $repoRoot = Join-Path $PSScriptRoot "..\.." -Resolve
+    # Prefer the latest git tag (strip leading 'v')
+    $tag = git -C $repoRoot describe --tags --match 'v*' --abbrev=0 2>$null
+    if ($tag) {
+        return $tag.TrimStart('v')
+    }
+    # Fall back to Directory.Build.props
+    $propsFile = Join-Path $repoRoot "Directory.Build.props"
+    [xml]$props = Get-Content $propsFile
+    $major = $props.Project.PropertyGroup.MajorVersion
+    $minor = $props.Project.PropertyGroup.MinorVersion
+    $patch = $props.Project.PropertyGroup.PatchVersion
+    $prerelease = $props.Project.PropertyGroup.PreReleaseVersion
+    return "$major.$minor.$patch-$prerelease"
+}
+
+if ([string]::IsNullOrEmpty($Version)) {
+    $Version = Get-Version
+}
 
 Write-Host "==============================================" -ForegroundColor Cyan
 Write-Host " DotNetCloud - Desktop Client Bundle Builder" -ForegroundColor Cyan

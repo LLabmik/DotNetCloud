@@ -295,8 +295,14 @@ public sealed class SettingsViewModel : ViewModelBase
 
     // ── Update settings ───────────────────────────────────────────────────
 
+    private string _currentClientVersion = string.Empty;
+
     /// <summary>The currently running client version for display.</summary>
-    public string CurrentClientVersion { get; } = GetClientVersion();
+    public string CurrentClientVersion
+    {
+        get => _currentClientVersion;
+        set => SetProperty(ref _currentClientVersion, value);
+    }
 
     /// <summary>Whether to automatically check for updates in the background.</summary>
     public bool AutoCheckForUpdates
@@ -416,6 +422,9 @@ public sealed class SettingsViewModel : ViewModelBase
         _vfsSettings = vfsSettings;
         _logger = logger;
         _localSettingsPath = localSettingsPath ?? GetDefaultLocalSettingsPath();
+
+        _currentClientVersion = GetClientVersion();
+        _logger.LogInformation("SettingsViewModel initialized. Client version: {Version}", _currentClientVersion);
 
         ConnectCommand = new AsyncRelayCommand(BeginAddAccountFlowAsync);
         RemoveAccountCommand = new AsyncRelayCommand<Guid>(id => _trayVm.RemoveAccountAsync(id));

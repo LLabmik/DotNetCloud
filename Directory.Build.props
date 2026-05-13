@@ -35,9 +35,9 @@
 
   <!-- Versioning -->
   <PropertyGroup>
-    <MajorVersion>0</MajorVersion>
-    <MinorVersion>1</MinorVersion>
-    <PatchVersion>8</PatchVersion>
+    <MajorVersion>3</MajorVersion>
+    <MinorVersion>0</MinorVersion>
+    <PatchVersion>2</PatchVersion>
     <PreReleaseVersion>alpha</PreReleaseVersion>
     <Version>$(MajorVersion).$(MinorVersion).$(PatchVersion)</Version>
     <AssemblyVersion>$(Version)</AssemblyVersion>

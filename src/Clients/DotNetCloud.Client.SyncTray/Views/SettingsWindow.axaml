@@ -3,7 +3,7 @@
         xmlns:vm="clr-namespace:DotNetCloud.Client.SyncTray.ViewModels"
         xmlns:vf="clr-namespace:DotNetCloud.Client.Core.VirtualFiles;assembly=DotNetCloud.Client.Core"
         x:Class="DotNetCloud.Client.SyncTray.Views.SettingsWindow"
-        Title="DotNetCloud Sync — Settings"
+        Title="{Binding CurrentClientVersion, StringFormat='DotNetCloud Sync — Settings (v{0})'}"
         Width="520"
         Height="480"
         MinWidth="400"
@@ -218,6 +218,11 @@
                 <ScrollViewer>
                     <StackPanel Margin="8" Spacing="12">
 
+                        <TextBlock Text="{Binding CurrentClientVersion, StringFormat='Client Version: {0}'}"
+                                   FontSize="13" FontWeight="Bold"
+                                   Margin="0,0,0,4" />
+
+                        <Separator />
                         <CheckBox Content="Start DotNetCloud Sync at graphical login"
                                   ToolTip.Tip="Creates a Linux desktop-session autostart entry for SyncTray. SyncTray starts SyncService automatically."
                                   IsChecked="{Binding StartOnLogin}" />
@@ -283,6 +288,7 @@
                                            Value="{Binding DownloadLimitKbps}"
                                            Minimum="0" Maximum="100000" />
                         </Grid>
+
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>

@@ -10,13 +10,33 @@
 # =============================================================================
 
 param(
-    [string]$Version = "0.1.0",
+    [string]$Version = "",
     [string]$Registry = "",
     [switch]$Push,
     [switch]$Latest
 )
 
 $ErrorActionPreference = "Stop"
+
+# ── Derive version from latest git tag, fall back to Directory.Build.props ──
+function Get-Version {
+    $repoRoot = Join-Path $PSScriptRoot "..\.." -Resolve
+    $tag = git -C $repoRoot describe --tags --match 'v*' --abbrev=0 2>$null
+    if ($tag) {
+        return $tag.TrimStart('v')
+    }
+    $propsFile = Join-Path $repoRoot "Directory.Build.props"
+    [xml]$props = Get-Content $propsFile
+    $major = $props.Project.PropertyGroup.MajorVersion
+    $minor = $props.Project.PropertyGroup.MinorVersion
+    $patch = $props.Project.PropertyGroup.PatchVersion
+    $prerelease = $props.Project.PropertyGroup.PreReleaseVersion
+    return "$major.$minor.$patch-$prerelease"
+}
+
+if ([string]::IsNullOrEmpty($Version)) {
+    $Version = Get-Version
+}
 
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host " DotNetCloud — Build Docker Image"       -ForegroundColor Cyan
