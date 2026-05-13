@@ -4018,6 +4018,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Step 5.8 — Music Architecture & Contracts
 - ✓ Step 5.9 — Music Data Model & Migrations
 - ✓ Step 5.10 — Music Library Scanning
+  - ✓ **Bug fix (2026-05-12):** Removed cross-owner deduplication from `LibraryScanService.IndexFileAsync`. Scanning against another user's library no longer copies/moves metadata between users. Deduplication now only checks the current user's own indexed files.
 - ✓ Step 5.11 — Music Core Services
 - ✓ Step 5.12 — Music Streaming & Equalizer
 - ✓ Step 5.13 — Subsonic API Compatibility

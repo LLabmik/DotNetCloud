@@ -2316,6 +2316,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ `MusicMetadataService` — tag reading/writing via TagLibSharp
 - ✓ `AlbumArtService` — embedded art extraction, folder art fallback, thumbnail caching
 - ✓ Supported formats: MP3, FLAC, OGG, AAC/M4A, OPUS, WAV, WMA
+- ✓ **Bug fix (2026-05-12):** Removed cross-owner deduplication from `IndexFileAsync`. Dedup now only checks the current user's own indexed files. This prevents the bug where scanning against another user's library would incorrectly remove tracks from the other user's library.
 
 ---
 

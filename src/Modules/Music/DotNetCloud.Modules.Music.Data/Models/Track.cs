@@ -44,7 +44,7 @@ public sealed class Track
     /// <summary>Original filename.</summary>
     public required string FileName { get; set; }
 
-    /// <summary>SHA-256 content hash of the underlying file (denormalized from FileNode). Enables cross-owner index deduplication.</summary>
+    /// <summary>SHA-256 content hash of the underlying file (denormalized from FileNode).</summary>
     public string? ContentHash { get; set; }
 
     /// <summary>Album ID this track belongs to.</summary>
