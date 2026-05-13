@@ -255,8 +255,9 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
             if (deletedFileNodeIds.Count > 0)
             {
                 _logger.LogInformation(
-                    "Detected {Count} deleted {MediaType} files for user {OwnerId} — removing from index",
-                    deletedFileNodeIds.Count, parsed, ownerId);
+                    "Detected {Count} deleted {MediaType} files for user {OwnerId} — removing from index. FileNodeIds: {FileNodeIds}",
+                    deletedFileNodeIds.Count, parsed, ownerId,
+                    string.Join(",", deletedFileNodeIds.Take(10)) + (deletedFileNodeIds.Count > 10 ? "..." : ""));
 
                 progress?.Report(new MediaScanProgress
                 {
@@ -269,6 +270,7 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
                 });
 
                 result.Removed = await RemoveDeletedAsync(serviceProvider, parsed, deletedFileNodeIds, ownerId, cancellationToken);
+                _logger.LogInformation("Removed {Count} {MediaType} tracks for user {OwnerId}", result.Removed, parsed, ownerId);
             }
         }
 

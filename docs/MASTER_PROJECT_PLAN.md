@@ -1812,6 +1812,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 **Status:** completed ✅
 **Duration:** ~3 hours
 **Deliverables:**
+
 - ✓ Hierarchy level indicator banner on kanban board (Product → Epic → Feature → Item level labels with icon)
 - ✓ Card type badges (Epic/Feature/Item/SubItem) on every kanban card
 - ✓ Depth-based visual styling — progressive left borders and color-coded column tops at each level
@@ -1835,6 +1836,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 **Status:** completed ✅
 **Duration:** ~3 hours
 **Deliverables:**
+
 - ✓ `MentionTypeahead.razor` + `.razor.cs` — dropdown user search component with 300ms debounce
 - ✓ `UsersController` — `GET /api/v1/users/search` endpoint via `IUserDirectory`
 - ✓ `SearchUsersAsync` added to `ITracksApiClient` / `TracksApiClient`
@@ -1850,6 +1852,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 **Status:** completed ✅
 **Duration:** ~3 hours
 **Deliverables:**
+
 - ✓ `ProductSettingsPage.razor` + `.razor.cs` — Full settings page with 5 sections
 - ✓ General: Name, description, 10-color picker, Sub-Items toggle, Save button
 - ✓ Swimlanes: List, add, remove, rename inline, toggle Done flag, save recreates swimlanes
@@ -1866,6 +1869,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 **Status:** completed ✅
 **Duration:** ~3 hours
 **Deliverables:**
+
 - ✓ `CustomView` entity (Id, ProductId, UserId, Name, FilterJson, SortJson, GroupBy, Layout, IsShared)
 - ✓ `CustomViewConfiguration` — EF config with tracks schema, unique index on (ProductId, UserId, Name)
 - ✓ `CustomViewService` — CRUD with authorization (only owner can update/delete)
@@ -1884,6 +1888,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 **Status:** completed ✅
 **Duration:** ~3 hours
 **Deliverables:**
+
 - ✓ `WorkItemCalendarView.razor` + `.razor.cs` — Full calendar with month and week views
 - ✓ Month view: 7-column day grid, items shown as colored priority-coded bars
 - ✓ Week view: 7-column horizontal layout with larger day cells
@@ -1910,6 +1915,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 **Status:** completed ✅
 **Duration:** ~5 hours
 **Deliverables:**
+
 - ✓ `WorkItemListView.razor` + `.razor.cs` + `.razor.css` — Sortable, filterable data table
 - ✓ `TracksView.List` enum value + sidebar icon (📊)
 - ✓ Sortable columns: click column header to sort asc/desc
@@ -1931,6 +1937,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 **Status:** completed ✅
 **Duration:** ~5 hours
 **Deliverables:**
+
 - ✓ `ProductDashboardView.razor` + `.razor.cs` + `.razor.css` — Product-level analytics dashboard
 - ✓ `TracksView.Dashboard` enum value + sidebar icon (📈)
 - ✓ KPI row: Total Items, Epics, Features, Active Sprints, Done This Week, Avg Cycle Time, Unassigned
@@ -1959,6 +1966,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 **Status:** completed ✅
 **Duration:** ~1.5 hours
 **Deliverables:**
+
 - ✓ `CommentReaction` entity with composite key (CommentId + UserId + Emoji)
 - ✓ `CommentReactionConfiguration` — EF config with cascade delete
 - ✓ `CommentReactionDto` and `CommentReactionSummaryDto` in `TracksDtos.cs`
@@ -1977,6 +1985,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 **Status:** completed ✅
 **Duration:** ~7 hours
 **Deliverables:**
+
 - ✓ `WorkItemShareLink` entity with unique token, expiry, active flag
 - ✓ `GuestUser` entity with email, invite token, status lifecycle (Pending → Active → Revoked)
 - ✓ `GuestPermission` entity with per-work-item access control
@@ -1999,6 +2008,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 **Status:** completed ✅
 **Duration:** ~2.5 hours
 **Deliverables:**
+
 - ✓ `ProductTemplatesController`: `GET /api/v1/product-templates`, `GET /api/v1/product-templates/{id}`, `POST /api/v1/product-templates/{id}/create-product`, `POST /api/v1/products/{id}/save-as-template`, `GET /api/v1/products/{id}/item-templates`, `POST /api/v1/item-templates/{id}/create-item`
 - ✓ `TemplateSeedService`: idempotent seeding of 5 built-in templates on first access
 - ✓ 5 built-in templates seeded:
@@ -2025,6 +2035,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 **Status:** completed ✅
 **Duration:** ~5 hours
 **Deliverables:**
+
 - ✓ `RoadmapItemDto` + `RoadmapDataDto` in TracksDtos.cs
 - ✓ `ProductRoadmapView.razor` + `.razor.cs` + `.razor.css` — horizontal timeline with epics/features
 - ✓ Group by: Epic (default), Sprint, Assignee
@@ -2048,6 +2059,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 **Status:** completed ✅
 **Duration:** ~5 hours
 **Deliverables:**
+
 - ✓ `AutomationRule` entity with ProductId, Name, Trigger, ConditionsJson, ActionsJson, IsActive, LastTriggeredAt
 - ✓ `AutomationRuleConfiguration` EF config + migration
 - ✓ `AutomationRuleService` — CRUD + `EvaluateRulesAsync()` with 6 operators (equals, not_equals, contains, greater_than, less_than)
@@ -2069,6 +2081,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 **Status:** completed ✅
 **Duration:** ~3 hours
 **Deliverables:**
+
 - ✓ `Goal` entity — self-referencing hierarchy (Objectives → Key Results via ParentGoalId)
 - ✓ `GoalWorkItem` junction entity for linking work items to goals
 - ✓ `GoalConfiguration` + `GoalWorkItemConfiguration` EF configs + migration
@@ -2088,6 +2101,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 **Status:** completed ✅
 **Duration:** ~3 hours
 **Deliverables:**
+
 - ✓ `SprintCapacityDto`, `MemberCapacityDto`, `ProductCapacityDto`
 - ✓ `GetSprintCapacityAsync()` — story points assigned vs. target per sprint
 - ✓ `GetMemberCapacityAsync()` — story points per member across active sprints
@@ -2114,6 +2128,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 **Status:** completed ✅
 **Duration:** ~3 hours
 **Deliverables:**
+
 - ✓ Dark mode overrides added to all 11 Tracks CSS files
 - ✓ `TracksPage.razor.css` — Kanban columns, cards, card count badges, comment code blocks, empty states, dialogs, WIP toast
 - ✓ `ProductDashboardView.razor.css` — KPI cards, chart cards, velocity bars
@@ -2134,6 +2149,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 **Status:** completed ✅
 **Duration:** ~3 hours
 **Deliverables:**
+
 - ✓ `SwimlaneTransitionRule` entity with EF config + composite unique index
 - ✓ `SwimlaneTransitionRuleConfiguration` — EF configuration with Product/FromSwimlane/ToSwimlane relationships
 - ✓ `SwimlaneTransitionRuleDto` and `SetTransitionRuleDto` in `DotNetCloud.Modules.Tracks.Models`
@@ -2163,6 +2179,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 **Status:** completed ✅
 **Duration:** ~2 hours
 **Deliverables:**
+
 - ✓ `MoveWorkItemDto.EnforceWipLimit` field added (bool?)
 - ✓ `WorkItemService.MoveWorkItemAsync` checks `CardLimit` before allowing moves
   - ✓ `EnforceWipLimit == true` → throws InvalidOperationException (blocks move)
@@ -2316,7 +2333,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ `MusicMetadataService` — tag reading/writing via TagLibSharp
 - ✓ `AlbumArtService` — embedded art extraction, folder art fallback, thumbnail caching
 - ✓ Supported formats: MP3, FLAC, OGG, AAC/M4A, OPUS, WAV, WMA
-- ✓ **Bug fix (2026-05-12):** Removed cross-owner deduplication from `IndexFileAsync`. Dedup now only checks the current user's own indexed files. This prevents the bug where scanning against another user's library would incorrectly remove tracks from the other user's library.
+- ✓ **Bug fix (2026-05-12):** Restored cross-owner copy feature in `IndexFileAsync` with safety audit. When another user has already indexed a file, metadata is cloned to the current user's library (avoiding expensive re-extraction). Cross-owner copy is READ-ONLY on source data — never modifies or deletes other users' tracks. Added safety audit log that re-queries the source track after cloning and logs CRITICAL if it was unexpectedly modified.
 
 ---
 
@@ -2429,6 +2446,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `LibraryScanProgress` DTO — real-time progress record with phase, file counts, track stats, percentage, elapsed time
 - ✓ `LibraryScanService` updated — accepts `IProgress<LibraryScanProgress>?`, reports per-file progress, runs enrichment phase (auto-fetch art + auto-enrich artists) controlled by configuration
 - ✓ `ScanProgressState` — shared per-user scan/enrichment state tracker bridging progress callbacks to `StateHasChanged()` via `OnProgressChanged` event
@@ -2682,8 +2700,10 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 ## Phase 9: AI Assistant
 
 ### Section: Phase 9.1 — Core AI Interfaces & Module Scaffold
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `ILlmProvider` capability interface (Restricted tier) in `DotNetCloud.Core/Capabilities/`
 - ✓ Core DTOs: `LlmRequest`, `LlmResponse`, `LlmResponseChunk`, `LlmModelInfo`, `LlmMessage` in `DotNetCloud.Core/AI/`
 - ✓ `AiModule` (IModuleLifecycle) and `AiModuleManifest` (IModuleManifest)
@@ -2695,8 +2715,10 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 **Notes:** Foundation layer complete. ILlmProvider follows the existing capability tier model.
 
 ### Section: Phase 9.2 — Data Layer & Ollama Provider
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `AiDbContext` with EF Core entity configurations
 - ✓ `ConversationConfiguration` / `ConversationMessageConfiguration` with soft-delete, indexes
 - ✓ `OllamaClient` — Full Ollama REST API client (chat, streaming NDJSON, model listing, health check)
@@ -2707,8 +2729,10 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 **Notes:** Default Ollama URL `http://localhost:11434/` for fresh installs, configurable via admin settings. Default model `gpt-oss:20b`. InMemory DB for dev.
 
 ### Section: Phase 9.3 — Module Host & REST API
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `DotNetCloud.Modules.AI.Host` — Standalone web host (`Program.cs`)
 - ✓ `AiChatController` — REST API endpoints:
   - POST `/api/ai/conversations` — Create conversation
@@ -2725,8 +2749,10 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 **Notes:** All projects registered in DotNetCloud.sln. Build succeeds with 0 warnings.
 
 ### Section: Phase 9.4 — Unit Tests
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `AiModuleTests` — 7 lifecycle tests (init, start, stop, event sub/unsub)
 - ✓ `AiChatServiceTests` — 11 tests (CRUD, ownership, message sending, model listing)
 - ✓ `OllamaClientTests` — 10 tests (health, chat, models, system prompt, error handling)
@@ -2735,16 +2761,20 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 **Notes:** Tests use InMemory EF Core and mocked HttpMessageHandler — no Ollama instance required.
 
 ### Section: Phase 9.5 — Blazor UI Chat Panel
+
 **Status:** pending ☐
 **Deliverables:**
+
 - ☐ Chat-style AI assistant panel component
 - ☐ Streaming response rendering via SSE
 - ☐ Model selector dropdown
 - ☐ Conversation history sidebar
 
 ### Section: Phase 9.6 — Admin Settings & Multi-Provider Support
+
 **Status:** in-progress 🔄
 **Deliverables:**
+
 - ✓ `AiAdminSettingsViewModel` — Settings model (Provider, ApiBaseUrl, ApiKey, OrgId, DefaultModel, MaxTokens, Timeout)
 - ✓ `AiAdminSettings.razor` / `.razor.cs` — Blazor admin UI with provider-aware sections
 - ✓ `IAiSettingsProvider` / `AiSettingsProvider` — DB-first settings with IConfiguration fallback
@@ -2760,8 +2790,10 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 **Notes:** Admin settings infrastructure complete. Ollama fully working via DB settings, and `/admin/settings` persistence was verified in production on 2026-05-02 after fixing write paths for the app-wide no-tracking EF configuration. OpenAI/Anthropic provider routing pending.
 
 ### Section: Phase 9.7 — Module Integration
+
 **Status:** pending ☐
 **Deliverables:**
+
 - ☐ Notes module integration (summarize, expand, translate)
 - ☐ Chat module integration (message summarization, smart replies)
 - ☐ Files module integration (content summarization, document Q&A)
@@ -2773,9 +2805,11 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 **Reference:** `docs/FULL_TEXT_SEARCH_IMPLEMENTATION_PLAN.md`
 
 ### Section: Phase 8.2 — Search Module Scaffold
+
 **Status:** completed ✅
 **Duration:** ~3 hours
 **Deliverables:**
+
 - ✓ `DotNetCloud.Modules.Search/` — Business logic project (services, extractors, event handler, module lifecycle)
 - ✓ `DotNetCloud.Modules.Search.Data/` — EF Core data project (SearchDbContext, SearchIndexEntry, IndexingJob, configurations)
 - ✓ `DotNetCloud.Modules.Search.Host/` — gRPC host + REST controllers (search_service.proto, SearchGrpcService, SearchController, Program.cs)
@@ -2790,9 +2824,11 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 **Notes:** Phase 2 complete. Search module scaffold fully operational with EF Core InMemory. Phase 1 interfaces/DTOs (in DotNetCloud.Core) were already in place.
 
 ### Section: Phase 8.3 — Module Search API Integration
+
 **Status:** completed ✅
 **Duration:** ~4 hours
 **Deliverables:**
+
 - ✓ Search RPCs added to all 9 module protos (Files, Chat, Notes, Contacts, Calendar, Photos, Music, Video, Tracks)
 - ✓ `GetSearchableDocuments` (server streaming) + `GetSearchableDocument` (unary) + `SearchableDocument` message per module
 - ✓ gRPC service implementations mapping domain entities to SearchableDocument in all 9 modules
@@ -2803,8 +2839,10 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 **Notes:** Phase 3 complete. All modules now expose searchable data via gRPC and publish SearchIndexRequestEvent on CRUD operations. AI module excluded (REST only, no proto/gRPC). Next: Phase 4 — Indexing Engine (event-driven + scheduled reindex).
 
 ### Section: Phase 8.4 — Indexing Engine
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `SearchIndexingService` upgraded — Channel-based queue with Start/Stop lifecycle, module lookup, content extraction pipeline
 - ✓ `SearchReindexBackgroundService` — Full reindex, per-module reindex, batch processing (200 default), IndexingJob tracking
 - ✓ `SearchIndexRequestEventHandler` — Routes Index → indexing service, Remove → provider directly
@@ -2815,8 +2853,10 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 **Notes:** Phase 4 complete. Background indexing pipeline processes events asynchronously via channel queue. Full and per-module reindex with batch processing and job tracking.
 
 ### Section: Phase 8.5 — Search Query Engine
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `SearchQueryParser` — Parses user input into structured `ParsedSearchQuery` (keywords, phrases, in:module, type:value, -exclusion)
 - ✓ `ParsedSearchQuery` with provider-specific query string builders (PostgreSQL tsquery, SQL Server CONTAINS, MariaDB BOOLEAN MODE)
 - ✓ `SnippetGenerator` — HTML-safe snippet generation with `<mark>` highlighting and XSS prevention
@@ -2828,8 +2868,10 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 **Notes:** Phase 5 complete. Full query engine with advanced syntax parsing, provider-specific query translation, relevance scoring, and highlighted snippets. Next: Phase 6 — REST + gRPC API integration.
 
 ### Section: Phase 8.6 — REST + gRPC API
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `DotNetCloud.Modules.Search.Client` project — shared gRPC client library
 - ✓ `ISearchFtsClient` interface with IsAvailable + SearchAsync
 - ✓ `SearchFtsClient` — lazy GrpcChannel, Unix socket support, timeout config, graceful degradation
@@ -2842,23 +2884,27 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 **Notes:** Phase 6 complete. Search module client library with graceful degradation. Module controllers upgraded with FTS-first search. Next: Phase 7 — Blazor UI.
 
 ### Section: Phase 8.7 — Blazor UI
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `GlobalSearchBar.razor` — Modal search overlay with Ctrl+K/Cmd+K shortcut, debounced suggestions, keyboard navigation, recent searches (localStorage)
 - ✓ `SearchResults.razor` — Full results page at `/search?q=...` with faceted sidebar, pagination, sort (relevance/date)
 - ✓ `SearchResultCard.razor` — Per-module result card with XSS-safe highlight, module-specific metadata rendering (10 modules)
 - ✓ `global-search.js` — JS interop for keyboard shortcut registration and localStorage management
 - ✓ Scoped CSS for all 3 components (responsive, dark mode support)
 - ✓ `DotNetCloudApiClient` — SearchAsync + SearchSuggestAsync methods added
-- ✓ MainLayout integration (topbar-center), _Imports.razor, App.razor script tag
+- ✓ MainLayout integration (topbar-center), \_Imports.razor, App.razor script tag
 - ✓ 6 new test files with 159 Phase 7 tests (URLs, Sanitizer, Display, QueryBuilder, Metadata, Sort/EdgeCases)
 - ✓ 591 total search tests passing
 
 **Notes:** Phase 7 complete. Full Blazor search UI with global search bar (Ctrl+K), results page with faceted sidebar and pagination, and per-module rich result cards. All 8 FTS implementation phases (2-7 + testing) are now complete.
 
 ### Section: Phase 8.8 — Testing & Documentation
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `PermissionScopingTests` — 10 tests (user isolation across providers, facet/filter/pagination scoping)
 - ✓ `EndToEndIndexingTests` — 12 tests (full pipeline: event → handler → indexing → provider → query)
 - ✓ `MultiDatabaseProviderTests` — 10 tests (SqlServer/MariaDb behavioral consistency)
@@ -2879,6 +2925,7 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 **Status:** completed ✅
 **Depends on:** Chat module (Phase 2, complete)
 **Deliverables:**
+
 - ✓ `VideoCallState` enum (`Ringing`, `Connecting`, `Active`, `OnHold`, `Ended`, `Missed`, `Rejected`, `Failed`)
 - ✓ `VideoCallEndReason` enum (`Normal`, `Rejected`, `Missed`, `TimedOut`, `Failed`, `Cancelled`)
 - ✓ `CallParticipantRole` enum (`Initiator`, `Participant`)
@@ -2896,6 +2943,7 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 **Status:** completed ✅
 **Depends on:** 7.1
 **Deliverables:**
+
 - ✓ `VideoCall` entity — Id, ChannelId (FK → Channel), InitiatorUserId, State, MediaType, StartedAtUtc, EndedAtUtc, EndReason, MaxParticipants, IsGroupCall, LiveKitRoomId, CreatedAtUtc, soft-delete
 - ✓ `CallParticipant` entity — Id, VideoCallId (FK → VideoCall), UserId, Role, JoinedAtUtc, LeftAtUtc, HasAudio, HasVideo, HasScreenShare
 - ✓ `VideoCallConfiguration.cs` — Enum-to-string conversions, soft-delete query filter, indexes (ChannelId+State, InitiatorUserId, CreatedAtUtc, State, IsDeleted)
@@ -2911,6 +2959,7 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 **Status:** completed ✅
 **Depends on:** 7.2
 **Deliverables:**
+
 - ✓ `VideoCallService` — full `IVideoCallService` implementation (InitiateCallAsync, JoinCallAsync, LeaveCallAsync, EndCallAsync, RejectCallAsync, GetCallHistoryAsync, GetActiveCallAsync)
 - ✓ `CallStateValidator` — static state machine enforcement with valid transitions, terminal state detection
 - ✓ Call timeout — `HandleRingTimeoutsAsync` transitions Ringing calls to Missed after 30s
@@ -2924,6 +2973,7 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 **Status:** completed ✅
 **Depends on:** 7.3
 **Deliverables:**
+
 - ✓ `CallSignalingService` — server-side signaling coordinator with SDP/ICE relay, call state validation, participant membership enforcement
 - ✓ `CoreHub` signaling methods — `SendCallOfferAsync`, `SendCallAnswerAsync`, `SendIceCandidateAsync`, `SendMediaStateChangeAsync`, `JoinCallGroupAsync`, `LeaveCallGroupAsync`
 - ✓ Call-scoped SignalR groups (`call-{callId}`)
@@ -2937,6 +2987,7 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 **Status:** completed ✅
 **Depends on:** 7.4
 **Deliverables:**
+
 - ✓ `video-call.js` — Full WebRTC engine (P2P mesh, SDP negotiation, ICE handling, adaptive bitrate)
 - ✓ `IWebRtcInteropService` + `WebRtcInteropService` — C# Blazor ↔ JS interop with input validation
 - ✓ `WebRtcDtos.cs` — `IceServerDto`, `WebRtcCallConfig`, `WebRtcCallState`, `WebRtcPeerState`, `WebRtcMediaState`
@@ -2955,6 +3006,7 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 **Status:** completed ✅
 **Depends on:** 7.5
 **Deliverables:**
+
 - ✓ `VideoCallDialog.razor` — main call window with adaptive grid layout (solo/pair/trio/grid)
 - ✓ `CallControls.razor` — bottom toolbar with mute, camera, screen share, hang up, timer, participant count
 - ✓ `IncomingCallNotification.razor` — incoming call toast with accept (audio/video) and reject
@@ -2971,6 +3023,7 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 **Status:** completed ✅
 **Depends on:** 7.4
 **Deliverables:**
+
 - ✓ `ILiveKitService` interface (CreateRoomAsync, GenerateToken, DeleteRoomAsync, GetRoomParticipantsAsync)
 - ✓ `LiveKitService` implementation with JWT token generation (HMAC-SHA256) and LiveKit Twirp API
 - ✓ `LiveKitOptions` configuration class (Enabled, ServerUrl, ApiKey, ApiSecret, MaxP2PParticipants)
@@ -2988,6 +3041,7 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 **Status:** completed ✅
 **Depends on:** 7.5
 **Deliverables:**
+
 - ✓ `IceServerOptions` configuration class (built-in STUN, additional STUN, TURN with static/ephemeral credentials)
 - ✓ Built-in STUN server (`StunServer` BackgroundService) — RFC 5389 Binding Response, dual-stack IPv4/IPv6, UDP 3478
 - ✓ `IIceServerService` interface + `IceServerService` with HMAC-SHA1 coturn-compatible ephemeral credentials
@@ -3003,6 +3057,7 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 **Status:** completed ✅
 **Depends on:** 7.3
 **Deliverables:**
+
 - ✓ 9 REST API endpoints in ChatController (initiate, join, leave, end, reject, history, get call, active call, ICE servers)
 - ✓ 7 gRPC RPCs + 12 message types in chat_service.proto
 - ✓ ChatGrpcService implementation with IVideoCallService injection
@@ -3018,6 +3073,7 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 **Status:** completed ✅
 **Depends on:** 7.3
 **Deliverables:**
+
 - ✓ `NotificationCategory.IncomingCall` — high-priority push for incoming calls (bypasses online presence suppression)
 - ✓ `NotificationCategory.MissedCall` — normal-priority push for missed calls
 - ✓ `NotificationCategory.CallEnded` — push for disconnected participants when call ends
@@ -3035,6 +3091,7 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 **Status:** completed ✅
 **Depends on:** 7.1–7.10
 **Deliverables:**
+
 - ✓ Unit tests: 678 video-call-specific tests across 20 test files (target was 120+)
 - ✓ Integration tests: full call lifecycle tests (initiate → join → leave → end) in `VideoCallServiceTests.cs`
 - ✓ All 1027 Chat module tests pass
@@ -3052,8 +3109,10 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 ### Section: Phase 11 — Phase A: Core Update Infrastructure (Server-Side)
 
 #### Step: phase-11.1 — IUpdateService Interface & DTOs
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `IUpdateService` interface with `CheckForUpdateAsync`, `GetLatestReleaseAsync`, `GetRecentReleasesAsync`
 - ✓ `UpdateCheckResult` record (IsUpdateAvailable, CurrentVersion, LatestVersion, ReleaseUrl, ReleaseNotes, PublishedAt, Assets)
 - ✓ `ReleaseInfo` record (Version, TagName, ReleaseNotes, PublishedAt, IsPreRelease, Assets)
@@ -3062,8 +3121,10 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 **Notes:** DTOs shared by both server and client via DotNetCloud.Core package.
 
 #### Step: phase-11.2 — GitHubUpdateService Implementation
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `GitHubUpdateService` — queries GitHub Releases API with MemoryCache (1-hour TTL)
 - ✓ Semantic version comparison with pre-release support
 - ✓ Platform asset matching from release filenames
@@ -3072,31 +3133,39 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 **Notes:** Public GitHub API (60 req/hr); caching prevents rate limit issues.
 
 #### Step: phase-11.3 — Update Check API Endpoint
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `UpdateController` with `GET /api/v1/core/updates/check`, `/releases`, `/releases/latest`
 - ✓ Public endpoints (no auth required for client update checks)
 
 **Notes:** Response wraps in standard `{ success: true, data: {...} }` format.
 
 #### Step: phase-11.4 — CLI `dotnetcloud update` Implementation
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `dotnetcloud update --check` (display update status, exit code 0/1)
 - ✓ `dotnetcloud update` (check + download tarball)
 
 **Notes:** Server self-apply deferred for safety; download-only for now.
 
 #### Step: phase-11.5 — Admin UI Updates Page
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `Updates.razor` at `/admin/updates` with version card, latest release, history, settings
 
 **Notes:** Integrated into admin sidebar navigation.
 
 #### Step: phase-11.6 — Unit Tests (Server-Side)
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `GitHubUpdateServiceTests` (mock HTTP, version comparison, caching, asset matching)
 - ✓ `UpdateControllerTests` (response format, edge cases)
 
@@ -3105,16 +3174,20 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 ### Section: Phase 11 — Phase B: Desktop Client Auto-Update (SyncTray)
 
 #### Step: phase-11.7 — IClientUpdateService Interface
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `IClientUpdateService` interface (`CheckForUpdateAsync`, `DownloadUpdateAsync`, `ApplyUpdateAsync`, `UpdateAvailable` event)
 - ✓ Reuses `UpdateCheckResult` and `ReleaseAsset` from `DotNetCloud.Core.DTOs`
 
 **Notes:** Client.Core now references DotNetCloud.Core for shared DTOs.
 
 #### Step: phase-11.8 — ClientUpdateService Implementation
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `ClientUpdateService` — server endpoint check with GitHub Releases API fallback
 - ✓ Streaming download with `IProgress<double>` progress reporting
 - ✓ Version comparison logic (semver + pre-release split)
@@ -3123,8 +3196,10 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 **Notes:** Falls back to direct GitHub API if server unreachable or no base address configured.
 
 #### Step: phase-11.9 — Background Update Checker (SyncTray)
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `UpdateCheckBackgroundService` — periodic timer (30s initial delay, 24h interval, configurable)
 - ✓ `UpdateAvailable` event wired to `TrayViewModel.OnUpdateAvailable`
 - ✓ Tray context menu "Check for Updates…" item (updates text when update available)
@@ -3133,8 +3208,10 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 **Notes:** Integrated into App.axaml.cs lifecycle (start after tray init, dispose on shutdown).
 
 #### Step: phase-11.10 — SyncTray Update UI
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `UpdateDialog.axaml` — dark themed 480×420 Avalonia window with version cards, status badges (green/amber), release notes, download progress bar, action buttons
 - ✓ `UpdateViewModel` — check/download commands, platform asset matching, `ShouldClose` property
 - ✓ Settings "Updates" tab — current version display, update available/up-to-date banners, auto-check toggle
@@ -3143,8 +3220,10 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 **Notes:** Follows existing dark theme and AddAccountDialog patterns.
 
 #### Step: phase-11.11 — Desktop Client Update Tests
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `ClientUpdateServiceTests` — 10 tests (server check, no-update, GitHub fallback, no base address skip, event firing, download with progress, null/missing/empty path errors)
 - ✓ `UpdateCheckBackgroundServiceTests` — 8 tests (update event, no-update silence, error resilience, result storage, start/stop lifecycle, double dispose, enabled/interval defaults)
 - ✓ All 18 Phase B tests passing
@@ -3154,27 +3233,35 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 ### Section: Phase 11 — Phase C: Android Client Update Notification
 
 #### Step: phase-11.12 — Android Update Check Service
+
 **Status:** pending
 **Deliverables:**
+
 - ☐ Android-specific update service checking server endpoint
 - ☐ Play Store / APK link handling
 
 #### Step: phase-11.13 — Android Update UI
+
 **Status:** pending
 **Deliverables:**
+
 - ☐ Update notification in Android app
 - ☐ Settings page update preferences
 
 #### Step: phase-11.14 — Android Update Tests
+
 **Status:** pending
 **Deliverables:**
+
 - ☐ Android update service unit tests
 
 ### Section: Phase 11 — Phase D: Documentation & Integration
 
 #### Step: phase-11.15 — Auto-Update Documentation
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `docs/modules/AUTO_UPDATES.md` — feature documentation (architecture, API reference, configuration)
 - ✓ `docs/user/AUTO_UPDATES.md` — user-facing update configuration guide
 - ✓ Architecture doc updated — Phase 8 split into Phase 8 (Search) + Phase 11 (Auto-Updates)
@@ -3183,8 +3270,10 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 **Notes:** All documentation covering server, CLI, desktop, and Android update flows. User guide covers configuration for all surfaces.
 
 #### Step: phase-11.16 — Integration Testing
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `UpdateEndpointTests.cs` — 6 integration tests covering check, releases, latest, version param, count clamping, graceful degradation
 - ✓ Uses `DotNetCloudWebApplicationFactory` in-memory test infrastructure
 - ✓ Verifies standard API envelope format (`{ success: true, data: {...} }`)
@@ -3200,8 +3289,10 @@ Reference plan: `docs/DIRECT_MESSAGING_AND_HOST_CALLS_PLAN.md`
 ### Section: Phase A — Database & Model Changes
 
 #### Step: dm-host-A1 — Rename CallParticipantRole.Initiator → Host
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `CallParticipantRole.cs` — enum value renamed from `Initiator` to `Host`
 - ✓ `VideoCallService.cs` — all references updated
 - ✓ `ChatDtos.cs` — `CallParticipantDto.Role` comment updated
@@ -3211,8 +3302,10 @@ Reference plan: `docs/DIRECT_MESSAGING_AND_HOST_CALLS_PLAN.md`
 **Notes:** Clean rename across 7 files. All 375+ chat tests pass.
 
 #### Step: dm-host-A2 — Add HostUserId to VideoCall Entity
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `VideoCall.cs` — `Guid HostUserId` property added
 - ✓ `VideoCallConfiguration.cs` — index `ix_chat_video_calls_host_user_id` added
 - ✓ `VideoCallDto` — `HostUserId` field added to DTO
@@ -3222,8 +3315,10 @@ Reference plan: `docs/DIRECT_MESSAGING_AND_HOST_CALLS_PLAN.md`
 **Notes:** HostUserId enables transferable call authority separate from the historical initiator.
 
 #### Step: dm-host-A3 — DM → Group Auto-Conversion
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `ChannelMemberService.AddMemberAsync` — detects 3rd member added to DirectMessage channel
 - ✓ Auto-converts `Channel.Type` from `DirectMessage` to `Group`
 - ✓ No schema change needed (existing `Type` column supports `Group`)
@@ -3233,14 +3328,18 @@ Reference plan: `docs/DIRECT_MESSAGING_AND_HOST_CALLS_PLAN.md`
 ### Section: Phase B — Service Layer: Direct DM & Call Initiation
 
 #### Step: dm-host-B1 — Wire Global User Search for DM Creation
+
 **Status:** pending
 **Deliverables:**
+
 - ☐ `ChatPageLayout.razor.cs` — `SearchUsersForDmAsync` method
 - ☐ `ChatPageLayout.razor` — integrate user picker dialog
 
 #### Step: dm-host-B2 — Direct Call Initiation by User ID
+
 **Status:** pending
 **Deliverables:**
+
 - ☐ `IVideoCallService.InitiateDirectCallAsync` interface method
 - ☐ `VideoCallService` implementation
 - ☐ `ChatController` — `POST /api/v1/chat/calls/direct/{targetUserId}` endpoint
@@ -3248,30 +3347,38 @@ Reference plan: `docs/DIRECT_MESSAGING_AND_HOST_CALLS_PLAN.md`
 ### Section: Phase C — Mid-Call Participant Addition
 
 #### Step: dm-host-C1 — InviteToCallAsync Service Method
+
 **Status:** pending
 
 #### Step: dm-host-C2 — SignalR Notification for Mid-Call Invite
+
 **Status:** pending
 
 ### Section: Phase D — Host Transfer
 
 #### Step: dm-host-D1 — TransferHostAsync Service Method
+
 **Status:** pending
 
 #### Step: dm-host-D2 — Auto-Transfer Host on Leave
+
 **Status:** pending
 
 #### Step: dm-host-D3 — End-Call Permission Enforcement
+
 **Status:** pending
 
 #### Step: dm-host-D4 — CallHostTransferredEvent
+
 **Status:** pending
 
 ### Section: Phase E — UI Integration
 
 #### Step: dm-host-E — UI Integration (6 sub-items)
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `ChannelList.razor(.cs/.css)` — Direct Messages header now has a dedicated "+" action wired to `OnNewDm` and the DM user picker flow
 - ✓ `ChatPageLayout.razor(.cs/.css)` — wired New DM, channel add-people picker, call add-people picker, direct member call actions, and host/invite state tracking
 - ✓ `MemberListPanel.razor(.cs/.css)` — per-member audio/video call actions plus channel-level add-people action in panel header
@@ -3285,13 +3392,16 @@ Reference plan: `docs/DIRECT_MESSAGING_AND_HOST_CALLS_PLAN.md`
 ### Section: Phase F — SignalR Hub Updates
 
 #### Step: dm-host-F — SignalR Hub Updates
+
 **Status:** pending
 
 ### Section: Phase G — Tests
 
 #### Step: dm-host-G — Unit & Integration Tests
+
 **Status:** in-progress
 **Deliverables:**
+
 - ✓ Added/expanded unit coverage for new Phase E behavior:
 - ✓ `ChannelListTests.cs` — New DM callback path
 - ✓ `ChannelHeaderCallButtonTests.cs` — Add People callback path
@@ -3313,8 +3423,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 ### Section: Shared File Folders — Group Foundation
 
 #### Step: shared-file-folders-1 — Group Capability Foundation
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `IGroupDirectory` capability contract added to `DotNetCloud.Core`
 - ✓ `IGroupManager` capability contract added to `DotNetCloud.Core`
 - ✓ `GroupDirectoryService` implemented in `DotNetCloud.Core.Auth`
@@ -3326,8 +3438,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Notes:** This completes the first implementation slice for the shared file folder plan by wiring the missing group capability layer on top of the existing Core.Data group entities. Remaining work now moves to protected `All Users` semantics, admin APIs/UI, and Files-side integration.
 
 #### Step: shared-file-folders-2 — Built-In All Users Group Semantics
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ Extend the group model with protected built-in semantics
 - ✓ Add creation/backfill logic for one `All Users` group per organization
 - ✓ Route built-in membership through active organization membership resolution
@@ -3337,8 +3451,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Notes:** The shared-folder workstream now has a protected built-in `All Users` group with initializer backfill, migration support, and implicit membership based on active organization membership rather than explicit `GroupMembers` rows. Focused validation passed again after the schema update via `dotnet test DotNetCloud.CI.slnf --filter "FullyQualifiedName~GroupDirectoryServiceTests|FullyQualifiedName~GroupManagerServiceTests|FullyQualifiedName~DbInitializerTests" --no-restore` (59 tests).
 
 #### Step: shared-file-folders-3 — Admin Group Management Surfaces
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ Add group DTOs aligned with existing team patterns
 - ✓ Add admin REST endpoints for group CRUD and membership management
 - ✓ Add dedicated admin UI for group management
@@ -3346,8 +3462,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Notes:** Admin-facing group management is now available end-to-end. The core server exposes admin CRUD and membership endpoints through `GroupsController`, the web client has a dedicated `/admin/groups` page plus navigation entry, and the UI keeps the built-in `All Users` group read-only so it matches the implicit-membership server rules. Focused validation passed again via `dotnet test DotNetCloud.CI.slnf --filter "FullyQualifiedName~GroupsControllerTests" --no-restore` (8 tests), and the stricter 4.7 host-level verification bar now also includes `dotnet test tests/DotNetCloud.Integration.Tests/DotNetCloud.Integration.Tests.csproj --no-restore --filter "FullyQualifiedName~GroupsEndpointIntegrationTests"` for real admin group CRUD and membership flow coverage over the core host.
 
 #### Step: shared-file-folders-4 — Files Share Model Hardening
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ Honor direct user, team, group, and inherited parent-folder shares in Files permissions
 - ✓ Add membership resolution abstraction inside Files
 - ✓ Keep `Shared With Me` scoped to explicit user shares only
@@ -3356,8 +3474,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Notes:** Files share-model hardening is now complete. Files permission evaluation resolves direct user shares plus team/group shares across inherited parent-folder paths, Core membership lookups stay behind `IShareAccessMembershipResolver`, `GetSharedWithMeAsync` is explicitly `ShareType.User` only, and Files now exposes a separate `ListMountedAccessAsync` path plus `GET /api/v1/files/mounted-access` for non-owned team/group-accessible nodes that will feed the future `_DotNetCloud` experience. `FileShareDto` now carries `SharedWithGroupId` so group share API responses match the supported share model. Focused validation passed via `dotnet test DotNetCloud.CI.slnf --filter "FullyQualifiedName~FileServiceTests|FullyQualifiedName~ShareServiceTests|FullyQualifiedName~ControllerSecurityAuditTests|FullyQualifiedName~FileDtoTests" --no-restore` (121 tests).
 
 #### Step: shared-file-folders-5 — Admin Shared Folder Virtualization
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ Add admin shared-folder definitions and path validation model
 - ✓ Add admin CRUD API, group-assignment endpoints, and reindex/rescan controls
 - ✓ Add admin UI for shared-folder CRUD, group assignment, scan actions, platform-root source browsing, and seeded scheduled scans
@@ -3368,8 +3488,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Notes:** The 4.4 virtualization slice remains complete end-to-end. Files root listings inject a synthetic `_DotNetCloud` folder for every user, `_DotNetCloud` contains a synthetic `Shared With Me` folder plus the caller's accessible admin shared folders, admin shared folders enumerate the real on-disk hierarchy as nested virtual nodes, mounted files can be opened through the existing download path, and mounted-path mutations are blocked across FileService writes plus share, tag, comment, and upload entry points. The admin shared-folder page now adds a server-constrained folder picker backed by a dedicated browse endpoint, suggests a display name from the selected path's final segment when the name is still unset or auto-suggested, and seeds Scheduled crawl mode with a next scan 24 hours ahead while clearing that field for Manual mode. The browse flow now defaults to the platform filesystem root for interactive picking while still resolving relative source paths against an optional configured base when present, which removed the live 409 on mint22 where no Files admin root was configured. Manual Rescan Now and Reindex actions are now executed by a Files maintenance worker that probes due shared folders, updates scan state, and dispatches Files-module reindex requests through the Search pipeline, so the admin controls no longer stall in a requested-only state. Focused validation passed via `dotnet test DotNetCloud.CI.slnf --filter "FullyQualifiedName~AdminSharedFolder" --no-restore` (22 tests) and `dotnet test tests/DotNetCloud.Modules.Files.Tests/DotNetCloud.Modules.Files.Tests.csproj --filter "FullyQualifiedName~AdminSharedFolderServiceTests|FullyQualifiedName~AdminSharedFolderMaintenanceServiceTests" --no-restore` (10 tests), then live verification passed on mint22: `ben.kimball@llabmik.net` created a shared folder from the admin UI and `testdude@llabmik.net` could see and access the mounted share in a separate browser session. Remaining work still moves to 4.5 search indexing/navigation and 4.6 media scan-source selection.
 
 #### Step: shared-file-folders-6 — Search And Media Integration
+
 **Status:** completed
 **Deliverables:**
+
 - ✓ Add group-aware search indexing and navigation for mounted shared folders
 - ✓ Add per-user shared-folder scan-source selection for Music, Photos, and Video
 - ✓ Keep sync clients ignoring `_DotNetCloud` admin shares in v1
@@ -3384,8 +3506,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 > **Depends on:** Phase 0 Foundation (multi-database infrastructure, `ITableNamingStrategy`, module DbContexts)
 
 ### Step: req-modules-schema-1 — Authority and database foundation
+
 **Status:** completed ✓
 **Deliverables:**
+
 - ✓ Create `RequiredModules` static registry (`DotNetCloud.Core/Modules/RequiredModules.cs`)
 - ✓ Add `IsRequired` to `InstalledModule` entity and EF configuration
 - ✓ Generate EF migration `AddIsRequiredToInstalledModule` for CoreDbContext
@@ -3395,8 +3519,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Notes:** Phase 1 complete. `RequiredModules.ModuleIds` defines `dotnetcloud.files`, `dotnetcloud.chat`, `dotnetcloud.search` as architecturally required. `IsRequired` flag persists in the `InstalledModules` table. `GetSchemaName` maps required modules to `"core"` schema and optional modules to their short-name schema.
 
 ### Step: req-modules-schema-2 — Schema enforcement in naming strategies
+
 **Status:** completed ✓
 **Deliverables:**
+
 - ✓ `PostgreSqlNamingStrategy.GetSchemaForModule` delegates to `RequiredModules.GetSchemaName`
 - ✓ `SqlServerNamingStrategy.GetSchemaForModule` delegates to `RequiredModules.GetSchemaName`
 - ✓ `MariaDbNamingStrategy.GetTableName` uses `RequiredModules.GetSchemaName` for prefix
@@ -3407,8 +3533,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Notes:** Phase 2 complete. Schema mapping is now centralized in `RequiredModules.GetSchemaName`. Required modules (files, chat, search) map to the `core` schema. Optional modules get dedicated schemas (contacts, calendar, notes, tracks, photos, music, video, ai). Previously hardcoded schema strings in Photos/Music/Video DbContexts replaced with strategy calls. All test projects pass.
 
 ### Step: req-modules-schema-3 — Lazy schema creation
+
 **Status:** completed ✓
 **Deliverables:**
+
 - ✓ Create `IModuleSchemaProvider` interface (`DotNetCloud.Core/Modules/IModuleSchemaProvider.cs`)
 - ✓ Add `SchemaProvider` field to `ModuleManifestData` (defaults to `"self"`)
 - ✓ Create `DbContextSchemaProvider` — resolves module DbContext from DI, applies EF migrations for first-party modules
@@ -3425,16 +3553,20 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Notes:** Phase 3 complete — the key architectural change. Module database schemas are now created lazily when modules are installed, not unconditionally on server startup. The core server queries `InstalledModules` and only migrates schemas for installed modules. First-party modules use `DbContextSchemaProvider` (EF migrations driven by core). Third-party modules use `SelfManagedSchemaProvider` (self-migrate on startup). CLI commands set `IsRequired` and guard required modules but defer schema creation to server startup (CLI doesn't reference module projects). All test projects pass (5,104 tests, 0 failures). Phases 5-7 remain pending.
 
 ### Step: req-modules-schema-4 — Seeding and DTO mapping
+
 **Status:** completed ✓
 **Deliverables:**
+
 - ✓ `SeedKnownModulesAsync` already sets `IsRequired` via `RequiredModules.IsRequired` (completed in Phase 3)
 - ✓ `AdminModuleService.MapToDto` maps `IsRequired = entity.IsRequired` to `ModuleDto`
 
 **Notes:** Phase 4 complete. The only code change was adding `IsRequired = entity.IsRequired` to the DTO mapping in `AdminModuleService.MapToDto`. The seeding path (`SeedKnownModulesAsync`) was already handled in Phase 3. `ModuleDto.IsRequired` was added in Phase 1. Build passes with 0 errors; all tests pass.
 
 ### Step: req-modules-schema-5 — Enforcement in API, CLI, and supervisor
+
 **Status:** completed ✓
 **Deliverables:**
+
 - ✓ `AdminModuleService.StopModuleAsync` — guard against stopping required modules (throws `InvalidOperationException`)
 - ✓ `AdminController.StopModuleAsync` — catch `InvalidOperationException`, return 400 with `MODULE_REQUIRED` code
 - ✓ `ProcessSupervisor.SyncDiscoveredModulesToDatabaseAsync` — set `IsRequired` on newly discovered module records
@@ -3444,16 +3576,20 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Notes:** Phase 5 complete. The remaining gaps from previous phases are now closed: the admin API now rejects stop requests for required modules with a proper error code, the process supervisor now sets `IsRequired` when auto-registering discovered modules, and the CLI guards for stop/uninstall were already wired in Phase 3. Build passes with 0 errors; all core tests pass (612 total, 0 failures).
 
 ### Step: req-modules-schema-6 — install.sh
+
 **Status:** completed ✓
 **Deliverables:**
+
 - ✓ `SetupCommand` — `--migrate-only` flag implemented: non-interactive core database migration and module registry sync
 - ✓ `install.sh` — fallback warning updated to remove "not yet implemented" text
 
 **Notes:** Phase 6 complete. Key architectural changes: (1) Created new `DotNetCloud.Core.Schema` project to host `DbContextSchemaProvider`, breaking the dependency on `Core.Server` for schema operations. The new project references all 11 module Data projects (one-way, no circular dependency). (2) Moved `ModuleSchemaService` to `Core.Data.Services` and changed it to use `IEnumerable<IModuleSchemaProvider>` via DI instead of concrete types. Both `SelfManagedSchemaProvider` (in `Core.Data`) and `DbContextSchemaProvider` (in `Core.Schema`) implement `IModuleSchemaProvider` and are registered by their respective hosts. (3) `--migrate-only` flag now fully applies pending core migrations, syncs the module registry, and initializes module schemas via `ModuleSchemaService.EnsureModuleSchemaAsync` — matching the server startup path. Build passes with 0 errors; all tests pass (CLI: 120, Core.Data: 177, Core: 435, Core.Server: 570).
 
 ### Step: req-modules-schema-7 — Update Example Module as third-party reference
+
 **Status:** completed ✓
 **Deliverables:**
+
 - ✓ `manifest.json` — `"schemaProvider": "self"` already present
 - ✓ `ExampleDbContext` — inject `ITableNamingStrategy`, call `HasDefaultSchema` for self-managed schema
 - ✓ `Program.cs` — `async Task Main`, register naming strategy, read `DOTNETCLOUD_CONNECTION_STRING`, in-memory fallback, `MigrateAsync()` on startup
@@ -3472,6 +3608,7 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 ### Phase 1: Server-Side Extension Support ✅
 
 **Deliverables:**
+
 - ✓ Device Authorization Grant enabled (`AllowDeviceCodeFlow()` in `AuthServiceExtensions.cs`)
 - ✓ `bookmarks:read` and `bookmarks:write` scopes registered
 - ✓ Browser extension OIDC client registered (`dotnetcloud-browser-extension` in `OidcClientSeeder.cs`)
@@ -3482,6 +3619,7 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 ### Phase 2: Extension Project Scaffold ✅
 
 **Deliverables:**
+
 - ✓ Project structure: `package.json`, `tsconfig.json`, `jest.config.js`, `.gitignore`, `vite.config.ts`
 - ✓ Dual manifests: `manifest.chrome.json` (MV3), `manifest.firefox.json` (MV3, FF ≥ 109)
 - ✓ Build scripts: `build-extension.ps1` (PowerShell), `build-extension.sh` (Bash)
@@ -3497,6 +3635,7 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 ### Phase 3: Authentication ✅
 
 **Deliverables:**
+
 - ✓ `src/auth/device-flow.ts` — `initiateDeviceFlow()` + `pollForToken()` with RFC 8628 compliance
 - ✓ `src/auth/token-manager.ts` — full token lifecycle (store, get, refresh, clear, scheduleRefresh, handleAlarm)
 - ✓ Background service worker alarm routing for `token-refresh`
@@ -3508,12 +3647,14 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 
 **Status:** completed
 **Steps:**
+
 - ✓ Step 4.1 — ID Mapping Store (`mapping-store.ts` scaffold was complete; no code changes needed)
 - ✓ Step 4.2 — Initial Sync (`initial-sync.ts` — server-first full sync with topological folder sort, browser-only bookmark batch upload, `isInitialSyncInProgress` guard flag)
 - ✓ Step 4.3 — Incremental Push (`push-sync.ts` — all 4 chrome.bookmarks event handlers with 500ms debounce, root node guards, offline pending queue)
 - ✓ Step 4.4 — Incremental Pull (`pull-sync.ts` — 5-min chrome.alarms poll, server-wins conflict resolution, pagination, cursor tracking)
 
 **Deliverables:**
+
 - ✓ `src/sync/initial-sync.ts` — `runInitialSync()` with full algorithm (fetch server tree → build browser tree → top-sort folders → create/map folders → create/map bookmarks → batch-upload browser-only items → set cursor)
 - ✓ `src/sync/push-sync.ts` — `startPushSync()` / `stopPushSync()` with handlers for onCreated (create bookmark/folder + store mapping), onRemoved (delete + remove mapping), onChanged (update title/url), onMoved (update folderId). Debounced 500ms per node ID. Skips `"0"/"1"/"2"/"3"` root nodes and events during initial sync. Pending operations queued in `chrome.storage.local` when offline.
 - ✓ `src/sync/pull-sync.ts` — `startPullSync()` / `stopPullSync()` + `runPullCycle()`. Applies server folder changes (create/update title), bookmark changes (create/update title/url/move), and deletions (removeTree for folders, remove for bookmarks). Multi-page support via immediate follow-up cycles when `hasMore` is true.
@@ -3522,6 +3663,7 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Tests:** 37 existing unit tests all pass (no regressions). Full sync engine test coverage completed in Phase 6 (42 new tests across mapping-store, initial-sync, push-sync, and conflict-resolution suites).
 
 **Build verification:**
+
 - `npx tsc --noEmit` — zero TypeScript errors
 - `npm run build:chrome` — 14 modules, clean build
 - `npm run build:firefox` — 14 modules, clean build
@@ -3531,6 +3673,7 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 
 **Status:** completed
 **Steps:**
+
 - ✓ Step 5.1 — Auth Screen (complete as scaffold)
 - ✓ Step 5.2 — Main Popup Structure (complete as scaffold; tab switching wired)
 - ✓ Step 5.3 — Save Panel (`SavePanel.ts`)
@@ -3539,6 +3682,7 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 - ✓ Step 5.6 — Sync Status Footer (complete as scaffold; live status + details overlay)
 
 **Deliverables:**
+
 - ✓ `src/popup/components/SavePanel.ts` — Full save panel: auto-fill URL/title from active tab, folder picker (lazy-loaded indented tree), tags with chip UI, collapsible notes, save/update detection, last-folder memory, success toast with auto-close, fire-and-forget preview trigger
 - ✓ `src/popup/components/BrowsePanel.ts` — Browse panel: breadcrumb navigation, folder tree browsing, bookmark list with Google favicons, infinite scroll (20 per page), right-click context menu (open/copy/delete), refresh button, empty state
 - ✓ `src/popup/components/SearchPanel.ts` — Search panel: 300ms debounced search, results with favicon/URL/folder-path, click-to-open, recent bookmarks on empty query, no-results state
@@ -3548,6 +3692,7 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Notes:** Phase 5 complete. The popup now has fully functional Save, Browse, and Search panels. The Save panel auto-detects existing bookmarks (switches to "Update Bookmark" mode), supports tag chips, collapsible notes, and persists the last-used folder. The Browse panel provides breadcrumb navigation, favicons, infinite scroll, and a right-click context menu. The Search panel debounces input at 300ms, shows recent bookmarks when empty, and displays folder paths in results. The sync status footer shows real-time status with color-coded dots, auto-refreshes every 15s, and clicking opens a details overlay with last sync time, bookmark count, and manual "Sync Now" trigger.
 
 **Build verification:**
+
 - `npx tsc --noEmit` — zero TypeScript errors
 - `npm run build:chrome` — 17 modules, clean build
 - `npm run build:firefox` — 17 modules, clean build
@@ -3557,11 +3702,13 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 
 **Status:** completed
 **Steps:**
+
 - ✓ Step 6.1 — Build Pipeline (vite.config.ts, build-extension.ps1, build-extension.sh all present and working)
 - ✓ Step 6.2 — Unit Tests (4 new test suites: mapping-store, initial-sync, push-sync, conflict-resolution)
 - ✓ Step 6.3 — Documentation Updates (IMPLEMENTATION_CHECKLIST.md + MASTER_PROJECT_PLAN.md updated)
 
 **Deliverables:**
+
 - ✓ `tests/mapping-store.test.ts` — 18 tests: setMapping/getServerId/getBrowserNodeId round-trip (bookmark + folder), reverse lookup, removeMapping (clears both directions, type isolation), cursor get/set/overwrite, clearAll (mappings + cursor), persistence
 - ✓ `tests/initial-sync.test.ts` — 7 tests: throws when not authenticated, folder tree reconstruction with parent chain, cursor persistence after sync, browser-only bookmark batch upload, empty batch handling, pagination, isInitialSyncInProgress lifecycle
 - ✓ `tests/push-sync.test.ts` — 5 tests: start/stop lifecycle (idempotent), listener registration (all 4 bookmark events), listener removal on stop
@@ -3571,6 +3718,7 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Notes:** Phase 6 complete. All 7 test suites pass (79 tests total), TypeScript typecheck is clean, and both Chrome and Firefox builds succeed. The test infrastructure was extended with a comprehensive `BookmarksMock` that simulates the Chrome bookmarks API, including event dispatching for onCreated/onRemoved/onChanged/onMoved. The mapping-store tests verify bidirectional ID persistence and lifecycle. Initial-sync tests verify the server-first algorithm. Push-sync tests verify listener registration (debounced API call verification is inherently integration-level). Conflict-resolution tests verify server-wins semantics, deletion handling, and guard conditions. Build pipeline (vite.config.ts + build scripts) was already complete from Phase 2 and required no changes.
 
 **Build verification:**
+
 - `npm test` — 7 suites, 79 tests, all passing
 - `npx tsc --noEmit` — zero TypeScript errors
 - `npm run build:chrome` — 17 modules, clean build
@@ -3585,6 +3733,7 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Goal:** Add in-app usage help for every module via "Help" link pinned to each module's sidebar.
 
 **Deliverables:**
+
 - ✓ `ModuleHelpLink.razor` + `.css` — shared help link component (icon-only when collapsed)
 - ✓ `ModuleHelp.razor` + `.css` — parameterized route `/apps/{Module}/help` with breadcrumb, back button, module-not-found fallback
 - ✓ 13 module help route wrappers (`UI.Web/Components/Pages/Modules/Help/*.razor`)
@@ -3603,15 +3752,15 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 
 ### Quick Status
 
-| Phase | Steps | Completed | In Progress | Pending |
-|-------|-------|-----------|-------------|---------|
-| Phase A | 3 | 3 | 0 | 0 |
-| Phase B | 2 | 2 | 0 | 0 |
-| Phase C | 3 | 3 | 0 | 0 |
-| Phase D | 5 | 5 | 0 | 0 |
-| Phase E | 2 | 2 | 0 | 0 |
-| Phase F | 2 | 2 | 0 | 0 |
-| Phase G | 3 | 3 | 0 | 0 |
+| Phase   | Steps | Completed | In Progress | Pending |
+| ------- | ----- | --------- | ----------- | ------- |
+| Phase A | 3     | 3         | 0           | 0       |
+| Phase B | 2     | 2         | 0           | 0       |
+| Phase C | 3     | 3         | 0           | 0       |
+| Phase D | 5     | 5         | 0           | 0       |
+| Phase E | 2     | 2         | 0           | 0       |
+| Phase F | 2     | 2         | 0           | 0       |
+| Phase G | 3     | 3         | 0           | 0       |
 
 ### Phase A: Data Model — `PasswordChangeRequired` Flag ✅
 
@@ -3624,8 +3773,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Duration:** ~15 minutes
 
 #### Step: phase-b.1 — Define setting constants
+
 **Status:** completed
 **Deliverables:**
+
 - ✓ `SystemSettingKeys.ClosedSystemEnabled` constant (`"ClosedSystemEnabled"`)
 - ✓ `SystemSettingKeys.ClosedSystemModule` constant (`"dotnetcloud.core"`)
 - ✓ Default value `"false"`
@@ -3633,8 +3784,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **File:** `src/Core/DotNetCloud.Core/Constants/SystemSettingKeys.cs` (new)
 
 #### Step: phase-b.2 — Verify admin can toggle via existing Settings UI
+
 **Status:** completed
 **Deliverables:**
+
 - ✓ Confirmed `/admin/settings` page supports CRUD for `dotnetcloud.core` / `ClosedSystemEnabled`
 - ✓ Generic Settings UI works — no dedicated card needed (stretch goal deferred)
 
@@ -3646,8 +3799,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Duration:** ~30 minutes
 
 #### Step: phase-c.1 — Add closed-system check to `AuthService.RegisterAsync`
+
 **Status:** completed  
 **Deliverables:**
+
 - ✓ Inject `IAdminSettingsService` into `AuthService`
 - ✓ Query `ClosedSystemEnabled` setting before creating user
 - ✓ If `"true"` and `!caller.HasRole("Administrator")`: throw `InvalidOperationException` with clear message
@@ -3657,18 +3812,22 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **File:** `src/Core/DotNetCloud.Core.Auth/Services/AuthService.cs`
 
 #### Step: phase-c.2 — Update `AuthController.RegisterAsync` for proper HTTP response
+
 **Status:** completed  
 **Deliverables:**
+
 - ✓ Catch `InvalidOperationException` for closed-system message, return `403 Forbidden` with code `CLOSED_SYSTEM`
 - ✓ Other `InvalidOperationException` cases still return `400 BadRequest`
 
 **File:** `src/Core/DotNetCloud.Core.Server/Controllers/AuthController.cs`
 
 #### Step: phase-c.3 — Update self-registration UI (`Register.razor`)
+
 **Status:** completed  
 **Deliverables:**
+
 - ✓ On page load, check `ClosedSystemEnabled` via `IAdminSettingsService`
-- ✓ If enabled: hide form, show warning message: *"Self-registration is currently disabled. Please contact your system administrator to request an account."*
+- ✓ If enabled: hide form, show warning message: _"Self-registration is currently disabled. Please contact your system administrator to request an account."_
 - ✓ If disabled or setting unavailable: show normal registration form
 
 **File:** `src/UI/DotNetCloud.UI.Web/Components/Pages/Auth/Register.razor`
@@ -3681,20 +3840,24 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Duration:** ~1 hour
 
 #### Step: phase-d.1 — Create `ChangePassword.razor` page
+
 **Status:** completed  
 **Deliverables:**
+
 - ✓ Route `/auth/change-password` with `returnUrl` query parameter
 - ✓ Uses `AuthLayout` with consistent styling
 - ✓ Fields: Current Password, New Password, Confirm New Password
 - ✓ Validation: new passwords must match
 - ✓ On success: shows success message, redirects to `returnUrl` or `/`
-- ✓ Heading: *"You must change your password before continuing"*
+- ✓ Heading: _"You must change your password before continuing"_
 
 **File:** `src/UI/DotNetCloud.UI.Web/Components/Pages/Auth/ChangePassword.razor` (new)
 
 #### Step: phase-d.2 — Create form-post endpoint for password change
+
 **Status:** completed  
 **Deliverables:**
+
 - ✓ `POST /auth/session/change-password` in `AuthSessionController`
 - ✓ `[Authorize]` — requires auth cookie
 - ✓ Parameters: `currentPassword`, `newPassword`, `confirmNewPassword`, `returnUrl`
@@ -3705,8 +3868,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **File:** `src/Core/DotNetCloud.Core.Server/Controllers/AuthSessionController.cs`
 
 #### Step: phase-d.3 — Add API endpoint for password change
+
 **Status:** completed  
 **Deliverables:**
+
 - ✓ `POST /api/v1/core/auth/change-password` in `AuthController` (alias of existing `password/change`)
 - ✓ Uses existing `ChangePasswordRequest` DTO
 - ✓ Calls `IAuthService.ChangePasswordAsync`
@@ -3714,8 +3879,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **File:** `src/Core/DotNetCloud.Core.Server/Controllers/AuthController.cs`
 
 #### Step: phase-d.4 — Modify session login flow to redirect when `PasswordChangeRequired`
+
 **Status:** completed  
 **Deliverables:**
+
 - ✓ In `AuthSessionController.LoginAsync`, after successful `PasswordSignInAsync`
 - ✓ Check `PasswordChangeRequired` flag on user
 - ✓ If `true`: redirect to `/auth/change-password?returnUrl=...` with original `returnUrl` preserved
@@ -3724,8 +3891,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **File:** `src/Core/DotNetCloud.Core.Server/Controllers/AuthSessionController.cs`
 
 #### Step: phase-d.5 — Modify API login flow (`AuthService.LoginAsync`)
+
 **Status:** completed  
 **Deliverables:**
+
 - ✓ After successful authentication, before returning `LoginResponse`
 - ✓ If `PasswordChangeRequired == true`: throw `InvalidOperationException("PASSWORD_CHANGE_REQUIRED")`
 - ✓ `AuthController.LoginAsync` returns `403 Forbidden` with `PASSWORD_CHANGE_REQUIRED` error code
@@ -3742,8 +3911,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Duration:** ~30 minutes
 
 #### Step: phase-e.1 — Create `PasswordChangeRequiredMiddleware`
+
 **Status:** completed  
 **Deliverables:**
+
 - ✓ New middleware class in `DotNetCloud.Core.Server/Middleware/`
 - ✓ Logic:
   - After authentication: checks `context.User.Identity?.IsAuthenticated`
@@ -3756,8 +3927,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **File:** `src/Core/DotNetCloud.Core.Server/Middleware/PasswordChangeRequiredMiddleware.cs` (new)
 
 #### Step: phase-e.2 — Register middleware in pipeline
+
 **Status:** completed  
 **Deliverables:**
+
 - ✓ `app.UseMiddleware<PasswordChangeRequiredMiddleware>()` added after `UseAuthentication()`/`UseAuthorization()` and before endpoint routing
 - ✓ Middleware runs after auth so user identity is available
 
@@ -3771,17 +3944,21 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Duration:** ~15 minutes
 
 #### Step: phase-f.1 — Update `UserCreate.razor` with `PasswordChangeRequired` checkbox
+
 **Status:** completed  
 **Deliverables:**
-- ✓ Checkbox: *"Require password change on first login"*
+
+- ✓ Checkbox: _"Require password change on first login"_
 - ✓ Default: checked when `ClosedSystemEnabled = true`, unchecked otherwise
 - ✓ Passes value through to registration API
 
 **File:** `src/UI/DotNetCloud.UI.Web.Client/Pages/Admin/UserCreate.razor`
 
 #### Step: phase-f.2 — Update `RegisterRequest` DTO
+
 **Status:** completed  
 **Deliverables:**
+
 - ✓ Added `bool PasswordChangeRequired` property (ignored during self-registration, used by admin create)
 - ✓ Defaults to `false`
 
@@ -3795,8 +3972,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Duration:** ~45 minutes
 
 #### Step: phase-g.1 — Unit tests for `AuthService`
+
 **Status:** completed  
 **Deliverables:**
+
 - ✓ `RegisterAsync` rejects self-registration when `ClosedSystemEnabled = true`
 - ✓ `RegisterAsync` sets `PasswordChangeRequired = true` for admin-created users in closed mode
 - ✓ `RegisterAsync` allows self-registration when `ClosedSystemEnabled = false`
@@ -3808,8 +3987,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Notes:** 5 new unit tests added to the existing `AuthServiceTests` file. All 126 tests pass (121 existing + 5 new).
 
 #### Step: phase-g.2 — Integration tests
+
 **Status:** completed  
 **Deliverables:**
+
 - ✓ Self-registration endpoint returns `403` in closed mode (`CLOSED_SYSTEM` code)
 - ✓ Login returns `403` when `PasswordChangeRequired = true` (`PASSWORD_CHANGE_REQUIRED` code)
 - ✓ After password change + flag cleared, login succeeds normally
@@ -3821,31 +4002,39 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Notes:** 5 new integration tests. Seeds data via service scope (UserManager + IAdminSettingsService) to avoid claim-type mismatch between the test auth handler and the production `BuildCallerContext`.
 
 #### Step: phase-g.3 — Manual verification checklist
+
 **Status:** completed  
 **Deliverables:**
+
 - ✓ Manual verification steps documented in the plan doc
 - ✓ All manual steps verified against unit + integration test coverage
 
 **Notes:** Manual verification checklist complete. The automated test suite covers all scenarios end-to-end.
 
 #### Step: phase-a.1 — Add `PasswordChangeRequired` property to `ApplicationUser`
+
 **Status:** completed  
 **Deliverables:**
+
 - ✓ `bool PasswordChangeRequired { get; set; } = false` property on `ApplicationUser`
 - ✓ XML doc comment
 
 **File:** `src/Core/DotNetCloud.Core.Data/Entities/Identity/ApplicationUser.cs`
 
 #### Step: phase-a.2 — Update EF configuration
+
 **Status:** completed  
 **Deliverables:**
+
 - ✓ `.IsRequired().HasDefaultValue(false)` for new property
 
 **File:** `src/Core/DotNetCloud.Core.Data/Configuration/Identity/ApplicationUserConfiguration.cs`
 
 #### Step: phase-a.3 — Scaffold EF migration
+
 **Status:** completed  
 **Deliverables:**
+
 - ✓ Migration `AddPasswordChangeRequired` adds column `PasswordChangeRequired` to `AspNetUsers` table
 - ✓ Migration cleaned up — no unintended snapshot diffs
 
@@ -3859,15 +4048,15 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 
 ### Quick Status
 
-| Phase | Steps | Completed | In Progress | Pending |
-|-------|-------|-----------|-------------|---------|
-| Phase 0 | 4 | 4 | 0 | 0 |
-| Phase 1 | 4 | 3 | 0 | 1 |
-| Phase 2 | 3 | 3 | 0 | 0 |
-| Phase 3 | 2 | 2 | 0 | 0 |
-| Phase 4 | 2 | 2 | 0 | 0 |
-| Phase 5 | 4 | 4 | 0 | 0 |
-| Phase 6 | 2 | 2 | 0 | 0 |
+| Phase   | Steps | Completed | In Progress | Pending |
+| ------- | ----- | --------- | ----------- | ------- |
+| Phase 0 | 4     | 4         | 0           | 0       |
+| Phase 1 | 4     | 3         | 0           | 1       |
+| Phase 2 | 3     | 3         | 0           | 0       |
+| Phase 3 | 2     | 2         | 0           | 0       |
+| Phase 4 | 2     | 2         | 0           | 0       |
+| Phase 5 | 4     | 4         | 0           | 0       |
+| Phase 6 | 2     | 2         | 0           | 0       |
 
 ### Phase 0: User Deletion Cascade Infrastructure ✅
 
@@ -3875,16 +4064,20 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Duration:** ~2 hours
 
 #### Step: demo-0.1 — Create `UserDeletedEvent`
+
 **Status:** completed
 **Deliverables:**
+
 - ✓ `UserDeletedEvent` sealed record with `EventId`, `CreatedAt`, `UserId`, `DeletedAt`
 - ✓ Placed in `src/Core/DotNetCloud.Core/Events/UserDeletedEvent.cs`
 
 **File:** `src/Core/DotNetCloud.Core/Events/UserDeletedEvent.cs`
 
 #### Step: demo-0.2 — Publish event from `UserManagementService.DeleteUserAsync`
+
 **Status:** completed
 **Deliverables:**
+
 - ✓ `IEventBus` injected into `UserManagementService`
 - ✓ `UserDeletedEvent` published after successful `UserManager.DeleteAsync()`
 - ✓ Best-effort publishing — failures logged, not re-thrown
@@ -3892,8 +4085,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **File:** `src/Core/DotNetCloud.Core.Auth/Services/UserManagementService.cs`
 
 #### Step: demo-0.3 — Files module subscribes and cleans up
+
 **Status:** completed
 **Deliverables:**
+
 - ✓ `UserDeletedEventSubscriber` in `DotNetCloud.Modules.Files.Data/Events/`
 - ✓ Deletes `FileQuota`, `SyncDevice`, `UserSyncCounter`, `ChunkedUploadSession` records
 - ✓ Deletes user-owned `FileNode` records
@@ -3904,8 +4099,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **File:** `src/Modules/Files/DotNetCloud.Modules.Files.Data/FilesServiceRegistration.cs`
 
 #### Step: demo-0.4 — Handle FK constraints
+
 **Status:** completed
 **Deliverables:**
+
 - ✓ All cleanup operations wrapped in try/catch — failures logged, not re-thrown
 - ✓ Handler isolation preserved (one subscriber failure doesn't affect others)
 
@@ -3917,24 +4114,30 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Duration:** ~45 minutes
 
 #### Step: demo-1.1 — Add `IsDemoUser` to `ApplicationUser`
+
 **Status:** completed
 **Deliverables:**
+
 - ✓ `bool IsDemoUser { get; set; } = false` property
 - ✓ XML doc comment
 
 **File:** `src/Core/DotNetCloud.Core.Data/Entities/Identity/ApplicationUser.cs`
 
 #### Step: demo-1.2 — Update EF configuration for `IsDemoUser`
+
 **Status:** completed
 **Deliverables:**
+
 - ✓ `.IsRequired().HasDefaultValue(false)`
 - ✓ Filtered index `IX_ApplicationUsers_IsDemoUser` (WHERE `IsDemoUser = true`)
 
 **File:** `src/Core/DotNetCloud.Core.Data/Configuration/Identity/ApplicationUserConfiguration.cs`
 
 #### Step: demo-1.3 — Add `DemoModeEnabled` to `SystemSettingKeys`
+
 **Status:** completed
 **Deliverables:**
+
 - ✓ `DemoModeEnabled = "DemoModeEnabled"` constant
 - ✓ `DemoModeEnabledDefault = "false"` default value
 - ✓ XML doc comments with mutual exclusion note
@@ -3942,8 +4145,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **File:** `src/Core/DotNetCloud.Core/Constants/SystemSettingKeys.cs`
 
 #### Step: demo-1.4 — Scaffold EF migration
+
 **Status:** pending
 **Deliverables:**
+
 - ☐ Migration adds `IsDemoUser` column to `AspNetUsers` table
 
 **Notes:** Phase 1 core complete. Migration still needs to be scaffolded.
@@ -3954,8 +4159,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Duration:** ~1 hour
 
 #### Step: demo-2.1 — Set `IsDemoUser` on self-registration
+
 **Status:** completed
 **Deliverables:**
+
 - ✓ `AuthService.RegisterAsync` checks `DemoModeEnabled` setting
 - ✓ Self-registered users get `IsDemoUser = true`
 - ✓ Admin-created accounts exempt
@@ -3964,8 +4171,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **File:** `src/Core/DotNetCloud.Core.Auth/Services/AuthService.cs`
 
 #### Step: demo-2.2 — Set 750 MB quota for demo users
+
 **Status:** completed
 **Deliverables:**
+
 - ✓ Runtime `IQuotaService` resolution via `IServiceProvider`
 - ✓ Sets `750 * 1024 * 1024` bytes quota
 - ✓ Best-effort — failures logged, registration not blocked
@@ -3973,8 +4182,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **File:** `src/Core/DotNetCloud.Core.Auth/Services/AuthService.cs`
 
 #### Step: demo-2.3 — Update registration UI
+
 **Status:** completed
 **Deliverables:**
+
 - ✓ `Register.razor` shows demo mode informational notice
 - ✓ Sets `IsDemoUser` on user creation when in demo mode
 - ✓ Checks `DemoModeEnabled` system setting on page load
@@ -3989,8 +4200,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Duration:** ~30 minutes
 
 #### Step: demo-3.1 — Block email sending for demo users
+
 **Status:** completed
 **Deliverables:**
+
 - ✓ `EmailSendService.SendAsync` checks `IsDemoUser` flag
 - ✓ Throws `ValidationException` with code `EMAIL_SENDING_DISABLED_DEMO`
 - ✓ Clear error message: "Email sending is not available in demo mode."
@@ -3999,8 +4212,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **File:** `src/Modules/Email/DotNetCloud.Modules.Email.Data/Services/EmailSendService.cs`
 
 #### Step: demo-3.2 — UI polish
+
 **Status:** completed
 **Deliverables:**
+
 - ✓ Error message is clear and actionable
 - ☐ Compose form notice (deferrable — error on send is sufficient)
 
@@ -4012,8 +4227,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Duration:** ~1 hour
 
 #### Step: demo-4.1 — Create `DemoAccountCleanupService`
+
 **Status:** completed
 **Deliverables:**
+
 - ✓ Inherits `BackgroundService`
 - ✓ Polls every 1 hour
 - ✓ Queries demo users with `CreatedAt < UtcNow - 5 days`
@@ -4024,8 +4241,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **File:** `src/Core/DotNetCloud.Core.Server/Services/DemoAccountCleanupService.cs`
 
 #### Step: demo-4.2 — Register in DI
+
 **Status:** completed
 **Deliverables:**
+
 - ✓ `builder.Services.AddHostedService<DemoAccountCleanupService>()` in Program.cs
 
 **File:** `src/Core/DotNetCloud.Core.Server/Program.cs`
@@ -4038,8 +4257,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Duration:** ~1 hour
 
 #### Step: demo-5.1 — Expose demo status in `UserDto`
+
 **Status:** completed
 **Deliverables:**
+
 - ✓ `IsDemoUser` (bool) property
 - ✓ `DemoExpiresAt` (DateTime?) — computed as `CreatedAt.AddDays(5)` for demo users
 - ✓ `MapToDto` updated to populate both fields
@@ -4048,8 +4269,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **File:** `src/Core/DotNetCloud.Core.Auth/Services/UserManagementService.cs`
 
 #### Step: demo-5.2 — Create `DemoBanner.razor`
+
 **Status:** completed
 **Deliverables:**
+
 - ✓ Injects `AuthenticationStateProvider` and `DotNetCloudApiClient`
 - ✓ Calls `GET /api/v1/core/users/{id}` to get `UserDto`
 - ✓ Calculates days remaining
@@ -4059,16 +4282,20 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **File:** `src/UI/DotNetCloud.UI.Web/Components/Shared/DemoBanner.razor`
 
 #### Step: demo-5.3 — Integrate into `MainLayout.razor`
+
 **Status:** completed
 **Deliverables:**
+
 - ✓ `<DemoBanner @rendermode="InteractiveServer" />` between topbar and main content
 - ✓ Wrapped in `<AuthorizeView>` for authenticated users only
 
 **File:** `src/UI/DotNetCloud.UI.Web/Components/Layout/MainLayout.razor`
 
 #### Step: demo-5.4 — Storage usage on home page
+
 **Status:** completed
 **Deliverables:**
+
 - ☐ Bonus feature — deferred, banner is sufficient for v1
 
 **Notes:** Phase 5 complete. Demo users see a prominent banner on every page.
@@ -4079,8 +4306,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Duration:** ~45 minutes
 
 #### Step: demo-6.1 — Mutual exclusion validation
+
 **Status:** completed
 **Deliverables:**
+
 - ✓ `AdminSettingsService.UpsertSettingAsync` validates mutual exclusion
 - ✓ Cannot enable `DemoModeEnabled` when `ClosedSystemEnabled` is `"true"`
 - ✓ Cannot enable `ClosedSystemEnabled` when `DemoModeEnabled` is `"true"`
@@ -4089,8 +4318,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **File:** `src/Core/DotNetCloud.Core.Auth/Services/AdminSettingsService.cs`
 
 #### Step: demo-6.2 — Admin UI awareness
+
 **Status:** completed
 **Deliverables:**
+
 - ☐ Dedicated Demo Mode toggle card — deferred, generic Settings page works
 
 **Notes:** Phase 6 complete. Admin settings enforce mutual exclusion between Demo Mode and Closed System Mode.
@@ -4112,6 +4343,7 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Description:** Create an About module that displays platform technical information, version details, and open-source attributions. This module has no database — it is purely display-driven, reading version information from assembly metadata at runtime.
 
 **Steps:**
+
 - ✅ Create `DotNetCloud.Modules.About/` — Core Razor library with AboutModule, AboutModuleManifest, UI components
 - ✅ Create `DotNetCloud.Modules.About.Host/` — Host executable with lifecycle service and health check
 - ✅ Wire into solution (sln, slnf, Core.Server, UI.Web, ModuleUiRegistrationHostedService, ModuleHelp)
@@ -4119,6 +4351,7 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 - ✅ Attributions section covers all OSS components (bundled JS, NuGet packages, Docker images)
 
 **Deliverables:**
+
 - ✓ AboutPage.razor with three sections: Overview, Version, Attributions
 - ✓ Complete OSS attributions: Highlight.js (BSD-3), Butterchurn (MIT), QRCode.js (MIT), MediaPipe (Apache-2.0), webextension-polyfill (MPL-2.0), 37 NuGet packages, Docker images
 - ✓ Sidebar navigation with collapsible sidebar + localStorage persistence
@@ -4144,11 +4377,14 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Blocks:** VFS Phase 2 (core abstractions)
 
 #### Step: vfs-1.1 — Range Header Support on Chunk Download
+
 **Status:** completed ✅  
 **Files modified:**
+
 - `src/Modules/Files/DotNetCloud.Modules.Files.Host/Controllers/FilesController.cs`
 
 **Deliverables:**
+
 - ✓ `enableRangeProcessing: true` on `DownloadChunkByHashAsync` endpoint
 - ✓ `Accept-Ranges: bytes` response header added
 - ✓ Chunk endpoint returns `206 Partial Content` for `Range` requests (ASP.NET Core handles automatically)
@@ -4158,13 +4394,16 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Notes:** Change was trivial — flip `enableRangeProcessing` from `false` to `true` and add `AcceptRanges` header. ASP.NET Core's built-in range processing handles everything else including `Content-Range` header and `416 Range Not Satisfiable`.
 
 #### Step: vfs-1.2 — `?metadataOnly=true` on Tree Endpoint
+
 **Status:** completed ✅  
 **Files modified:**
+
 - `src/Modules/Files/DotNetCloud.Modules.Files/Services/ISyncService.cs` — added `bool metadataOnly` parameter
 - `src/Modules/Files/DotNetCloud.Modules.Files.Data/Services/SyncService.cs` — `BuildTreeNodeAsync` conditionally skips `ContentHash`
 - `src/Modules/Files/DotNetCloud.Modules.Files.Host/Controllers/SyncController.cs` — accepts `metadataOnly` query param
 
 **Deliverables:**
+
 - ✓ `GET /api/v1/sync/tree?metadataOnly=true` returns tree without `contentHash` fields
 - ✓ Default behavior (`metadataOnly=false` or omitted) unchanged — all fields present
 - ✓ Backward compatible — existing clients unaffected
@@ -4179,9 +4418,11 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Blocks:** VFS Phase 3 (Windows), VFS Phase 4 (Linux)
 
 #### Step: vfs-2.1 — Define `IVirtualFileProvider` Interface
+
 **Status:** completed ✅  
 **File created:** `src/Clients/DotNetCloud.Client.Core/VirtualFiles/IVirtualFileProvider.cs`  
 **Deliverables:**
+
 - ✓ `IVirtualFileProvider` interface with `InitializeAsync`, `CreatePlaceholdersAsync`, `HydrateFileAsync`, `DehydrateFileAsync`, `PinFileAsync`, `UnpinFileAsync`, `IsHydratedAsync`, `ShutdownAsync`
 - ✓ XML doc comments on all members
 - ✓ Inherits `IAsyncDisposable`
@@ -4189,12 +4430,15 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Notes:** Platform-agnostic interface. Real implementations (CloudFilterSyncProvider for Windows, FuseSyncFilesystem for Linux) deferred to Phases 3 and 4 respectively.
 
 #### Step: vfs-2.2 — Add `HydrationState` to `LocalFileRecord`
+
 **Status:** completed ✅  
 **Files modified:**
+
 - `src/Clients/DotNetCloud.Client.Core/LocalState/Entities/LocalFileRecord.cs`
 - `src/Clients/DotNetCloud.Client.Core/LocalState/LocalStateDb.cs`
 
 **Deliverables:**
+
 - ✓ `HydrationState` enum with values: `Hydrated(0)`, `CloudOnly(1)`, `Pinned(2)`, `Downloading(3)`
 - ✓ `LocalFileRecord.HydrationState` property added (default `Hydrated` for backward compat)
 - ✓ Schema evolution adds `HydrationState INTEGER NOT NULL DEFAULT 0` to `FileRecords` table
@@ -4202,9 +4446,11 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Notes:** Default `Hydrated` ensures existing databases (pre-VFS) treat all files as fully downloaded — no migration issues.
 
 #### Step: vfs-2.3 — Create `VirtualFileSettings`
+
 **Status:** completed ✅  
 **File created:** `src/Clients/DotNetCloud.Client.Core/VirtualFiles/VirtualFileSettings.cs`  
 **Deliverables:**
+
 - ✓ `VirtualFileSettings` class with `StorageMode`, `MaxCacheSizeBytes`, `PinList`
 - ✓ `VirtualFileStorageMode` enum (`DownloadAll(0)`, `FilesOnDemand(1)`)
 - ✓ `PinList` uses `StringComparer.OrdinalIgnoreCase` for case-insensitive path matching
@@ -4213,9 +4459,11 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Notes:** Default storage mode is `DownloadAll` — existing behavior unchanged. Users opt into files on-demand.
 
 #### Step: vfs-2.4 — Create `VirtualFileSyncEngine`
+
 **Status:** completed ✅  
 **File created:** `src/Clients/DotNetCloud.Client.Core/VirtualFiles/VirtualFileSyncEngine.cs`  
 **Deliverables:**
+
 - ✓ `VirtualFileSyncEngine` class wrapping `ISyncEngine`
 - ✓ Event forwarding (`StatusChanged`, `FileTransferProgress`, `FileTransferComplete`)
 - ✓ Metadata-only sync awareness when `StorageMode == FilesOnDemand`
@@ -4226,9 +4474,11 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Notes:** Phase 2 is the abstraction layer — `SyncAsync` in `FilesOnDemand` mode currently delegates to inner engine for placeholder creation. Full integration with the sync pipeline (placeholder creation from tree) will be refined in Phases 3/4 when platform providers exist.
 
 #### Step: vfs-2.5 — Register VFS Services in DI
+
 **Status:** completed ✅  
 **File modified:** `src/Clients/DotNetCloud.Client.Core/ClientCoreServiceExtensions.cs`  
 **Deliverables:**
+
 - ✓ `VirtualFileSettings` registered as singleton
 - ✓ `IVirtualFileProvider` registered as `NoOpVirtualFileProvider` (all platforms — Phase 2 stub)
 - ✓ `VirtualFileSyncEngine` registered as singleton
@@ -4244,12 +4494,15 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Blocks:** VFS Phase 5 (SyncTray UI — status indicators)
 
 #### Step: vfs-3.1 — P/Invoke Wrappers for Cloud Filter API
+
 **Status:** completed ✅  
 **Files created:**
+
 - `src/Clients/DotNetCloud.Client.Core/Platform/Windows/CfApi/CfApiTypes.cs`
 - `src/Clients/DotNetCloud.Client.Core/Platform/Windows/CfApi/CfApiNative.cs`
 
 **Deliverables:**
+
 - ✓ `CfApiTypes.cs` — All structs (`CF_SYNC_REGISTRATION`, `CF_SYNC_POLICIES`, `CF_PLACEHOLDER_CREATE_INFO`, `CF_FS_METADATA`, `CF_CALLBACK_INFO`, `CF_PLACEHOLDER_STANDARD_INFO`, `CF_OPERATION_PARAMETERS`, etc.), enums (`CF_CONNECT_FLAGS`, `CF_PLACEHOLDER_CREATE_FLAGS`, `CF_HYDRATION_POLICY`, `CF_PIN_STATE`, `CF_CALLBACK_TYPE`, `CF_OPERATION_TYPE`), callback delegates, and HResult constants
 - ✓ `CfApiNative.cs` — `[LibraryImport]` declarations for `CfRegisterSyncRoot`, `CfUnregisterSyncRoot`, `CfCreatePlaceholders`, `CfUpdatePlaceholder`, `CfExecute`, `CfSetPinState`, `CfGetPlaceholderInfo`, `CfConnectSyncRoot`, `CfDisconnectSyncRoot`, `CfReportProviderState`, `CfReportSyncStatus`
 - ✓ `<AllowUnsafeBlocks>true</AllowUnsafeBlocks>` in csproj (Windows-only, for `LibraryImport`)
@@ -4258,12 +4511,15 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Notes:** Uses `LibraryImport` instead of `DllImport` for modern .NET source-generated interop. Conditional `<AllowUnsafeBlocks>` set only on `Windows_NT` builds.
 
 #### Step: vfs-3.2 — Implement `CloudFilterSyncProvider : IVirtualFileProvider`
+
 **Status:** completed ✅  
 **Files created:**
+
 - `src/Clients/DotNetCloud.Client.Core/Platform/Windows/CloudFilterSyncProvider.cs`
 - `src/Clients/DotNetCloud.Client.Core/Platform/Windows/CloudFilterCallbacks.cs`
 
 **Deliverables:**
+
 - ✓ `CloudFilterSyncProvider` — full `IVirtualFileProvider` implementation:
   - `InitializeAsync` — `CfRegisterSyncRoot` + `CfConnectSyncRoot` with callback registration
   - `CreatePlaceholdersAsync` — walks `SyncTreeNodeResponse` tree, builds `CF_PLACEHOLDER_CREATE_INFO[]`, calls `CfCreatePlaceholders` in batches of 100
@@ -4285,9 +4541,11 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Notes:** Callback delegates are kept alive via `GCHandle.Alloc` for the lifetime of the sync root connection. `CloudFilterCallbacks.SetContextPaths()` receives `dbPath` and `syncRootPath` from the provider after initialization.
 
 #### Step: vfs-3.3 — Wire CloudFilterSyncProvider in DI
+
 **Status:** completed ✅  
 **File modified:** `src/Clients/DotNetCloud.Client.Core/ClientCoreServiceExtensions.cs`  
 **Deliverables:**
+
 - ✓ `IVirtualFileProvider` registered as `CloudFilterSyncProvider` on Windows (`OperatingSystem.IsWindows()`)
 - ✓ `NoOpVirtualFileProvider` fallback for Linux (Phase 4 will replace with `FuseSyncFilesystem`) and macOS (stub)
 - ✓ Build succeeds — 0 errors
@@ -4303,12 +4561,15 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Blocks:** VFS Phase 5 (SyncTray UI — status indicators)
 
 #### Step: vfs-3.1 — P/Invoke Wrappers for Cloud Filter API
+
 **Status:** completed ✅  
 **Files created:**
+
 - `src/Clients/DotNetCloud.Client.Core/Platform/Windows/CfApi/CfApiTypes.cs`
 - `src/Clients/DotNetCloud.Client.Core/Platform/Windows/CfApi/CfApiNative.cs`
 
 **Deliverables:**
+
 - ✓ `CfApiTypes.cs` — All structs (`CF_SYNC_REGISTRATION`, `CF_SYNC_POLICIES`, `CF_PLACEHOLDER_CREATE_INFO`, `CF_FS_METADATA`, `CF_CALLBACK_INFO`, `CF_PLACEHOLDER_STANDARD_INFO`, `CF_OPERATION_PARAMETERS`, etc.), enums (`CF_CONNECT_FLAGS`, `CF_PLACEHOLDER_CREATE_FLAGS`, `CF_HYDRATION_POLICY`, `CF_PIN_STATE`, `CF_CALLBACK_TYPE`, `CF_OPERATION_TYPE`), callback delegates, and HResult constants
 - ✓ `CfApiNative.cs` — `[LibraryImport]` declarations for `CfRegisterSyncRoot`, `CfUnregisterSyncRoot`, `CfCreatePlaceholders`, `CfUpdatePlaceholder`, `CfExecute`, `CfSetPinState`, `CfGetPlaceholderInfo`, `CfConnectSyncRoot`, `CfDisconnectSyncRoot`, `CfReportProviderState`, `CfReportSyncStatus`
 - ✓ `<AllowUnsafeBlocks>true</AllowUnsafeBlocks>` in csproj (Windows-only, for `LibraryImport`)
@@ -4317,12 +4578,15 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Notes:** Uses `LibraryImport` instead of `DllImport` for modern .NET source-generated interop. Conditional `<AllowUnsafeBlocks>` set only on `Windows_NT` builds.
 
 #### Step: vfs-3.2 — Implement `CloudFilterSyncProvider : IVirtualFileProvider`
+
 **Status:** completed ✅  
 **Files created:**
+
 - `src/Clients/DotNetCloud.Client.Core/Platform/Windows/CloudFilterSyncProvider.cs`
 - `src/Clients/DotNetCloud.Client.Core/Platform/Windows/CloudFilterCallbacks.cs`
 
 **Deliverables:**
+
 - ✓ `CloudFilterSyncProvider` — full `IVirtualFileProvider` implementation:
   - `InitializeAsync` — `CfRegisterSyncRoot` + `CfConnectSyncRoot` with callback registration
   - `CreatePlaceholdersAsync` — walks `SyncTreeNodeResponse` tree, builds `CF_PLACEHOLDER_CREATE_INFO[]`, calls `CfCreatePlaceholders` in batches of 100
@@ -4344,9 +4608,11 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Notes:** Callback delegates are kept alive via `GCHandle.Alloc` for the lifetime of the sync root connection. `CloudFilterCallbacks.SetContextPaths()` receives `dbPath` and `syncRootPath` from the provider after initialization.
 
 #### Step: vfs-3.3 — Wire CloudFilterSyncProvider in DI
+
 **Status:** completed ✅  
 **File modified:** `src/Clients/DotNetCloud.Client.Core/ClientCoreServiceExtensions.cs`  
 **Deliverables:**
+
 - ✓ `IVirtualFileProvider` registered as `CloudFilterSyncProvider` on Windows (`OperatingSystem.IsWindows()`)
 - ✓ `NoOpVirtualFileProvider` fallback for Linux (Phase 4 will replace with `FuseSyncFilesystem`) and macOS (stub)
 - ✓ Build succeeds — 0 errors
@@ -4357,18 +4623,21 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 ### Section: VFS Phase 4 — Linux Implementation (FuseSyncFilesystem)
 
 **Status:** completed ✅
-**Machine:** `mint-dnc-client` 
-**Depends on:** VFS Phase 2 (core abstraction layer) 
+**Machine:** `mint-dnc-client`
+**Depends on:** VFS Phase 2 (core abstraction layer)
 **Blocks:** VFS Phase 5 (SyncTray UI — status indicators)
 
 #### Step: vfs-4.1 — FUSE Dependency & Project Setup
+
 **Status:** completed ✅
 **Files modified:**
+
 - `src/Clients/DotNetCloud.Client.Core/DotNetCloud.Client.Core.csproj` — added LTRData.FuseDotNet (Linux-conditional)
 - `Directory.Packages.props` — added LTRData.FuseDotNet version
 - `tools/install.sh` — added fuse3 dependency check + fuse group membership check
 
 **Deliverables:**
+
 - ✓ LTRData.FuseDotNet NuGet referenced (Linux-only, conditional on `'$(OS)' == 'Unix'`)
 - ✓ AllowUnsafeBlocks enabled for Linux build
 - ✓ fuse3 availability check in installer
@@ -4376,13 +4645,16 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 - ✓ File structure: `src/Clients/DotNetCloud.Client.Core/Platform/Linux/`
 
 #### Step: vfs-4.2 — Implement FuseSyncFilesystem + DotNetCloudFuseOperations
+
 **Status:** completed ✅
 **Files created:**
+
 - `src/Clients/DotNetCloud.Client.Core/Platform/Linux/FuseSyncFilesystem.cs`
 - `src/Clients/DotNetCloud.Client.Core/Platform/Linux/DotNetCloudFuseOperations.cs`
 - `src/Clients/DotNetCloud.Client.Core/Platform/Linux/FuseLoggerAdapter.cs`
 
 **FuseSyncFilesystem (IVirtualFileProvider) key methods:**
+
 - `InitializeAsync` — checks `fusermount3` availability, verifies `/dev/fuse` exists, ensures sync dir exists, creates `DotNetCloudFuseOperations`, mounts FUSE on background thread via `Fuse.Mount()`
 - `CreatePlaceholdersAsync` — walks `SyncTreeNodeResponse` tree, stores metadata in `LocalStateDb` as `LocalFileRecord` entries with `HydrationState.CloudOnly`
 - `HydrateFileAsync` — downloads via `ChunkedTransferClient`, stores in `LruCacheManager`, updates `HydrationState.Hydrated`
@@ -4393,6 +4665,7 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 - `ShutdownAsync` — unmounts FUSE via `fusermount -u` process call + cancels mount thread
 
 **DotNetCloudFuseOperations (IFuseOperations) key callbacks:**
+
 - `GetAttr` — queries `LocalStateDb` for file metadata, returns `FuseFileStat` with correct mode/size/timestamps
 - `ReadDir` — queries all records filtered by parent path, returns directory entries (with `.` and `..`)
 - `Open` — triggers synchronous hydration if file is `CloudOnly`, per-file semaphore prevents duplicate downloads
@@ -4409,15 +4682,18 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 - `Init` — logs FUSE protocol version on mount
 
 **FuseLoggerAdapter:** Adapts `Microsoft.Extensions.Logging.ILogger` to `FuseDotNet.Logging.ILogger`
+
 - Error mapping: `ENOENT`, `EIO`, `EACCES`, `ENOSPC`, `EBUSY`
 - Thread safety: per-file semaphore for hydration, `LocalStateDb` per-operation DbContext
 
 **Notes:** Conditional compilation via `#if !WINDOWS_BUILD`. `TimeSpec.Now()` and `with` expressions used for `FuseFileStat` construction.
 
 #### Step: vfs-4.3 — Wire FuseSyncFilesystem in DI
+
 **Status:** completed ✅
 **File modified:** `src/Clients/DotNetCloud.Client.Core/ClientCoreServiceExtensions.cs`  
 **Deliverables:**
+
 - ✓ `IVirtualFileProvider` registered as `FuseSyncFilesystem` on Linux
 - ✓ `Platform.Linux` using directive added
 - ✓ Build succeeds — 0 errors (CI solution filter)
@@ -4433,14 +4709,17 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Blocks:** VFS Phase 6 (Testing & Validation)
 
 #### Step: vfs-5.1 — Storage Mode Setting in SettingsViewModel
+
 **Status:** completed ✅  
 **Files modified:**
+
 - `src/Clients/DotNetCloud.Client.SyncTray/ViewModels/SettingsViewModel.cs`
 - `src/Clients/DotNetCloud.Client.SyncTray/Views/SettingsWindow.axaml`
 - `src/Clients/DotNetCloud.Client.SyncTray/Views/MessageBoxDialog.axaml` + `.axaml.cs` (new)
 - `src/Clients/DotNetCloud.Client.SyncTray/ViewModels/EnumConverters.cs` (new)
 
 **Deliverables:**
+
 - ✓ `VirtualFileSettings` injected into `SettingsViewModel`
 - ✓ `StorageMode` property with confirmation dialog on mode switch
 - ✓ `MaxCacheSizeMb` property persisted alongside local settings
@@ -4452,10 +4731,12 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Notes:** `EnumConverters.IsEqual`/`IsNotEqual` create for clean radio-button binding to enums in Avalonia.
 
 #### Step: vfs-5.2 — Wire VFS Lifecycle in App.axaml.cs
+
 **Status:** completed ✅  
 **File modified:** `src/Clients/DotNetCloud.Client.SyncTray/App.axaml.cs`
 
 **Deliverables:**
+
 - ✓ `VirtualFileSettings` and `VirtualFileSyncEngine` resolved at startup
 - ✓ `IVirtualFileProvider.InitializeAsync()` called for each context when `StorageMode == FilesOnDemand`
 - ✓ `IVirtualFileProvider.ShutdownAsync()` called during graceful shutdown (`RunShutdownCleanup`)
@@ -4464,13 +4745,15 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Notes:** VFS initialization happens after `LoadContextsAsync()` completes, before `RefreshAccountsAsync()`.
 
 #### Step: vfs-5.3 — VFS Status in TrayViewModel
+
 **Status:** completed ✅  
 **File modified:** `src/Clients/DotNetCloud.Client.SyncTray/ViewModels/TrayViewModel.cs`
 
 **Deliverables:**
+
 - ✓ `CloudOnlyFileCount`, `HydratedFileCount`, `CacheSizeBytes`, `IsHydrating`, `HydrationFileName` properties
 - ✓ 30-second periodic `RefreshVfsStatsAsync()` timer queries `LocalStateDb.GetAllFileRecordsAsync()` per context
-- ✓ Tooltip shows VFS status: "☁ N online  ✓ N local"
+- ✓ Tooltip shows VFS status: "☁ N online ✓ N local"
 - ✓ Transient hydration notification in tooltip: "⬇ Hydrating filename..."
 - ✓ VFS counts reset when switching back to `DownloadAll` mode
 
@@ -4484,10 +4767,12 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Blocks:** nothing (final VFS validation phase)
 
 #### Step: vfs-6.1 — Unit Tests
+
 **Status:** completed ✅  
 **Location:** `tests/DotNetCloud.Client.Core.Tests/VirtualFiles/`
 
 **Files created:**
+
 - ✓ `VirtualFileSyncEngineTests.cs` — 17 tests covering StartAsync modes, SyncAsync delegates, StopAsync shutdown, SwitchModeAsync updates, event forwarding, Pause/Resume/GetStatus delegation
 - ✓ `VirtualFileSettingsTests.cs` — 10 tests covering default values, JSON serialization round-trips, case-insensitive PinList
 - ✓ `LruCacheManagerTests.cs` — 12 tests covering put/get, cache size tracking, LRU eviction, pin exemption, TryPeek, entry count
@@ -4495,10 +4780,12 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 - ✓ `FuseSyncFilesystemTests.cs` — 4 contract tests verifying IVirtualFileProvider interface (1 inconclusive — FUSE not yet implemented)
 
 **Additional files created:**
+
 - ✓ `LruCacheManager.cs` in `VirtualFiles/` namespace with LRU eviction, pin exemption, thread-safe ConcurrentDictionary + ReaderWriterLockSlim
 - ✓ `LruCacheManager` registered in DI (`ClientCoreServiceExtensions.cs`)
 
 **Key test scenarios covered:**
+
 - `StartAsync_FilesOnDemand_InitializesProvider` — VFS provider init in OnDemand mode
 - `StartAsync_DownloadAll_DoesNotInitializeProvider` — No VFS init in DownloadAll mode
 - `StopAsync_ShutsDownProviderAndStopsInner` — Clean shutdown
@@ -4508,6 +4795,7 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 - `HydrateFileAsync_WhenDisposed_Throws` — Dispose guards
 
 **Notes:**
+
 - All 50 VirtualFiles tests pass (51 total, 1 inconclusive for FuseSyncFilesystem)
 - Core tests: 435/435 pass (no regressions)
 - SyncTray tests: 106/106 pass (no regressions)
@@ -4516,10 +4804,12 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 - Release build: 0 errors, 0 warnings
 
 #### Step: vfs-6.2 — Windows Integration Tests
+
 **Status:** documented (environment-gated: Windows 10 1709+, manual execution)  
 **Scenarios documented in:** `docs/VIRTUAL_FILE_SYNCING_PLAN.md`
 
 **Manual test scenarios:**
+
 - ☐ **TC-VFS-W1:** Register sync root → Explorer shows sync folder with DotNetCloud branding
 - ☐ **TC-VFS-W2:** Initial sync with OnDemand → folder populated with cloud-only placeholders
 - ☐ **TC-VFS-W3:** Open a cloud-only text file → content downloads, file opens normally
@@ -4533,17 +4823,21 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 - ☐ **TC-VFS-W11:** Offline mode — open cloud-only file without server → graceful error
 
 #### Step: vfs-6.3 — Linux Integration Tests
+
 **Status:** documented (environment-gated: Linux + fuse3, deferred to Phase 4 completion)  
 **Scenarios documented in:** `docs/VIRTUAL_FILE_SYNCING_PLAN.md`
 
 #### Step: vfs-6.4 — Cross-Machine End-to-End Tests
+
 **Status:** documented (requires all three machines)
 **Scenarios documented in:** `docs/VIRTUAL_FILE_SYNCING_PLAN.md`
 
 #### Step: vfs-6.5 — Build Validation
+
 **Status:** completed ✅
 
 **Results:**
+
 - ✓ `dotnet build` — succeeds on Windows (Client.Core: 0 errors, 0 warnings)
 - ✓ `dotnet build -c Release` — succeeds (0 errors, 0 warnings)
 - ✓ `dotnet test` — all tests pass (Core 435, Client.Core 253, SyncTray 106)
@@ -4554,8 +4848,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 ## Phase 9: AI Assistant
 
 ### Section: Phase 9.1 — Core AI Interfaces & Module Scaffold
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `ILlmProvider` capability interface (Restricted tier) in `DotNetCloud.Core/Capabilities/`
 - ✓ Core DTOs: `LlmRequest`, `LlmResponse`, `LlmResponseChunk`, `LlmModelInfo`, `LlmMessage` in `DotNetCloud.Core/AI/`
 - ✓ `AiModule` (IModuleLifecycle) and `AiModuleManifest` (IModuleManifest)
@@ -4567,8 +4863,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Notes:** Foundation layer complete. ILlmProvider follows the existing capability tier model.
 
 ### Section: Phase 9.2 — Data Layer & Ollama Provider
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `AiDbContext` with EF Core entity configurations
 - ✓ `ConversationConfiguration` / `ConversationMessageConfiguration` with soft-delete, indexes
 - ✓ `OllamaClient` — Full Ollama REST API client (chat, streaming NDJSON, model listing, health check)
@@ -4579,8 +4877,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Notes:** Default Ollama URL `http://localhost:11434/` for fresh installs, configurable via admin settings. Default model `gpt-oss:20b`. InMemory DB for dev.
 
 ### Section: Phase 9.3 — Module Host & REST API
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `DotNetCloud.Modules.AI.Host` — Standalone web host (`Program.cs`)
 - ✓ `AiChatController` — REST API endpoints:
   - POST `/api/ai/conversations` — Create conversation
@@ -4597,8 +4897,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Notes:** All projects registered in DotNetCloud.sln. Build succeeds with 0 warnings.
 
 ### Section: Phase 9.4 — Unit Tests
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `AiModuleTests` — 7 lifecycle tests (init, start, stop, event sub/unsub)
 - ✓ `AiChatServiceTests` — 11 tests (CRUD, ownership, message sending, model listing)
 - ✓ `OllamaClientTests` — 10 tests (health, chat, models, system prompt, error handling)
@@ -4607,16 +4909,20 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Notes:** Tests use InMemory EF Core and mocked HttpMessageHandler — no Ollama instance required.
 
 ### Section: Phase 9.5 — Blazor UI Chat Panel
+
 **Status:** pending ☐
 **Deliverables:**
+
 - ☐ Chat-style AI assistant panel component
 - ☐ Streaming response rendering via SSE
 - ☐ Model selector dropdown
 - ☐ Conversation history sidebar
 
 ### Section: Phase 9.6 — Admin Settings & Multi-Provider Support
+
 **Status:** in-progress 🔄
 **Deliverables:**
+
 - ✓ `AiAdminSettingsViewModel` — Settings model (Provider, ApiBaseUrl, ApiKey, OrgId, DefaultModel, MaxTokens, Timeout)
 - ✓ `AiAdminSettings.razor` / `.razor.cs` — Blazor admin UI with provider-aware sections
 - ✓ `IAiSettingsProvider` / `AiSettingsProvider` — DB-first settings with IConfiguration fallback
@@ -4632,8 +4938,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Notes:** Admin settings infrastructure complete. Ollama fully working via DB settings, and `/admin/settings` persistence was verified in production on 2026-05-02 after fixing write paths for the app-wide no-tracking EF configuration. OpenAI/Anthropic provider routing pending.
 
 ### Section: Phase 9.7 — Module Integration
+
 **Status:** pending ☐
 **Deliverables:**
+
 - ☐ Notes module integration (summarize, expand, translate)
 - ☐ Chat module integration (message summarization, smart replies)
 - ☐ Files module integration (content summarization, document Q&A)
@@ -4645,9 +4953,11 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Reference:** `docs/FULL_TEXT_SEARCH_IMPLEMENTATION_PLAN.md`
 
 ### Section: Phase 8.2 — Search Module Scaffold
+
 **Status:** completed ✅
 **Duration:** ~3 hours
 **Deliverables:**
+
 - ✓ `DotNetCloud.Modules.Search/` — Business logic project (services, extractors, event handler, module lifecycle)
 - ✓ `DotNetCloud.Modules.Search.Data/` — EF Core data project (SearchDbContext, SearchIndexEntry, IndexingJob, configurations)
 - ✓ `DotNetCloud.Modules.Search.Host/` — gRPC host + REST controllers (search_service.proto, SearchGrpcService, SearchController, Program.cs)
@@ -4662,9 +4972,11 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Notes:** Phase 2 complete. Search module scaffold fully operational with EF Core InMemory. Phase 1 interfaces/DTOs (in DotNetCloud.Core) were already in place.
 
 ### Section: Phase 8.3 — Module Search API Integration
+
 **Status:** completed ✅
 **Duration:** ~4 hours
 **Deliverables:**
+
 - ✓ Search RPCs added to all 9 module protos (Files, Chat, Notes, Contacts, Calendar, Photos, Music, Video, Tracks)
 - ✓ `GetSearchableDocuments` (server streaming) + `GetSearchableDocument` (unary) + `SearchableDocument` message per module
 - ✓ gRPC service implementations mapping domain entities to SearchableDocument in all 9 modules
@@ -4675,8 +4987,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Notes:** Phase 3 complete. All modules now expose searchable data via gRPC and publish SearchIndexRequestEvent on CRUD operations. AI module excluded (REST only, no proto/gRPC). Next: Phase 4 — Indexing Engine (event-driven + scheduled reindex).
 
 ### Section: Phase 8.4 — Indexing Engine
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `SearchIndexingService` upgraded — Channel-based queue with Start/Stop lifecycle, module lookup, content extraction pipeline
 - ✓ `SearchReindexBackgroundService` — Full reindex, per-module reindex, batch processing (200 default), IndexingJob tracking
 - ✓ `SearchIndexRequestEventHandler` — Routes Index → indexing service, Remove → provider directly
@@ -4687,8 +5001,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Notes:** Phase 4 complete. Background indexing pipeline processes events asynchronously via channel queue. Full and per-module reindex with batch processing and job tracking.
 
 ### Section: Phase 8.5 — Search Query Engine
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `SearchQueryParser` — Parses user input into structured `ParsedSearchQuery` (keywords, phrases, in:module, type:value, -exclusion)
 - ✓ `ParsedSearchQuery` with provider-specific query string builders (PostgreSQL tsquery, SQL Server CONTAINS, MariaDB BOOLEAN MODE)
 - ✓ `SnippetGenerator` — HTML-safe snippet generation with `<mark>` highlighting and XSS prevention
@@ -4700,8 +5016,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Notes:** Phase 5 complete. Full query engine with advanced syntax parsing, provider-specific query translation, relevance scoring, and highlighted snippets. Next: Phase 6 — REST + gRPC API integration.
 
 ### Section: Phase 8.6 — REST + gRPC API
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `DotNetCloud.Modules.Search.Client` project — shared gRPC client library
 - ✓ `ISearchFtsClient` interface with IsAvailable + SearchAsync
 - ✓ `SearchFtsClient` — lazy GrpcChannel, Unix socket support, timeout config, graceful degradation
@@ -4714,23 +5032,27 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Notes:** Phase 6 complete. Search module client library with graceful degradation. Module controllers upgraded with FTS-first search. Next: Phase 7 — Blazor UI.
 
 ### Section: Phase 8.7 — Blazor UI
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `GlobalSearchBar.razor` — Modal search overlay with Ctrl+K/Cmd+K shortcut, debounced suggestions, keyboard navigation, recent searches (localStorage)
 - ✓ `SearchResults.razor` — Full results page at `/search?q=...` with faceted sidebar, pagination, sort (relevance/date)
 - ✓ `SearchResultCard.razor` — Per-module result card with XSS-safe highlight, module-specific metadata rendering (10 modules)
 - ✓ `global-search.js` — JS interop for keyboard shortcut registration and localStorage management
 - ✓ Scoped CSS for all 3 components (responsive, dark mode support)
 - ✓ `DotNetCloudApiClient` — SearchAsync + SearchSuggestAsync methods added
-- ✓ MainLayout integration (topbar-center), _Imports.razor, App.razor script tag
+- ✓ MainLayout integration (topbar-center), \_Imports.razor, App.razor script tag
 - ✓ 6 new test files with 159 Phase 7 tests (URLs, Sanitizer, Display, QueryBuilder, Metadata, Sort/EdgeCases)
 - ✓ 591 total search tests passing
 
 **Notes:** Phase 7 complete. Full Blazor search UI with global search bar (Ctrl+K), results page with faceted sidebar and pagination, and per-module rich result cards. All 8 FTS implementation phases (2-7 + testing) are now complete.
 
 ### Section: Phase 8.8 — Testing & Documentation
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `PermissionScopingTests` — 10 tests (user isolation across providers, facet/filter/pagination scoping)
 - ✓ `EndToEndIndexingTests` — 12 tests (full pipeline: event → handler → indexing → provider → query)
 - ✓ `MultiDatabaseProviderTests` — 10 tests (SqlServer/MariaDb behavioral consistency)
@@ -4751,6 +5073,7 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Status:** completed ✅
 **Depends on:** Chat module (Phase 2, complete)
 **Deliverables:**
+
 - ✓ `VideoCallState` enum (`Ringing`, `Connecting`, `Active`, `OnHold`, `Ended`, `Missed`, `Rejected`, `Failed`)
 - ✓ `VideoCallEndReason` enum (`Normal`, `Rejected`, `Missed`, `TimedOut`, `Failed`, `Cancelled`)
 - ✓ `CallParticipantRole` enum (`Initiator`, `Participant`)
@@ -4768,6 +5091,7 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Status:** completed ✅
 **Depends on:** 7.1
 **Deliverables:**
+
 - ✓ `VideoCall` entity — Id, ChannelId (FK → Channel), InitiatorUserId, State, MediaType, StartedAtUtc, EndedAtUtc, EndReason, MaxParticipants, IsGroupCall, LiveKitRoomId, CreatedAtUtc, soft-delete
 - ✓ `CallParticipant` entity — Id, VideoCallId (FK → VideoCall), UserId, Role, JoinedAtUtc, LeftAtUtc, HasAudio, HasVideo, HasScreenShare
 - ✓ `VideoCallConfiguration.cs` — Enum-to-string conversions, soft-delete query filter, indexes (ChannelId+State, InitiatorUserId, CreatedAtUtc, State, IsDeleted)
@@ -4783,6 +5107,7 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Status:** completed ✅
 **Depends on:** 7.2
 **Deliverables:**
+
 - ✓ `VideoCallService` — full `IVideoCallService` implementation (InitiateCallAsync, JoinCallAsync, LeaveCallAsync, EndCallAsync, RejectCallAsync, GetCallHistoryAsync, GetActiveCallAsync)
 - ✓ `CallStateValidator` — static state machine enforcement with valid transitions, terminal state detection
 - ✓ Call timeout — `HandleRingTimeoutsAsync` transitions Ringing calls to Missed after 30s
@@ -4796,6 +5121,7 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Status:** completed ✅
 **Depends on:** 7.3
 **Deliverables:**
+
 - ✓ `CallSignalingService` — server-side signaling coordinator with SDP/ICE relay, call state validation, participant membership enforcement
 - ✓ `CoreHub` signaling methods — `SendCallOfferAsync`, `SendCallAnswerAsync`, `SendIceCandidateAsync`, `SendMediaStateChangeAsync`, `JoinCallGroupAsync`, `LeaveCallGroupAsync`
 - ✓ Call-scoped SignalR groups (`call-{callId}`)
@@ -4809,6 +5135,7 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Status:** completed ✅
 **Depends on:** 7.4
 **Deliverables:**
+
 - ✓ `video-call.js` — Full WebRTC engine (P2P mesh, SDP negotiation, ICE handling, adaptive bitrate)
 - ✓ `IWebRtcInteropService` + `WebRtcInteropService` — C# Blazor ↔ JS interop with input validation
 - ✓ `WebRtcDtos.cs` — `IceServerDto`, `WebRtcCallConfig`, `WebRtcCallState`, `WebRtcPeerState`, `WebRtcMediaState`
@@ -4827,6 +5154,7 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Status:** completed ✅
 **Depends on:** 7.5
 **Deliverables:**
+
 - ✓ `VideoCallDialog.razor` — main call window with adaptive grid layout (solo/pair/trio/grid)
 - ✓ `CallControls.razor` — bottom toolbar with mute, camera, screen share, hang up, timer, participant count
 - ✓ `IncomingCallNotification.razor` — incoming call toast with accept (audio/video) and reject
@@ -4843,6 +5171,7 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Status:** completed ✅
 **Depends on:** 7.4
 **Deliverables:**
+
 - ✓ `ILiveKitService` interface (CreateRoomAsync, GenerateToken, DeleteRoomAsync, GetRoomParticipantsAsync)
 - ✓ `LiveKitService` implementation with JWT token generation (HMAC-SHA256) and LiveKit Twirp API
 - ✓ `LiveKitOptions` configuration class (Enabled, ServerUrl, ApiKey, ApiSecret, MaxP2PParticipants)
@@ -4860,6 +5189,7 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Status:** completed ✅
 **Depends on:** 7.5
 **Deliverables:**
+
 - ✓ `IceServerOptions` configuration class (built-in STUN, additional STUN, TURN with static/ephemeral credentials)
 - ✓ Built-in STUN server (`StunServer` BackgroundService) — RFC 5389 Binding Response, dual-stack IPv4/IPv6, UDP 3478
 - ✓ `IIceServerService` interface + `IceServerService` with HMAC-SHA1 coturn-compatible ephemeral credentials
@@ -4875,6 +5205,7 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Status:** completed ✅
 **Depends on:** 7.3
 **Deliverables:**
+
 - ✓ 9 REST API endpoints in ChatController (initiate, join, leave, end, reject, history, get call, active call, ICE servers)
 - ✓ 7 gRPC RPCs + 12 message types in chat_service.proto
 - ✓ ChatGrpcService implementation with IVideoCallService injection
@@ -4890,6 +5221,7 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Status:** completed ✅
 **Depends on:** 7.3
 **Deliverables:**
+
 - ✓ `NotificationCategory.IncomingCall` — high-priority push for incoming calls (bypasses online presence suppression)
 - ✓ `NotificationCategory.MissedCall` — normal-priority push for missed calls
 - ✓ `NotificationCategory.CallEnded` — push for disconnected participants when call ends
@@ -4907,6 +5239,7 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Status:** completed ✅
 **Depends on:** 7.1–7.10
 **Deliverables:**
+
 - ✓ Unit tests: 678 video-call-specific tests across 20 test files (target was 120+)
 - ✓ Integration tests: full call lifecycle tests (initiate → join → leave → end) in `VideoCallServiceTests.cs`
 - ✓ All 1027 Chat module tests pass
@@ -4924,8 +5257,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 ### Section: Phase 11 — Phase A: Core Update Infrastructure (Server-Side)
 
 #### Step: phase-11.1 — IUpdateService Interface & DTOs
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `IUpdateService` interface with `CheckForUpdateAsync`, `GetLatestReleaseAsync`, `GetRecentReleasesAsync`
 - ✓ `UpdateCheckResult` record (IsUpdateAvailable, CurrentVersion, LatestVersion, ReleaseUrl, ReleaseNotes, PublishedAt, Assets)
 - ✓ `ReleaseInfo` record (Version, TagName, ReleaseNotes, PublishedAt, IsPreRelease, Assets)
@@ -4934,8 +5269,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Notes:** DTOs shared by both server and client via DotNetCloud.Core package.
 
 #### Step: phase-11.2 — GitHubUpdateService Implementation
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `GitHubUpdateService` — queries GitHub Releases API with MemoryCache (1-hour TTL)
 - ✓ Semantic version comparison with pre-release support
 - ✓ Platform asset matching from release filenames
@@ -4944,31 +5281,39 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Notes:** Public GitHub API (60 req/hr); caching prevents rate limit issues.
 
 #### Step: phase-11.3 — Update Check API Endpoint
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `UpdateController` with `GET /api/v1/core/updates/check`, `/releases`, `/releases/latest`
 - ✓ Public endpoints (no auth required for client update checks)
 
 **Notes:** Response wraps in standard `{ success: true, data: {...} }` format.
 
 #### Step: phase-11.4 — CLI `dotnetcloud update` Implementation
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `dotnetcloud update --check` (display update status, exit code 0/1)
 - ✓ `dotnetcloud update` (check + download tarball)
 
 **Notes:** Server self-apply deferred for safety; download-only for now.
 
 #### Step: phase-11.5 — Admin UI Updates Page
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `Updates.razor` at `/admin/updates` with version card, latest release, history, settings
 
 **Notes:** Integrated into admin sidebar navigation.
 
 #### Step: phase-11.6 — Unit Tests (Server-Side)
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `GitHubUpdateServiceTests` (mock HTTP, version comparison, caching, asset matching)
 - ✓ `UpdateControllerTests` (response format, edge cases)
 
@@ -4977,16 +5322,20 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 ### Section: Phase 11 — Phase B: Desktop Client Auto-Update (SyncTray)
 
 #### Step: phase-11.7 — IClientUpdateService Interface
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `IClientUpdateService` interface (`CheckForUpdateAsync`, `DownloadUpdateAsync`, `ApplyUpdateAsync`, `UpdateAvailable` event)
 - ✓ Reuses `UpdateCheckResult` and `ReleaseAsset` from `DotNetCloud.Core.DTOs`
 
 **Notes:** Client.Core now references DotNetCloud.Core for shared DTOs.
 
 #### Step: phase-11.8 — ClientUpdateService Implementation
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `ClientUpdateService` — server endpoint check with GitHub Releases API fallback
 - ✓ Streaming download with `IProgress<double>` progress reporting
 - ✓ Version comparison logic (semver + pre-release split)
@@ -4995,8 +5344,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Notes:** Falls back to direct GitHub API if server unreachable or no base address configured.
 
 #### Step: phase-11.9 — Background Update Checker (SyncTray)
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `UpdateCheckBackgroundService` — periodic timer (30s initial delay, 24h interval, configurable)
 - ✓ `UpdateAvailable` event wired to `TrayViewModel.OnUpdateAvailable`
 - ✓ Tray context menu "Check for Updates…" item (updates text when update available)
@@ -5005,8 +5356,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Notes:** Integrated into App.axaml.cs lifecycle (start after tray init, dispose on shutdown).
 
 #### Step: phase-11.10 — SyncTray Update UI
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `UpdateDialog.axaml` — dark themed 480×420 Avalonia window with version cards, status badges (green/amber), release notes, download progress bar, action buttons
 - ✓ `UpdateViewModel` — check/download commands, platform asset matching, `ShouldClose` property
 - ✓ Settings "Updates" tab — current version display, update available/up-to-date banners, auto-check toggle
@@ -5015,8 +5368,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Notes:** Follows existing dark theme and AddAccountDialog patterns.
 
 #### Step: phase-11.11 — Desktop Client Update Tests
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `ClientUpdateServiceTests` — 10 tests (server check, no-update, GitHub fallback, no base address skip, event firing, download with progress, null/missing/empty path errors)
 - ✓ `UpdateCheckBackgroundServiceTests` — 8 tests (update event, no-update silence, error resilience, result storage, start/stop lifecycle, double dispose, enabled/interval defaults)
 - ✓ All 18 Phase B tests passing
@@ -5026,27 +5381,35 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 ### Section: Phase 11 — Phase C: Android Client Update Notification
 
 #### Step: phase-11.12 — Android Update Check Service
+
 **Status:** pending
 **Deliverables:**
+
 - ☐ Android-specific update service checking server endpoint
 - ☐ Play Store / APK link handling
 
 #### Step: phase-11.13 — Android Update UI
+
 **Status:** pending
 **Deliverables:**
+
 - ☐ Update notification in Android app
 - ☐ Settings page update preferences
 
 #### Step: phase-11.14 — Android Update Tests
+
 **Status:** pending
 **Deliverables:**
+
 - ☐ Android update service unit tests
 
 ### Section: Phase 11 — Phase D: Documentation & Integration
 
 #### Step: phase-11.15 — Auto-Update Documentation
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `docs/modules/AUTO_UPDATES.md` — feature documentation (architecture, API reference, configuration)
 - ✓ `docs/user/AUTO_UPDATES.md` — user-facing update configuration guide
 - ✓ Architecture doc updated — Phase 8 split into Phase 8 (Search) + Phase 11 (Auto-Updates)
@@ -5055,8 +5418,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Notes:** All documentation covering server, CLI, desktop, and Android update flows. User guide covers configuration for all surfaces.
 
 #### Step: phase-11.16 — Integration Testing
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `UpdateEndpointTests.cs` — 6 integration tests covering check, releases, latest, version param, count clamping, graceful degradation
 - ✓ Uses `DotNetCloudWebApplicationFactory` in-memory test infrastructure
 - ✓ Verifies standard API envelope format (`{ success: true, data: {...} }`)
@@ -5072,8 +5437,10 @@ Reference plan: `docs/DIRECT_MESSAGING_AND_HOST_CALLS_PLAN.md`
 ### Section: Phase A — Database & Model Changes
 
 #### Step: dm-host-A1 — Rename CallParticipantRole.Initiator → Host
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `CallParticipantRole.cs` — enum value renamed from `Initiator` to `Host`
 - ✓ `VideoCallService.cs` — all references updated
 - ✓ `ChatDtos.cs` — `CallParticipantDto.Role` comment updated
@@ -5083,8 +5450,10 @@ Reference plan: `docs/DIRECT_MESSAGING_AND_HOST_CALLS_PLAN.md`
 **Notes:** Clean rename across 7 files. All 375+ chat tests pass.
 
 #### Step: dm-host-A2 — Add HostUserId to VideoCall Entity
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `VideoCall.cs` — `Guid HostUserId` property added
 - ✓ `VideoCallConfiguration.cs` — index `ix_chat_video_calls_host_user_id` added
 - ✓ `VideoCallDto` — `HostUserId` field added to DTO
@@ -5094,8 +5463,10 @@ Reference plan: `docs/DIRECT_MESSAGING_AND_HOST_CALLS_PLAN.md`
 **Notes:** HostUserId enables transferable call authority separate from the historical initiator.
 
 #### Step: dm-host-A3 — DM → Group Auto-Conversion
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `ChannelMemberService.AddMemberAsync` — detects 3rd member added to DirectMessage channel
 - ✓ Auto-converts `Channel.Type` from `DirectMessage` to `Group`
 - ✓ No schema change needed (existing `Type` column supports `Group`)
@@ -5105,14 +5476,18 @@ Reference plan: `docs/DIRECT_MESSAGING_AND_HOST_CALLS_PLAN.md`
 ### Section: Phase B — Service Layer: Direct DM & Call Initiation
 
 #### Step: dm-host-B1 — Wire Global User Search for DM Creation
+
 **Status:** pending
 **Deliverables:**
+
 - ☐ `ChatPageLayout.razor.cs` — `SearchUsersForDmAsync` method
 - ☐ `ChatPageLayout.razor` — integrate user picker dialog
 
 #### Step: dm-host-B2 — Direct Call Initiation by User ID
+
 **Status:** pending
 **Deliverables:**
+
 - ☐ `IVideoCallService.InitiateDirectCallAsync` interface method
 - ☐ `VideoCallService` implementation
 - ☐ `ChatController` — `POST /api/v1/chat/calls/direct/{targetUserId}` endpoint
@@ -5120,30 +5495,38 @@ Reference plan: `docs/DIRECT_MESSAGING_AND_HOST_CALLS_PLAN.md`
 ### Section: Phase C — Mid-Call Participant Addition
 
 #### Step: dm-host-C1 — InviteToCallAsync Service Method
+
 **Status:** pending
 
 #### Step: dm-host-C2 — SignalR Notification for Mid-Call Invite
+
 **Status:** pending
 
 ### Section: Phase D — Host Transfer
 
 #### Step: dm-host-D1 — TransferHostAsync Service Method
+
 **Status:** pending
 
 #### Step: dm-host-D2 — Auto-Transfer Host on Leave
+
 **Status:** pending
 
 #### Step: dm-host-D3 — End-Call Permission Enforcement
+
 **Status:** pending
 
 #### Step: dm-host-D4 — CallHostTransferredEvent
+
 **Status:** pending
 
 ### Section: Phase E — UI Integration
 
 #### Step: dm-host-E — UI Integration (6 sub-items)
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `ChannelList.razor(.cs/.css)` — Direct Messages header now has a dedicated "+" action wired to `OnNewDm` and the DM user picker flow
 - ✓ `ChatPageLayout.razor(.cs/.css)` — wired New DM, channel add-people picker, call add-people picker, direct member call actions, and host/invite state tracking
 - ✓ `MemberListPanel.razor(.cs/.css)` — per-member audio/video call actions plus channel-level add-people action in panel header
@@ -5157,13 +5540,16 @@ Reference plan: `docs/DIRECT_MESSAGING_AND_HOST_CALLS_PLAN.md`
 ### Section: Phase F — SignalR Hub Updates
 
 #### Step: dm-host-F — SignalR Hub Updates
+
 **Status:** pending
 
 ### Section: Phase G — Tests
 
 #### Step: dm-host-G — Unit & Integration Tests
+
 **Status:** in-progress
 **Deliverables:**
+
 - ✓ Added/expanded unit coverage for new Phase E behavior:
 - ✓ `ChannelListTests.cs` — New DM callback path
 - ✓ `ChannelHeaderCallButtonTests.cs` — Add People callback path
@@ -5185,8 +5571,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 ### Section: Shared File Folders — Group Foundation
 
 #### Step: shared-file-folders-1 — Group Capability Foundation
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ `IGroupDirectory` capability contract added to `DotNetCloud.Core`
 - ✓ `IGroupManager` capability contract added to `DotNetCloud.Core`
 - ✓ `GroupDirectoryService` implemented in `DotNetCloud.Core.Auth`
@@ -5198,8 +5586,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Notes:** This completes the first implementation slice for the shared file folder plan by wiring the missing group capability layer on top of the existing Core.Data group entities. Remaining work now moves to protected `All Users` semantics, admin APIs/UI, and Files-side integration.
 
 #### Step: shared-file-folders-2 — Built-In All Users Group Semantics
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ Extend the group model with protected built-in semantics
 - ✓ Add creation/backfill logic for one `All Users` group per organization
 - ✓ Route built-in membership through active organization membership resolution
@@ -5209,8 +5599,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Notes:** The shared-folder workstream now has a protected built-in `All Users` group with initializer backfill, migration support, and implicit membership based on active organization membership rather than explicit `GroupMembers` rows. Focused validation passed again after the schema update via `dotnet test DotNetCloud.CI.slnf --filter "FullyQualifiedName~GroupDirectoryServiceTests|FullyQualifiedName~GroupManagerServiceTests|FullyQualifiedName~DbInitializerTests" --no-restore` (59 tests).
 
 #### Step: shared-file-folders-3 — Admin Group Management Surfaces
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ Add group DTOs aligned with existing team patterns
 - ✓ Add admin REST endpoints for group CRUD and membership management
 - ✓ Add dedicated admin UI for group management
@@ -5218,8 +5610,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Notes:** Admin-facing group management is now available end-to-end. The core server exposes admin CRUD and membership endpoints through `GroupsController`, the web client has a dedicated `/admin/groups` page plus navigation entry, and the UI keeps the built-in `All Users` group read-only so it matches the implicit-membership server rules. Focused validation passed again via `dotnet test DotNetCloud.CI.slnf --filter "FullyQualifiedName~GroupsControllerTests" --no-restore` (8 tests), and the stricter 4.7 host-level verification bar now also includes `dotnet test tests/DotNetCloud.Integration.Tests/DotNetCloud.Integration.Tests.csproj --no-restore --filter "FullyQualifiedName~GroupsEndpointIntegrationTests"` for real admin group CRUD and membership flow coverage over the core host.
 
 #### Step: shared-file-folders-4 — Files Share Model Hardening
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ Honor direct user, team, group, and inherited parent-folder shares in Files permissions
 - ✓ Add membership resolution abstraction inside Files
 - ✓ Keep `Shared With Me` scoped to explicit user shares only
@@ -5228,8 +5622,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Notes:** Files share-model hardening is now complete. Files permission evaluation resolves direct user shares plus team/group shares across inherited parent-folder paths, Core membership lookups stay behind `IShareAccessMembershipResolver`, `GetSharedWithMeAsync` is explicitly `ShareType.User` only, and Files now exposes a separate `ListMountedAccessAsync` path plus `GET /api/v1/files/mounted-access` for non-owned team/group-accessible nodes that will feed the future `_DotNetCloud` experience. `FileShareDto` now carries `SharedWithGroupId` so group share API responses match the supported share model. Focused validation passed via `dotnet test DotNetCloud.CI.slnf --filter "FullyQualifiedName~FileServiceTests|FullyQualifiedName~ShareServiceTests|FullyQualifiedName~ControllerSecurityAuditTests|FullyQualifiedName~FileDtoTests" --no-restore` (121 tests).
 
 #### Step: shared-file-folders-5 — Admin Shared Folder Virtualization
+
 **Status:** completed ✅
 **Deliverables:**
+
 - ✓ Add admin shared-folder definitions and path validation model
 - ✓ Add admin CRUD API, group-assignment endpoints, and reindex/rescan controls
 - ✓ Add admin UI for shared-folder CRUD, group assignment, scan actions, platform-root source browsing, and seeded scheduled scans
@@ -5240,8 +5636,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Notes:** The 4.4 virtualization slice remains complete end-to-end. Files root listings inject a synthetic `_DotNetCloud` folder for every user, `_DotNetCloud` contains a synthetic `Shared With Me` folder plus the caller's accessible admin shared folders, admin shared folders enumerate the real on-disk hierarchy as nested virtual nodes, mounted files can be opened through the existing download path, and mounted-path mutations are blocked across FileService writes plus share, tag, comment, and upload entry points. The admin shared-folder page now adds a server-constrained folder picker backed by a dedicated browse endpoint, suggests a display name from the selected path's final segment when the name is still unset or auto-suggested, and seeds Scheduled crawl mode with a next scan 24 hours ahead while clearing that field for Manual mode. The browse flow now defaults to the platform filesystem root for interactive picking while still resolving relative source paths against an optional configured base when present, which removed the live 409 on mint22 where no Files admin root was configured. Manual Rescan Now and Reindex actions are now executed by a Files maintenance worker that probes due shared folders, updates scan state, and dispatches Files-module reindex requests through the Search pipeline, so the admin controls no longer stall in a requested-only state. Focused validation passed via `dotnet test DotNetCloud.CI.slnf --filter "FullyQualifiedName~AdminSharedFolder" --no-restore` (22 tests) and `dotnet test tests/DotNetCloud.Modules.Files.Tests/DotNetCloud.Modules.Files.Tests.csproj --filter "FullyQualifiedName~AdminSharedFolderServiceTests|FullyQualifiedName~AdminSharedFolderMaintenanceServiceTests" --no-restore` (10 tests), then live verification passed on mint22: `ben.kimball@llabmik.net` created a shared folder from the admin UI and `testdude@llabmik.net` could see and access the mounted share in a separate browser session. Remaining work still moves to 4.5 search indexing/navigation and 4.6 media scan-source selection.
 
 #### Step: shared-file-folders-6 — Search And Media Integration
+
 **Status:** completed
 **Deliverables:**
+
 - ✓ Add group-aware search indexing and navigation for mounted shared folders
 - ✓ Add per-user shared-folder scan-source selection for Music, Photos, and Video
 - ✓ Keep sync clients ignoring `_DotNetCloud` admin shares in v1
@@ -5256,8 +5654,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 > **Depends on:** Phase 0 Foundation (multi-database infrastructure, `ITableNamingStrategy`, module DbContexts)
 
 ### Step: req-modules-schema-1 — Authority and database foundation
+
 **Status:** completed ✓
 **Deliverables:**
+
 - ✓ Create `RequiredModules` static registry (`DotNetCloud.Core/Modules/RequiredModules.cs`)
 - ✓ Add `IsRequired` to `InstalledModule` entity and EF configuration
 - ✓ Generate EF migration `AddIsRequiredToInstalledModule` for CoreDbContext
@@ -5267,8 +5667,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Notes:** Phase 1 complete. `RequiredModules.ModuleIds` defines `dotnetcloud.files`, `dotnetcloud.chat`, `dotnetcloud.search` as architecturally required. `IsRequired` flag persists in the `InstalledModules` table. `GetSchemaName` maps required modules to `"core"` schema and optional modules to their short-name schema.
 
 ### Step: req-modules-schema-2 — Schema enforcement in naming strategies
+
 **Status:** completed ✓
 **Deliverables:**
+
 - ✓ `PostgreSqlNamingStrategy.GetSchemaForModule` delegates to `RequiredModules.GetSchemaName`
 - ✓ `SqlServerNamingStrategy.GetSchemaForModule` delegates to `RequiredModules.GetSchemaName`
 - ✓ `MariaDbNamingStrategy.GetTableName` uses `RequiredModules.GetSchemaName` for prefix
@@ -5279,8 +5681,10 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Notes:** Phase 2 complete. Schema mapping is now centralized in `RequiredModules.GetSchemaName`. Required modules (files, chat, search) map to the `core` schema. Optional modules get dedicated schemas (contacts, calendar, notes, tracks, photos, music, video, ai). Previously hardcoded schema strings in Photos/Music/Video DbContexts replaced with strategy calls. All test projects pass.
 
 ### Step: req-modules-schema-3 — Lazy schema creation
+
 **Status:** completed ✓
 **Deliverables:**
+
 - ✓ Create `IModuleSchemaProvider` interface (`DotNetCloud.Core/Modules/IModuleSchemaProvider.cs`)
 - ✓ Add `SchemaProvider` field to `ModuleManifestData` (defaults to `"self"`)
 - ✓ Create `DbContextSchemaProvider` — resolves module DbContext from DI, applies EF migrations for first-party modules
@@ -5297,16 +5701,20 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Notes:** Phase 3 complete — the key architectural change. Module database schemas are now created lazily when modules are installed, not unconditionally on server startup. The core server queries `InstalledModules` and only migrates schemas for installed modules. First-party modules use `DbContextSchemaProvider` (EF migrations driven by core). Third-party modules use `SelfManagedSchemaProvider` (self-migrate on startup). CLI commands set `IsRequired` and guard required modules but defer schema creation to server startup (CLI doesn't reference module projects). All test projects pass (5,104 tests, 0 failures). Phases 5-7 remain pending.
 
 ### Step: req-modules-schema-4 — Seeding and DTO mapping
+
 **Status:** completed ✓
 **Deliverables:**
+
 - ✓ `SeedKnownModulesAsync` already sets `IsRequired` via `RequiredModules.IsRequired` (completed in Phase 3)
 - ✓ `AdminModuleService.MapToDto` maps `IsRequired = entity.IsRequired` to `ModuleDto`
 
 **Notes:** Phase 4 complete. The only code change was adding `IsRequired = entity.IsRequired` to the DTO mapping in `AdminModuleService.MapToDto`. The seeding path (`SeedKnownModulesAsync`) was already handled in Phase 3. `ModuleDto.IsRequired` was added in Phase 1. Build passes with 0 errors; all tests pass.
 
 ### Step: req-modules-schema-5 — Enforcement in API, CLI, and supervisor
+
 **Status:** completed ✓
 **Deliverables:**
+
 - ✓ `AdminModuleService.StopModuleAsync` — guard against stopping required modules (throws `InvalidOperationException`)
 - ✓ `AdminController.StopModuleAsync` — catch `InvalidOperationException`, return 400 with `MODULE_REQUIRED` code
 - ✓ `ProcessSupervisor.SyncDiscoveredModulesToDatabaseAsync` — set `IsRequired` on newly discovered module records
@@ -5316,16 +5724,20 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Notes:** Phase 5 complete. The remaining gaps from previous phases are now closed: the admin API now rejects stop requests for required modules with a proper error code, the process supervisor now sets `IsRequired` when auto-registering discovered modules, and the CLI guards for stop/uninstall were already wired in Phase 3. Build passes with 0 errors; all core tests pass (612 total, 0 failures).
 
 ### Step: req-modules-schema-6 — install.sh
+
 **Status:** completed ✓
 **Deliverables:**
+
 - ✓ `SetupCommand` — `--migrate-only` flag implemented: non-interactive core database migration and module registry sync
 - ✓ `install.sh` — fallback warning updated to remove "not yet implemented" text
 
 **Notes:** Phase 6 complete. Key architectural changes: (1) Created new `DotNetCloud.Core.Schema` project to host `DbContextSchemaProvider`, breaking the dependency on `Core.Server` for schema operations. The new project references all 11 module Data projects (one-way, no circular dependency). (2) Moved `ModuleSchemaService` to `Core.Data.Services` and changed it to use `IEnumerable<IModuleSchemaProvider>` via DI instead of concrete types. Both `SelfManagedSchemaProvider` (in `Core.Data`) and `DbContextSchemaProvider` (in `Core.Schema`) implement `IModuleSchemaProvider` and are registered by their respective hosts. (3) `--migrate-only` flag now fully applies pending core migrations, syncs the module registry, and initializes module schemas via `ModuleSchemaService.EnsureModuleSchemaAsync` — matching the server startup path. Build passes with 0 errors; all tests pass (CLI: 120, Core.Data: 177, Core: 435, Core.Server: 570).
 
 ### Step: req-modules-schema-7 — Update Example Module as third-party reference
+
 **Status:** completed ✓
 **Deliverables:**
+
 - ✓ `manifest.json` — `"schemaProvider": "self"` already present
 - ✓ `ExampleDbContext` — inject `ITableNamingStrategy`, call `HasDefaultSchema` for self-managed schema
 - ✓ `Program.cs` — `async Task Main`, register naming strategy, read `DOTNETCLOUD_CONNECTION_STRING`, in-memory fallback, `MigrateAsync()` on startup
@@ -5344,6 +5756,7 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 ### Phase 1: Server-Side Extension Support ✅
 
 **Deliverables:**
+
 - ✓ Device Authorization Grant enabled (`AllowDeviceCodeFlow()` in `AuthServiceExtensions.cs`)
 - ✓ `bookmarks:read` and `bookmarks:write` scopes registered
 - ✓ Browser extension OIDC client registered (`dotnetcloud-browser-extension` in `OidcClientSeeder.cs`)
@@ -5354,6 +5767,7 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 ### Phase 2: Extension Project Scaffold ✅
 
 **Deliverables:**
+
 - ✓ Project structure: `package.json`, `tsconfig.json`, `jest.config.js`, `.gitignore`, `vite.config.ts`
 - ✓ Dual manifests: `manifest.chrome.json` (MV3), `manifest.firefox.json` (MV3, FF ≥ 109)
 - ✓ Build scripts: `build-extension.ps1` (PowerShell), `build-extension.sh` (Bash)
@@ -5369,6 +5783,7 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 ### Phase 3: Authentication ✅
 
 **Deliverables:**
+
 - ✓ `src/auth/device-flow.ts` — `initiateDeviceFlow()` + `pollForToken()` with RFC 8628 compliance
 - ✓ `src/auth/token-manager.ts` — full token lifecycle (store, get, refresh, clear, scheduleRefresh, handleAlarm)
 - ✓ Background service worker alarm routing for `token-refresh`
@@ -5380,12 +5795,14 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 
 **Status:** completed
 **Steps:**
+
 - ✓ Step 4.1 — ID Mapping Store (`mapping-store.ts` scaffold was complete; no code changes needed)
 - ✓ Step 4.2 — Initial Sync (`initial-sync.ts` — server-first full sync with topological folder sort, browser-only bookmark batch upload, `isInitialSyncInProgress` guard flag)
 - ✓ Step 4.3 — Incremental Push (`push-sync.ts` — all 4 chrome.bookmarks event handlers with 500ms debounce, root node guards, offline pending queue)
 - ✓ Step 4.4 — Incremental Pull (`pull-sync.ts` — 5-min chrome.alarms poll, server-wins conflict resolution, pagination, cursor tracking)
 
 **Deliverables:**
+
 - ✓ `src/sync/initial-sync.ts` — `runInitialSync()` with full algorithm (fetch server tree → build browser tree → top-sort folders → create/map folders → create/map bookmarks → batch-upload browser-only items → set cursor)
 - ✓ `src/sync/push-sync.ts` — `startPushSync()` / `stopPushSync()` with handlers for onCreated (create bookmark/folder + store mapping), onRemoved (delete + remove mapping), onChanged (update title/url), onMoved (update folderId). Debounced 500ms per node ID. Skips `"0"/"1"/"2"/"3"` root nodes and events during initial sync. Pending operations queued in `chrome.storage.local` when offline.
 - ✓ `src/sync/pull-sync.ts` — `startPullSync()` / `stopPullSync()` + `runPullCycle()`. Applies server folder changes (create/update title), bookmark changes (create/update title/url/move), and deletions (removeTree for folders, remove for bookmarks). Multi-page support via immediate follow-up cycles when `hasMore` is true.
@@ -5394,6 +5811,7 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Tests:** 37 existing unit tests all pass (no regressions). Full sync engine test coverage completed in Phase 6 (42 new tests across mapping-store, initial-sync, push-sync, and conflict-resolution suites).
 
 **Build verification:**
+
 - `npx tsc --noEmit` — zero TypeScript errors
 - `npm run build:chrome` — 14 modules, clean build
 - `npm run build:firefox` — 14 modules, clean build
@@ -5403,5 +5821,6 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 
 **Status:** completed
 **Steps:**
+
 - ✓ Step 5.1 — Auth Screen (complete as scaffold)
 - ✓ Step 5.2 — Main Popup Structure (complete

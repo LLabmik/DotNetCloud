@@ -4018,7 +4018,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Step 5.8 — Music Architecture & Contracts
 - ✓ Step 5.9 — Music Data Model & Migrations
 - ✓ Step 5.10 — Music Library Scanning
-  - ✓ **Bug fix (2026-05-12):** Removed cross-owner deduplication from `LibraryScanService.IndexFileAsync`. Scanning against another user's library no longer copies/moves metadata between users. Deduplication now only checks the current user's own indexed files.
+  - ✓ **Bug fix (2026-05-12):** Restored cross-owner copy in `LibraryScanService.IndexFileAsync`. When another user already indexed a file, metadata is cloned to the current user's library (skipping expensive TagLib/ffmpeg extraction). Copy is strictly read-only on source data — only CREATEs new records for the current owner. Safety audit log added to verify source track is never modified.
 - ✓ Step 5.11 — Music Core Services
 - ✓ Step 5.12 — Music Streaming & Equalizer
 - ✓ Step 5.13 — Subsonic API Compatibility
@@ -4027,6 +4027,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 ### Sub-Phase C.1: MusicBrainz Metadata Enrichment
 
 #### Phase A — Data Model Changes (Migration)
+
 - ✓ Add MusicBrainz enrichment fields to Artist model (MusicBrainzId, Biography, ImageUrl, WikipediaUrl, DiscogsUrl, OfficialUrl, LastEnrichedAt)
 - ✓ Add MusicBrainz enrichment fields to MusicAlbum model (MusicBrainzReleaseGroupId, MusicBrainzReleaseId, LastEnrichedAt)
 - ✓ Add MusicBrainz enrichment fields to Track model (MusicBrainzRecordingId, LastEnrichedAt)
@@ -4034,21 +4035,25 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Create AddMusicBrainzEnrichment migration
 
 #### Phase B — MusicBrainz + Cover Art Archive Services
+
 - ✓ `IMusicBrainzClient` / `MusicBrainzClient` — typed HTTP client with rate limiting
 - ✓ `ICoverArtArchiveClient` / `CoverArtArchiveClient` — album art fetcher
 - ✓ `IMetadataEnrichmentService` / `MetadataEnrichmentService` — orchestrator
 
 #### Phase C — Scan Progress Infrastructure
+
 - ✓ `LibraryScanProgress` DTO
 - ✓ Update `LibraryScanService` with progress reporting
 - ✓ `ScanProgressState` — scoped Blazor state service
 - ✓ Post-scan enrichment background worker with shared per-user progress/cancellation tracking and remaining cover-art lookup counts
 
 #### Phase D — API Endpoints
+
 - ✓ Enrichment endpoints on MusicController
 - ✓ Scan progress endpoint
 
 #### Phase E — Blazor UI Updates
+
 - ✓ Scan progress UI overhaul
 - ✓ Album enrichment UI
 - ✓ Artist enrichment UI
@@ -4059,10 +4064,12 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 #### Phase F — Service Registration + Configuration
 
 #### Phase F — Service Registration + Configuration
+
 - ✓ Register new services and HTTP clients
 - ✓ Configuration section for enrichment settings
 
 #### Phase G — Comprehensive Unit Tests
+
 - ✓ `MusicBrainzClientTests` (23 tests)
 - ✓ `CoverArtArchiveClientTests` (15 tests)
 - ✓ `MetadataEnrichmentServiceTests` (30 tests)
@@ -4173,10 +4180,12 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 ### Phase 6.1 — Skeletons + Contracts ✅
 
 #### Step 6.1.1 — NuGet Packages
+
 - ✓ MailKit 4.16.0, Google.Apis.Gmail.v1 1.73.0.3987, Google.Apis.Auth 1.73.0, AngleSharp 0.17.1
 - ✓ All packages added to Directory.Packages.props
 
 #### Step 6.1.2 — Bookmarks Module Projects
+
 - ✓ `DotNetCloud.Modules.Bookmarks/` — Core project (SDK=Razor, net10.0)
 - ✓ `DotNetCloud.Modules.Bookmarks.Data/` — Data project (SDK=default, net10.0)
 - ✓ `DotNetCloud.Modules.Bookmarks.Host/` — Host project (SDK=Web, net10.0)
@@ -4185,10 +4194,11 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Models: BookmarkFolder, BookmarkItem, BookmarkPreview
 - ✓ Events: BookmarkCreatedEvent, BookmarkUpdatedEvent, BookmarkDeletedEvent
 - ✓ Services: IBookmarkService, IBookmarkFolderService, IBookmarkImportExportService, IBookmarkPreviewService
-- ✓ UI: _Imports.razor, BookmarksPage.razor (minimal shell)
+- ✓ UI: \_Imports.razor, BookmarksPage.razor (minimal shell)
 - ✓ manifest.json
 
 #### Step 6.1.3 — Email Module Projects
+
 - ✓ `DotNetCloud.Modules.Email/` — Core project (SDK=Razor, net10.0)
 - ✓ `DotNetCloud.Modules.Email.Data/` — Data project (SDK=default, net10.0)
 - ✓ `DotNetCloud.Modules.Email.Host/` — Host project (SDK=Web, net10.0)
@@ -4198,9 +4208,10 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Events: 6 event types (AccountAdded/Removed, ThreadCreated, MessageReceived, Sent, RuleTriggered)
 - ✓ Services: IEmailAccountService, IEmailProvider, IEmailRuleService, IEmailSyncService, IEmailSendService
 - ✓ EmailCredentialEncryptionService — IDataProtector with per-user sub-purpose
-- ✓ UI: _Imports.razor, EmailPage.razor
+- ✓ UI: \_Imports.razor, EmailPage.razor
 
 #### Step 6.1.4 — Infrastructure Wiring
+
 - ✓ Both modules added to DotNetCloud.sln and DotNetCloud.CI.slnf
 - ✓ Core.Server/Program.cs — DbContext registrations, service registrations, Blazor assembly references
 - ✓ Core.Server.csproj — Project references for all 6 new projects
@@ -4210,26 +4221,31 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 ### Phase 6.2 — Bookmarks CRUD ✅
 
 #### Step 6.2.1 — Service Implementation
+
 - ✓ BookmarkService — Full CRUD with soft-delete, URL normalization, search event publishing
 - ✓ BookmarkFolderService — Full CRUD with cascade soft-delete
 - ✓ BookmarkImportExportService — HTML import (Netscape format) and export with AngleSharp
 
 #### Step 6.2.2 — REST API
+
 - ✓ BookmarksController — List/Get/Create/Update/Delete/Search for bookmarks and folders
 - ✓ Import/Export endpoints
 - ✓ Preview endpoints (Fetch/Get)
 - ✓ Envelope response format following existing module patterns
 
 #### Step 6.2.3 — Search Integration
+
 - ✓ SearchIndexRequestEvent published after Create (Index), Update (Index), Delete (Remove)
 - ✓ BookmarksSearchableModule — ISearchableModule for Bookmark entities
 
 #### Step 6.2.4 — Database
+
 - ✓ EF Core migration: InitialCreate generated for BookmarksDbContext
 
 ### Phase 6.3 — Bookmarks Rich Previews ✅
 
 #### Step 6.3.1 — SafeUrlFetcher
+
 - ✓ SSRF-safe HTTP pipeline: scheme validation, IP blocklist, DNS re-validation
 - ✓ Custom ConnectCallback for socket-level IP validation
 - ✓ Manual redirect loop (max 5), each redirect re-validated
@@ -4238,6 +4254,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Content-Type whitelist: text/html, application/xhtml+xml
 
 #### Step 6.3.2 — BookmarkPreviewFetchService
+
 - ✓ AngleSharp HTML parsing with OG/Twitter card extraction
 - ✓ Metadata priority: OG → Twitter → standard HTML elements
 - ✓ Favicon, preview image, canonical URL resolution
@@ -4245,6 +4262,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Stale preview refresh: background batch refresh (7+ days old, 50 per batch)
 
 ### Phase 6.4 — Email Account Management ✅
+
 - ✓ EmailAccount CRUD with credential encryption (EmailAccountService + EmailCredentialEncryptionService)
 - ✓ ImapSmtpEmailProvider — IMAP/SMTP operations via MailKit
 - ✓ GmailEmailProvider — Gmail API operations via Google.Apis.Gmail.v1
@@ -4253,6 +4271,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Account management UI (Blazor) — Add IMAP/SMTP and Gmail OAuth forms in EmailPage.razor
 
 ### Phase 6.5 — Email Sync Ingest ✅
+
 - ✓ IEmailProvider abstraction with ImapSmtpEmailProvider and GmailEmailProvider
 - ✓ EmailSyncBackgroundService with PeriodicTimer (5-min interval)
 - ✓ Mailbox discovery, sync status tracking, provider-to-DB upsert
@@ -4260,12 +4279,14 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Thread UI (Blazor) — Thread list and thread detail with message display in EmailPage.razor
 
 ### Phase 6.6 — Send/Compose ✅
+
 - ✓ SMTP send via ImapSmtpEmailProvider (MailKit SmtpClient)
 - ✓ Gmail send via GmailEmailProvider (Gmail API)
 - ✓ EmailSendService — resolves provider, creates sent-message record, publishes EmailSentEvent
 - ✓ Compose UI with contact autocomplete (Blazor) — EmailComposeForm with recipient parsing, subject, body in EmailPage.razor
 
 ### Phase 6.7 — Rules/Filters ✅
+
 - ✓ Email rule evaluation engine (priority-ordered, All/Any condition match, stop-processing flag)
 - ✓ Rules CRUD API + nested condition groups/conditions/actions
 - ✓ Manual rule run (RunRulesAsync) against unread messages
@@ -4273,6 +4294,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Rule editor UI (Blazor) — EditRuleForm with condition group builder and action selector in EmailPage.razor
 
 ### Phase 6.8 — Search Integration ✅
+
 - ✓ ISearchableModule for Email (EmailSearchableModule — EmailThread entities)
 - ✓ ISearchableModule for Bookmarks (BookmarksSearchableModule — Bookmark entities)
 - ✓ SearchIndexRequestEvent published on bookmark CRUD
@@ -4281,6 +4303,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Cross-module search quality verification — Both ISearchableModule implementations verified, search index events fire from all CRUD/sync paths, IEventBus wired into both email providers
 
 ### Phase 6.9 — Email Attachments ✅
+
 - ✓ `IAttachmentStorage` interface with `StoreAsync`, `OpenReadAsync`, `DeleteAsync`, `GetSizeAsync`
 - ✓ `AttachmentStorageResult` record (StorageKey, ContentHash, Size, StoredAt)
 - ✓ `FileSystemAttachmentStorage` — content-addressable SHA-256 prefix directory storage
@@ -4313,12 +4336,14 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 ### Phase 2: Search Module Scaffold ✅
 
 #### Step 2.1 — Project Structure
+
 - ✓ `DotNetCloud.Modules.Search/` — Business logic project (.csproj, services, extractors, events)
 - ✓ `DotNetCloud.Modules.Search.Data/` — EF Core data project (.csproj, models, configurations, DbContext)
 - ✓ `DotNetCloud.Modules.Search.Host/` — gRPC host + REST controllers (.csproj, Program.cs, proto, controllers)
 - ✓ All 3 projects added to solution
 
 #### Step 2.2 — SearchDbContext & Index Table Model
+
 - ✓ `SearchIndexEntry` entity (Id, ModuleId, EntityId, EntityType, Title, Content, Summary, OwnerId, OrganizationId, CreatedAt, UpdatedAt, IndexedAt, MetadataJson)
 - ✓ `IndexingJob` entity (Id, ModuleId, Type, Status, StartedAt, CompletedAt, DocumentsProcessed, DocumentsTotal, ErrorMessage)
 - ✓ `SearchIndexEntryConfiguration` — Composite unique index, owner/org/module/type/date indexes
@@ -4326,23 +4351,27 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `SearchDbContext` — DbSets for SearchIndexEntries and IndexingJobs
 
 #### Step 2.3 — Provider-Specific ISearchProvider Implementations
+
 - ✓ `PostgreSqlSearchProvider` — ILIKE fallback (native tsvector/tsquery for production PostgreSQL)
 - ✓ `SqlServerSearchProvider` — Contains() fallback (native FREETEXT for production SQL Server)
 - ✓ `MariaDbSearchProvider` — Contains() fallback (native MATCH AGAINST for production MariaDB)
 - ✓ All providers: IndexDocument (upsert), RemoveDocument, Search (with pagination, sorting, facets, permission scoping), ReindexModule, GetIndexStats
 
 #### Step 2.4 — SearchModuleManifest & SearchModule
+
 - ✓ `SearchModuleManifest` — Id: "dotnetcloud.search", Name: "Search", Version: "1.0.0"
 - ✓ `SearchModule` — IModuleLifecycle implementation with Initialize/Start/Stop/Dispose
 - ✓ Event subscription: SearchIndexRequestEvent handler registered on init
 
 #### Step 2.5 — Services
+
 - ✓ `SearchQueryService` — Query execution wrapper with empty-query short-circuit, stats, reindex delegation
 - ✓ `ContentExtractionService` — Orchestrates IContentExtractor instances, MIME type selection, content truncation (100KB max)
 - ✓ `SearchIndexingService` — Channel<T>-based background queue (capacity 1000), processes index/remove events
 - ✓ `SearchReindexBackgroundService` — BackgroundService, 24h interval, creates IndexingJob records
 
 #### Step 2.6 — Content Extractors
+
 - ✓ `PlainTextExtractor` — text/plain, text/csv
 - ✓ `MarkdownContentExtractor` — text/markdown with regex-based syntax stripping
 - ✓ `PdfContentExtractor` — application/pdf via PdfPig
@@ -4350,9 +4379,11 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `XlsxContentExtractor` — XLSX via DocumentFormat.OpenXml (shared string table resolution)
 
 #### Step 2.7 — Event Handler
+
 - ✓ `SearchIndexRequestEventHandler` — Handles SearchIndexRequestEvent (Remove action via ISearchProvider)
 
 #### Step 2.8 — gRPC & REST
+
 - ✓ `search_service.proto` — 5 RPCs: Search, IndexDocument, RemoveDocument, ReindexModule, GetIndexStats
 - ✓ `SearchGrpcService` — gRPC service implementation delegating to SearchQueryService/ISearchProvider
 - ✓ `SearchControllerBase` — Base controller with auth, CallerContext, envelope helpers
@@ -4360,10 +4391,12 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `InProcessEventBus` — Standalone event bus for module isolation
 
 #### Step 2.9 — Host Program.cs
+
 - ✓ Service registration (module, DbContext, event bus, providers, extractors, services, gRPC, REST, health checks)
 - ✓ Middleware pipeline (gRPC, controllers, health, info endpoint)
 
 #### Step 2.10 — Comprehensive Tests
+
 - ✓ `DotNetCloud.Modules.Search.Tests` project (MSTest 4.1.0 + Moq 4.20.72, InMemory EF Core)
 - ✓ `SqlServerSearchProviderTests` — Index, upsert, remove, search (text match, pagination, sort, facets, permission scoping, metadata), reindex, stats (32 tests)
 - ✓ `MariaDbSearchProviderTests` — Index, upsert, remove, search (title match, content match, permission scoping, facets), reindex, stats (10 tests)
@@ -4381,6 +4414,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 ### Phase 3: Module Search API Integration ✅
 
 #### Step 3.1 — Search RPCs Added to Module Protos
+
 - ✓ `files_service.proto` — GetSearchableDocuments, GetSearchableDocument, SearchableDocument
 - ✓ `chat_service.proto` — GetSearchableDocuments, GetSearchableDocument, SearchableDocument
 - ✓ `notes_service.proto` — GetSearchableDocuments, GetSearchableDocument, SearchableDocument
@@ -4392,6 +4426,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `tracks_service.proto` — GetSearchableDocuments, GetSearchableDocument, SearchableDocument
 
 #### Step 3.2 — gRPC Service Implementations for Search RPCs
+
 - ✓ `FilesGrpcService` — Maps FileNode entities to SearchableDocument
 - ✓ `ChatGrpcService` — Maps Message entities to SearchableDocument
 - ✓ `NotesGrpcService` — Maps Note entities to SearchableDocument
@@ -4403,6 +4438,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `TracksGrpcService` — Maps Card/Board/Label entities to SearchableDocument
 
 #### Step 3.3 — SearchIndexRequestEvent Publishing on CRUD
+
 - ✓ `FileService` — CreateFolder (Index), Rename (Index), Move (Index), Delete (Remove)
 - ✓ `MessageService` (Chat) — Send (Index), Edit (Index), Delete (Remove)
 - ✓ `NoteService` — Create (Index), Update (Index), Delete (Remove)
@@ -4415,6 +4451,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `TrackService` (Music) — Delete (Remove), IEventBus injected
 
 #### Step 3.4 — Comprehensive Tests
+
 - ✓ `ContactServiceSearchIndexTests` — 4 tests (create, update, delete, event properties)
 - ✓ `CalendarEventServiceSearchIndexTests` — 3 tests (create, update, delete)
 - ✓ `MessageServiceSearchIndexTests` — 3 tests (send, edit, delete)
@@ -4428,22 +4465,26 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 ### Phase 4: Indexing Engine ✅
 
 #### Step 4.1 — Background Indexing Pipeline
+
 - ✓ `SearchIndexingService` — Channel-based queue with Start/Stop lifecycle, batch processing
 - ✓ Module lookup from `ISearchableModule` registry, null-safe document retrieval
 - ✓ Content extraction pipeline integration (`ContentExtractionService`)
 - ✓ Error handling — individual failures don't stop the queue
 
 #### Step 4.2 — Search Reindex Background Service
+
 - ✓ `SearchReindexBackgroundService` — Full reindex and per-module reindex
 - ✓ Batch processing with configurable size (default 200)
 - ✓ `IndexingJob` creation with status tracking (Pending → Running → Completed/Failed)
 - ✓ Orphaned entry cleanup for unregistered modules
 
 #### Step 4.3 — Event Handler Integration
+
 - ✓ `SearchIndexRequestEventHandler` — Routes Index events to indexing service, Remove events to provider
 - ✓ Null-safe for both provider and indexing service injection
 
 #### Step 4.4 — Comprehensive Tests
+
 - ✓ `SearchIndexingServicePhase4Tests` — 8 tests
 - ✓ `SearchIndexRequestEventHandlerPhase4Tests` — 6 tests
 - ✓ `SearchReindexBackgroundServicePhase4Tests` — 16 tests
@@ -4454,33 +4495,39 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 ### Phase 5: Search Query Engine ✅
 
 #### Step 5.1 — Query Parsing
+
 - ✓ `SearchQueryParser` — Parses raw input into `ParsedSearchQuery`
 - ✓ Keywords, quoted phrases, `in:module`, `type:value`, `-exclusion` syntax
 - ✓ Edge case handling (empty quotes, standalone dashes)
 
 #### Step 5.2 — Provider-Specific Query Translation
+
 - ✓ `ParsedSearchQuery.ToPostgreSqlTsQuery()` — & operators, <-> phrases, ! exclusions
 - ✓ `ParsedSearchQuery.ToSqlServerContainsQuery()` — AND/AND NOT keywords
 - ✓ `ParsedSearchQuery.ToMariaDbBooleanQuery()` — +term, +"phrase", -exclusion
 - ✓ Special character sanitization per provider
 
 #### Step 5.3 — Cross-Module Result Aggregation
+
 - ✓ `SearchQueryService` — Parser integration, filter extraction from query syntax
 - ✓ Short-circuit on empty or filter-only queries
 - ✓ All three database providers upgraded with parsed query support
 
 #### Step 5.4 — Snippet Generation
+
 - ✓ `SnippetGenerator.Generate()` — Contextual window with `<mark>` highlighting
 - ✓ `SnippetGenerator.HighlightTitle()` — Title term highlighting
 - ✓ XSS prevention via HtmlEncode before mark tag insertion
 
 #### Step 5.5 — Provider Upgrades
+
 - ✓ PostgreSQL — ILIKE term matching, exclusion WHERE clauses, relevance scoring
 - ✓ SQL Server — Contains() fallback, exclusions, relevance scoring
 - ✓ MariaDB — Contains() fallback, exclusions, relevance scoring
 - ✓ All providers: title highlighting, snippet generation, metadata deserialization
 
 #### Step 5.6 — Comprehensive Tests
+
 - ✓ `SearchQueryParserTests` — 28 tests
 - ✓ `ParsedSearchQueryTests` — 20 tests
 - ✓ `SnippetGeneratorTests` — 18 tests
@@ -4492,15 +4539,18 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 ### Phase 6: REST + gRPC API ✅
 
 #### Step 6.1 — REST SearchController
+
 - ✓ `SearchController` — GET /search, GET /suggest, GET /stats, POST /admin/reindex, POST /admin/reindex/{moduleId}
 - ✓ Authentication & authorization (admin-only for stats/reindex)
 - ✓ Standard envelope response format, CallerContext permission scoping
 
 #### Step 6.2 — gRPC SearchGrpcService
+
 - ✓ `SearchGrpcService` — Search, IndexDocument, RemoveDocument, ReindexModule, GetIndexStats RPCs
 - ✓ Delegates to SearchQueryService/ISearchProvider
 
 #### Step 6.3 — Enhanced Per-Module Search Endpoints
+
 - ✓ `DotNetCloud.Modules.Search.Client` project — shared gRPC client library
 - ✓ `ISearchFtsClient` interface with IsAvailable + SearchAsync
 - ✓ `SearchFtsClient` — lazy GrpcChannel, Unix socket support, timeout config, graceful degradation
@@ -4511,6 +4561,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Notes controller updated — FTS first, fallback to LIKE
 
 #### Step 6.4 — Comprehensive Tests
+
 - ✓ `SearchControllerTests` — 18 tests (search, suggest, stats, reindex endpoints)
 - ✓ `SearchGrpcServiceTests` — 18 tests (all 5 RPCs with various scenarios)
 - ✓ `SearchFtsClientTests` — 8 tests (IsAvailable, SearchAsync unavailable, graceful degradation, Dispose)
@@ -4523,6 +4574,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 ### Phase 7: Blazor UI ✅
 
 #### Step 7.1 — Global Search Bar Component
+
 - ✓ `GlobalSearchBar.razor` — Modal search overlay with Ctrl+K/Cmd+K keyboard shortcut
 - ✓ Debounced input (300ms) → calls `/api/v1/search/suggest` for live suggestions
 - ✓ Keyboard navigation (↑↓ Enter Esc), recent searches from localStorage
@@ -4531,6 +4583,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `GlobalSearchBar.razor.css` — Scoped CSS with animations, responsive breakpoints, dark mode
 
 #### Step 7.2 — Search Results Page
+
 - ✓ `SearchResults.razor` — Full results page at `/search?q=...`
 - ✓ Left sidebar facet filters with module counts
 - ✓ Sort toggle (Relevance / Date)
@@ -4539,6 +4592,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `SearchResults.razor.css` — Scoped CSS for results layout, facets, pagination
 
 #### Step 7.3 — Per-Module Search Result Renderers
+
 - ✓ `SearchResultCard.razor` — Per-module result card with rich metadata display
 - ✓ XSS-safe `SanitizeHighlight()` — only allows `<mark>` tags, HTML-encodes everything else
 - ✓ Module-specific metadata rendering for 10 modules (Files, Notes, Chat, Contacts, Calendar, Photos, Music, Video, Tracks, AI)
@@ -4547,6 +4601,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `SearchResultCard.razor.css` — Scoped CSS with hover effects, metadata tags, responsive
 
 #### Step 7.4 — Integration & API Client
+
 - ✓ `DotNetCloudApiClient` — `SearchAsync()` + `SearchSuggestAsync()` methods added
 - ✓ MainLayout integration — `<GlobalSearchBar>` in topbar-center with `InteractiveServer` render mode
 - ✓ `_Imports.razor` updated with Search components namespace
@@ -4554,6 +4609,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `app.css` — `.topbar-center` flex layout added
 
 #### Step 7.5 — Comprehensive Tests
+
 - ✓ `SearchResultUrlTests` — 23 tests (deep-link URL generation for all 11 modules, icon/name mapping)
 - ✓ `SearchHighlightSanitizerTests` — 16 tests (XSS prevention, mark tag preservation, HTML encoding)
 - ✓ `SearchDisplayFormatTests` — 23 tests (relative date formatting, file size formatting, MIME type labels)
@@ -4565,16 +4621,20 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 ### Phase 8: Testing & Documentation ✅
 
 #### Step 8.1 — Unit Tests (Permission Scoping)
+
 - ✓ `PermissionScopingTests` — 10 tests (SqlServer/MariaDb user isolation, empty results, facet count scoping, module+user filter, entity type+user filter, pagination, exclusions, stats not scoped, PostgreSQL index/remove only)
 
 #### Step 8.2 — Integration Tests (End-to-End & Multi-Database)
+
 - ✓ `EndToEndIndexingTests` — 12 tests (index event pipeline, remove event, update event, multi-module, full reindex, module reindex, content extraction, entity deleted before processing, orphaned cleanup, query with in:module, exclusion syntax)
 - ✓ `MultiDatabaseProviderTests` — 10 tests (SqlServer/MariaDb search consistency, module filter, index+search, remove+search, upsert, stats format, reindex, exclusions, pagination, metadata preservation)
 
 #### Step 8.3 — Performance Benchmarks
+
 - ✓ `PerformanceBenchmarkTests` — 8 tests (index 1000 docs throughput, search 1000 docs latency p50/p95, search 5000 docs with facets, pagination performance, reindex 1000 docs, query parser 10000 parses, snippet generation, concurrent searches 20 parallel)
 
 #### Step 8.4 — Documentation
+
 - ✓ `docs/modules/SEARCH.md` — Module documentation (architecture, features, services, extractors, providers, schema, config, admin, tests)
 - ✓ `docs/api/search.md` — API reference (REST endpoints, gRPC RPCs, query syntax, client library, permission model)
 - ✓ `docs/architecture/ARCHITECTURE.md` — Section 25: Full-Text Search Architecture
@@ -4588,12 +4648,14 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 ### Phase 7.1 — Architecture & Contracts
 
 #### Enums
+
 - ✓ `VideoCallState` enum (`Ringing`, `Connecting`, `Active`, `OnHold`, `Ended`, `Missed`, `Rejected`, `Failed`)
 - ✓ `VideoCallEndReason` enum (`Normal`, `Rejected`, `Missed`, `TimedOut`, `Failed`, `Cancelled`)
 - ✓ `CallParticipantRole` enum (`Initiator`, `Participant`)
 - ✓ `CallMediaType` enum (`Audio`, `Video`, `ScreenShare`)
 
 #### DTOs
+
 - ✓ `VideoCallDto` — response DTO for video calls
 - ✓ `CallParticipantDto` — response DTO for call participants
 - ✓ `CallSignalDto` — WebRTC signaling data (SDP offer/answer/ICE)
@@ -4602,6 +4664,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `CallHistoryDto` — response DTO for call history entries
 
 #### Events
+
 - ✓ `VideoCallInitiatedEvent`
 - ✓ `VideoCallAnsweredEvent`
 - ✓ `VideoCallEndedEvent`
@@ -4612,13 +4675,16 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `ScreenShareEndedEvent`
 
 #### Service Interfaces
+
 - ✓ `IVideoCallService` — call lifecycle management
 - ✓ `ICallSignalingService` — WebRTC signaling operations
 
 #### Module Manifest
+
 - ✓ `ChatModuleManifest.cs` — added 8 video call published events
 
 ### Phase 7.2 — Data Model & Migration
+
 - ✓ `VideoCall` entity
 - ✓ `CallParticipant` entity
 - ✓ EF configurations (`VideoCallConfiguration.cs`, `CallParticipantConfiguration.cs`)
@@ -4627,24 +4693,28 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Soft-delete support on `VideoCall`
 
 ### Phase 7.3 — Call Management Service
+
 - ✓ `VideoCallService` implementation
 - ✓ Call timeout background task (30s ring timeout)
 - ✓ `CallStateValidator` — state machine enforcement
 - ✓ Service registration in `ChatServiceRegistration.cs`
 
 ### Phase 7.4 — WebRTC Signaling over SignalR
+
 - ✓ Extend `CoreHub.cs` with call signaling methods
 - ✓ Call-scoped SignalR groups (`call-{callId}`)
 - ✓ `CallSignalingService` implementation
 - ✓ Input validation (SDP max 64KB, ICE candidate max 4KB)
 
 ### Phase 7.5 — Client-Side WebRTC Engine (JS Interop)
+
 - ✓ `video-call.js` — browser WebRTC API interop
 - ✓ P2P mesh topology for 2-3 participants
 - ✓ STUN/TURN configuration from server
 - ✓ Adaptive bitrate
 
 ### Phase 7.6 — Blazor UI Components
+
 - ✓ `VideoCallDialog.razor` — main call window
 - ✓ `CallControls.razor` — bottom toolbar
 - ✓ `IncomingCallNotification.razor` — incoming call toast
@@ -4653,12 +4723,14 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Scoped CSS for all components
 
 ### Phase 7.7 — LiveKit Integration (Optional SFU)
+
 - ✓ `ILiveKitService` interface
 - ✓ `LiveKitService` implementation
 - ✓ `NullLiveKitService` — graceful degradation
 - ✓ Auto-escalation for 4+ participants
 
 ### Phase 7.8 — STUN/TURN Configuration
+
 - ✓ `IceServerOptions` configuration class
 - ✓ Built-in STUN server (RFC 5389, UDP, dual-stack)
 - ✓ `IIceServerService` + `IceServerService` implementation
@@ -4666,11 +4738,13 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Ephemeral TURN credentials (HMAC-SHA1, coturn-compatible)
 
 ### Phase 7.9 — REST API & gRPC Updates
+
 - ✓ REST API endpoints for call lifecycle
 - ✓ gRPC service updates to `chat_service.proto`
 - ✓ Authorization and rate limiting
 
 ### Phase 7.10 — Push Notifications for Calls
+
 - ✓ Incoming call push notification (high-priority)
 - ✓ Missed call notification
 - ✓ Call-ended notification for disconnected participants
@@ -4681,6 +4755,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Comprehensive tests (37 tests)
 
 ### Phase 7.11 — Testing & Documentation
+
 - ✓ Unit tests (120+ new tests)
 - ✓ Integration tests
 - ✓ Admin guide and user documentation
@@ -4692,56 +4767,67 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 ### Phase A: Core Update Infrastructure (Server-Side)
 
 #### Step 11.1 — IUpdateService Interface & DTOs
+
 - ✓ `IUpdateService` interface (`CheckForUpdateAsync`, `GetLatestReleaseAsync`, `GetRecentReleasesAsync`)
 - ✓ `UpdateCheckResult` DTO (IsUpdateAvailable, CurrentVersion, LatestVersion, ReleaseUrl, ReleaseNotes, Assets)
 - ✓ `ReleaseInfo` DTO (Version, TagName, ReleaseNotes, PublishedAt, IsPreRelease, Assets)
 - ✓ `ReleaseAsset` DTO (Name, DownloadUrl, Size, ContentType, Platform)
 
 #### Step 11.2 — GitHubUpdateService Implementation
+
 - ✓ `GitHubUpdateService` — queries GitHub Releases API with MemoryCache (1-hour TTL)
 - ✓ Version comparison logic (semantic version + pre-release)
 - ✓ Platform asset matching (parse filenames)
 - ✓ DI registration in `SupervisorServiceExtensions`
 
 #### Step 11.3 — Update Check API Endpoint
+
 - ✓ `UpdateController` — `GET /api/v1/core/updates/check`, `/releases`, `/releases/latest`
 - ✓ Public endpoints (no auth required)
 
 #### Step 11.4 — CLI `dotnetcloud update` Implementation
+
 - ✓ `dotnetcloud update --check` command (check + display)
 - ✓ `dotnetcloud update` command (check + download)
 
 #### Step 11.5 — Admin UI Updates Page
+
 - ✓ `Updates.razor` — admin panel page at `/admin/updates`
 - ✓ Current version card, latest release card, update history, settings
 
 #### Step 11.6 — Unit Tests (Server-Side)
+
 - ✓ `GitHubUpdateServiceTests` — mock HTTP, version comparison, caching, asset matching
 - ✓ `UpdateControllerTests` — response format, edge cases
 
 ### Phase B: Desktop Client Auto-Update (SyncTray)
 
 #### Step 11.7 — IClientUpdateService Interface
+
 - ✓ `IClientUpdateService` interface (`CheckForUpdateAsync`, `DownloadUpdateAsync`, `ApplyUpdateAsync`, `UpdateAvailable` event)
 - ✓ Reuses `UpdateCheckResult` and `ReleaseAsset` DTOs from `DotNetCloud.Core`
 
 #### Step 11.8 — ClientUpdateService Implementation
+
 - ✓ `ClientUpdateService` — server endpoint check with GitHub fallback
 - ✓ Download with `IProgress<double>` reporting
 - ✓ Version comparison logic (semver + pre-release)
 - ✓ DI registration via `ClientCoreServiceExtensions`
 
 #### Step 11.9 — Background Update Checker (SyncTray)
+
 - ✓ `UpdateCheckBackgroundService` — periodic timer (24h default, configurable)
 - ✓ `UpdateAvailable` event → TrayViewModel notification
 - ✓ Tray context menu "Check for Updates…" item
 
 #### Step 11.10 — SyncTray Update UI
+
 - ✓ `UpdateDialog.axaml` — dark themed Avalonia window (version cards, status badges, release notes, progress bar)
 - ✓ `UpdateViewModel` — check/download/apply commands, platform asset matching
 - ✓ Settings "Updates" tab — current version display, auto-check toggle
 
 #### Step 11.11 — Desktop Client Update Tests
+
 - ✓ `ClientUpdateServiceTests` — 10 tests (server check, fallback, download, events, error handling)
 - ✓ `UpdateCheckBackgroundServiceTests` — 8 tests (event firing, error resilience, lifecycle, defaults)
 - ✓ All 18 Phase B tests passing
@@ -4749,25 +4835,30 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 ### Phase C: Android Client Update Notification
 
 #### Step 11.12 — Android Update Check Service
+
 - ☐ Android-specific update service checking server endpoint
 - ☐ Play Store / APK link handling
 
 #### Step 11.13 — Android Update UI
+
 - ☐ Update notification in Android app
 - ☐ Settings page update preferences
 
 #### Step 11.14 — Android Update Tests
+
 - ☐ Android update service unit tests
 
 ### Phase D: Documentation & Integration
 
 #### Step 11.15 — Auto-Update Documentation
+
 - ✓ `docs/modules/AUTO_UPDATES.md` — feature documentation
 - ✓ `docs/user/AUTO_UPDATES.md` — user-facing update configuration guide
 - ✓ Architecture doc updates (Phase 8 → Phase 11 split in ARCHITECTURE.md)
 - ✓ README.md roadmap table updated with Phase 11
 
 #### Step 11.16 — Integration Testing
+
 - ✓ End-to-end update check flow tests
 - ✓ Update releases endpoint integration tests
 - ✓ Backward compatibility tests (graceful degradation)
@@ -4779,6 +4870,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 ### Phase A — Database & Model Changes
 
 #### A1. Rename `CallParticipantRole.Initiator` → `Host`
+
 - ✓ Rename enum value in `CallParticipantRole.cs`
 - ✓ Update all references in `VideoCallService.cs`
 - ✓ Update DTO comment in `ChatDtos.cs` (`CallParticipantDto.Role`)
@@ -4786,6 +4878,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ EF migration to update stored string values (`"Initiator"` → `"Host"`)
 
 #### A2. Add `HostUserId` to `VideoCall` Entity
+
 - ✓ Add `Guid HostUserId` property to `VideoCall.cs`
 - ✓ Configure index in `VideoCallConfiguration.cs`
 - ✓ Add `HostUserId` to `VideoCallDto`
@@ -4794,25 +4887,30 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ EF migration `AddCallHostUserId` (column + data migration from `InitiatorUserId`)
 
 #### A3. DM → Group Auto-Conversion
+
 - ✓ In `ChannelMemberService.AddMemberAsync`, detect 3rd member added to `DirectMessage` channel
 - ✓ Auto-convert channel type to `ChannelType.Group`
 - ✓ No schema change needed (`Channel.Type` already supports `Group`)
 
 ### Phase B — Service Layer: Direct DM & Call Initiation
+
 - ☐ B1. Wire Global User Search for DM Creation
 - ☐ B2. Direct Call Initiation by User ID (`InitiateDirectCallAsync`)
 
 ### Phase C — Mid-Call Participant Addition
+
 - ☐ C1. `InviteToCallAsync` service method (Host-only validation)
 - ☐ C2. SignalR notification for mid-call invite
 
 ### Phase D — Host Transfer
+
 - ☐ D1. `TransferHostAsync` service method
 - ☐ D2. Auto-transfer Host on leave
 - ☐ D3. End-call permission enforcement (Host only)
 - ☐ D4. `CallHostTransferredEvent` and SignalR broadcast
 
 ### Phase E — UI Integration
+
 - ✓ E1. "New DM" user picker in sidebar
 - ✓ E2. "Call User" buttons
 - ✓ E3. "Add People" button in active call (Host only)
@@ -4821,10 +4919,12 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ E6. "Add People" to group chat
 
 ### Phase F — SignalR Hub Updates
+
 - ☐ F1. New hub methods (`InviteToCallAsync`, `TransferHostAsync`)
 - ☐ F2. New client-side event handlers (`HostTransferred`, `CallInviteReceived`)
 
 ### Phase G — Tests
+
 - ✓ G1. Unit tests (Host transfer, mid-call invite, DM→Group, direct call, end-call permission)
 - ☐ G2. Integration / E2E tests
 
@@ -4833,6 +4933,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 ## Tracks Professionalization — Phase B
 
 ### B-1: @Mentions in Comments
+
 - ✓ `MentionTypeahead.razor` component with user search dropdown
 - ✓ `@` triggers user search typeahead (max 8 results, 300ms debounce)
 - ✓ Mentioned user gets notification with link to work item
@@ -4842,6 +4943,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Mention-aware comment textarea in `WorkItemDetailPanel`
 
 ### B-2: Product Settings Page
+
 - ✓ `ProductSettingsPage.razor` with full settings UI
 - ✓ General section: Name, description, color picker, Sub-Items toggle
 - ✓ Swimlanes section: Manage default swimlanes (add/remove/reorder/rename, toggle Done)
@@ -4852,6 +4954,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Settings gear icon in sidebar (product-level and epic-level)
 
 ### B-3: Saved Filters / Custom Views
+
 - ✓ `CustomView` entity with migration
 - ✓ `CustomViewConfiguration` EF config (tracks schema, unique index)
 - ✓ `CustomViewService` data service (CRUD, auth checks)
@@ -4862,6 +4965,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ API client methods (`ListCustomViewsAsync`, `CreateCustomViewAsync`, etc.)
 
 ### B-4: Calendar View
+
 - ✓ `WorkItemCalendarView.razor` with month and week views
 - ✓ Month view: 7-column grid with items as colored priority bars
 - ✓ Week view: 7-column horizontal layout
@@ -4877,6 +4981,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 ## Tracks Professionalization — Phase C
 
 ### C-1: Table / List View
+
 - ✓ `WorkItemListView.razor` + `.razor.cs` + `.razor.css`
 - ✓ `TracksView.List` enum value + sidebar icon
 - ✓ Sortable columns (click header to sort asc/desc)
@@ -4893,6 +4998,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ API client methods: `ListProductWorkItemsAsync`, `BulkWorkItemActionAsync`
 
 ### C-2: Product Dashboard
+
 - ✓ `ProductDashboardView.razor` + `.razor.cs` + `.razor.css`
 - ✓ `TracksView.Dashboard` enum value + sidebar icon
 - ✓ KPI row: Total Items, Epics, Features, Active Sprints, Done This Week, Avg Cycle Time, Unassigned
@@ -4912,6 +5018,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 ## Tracks Professionalization — Phase D
 
 ### D-1: Custom Fields
+
 - ✓ `CustomField` entity with EF config + migration (tracks schema)
 - ✓ `WorkItemFieldValue` entity with EF config + migration (composite unique index)
 - ✓ `CustomFieldType` enum in DTOs (Text, Number, Date, SingleSelect, MultiSelect, User)
@@ -4925,6 +5032,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `WorkItem` entity extended with `FieldValues` and `MilestoneId` navigation properties
 
 ### D-2: Milestones
+
 - ✓ `Milestone` entity with EF config + migration (tracks schema)
 - ✓ `MilestoneStatus` enum in DTOs (Upcoming, Active, Completed)
 - ✓ `MilestoneDto`, `CreateMilestoneDto`, `UpdateMilestoneDto`, `SetMilestoneStatusDto`
@@ -4935,6 +5043,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `Product` entity extended with `Milestones` navigation property
 
 ### D-3: Recurring Work Items
+
 - ✓ `RecurringRule` entity with EF config + migration (tracks schema)
 - ✓ `RecurringRuleDto`, `CreateRecurringRuleDto`, `UpdateRecurringRuleDto`
 - ✓ `RecurringWorkItemService`: CRUD rules + `ProcessDueRecurringItemsAsync()`
@@ -4949,6 +5058,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 ## Tracks Professionalization — Phase E
 
 ### E-1: Comment Reactions
+
 - ✓ `CommentReaction` entity with EF config + migration (composite key CommentId + UserId + Emoji)
 - ✓ `CommentReactionDto` and `CommentReactionSummaryDto` in DTOs
 - ✓ `AddReactionDto` for reaction creation requests
@@ -4959,6 +5069,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `TracksDbContext` extended with `CommentReactions` DbSet
 
 ### E-2: Share / Guest Access
+
 - ✓ `WorkItemShareLink` entity with EF config + migration (unique token, expiry, active flag)
 - ✓ `GuestUser` entity with EF config + migration (email, invite token, status lifecycle)
 - ✓ `GuestPermission` entity with EF config + migration (per-work-item access)
@@ -4974,6 +5085,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `TracksServiceRegistration` updated with `ShareLinkService`, `GuestAccessService`
 
 ### E-3: Product Templates UI
+
 - ✓ `ProductTemplatesController`: `GET /api/v1/product-templates`, `GET /api/v1/product-templates/{id}`, `POST /api/v1/product-templates/{id}/create-product`, `POST /api/v1/products/{id}/save-as-template`, `GET /api/v1/products/{id}/item-templates`, `POST /api/v1/item-templates/{id}/create-item`
 - ✓ `TemplateSeedService`: idempotent seeding of 5 built-in templates on first access
 - ✓ 5 built-in templates: Software Project, Bug Tracker, Content Calendar, Simple Todo, Hiring Pipeline
@@ -4982,6 +5094,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 ## Tracks Professionalization — Phase F
 
 ### F-1: Command Palette
+
 - ✓ `ICommandPaletteService` interface + `CommandPaletteResult` + `PaletteItem` in `DotNetCloud.Modules.Tracks.Services`
 - ✓ `CommandPaletteService` in `DotNetCloud.Modules.Tracks.Data.Services` — uses TracksDbContext for fuzzy search
 - ✓ `TracksCommandPalette.razor` + `.razor.cs` — modal overlay triggered by Ctrl+K
@@ -4992,6 +5105,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `TracksServiceRegistration` updated with `ICommandPaletteService`
 
 ### F-2: CSV Import Wizard
+
 - ✓ `ICsvImportUiService` interface + `CsvParseResult`, `CsvColumnMapping`, `CsvRowError`, `CsvValidationResult`, `CsvImportResult` in Models
 - ✓ `CsvImportService` in Data.Services — parse, validate, import CSV with BOM handling and quoted fields
 - ✓ `CsvImportUiService` in Data.Services — implements ICsvImportUiService bridging to UI layer
@@ -5003,6 +5117,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `TracksDbContext` + `TracksServiceRegistration` updated
 
 ### F-3: Webhooks
+
 - ✓ `WebhookSubscription` entity — URL, Secret (HMAC), EventsJson, IsActive
 - ✓ `WebhookDelivery` entity — EventType, PayloadJson, ResponseStatusCode, DurationMs, RetryCount
 - ✓ `WebhookSubscriptionConfiguration` + `WebhookDeliveryConfiguration` EF configs
@@ -5023,6 +5138,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 ## Tracks Professionalization — Phase G
 
 ### G-1: Product Roadmap
+
 - ✓ `RoadmapItemDto` + `RoadmapDataDto` in TracksDtos.cs
 - ✓ `ProductRoadmapView.razor` + `.razor.cs` + `.razor.css` — horizontal timeline with epics/features
 - ✓ Group by: Epic (default), Sprint, Assignee
@@ -5042,6 +5158,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `ITracksApiClient` + `TracksApiClient` extended with `GetRoadmapDataAsync()`
 
 ### G-2: Automation Rules
+
 - ✓ `AutomationRule` entity — ProductId, Name, Trigger, ConditionsJson, ActionsJson, IsActive, CreatedByUserId, LastTriggeredAt
 - ✓ `AutomationRuleConfiguration` EF config with migration
 - ✓ `AutomationRuleDto`, `CreateAutomationRuleDto`, `UpdateAutomationRuleDto` in TracksDtos.cs
@@ -5061,6 +5178,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `TracksModule.cs` updated with `AutomationRuleEventHandler` subscriptions and cleanup
 
 ### G-3: Goals / OKRs
+
 - ✓ `Goal` entity — ProductId, Title, Description, Type (objective/key_result), ParentGoalId, TargetValue, CurrentValue, ProgressType, Status, DueDate
 - ✓ `GoalWorkItem` junction entity linking work items to goals
 - ✓ `GoalConfiguration` + `GoalWorkItemConfiguration` EF configs with migration
@@ -5077,6 +5195,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `ITracksApiClient` + `TracksApiClient` extended with all goal methods
 
 ### G-4: Capacity Planning
+
 - ✓ `SprintCapacityDto`, `MemberCapacityDto`, `ProductCapacityDto` in TracksDtos.cs
 - ✓ `GetSprintCapacityAsync()` in AnalyticsService — total/assigned/completed story points per sprint
 - ✓ `GetMemberCapacityAsync()` in AnalyticsService — story points per assignee across active sprints
@@ -5093,6 +5212,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 ## Tracks Professionalization — Phase H
 
 ### H-1: Dark Mode Enhancements
+
 - ✓ Dark mode overrides added to all 11 Tracks CSS files
 - ✓ `TracksPage.razor.css` — Kanban columns, cards, card count badges, comment code blocks, empty states, dialogs
 - ✓ `ProductDashboardView.razor.css` — KPI cards, chart cards, velocity bars
@@ -5107,6 +5227,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `ChatActivityIndicator.razor.css` — Toast backgrounds, channel events
 
 ### H-2: Swimlane Transition Rules
+
 - ✓ `SwimlaneTransitionRule` entity with EF config + composite unique index
 - ✓ `SwimlaneTransitionRuleConfiguration` — EF configuration with relationships
 - ✓ `SwimlaneTransitionRuleDto` and `SetTransitionRuleDto` in Models
@@ -5122,6 +5243,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `ProductSettingsPage.razor.cs` — Transition rule state management
 
 ### H-3: WIP Limits Enforcement
+
 - ✓ `MoveWorkItemDto.EnforceWipLimit` field added
 - ✓ `WorkItemService.MoveWorkItemAsync` checks CardLimit with soft/hard enforcement
 - ✓ `WorkItemsController.MoveWorkItemAsync` returns 409 Conflict for blocked WIP moves
@@ -5130,7 +5252,6 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `ProductSettingsPage.razor` — CardLimit input per swimlane + "Enforce WIP limits" checkbox
 - ✓ `ProductSettingsPage.razor.cs` — `SettingsSwimlane.CardLimit`, `_enforceWipStrictly` state
 - ✓ WIP toast CSS + transition matrix CSS styles
-
 
 ## Required Modules & Schema Separation
 
@@ -5182,6 +5303,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Build passes with 0 errors; all 18 test projects pass (5,104 tests, 0 failures)
 
 ### Phase 4 — Seeding and DTO mapping ✓
+
 ### Phase 5 — Enforcement in API, CLI, and supervisor ✓
 
 - ✓ `AdminModuleService.StopModuleAsync` — guard against stopping required modules
@@ -5189,14 +5311,18 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `ProcessSupervisor.SyncDiscoveredModulesToDatabaseAsync` — set `IsRequired` on newly discovered module records
 - ✓ `ModuleCommands` — guard stop/uninstall for required modules (already in Phase 3)
 - ✓ `SetupCommand` — use `RequiredModules.ModuleIds`, guard disabling required modules (already in Phase 3)
+
 ### Phase 6 — install.sh ✓
+
 - ✓ Create `DotNetCloud.Core.Schema` project to host `DbContextSchemaProvider`
 - ✓ Move `ModuleSchemaService` to `Core.Data` with `IEnumerable<IModuleSchemaProvider>` dispatch
 - ✓ Add `--migrate-only` flag to `SetupCommand` (mutually exclusive with `--beginner`)
 - ✓ `RunMigrateOnlyAsync` applies core migrations, syncs module registry, and initializes module schemas
 - ✓ Register `DbContextSchemaProvider` via `IModuleSchemaProvider` in both CLI `ServiceProviderFactory` and server `Program.cs`
 - ✓ Update `install.sh` fallback warning
+
 ### Phase 7 — Update Example module ✓
+
 - ✓ Add `"schemaProvider": "self"` to Example module `manifest.json` (already present)
 - ✓ Update `ExampleDbContext` to inject `ITableNamingStrategy` and call `HasDefaultSchema`
 - ✓ Update `Program.cs` for self-managed migration pattern (`async Task Main`, env var, in-memory fallback)
@@ -5214,57 +5340,69 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 > All server changes passed `dotnet build DotNetCloud.CI.slnf` and `dotnet test DotNetCloud.CI.slnf`.
 
 #### Step 1.1 — Enable Device Authorization Grant ✅
+
 - ✓ `AllowDeviceCodeFlow()` enabled in `AuthServiceExtensions.cs`
 - ✓ Device endpoint URI configured (`/connect/device`)
 - ✓ `bookmarks:read` and `bookmarks:write` scopes registered
 
 #### Step 1.2 — Register Extension OIDC Client ✅
+
 - ✓ `dotnetcloud-browser-extension` client registered in `OidcClientSeeder.cs`
 - ✓ Public client with device code + refresh token grant types
 
 #### Step 1.3 — Delta Sync Endpoint ✅
+
 - ✓ `GET /api/v1/bookmarks/sync/changes?since=...` with `BookmarkSyncChangesResult`
 - ✓ `IBookmarkService.GetSyncChangesAsync()` implemented
 
 #### Step 1.4 — Batch Operations Endpoint ✅
+
 - ✓ `POST /api/v1/bookmarks/batch` with `BatchRequest`/`BatchResponse`
 - ✓ `IBookmarkService.BatchAsync()` implemented
 
 ### Phase 2: Extension Project Scaffold ✅
 
 #### Step 2.1 — Project Initialization ✅
+
 - ✓ `package.json` — scripts (build, test, typecheck, dev), dependencies
 - ✓ `tsconfig.json` — ES2022, strict mode, bundler resolution
 - ✓ `jest.config.js` — ts-jest preset
 - ✓ `.gitignore`
 
 #### Step 2.2 — Dual Manifests ✅
+
 - ✓ `manifest.chrome.json` (MV3) — permissions, service worker, popup, icons
 - ✓ `manifest.firefox.json` (MV3, FF ≥ 109) — browser_specific_settings
 - ✓ `vite.config.ts` — dual-browser output via `--mode chrome`/`--mode firefox`
 
 #### Step 2.3 — API Client Layer ✅
+
 - ✓ `src/api/types.ts` — all DTOs (BookmarkItem, BookmarkFolder, SyncChangesResponse, BatchRequest, etc.)
 - ✓ `src/api/client.ts` — typed fetch wrapper with all CRUD + sync + batch methods, AbortSignal support, ApiError on non-2xx
 - ✓ `src/api/auth.ts` — `getAuthHeaders()` + `isAuthenticated()`
 
 #### Step 2.4 — Auth Modules ✅
+
 - ✓ `src/auth/device-flow.ts` — `initiateDeviceFlow()` + `pollForToken()` (RFC 8628)
 - ✓ `src/auth/token-manager.ts` — `getAccessToken()`, `refresh()`, `clearTokens()`, `scheduleRefresh()`, `handleAlarm()`
 
 #### Step 2.5 — Background Service Worker ✅
+
 - ✓ `src/background/service-worker.ts` — alarm handler, install/update hooks, startup refresh scheduling
 
 #### Step 2.6 — Popup Scaffold ✅
+
 - ✓ `src/popup/popup.html` — 380px fixed layout
 - ✓ `src/popup/popup.ts` — auth screen + device flow initiation + main UI placeholder
 - ✓ `src/popup/styles/popup.css` — full design system (auth screen, main UI, tabs, status footer, spinner)
 
 #### Step 2.7 — Build Scripts ✅
+
 - ✓ `build-extension.ps1` (PowerShell/Windows) — `npm run build` + zip packaging
 - ✓ `build-extension.sh` (Bash/Linux) — equivalent for Linux/macOS
 
 #### Step 2.8 — Icons ✅
+
 - ✓ Placeholder icons: 16×16, 48×48, 128×128 PNG
 
 ### Phase 3: Authentication ✅
@@ -5275,6 +5413,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 > Test coverage: 37 unit tests passing, all build/typecheck clean.
 
 #### Step 3.1 — Device Flow Initiator ✅
+
 - ✓ `src/auth/device-flow.ts` — full RFC 8628 implementation
 - ✓ `initiateDeviceFlow(serverUrl)` — POST to `/connect/device` with client credentials and scope
 - ✓ `pollForToken(serverUrl, state)` — polls `/connect/token` with proper error handling
@@ -5285,6 +5424,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Deadline enforcement: exits when device code expires
 
 #### Step 3.2 — Token Manager ✅
+
 - ✓ `src/auth/token-manager.ts` — full token lifecycle management
 - ✓ `TokenManager.storeTokens()` — persists to `chrome.storage.local` + schedules refresh
 - ✓ `TokenManager.getTokens()` — reads stored TokenSet
@@ -5296,6 +5436,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Background service worker: `chrome.alarms.onAlarm` listener + startup refresh scheduling
 
 #### Step 3.3 — Auth Test Coverage ✅
+
 - ✓ `tests/device-flow.test.ts` — 10 tests (initiation, polling, error handling, abort, deadline)
 - ✓ `tests/token-manager.test.ts` — 22 tests (store/get/refresh/clear/schedule/handleAlarm)
 - ✓ `tests/auth-api.test.ts` — 5 tests (getAuthHeaders, isAuthenticated, null states)
@@ -5304,11 +5445,13 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 ### Phase 4: Sync Engine ✓
 
 #### Step 4.1 — ID Mapping Store ✓
+
 - ✓ `src/sync/mapping-store.ts` — bidirectional browser↔server ID maps (completed as scaffold)
 - ✓ Full bidirectional ID mapping API (getServerId, getBrowserNodeId, setMapping, removeMapping, get/setCursor, clearAll)
 - ✓ Full test coverage for mapping store (completed in Phase 6: 18 tests)
 
 #### Step 4.2 — Initial Sync ✓
+
 - ✓ `src/sync/initial-sync.ts` — server-first full sync algorithm
 - ✓ Folder tree reconstruction (topological sort, parent-before-child creation)
 - ✓ Browser-only bookmark detection + batch create with clientRef→serverId mapping
@@ -5316,6 +5459,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Service worker integration with auth-driven initialization
 
 #### Step 4.3 — Incremental Push ✓
+
 - ✓ `src/sync/push-sync.ts` — all 4 `chrome.bookmarks` event listeners (onCreated, onRemoved, onChanged, onMoved)
 - ✓ Debounced 500ms per node ID to coalesce rapid changes
 - ✓ Guards for browser root nodes and in-progress initial sync
@@ -5323,6 +5467,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Server API calls: create/update/delete bookmark, create/update/delete folder, move
 
 #### Step 4.4 — Incremental Pull ✓
+
 - ✓ `src/sync/pull-sync.ts` — 5-min `chrome.alarms` periodic poll
 - ✓ Full pull cycle: fetch changes → apply folders → apply bookmarks → process deletions → update cursor
 - ✓ Pagination support (hasMore → immediate follow-up cycles)
@@ -5332,14 +5477,17 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 ### Phase 5: Popup UI ✅
 
 #### Step 5.1 — Auth Screen ✅
+
 - ✓ Server URL input + "Connect" button (completed as scaffold)
 
 #### Step 5.2 — Main Popup Structure ✅
+
 - ✓ Header, tab nav, status footer (completed as scaffold)
 - ✓ Tab switching logic with dynamic panel loading
 - ✓ Error handling per panel with retry button
 
 #### Step 5.3 — Save Panel ✅
+
 - ✓ `SavePanel.ts` — auto-fill URL/title from active tab via `chrome.tabs.query`
 - ✓ Folder picker with lazy-loaded indented folder tree (topological sort)
 - ✓ Tags input with chip rendering (Enter/comma to add, × to remove)
@@ -5350,6 +5498,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Fire-and-forget preview trigger after create
 
 #### Step 5.4 — Browse Panel ✅
+
 - ✓ `BrowsePanel.ts` — folder tree navigation with breadcrumb trail
 - ✓ Clickable breadcrumb links for backtracking
 - ✓ Bookmark list with favicons from Google's favicon service (`www.google.com/s2/favicons`)
@@ -5360,6 +5509,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Empty state messaging
 
 #### Step 5.5 — Search Panel ✅
+
 - ✓ `SearchPanel.ts` — debounced search (300ms) via `GET /api/v1/bookmarks/search`
 - ✓ Results display with favicon, title, domain URL, and folder path breadcrumb
 - ✓ Click result → `chrome.tabs.create({ url })` + close popup
@@ -5368,6 +5518,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Search failure state with retry guidance
 
 #### Step 5.6 — Sync Status Footer ✅
+
 - ✓ Real-time sync status with color-coded dot (green = recent, amber = old, red = error, grey = offline)
 - ✓ Auto-refresh every 15 seconds
 - ✓ Click footer → sync details overlay showing last sync time and synced bookmark count
@@ -5377,10 +5528,12 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 ### Phase 6: Build, Tests & Docs ✅
 
 #### Step 6.1 — Build Pipeline ✅
+
 - ✓ `vite.config.ts` — dual-browser output (completed as scaffold)
 - ✓ `build-extension.ps1` / `build-extension.sh` (completed as scaffold)
 
 #### Step 6.2 — Unit Tests ✅
+
 - ✓ Auth module tests (37 tests, completed in Phase 3)
 - ✓ `tests/mapping-store.test.ts` — 18 tests covering set/get/remove/clear/cursor for both bookmark and folder maps, persistence across calls, reverse lookup
 - ✓ `tests/initial-sync.test.ts` — 7 tests covering auth guard, folder tree reconstruction, browser-only bookmarks batch, pagination, cursor persistence, isInitialSyncInProgress flag lifecycle
@@ -5389,6 +5542,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ All 79 tests pass: `npm test` clean, `npx tsc --noEmit` clean, `npm run build:chrome` clean
 
 #### Step 6.3 — Documentation Updates ✅
+
 - ✓ Updated IMPLEMENTATION_CHECKLIST.md — Phase 6 marked complete
 - ✓ Updated MASTER_PROJECT_PLAN.md — Phase 6 status/details updated
 
@@ -5399,22 +5553,26 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 **Goal:** Add in-app usage help for every module via "Help" link pinned to each module's sidebar.
 
 #### Shared Infrastructure ✅
+
 - ✓ Create `ModuleHelpLink.razor` shared component in `UI.Shared/Components/Navigation/`
 - ✓ Create `ModuleHelpLink.razor.css` with help link styling (icon-only when collapsed, separator above)
 - ✓ Create `ModuleHelp.razor` parameterized route handler at `/apps/{Module}/help` with breadcrumb, back button, and module-not-found fallback
 - ✓ Create `ModuleHelp.razor.css` with help page layout and shared help content styles
 
 #### Module Help Route Wrappers ✅
+
 - ✓ Create 13 route wrappers in `UI.Web/Components/Pages/Modules/Help/` — one per module (Files, Notes, AI, Calendar, Contacts, Chat, Bookmarks, Email, Music, Photos, Tracks, Video, Example)
 - ✓ Each wrapper delegates to `<ModuleHelp>` with module-specific help content
 
 #### Module Help Content Components ✅
+
 - ✓ Create 12 help content Razor components — one per module in each module's `UI/` folder
 - ✓ Modules with existing docs (Files, Notes, AI, Calendar, Contacts) informed by `docs/user/*.md`
 - ✓ Modules without docs (Chat, Bookmarks, Email, Music, Photos, Tracks, Video) have original write-ups
 - ✓ All follow standard structure: Overview → Features → How-To → Tips & FAQ
 
 #### Example Module Reference ✅
+
 - ✓ Create `ExampleSidebar.razor` collapsible sidebar with help link pinned at bottom
 - ✓ Create `ExampleSidebar.razor.css` with sidebar styling
 - ✓ Create `ExampleHelpContent.razor` as reference template for other modules
@@ -5422,6 +5580,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Create `ExampleNotesPage.razor.css` for layout styling
 
 #### Sidebar Help Link Integration ✅
+
 - ✓ Add help link to `FileSidebar.razor`
 - ✓ Add help link to `ChatPageLayout.razor` sidebar
 - ✓ Add help link to `ContactsPage.razor` sidebar
@@ -5436,6 +5595,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Add help link to `EmailPage.razor` sidebar
 
 #### Build & Validation ✅
+
 - ✓ `dotnet build DotNetCloud.CI.slnf` — zero errors
 - ✓ All 13 modules have help links in their sidebars
 - ✓ All 12 help content components authored and accessible
@@ -5451,25 +5611,31 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 ### Phase A: Data Model — `PasswordChangeRequired` Flag ✅
 
 #### Step phase-a.1 — Add `PasswordChangeRequired` property to `ApplicationUser`
+
 - ✓ `bool PasswordChangeRequired { get; set; } = false` property on `ApplicationUser`
 - ✓ XML doc comment
 
 #### Step phase-a.2 — Update EF configuration
+
 - ✓ `.IsRequired().HasDefaultValue(false)` for new property
 
 #### Step phase-a.3 — Scaffold EF migration
+
 - ✓ Migration `AddPasswordChangeRequired` adds column to `AspNetUsers` table
 
 ### Phase B: Closed System Setting
+
 - ✓ Define `SystemSettingKeys.ClosedSystemEnabled` constant
 - ✓ Verify admin can toggle via existing Settings UI
 
 ### Phase C: Registration Gate — Block Self-Registration in Closed Mode ✅
+
 - ✓ Add closed-system check to `AuthService.RegisterAsync`
 - ✓ Update `AuthController.RegisterAsync` for proper HTTP response (`403 Forbidden`)
 - ✓ Update self-registration UI (`Register.razor`) with "registration disabled" message
 
 ### Phase D: Password Change on First Login
+
 - ✓ Create `ChangePassword.razor` page
 - ✓ Create form-post endpoint for password change
 - ✓ Add API endpoint for password change
@@ -5477,14 +5643,17 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Modify API login flow (`AuthService.LoginAsync`)
 
 ### Phase E: Middleware — Enforce Password Change ✅
+
 - ✓ Create `PasswordChangeRequiredMiddleware`
 - ✓ Register middleware in pipeline
 
 ### Phase F: Admin User Creation UI Updates ✅
+
 - ✓ Update `UserCreate.razor` with `PasswordChangeRequired` checkbox
 - ✓ Update `RegisterRequest` DTO
 
 ### Phase G: Testing & Verification ✅
+
 - ✓ Unit tests for `AuthService` (5 new tests: closed system register/login scenarios)
 - ✓ Integration tests (5 new tests: HTTP-level closed system flow)
 - ✓ Manual verification checklist
@@ -5492,14 +5661,16 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 ### Phase H: About Module ✅
 
 #### Step H.1 — About Module Projects
+
 - ✓ `DotNetCloud.Modules.About/` — Core project (SDK=Razor, net10.0)
 - ✓ `DotNetCloud.Modules.About.Host/` — Host project (SDK=Web, net10.0)
 - ✓ AboutModuleManifest.cs — Id="dotnetcloud.about"
 - ✓ AboutModule.cs — IModuleLifecycle (no database, display-only)
-- ✓ UI: _Imports.razor, AboutPage.razor, AboutHelpContent.razor
+- ✓ UI: \_Imports.razor, AboutPage.razor, AboutHelpContent.razor
 - ✓ Host: Program.cs, AboutLifecycleService.cs, AboutHealthCheck.cs
 
 #### Step H.2 — About Page Content
+
 - ✓ Overview section — platform description, architecture, license info
 - ✓ Version section — reads assembly metadata (InformationalVersion, FileVersion, Runtime, OS, Architecture)
 - ✓ Attributions section — complete list of bundled JS libraries (Highlight.js, Butterchurn, QRCode.js, MediaPipe, webextension-polyfill)
@@ -5507,6 +5678,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Attributions section — Docker base images
 
 #### Step H.3 — Infrastructure Wiring
+
 - ✓ Both projects added to DotNetCloud.sln and DotNetCloud.CI.slnf
 - ✓ Core.Server/Program.cs — Blazor assembly reference
 - ✓ Core.Server.csproj — Project references for both projects
@@ -5526,6 +5698,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 ### Phase 1 — Server-Side Prerequisites
 
 #### Step 1.1 — Range Header Support on Chunk Download
+
 - ✓ Enable `enableRangeProcessing: true` on chunk download endpoint
 - ✓ Add `Accept-Ranges: bytes` response header
 - ✓ Chunk endpoint returns `206 Partial Content` for `Range` requests
@@ -5533,12 +5706,14 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `Content-Range` header present in partial responses (ASP.NET Core automatic)
 
 #### Step 1.2 — `?metadataOnly=true` on Tree Endpoint
+
 - ✓ Add `metadataOnly` query parameter to `GET /api/v1/sync/tree`
 - ✓ Add `bool metadataOnly` parameter to `ISyncService.GetFolderTreeAsync`
 - ✓ `BuildTreeNodeAsync` skips `ContentHash` when `metadataOnly=true`
 - ✓ `SyncController.GetTreeAsync` accepts and forwards `metadataOnly` parameter
 
 ### Phase 2 — Core Abstraction Layer ✅
+
 - ✓ `IVirtualFileProvider` interface in `VirtualFiles/` namespace with XML doc comments
 - ✓ `HydrationState` enum + `LocalFileRecord.HydrationState` property
 - ✓ Schema evolution for `HydrationState` column in `LocalStateDb.RunSchemaEvolutionAsync`
@@ -5547,12 +5722,14 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ DI registration + `NoOpVirtualFileProvider` stub for unsupported platforms
 
 ### Phase 3 — Windows Implementation ✅
+
 - ✓ P/Invoke wrappers for Cloud Filter API (`CfApiNative.cs`, `CfApiTypes.cs`)
 - ✓ `CloudFilterSyncProvider : IVirtualFileProvider` (with `CloudFilterCallbacks`)
 - ✓ DI wiring: `CloudFilterSyncProvider` registered on Windows
 - ☐ Shell integration (icon overlays, context menu) — deferred to later phase
 
 ### Phase 4 — Linux Implementation ✅
+
 - ✓ FUSE dependency & project setup (LTRData.FuseDotNet, Linux-conditional)
 - ✓ `FuseSyncFilesystem : IVirtualFileProvider` + `DotNetCloudFuseOperations : IFuseOperations`
 - ✓ Local content cache with LRU eviction (LruCacheManager wired into FUSE read path)
@@ -5560,15 +5737,16 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ DI registration: `FuseSyncFilesystem` registered on Linux
 
 ### Phase 5 — SyncTray UI Integration ✅
+
 - ✓ "Storage Mode" setting in SettingsViewModel + SettingsWindow.axaml
 - ✓ Wire VFS lifecycle in App.axaml.cs
 - ✓ VFS status in TrayViewModel (tooltip, periodic refresh)
 
 ### Phase 6 — Testing & Validation ✅
+
 - ✓ Unit tests for VirtualFileSyncEngine (17 tests)
 - ✓ Unit tests for VirtualFileSettings (10 tests)
 - ✓ Unit tests for LruCacheManager (12 tests)
 - ✓ Unit tests for CloudFilterSyncProvider (8 tests)
 - ✓ Contract tests for FuseSyncFilesystem (updated for Phase 4 implementation)
 - ✓ Build: 0 errors on Debug + Release. Tests: 253/254 pass
-
