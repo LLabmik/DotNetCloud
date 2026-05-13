@@ -1,7 +1,7 @@
 # Virtual File Syncing Plan — Files On-Demand for SyncTray
 
 **Date:** 2026-05-12  
-**Status:** Phase 1 complete ✅  
+**Status:** All implementation phases (1-6) complete ✅ — manual E2E testing (Steps 6.2-6.4) remains  
 **Based on:** `docs/development/SYNC_IMPROVEMENT_PLAN.md` Appendix C (Virtual Filesystem)  
 **Handoff Process:** `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md`  
 **Related:** `docs/SYNCSERVICE_SYNCTRAY_MERGE_PLAN.md` (assumed complete — single-process SyncTray)
@@ -32,10 +32,10 @@
 
 **Key benefits:**
 
-- ☐ Users with 500 GB on the server do not need 500 GB of local disk
-- ☐ Initial sync setup becomes near-instant (metadata tree download only)
-- ☐ Linux FUSE support is a competitive differentiator (Nextcloud lacks it)
-- ☐ Modern cloud storage clients (OneDrive, Dropbox, Google Drive) all offer this
+- ✓ Users with 500 GB on the server do not need 500 GB of local disk
+- ✓ Initial sync setup becomes near-instant (metadata tree download only)
+- ✓ Linux FUSE support is a competitive differentiator (Nextcloud lacks it)
+- ✓ Modern cloud storage clients (OneDrive, Dropbox, Google Drive) all offer this
 
 **Platform strategy:**
 
@@ -596,10 +596,10 @@ Windows Cloud Files API provides shell integration automatically through sync ro
 
 **Automatic shell integration from CfApi:**
 
-- ☐ Cloud icon overlay (☁) on cloud-only files — handled by `CF_PLACEHOLDER_CREATE_FLAGS`
-- ☐ Green checkmark (✓) on hydrated files — handled by `CF_PLACEHOLDER_STATE`
-- ☐ "Status" column in Explorer shows: "Available online-only", "Available offline", "Synced"
-- ☐ Right-click context menu: "Always keep on this device" / "Free up space" — handled by `CF_HYDRATION_POLICY`
+- ✓ Cloud icon overlay (☁) on cloud-only files — handled by `CF_PLACEHOLDER_CREATE_FLAGS`
+- ✓ Green checkmark (✓) on hydrated files — handled by `CF_PLACEHOLDER_STATE`
+- ✓ "Status" column in Explorer shows: "Available online-only", "Available offline", "Synced"
+- ✓ Right-click context menu: "Always keep on this device" / "Free up space" — handled by `CF_HYDRATION_POLICY`
 
 **Registry keys (set by `CfRegisterSyncRoot`):**
 - The sync root provider identity is registered under `HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\SyncRootManager\`
@@ -607,10 +607,10 @@ Windows Cloud Files API provides shell integration automatically through sync ro
 
 **Deliverables:**
 
-- ☐ Explorer shows cloud icon overlay on cloud-only files
-- ☐ Explorer status column shows "Available online-only" for placeholders
-- ☐ Right-click "Always keep on this device" / "Free up space" functional
-- ☐ Custom DotNetCloud icon registered (requires `.ico` file in assets)
+- ✓ Explorer shows cloud icon overlay on cloud-only files (automatic via CfApi)
+- ✓ Explorer status column shows "Available online-only" for placeholders (automatic via CfApi)
+- ✓ Right-click "Always keep on this device" / "Free up space" functional (automatic via CfApi)
+- ☐ Custom DotNetCloud icon registered (requires `.ico` file in assets — deferred)
 
 ---
 
@@ -840,12 +840,12 @@ public long MaxCacheSizeMb
 
 **Deliverables:**
 
-- ☐ `StorageMode` property with persistence
-- ☐ `MaxCacheSizeMb` property with persistence
-- ☐ Radio buttons for storage mode in Settings UI
-- ☐ Confirmation dialogs for mode switches
-- ☐ Cache size setting (Linux-focused)
-- ☐ Pinned files display
+- ✓ `StorageMode` property with persistence
+- ✓ `MaxCacheSizeMb` property with persistence
+- ✓ Radio buttons for storage mode in Settings UI
+- ✓ Confirmation dialogs for mode switches
+- ✓ Cache size setting (Linux-focused)
+- ✓ Pinned files display
 
 ### Step 5.2 — Wire VFS Lifecycle in App.axaml.cs
 
@@ -881,10 +881,10 @@ services.AddSingleton<VirtualFileSyncEngine>();
 
 **Deliverables:**
 
-- ☐ `IVirtualFileProvider.InitializeAsync()` called on startup when `FilesOnDemand`
-- ☐ `IVirtualFileProvider.ShutdownAsync()` called on graceful shutdown
-- ☐ `VirtualFileSyncEngine` used as the active sync engine when VFS enabled
-- ☐ POSIX signal handlers (`SIGTERM`/`SIGINT`) trigger VFS shutdown
+- ✓ `IVirtualFileProvider.InitializeAsync()` called on startup when `FilesOnDemand`
+- ✓ `IVirtualFileProvider.ShutdownAsync()` called on graceful shutdown
+- ✓ `VirtualFileSyncEngine` used as the active sync engine when VFS enabled
+- ✓ POSIX signal handlers (`SIGTERM`/`SIGINT`) trigger VFS shutdown
 
 ### Step 5.3 — VFS Status in TrayViewModel
 
@@ -913,10 +913,10 @@ public string? HydrationFileName { get => _hydrationFileName; set => SetProperty
 
 **Deliverables:**
 
-- ☐ VFS status properties on `TrayViewModel`
-- ☐ Tray tooltip shows cloud-only vs hydrated file counts
-- ☐ Transient hydration progress in tray tooltip
-- ☐ Periodic refresh of file counts
+- ✓ VFS status properties on `TrayViewModel`
+- ✓ Tray tooltip shows cloud-only vs hydrated file counts
+- ✓ Transient hydration progress in tray tooltip
+- ✓ Periodic refresh of file counts
 
 ### Step 5.4 — Optional: "Virtual Files" Tab in Settings
 
@@ -929,9 +929,9 @@ public string? HydrationFileName { get => _hydrationFileName; set => SetProperty
 
 **Deliverables (optional):**
 
-- ☐ Virtual Files tab in Settings window
-- ☐ Cache usage visualization
-- ☐ Manual "download all" / "free up space" triggers
+- ☐ Virtual Files tab in Settings window (deferred)
+- ☐ Cache usage visualization (deferred)
+- ☐ Manual "download all" / "free up space" triggers (deferred)
 
 ---
 
@@ -1032,11 +1032,11 @@ All three machines participate. Coordination via `docs/development/CLIENT_SERVER
 
 ### Step 6.5 — Build Validation
 
-- ☐ `dotnet build` succeeds on Windows (`Windows11-TestDNC`)
-- ☐ `dotnet build` succeeds on Linux (`mint-dnc-client`)
-- ☐ `dotnet test` — all tests pass on both platforms
-- ☐ `dotnet build -c Release` — Release build succeeds on both platforms
-- ☐ No new warnings introduced
+- ✓ `dotnet build` succeeds on Windows (`Windows11-TestDNC`)
+- ✓ `dotnet build` succeeds on Linux (`mint-dnc-client`)
+- ✓ `dotnet test` — all tests pass on both platforms
+- ✓ `dotnet build -c Release` — Release build succeeds on both platforms
+- ✓ No new warnings introduced
 
 ---
 

@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 20260512 (VFS Phase 6 complete — Testing & Validation on Windows11-TestDNC)
+Last updated: 20260512 (VFS all phases complete — IDLE; manual E2E testing remains)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -85,39 +85,17 @@ Archived context:
 
 ## Active Handoff
 
-**Status:** All VFS phases complete (2026-05-12)  
-**Blocked by:** nothing  
-**Next:** Manual E2E testing (VFS Steps 6.2-6.4) requires cross-machine coordination across all three machines.
+**Status:** IDLE — all VFS implementation phases complete (2026-05-12)
 
-### Task: Implement VFS Phase 4 — Linux FUSE Filesystem
+**Completed phases:**
+- VFS Phase 1 (server-side prerequisites) — `mint22`
+- VFS Phase 2 (core abstraction layer) — `Windows11-TestDNC`
+- VFS Phase 3 (Windows Cloud Filter API) — `Windows11-TestDNC`
+- VFS Phase 4 (Linux FUSE filesystem) — `mint-dnc-client`
+- VFS Phase 5 (SyncTray UI integration) — `Windows11-TestDNC`
+- VFS Phase 6 (testing & validation) — `Windows11-TestDNC`
 
-All specs and design details are in `docs/VIRTUAL_FILE_SYNCING_PLAN.md` — read the Phase 4 section.
-
-**What to implement:**
-
-1. **Step 4.1** — FUSE dependency & project setup:
-   - Add `Tmds.Fuse` NuGet package (Linux-conditional in `DotNetCloud.Client.Core.csproj`)
-   - Add `fusermount`/`fuse3` dependency check in app startup
-   - Create `src/Clients/DotNetCloud.Client.Core/Platform/Linux/` directory structure
-
-2. **Step 4.2** — `FuseSyncFilesystem : IVirtualFileProvider`:
-   - Implement `InitializeAsync` — mount FUSE at sync folder
-   - Implement `CreatePlaceholdersAsync` — show full directory listing via FUSE getattr/readdir
-   - Implement `HydrateFileAsync` — download content on file open (FUSE read operation)
-   - Implement `DehydrateFileAsync` — replace content with placeholder (metadata-only)
-   - Implement `PinFileAsync` / `UnpinFileAsync` — update pin list
-   - Implement `IsHydratedAsync` — check if file has local content
-   - Implement `ShutdownAsync` — unmount via `fusermount -u`
-
-3. **Step 4.3** — Content cache with `LruCacheManager`:
-   - Cache recently-accessed file chunks
-   - Evict LRU entries when over `MaxCacheSizeBytes`
-   - Pin list exemption from eviction
-   - Wire cache into FUSE read path
-
-4. **Step 4.4** — Installer integration:
-   - Check `fuse3` availability and print clear error if missing
-   - Add user to `fuse` group if needed
+**Remaining work:** Manual E2E tests (Steps 6.2-6.4 in `docs/VIRTUAL_FILE_SYNCING_PLAN.md`) require cross-machine coordination. Not yet scheduled.
    - Update `scripts/install.sh` with FUSE dependency
 
 **Reference files (already on main):**
