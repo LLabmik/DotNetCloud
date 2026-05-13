@@ -910,51 +910,127 @@ public sealed class LibraryScanService
     }
 
     /// <summary>
-    /// Deletes all music library metadata (tracks, albums, artists, genres, play history, etc.)
-    /// from the database. Does NOT delete the actual audio files — only the indexed metadata.
-    /// After calling this, a re-scan will rebuild the entire library from scratch.
+    /// Deletes all music library metadata for a specific owner (tracks, albums, artists, genres,
+    /// play history, etc.) from the database. Does NOT delete the actual audio files — only the
+    /// indexed metadata. After calling this, a re-scan will rebuild the library from scratch.
+    /// Other users' libraries are NEVER affected.
     /// </summary>
-    public async Task ResetCollectionAsync(CancellationToken cancellationToken = default)
+    /// <param name="ownerId">Owner whose library will be reset.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public async Task ResetCollectionAsync(Guid ownerId, CancellationToken cancellationToken = default)
     {
-        _logger.LogWarning("RESET: Deleting ALL music library metadata for ALL users. This is a destructive operation.");
+        _logger.LogWarning("RESET: Deleting music library metadata for owner {OwnerId}", ownerId);
 
-        // Count tracks per owner before deleting, for audit trail
-        var tracksByOwner = await _db.Tracks
+        // Count tracks for audit trail (scoped to this owner)
+        var trackCount = await _db.Tracks
             .IgnoreQueryFilters()
-            .GroupBy(t => t.OwnerId)
-            .Select(g => new { OwnerId = g.Key, Count = g.Count() })
-            .ToListAsync(cancellationToken);
-        var trackOwnerSummary = string.Join(", ", tracksByOwner.Select(o => $"{o.OwnerId}={o.Count}"));
-        _logger.LogWarning("RESET: Deleting tracks for {OwnerCount} owners: {Summary}", tracksByOwner.Count, trackOwnerSummary);
+            .Where(t => t.OwnerId == ownerId)
+            .CountAsync(cancellationToken);
+
+        _logger.LogWarning("RESET: Deleting {TrackCount} tracks for owner {OwnerId}", trackCount, ownerId);
 
         // Delete in FK-safe order: junction/child tables first, then parents.
-        // Use IgnoreQueryFilters to include soft-deleted records.
-        var ph = await _db.PlaybackHistories.IgnoreQueryFilters().ToListAsync(cancellationToken);
+        // ALL deletes are scoped to ownerId — never touch other users' data.
+
+        // Junction tables: filter by Track → OwnerId
+        var ownedTrackIds = await _db.Tracks
+            .IgnoreQueryFilters()
+            .Where(t => t.OwnerId == ownerId)
+            .Select(t => t.Id)
+            .ToListAsync(cancellationToken);
+        var ownedTrackIdSet = ownedTrackIds.ToHashSet();
+
+        // PlaybackHistories: filter by owned tracks
+        var ph = await _db.PlaybackHistories
+            .IgnoreQueryFilters()
+            .Where(h => ownedTrackIdSet.Contains(h.TrackId))
+            .ToListAsync(cancellationToken);
+
+        // ScrobbleRecords: filter by owned tracks
+        var sr = await _db.ScrobbleRecords
+            .IgnoreQueryFilters()
+            .Where(s => ownedTrackIdSet.Contains(s.TrackId))
+            .ToListAsync(cancellationToken);
+
+        // StarredItems: filter by UserId (owner)
+        var si = await _db.StarredItems
+            .IgnoreQueryFilters()
+            .Where(s => s.UserId == ownerId)
+            .ToListAsync(cancellationToken);
+
+        // PlaylistTracks: filter by owned tracks
+        var pt = await _db.PlaylistTracks
+            .IgnoreQueryFilters()
+            .Where(pt => ownedTrackIdSet.Contains(pt.TrackId))
+            .ToListAsync(cancellationToken);
+
+        // TrackGenres: filter by owned tracks
+        var tg = await _db.TrackGenres
+            .IgnoreQueryFilters()
+            .Where(tg => ownedTrackIdSet.Contains(tg.TrackId))
+            .ToListAsync(cancellationToken);
+
+        // TrackArtists: filter by owned tracks
+        var ta = await _db.TrackArtists
+            .IgnoreQueryFilters()
+            .Where(ta => ownedTrackIdSet.Contains(ta.TrackId))
+            .ToListAsync(cancellationToken);
+
+        // Tracks: directly scoped to ownerId
+        var tr = await _db.Tracks
+            .IgnoreQueryFilters()
+            .Where(t => t.OwnerId == ownerId)
+            .ToListAsync(cancellationToken);
+
+        // Playlists: scoped to ownerId (if applicable)
+        var pl = await _db.Playlists
+            .IgnoreQueryFilters()
+            .Where(p => p.OwnerId == ownerId)
+            .ToListAsync(cancellationToken);
+
+        // Albums: scoped to ownerId
+        var al = await _db.Albums
+            .IgnoreQueryFilters()
+            .Where(a => a.OwnerId == ownerId)
+            .ToListAsync(cancellationToken);
+
+        // Artists: scoped to ownerId
+        var ar = await _db.Artists
+            .IgnoreQueryFilters()
+            .Where(a => a.OwnerId == ownerId)
+            .ToListAsync(cancellationToken);
+
+        // Genres: only delete if no tracks from ANY owner reference them
+        var allRemainingGenreIds = await _db.TrackGenres
+            .IgnoreQueryFilters()
+            .Select(tg => tg.GenreId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+        var affectedGenreIds = tg.Select(tg => tg.GenreId).Distinct().ToHashSet();
+        var orphanedGenreIds = affectedGenreIds
+            .Where(gid => !allRemainingGenreIds.Except(affectedGenreIds).Contains(gid))
+            .ToList();
+        var ge = await _db.Genres
+            .IgnoreQueryFilters()
+            .Where(g => orphanedGenreIds.Contains(g.Id))
+            .ToListAsync(cancellationToken);
+
+        // Execute deletes
         _db.PlaybackHistories.RemoveRange(ph);
-        var sr = await _db.ScrobbleRecords.IgnoreQueryFilters().ToListAsync(cancellationToken);
         _db.ScrobbleRecords.RemoveRange(sr);
-        var si = await _db.StarredItems.IgnoreQueryFilters().ToListAsync(cancellationToken);
         _db.StarredItems.RemoveRange(si);
-        var pt = await _db.PlaylistTracks.IgnoreQueryFilters().ToListAsync(cancellationToken);
         _db.PlaylistTracks.RemoveRange(pt);
-        var tg = await _db.TrackGenres.IgnoreQueryFilters().ToListAsync(cancellationToken);
         _db.TrackGenres.RemoveRange(tg);
-        var ta = await _db.TrackArtists.IgnoreQueryFilters().ToListAsync(cancellationToken);
         _db.TrackArtists.RemoveRange(ta);
-        var tr = await _db.Tracks.IgnoreQueryFilters().ToListAsync(cancellationToken);
         _db.Tracks.RemoveRange(tr);
-        var pl = await _db.Playlists.IgnoreQueryFilters().ToListAsync(cancellationToken);
         _db.Playlists.RemoveRange(pl);
-        var al = await _db.Albums.IgnoreQueryFilters().ToListAsync(cancellationToken);
         _db.Albums.RemoveRange(al);
-        var ar = await _db.Artists.IgnoreQueryFilters().ToListAsync(cancellationToken);
         _db.Artists.RemoveRange(ar);
-        var ge = await _db.Genres.IgnoreQueryFilters().ToListAsync(cancellationToken);
         _db.Genres.RemoveRange(ge);
 
         await _db.SaveChangesAsync(cancellationToken);
 
-        _logger.LogWarning("RESET complete: deleted {TrackCount} tracks, {AlbumCount} albums, {ArtistCount} artists, {GenreCount} genres, {PHCount} playback histories, {PTCount} playlist tracks, {PLCount} playlists",
-            tr.Count, al.Count, ar.Count, ge.Count, ph.Count, pt.Count, pl.Count);
+        _logger.LogWarning("RESET complete for owner {OwnerId}: {TrackCount} tracks, {AlbumCount} albums, {ArtistCount} artists, {GenreCount} genres, {PHCount} playback histories",
+            ownerId, tr.Count, al.Count, ar.Count, ge.Count, ph.Count);
     }
 }

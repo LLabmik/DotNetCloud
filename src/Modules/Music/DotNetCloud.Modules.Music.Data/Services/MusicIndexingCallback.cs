@@ -70,8 +70,8 @@ public sealed class MusicIndexingCallback : IMusicIndexingCallback
     }
 
     /// <inheritdoc />
-    public async Task ResetCollectionAsync(CancellationToken cancellationToken = default)
+    public async Task ResetCollectionAsync(Guid ownerId, CancellationToken cancellationToken = default)
     {
-        await _libraryScanService.ResetCollectionAsync(cancellationToken);
+        await _libraryScanService.ResetCollectionAsync(ownerId, cancellationToken);
     }
 }

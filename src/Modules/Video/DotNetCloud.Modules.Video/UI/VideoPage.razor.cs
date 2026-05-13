@@ -311,7 +311,8 @@ public partial class VideoPage : IAsyncDisposable
 
     protected override async Task OnParametersSetAsync()
     {
-        if (_caller is null) return;
+        if (_caller is null)
+            return;
 
         // Handle fileId changes when already on the page (same-page navigation via Files module).
         // FileIdNav is a timestamp nonce that changes on every click, even for the same file.
@@ -363,7 +364,8 @@ public partial class VideoPage : IAsyncDisposable
             return;
         }
 
-        if (_caller is null) return;
+        if (_caller is null)
+            return;
 
         try
         {
@@ -407,7 +409,8 @@ public partial class VideoPage : IAsyncDisposable
 
     private async Task LoadVideosPageAsync()
     {
-        if (_caller is null) return;
+        if (_caller is null)
+            return;
 
         _totalVideos = await VideoService.GetVideoCountAsync(_caller.UserId);
         var videos = (await VideoService.ListVideosAsync(_caller, _videoPage * VideoPageSize, VideoPageSize)).ToList();
@@ -426,7 +429,8 @@ public partial class VideoPage : IAsyncDisposable
 
     private async Task NextVideoPageAsync()
     {
-        if (!_hasMoreVideos) return;
+        if (!_hasMoreVideos)
+            return;
 
         _videoPage++;
         await LoadVideosPageAsync();
@@ -434,7 +438,8 @@ public partial class VideoPage : IAsyncDisposable
 
     private async Task LoadRecentPageAsync()
     {
-        if (_caller is null) return;
+        if (_caller is null)
+            return;
 
         _totalRecentVideos = await VideoService.GetVideoCountAsync(_caller.UserId);
         var videos = (await VideoService.GetRecentVideosAsync(_caller, _recentPage * RecentPageSize, RecentPageSize)).ToList();
@@ -453,7 +458,8 @@ public partial class VideoPage : IAsyncDisposable
 
     private async Task NextRecentPageAsync()
     {
-        if (!_hasMoreRecent) return;
+        if (!_hasMoreRecent)
+            return;
 
         _recentPage++;
         await LoadRecentPageAsync();
@@ -530,7 +536,8 @@ public partial class VideoPage : IAsyncDisposable
 
     private async Task ToggleFavoriteAsync()
     {
-        if (_playerVideo is null) return;
+        if (_playerVideo is null)
+            return;
         try
         {
             var caller = await GetCallerAsync();
@@ -637,7 +644,8 @@ public partial class VideoPage : IAsyncDisposable
 
     private async Task AddToCollectionAsync(Guid collectionId)
     {
-        if (_playerVideo is null) return;
+        if (_playerVideo is null)
+            return;
         try
         {
             var caller = await GetCallerAsync();
@@ -716,7 +724,8 @@ public partial class VideoPage : IAsyncDisposable
 
     private static string FormatResolution(int? width, int? height)
     {
-        if (width is null || height is null) return "Unknown";
+        if (width is null || height is null)
+            return "Unknown";
         return height switch
         {
             >= 2160 => "4K",
@@ -745,7 +754,8 @@ public partial class VideoPage : IAsyncDisposable
 
     private static double GetWatchPercent(VideoDto video)
     {
-        if (video.WatchPositionTicks is null || video.Duration.Ticks < 1) return 0;
+        if (video.WatchPositionTicks is null || video.Duration.Ticks < 1)
+            return 0;
         return (double)video.WatchPositionTicks.Value / video.Duration.Ticks * 100;
     }
 
@@ -819,7 +829,8 @@ public partial class VideoPage : IAsyncDisposable
 
     private async Task LoadLibraryPathAsync()
     {
-        if (_caller is null) return;
+        if (_caller is null)
+            return;
         try
         {
             _librarySources = (await MediaLibrarySourceSettings.LoadSourcesAsync(UserSettingsService, _caller.UserId, "video")).ToList();
@@ -832,7 +843,8 @@ public partial class VideoPage : IAsyncDisposable
 
     private async Task PersistLibrarySourcesAsync(bool showSuccessMessage)
     {
-        if (_caller is null) return;
+        if (_caller is null)
+            return;
         _settingsSaving = true;
         _settingsError = null;
         if (showSuccessMessage)
@@ -867,9 +879,11 @@ public partial class VideoPage : IAsyncDisposable
 
     private async Task ScanLibraryAsync()
     {
-        if (_caller is null || _librarySources.Count == 0) return;
+        if (_caller is null || _librarySources.Count == 0)
+            return;
         await PersistLibrarySourcesAsync(showSuccessMessage: false);
-        if (_settingsError is not null) return;
+        if (_settingsError is not null)
+            return;
 
         _settingsScanning = true;
         _settingsError = null;
@@ -896,6 +910,8 @@ public partial class VideoPage : IAsyncDisposable
 
     private async Task ResetCollectionAsync()
     {
+        if (_caller is null)
+            return;
         _settingsResetting = true;
         _settingsError = null;
         _settingsSuccess = null;
@@ -903,7 +919,7 @@ public partial class VideoPage : IAsyncDisposable
         StateHasChanged();
         try
         {
-            await VideoIndexingCallback.ResetCollectionAsync();
+            await VideoIndexingCallback.ResetCollectionAsync(_caller.UserId);
             _settingsSuccess = "Video collection reset. Click Scan Now to rebuild your library.";
             _showResetConfirm = false;
 
@@ -957,7 +973,8 @@ public partial class VideoPage : IAsyncDisposable
         _dirBrowserFolders.Clear();
         try
         {
-            if (_caller is null) return;
+            if (_caller is null)
+                return;
             var nodes = _dirBrowserFolderId.HasValue
                 ? await FileService.ListChildrenAsync(_dirBrowserFolderId.Value, _caller)
                 : await FileService.ListRootAsync(_caller);
@@ -1005,7 +1022,8 @@ public partial class VideoPage : IAsyncDisposable
 
     private string GetDirBrowserPath()
     {
-        if (_dirBrowserBreadcrumbs.Count == 0) return "/";
+        if (_dirBrowserBreadcrumbs.Count == 0)
+            return "/";
         return "/" + string.Join('/', _dirBrowserBreadcrumbs.Select(b => b.Name));
     }
 
@@ -1114,7 +1132,8 @@ public partial class VideoPage : IAsyncDisposable
 
     private async Task EnrichVideoAsync(Guid videoId)
     {
-        if (_caller is null) return;
+        if (_caller is null)
+            return;
         _enrichingVideo = true;
         _enrichingVideoId = videoId;
         _enrichmentToast = null;
@@ -1151,7 +1170,8 @@ public partial class VideoPage : IAsyncDisposable
 
     private async Task EnrichLibraryAsync()
     {
-        if (_caller is null) return;
+        if (_caller is null)
+            return;
         _settingsEnriching = true;
         _enrichmentToast = null;
         StateHasChanged();
@@ -1212,7 +1232,8 @@ public partial class VideoPage : IAsyncDisposable
 
     private async Task LoadEnrichmentSettingsAsync()
     {
-        if (_caller is null) return;
+        if (_caller is null)
+            return;
         try
         {
             var posterSetting = await UserSettingsService.GetSettingAsync(
@@ -1229,7 +1250,8 @@ public partial class VideoPage : IAsyncDisposable
 
     private async Task SaveEnrichmentSettingsAsync()
     {
-        if (_caller is null) return;
+        if (_caller is null)
+            return;
         try
         {
             await UserSettingsService.UpsertSettingAsync(_caller.UserId, "media-library",
@@ -1275,15 +1297,21 @@ public partial class VideoPage : IAsyncDisposable
         _dotNetRef?.Dispose();
         if (_idleAutoHideHandle is not null)
         {
-            try { await _idleAutoHideHandle.InvokeVoidAsync("dispose"); await _idleAutoHideHandle.DisposeAsync(); } catch { /* circuit may be gone */ }
+            try
+            { await _idleAutoHideHandle.InvokeVoidAsync("dispose"); await _idleAutoHideHandle.DisposeAsync(); }
+            catch { /* circuit may be gone */ }
         }
         if (_keyboardShortcutsHandle is not null)
         {
-            try { await _keyboardShortcutsHandle.InvokeVoidAsync("dispose"); await _keyboardShortcutsHandle.DisposeAsync(); } catch { /* circuit may be gone */ }
+            try
+            { await _keyboardShortcutsHandle.InvokeVoidAsync("dispose"); await _keyboardShortcutsHandle.DisposeAsync(); }
+            catch { /* circuit may be gone */ }
         }
         if (_jsModule is not null)
         {
-            try { await _jsModule.DisposeAsync(); } catch { /* circuit may be gone */ }
+            try
+            { await _jsModule.DisposeAsync(); }
+            catch { /* circuit may be gone */ }
         }
     }
 }

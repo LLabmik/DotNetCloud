@@ -140,7 +140,8 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
 
     private async Task LoadCurrentSectionAsync()
     {
-        if (_caller is null) return;
+        if (_caller is null)
+            return;
         _loading = true;
         _errorMessage = null;
         StateHasChanged();
@@ -194,7 +195,8 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
                     foreach (var share in shares.Where(s => s.PhotoId.HasValue))
                     {
                         var photo = await PhotoService.GetPhotoAsync(share.PhotoId!.Value, _caller);
-                        if (photo is not null) _currentPhotos.Add(photo);
+                        if (photo is not null)
+                            _currentPhotos.Add(photo);
                     }
                     break;
             }
@@ -246,14 +248,17 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
 
     private async Task ToggleFavoriteAsync(PhotoDto photo)
     {
-        if (_caller is null) return;
+        if (_caller is null)
+            return;
         try
         {
             var updated = await PhotoService.ToggleFavoriteAsync(photo.Id, _caller);
             // Update in-place
             var idx = _currentPhotos.FindIndex(p => p.Id == photo.Id);
-            if (idx >= 0) _currentPhotos[idx] = updated;
-            if (_lightboxPhoto?.Id == photo.Id) _lightboxPhoto = updated;
+            if (idx >= 0)
+                _currentPhotos[idx] = updated;
+            if (_lightboxPhoto?.Id == photo.Id)
+                _lightboxPhoto = updated;
             StateHasChanged();
         }
         catch (Exception ex)
@@ -264,12 +269,14 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
 
     private async Task DeletePhotoAsync(PhotoDto photo)
     {
-        if (_caller is null) return;
+        if (_caller is null)
+            return;
         try
         {
             await PhotoService.DeletePhotoAsync(photo.Id, _caller);
             _currentPhotos.RemoveAll(p => p.Id == photo.Id);
-            if (_lightboxPhoto?.Id == photo.Id) CloseLightbox();
+            if (_lightboxPhoto?.Id == photo.Id)
+                CloseLightbox();
             StateHasChanged();
         }
         catch (Exception ex)
@@ -297,7 +304,8 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
 
     private async Task SaveAlbumAsync()
     {
-        if (_caller is null || string.IsNullOrWhiteSpace(_albumTitle)) return;
+        if (_caller is null || string.IsNullOrWhiteSpace(_albumTitle))
+            return;
         try
         {
             if (_editingAlbumId.HasValue)
@@ -366,9 +374,15 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
     {
         switch (e.Key)
         {
-            case "ArrowLeft": await LightboxPrevAsync(); break;
-            case "ArrowRight": await LightboxNextAsync(); break;
-            case "Escape": CloseLightbox(); break;
+            case "ArrowLeft":
+                await LightboxPrevAsync();
+                break;
+            case "ArrowRight":
+                await LightboxNextAsync();
+                break;
+            case "Escape":
+                CloseLightbox();
+                break;
         }
     }
 
@@ -376,7 +390,8 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
 
     private async Task ApplyEditAsync(PhotoEditType editType, int value)
     {
-        if (_caller is null || _lightboxPhoto is null) return;
+        if (_caller is null || _lightboxPhoto is null)
+            return;
         try
         {
             var operation = new PhotoEditOperationDto
@@ -396,7 +411,8 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
 
     private async Task UndoEditAsync()
     {
-        if (_caller is null || _lightboxPhoto is null) return;
+        if (_caller is null || _lightboxPhoto is null)
+            return;
         try
         {
             await EditService.UndoLastEditAsync(_lightboxPhoto.Id, _caller);
@@ -411,7 +427,8 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
 
     private async Task RevertAllEditsAsync()
     {
-        if (_caller is null || _lightboxPhoto is null) return;
+        if (_caller is null || _lightboxPhoto is null)
+            return;
         try
         {
             await EditService.RevertAllAsync(_lightboxPhoto.Id, _caller);
@@ -427,7 +444,8 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
     private async Task RebuildEditStateFromStackAsync()
     {
         _editState.Reset();
-        if (_lightboxPhoto is null) return;
+        if (_lightboxPhoto is null)
+            return;
         try
         {
             var stack = await EditService.GetEditStackAsync(_lightboxPhoto.Id);
@@ -443,7 +461,8 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
 
     private async Task SaveEditsToThumbnailsAsync()
     {
-        if (_caller is null || _lightboxPhoto is null) return;
+        if (_caller is null || _lightboxPhoto is null)
+            return;
         _editSaving = true;
         _editSaveMessage = null;
         StateHasChanged();
@@ -471,10 +490,12 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
     private void BeginSlideshow()
     {
         _slideshowPhotos = _currentPhotos.Count > 0 ? [.. _currentPhotos] : [];
-        if (_slideshowPhotos.Count == 0) return;
+        if (_slideshowPhotos.Count == 0)
+            return;
 
         _slideshowIndex = _lightboxPhoto is not null ? _currentPhotos.IndexOf(_lightboxPhoto) : 0;
-        if (_slideshowIndex < 0) _slideshowIndex = 0;
+        if (_slideshowIndex < 0)
+            _slideshowIndex = 0;
 
         _slideshowActive = true;
         _slideshowPaused = false;
@@ -488,7 +509,8 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
         _slideshowTimer?.Dispose();
         _slideshowTimer = new System.Threading.Timer(_ =>
         {
-            if (_slideshowPaused) return;
+            if (_slideshowPaused)
+                return;
             InvokeAsync(() =>
             {
                 _slideshowTransitioning = true;
@@ -517,22 +539,32 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
 
     private void SlideshowPrev()
     {
-        if (_slideshowIndex > 0) _slideshowIndex--;
+        if (_slideshowIndex > 0)
+            _slideshowIndex--;
     }
 
     private void SlideshowNext()
     {
-        if (_slideshowIndex < _slideshowPhotos.Count - 1) _slideshowIndex++;
+        if (_slideshowIndex < _slideshowPhotos.Count - 1)
+            _slideshowIndex++;
     }
 
     private void HandleSlideshowKeyDown(KeyboardEventArgs e)
     {
         switch (e.Key)
         {
-            case "ArrowLeft": SlideshowPrev(); break;
-            case "ArrowRight": SlideshowNext(); break;
-            case " ": ToggleSlideshowPause(); break;
-            case "Escape": StopSlideshow(); break;
+            case "ArrowLeft":
+                SlideshowPrev();
+                break;
+            case "ArrowRight":
+                SlideshowNext();
+                break;
+            case " ":
+                ToggleSlideshowPause();
+                break;
+            case "Escape":
+                StopSlideshow();
+                break;
         }
     }
 
@@ -548,8 +580,10 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
 
     private async Task SaveShareAsync()
     {
-        if (_caller is null || !_shareTargetPhotoId.HasValue) return;
-        if (!Guid.TryParse(_shareUserId, out var userId)) return;
+        if (_caller is null || !_shareTargetPhotoId.HasValue)
+            return;
+        if (!Guid.TryParse(_shareUserId, out var userId))
+            return;
 
         try
         {
@@ -569,12 +603,14 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
 
     private async Task PrevPage()
     {
-        if (_page > 0) { _page--; await LoadCurrentSectionAsync(); }
+        if (_page > 0)
+        { _page--; await LoadCurrentSectionAsync(); }
     }
 
     private async Task NextPage()
     {
-        if (_page < TotalPages - 1) { _page++; await LoadCurrentSectionAsync(); }
+        if (_page < TotalPages - 1)
+        { _page++; await LoadCurrentSectionAsync(); }
     }
 
     // ── Helpers ──────────────────────────────────────────────
@@ -587,9 +623,12 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
 
     private static string FormatSize(long bytes)
     {
-        if (bytes < 1024) return $"{bytes} B";
-        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
-        if (bytes < 1024 * 1024 * 1024) return $"{bytes / (1024.0 * 1024.0):F1} MB";
+        if (bytes < 1024)
+            return $"{bytes} B";
+        if (bytes < 1024 * 1024)
+            return $"{bytes / 1024.0:F1} KB";
+        if (bytes < 1024 * 1024 * 1024)
+            return $"{bytes / (1024.0 * 1024.0):F1} MB";
         return $"{bytes / (1024.0 * 1024.0 * 1024.0):F2} GB";
     }
 
@@ -631,7 +670,8 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
 
     private async Task LoadLibraryPathAsync()
     {
-        if (_caller is null) return;
+        if (_caller is null)
+            return;
         try
         {
             _librarySources = (await MediaLibrarySourceSettings.LoadSourcesAsync(UserSettingsService, _caller.UserId, "photos")).ToList();
@@ -644,7 +684,8 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
 
     private async Task PersistLibrarySourcesAsync(bool showSuccessMessage)
     {
-        if (_caller is null) return;
+        if (_caller is null)
+            return;
         _settingsSaving = true;
         _settingsError = null;
         if (showSuccessMessage)
@@ -679,9 +720,11 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
 
     private async Task ScanLibraryAsync()
     {
-        if (_caller is null || _librarySources.Count == 0) return;
+        if (_caller is null || _librarySources.Count == 0)
+            return;
         await PersistLibrarySourcesAsync(showSuccessMessage: false);
-        if (_settingsError is not null) return;
+        if (_settingsError is not null)
+            return;
 
         _settingsScanning = true;
         _settingsError = null;
@@ -705,6 +748,8 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
 
     private async Task ResetCollectionAsync()
     {
+        if (_caller is null)
+            return;
         _settingsResetting = true;
         _settingsError = null;
         _settingsSuccess = null;
@@ -712,7 +757,7 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
         StateHasChanged();
         try
         {
-            await PhotoIndexingCallback.ResetCollectionAsync();
+            await PhotoIndexingCallback.ResetCollectionAsync(_caller.UserId);
             _settingsSuccess = "Photo collection reset. Click Scan Now to rebuild your library.";
             _showResetConfirm = false;
 
@@ -770,7 +815,8 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
         _dirBrowserFolders.Clear();
         try
         {
-            if (_caller is null) return;
+            if (_caller is null)
+                return;
             var nodes = _dirBrowserFolderId.HasValue
                 ? await FileService.ListChildrenAsync(_dirBrowserFolderId.Value, _caller)
                 : await FileService.ListRootAsync(_caller);
@@ -818,7 +864,8 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
 
     private string GetDirBrowserPath()
     {
-        if (_dirBrowserBreadcrumbs.Count == 0) return "/";
+        if (_dirBrowserBreadcrumbs.Count == 0)
+            return "/";
         return "/" + string.Join('/', _dirBrowserBreadcrumbs.Select(b => b.Name));
     }
 

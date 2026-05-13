@@ -103,9 +103,17 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
     }
 
     /// <inheritdoc />
-    public async Task ResetCollectionAsync(CancellationToken cancellationToken = default)
+    public async Task ResetCollectionAsync(Guid ownerId, CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Resetting video collection — deleting all metadata");
+        _logger.LogWarning("RESET: Deleting video library metadata for owner {OwnerId}", ownerId);
+
+        // Get all video IDs owned by this user
+        var ownedVideoIds = await _db.Videos
+            .IgnoreQueryFilters()
+            .Where(v => v.OwnerId == ownerId)
+            .Select(v => v.Id)
+            .ToListAsync(cancellationToken);
+        var ownedVideoIdSet = ownedVideoIds.ToHashSet();
 
         // Clean up screenshot and poster cache directories
         var storageRoot = _configuration["Files:Storage:RootPath"] ?? Path.GetTempPath();
@@ -114,24 +122,51 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
             var path = Path.Combine(storageRoot, dir);
             if (Directory.Exists(path))
             {
-                try { Directory.Delete(path, recursive: true); } catch (Exception ex) { _logger.LogWarning(ex, "Failed to delete directory {Path} during collection reset", path); }
+                try
+                { Directory.Delete(path, recursive: true); }
+                catch (Exception ex) { _logger.LogWarning(ex, "Failed to delete directory {Path} during collection reset", path); }
             }
         }
 
         // Delete in FK-safe order: junction/child tables first, then parents.
-        // Use IgnoreQueryFilters to include soft-deleted records.
-        _db.WatchHistories.RemoveRange(await _db.WatchHistories.IgnoreQueryFilters().ToListAsync(cancellationToken));
-        _db.WatchProgresses.RemoveRange(await _db.WatchProgresses.IgnoreQueryFilters().ToListAsync(cancellationToken));
-        _db.VideoShares.RemoveRange(await _db.VideoShares.IgnoreQueryFilters().ToListAsync(cancellationToken));
-        _db.Subtitles.RemoveRange(await _db.Subtitles.IgnoreQueryFilters().ToListAsync(cancellationToken));
-        _db.VideoCollectionItems.RemoveRange(await _db.VideoCollectionItems.IgnoreQueryFilters().ToListAsync(cancellationToken));
-        _db.VideoCollections.RemoveRange(await _db.VideoCollections.IgnoreQueryFilters().ToListAsync(cancellationToken));
-        _db.VideoMetadata.RemoveRange(await _db.VideoMetadata.IgnoreQueryFilters().ToListAsync(cancellationToken));
-        _db.Videos.RemoveRange(await _db.Videos.IgnoreQueryFilters().ToListAsync(cancellationToken));
+        // All deletes scoped to ownerId via owned video IDs.
+        var watchHistories = await _db.WatchHistories.IgnoreQueryFilters()
+            .Where(w => ownedVideoIdSet.Contains(w.VideoId)).ToListAsync(cancellationToken);
+        _db.WatchHistories.RemoveRange(watchHistories);
+
+        var watchProgresses = await _db.WatchProgresses.IgnoreQueryFilters()
+            .Where(w => ownedVideoIdSet.Contains(w.VideoId)).ToListAsync(cancellationToken);
+        _db.WatchProgresses.RemoveRange(watchProgresses);
+
+        var shares = await _db.VideoShares.IgnoreQueryFilters()
+            .Where(s => ownedVideoIdSet.Contains(s.VideoId)).ToListAsync(cancellationToken);
+        _db.VideoShares.RemoveRange(shares);
+
+        var subtitles = await _db.Subtitles.IgnoreQueryFilters()
+            .Where(s => ownedVideoIdSet.Contains(s.VideoId)).ToListAsync(cancellationToken);
+        _db.Subtitles.RemoveRange(subtitles);
+
+        var collectionItems = await _db.VideoCollectionItems.IgnoreQueryFilters()
+            .Where(ci => ownedVideoIdSet.Contains(ci.VideoId)).ToListAsync(cancellationToken);
+        _db.VideoCollectionItems.RemoveRange(collectionItems);
+
+        // Collections: scoped to owner
+        var collections = await _db.VideoCollections.IgnoreQueryFilters()
+            .Where(c => c.OwnerId == ownerId).ToListAsync(cancellationToken);
+        _db.VideoCollections.RemoveRange(collections);
+
+        var metadata = await _db.VideoMetadata.IgnoreQueryFilters()
+            .Where(m => ownedVideoIdSet.Contains(m.VideoId)).ToListAsync(cancellationToken);
+        _db.VideoMetadata.RemoveRange(metadata);
+
+        var videos = await _db.Videos.IgnoreQueryFilters()
+            .Where(v => v.OwnerId == ownerId).ToListAsync(cancellationToken);
+        _db.Videos.RemoveRange(videos);
 
         await _db.SaveChangesAsync(cancellationToken);
 
-        _logger.LogInformation("Video collection reset complete");
+        _logger.LogWarning("RESET complete for owner {OwnerId}: {VideoCount} videos, {CollectionCount} collections",
+            ownerId, videos.Count, collections.Count);
     }
 
     /// <inheritdoc />

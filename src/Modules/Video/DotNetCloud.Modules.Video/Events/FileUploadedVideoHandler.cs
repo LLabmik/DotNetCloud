@@ -105,9 +105,11 @@ public interface IVideoIndexingCallback
     Task<int> RemoveDeletedVideosAsync(IReadOnlyCollection<Guid> deletedFileNodeIds, Guid ownerId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Deletes all video library metadata from the database (videos, collections, subtitles,
+    /// Deletes all video library metadata for a specific owner from the database (videos, collections, subtitles,
     /// watch progress, watch history, shares). The actual video files are NOT affected.
-    /// After calling this, a re-scan will rebuild the entire library from scratch.
+    /// Other users' libraries are never touched.
     /// </summary>
-    Task ResetCollectionAsync(CancellationToken cancellationToken = default);
+    /// <param name="ownerId">Owner whose library will be reset.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task ResetCollectionAsync(Guid ownerId, CancellationToken cancellationToken = default);
 }

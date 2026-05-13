@@ -141,22 +141,58 @@ public sealed class PhotoIndexingCallback : IPhotoIndexingCallback
     }
 
     /// <inheritdoc />
-    public async Task ResetCollectionAsync(CancellationToken cancellationToken = default)
+    public async Task ResetCollectionAsync(Guid ownerId, CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Resetting photo collection — deleting all metadata");
+        _logger.LogWarning("RESET: Deleting photo library metadata for owner {OwnerId}", ownerId);
+
+        // Get all photo IDs owned by this user
+        var ownedPhotoIds = await _db.Photos
+            .IgnoreQueryFilters()
+            .Where(p => p.OwnerId == ownerId)
+            .Select(p => p.Id)
+            .ToListAsync(cancellationToken);
+        var ownedPhotoIdSet = ownedPhotoIds.ToHashSet();
+
+        // Get owner's album IDs (albums typically belong to owner)
+        var ownedAlbumIds = await _db.Albums
+            .IgnoreQueryFilters()
+            .Where(a => a.OwnerId == ownerId)
+            .Select(a => a.Id)
+            .ToListAsync(cancellationToken);
 
         // Delete in FK-safe order: children/junctions first, then parents.
-        // Use IgnoreQueryFilters to include soft-deleted records.
-        _db.PhotoEditRecords.RemoveRange(await _db.PhotoEditRecords.IgnoreQueryFilters().ToListAsync(cancellationToken));
-        _db.PhotoShares.RemoveRange(await _db.PhotoShares.IgnoreQueryFilters().ToListAsync(cancellationToken));
-        _db.PhotoTags.RemoveRange(await _db.PhotoTags.IgnoreQueryFilters().ToListAsync(cancellationToken));
-        _db.AlbumPhotos.RemoveRange(await _db.AlbumPhotos.IgnoreQueryFilters().ToListAsync(cancellationToken));
-        _db.PhotoMetadata.RemoveRange(await _db.PhotoMetadata.IgnoreQueryFilters().ToListAsync(cancellationToken));
-        _db.Photos.RemoveRange(await _db.Photos.IgnoreQueryFilters().ToListAsync(cancellationToken));
-        _db.Albums.RemoveRange(await _db.Albums.IgnoreQueryFilters().ToListAsync(cancellationToken));
+        // All deletes scoped to ownerId.
+        var editRecords = await _db.PhotoEditRecords.IgnoreQueryFilters()
+            .Where(r => ownedPhotoIdSet.Contains(r.PhotoId)).ToListAsync(cancellationToken);
+        _db.PhotoEditRecords.RemoveRange(editRecords);
+
+        var shares = await _db.PhotoShares.IgnoreQueryFilters()
+            .Where(s => s.PhotoId.HasValue && ownedPhotoIdSet.Contains(s.PhotoId.Value)).ToListAsync(cancellationToken);
+        _db.PhotoShares.RemoveRange(shares);
+
+        var tags = await _db.PhotoTags.IgnoreQueryFilters()
+            .Where(t => ownedPhotoIdSet.Contains(t.PhotoId)).ToListAsync(cancellationToken);
+        _db.PhotoTags.RemoveRange(tags);
+
+        var albumPhotos = await _db.AlbumPhotos.IgnoreQueryFilters()
+            .Where(ap => ownedAlbumIds.Contains(ap.AlbumId)).ToListAsync(cancellationToken);
+        _db.AlbumPhotos.RemoveRange(albumPhotos);
+
+        var metadata = await _db.PhotoMetadata.IgnoreQueryFilters()
+            .Where(m => ownedPhotoIdSet.Contains(m.PhotoId)).ToListAsync(cancellationToken);
+        _db.PhotoMetadata.RemoveRange(metadata);
+
+        var photos = await _db.Photos.IgnoreQueryFilters()
+            .Where(p => p.OwnerId == ownerId).ToListAsync(cancellationToken);
+        _db.Photos.RemoveRange(photos);
+
+        var albums = await _db.Albums.IgnoreQueryFilters()
+            .Where(a => a.OwnerId == ownerId).ToListAsync(cancellationToken);
+        _db.Albums.RemoveRange(albums);
 
         await _db.SaveChangesAsync(cancellationToken);
 
-        _logger.LogInformation("Photo collection reset complete");
+        _logger.LogWarning("RESET complete for owner {OwnerId}: {PhotoCount} photos, {AlbumCount} albums",
+            ownerId, photos.Count, albums.Count);
     }
 }

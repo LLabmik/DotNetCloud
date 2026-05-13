@@ -574,7 +574,8 @@ public partial class MusicPage : IAsyncDisposable
 
     internal virtual async Task NavigateToAlbumAsync(Guid? albumId)
     {
-        if (albumId is null) return;
+        if (albumId is null)
+            return;
         try
         {
             var caller = await GetCallerAsync();
@@ -902,7 +903,8 @@ public partial class MusicPage : IAsyncDisposable
 
     private async Task LoadLibraryPathAsync()
     {
-        if (_caller is null) return;
+        if (_caller is null)
+            return;
         try
         {
             _librarySources = (await MediaLibrarySourceSettings.LoadSourcesAsync(UserSettingsService, _caller.UserId, "music")).ToList();
@@ -915,7 +917,8 @@ public partial class MusicPage : IAsyncDisposable
 
     private async Task PersistLibrarySourcesAsync(bool showSuccessMessage)
     {
-        if (_caller is null) return;
+        if (_caller is null)
+            return;
         _settingsSaving = true;
         _settingsError = null;
         if (showSuccessMessage)
@@ -950,9 +953,11 @@ public partial class MusicPage : IAsyncDisposable
 
     private async Task ScanLibraryAsync()
     {
-        if (_caller is null || _librarySources.Count == 0) return;
+        if (_caller is null || _librarySources.Count == 0)
+            return;
         await PersistLibrarySourcesAsync(showSuccessMessage: false);
-        if (_settingsError is not null) return;
+        if (_settingsError is not null)
+            return;
 
         _settingsScanning = true;
         _settingsError = null;
@@ -1091,6 +1096,8 @@ public partial class MusicPage : IAsyncDisposable
 
     private async Task ResetCollectionAsync()
     {
+        if (_caller is null)
+            return;
         _settingsResetting = true;
         _settingsError = null;
         _settingsSuccess = null;
@@ -1098,7 +1105,7 @@ public partial class MusicPage : IAsyncDisposable
         StateHasChanged();
         try
         {
-            await MusicIndexingCallback.ResetCollectionAsync();
+            await MusicIndexingCallback.ResetCollectionAsync(_caller.UserId);
             _settingsSuccess = "Music collection reset. Click Scan Now to rebuild your library.";
             _showResetConfirm = false;
 
@@ -1150,7 +1157,8 @@ public partial class MusicPage : IAsyncDisposable
         _dirBrowserFolders.Clear();
         try
         {
-            if (_caller is null) return;
+            if (_caller is null)
+                return;
             var nodes = _dirBrowserFolderId.HasValue
                 ? await FileService.ListChildrenAsync(_dirBrowserFolderId.Value, _caller)
                 : await FileService.ListRootAsync(_caller);
@@ -1198,7 +1206,8 @@ public partial class MusicPage : IAsyncDisposable
 
     private string GetDirBrowserPath()
     {
-        if (_dirBrowserBreadcrumbs.Count == 0) return "/";
+        if (_dirBrowserBreadcrumbs.Count == 0)
+            return "/";
         return "/" + string.Join('/', _dirBrowserBreadcrumbs.Select(b => b.Name));
     }
 
@@ -1344,7 +1353,8 @@ public partial class MusicPage : IAsyncDisposable
             }
 
             var initOk = await Js.InvokeAsync<bool>("dotnetcloudVisualizer.init", "dnc-visualizer-canvas");
-            if (!initOk) return;
+            if (!initOk)
+                return;
 
             // Load preset names
             _visualizerPresets = await Js.InvokeAsync<string[]>("dotnetcloudVisualizer.getPresetNames");
@@ -1391,14 +1401,16 @@ public partial class MusicPage : IAsyncDisposable
 
     private async Task ChangeVisualizerPresetAsync(string presetName)
     {
-        if (!_visualizerStarted) return;
+        if (!_visualizerStarted)
+            return;
         await Js.InvokeAsync<bool>("dotnetcloudVisualizer.loadPreset", presetName, _visualizerBlendDuration);
         _selectedVisualizerPreset = presetName;
     }
 
     private async Task RandomVisualizerPresetAsync()
     {
-        if (!_visualizerStarted) return;
+        if (!_visualizerStarted)
+            return;
         var name = await Js.InvokeAsync<string?>("dotnetcloudVisualizer.randomPreset", _visualizerBlendDuration);
         if (name is not null)
         {
@@ -1408,7 +1420,8 @@ public partial class MusicPage : IAsyncDisposable
 
     private async Task LoadAllVisualizerPresetsAsync()
     {
-        if (_allPresetsLoaded || _loadingAllPresets) return;
+        if (_allPresetsLoaded || _loadingAllPresets)
+            return;
         _loadingAllPresets = true;
         StateHasChanged();
         try
@@ -1463,7 +1476,8 @@ public partial class MusicPage : IAsyncDisposable
 
     private async Task EnrichAlbumAsync(Guid albumId)
     {
-        if (_caller is null) return;
+        if (_caller is null)
+            return;
         _enrichingAlbum = true;
         _enrichingAlbumId = albumId;
         _enrichmentToast = null;
@@ -1498,7 +1512,8 @@ public partial class MusicPage : IAsyncDisposable
 
     private async Task EnrichArtistAsync(Guid artistId)
     {
-        if (_caller is null) return;
+        if (_caller is null)
+            return;
         _enrichingArtist = true;
         _enrichingArtistId = artistId;
         _enrichmentToast = null;
@@ -1529,7 +1544,8 @@ public partial class MusicPage : IAsyncDisposable
 
     private async Task SaveEnrichmentSettingsAsync()
     {
-        if (_caller is null) return;
+        if (_caller is null)
+            return;
         try
         {
             await UserSettingsService.UpsertSettingAsync(_caller.UserId, "media-library", "music-auto-fetch-metadata",
@@ -1545,7 +1561,8 @@ public partial class MusicPage : IAsyncDisposable
 
     private async Task LoadEnrichmentSettingsAsync()
     {
-        if (_caller is null) return;
+        if (_caller is null)
+            return;
         try
         {
             var metadataSetting = await UserSettingsService.GetSettingAsync(_caller.UserId, "media-library", "music-auto-fetch-metadata");
@@ -1584,7 +1601,8 @@ public partial class MusicPage : IAsyncDisposable
             ArtistDto ar => ar.Id,
             _ => Guid.Empty
         };
-        if (id == Guid.Empty) return;
+        if (id == Guid.Empty)
+            return;
 
         var index = list.FindIndex(item => item switch
         {

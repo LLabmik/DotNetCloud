@@ -83,7 +83,8 @@ public sealed class FileUploadedMusicHandler : IEventHandler<FileUploadedEvent>
     private static string? GuessMimeFromExtension(string fileName)
     {
         var ext = Path.GetExtension(fileName);
-        if (string.IsNullOrEmpty(ext)) return null;
+        if (string.IsNullOrEmpty(ext))
+            return null;
         return ext.ToLowerInvariant() switch
         {
             ".mp3" => "audio/mpeg",
@@ -138,8 +139,10 @@ public interface IMusicIndexingCallback
     Task<int> RemoveDeletedTracksAsync(IReadOnlyCollection<Guid> deletedFileNodeIds, Guid ownerId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Deletes all music library metadata from the database (tracks, albums, artists, etc.).
-    /// The actual audio files are NOT affected.
+    /// Deletes all music library metadata for a specific owner (tracks, albums, artists, etc.).
+    /// The actual audio files are NOT affected. Other users' libraries are never touched.
     /// </summary>
-    Task ResetCollectionAsync(CancellationToken cancellationToken = default);
+    /// <param name="ownerId">Owner whose library will be reset.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task ResetCollectionAsync(Guid ownerId, CancellationToken cancellationToken = default);
 }

@@ -231,4 +231,83 @@ public class MusicIndexingCallbackTests
         Assert.IsNotNull(userBTrack, "User B should get a track via fresh extraction");
         Assert.IsFalse(userBTrack.IsDeleted, "User B's track should not be deleted");
     }
+
+    // ── Reset collection owner-scoping tests ──
+
+    [TestMethod]
+    public async Task ResetCollectionAsync_OnlyDeletesTargetOwner()
+    {
+        // Arrange: Two users, each with tracks
+        var userA = Guid.NewGuid();
+        var userB = Guid.NewGuid();
+
+        var artistA = await TestHelpers.SeedArtistAsync(_db, "Artist A", null, userA);
+        var albumA = await TestHelpers.SeedAlbumAsync(_db, artistA.Id, "Album A", null, userA);
+        await TestHelpers.SeedTrackAsync(_db, albumA.Id, "Track A1", ownerId: userA);
+        await TestHelpers.SeedTrackAsync(_db, albumA.Id, "Track A2", ownerId: userA);
+
+        var artistB = await TestHelpers.SeedArtistAsync(_db, "Artist B", null, userB);
+        var albumB = await TestHelpers.SeedAlbumAsync(_db, artistB.Id, "Album B", null, userB);
+        await TestHelpers.SeedTrackAsync(_db, albumB.Id, "Track B1", ownerId: userB);
+
+        // Act: Reset only User A's library
+        await _libraryScanService.ResetCollectionAsync(userA);
+
+        // Assert: User A's tracks are gone, User B's tracks survive
+        var aTracks = _db.Tracks.IgnoreQueryFilters().Count(t => t.OwnerId == userA);
+        var bTracks = _db.Tracks.IgnoreQueryFilters().Count(t => t.OwnerId == userB);
+        Assert.AreEqual(0, aTracks, "User A's tracks should be deleted");
+        Assert.AreEqual(1, bTracks, "User B's tracks should survive");
+    }
+
+    [TestMethod]
+    public async Task ResetCollectionAsync_OtherOwnerAlbumsAndArtistsSurvive()
+    {
+        // Arrange
+        var userA = Guid.NewGuid();
+        var userB = Guid.NewGuid();
+
+        var artistB = await TestHelpers.SeedArtistAsync(_db, "Surviving Artist", null, userB);
+        var albumB = await TestHelpers.SeedAlbumAsync(_db, artistB.Id, "Surviving Album", null, userB);
+        await TestHelpers.SeedTrackAsync(_db, albumB.Id, "Surviving Track", ownerId: userB);
+
+        // Act: Reset User A (who has nothing)
+        await _libraryScanService.ResetCollectionAsync(userA);
+
+        // Assert: User B still has everything
+        var bArtist = _db.Artists.IgnoreQueryFilters().FirstOrDefault(a => a.OwnerId == userB);
+        var bAlbum = _db.Albums.IgnoreQueryFilters().FirstOrDefault(a => a.OwnerId == userB);
+        var bTrack = _db.Tracks.IgnoreQueryFilters().FirstOrDefault(t => t.OwnerId == userB);
+        Assert.IsNotNull(bArtist, "User B's artist should survive");
+        Assert.IsNotNull(bAlbum, "User B's album should survive");
+        Assert.IsNotNull(bTrack, "User B's track should survive");
+    }
+
+    [TestMethod]
+    public async Task ResetCollectionAsync_TracksWithPlayHistory_CleanedUp()
+    {
+        // Arrange: User has tracks with playback history
+        var userA = Guid.NewGuid();
+        var artist = await TestHelpers.SeedArtistAsync(_db, "Artist", null, userA);
+        var album = await TestHelpers.SeedAlbumAsync(_db, artist.Id, "Album", null, userA);
+        var track = await TestHelpers.SeedTrackAsync(_db, album.Id, "Track", ownerId: userA);
+
+        _db.PlaybackHistories.Add(new DotNetCloud.Modules.Music.Models.PlaybackHistory
+        {
+            UserId = userA,
+            TrackId = track.Id,
+            PlayedAt = DateTime.UtcNow,
+            DurationPlayedSeconds = 120
+        });
+        await _db.SaveChangesAsync();
+
+        // Act: Reset
+        await _libraryScanService.ResetCollectionAsync(userA);
+
+        // Assert: Track and playback history are gone
+        var trackCount = _db.Tracks.IgnoreQueryFilters().Count(t => t.OwnerId == userA);
+        var historyCount = _db.PlaybackHistories.IgnoreQueryFilters().Count();
+        Assert.AreEqual(0, trackCount);
+        Assert.AreEqual(0, historyCount);
+    }
 }
