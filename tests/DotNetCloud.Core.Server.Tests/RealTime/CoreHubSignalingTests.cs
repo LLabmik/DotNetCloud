@@ -413,11 +413,6 @@ public class CoreHubSignalingTests
         var hub = new CoreHub(
             tracker,
             presence,
-            messageService: null,
-            channelMemberService: null,
-            reactionService: null,
-            typingIndicatorService: null,
-            chatRealtimeService: null,
             NullLogger<CoreHub>.Instance,
             callSignalingService: _signalingMock.Object);
 
@@ -436,11 +431,6 @@ public class CoreHubSignalingTests
         var hub = new CoreHub(
             tracker,
             presence,
-            messageService: null,
-            channelMemberService: null,
-            reactionService: null,
-            typingIndicatorService: null,
-            chatRealtimeService: null,
             NullLogger<CoreHub>.Instance,
             callSignalingService: null);
 

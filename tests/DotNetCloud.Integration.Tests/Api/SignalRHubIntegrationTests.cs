@@ -62,6 +62,31 @@ public sealed class SignalRHubIntegrationTests
         return connection;
     }
 
+    /// <summary>Connects a ChatHub with test authentication.</summary>
+    private async Task<HubConnection> ConnectChatHubAsync(Guid userId)
+    {
+        var handler = _factory.Server.CreateHandler();
+        var connection = new HubConnectionBuilder()
+            .WithUrl("http://localhost/hubs/chat", opts =>
+            {
+                opts.HttpMessageHandlerFactory = (_) => handler;
+                opts.Headers.Add("x-test-user-id", userId.ToString());
+            })
+            .WithAutomaticReconnect()
+            .Build();
+
+        try
+        {
+            await connection.StartAsync(new CancellationTokenSource(5000).Token);
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Failed to connect chat hub for user {userId}: {ex.Message}", ex);
+        }
+
+        return connection;
+    }
+
     /// <summary>Creates a test channel in the chat database.</summary>
     private async Task<Guid> CreateChannelAsync(string name)
     {
@@ -151,7 +176,7 @@ public sealed class SignalRHubIntegrationTests
         var channelId = await CreateChannelAsync("TestChannel");
         await AddMemberToChannelAsync(UserId1, channelId);
 
-        await using var connection = await ConnectHubAsync(UserId1);
+        await using var connection = await ConnectChatHubAsync(UserId1);
 
         // Send a message
         var result = await connection.InvokeAsync<MessageDto>(
@@ -174,7 +199,7 @@ public sealed class SignalRHubIntegrationTests
 
         var messageId = await CreateMessageAsync(channelId, UserId2, "Test message");
 
-        await using var connection = await ConnectHubAsync(UserId1);
+        await using var connection = await ConnectChatHubAsync(UserId1);
 
         // Mark as read
         await connection.InvokeAsync("MarkReadAsync", channelId, messageId);
@@ -190,7 +215,7 @@ public sealed class SignalRHubIntegrationTests
         var channelId = await CreateChannelAsync("TypingTestChannel");
         await AddMemberToChannelAsync(UserId1, channelId);
 
-        await using var connection = await ConnectHubAsync(UserId1);
+        await using var connection = await ConnectChatHubAsync(UserId1);
 
         // Start typing
         await connection.InvokeAsync("StartTypingAsync", channelId, "User One");
@@ -208,7 +233,7 @@ public sealed class SignalRHubIntegrationTests
 
         var messageId = await CreateMessageAsync(channelId, UserId1, "React to this");
 
-        await using var connection = await ConnectHubAsync(UserId1);
+        await using var connection = await ConnectChatHubAsync(UserId1);
 
         // Add a reaction
         await connection.InvokeAsync("AddReactionAsync", messageId, "👍");
@@ -226,7 +251,7 @@ public sealed class SignalRHubIntegrationTests
 
         var messageId = await CreateMessageAsync(channelId, UserId1, "React to this");
 
-        await using var connection = await ConnectHubAsync(UserId1);
+        await using var connection = await ConnectChatHubAsync(UserId1);
 
         // Add a reaction first
         await connection.InvokeAsync("AddReactionAsync", messageId, "👍");

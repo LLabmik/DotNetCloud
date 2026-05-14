@@ -3,6 +3,7 @@ using DotNetCloud.Core.Server.Configuration;
 using DotNetCloud.Core.Server.RealTime;
 using Microsoft.AspNetCore.Components.Server.Circuits;
 using Microsoft.AspNetCore.Http.Connections;
+using Microsoft.AspNetCore.SignalR;
 
 namespace DotNetCloud.Core.Server.Extensions;
 
@@ -55,7 +56,7 @@ internal static class SignalRServiceExtensions
     }
 
     /// <summary>
-    /// Maps the DotNetCloud SignalR hub endpoint and configures transports.
+    /// Maps the DotNetCloud SignalR hub endpoints and configures transports.
     /// </summary>
     /// <param name="app">The web application.</param>
     /// <returns>The web application for chaining.</returns>
@@ -64,7 +65,16 @@ internal static class SignalRServiceExtensions
         var options = new SignalROptions();
         app.Configuration.GetSection(SignalROptions.SectionName).Bind(options);
 
-        app.MapHub<CoreHub>(options.HubPath, connectionOptions =>
+        MapHub<CoreHub>(app, options, options.HubPath);
+        MapHub<ChatHub>(app, options, "/hubs/chat");
+
+        return app;
+    }
+
+    private static void MapHub<THub>(WebApplication app, SignalROptions options, string path)
+        where THub : Hub
+    {
+        app.MapHub<THub>(path, connectionOptions =>
         {
             var transports = HttpTransportType.None;
 
@@ -87,7 +97,5 @@ internal static class SignalRServiceExtensions
             }
         })
         .RequireAuthorization();
-
-        return app;
     }
 }

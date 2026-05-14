@@ -33,6 +33,13 @@ public sealed class ResponseEnvelopeOptions
         "/connect/",
         "/hubs/"
     ];
+
+    /// <summary>
+    /// Gets or sets the maximum response body size (in bytes) that will be enveloped.
+    /// Responses larger than this threshold pass through without wrapping.
+    /// Set to 0 or negative to disable the size limit. Defaults to 10 MB.
+    /// </summary>
+    public long MaxEnvelopeSizeBytes { get; set; } = 10 * 1024 * 1024;
 }
 
 /// <summary>
@@ -111,6 +118,15 @@ public sealed class ResponseEnvelopeMiddleware
         }
 
         var bufferedBytes = memoryStream.ToArray();
+
+        // Don't envelope responses exceeding the configured size threshold
+        // (e.g. large JSON collections that would be too expensive to re-serialize).
+        if (_options.MaxEnvelopeSizeBytes > 0 && bufferedBytes.Length > _options.MaxEnvelopeSizeBytes)
+        {
+            memoryStream.Position = 0;
+            await memoryStream.CopyToAsync(originalBodyStream);
+            return;
+        }
 
         // Don't envelope empty responses (204 No Content, 304 Not Modified, etc.)
         if (bufferedBytes.Length == 0 ||

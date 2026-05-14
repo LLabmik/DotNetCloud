@@ -1,11 +1,8 @@
+using System.Collections.Concurrent;
+using System.Reflection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Diagnostics;
-using DotNetCloud.Core.Data.Entities.Identity;
-using DotNetCloud.Core.Data.Entities.Organizations;
-using DotNetCloud.Core.Data.Entities.Settings;
-using DotNetCloud.Core.Data.Entities.Modules;
-using DotNetCloud.Core.Data.Entities.Permissions;
 
 namespace DotNetCloud.Core.Data.Interceptors;
 
@@ -19,6 +16,20 @@ namespace DotNetCloud.Core.Data.Interceptors;
 /// </remarks>
 public class TimestampInterceptor : SaveChangesInterceptor
 {
+    private static readonly ConcurrentDictionary<Type, TimestampProperties> PropertyCache = new();
+
+    private readonly struct TimestampProperties
+    {
+        public PropertyInfo? CreatedAt { get; }
+        public PropertyInfo? UpdatedAt { get; }
+
+        public TimestampProperties(Type type)
+        {
+            CreatedAt = type.GetProperty("CreatedAt");
+            UpdatedAt = type.GetProperty("UpdatedAt");
+        }
+    }
+
     /// <summary>
     /// Called before SaveChanges is executed.
     /// </summary>
@@ -64,10 +75,12 @@ public class TimestampInterceptor : SaveChangesInterceptor
 
     /// <summary>
     /// Sets the CreatedAt timestamp property if the entity has one.
+    /// Uses cached PropertyInfo to avoid repeated reflection.
     /// </summary>
     private static void SetCreatedAtTimestamp(EntityEntry entry, DateTime timestamp)
     {
-        var createdAtProperty = entry.Entity.GetType().GetProperty("CreatedAt");
+        var props = PropertyCache.GetOrAdd(entry.Entity.GetType(), static t => new TimestampProperties(t));
+        var createdAtProperty = props.CreatedAt;
         if (createdAtProperty != null && createdAtProperty.CanWrite)
         {
             var currentValue = createdAtProperty.GetValue(entry.Entity);
@@ -80,10 +93,12 @@ public class TimestampInterceptor : SaveChangesInterceptor
 
     /// <summary>
     /// Sets the UpdatedAt timestamp property if the entity has one.
+    /// Uses cached PropertyInfo to avoid repeated reflection.
     /// </summary>
     private static void SetUpdatedAtTimestamp(EntityEntry entry, DateTime timestamp)
     {
-        var updatedAtProperty = entry.Entity.GetType().GetProperty("UpdatedAt");
+        var props = PropertyCache.GetOrAdd(entry.Entity.GetType(), static t => new TimestampProperties(t));
+        var updatedAtProperty = props.UpdatedAt;
         if (updatedAtProperty != null && updatedAtProperty.CanWrite)
         {
             updatedAtProperty.SetValue(entry.Entity, timestamp);

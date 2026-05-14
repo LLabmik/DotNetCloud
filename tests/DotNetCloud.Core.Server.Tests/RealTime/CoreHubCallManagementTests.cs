@@ -475,11 +475,6 @@ public class CoreHubCallManagementTests
         var hub = new CoreHub(
             tracker,
             presence,
-            messageService: null,
-            channelMemberService: null,
-            reactionService: null,
-            typingIndicatorService: null,
-            chatRealtimeService: null,
             NullLogger<CoreHub>.Instance,
             callSignalingService: null,
             videoCallService: _videoCallServiceMock.Object);
@@ -499,14 +494,8 @@ public class CoreHubCallManagementTests
         var hub = new CoreHub(
             tracker,
             presence,
-            messageService: null,
-            channelMemberService: null,
-            reactionService: null,
-            typingIndicatorService: null,
-            chatRealtimeService: null,
             NullLogger<CoreHub>.Instance,
-            callSignalingService: null,
-            videoCallService: null);
+            callSignalingService: null);
 
         hub.Context = new TestHubCallerContext(_userId, "conn-no-call-mgmt");
         hub.Clients = new Mock<IHubCallerClients>().Object;
@@ -523,11 +512,6 @@ public class CoreHubCallManagementTests
         var hub = new CoreHub(
             tracker,
             presence,
-            messageService: null,
-            channelMemberService: null,
-            reactionService: null,
-            typingIndicatorService: null,
-            chatRealtimeService: null,
             NullLogger<CoreHub>.Instance,
             callSignalingService: signalingService,
             videoCallService: _videoCallServiceMock.Object);

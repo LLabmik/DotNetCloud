@@ -699,27 +699,27 @@ Module: CLI
 
 ### Must Fix (Before Next Release)
 
-| Priority | Action                                                            | Severity    | Effort | Files                     | Status     |
-| -------- | ----------------------------------------------------------------- | ----------- | ------ | ------------------------- | ---------- |
-| P0       | Create test projects for Bookmarks, Email, About                  | 🔴 Critical | Medium | 3 new test projects       | ✅ Done    |
-| P0       | Add `EventId`/`CreatedAt` to `IEvent` interface                   | 🔴 Critical | Small  | `IEvent.cs`               | ✅ Done    |
-| P0       | Replace Console.WriteLine with ILogger in FileBrowser.razor.cs    | 🔴 Critical | Small  | `FileBrowser.razor.cs`    | ✅ Done    |
-| P0       | Replace Console.WriteLine with ILogger in ChatPageLayout.razor.cs | 🔴 Critical | Small  | `ChatPageLayout.razor.cs` | ✅ Done    |
-| P0       | Resolve duplicate DefaultDbContextFactory classes                 | 🔴 Critical | Small  | 2 files in Core.Data      | ✅ Done    |
-| P1       | Extract Program.cs ConfigureServices into extension methods       | 🟡 High     | Medium | `Program.cs`              | ✅ Done    |
+| Priority | Action                                                            | Severity    | Effort | Files                     | Status  |
+| -------- | ----------------------------------------------------------------- | ----------- | ------ | ------------------------- | ------- |
+| P0       | Create test projects for Bookmarks, Email, About                  | 🔴 Critical | Medium | 3 new test projects       | ✅ Done |
+| P0       | Add `EventId`/`CreatedAt` to `IEvent` interface                   | 🔴 Critical | Small  | `IEvent.cs`               | ✅ Done |
+| P0       | Replace Console.WriteLine with ILogger in FileBrowser.razor.cs    | 🔴 Critical | Small  | `FileBrowser.razor.cs`    | ✅ Done |
+| P0       | Replace Console.WriteLine with ILogger in ChatPageLayout.razor.cs | 🔴 Critical | Small  | `ChatPageLayout.razor.cs` | ✅ Done |
+| P0       | Resolve duplicate DefaultDbContextFactory classes                 | 🔴 Critical | Small  | 2 files in Core.Data      | ✅ Done |
+| P1       | Extract Program.cs ConfigureServices into extension methods       | 🟡 High     | Medium | `Program.cs`              | ✅ Done |
 
 ### Should Fix (Next Sprint)
 
-| Priority | Action                                                 | Severity    | Effort | Files                           |
-| -------- | ------------------------------------------------------ | ----------- | ------ | ------------------------------- |
-| P1       | Extract Chat SignalR logic from CoreHub                | 🔴 Critical | Large  | `CoreHub.cs`                    |
-| P1       | Add null guards for optional deps in CoreHub           | 🔴 Critical | Small  | `CoreHub.cs`                    |
-| P1       | Migrate Android DisplayAlert → DisplayAlertAsync       | 🟡 High     | Small  | 2 ViewModel files               |
-| P1       | Standardize controller error handling                  | 🟡 High     | Medium | 14 controller files             |
-| P1       | Cache reflection in TimestampInterceptor               | 🟡 High     | Small  | `TimestampInterceptor.cs`       |
-| P1       | Run `dotnet format` to auto-fix 2,190 style violations | 🟢 Medium   | Tiny   | All files                       |
-| P2       | Extract legacy Files migration from Program.cs         | 🟡 High     | Medium | `Program.cs`                    |
-| P2       | Add size threshold to ResponseEnvelopeMiddleware       | 🟡 High     | Small  | `ResponseEnvelopeMiddleware.cs` |
+| Priority | Action                                                 | Severity    | Effort | Files                            | Status  |
+| -------- | ------------------------------------------------------ | ----------- | ------ | -------------------------------- | ------- |
+| P1       | Extract Chat SignalR logic from CoreHub                | 🔴 Critical | Large  | `CoreHub.cs`, `ChatHub.cs`       | ✅ Done |
+| P1       | Add null guards for optional deps in CoreHub           | 🔴 Critical | Small  | `CoreHub.cs`                     | ✅ Done |
+| P1       | Migrate Android DisplayAlert → DisplayAlertAsync       | 🟡 High     | Small  | 2 ViewModel files                | ✅ Done |
+| P1       | Standardize controller error handling                  | 🟡 High     | Medium | 11 controller base files         | ✅ Done |
+| P1       | Cache reflection in TimestampInterceptor               | 🟡 High     | Small  | `TimestampInterceptor.cs`        | ✅ Done |
+| P1       | Run `dotnet format` to auto-fix 2,190 style violations | 🟢 Medium   | Tiny   | All files                        | ✅ Done |
+| P2       | Extract legacy Files migration from Program.cs         | 🟡 High     | Medium | `LegacyFilesMigrationService.cs` | ✅ Done |
+| P2       | Add size threshold to ResponseEnvelopeMiddleware       | 🟡 High     | Small  | `ResponseEnvelopeMiddleware.cs`  | ✅ Done |
 
 ### Nice to Have
 
@@ -794,12 +794,21 @@ The following issues from this review have been **fixed** as part of the review 
 
 **Fixed (round 2):**
 
-| # | Issue | Fix | Status |
-| --- | --- | --- | --- |
-| 7 | Duplicate `DefaultDbContextFactory` — two classes with same name | Deleted unused generic `DefaultDbContextFactory<TContext>` from `Infrastructure/` (and its `IDbContextFactory<TContext>` interface) — only the non-generic `Context/DefaultDbContextFactory` remains | ✅ Fixed |
+| #   | Issue                                                            | Fix                                                                                                                                                                                                  | Status   |
+| --- | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| 7   | Duplicate `DefaultDbContextFactory` — two classes with same name | Deleted unused generic `DefaultDbContextFactory<TContext>` from `Infrastructure/` (and its `IDbContextFactory<TContext>` interface) — only the non-generic `Context/DefaultDbContextFactory` remains | ✅ Fixed |
 
-**Not fixed (require design decisions):**
+**Fixed (round 3):**
 
-- Extract legacy Files migration from Program.cs — requires separate service class
-- Add size threshold to `ResponseEnvelopeMiddleware` — requires configuration design
-  _This code review was conducted per the [CODE_REVIEW_PLAN.md](./CODE_REVIEW_PLAN.md). Companion security review: [SECURITY_REVIEW_PLAN.md](./SECURITY_REVIEW_PLAN.md)._
+| #   | Issue                                              | Fix                                                                                                                                                              | Status   |
+| --- | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| 8   | Cache reflection in `TimestampInterceptor`         | Added `ConcurrentDictionary<Type, TimestampProperties>` cache to avoid repeated `GetProperty()` calls on every save                                              | ✅ Fixed |
+| 9   | Add size threshold to `ResponseEnvelopeMiddleware` | Added `MaxEnvelopeSizeBytes` option (default 10 MB) — responses exceeding threshold pass through without re-serialization                                        | ✅ Fixed |
+| 10  | Add null guards for optional deps in `CoreHub`     | Added null guard in `StopTypingAsync` for `_chatRealtimeService` before dereference                                                                              | ✅ Fixed |
+| 11  | Extract Chat SignalR logic from `CoreHub`          | Created `ChatHub.cs` at `/hubs/chat` with required (non-nullable) chat service dependencies; CoreHub retained for core, groups, signaling, and call management   | ✅ Fixed |
+| 12  | Standardize controller error handling              | Added `ExecuteAsync()` with `NotFoundException`/`ForbiddenException`/`ValidationException`/`InvalidOperationException` mapping to all 11 module base controllers | ✅ Fixed |
+| 13  | Extract legacy Files migration from `Program.cs`   | Moved to `LegacyFilesMigrationService`; removed ~350 lines of dead code from `Program.cs`                                                                        | ✅ Fixed |
+
+**Verification:** `dotnet build` — 0 errors, 0 warnings ✅ | `dotnet test` — All 0 failures across all test projects ✅
+
+_This code review was conducted per the [CODE_REVIEW_PLAN.md](./CODE_REVIEW_PLAN.md). Companion security review: [SECURITY_REVIEW_PLAN.md](./SECURITY_REVIEW_PLAN.md)._
