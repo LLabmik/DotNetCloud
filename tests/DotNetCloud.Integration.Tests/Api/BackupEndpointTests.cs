@@ -94,10 +94,12 @@ public class BackupEndpointTests
     [TestMethod]
     public async Task RunBackup_WithOutputPath_ReturnsOk()
     {
-        // Arrange - use a temp path
-        var tempDir = Path.Combine(Path.GetTempPath(), $"dnc-backup-test-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(tempDir);
-        var outputPath = Path.Combine(tempDir, "custom-backup.zip");
+        // Arrange - use a path within the default backup directory
+        var backupDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            ".config", "dotnetcloud", "backups");
+        Directory.CreateDirectory(backupDir);
+        var outputPath = Path.Combine(backupDir, $"custom-backup-{Guid.NewGuid():N}.zip");
 
         try
         {
@@ -116,9 +118,9 @@ public class BackupEndpointTests
         }
         finally
         {
-            if (Directory.Exists(tempDir))
+            if (File.Exists(outputPath))
                 try
-                { Directory.Delete(tempDir, recursive: true); }
+                { File.Delete(outputPath); }
                 catch { }
         }
     }

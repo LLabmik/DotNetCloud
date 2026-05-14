@@ -171,6 +171,14 @@ public sealed class BackupService : DotNetCloud.Core.Services.IBackupService
         var backupFileName = $"dotnetcloud-backup-{timestamp}.zip";
         var backupPath = outputPath ?? Path.Combine(backupDir, backupFileName);
 
+        // Security: Validate backup path to prevent path traversal attacks
+        var fullBackupDir = Path.GetFullPath(backupDir);
+        var fullBackupPath = Path.GetFullPath(backupPath);
+        if (!fullBackupPath.StartsWith(fullBackupDir, StringComparison.Ordinal))
+        {
+            throw new UnauthorizedAccessException("The backup path must be within the configured backup directory.");
+        }
+
         _logger.LogInformation("Starting backup to: {BackupPath}", backupPath);
 
         var dbDumpPath = Path.Combine(backupDir, $"dotnetcloud-db-{timestamp}.sql");
