@@ -1,9 +1,7 @@
-using DotNetCloud.Core.Events;
-
-namespace DotNetCloud.Modules.Chat.Events;
+namespace DotNetCloud.Core.Events;
 
 /// <summary>
-/// Published when a user's chat presence state changes.
+/// Published when a user's presence state changes.
 /// </summary>
 public sealed record PresenceChangedEvent : IEvent
 {

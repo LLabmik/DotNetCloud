@@ -1,9 +1,8 @@
 using System.Security.Claims;
 using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Server.Configuration;
-using DotNetCloud.Modules.Chat.DTOs;
-using DotNetCloud.Modules.Chat.Events;
 using DotNetCloud.Modules.Chat.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;

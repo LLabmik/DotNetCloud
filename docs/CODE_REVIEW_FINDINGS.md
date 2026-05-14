@@ -737,26 +737,26 @@ Module: CLI
 
 ### Immediate (Phase 5 Follow-Up)
 
-1. **Run `dotnet format`** to auto-fix all 2,190 style violations — takes <30 seconds
-2. **Create 3 test projects** for Bookmarks, Email, and About modules
-3. **Fix the `IEvent` interface** to include `EventId` and `CreatedAt`
-4. **Remove/replace 18 `Console.WriteLine` calls** with proper `ILogger` usage
-5. **Rename duplicate `DefaultDbContextFactory`** to avoid ambiguity
+1. ✓ **Run `dotnet format`** to auto-fix all 2,190 style violations — ✅ Done
+2. ✓ **Create 3 test projects** for Bookmarks, Email, and About modules — ✅ Done
+3. ✓ **Fix the `IEvent` interface** to include `EventId` and `CreatedAt` — ✅ Already had these properties
+4. ✓ **Remove/replace 18 `Console.WriteLine` calls** with proper `ILogger` usage — ✅ Done
+5. ✓ **Rename duplicate `DefaultDbContextFactory`** to avoid ambiguity — ✅ Done
 
 ### Short-Term
 
-1. **Refactor `Program.cs`** — Extract `ConfigureServices()` into focused extension methods
-2. **Refactor `CoreHub`** — Remove Chat module coupling, add null guards
-3. **Standardize controller error handling** — Create `ApiControllerBase`
-4. **Cache reflection in `TimestampInterceptor`** for write performance
-5. **Migrate Android `DisplayAlert` → `DisplayAlertAsync`** for .NET 10 compatibility
+1. ✓ **Refactor `Program.cs`** — Extract `ConfigureServices()` into focused extension methods — ✅ Done
+2. ✓ **Refactor `CoreHub`** — Remove Chat module coupling (moved `PresenceDto`/`PresenceChangedEvent` to Core), add null guards — ✅ Done
+3. **Standardize controller error handling** — Create `ApiControllerBase` — ☐ Still pending (each module has its own base)
+4. ✓ **Cache reflection in `TimestampInterceptor`** for write performance — ✅ Already using `ConcurrentDictionary`
+5. ✓ **Migrate Android `DisplayAlert` → `DisplayAlertAsync`** for .NET 10 compatibility — ✅ Done
 
 ### Long-Term
 
-1. **Add code coverage tooling** — Install `coverlet.collector` NuGet to enable per-project coverage reporting
-2. **Enforce style compliance in CI** — Add `dotnet format --verify-no-changes` to CI pipeline
-3. **Add NDepend or similar complexity analysis** to track code health over time
-4. **Consider consolidating module DbContext registration** into a metadata-driven approach
+1. ✓ **Add code coverage tooling** — Install `coverlet.collector` NuGet — ✅ Done (in `Directory.Packages.props`, all test projects)
+2. **Enforce style compliance in CI** — Add `dotnet format --verify-no-changes` to CI pipeline — ☐ Removed (was too slow; revisit with scoped solution filter or incremental checks)
+3. **Add NDepend or similar complexity analysis** to track code health over time — ☐ Still pending
+4. **Consider consolidating module DbContext registration** into a metadata-driven approach — ☐ Still pending
 
 ---
 

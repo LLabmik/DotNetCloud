@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 using DotNetCloud.Core.Capabilities;
-using DotNetCloud.Modules.Chat.DTOs;
+using DotNetCloud.Core.DTOs;
 using Microsoft.Extensions.Logging;
 
 namespace DotNetCloud.Core.Server.RealTime;

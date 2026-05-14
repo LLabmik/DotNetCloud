@@ -277,24 +277,6 @@ public sealed record TypingIndicatorDto
 }
 
 /// <summary>
-/// DTO for user presence information.
-/// </summary>
-public sealed record PresenceDto
-{
-    /// <summary>User ID.</summary>
-    public Guid UserId { get; init; }
-
-    /// <summary>Presence status: "Online", "Away", "DoNotDisturb", "Offline".</summary>
-    public required string Status { get; init; }
-
-    /// <summary>Custom status message.</summary>
-    public string? StatusMessage { get; init; }
-
-    /// <summary>Last seen timestamp (UTC).</summary>
-    public DateTime? LastSeenAt { get; init; }
-}
-
-/// <summary>
 /// DTO for unread message counts per channel.
 /// </summary>
 public sealed record UnreadCountDto

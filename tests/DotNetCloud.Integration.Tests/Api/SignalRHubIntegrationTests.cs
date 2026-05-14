@@ -2,6 +2,7 @@ using DotNetCloud.Core.Server.RealTime;
 using DotNetCloud.Integration.Tests.Infrastructure;
 using DotNetCloud.Modules.Chat.Data;
 using DotNetCloud.Modules.Chat.DTOs;
+using DotNetCloud.Core.DTOs;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;

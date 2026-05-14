@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Capabilities;
+using DotNetCloud.Core.DTOs;
 using DotNetCloud.Modules.Chat.DTOs;
 using Microsoft.Extensions.Logging;
 

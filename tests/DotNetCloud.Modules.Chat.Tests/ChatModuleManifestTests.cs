@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Modules;
 using DotNetCloud.Modules.Chat.Events;
 
