@@ -425,23 +425,25 @@ internal static class BackupCommands
 
     private static async Task<bool> CreateDatabaseDumpAsync(string provider, string? connectionString, string outputPath)
     {
-        var (tool, args) = provider.ToUpperInvariant() switch
+        var (tool, argList) = provider.ToUpperInvariant() switch
         {
             "POSTGRESQL" => ("pg_dump", BuildPgDumpArgs(connectionString, outputPath)),
-            "SQLSERVER" => ("sqlcmd", $"-Q \"BACKUP DATABASE [dotnetcloud] TO DISK = '{outputPath}'\""),
-            "MARIADB" or "MYSQL" => ("mysqldump", $"--result-file=\"{outputPath}\" dotnetcloud"),
+            "SQLSERVER" => ("sqlcmd", new List<string> { "-Q", $"BACKUP DATABASE [dotnetcloud] TO DISK = '{outputPath}'" }),
+            "MARIADB" or "MYSQL" => ("mysqldump", new List<string> { $"--result-file={outputPath}", "dotnetcloud" }),
             _ => throw new NotSupportedException($"Database provider '{provider}' is not supported for automated dump.")
         };
 
         var psi = new ProcessStartInfo
         {
             FileName = tool,
-            Arguments = args,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
             CreateNoWindow = true,
         };
+
+        foreach (var a in argList)
+            psi.ArgumentList.Add(a);
 
         using var process = new Process { StartInfo = psi };
         process.Start();
@@ -467,10 +469,10 @@ internal static class BackupCommands
         return File.Exists(outputPath) && new FileInfo(outputPath).Length > 0;
     }
 
-    private static string BuildPgDumpArgs(string? connectionString, string outputPath)
+    private static List<string> BuildPgDumpArgs(string? connectionString, string outputPath)
     {
         var (host, port, db, user) = ParseConnectionString(connectionString);
-        return $"-h {host} -p {port} -U {user} -d {db} -Fp \"{outputPath}\"";
+        return new List<string> { "-h", host, "-p", port, "-U", user, "-d", db, "-Fp", outputPath };
     }
 
     private static (string Host, string Port, string Database, string User) ParseConnectionString(string? connectionString)

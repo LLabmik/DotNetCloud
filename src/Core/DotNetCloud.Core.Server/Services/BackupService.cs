@@ -302,7 +302,7 @@ public sealed class BackupService : DotNetCloud.Core.Services.IBackupService
         string outputPath,
         CancellationToken cancellationToken)
     {
-        var (tool, args) = provider.ToUpperInvariant() switch
+        var (tool, argList) = provider.ToUpperInvariant() switch
         {
             "POSTGRESQL" => ("pg_dump", BuildPgDumpArgs(connectionString, outputPath)),
             "SQLSERVER" => ("sqlcmd", BuildSqlCmdArgs(connectionString, outputPath)),
@@ -313,12 +313,14 @@ public sealed class BackupService : DotNetCloud.Core.Services.IBackupService
         var psi = new ProcessStartInfo
         {
             FileName = tool,
-            Arguments = args,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
             CreateNoWindow = true,
         };
+
+        foreach (var a in argList)
+            psi.ArgumentList.Add(a);
 
         using var process = new Process { StartInfo = psi };
         process.Start();
@@ -347,11 +349,10 @@ public sealed class BackupService : DotNetCloud.Core.Services.IBackupService
         }
     }
 
-    private static string BuildPgDumpArgs(string? connectionString, string outputPath)
+    private static List<string> BuildPgDumpArgs(string? connectionString, string outputPath)
     {
         var (host, port, db, user) = ParsePgConnectionString(connectionString);
-        var args = $"-h {host} -p {port} -U {user} -d {db} -Fp \"{outputPath}\"";
-        return args;
+        return new List<string> { "-h", host, "-p", port, "-U", user, "-d", db, "-Fp", outputPath };
     }
 
     private static (string Host, string Port, string Database, string User) ParsePgConnectionString(string? connectionString)
@@ -393,13 +394,13 @@ public sealed class BackupService : DotNetCloud.Core.Services.IBackupService
         return (host, port, db, user);
     }
 
-    private static string BuildSqlCmdArgs(string? connectionString, string outputPath)
+    private static List<string> BuildSqlCmdArgs(string? connectionString, string outputPath)
     {
         if (string.IsNullOrEmpty(connectionString))
-            return $"-Q \"BACKUP DATABASE [dotnetcloud] TO DISK = '{outputPath}'\"";
+            return new List<string> { "-Q", $"BACKUP DATABASE [dotnetcloud] TO DISK = '{outputPath}'" };
         // For SQL Server, connection string is used as-is with -S
         var server = ParseSqlServerConnectionString(connectionString);
-        return $"-S \"{server}\" -Q \"BACKUP DATABASE [dotnetcloud] TO DISK = '{outputPath}'\"";
+        return new List<string> { "-S", server, "-Q", $"BACKUP DATABASE [dotnetcloud] TO DISK = '{outputPath}'" };
     }
 
     private static string ParseSqlServerConnectionString(string connectionString)
@@ -420,11 +421,11 @@ public sealed class BackupService : DotNetCloud.Core.Services.IBackupService
         return connectionString; // fallback: use raw connection string
     }
 
-    private static string BuildMySqlDumpArgs(string? connectionString, string outputPath)
+    private static List<string> BuildMySqlDumpArgs(string? connectionString, string outputPath)
     {
         if (string.IsNullOrEmpty(connectionString))
-            return $"--result-file=\"{outputPath}\" dotnetcloud";
-        return $"--result-file=\"{outputPath}\" --default-auth=mysql_native_password";
+            return new List<string> { $"--result-file={outputPath}", "dotnetcloud" };
+        return new List<string> { $"--result-file={outputPath}", "--default-auth=mysql_native_password" };
     }
 
     private static string GetDumpToolName(string provider) => provider.ToUpperInvariant() switch
@@ -440,26 +441,53 @@ public sealed class BackupService : DotNetCloud.Core.Services.IBackupService
         RestoreOptions options,
         CancellationToken cancellationToken)
     {
-        var (tool, args) = options.DatabaseProvider?.ToUpperInvariant() switch
+        string tool;
+        List<string> argList;
+        bool useStdinRedirect = false;
+
+        switch (options.DatabaseProvider?.ToUpperInvariant())
         {
-            "POSTGRESQL" => ("psql", BuildPsqlRestoreArgs(options.ConnectionString, dumpFile)),
-            "SQLSERVER" => ("sqlcmd", BuildSqlCmdRestoreArgs(options.ConnectionString, dumpFile)),
-            "MARIADB" or "MYSQL" => ("mysql", BuildMySqlRestoreArgs(options.ConnectionString, dumpFile)),
-            _ => throw new NotSupportedException($"Database provider '{options.DatabaseProvider}' is not supported for automated restore.")
-        };
+            case "POSTGRESQL":
+                tool = "psql";
+                argList = BuildPsqlRestoreArgs(options.ConnectionString, dumpFile);
+                break;
+            case "SQLSERVER":
+                tool = "sqlcmd";
+                argList = BuildSqlCmdRestoreArgs(options.ConnectionString, dumpFile);
+                break;
+            case "MARIADB" or "MYSQL":
+                tool = "mysql";
+                argList = BuildMySqlRestoreArgs(options.ConnectionString);
+                useStdinRedirect = true;
+                break;
+            default:
+                throw new NotSupportedException($"Database provider '{options.DatabaseProvider}' is not supported for automated restore.");
+        }
 
         var psi = new ProcessStartInfo
         {
             FileName = tool,
-            Arguments = args,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
+            RedirectStandardInput = useStdinRedirect,
             UseShellExecute = false,
             CreateNoWindow = true,
         };
 
+        foreach (var a in argList)
+            psi.ArgumentList.Add(a);
+
         using var process = new Process { StartInfo = psi };
         process.Start();
+
+        if (useStdinRedirect)
+        {
+            // Pipe the dump file into mysql's stdin instead of using shell redirect (<)
+            await using var fileStream = File.OpenRead(dumpFile);
+            await fileStream.CopyToAsync(process.StandardInput.BaseStream, cancellationToken);
+            process.StandardInput.Close();
+        }
+
         var errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
         await process.WaitForExitAsync(cancellationToken);
 
@@ -471,24 +499,24 @@ public sealed class BackupService : DotNetCloud.Core.Services.IBackupService
         }
     }
 
-    private static string BuildPsqlRestoreArgs(string? connectionString, string dumpFile)
+    private static List<string> BuildPsqlRestoreArgs(string? connectionString, string dumpFile)
     {
         if (string.IsNullOrEmpty(connectionString))
-            return $"-f \"{dumpFile}\"";
+            return new List<string> { "-f", dumpFile };
         var (host, port, db, user) = ParsePgConnectionString(connectionString);
-        return $"-h {host} -p {port} -U {user} -d {db} -f \"{dumpFile}\"";
+        return new List<string> { "-h", host, "-p", port, "-U", user, "-d", db, "-f", dumpFile };
     }
 
-    private static string BuildSqlCmdRestoreArgs(string? connectionString, string dumpFile)
+    private static List<string> BuildSqlCmdRestoreArgs(string? connectionString, string dumpFile)
     {
         if (string.IsNullOrEmpty(connectionString))
-            return $"-Q \"RESTORE DATABASE [dotnetcloud] FROM DISK = '{dumpFile}'\"";
+            return new List<string> { "-Q", $"RESTORE DATABASE [dotnetcloud] FROM DISK = '{dumpFile}'" };
         var server = ParseSqlServerConnectionString(connectionString);
-        return $"-S \"{server}\" -Q \"RESTORE DATABASE [dotnetcloud] FROM DISK = '{dumpFile}'\"";
+        return new List<string> { "-S", server, "-Q", $"RESTORE DATABASE [dotnetcloud] FROM DISK = '{dumpFile}'" };
     }
 
-    private static string BuildMySqlRestoreArgs(string? connectionString, string dumpFile)
-        => $"dotnetcloud < \"{dumpFile}\"";
+    private static List<string> BuildMySqlRestoreArgs(string? connectionString)
+        => new List<string> { "dotnetcloud" };
 
     private static void CopyDirectory(string sourceDir, string targetDir)
     {
