@@ -346,6 +346,25 @@ public class MusicController : MusicControllerBase
         }
     }
 
+    /// <summary>Adds multiple tracks to a playlist in a single batch.</summary>
+    [HttpPost("playlists/{playlistId:guid}/tracks/batch")]
+    public async Task<IActionResult> AddTrackRangeToPlaylist(Guid playlistId, [FromBody] List<Guid> trackIds)
+    {
+        if (trackIds is null || trackIds.Count == 0)
+            return BadRequest(new { error = "Track IDs list is required and must not be empty." });
+
+        var caller = GetAuthenticatedCaller();
+        try
+        {
+            await _playlistService.AddTrackRangeAsync(playlistId, trackIds, caller);
+            return Ok(Envelope(new { added = true }));
+        }
+        catch (DotNetCloudException ex) when (ex.ErrorCode == ErrorCodes.PlaylistNotFound)
+        {
+            return NotFound(ErrorEnvelope(ErrorCodes.PlaylistNotFound, ex.Message));
+        }
+    }
+
     /// <summary>Removes a track from a playlist.</summary>
     [HttpDelete("playlists/{playlistId:guid}/tracks/{trackId:guid}")]
     public async Task<IActionResult> RemoveTrackFromPlaylist(Guid playlistId, Guid trackId)

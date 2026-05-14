@@ -2,6 +2,7 @@
 @using DotNetCloud.Core.DTOs
 @using DotNetCloud.Core.Services
 @using DotNetCloud.Modules.Music.UI
+@using DotNetCloud.Modules.Music.Services
 @using DotNetCloud.UI.Web.Services
 @using Microsoft.Extensions.Logging
 @using System.Text.Json
@@ -12,6 +13,7 @@
 @inject IUserSettingsService UserSettingsService
 @inject IJSRuntime Js
 @inject ILogger<GlobalMusicPlaybar> Logger
+@inject IPlaylistService PlaylistService
 @implements IAsyncDisposable
 
 @if (_musicModuleEnabled && Playback.NowPlaying is not null)
@@ -132,7 +134,29 @@
             <aside class="gmp-queue-panel">
                 <div class="gmp-panel-header">
                     <h4>Play Queue</h4>
-                    <button class="btn-icon" @onclick="Playback.ToggleQueue">✕</button>
+                    <div class="gmp-queue-header-actions">
+                        @if (Playback.Queue.Count > 0)
+                        {
+                            <div class="gmp-queue-save-wrapper">
+                                <button class="gmp-btn gmp-btn-sm" @onclick="ToggleSaveQueueMenu">💾 Save</button>
+                                @if (_showSaveQueueMenu)
+                                {
+                                    <div class="gmp-queue-save-dropdown">
+                                        <button @onclick="ShowSaveQueueAsNewDialog">Save as New Playlist…</button>
+                                        @if (_playlists.Count > 0)
+                                        {
+                                            <div class="gmp-queue-save-divider"></div>
+                                            @foreach (var pl in _playlists)
+                                            {
+                                                <button @onclick="() => AddQueueToExistingPlaylistAsync(pl.Id)">Add to @pl.Name</button>
+                                            }
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        }
+                        <button class="btn-icon" @onclick="Playback.ToggleQueue">✕</button>
+                    </div>
                 </div>
                 <div class="gmp-queue-list">
                     @if (Playback.Queue.Count == 0)
@@ -147,11 +171,52 @@
                                 <span>@track.Title</span>
                                 <span class="gmp-queue-artist">@track.ArtistName</span>
                             </div>
-                            <button class="gmp-queue-remove" @onclick="() => Playback.RemoveFromQueue(index)">✕</button>
+                            <div class="gmp-queue-item-actions">
+                                <button class="gmp-queue-item-menu-btn" @onclick="() => ToggleQueueItemMenu(index)">⋯</button>
+                                @if (_queueItemMenuIndex == index)
+                                {
+                                    <div class="gmp-queue-item-dropdown">
+                                        @foreach (var pl in _playlists)
+                                        {
+                                            <button @onclick="() => AddTrackToPlaylistFromQueueAsync(pl.Id, track.Id)">Add to @pl.Name</button>
+                                        }
+                                    </div>
+                                }
+                                <button class="gmp-queue-remove" @onclick="() => Playback.RemoveFromQueue(index)">✕</button>
+                            </div>
                         </div>
                     }
                 </div>
             </aside>
+
+            @* ─── Save Queue as New Playlist Dialog ─── *@
+            @if (_showSaveQueueDialog)
+            {
+                <div class="gmp-dialog-overlay" @onclick="CloseSaveQueueDialog">
+                    <div class="gmp-dialog-panel" @onclick:stopPropagation="true">
+                        <h4>Save Queue as Playlist</h4>
+                        <div class="gmp-dialog-form">
+                            <label>Playlist Name
+                                <input type="text" @bind="_newQueuePlaylistName"
+                                       @bind:event="oninput"
+                                       placeholder="My Queue Playlist" />
+                            </label>
+                            <label class="gmp-dialog-checkbox">
+                                <input type="checkbox" @bind="_newQueuePlaylistPublic" />
+                                <span>Public playlist</span>
+                            </label>
+                            <p class="gmp-dialog-hint">@Playback.Queue.Count track@(Playback.Queue.Count == 1 ? "" : "s") will be added.</p>
+                        </div>
+                        <div class="gmp-dialog-actions">
+                            <button class="btn btn-primary" @onclick="SaveQueueAsNewPlaylistAsync"
+                                    disabled="@string.IsNullOrWhiteSpace(_newQueuePlaylistName)">
+                                Save
+                            </button>
+                            <button class="btn btn-secondary" @onclick="CloseSaveQueueDialog">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            }
         }
 
         @* ─── Equalizer Slide-Out Panel ─── *@
@@ -245,6 +310,14 @@
     private DotNetObjectReference<GlobalMusicPlaybar>? _dotNetRef;
     private string _newPresetName = string.Empty;
     private Guid? _selectedPresetId;
+
+    // ── Queue-to-playlist state ──
+    private bool _showSaveQueueMenu;
+    private bool _showSaveQueueDialog;
+    private string _newQueuePlaylistName = string.Empty;
+    private bool _newQueuePlaylistPublic;
+    private int? _queueItemMenuIndex;
+    private List<PlaylistDto> _playlists = [];
 
     // ── Settings persistence ──
     private const string SettingsModule = "dotnetcloud.music";
@@ -609,6 +682,106 @@
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error recording play");
+        }
+    }
+
+    // ── Queue-to-playlist ──
+
+    private async Task LoadPlaylistsAsync()
+    {
+        try
+        {
+            var caller = await GetCallerAsync();
+            _playlists = (await PlaylistService.ListPlaylistsAsync(caller)).ToList();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to load playlists for queue save");
+        }
+    }
+
+    private void ToggleSaveQueueMenu()
+    {
+        _showSaveQueueMenu = !_showSaveQueueMenu;
+        if (_showSaveQueueMenu)
+        {
+            _ = LoadPlaylistsAsync();
+        }
+    }
+
+    private void ShowSaveQueueAsNewDialog()
+    {
+        _showSaveQueueMenu = false;
+        _newQueuePlaylistName = string.Empty;
+        _newQueuePlaylistPublic = false;
+        _showSaveQueueDialog = true;
+    }
+
+    private void CloseSaveQueueDialog()
+    {
+        _showSaveQueueDialog = false;
+    }
+
+    private async Task SaveQueueAsNewPlaylistAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_newQueuePlaylistName) || Playback.Queue.Count == 0)
+            return;
+
+        try
+        {
+            var caller = await GetCallerAsync();
+            var playlist = await PlaylistService.CreatePlaylistAsync(
+                new CreatePlaylistDto { Name = _newQueuePlaylistName, IsPublic = _newQueuePlaylistPublic }, caller);
+
+            var trackIds = Playback.Queue.Select(t => t.Id).Distinct().ToList();
+            await PlaylistService.AddTrackRangeAsync(playlist.Id, trackIds, caller);
+
+            _showSaveQueueDialog = false;
+            _newQueuePlaylistName = string.Empty;
+            _newQueuePlaylistPublic = false;
+            _playlists = (await PlaylistService.ListPlaylistsAsync(caller)).ToList();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to save queue as new playlist");
+        }
+    }
+
+    private async Task AddQueueToExistingPlaylistAsync(Guid playlistId)
+    {
+        _showSaveQueueMenu = false;
+        try
+        {
+            var caller = await GetCallerAsync();
+            var trackIds = Playback.Queue.Select(t => t.Id).Distinct().ToList();
+            await PlaylistService.AddTrackRangeAsync(playlistId, trackIds, caller);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to add queue to playlist {PlaylistId}", playlistId);
+        }
+    }
+
+    private void ToggleQueueItemMenu(int index)
+    {
+        _queueItemMenuIndex = _queueItemMenuIndex == index ? null : index;
+        if (_queueItemMenuIndex.HasValue)
+        {
+            _ = LoadPlaylistsAsync();
+        }
+    }
+
+    private async Task AddTrackToPlaylistFromQueueAsync(Guid playlistId, Guid trackId)
+    {
+        _queueItemMenuIndex = null;
+        try
+        {
+            var caller = await GetCallerAsync();
+            await PlaylistService.AddTrackAsync(playlistId, trackId, caller);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to add track {TrackId} to playlist {PlaylistId}", trackId, playlistId);
         }
     }
 

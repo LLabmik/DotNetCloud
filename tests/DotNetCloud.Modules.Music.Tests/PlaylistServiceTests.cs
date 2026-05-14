@@ -215,6 +215,94 @@ public class PlaylistServiceTests
         Assert.AreEqual(0, tracks.Count);
     }
 
+    // ─── AddTrackRange ────────────────────────────────────────────────
+
+    [TestMethod]
+    public async Task AddTrackRange_AddsMultipleTracks()
+    {
+        var pl = await TestHelpers.SeedPlaylistAsync(_db, _caller.UserId);
+        var (_, _, t1) = await TestHelpers.SeedCompleteTrackAsync(_db, trackTitle: "First", ownerId: _caller.UserId);
+        var (_, _, t2) = await TestHelpers.SeedCompleteTrackAsync(_db, trackTitle: "Second", artistName: "A2", albumTitle: "Al2", ownerId: _caller.UserId);
+        var (_, _, t3) = await TestHelpers.SeedCompleteTrackAsync(_db, trackTitle: "Third", artistName: "A3", albumTitle: "Al3", ownerId: _caller.UserId);
+
+        await _service.AddTrackRangeAsync(pl.Id, [t1.Id, t2.Id, t3.Id], _caller);
+
+        var tracks = await _service.GetPlaylistTracksAsync(pl.Id, _caller);
+        Assert.AreEqual(3, tracks.Count);
+        Assert.AreEqual("First", tracks[0].Title);
+        Assert.AreEqual("Second", tracks[1].Title);
+        Assert.AreEqual("Third", tracks[2].Title);
+    }
+
+    [TestMethod]
+    public async Task AddTrackRange_SkipsDuplicatesSilently()
+    {
+        var pl = await TestHelpers.SeedPlaylistAsync(_db, _caller.UserId);
+        var (_, _, t1) = await TestHelpers.SeedCompleteTrackAsync(_db, trackTitle: "First", ownerId: _caller.UserId);
+        var (_, _, t2) = await TestHelpers.SeedCompleteTrackAsync(_db, trackTitle: "Second", artistName: "A2", albumTitle: "Al2", ownerId: _caller.UserId);
+        await _service.AddTrackAsync(pl.Id, t1.Id, _caller);
+
+        await _service.AddTrackRangeAsync(pl.Id, [t1.Id, t2.Id], _caller);
+
+        var tracks = await _service.GetPlaylistTracksAsync(pl.Id, _caller);
+        Assert.AreEqual(2, tracks.Count);
+        Assert.AreEqual("First", tracks[0].Title);
+        Assert.AreEqual("Second", tracks[1].Title);
+    }
+
+    [TestMethod]
+    public async Task AddTrackRange_SkipsNonExistentTracks()
+    {
+        var pl = await TestHelpers.SeedPlaylistAsync(_db, _caller.UserId);
+        var (_, _, t1) = await TestHelpers.SeedCompleteTrackAsync(_db, trackTitle: "Exists", ownerId: _caller.UserId);
+        var nonExistentId = Guid.NewGuid();
+
+        await _service.AddTrackRangeAsync(pl.Id, [t1.Id, nonExistentId], _caller);
+
+        var tracks = await _service.GetPlaylistTracksAsync(pl.Id, _caller);
+        Assert.AreEqual(1, tracks.Count);
+        Assert.AreEqual("Exists", tracks[0].Title);
+    }
+
+    [TestMethod]
+    public async Task AddTrackRange_EmptyList_DoesNothing()
+    {
+        var pl = await TestHelpers.SeedPlaylistAsync(_db, _caller.UserId);
+
+        await _service.AddTrackRangeAsync(pl.Id, [], _caller);
+
+        var tracks = await _service.GetPlaylistTracksAsync(pl.Id, _caller);
+        Assert.AreEqual(0, tracks.Count);
+    }
+
+    [TestMethod]
+    public async Task AddTrackRange_NonOwner_Throws()
+    {
+        var pl = await TestHelpers.SeedPlaylistAsync(_db, Guid.NewGuid());
+        var (_, _, t1) = await TestHelpers.SeedCompleteTrackAsync(_db, trackTitle: "Track", ownerId: _caller.UserId);
+
+        await Assert.ThrowsExactlyAsync<DotNetCloud.Core.Errors.BusinessRuleException>(
+            () => _service.AddTrackRangeAsync(pl.Id, [t1.Id], _caller));
+    }
+
+    [TestMethod]
+    public async Task AddTrackRange_PreservesSortOrderWithExistingTracks()
+    {
+        var pl = await TestHelpers.SeedPlaylistAsync(_db, _caller.UserId);
+        var (_, _, existing) = await TestHelpers.SeedCompleteTrackAsync(_db, trackTitle: "Existing", ownerId: _caller.UserId);
+        var (_, _, t1) = await TestHelpers.SeedCompleteTrackAsync(_db, trackTitle: "New1", artistName: "A2", albumTitle: "Al2", ownerId: _caller.UserId);
+        var (_, _, t2) = await TestHelpers.SeedCompleteTrackAsync(_db, trackTitle: "New2", artistName: "A3", albumTitle: "Al3", ownerId: _caller.UserId);
+        await TestHelpers.SeedPlaylistTrackAsync(_db, pl.Id, existing.Id, 0);
+
+        await _service.AddTrackRangeAsync(pl.Id, [t1.Id, t2.Id], _caller);
+
+        var tracks = await _service.GetPlaylistTracksAsync(pl.Id, _caller);
+        Assert.AreEqual(3, tracks.Count);
+        Assert.AreEqual("Existing", tracks[0].Title);
+        Assert.AreEqual("New1", tracks[1].Title);
+        Assert.AreEqual("New2", tracks[2].Title);
+    }
+
     // ─── GetPlaylistTracks ────────────────────────────────────────────
 
     [TestMethod]

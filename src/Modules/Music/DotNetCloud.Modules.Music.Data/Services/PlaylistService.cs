@@ -159,6 +159,63 @@ public sealed class PlaylistService : Music.Services.IPlaylistService
     }
 
     /// <summary>
+    /// Adds multiple tracks to a playlist in a single batch. Silently skips tracks that
+    /// don't exist or are already in the playlist.
+    /// </summary>
+    public async Task AddTrackRangeAsync(Guid playlistId, IReadOnlyList<Guid> trackIds, CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        if (trackIds.Count == 0)
+            return;
+
+        var playlist = await _db.Playlists
+            .FirstOrDefaultAsync(p => p.Id == playlistId && p.OwnerId == caller.UserId, cancellationToken)
+            ?? throw new BusinessRuleException(ErrorCodes.PlaylistNotFound, "Playlist not found.");
+
+        // Load all valid tracks in one query
+        var existingTrackIds = await _db.Tracks
+            .Where(t => trackIds.Contains(t.Id))
+            .Select(t => t.Id)
+            .ToListAsync(cancellationToken);
+
+        if (existingTrackIds.Count == 0)
+            return;
+
+        // Find which tracks are already in the playlist
+        var alreadyInPlaylist = await _db.PlaylistTracks
+            .Where(pt => pt.PlaylistId == playlistId && existingTrackIds.Contains(pt.TrackId))
+            .Select(pt => pt.TrackId)
+            .ToListAsync(cancellationToken);
+
+        var newTrackIds = existingTrackIds.Except(alreadyInPlaylist).ToList();
+        if (newTrackIds.Count == 0)
+            return;
+
+        var maxOrder = await _db.PlaylistTracks
+            .Where(pt => pt.PlaylistId == playlistId)
+            .MaxAsync(pt => (int?)pt.SortOrder, cancellationToken) ?? -1;
+
+        var playlistTracks = new List<PlaylistTrack>(newTrackIds.Count);
+        foreach (var trackId in newTrackIds)
+        {
+            maxOrder++;
+            playlistTracks.Add(new PlaylistTrack
+            {
+                PlaylistId = playlistId,
+                TrackId = trackId,
+                SortOrder = maxOrder
+            });
+        }
+
+        _db.PlaylistTracks.AddRange(playlistTracks);
+        playlist.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation(
+            "Added {Count} tracks to playlist {PlaylistId} (skipped {Skipped} duplicates/missing)",
+            newTrackIds.Count, playlistId, trackIds.Count - newTrackIds.Count);
+    }
+
+    /// <summary>
     /// Removes a track from a playlist.
     /// </summary>
     public async Task RemoveTrackAsync(Guid playlistId, Guid trackId, CallerContext caller, CancellationToken cancellationToken = default)

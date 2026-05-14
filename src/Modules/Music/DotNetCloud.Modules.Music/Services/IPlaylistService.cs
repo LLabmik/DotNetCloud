@@ -23,8 +23,11 @@ public interface IPlaylistService
     /// <summary>Deletes a playlist.</summary>
     Task DeletePlaylistAsync(Guid playlistId, CallerContext caller, CancellationToken cancellationToken = default);
 
-    /// <summary>Adds a track to a playlist.</summary>
+    /// <summary>Adds a single track to a playlist.</summary>
     Task AddTrackAsync(Guid playlistId, Guid trackId, CallerContext caller, CancellationToken cancellationToken = default);
+
+    /// <summary>Adds multiple tracks to a playlist in a single batch.</summary>
+    Task AddTrackRangeAsync(Guid playlistId, IReadOnlyList<Guid> trackIds, CallerContext caller, CancellationToken cancellationToken = default);
 
     /// <summary>Removes a track from a playlist.</summary>
     Task RemoveTrackAsync(Guid playlistId, Guid trackId, CallerContext caller, CancellationToken cancellationToken = default);
