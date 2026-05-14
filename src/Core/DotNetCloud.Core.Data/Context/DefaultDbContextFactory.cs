@@ -44,8 +44,14 @@ public class DefaultDbContextFactory : IDbContextFactory
         _namingStrategy = DatabaseProviderDetector.GetNamingStrategy(provider);
     }
 
+    /// <summary>
+    /// Gets the database provider for this factory instance.
+    /// </summary>
     public DatabaseProvider Provider => _provider;
 
+    /// <summary>
+    /// Gets the table naming strategy for this factory instance.
+    /// </summary>
     public ITableNamingStrategy NamingStrategy => _namingStrategy;
 
     public CoreDbContext CreateDbContext()
@@ -81,7 +87,7 @@ public class DefaultDbContextFactory : IDbContextFactory
 
             case DatabaseProvider.MariaDB:
                 // TODO: Add MariaDB support when Pomelo.EntityFrameworkCore.MySql .NET 10 compatible version is released
-                throw new NotSupportedException("MariaDB support will be added when Pomelo.EntityFrameworkCore.MySql package is updated for .NET 10");
+                throw new NotSupportedException(DatabaseConstants.MariaDbNotSupportedMessage);
 
             default:
                 throw new InvalidOperationException($"Unsupported database provider: {_provider}");

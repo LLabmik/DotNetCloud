@@ -7,7 +7,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
-    <NoWarn>$(NoWarn);CS8618</NoWarn>
+    <NoWarn>$(NoWarn);CS8618;BL0005</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
