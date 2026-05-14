@@ -336,6 +336,29 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
     {
         try
         {
+            // Validate that the discovered executable and directory paths are
+            // within the configured modules directory to prevent path traversal
+            // or execution of arbitrary binaries (CWE-078).
+            var modulesDir = Path.GetFullPath(GetModulesDirectory());
+            var fullExePath = Path.GetFullPath(discovered.ExecutablePath);
+            var fullModuleDir = Path.GetFullPath(discovered.ModuleDirectory);
+
+            if (!fullExePath.StartsWith(modulesDir, StringComparison.Ordinal))
+            {
+                _logger.LogError(
+                    "Module {ModuleId} executable path {Path} is outside the modules directory",
+                    discovered.ModuleId, discovered.ExecutablePath);
+                return null;
+            }
+
+            if (!fullModuleDir.StartsWith(modulesDir, StringComparison.Ordinal))
+            {
+                _logger.LogError(
+                    "Module {ModuleId} directory {Path} is outside the modules directory",
+                    discovered.ModuleId, discovered.ModuleDirectory);
+                return null;
+            }
+
             var isDll = discovered.ExecutablePath.EndsWith(".dll", StringComparison.OrdinalIgnoreCase);
             var startInfo = new ProcessStartInfo
             {
@@ -622,6 +645,19 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
         }
 
         return _options.DefaultRestartPolicy;
+    }
+
+    private string GetModulesDirectory()
+    {
+        var path = _options.ModulesDirectory;
+
+        // If relative, resolve against application base directory
+        if (!Path.IsPathRooted(path))
+        {
+            path = Path.Combine(AppContext.BaseDirectory, path);
+        }
+
+        return path;
     }
 
     private string BuildGrpcEndpoint(string moduleId)
