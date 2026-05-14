@@ -3,6 +3,7 @@ using DotNetCloud.Core.Auth.Extensions;
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Data.Entities.Identity;
 using DotNetCloud.Core.DTOs;
+using DotNetCloud.Core.Security;
 using DotNetCloud.Core.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -19,6 +20,7 @@ namespace DotNetCloud.Core.Server.Controllers;
 public class UserManagementController : ControllerBase
 {
     private readonly IUserManagementService _userManagementService;
+    private readonly IFileValidationService _fileValidation;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly ILogger<UserManagementController> _logger;
 
@@ -27,10 +29,12 @@ public class UserManagementController : ControllerBase
     /// </summary>
     public UserManagementController(
         IUserManagementService userManagementService,
+        IFileValidationService fileValidation,
         UserManager<ApplicationUser> userManager,
         ILogger<UserManagementController> logger)
     {
         _userManagementService = userManagementService ?? throw new ArgumentNullException(nameof(userManagementService));
+        _fileValidation = fileValidation ?? throw new ArgumentNullException(nameof(fileValidation));
         _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -300,6 +304,7 @@ public class UserManagementController : ControllerBase
     /// <returns>The updated avatar URL.</returns>
     [HttpPost("{userId:guid}/avatar")]
     [RequestSizeLimit(5 * 1024 * 1024)] // 5 MB
+    [RequestFormLimits(MultipartBodyLengthLimit = 5 * 1024 * 1024)]
     public async Task<IActionResult> UploadAvatarAsync(Guid userId, IFormFile file)
     {
         if (!IsAdmin() && !IsCurrentUser(userId))
@@ -312,10 +317,10 @@ public class UserManagementController : ControllerBase
             return BadRequest(new { success = false, error = new { code = "NO_FILE", message = "No file provided." } });
         }
 
-        var allowedTypes = new[] { "image/jpeg", "image/png", "image/gif", "image/webp" };
-        if (!allowedTypes.Contains(file.ContentType, StringComparer.OrdinalIgnoreCase))
+        var validation = _fileValidation.Validate(file, AllowedFileTypes.AvatarTypes);
+        if (!validation.IsValid)
         {
-            return BadRequest(new { success = false, error = new { code = "INVALID_FILE_TYPE", message = "Only JPEG, PNG, GIF, and WebP images are allowed." } });
+            return BadRequest(new { success = false, error = new { code = validation.ErrorCode, message = validation.ErrorMessage } });
         }
 
         try

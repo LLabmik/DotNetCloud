@@ -1,3 +1,4 @@
+using System;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Modules.Notes.Data;
 using Microsoft.EntityFrameworkCore;
@@ -19,7 +20,8 @@ public class NotesDbContextSqlServerDesignTimeFactory : IDesignTimeDbContextFact
     /// <inheritdoc />
     public NotesDbContext CreateDbContext(string[] args)
     {
-        const string connectionString = "Server=localhost;Database=dotnetcloud_notes_dev;Trusted_Connection=True;TrustServerCertificate=True";
+        var connectionString = Environment.GetEnvironmentVariable("DOTNETCLOUD_DB_CONNECTION")
+            ?? "Server=localhost;Database=dotnetcloud_notes_dev;Trusted_Connection=True;TrustServerCertificate=True";
         var options = new DbContextOptionsBuilder<NotesDbContext>();
 
         options.UseSqlServer(connectionString, sqlOptions =>

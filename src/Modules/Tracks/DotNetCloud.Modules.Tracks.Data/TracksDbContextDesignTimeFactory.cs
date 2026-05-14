@@ -1,3 +1,4 @@
+using System;
 using DotNetCloud.Core.Data.Naming;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
@@ -12,7 +13,8 @@ public class TracksDbContextDesignTimeFactory : IDesignTimeDbContextFactory<Trac
     /// <inheritdoc />
     public TracksDbContext CreateDbContext(string[] args)
     {
-        const string connectionString = "Host=localhost;Database=dotnetcloud_tracks_dev;Username=postgres;Password=postgres";
+        var connectionString = Environment.GetEnvironmentVariable("DOTNETCLOUD_DB_CONNECTION")
+            ?? "Host=localhost;Database=dotnetcloud_tracks_dev;Username=postgres;Password=postgres";
         var options = new DbContextOptionsBuilder<TracksDbContext>();
 
         options.UseNpgsql(connectionString, npgsqlOptions =>

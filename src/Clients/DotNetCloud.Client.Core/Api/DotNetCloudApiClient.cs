@@ -510,11 +510,10 @@ public sealed class DotNetCloudApiClient : IDotNetCloudApiClient
     private static async Task<T?> ReadEnvelopeDataAsync<T>(HttpResponseMessage response, CancellationToken cancellationToken)
     {
         var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
-        _staticLogger?.LogInformation("ReadEnvelopeDataAsync<{TypeName}>: HTTP {StatusCode}, ContentType={ContentType}, BodyLength={Length}, BodyPreview={Preview}",
+        _staticLogger?.LogInformation("ReadEnvelopeDataAsync<{TypeName}>: HTTP {StatusCode}, ContentType={ContentType}, BodyLength={Length}",
             typeof(T).Name, (int)response.StatusCode,
             response.Content.Headers.ContentType?.ToString() ?? "(none)",
-            responseBody.Length,
-            responseBody.Length > 500 ? responseBody[..500] : responseBody);
+            responseBody.Length);
 
         using var doc = JsonDocument.Parse(responseBody);
 

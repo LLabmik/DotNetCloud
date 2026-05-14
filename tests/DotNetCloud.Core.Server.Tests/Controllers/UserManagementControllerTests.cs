@@ -2,6 +2,7 @@ using System.Security.Claims;
 using DotNetCloud.Core.Auth.Authorization;
 using DotNetCloud.Core.Data.Entities.Identity;
 using DotNetCloud.Core.DTOs;
+using DotNetCloud.Core.Security;
 using DotNetCloud.Core.Server.Controllers;
 using DotNetCloud.Core.Services;
 using Microsoft.AspNetCore.Http;
@@ -19,6 +20,7 @@ public sealed class UserManagementControllerTests : IDisposable
     private Mock<IUserManagementService> _serviceMock = null!;
     private Mock<UserManager<ApplicationUser>> _userManagerMock = null!;
     private Mock<ILogger<UserManagementController>> _loggerMock = null!;
+    private Mock<IFileValidationService> _fileValidationMock = null!;
     private UserManagementController _controller = null!;
     private string? _tempAvatarDir;
 
@@ -30,7 +32,10 @@ public sealed class UserManagementControllerTests : IDisposable
             Mock.Of<IUserStore<ApplicationUser>>(),
             null!, null!, null!, null!, null!, null!, null!, null!);
         _loggerMock = new Mock<ILogger<UserManagementController>>();
-        _controller = new UserManagementController(_serviceMock.Object, _userManagerMock.Object, _loggerMock.Object)
+        _fileValidationMock = new Mock<IFileValidationService>();
+        _fileValidationMock.Setup(v => v.Validate(It.IsAny<IFormFile>(), It.IsAny<AllowedFileTypes.FileTypeDefinition[]>(), It.IsAny<long?>()))
+            .Returns(FileValidationResult.Success());
+        _controller = new UserManagementController(_serviceMock.Object, _fileValidationMock.Object, _userManagerMock.Object, _loggerMock.Object)
         {
             ControllerContext = new ControllerContext
             {
@@ -399,6 +404,8 @@ public sealed class UserManagementControllerTests : IDisposable
         var userId = Guid.NewGuid();
         SetUser(userId);
 
+        _fileValidationMock.Setup(v => v.Validate(It.IsAny<IFormFile>(), It.IsAny<AllowedFileTypes.FileTypeDefinition[]>(), It.IsAny<long?>()))
+            .Returns(FileValidationResult.Failure("FILE_EXTENSION_NOT_ALLOWED", "The file is not an allowed image type."));
         var file = CreateMockFormFile("doc.pdf", "application/pdf");
         var result = await _controller.UploadAvatarAsync(userId, file);
 

@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Security;
 using DotNetCloud.Modules.Tracks;
 using DotNetCloud.Modules.Tracks.Data;
 using DotNetCloud.Modules.Tracks.Data.Services;
@@ -9,6 +10,9 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Register the module as singleton
 builder.Services.AddSingleton<TracksModule>();
+
+// File validation service for upload security
+builder.Services.AddSingleton<IFileValidationService, FileValidationService>();
 
 // Register EF Core with in-memory database (dev only)
 builder.Services.AddDbContext<TracksDbContext>(options =>

@@ -198,6 +198,18 @@ public static class ErrorCodes
     /// <summary>Error code for file download failed.</summary>
     public const string FileDownloadFailed = "FILE_DOWNLOAD_FAILED";
 
+    /// <summary>Error code for invalid file type (extension not allowed).</summary>
+    public const string FileTypeNotAllowed = "FILE_TYPE_NOT_ALLOWED";
+
+    /// <summary>Error code for file size exceeds maximum allowed.</summary>
+    public const string FileTooLarge = "FILE_TOO_LARGE";
+
+    /// <summary>Error code for file content does not match its extension.</summary>
+    public const string FileContentMismatch = "FILE_CONTENT_MISMATCH";
+
+    /// <summary>Error code for empty file upload.</summary>
+    public const string FileEmpty = "FILE_EMPTY";
+
     /// <summary>Error code for invalid file type.</summary>
     public const string InvalidFileType = "FILE_INVALID_TYPE";
 

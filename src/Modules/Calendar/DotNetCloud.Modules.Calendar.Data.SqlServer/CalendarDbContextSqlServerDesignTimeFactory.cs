@@ -1,3 +1,4 @@
+using System;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Modules.Calendar.Data;
 using Microsoft.EntityFrameworkCore;
@@ -19,7 +20,8 @@ public class CalendarDbContextSqlServerDesignTimeFactory : IDesignTimeDbContextF
     /// <inheritdoc />
     public CalendarDbContext CreateDbContext(string[] args)
     {
-        const string connectionString = "Server=localhost;Database=dotnetcloud_calendar_dev;Trusted_Connection=True;TrustServerCertificate=True";
+        var connectionString = Environment.GetEnvironmentVariable("DOTNETCLOUD_DB_CONNECTION")
+            ?? "Server=localhost;Database=dotnetcloud_calendar_dev;Trusted_Connection=True;TrustServerCertificate=True";
         var options = new DbContextOptionsBuilder<CalendarDbContext>();
 
         options.UseSqlServer(connectionString, sqlOptions =>

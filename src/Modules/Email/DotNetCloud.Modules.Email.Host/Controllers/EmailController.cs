@@ -1,5 +1,6 @@
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Security;
 using DotNetCloud.Modules.Email.Data;
 using DotNetCloud.Modules.Email.Data.Services;
 using DotNetCloud.Modules.Email.Models;
@@ -22,6 +23,7 @@ public class EmailController : EmailControllerBase
     private readonly IEmailSyncService _syncService;
     private readonly ISearchFtsClient? _searchFtsClient;
     private readonly IAttachmentStorage _attachmentStorage;
+    private readonly IFileValidationService _fileValidation;
     private readonly IEventBus _eventBus;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly EmailDbContext _db;
@@ -38,6 +40,7 @@ public class EmailController : EmailControllerBase
         IEmailSyncService syncService,
         ISearchFtsClient? searchFtsClient,
         IAttachmentStorage attachmentStorage,
+        IFileValidationService fileValidation,
         IEventBus eventBus,
         IHttpClientFactory httpClientFactory,
         EmailDbContext db,
@@ -50,6 +53,7 @@ public class EmailController : EmailControllerBase
         _syncService = syncService;
         _searchFtsClient = searchFtsClient;
         _attachmentStorage = attachmentStorage;
+        _fileValidation = fileValidation;
         _eventBus = eventBus;
         _httpClientFactory = httpClientFactory;
         _db = db;
@@ -561,28 +565,18 @@ public class EmailController : EmailControllerBase
             if (file is null || file.Length == 0)
                 return BadRequest(ErrorEnvelope("no_file", "No file provided."));
 
-            // Enforce 25 MB max file size
-            const long maxSize = 25 * 1024 * 1024; // 25 MB
-            if (file.Length > maxSize)
-            {
-                return StatusCode(413, new
-                {
-                    success = false,
-                    error = new
-                    {
-                        code = "file_too_large",
-                        message = "Files over 25 MB can be shared via the Files module."
-                    }
-                });
-            }
+            var validation = _fileValidation.Validate(file, AllowedFileTypes.EmailAttachmentTypes);
+            if (!validation.IsValid)
+                return BadRequest(ErrorEnvelope(validation.ErrorCode!, validation.ErrorMessage!));
 
             await using var stream = file.OpenReadStream();
-            var result = await _attachmentStorage.StoreAsync(stream, file.FileName, file.ContentType, HttpContext.RequestAborted);
+            var sanitizedName = _fileValidation.SanitizeFileName(file.FileName);
+            var result = await _attachmentStorage.StoreAsync(stream, sanitizedName, file.ContentType, HttpContext.RequestAborted);
 
             return Ok(Envelope(new
             {
                 storageKey = result.StorageKey,
-                fileName = file.FileName,
+                fileName = sanitizedName,
                 contentType = file.ContentType,
                 size = result.Size,
                 contentHash = result.ContentHash

@@ -11,6 +11,7 @@ using DotNetCloud.Core.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -85,6 +86,15 @@ public static class AuthServiceExtensions
             options.LoginPath = "/auth/login";
             options.AccessDeniedPath = "/auth/login";
             options.ReturnUrlParameter = "returnUrl";
+
+            // Cookie security hardening
+            // Use __Host- prefix: requires Secure + Path=/ + no Domain attribute,
+            // preventing subdomain cookie overwrite attacks.
+            options.Cookie.Name = "__Host-.AspNetCore.Identity.Application";
+            options.Cookie.HttpOnly = true;
+            options.Cookie.SameSite = SameSiteMode.Lax;
+            options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+            options.Cookie.IsEssential = true;
         });
 
         // -----------------------------------------------------------------
@@ -136,6 +146,10 @@ public static class AuthServiceExtensions
 
                 // Persistent RSA keys for token signing and encryption.
                 // Keys are stored as PEM files so they survive server restarts.
+                // Multiple keys are supported — after automated rotation, all keys
+                // in the oidc-keys directory are loaded and registered. OpenIddict
+                // uses the most recent key for signing and accepts older keys for
+                // verification during the grace period.
                 var dataRoot = Environment.GetEnvironmentVariable("DOTNETCLOUD_DATA_DIR");
                 var oidcKeysDir = Path.Combine(
                     !string.IsNullOrWhiteSpace(dataRoot) ? dataRoot : AppContext.BaseDirectory,
@@ -144,13 +158,38 @@ public static class AuthServiceExtensions
                 using var loggerFactory = LoggerFactory.Create(b => b.AddConsole());
                 var keyLogger = loggerFactory.CreateLogger("DotNetCloud.OidcKeys");
 
-                var signingKey = OidcKeyManager.LoadOrCreateKey(
-                    Path.Combine(oidcKeysDir, "signing-key.pem"), keyLogger);
-                var encryptionKey = OidcKeyManager.LoadOrCreateKey(
-                    Path.Combine(oidcKeysDir, "encryption-key.pem"), keyLogger);
+                // Load signing keys — all keys in the directory with the signing-key prefix
+                var signingKeys = OidcKeyManager.LoadAllKeys(oidcKeysDir, OidcKeyManager.SigningKeyPrefix, keyLogger);
+                if (signingKeys.Count == 0)
+                {
+                    // First run: create the initial signing key using the legacy filename
+                    var initialKey = OidcKeyManager.LoadOrCreateKey(
+                        Path.Combine(oidcKeysDir, "signing-key.pem"), keyLogger);
+                    signingKeys.Add(initialKey);
+                }
 
-                options.AddSigningKey(signingKey);
-                options.AddEncryptionKey(encryptionKey);
+                foreach (var key in signingKeys)
+                {
+                    options.AddSigningKey(key);
+                }
+
+                // Load encryption keys
+                var encryptionKeys = OidcKeyManager.LoadAllKeys(oidcKeysDir, OidcKeyManager.EncryptionKeyPrefix, keyLogger);
+                if (encryptionKeys.Count == 0)
+                {
+                    var initialKey = OidcKeyManager.LoadOrCreateKey(
+                        Path.Combine(oidcKeysDir, "encryption-key.pem"), keyLogger);
+                    encryptionKeys.Add(initialKey);
+                }
+
+                foreach (var key in encryptionKeys)
+                {
+                    options.AddEncryptionKey(key);
+                }
+
+                keyLogger.LogInformation(
+                    "Loaded {SigningKeyCount} signing key(s) and {EncryptionKeyCount} encryption key(s) from {OidcKeysDir}.",
+                    signingKeys.Count, encryptionKeys.Count, oidcKeysDir);
 
                 // Disable access token encryption so clients can read JWT claims directly.
                 // Without this, access tokens are JWE (encrypted) and clients cannot decode them.
@@ -173,6 +212,12 @@ public static class AuthServiceExtensions
         // -----------------------------------------------------------------
         services.AddMemoryCache();
         services.AddScoped<IClaimsTransformation, DotNetCloudClaimsTransformation>();
+
+        // -----------------------------------------------------------------
+        // OIDC key rotation — background service
+        // -----------------------------------------------------------------
+        services.Configure<OidcKeyRotationOptions>(config.GetSection("Auth:KeyRotation"));
+        services.AddHostedService<OidcKeyRotationService>();
 
         // -----------------------------------------------------------------
         // Authorization policies + handler

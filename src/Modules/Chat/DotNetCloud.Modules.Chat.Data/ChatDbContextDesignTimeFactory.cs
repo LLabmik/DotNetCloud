@@ -1,3 +1,4 @@
+using System;
 using DotNetCloud.Core.Data.Naming;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
@@ -19,7 +20,8 @@ public class ChatDbContextDesignTimeFactory : IDesignTimeDbContextFactory<ChatDb
     /// <inheritdoc />
     public ChatDbContext CreateDbContext(string[] args)
     {
-        const string connectionString = "Host=localhost;Database=dotnetcloud_chat_dev;Username=postgres;Password=postgres";
+        var connectionString = Environment.GetEnvironmentVariable("DOTNETCLOUD_DB_CONNECTION")
+            ?? "Host=localhost;Database=dotnetcloud_chat_dev;Username=postgres;Password=postgres";
         var options = new DbContextOptionsBuilder<ChatDbContext>();
 
         options.UseNpgsql(connectionString, npgsqlOptions =>

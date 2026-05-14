@@ -1,3 +1,4 @@
+using System;
 using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Core.Data.Naming;
 using Microsoft.EntityFrameworkCore;
@@ -19,7 +20,8 @@ public class CoreDbContextSqlServerDesignTimeFactory : IDesignTimeDbContextFacto
     /// <inheritdoc />
     public CoreDbContext CreateDbContext(string[] args)
     {
-        const string connectionString = "Server=localhost;Database=dotnetcloud_dev;Trusted_Connection=True;TrustServerCertificate=True";
+        var connectionString = Environment.GetEnvironmentVariable("DOTNETCLOUD_DB_CONNECTION")
+            ?? "Server=localhost;Database=dotnetcloud_dev;Trusted_Connection=True;TrustServerCertificate=True";
         var namingStrategy = new SqlServerNamingStrategy();
         var options = new DbContextOptionsBuilder<CoreDbContext>();
 

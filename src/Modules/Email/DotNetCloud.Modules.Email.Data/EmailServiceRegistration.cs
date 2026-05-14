@@ -2,6 +2,7 @@ using DotNetCloud.Modules.Email.Data.Services;
 using DotNetCloud.Modules.Email.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace DotNetCloud.Modules.Email.Data;
 
@@ -33,12 +34,24 @@ public static class EmailServiceRegistration
         services.AddHostedService<CleanupTempAttachmentsBackgroundService>();
 
         // HTTP client factory used by EmailController for cross-module calls (e.g. Save to Files).
-        // Bypasses SSL validation because the server uses a self-signed certificate and the call
-        // is internal (same process / loopback) — not exposed to untrusted networks.
+        // The server uses a self-signed certificate for local development; bypass TLS validation
+        // only in Development environment or when Email:FilesApiClient:AllowInsecureTls is explicitly
+        // configured to true. In production, proper certificate validation is enforced.
+        var allowInsecureTls = configuration.GetValue<bool>("Email:FilesApiClient:AllowInsecureTls");
+
         services.AddHttpClient("FilesApiInternal")
-            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+            .ConfigurePrimaryHttpMessageHandler(sp =>
             {
-                ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+                var handler = new HttpClientHandler();
+                var env = sp.GetRequiredService<IHostEnvironment>();
+
+                if (env.IsDevelopment() || allowInsecureTls)
+                {
+                    handler.ServerCertificateCustomValidationCallback =
+                        HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
+                }
+
+                return handler;
             });
 
         return services;

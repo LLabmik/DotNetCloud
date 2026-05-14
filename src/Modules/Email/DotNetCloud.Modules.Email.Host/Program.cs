@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Security;
 using DotNetCloud.Modules.Email;
 using DotNetCloud.Modules.Email.Data;
 using DotNetCloud.Modules.Email.Host.Services;
@@ -9,6 +10,9 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Register the module as singleton
 builder.Services.AddSingleton<EmailModule>();
+
+// File validation service for upload security
+builder.Services.AddSingleton<IFileValidationService, FileValidationService>();
 
 // Register EF Core with in-memory database (dev only)
 builder.Services.AddDbContext<EmailDbContext>(options =>

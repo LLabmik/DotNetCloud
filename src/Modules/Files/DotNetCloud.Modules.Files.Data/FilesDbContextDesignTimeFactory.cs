@@ -1,3 +1,4 @@
+using System;
 using DotNetCloud.Core.Data.Naming;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
@@ -13,7 +14,8 @@ public class FilesDbContextDesignTimeFactory : IDesignTimeDbContextFactory<Files
     /// <inheritdoc />
     public FilesDbContext CreateDbContext(string[] args)
     {
-        const string connectionString = "Host=localhost;Database=dotnetcloud_files_dev;Username=postgres;Password=postgres";
+        var connectionString = Environment.GetEnvironmentVariable("DOTNETCLOUD_DB_CONNECTION")
+            ?? "Host=localhost;Database=dotnetcloud_files_dev;Username=postgres;Password=postgres";
         var options = new DbContextOptionsBuilder<FilesDbContext>();
 
         options.UseNpgsql(connectionString, npgsqlOptions =>

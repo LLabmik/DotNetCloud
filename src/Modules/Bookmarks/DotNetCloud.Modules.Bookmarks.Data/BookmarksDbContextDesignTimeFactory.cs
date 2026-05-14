@@ -1,3 +1,4 @@
+using System;
 using DotNetCloud.Core.Data.Naming;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
@@ -12,9 +13,11 @@ public class BookmarksDbContextDesignTimeFactory : IDesignTimeDbContextFactory<B
     /// <inheritdoc />
     public BookmarksDbContext CreateDbContext(string[] args)
     {
+        var connectionString = Environment.GetEnvironmentVariable("DOTNETCLOUD_DB_CONNECTION")
+            ?? "Host=localhost;Database=dotnetcloud_bookmarks_dev;Username=postgres;Password=postgres";
         var optionsBuilder = new DbContextOptionsBuilder<BookmarksDbContext>();
         optionsBuilder.UseNpgsql(
-            "Host=localhost;Database=dotnetcloud_bookmarks_dev;Username=postgres;Password=postgres",
+            connectionString,
             npgsqlOptions =>
             {
                 npgsqlOptions.EnableRetryOnFailure(3);

@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Security;
 using DotNetCloud.Modules.Bookmarks;
 using DotNetCloud.Modules.Bookmarks.Data;
 using DotNetCloud.Modules.Bookmarks.Host.Services;
@@ -9,6 +10,9 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Register the module as singleton
 builder.Services.AddSingleton<BookmarksModule>();
+
+// File validation service for upload security
+builder.Services.AddSingleton<IFileValidationService, FileValidationService>();
 
 // Register EF Core with in-memory database (dev only)
 builder.Services.AddDbContext<BookmarksDbContext>(options =>

@@ -157,8 +157,8 @@ public class GmailOAuthController : EmailControllerBase
 
         if (!tokenResponse.IsSuccessStatusCode)
         {
-            var errorBody = await tokenResponse.Content.ReadAsStringAsync();
-            _logger.LogError("Gmail OAuth token exchange failed: {StatusCode} {Error}", (int)tokenResponse.StatusCode, errorBody);
+            // Log only the status code, not the full error body (may contain sensitive OAuth details)
+            _logger.LogError("Gmail OAuth token exchange failed: HTTP {StatusCode}", (int)tokenResponse.StatusCode);
             return Redirect("/apps/email?gmail=error&reason=google_rejected");
         }
 

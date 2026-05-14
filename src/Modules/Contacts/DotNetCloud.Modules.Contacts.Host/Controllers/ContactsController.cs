@@ -1,6 +1,7 @@
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Core.Capabilities;
+using DotNetCloud.Core.Security;
 using DotNetCloud.Modules.Contacts.Models;
 using DotNetCloud.Modules.Contacts.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -19,6 +20,7 @@ public class ContactsController : ContactsControllerBase
     private readonly IContactRelatedEntitiesService _relatedEntitiesService;
     private readonly IVCardService _vcardService;
     private readonly IContactAvatarService _avatarService;
+    private readonly IFileValidationService _fileValidation;
     private readonly ILogger<ContactsController> _logger;
 
     /// <summary>
@@ -31,6 +33,7 @@ public class ContactsController : ContactsControllerBase
         IContactRelatedEntitiesService relatedEntitiesService,
         IVCardService vcardService,
         IContactAvatarService avatarService,
+        IFileValidationService fileValidation,
         ILogger<ContactsController> logger)
     {
         _contactService = contactService;
@@ -39,6 +42,7 @@ public class ContactsController : ContactsControllerBase
         _relatedEntitiesService = relatedEntitiesService;
         _vcardService = vcardService;
         _avatarService = avatarService;
+        _fileValidation = fileValidation;
         _logger = logger;
     }
 
@@ -289,6 +293,7 @@ public class ContactsController : ContactsControllerBase
 
     /// <summary>Uploads or replaces the avatar for a contact.</summary>
     [HttpPut("{contactId:guid}/avatar")]
+    [RequestSizeLimit(5 * 1024 * 1024)]
     public async Task<IActionResult> UploadAvatarAsync(Guid contactId, IFormFile file)
     {
         var caller = GetAuthenticatedCaller();
@@ -296,11 +301,15 @@ public class ContactsController : ContactsControllerBase
         if (file is null || file.Length == 0)
             return BadRequest(ErrorEnvelope(ErrorCodes.ValidationError, "No file provided."));
 
+        var validation = _fileValidation.Validate(file, AllowedFileTypes.AvatarTypes);
+        if (!validation.IsValid)
+            return BadRequest(ErrorEnvelope(validation.ErrorCode!, validation.ErrorMessage!));
+
         try
         {
             using var stream = file.OpenReadStream();
             var result = await _avatarService.UploadAvatarAsync(
-                contactId, stream, file.FileName, file.ContentType, caller);
+                contactId, stream, _fileValidation.SanitizeFileName(file.FileName), file.ContentType, caller);
             return Ok(Envelope(result));
         }
         catch (ValidationException ex)
@@ -354,6 +363,8 @@ public class ContactsController : ContactsControllerBase
 
     /// <summary>Uploads an attachment to a contact.</summary>
     [HttpPost("{contactId:guid}/attachments")]
+    [RequestSizeLimit(10 * 1024 * 1024)]
+    [RequestFormLimits(MultipartBodyLengthLimit = 10 * 1024 * 1024)]
     public async Task<IActionResult> AddAttachmentAsync(Guid contactId, IFormFile file, [FromQuery] string? description = null)
     {
         var caller = GetAuthenticatedCaller();
@@ -361,11 +372,15 @@ public class ContactsController : ContactsControllerBase
         if (file is null || file.Length == 0)
             return BadRequest(ErrorEnvelope(ErrorCodes.ValidationError, "No file provided."));
 
+        var validation = _fileValidation.Validate(file, AllowedFileTypes.EmailAttachmentTypes, 10L * 1024 * 1024);
+        if (!validation.IsValid)
+            return BadRequest(ErrorEnvelope(validation.ErrorCode!, validation.ErrorMessage!));
+
         try
         {
             using var stream = file.OpenReadStream();
             var result = await _avatarService.AddAttachmentAsync(
-                contactId, stream, file.FileName, file.ContentType, description, caller);
+                contactId, stream, _fileValidation.SanitizeFileName(file.FileName), file.ContentType, description, caller);
             return Created($"/api/v1/contacts/attachments/{result.Id}", Envelope(result));
         }
         catch (ValidationException ex)

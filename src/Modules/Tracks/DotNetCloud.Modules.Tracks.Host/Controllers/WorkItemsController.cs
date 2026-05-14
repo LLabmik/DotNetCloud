@@ -1,5 +1,6 @@
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Errors;
+using DotNetCloud.Core.Security;
 using DotNetCloud.Modules.Tracks.Data;
 using DotNetCloud.Modules.Tracks.Data.Services;
 using DotNetCloud.Modules.Tracks.Host.Services;
@@ -17,15 +18,17 @@ namespace DotNetCloud.Modules.Tracks.Host.Controllers;
 public class WorkItemsController : TracksControllerBase
 {
     private readonly WorkItemService _workItemService;
+    private readonly IFileValidationService _fileValidation;
     private readonly TracksDbContext _db;
     private readonly ILogger<WorkItemsController> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="WorkItemsController"/> class.
     /// </summary>
-    public WorkItemsController(WorkItemService workItemService, TracksDbContext db, ILogger<WorkItemsController> logger)
+    public WorkItemsController(WorkItemService workItemService, IFileValidationService fileValidation, TracksDbContext db, ILogger<WorkItemsController> logger)
     {
         _workItemService = workItemService;
+        _fileValidation = fileValidation;
         _db = db;
         _logger = logger;
     }
@@ -681,6 +684,7 @@ public class WorkItemsController : TracksControllerBase
     /// </summary>
     [HttpPost("products/{productId:guid}/work-items/import")]
     [RequestSizeLimit(10 * 1024 * 1024)] // 10MB
+    [RequestFormLimits(MultipartBodyLengthLimit = 10 * 1024 * 1024)]
     public async Task<IActionResult> ImportWorkItemsCsvAsync(
         Guid productId,
         IFormFile file,
@@ -693,8 +697,9 @@ public class WorkItemsController : TracksControllerBase
         if (file is null || file.Length == 0)
             return BadRequest(ErrorEnvelope(ErrorCodes.BadRequest, "No file uploaded."));
 
-        if (!file.FileName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
-            return BadRequest(ErrorEnvelope(ErrorCodes.BadRequest, "Only CSV files are supported."));
+        var fileCheck = _fileValidation.Validate(file, AllowedFileTypes.CsvImportTypes);
+        if (!fileCheck.IsValid)
+            return BadRequest(ErrorEnvelope(fileCheck.ErrorCode!, fileCheck.ErrorMessage!));
 
         try
         {

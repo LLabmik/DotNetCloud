@@ -94,6 +94,17 @@
 - ✓ Execute Phase 3 — Module Reviews: 15 modules reviewed, 3 missing test projects flagged (Bookmarks, Email, About), Console.WriteLine diagnostic calls flagged in Files/Chat
 - ✓ Execute Phase 4 — Client/CLI/UI Reviews: Android obsolete API flagged, 3 test project gaps documented
 - ✓ Execute Phase 5 — Consolidation: Complete findings in `docs/CODE_REVIEW_FINDINGS.md` with 6 critical, 10 high, 15+ medium, 20+ low issues; per-module scorecards; prioritized action items
+- ✓ Execute Security Review — All 10 phases completed:
+  - ✓ Phase 1 — Automated Scanning: SAST (0 security-specific errors), dependency scan (0 vulnerable packages), secret detection (17 hardcoded credentials found), config audit (AllowedHosts, TLS bypasses)
+  - ✓ Phase 2 — Authentication & Authorization: OpenIddict/PKCE verified, capability tiers confirmed, session cookies secure, password/MFA policy validated
+  - ✓ Phase 3 — TLS/Network/Transport: 3 TLS bypasses reviewed, 1 fixed (Email), others documented as intentional; HTTPS, HSTS, CORS verified
+  - ✓ Phase 4 — Input Validation: No SQL injection, XSS mitigated via HtmlSanitizer, open redirect protected, Host header injection fixed
+  - ✓ Phase 5 — File Upload: 6 endpoints inventoried, extension whitelisting gap documented; shared `FileValidationService` created with magic byte validation, filename sanitization; applied to all 6 upload endpoints
+  - ✓ Phase 6 — Cryptography: AES-256-GCM, WOPI tokens, password hashing all verified
+  - ✓ Phase 7 — Configuration/Secrets: All 17 design-time factories remediated to use env vars
+  - ✓ Phase 8 — Logging/Error Handling: Error disclosure locked down, log masking verified; 3 sensitive data leak locations fixed (FCM, Gmail OAuth, API body preview); CLI Console.WriteLine audit completed (no findings)
+  - ✓ Phase 9 — Cross-Module Trust: gRPC boundaries verified, event bus audited; cross-module trust docs created
+  - ✓ Phase 10 — Consolidation: Complete findings in `docs/SECURITY_REVIEW_FINDINGS.md`, remediation roadmap defined, security docs created; key rotation automation implemented; CSP documentation added to deployment guide
 
 ---
 

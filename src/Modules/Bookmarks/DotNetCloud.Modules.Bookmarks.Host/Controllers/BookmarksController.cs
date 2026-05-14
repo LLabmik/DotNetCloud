@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Errors;
+using DotNetCloud.Core.Security;
 using DotNetCloud.Modules.Bookmarks.Services;
 using DotNetCloud.Modules.Search.Client;
 using Microsoft.AspNetCore.Mvc;
@@ -15,6 +16,7 @@ public class BookmarksController : BookmarksControllerBase
     private readonly IBookmarkFolderService _folderService;
     private readonly IBookmarkImportExportService _importExportService;
     private readonly IBookmarkPreviewService _previewService;
+    private readonly IFileValidationService _fileValidation;
     private readonly ISearchFtsClient? _searchFtsClient;
     private readonly ILogger<BookmarksController> _logger;
 
@@ -26,6 +28,7 @@ public class BookmarksController : BookmarksControllerBase
         IBookmarkFolderService folderService,
         IBookmarkImportExportService importExportService,
         IBookmarkPreviewService previewService,
+        IFileValidationService fileValidation,
         ISearchFtsClient? searchFtsClient,
         ILogger<BookmarksController> logger)
     {
@@ -33,6 +36,7 @@ public class BookmarksController : BookmarksControllerBase
         _folderService = folderService;
         _importExportService = importExportService;
         _previewService = previewService;
+        _fileValidation = fileValidation;
         _searchFtsClient = searchFtsClient;
         _logger = logger;
     }
@@ -241,12 +245,18 @@ public class BookmarksController : BookmarksControllerBase
 
     /// <summary>Imports bookmarks from a browser HTML export file.</summary>
     [HttpPost("import")]
+    [RequestSizeLimit(10 * 1024 * 1024)]
+    [RequestFormLimits(MultipartBodyLengthLimit = 10 * 1024 * 1024)]
     public async Task<IActionResult> Import([FromForm] IFormFile? file, [FromQuery] Guid? folderId)
     {
         try
         {
             if (file is null || file.Length == 0)
                 return BadRequest(ErrorEnvelope(ErrorCodes.BookmarkImportFailed, "No file provided."));
+
+            var validation = _fileValidation.Validate(file, AllowedFileTypes.BookmarkImportTypes);
+            if (!validation.IsValid)
+                return BadRequest(ErrorEnvelope(validation.ErrorCode!, validation.ErrorMessage!));
 
             var caller = GetAuthenticatedCaller();
             using var stream = file.OpenReadStream();

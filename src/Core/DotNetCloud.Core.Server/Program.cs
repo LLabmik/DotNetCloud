@@ -6,6 +6,7 @@ using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Data.Initialization;
 using DotNetCloud.Core.Localization;
 using DotNetCloud.Core.Modules;
+using DotNetCloud.Core.Security;
 using DotNetCloud.Core.Schema.Services;
 using DotNetCloud.Core.Server.Configuration;
 using DotNetCloud.Core.Server.Extensions;
@@ -232,6 +233,7 @@ public class Program
 
         // Register schema services for lazy module schema creation.
         // SelfManagedSchemaProvider and ModuleSchemaService are registered by AddDotNetCloudDbContext.
+        builder.Services.AddSingleton<IFileValidationService, FileValidationService>();
         builder.Services.AddSingleton<IModuleSchemaProvider, DbContextSchemaProvider>();
 
         builder.Services.AddFilesServices(builder.Configuration);

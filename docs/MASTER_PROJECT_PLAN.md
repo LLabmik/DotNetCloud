@@ -16,7 +16,7 @@
 
 | Phase                       | Steps   | Completed | In Progress | Pending |
 | --------------------------- | ------- | --------- | ----------- | ------- |
-| Pre-Implementation          | 3       | 3         | 0           | 0       |
+| Pre-Implementation          | 4       | 4         | 0           | 0       |
 | Phase 0.1                   | 11      | 11        | 0           | 0       |
 | Phase 0.2                   | 12      | 12        | 0           | 0       |
 | Phase 0.3                   | 8       | 8         | 0           | 0       |
@@ -318,6 +318,55 @@ Create a sample appsettings.Development.json for local configuration.
 - **Build succeeds** — 0 errors
 
 **Dependencies:** pre-impl-2 (code review plans)
+**Blocking Issues:** None
+
+---
+
+#### Step: pre-impl-4 — Execute Security Code Review
+
+**Status:** completed ✅
+
+**Deliverables:**
+
+- ✓ `docs/SECURITY_REVIEW_FINDINGS.md` — Complete consolidated security findings document with:
+  - ✓ Phase 1: Automated Scanning (SAST, dependency scan, secret detection, config audit, header audit)
+  - ✓ Phase 2: Authentication & Authorization deep dive (OpenIddict, PKCE, sessions, MFA)
+  - ✓ Phase 3: TLS/Network/Transport Security (all bypass locations reviewed, Email module fixed)
+  - ✓ Phase 4: Input Validation & Injection Defense (SQL injection, XSS, open redirect, host header)
+  - ✓ Phase 5: File Upload Security — shared `FileValidationService` with magic byte validation + filename sanitization applied to all 6 upload endpoints
+  - ✓ Phase 6: Data Protection & Cryptography (AES-GCM, WOPI tokens, key management)
+  - ✓ Phase 7: Configuration, Secrets & Supply Chain (17 design-time factories remediated, CI vulnerability scanning added)
+  - ✓ Phase 8: Logging, Error Handling & Information Disclosure — 3 sensitive data leak locations fixed, CLI audit completed
+  - ✓ Phase 9: Cross-Module Trust Boundaries (gRPC, event bus, process isolation) — documented in `docs/security/CROSS_MODULE_TRUST.md`
+  - ✓ Phase 10: Consolidation & Remediation Roadmap (P0-P4 prioritized)
+  - ✓ OWASP Top 10 coverage mapping
+  - ✓ Verified security strengths catalog
+- ✓ `docs/security/SECURITY_MODEL.md` — Threat model, trust boundaries, data flow, security controls
+- ✓ `docs/security/DEPLOYMENT_HARDENING.md` — Production hardening checklist for self-hosted deployments
+- ✓ `docs/security/VULNERABILITY_DISCLOSURE.md` — Vulnerability reporting process and policy
+- ✓ **Critical remediations applied:**
+  - ✓ Email module TLS bypass — environment-gated (Development only / explicit config)
+  - ✓ `AllowedHosts: "*"` — restricted to specific hostnames
+  - ✓ 17 design-time factory files — hardcoded credentials replaced with `DOTNETCLOUD_DB_CONNECTION` env var
+- ✓ **Additional remediations applied:**
+  - ✓ `FileValidationService` — shared service with extension whitelisting, magic byte validation, filename sanitization; registered in DI; applied to 6 upload endpoints
+  - ✓ Cookie prefix hardening — `__Host-` prefix on identity cookie with explicit Secure/HttpOnly/SameSite flags
+  - ✓ Supply chain scanning added to CI pipeline — `dotnet list package --vulnerable` and `--deprecated` fail the build on critical findings
+  - ✓ Logging audit — 3 sensitive data leak locations fixed (FCM response body, Gmail OAuth error body, API response body preview); CLI Console.WriteLine audit clean
+  - ✓ 41 security regression tests — FileValidationService tests covering extensions, magic bytes, file sizes, path traversal, null bytes, dangerous characters, and AllowedFileTypes integrity
+- ✓ All existing tests pass (569+ passed, 0 failed)
+- ✓ Build succeeds (0 errors, 0 warnings)
+
+**Key Findings:**
+
+- **3 Critical Issues:** All remediated (Email TLS bypass, 17 hardcoded credential files, vulnerable dependency pinned)
+- **5 High Issues:** 1 remediated (AllowedHosts), 4 documented (file upload validation — implemented, CSP required by Blazor)
+- **8 Medium Issues:** 4 remediated (host header, logging leaks ×3), 4 documented
+- **4 Low Issues:** All documented for GA roadmap
+- **41 security regression tests added** — all pass
+- **Build succeeds** — 0 errors, 0 warnings
+
+**Dependencies:** pre-impl-3 (code review execution)
 **Blocking Issues:** None
 
 ---

@@ -1,3 +1,4 @@
+using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 using DotNetCloud.Core.Data.Naming;
@@ -20,7 +21,8 @@ public class CoreDbContextDesignTimeFactory : IDesignTimeDbContextFactory<CoreDb
     /// <inheritdoc />
     public CoreDbContext CreateDbContext(string[] args)
     {
-        const string connectionString = "Host=localhost;Database=dotnetcloud_dev;Username=postgres;Password=postgres";
+        var connectionString = Environment.GetEnvironmentVariable("DOTNETCLOUD_DB_CONNECTION")
+            ?? "Host=localhost;Database=dotnetcloud_dev;Username=postgres;Password=postgres";
         var namingStrategy = new PostgreSqlNamingStrategy();
         var options = new DbContextOptionsBuilder<CoreDbContext>();
 

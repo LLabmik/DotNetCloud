@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Security;
 using DotNetCloud.Modules.Contacts;
 using DotNetCloud.Modules.Contacts.Data;
 using DotNetCloud.Modules.Contacts.Host.Services;
@@ -12,6 +13,9 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Register the Contacts module as a singleton for lifecycle management
 builder.Services.AddSingleton<ContactsModule>();
+
+// File validation service for upload security
+builder.Services.AddSingleton<IFileValidationService, FileValidationService>();
 
 // Register EF Core with an in-memory database for development
 // In production, modules use the database configured by the core server

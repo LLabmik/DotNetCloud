@@ -1,3 +1,4 @@
+using System;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Modules.Contacts.Data;
 using Microsoft.EntityFrameworkCore;
@@ -19,7 +20,8 @@ public class ContactsDbContextSqlServerDesignTimeFactory : IDesignTimeDbContextF
     /// <inheritdoc />
     public ContactsDbContext CreateDbContext(string[] args)
     {
-        const string connectionString = "Server=localhost;Database=dotnetcloud_contacts_dev;Trusted_Connection=True;TrustServerCertificate=True";
+        var connectionString = Environment.GetEnvironmentVariable("DOTNETCLOUD_DB_CONNECTION")
+            ?? "Server=localhost;Database=dotnetcloud_contacts_dev;Trusted_Connection=True;TrustServerCertificate=True";
         var options = new DbContextOptionsBuilder<ContactsDbContext>();
 
         options.UseSqlServer(connectionString, sqlOptions =>

@@ -55,6 +55,29 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore DotNetCloud.CI.slnf
 
+      - name: Supply chain vulnerability scan
+        run: |
+          echo "::group::Scanning for vulnerable packages"
+          VULN_OUTPUT=$(dotnet list package --vulnerable 2>&1 || true)
+          echo "$VULN_OUTPUT"
+          if echo "$VULN_OUTPUT" | grep -q "has no vulnerable packages"; then
+            echo "::notice::No vulnerable packages found."
+          elif echo "$VULN_OUTPUT" | grep -qi "vulnerable"; then
+            echo "::error::Vulnerable packages detected! Review the output above."
+            exit 1
+          fi
+          echo "::endgroup::"
+
+          echo "::group::Scanning for deprecated packages"
+          DEP_OUTPUT=$(dotnet list package --deprecated 2>&1 || true)
+          echo "$DEP_OUTPUT"
+          if echo "$DEP_OUTPUT" | grep -qi "deprecated"; then
+            echo "::warning::Deprecated packages detected. Plan updates."
+          else
+            echo "::notice::No deprecated packages found."
+          fi
+          echo "::endgroup::"
+
       - name: Build solution
         run: dotnet build DotNetCloud.CI.slnf --no-restore --configuration Release
 

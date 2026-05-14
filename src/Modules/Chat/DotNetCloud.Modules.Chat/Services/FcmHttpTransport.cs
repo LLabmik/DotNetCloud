@@ -129,16 +129,23 @@ internal sealed class FcmHttpTransport : IFcmTransport, IDisposable
             var body = await response.Content.ReadAsStringAsync(cancellationToken);
 
             // FCM returns UNREGISTERED for invalid tokens
-            if (body.Contains("UNREGISTERED", StringComparison.OrdinalIgnoreCase) ||
-                body.Contains("INVALID_ARGUMENT", StringComparison.OrdinalIgnoreCase))
+            // Log only the error category, not the full response body (may contain sensitive data)
+            var errorCategory = "unknown";
+            if (body.Contains("UNREGISTERED", StringComparison.OrdinalIgnoreCase))
+                errorCategory = "UNREGISTERED";
+            else if (body.Contains("INVALID_ARGUMENT", StringComparison.OrdinalIgnoreCase))
+                errorCategory = "INVALID_ARGUMENT";
+
+            if (errorCategory != "unknown")
             {
-                _logger.LogWarning("FCM invalid token for device {Token}: {Body}",
-                    device.Token[..Math.Min(8, device.Token.Length)], body);
+                _logger.LogWarning("FCM invalid token for device {TokenPrefix}: {Error}",
+                    device.Token[..Math.Min(8, device.Token.Length)], errorCategory);
                 return FcmSendResult.InvalidToken;
             }
 
-            _logger.LogWarning("FCM send failed ({StatusCode}): {Body}", response.StatusCode, body);
-            return new FcmSendResult { Error = $"HTTP {(int)response.StatusCode}: {body}" };
+            _logger.LogWarning("FCM send failed ({StatusCode}) for device {TokenPrefix}",
+                response.StatusCode, device.Token[..Math.Min(8, device.Token.Length)]);
+            return new FcmSendResult { Error = $"HTTP {(int)response.StatusCode}" };
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
