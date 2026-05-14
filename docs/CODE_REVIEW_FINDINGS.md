@@ -699,14 +699,14 @@ Module: CLI
 
 ### Must Fix (Before Next Release)
 
-| Priority | Action                                                            | Severity    | Effort | Files                     |
-| -------- | ----------------------------------------------------------------- | ----------- | ------ | ------------------------- |
-| P0       | Create test projects for Bookmarks, Email, About                  | 🔴 Critical | Medium | 3 new test projects       |
-| P0       | Add `EventId`/`CreatedAt` to `IEvent` interface                   | 🔴 Critical | Small  | `IEvent.cs`               |
-| P0       | Replace Console.WriteLine with ILogger in FileBrowser.razor.cs    | 🔴 Critical | Small  | `FileBrowser.razor.cs`    |
-| P0       | Replace Console.WriteLine with ILogger in ChatPageLayout.razor.cs | 🔴 Critical | Small  | `ChatPageLayout.razor.cs` |
-| P0       | Resolve duplicate DefaultDbContextFactory classes                 | 🔴 Critical | Small  | 2 files in Core.Data      |
-| P1       | Extract Program.cs ConfigureServices into extension methods       | 🟡 High     | Medium | `Program.cs`              |
+| Priority | Action                                                            | Severity    | Effort | Files                     | Status     |
+| -------- | ----------------------------------------------------------------- | ----------- | ------ | ------------------------- | ---------- |
+| P0       | Create test projects for Bookmarks, Email, About                  | 🔴 Critical | Medium | 3 new test projects       | ✅ Done    |
+| P0       | Add `EventId`/`CreatedAt` to `IEvent` interface                   | 🔴 Critical | Small  | `IEvent.cs`               | ✅ Done    |
+| P0       | Replace Console.WriteLine with ILogger in FileBrowser.razor.cs    | 🔴 Critical | Small  | `FileBrowser.razor.cs`    | ✅ Done    |
+| P0       | Replace Console.WriteLine with ILogger in ChatPageLayout.razor.cs | 🔴 Critical | Small  | `ChatPageLayout.razor.cs` | ✅ Done    |
+| P0       | Resolve duplicate DefaultDbContextFactory classes                 | 🔴 Critical | Small  | 2 files in Core.Data      | ✅ Done    |
+| P1       | Extract Program.cs ConfigureServices into extension methods       | 🟡 High     | Medium | `Program.cs`              | ✅ Done    |
 
 ### Should Fix (Next Sprint)
 
@@ -792,10 +792,14 @@ The following issues from this review have been **fixed** as part of the review 
 
 **Verification:** `dotnet build` — 0 errors, 0 warnings ✅ | `dotnet test` — All 5,248+ tests pass ✅
 
+**Fixed (round 2):**
+
+| # | Issue | Fix | Status |
+| --- | --- | --- | --- |
+| 7 | Duplicate `DefaultDbContextFactory` — two classes with same name | Deleted unused generic `DefaultDbContextFactory<TContext>` from `Infrastructure/` (and its `IDbContextFactory<TContext>` interface) — only the non-generic `Context/DefaultDbContextFactory` remains | ✅ Fixed |
+
 **Not fixed (require design decisions):**
 
-- Missing test projects for Bookmarks, Email, About — needs project scaffolding
-- Rename duplicate `DefaultDbContextFactory` — generic version is unused, low priority
 - Extract legacy Files migration from Program.cs — requires separate service class
 - Add size threshold to `ResponseEnvelopeMiddleware` — requires configuration design
   _This code review was conducted per the [CODE_REVIEW_PLAN.md](./CODE_REVIEW_PLAN.md). Companion security review: [SECURITY_REVIEW_PLAN.md](./SECURITY_REVIEW_PLAN.md)._
