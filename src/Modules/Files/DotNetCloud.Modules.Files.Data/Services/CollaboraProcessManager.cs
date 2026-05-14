@@ -132,7 +132,8 @@ internal sealed class CollaboraProcessManager : BackgroundService, ICollaboraPro
                 return;
             }
 
-            lock (_lock) { _process = process; }
+            lock (_lock)
+            { _process = process; }
 
             // Wait for Collabora to become healthy
             var startedHealthy = await WaitForHealthyAsync(stoppingToken);

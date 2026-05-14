@@ -304,9 +304,16 @@ public class SearchResultMetadataTests
     {
         var expectedIcons = new Dictionary<string, string>
         {
-            ["files"] = "📁", ["notes"] = "📝", ["chat"] = "💬",
-            ["contacts"] = "👤", ["calendar"] = "📅", ["photos"] = "📷",
-            ["music"] = "🎵", ["video"] = "🎬", ["tracks"] = "📋", ["ai"] = "🤖"
+            ["files"] = "📁",
+            ["notes"] = "📝",
+            ["chat"] = "💬",
+            ["contacts"] = "👤",
+            ["calendar"] = "📅",
+            ["photos"] = "📷",
+            ["music"] = "🎵",
+            ["video"] = "🎬",
+            ["tracks"] = "📋",
+            ["ai"] = "🤖"
         };
 
         foreach (var (module, icon) in expectedIcons)
@@ -321,9 +328,16 @@ public class SearchResultMetadataTests
     {
         var expected = new Dictionary<string, string>
         {
-            ["files"] = "Files", ["notes"] = "Notes", ["chat"] = "Chat",
-            ["contacts"] = "Contacts", ["calendar"] = "Calendar", ["photos"] = "Photos",
-            ["music"] = "Music", ["video"] = "Video", ["tracks"] = "Tracks", ["ai"] = "AI"
+            ["files"] = "Files",
+            ["notes"] = "Notes",
+            ["chat"] = "Chat",
+            ["contacts"] = "Contacts",
+            ["calendar"] = "Calendar",
+            ["photos"] = "Photos",
+            ["music"] = "Music",
+            ["video"] = "Video",
+            ["tracks"] = "Tracks",
+            ["ai"] = "AI"
         };
 
         foreach (var (module, name) in expected)

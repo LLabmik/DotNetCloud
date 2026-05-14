@@ -265,7 +265,8 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
     public async Task PauseAsync(Guid contextId, CancellationToken cancellationToken = default)
     {
         var running = await GetRunningContextAsync(contextId);
-        if (running?.Engine is null) return;
+        if (running?.Engine is null)
+            return;
         await running.Engine.PauseAsync(running.SyncContext, cancellationToken);
     }
 
@@ -273,7 +274,8 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
     public async Task ResumeAsync(Guid contextId, CancellationToken cancellationToken = default)
     {
         var running = await GetRunningContextAsync(contextId);
-        if (running?.Engine is null) return;
+        if (running?.Engine is null)
+            return;
         await running.Engine.ResumeAsync(running.SyncContext, cancellationToken);
     }
 
@@ -281,7 +283,8 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
     public async Task SyncNowAsync(Guid contextId, CancellationToken cancellationToken = default)
     {
         var running = await GetRunningContextAsync(contextId);
-        if (running?.Engine is null) return;
+        if (running?.Engine is null)
+            return;
         await running.Engine.SyncAsync(running.SyncContext, cancellationToken);
     }
 
@@ -290,7 +293,8 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
         Guid contextId, bool includeHistory, CancellationToken cancellationToken = default)
     {
         var running = await GetRunningContextAsync(contextId);
-        if (running?.StateDb is null) return [];
+        if (running?.StateDb is null)
+            return [];
 
         var dbPath = running.SyncContext.StateDatabasePath;
         if (includeHistory)
@@ -305,7 +309,8 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
         CancellationToken cancellationToken = default)
     {
         var running = await GetRunningContextAsync(contextId);
-        if (running?.StateDb is null) return;
+        if (running?.StateDb is null)
+            return;
 
         await running.StateDb.ResolveConflictAsync(
             running.SyncContext.StateDatabasePath, conflictId, resolution, cancellationToken);
@@ -351,7 +356,8 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
         Guid contextId, CancellationToken cancellationToken = default)
     {
         var running = await GetRunningContextAsync(contextId);
-        if (running?.ApiClient is null) return null;
+        if (running?.ApiClient is null)
+            return null;
 
         // The access token may not be set yet if this is called before the first
         // sync pass (e.g. immediately after add-account). Load it from the token store.
@@ -610,8 +616,10 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
     /// </summary>
     private async Task EnsureAccessTokenAsync(RunningContext running, CancellationToken cancellationToken)
     {
-        if (running.ApiClient is null) return;
-        if (running.ApiClient.AccessToken is not null) return;
+        if (running.ApiClient is null)
+            return;
+        if (running.ApiClient.AccessToken is not null)
+            return;
 
         var tokenStore = CreateTokenStore(running.Registration.DataDirectory);
         var tokens = await tokenStore.LoadAsync(running.Registration.AccountKey, cancellationToken);

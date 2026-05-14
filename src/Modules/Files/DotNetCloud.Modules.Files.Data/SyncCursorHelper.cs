@@ -93,9 +93,12 @@ internal static class SyncCursorHelper
         {
             var raw = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(cursor));
             var colon = raw.IndexOf(':');
-            if (colon < 1) return null;
-            if (!Guid.TryParse(raw[..colon], out var userId)) return null;
-            if (!long.TryParse(raw[(colon + 1)..], out var sequence)) return null;
+            if (colon < 1)
+                return null;
+            if (!Guid.TryParse(raw[..colon], out var userId))
+                return null;
+            if (!long.TryParse(raw[(colon + 1)..], out var sequence))
+                return null;
             return (userId, sequence);
         }
         catch

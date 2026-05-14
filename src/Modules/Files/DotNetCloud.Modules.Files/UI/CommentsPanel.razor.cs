@@ -104,7 +104,8 @@ public partial class CommentsPanel : ComponentBase
     /// <summary>Submits a new top-level comment.</summary>
     protected async Task SubmitNewComment()
     {
-        if (string.IsNullOrWhiteSpace(_newCommentText) || _isSubmitting) return;
+        if (string.IsNullOrWhiteSpace(_newCommentText) || _isSubmitting)
+            return;
 
         _isSubmitting = true;
         StateHasChanged();
@@ -140,7 +141,8 @@ public partial class CommentsPanel : ComponentBase
     /// <summary>Submits a reply to a comment.</summary>
     protected async Task SubmitReply()
     {
-        if (_replyingToId is null || string.IsNullOrWhiteSpace(_replyText) || _isSubmitting) return;
+        if (_replyingToId is null || string.IsNullOrWhiteSpace(_replyText) || _isSubmitting)
+            return;
 
         _isSubmitting = true;
         StateHasChanged();
@@ -176,7 +178,8 @@ public partial class CommentsPanel : ComponentBase
     /// <summary>Saves the edited comment.</summary>
     protected async Task SaveEdit()
     {
-        if (_editingCommentId is null || string.IsNullOrWhiteSpace(_editCommentText) || _isSubmitting) return;
+        if (_editingCommentId is null || string.IsNullOrWhiteSpace(_editCommentText) || _isSubmitting)
+            return;
 
         _isSubmitting = true;
         StateHasChanged();
@@ -241,10 +244,14 @@ public partial class CommentsPanel : ComponentBase
     {
         var diff = DateTime.UtcNow - utcTime;
 
-        if (diff.TotalMinutes < 1) return "just now";
-        if (diff.TotalMinutes < 60) return $"{(int)diff.TotalMinutes}m ago";
-        if (diff.TotalHours < 24) return $"{(int)diff.TotalHours}h ago";
-        if (diff.TotalDays < 7) return $"{(int)diff.TotalDays}d ago";
+        if (diff.TotalMinutes < 1)
+            return "just now";
+        if (diff.TotalMinutes < 60)
+            return $"{(int)diff.TotalMinutes}m ago";
+        if (diff.TotalHours < 24)
+            return $"{(int)diff.TotalHours}h ago";
+        if (diff.TotalDays < 7)
+            return $"{(int)diff.TotalDays}d ago";
 
         return utcTime.ToString("MMM d, yyyy");
     }

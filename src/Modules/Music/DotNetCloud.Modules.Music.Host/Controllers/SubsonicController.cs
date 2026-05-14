@@ -447,7 +447,8 @@ public class SubsonicController : ControllerBase
             {
                 if (Guid.TryParse(songId, out var trackId))
                 {
-                    try { await _playlistService.AddTrackAsync(plId, trackId, caller); }
+                    try
+                    { await _playlistService.AddTrackAsync(plId, trackId, caller); }
                     catch { /* Skip duplicates */ }
                 }
             }

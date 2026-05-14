@@ -261,7 +261,8 @@ internal sealed class CallSignalingService : ICallSignalingService
     /// </summary>
     internal async Task AddToCallGroupAsync(Guid callId, Guid userId, CancellationToken cancellationToken = default)
     {
-        if (_broadcaster is null) return;
+        if (_broadcaster is null)
+            return;
         await _broadcaster.AddToGroupAsync(userId, CallGroup(callId), cancellationToken);
     }
 
@@ -271,7 +272,8 @@ internal sealed class CallSignalingService : ICallSignalingService
     /// </summary>
     internal async Task RemoveFromCallGroupAsync(Guid callId, Guid userId, CancellationToken cancellationToken = default)
     {
-        if (_broadcaster is null) return;
+        if (_broadcaster is null)
+            return;
         await _broadcaster.RemoveFromGroupAsync(userId, CallGroup(callId), cancellationToken);
     }
 

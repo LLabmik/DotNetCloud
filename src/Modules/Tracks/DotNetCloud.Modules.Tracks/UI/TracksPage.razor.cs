@@ -106,7 +106,8 @@ public partial class TracksPage : ComponentBase, IDisposable
 
     private async Task InitializeTourAsync()
     {
-        if (_tourInitialized) return;
+        if (_tourInitialized)
+            return;
         _tourInitialized = true;
 
         _currentUserId = (await GetCurrentUserIdAsync())?.ToString();
@@ -223,7 +224,8 @@ public partial class TracksPage : ComponentBase, IDisposable
         try
         {
             _selectedEpic = await ApiClient.GetWorkItemAsync(epicId);
-            if (_selectedEpic is null) return;
+            if (_selectedEpic is null)
+                return;
 
             await LoadEpicKanbanDataAsync();
             _view = TracksView.EpicKanban;
@@ -246,7 +248,8 @@ public partial class TracksPage : ComponentBase, IDisposable
         try
         {
             _selectedFeature = await ApiClient.GetWorkItemAsync(featureId);
-            if (_selectedFeature is null) return;
+            if (_selectedFeature is null)
+                return;
 
             await LoadFeatureKanbanDataAsync();
             _view = TracksView.FeatureKanban;
@@ -276,7 +279,8 @@ public partial class TracksPage : ComponentBase, IDisposable
     /// <summary>Selects a work item by its product-scoped item number (used by calendar view).</summary>
     private async Task SelectWorkItemByNumber(int itemNumber)
     {
-        if (_selectedProduct is null) return;
+        if (_selectedProduct is null)
+            return;
         try
         {
             _selectedWorkItem = await ApiClient.GetWorkItemByNumberAsync(_selectedProduct.Id, itemNumber);
@@ -298,7 +302,8 @@ public partial class TracksPage : ComponentBase, IDisposable
     /// </summary>
     private async Task ResolveMemberDisplayNamesAsync()
     {
-        if (_currentMembers.Count == 0) return;
+        if (_currentMembers.Count == 0)
+            return;
 
         var userIds = _currentMembers.Select(m => m.UserId).Distinct().ToList();
         try
@@ -323,7 +328,8 @@ public partial class TracksPage : ComponentBase, IDisposable
 
     private async Task LoadProductKanbanDataAsync()
     {
-        if (_selectedProduct is null) return;
+        if (_selectedProduct is null)
+            return;
 
         var swimlanes = await ApiClient.ListProductSwimlanesAsync(_selectedProduct.Id);
         var labels = await ApiClient.ListLabelsAsync(_selectedProduct.Id);
@@ -351,8 +357,10 @@ public partial class TracksPage : ComponentBase, IDisposable
 
     private async Task LoadEpicKanbanDataAsync()
     {
-        if (_selectedEpic is null) return;
-        if (_selectedProduct is null) return;
+        if (_selectedEpic is null)
+            return;
+        if (_selectedProduct is null)
+            return;
 
         var swimlanes = await ApiClient.ListWorkItemSwimlanesAsync(_selectedEpic.Id);
         _currentSwimlanes.Clear();
@@ -372,8 +380,10 @@ public partial class TracksPage : ComponentBase, IDisposable
 
     private async Task LoadFeatureKanbanDataAsync()
     {
-        if (_selectedFeature is null) return;
-        if (_selectedProduct is null) return;
+        if (_selectedFeature is null)
+            return;
+        if (_selectedProduct is null)
+            return;
 
         var swimlanes = await ApiClient.ListWorkItemSwimlanesAsync(_selectedFeature.Id);
         _currentSwimlanes.Clear();
@@ -410,7 +420,8 @@ public partial class TracksPage : ComponentBase, IDisposable
 
     private async Task RefreshSprintsAsync()
     {
-        if (_selectedEpic is null) return;
+        if (_selectedEpic is null)
+            return;
         var planningSprintId = _planningSprint?.Id;
 
         _sprints.Clear();
@@ -454,7 +465,8 @@ public partial class TracksPage : ComponentBase, IDisposable
         foreach (var (_, items) in _currentWorkItems)
         {
             var index = items.FindIndex(c => c.Id == item.Id);
-            if (index >= 0) { items[index] = item; break; }
+            if (index >= 0)
+            { items[index] = item; break; }
         }
     }
 
@@ -462,7 +474,8 @@ public partial class TracksPage : ComponentBase, IDisposable
     {
         foreach (var (_, items) in _currentWorkItems)
             items.RemoveAll(c => c.Id == workItemId);
-        if (_selectedWorkItem?.Id == workItemId) _selectedWorkItem = null;
+        if (_selectedWorkItem?.Id == workItemId)
+            _selectedWorkItem = null;
     }
 
     private async Task HandleSwimlaneCreated(SwimlaneDto swimlane)
@@ -507,7 +520,8 @@ public partial class TracksPage : ComponentBase, IDisposable
     /// </summary>
     private async Task RestoreLastDeletedProductAsync()
     {
-        if (!_lastDeletedProductId.HasValue) return;
+        if (!_lastDeletedProductId.HasValue)
+            return;
 
         try
         {
@@ -591,10 +605,10 @@ public partial class TracksPage : ComponentBase, IDisposable
     {
         _selectedWorkItem = null;
         _showSprints = false;
-        
+
         if (_selectedProduct is not null && _currentSwimlanes.Count == 0)
             await LoadProductKanbanDataAsync();
-        
+
         _view = TracksView.Settings;
     }
 
@@ -602,10 +616,10 @@ public partial class TracksPage : ComponentBase, IDisposable
     {
         _selectedWorkItem = null;
         _showSprints = false;
-        
+
         if (_selectedProduct is not null && _currentSwimlanes.Count == 0)
             await LoadProductKanbanDataAsync();
-        
+
         _view = TracksView.Calendar;
     }
 
@@ -613,10 +627,10 @@ public partial class TracksPage : ComponentBase, IDisposable
     {
         _selectedWorkItem = null;
         _showSprints = false;
-        
+
         if (_selectedProduct is not null && _currentSwimlanes.Count == 0)
             await LoadProductKanbanDataAsync();
-        
+
         _view = TracksView.List;
     }
 
@@ -624,10 +638,10 @@ public partial class TracksPage : ComponentBase, IDisposable
     {
         _selectedWorkItem = null;
         _showSprints = false;
-        
+
         if (_selectedProduct is not null && _currentSwimlanes.Count == 0)
             await LoadProductKanbanDataAsync();
-        
+
         _view = TracksView.Dashboard;
     }
 
@@ -644,7 +658,8 @@ public partial class TracksPage : ComponentBase, IDisposable
 
     private async Task OpenReview()
     {
-        if (_selectedEpic is null) return;
+        if (_selectedEpic is null)
+            return;
         _selectedWorkItem = null;
         _showSprints = false;
 
@@ -728,7 +743,8 @@ public partial class TracksPage : ComponentBase, IDisposable
     {
         _selectedProduct = product;
         var index = _products.FindIndex(p => p.Id == product.Id);
-        if (index >= 0) _products[index] = product;
+        if (index >= 0)
+            _products[index] = product;
     }
 
     // ── Saved Views ─────────────────────────────────────────
@@ -742,7 +758,8 @@ public partial class TracksPage : ComponentBase, IDisposable
 
     private async Task HandleSaveViewConfirm()
     {
-        if (string.IsNullOrWhiteSpace(_newViewName) || _selectedProduct is null) return;
+        if (string.IsNullOrWhiteSpace(_newViewName) || _selectedProduct is null)
+            return;
 
         try
         {
@@ -799,8 +816,10 @@ public partial class TracksPage : ComponentBase, IDisposable
 
     private async Task HandleSaveViewNameKeyDown(KeyboardEventArgs e)
     {
-        if (e.Key == "Enter") await HandleSaveViewConfirm();
-        else if (e.Key == "Escape") HandleSaveViewCancel();
+        if (e.Key == "Enter")
+            await HandleSaveViewConfirm();
+        else if (e.Key == "Escape")
+            HandleSaveViewCancel();
     }
 
     // ── Onboarding Tour ─────────────────────────────────────
@@ -904,7 +923,8 @@ public partial class TracksPage : ComponentBase, IDisposable
 
     private async void OnWorkItemActionReceived(Guid productId, Guid workItemId, string action)
     {
-        if (_selectedProduct?.Id != productId) return;
+        if (_selectedProduct?.Id != productId)
+            return;
         await InvokeAsync(async () =>
         {
             await RefreshCurrentKanbanAsync();
@@ -913,7 +933,8 @@ public partial class TracksPage : ComponentBase, IDisposable
 
     private async void OnSwimlaneActionReceived(Guid productId, Guid swimlaneId, string action)
     {
-        if (_selectedProduct?.Id != productId) return;
+        if (_selectedProduct?.Id != productId)
+            return;
         await InvokeAsync(async () =>
         {
             await RefreshCurrentKanbanAsync();
@@ -922,7 +943,8 @@ public partial class TracksPage : ComponentBase, IDisposable
 
     private async void OnCommentActionReceived(Guid productId, Guid workItemId, Guid commentId, string action)
     {
-        if (_selectedWorkItem?.Id != workItemId) return;
+        if (_selectedWorkItem?.Id != workItemId)
+            return;
         await InvokeAsync(async () =>
         {
             _selectedWorkItem = await ApiClient.GetWorkItemAsync(workItemId);
@@ -932,13 +954,15 @@ public partial class TracksPage : ComponentBase, IDisposable
 
     private async void OnSprintActionReceived(Guid epicId, Guid sprintId, string action)
     {
-        if (_selectedEpic?.Id != epicId) return;
+        if (_selectedEpic?.Id != epicId)
+            return;
         await InvokeAsync(async () => await RefreshSprintsAsync());
     }
 
     private async void OnProductMemberActionReceived(Guid productId, Guid userId, string action)
     {
-        if (_selectedProduct?.Id != productId) return;
+        if (_selectedProduct?.Id != productId)
+            return;
         await InvokeAsync(async () =>
         {
             await RefreshCurrentKanbanAsync();
@@ -947,7 +971,8 @@ public partial class TracksPage : ComponentBase, IDisposable
 
     private async void OnReviewSessionStateChanged(Guid sessionId, Guid epicId, string action)
     {
-        if (_selectedEpic?.Id != epicId) return;
+        if (_selectedEpic?.Id != epicId)
+            return;
         await InvokeAsync(async () =>
         {
             if (action is "ended")

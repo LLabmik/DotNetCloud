@@ -54,10 +54,14 @@ public sealed class CustomFieldService
             .FirstOrDefaultAsync(cf => cf.Id == fieldId, ct)
             ?? throw new NotFoundException("CustomField", fieldId);
 
-        if (dto.Name is not null) field.Name = dto.Name;
-        if (dto.Type.HasValue) field.Type = dto.Type.Value;
-        if (dto.OptionsJson is not null) field.OptionsJson = dto.OptionsJson;
-        if (dto.IsRequired.HasValue) field.IsRequired = dto.IsRequired.Value;
+        if (dto.Name is not null)
+            field.Name = dto.Name;
+        if (dto.Type.HasValue)
+            field.Type = dto.Type.Value;
+        if (dto.OptionsJson is not null)
+            field.OptionsJson = dto.OptionsJson;
+        if (dto.IsRequired.HasValue)
+            field.IsRequired = dto.IsRequired.Value;
         field.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(ct);
@@ -200,7 +204,8 @@ public sealed class CustomFieldService
         if (field.IsRequired && string.IsNullOrWhiteSpace(value))
             throw new ValidationException("Value", $"Custom field '{field.Name}' is required.");
 
-        if (string.IsNullOrWhiteSpace(value)) return;
+        if (string.IsNullOrWhiteSpace(value))
+            return;
 
         switch (field.Type)
         {
@@ -223,9 +228,11 @@ public sealed class CustomFieldService
 
     private static void ValidateSelectValue(CustomField field, string value, bool singleSelect)
     {
-        if (string.IsNullOrWhiteSpace(field.OptionsJson)) return;
+        if (string.IsNullOrWhiteSpace(field.OptionsJson))
+            return;
         var options = System.Text.Json.JsonSerializer.Deserialize<string[]>(field.OptionsJson);
-        if (options is null || options.Length == 0) return;
+        if (options is null || options.Length == 0)
+            return;
 
         var selectedValues = singleSelect
             ? new[] { value }

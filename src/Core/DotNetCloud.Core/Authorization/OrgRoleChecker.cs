@@ -21,9 +21,12 @@ public static class OrgRoleChecker
     /// </summary>
     public static Guid? GetHighestRole(IEnumerable<Guid> roleIds)
     {
-        if (roleIds.Contains(OrgRoleIds.OrgAdmin))   return OrgRoleIds.OrgAdmin;
-        if (roleIds.Contains(OrgRoleIds.OrgManager)) return OrgRoleIds.OrgManager;
-        if (roleIds.Contains(OrgRoleIds.OrgMember))  return OrgRoleIds.OrgMember;
+        if (roleIds.Contains(OrgRoleIds.OrgAdmin))
+            return OrgRoleIds.OrgAdmin;
+        if (roleIds.Contains(OrgRoleIds.OrgManager))
+            return OrgRoleIds.OrgManager;
+        if (roleIds.Contains(OrgRoleIds.OrgMember))
+            return OrgRoleIds.OrgMember;
         return null;
     }
 }

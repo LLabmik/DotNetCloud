@@ -113,7 +113,8 @@ internal static class ModuleCommands
         ConsoleOutput.WriteHeader("Installed Modules");
 
         await using var provider = ServiceProviderFactory.CreateFromConfig();
-        if (provider is null) return 1;
+        if (provider is null)
+            return 1;
 
         using var scope = provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<CoreDbContext>();
@@ -158,7 +159,8 @@ internal static class ModuleCommands
         }
 
         await using var provider = ServiceProviderFactory.CreateFromConfig();
-        if (provider is null) return 1;
+        if (provider is null)
+            return 1;
 
         using var scope = provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<CoreDbContext>();
@@ -185,7 +187,8 @@ internal static class ModuleCommands
         ArgumentException.ThrowIfNullOrWhiteSpace(moduleId);
 
         await using var provider = ServiceProviderFactory.CreateFromConfig();
-        if (provider is null) return 1;
+        if (provider is null)
+            return 1;
 
         using var scope = provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<CoreDbContext>();
@@ -209,7 +212,8 @@ internal static class ModuleCommands
         ArgumentException.ThrowIfNullOrWhiteSpace(moduleId);
 
         await using var provider = ServiceProviderFactory.CreateFromConfig();
-        if (provider is null) return 1;
+        if (provider is null)
+            return 1;
 
         using var scope = provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<CoreDbContext>();
@@ -257,7 +261,8 @@ internal static class ModuleCommands
         }
 
         await using var provider = ServiceProviderFactory.CreateFromConfig();
-        if (provider is null) return 1;
+        if (provider is null)
+            return 1;
 
         using var scope = provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<CoreDbContext>();

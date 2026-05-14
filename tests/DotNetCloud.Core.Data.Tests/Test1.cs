@@ -1,4 +1,4 @@
-﻿namespace DotNetCloud.Core.Data.Tests;
+namespace DotNetCloud.Core.Data.Tests;
 
 [TestClass]
 public sealed class Test1

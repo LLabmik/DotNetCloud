@@ -81,7 +81,8 @@ public sealed class SearchReindexBackgroundService : BackgroundService
     {
         _manualReindexModuleId = null;
         _manualReindexRequested = true;
-        try { _triggerSemaphore.Release(); }
+        try
+        { _triggerSemaphore.Release(); }
         catch (SemaphoreFullException) { /* already signaled */ }
     }
 
@@ -92,7 +93,8 @@ public sealed class SearchReindexBackgroundService : BackgroundService
     {
         _manualReindexModuleId = moduleId;
         _manualReindexRequested = true;
-        try { _triggerSemaphore.Release(); }
+        try
+        { _triggerSemaphore.Release(); }
         catch (SemaphoreFullException) { /* already signaled */ }
     }
 

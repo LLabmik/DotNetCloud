@@ -12,7 +12,8 @@ internal sealed class SqlitePendingMessageQueue : IPendingMessageQueue, IAsyncDi
 
     private async Task<SQLiteAsyncConnection> GetDbAsync()
     {
-        if (_db is not null) return _db;
+        if (_db is not null)
+            return _db;
         var dbPath = Path.Combine(FileSystem.AppDataDirectory, "pending_messages.db3");
         _db = new SQLiteAsyncConnection(dbPath);
         await _db.CreateTableAsync<PendingMessageRow>().ConfigureAwait(false);

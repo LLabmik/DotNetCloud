@@ -205,7 +205,10 @@ public class ContentExtractionPipelinePhase4Tests
     [TestMethod]
     public void Pipeline_MaxContentLength_Is100KB()
     {
+        // Regression guard — will fail if constant is accidentally changed.
+#pragma warning disable MSTEST0032 // Assertion condition is known to be always true
         Assert.AreEqual(102400, ContentExtractionService.MaxContentLength);
+#pragma warning restore MSTEST0032
     }
 
     [TestMethod]

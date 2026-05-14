@@ -415,7 +415,8 @@ internal sealed class DownloadService : IDownloadService
                         .AsNoTracking()
                         .FirstOrDefaultAsync(n => n.Id == nodeId, cancellationToken);
 
-                    if (node is null) continue;
+                    if (node is null)
+                        continue;
 
                     await _permissions.RequirePermissionAsync(nodeId, caller, SharePermission.Read, cancellationToken);
 
@@ -442,7 +443,9 @@ internal sealed class DownloadService : IDownloadService
         }
         catch
         {
-            try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { /* best-effort */ }
+            try
+            { if (File.Exists(tempPath)) File.Delete(tempPath); }
+            catch { /* best-effort */ }
             throw;
         }
     }
@@ -482,7 +485,8 @@ internal sealed class DownloadService : IDownloadService
 
         var entry = archive.CreateEntry(entryPath, CompressionLevel.Fastest);
 
-        if (latestVersion is null) return;
+        if (latestVersion is null)
+            return;
 
         await using var entryStream = entry.Open();
 
@@ -495,7 +499,8 @@ internal sealed class DownloadService : IDownloadService
 
         foreach (var vc in versionChunks)
         {
-            if (vc.FileChunk!.Size == 0) continue;
+            if (vc.FileChunk!.Size == 0)
+                continue;
 
             var chunkStream = await _storageEngine.OpenReadStreamAsync(vc.FileChunk.StoragePath, cancellationToken);
             if (chunkStream is null)

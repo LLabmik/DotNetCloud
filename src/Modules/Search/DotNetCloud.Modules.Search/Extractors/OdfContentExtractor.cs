@@ -69,7 +69,8 @@ public sealed class OdfContentExtractor : IContentExtractor
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            if (reader.NodeType != XmlNodeType.Element) continue;
+            if (reader.NodeType != XmlNodeType.Element)
+                continue;
 
             switch (reader.LocalName)
             {

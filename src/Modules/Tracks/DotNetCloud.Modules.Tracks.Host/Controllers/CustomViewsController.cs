@@ -72,7 +72,8 @@ public class CustomViewsController : TracksControllerBase
                 viewId, caller.UserId, dto.Name, dto.FilterJson,
                 dto.SortJson, dto.GroupBy, dto.Layout, dto.IsShared, ct);
 
-            if (view is null) return NotFound(ErrorEnvelope(ErrorCodes.NotFound, "View not found."));
+            if (view is null)
+                return NotFound(ErrorEnvelope(ErrorCodes.NotFound, "View not found."));
             return Ok(Envelope(ToDto(view)));
         }
         catch (System.InvalidOperationException ex) when (ex.Message.Contains("Not authorized"))
@@ -94,7 +95,8 @@ public class CustomViewsController : TracksControllerBase
         try
         {
             var deleted = await _viewService.DeleteViewAsync(viewId, caller.UserId, ct);
-            if (!deleted) return NotFound(ErrorEnvelope(ErrorCodes.NotFound, "View not found."));
+            if (!deleted)
+                return NotFound(ErrorEnvelope(ErrorCodes.NotFound, "View not found."));
             return Ok(Envelope(new { deleted = true }));
         }
         catch (System.InvalidOperationException ex) when (ex.Message.Contains("Not authorized"))

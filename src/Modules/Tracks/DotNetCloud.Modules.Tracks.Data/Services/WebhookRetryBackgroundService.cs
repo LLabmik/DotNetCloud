@@ -52,7 +52,8 @@ public sealed class WebhookRetryBackgroundService : BackgroundService
 
                     foreach (var delivery in pendingRetries)
                     {
-                        if (stoppingToken.IsCancellationRequested) break;
+                        if (stoppingToken.IsCancellationRequested)
+                            break;
 
                         if (delivery.Subscription is null || !delivery.Subscription.IsActive)
                             continue;

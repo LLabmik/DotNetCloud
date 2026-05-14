@@ -87,7 +87,8 @@ public sealed class WebhookService
         CancellationToken ct)
     {
         var subscription = await _db.WebhookSubscriptions.FindAsync([id], ct);
-        if (subscription is null) return null;
+        if (subscription is null)
+            return null;
 
         subscription.Url = url;
         subscription.EventsJson = JsonSerializer.Serialize(eventTypes, JsonOptions);
@@ -104,7 +105,8 @@ public sealed class WebhookService
     public async Task<bool> DeleteSubscriptionAsync(Guid id, CancellationToken ct)
     {
         var subscription = await _db.WebhookSubscriptions.FindAsync([id], ct);
-        if (subscription is null) return false;
+        if (subscription is null)
+            return false;
 
         _db.WebhookSubscriptions.Remove(subscription);
         await _db.SaveChangesAsync(ct);

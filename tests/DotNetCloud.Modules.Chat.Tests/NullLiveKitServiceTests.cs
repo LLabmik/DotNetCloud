@@ -153,7 +153,8 @@ public class NullLiveKitServiceTests
         var loggerMock = new TestLogger<NullLiveKitService>();
         var service = new NullLiveKitService(loggerMock);
 
-        try { await service.CreateRoomAsync(Guid.NewGuid(), 10); }
+        try
+        { await service.CreateRoomAsync(Guid.NewGuid(), 10); }
         catch (InvalidOperationException) { }
 
         Assert.IsTrue(loggerMock.LogEntries.Any(e => e.LogLevel == LogLevel.Warning),
@@ -166,7 +167,8 @@ public class NullLiveKitServiceTests
         var loggerMock = new TestLogger<NullLiveKitService>();
         var service = new NullLiveKitService(loggerMock);
 
-        try { service.GenerateToken("room", "user", "name"); }
+        try
+        { service.GenerateToken("room", "user", "name"); }
         catch (InvalidOperationException) { }
 
         Assert.IsTrue(loggerMock.LogEntries.Any(e => e.LogLevel == LogLevel.Warning),

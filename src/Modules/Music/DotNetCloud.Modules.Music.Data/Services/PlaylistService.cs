@@ -96,9 +96,12 @@ public sealed class PlaylistService : Music.Services.IPlaylistService
             .FirstOrDefaultAsync(p => p.Id == playlistId && p.OwnerId == caller.UserId, cancellationToken)
             ?? throw new BusinessRuleException(ErrorCodes.PlaylistNotFound, "Playlist not found.");
 
-        if (dto.Name is not null) playlist.Name = dto.Name;
-        if (dto.Description is not null) playlist.Description = dto.Description;
-        if (dto.IsPublic.HasValue) playlist.IsPublic = dto.IsPublic.Value;
+        if (dto.Name is not null)
+            playlist.Name = dto.Name;
+        if (dto.Description is not null)
+            playlist.Description = dto.Description;
+        if (dto.IsPublic.HasValue)
+            playlist.IsPublic = dto.IsPublic.Value;
         playlist.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(cancellationToken);
@@ -182,7 +185,8 @@ public sealed class PlaylistService : Music.Services.IPlaylistService
             .FirstOrDefaultAsync(p => p.Id == playlistId &&
                 (p.OwnerId == caller.UserId || p.IsPublic), cancellationToken);
 
-        if (playlist is null) return [];
+        if (playlist is null)
+            return [];
 
         var tracks = await _db.PlaylistTracks
             .Include(pt => pt.Track).ThenInclude(t => t!.Album)

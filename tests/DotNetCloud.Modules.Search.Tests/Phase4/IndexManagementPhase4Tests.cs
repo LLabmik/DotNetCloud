@@ -386,16 +386,24 @@ public class IndexManagementPhase4Tests
 
         await provider.IndexDocumentAsync(new SearchDocument
         {
-            ModuleId = "files", EntityId = "old", EntityType = "FileNode",
-            Title = "Old", Content = "searchable", OwnerId = userId,
+            ModuleId = "files",
+            EntityId = "old",
+            EntityType = "FileNode",
+            Title = "Old",
+            Content = "searchable",
+            OwnerId = userId,
             CreatedAt = DateTimeOffset.UtcNow.AddDays(-10),
             UpdatedAt = DateTimeOffset.UtcNow.AddDays(-10)
         });
 
         await provider.IndexDocumentAsync(new SearchDocument
         {
-            ModuleId = "files", EntityId = "new", EntityType = "FileNode",
-            Title = "New", Content = "searchable", OwnerId = userId,
+            ModuleId = "files",
+            EntityId = "new",
+            EntityType = "FileNode",
+            Title = "New",
+            Content = "searchable",
+            OwnerId = userId,
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow
         });
@@ -424,16 +432,24 @@ public class IndexManagementPhase4Tests
 
         await provider.IndexDocumentAsync(new SearchDocument
         {
-            ModuleId = "files", EntityId = "old", EntityType = "FileNode",
-            Title = "Old", Content = "searchable", OwnerId = userId,
+            ModuleId = "files",
+            EntityId = "old",
+            EntityType = "FileNode",
+            Title = "Old",
+            Content = "searchable",
+            OwnerId = userId,
             CreatedAt = DateTimeOffset.UtcNow.AddDays(-10),
             UpdatedAt = DateTimeOffset.UtcNow.AddDays(-10)
         });
 
         await provider.IndexDocumentAsync(new SearchDocument
         {
-            ModuleId = "files", EntityId = "new", EntityType = "FileNode",
-            Title = "New", Content = "searchable", OwnerId = userId,
+            ModuleId = "files",
+            EntityId = "new",
+            EntityType = "FileNode",
+            Title = "New",
+            Content = "searchable",
+            OwnerId = userId,
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow
         });
@@ -551,14 +567,14 @@ public class IndexManagementPhase4Tests
     private static SearchDocument CreateDocument(
         string moduleId, string entityId, string entityType,
         string title, string content, Guid? ownerId = null) => new()
-    {
-        ModuleId = moduleId,
-        EntityId = entityId,
-        EntityType = entityType,
-        Title = title,
-        Content = content,
-        OwnerId = ownerId ?? Guid.NewGuid(),
-        CreatedAt = DateTimeOffset.UtcNow,
-        UpdatedAt = DateTimeOffset.UtcNow
-    };
+        {
+            ModuleId = moduleId,
+            EntityId = entityId,
+            EntityType = entityType,
+            Title = title,
+            Content = content,
+            OwnerId = ownerId ?? Guid.NewGuid(),
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        };
 }

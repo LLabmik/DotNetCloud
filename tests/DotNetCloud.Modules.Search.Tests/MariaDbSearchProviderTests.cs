@@ -116,9 +116,14 @@ public class MariaDbSearchProviderTests
         await _provider.IndexDocumentAsync(CreateDocument("files", "f1", "FileNode", "Shared keyword file"));
         await _provider.IndexDocumentAsync(new SearchDocument
         {
-            ModuleId = "files", EntityId = "f2", EntityType = "FileNode",
-            Title = "Other user keyword file", Content = "Other content",
-            OwnerId = otherUser, CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow
+            ModuleId = "files",
+            EntityId = "f2",
+            EntityType = "FileNode",
+            Title = "Other user keyword file",
+            Content = "Other content",
+            OwnerId = otherUser,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
         });
 
         var result = await _provider.SearchAsync(new SearchQuery

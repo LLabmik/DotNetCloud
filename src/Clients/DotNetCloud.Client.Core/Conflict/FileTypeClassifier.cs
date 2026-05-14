@@ -40,9 +40,12 @@ public static class FileTypeClassifier
     public static FileMergeMode GetMergeMode(string filePath)
     {
         var ext = Path.GetExtension(filePath);
-        if (string.IsNullOrEmpty(ext)) return FileMergeMode.Binary;
-        if (XmlExtensions.Contains(ext)) return FileMergeMode.Xml;
-        if (TextExtensions.Contains(ext)) return FileMergeMode.Text;
+        if (string.IsNullOrEmpty(ext))
+            return FileMergeMode.Binary;
+        if (XmlExtensions.Contains(ext))
+            return FileMergeMode.Xml;
+        if (TextExtensions.Contains(ext))
+            return FileMergeMode.Text;
         return FileMergeMode.Binary;
     }
 

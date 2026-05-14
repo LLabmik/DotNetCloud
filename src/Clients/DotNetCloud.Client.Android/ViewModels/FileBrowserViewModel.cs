@@ -242,7 +242,7 @@ public sealed partial class FileBrowserViewModel : ObservableObject
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to create folder.");
-            await Shell.Current.DisplayAlert("Error", ApiExceptionHelper.GetUserFriendlyMessage(ex), "OK");
+            await Shell.Current.DisplayAlertAsync("Error", ApiExceptionHelper.GetUserFriendlyMessage(ex), "OK");
         }
     }
 
@@ -265,7 +265,7 @@ public sealed partial class FileBrowserViewModel : ObservableObject
         catch (Exception ex)
         {
             _logger.LogError(ex, "File upload failed.");
-            await Shell.Current.DisplayAlert("Error", ApiExceptionHelper.GetUserFriendlyMessage(ex), "OK");
+            await Shell.Current.DisplayAlertAsync("Error", ApiExceptionHelper.GetUserFriendlyMessage(ex), "OK");
         }
         finally
         {
@@ -283,7 +283,7 @@ public sealed partial class FileBrowserViewModel : ObservableObject
         {
             if (!MediaPicker.Default.IsCaptureSupported)
             {
-                await Shell.Current.DisplayAlert("Not Supported", "Camera capture is not available on this device.", "OK");
+                await Shell.Current.DisplayAlertAsync("Not Supported", "Camera capture is not available on this device.", "OK");
                 return;
             }
 
@@ -296,7 +296,7 @@ public sealed partial class FileBrowserViewModel : ObservableObject
         catch (Exception ex)
         {
             _logger.LogError(ex, "Photo capture upload failed.");
-            await Shell.Current.DisplayAlert("Error", ApiExceptionHelper.GetUserFriendlyMessage(ex), "OK");
+            await Shell.Current.DisplayAlertAsync("Error", ApiExceptionHelper.GetUserFriendlyMessage(ex), "OK");
         }
         finally
         {
@@ -314,7 +314,7 @@ public sealed partial class FileBrowserViewModel : ObservableObject
         {
             if (!MediaPicker.Default.IsCaptureSupported)
             {
-                await Shell.Current.DisplayAlert("Not Supported", "Video capture is not available on this device.", "OK");
+                await Shell.Current.DisplayAlertAsync("Not Supported", "Video capture is not available on this device.", "OK");
                 return;
             }
 
@@ -327,7 +327,7 @@ public sealed partial class FileBrowserViewModel : ObservableObject
         catch (Exception ex)
         {
             _logger.LogError(ex, "Video capture upload failed.");
-            await Shell.Current.DisplayAlert("Error", ApiExceptionHelper.GetUserFriendlyMessage(ex), "OK");
+            await Shell.Current.DisplayAlertAsync("Error", ApiExceptionHelper.GetUserFriendlyMessage(ex), "OK");
         }
         finally
         {
@@ -341,7 +341,7 @@ public sealed partial class FileBrowserViewModel : ObservableObject
     [RelayCommand]
     private async Task DeleteItemAsync(FileItemViewModel item, CancellationToken ct)
     {
-        var confirm = await Shell.Current.DisplayAlert(
+        var confirm = await Shell.Current.DisplayAlertAsync(
             "Delete", $"Move \"{item.Name}\" to trash?", "Delete", "Cancel");
 
         if (!confirm)
@@ -356,7 +356,7 @@ public sealed partial class FileBrowserViewModel : ObservableObject
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to delete {NodeName}.", item.Name);
-            await Shell.Current.DisplayAlert("Error", ApiExceptionHelper.GetUserFriendlyMessage(ex), "OK");
+            await Shell.Current.DisplayAlertAsync("Error", ApiExceptionHelper.GetUserFriendlyMessage(ex), "OK");
         }
     }
 
@@ -464,7 +464,7 @@ public sealed partial class FileBrowserViewModel : ObservableObject
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to download {FileName}.", item.Name);
-            await Shell.Current.DisplayAlert("Error", ApiExceptionHelper.GetUserFriendlyMessage(ex), "OK");
+            await Shell.Current.DisplayAlertAsync("Error", ApiExceptionHelper.GetUserFriendlyMessage(ex), "OK");
         }
     }
 
@@ -576,13 +576,19 @@ public sealed partial class FileItemViewModel : ObservableObject
     {
         if (mimeType is not null)
         {
-            if (mimeType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)) return "🖼️";
-            if (mimeType.StartsWith("video/", StringComparison.OrdinalIgnoreCase)) return "🎬";
-            if (mimeType.StartsWith("audio/", StringComparison.OrdinalIgnoreCase)) return "🎵";
-            if (mimeType.StartsWith("text/", StringComparison.OrdinalIgnoreCase)) return "📝";
-            if (mimeType.Contains("pdf", StringComparison.OrdinalIgnoreCase)) return "📕";
+            if (mimeType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+                return "🖼️";
+            if (mimeType.StartsWith("video/", StringComparison.OrdinalIgnoreCase))
+                return "🎬";
+            if (mimeType.StartsWith("audio/", StringComparison.OrdinalIgnoreCase))
+                return "🎵";
+            if (mimeType.StartsWith("text/", StringComparison.OrdinalIgnoreCase))
+                return "📝";
+            if (mimeType.Contains("pdf", StringComparison.OrdinalIgnoreCase))
+                return "📕";
             if (mimeType.Contains("zip", StringComparison.OrdinalIgnoreCase) ||
-                mimeType.Contains("compressed", StringComparison.OrdinalIgnoreCase)) return "📦";
+                mimeType.Contains("compressed", StringComparison.OrdinalIgnoreCase))
+                return "📦";
         }
 
         var ext = System.IO.Path.GetExtension(name).ToLowerInvariant();

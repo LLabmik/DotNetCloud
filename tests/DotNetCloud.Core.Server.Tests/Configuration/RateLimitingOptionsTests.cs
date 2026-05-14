@@ -105,4 +105,4 @@ public class RateLimitingOptionsTests
         Assert.AreEqual(key, $"{moduleName}:{userId}");
     }
 
-    }
+}

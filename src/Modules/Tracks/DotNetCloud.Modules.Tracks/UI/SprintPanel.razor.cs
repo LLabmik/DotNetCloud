@@ -65,7 +65,8 @@ public partial class SprintPanel : ComponentBase
 
     private async Task CreateSprintAsync()
     {
-        if (string.IsNullOrWhiteSpace(_createModel.Title)) return;
+        if (string.IsNullOrWhiteSpace(_createModel.Title))
+            return;
 
         _isCreating = true;
         _createError = null;
@@ -110,7 +111,8 @@ public partial class SprintPanel : ComponentBase
 
     private async Task SaveSprintEditAsync()
     {
-        if (string.IsNullOrWhiteSpace(_editModel.Title)) return;
+        if (string.IsNullOrWhiteSpace(_editModel.Title))
+            return;
 
         _isSavingEdit = true;
         _editError = null;
@@ -245,7 +247,8 @@ public partial class SprintPanel : ComponentBase
 
     private async Task AddSelectedItemsAsync()
     {
-        if (_pickerSelectedItemIds.Count == 0) return;
+        if (_pickerSelectedItemIds.Count == 0)
+            return;
 
         _isAddingItems = true;
         try

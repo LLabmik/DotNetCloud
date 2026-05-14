@@ -361,12 +361,18 @@ public sealed class ContactsGrpcService : ContactsService.ContactsServiceBase
     private static SearchableDocument MapContactToSearchableDocument(ContactDto dto)
     {
         var contentParts = new List<string>();
-        if (!string.IsNullOrEmpty(dto.FirstName)) contentParts.Add(dto.FirstName);
-        if (!string.IsNullOrEmpty(dto.LastName)) contentParts.Add(dto.LastName);
-        if (!string.IsNullOrEmpty(dto.Organization)) contentParts.Add(dto.Organization);
-        if (!string.IsNullOrEmpty(dto.Department)) contentParts.Add(dto.Department);
-        if (!string.IsNullOrEmpty(dto.JobTitle)) contentParts.Add(dto.JobTitle);
-        if (!string.IsNullOrEmpty(dto.Notes)) contentParts.Add(dto.Notes);
+        if (!string.IsNullOrEmpty(dto.FirstName))
+            contentParts.Add(dto.FirstName);
+        if (!string.IsNullOrEmpty(dto.LastName))
+            contentParts.Add(dto.LastName);
+        if (!string.IsNullOrEmpty(dto.Organization))
+            contentParts.Add(dto.Organization);
+        if (!string.IsNullOrEmpty(dto.Department))
+            contentParts.Add(dto.Department);
+        if (!string.IsNullOrEmpty(dto.JobTitle))
+            contentParts.Add(dto.JobTitle);
+        if (!string.IsNullOrEmpty(dto.Notes))
+            contentParts.Add(dto.Notes);
         foreach (var email in dto.Emails)
             contentParts.Add(email.Address);
         foreach (var phone in dto.PhoneNumbers)

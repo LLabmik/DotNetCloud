@@ -49,11 +49,15 @@ public sealed class UserManagementControllerTests : IDisposable
             var parent = Path.GetDirectoryName(_tempAvatarDir);
             if (parent is not null && parent != Path.GetTempPath().TrimEnd(Path.DirectorySeparatorChar) && Directory.Exists(parent))
             {
-                try { Directory.Delete(parent, recursive: true); } catch { /* best-effort */ }
+                try
+                { Directory.Delete(parent, recursive: true); }
+                catch { /* best-effort */ }
             }
             else if (_tempAvatarDir is not null && Directory.Exists(_tempAvatarDir))
             {
-                try { Directory.Delete(_tempAvatarDir, recursive: true); } catch { /* best-effort */ }
+                try
+                { Directory.Delete(_tempAvatarDir, recursive: true); }
+                catch { /* best-effort */ }
             }
         }
     }

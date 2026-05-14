@@ -64,10 +64,14 @@ public sealed class BookmarkFolderService : IBookmarkFolderService
             .FirstOrDefaultAsync(f => f.Id == id && f.OwnerId == caller.UserId, ct)
             ?? throw new ValidationException(ErrorCodes.BookmarkFolderNotFound, "Bookmark folder not found.");
 
-        if (request.Name is not null) folder.Name = request.Name;
-        if (request.ParentId is not null) folder.ParentId = request.ParentId;
-        if (request.Color is not null) folder.Color = request.Color;
-        if (request.SortOrder.HasValue) folder.SortOrder = request.SortOrder.Value;
+        if (request.Name is not null)
+            folder.Name = request.Name;
+        if (request.ParentId is not null)
+            folder.ParentId = request.ParentId;
+        if (request.Color is not null)
+            folder.Color = request.Color;
+        if (request.SortOrder.HasValue)
+            folder.SortOrder = request.SortOrder.Value;
         folder.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(ct);

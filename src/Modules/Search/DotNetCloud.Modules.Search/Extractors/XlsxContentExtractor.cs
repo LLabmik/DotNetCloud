@@ -54,7 +54,8 @@ public sealed class XlsxContentExtractor : IContentExtractor
             sheetCount++;
 
             var sheetData = worksheetPart.Worksheet.GetFirstChild<SheetData>();
-            if (sheetData is null) continue;
+            if (sheetData is null)
+                continue;
 
             foreach (var row in sheetData.Elements<Row>())
             {

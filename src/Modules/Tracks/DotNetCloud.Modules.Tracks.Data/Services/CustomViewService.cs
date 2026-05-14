@@ -63,15 +63,23 @@ public sealed class CustomViewService
     public async Task<CustomView?> UpdateViewAsync(Guid viewId, Guid userId, string? name, string? filterJson, string? sortJson, string? groupBy, string? layout, bool? isShared, CancellationToken ct = default)
     {
         var view = await _db.CustomViews.FirstOrDefaultAsync(cv => cv.Id == viewId, ct);
-        if (view is null) return null;
-        if (view.UserId != userId) throw new InvalidOperationException("Not authorized to update this view.");
+        if (view is null)
+            return null;
+        if (view.UserId != userId)
+            throw new InvalidOperationException("Not authorized to update this view.");
 
-        if (name is not null) view.Name = name;
-        if (filterJson is not null) view.FilterJson = filterJson;
-        if (sortJson is not null) view.SortJson = sortJson;
-        if (groupBy is not null) view.GroupBy = groupBy;
-        if (layout is not null) view.Layout = layout;
-        if (isShared.HasValue) view.IsShared = isShared.Value;
+        if (name is not null)
+            view.Name = name;
+        if (filterJson is not null)
+            view.FilterJson = filterJson;
+        if (sortJson is not null)
+            view.SortJson = sortJson;
+        if (groupBy is not null)
+            view.GroupBy = groupBy;
+        if (layout is not null)
+            view.Layout = layout;
+        if (isShared.HasValue)
+            view.IsShared = isShared.Value;
         view.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(ct);
@@ -82,8 +90,10 @@ public sealed class CustomViewService
     public async Task<bool> DeleteViewAsync(Guid viewId, Guid userId, CancellationToken ct = default)
     {
         var view = await _db.CustomViews.FirstOrDefaultAsync(cv => cv.Id == viewId, ct);
-        if (view is null) return false;
-        if (view.UserId != userId) throw new InvalidOperationException("Not authorized to delete this view.");
+        if (view is null)
+            return false;
+        if (view.UserId != userId)
+            throw new InvalidOperationException("Not authorized to delete this view.");
 
         _db.CustomViews.Remove(view);
         await _db.SaveChangesAsync(ct);

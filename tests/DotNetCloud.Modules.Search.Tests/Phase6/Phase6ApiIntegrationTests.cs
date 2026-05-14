@@ -349,7 +349,8 @@ public class Phase6ApiIntegrationTests
 
     private SearchController CreateAuthenticatedController(params string[] roles)
     {
-        if (roles.Length == 0) roles = ["user"];
+        if (roles.Length == 0)
+            roles = ["user"];
 
         var claims = new List<Claim> { new(ClaimTypes.NameIdentifier, UserId.ToString()) };
         foreach (var role in roles)

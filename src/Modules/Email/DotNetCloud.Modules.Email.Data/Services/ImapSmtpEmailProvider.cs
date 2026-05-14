@@ -94,7 +94,8 @@ public sealed class ImapSmtpEmailProvider : IEmailProvider
             var searchResult = await folder.SearchAsync(
                 SearchQuery.Uids(new UniqueIdRange(new UniqueId(lastUid + 1), UniqueId.MaxValue)), ct);
             uids = new UniqueIdSet();
-            foreach (var u in searchResult) uids.Add(u);
+            foreach (var u in searchResult)
+                uids.Add(u);
         }
         else
         {
@@ -445,7 +446,8 @@ public sealed class ImapSmtpEmailProvider : IEmailProvider
         {
             foreach (var msgId in action.MessageProviderIds)
             {
-                if (!UniqueId.TryParse(msgId, out var uid)) continue;
+                if (!UniqueId.TryParse(msgId, out var uid))
+                    continue;
 
                 var inbox = client.Inbox
                     ?? throw new InvalidOperationException("IMAP INBOX not found.");
@@ -658,7 +660,8 @@ public sealed class ImapSmtpEmailProvider : IEmailProvider
                 try
                 {
                     await using var inlineStream = new MemoryStream();
-                    if (mimePart.Content is null) continue;
+                    if (mimePart.Content is null)
+                        continue;
                     await mimePart.Content.DecodeToAsync(inlineStream, ct);
                     inlineStream.Position = 0;
                     var result = await _attachmentStorage.StoreAsync(inlineStream, fileName, contentType, ct);
@@ -714,7 +717,8 @@ public sealed class ImapSmtpEmailProvider : IEmailProvider
             if (part is BodyPartMultipart nested)
             {
                 var found = FindFirstTextPart(nested, mimeType);
-                if (found is not null) return found;
+                if (found is not null)
+                    return found;
             }
         }
         return null;
@@ -730,7 +734,8 @@ public sealed class ImapSmtpEmailProvider : IEmailProvider
 
     private static string? GetHeaderValue(IMessageSummary summary, string headerName)
     {
-        if (summary.Headers is null) return null;
+        if (summary.Headers is null)
+            return null;
         var header = summary.Headers.FirstOrDefault(h =>
             h.Field.Equals(headerName, StringComparison.OrdinalIgnoreCase));
         return header?.Value;
@@ -738,13 +743,19 @@ public sealed class ImapSmtpEmailProvider : IEmailProvider
 
     private static string SerializeFlags(MessageFlags? flags)
     {
-        if (flags is null) return "[]";
+        if (flags is null)
+            return "[]";
         var list = new List<string>();
-        if (flags.Value.HasFlag(MessageFlags.Seen)) list.Add("\\Seen");
-        if (flags.Value.HasFlag(MessageFlags.Flagged)) list.Add("\\Flagged");
-        if (flags.Value.HasFlag(MessageFlags.Answered)) list.Add("\\Answered");
-        if (flags.Value.HasFlag(MessageFlags.Draft)) list.Add("\\Draft");
-        if (flags.Value.HasFlag(MessageFlags.Deleted)) list.Add("\\Deleted");
+        if (flags.Value.HasFlag(MessageFlags.Seen))
+            list.Add("\\Seen");
+        if (flags.Value.HasFlag(MessageFlags.Flagged))
+            list.Add("\\Flagged");
+        if (flags.Value.HasFlag(MessageFlags.Answered))
+            list.Add("\\Answered");
+        if (flags.Value.HasFlag(MessageFlags.Draft))
+            list.Add("\\Draft");
+        if (flags.Value.HasFlag(MessageFlags.Deleted))
+            list.Add("\\Deleted");
         return JsonSerializer.Serialize(list);
     }
 
@@ -775,12 +786,18 @@ public sealed class ImapSmtpEmailProvider : IEmailProvider
     {
         var flags = MailboxFlags.None;
         var name = folder.FullName;
-        if (name.Equals("INBOX", StringComparison.OrdinalIgnoreCase)) flags |= MailboxFlags.Inbox;
-        if (folder.Attributes.HasFlag(FolderAttributes.Sent)) flags |= MailboxFlags.Sent;
-        if (folder.Attributes.HasFlag(FolderAttributes.Trash)) flags |= MailboxFlags.Trash;
-        if (folder.Attributes.HasFlag(FolderAttributes.Drafts)) flags |= MailboxFlags.Drafts;
-        if (folder.Attributes.HasFlag(FolderAttributes.Archive)) flags |= MailboxFlags.Archive;
-        if (folder.Attributes.HasFlag(FolderAttributes.Junk)) flags |= MailboxFlags.Spam;
+        if (name.Equals("INBOX", StringComparison.OrdinalIgnoreCase))
+            flags |= MailboxFlags.Inbox;
+        if (folder.Attributes.HasFlag(FolderAttributes.Sent))
+            flags |= MailboxFlags.Sent;
+        if (folder.Attributes.HasFlag(FolderAttributes.Trash))
+            flags |= MailboxFlags.Trash;
+        if (folder.Attributes.HasFlag(FolderAttributes.Drafts))
+            flags |= MailboxFlags.Drafts;
+        if (folder.Attributes.HasFlag(FolderAttributes.Archive))
+            flags |= MailboxFlags.Archive;
+        if (folder.Attributes.HasFlag(FolderAttributes.Junk))
+            flags |= MailboxFlags.Spam;
 
         return new EmailMailbox
         {

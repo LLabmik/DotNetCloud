@@ -39,12 +39,12 @@ public partial class TrashBin : ComponentBase
     protected IReadOnlyList<TrashItemViewModel> SortedItems =>
         (_sortColumn, _sortAscending) switch
         {
-            ("Name", true)  => [.. _trashedItems.OrderBy(i => i.Name, StringComparer.OrdinalIgnoreCase)],
+            ("Name", true) => [.. _trashedItems.OrderBy(i => i.Name, StringComparer.OrdinalIgnoreCase)],
             ("Name", false) => [.. _trashedItems.OrderByDescending(i => i.Name, StringComparer.OrdinalIgnoreCase)],
-            ("Size", true)  => [.. _trashedItems.OrderBy(i => i.Size)],
+            ("Size", true) => [.. _trashedItems.OrderBy(i => i.Size)],
             ("Size", false) => [.. _trashedItems.OrderByDescending(i => i.Size)],
-            ("Date", true)  => [.. _trashedItems.OrderBy(i => i.DeletedAt)],
-            _               => [.. _trashedItems.OrderByDescending(i => i.DeletedAt)]
+            ("Date", true) => [.. _trashedItems.OrderBy(i => i.DeletedAt)],
+            _ => [.. _trashedItems.OrderByDescending(i => i.DeletedAt)]
         };
 
     /// <summary>Number of currently selected items.</summary>
@@ -68,7 +68,8 @@ public partial class TrashBin : ComponentBase
     /// <summary>Toggles selection of a single item.</summary>
     protected void ToggleSelect(Guid id)
     {
-        if (!_selectedItems.Add(id)) _selectedItems.Remove(id);
+        if (!_selectedItems.Add(id))
+            _selectedItems.Remove(id);
     }
 
     /// <summary>Selects all items or deselects all, depending on current state.</summary>
@@ -77,7 +78,8 @@ public partial class TrashBin : ComponentBase
         if (IsAllSelected)
             _selectedItems.Clear();
         else
-            foreach (var item in _trashedItems) _selectedItems.Add(item.Id);
+            foreach (var item in _trashedItems)
+                _selectedItems.Add(item.Id);
     }
 
     /// <summary>Restores selected items back to their original location.</summary>
@@ -168,9 +170,12 @@ public partial class TrashBin : ComponentBase
     /// <summary>Formats a byte count for display (e.g. "3.2 MB").</summary>
     protected static string FormatSize(long bytes)
     {
-        if (bytes < 1024) return $"{bytes} B";
-        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
-        if (bytes < 1024L * 1024 * 1024) return $"{bytes / (1024.0 * 1024.0):F1} MB";
+        if (bytes < 1024)
+            return $"{bytes} B";
+        if (bytes < 1024 * 1024)
+            return $"{bytes / 1024.0:F1} KB";
+        if (bytes < 1024L * 1024 * 1024)
+            return $"{bytes / (1024.0 * 1024.0):F1} MB";
         return $"{bytes / (1024.0 * 1024.0 * 1024.0):F2} GB";
     }
 

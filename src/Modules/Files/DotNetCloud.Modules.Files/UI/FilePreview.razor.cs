@@ -139,7 +139,8 @@ public partial class FilePreview : ComponentBase, IAsyncDisposable
     /// <summary>Fetches text file content via JS fetch and stores it for native rendering.</summary>
     private async Task LoadTextContentAsync()
     {
-        if (DisplayNode is null) return;
+        if (DisplayNode is null)
+            return;
         _isLoadingText = true;
         _needsHighlight = !IsMarkdown;
         StateHasChanged();
@@ -171,7 +172,8 @@ public partial class FilePreview : ComponentBase, IAsyncDisposable
     /// <summary>Saves the edited text content back to the server via PUT.</summary>
     protected async Task SaveTextAsync()
     {
-        if (DisplayNode is null || _editableText is null) return;
+        if (DisplayNode is null || _editableText is null)
+            return;
         _isSavingText = true;
         StateHasChanged();
 
@@ -374,7 +376,8 @@ public partial class FilePreview : ComponentBase, IAsyncDisposable
     /// </summary>
     protected string GetContentUrl()
     {
-        if (DisplayNode is null) return "#";
+        if (DisplayNode is null)
+            return "#";
         var base_ = string.IsNullOrEmpty(ApiBaseUrl) ? string.Empty : ApiBaseUrl.TrimEnd('/');
         var version = DisplayNode.CurrentVersion > 0 ? DisplayNode.CurrentVersion : 1;
         return $"{base_}/api/v1/files/{DisplayNode.Id}/content?v={version}";
@@ -385,16 +388,26 @@ public partial class FilePreview : ComponentBase, IAsyncDisposable
     /// <summary>Returns an emoji icon for the given MIME type.</summary>
     protected static string GetFileIcon(string? mimeType)
     {
-        if (mimeType is null) return "📄";
-        if (mimeType.StartsWith("image/")) return "🖼️";
-        if (mimeType.StartsWith("video/")) return "🎬";
-        if (mimeType.StartsWith("audio/")) return "🎵";
-        if (mimeType == "application/pdf") return "📕";
-        if (mimeType.StartsWith("text/")) return "📝";
-        if (mimeType.Contains("spreadsheet") || mimeType.Contains("excel")) return "📊";
-        if (mimeType.Contains("presentation") || mimeType.Contains("powerpoint")) return "📈";
-        if (mimeType.Contains("document") || mimeType.Contains("word")) return "📘";
-        if (mimeType.Contains("zip") || mimeType.Contains("compressed")) return "🗜️";
+        if (mimeType is null)
+            return "📄";
+        if (mimeType.StartsWith("image/"))
+            return "🖼️";
+        if (mimeType.StartsWith("video/"))
+            return "🎬";
+        if (mimeType.StartsWith("audio/"))
+            return "🎵";
+        if (mimeType == "application/pdf")
+            return "📕";
+        if (mimeType.StartsWith("text/"))
+            return "📝";
+        if (mimeType.Contains("spreadsheet") || mimeType.Contains("excel"))
+            return "📊";
+        if (mimeType.Contains("presentation") || mimeType.Contains("powerpoint"))
+            return "📈";
+        if (mimeType.Contains("document") || mimeType.Contains("word"))
+            return "📘";
+        if (mimeType.Contains("zip") || mimeType.Contains("compressed"))
+            return "🗜️";
         return "📄";
     }
 
@@ -406,22 +419,22 @@ public partial class FilePreview : ComponentBase, IAsyncDisposable
         var ext = Path.GetExtension(name)?.TrimStart('.').ToLowerInvariant();
         return ext switch
         {
-            "js" or "jsx"       => "JavaScript",
-            "ts" or "tsx"       => "TypeScript",
-            "cs"                => "C#",
-            "py"                => "Python",
-            "go"                => "Go",
-            "rs"                => "Rust",
-            "java"              => "Java",
-            "html" or "htm"     => "HTML",
-            "css"               => "CSS",
-            "json"              => "JSON",
-            "xml" or "xaml"     => "XML",
-            "yaml" or "yml"     => "YAML",
-            "sh" or "bash"      => "Shell",
-            "ps1"               => "PowerShell",
-            "sql"               => "SQL",
-            _                   => "Code"
+            "js" or "jsx" => "JavaScript",
+            "ts" or "tsx" => "TypeScript",
+            "cs" => "C#",
+            "py" => "Python",
+            "go" => "Go",
+            "rs" => "Rust",
+            "java" => "Java",
+            "html" or "htm" => "HTML",
+            "css" => "CSS",
+            "json" => "JSON",
+            "xml" or "xaml" => "XML",
+            "yaml" or "yml" => "YAML",
+            "sh" or "bash" => "Shell",
+            "ps1" => "PowerShell",
+            "sql" => "SQL",
+            _ => "Code"
         };
     }
 
@@ -431,42 +444,45 @@ public partial class FilePreview : ComponentBase, IAsyncDisposable
     /// </summary>
     protected string GetHighlightClass()
     {
-        if (DisplayNode is null) return "hljs";
-        if (IsText) return "language-plaintext";
-        if (IsMarkdown) return "language-markdown";
+        if (DisplayNode is null)
+            return "hljs";
+        if (IsText)
+            return "language-plaintext";
+        if (IsMarkdown)
+            return "language-markdown";
 
         var ext = Path.GetExtension(DisplayNode.Name)?.TrimStart('.').ToLowerInvariant();
         var lang = ext switch
         {
             "js" or "jsx" or "mjs" or "cjs" => "javascript",
-            "ts" or "tsx"                    => "typescript",
-            "cs"                             => "csharp",
-            "py"                             => "python",
-            "go"                             => "go",
-            "rs"                             => "rust",
-            "java"                           => "java",
-            "html" or "htm"                  => "xml",
-            "css"                            => "css",
-            "json"                           => "json",
+            "ts" or "tsx" => "typescript",
+            "cs" => "csharp",
+            "py" => "python",
+            "go" => "go",
+            "rs" => "rust",
+            "java" => "java",
+            "html" or "htm" => "xml",
+            "css" => "css",
+            "json" => "json",
             "xml" or "xaml" or "csproj" or "sln" or "props" or "targets" => "xml",
-            "yaml" or "yml"                  => "yaml",
-            "sh" or "bash" or "zsh"          => "bash",
-            "ps1" or "psm1" or "psd1"        => "powershell",
-            "sql"                            => "sql",
-            "rb"                             => "ruby",
-            "php"                            => "php",
-            "swift"                          => "swift",
-            "kt" or "kts"                    => "kotlin",
-            "c" or "h"                       => "c",
-            "cpp" or "hpp" or "cc" or "cxx"  => "cpp",
-            "r"                              => "r",
-            "lua"                            => "lua",
-            "dockerfile"                     => "dockerfile",
-            "toml"                           => "ini",
-            "ini" or "cfg"                   => "ini",
-            "md" or "markdown"               => "markdown",
-            "razor" or "cshtml"              => "cshtml-razor",
-            _                                => null,
+            "yaml" or "yml" => "yaml",
+            "sh" or "bash" or "zsh" => "bash",
+            "ps1" or "psm1" or "psd1" => "powershell",
+            "sql" => "sql",
+            "rb" => "ruby",
+            "php" => "php",
+            "swift" => "swift",
+            "kt" or "kts" => "kotlin",
+            "c" or "h" => "c",
+            "cpp" or "hpp" or "cc" or "cxx" => "cpp",
+            "r" => "r",
+            "lua" => "lua",
+            "dockerfile" => "dockerfile",
+            "toml" => "ini",
+            "ini" or "cfg" => "ini",
+            "md" or "markdown" => "markdown",
+            "razor" or "cshtml" => "cshtml-razor",
+            _ => null,
         };
 
         return lang is not null ? $"language-{lang}" : "hljs";
@@ -475,9 +491,12 @@ public partial class FilePreview : ComponentBase, IAsyncDisposable
     /// <summary>Formats a byte count as a human-readable size string.</summary>
     protected static string FormatSize(long bytes)
     {
-        if (bytes < 1024) return $"{bytes} B";
-        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
-        if (bytes < 1024L * 1024 * 1024) return $"{bytes / (1024.0 * 1024.0):F1} MB";
+        if (bytes < 1024)
+            return $"{bytes} B";
+        if (bytes < 1024 * 1024)
+            return $"{bytes / 1024.0:F1} KB";
+        if (bytes < 1024L * 1024 * 1024)
+            return $"{bytes / (1024.0 * 1024.0):F1} MB";
         return $"{bytes / (1024.0 * 1024.0 * 1024.0):F2} GB";
     }
 

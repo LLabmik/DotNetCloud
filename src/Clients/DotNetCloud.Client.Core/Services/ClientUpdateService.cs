@@ -357,8 +357,10 @@ public sealed class ClientUpdateService : IClientUpdateService
 
     private static string GetCurrentPlatform()
     {
-        if (OperatingSystem.IsWindows()) return "win-x64";
-        if (OperatingSystem.IsMacOS()) return "osx-x64";
+        if (OperatingSystem.IsWindows())
+            return "win-x64";
+        if (OperatingSystem.IsMacOS())
+            return "osx-x64";
         return System.Runtime.InteropServices.RuntimeInformation.OSArchitecture switch
         {
             System.Runtime.InteropServices.Architecture.Arm64 => "linux-arm64",
@@ -377,11 +379,14 @@ public sealed class ClientUpdateService : IClientUpdateService
         var (currentBase, currentPre) = SplitPreRelease(current);
         var (latestBase, latestPre) = SplitPreRelease(latest);
 
-        if (!Version.TryParse(currentBase, out var curVer)) return false;
-        if (!Version.TryParse(latestBase, out var latVer)) return false;
+        if (!Version.TryParse(currentBase, out var curVer))
+            return false;
+        if (!Version.TryParse(latestBase, out var latVer))
+            return false;
 
         var cmp = latVer.CompareTo(curVer);
-        if (cmp != 0) return cmp > 0;
+        if (cmp != 0)
+            return cmp > 0;
 
         // Same base version: GA (no pre-release) > pre-release.
         if (string.IsNullOrEmpty(latestPre) && !string.IsNullOrEmpty(currentPre))
@@ -410,11 +415,16 @@ public sealed class ClientUpdateService : IClientUpdateService
         if (!lower.Contains("desktop-client"))
             return null;
 
-        if (lower.Contains("linux-x64")) return "linux-x64";
-        if (lower.Contains("linux-arm64")) return "linux-arm64";
-        if (lower.Contains("win-x64") || lower.Contains("windows")) return "win-x64";
-        if (lower.Contains("osx-x64") || lower.Contains("macos")) return "osx-x64";
-        if (lower.Contains("android") || lower.Contains(".apk")) return "android";
+        if (lower.Contains("linux-x64"))
+            return "linux-x64";
+        if (lower.Contains("linux-arm64"))
+            return "linux-arm64";
+        if (lower.Contains("win-x64") || lower.Contains("windows"))
+            return "win-x64";
+        if (lower.Contains("osx-x64") || lower.Contains("macos"))
+            return "osx-x64";
+        if (lower.Contains("android") || lower.Contains(".apk"))
+            return "android";
         return null;
     }
 }

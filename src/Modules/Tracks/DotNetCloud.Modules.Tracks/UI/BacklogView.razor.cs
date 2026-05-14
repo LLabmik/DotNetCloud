@@ -115,7 +115,8 @@ public partial class BacklogView : ComponentBase
     private async Task AssignItemToSprintAsync(Guid itemId, ChangeEventArgs e)
     {
         var value = e.Value?.ToString();
-        if (string.IsNullOrEmpty(value) || !Guid.TryParse(value, out var sprintId)) return;
+        if (string.IsNullOrEmpty(value) || !Guid.TryParse(value, out var sprintId))
+            return;
 
         await ApiClient.AddItemToSprintAsync(sprintId, itemId);
         _backlogItems.RemoveAll(i => i.Id == itemId);
@@ -182,13 +183,16 @@ public partial class BacklogView : ComponentBase
 
     private async Task HandleNewCardKeyDown(KeyboardEventArgs e)
     {
-        if (e.Key == "Enter") await SubmitNewCardAsync();
-        else if (e.Key == "Escape") CancelAddCard();
+        if (e.Key == "Enter")
+            await SubmitNewCardAsync();
+        else if (e.Key == "Escape")
+            CancelAddCard();
     }
 
     private async Task SubmitNewCardAsync()
     {
-        if (string.IsNullOrWhiteSpace(_newCardTitle) || Swimlanes.Count == 0) return;
+        if (string.IsNullOrWhiteSpace(_newCardTitle) || Swimlanes.Count == 0)
+            return;
 
         if (!Guid.TryParse(_newCardSwimlaneId, out var swimlaneId))
             swimlaneId = Swimlanes[0].Id;
@@ -242,7 +246,8 @@ public partial class BacklogView : ComponentBase
 
     private static string GetContrastTextColor(string? hexColor)
     {
-        if (string.IsNullOrEmpty(hexColor)) return "#fff";
+        if (string.IsNullOrEmpty(hexColor))
+            return "#fff";
 
         var hex = hexColor.TrimStart('#');
         if (hex.Length == 3)

@@ -60,7 +60,8 @@ public sealed class SyncStreamListener : IAsyncDisposable
 
         if (_listenTask is not null)
         {
-            try { await _listenTask; }
+            try
+            { await _listenTask; }
             catch (OperationCanceledException) { }
         }
 
@@ -268,7 +269,8 @@ public sealed class SyncStreamListener : IAsyncDisposable
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
-        if (_disposed) return;
+        if (_disposed)
+            return;
         _disposed = true;
         await StopAsync();
         _cts?.Dispose();

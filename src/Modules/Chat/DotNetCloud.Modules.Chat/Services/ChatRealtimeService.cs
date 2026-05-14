@@ -111,70 +111,80 @@ internal sealed class ChatRealtimeService : IChatRealtimeService
     /// <inheritdoc />
     public async Task BroadcastNewMessageAsync(Guid channelId, MessageDto message, CancellationToken cancellationToken)
     {
-        if (_broadcaster is null) return;
+        if (_broadcaster is null)
+            return;
         await _broadcaster.BroadcastAsync(ChannelGroup(channelId), "NewMessage", new { channelId, message }, cancellationToken);
     }
 
     /// <inheritdoc />
     public async Task BroadcastMessageEditedAsync(Guid channelId, MessageDto message, CancellationToken cancellationToken)
     {
-        if (_broadcaster is null) return;
+        if (_broadcaster is null)
+            return;
         await _broadcaster.BroadcastAsync(ChannelGroup(channelId), "MessageEdited", new { channelId, message }, cancellationToken);
     }
 
     /// <inheritdoc />
     public async Task BroadcastMessageDeletedAsync(Guid channelId, Guid messageId, CancellationToken cancellationToken)
     {
-        if (_broadcaster is null) return;
+        if (_broadcaster is null)
+            return;
         await _broadcaster.BroadcastAsync(ChannelGroup(channelId), "MessageDeleted", new { channelId, messageId }, cancellationToken);
     }
 
     /// <inheritdoc />
     public async Task BroadcastTypingAsync(Guid channelId, Guid userId, string? displayName, CancellationToken cancellationToken)
     {
-        if (_broadcaster is null) return;
+        if (_broadcaster is null)
+            return;
         await _broadcaster.BroadcastAsync(ChannelGroup(channelId), "TypingIndicator", new { channelId, userId, displayName }, cancellationToken);
     }
 
     /// <inheritdoc />
     public async Task BroadcastReactionUpdatedAsync(Guid channelId, Guid messageId, IReadOnlyList<MessageReactionDto> reactions, CancellationToken cancellationToken)
     {
-        if (_broadcaster is null) return;
+        if (_broadcaster is null)
+            return;
         await _broadcaster.BroadcastAsync(ChannelGroup(channelId), "ReactionUpdated", new { channelId, messageId, reactions }, cancellationToken);
     }
 
     /// <inheritdoc />
     public async Task BroadcastChannelUpdatedAsync(ChannelDto channel, CancellationToken cancellationToken)
     {
-        if (_broadcaster is null) return;
+        if (_broadcaster is null)
+            return;
         await _broadcaster.BroadcastAsync(ChannelGroup(channel.Id), "ChannelUpdated", channel, cancellationToken);
     }
 
     /// <inheritdoc />
     public async Task BroadcastMemberJoinedAsync(Guid channelId, ChannelMemberDto member, CancellationToken cancellationToken)
     {
-        if (_broadcaster is null) return;
+        if (_broadcaster is null)
+            return;
         await _broadcaster.BroadcastAsync(ChannelGroup(channelId), "MemberJoined", new { channelId, member }, cancellationToken);
     }
 
     /// <inheritdoc />
     public async Task BroadcastMemberLeftAsync(Guid channelId, Guid userId, CancellationToken cancellationToken)
     {
-        if (_broadcaster is null) return;
+        if (_broadcaster is null)
+            return;
         await _broadcaster.BroadcastAsync(ChannelGroup(channelId), "MemberLeft", new { channelId, userId }, cancellationToken);
     }
 
     /// <inheritdoc />
     public async Task BroadcastUnreadCountAsync(Guid userId, Guid channelId, int count, CancellationToken cancellationToken)
     {
-        if (_broadcaster is null) return;
+        if (_broadcaster is null)
+            return;
         await _broadcaster.SendToUserAsync(userId, "UnreadCountUpdated", new { channelId, count }, cancellationToken);
     }
 
     /// <inheritdoc />
     public async Task BroadcastPresenceChangedAsync(PresenceDto presence, CancellationToken cancellationToken)
     {
-        if (_broadcaster is null) return;
+        if (_broadcaster is null)
+            return;
         // Broadcast to all connected clients — presence is cross-channel
         await _broadcaster.BroadcastAsync("chat-presence", "PresenceChanged", presence, cancellationToken);
     }
@@ -182,7 +192,8 @@ internal sealed class ChatRealtimeService : IChatRealtimeService
     /// <inheritdoc />
     public async Task SendInviteNotificationAsync(Guid userId, ChannelInviteDto invite, CancellationToken cancellationToken)
     {
-        if (_broadcaster is null) return;
+        if (_broadcaster is null)
+            return;
         await _broadcaster.SendToUserAsync(userId, "ChannelInviteReceived", invite, cancellationToken);
     }
 
@@ -198,7 +209,8 @@ internal sealed class ChatRealtimeService : IChatRealtimeService
         int participantCount,
         CancellationToken cancellationToken)
     {
-        if (_broadcaster is null) return;
+        if (_broadcaster is null)
+            return;
         await _broadcaster.SendToUserAsync(targetUserId, "CallInviteReceived", new
         {
             callId,
@@ -214,7 +226,8 @@ internal sealed class ChatRealtimeService : IChatRealtimeService
     /// <inheritdoc />
     public async Task AddUserToChannelGroupAsync(Guid userId, Guid channelId, CancellationToken cancellationToken)
     {
-        if (_broadcaster is null) return;
+        if (_broadcaster is null)
+            return;
         await _broadcaster.AddToGroupAsync(userId, ChannelGroup(channelId), cancellationToken);
     }
 
@@ -226,7 +239,8 @@ internal sealed class ChatRealtimeService : IChatRealtimeService
         Guid newHostUserId,
         CancellationToken cancellationToken)
     {
-        if (_broadcaster is null) return;
+        if (_broadcaster is null)
+            return;
         await _broadcaster.BroadcastAsync(ChannelGroup(channelId), "HostTransferred", new
         {
             callId,
@@ -238,7 +252,8 @@ internal sealed class ChatRealtimeService : IChatRealtimeService
     /// <inheritdoc />
     public async Task RemoveUserFromChannelGroupAsync(Guid userId, Guid channelId, CancellationToken cancellationToken)
     {
-        if (_broadcaster is null) return;
+        if (_broadcaster is null)
+            return;
         await _broadcaster.RemoveFromGroupAsync(userId, ChannelGroup(channelId), cancellationToken);
     }
 
@@ -251,7 +266,8 @@ internal sealed class ChatRealtimeService : IChatRealtimeService
         string messagePreview,
         CancellationToken cancellationToken)
     {
-        if (_broadcaster is null) return;
+        if (_broadcaster is null)
+            return;
         await _broadcaster.SendToUserAsync(userId, "NewMessageToast", new
         {
             channelId,
@@ -268,7 +284,8 @@ internal sealed class ChatRealtimeService : IChatRealtimeService
         bool isBlocked,
         CancellationToken cancellationToken)
     {
-        if (_broadcaster is null) return;
+        if (_broadcaster is null)
+            return;
         await _broadcaster.SendToUserAsync(targetUserId, "BlockStatusChanged", new
         {
             blockerUserId,

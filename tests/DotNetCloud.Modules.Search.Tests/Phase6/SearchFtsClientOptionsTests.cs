@@ -13,7 +13,9 @@ public class SearchFtsClientOptionsTests
     [TestMethod]
     public void SectionName_IsSearchModule()
     {
+#pragma warning disable MSTEST0032 // Regression guard — will fail if constant is changed.
         Assert.AreEqual("SearchModule", SearchFtsClientOptions.SectionName);
+#pragma warning restore MSTEST0032
     }
 
     [TestMethod]

@@ -58,7 +58,8 @@ public sealed class ContactGroupService : IContactGroupService
             .AsNoTracking()
             .FirstOrDefaultAsync(g => g.Id == groupId && g.OwnerId == caller.UserId, cancellationToken);
 
-        if (group is null) return null;
+        if (group is null)
+            return null;
 
         var memberCount = await _db.ContactGroupMembers
             .CountAsync(m => m.GroupId == groupId, cancellationToken);
@@ -136,7 +137,8 @@ public sealed class ContactGroupService : IContactGroupService
 
         var already = await _db.ContactGroupMembers
             .AnyAsync(m => m.GroupId == groupId && m.ContactId == contactId, cancellationToken);
-        if (already) return;
+        if (already)
+            return;
 
         _db.ContactGroupMembers.Add(new ContactGroupMember
         {

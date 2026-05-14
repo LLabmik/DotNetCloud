@@ -76,7 +76,8 @@ internal sealed class AuthenticatedHttpClientHandler : DelegatingHandler
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Token refresh failed for {ServerUrl}; clearing session.", serverUrl);
-            try { await _tokenStore.DeleteTokensAsync(serverUrl, ct); }
+            try
+            { await _tokenStore.DeleteTokensAsync(serverUrl, ct); }
             catch { /* best-effort cleanup */ }
             await NavigateToLoginAsync();
             return response;
@@ -103,7 +104,8 @@ internal sealed class AuthenticatedHttpClientHandler : DelegatingHandler
 
     private static string? ExtractServerBaseUrl(Uri? uri)
     {
-        if (uri is null) return null;
+        if (uri is null)
+            return null;
         return $"{uri.Scheme}://{uri.Authority}";
     }
 

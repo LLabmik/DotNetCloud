@@ -346,21 +346,30 @@ public class EntityConfigurationTests
 
         context.FileVersions.Add(new FileVersion
         {
-            FileNodeId = node.Id, VersionNumber = 1, ContentHash = "h1",
-            StoragePath = "/h1", CreatedByUserId = userId
+            FileNodeId = node.Id,
+            VersionNumber = 1,
+            ContentHash = "h1",
+            StoragePath = "/h1",
+            CreatedByUserId = userId
         });
         context.FileShares.Add(new FileShare
         {
-            FileNodeId = node.Id, ShareType = ShareType.User,
-            SharedWithUserId = Guid.NewGuid(), CreatedByUserId = userId
+            FileNodeId = node.Id,
+            ShareType = ShareType.User,
+            SharedWithUserId = Guid.NewGuid(),
+            CreatedByUserId = userId
         });
         context.FileTags.Add(new FileTag
         {
-            FileNodeId = node.Id, Name = "Work", CreatedByUserId = userId
+            FileNodeId = node.Id,
+            Name = "Work",
+            CreatedByUserId = userId
         });
         context.FileComments.Add(new FileComment
         {
-            FileNodeId = node.Id, Content = "Nice file!", CreatedByUserId = userId
+            FileNodeId = node.Id,
+            Content = "Nice file!",
+            CreatedByUserId = userId
         });
         await context.SaveChangesAsync();
 

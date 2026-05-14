@@ -31,7 +31,8 @@ public sealed class BrowserTimeProvider
     /// </summary>
     public async ValueTask EnsureInitializedAsync()
     {
-        if (_initialized) return;
+        if (_initialized)
+            return;
 
         try
         {

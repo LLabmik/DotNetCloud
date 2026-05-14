@@ -283,9 +283,12 @@ public sealed class TrackService : ITrackService
 
         public int Compare(string? x, string? y)
         {
-            if (x is null && y is null) return 0;
-            if (x is null) return -1;
-            if (y is null) return 1;
+            if (x is null && y is null)
+                return 0;
+            if (x is null)
+                return -1;
+            if (y is null)
+                return 1;
 
             var nameX = Path.GetFileNameWithoutExtension(x);
             var nameY = Path.GetFileNameWithoutExtension(y);
@@ -297,8 +300,10 @@ public sealed class TrackService : ITrackService
                 {
                     // Extract and compare full numbers
                     int sx = ix, sy = iy;
-                    while (ix < nameX.Length && char.IsDigit(nameX[ix])) ix++;
-                    while (iy < nameY.Length && char.IsDigit(nameY[iy])) iy++;
+                    while (ix < nameX.Length && char.IsDigit(nameX[ix]))
+                        ix++;
+                    while (iy < nameY.Length && char.IsDigit(nameY[iy]))
+                        iy++;
 
                     var numX = long.Parse(nameX.AsSpan(sx, ix - sx));
                     var numY = long.Parse(nameY.AsSpan(sy, iy - sy));

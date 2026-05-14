@@ -198,8 +198,10 @@ internal static class MiscCommands
         }
 
         var cmp = latestVer.CompareTo(currentVer);
-        if (cmp > 0) return true;
-        if (cmp < 0) return false;
+        if (cmp > 0)
+            return true;
+        if (cmp < 0)
+            return false;
 
         // Same base version: a release is newer than a pre-release
         var currentIsPre = current.Contains('-');

@@ -187,7 +187,8 @@ public partial class WorkItemDetailPanel : ComponentBase, IDisposable
     /// </summary>
     private async Task ToggleWatchAsync()
     {
-        if (_isTogglingWatch) return;
+        if (_isTogglingWatch)
+            return;
         _isTogglingWatch = true;
 
         try
@@ -249,17 +250,21 @@ public partial class WorkItemDetailPanel : ComponentBase, IDisposable
 
     private async Task HandleTitleKeyDown(KeyboardEventArgs e)
     {
-        if (e.Key == "Enter") await SaveTitleAsync();
-        else if (e.Key == "Escape") _isEditingTitle = false;
+        if (e.Key == "Enter")
+            await SaveTitleAsync();
+        else if (e.Key == "Escape")
+            _isEditingTitle = false;
     }
 
     private async Task SaveTitleAsync()
     {
         _isEditingTitle = false;
-        if (string.IsNullOrWhiteSpace(_editTitle) || _editTitle.Trim() == WorkItem.Title) return;
+        if (string.IsNullOrWhiteSpace(_editTitle) || _editTitle.Trim() == WorkItem.Title)
+            return;
 
         var updated = await ApiClient.UpdateWorkItemAsync(WorkItem.Id, new UpdateWorkItemDto { Title = _editTitle.Trim() });
-        if (updated is not null) await OnWorkItemUpdated.InvokeAsync(updated);
+        if (updated is not null)
+            await OnWorkItemUpdated.InvokeAsync(updated);
     }
 
     // ── Description ─────────────────────────────────────────
@@ -277,7 +282,8 @@ public partial class WorkItemDetailPanel : ComponentBase, IDisposable
         _isEditingDescription = false;
         var desc = string.IsNullOrWhiteSpace(_editDescription) ? null : _editDescription.Trim();
         var updated = await ApiClient.UpdateWorkItemAsync(WorkItem.Id, new UpdateWorkItemDto { Description = desc });
-        if (updated is not null) await OnWorkItemUpdated.InvokeAsync(updated);
+        if (updated is not null)
+            await OnWorkItemUpdated.InvokeAsync(updated);
     }
 
     // ── Priority / Due Date / Story Points ──────────────────
@@ -287,7 +293,8 @@ public partial class WorkItemDetailPanel : ComponentBase, IDisposable
         if (Enum.TryParse<Priority>(_selectedPriority, out var p))
         {
             var updated = await ApiClient.UpdateWorkItemAsync(WorkItem.Id, new UpdateWorkItemDto { Priority = p });
-            if (updated is not null) await OnWorkItemUpdated.InvokeAsync(updated);
+            if (updated is not null)
+                await OnWorkItemUpdated.InvokeAsync(updated);
         }
     }
 
@@ -298,7 +305,8 @@ public partial class WorkItemDetailPanel : ComponentBase, IDisposable
             ? DateTime.SpecifyKind(d, DateTimeKind.Utc)
             : null;
         var updated = await ApiClient.UpdateWorkItemAsync(WorkItem.Id, new UpdateWorkItemDto { DueDate = dueDate });
-        if (updated is not null) await OnWorkItemUpdated.InvokeAsync(updated);
+        if (updated is not null)
+            await OnWorkItemUpdated.InvokeAsync(updated);
     }
 
     private async Task SaveStoryPointsAsync(ChangeEventArgs e)
@@ -306,7 +314,8 @@ public partial class WorkItemDetailPanel : ComponentBase, IDisposable
         var val = e.Value?.ToString();
         int? sp = int.TryParse(val, out var n) ? n : null;
         var updated = await ApiClient.UpdateWorkItemAsync(WorkItem.Id, new UpdateWorkItemDto { StoryPoints = sp });
-        if (updated is not null) await OnWorkItemUpdated.InvokeAsync(updated);
+        if (updated is not null)
+            await OnWorkItemUpdated.InvokeAsync(updated);
     }
 
     // ── Sprint Assignment (Items only) ─────────────────────
@@ -345,7 +354,8 @@ public partial class WorkItemDetailPanel : ComponentBase, IDisposable
 
     private async Task AssignUserAsync()
     {
-        if (!Guid.TryParse(_assignUserId, out var userId)) return;
+        if (!Guid.TryParse(_assignUserId, out var userId))
+            return;
         await ApiClient.AssignUserAsync(WorkItem.Id, userId);
         _showAssignInput = false;
         _assignUserId = "";
@@ -370,7 +380,8 @@ public partial class WorkItemDetailPanel : ComponentBase, IDisposable
 
     private async Task CreateAndApplyLabelAsync()
     {
-        if (string.IsNullOrWhiteSpace(_newLabelTitle)) return;
+        if (string.IsNullOrWhiteSpace(_newLabelTitle))
+            return;
         var label = await ApiClient.CreateLabelAsync(Product.Id, new CreateLabelDto { Title = _newLabelTitle.Trim(), Color = _newLabelColor });
         if (label is not null)
         {
@@ -416,7 +427,7 @@ public partial class WorkItemDetailPanel : ComponentBase, IDisposable
         {
             _mentionStartIndex = atIndex;
             _mentionSearchTerm = content[(atIndex + 1)..];
-            
+
             // Only show typeahead if search term doesn't contain spaces
             if (!_mentionSearchTerm.Contains(' ') && _mentionTypeahead is not null)
             {
@@ -461,12 +472,13 @@ public partial class WorkItemDetailPanel : ComponentBase, IDisposable
     /// <summary>Called when a user is selected from the mention typeahead.</summary>
     private async Task HandleMentionSelected(UserSearchResult user)
     {
-        if (_mentionStartIndex < 0) return;
+        if (_mentionStartIndex < 0)
+            return;
 
         var content = _newCommentContent ?? "";
         var before = content[.._mentionStartIndex];
         var after = content[(_mentionStartIndex + 1 + _mentionSearchTerm.Length)..];
-        
+
         // Insert @username followed by a space
         _newCommentContent = $"{before}@{user.DisplayName.Replace(" ", "")} {after}";
         _mentionStartIndex = -1;
@@ -485,9 +497,11 @@ public partial class WorkItemDetailPanel : ComponentBase, IDisposable
 
     private async Task AddCommentAsync()
     {
-        if (string.IsNullOrWhiteSpace(_newCommentContent)) return;
+        if (string.IsNullOrWhiteSpace(_newCommentContent))
+            return;
         var comment = await ApiClient.CreateCommentAsync(WorkItem.Id, _newCommentContent.Trim());
-        if (comment is not null) _comments.Insert(0, comment);
+        if (comment is not null)
+            _comments.Insert(0, comment);
         _newCommentContent = "";
         _showCommentComposer = false;
         _mentionStartIndex = -1;
@@ -539,7 +553,8 @@ public partial class WorkItemDetailPanel : ComponentBase, IDisposable
     private async Task AddChecklistAsync()
     {
         var checklist = await ApiClient.CreateChecklistAsync(WorkItem.Id, "Checklist");
-        if (checklist is not null) _checklists.Add(checklist);
+        if (checklist is not null)
+            _checklists.Add(checklist);
     }
 
     private async Task DeleteChecklistAsync(Guid checklistId)
@@ -550,7 +565,8 @@ public partial class WorkItemDetailPanel : ComponentBase, IDisposable
 
     private async Task AddChecklistItemAsync(Guid checklistId)
     {
-        if (string.IsNullOrWhiteSpace(_newChecklistItemTitle)) return;
+        if (string.IsNullOrWhiteSpace(_newChecklistItemTitle))
+            return;
         await ApiClient.AddChecklistItemAsync(WorkItem.Id, checklistId, _newChecklistItemTitle.Trim());
         _addingItemToChecklist = null;
         _newChecklistItemTitle = "";
@@ -577,10 +593,12 @@ public partial class WorkItemDetailPanel : ComponentBase, IDisposable
 
     private async Task AddAttachmentAsync()
     {
-        if (string.IsNullOrWhiteSpace(_attachFileName)) return;
+        if (string.IsNullOrWhiteSpace(_attachFileName))
+            return;
         var url = string.IsNullOrWhiteSpace(_attachUrl) ? null : _attachUrl.Trim();
         var att = await ApiClient.AddAttachmentAsync(WorkItem.Id, _attachFileName.Trim(), url, null);
-        if (att is not null) _attachments.Add(att);
+        if (att is not null)
+            _attachments.Add(att);
         _showAttachmentInput = false;
         _attachFileName = "";
         _attachUrl = "";
@@ -595,7 +613,8 @@ public partial class WorkItemDetailPanel : ComponentBase, IDisposable
             foreach (var file in e.GetMultipleFiles(10))
             {
                 var att = await ApiClient.AddAttachmentAsync(WorkItem.Id, file.Name, null, null);
-                if (att is not null) _attachments.Add(att);
+                if (att is not null)
+                    _attachments.Add(att);
             }
         }
         finally
@@ -628,15 +647,18 @@ public partial class WorkItemDetailPanel : ComponentBase, IDisposable
 
     private async Task AddDependencyAsync()
     {
-        if (!Guid.TryParse(_depTargetItemId, out var targetId)) return;
-        if (!Enum.TryParse<DependencyType>(_depType, out var depType)) return;
+        if (!Guid.TryParse(_depTargetItemId, out var targetId))
+            return;
+        if (!Enum.TryParse<DependencyType>(_depType, out var depType))
+            return;
 
         var dep = await ApiClient.AddDependencyAsync(WorkItem.Id, new AddWorkItemDependencyDto
         {
             DependsOnWorkItemId = targetId,
             Type = depType
         });
-        if (dep is not null) _dependencies.Add(dep);
+        if (dep is not null)
+            _dependencies.Add(dep);
         _showDependencyPicker = false;
     }
 
@@ -651,7 +673,8 @@ public partial class WorkItemDetailPanel : ComponentBase, IDisposable
     private async Task StartTimerAsync()
     {
         var entry = await ApiClient.StartTimerAsync(WorkItem.Id);
-        if (entry is not null) _timeEntries.Add(entry);
+        if (entry is not null)
+            _timeEntries.Add(entry);
         RecalculateLiveMinutes();
         StartLiveTimerIfNeeded();
     }
@@ -708,7 +731,8 @@ public partial class WorkItemDetailPanel : ComponentBase, IDisposable
     private async Task ArchiveWorkItemAsync()
     {
         var updated = await ApiClient.UpdateWorkItemAsync(WorkItem.Id, new UpdateWorkItemDto { IsArchived = !WorkItem.IsArchived });
-        if (updated is not null) await OnWorkItemUpdated.InvokeAsync(updated);
+        if (updated is not null)
+            await OnWorkItemUpdated.InvokeAsync(updated);
     }
 
     private async Task DeleteWorkItemAsync()
@@ -722,12 +746,14 @@ public partial class WorkItemDetailPanel : ComponentBase, IDisposable
     private async Task RefreshWorkItemAsync()
     {
         var refreshed = await ApiClient.GetWorkItemAsync(WorkItem.Id);
-        if (refreshed is not null) await OnWorkItemUpdated.InvokeAsync(refreshed);
+        if (refreshed is not null)
+            await OnWorkItemUpdated.InvokeAsync(refreshed);
     }
 
     private static string FormatMinutes(int totalMinutes)
     {
-        if (totalMinutes == 0) return "0m";
+        if (totalMinutes == 0)
+            return "0m";
         var hours = totalMinutes / 60;
         var minutes = totalMinutes % 60;
         return hours > 0 ? $"{hours}h {minutes}m" : $"{minutes}m";
@@ -735,7 +761,8 @@ public partial class WorkItemDetailPanel : ComponentBase, IDisposable
 
     private static string GetInitials(string? name)
     {
-        if (string.IsNullOrWhiteSpace(name)) return "?";
+        if (string.IsNullOrWhiteSpace(name))
+            return "?";
         var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         return parts.Length >= 2
             ? $"{parts[0][0]}{parts[1][0]}".ToUpperInvariant()

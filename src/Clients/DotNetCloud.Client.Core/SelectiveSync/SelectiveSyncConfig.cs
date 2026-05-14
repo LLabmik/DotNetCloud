@@ -111,7 +111,8 @@ public sealed class SelectiveSyncConfig : ISelectiveSyncConfig
     /// <inheritdoc/>
     public async Task LoadAsync(string filePath, CancellationToken cancellationToken = default)
     {
-        if (!File.Exists(filePath)) return;
+        if (!File.Exists(filePath))
+            return;
 
         await using var stream = new FileStream(
             filePath,
@@ -121,7 +122,8 @@ public sealed class SelectiveSyncConfig : ISelectiveSyncConfig
         var loaded = await JsonSerializer.DeserializeAsync<Dictionary<string, List<SelectiveSyncRule>>>(
             stream, JsonOptions, cancellationToken);
 
-        if (loaded is null) return;
+        if (loaded is null)
+            return;
 
         _rules.Clear();
         foreach (var (key, value) in loaded)

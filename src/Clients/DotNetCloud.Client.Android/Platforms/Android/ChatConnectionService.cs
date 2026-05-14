@@ -99,13 +99,16 @@ public sealed class ChatConnectionService : Service
             var serverStore = Ioc.Default.GetService<IServerConnectionStore>();
             var tokenStore = Ioc.Default.GetService<ISecureTokenStore>();
 
-            if (signalR is null || serverStore is null || tokenStore is null) return;
+            if (signalR is null || serverStore is null || tokenStore is null)
+                return;
 
             var connection = serverStore.GetActive();
-            if (connection is null) return;
+            if (connection is null)
+                return;
 
             var token = await tokenStore.GetAccessTokenAsync(connection.ServerBaseUrl).ConfigureAwait(false);
-            if (token is null) return;
+            if (token is null)
+                return;
 
             if (signalR is SignalRChatClient androidSignalR)
                 await androidSignalR.ConnectAsync(connection.ServerBaseUrl, token).ConfigureAwait(false);

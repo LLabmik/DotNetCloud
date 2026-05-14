@@ -41,7 +41,8 @@ public partial class VelocityChart : ComponentBase
     private string BuildVelocitySvg()
     {
         var maxSp = _velocityData.Max(v => Math.Max(v.TotalStoryPoints, v.CompletedStoryPoints));
-        if (maxSp == 0) maxSp = 1;
+        if (maxSp == 0)
+            maxSp = 1;
         var avgLine = _velocityData.Average(v => v.CompletedStoryPoints);
 
         const int chartWidth = 600;

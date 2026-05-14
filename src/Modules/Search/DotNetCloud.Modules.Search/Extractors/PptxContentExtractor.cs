@@ -53,7 +53,8 @@ public sealed class PptxContentExtractor : IContentExtractor
             slideCount++;
 
             var relationshipId = slideId.RelationshipId?.Value;
-            if (relationshipId is null) continue;
+            if (relationshipId is null)
+                continue;
 
             if (presentationPart.GetPartById(relationshipId) is SlidePart slidePart)
             {
@@ -65,7 +66,8 @@ public sealed class PptxContentExtractor : IContentExtractor
         foreach (var slideId in presentationPart.Presentation.SlideIdList.Elements<SlideId>())
         {
             var relationshipId = slideId.RelationshipId?.Value;
-            if (relationshipId is null) continue;
+            if (relationshipId is null)
+                continue;
 
             if (presentationPart.GetPartById(relationshipId) is SlidePart slidePart &&
                 slidePart.NotesSlidePart is { } notesPart)
@@ -92,12 +94,14 @@ public sealed class PptxContentExtractor : IContentExtractor
     private static void ExtractSlideText(SlidePart slidePart, StringBuilder sb)
     {
         var slide = slidePart.Slide;
-        if (slide?.CommonSlideData?.ShapeTree is null) return;
+        if (slide?.CommonSlideData?.ShapeTree is null)
+            return;
 
         foreach (var shape in slide.CommonSlideData.ShapeTree.Elements<Shape>())
         {
             var textBody = shape.TextBody;
-            if (textBody is null) continue;
+            if (textBody is null)
+                continue;
 
             foreach (var paragraph in textBody.Elements<DocumentFormat.OpenXml.Drawing.Paragraph>())
             {

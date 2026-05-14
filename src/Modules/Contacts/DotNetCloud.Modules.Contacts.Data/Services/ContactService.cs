@@ -140,18 +140,30 @@ public sealed class ContactService : IContactService
             .FirstOrDefaultAsync(c => c.Id == contactId && c.OwnerId == caller.UserId, cancellationToken)
             ?? throw new Core.Errors.ValidationException(Core.Errors.ErrorCodes.ContactNotFound, "Contact not found.");
 
-        if (dto.DisplayName is not null) contact.DisplayName = dto.DisplayName;
-        if (dto.FirstName is not null) contact.FirstName = dto.FirstName;
-        if (dto.LastName is not null) contact.LastName = dto.LastName;
-        if (dto.MiddleName is not null) contact.MiddleName = dto.MiddleName;
-        if (dto.Prefix is not null) contact.Prefix = dto.Prefix;
-        if (dto.Suffix is not null) contact.Suffix = dto.Suffix;
-        if (dto.Organization is not null) contact.Organization = dto.Organization;
-        if (dto.Department is not null) contact.Department = dto.Department;
-        if (dto.JobTitle is not null) contact.JobTitle = dto.JobTitle;
-        if (dto.Notes is not null) contact.Notes = dto.Notes;
-        if (dto.Birthday is not null) contact.Birthday = dto.Birthday;
-        if (dto.WebsiteUrl is not null) contact.WebsiteUrl = dto.WebsiteUrl;
+        if (dto.DisplayName is not null)
+            contact.DisplayName = dto.DisplayName;
+        if (dto.FirstName is not null)
+            contact.FirstName = dto.FirstName;
+        if (dto.LastName is not null)
+            contact.LastName = dto.LastName;
+        if (dto.MiddleName is not null)
+            contact.MiddleName = dto.MiddleName;
+        if (dto.Prefix is not null)
+            contact.Prefix = dto.Prefix;
+        if (dto.Suffix is not null)
+            contact.Suffix = dto.Suffix;
+        if (dto.Organization is not null)
+            contact.Organization = dto.Organization;
+        if (dto.Department is not null)
+            contact.Department = dto.Department;
+        if (dto.JobTitle is not null)
+            contact.JobTitle = dto.JobTitle;
+        if (dto.Notes is not null)
+            contact.Notes = dto.Notes;
+        if (dto.Birthday is not null)
+            contact.Birthday = dto.Birthday;
+        if (dto.WebsiteUrl is not null)
+            contact.WebsiteUrl = dto.WebsiteUrl;
 
         if (dto.Emails is not null)
         {
@@ -308,7 +320,8 @@ public sealed class ContactService : IContactService
     public async Task<IReadOnlyList<ContactDto>> GetContactsByIdsAsync(IEnumerable<Guid> contactIds, CallerContext caller, CancellationToken cancellationToken = default)
     {
         var ids = contactIds.ToList();
-        if (ids.Count == 0) return [];
+        if (ids.Count == 0)
+            return [];
 
         var contacts = await QueryContacts()
             .Where(c => ids.Contains(c.Id) && (c.OwnerId == caller.UserId || c.Shares.Any(s => s.SharedWithUserId == caller.UserId)))

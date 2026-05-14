@@ -167,7 +167,9 @@ public sealed class VideoThumbnailService : IVideoThumbnailService
             // Clean up temp frame file (video temp file is DeleteOnClose from download service)
             if (tempFramePath is not null && File.Exists(tempFramePath))
             {
-                try { File.Delete(tempFramePath); } catch (Exception ex) { _logger.LogDebug(ex, "Failed to delete temp frame file {Path}", tempFramePath); }
+                try
+                { File.Delete(tempFramePath); }
+                catch (Exception ex) { _logger.LogDebug(ex, "Failed to delete temp frame file {Path}", tempFramePath); }
             }
         }
     }
@@ -185,7 +187,9 @@ public sealed class VideoThumbnailService : IVideoThumbnailService
             // Clean up cached poster on disk
             if (video.ExternalPosterPath is not null && File.Exists(video.ExternalPosterPath))
             {
-                try { File.Delete(video.ExternalPosterPath); } catch { /* best effort */ }
+                try
+                { File.Delete(video.ExternalPosterPath); }
+                catch { /* best effort */ }
                 video.ExternalPosterPath = null;
             }
             video.HasExternalPoster = false;
@@ -199,7 +203,9 @@ public sealed class VideoThumbnailService : IVideoThumbnailService
         {
             foreach (var path in screenshotPaths)
             {
-                try { File.Delete(path); } catch { /* best effort */ }
+                try
+                { File.Delete(path); }
+                catch { /* best effort */ }
             }
         }
 
@@ -237,7 +243,8 @@ public sealed class VideoThumbnailService : IVideoThumbnailService
                 try
                 {
                     var extracted = await ExtractFrameAsync(tempVideoPath, frameTemp, $"{pct}%", cancellationToken);
-                    if (!extracted) continue;
+                    if (!extracted)
+                        continue;
 
                     byte[] screenshotBytes;
                     await using (var frameStream = File.OpenRead(frameTemp))
@@ -261,7 +268,9 @@ public sealed class VideoThumbnailService : IVideoThumbnailService
                 {
                     if (File.Exists(frameTemp))
                     {
-                        try { File.Delete(frameTemp); } catch (Exception ex) { _logger.LogDebug(ex, "Failed to delete screenshot temp file {Path}", frameTemp); }
+                        try
+                        { File.Delete(frameTemp); }
+                        catch (Exception ex) { _logger.LogDebug(ex, "Failed to delete screenshot temp file {Path}", frameTemp); }
                     }
                 }
             }
@@ -417,7 +426,8 @@ public sealed class VideoThumbnailService : IVideoThumbnailService
 
     private static (int? w, int? h, string? c, string? r, string? b) EnumerateStreams(JsonElement streams, string type)
     {
-        if (streams.ValueKind != JsonValueKind.Array) return default;
+        if (streams.ValueKind != JsonValueKind.Array)
+            return default;
 
         foreach (var stream in streams.EnumerateArray())
         {
@@ -428,11 +438,16 @@ public sealed class VideoThumbnailService : IVideoThumbnailService
                 int? w = null, h = null;
                 string? c = null, r = null, b = null;
 
-                if (stream.TryGetProperty("width", out var wEl) && wEl.TryGetInt32(out var wVal)) w = wVal;
-                if (stream.TryGetProperty("height", out var hEl) && hEl.TryGetInt32(out var hVal)) h = hVal;
-                if (stream.TryGetProperty("codec_name", out var cn) && cn.ValueKind == JsonValueKind.String) c = cn.GetString();
-                if (stream.TryGetProperty("r_frame_rate", out var rf) && rf.ValueKind == JsonValueKind.String) r = rf.GetString();
-                if (stream.TryGetProperty("bit_rate", out var br) && br.ValueKind == JsonValueKind.String) b = br.GetString();
+                if (stream.TryGetProperty("width", out var wEl) && wEl.TryGetInt32(out var wVal))
+                    w = wVal;
+                if (stream.TryGetProperty("height", out var hEl) && hEl.TryGetInt32(out var hVal))
+                    h = hVal;
+                if (stream.TryGetProperty("codec_name", out var cn) && cn.ValueKind == JsonValueKind.String)
+                    c = cn.GetString();
+                if (stream.TryGetProperty("r_frame_rate", out var rf) && rf.ValueKind == JsonValueKind.String)
+                    r = rf.GetString();
+                if (stream.TryGetProperty("bit_rate", out var br) && br.ValueKind == JsonValueKind.String)
+                    b = br.GetString();
 
                 return (w, h, c, r, b);
             }
@@ -443,7 +458,8 @@ public sealed class VideoThumbnailService : IVideoThumbnailService
 
     private static int CountStreams(JsonElement streams, string type)
     {
-        if (streams.ValueKind != JsonValueKind.Array) return 0;
+        if (streams.ValueKind != JsonValueKind.Array)
+            return 0;
         var count = 0;
         foreach (var stream in streams.EnumerateArray())
         {
@@ -459,7 +475,8 @@ public sealed class VideoThumbnailService : IVideoThumbnailService
 
     private static double ParseFrameRate(string? rFrameRate)
     {
-        if (string.IsNullOrWhiteSpace(rFrameRate)) return 0;
+        if (string.IsNullOrWhiteSpace(rFrameRate))
+            return 0;
         var parts = rFrameRate.Split('/');
         if (parts.Length == 2 &&
             double.TryParse(parts[0], out var num) &&

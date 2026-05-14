@@ -245,7 +245,8 @@ public sealed class UpdateViewModel : ViewModelBase
 
     private void OpenReleasePage()
     {
-        if (string.IsNullOrEmpty(ReleaseUrl)) return;
+        if (string.IsNullOrEmpty(ReleaseUrl))
+            return;
         try
         {
             Process.Start(new ProcessStartInfo { FileName = ReleaseUrl, UseShellExecute = true });
@@ -281,8 +282,10 @@ public sealed class UpdateViewModel : ViewModelBase
 
     private static string GetCurrentPlatform()
     {
-        if (OperatingSystem.IsWindows()) return "win-x64";
-        if (OperatingSystem.IsMacOS()) return "osx-x64";
+        if (OperatingSystem.IsWindows())
+            return "win-x64";
+        if (OperatingSystem.IsMacOS())
+            return "osx-x64";
         return System.Runtime.InteropServices.RuntimeInformation.OSArchitecture switch
         {
             System.Runtime.InteropServices.Architecture.Arm64 => "linux-arm64",

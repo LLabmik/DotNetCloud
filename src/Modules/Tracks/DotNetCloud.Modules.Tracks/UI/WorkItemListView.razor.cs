@@ -180,7 +180,8 @@ public partial class WorkItemListView : ComponentBase, IDisposable
 
     private string GetSortIndicator(string column)
     {
-        if (_sortColumn != column) return "";
+        if (_sortColumn != column)
+            return "";
         return _sortAscending ? " ▲" : " ▼";
     }
 
@@ -227,7 +228,8 @@ public partial class WorkItemListView : ComponentBase, IDisposable
 
     private async Task BulkArchiveAsync()
     {
-        if (_selectedIds.Count == 0) return;
+        if (_selectedIds.Count == 0)
+            return;
         _isBulkActing = true;
         try
         {
@@ -243,7 +245,8 @@ public partial class WorkItemListView : ComponentBase, IDisposable
 
     private async Task BulkDeleteAsync()
     {
-        if (_selectedIds.Count == 0) return;
+        if (_selectedIds.Count == 0)
+            return;
         _isBulkActing = true;
         try
         {
@@ -259,7 +262,8 @@ public partial class WorkItemListView : ComponentBase, IDisposable
 
     private async Task BulkMoveAsync()
     {
-        if (_selectedIds.Count == 0 || !_bulkTargetSwimlaneId.HasValue) return;
+        if (_selectedIds.Count == 0 || !_bulkTargetSwimlaneId.HasValue)
+            return;
         _isBulkActing = true;
         try
         {
@@ -277,7 +281,8 @@ public partial class WorkItemListView : ComponentBase, IDisposable
 
     private async Task BulkAddLabelAsync()
     {
-        if (_selectedIds.Count == 0 || !_bulkLabelId.HasValue) return;
+        if (_selectedIds.Count == 0 || !_bulkLabelId.HasValue)
+            return;
         _isBulkActing = true;
         try
         {
@@ -295,7 +300,8 @@ public partial class WorkItemListView : ComponentBase, IDisposable
 
     private async Task BulkAssignAsync()
     {
-        if (_selectedIds.Count == 0 || !_bulkAssigneeId.HasValue) return;
+        if (_selectedIds.Count == 0 || !_bulkAssigneeId.HasValue)
+            return;
         _isBulkActing = true;
         try
         {
@@ -313,7 +319,8 @@ public partial class WorkItemListView : ComponentBase, IDisposable
 
     private async Task BulkSetPriorityAsync(Priority priority)
     {
-        if (_selectedIds.Count == 0) return;
+        if (_selectedIds.Count == 0)
+            return;
         _isBulkActing = true;
         try
         {
@@ -331,7 +338,8 @@ public partial class WorkItemListView : ComponentBase, IDisposable
 
     private async Task BulkAssignSprintAsync()
     {
-        if (_selectedIds.Count == 0 || !_bulkSprintId.HasValue) return;
+        if (_selectedIds.Count == 0 || !_bulkSprintId.HasValue)
+            return;
         _isBulkActing = true;
         try
         {
@@ -436,7 +444,8 @@ public partial class WorkItemListView : ComponentBase, IDisposable
     private string GetAssigneeDisplay(WorkItemDto item)
     {
         var assignments = item.Assignments;
-        if (assignments.Count == 0) return "—";
+        if (assignments.Count == 0)
+            return "—";
         return string.Join(", ", assignments.Select(a =>
         {
             var member = Members.FirstOrDefault(m => m.UserId == a.UserId);
@@ -446,7 +455,8 @@ public partial class WorkItemListView : ComponentBase, IDisposable
 
     private string GetContrastTextColor(string? hexColor)
     {
-        if (string.IsNullOrEmpty(hexColor) || hexColor.Length < 7) return "#333";
+        if (string.IsNullOrEmpty(hexColor) || hexColor.Length < 7)
+            return "#333";
         try
         {
             var r = Convert.ToInt32(hexColor[1..3], 16);

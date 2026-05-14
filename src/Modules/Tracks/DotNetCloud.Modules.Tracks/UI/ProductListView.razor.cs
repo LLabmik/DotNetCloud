@@ -82,7 +82,8 @@ public partial class ProductListView : ComponentBase
 
     private async Task DeleteProductAsync()
     {
-        if (_deleteTarget is null) return;
+        if (_deleteTarget is null)
+            return;
 
         _isDeleting = true;
         _deleteError = null;
@@ -105,7 +106,8 @@ public partial class ProductListView : ComponentBase
 
     private async Task LoadDeletedProductsAsync()
     {
-        if (!OrganizationId.HasValue || _deletedLoaded) return;
+        if (!OrganizationId.HasValue || _deletedLoaded)
+            return;
 
         try
         {

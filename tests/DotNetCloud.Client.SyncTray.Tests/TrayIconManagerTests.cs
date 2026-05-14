@@ -147,8 +147,10 @@ public sealed class TrayIconManagerTests
                 int idx = (py * Size + px) * 4;
                 if (pixels[idx + 0] > 200 && pixels[idx + 1] > 200 && pixels[idx + 2] > 200 && pixels[idx + 3] == 255)
                 {
-                    if (px < 12) hasLeftLeg = true;
-                    if (px > 18) hasRightLeg = true;
+                    if (px < 12)
+                        hasLeftLeg = true;
+                    if (px > 18)
+                        hasRightLeg = true;
                 }
             }
         }

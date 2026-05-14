@@ -477,8 +477,12 @@ public class LiveKitServiceTests
         var padded = part.Replace('-', '+').Replace('_', '/');
         switch (padded.Length % 4)
         {
-            case 2: padded += "=="; break;
-            case 3: padded += "="; break;
+            case 2:
+                padded += "==";
+                break;
+            case 3:
+                padded += "=";
+                break;
         }
         return Encoding.UTF8.GetString(Convert.FromBase64String(padded));
     }

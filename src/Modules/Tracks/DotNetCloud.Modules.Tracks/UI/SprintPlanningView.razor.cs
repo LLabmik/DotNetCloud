@@ -155,7 +155,8 @@ public partial class SprintPlanningView : ComponentBase
     {
         _isEditingTarget = false;
 
-        if (!int.TryParse(_editTargetSp, out var target) || target < 0) return;
+        if (!int.TryParse(_editTargetSp, out var target) || target < 0)
+            return;
 
         var normalizedTarget = target > 0 ? target : (int?)null;
 

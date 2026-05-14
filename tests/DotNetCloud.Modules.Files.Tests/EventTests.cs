@@ -182,13 +182,19 @@ public class EventTests
 
         var evt1 = new FileUploadedEvent
         {
-            EventId = eventId, CreatedAt = now, FileNodeId = nodeId,
-            FileName = "test.txt", UploadedByUserId = userId
+            EventId = eventId,
+            CreatedAt = now,
+            FileNodeId = nodeId,
+            FileName = "test.txt",
+            UploadedByUserId = userId
         };
         var evt2 = new FileUploadedEvent
         {
-            EventId = eventId, CreatedAt = now, FileNodeId = nodeId,
-            FileName = "test.txt", UploadedByUserId = userId
+            EventId = eventId,
+            CreatedAt = now,
+            FileNodeId = nodeId,
+            FileName = "test.txt",
+            UploadedByUserId = userId
         };
 
         Assert.AreEqual(evt1, evt2);

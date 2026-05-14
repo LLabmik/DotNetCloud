@@ -133,7 +133,9 @@ public sealed class BackupService : DotNetCloud.Core.Services.IBackupService
         {
             if (Directory.Exists(restoreDir))
             {
-                try { Directory.Delete(restoreDir, recursive: true); } catch { /* best effort */ }
+                try
+                { Directory.Delete(restoreDir, recursive: true); }
+                catch { /* best effort */ }
             }
         }
     }
@@ -263,7 +265,9 @@ public sealed class BackupService : DotNetCloud.Core.Services.IBackupService
             _logger.LogWarning("Backup was cancelled.");
             // Clean up partial archive
             if (File.Exists(backupPath))
-                try { File.Delete(backupPath); } catch { /* best effort */ }
+                try
+                { File.Delete(backupPath); }
+                catch { /* best effort */ }
 
             return new BackupResult
             {
@@ -285,7 +289,9 @@ public sealed class BackupService : DotNetCloud.Core.Services.IBackupService
             // Clean up temporary database dump
             if (createdDbDump && File.Exists(dbDumpPath))
             {
-                try { File.Delete(dbDumpPath); } catch { /* best effort */ }
+                try
+                { File.Delete(dbDumpPath); }
+                catch { /* best effort */ }
             }
         }
     }
@@ -361,17 +367,26 @@ public sealed class BackupService : DotNetCloud.Core.Services.IBackupService
         foreach (var part in connectionString.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
             var eqIndex = part.IndexOf('=');
-            if (eqIndex < 0) continue;
+            if (eqIndex < 0)
+                continue;
 
             var key = part[..eqIndex].Trim().ToLowerInvariant();
             var value = part[(eqIndex + 1)..].Trim();
 
             switch (key)
             {
-                case "host" or "server" or "datasource": host = value; break;
-                case "port": port = value; break;
-                case "database" or "db": db = value; break;
-                case "username" or "user id" or "user": user = value; break;
+                case "host" or "server" or "datasource":
+                    host = value;
+                    break;
+                case "port":
+                    port = value;
+                    break;
+                case "database" or "db":
+                    db = value;
+                    break;
+                case "username" or "user id" or "user":
+                    user = value;
+                    break;
             }
         }
 
@@ -392,7 +407,8 @@ public sealed class BackupService : DotNetCloud.Core.Services.IBackupService
         foreach (var part in connectionString.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
             var eqIndex = part.IndexOf('=');
-            if (eqIndex < 0) continue;
+            if (eqIndex < 0)
+                continue;
 
             var key = part[..eqIndex].Trim().ToLowerInvariant();
             var value = part[(eqIndex + 1)..].Trim();

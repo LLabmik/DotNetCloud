@@ -222,7 +222,9 @@ internal static class BackupCommands
             var tempDump = Path.Combine(backupDir, $"dotnetcloud-db-{timestamp}.sql");
             if (File.Exists(tempDump))
             {
-                try { File.Delete(tempDump); } catch { /* best effort */ }
+                try
+                { File.Delete(tempDump); }
+                catch { /* best effort */ }
             }
         }
     }
@@ -303,7 +305,8 @@ internal static class BackupCommands
                 foreach (var entry in dataEntries)
                 {
                     var relativePath = entry.FullName["data/".Length..];
-                    if (string.IsNullOrEmpty(relativePath)) continue;
+                    if (string.IsNullOrEmpty(relativePath))
+                        continue;
 
                     var targetPath = Path.Combine(config.DataDirectory, relativePath.Replace('/', Path.DirectorySeparatorChar));
                     Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
@@ -328,7 +331,9 @@ internal static class BackupCommands
                 finally
                 {
                     if (File.Exists(tempDumpPath))
-                        try { File.Delete(tempDumpPath); } catch { /* best effort */ }
+                        try
+                        { File.Delete(tempDumpPath); }
+                        catch { /* best effort */ }
                 }
             }
 
@@ -481,17 +486,26 @@ internal static class BackupCommands
         foreach (var part in connectionString.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
             var eqIndex = part.IndexOf('=');
-            if (eqIndex < 0) continue;
+            if (eqIndex < 0)
+                continue;
 
             var key = part[..eqIndex].Trim().ToLowerInvariant();
             var value = part[(eqIndex + 1)..].Trim();
 
             switch (key)
             {
-                case "host" or "server" or "datasource": host = value; break;
-                case "port": port = value; break;
-                case "database" or "db": db = value; break;
-                case "username" or "user id" or "user": user = value; break;
+                case "host" or "server" or "datasource":
+                    host = value;
+                    break;
+                case "port":
+                    port = value;
+                    break;
+                case "database" or "db":
+                    db = value;
+                    break;
+                case "username" or "user id" or "user":
+                    user = value;
+                    break;
             }
         }
 

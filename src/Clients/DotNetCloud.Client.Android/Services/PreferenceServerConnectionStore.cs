@@ -15,7 +15,8 @@ internal sealed class PreferenceServerConnectionStore : IServerConnectionStore
     public IReadOnlyList<ServerConnection> GetAll()
     {
         var json = Preferences.Default.Get(ListKey, string.Empty);
-        if (string.IsNullOrEmpty(json)) return [];
+        if (string.IsNullOrEmpty(json))
+            return [];
         return JsonSerializer.Deserialize<List<ServerConnection>>(json) ?? [];
     }
 
@@ -24,8 +25,10 @@ internal sealed class PreferenceServerConnectionStore : IServerConnectionStore
     {
         var list = new List<ServerConnection>(GetAll());
         var idx = list.FindIndex(s => s.ServerBaseUrl == connection.ServerBaseUrl);
-        if (idx >= 0) list[idx] = connection;
-        else list.Add(connection);
+        if (idx >= 0)
+            list[idx] = connection;
+        else
+            list.Add(connection);
         Preferences.Default.Set(ListKey, JsonSerializer.Serialize(list));
     }
 
@@ -44,7 +47,8 @@ internal sealed class PreferenceServerConnectionStore : IServerConnectionStore
     public ServerConnection? GetActive()
     {
         var activeUrl = Preferences.Default.Get(ActiveKey, string.Empty);
-        if (string.IsNullOrEmpty(activeUrl)) return null;
+        if (string.IsNullOrEmpty(activeUrl))
+            return null;
         return GetAll().FirstOrDefault(s => s.ServerBaseUrl == activeUrl);
     }
 

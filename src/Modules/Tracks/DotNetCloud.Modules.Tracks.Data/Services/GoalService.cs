@@ -44,7 +44,8 @@ public sealed class GoalService
             .Include(g => g.LinkedWorkItems)
             .FirstOrDefaultAsync(g => g.Id == goalId, ct);
 
-        if (goal is null) return null;
+        if (goal is null)
+            return null;
 
         var doneSwimlaneIds = await _db.Swimlanes
             .Where(s => s.ContainerType == SwimlaneContainerType.Product && s.ContainerId == goal.ProductId && s.IsDone)
@@ -89,15 +90,23 @@ public sealed class GoalService
     public async Task<GoalDto?> UpdateAsync(Guid goalId, UpdateGoalDto dto, CancellationToken ct)
     {
         var goal = await _db.Goals.FindAsync([goalId], ct);
-        if (goal is null) return null;
+        if (goal is null)
+            return null;
 
-        if (dto.Title is not null) goal.Title = dto.Title;
-        if (dto.Description is not null) goal.Description = dto.Description;
-        if (dto.TargetValue.HasValue) goal.TargetValue = dto.TargetValue.Value;
-        if (dto.CurrentValue.HasValue) goal.CurrentValue = dto.CurrentValue.Value;
-        if (dto.ProgressType is not null) goal.ProgressType = dto.ProgressType;
-        if (dto.Status is not null) goal.Status = dto.Status;
-        if (dto.DueDate is not null) goal.DueDate = dto.DueDate;
+        if (dto.Title is not null)
+            goal.Title = dto.Title;
+        if (dto.Description is not null)
+            goal.Description = dto.Description;
+        if (dto.TargetValue.HasValue)
+            goal.TargetValue = dto.TargetValue.Value;
+        if (dto.CurrentValue.HasValue)
+            goal.CurrentValue = dto.CurrentValue.Value;
+        if (dto.ProgressType is not null)
+            goal.ProgressType = dto.ProgressType;
+        if (dto.Status is not null)
+            goal.Status = dto.Status;
+        if (dto.DueDate is not null)
+            goal.DueDate = dto.DueDate;
         goal.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(ct);
@@ -114,7 +123,8 @@ public sealed class GoalService
     public async Task<bool> DeleteAsync(Guid goalId, CancellationToken ct)
     {
         var goal = await _db.Goals.FindAsync([goalId], ct);
-        if (goal is null) return false;
+        if (goal is null)
+            return false;
 
         _db.Goals.Remove(goal);
         await _db.SaveChangesAsync(ct);
@@ -125,12 +135,14 @@ public sealed class GoalService
     public async Task<bool> LinkWorkItemAsync(Guid goalId, Guid workItemId, CancellationToken ct)
     {
         var goal = await _db.Goals.FindAsync([goalId], ct);
-        if (goal is null) return false;
+        if (goal is null)
+            return false;
 
         var existing = await _db.GoalWorkItems
             .FirstOrDefaultAsync(gwi => gwi.GoalId == goalId && gwi.WorkItemId == workItemId, ct);
 
-        if (existing is not null) return true; // Already linked
+        if (existing is not null)
+            return true; // Already linked
 
         _db.GoalWorkItems.Add(new GoalWorkItem
         {
@@ -148,7 +160,8 @@ public sealed class GoalService
         var link = await _db.GoalWorkItems
             .FirstOrDefaultAsync(gwi => gwi.GoalId == goalId && gwi.WorkItemId == workItemId, ct);
 
-        if (link is null) return false;
+        if (link is null)
+            return false;
 
         _db.GoalWorkItems.Remove(link);
         await _db.SaveChangesAsync(ct);
@@ -158,10 +171,14 @@ public sealed class GoalService
     /// <summary>Computes the effective status based on progress percentage and due date.</summary>
     public static string ComputeStatus(double progressPercent, DateTime? dueDate)
     {
-        if (progressPercent >= 100) return "completed";
-        if (dueDate.HasValue && dueDate.Value < DateTime.UtcNow && progressPercent < 80) return "behind";
-        if (progressPercent >= 80) return "on_track";
-        if (progressPercent >= 50) return "at_risk";
+        if (progressPercent >= 100)
+            return "completed";
+        if (dueDate.HasValue && dueDate.Value < DateTime.UtcNow && progressPercent < 80)
+            return "behind";
+        if (progressPercent >= 80)
+            return "on_track";
+        if (progressPercent >= 50)
+            return "at_risk";
         return "behind";
     }
 

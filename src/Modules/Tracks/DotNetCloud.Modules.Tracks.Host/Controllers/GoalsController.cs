@@ -78,7 +78,8 @@ public class GoalsController : TracksControllerBase
     {
         var caller = GetAuthenticatedCaller();
         var linked = await _goalService.LinkWorkItemAsync(goalId, dto.WorkItemId, ct);
-        if (!linked) return NotFound();
+        if (!linked)
+            return NotFound();
         return Ok(Envelope(new { linked = true }));
     }
 

@@ -135,7 +135,8 @@ public sealed class GmailEmailProvider : IEmailProvider
 
                 var message = await getReq.ExecuteAsync(ct);
 
-                if (message?.Payload is null) continue;
+                if (message?.Payload is null)
+                    continue;
 
                 // Extract headers
                 var headers = message.Payload.Headers?
@@ -515,7 +516,8 @@ public sealed class GmailEmailProvider : IEmailProvider
 
     private static GmailMessagePart? FindPartByMimeType(GmailMessagePart parent, string mimeType)
     {
-        if (parent.Parts is null) return null;
+        if (parent.Parts is null)
+            return null;
 
         foreach (var part in parent.Parts)
         {
@@ -526,7 +528,8 @@ public sealed class GmailEmailProvider : IEmailProvider
             if (part.Parts is not null)
             {
                 var found = FindPartByMimeType(part, mimeType);
-                if (found is not null) return found;
+                if (found is not null)
+                    return found;
             }
         }
 
@@ -539,8 +542,12 @@ public sealed class GmailEmailProvider : IEmailProvider
         var base64 = input.Replace('-', '+').Replace('_', '/');
         switch (base64.Length % 4)
         {
-            case 2: base64 += "=="; break;
-            case 3: base64 += "="; break;
+            case 2:
+                base64 += "==";
+                break;
+            case 3:
+                base64 += "=";
+                break;
         }
         var bytes = Convert.FromBase64String(base64);
         return Encoding.UTF8.GetString(bytes);
@@ -587,7 +594,8 @@ public sealed class GmailEmailProvider : IEmailProvider
 
     private static DateTime? ParseInternalDate(long? internalDate)
     {
-        if (internalDate is null) return null;
+        if (internalDate is null)
+            return null;
         try
         {
             // Gmail internalDate is epoch milliseconds
@@ -693,11 +701,16 @@ public sealed class GmailEmailProvider : IEmailProvider
         var flags = MailboxFlags.None;
         var labelId = label.Id ?? "";
 
-        if (labelId == "INBOX") flags |= MailboxFlags.Inbox;
-        if (labelId == "SENT") flags |= MailboxFlags.Sent;
-        if (labelId == "TRASH") flags |= MailboxFlags.Trash;
-        if (labelId == "DRAFT") flags |= MailboxFlags.Drafts;
-        if (labelId == "SPAM") flags |= MailboxFlags.Spam;
+        if (labelId == "INBOX")
+            flags |= MailboxFlags.Inbox;
+        if (labelId == "SENT")
+            flags |= MailboxFlags.Sent;
+        if (labelId == "TRASH")
+            flags |= MailboxFlags.Trash;
+        if (labelId == "DRAFT")
+            flags |= MailboxFlags.Drafts;
+        if (labelId == "SPAM")
+            flags |= MailboxFlags.Spam;
 
         return new EmailMailbox
         {

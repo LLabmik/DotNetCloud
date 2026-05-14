@@ -123,7 +123,8 @@ public sealed class CsvImportService
         for (int i = 1; i < allLines.Count; i++)
         {
             var row = ParseCsvLine(allLines[i], delimiter);
-            if (row.All(string.IsNullOrWhiteSpace)) continue;
+            if (row.All(string.IsNullOrWhiteSpace))
+                continue;
 
             var rowErrors = new List<string>();
 
@@ -273,7 +274,8 @@ public sealed class CsvImportService
         for (int i = 1; i < allLines.Count; i++)
         {
             var row = ParseCsvLine(allLines[i], delimiter);
-            if (row.All(string.IsNullOrWhiteSpace)) continue;
+            if (row.All(string.IsNullOrWhiteSpace))
+                continue;
 
             try
             {

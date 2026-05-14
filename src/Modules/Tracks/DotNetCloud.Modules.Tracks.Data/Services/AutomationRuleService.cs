@@ -61,13 +61,19 @@ public sealed class AutomationRuleService
     public async Task<AutomationRuleDto?> UpdateAsync(Guid ruleId, UpdateAutomationRuleDto dto, CancellationToken ct)
     {
         var rule = await _db.AutomationRules.FindAsync([ruleId], ct);
-        if (rule is null) return null;
+        if (rule is null)
+            return null;
 
-        if (dto.Name is not null) rule.Name = dto.Name;
-        if (dto.Trigger is not null) rule.Trigger = dto.Trigger;
-        if (dto.ConditionsJson is not null) rule.ConditionsJson = dto.ConditionsJson;
-        if (dto.ActionsJson is not null) rule.ActionsJson = dto.ActionsJson;
-        if (dto.IsActive.HasValue) rule.IsActive = dto.IsActive.Value;
+        if (dto.Name is not null)
+            rule.Name = dto.Name;
+        if (dto.Trigger is not null)
+            rule.Trigger = dto.Trigger;
+        if (dto.ConditionsJson is not null)
+            rule.ConditionsJson = dto.ConditionsJson;
+        if (dto.ActionsJson is not null)
+            rule.ActionsJson = dto.ActionsJson;
+        if (dto.IsActive.HasValue)
+            rule.IsActive = dto.IsActive.Value;
         rule.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(ct);
@@ -78,7 +84,8 @@ public sealed class AutomationRuleService
     public async Task<bool> DeleteAsync(Guid ruleId, CancellationToken ct)
     {
         var rule = await _db.AutomationRules.FindAsync([ruleId], ct);
-        if (rule is null) return false;
+        if (rule is null)
+            return false;
 
         _db.AutomationRules.Remove(rule);
         await _db.SaveChangesAsync(ct);
@@ -130,7 +137,8 @@ public sealed class AutomationRuleService
             return true;
 
         var conditions = JsonSerializer.Deserialize<List<AutomationCondition>>(conditionsJson);
-        if (conditions is null || conditions.Count == 0) return true;
+        if (conditions is null || conditions.Count == 0)
+            return true;
 
         foreach (var cond in conditions)
         {

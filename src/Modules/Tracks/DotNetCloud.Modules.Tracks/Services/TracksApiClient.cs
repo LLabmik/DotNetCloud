@@ -228,9 +228,12 @@ public sealed class TracksApiClient : ITracksApiClient
     public async Task<byte[]> ExportWorkItemsCsvAsync(Guid productId, Guid? swimlaneId = null, Guid? labelId = null, Priority? priority = null, CancellationToken ct = default)
     {
         var queryParams = new List<string>();
-        if (swimlaneId.HasValue) queryParams.Add($"swimlaneId={swimlaneId.Value}");
-        if (labelId.HasValue) queryParams.Add($"labelId={labelId.Value}");
-        if (priority.HasValue) queryParams.Add($"priority={priority.Value}");
+        if (swimlaneId.HasValue)
+            queryParams.Add($"swimlaneId={swimlaneId.Value}");
+        if (labelId.HasValue)
+            queryParams.Add($"labelId={labelId.Value}");
+        if (priority.HasValue)
+            queryParams.Add($"priority={priority.Value}");
 
         var queryString = queryParams.Count > 0 ? "?" + string.Join("&", queryParams) : "";
         var response = await _httpClient.GetAsync($"api/v1/products/{productId}/work-items/export{queryString}", ct);
@@ -703,9 +706,12 @@ public sealed class TracksApiClient : ITracksApiClient
         Guid productId, Guid? swimlaneId = null, Guid? labelId = null, Priority? priority = null, CancellationToken ct = default)
     {
         var queryParams = new List<string>();
-        if (swimlaneId.HasValue) queryParams.Add($"swimlaneId={swimlaneId.Value}");
-        if (labelId.HasValue) queryParams.Add($"labelId={labelId.Value}");
-        if (priority.HasValue) queryParams.Add($"priority={priority.Value}");
+        if (swimlaneId.HasValue)
+            queryParams.Add($"swimlaneId={swimlaneId.Value}");
+        if (labelId.HasValue)
+            queryParams.Add($"labelId={labelId.Value}");
+        if (priority.HasValue)
+            queryParams.Add($"priority={priority.Value}");
         var queryString = queryParams.Count > 0 ? "?" + string.Join("&", queryParams) : "";
         return await ReadDataAsync<IReadOnlyList<WorkItemDto>>($"api/v1/products/{productId}/work-items{queryString}", ct) ?? [];
     }

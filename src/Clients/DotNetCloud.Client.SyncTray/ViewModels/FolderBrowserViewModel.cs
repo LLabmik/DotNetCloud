@@ -239,7 +239,8 @@ public sealed class FolderBrowserViewModel : ViewModelBase
     private void ApplyExistingRules()
     {
         var rules = _selectiveSync.GetRules(_contextId);
-        if (rules.Count == 0) return;
+        if (rules.Count == 0)
+            return;
 
         var excludedPaths = new HashSet<string>(
             rules.Where(r => !r.IsInclude).Select(r => r.FolderPath),
@@ -306,16 +307,19 @@ public sealed class FolderBrowserViewModel : ViewModelBase
     /// </summary>
     private async Task CleanupExcludedFolderAsync(string relativePath)
     {
-        if (LocalSyncRoot is null) return;
+        if (LocalSyncRoot is null)
+            return;
 
         var localPath = Path.Combine(LocalSyncRoot, relativePath.Replace('/', Path.DirectorySeparatorChar));
-        if (!Directory.Exists(localPath)) return;
+        if (!Directory.Exists(localPath))
+            return;
 
         // Ask for confirmation before deleting.
         if (ConfirmDeletionAsync is not null)
         {
             var confirmed = await ConfirmDeletionAsync(relativePath);
-            if (!confirmed) return;
+            if (!confirmed)
+                return;
         }
 
         try

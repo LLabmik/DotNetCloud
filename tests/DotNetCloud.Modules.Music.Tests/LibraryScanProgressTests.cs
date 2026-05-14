@@ -47,7 +47,9 @@ public class LibraryScanProgressTests
         _db.Dispose();
         if (Directory.Exists(_tempDir))
         {
-            try { Directory.Delete(_tempDir, true); } catch { }
+            try
+            { Directory.Delete(_tempDir, true); }
+            catch { }
         }
     }
 
@@ -264,7 +266,8 @@ public class LibraryScanProgressTests
         var progress = new Progress<LibraryScanProgress>(p =>
         {
             processedCount = p.FilesProcessed;
-            if (p.FilesProcessed >= 2) cts.Cancel();
+            if (p.FilesProcessed >= 2)
+                cts.Cancel();
         });
 
         var service = CreateService();

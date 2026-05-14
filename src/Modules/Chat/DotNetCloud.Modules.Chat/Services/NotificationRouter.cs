@@ -122,11 +122,11 @@ internal sealed class NotificationRouter : IPushNotificationService
 
         // Also register with the specific provider
         return registration.Provider switch
-            {
-                _ when _providers.TryGetValue(registration.Provider, out var provider)
-                    => provider.RegisterDeviceAsync(userId, registration, cancellationToken),
-                _ => Task.CompletedTask
-            };
+        {
+            _ when _providers.TryGetValue(registration.Provider, out var provider)
+                => provider.RegisterDeviceAsync(userId, registration, cancellationToken),
+            _ => Task.CompletedTask
+        };
     }
 
     /// <inheritdoc />

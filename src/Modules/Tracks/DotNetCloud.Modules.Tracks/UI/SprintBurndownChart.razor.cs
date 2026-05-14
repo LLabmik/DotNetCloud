@@ -41,12 +41,14 @@ public partial class SprintBurndownChart : ComponentBase
 
     private string BuildBurndownSvg()
     {
-        if (_burndownData is null) return string.Empty;
+        if (_burndownData is null)
+            return string.Empty;
 
         var data = _burndownData.Points;
         var totalSp = _burndownData.TotalStoryPoints;
         var maxPoints = Math.Max(totalSp, data.Count > 0 ? data.Max(d => d.RemainingStoryPoints) : 0);
-        if (maxPoints == 0) maxPoints = 1;
+        if (maxPoints == 0)
+            maxPoints = 1;
 
         const int chartWidth = 600;
         const int chartHeight = 250;

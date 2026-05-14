@@ -27,7 +27,8 @@ internal sealed class InProcessEventBus : IEventBus
 
         foreach (var handler in snapshot)
         {
-            try { await handler.HandleAsync(@event, cancellationToken); }
+            try
+            { await handler.HandleAsync(@event, cancellationToken); }
             catch (Exception ex) { _logger.LogError(ex, "Event handler {Handler} failed for {Event}", handler.GetType().Name, typeof(TEvent).Name); }
         }
     }
@@ -37,7 +38,8 @@ internal sealed class InProcessEventBus : IEventBus
         where TEvent : IEvent
     {
         ArgumentNullException.ThrowIfNull(handler);
-        lock (_handlers) _handlers.Add(handler);
+        lock (_handlers)
+            _handlers.Add(handler);
         return Task.CompletedTask;
     }
 
@@ -46,7 +48,8 @@ internal sealed class InProcessEventBus : IEventBus
         where TEvent : IEvent
     {
         ArgumentNullException.ThrowIfNull(handler);
-        lock (_handlers) _handlers.Remove(handler);
+        lock (_handlers)
+            _handlers.Remove(handler);
         return Task.CompletedTask;
     }
 }

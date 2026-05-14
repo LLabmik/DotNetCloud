@@ -106,7 +106,7 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     private ViewMode _viewMode = ViewMode.Grid;
     private string _sortColumn = "Name";
     private bool _sortAscending = true;
-    #pragma warning disable CS0649 // Fields assigned at runtime via future API integration
+#pragma warning disable CS0649 // Fields assigned at runtime via future API integration
     private bool _isLoading;
 #pragma warning restore CS0649
     private bool _showCreateFolder;
@@ -159,7 +159,7 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     private FolderPickerMode _folderPickerMode;
     private Guid? _pickerCurrentFolderId;
     private readonly List<BreadcrumbItem> _pickerBreadcrumbs = [];
-    private List<FileNodeViewModel> _pickerFolders = [];    private int _pageSize = 50;
+    private List<FileNodeViewModel> _pickerFolders = []; private int _pageSize = 50;
 #pragma warning disable CS0649
     private int _totalCount;
 #pragma warning restore CS0649
@@ -372,14 +372,14 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         {
             IEnumerable<FileNodeViewModel> ordered = (_sortColumn, _sortAscending) switch
             {
-                ("Name", true)  => _nodes.OrderBy(n => n.NodeType != "Folder").ThenBy(n => n.Name, StringComparer.OrdinalIgnoreCase),
+                ("Name", true) => _nodes.OrderBy(n => n.NodeType != "Folder").ThenBy(n => n.Name, StringComparer.OrdinalIgnoreCase),
                 ("Name", false) => _nodes.OrderBy(n => n.NodeType != "Folder").ThenByDescending(n => n.Name, StringComparer.OrdinalIgnoreCase),
-                ("Size", true)  => _nodes.OrderBy(n => n.NodeType != "Folder").ThenBy(n => n.NodeType == "Folder" ? n.TotalSize : n.Size),
+                ("Size", true) => _nodes.OrderBy(n => n.NodeType != "Folder").ThenBy(n => n.NodeType == "Folder" ? n.TotalSize : n.Size),
                 ("Size", false) => _nodes.OrderBy(n => n.NodeType != "Folder").ThenByDescending(n => n.NodeType == "Folder" ? n.TotalSize : n.Size),
-                ("Date", true)  => _nodes.OrderBy(n => n.NodeType != "Folder").ThenBy(n => n.UpdatedAt),
+                ("Date", true) => _nodes.OrderBy(n => n.NodeType != "Folder").ThenBy(n => n.UpdatedAt),
                 ("Date", false) => _nodes.OrderBy(n => n.NodeType != "Folder").ThenByDescending(n => n.UpdatedAt),
-                ("Type", true)  => _nodes.OrderBy(n => n.NodeType != "Folder").ThenBy(n => n.MimeType),
-                _               => _nodes.OrderBy(n => n.NodeType != "Folder").ThenByDescending(n => n.MimeType),
+                ("Type", true) => _nodes.OrderBy(n => n.NodeType != "Folder").ThenBy(n => n.MimeType),
+                _ => _nodes.OrderBy(n => n.NodeType != "Folder").ThenByDescending(n => n.MimeType),
             };
             return [.. ordered];
         }
@@ -567,7 +567,8 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     /// <summary>Toggles selection of a single item.</summary>
     protected void ToggleSelect(Guid id)
     {
-        if (!_selectedNodes.Add(id)) _selectedNodes.Remove(id);
+        if (!_selectedNodes.Add(id))
+            _selectedNodes.Remove(id);
     }
 
     /// <summary>Selects or deselects all items.</summary>
@@ -576,7 +577,8 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         if (IsAllSelected)
             _selectedNodes.Clear();
         else
-            foreach (var node in _nodes) _selectedNodes.Add(node.Id);
+            foreach (var node in _nodes)
+                _selectedNodes.Add(node.Id);
     }
 
     /// <summary>Toggles selection mode on/off. Clears selection when exiting.</summary>
@@ -589,8 +591,9 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
 
     protected async Task HandleNodeDoubleClick(FileNodeViewModel node)
     {
-        Console.WriteLine($"[DIAG-OPEN] HandleNodeDoubleClick called: Name={node.Name} Type={node.NodeType} Mime={node.MimeType}");
-        Console.WriteLine($"[DIAG-OPEN] CanNative={CanOpenInNativePreview(node)} CanDocEditor={CanOpenInDocumentEditor(node)}");
+        Logger.LogInformation("HandleNodeDoubleClick: Name={Name} Type={Type} Mime={Mime} CanNative={CanNative} CanDocEditor={CanDocEditor}",
+            node.Name, node.NodeType, node.MimeType,
+            CanOpenInNativePreview(node), CanOpenInDocumentEditor(node));
 
         if (node.NodeType == "Folder")
         {
@@ -605,13 +608,13 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
                     "This looks like a video file. Open in Video module?\n\nOK = Video, Cancel = Files");
                 if (openInVideo)
                 {
-                    Console.WriteLine("[DIAG-OPEN] → Video module");
+                    Logger.LogInformation("Routing file {FileId} to Video module", node.Id);
                     var nav = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                     Navigation.NavigateTo($"/apps/video?fileId={node.Id}&_nav={nav}");
                     return;
                 }
             }
-            Console.WriteLine("[DIAG-OPEN] → ShowPreview (video native)");
+            Logger.LogInformation("Showing video native preview for {FileId}", node.Id);
             ShowPreview(node);
         }
         else if (IsMusicFile(node))
@@ -622,28 +625,28 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
                     "This looks like a music file. Open in Music module?\n\nOK = Music, Cancel = Files");
                 if (openInMusic)
                 {
-                    Console.WriteLine("[DIAG-OPEN] → Music module");
+                    Logger.LogInformation("Routing file {FileId} to Music module", node.Id);
                     var nav = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                     Navigation.NavigateTo($"/apps/music?fileId={node.Id}&_nav={nav}");
                     return;
                 }
             }
-            Console.WriteLine("[DIAG-OPEN] → ShowPreview (audio native)");
+            Logger.LogInformation("Showing audio native preview for {FileId}", node.Id);
             ShowPreview(node);
         }
         else if (CanOpenInNativePreview(node))
         {
-            Console.WriteLine("[DIAG-OPEN] → ShowPreview (native)");
+            Logger.LogInformation("Showing native preview for {FileId}", node.Id);
             ShowPreview(node);
         }
         else if (CanOpenInDocumentEditor(node))
         {
-            Console.WriteLine("[DIAG-OPEN] → ShowDocumentEditor");
+            Logger.LogInformation("Showing document editor for {FileId}", node.Id);
             ShowDocumentEditor(node);
         }
         else
         {
-            Console.WriteLine("[DIAG-OPEN] → ShowPreview (fallback)");
+            Logger.LogInformation("Showing fallback preview for {FileId}", node.Id);
             ShowPreview(node);
         }
     }
@@ -658,11 +661,11 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         _breadcrumbs.Add(new BreadcrumbItem(node.Id, node.Name));
         NavigateToFolder(node.Id);
     }
-    
-        protected async Task OpenNodeAsync(FileNodeViewModel node)
-        {
-            await HandleNodeDoubleClick(node);
-        }
+
+    protected async Task OpenNodeAsync(FileNodeViewModel node)
+    {
+        await HandleNodeDoubleClick(node);
+    }
 
     protected bool IsSelected(Guid nodeId) => _selectedNodes.Contains(nodeId);
     protected void ClearSelection() => _selectedNodes.Clear();
@@ -677,7 +680,8 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
 
     protected async Task CreateFolder()
     {
-        if (string.IsNullOrWhiteSpace(_newFolderName)) return;
+        if (string.IsNullOrWhiteSpace(_newFolderName))
+            return;
 
         var caller = await GetCallerContextAsync();
         var createDto = new CreateFolderDto
@@ -694,8 +698,10 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
 
     protected async Task HandleFolderKeyDown(KeyboardEventArgs e)
     {
-        if (e.Key == "Enter") await CreateFolder();
-        if (e.Key == "Escape") _showCreateFolder = false;
+        if (e.Key == "Enter")
+            await CreateFolder();
+        if (e.Key == "Escape")
+            _showCreateFolder = false;
     }
 
     protected void ShowUploadDialog() => _showUploadDialog = true;
@@ -821,7 +827,8 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     /// <summary>Decrements the drag counter when a drag leaves the browser area.</summary>
     protected void HandleBrowserDragLeave()
     {
-        if (_dragEnterCount > 0) _dragEnterCount--;
+        if (_dragEnterCount > 0)
+            _dragEnterCount--;
     }
 
     /// <summary>Resets drag state when files are dropped; JS bridge handles file transfer to hidden input.</summary>
@@ -893,7 +900,8 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     {
         _showContextMenu = false;
         var node = _nodes.FirstOrDefault(n => n.Id == nodeId);
-        if (node is null) return;
+        if (node is null)
+            return;
 
         if (node.NodeType == "Folder")
             OpenFolder(node);
@@ -906,7 +914,8 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     {
         _showContextMenu = false;
         var node = _nodes.FirstOrDefault(n => n.Id == nodeId);
-        if (node is null) return;
+        if (node is null)
+            return;
 
         _renameNode = node;
         _renameNewName = node.Name;
@@ -966,7 +975,8 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     {
         _showContextMenu = false;
         var node = _nodes.FirstOrDefault(n => n.Id == nodeId);
-        if (node is null || node.NodeType == "Folder") return;
+        if (node is null || node.NodeType == "Folder")
+            return;
 
         _versionHistoryNodeId = nodeId;
         _versionHistoryFileName = node.Name;
@@ -1012,7 +1022,8 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     protected async Task HandleDownloadVersion(FileVersionViewModel version)
     {
         var node = _nodes.FirstOrDefault(n => n.Id == _versionHistoryNodeId);
-        if (node is null) return;
+        if (node is null)
+            return;
         var url = $"/api/v1/files/{_versionHistoryNodeId}/download?version={version.VersionNumber}";
         await Js.InvokeVoidAsync("open", url, "_blank");
     }
@@ -1049,7 +1060,8 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     {
         _showContextMenu = false;
         var node = _nodes.FirstOrDefault(n => n.Id == nodeId);
-        if (node is null) return;
+        if (node is null)
+            return;
 
         _commentsNodeId = nodeId;
         _commentsFileName = node.Name;
@@ -1139,7 +1151,8 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     /// <summary>Confirms the inline rename operation.</summary>
     protected async Task ConfirmRename()
     {
-        if (_renameNode is null || string.IsNullOrWhiteSpace(_renameNewName)) return;
+        if (_renameNode is null || string.IsNullOrWhiteSpace(_renameNewName))
+            return;
 
         var caller = await GetCallerContextAsync();
         await FileService.RenameAsync(_renameNode.Id, new RenameNodeDto { Name = _renameNewName.Trim() }, caller);
@@ -1161,8 +1174,10 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     /// <summary>Handles keyboard events in the rename dialog.</summary>
     protected async Task HandleRenameKeyDown(KeyboardEventArgs e)
     {
-        if (e.Key == "Enter") await ConfirmRename();
-        if (e.Key == "Escape") CancelRename();
+        if (e.Key == "Enter")
+            await ConfirmRename();
+        if (e.Key == "Escape")
+            CancelRename();
     }
 
     // ── Drag-and-drop move ──────────────────────────────────────────────────
@@ -1178,7 +1193,8 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
             return;
 
         // Don't move a folder into itself
-        if (sourceId == targetId) return;
+        if (sourceId == targetId)
+            return;
 
         try
         {
@@ -1257,7 +1273,8 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     /// <summary>Downloads all selected items as a ZIP archive.</summary>
     protected async Task BulkDownloadZip()
     {
-        if (_selectedNodes.Count == 0) return;
+        if (_selectedNodes.Count == 0)
+            return;
 
         var nodeIds = _selectedNodes.ToList();
         var idsParam = string.Join(",", nodeIds);
@@ -1458,7 +1475,8 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     /// <summary>Adds a tag to the target node(s).</summary>
     protected async Task HandleSingleTagAdd((string Name, string? Color) tag)
     {
-        if (_tagTargetNodeIds.Count == 0) return;
+        if (_tagTargetNodeIds.Count == 0)
+            return;
 
         var caller = await GetCallerContextAsync();
 
@@ -1484,7 +1502,8 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     /// <summary>Removes a tag from the primary target node.</summary>
     protected async Task HandleSingleTagRemove(FileTagViewModel tag)
     {
-        if (_singleTagNodeId is null) return;
+        if (_singleTagNodeId is null)
+            return;
 
         var caller = await GetCallerContextAsync();
         await TagService.RemoveTagAsync(_singleTagNodeId.Value, tag.Id, caller);
@@ -1604,7 +1623,8 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
 
     protected async Task HandleShareCreatedAsync(ShareCreatedEventArgs args)
     {
-        if (_shareTargetNode is null) return;
+        if (_shareTargetNode is null)
+            return;
 
         var caller = await GetCallerContextAsync();
         var dto = new CreateShareDto
@@ -1667,7 +1687,8 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
 
     protected async Task HandlePublicLinkToggledAsync(bool enabled)
     {
-        if (_shareTargetNode is null) return;
+        if (_shareTargetNode is null)
+            return;
 
         var caller = await GetCallerContextAsync();
 
@@ -1773,18 +1794,26 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     /// <summary>Returns true when the file can be rendered natively (image, text, video, audio, PDF) without Collabora.</summary>
     private static bool CanOpenInNativePreview(FileNodeViewModel node)
     {
-        if (node.NodeType != "File") return false;
+        if (node.NodeType != "File")
+            return false;
 
         var mime = node.MimeType;
         if (!string.IsNullOrEmpty(mime))
         {
-            if (mime.StartsWith("image/", StringComparison.OrdinalIgnoreCase)) return true;
-            if (mime.StartsWith("video/", StringComparison.OrdinalIgnoreCase)) return true;
-            if (mime.StartsWith("audio/", StringComparison.OrdinalIgnoreCase)) return true;
-            if (mime.StartsWith("text/", StringComparison.OrdinalIgnoreCase)) return true;
-            if (mime.Equals("application/pdf", StringComparison.OrdinalIgnoreCase)) return true;
-            if (mime.Equals("application/json", StringComparison.OrdinalIgnoreCase)) return true;
-            if (mime.Equals("application/xml", StringComparison.OrdinalIgnoreCase)) return true;
+            if (mime.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+                return true;
+            if (mime.StartsWith("video/", StringComparison.OrdinalIgnoreCase))
+                return true;
+            if (mime.StartsWith("audio/", StringComparison.OrdinalIgnoreCase))
+                return true;
+            if (mime.StartsWith("text/", StringComparison.OrdinalIgnoreCase))
+                return true;
+            if (mime.Equals("application/pdf", StringComparison.OrdinalIgnoreCase))
+                return true;
+            if (mime.Equals("application/json", StringComparison.OrdinalIgnoreCase))
+                return true;
+            if (mime.Equals("application/xml", StringComparison.OrdinalIgnoreCase))
+                return true;
         }
 
         // Fallback: check extension for common natively previewable types
@@ -1800,7 +1829,8 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
 
     private static bool IsVideoFile(FileNodeViewModel node)
     {
-        if (node.NodeType != "File") return false;
+        if (node.NodeType != "File")
+            return false;
         var mime = node.MimeType;
         if (!string.IsNullOrEmpty(mime) && mime.StartsWith("video/", StringComparison.OrdinalIgnoreCase))
             return true;
@@ -1810,7 +1840,8 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
 
     private static bool IsMusicFile(FileNodeViewModel node)
     {
-        if (node.NodeType != "File") return false;
+        if (node.NodeType != "File")
+            return false;
         var mime = node.MimeType;
         if (!string.IsNullOrEmpty(mime) && mime.StartsWith("audio/", StringComparison.OrdinalIgnoreCase))
             return true;
@@ -1820,7 +1851,8 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
 
     private async Task<bool> IsVideoModuleAvailableAsync()
     {
-        if (_isVideoModuleAvailable.HasValue) return _isVideoModuleAvailable.Value;
+        if (_isVideoModuleAvailable.HasValue)
+            return _isVideoModuleAvailable.Value;
         try
         {
             var result = await Http.GetFromJsonAsync<ModuleAvailabilityResponse>(
@@ -1836,7 +1868,8 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
 
     private async Task<bool> IsMusicModuleAvailableAsync()
     {
-        if (_isMusicModuleAvailable.HasValue) return _isMusicModuleAvailable.Value;
+        if (_isMusicModuleAvailable.HasValue)
+            return _isMusicModuleAvailable.Value;
         try
         {
             var result = await Http.GetFromJsonAsync<ModuleAvailabilityResponse>(
@@ -1892,30 +1925,44 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
 
     protected static string GetNodeIcon(FileNodeViewModel node)
     {
-        if (node.NodeType == "Folder") return "📁";
+        if (node.NodeType == "Folder")
+            return "📁";
         return GetFileIcon(node.MimeType);
     }
 
     protected static string GetFileIcon(string? mimeType)
     {
-        if (mimeType is null) return "📄";
-        if (mimeType.StartsWith("image/")) return "🖼️";
-        if (mimeType.StartsWith("video/")) return "🎬";
-        if (mimeType.StartsWith("audio/")) return "🎵";
-        if (mimeType.StartsWith("text/")) return "📝";
-        if (mimeType == "application/pdf") return "📕";
-        if (mimeType.Contains("spreadsheet") || mimeType.Contains("excel")) return "📊";
-        if (mimeType.Contains("presentation") || mimeType.Contains("powerpoint")) return "📈";
-        if (mimeType.Contains("document") || mimeType.Contains("word")) return "📘";
-        if (mimeType.Contains("zip") || mimeType.Contains("compressed")) return "🗜️";
+        if (mimeType is null)
+            return "📄";
+        if (mimeType.StartsWith("image/"))
+            return "🖼️";
+        if (mimeType.StartsWith("video/"))
+            return "🎬";
+        if (mimeType.StartsWith("audio/"))
+            return "🎵";
+        if (mimeType.StartsWith("text/"))
+            return "📝";
+        if (mimeType == "application/pdf")
+            return "📕";
+        if (mimeType.Contains("spreadsheet") || mimeType.Contains("excel"))
+            return "📊";
+        if (mimeType.Contains("presentation") || mimeType.Contains("powerpoint"))
+            return "📈";
+        if (mimeType.Contains("document") || mimeType.Contains("word"))
+            return "📘";
+        if (mimeType.Contains("zip") || mimeType.Contains("compressed"))
+            return "🗜️";
         return "📄";
     }
 
     protected static string FormatSize(long bytes)
     {
-        if (bytes < 1024) return $"{bytes} B";
-        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
-        if (bytes < 1024L * 1024 * 1024) return $"{bytes / (1024.0 * 1024.0):F1} MB";
+        if (bytes < 1024)
+            return $"{bytes} B";
+        if (bytes < 1024 * 1024)
+            return $"{bytes / 1024.0:F1} KB";
+        if (bytes < 1024L * 1024 * 1024)
+            return $"{bytes / (1024.0 * 1024.0):F1} MB";
         return $"{bytes / (1024.0 * 1024.0 * 1024.0):F2} GB";
     }
 

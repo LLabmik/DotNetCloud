@@ -256,7 +256,8 @@ public sealed class AnalyticsService
         var points = new List<BurndownPointDto>();
         var startDate = sprint.StartDate?.Date ?? sprint.CreatedAt.Date;
         var endDate = sprint.EndDate?.Date ?? DateTime.UtcNow.Date;
-        if (endDate < startDate) endDate = startDate;
+        if (endDate < startDate)
+            endDate = startDate;
 
         // Calculate story points per item
         var itemPoints = sprintWorkItems.ToDictionary(wi => wi.Id, wi => wi.StoryPoints ?? 0);

@@ -7,7 +7,8 @@ using DotNetCloud.Modules.Files.DTOs;
 using DotNetCloud.Modules.Files.Events;
 using DotNetCloud.Modules.Files.Models;
 using DotNetCloud.Modules.Files.Options;
-using DotNetCloud.Modules.Files.Services;using Microsoft.EntityFrameworkCore;
+using DotNetCloud.Modules.Files.Services;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -252,177 +253,177 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
             try
             {
 
-        if (session.TargetFileNodeId.HasValue)
-        {
-            fileNode = await _db.FileNodes.FindAsync([session.TargetFileNodeId.Value], cancellationToken)
-                ?? throw new NotFoundException("FileNode", session.TargetFileNodeId.Value);
-            quotaDelta = session.TotalSize - fileNode.Size; // size delta for file update
-            fileNode.Size = session.TotalSize;
-            fileNode.ContentHash = contentHash;
-            fileNode.StoragePath = storagePath;
-            fileNode.CurrentVersion++;
-            fileNode.UpdatedAt = DateTime.UtcNow;
-            // Preserve existing POSIX metadata when Windows client re-uploads (sends null)
-            fileNode.PosixMode = session.PosixMode ?? fileNode.PosixMode;
-            fileNode.PosixOwnerHint = session.PosixOwnerHint ?? fileNode.PosixOwnerHint;
-            fileNode.OriginatingDeviceId = session.DeviceId ?? _deviceContext.DeviceId ?? fileNode.OriginatingDeviceId;
-        }
-        else
-        {
-            // Compute parent path for new file
-            string parentPath = "";
-            int parentDepth = -1;
-
-            if (session.TargetParentId.HasValue)
-            {
-                var parent = await _db.FileNodes.FindAsync([session.TargetParentId.Value], cancellationToken);
-                if (parent is not null)
+                if (session.TargetFileNodeId.HasValue)
                 {
-                    parentPath = parent.MaterializedPath;
-                    parentDepth = parent.Depth;
+                    fileNode = await _db.FileNodes.FindAsync([session.TargetFileNodeId.Value], cancellationToken)
+                        ?? throw new NotFoundException("FileNode", session.TargetFileNodeId.Value);
+                    quotaDelta = session.TotalSize - fileNode.Size; // size delta for file update
+                    fileNode.Size = session.TotalSize;
+                    fileNode.ContentHash = contentHash;
+                    fileNode.StoragePath = storagePath;
+                    fileNode.CurrentVersion++;
+                    fileNode.UpdatedAt = DateTime.UtcNow;
+                    // Preserve existing POSIX metadata when Windows client re-uploads (sends null)
+                    fileNode.PosixMode = session.PosixMode ?? fileNode.PosixMode;
+                    fileNode.PosixOwnerHint = session.PosixOwnerHint ?? fileNode.PosixOwnerHint;
+                    fileNode.OriginatingDeviceId = session.DeviceId ?? _deviceContext.DeviceId ?? fileNode.OriginatingDeviceId;
                 }
-            }
+                else
+                {
+                    // Compute parent path for new file
+                    string parentPath = "";
+                    int parentDepth = -1;
 
-            IQueryable<FileNode> siblingQuery = session.TargetParentId.HasValue
-                ? _db.FileNodes.Where(n => n.ParentId == session.TargetParentId.Value)
-                : _db.FileNodes.Where(n => n.OwnerId == caller.UserId && n.ParentId == null);
+                    if (session.TargetParentId.HasValue)
+                    {
+                        var parent = await _db.FileNodes.FindAsync([session.TargetParentId.Value], cancellationToken);
+                        if (parent is not null)
+                        {
+                            parentPath = parent.MaterializedPath;
+                            parentDepth = parent.Depth;
+                        }
+                    }
 
-            // If a file with the same name already exists, treat as a version update
-            var existingNode = await siblingQuery
-                .Where(n => n.Name == session.FileName && n.NodeType == FileNodeType.File)
-                .FirstOrDefaultAsync(cancellationToken);
+                    IQueryable<FileNode> siblingQuery = session.TargetParentId.HasValue
+                        ? _db.FileNodes.Where(n => n.ParentId == session.TargetParentId.Value)
+                        : _db.FileNodes.Where(n => n.OwnerId == caller.UserId && n.ParentId == null);
 
-            if (existingNode is not null)
-            {
-                // Re-upload of same file → create new version of the existing node
-                quotaDelta = session.TotalSize - existingNode.Size;
-                existingNode.Size = session.TotalSize;
-                existingNode.ContentHash = contentHash;
-                existingNode.StoragePath = storagePath;
-                existingNode.CurrentVersion++;
-                existingNode.UpdatedAt = DateTime.UtcNow;
-                existingNode.PosixMode = session.PosixMode ?? existingNode.PosixMode;
-                existingNode.PosixOwnerHint = session.PosixOwnerHint ?? existingNode.PosixOwnerHint;
-                existingNode.OriginatingDeviceId = session.DeviceId ?? _deviceContext.DeviceId ?? existingNode.OriginatingDeviceId;
-                fileNode = existingNode;
-            }
-            else
-            {
-            // Guard against case-insensitive name collisions before creating the node.
-            if (_fileSystemOptions.EnforceCaseInsensitiveUniqueness)
-            {
-                var conflictingName = await siblingQuery
-                    .Where(n => n.Name.ToLower() == session.FileName.ToLower() && n.Name != session.FileName)
-                    .Select(n => n.Name)
-                    .FirstOrDefaultAsync(cancellationToken);
+                    // If a file with the same name already exists, treat as a version update
+                    var existingNode = await siblingQuery
+                        .Where(n => n.Name == session.FileName && n.NodeType == FileNodeType.File)
+                        .FirstOrDefaultAsync(cancellationToken);
 
-                if (conflictingName is not null)
-                    throw new NameConflictException(conflictingName);
-            }
+                    if (existingNode is not null)
+                    {
+                        // Re-upload of same file → create new version of the existing node
+                        quotaDelta = session.TotalSize - existingNode.Size;
+                        existingNode.Size = session.TotalSize;
+                        existingNode.ContentHash = contentHash;
+                        existingNode.StoragePath = storagePath;
+                        existingNode.CurrentVersion++;
+                        existingNode.UpdatedAt = DateTime.UtcNow;
+                        existingNode.PosixMode = session.PosixMode ?? existingNode.PosixMode;
+                        existingNode.PosixOwnerHint = session.PosixOwnerHint ?? existingNode.PosixOwnerHint;
+                        existingNode.OriginatingDeviceId = session.DeviceId ?? _deviceContext.DeviceId ?? existingNode.OriginatingDeviceId;
+                        fileNode = existingNode;
+                    }
+                    else
+                    {
+                        // Guard against case-insensitive name collisions before creating the node.
+                        if (_fileSystemOptions.EnforceCaseInsensitiveUniqueness)
+                        {
+                            var conflictingName = await siblingQuery
+                                .Where(n => n.Name.ToLower() == session.FileName.ToLower() && n.Name != session.FileName)
+                                .Select(n => n.Name)
+                                .FirstOrDefaultAsync(cancellationToken);
 
-            fileNode = new FileNode
-            {
-                Name = session.FileName,
-                NodeType = FileNodeType.File,
-                MimeType = session.MimeType,
-                Size = session.TotalSize,
-                ParentId = session.TargetParentId,
-                OwnerId = caller.UserId,
-                ContentHash = contentHash,
-                StoragePath = storagePath,
-                Depth = parentDepth + 1,
-                PosixMode = session.PosixMode,
-                PosixOwnerHint = session.PosixOwnerHint,
-                OriginatingDeviceId = session.DeviceId ?? _deviceContext.DeviceId
-            };
+                            if (conflictingName is not null)
+                                throw new NameConflictException(conflictingName);
+                        }
 
-            if (fileNode.OriginatingDeviceId is null)
-            {
-                _logger.LogWarning("CompleteUpload: new FileNode '{FileName}' has NULL OriginatingDeviceId (session.DeviceId={SessionDeviceId}, context.DeviceId={ContextDeviceId}).",
-                    session.FileName, session.DeviceId, _deviceContext.DeviceId);
-            }
+                        fileNode = new FileNode
+                        {
+                            Name = session.FileName,
+                            NodeType = FileNodeType.File,
+                            MimeType = session.MimeType,
+                            Size = session.TotalSize,
+                            ParentId = session.TargetParentId,
+                            OwnerId = caller.UserId,
+                            ContentHash = contentHash,
+                            StoragePath = storagePath,
+                            Depth = parentDepth + 1,
+                            PosixMode = session.PosixMode,
+                            PosixOwnerHint = session.PosixOwnerHint,
+                            OriginatingDeviceId = session.DeviceId ?? _deviceContext.DeviceId
+                        };
 
-            fileNode.MaterializedPath = string.IsNullOrEmpty(parentPath)
-                ? $"/{fileNode.Id}"
-                : $"{parentPath}/{fileNode.Id}";
+                        if (fileNode.OriginatingDeviceId is null)
+                        {
+                            _logger.LogWarning("CompleteUpload: new FileNode '{FileName}' has NULL OriginatingDeviceId (session.DeviceId={SessionDeviceId}, context.DeviceId={ContextDeviceId}).",
+                                session.FileName, session.DeviceId, _deviceContext.DeviceId);
+                        }
 
-            _db.FileNodes.Add(fileNode);
-            quotaDelta = session.TotalSize; // full size for new file
-            }
-        }
+                        fileNode.MaterializedPath = string.IsNullOrEmpty(parentPath)
+                            ? $"/{fileNode.Id}"
+                            : $"{parentPath}/{fileNode.Id}";
 
-        // Create file version
-        var version = new FileVersion
-        {
-            FileNodeId = fileNode.Id,
-            VersionNumber = fileNode.CurrentVersion,
-            Size = session.TotalSize,
-            ContentHash = contentHash,
-            StoragePath = storagePath,
-            MimeType = session.MimeType,
-            CreatedByUserId = caller.UserId,
-            PosixMode = fileNode.PosixMode
-        };
-        _db.FileVersions.Add(version);
+                        _db.FileNodes.Add(fileNode);
+                        quotaDelta = session.TotalSize; // full size for new file
+                    }
+                }
 
-        // Create version-chunk mappings and increment refcounts
-        var chunkSizes = session.ChunkSizesManifest is not null
-            ? JsonSerializer.Deserialize<List<int>>(session.ChunkSizesManifest)!
-            : null;
+                // Create file version
+                var version = new FileVersion
+                {
+                    FileNodeId = fileNode.Id,
+                    VersionNumber = fileNode.CurrentVersion,
+                    Size = session.TotalSize,
+                    ContentHash = contentHash,
+                    StoragePath = storagePath,
+                    MimeType = session.MimeType,
+                    CreatedByUserId = caller.UserId,
+                    PosixMode = fileNode.PosixMode
+                };
+                _db.FileVersions.Add(version);
 
-        long byteOffset = 0;
-        for (var i = 0; i < manifest.Count; i++)
-        {
-            var chunk = await _db.FileChunks
-                .FirstOrDefaultAsync(c => c.ChunkHash == manifest[i], cancellationToken)
-                ?? throw new Core.Errors.ValidationException("Chunks",
-                    $"Chunk '{manifest[i][..12]}…' was removed during completion. Retry the upload.");
+                // Create version-chunk mappings and increment refcounts
+                var chunkSizes = session.ChunkSizesManifest is not null
+                    ? JsonSerializer.Deserialize<List<int>>(session.ChunkSizesManifest)!
+                    : null;
 
-            var chunkSize = chunkSizes?[i] ?? chunk.Size;
+                long byteOffset = 0;
+                for (var i = 0; i < manifest.Count; i++)
+                {
+                    var chunk = await _db.FileChunks
+                        .FirstOrDefaultAsync(c => c.ChunkHash == manifest[i], cancellationToken)
+                        ?? throw new Core.Errors.ValidationException("Chunks",
+                            $"Chunk '{manifest[i][..12]}…' was removed during completion. Retry the upload.");
 
-            _db.FileVersionChunks.Add(new FileVersionChunk
-            {
-                FileVersionId = version.Id,
-                FileChunkId = chunk.Id,
-                SequenceIndex = i,
-                Offset = byteOffset,
-                ChunkSize = chunkSize
-            });
+                    var chunkSize = chunkSizes?[i] ?? chunk.Size;
 
-            byteOffset += chunkSize;
+                    _db.FileVersionChunks.Add(new FileVersionChunk
+                    {
+                        FileVersionId = version.Id,
+                        FileChunkId = chunk.Id,
+                        SequenceIndex = i,
+                        Offset = byteOffset,
+                        ChunkSize = chunkSize
+                    });
 
-            // Atomic increment via raw SQL — avoids EF in-memory read-modify-write race.
-            await ChunkReferenceHelper.IncrementAsync(_db, chunk.Id, cancellationToken);
+                    byteOffset += chunkSize;
 
-            // When using a real DB (not InMemory), detach the chunk so EF doesn't
-            // overwrite the atomically-set value on SaveChangesAsync.
-            if (!ChunkReferenceHelper.IsInMemoryProvider(_db))
-                _db.Entry(chunk).State = EntityState.Detached;
-        }
+                    // Atomic increment via raw SQL — avoids EF in-memory read-modify-write race.
+                    await ChunkReferenceHelper.IncrementAsync(_db, chunk.Id, cancellationToken);
 
-        // Mark session as completed
-        session.Status = UploadSessionStatus.Completed;
-        session.TargetFileNodeId = fileNode.Id;
-        session.UpdatedAt = DateTime.UtcNow;
+                    // When using a real DB (not InMemory), detach the chunk so EF doesn't
+                    // overwrite the atomically-set value on SaveChangesAsync.
+                    if (!ChunkReferenceHelper.IsInMemoryProvider(_db))
+                        _db.Entry(chunk).State = EntityState.Detached;
+                }
 
-        await SyncCursorHelper.AssignNextSequenceAsync(_db, fileNode, caller.UserId, _syncNotifier, cancellationToken);
+                // Mark session as completed
+                session.Status = UploadSessionStatus.Completed;
+                session.TargetFileNodeId = fileNode.Id;
+                session.UpdatedAt = DateTime.UtcNow;
 
-        try
-        {
-            await _db.SaveChangesAsync(cancellationToken);
-        }
-        catch (DbUpdateException ex) when (DbExceptionClassifier.IsUniqueConstraintViolation(ex))
-        {
-            // Another concurrent upload won the race for the same filename in the same folder.
-            // Discard tracked changes and return the existing node (idempotent behavior).
-            _db.ChangeTracker.Clear();
+                await SyncCursorHelper.AssignNextSequenceAsync(_db, fileNode, caller.UserId, _syncNotifier, cancellationToken);
 
-            var scope = session.TargetParentId.HasValue ? "this folder" : "the root level";
-            throw new Core.Errors.ValidationException("Name", $"A node named '{session.FileName}' already exists in {scope}.");
-        }
+                try
+                {
+                    await _db.SaveChangesAsync(cancellationToken);
+                }
+                catch (DbUpdateException ex) when (DbExceptionClassifier.IsUniqueConstraintViolation(ex))
+                {
+                    // Another concurrent upload won the race for the same filename in the same folder.
+                    // Discard tracked changes and return the existing node (idempotent behavior).
+                    _db.ChangeTracker.Clear();
 
-        if (transaction is not null)
-            await transaction.CommitAsync(cancellationToken);
+                    var scope = session.TargetParentId.HasValue ? "this folder" : "the root level";
+                    throw new Core.Errors.ValidationException("Name", $"A node named '{session.FileName}' already exists in {scope}.");
+                }
+
+                if (transaction is not null)
+                    await transaction.CommitAsync(cancellationToken);
 
             } // end transaction try
             finally
@@ -496,7 +497,8 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
     private static string? GuessMimeTypeFromFileName(string fileName)
     {
         var ext = Path.GetExtension(fileName);
-        if (string.IsNullOrEmpty(ext)) return null;
+        if (string.IsNullOrEmpty(ext))
+            return null;
         return ext.ToLowerInvariant() switch
         {
             // Audio

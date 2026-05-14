@@ -73,7 +73,8 @@ public sealed class PlaybackService : IPlaybackService
             .Include(t => t.Album)
             .FirstOrDefaultAsync(t => t.Id == trackId, cancellationToken);
 
-        if (track is null) return;
+        if (track is null)
+            return;
 
         var primaryArtist = track.TrackArtists?
             .FirstOrDefault(ta => ta.IsPrimary)?.Artist

@@ -149,7 +149,8 @@ public class SyncHardeningP2Tests
         {
             try
             {
-                await foreach (var _ in notifier.SubscribeAsync(userId, cts.Token)) { }
+                await foreach (var _ in notifier.SubscribeAsync(userId, cts.Token))
+                { }
             }
             catch (OperationCanceledException) { }
         })).ToArray();
@@ -177,7 +178,8 @@ public class SyncHardeningP2Tests
         {
             try
             {
-                await foreach (var _ in notifier.SubscribeAsync(userId, cts.Token)) { }
+                await foreach (var _ in notifier.SubscribeAsync(userId, cts.Token))
+                { }
             }
             catch (OperationCanceledException) { }
         })).ToArray();
@@ -209,7 +211,8 @@ public class SyncHardeningP2Tests
         {
             try
             {
-                await foreach (var _ in notifier.SubscribeAsync(userId, cts.Token)) { }
+                await foreach (var _ in notifier.SubscribeAsync(userId, cts.Token))
+                { }
             }
             catch (OperationCanceledException) { }
         });

@@ -83,10 +83,12 @@ public sealed class AlbumArtService
     public string? GetCachedArtPath(string cacheDir, Guid albumId)
     {
         var jpgPath = Path.Combine(cacheDir, $"{albumId}.jpg");
-        if (File.Exists(jpgPath)) return jpgPath;
+        if (File.Exists(jpgPath))
+            return jpgPath;
 
         var pngPath = Path.Combine(cacheDir, $"{albumId}.png");
-        if (File.Exists(pngPath)) return pngPath;
+        if (File.Exists(pngPath))
+            return pngPath;
 
         return null;
     }

@@ -356,13 +356,20 @@ public class RecurrenceLogicTests
             rule += ";INTERVAL=2";
 
         var days = new List<string>();
-        if (mon) days.Add("MO");
-        if (tue) days.Add("TU");
-        if (wed) days.Add("WE");
-        if (thu) days.Add("TH");
-        if (fri) days.Add("FR");
-        if (sat) days.Add("SA");
-        if (sun) days.Add("SU");
+        if (mon)
+            days.Add("MO");
+        if (tue)
+            days.Add("TU");
+        if (wed)
+            days.Add("WE");
+        if (thu)
+            days.Add("TH");
+        if (fri)
+            days.Add("FR");
+        if (sat)
+            days.Add("SA");
+        if (sun)
+            days.Add("SU");
 
         if (days.Count > 0 && days.Count < 7)
         {
@@ -392,11 +399,16 @@ public class RecurrenceLogicTests
         var upper = rrule.ToUpperInvariant();
         var hasInterval2 = upper.Contains("INTERVAL=2") || upper.Contains("INTERVAL=2;");
 
-        if (upper.StartsWith("FREQ=WEEKLY") && hasInterval2) return "Biweekly";
-        if (upper.StartsWith("FREQ=DAILY")) return "Daily";
-        if (upper.StartsWith("FREQ=WEEKLY")) return "Weekly";
-        if (upper.StartsWith("FREQ=MONTHLY")) return "Monthly";
-        if (upper.StartsWith("FREQ=YEARLY")) return "Yearly";
+        if (upper.StartsWith("FREQ=WEEKLY") && hasInterval2)
+            return "Biweekly";
+        if (upper.StartsWith("FREQ=DAILY"))
+            return "Daily";
+        if (upper.StartsWith("FREQ=WEEKLY"))
+            return "Weekly";
+        if (upper.StartsWith("FREQ=MONTHLY"))
+            return "Monthly";
+        if (upper.StartsWith("FREQ=YEARLY"))
+            return "Yearly";
 
         return "None";
     }

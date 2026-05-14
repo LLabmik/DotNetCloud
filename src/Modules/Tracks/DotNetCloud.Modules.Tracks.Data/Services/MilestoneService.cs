@@ -66,10 +66,14 @@ public sealed class MilestoneService
             .FirstOrDefaultAsync(m => m.Id == milestoneId, ct)
             ?? throw new NotFoundException("Milestone", milestoneId);
 
-        if (dto.Title is not null) milestone.Title = dto.Title;
-        if (dto.Description is not null) milestone.Description = dto.Description;
-        if (dto.DueDate is not null) milestone.DueDate = dto.DueDate.Value;
-        if (dto.Color is not null) milestone.Color = dto.Color;
+        if (dto.Title is not null)
+            milestone.Title = dto.Title;
+        if (dto.Description is not null)
+            milestone.Description = dto.Description;
+        if (dto.DueDate is not null)
+            milestone.DueDate = dto.DueDate.Value;
+        if (dto.Color is not null)
+            milestone.Color = dto.Color;
         milestone.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(ct);

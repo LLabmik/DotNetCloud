@@ -22,7 +22,8 @@ public sealed class MergeEditorViewModelTests
     [TestCleanup]
     public void Cleanup()
     {
-        try { Directory.Delete(_tempDir, recursive: true); }
+        try
+        { Directory.Delete(_tempDir, recursive: true); }
         catch { /* best effort */ }
     }
 

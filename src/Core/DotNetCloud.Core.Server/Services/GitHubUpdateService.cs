@@ -246,13 +246,20 @@ internal sealed class GitHubUpdateService : IUpdateService
     {
         var lower = fileName.ToLowerInvariant();
 
-        if (lower.Contains("linux-x64")) return "linux-x64";
-        if (lower.Contains("linux-arm64")) return "linux-arm64";
-        if (lower.Contains("win-x64")) return "win-x64";
-        if (lower.Contains("win-arm64")) return "win-arm64";
-        if (lower.Contains("osx-x64") || lower.Contains("macos-x64")) return "osx-x64";
-        if (lower.Contains("osx-arm64") || lower.Contains("macos-arm64")) return "osx-arm64";
-        if (lower.Contains("android") || lower.EndsWith(".apk")) return "android";
+        if (lower.Contains("linux-x64"))
+            return "linux-x64";
+        if (lower.Contains("linux-arm64"))
+            return "linux-arm64";
+        if (lower.Contains("win-x64"))
+            return "win-x64";
+        if (lower.Contains("win-arm64"))
+            return "win-arm64";
+        if (lower.Contains("osx-x64") || lower.Contains("macos-x64"))
+            return "osx-x64";
+        if (lower.Contains("osx-arm64") || lower.Contains("macos-arm64"))
+            return "osx-arm64";
+        if (lower.Contains("android") || lower.EndsWith(".apk"))
+            return "android";
 
         // Checksum files inherit the platform of the artifact they describe
         if (lower.EndsWith(".sha256"))

@@ -57,8 +57,10 @@ public sealed class NotesSearchableModule : ISearchableModule
         {
             ["Format"] = note.Format.ToString()
         };
-        if (note.IsPinned) metadata["Pinned"] = "true";
-        if (note.IsFavorite) metadata["Favorite"] = "true";
+        if (note.IsPinned)
+            metadata["Pinned"] = "true";
+        if (note.IsFavorite)
+            metadata["Favorite"] = "true";
 
         return new SearchDocument
         {

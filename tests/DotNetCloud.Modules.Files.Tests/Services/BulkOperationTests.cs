@@ -377,8 +377,11 @@ public class BulkOperationTests
 
         var child = new FileNode
         {
-            Name = "child.txt", NodeType = FileNodeType.File, OwnerId = userId,
-            ParentId = folder.Id, Depth = 1
+            Name = "child.txt",
+            NodeType = FileNodeType.File,
+            OwnerId = userId,
+            ParentId = folder.Id,
+            Depth = 1
         };
         child.MaterializedPath = $"{folder.MaterializedPath}/{child.Id}";
 
@@ -411,14 +414,22 @@ public class BulkOperationTests
 
         var file1 = new FileNode
         {
-            Name = "trash1.txt", NodeType = FileNodeType.File, OwnerId = userId,
-            IsDeleted = true, DeletedAt = DateTime.UtcNow, DeletedByUserId = userId
+            Name = "trash1.txt",
+            NodeType = FileNodeType.File,
+            OwnerId = userId,
+            IsDeleted = true,
+            DeletedAt = DateTime.UtcNow,
+            DeletedByUserId = userId
         };
         file1.MaterializedPath = $"/{file1.Id}";
         var file2 = new FileNode
         {
-            Name = "trash2.txt", NodeType = FileNodeType.File, OwnerId = userId,
-            IsDeleted = true, DeletedAt = DateTime.UtcNow, DeletedByUserId = userId
+            Name = "trash2.txt",
+            NodeType = FileNodeType.File,
+            OwnerId = userId,
+            IsDeleted = true,
+            DeletedAt = DateTime.UtcNow,
+            DeletedByUserId = userId
         };
         file2.MaterializedPath = $"/{file2.Id}";
 
@@ -447,8 +458,12 @@ public class BulkOperationTests
 
         var file = new FileNode
         {
-            Name = "trash.txt", NodeType = FileNodeType.File, OwnerId = userId,
-            IsDeleted = true, DeletedAt = DateTime.UtcNow, DeletedByUserId = userId
+            Name = "trash.txt",
+            NodeType = FileNodeType.File,
+            OwnerId = userId,
+            IsDeleted = true,
+            DeletedAt = DateTime.UtcNow,
+            DeletedByUserId = userId
         };
         file.MaterializedPath = $"/{file.Id}";
         db.FileNodes.Add(file);

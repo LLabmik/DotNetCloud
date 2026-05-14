@@ -80,7 +80,8 @@ public partial class SprintPlanningWizard : ComponentBase
 
     private void NextStep()
     {
-        if (!CanAdvance) return;
+        if (!CanAdvance)
+            return;
         _errorMessage = null;
 
         if (_currentStep == 1)
@@ -179,8 +180,10 @@ public partial class SprintPlanningWizard : ComponentBase
 
     private void AdjustSprintDuration(int index, int newDurationWeeks)
     {
-        if (index < 0 || index >= _sprintSchedule.Count) return;
-        if (newDurationWeeks < 1 || newDurationWeeks > 16) return;
+        if (index < 0 || index >= _sprintSchedule.Count)
+            return;
+        if (newDurationWeeks < 1 || newDurationWeeks > 16)
+            return;
 
         _sprintSchedule[index].DurationWeeks = newDurationWeeks;
         _sprintSchedule[index].End = _sprintSchedule[index].Start.AddDays(newDurationWeeks * 7);
@@ -197,7 +200,8 @@ public partial class SprintPlanningWizard : ComponentBase
 
     private async Task CreatePlanAsync()
     {
-        if (_isCreating) return;
+        if (_isCreating)
+            return;
         _isCreating = true;
         _errorMessage = null;
 
@@ -238,7 +242,8 @@ public partial class SprintPlanningWizard : ComponentBase
                         {
                             DurationWeeks = _sprintSchedule[i].DurationWeeks
                         });
-                        if (adjusted is not null) overview = adjusted;
+                        if (adjusted is not null)
+                            overview = adjusted;
                     }
                 }
 

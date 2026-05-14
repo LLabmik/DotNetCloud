@@ -253,7 +253,7 @@ public class SettingsHierarchyTests
         var delayMs = 100;
         await Task.Delay(delayMs);
         var beforeUpdate = DateTime.UtcNow;
-        
+
         setting.Value = "Updated";
         _context.SystemSettings.Update(setting);
         await _context.SaveChangesAsync();

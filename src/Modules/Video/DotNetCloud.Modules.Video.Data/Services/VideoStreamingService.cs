@@ -142,7 +142,8 @@ public sealed class VideoStreamingService : IVideoStreamingService
         else if (!string.IsNullOrEmpty(parts[1]) && long.TryParse(parts[1], out var suffixLength))
         {
             var start2 = totalLength - suffixLength;
-            if (start2 < 0) start2 = 0;
+            if (start2 < 0)
+                start2 = 0;
             return (start2, totalLength - 1);
         }
 

@@ -319,7 +319,8 @@ internal sealed class TrashService : ITrashService
             else
                 exists = await _db.FileNodes.AnyAsync(n => n.OwnerId == ownerId && n.ParentId == null && n.Name == name, cancellationToken);
 
-            if (!exists) break;
+            if (!exists)
+                break;
 
             var ext = Path.GetExtension(originalName);
             var baseName = Path.GetFileNameWithoutExtension(originalName);
@@ -332,7 +333,8 @@ internal sealed class TrashService : ITrashService
 
     private async Task DecrementQuotaAsync(Guid userId, long bytes, CancellationToken cancellationToken)
     {
-        if (bytes <= 0) return;
+        if (bytes <= 0)
+            return;
 
         var quota = await _db.FileQuotas.FirstOrDefaultAsync(q => q.UserId == userId, cancellationToken);
         if (quota is not null)

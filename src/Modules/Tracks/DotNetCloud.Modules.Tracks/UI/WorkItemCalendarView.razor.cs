@@ -144,7 +144,8 @@ public partial class WorkItemCalendarView : ComponentBase
 
     private async Task HandleDropOnDate(DateTime date)
     {
-        if (_dragItemNumber <= 0) return;
+        if (_dragItemNumber <= 0)
+            return;
 
         try
         {

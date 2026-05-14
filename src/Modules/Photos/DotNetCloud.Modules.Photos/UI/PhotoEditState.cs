@@ -41,8 +41,10 @@ internal sealed class PhotoEditState
                 Rotation = (Rotation + value) % 360;
                 break;
             case PhotoEditType.Flip:
-                if (value == 0) FlipH = !FlipH;
-                else FlipV = !FlipV;
+                if (value == 0)
+                    FlipH = !FlipH;
+                else
+                    FlipV = !FlipV;
                 break;
             case PhotoEditType.Brightness:
                 Brightness = value;

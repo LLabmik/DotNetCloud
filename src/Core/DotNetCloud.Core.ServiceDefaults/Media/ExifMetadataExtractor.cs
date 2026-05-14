@@ -84,39 +84,52 @@ public sealed class ExifMetadataExtractor : IMediaMetadataExtractor
 
     private static string? GetExifString(ExifProfile? profile, ExifTag<string> tag)
     {
-        if (profile is null) return null;
-        if (!profile.TryGetValue(tag, out var value)) return null;
+        if (profile is null)
+            return null;
+        if (!profile.TryGetValue(tag, out var value))
+            return null;
         return string.IsNullOrWhiteSpace(value?.Value) ? null : value.Value.Trim();
     }
 
     private static double? GetExifRational(ExifProfile? profile, ExifTag<Rational> tag)
     {
-        if (profile is null) return null;
-        if (!profile.TryGetValue(tag, out var value)) return null;
-        if (value.Value.Denominator == 0) return null;
+        if (profile is null)
+            return null;
+        if (!profile.TryGetValue(tag, out var value))
+            return null;
+        if (value.Value.Denominator == 0)
+            return null;
         return (double)value.Value.Numerator / value.Value.Denominator;
     }
 
     private static int? GetExifUShort(ExifProfile? profile, ExifTag<ushort> tag)
     {
-        if (profile is null) return null;
-        if (!profile.TryGetValue(tag, out var value)) return null;
+        if (profile is null)
+            return null;
+        if (!profile.TryGetValue(tag, out var value))
+            return null;
         return (int)value.Value;
     }
 
     private static int? GetExifUShortArrayFirst(ExifProfile? profile, ExifTag<ushort[]> tag)
     {
-        if (profile is null) return null;
-        if (!profile.TryGetValue(tag, out var value)) return null;
-        if (value?.Value is null || value.Value.Length == 0) return null;
+        if (profile is null)
+            return null;
+        if (!profile.TryGetValue(tag, out var value))
+            return null;
+        if (value?.Value is null || value.Value.Length == 0)
+            return null;
         return value.Value[0];
     }
 
     private static string? GetShutterSpeedString(ExifProfile? profile)
     {
-        if (profile is null) return null;
-        if (!profile.TryGetValue(ExifTag.ExposureTime, out var value)) return null;
-        if (value.Value.Denominator == 0) return null;
+        if (profile is null)
+            return null;
+        if (!profile.TryGetValue(ExifTag.ExposureTime, out var value))
+            return null;
+        if (value.Value.Denominator == 0)
+            return null;
 
         var numerator = value.Value.Numerator;
         var denominator = value.Value.Denominator;
@@ -131,15 +144,18 @@ public sealed class ExifMetadataExtractor : IMediaMetadataExtractor
 
     private static bool? GetFlashFired(ExifProfile? profile)
     {
-        if (profile is null) return null;
-        if (!profile.TryGetValue(ExifTag.Flash, out var value)) return null;
+        if (profile is null)
+            return null;
+        if (!profile.TryGetValue(ExifTag.Flash, out var value))
+            return null;
         // Bit 0 of the flash value indicates whether flash fired
         return (value.Value & 1) == 1;
     }
 
     private static DateTime? GetDateTaken(ExifProfile? profile)
     {
-        if (profile is null) return null;
+        if (profile is null)
+            return null;
 
         string? dateString = null;
         if (profile.TryGetValue(ExifTag.DateTimeOriginal, out var dateOriginal))
@@ -152,7 +168,8 @@ public sealed class ExifMetadataExtractor : IMediaMetadataExtractor
             dateString = dateTime?.Value;
         }
 
-        if (string.IsNullOrWhiteSpace(dateString)) return null;
+        if (string.IsNullOrWhiteSpace(dateString))
+            return null;
 
         // EXIF date format: "yyyy:MM:dd HH:mm:ss"
         if (DateTime.TryParseExact(dateString, "yyyy:MM:dd HH:mm:ss",
@@ -168,7 +185,8 @@ public sealed class ExifMetadataExtractor : IMediaMetadataExtractor
 
     private static GeoCoordinate? GetGpsCoordinates(ExifProfile? profile)
     {
-        if (profile is null) return null;
+        if (profile is null)
+            return null;
 
         if (!profile.TryGetValue(ExifTag.GPSLatitude, out var latValue) ||
             !profile.TryGetValue(ExifTag.GPSLongitude, out var lonValue) ||

@@ -73,7 +73,8 @@ public partial class ReviewSessionParticipant : ComponentBase, IDisposable
 
     private async Task RefreshVoteStatusAsync()
     {
-        if (_activePoker is null) return;
+        if (_activePoker is null)
+            return;
         try
         {
             var statuses = await ApiClient.GetPokerVoteStatusAsync(_activePoker.Id);
@@ -97,7 +98,8 @@ public partial class ReviewSessionParticipant : ComponentBase, IDisposable
 
     private async Task SubmitVote()
     {
-        if (_activePoker is null || _selectedVote is null) return;
+        if (_activePoker is null || _selectedVote is null)
+            return;
         _isSubmittingVote = true;
         _errorMessage = null;
         try
@@ -144,7 +146,8 @@ public partial class ReviewSessionParticipant : ComponentBase, IDisposable
 
     private async void OnReviewItemChanged(Guid sessionId, Guid productId, Guid workItemId)
     {
-        if (sessionId != Session.Id) return;
+        if (sessionId != Session.Id)
+            return;
         await InvokeAsync(async () =>
         {
             await LoadWorkItemAsync(workItemId);
@@ -160,7 +163,8 @@ public partial class ReviewSessionParticipant : ComponentBase, IDisposable
 
     private async void OnPokerVoteStatusChanged(Guid sessionId, Guid pokerId, Guid userId, bool hasVoted)
     {
-        if (sessionId != Session.Id) return;
+        if (sessionId != Session.Id)
+            return;
         await InvokeAsync(async () =>
         {
             await RefreshVoteStatusAsync();
@@ -170,7 +174,8 @@ public partial class ReviewSessionParticipant : ComponentBase, IDisposable
 
     private async void OnReviewPokerStateChanged(Guid sessionId, Guid pokerId, Guid productId, string action)
     {
-        if (sessionId != Session.Id) return;
+        if (sessionId != Session.Id)
+            return;
         await InvokeAsync(async () =>
         {
             try
@@ -200,7 +205,8 @@ public partial class ReviewSessionParticipant : ComponentBase, IDisposable
 
     private async void OnReviewParticipantChanged(Guid sessionId, Guid userId, string action)
     {
-        if (sessionId != Session.Id) return;
+        if (sessionId != Session.Id)
+            return;
         await InvokeAsync(async () =>
         {
             try
@@ -221,7 +227,8 @@ public partial class ReviewSessionParticipant : ComponentBase, IDisposable
 
     private async void OnReviewSessionStateChanged(Guid sessionId, Guid productId, string action)
     {
-        if (sessionId != Session.Id) return;
+        if (sessionId != Session.Id)
+            return;
         await InvokeAsync(async () =>
         {
             if (action is "ended")

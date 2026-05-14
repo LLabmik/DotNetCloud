@@ -241,7 +241,8 @@ public sealed class DotNetCloudApiClient
         var response = await _http.PutAsJsonAsync(
             $"api/v1/core/users/{userId}/roles",
             new { roles }, ct);
-        if (!response.IsSuccessStatusCode) return null;
+        if (!response.IsSuccessStatusCode)
+            return null;
         var envelope = await response.Content.ReadFromJsonAsync<ApiEnvelope<UserRolesResponse>>(ct);
         return envelope?.Data?.Roles ?? new List<string>();
     }
@@ -411,7 +412,8 @@ public sealed class DotNetCloudApiClient
     public async Task<MediaLibraryPathsResponse?> GetMediaLibraryPathsAsync(CancellationToken ct = default)
     {
         var response = await _http.GetAsync("api/v1/media-library/paths", ct);
-        if (!response.IsSuccessStatusCode) return null;
+        if (!response.IsSuccessStatusCode)
+            return null;
         var envelope = await response.Content.ReadFromJsonAsync<ApiEnvelope<MediaLibraryPathsResponse>>(ct);
         return envelope?.Data;
     }
@@ -576,7 +578,8 @@ public sealed class DotNetCloudApiClient
     public async Task<QuotaResponse?> GetUserQuotaAsync(Guid targetUserId, CancellationToken ct = default)
     {
         var response = await _http.GetAsync($"api/v1/files/quota/{targetUserId}", ct);
-        if (!response.IsSuccessStatusCode) return null;
+        if (!response.IsSuccessStatusCode)
+            return null;
         var envelope = await response.Content.ReadFromJsonAsync<ApiEnvelope<QuotaResponse>>(JsonOptions, ct);
         return envelope?.Data;
     }
@@ -587,7 +590,8 @@ public sealed class DotNetCloudApiClient
     public async Task<Dictionary<Guid, QuotaResponse>> GetAllQuotasAsync(CancellationToken ct = default)
     {
         var response = await _http.GetAsync("api/v1/files/quota/all", ct);
-        if (!response.IsSuccessStatusCode) return [];
+        if (!response.IsSuccessStatusCode)
+            return [];
         var envelope = await response.Content.ReadFromJsonAsync<ApiEnvelope<List<QuotaResponse>>>(JsonOptions, ct);
         return envelope?.Data?.ToDictionary(q => q.UserId) ?? [];
     }
@@ -779,7 +783,8 @@ public sealed class DotNetCloudApiClient
         var response = await _http.PutAsJsonAsync(
             $"api/v1/core/admin/organizations/{orgId}/members/{userId}/roles",
             new { roleIds }, ct);
-        if (!response.IsSuccessStatusCode) return null;
+        if (!response.IsSuccessStatusCode)
+            return null;
         var envelope = await response.Content.ReadFromJsonAsync<ApiEnvelope<OrganizationMemberDto>>(ct);
         return envelope?.Data;
     }
@@ -876,7 +881,8 @@ public sealed class DotNetCloudApiClient
     public async Task<UserProfileResponse?> GetCurrentUserProfileAsync(CancellationToken ct = default)
     {
         var response = await _http.GetAsync("api/v1/core/auth/user", ct);
-        if (!response.IsSuccessStatusCode) return null;
+        if (!response.IsSuccessStatusCode)
+            return null;
         var envelope = await response.Content.ReadFromJsonAsync<ApiEnvelope<UserProfileResponse>>(JsonOptions, ct);
         return envelope?.Data;
     }
@@ -905,7 +911,8 @@ public sealed class DotNetCloudApiClient
         form.Add(fileContent, "file", fileName);
 
         var response = await _http.PostAsync($"api/v1/core/users/{userId}/avatar", form, ct);
-        if (!response.IsSuccessStatusCode) return null;
+        if (!response.IsSuccessStatusCode)
+            return null;
 
         var json = await response.Content.ReadAsStringAsync(ct);
         using var doc = System.Text.Json.JsonDocument.Parse(json);

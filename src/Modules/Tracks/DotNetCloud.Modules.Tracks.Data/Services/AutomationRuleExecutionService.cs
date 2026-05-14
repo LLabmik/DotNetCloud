@@ -33,7 +33,8 @@ public sealed class AutomationRuleExecutionService : IAutomationRuleExecutionSer
             .Include(wi => wi.Assignments)
             .FirstOrDefaultAsync(wi => wi.Id == workItemId, ct);
 
-        if (workItem is null) return;
+        if (workItem is null)
+            return;
 
         var context = new AutomationContext
         {

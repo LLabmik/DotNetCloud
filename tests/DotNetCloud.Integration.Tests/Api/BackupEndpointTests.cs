@@ -117,7 +117,9 @@ public class BackupEndpointTests
         finally
         {
             if (Directory.Exists(tempDir))
-                try { Directory.Delete(tempDir, recursive: true); } catch { }
+                try
+                { Directory.Delete(tempDir, recursive: true); }
+                catch { }
         }
     }
 

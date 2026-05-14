@@ -57,11 +57,13 @@ public class OnboardingTourBase : ComponentBase, IDisposable
 
     public async Task InitializeAsync(string userId)
     {
-        if (string.IsNullOrWhiteSpace(userId)) return;
+        if (string.IsNullOrWhiteSpace(userId))
+            return;
         UserId = userId;
 
         var completed = await OnboardingState.IsCompletedAsync(userId, TourId);
-        if (completed) return;
+        if (completed)
+            return;
 
         var savedStep = await OnboardingState.GetCurrentStepAsync(userId, TourId);
         _currentStep = Math.Clamp(savedStep, 0, _steps.Count - 1);
@@ -93,7 +95,8 @@ public class OnboardingTourBase : ComponentBase, IDisposable
 
     protected async Task GoToPreviousAsync()
     {
-        if (_currentStep <= 0) return;
+        if (_currentStep <= 0)
+            return;
         _currentStep--;
         await PersistProgressAsync();
         StateHasChanged();

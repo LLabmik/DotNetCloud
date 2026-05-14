@@ -869,7 +869,8 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
         // Stream chunk data
         foreach (var vc in chunks)
         {
-            if (vc.FileChunk is null) continue;
+            if (vc.FileChunk is null)
+                continue;
 
             // In a real implementation, read chunk bytes from disk using vc.FileChunk.StoragePath.
             // For now, send empty chunk as placeholder.

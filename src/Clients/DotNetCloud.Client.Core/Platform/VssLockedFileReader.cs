@@ -37,7 +37,8 @@ public sealed class VssLockedFileReader : ILockedFileReader
     /// <inheritdoc/>
     public Task<Stream?> TryReadLockedFileAsync(string path, CancellationToken cancellationToken = default)
     {
-        if (!OperatingSystem.IsWindows()) return Task.FromResult<Stream?>(null);
+        if (!OperatingSystem.IsWindows())
+            return Task.FromResult<Stream?>(null);
 #if WINDOWS_BUILD
         return TryReadLockedFileWindowsAsync(path, cancellationToken);
 #else

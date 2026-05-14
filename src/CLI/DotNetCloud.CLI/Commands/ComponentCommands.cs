@@ -116,7 +116,8 @@ internal static class ComponentCommands
         try
         {
             await using var provider = ServiceProviderFactory.CreateFromConfig();
-            if (provider is null) return 1;
+            if (provider is null)
+                return 1;
 
             using var scope = provider.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<CoreDbContext>();
@@ -186,7 +187,8 @@ internal static class ComponentCommands
         try
         {
             await using var provider = ServiceProviderFactory.CreateFromConfig();
-            if (provider is null) return 1;
+            if (provider is null)
+                return 1;
 
             using var scope = provider.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<CoreDbContext>();

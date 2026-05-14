@@ -184,13 +184,17 @@ public class CalDavInteropTests
     {
         await _eventService.CreateEventAsync(new CreateCalendarEventDto
         {
-            CalendarId = _calendar.Id, Title = "Event 1",
-            StartUtc = DateTime.UtcNow, EndUtc = DateTime.UtcNow.AddHours(1)
+            CalendarId = _calendar.Id,
+            Title = "Event 1",
+            StartUtc = DateTime.UtcNow,
+            EndUtc = DateTime.UtcNow.AddHours(1)
         }, _caller);
         await _eventService.CreateEventAsync(new CreateCalendarEventDto
         {
-            CalendarId = _calendar.Id, Title = "Event 2",
-            StartUtc = DateTime.UtcNow.AddDays(1), EndUtc = DateTime.UtcNow.AddDays(1).AddHours(1)
+            CalendarId = _calendar.Id,
+            Title = "Event 2",
+            StartUtc = DateTime.UtcNow.AddDays(1),
+            EndUtc = DateTime.UtcNow.AddDays(1).AddHours(1)
         }, _caller);
 
         var exported = await _icalService.ExportCalendarAsync(_calendar.Id, _caller);

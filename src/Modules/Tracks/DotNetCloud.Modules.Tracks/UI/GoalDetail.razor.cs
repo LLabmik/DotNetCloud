@@ -50,7 +50,8 @@ public partial class GoalDetail : ComponentBase
 
     private async Task UpdateProgress()
     {
-        if (_goal is null || string.IsNullOrEmpty(_newCurrentValue)) return;
+        if (_goal is null || string.IsNullOrEmpty(_newCurrentValue))
+            return;
 
         _isUpdating = true;
         try
@@ -74,7 +75,8 @@ public partial class GoalDetail : ComponentBase
 
     private async Task SetStatus(string status)
     {
-        if (_goal is null) return;
+        if (_goal is null)
+            return;
         try
         {
             await ApiClient.UpdateGoalAsync(_goal.Id, new UpdateGoalDto { Status = status });

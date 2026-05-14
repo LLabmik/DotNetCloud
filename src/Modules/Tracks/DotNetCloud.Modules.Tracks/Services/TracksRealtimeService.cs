@@ -144,7 +144,8 @@ internal sealed class TracksRealtimeService : ITracksRealtimeService
     /// <inheritdoc />
     public async Task AddUserToProductGroupAsync(Guid userId, Guid productId, CancellationToken cancellationToken)
     {
-        if (_broadcaster is null) return;
+        if (_broadcaster is null)
+            return;
         await _broadcaster.AddToGroupAsync(userId, ProductGroup(productId), cancellationToken);
         _logger.LogDebug("Added user {UserId} to product group {ProductId}", userId, productId);
     }
@@ -152,7 +153,8 @@ internal sealed class TracksRealtimeService : ITracksRealtimeService
     /// <inheritdoc />
     public async Task RemoveUserFromProductGroupAsync(Guid userId, Guid productId, CancellationToken cancellationToken)
     {
-        if (_broadcaster is null) return;
+        if (_broadcaster is null)
+            return;
         await _broadcaster.RemoveFromGroupAsync(userId, ProductGroup(productId), cancellationToken);
         _logger.LogDebug("Removed user {UserId} from product group {ProductId}", userId, productId);
     }
@@ -160,7 +162,8 @@ internal sealed class TracksRealtimeService : ITracksRealtimeService
     /// <inheritdoc />
     public async Task AddUserToReviewGroupAsync(Guid userId, Guid sessionId, CancellationToken cancellationToken)
     {
-        if (_broadcaster is null) return;
+        if (_broadcaster is null)
+            return;
         await _broadcaster.AddToGroupAsync(userId, ReviewGroup(sessionId), cancellationToken);
         _logger.LogDebug("Added user {UserId} to review group {SessionId}", userId, sessionId);
     }
@@ -168,7 +171,8 @@ internal sealed class TracksRealtimeService : ITracksRealtimeService
     /// <inheritdoc />
     public async Task RemoveUserFromReviewGroupAsync(Guid userId, Guid sessionId, CancellationToken cancellationToken)
     {
-        if (_broadcaster is null) return;
+        if (_broadcaster is null)
+            return;
         await _broadcaster.RemoveFromGroupAsync(userId, ReviewGroup(sessionId), cancellationToken);
         _logger.LogDebug("Removed user {UserId} from review group {SessionId}", userId, sessionId);
     }

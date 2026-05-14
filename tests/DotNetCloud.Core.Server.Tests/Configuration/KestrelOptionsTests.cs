@@ -54,4 +54,4 @@ public class KestrelOptionsTests
         Assert.AreEqual("password", options.CertificatePassword);
     }
 
-    }
+}

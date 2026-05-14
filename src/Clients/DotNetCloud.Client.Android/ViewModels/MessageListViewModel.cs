@@ -215,7 +215,8 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
     [RelayCommand(CanExecute = nameof(CanSend))]
     private async Task SendAsync(CancellationToken ct)
     {
-        if (!CanSend()) return;
+        if (!CanSend())
+            return;
         var content = ComposerText.Trim();
         ComposerText = string.Empty;
         IsEmojiPickerOpen = false;
@@ -272,10 +273,12 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
         try
         {
             var results = await MediaPicker.Default.PickPhotosAsync();
-            if (results is null || !results.Any()) return;
+            if (results is null || !results.Any())
+                return;
 
             var result = results.FirstOrDefault();
-            if (result is null) return;
+            if (result is null)
+                return;
 
             // Send the file name as plain-text message for now;
             // full chunked-upload integration is handled by PhotoAutoUploadService.
@@ -371,7 +374,8 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
 
     private void OnNewChatMessage(object? sender, ChatMessageReceivedEventArgs e)
     {
-        if (e.ChannelId != _channelId.ToString()) return;
+        if (e.ChannelId != _channelId.ToString())
+            return;
 
         MainThread.BeginInvokeOnMainThread(() =>
         {

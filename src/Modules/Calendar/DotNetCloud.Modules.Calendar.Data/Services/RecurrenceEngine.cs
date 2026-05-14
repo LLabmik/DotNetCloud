@@ -379,7 +379,8 @@ public sealed class RecurrenceEngine : IRecurrenceEngine
         foreach (var part in parts)
         {
             var eqIndex = part.IndexOf('=');
-            if (eqIndex < 0) continue;
+            if (eqIndex < 0)
+                continue;
 
             var key = part[..eqIndex].Trim().ToUpperInvariant();
             var value = part[(eqIndex + 1)..].Trim();

@@ -50,58 +50,106 @@ public class SearchQueryEngineIntegrationTests
             // Files module entries
             new SearchIndexEntry
             {
-                ModuleId = "files", EntityId = "f1", EntityType = "FileNode",
-                Title = "quarterly report Q1 2026", Content = "Revenue grew by 15% compared to the previous quarter. The sales team exceeded quarterly targets.",
-                OwnerId = _userId, CreatedAt = now.AddDays(-30), UpdatedAt = now.AddDays(-1), IndexedAt = now
+                ModuleId = "files",
+                EntityId = "f1",
+                EntityType = "FileNode",
+                Title = "quarterly report Q1 2026",
+                Content = "Revenue grew by 15% compared to the previous quarter. The sales team exceeded quarterly targets.",
+                OwnerId = _userId,
+                CreatedAt = now.AddDays(-30),
+                UpdatedAt = now.AddDays(-1),
+                IndexedAt = now
             },
             new SearchIndexEntry
             {
-                ModuleId = "files", EntityId = "f2", EntityType = "FileNode",
-                Title = "annual budget 2026", Content = "The annual budget for 2026 includes allocation for new hires and infrastructure upgrades.",
-                OwnerId = _userId, CreatedAt = now.AddDays(-60), UpdatedAt = now.AddDays(-5), IndexedAt = now,
+                ModuleId = "files",
+                EntityId = "f2",
+                EntityType = "FileNode",
+                Title = "annual budget 2026",
+                Content = "The annual budget for 2026 includes allocation for new hires and infrastructure upgrades.",
+                OwnerId = _userId,
+                CreatedAt = now.AddDays(-60),
+                UpdatedAt = now.AddDays(-5),
+                IndexedAt = now,
                 MetadataJson = "{\"MimeType\":\"application/pdf\"}"
             },
             new SearchIndexEntry
             {
-                ModuleId = "files", EntityId = "f3", EntityType = "FileNode",
-                Title = "draft meeting notes", Content = "draft notes from the weekly standup meeting. Action items discussed.",
-                OwnerId = _userId, CreatedAt = now.AddDays(-2), UpdatedAt = now.AddHours(-12), IndexedAt = now
+                ModuleId = "files",
+                EntityId = "f3",
+                EntityType = "FileNode",
+                Title = "draft meeting notes",
+                Content = "draft notes from the weekly standup meeting. Action items discussed.",
+                OwnerId = _userId,
+                CreatedAt = now.AddDays(-2),
+                UpdatedAt = now.AddHours(-12),
+                IndexedAt = now
             },
 
             // Notes module entries
             new SearchIndexEntry
             {
-                ModuleId = "notes", EntityId = "n1", EntityType = "Note",
-                Title = "project budget planning", Content = "budget allocation for Q1 2026 project milestones. Priority items and resource planning.",
-                OwnerId = _userId, CreatedAt = now.AddDays(-15), UpdatedAt = now.AddDays(-3), IndexedAt = now
+                ModuleId = "notes",
+                EntityId = "n1",
+                EntityType = "Note",
+                Title = "project budget planning",
+                Content = "budget allocation for Q1 2026 project milestones. Priority items and resource planning.",
+                OwnerId = _userId,
+                CreatedAt = now.AddDays(-15),
+                UpdatedAt = now.AddDays(-3),
+                IndexedAt = now
             },
             new SearchIndexEntry
             {
-                ModuleId = "notes", EntityId = "n2", EntityType = "Note",
-                Title = "team meeting agenda", Content = "Agenda for the quarterly team review. budget review is item 3.",
-                OwnerId = _userId, CreatedAt = now.AddDays(-7), UpdatedAt = now.AddDays(-2), IndexedAt = now
+                ModuleId = "notes",
+                EntityId = "n2",
+                EntityType = "Note",
+                Title = "team meeting agenda",
+                Content = "Agenda for the quarterly team review. budget review is item 3.",
+                OwnerId = _userId,
+                CreatedAt = now.AddDays(-7),
+                UpdatedAt = now.AddDays(-2),
+                IndexedAt = now
             },
 
             // Chat module entries
             new SearchIndexEntry
             {
-                ModuleId = "chat", EntityId = "c1", EntityType = "Message",
-                Title = "general channel", Content = "Has anyone reviewed the quarterly report? The budget numbers look good.",
-                OwnerId = _userId, CreatedAt = now.AddDays(-1), UpdatedAt = now.AddHours(-6), IndexedAt = now
+                ModuleId = "chat",
+                EntityId = "c1",
+                EntityType = "Message",
+                Title = "general channel",
+                Content = "Has anyone reviewed the quarterly report? The budget numbers look good.",
+                OwnerId = _userId,
+                CreatedAt = now.AddDays(-1),
+                UpdatedAt = now.AddHours(-6),
+                IndexedAt = now
             },
             new SearchIndexEntry
             {
-                ModuleId = "chat", EntityId = "c2", EntityType = "Message",
-                Title = "dev channel", Content = "The new search feature is nearly complete. Testing begins tomorrow.",
-                OwnerId = _userId, CreatedAt = now.AddHours(-3), UpdatedAt = now.AddHours(-3), IndexedAt = now
+                ModuleId = "chat",
+                EntityId = "c2",
+                EntityType = "Message",
+                Title = "dev channel",
+                Content = "The new search feature is nearly complete. Testing begins tomorrow.",
+                OwnerId = _userId,
+                CreatedAt = now.AddHours(-3),
+                UpdatedAt = now.AddHours(-3),
+                IndexedAt = now
             },
 
             // Other user's entries (should NOT appear in results)
             new SearchIndexEntry
             {
-                ModuleId = "files", EntityId = "f99", EntityType = "FileNode",
-                Title = "confidential report", Content = "quarterly confidential budget information for executives only.",
-                OwnerId = _otherUserId, CreatedAt = now.AddDays(-10), UpdatedAt = now.AddDays(-1), IndexedAt = now
+                ModuleId = "files",
+                EntityId = "f99",
+                EntityType = "FileNode",
+                Title = "confidential report",
+                Content = "quarterly confidential budget information for executives only.",
+                OwnerId = _otherUserId,
+                CreatedAt = now.AddDays(-10),
+                UpdatedAt = now.AddDays(-1),
+                IndexedAt = now
             }
         );
 

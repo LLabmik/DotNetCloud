@@ -54,11 +54,16 @@ public sealed class DeviceIdentityHandler : DelegatingHandler
 
     private static string GetPlatformName()
     {
-        if (OperatingSystem.IsWindows()) return "Windows";
-        if (OperatingSystem.IsLinux()) return "Linux";
-        if (OperatingSystem.IsMacOS()) return "macOS";
-        if (OperatingSystem.IsAndroid()) return "Android";
-        if (OperatingSystem.IsIOS()) return "iOS";
+        if (OperatingSystem.IsWindows())
+            return "Windows";
+        if (OperatingSystem.IsLinux())
+            return "Linux";
+        if (OperatingSystem.IsMacOS())
+            return "macOS";
+        if (OperatingSystem.IsAndroid())
+            return "Android";
+        if (OperatingSystem.IsIOS())
+            return "iOS";
         return RuntimeInformation.OSDescription;
     }
 

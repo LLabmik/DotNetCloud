@@ -262,16 +262,26 @@ public class UserDataIsolationTests
 
         await provider.IndexDocumentAsync(new SearchDocument
         {
-            ModuleId = "files", EntityId = "a1", EntityType = "Document",
-            Title = "Annual Revenue", Content = "revenue data",
-            OwnerId = UserAlice, CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow,
+            ModuleId = "files",
+            EntityId = "a1",
+            EntityType = "Document",
+            Title = "Annual Revenue",
+            Content = "revenue data",
+            OwnerId = UserAlice,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
             Metadata = new Dictionary<string, string>()
         });
         await provider.IndexDocumentAsync(new SearchDocument
         {
-            ModuleId = "files", EntityId = "b1", EntityType = "Document",
-            Title = "Annual Revenue", Content = "revenue data",
-            OwnerId = UserBob, CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow,
+            ModuleId = "files",
+            EntityId = "b1",
+            EntityType = "Document",
+            Title = "Annual Revenue",
+            Content = "revenue data",
+            OwnerId = UserBob,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
             Metadata = new Dictionary<string, string>()
         });
 
@@ -564,18 +574,26 @@ public class UserDataIsolationTests
             // Alice's old doc, Bob's very recent doc — date sort must not mix them
             await provider.IndexDocumentAsync(new SearchDocument
             {
-                ModuleId = "notes", EntityId = "a1", EntityType = "TestEntity",
-                Title = "Old Report", Content = "quarterly review",
+                ModuleId = "notes",
+                EntityId = "a1",
+                EntityType = "TestEntity",
+                Title = "Old Report",
+                Content = "quarterly review",
                 OwnerId = UserAlice,
-                CreatedAt = baseTime.AddDays(-30), UpdatedAt = baseTime.AddDays(-30),
+                CreatedAt = baseTime.AddDays(-30),
+                UpdatedAt = baseTime.AddDays(-30),
                 Metadata = new Dictionary<string, string>()
             });
             await provider.IndexDocumentAsync(new SearchDocument
             {
-                ModuleId = "notes", EntityId = "b1", EntityType = "TestEntity",
-                Title = "Fresh Report", Content = "quarterly review",
+                ModuleId = "notes",
+                EntityId = "b1",
+                EntityType = "TestEntity",
+                Title = "Fresh Report",
+                Content = "quarterly review",
                 OwnerId = UserBob,
-                CreatedAt = baseTime, UpdatedAt = baseTime,
+                CreatedAt = baseTime,
+                UpdatedAt = baseTime,
                 Metadata = new Dictionary<string, string>()
             });
 
@@ -624,10 +642,14 @@ public class UserDataIsolationTests
         {
             await provider.IndexDocumentAsync(new SearchDocument
             {
-                ModuleId = "files", EntityId = "a1", EntityType = "FileNode",
-                Title = "Contract", Content = "important contract document",
+                ModuleId = "files",
+                EntityId = "a1",
+                EntityType = "FileNode",
+                Title = "Contract",
+                Content = "important contract document",
                 OwnerId = UserAlice,
-                CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow,
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow,
                 Metadata = new Dictionary<string, string>
                 {
                     ["Path"] = "/alice/private/contracts/",
@@ -637,10 +659,14 @@ public class UserDataIsolationTests
             });
             await provider.IndexDocumentAsync(new SearchDocument
             {
-                ModuleId = "files", EntityId = "b1", EntityType = "FileNode",
-                Title = "Contract", Content = "important contract document",
+                ModuleId = "files",
+                EntityId = "b1",
+                EntityType = "FileNode",
+                Title = "Contract",
+                Content = "important contract document",
                 OwnerId = UserBob,
-                CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow,
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow,
                 Metadata = new Dictionary<string, string>
                 {
                     ["Path"] = "/bob/secret/contracts/",

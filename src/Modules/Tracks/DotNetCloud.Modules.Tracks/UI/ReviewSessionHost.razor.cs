@@ -124,7 +124,8 @@ public partial class ReviewSessionHost : ComponentBase, IDisposable
 
     private async Task PreviousItem()
     {
-        if (!HasPreviousItem) return;
+        if (!HasPreviousItem)
+            return;
         _currentCardIndex--;
         _currentItem = _items[_currentCardIndex];
         _activePoker = null;
@@ -136,7 +137,8 @@ public partial class ReviewSessionHost : ComponentBase, IDisposable
 
     private async Task NextItem()
     {
-        if (!HasNextItem) return;
+        if (!HasNextItem)
+            return;
         _currentCardIndex++;
         _currentItem = _items[_currentCardIndex];
         _activePoker = null;
@@ -148,7 +150,8 @@ public partial class ReviewSessionHost : ComponentBase, IDisposable
 
     private async Task SetCurrentItemOnServer()
     {
-        if (_currentItem is null) return;
+        if (_currentItem is null)
+            return;
         try
         {
             var updated = await ApiClient.SetReviewCurrentItemAsync(Session.Id, _currentItem.Id);
@@ -177,7 +180,8 @@ public partial class ReviewSessionHost : ComponentBase, IDisposable
 
     private async Task StartPoker()
     {
-        if (_currentItem is null) return;
+        if (_currentItem is null)
+            return;
         _isStartingPoker = true;
         _errorMessage = null;
         try
@@ -205,7 +209,8 @@ public partial class ReviewSessionHost : ComponentBase, IDisposable
 
     private async Task SubmitHostVote()
     {
-        if (_activePoker is null || _hostVote is null) return;
+        if (_activePoker is null || _hostVote is null)
+            return;
         _isSubmittingVote = true;
         _errorMessage = null;
         try
@@ -225,7 +230,8 @@ public partial class ReviewSessionHost : ComponentBase, IDisposable
 
     private async Task RevealVotes()
     {
-        if (_activePoker is null) return;
+        if (_activePoker is null)
+            return;
         _isRevealingVotes = true;
         _errorMessage = null;
         try
@@ -248,7 +254,8 @@ public partial class ReviewSessionHost : ComponentBase, IDisposable
 
     private async Task AcceptEstimate()
     {
-        if (_activePoker is null || _acceptEstimate is null) return;
+        if (_activePoker is null || _acceptEstimate is null)
+            return;
         _isAccepting = true;
         _errorMessage = null;
         try
@@ -271,7 +278,8 @@ public partial class ReviewSessionHost : ComponentBase, IDisposable
 
     private async Task RefreshVoteStatusAsync()
     {
-        if (_activePoker is null) return;
+        if (_activePoker is null)
+            return;
         try
         {
             var statuses = await ApiClient.GetPokerVoteStatusAsync(_activePoker.Id);
@@ -345,7 +353,8 @@ public partial class ReviewSessionHost : ComponentBase, IDisposable
 
     private async void OnPokerVoteStatusChanged(Guid sessionId, Guid pokerId, Guid userId, bool hasVoted)
     {
-        if (sessionId != Session.Id) return;
+        if (sessionId != Session.Id)
+            return;
         await InvokeAsync(async () =>
         {
             await RefreshVoteStatusAsync();
@@ -355,7 +364,8 @@ public partial class ReviewSessionHost : ComponentBase, IDisposable
 
     private async void OnReviewPokerStateChanged(Guid sessionId, Guid pokerId, Guid productId, string action)
     {
-        if (sessionId != Session.Id) return;
+        if (sessionId != Session.Id)
+            return;
         await InvokeAsync(async () =>
         {
             try
@@ -376,7 +386,8 @@ public partial class ReviewSessionHost : ComponentBase, IDisposable
 
     private async void OnReviewParticipantChanged(Guid sessionId, Guid userId, string action)
     {
-        if (sessionId != Session.Id) return;
+        if (sessionId != Session.Id)
+            return;
         await InvokeAsync(async () =>
         {
             try

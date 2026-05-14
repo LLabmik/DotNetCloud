@@ -95,7 +95,8 @@ public class MultiDatabaseProviderTests
 
         Assert.IsTrue(expectedCount >= 3, "Should find 'budget' in at least 3 documents");
 
-        foreach (var (_, _, db) in providers) db.Dispose();
+        foreach (var (_, _, db) in providers)
+            db.Dispose();
     }
 
     [TestMethod]
@@ -130,7 +131,8 @@ public class MultiDatabaseProviderTests
                 $"{name}: All results should be from 'notes' module");
         }
 
-        foreach (var (_, _, db) in providers) db.Dispose();
+        foreach (var (_, _, db) in providers)
+            db.Dispose();
     }
 
     [TestMethod]
@@ -162,7 +164,8 @@ public class MultiDatabaseProviderTests
             Assert.AreEqual("1", result.Items[0].EntityId, $"{name}: Should return correct entity");
         }
 
-        foreach (var (_, _, db) in providers) db.Dispose();
+        foreach (var (_, _, db) in providers)
+            db.Dispose();
     }
 
     [TestMethod]
@@ -192,7 +195,8 @@ public class MultiDatabaseProviderTests
             Assert.AreEqual(0, result.TotalCount, $"{name}: Removed document should not appear");
         }
 
-        foreach (var (_, _, db) in providers) db.Dispose();
+        foreach (var (_, _, db) in providers)
+            db.Dispose();
     }
 
     [TestMethod]
@@ -225,7 +229,8 @@ public class MultiDatabaseProviderTests
             Assert.AreEqual(1, result.TotalCount, $"{name}: Should find updated content");
         }
 
-        foreach (var (_, _, db) in providers) db.Dispose();
+        foreach (var (_, _, db) in providers)
+            db.Dispose();
     }
 
     [TestMethod]
@@ -253,7 +258,8 @@ public class MultiDatabaseProviderTests
             Assert.IsNotNull(stats.LastIncrementalIndexAt, $"{name}: Should have indexed at timestamp");
         }
 
-        foreach (var (_, _, db) in providers) db.Dispose();
+        foreach (var (_, _, db) in providers)
+            db.Dispose();
     }
 
     [TestMethod]
@@ -280,7 +286,8 @@ public class MultiDatabaseProviderTests
             Assert.AreEqual(1, stats.DocumentsPerModule["files"], $"{name}: Files unaffected");
         }
 
-        foreach (var (_, _, db) in providers) db.Dispose();
+        foreach (var (_, _, db) in providers)
+            db.Dispose();
     }
 
     [TestMethod]
@@ -311,7 +318,8 @@ public class MultiDatabaseProviderTests
             Assert.AreEqual("1", result.Items[0].EntityId, $"{name}: Should return non-draft");
         }
 
-        foreach (var (_, _, db) in providers) db.Dispose();
+        foreach (var (_, _, db) in providers)
+            db.Dispose();
     }
 
     [TestMethod]
@@ -360,7 +368,8 @@ public class MultiDatabaseProviderTests
             Assert.IsFalse(page1Ids.Overlaps(page3Ids), $"{name}: Pages should not overlap");
         }
 
-        foreach (var (_, _, db) in providers) db.Dispose();
+        foreach (var (_, _, db) in providers)
+            db.Dispose();
     }
 
     [TestMethod]
@@ -411,6 +420,7 @@ public class MultiDatabaseProviderTests
             Assert.AreEqual("/documents/report.pdf", item.Metadata["Path"], $"{name}: Path preserved");
         }
 
-        foreach (var (_, _, db) in providers) db.Dispose();
+        foreach (var (_, _, db) in providers)
+            db.Dispose();
     }
 }

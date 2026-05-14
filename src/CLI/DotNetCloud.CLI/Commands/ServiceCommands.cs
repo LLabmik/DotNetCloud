@@ -164,7 +164,8 @@ internal static class ServiceCommands
                 if (string.IsNullOrEmpty(config.WopiTokenSigningKey))
                 {
                     config.WopiTokenSigningKey = GenerateTokenSigningKey();
-                    try { CliConfiguration.Save(config); }
+                    try
+                    { CliConfiguration.Save(config); }
                     catch { /* Best-effort persist; key will be regenerated next start */ }
                     ConsoleOutput.WriteInfo("Generated WOPI token signing key.");
                 }
@@ -560,7 +561,8 @@ internal static class ServiceCommands
         var pidFile = GetPidFilePath();
         if (File.Exists(pidFile))
         {
-            try { File.Delete(pidFile); }
+            try
+            { File.Delete(pidFile); }
             catch { /* best effort */ }
         }
     }

@@ -99,7 +99,8 @@ public sealed partial class LoginViewModel : ObservableObject
         try
         {
             var parts = accessToken.Split('.');
-            if (parts.Length < 2) return null;
+            if (parts.Length < 2)
+                return null;
 
             var payload = parts[1].Replace('-', '+').Replace('_', '/');
             payload = payload.PadRight(payload.Length + (4 - payload.Length % 4) % 4, '=');

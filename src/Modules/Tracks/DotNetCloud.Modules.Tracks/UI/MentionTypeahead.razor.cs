@@ -54,7 +54,8 @@ public partial class MentionTypeahead : ComponentBase, IDisposable
     /// <summary>Handles keyboard navigation within the typeahead.</summary>
     public async Task HandleKeyDownAsync(string key)
     {
-        if (!_isVisible || _results.Count == 0) return;
+        if (!_isVisible || _results.Count == 0)
+            return;
 
         switch (key)
         {
@@ -83,7 +84,8 @@ public partial class MentionTypeahead : ComponentBase, IDisposable
 
     private static string GetInitials(string? displayName)
     {
-        if (string.IsNullOrWhiteSpace(displayName)) return "?";
+        if (string.IsNullOrWhiteSpace(displayName))
+            return "?";
         var parts = displayName.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
         return parts.Length >= 2
             ? $"{parts[0][0]}{parts[1][0]}".ToUpperInvariant()
@@ -99,7 +101,8 @@ public partial class MentionTypeahead : ComponentBase, IDisposable
         try
         {
             await Task.Delay(300, ct); // 300ms debounce
-            if (string.IsNullOrWhiteSpace(term) || ct.IsCancellationRequested) return;
+            if (string.IsNullOrWhiteSpace(term) || ct.IsCancellationRequested)
+                return;
 
             _isLoading = true;
             StateHasChanged();

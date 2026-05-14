@@ -58,7 +58,8 @@ public partial class ProductDashboardView : ComponentBase, IDisposable
             return $"<svg viewBox='0 0 {size} {size}' width='{size}' height='{size}'><circle cx='{size / 2}' cy='{size / 2}' r='{size / 2 - 10}' fill='none' stroke='#e5e7eb' stroke-width='20'/></svg>";
 
         var total = segments.Sum(s => s.Count);
-        if (total == 0) total = 1;
+        if (total == 0)
+            total = 1;
         var center = size / 2.0;
         var radius = center - 14;
         var strokeWidth = 20.0;
@@ -85,10 +86,12 @@ public partial class ProductDashboardView : ComponentBase, IDisposable
 
     private static string BuildBarChart(List<PriorityBreakdownDto> segments, int maxHeight = 120, int barWidth = 32, int gap = 12)
     {
-        if (segments.Count == 0) return "<svg viewBox='0 0 200 140' width='200' height='140'></svg>";
+        if (segments.Count == 0)
+            return "<svg viewBox='0 0 200 140' width='200' height='140'></svg>";
 
         var max = segments.Max(s => s.Count);
-        if (max == 0) max = 1;
+        if (max == 0)
+            max = 1;
         var totalWidth = segments.Count * (barWidth + gap) + 20;
         var svgHeight = maxHeight + 40;
 
@@ -112,10 +115,12 @@ public partial class ProductDashboardView : ComponentBase, IDisposable
 
     private static string BuildHorizontalBarChart(List<WorkloadDto> workloads, int maxWidth = 200, int barHeight = 22)
     {
-        if (workloads.Count == 0) return "<svg viewBox='0 0 300 40' width='300' height='40'></svg>";
+        if (workloads.Count == 0)
+            return "<svg viewBox='0 0 300 40' width='300' height='40'></svg>";
 
         var max = workloads.Max(w => w.TotalStoryPoints);
-        if (max == 0) max = 1;
+        if (max == 0)
+            max = 1;
         var svgHeight = workloads.Count * (barHeight + 6) + 10;
 
         var bars = new List<string>();
@@ -170,10 +175,14 @@ public partial class ProductDashboardView : ComponentBase, IDisposable
     private static string FormatRelativeTime(DateTime dateTime)
     {
         var diff = DateTime.UtcNow - dateTime;
-        if (diff.TotalMinutes < 1) return "just now";
-        if (diff.TotalMinutes < 60) return $"{(int)diff.TotalMinutes}m ago";
-        if (diff.TotalHours < 24) return $"{(int)diff.TotalHours}h ago";
-        if (diff.TotalDays < 7) return $"{(int)diff.TotalDays}d ago";
+        if (diff.TotalMinutes < 1)
+            return "just now";
+        if (diff.TotalMinutes < 60)
+            return $"{(int)diff.TotalMinutes}m ago";
+        if (diff.TotalHours < 24)
+            return $"{(int)diff.TotalHours}h ago";
+        if (diff.TotalDays < 7)
+            return $"{(int)diff.TotalDays}d ago";
         return dateTime.ToString("MMM d");
     }
 

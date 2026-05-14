@@ -81,8 +81,10 @@ public sealed class TeamManagerService : ITeamManager
         if (team is null)
             return null;
 
-        if (name is not null) team.Name = name;
-        if (description is not null) team.Description = description;
+        if (name is not null)
+            team.Name = name;
+        if (description is not null)
+            team.Description = description;
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 

@@ -305,9 +305,12 @@ public sealed class MusicGrpcServiceImpl : MusicGrpcService.MusicGrpcServiceBase
             var tracks = await _trackService.SearchAsync(caller, request.Query, request.TrackCount);
 
             var response = new SearchResponse { Success = true };
-            foreach (var a in artists) response.Artists.Add(MapArtist(a));
-            foreach (var a in albums) response.Albums.Add(MapAlbum(a));
-            foreach (var t in tracks) response.Tracks.Add(MapTrack(t));
+            foreach (var a in artists)
+                response.Artists.Add(MapArtist(a));
+            foreach (var a in albums)
+                response.Albums.Add(MapAlbum(a));
+            foreach (var t in tracks)
+                response.Tracks.Add(MapTrack(t));
             return response;
         }
         catch (Exception ex)
@@ -443,9 +446,12 @@ public sealed class MusicGrpcServiceImpl : MusicGrpcService.MusicGrpcServiceBase
     private static MusicSearchableDocument MapTrackToSearchableDocument(TrackDto track)
     {
         var contentParts = new List<string>();
-        if (!string.IsNullOrEmpty(track.ArtistName)) contentParts.Add(track.ArtistName);
-        if (!string.IsNullOrEmpty(track.AlbumTitle)) contentParts.Add(track.AlbumTitle);
-        if (!string.IsNullOrEmpty(track.Genre)) contentParts.Add(track.Genre);
+        if (!string.IsNullOrEmpty(track.ArtistName))
+            contentParts.Add(track.ArtistName);
+        if (!string.IsNullOrEmpty(track.AlbumTitle))
+            contentParts.Add(track.AlbumTitle);
+        if (!string.IsNullOrEmpty(track.Genre))
+            contentParts.Add(track.Genre);
 
         var doc = new MusicSearchableDocument
         {

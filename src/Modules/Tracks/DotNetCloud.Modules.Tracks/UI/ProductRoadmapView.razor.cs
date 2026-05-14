@@ -62,7 +62,8 @@ public partial class ProductRoadmapView : ComponentBase
 
     private void ComputeTimeline()
     {
-        if (_data is null || _data.Items.Count == 0) return;
+        if (_data is null || _data.Items.Count == 0)
+            return;
 
         var now = DateTime.UtcNow;
         var allDates = _data.Items
@@ -148,7 +149,8 @@ public partial class ProductRoadmapView : ComponentBase
                 "quarter" => current.AddMonths(3),
                 _ => current.AddMonths(1)
             };
-            if (next > _timelineEnd) next = _timelineEnd;
+            if (next > _timelineEnd)
+                next = _timelineEnd;
 
             var label = _zoomLevel switch
             {
@@ -171,9 +173,11 @@ public partial class ProductRoadmapView : ComponentBase
 
     private double GetDatePositionPercent(DateTime? date)
     {
-        if (!date.HasValue) return 0;
+        if (!date.HasValue)
+            return 0;
         var totalDays = (_timelineEnd - _timelineStart).TotalDays;
-        if (totalDays <= 0) return 0;
+        if (totalDays <= 0)
+            return 0;
         return Math.Clamp((date.Value - _timelineStart).TotalDays / totalDays * 100.0, 0, 100);
     }
 

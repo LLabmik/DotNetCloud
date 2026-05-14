@@ -117,7 +117,8 @@ public sealed class GlobalChatNotificationState : IDisposable
     /// </summary>
     public void AcceptCall(bool withVideo)
     {
-        if (IncomingCallId is null) return;
+        if (IncomingCallId is null)
+            return;
 
         PendingAccept = new PendingCallAccept(
             IncomingCallId.Value,
@@ -153,9 +154,12 @@ public sealed class GlobalChatNotificationState : IDisposable
 
     private void HandleCallRinging(CallRingingNotification notification)
     {
-        if (_currentUserId == Guid.Empty) return;
-        if (notification.InitiatorUserId == _currentUserId) return;
-        if (!notification.TargetUserIds.Contains(_currentUserId)) return;
+        if (_currentUserId == Guid.Empty)
+            return;
+        if (notification.InitiatorUserId == _currentUserId)
+            return;
+        if (!notification.TargetUserIds.Contains(_currentUserId))
+            return;
 
         IncomingCallId = notification.CallId;
         IncomingCallInitiatorId = notification.InitiatorUserId;
@@ -176,9 +180,12 @@ public sealed class GlobalChatNotificationState : IDisposable
 
     private void HandleCallInviteReceived(CallInviteReceivedNotification notification)
     {
-        if (_currentUserId == Guid.Empty) return;
-        if (_activeCallId == notification.CallId) return;
-        if (notification.TargetUserId != _currentUserId) return;
+        if (_currentUserId == Guid.Empty)
+            return;
+        if (_activeCallId == notification.CallId)
+            return;
+        if (notification.TargetUserId != _currentUserId)
+            return;
 
         IncomingCallId = notification.CallId;
         IncomingCallInitiatorId = notification.InvitedByUserId;
@@ -219,8 +226,10 @@ public sealed class GlobalChatNotificationState : IDisposable
 
     private void HandleNewMessageToast(NewMessageToastNotification notification)
     {
-        if (_currentUserId == Guid.Empty) return;
-        if (notification.TargetUserId != _currentUserId) return;
+        if (_currentUserId == Guid.Empty)
+            return;
+        if (notification.TargetUserId != _currentUserId)
+            return;
 
         ToastChannelId = notification.ChannelId;
         ToastChannelName = notification.ChannelName;

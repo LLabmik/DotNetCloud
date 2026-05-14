@@ -68,10 +68,14 @@ public sealed class RecurringWorkItemService
             .FirstOrDefaultAsync(rr => rr.Id == ruleId, ct)
             ?? throw new NotFoundException("RecurringRule", ruleId);
 
-        if (dto.SwimlaneId.HasValue) rule.SwimlaneId = dto.SwimlaneId.Value;
-        if (dto.Type.HasValue) rule.Type = (WorkItemType)dto.Type.Value;
-        if (dto.TemplateJson is not null) rule.TemplateJson = dto.TemplateJson;
-        if (dto.IsActive.HasValue) rule.IsActive = dto.IsActive.Value;
+        if (dto.SwimlaneId.HasValue)
+            rule.SwimlaneId = dto.SwimlaneId.Value;
+        if (dto.Type.HasValue)
+            rule.Type = (WorkItemType)dto.Type.Value;
+        if (dto.TemplateJson is not null)
+            rule.TemplateJson = dto.TemplateJson;
+        if (dto.IsActive.HasValue)
+            rule.IsActive = dto.IsActive.Value;
 
         if (dto.CronExpression is not null)
         {
@@ -167,7 +171,8 @@ public sealed class RecurringWorkItemService
                     foreach (var labelStr in labels.EnumerateArray())
                     {
                         var labelTitle = labelStr.GetString();
-                        if (string.IsNullOrWhiteSpace(labelTitle)) continue;
+                        if (string.IsNullOrWhiteSpace(labelTitle))
+                            continue;
 
                         var label = await _db.Set<Label>()
                             .FirstOrDefaultAsync(l => l.ProductId == rule.ProductId

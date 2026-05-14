@@ -143,7 +143,7 @@ public class DeviceModuleRegistryTests
     {
         // Arrange
         var statuses = new[] { "Enabled", "Disabled", "UpdateAvailable", "Failed", "Installing", "Uninstalling", "Updating" };
-        
+
         foreach (var status in statuses)
         {
             var module = new InstalledModule
@@ -174,7 +174,7 @@ public class DeviceModuleRegistryTests
     {
         // Arrange
         var versions = new[] { "1.0.0", "1.1.0", "2.0.0", "1.0.1", "1.0.0-beta", "1.0.0-rc1" };
-        
+
         foreach (var (version, index) in versions.Select((v, i) => (v, i)))
         {
             var module = new InstalledModule

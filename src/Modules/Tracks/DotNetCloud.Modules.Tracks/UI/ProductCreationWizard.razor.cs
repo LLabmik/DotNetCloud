@@ -118,7 +118,8 @@ public partial class ProductCreationWizard : ComponentBase
 
     private async Task SearchMembersAsync()
     {
-        if (string.IsNullOrWhiteSpace(_memberSearchTerm) || _memberSearchTerm.Length < 2) return;
+        if (string.IsNullOrWhiteSpace(_memberSearchTerm) || _memberSearchTerm.Length < 2)
+            return;
 
         _isSearching = true;
         try
@@ -156,7 +157,8 @@ public partial class ProductCreationWizard : ComponentBase
 
     private async Task SubmitAsync()
     {
-        if (!IsStepValid(0)) return;
+        if (!IsStepValid(0))
+            return;
 
         _isSubmitting = true;
         _errorMessage = null;

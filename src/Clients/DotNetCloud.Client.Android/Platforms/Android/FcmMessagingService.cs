@@ -69,16 +69,19 @@ public sealed class FcmMessagingService : FirebaseMessagingService
         try
         {
             var serverStore = Ioc.Default.GetService<IServerConnectionStore>();
-            var tokenStore  = Ioc.Default.GetService<ISecureTokenStore>();
+            var tokenStore = Ioc.Default.GetService<ISecureTokenStore>();
             var pushService = Ioc.Default.GetService<IPushNotificationService>();
 
-            if (serverStore is null || tokenStore is null || pushService is null) return;
+            if (serverStore is null || tokenStore is null || pushService is null)
+                return;
 
             var connection = serverStore.GetActive();
-            if (connection is null) return;
+            if (connection is null)
+                return;
 
             var accessToken = await tokenStore.GetAccessTokenAsync(connection.ServerBaseUrl).ConfigureAwait(false);
-            if (accessToken is null) return;
+            if (accessToken is null)
+                return;
 
             await pushService.RegisterAsync(connection.ServerBaseUrl, accessToken).ConfigureAwait(false);
         }
@@ -109,9 +112,9 @@ public sealed class FcmMessagingService : FirebaseMessagingService
 
         var notificationChannelId = type switch
         {
-            "mention"      => MainApplication.ChannelIdMentions,
+            "mention" => MainApplication.ChannelIdMentions,
             "announcement" => MainApplication.ChannelIdAnnouncements,
-            _              => MainApplication.ChannelIdMessages
+            _ => MainApplication.ChannelIdMessages
         };
 
         var iconRes = ApplicationContext!.Resources!

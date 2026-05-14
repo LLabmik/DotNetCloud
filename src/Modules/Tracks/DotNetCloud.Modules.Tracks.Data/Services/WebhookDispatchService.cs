@@ -34,7 +34,8 @@ public sealed class WebhookDispatchService : IWebhookDispatchService
 
             var subscriptions = await webhookService.GetMatchingSubscriptionsAsync(eventType, ct);
 
-            if (subscriptions.Count == 0) return;
+            if (subscriptions.Count == 0)
+                return;
 
             _logger.LogDebug("Dispatching {EventType} to {Count} webhook subscriptions",
                 eventType, subscriptions.Count);

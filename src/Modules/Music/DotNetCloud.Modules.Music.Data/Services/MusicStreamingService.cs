@@ -147,7 +147,8 @@ public sealed class MusicStreamingService : IMusicStreamingService
         {
             // Suffix range: bytes=-500 means last 500 bytes
             var start2 = totalLength - suffixLength;
-            if (start2 < 0) start2 = 0;
+            if (start2 < 0)
+                start2 = 0;
             return (start2, totalLength - 1);
         }
 

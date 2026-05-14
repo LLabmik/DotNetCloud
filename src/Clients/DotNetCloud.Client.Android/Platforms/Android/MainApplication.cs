@@ -11,12 +11,12 @@ namespace DotNetCloud.Client.Android;
 public class MainApplication : MauiApplication
 {
     // ── Notification channel IDs ─────────────────────────────────────────────
-    internal const string ChannelIdConnection    = "chat_connection";
-    internal const string ChannelIdMessages      = "chat_messages";
-    internal const string ChannelIdMentions      = "chat_mentions";
+    internal const string ChannelIdConnection = "chat_connection";
+    internal const string ChannelIdMessages = "chat_messages";
+    internal const string ChannelIdMentions = "chat_mentions";
     internal const string ChannelIdAnnouncements = "chat_announcements";
-    internal const string ChannelIdUpload        = "photo_upload";
-    internal const string ChannelIdMediaUpload   = "media_upload";
+    internal const string ChannelIdUpload = "photo_upload";
+    internal const string ChannelIdMediaUpload = "media_upload";
 
     /// <summary>
     /// Initializes a new <see cref="MainApplication"/> and registers notification channels.
@@ -41,7 +41,8 @@ public class MainApplication : MauiApplication
     private void CreateNotificationChannels()
     {
         var nm = (NotificationManager?)GetSystemService(NotificationService);
-        if (nm is null) return;
+        if (nm is null)
+            return;
 
         // Persistent connection indicator — low importance, no sound.
         nm.CreateNotificationChannel(new NotificationChannel(

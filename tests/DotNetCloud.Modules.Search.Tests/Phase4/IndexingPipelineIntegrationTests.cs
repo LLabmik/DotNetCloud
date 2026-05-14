@@ -200,15 +200,21 @@ public class IndexingPipelineIntegrationTests
         // Index from files module
         await _eventHandler.HandleAsync(new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(), CreatedAt = DateTime.UtcNow,
-            ModuleId = "files", EntityId = "f1", Action = SearchIndexAction.Index
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            ModuleId = "files",
+            EntityId = "f1",
+            Action = SearchIndexAction.Index
         });
 
         // Index from notes module
         await _eventHandler.HandleAsync(new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(), CreatedAt = DateTime.UtcNow,
-            ModuleId = "notes", EntityId = "n1", Action = SearchIndexAction.Index
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            ModuleId = "notes",
+            EntityId = "n1",
+            Action = SearchIndexAction.Index
         });
 
         await Task.Delay(500);
@@ -242,8 +248,11 @@ public class IndexingPipelineIntegrationTests
         _indexingService.Start();
         await _eventHandler.HandleAsync(new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(), CreatedAt = DateTime.UtcNow,
-            ModuleId = "notes", EntityId = "n1", Action = SearchIndexAction.Index
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            ModuleId = "notes",
+            EntityId = "n1",
+            Action = SearchIndexAction.Index
         });
         await Task.Delay(300);
 
@@ -255,8 +264,11 @@ public class IndexingPipelineIntegrationTests
 
         await _eventHandler.HandleAsync(new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(), CreatedAt = DateTime.UtcNow,
-            ModuleId = "notes", EntityId = "n1", Action = SearchIndexAction.Index
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            ModuleId = "notes",
+            EntityId = "n1",
+            Action = SearchIndexAction.Index
         });
         await Task.Delay(300);
         await _indexingService.StopAsync();
@@ -303,8 +315,11 @@ public class IndexingPipelineIntegrationTests
         // Send Index event for deleted entity
         await _eventHandler.HandleAsync(new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(), CreatedAt = DateTime.UtcNow,
-            ModuleId = "files", EntityId = "deleted", Action = SearchIndexAction.Index
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            ModuleId = "files",
+            EntityId = "deleted",
+            Action = SearchIndexAction.Index
         });
 
         await Task.Delay(300);
@@ -373,8 +388,11 @@ public class IndexingPipelineIntegrationTests
         // Three successful operations
         await _eventHandler.HandleAsync(new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(), CreatedAt = DateTime.UtcNow,
-            ModuleId = "files", EntityId = "f1", Action = SearchIndexAction.Index
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            ModuleId = "files",
+            EntityId = "f1",
+            Action = SearchIndexAction.Index
         });
 
         await Task.Delay(300);
@@ -389,14 +407,14 @@ public class IndexingPipelineIntegrationTests
     private SearchDocument CreateDoc(
         string moduleId, string entityId, string entityType,
         string title, string content) => new()
-    {
-        ModuleId = moduleId,
-        EntityId = entityId,
-        EntityType = entityType,
-        Title = title,
-        Content = content,
-        OwnerId = _userId,
-        CreatedAt = DateTimeOffset.UtcNow,
-        UpdatedAt = DateTimeOffset.UtcNow
-    };
+        {
+            ModuleId = moduleId,
+            EntityId = entityId,
+            EntityType = entityType,
+            Title = title,
+            Content = content,
+            OwnerId = _userId,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        };
 }

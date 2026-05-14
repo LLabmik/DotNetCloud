@@ -176,29 +176,38 @@ public sealed class SafeUrlFetcher
 
     private static bool IsPrivateOrSpecialIp(IPAddress ip)
     {
-        if (IPAddress.IsLoopback(ip)) return true;
+        if (IPAddress.IsLoopback(ip))
+            return true;
 
         var bytes = ip.GetAddressBytes();
 
         if (ip.AddressFamily == AddressFamily.InterNetwork)
         {
             // 10.0.0.0/8
-            if (bytes[0] == 10) return true;
+            if (bytes[0] == 10)
+                return true;
             // 172.16.0.0/12
-            if (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31) return true;
+            if (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31)
+                return true;
             // 192.168.0.0/16
-            if (bytes[0] == 192 && bytes[1] == 168) return true;
+            if (bytes[0] == 192 && bytes[1] == 168)
+                return true;
             // 169.254.0.0/16 (link-local)
-            if (bytes[0] == 169 && bytes[1] == 254) return true;
+            if (bytes[0] == 169 && bytes[1] == 254)
+                return true;
             // 100.64.0.0/10 (CGNAT)
-            if (bytes[0] == 100 && bytes[1] >= 64 && bytes[1] <= 127) return true;
+            if (bytes[0] == 100 && bytes[1] >= 64 && bytes[1] <= 127)
+                return true;
         }
 
         if (ip.AddressFamily == AddressFamily.InterNetworkV6)
         {
-            if (IPAddress.IsLoopback(ip)) return true;
-            if (ip.IsIPv6LinkLocal) return true;
-            if (ip.IsIPv6SiteLocal) return true;
+            if (IPAddress.IsLoopback(ip))
+                return true;
+            if (ip.IsIPv6LinkLocal)
+                return true;
+            if (ip.IsIPv6SiteLocal)
+                return true;
         }
 
         return false;

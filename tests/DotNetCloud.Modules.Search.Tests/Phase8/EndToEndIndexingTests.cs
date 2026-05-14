@@ -104,7 +104,8 @@ public class EndToEndIndexingTests
             for (var i = 0; i < 20; i++)
             {
                 await Task.Delay(100);
-                if (indexingService.TotalProcessed > 0) break;
+                if (indexingService.TotalProcessed > 0)
+                    break;
             }
 
             // Now search for the document
@@ -201,7 +202,8 @@ public class EndToEndIndexingTests
             for (var i = 0; i < 20; i++)
             {
                 await Task.Delay(100);
-                if (indexingService.TotalProcessed > 0) break;
+                if (indexingService.TotalProcessed > 0)
+                    break;
             }
 
             // Verify old content is gone
@@ -434,7 +436,8 @@ public class EndToEndIndexingTests
             for (var i = 0; i < 20; i++)
             {
                 await Task.Delay(100);
-                if (indexingService.TotalProcessed > 0) break;
+                if (indexingService.TotalProcessed > 0)
+                    break;
             }
 
             var result = await provider.SearchAsync(new SearchQuery

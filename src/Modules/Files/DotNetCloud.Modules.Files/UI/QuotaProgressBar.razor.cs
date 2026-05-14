@@ -19,8 +19,8 @@ public partial class QuotaProgressBar : ComponentBase
         {
             { IsExceeded: true } => "quota-bar--exceeded",
             { IsCritical: true } => "quota-bar--critical",
-            { IsWarning: true }  => "quota-bar--warning",
-            _                    => "quota-bar--normal"
+            { IsWarning: true } => "quota-bar--warning",
+            _ => "quota-bar--normal"
         };
 
     /// <summary>Bar fill width as a percentage string clamped to 0–100.</summary>
@@ -39,9 +39,12 @@ public partial class QuotaProgressBar : ComponentBase
 
     private static string FormatBytes(long bytes)
     {
-        if (bytes < 1024) return $"{bytes} B";
-        if (bytes < 1024L * 1024) return $"{bytes / 1024.0:F1} KB";
-        if (bytes < 1024L * 1024 * 1024) return $"{bytes / (1024.0 * 1024):F1} MB";
+        if (bytes < 1024)
+            return $"{bytes} B";
+        if (bytes < 1024L * 1024)
+            return $"{bytes / 1024.0:F1} KB";
+        if (bytes < 1024L * 1024 * 1024)
+            return $"{bytes / (1024.0 * 1024):F1} MB";
         return $"{bytes / (1024.0 * 1024 * 1024):F2} GB";
     }
 }

@@ -149,8 +149,8 @@ public class EventSystemTests
         var @event = new TestEvent();
         var systemCallerId = Guid.NewGuid();
         var context = new DotNetCloud.Core.Authorization.CallerContext(
-            systemCallerId, 
-            Array.Empty<string>(), 
+            systemCallerId,
+            Array.Empty<string>(),
             DotNetCloud.Core.Authorization.CallerType.System);
 
         // Act

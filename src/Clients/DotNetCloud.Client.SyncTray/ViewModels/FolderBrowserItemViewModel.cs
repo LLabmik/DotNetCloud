@@ -104,7 +104,8 @@ public sealed class FolderBrowserItemViewModel : ViewModelBase
     /// </summary>
     internal void UpdateFromChildren()
     {
-        if (Children.Count == 0) return;
+        if (Children.Count == 0)
+            return;
 
         var allChecked = Children.All(c => c.IsChecked == true);
         var allUnchecked = Children.All(c => c.IsChecked == false);

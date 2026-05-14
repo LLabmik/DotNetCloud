@@ -132,17 +132,22 @@ public partial class FileSidebar : ComponentBase
     /// <summary>Formats a byte count as a human-readable string.</summary>
     protected static string FormatBytes(long bytes)
     {
-        if (bytes >= 1024L * 1024 * 1024) return $"{bytes / (1024.0 * 1024.0 * 1024.0):F2} GB";
-        if (bytes >= 1024L * 1024) return $"{bytes / (1024.0 * 1024.0):F1} MB";
-        if (bytes >= 1024L) return $"{bytes / 1024.0:F1} KB";
+        if (bytes >= 1024L * 1024 * 1024)
+            return $"{bytes / (1024.0 * 1024.0 * 1024.0):F2} GB";
+        if (bytes >= 1024L * 1024)
+            return $"{bytes / (1024.0 * 1024.0):F1} MB";
+        if (bytes >= 1024L)
+            return $"{bytes / 1024.0:F1} KB";
         return $"{bytes} B";
     }
 
     /// <summary>CSS class for the quota bar fill based on usage percentage.</summary>
     protected static string QuotaBarClass(QuotaViewModel q)
     {
-        if (q.UsagePercent >= 95) return "quota-critical";
-        if (q.UsagePercent >= 80) return "quota-warning";
+        if (q.UsagePercent >= 95)
+            return "quota-critical";
+        if (q.UsagePercent >= 80)
+            return "quota-warning";
         return "";
     }
 }

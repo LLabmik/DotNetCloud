@@ -428,8 +428,10 @@ public sealed class CalendarGrpcService : Protos.CalendarGrpcService.CalendarGrp
     private static SearchableDocument MapEventToSearchableDocument(CalendarEventDto evt, string? calendarName)
     {
         var contentParts = new List<string>();
-        if (!string.IsNullOrEmpty(evt.Description)) contentParts.Add(evt.Description);
-        if (!string.IsNullOrEmpty(evt.Location)) contentParts.Add(evt.Location);
+        if (!string.IsNullOrEmpty(evt.Description))
+            contentParts.Add(evt.Description);
+        if (!string.IsNullOrEmpty(evt.Location))
+            contentParts.Add(evt.Location);
 
         var doc = new SearchableDocument
         {

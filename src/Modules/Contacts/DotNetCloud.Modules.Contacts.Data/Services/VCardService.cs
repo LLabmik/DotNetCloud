@@ -138,21 +138,24 @@ public sealed class VCardService : IVCardService
         foreach (var email in contact.Emails)
         {
             sb.Append("EMAIL;TYPE=").Append(email.Label.ToUpperInvariant());
-            if (email.IsPrimary) sb.Append(";TYPE=PREF");
+            if (email.IsPrimary)
+                sb.Append(";TYPE=PREF");
             sb.Append(':').AppendLine(EscapeVCardValue(email.Address));
         }
 
         foreach (var phone in contact.PhoneNumbers)
         {
             sb.Append("TEL;TYPE=").Append(phone.Label.ToUpperInvariant());
-            if (phone.IsPrimary) sb.Append(";TYPE=PREF");
+            if (phone.IsPrimary)
+                sb.Append(";TYPE=PREF");
             sb.Append(':').AppendLine(EscapeVCardValue(phone.Number));
         }
 
         foreach (var addr in contact.Addresses)
         {
             sb.Append("ADR;TYPE=").Append(addr.Label.ToUpperInvariant());
-            if (addr.IsPrimary) sb.Append(";TYPE=PREF");
+            if (addr.IsPrimary)
+                sb.Append(";TYPE=PREF");
             sb.Append(":;;")
               .Append(EscapeVCardValue(addr.Street ?? ""))
               .Append(';')
@@ -225,11 +228,23 @@ public sealed class VCardService : IVCardService
             if (line.Equals("BEGIN:VCARD", StringComparison.OrdinalIgnoreCase))
             {
                 inVCard = true;
-                displayName = null; firstName = null; lastName = null; middleName = null;
-                prefix = null; suffix = null; org = null; dept = null; jobTitle = null;
-                notes = null; websiteUrl = null; birthday = null;
-                photoData = null; photoContentType = null;
-                emails = []; phones = []; addresses = [];
+                displayName = null;
+                firstName = null;
+                lastName = null;
+                middleName = null;
+                prefix = null;
+                suffix = null;
+                org = null;
+                dept = null;
+                jobTitle = null;
+                notes = null;
+                websiteUrl = null;
+                birthday = null;
+                photoData = null;
+                photoContentType = null;
+                emails = [];
+                phones = [];
+                addresses = [];
                 continue;
             }
 
@@ -261,7 +276,8 @@ public sealed class VCardService : IVCardService
                 continue;
             }
 
-            if (!inVCard) continue;
+            if (!inVCard)
+                continue;
 
             if (line.StartsWith("FN:", StringComparison.OrdinalIgnoreCase))
             {
@@ -273,11 +289,16 @@ public sealed class VCardService : IVCardService
                 if (colonIdx >= 0)
                 {
                     var parts = line[(colonIdx + 1)..].Split(';');
-                    if (parts.Length > 0) lastName = NullIfEmpty(UnescapeVCardValue(parts[0]));
-                    if (parts.Length > 1) firstName = NullIfEmpty(UnescapeVCardValue(parts[1]));
-                    if (parts.Length > 2) middleName = NullIfEmpty(UnescapeVCardValue(parts[2]));
-                    if (parts.Length > 3) prefix = NullIfEmpty(UnescapeVCardValue(parts[3]));
-                    if (parts.Length > 4) suffix = NullIfEmpty(UnescapeVCardValue(parts[4]));
+                    if (parts.Length > 0)
+                        lastName = NullIfEmpty(UnescapeVCardValue(parts[0]));
+                    if (parts.Length > 1)
+                        firstName = NullIfEmpty(UnescapeVCardValue(parts[1]));
+                    if (parts.Length > 2)
+                        middleName = NullIfEmpty(UnescapeVCardValue(parts[2]));
+                    if (parts.Length > 3)
+                        prefix = NullIfEmpty(UnescapeVCardValue(parts[3]));
+                    if (parts.Length > 4)
+                        suffix = NullIfEmpty(UnescapeVCardValue(parts[4]));
                 }
             }
             else if (line.StartsWith("ORG:", StringComparison.OrdinalIgnoreCase) || line.StartsWith("ORG;", StringComparison.OrdinalIgnoreCase))
@@ -287,7 +308,8 @@ public sealed class VCardService : IVCardService
                 {
                     var parts = line[(colonIdx + 1)..].Split(';');
                     org = NullIfEmpty(UnescapeVCardValue(parts[0]));
-                    if (parts.Length > 1) dept = NullIfEmpty(UnescapeVCardValue(parts[1]));
+                    if (parts.Length > 1)
+                        dept = NullIfEmpty(UnescapeVCardValue(parts[1]));
                 }
             }
             else if (line.StartsWith("TITLE:", StringComparison.OrdinalIgnoreCase))

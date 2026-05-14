@@ -24,10 +24,12 @@ public static class AppBadgeManager
     public static int GetActiveBadgeCount(Context context)
     {
         var nm = (NotificationManager?)context.GetSystemService(Context.NotificationService);
-        if (nm is null) return 0;
+        if (nm is null)
+            return 0;
 
         var activeNotifications = nm.GetActiveNotifications();
-        if (activeNotifications is null) return 0;
+        if (activeNotifications is null)
+            return 0;
 
         var count = 0;
         foreach (var sbn in activeNotifications)

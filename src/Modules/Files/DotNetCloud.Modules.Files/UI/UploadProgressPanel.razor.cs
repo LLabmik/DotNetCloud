@@ -55,26 +55,27 @@ public partial class UploadProgressPanel : ComponentBase
     protected static string GetProgressClass(UploadStatus status) => status switch
     {
         UploadStatus.Complete => "progress-bar-fill--success",
-        UploadStatus.Failed   => "progress-bar-fill--error",
-        UploadStatus.Paused   => "progress-bar-fill--paused",
-        _                     => string.Empty
+        UploadStatus.Failed => "progress-bar-fill--error",
+        UploadStatus.Paused => "progress-bar-fill--paused",
+        _ => string.Empty
     };
 
     /// <summary>Returns a human-readable status string for a file upload item.</summary>
     protected static string GetStatusLabel(UploadFileItem file) => file.Status switch
     {
-        UploadStatus.Pending   => "Pending",
+        UploadStatus.Pending => "Pending",
         UploadStatus.Uploading => BuildUploadingLabel(file),
-        UploadStatus.Paused    => "Paused",
-        UploadStatus.Complete  => "Complete",
-        UploadStatus.Failed    => "Failed",
-        _                      => string.Empty
+        UploadStatus.Paused => "Paused",
+        UploadStatus.Complete => "Complete",
+        UploadStatus.Failed => "Failed",
+        _ => string.Empty
     };
 
     /// <summary>Truncates a filename to keep the panel compact.</summary>
     protected static string TruncateName(string name, int maxLength = 28)
     {
-        if (name.Length <= maxLength) return name;
+        if (name.Length <= maxLength)
+            return name;
         var ext = Path.GetExtension(name);
         var stem = Path.GetFileNameWithoutExtension(name);
         var budget = maxLength - ext.Length - 1;

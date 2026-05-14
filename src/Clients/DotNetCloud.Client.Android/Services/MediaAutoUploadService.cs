@@ -73,7 +73,8 @@ internal sealed class MediaAutoUploadService : IMediaAutoUploadService
             return;
 
         await _loopCts.CancelAsync().ConfigureAwait(false);
-        try { await (_loopTask ?? Task.CompletedTask).ConfigureAwait(false); }
+        try
+        { await (_loopTask ?? Task.CompletedTask).ConfigureAwait(false); }
         catch (OperationCanceledException) { }
         _loopCts.Dispose();
         _loopCts = null;

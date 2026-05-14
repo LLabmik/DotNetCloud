@@ -175,7 +175,8 @@ internal sealed class TracksActivityChatHandler :
 
     private async Task BroadcastTracksActivityAsync(string action, Guid productId, object payload, CancellationToken cancellationToken)
     {
-        if (_broadcaster is null) return;
+        if (_broadcaster is null)
+            return;
 
         // Broadcast to the global tracks-activity group (Chat UI subscribes to this)
         await _broadcaster.BroadcastAsync(TracksActivityGroup, TracksActivityEventName, new

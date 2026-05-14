@@ -48,7 +48,9 @@ public sealed class LocalFileStorageEngine : IFileStorageEngine
         var writtenSize = new FileInfo(fullPath).Length;
         if (writtenSize != data.Length)
         {
-            try { File.Delete(fullPath); } catch { /* best-effort cleanup */ }
+            try
+            { File.Delete(fullPath); }
+            catch { /* best-effort cleanup */ }
             throw new IOException(
                 $"Chunk write verification failed for '{storagePath}': expected {data.Length} bytes, got {writtenSize}.");
         }

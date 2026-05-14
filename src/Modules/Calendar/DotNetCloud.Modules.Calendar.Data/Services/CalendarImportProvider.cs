@@ -192,7 +192,8 @@ public sealed class CalendarImportProvider : IImportProvider
                 continue;
             }
 
-            if (current is null) continue;
+            if (current is null)
+                continue;
 
             if (line.StartsWith("SUMMARY:", StringComparison.OrdinalIgnoreCase))
                 current.Title = UnescapeICalText(line[8..]);
@@ -223,7 +224,8 @@ public sealed class CalendarImportProvider : IImportProvider
     private static (DateTime dt, bool isAllDay) ParseICalDateTime(string line)
     {
         var colonIndex = line.IndexOf(':');
-        if (colonIndex < 0) return (DateTime.UtcNow, false);
+        if (colonIndex < 0)
+            return (DateTime.UtcNow, false);
 
         var value = line[(colonIndex + 1)..].Trim();
         var isAllDay = line.Contains("VALUE=DATE", StringComparison.OrdinalIgnoreCase)

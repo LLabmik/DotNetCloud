@@ -106,9 +106,12 @@ public sealed class AlbumService : Photos.Services.IAlbumService
             .FirstOrDefaultAsync(a => a.Id == albumId && a.OwnerId == caller.UserId, cancellationToken)
             ?? throw new BusinessRuleException(ErrorCodes.AlbumNotFound, "Album not found.");
 
-        if (dto.Title is not null) album.Title = dto.Title;
-        if (dto.Description is not null) album.Description = dto.Description;
-        if (dto.CoverPhotoId.HasValue) album.CoverPhotoId = dto.CoverPhotoId;
+        if (dto.Title is not null)
+            album.Title = dto.Title;
+        if (dto.Description is not null)
+            album.Description = dto.Description;
+        if (dto.CoverPhotoId.HasValue)
+            album.CoverPhotoId = dto.CoverPhotoId;
         album.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(cancellationToken);

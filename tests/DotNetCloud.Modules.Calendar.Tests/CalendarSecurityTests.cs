@@ -119,13 +119,17 @@ public class CalendarSecurityTests
 
         await _eventService.CreateEventAsync(new CreateCalendarEventDto
         {
-            CalendarId = calA.Id, Title = "A's Event",
-            StartUtc = DateTime.UtcNow, EndUtc = DateTime.UtcNow.AddHours(1)
+            CalendarId = calA.Id,
+            Title = "A's Event",
+            StartUtc = DateTime.UtcNow,
+            EndUtc = DateTime.UtcNow.AddHours(1)
         }, _userA);
         await _eventService.CreateEventAsync(new CreateCalendarEventDto
         {
-            CalendarId = calB.Id, Title = "B's Event",
-            StartUtc = DateTime.UtcNow, EndUtc = DateTime.UtcNow.AddHours(1)
+            CalendarId = calB.Id,
+            Title = "B's Event",
+            StartUtc = DateTime.UtcNow,
+            EndUtc = DateTime.UtcNow.AddHours(1)
         }, _userB);
 
         var eventsA = await _eventService.ListEventsAsync(calA.Id, _userA);
@@ -145,13 +149,17 @@ public class CalendarSecurityTests
 
         await _eventService.CreateEventAsync(new CreateCalendarEventDto
         {
-            CalendarId = calA.Id, Title = "Classified Alpha",
-            StartUtc = DateTime.UtcNow, EndUtc = DateTime.UtcNow.AddHours(1)
+            CalendarId = calA.Id,
+            Title = "Classified Alpha",
+            StartUtc = DateTime.UtcNow,
+            EndUtc = DateTime.UtcNow.AddHours(1)
         }, _userA);
         await _eventService.CreateEventAsync(new CreateCalendarEventDto
         {
-            CalendarId = calB.Id, Title = "Classified Beta",
-            StartUtc = DateTime.UtcNow, EndUtc = DateTime.UtcNow.AddHours(1)
+            CalendarId = calB.Id,
+            Title = "Classified Beta",
+            StartUtc = DateTime.UtcNow,
+            EndUtc = DateTime.UtcNow.AddHours(1)
         }, _userB);
 
         var resultsA = await _eventService.SearchEventsAsync(_userA, "Classified");

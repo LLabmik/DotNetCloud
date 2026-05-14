@@ -67,9 +67,12 @@ public sealed class CalendarSearchableModule : ISearchableModule
             ["EndUtc"] = evt.EndUtc.ToString("O"),
             ["Status"] = evt.Status.ToString()
         };
-        if (evt.IsAllDay) metadata["AllDay"] = "true";
-        if (!string.IsNullOrEmpty(evt.Location)) metadata["Location"] = evt.Location;
-        if (evt.Calendar is not null) metadata["CalendarName"] = evt.Calendar.Name;
+        if (evt.IsAllDay)
+            metadata["AllDay"] = "true";
+        if (!string.IsNullOrEmpty(evt.Location))
+            metadata["Location"] = evt.Location;
+        if (evt.Calendar is not null)
+            metadata["CalendarName"] = evt.Calendar.Name;
 
         return new SearchDocument
         {

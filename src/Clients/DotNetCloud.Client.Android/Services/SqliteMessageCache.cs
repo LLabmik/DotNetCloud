@@ -12,7 +12,8 @@ internal sealed class SqliteMessageCache : ILocalMessageCache, IAsyncDisposable
 
     private async Task<SQLiteAsyncConnection> GetDbAsync()
     {
-        if (_db is not null) return _db;
+        if (_db is not null)
+            return _db;
         var dbPath = Path.Combine(FileSystem.AppDataDirectory, "message_cache.db3");
         _db = new SQLiteAsyncConnection(dbPath);
         await _db.CreateTableAsync<MessageRow>().ConfigureAwait(false);

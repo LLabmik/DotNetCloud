@@ -44,7 +44,9 @@ public class MetadataEnrichmentServiceTests
         _db.Dispose();
         if (Directory.Exists(_tempArtDir))
         {
-            try { Directory.Delete(_tempArtDir, true); } catch { }
+            try
+            { Directory.Delete(_tempArtDir, true); }
+            catch { }
         }
     }
 
@@ -689,7 +691,8 @@ public class MetadataEnrichmentServiceTests
             .Returns<string, CancellationToken>(async (name, ct) =>
             {
                 callCount++;
-                if (callCount >= 2) cts.Cancel();
+                if (callCount >= 2)
+                    cts.Cancel();
                 return new List<MusicBrainzArtistResult>();
             });
 

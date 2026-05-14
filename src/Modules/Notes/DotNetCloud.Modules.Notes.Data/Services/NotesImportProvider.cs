@@ -218,7 +218,8 @@ public sealed class NotesImportProvider : IImportProvider
         for (var i = 0; i < lines.Length; i++)
         {
             var trimmed = lines[i].TrimStart();
-            if (string.IsNullOrWhiteSpace(trimmed)) continue;
+            if (string.IsNullOrWhiteSpace(trimmed))
+                continue;
 
             if (trimmed.StartsWith("# "))
             {

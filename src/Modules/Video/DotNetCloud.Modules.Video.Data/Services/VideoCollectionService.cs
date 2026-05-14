@@ -82,8 +82,10 @@ public sealed class VideoCollectionService : IVideoCollectionService
             .FirstOrDefaultAsync(c => c.Id == collectionId && c.OwnerId == caller.UserId, cancellationToken)
             ?? throw new BusinessRuleException(ErrorCodes.VideoCollectionNotFound, "Collection not found.");
 
-        if (dto.Name is not null) collection.Name = dto.Name;
-        if (dto.Description is not null) collection.Description = dto.Description;
+        if (dto.Name is not null)
+            collection.Name = dto.Name;
+        if (dto.Description is not null)
+            collection.Description = dto.Description;
         collection.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(cancellationToken);
@@ -166,7 +168,8 @@ public sealed class VideoCollectionService : IVideoCollectionService
         var collection = await _db.VideoCollections
             .FirstOrDefaultAsync(c => c.Id == collectionId && c.OwnerId == caller.UserId, cancellationToken);
 
-        if (collection is null) return [];
+        if (collection is null)
+            return [];
 
         var videos = await _db.VideoCollectionItems
             .Include(ci => ci.Video).ThenInclude(v => v!.Metadata)

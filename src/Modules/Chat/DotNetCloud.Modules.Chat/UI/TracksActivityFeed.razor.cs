@@ -68,7 +68,8 @@ public partial class TracksActivityFeed : ComponentBase, IDisposable
     /// <summary>Request a UI re-render if the component is attached to a renderer.</summary>
     private void RequestRender()
     {
-        try { _ = InvokeAsync(StateHasChanged); }
+        try
+        { _ = InvokeAsync(StateHasChanged); }
         catch (InvalidOperationException) { /* No render handle — unit test or disposed component */ }
     }
 
@@ -120,10 +121,14 @@ public partial class TracksActivityFeed : ComponentBase, IDisposable
     {
         var elapsed = DateTime.UtcNow - utcTime;
 
-        if (elapsed.TotalSeconds < 30) return "just now";
-        if (elapsed.TotalMinutes < 1) return $"{(int)elapsed.TotalSeconds}s ago";
-        if (elapsed.TotalHours < 1) return $"{(int)elapsed.TotalMinutes}m ago";
-        if (elapsed.TotalDays < 1) return $"{(int)elapsed.TotalHours}h ago";
+        if (elapsed.TotalSeconds < 30)
+            return "just now";
+        if (elapsed.TotalMinutes < 1)
+            return $"{(int)elapsed.TotalSeconds}s ago";
+        if (elapsed.TotalHours < 1)
+            return $"{(int)elapsed.TotalMinutes}m ago";
+        if (elapsed.TotalDays < 1)
+            return $"{(int)elapsed.TotalHours}h ago";
         return $"{(int)elapsed.TotalDays}d ago";
     }
 

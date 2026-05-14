@@ -63,7 +63,8 @@ public class BookmarksController : BookmarksControllerBase
         {
             var caller = GetAuthenticatedCaller();
             var bookmark = await _bookmarkService.GetAsync(id, caller);
-            if (bookmark is null) return NotFound(ErrorEnvelope(ErrorCodes.BookmarkNotFound, "Bookmark not found."));
+            if (bookmark is null)
+                return NotFound(ErrorEnvelope(ErrorCodes.BookmarkNotFound, "Bookmark not found."));
             return Ok(Envelope(bookmark));
         }
         catch (ValidationException ex)
@@ -170,7 +171,8 @@ public class BookmarksController : BookmarksControllerBase
         {
             var caller = GetAuthenticatedCaller();
             var folder = await _folderService.GetAsync(id, caller);
-            if (folder is null) return NotFound(ErrorEnvelope(ErrorCodes.BookmarkFolderNotFound, "Folder not found."));
+            if (folder is null)
+                return NotFound(ErrorEnvelope(ErrorCodes.BookmarkFolderNotFound, "Folder not found."));
             return Ok(Envelope(folder));
         }
         catch (ValidationException ex)
@@ -297,7 +299,8 @@ public class BookmarksController : BookmarksControllerBase
         try
         {
             var preview = await _previewService.GetPreviewAsync(id);
-            if (preview is null) return NotFound(ErrorEnvelope(ErrorCodes.BookmarkNotFound, "Preview not found."));
+            if (preview is null)
+                return NotFound(ErrorEnvelope(ErrorCodes.BookmarkNotFound, "Preview not found."));
             return Ok(Envelope(preview));
         }
         catch (ValidationException ex)

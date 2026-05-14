@@ -78,7 +78,8 @@ public partial class AnnouncementEditor : ComponentBase
     /// <summary>Saves the announcement.</summary>
     protected async Task Save()
     {
-        if (IsSaveDisabled) return;
+        if (IsSaveDisabled)
+            return;
 
         await OnSave.InvokeAsync(new AnnouncementEditorResult
         {

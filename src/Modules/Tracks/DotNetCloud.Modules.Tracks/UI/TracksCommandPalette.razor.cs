@@ -105,10 +105,12 @@ public class TracksCommandPaletteBase : ComponentBase, IDisposable
             // Debounce
             await Task.Delay(150, ct);
 
-            if (ct.IsCancellationRequested) return;
+            if (ct.IsCancellationRequested)
+                return;
 
             var result = await CommandPaletteService.SearchAsync(OrganizationId, _query, CurrentProductId, ct);
-            if (ct.IsCancellationRequested) return;
+            if (ct.IsCancellationRequested)
+                return;
 
             BuildResults(result);
         }
@@ -264,7 +266,8 @@ public class TracksCommandPaletteBase : ComponentBase, IDisposable
 
     private void TrackRecentItem(PaletteItem item)
     {
-        if (!Guid.TryParse(item.Id, out var guid)) return;
+        if (!Guid.TryParse(item.Id, out var guid))
+            return;
 
         _recentWorkItemIds.Remove(guid);
         _recentWorkItemIds.Insert(0, guid);
@@ -297,7 +300,8 @@ public class TracksCommandPaletteBase : ComponentBase, IDisposable
 
     protected int FindFlatIndex(PaletteItem item)
     {
-        if (_groupsFlat is null) return -1;
+        if (_groupsFlat is null)
+            return -1;
         return _groupsFlat.IndexOf(item);
     }
 

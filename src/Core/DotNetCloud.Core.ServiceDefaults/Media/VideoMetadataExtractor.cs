@@ -66,7 +66,8 @@ public sealed class VideoMetadataExtractor : IMediaMetadataExtractor
         try
         {
             var json = await RunFfprobeAsync(filePath, cancellationToken);
-            if (json is null) return null;
+            if (json is null)
+                return null;
 
             return ParseFfprobeOutput(json);
         }
@@ -214,7 +215,8 @@ public sealed class VideoMetadataExtractor : IMediaMetadataExtractor
 
     private static double? ParseFrameRate(string? frameRateStr)
     {
-        if (string.IsNullOrWhiteSpace(frameRateStr)) return null;
+        if (string.IsNullOrWhiteSpace(frameRateStr))
+            return null;
 
         var parts = frameRateStr.Split('/');
         if (parts.Length == 2 &&

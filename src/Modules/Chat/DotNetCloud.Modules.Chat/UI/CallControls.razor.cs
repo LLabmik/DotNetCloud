@@ -168,16 +168,20 @@ public partial class CallControls : ComponentBase
     /// <summary>Gets the effects button title based on current state.</summary>
     protected string GetEffectsButtonTitle()
     {
-        if (HasVirtualBackground) return "Virtual background active";
-        if (IsBackgroundBlurred) return "Background blur active";
+        if (HasVirtualBackground)
+            return "Virtual background active";
+        if (IsBackgroundBlurred)
+            return "Background blur active";
         return "Enable background effects";
     }
 
     /// <summary>Gets the effects button label based on current state.</summary>
     protected string GetEffectsButtonLabel()
     {
-        if (HasVirtualBackground) return "Virtual BG";
-        if (IsBackgroundBlurred) return "Blur On";
+        if (HasVirtualBackground)
+            return "Virtual BG";
+        if (IsBackgroundBlurred)
+            return "Blur On";
         return "Effects";
     }
 

@@ -32,7 +32,7 @@ public class DatabaseHealthCheck : IHealthCheck
         {
             await using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
             await using var command = connection.CreateCommand();
-            
+
             command.CommandText = "SELECT 1";
             var result = await command.ExecuteScalarAsync(cancellationToken);
 

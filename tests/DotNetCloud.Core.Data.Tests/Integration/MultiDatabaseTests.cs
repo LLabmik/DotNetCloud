@@ -140,9 +140,9 @@ public class MultiDatabaseTests
         var psqlEntityTypes = psqlContext.Model.GetEntityTypes().Select(e => e.Name).ToList();
         var sqlServerEntityTypes = sqlServerContext.Model.GetEntityTypes().Select(e => e.Name).ToList();
 
-        Assert.AreEqual(psqlEntityTypes.Count, sqlServerEntityTypes.Count, 
+        Assert.AreEqual(psqlEntityTypes.Count, sqlServerEntityTypes.Count,
             "Both providers should configure same number of entities");
-        
+
         foreach (var entityType in psqlEntityTypes)
         {
             Assert.IsTrue(sqlServerEntityTypes.Contains(entityType),
@@ -203,7 +203,7 @@ public class MultiDatabaseTests
         foreach (var strategy in strategies)
         {
             var indexName = strategy.GetIndexName("Users", "UserName");
-            Assert.IsFalse(string.IsNullOrWhiteSpace(indexName), 
+            Assert.IsFalse(string.IsNullOrWhiteSpace(indexName),
                 $"{strategy.GetType().Name} should generate index names");
         }
     }
@@ -243,7 +243,7 @@ public class MultiDatabaseTests
             var fkName = strategy.GetForeignKeyName("Organizations", "Teams", "OrganizationId");
             Assert.IsFalse(string.IsNullOrWhiteSpace(fkName),
                 $"{strategy.GetType().Name} should generate foreign key names");
-            
+
             // Foreign key names should be reasonably short (database limits)
             Assert.IsTrue(fkName.Length <= 128,
                 $"{strategy.GetType().Name} foreign key name should respect database limits");

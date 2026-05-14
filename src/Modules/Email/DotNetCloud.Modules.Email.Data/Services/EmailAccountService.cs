@@ -89,8 +89,10 @@ public sealed class EmailAccountService : IEmailAccountService
             .FirstOrDefaultAsync(a => a.Id == id && a.OwnerId == caller.UserId, ct)
             ?? throw new ValidationException(ErrorCodes.EmailAccountNotFound, "Email account not found.");
 
-        if (request.DisplayName is not null) account.DisplayName = request.DisplayName;
-        if (request.IsEnabled.HasValue) account.IsEnabled = request.IsEnabled.Value;
+        if (request.DisplayName is not null)
+            account.DisplayName = request.DisplayName;
+        if (request.IsEnabled.HasValue)
+            account.IsEnabled = request.IsEnabled.Value;
         account.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(ct);

@@ -86,7 +86,8 @@ public static class ContentHasher
         while (true)
         {
             var bytesRead = await ReadFullChunkAsync(stream, buffer, cancellationToken);
-            if (bytesRead == 0) break;
+            if (bytesRead == 0)
+                break;
 
             var chunkData = buffer[..bytesRead].ToArray();
             var hash = ComputeHash(chunkData);
@@ -146,7 +147,8 @@ public static class ContentHasher
         while (true)
         {
             var n = await ReadFullChunkAsync(stream, buf, cancellationToken);
-            if (n == 0) break;
+            if (n == 0)
+                break;
 
             var processed = 0;
 
@@ -235,7 +237,8 @@ public static class ContentHasher
                 buffer.AsMemory(totalRead, buffer.Length - totalRead),
                 cancellationToken);
 
-            if (bytesRead == 0) break;
+            if (bytesRead == 0)
+                break;
             totalRead += bytesRead;
         }
         return totalRead;

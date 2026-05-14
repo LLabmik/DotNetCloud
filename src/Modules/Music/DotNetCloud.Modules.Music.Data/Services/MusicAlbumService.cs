@@ -152,7 +152,8 @@ public sealed class MusicAlbumService : IMusicAlbumService
         var album = await _db.Albums
             .Include(a => a.Tracks)
             .FirstOrDefaultAsync(a => a.Id == albumId, cancellationToken);
-        if (album is null) return null;
+        if (album is null)
+            return null;
 
         // If we have a cached path and the file exists, return it
         if (album.CoverArtPath is not null && File.Exists(album.CoverArtPath))
@@ -181,7 +182,8 @@ public sealed class MusicAlbumService : IMusicAlbumService
             ?? await _db.Tracks.Where(t => t.AlbumId == album.Id && t.FileNodeId != Guid.Empty)
                 .Take(3).ToListAsync(cancellationToken);
 
-        if (tracks.Count == 0) return null;
+        if (tracks.Count == 0)
+            return null;
 
         foreach (var track in tracks)
         {
@@ -189,7 +191,8 @@ public sealed class MusicAlbumService : IMusicAlbumService
             {
                 var caller = new CallerContext(album.OwnerId, [], CallerType.System);
                 await using var stream = await _downloadService.DownloadCurrentAsync(track.FileNodeId, caller, cancellationToken);
-                if (stream is null) continue;
+                if (stream is null)
+                    continue;
 
                 Directory.CreateDirectory(_artCacheDir);
                 var artPath = _albumArtService.ExtractAndCacheArt(stream, track.MimeType, track.FileName, _artCacheDir, album.Id);

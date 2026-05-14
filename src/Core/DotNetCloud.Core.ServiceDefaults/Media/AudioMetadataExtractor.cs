@@ -107,7 +107,8 @@ public sealed class AudioMetadataExtractor : IMediaMetadataExtractor
 
     private static string? GetCodecDescription(TagLib.Properties properties)
     {
-        if (properties.Codecs is null) return null;
+        if (properties.Codecs is null)
+            return null;
 
         foreach (var codec in properties.Codecs)
         {

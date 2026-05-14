@@ -622,7 +622,8 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
     private static SearchableDocument MapWorkItemToSearchableDocument(WorkItemDto workItem, string? productName)
     {
         var contentParts = new List<string>();
-        if (!string.IsNullOrEmpty(workItem.Description)) contentParts.Add(workItem.Description);
+        if (!string.IsNullOrEmpty(workItem.Description))
+            contentParts.Add(workItem.Description);
         foreach (var label in workItem.Labels)
             contentParts.Add(label.Title);
 

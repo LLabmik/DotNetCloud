@@ -166,12 +166,18 @@ public sealed class NoteService : INoteService
         });
 
         // Apply partial updates
-        if (dto.FolderId.HasValue) note.FolderId = dto.FolderId;
-        if (dto.Title is not null) note.Title = dto.Title;
-        if (dto.Content is not null) note.Content = dto.Content;
-        if (dto.Format.HasValue) note.Format = dto.Format.Value;
-        if (dto.IsPinned.HasValue) note.IsPinned = dto.IsPinned.Value;
-        if (dto.IsFavorite.HasValue) note.IsFavorite = dto.IsFavorite.Value;
+        if (dto.FolderId.HasValue)
+            note.FolderId = dto.FolderId;
+        if (dto.Title is not null)
+            note.Title = dto.Title;
+        if (dto.Content is not null)
+            note.Content = dto.Content;
+        if (dto.Format.HasValue)
+            note.Format = dto.Format.Value;
+        if (dto.IsPinned.HasValue)
+            note.IsPinned = dto.IsPinned.Value;
+        if (dto.IsFavorite.HasValue)
+            note.IsFavorite = dto.IsFavorite.Value;
 
         if (dto.Tags is not null)
         {

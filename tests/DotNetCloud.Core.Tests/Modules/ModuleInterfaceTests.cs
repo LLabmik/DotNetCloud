@@ -172,8 +172,8 @@ public class ModuleInterfaceTests
         var moduleId = "test.module";
         var systemCallerId = Guid.NewGuid();
         var systemCaller = new DotNetCloud.Core.Authorization.CallerContext(
-            systemCallerId, 
-            Array.Empty<string>(), 
+            systemCallerId,
+            Array.Empty<string>(),
             DotNetCloud.Core.Authorization.CallerType.System);
 
         // Act
@@ -196,8 +196,8 @@ public class ModuleInterfaceTests
         var mockServices = new Mock<IServiceProvider>();
         var systemCallerId = Guid.NewGuid();
         var systemCaller = new DotNetCloud.Core.Authorization.CallerContext(
-            systemCallerId, 
-            Array.Empty<string>(), 
+            systemCallerId,
+            Array.Empty<string>(),
             DotNetCloud.Core.Authorization.CallerType.System);
 
         // Act
@@ -220,8 +220,8 @@ public class ModuleInterfaceTests
         var config = new Dictionary<string, object> { { "key", "value" } };
         var systemCallerId = Guid.NewGuid();
         var systemCaller = new DotNetCloud.Core.Authorization.CallerContext(
-            systemCallerId, 
-            Array.Empty<string>(), 
+            systemCallerId,
+            Array.Empty<string>(),
             DotNetCloud.Core.Authorization.CallerType.System);
 
         // Act

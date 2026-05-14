@@ -37,18 +37,21 @@ public sealed class XlsContentExtractor : IContentExtractor
         {
             cancellationToken.ThrowIfCancellationRequested();
             var sheet = workbook.GetSheetAt(sheetIndex);
-            if (sheet is null) continue;
+            if (sheet is null)
+                continue;
 
             for (var rowIndex = sheet.FirstRowNum; rowIndex <= sheet.LastRowNum; rowIndex++)
             {
                 var row = sheet.GetRow(rowIndex);
-                if (row is null) continue;
+                if (row is null)
+                    continue;
 
                 var rowTexts = new List<string>();
                 for (var cellIndex = row.FirstCellNum; cellIndex < row.LastCellNum; cellIndex++)
                 {
                     var cell = row.GetCell(cellIndex);
-                    if (cell is null) continue;
+                    if (cell is null)
+                        continue;
 
                     var value = GetCellText(cell);
                     if (!string.IsNullOrWhiteSpace(value))

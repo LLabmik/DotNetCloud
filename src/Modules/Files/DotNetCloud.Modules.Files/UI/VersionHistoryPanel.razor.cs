@@ -71,7 +71,8 @@ public partial class VersionHistoryPanel : ComponentBase
     /// <summary>Saves the edited label and raises <see cref="OnLabelSaved"/>.</summary>
     protected async Task SaveLabel()
     {
-        if (_editingLabelId is null) return;
+        if (_editingLabelId is null)
+            return;
 
         var version = _versions.FirstOrDefault(v => v.Id == _editingLabelId);
         if (version is not null)
@@ -94,8 +95,10 @@ public partial class VersionHistoryPanel : ComponentBase
     /// <summary>Handles keyboard shortcuts in the label input (Enter = save, Escape = cancel).</summary>
     protected async Task HandleLabelKeyDown(KeyboardEventArgs e)
     {
-        if (e.Key == "Enter") await SaveLabel();
-        if (e.Key == "Escape") CancelEditLabel();
+        if (e.Key == "Enter")
+            await SaveLabel();
+        if (e.Key == "Escape")
+            CancelEditLabel();
     }
 
     /// <summary>Raises the download event for the specified version.</summary>
@@ -116,9 +119,12 @@ public partial class VersionHistoryPanel : ComponentBase
     /// <summary>Formats a byte count for display (e.g. "3.2 MB").</summary>
     protected static string FormatSize(long bytes)
     {
-        if (bytes < 1024) return $"{bytes} B";
-        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
-        if (bytes < 1024L * 1024 * 1024) return $"{bytes / (1024.0 * 1024.0):F1} MB";
+        if (bytes < 1024)
+            return $"{bytes} B";
+        if (bytes < 1024 * 1024)
+            return $"{bytes / 1024.0:F1} KB";
+        if (bytes < 1024L * 1024 * 1024)
+            return $"{bytes / (1024.0 * 1024.0):F1} MB";
         return $"{bytes / (1024.0 * 1024.0 * 1024.0):F2} GB";
     }
 }

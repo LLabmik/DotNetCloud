@@ -15,14 +15,14 @@ public class SyncIgnoreParserTests
     {
         var parser = CreateParser();
 
-        Assert.IsTrue(parser.IsIgnored(".DS_Store"),              ".DS_Store at root");
-        Assert.IsTrue(parser.IsIgnored("subdir/.DS_Store"),       ".DS_Store in subdir");
-        Assert.IsTrue(parser.IsIgnored("Thumbs.db"),              "Thumbs.db");
-        Assert.IsTrue(parser.IsIgnored("nested/dir/Thumbs.db"),   "Thumbs.db nested");
-        Assert.IsTrue(parser.IsIgnored("report.tmp"),             "*.tmp");
-        Assert.IsTrue(parser.IsIgnored("data/cache.temp"),        "*.temp");
-        Assert.IsTrue(parser.IsIgnored("~$lockfile.docx"),        "~$ prefix");
-        Assert.IsTrue(parser.IsIgnored("desktop.ini"),            "desktop.ini");
+        Assert.IsTrue(parser.IsIgnored(".DS_Store"), ".DS_Store at root");
+        Assert.IsTrue(parser.IsIgnored("subdir/.DS_Store"), ".DS_Store in subdir");
+        Assert.IsTrue(parser.IsIgnored("Thumbs.db"), "Thumbs.db");
+        Assert.IsTrue(parser.IsIgnored("nested/dir/Thumbs.db"), "Thumbs.db nested");
+        Assert.IsTrue(parser.IsIgnored("report.tmp"), "*.tmp");
+        Assert.IsTrue(parser.IsIgnored("data/cache.temp"), "*.temp");
+        Assert.IsTrue(parser.IsIgnored("~$lockfile.docx"), "~$ prefix");
+        Assert.IsTrue(parser.IsIgnored("desktop.ini"), "desktop.ini");
     }
 
     [TestMethod]
@@ -30,9 +30,9 @@ public class SyncIgnoreParserTests
     {
         var parser = CreateParser();
 
-        Assert.IsTrue(parser.IsIgnored(".git/config"),          ".git/ contents");
-        Assert.IsTrue(parser.IsIgnored(".svn/entries"),         ".svn/ contents");
-        Assert.IsTrue(parser.IsIgnored(".hg/manifest"),         ".hg/ contents");
+        Assert.IsTrue(parser.IsIgnored(".git/config"), ".git/ contents");
+        Assert.IsTrue(parser.IsIgnored(".svn/entries"), ".svn/ contents");
+        Assert.IsTrue(parser.IsIgnored(".hg/manifest"), ".hg/ contents");
     }
 
     [TestMethod]
@@ -41,8 +41,8 @@ public class SyncIgnoreParserTests
         var parser = CreateParser();
 
         Assert.IsTrue(parser.IsIgnored("node_modules/express/index.js"), "node_modules/");
-        Assert.IsTrue(parser.IsIgnored("frontend/node_modules/vue.js"),  "nested node_modules/");
-        Assert.IsTrue(parser.IsIgnored(".nuget/packages/log4net.dll"),   ".nuget/");
+        Assert.IsTrue(parser.IsIgnored("frontend/node_modules/vue.js"), "nested node_modules/");
+        Assert.IsTrue(parser.IsIgnored(".nuget/packages/log4net.dll"), ".nuget/");
     }
 
     [TestMethod]
@@ -64,10 +64,10 @@ public class SyncIgnoreParserTests
         var parser = CreateParser();
         parser.SetUserPatterns(["*.log", "build/"]);
 
-        Assert.IsTrue(parser.IsIgnored("app.log"),               "*.log at root");
-        Assert.IsTrue(parser.IsIgnored("logs/error.log"),        "*.log in subdir");
-        Assert.IsTrue(parser.IsIgnored("build/output.exe"),      "build/ directory content");
-        Assert.IsTrue(parser.IsIgnored("src/build/output.exe"),  "nested build/");
+        Assert.IsTrue(parser.IsIgnored("app.log"), "*.log at root");
+        Assert.IsTrue(parser.IsIgnored("logs/error.log"), "*.log in subdir");
+        Assert.IsTrue(parser.IsIgnored("build/output.exe"), "build/ directory content");
+        Assert.IsTrue(parser.IsIgnored("src/build/output.exe"), "nested build/");
     }
 
     [TestMethod]
@@ -78,7 +78,7 @@ public class SyncIgnoreParserTests
         parser.SetUserPatterns(["!important.tmp"]);
 
         Assert.IsFalse(parser.IsIgnored("important.tmp"), "negation un-ignores file");
-        Assert.IsTrue(parser.IsIgnored("other.tmp"),      "non-negated *.tmp still ignored");
+        Assert.IsTrue(parser.IsIgnored("other.tmp"), "non-negated *.tmp still ignored");
     }
 
     // ── .syncignore file loading ──────────────────────────────────────────────
@@ -138,13 +138,13 @@ public class SyncIgnoreParserTests
         parser.SetUserPatterns(["**/*.log", "build/", "node_modules/"]);
 
         // **/*.log
-        Assert.IsTrue(parser.IsIgnored("error.log"),                  "root log");
-        Assert.IsTrue(parser.IsIgnored("logs/error.log"),             "subdir log");
-        Assert.IsTrue(parser.IsIgnored("a/b/c/trace.log"),            "deep log");
-        Assert.IsFalse(parser.IsIgnored("logfile.txt"),               "no .log extension");
+        Assert.IsTrue(parser.IsIgnored("error.log"), "root log");
+        Assert.IsTrue(parser.IsIgnored("logs/error.log"), "subdir log");
+        Assert.IsTrue(parser.IsIgnored("a/b/c/trace.log"), "deep log");
+        Assert.IsFalse(parser.IsIgnored("logfile.txt"), "no .log extension");
 
         // build/
-        Assert.IsTrue(parser.IsIgnored("build/artifact.dll"),         "build root");
+        Assert.IsTrue(parser.IsIgnored("build/artifact.dll"), "build root");
         Assert.IsTrue(parser.IsIgnored("project/build/artifact.dll"), "nested build");
 
         // node_modules/

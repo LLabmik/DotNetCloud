@@ -252,7 +252,9 @@ public class LocalStateDbTests
             var dir = Path.GetDirectoryName(corruptDbPath)!;
             var fileName = Path.GetFileName(corruptDbPath);
             foreach (var f in Directory.GetFiles(dir, $"{fileName}*"))
-                try { File.Delete(f); } catch { }
+                try
+                { File.Delete(f); }
+                catch { }
         }
     }
 
@@ -505,18 +507,24 @@ public class LocalStateDbTests
         // Insert records under a folder path and one outside.
         await _db.UpsertFileRecordAsync(_dbPath, new LocalFileRecord
         {
-            LocalPath = "/sync/photos/a.jpg", NodeId = Guid.NewGuid(),
-            LastSyncedAt = DateTime.UtcNow, LocalModifiedAt = DateTime.UtcNow,
+            LocalPath = "/sync/photos/a.jpg",
+            NodeId = Guid.NewGuid(),
+            LastSyncedAt = DateTime.UtcNow,
+            LocalModifiedAt = DateTime.UtcNow,
         });
         await _db.UpsertFileRecordAsync(_dbPath, new LocalFileRecord
         {
-            LocalPath = "/sync/photos/sub/b.jpg", NodeId = Guid.NewGuid(),
-            LastSyncedAt = DateTime.UtcNow, LocalModifiedAt = DateTime.UtcNow,
+            LocalPath = "/sync/photos/sub/b.jpg",
+            NodeId = Guid.NewGuid(),
+            LastSyncedAt = DateTime.UtcNow,
+            LocalModifiedAt = DateTime.UtcNow,
         });
         await _db.UpsertFileRecordAsync(_dbPath, new LocalFileRecord
         {
-            LocalPath = "/sync/docs/readme.md", NodeId = Guid.NewGuid(),
-            LastSyncedAt = DateTime.UtcNow, LocalModifiedAt = DateTime.UtcNow,
+            LocalPath = "/sync/docs/readme.md",
+            NodeId = Guid.NewGuid(),
+            LastSyncedAt = DateTime.UtcNow,
+            LocalModifiedAt = DateTime.UtcNow,
         });
 
         // Act: remove all records under /sync/photos
@@ -533,8 +541,10 @@ public class LocalStateDbTests
     {
         await _db.UpsertFileRecordAsync(_dbPath, new LocalFileRecord
         {
-            LocalPath = "/sync/docs/file.txt", NodeId = Guid.NewGuid(),
-            LastSyncedAt = DateTime.UtcNow, LocalModifiedAt = DateTime.UtcNow,
+            LocalPath = "/sync/docs/file.txt",
+            NodeId = Guid.NewGuid(),
+            LastSyncedAt = DateTime.UtcNow,
+            LocalModifiedAt = DateTime.UtcNow,
         });
 
         await _db.RemoveFileRecordsUnderPathAsync(_dbPath, "/sync/photos");

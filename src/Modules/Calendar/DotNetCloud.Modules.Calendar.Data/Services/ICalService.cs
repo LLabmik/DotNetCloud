@@ -201,7 +201,8 @@ public sealed class ICalService : IICalendarService
                 continue;
             }
 
-            if (current is null) continue;
+            if (current is null)
+                continue;
 
             if (line.StartsWith("SUMMARY:", StringComparison.OrdinalIgnoreCase))
                 current.Title = UnescapeICalText(line[8..]);
@@ -240,7 +241,8 @@ public sealed class ICalService : IICalendarService
     {
         // Extract the value after the property name and any parameters
         var colonIndex = line.IndexOf(':');
-        if (colonIndex < 0) return (DateTime.UtcNow, false);
+        if (colonIndex < 0)
+            return (DateTime.UtcNow, false);
 
         var value = line[(colonIndex + 1)..].Trim();
 

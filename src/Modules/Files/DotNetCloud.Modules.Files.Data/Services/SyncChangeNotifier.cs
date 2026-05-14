@@ -129,12 +129,14 @@ internal sealed class SyncChangeNotifier : ISyncChangeNotifier
 
         public void Remove(Channel<SyncChangeNotification> channel)
         {
-            lock (_lock) { _channels.Remove(channel); }
+            lock (_lock)
+            { _channels.Remove(channel); }
         }
 
         public Channel<SyncChangeNotification>[] GetChannels()
         {
-            lock (_lock) { return [.. _channels]; }
+            lock (_lock)
+            { return [.. _channels]; }
         }
     }
 }

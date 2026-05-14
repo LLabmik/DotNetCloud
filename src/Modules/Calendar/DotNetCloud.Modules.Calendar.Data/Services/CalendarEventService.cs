@@ -184,16 +184,26 @@ public sealed class CalendarEventService : ICalendarEventService
         if (calendarEvent.Calendar is null || !await CanAccessCalendarAsync(calendarEvent.Calendar, caller, requireWrite: true, cancellationToken))
             throw new Core.Errors.ValidationException(Core.Errors.ErrorCodes.Forbidden, "You do not have permission to modify this event.");
 
-        if (dto.Title is not null) calendarEvent.Title = dto.Title;
-        if (dto.Description is not null) calendarEvent.Description = dto.Description;
-        if (dto.Location is not null) calendarEvent.Location = dto.Location;
-        if (dto.StartUtc.HasValue) calendarEvent.StartUtc = dto.StartUtc.Value;
-        if (dto.EndUtc.HasValue) calendarEvent.EndUtc = dto.EndUtc.Value;
-        if (dto.IsAllDay.HasValue) calendarEvent.IsAllDay = dto.IsAllDay.Value;
-        if (dto.Status.HasValue) calendarEvent.Status = dto.Status.Value;
-        if (dto.RecurrenceRule is not null) calendarEvent.RecurrenceRule = dto.RecurrenceRule;
-        if (dto.Color is not null) calendarEvent.Color = dto.Color;
-        if (dto.Url is not null) calendarEvent.Url = dto.Url;
+        if (dto.Title is not null)
+            calendarEvent.Title = dto.Title;
+        if (dto.Description is not null)
+            calendarEvent.Description = dto.Description;
+        if (dto.Location is not null)
+            calendarEvent.Location = dto.Location;
+        if (dto.StartUtc.HasValue)
+            calendarEvent.StartUtc = dto.StartUtc.Value;
+        if (dto.EndUtc.HasValue)
+            calendarEvent.EndUtc = dto.EndUtc.Value;
+        if (dto.IsAllDay.HasValue)
+            calendarEvent.IsAllDay = dto.IsAllDay.Value;
+        if (dto.Status.HasValue)
+            calendarEvent.Status = dto.Status.Value;
+        if (dto.RecurrenceRule is not null)
+            calendarEvent.RecurrenceRule = dto.RecurrenceRule;
+        if (dto.Color is not null)
+            calendarEvent.Color = dto.Color;
+        if (dto.Url is not null)
+            calendarEvent.Url = dto.Url;
 
         if (dto.Attendees is not null)
         {
@@ -437,15 +447,19 @@ public sealed class CalendarEventService : ICalendarEventService
         if (calendar.OrganizationId is null)
         {
             // User-owned: owner has full access; shares checked separately
-            if (calendar.OwnerId == caller.UserId) return true;
-            if (!requireWrite) return calendar.Shares.Any(s => s.SharedWithUserId == caller.UserId);
+            if (calendar.OwnerId == caller.UserId)
+                return true;
+            if (!requireWrite)
+                return calendar.Shares.Any(s => s.SharedWithUserId == caller.UserId);
             return calendar.Shares.Any(s => s.SharedWithUserId == caller.UserId && s.Permission == CalendarSharePermission.ReadWrite);
         }
 
         // Org-owned: user must be an active member
         var isMember = await _orgDirectory.IsOrganizationMemberAsync(calendar.OrganizationId.Value, caller.UserId, cancellationToken);
-        if (!isMember) return false;
-        if (!requireWrite) return true;
+        if (!isMember)
+            return false;
+        if (!requireWrite)
+            return true;
 
         // Write access: check for Manager+ role
         var member = await _orgDirectory.GetMemberAsync(calendar.OrganizationId.Value, caller.UserId, cancellationToken);

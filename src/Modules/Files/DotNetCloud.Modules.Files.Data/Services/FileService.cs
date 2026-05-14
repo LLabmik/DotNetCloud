@@ -619,9 +619,12 @@ internal sealed class FileService : IFileService
         ArgumentNullException.ThrowIfNull(caller);
         ArgumentException.ThrowIfNullOrWhiteSpace(query);
 
-        if (page < 1) page = 1;
-        if (pageSize < 1) pageSize = 20;
-        if (pageSize > 100) pageSize = 100;
+        if (page < 1)
+            page = 1;
+        if (pageSize < 1)
+            pageSize = 20;
+        if (pageSize > 100)
+            pageSize = 100;
 
         var baseQuery = _db.FileNodes
             .AsNoTracking()
@@ -648,8 +651,10 @@ internal sealed class FileService : IFileService
     public async Task<IReadOnlyList<FileNodeDto>> ListRecentAsync(int count, CallerContext caller, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(caller);
-        if (count < 1) count = 10;
-        if (count > 100) count = 100;
+        if (count < 1)
+            count = 10;
+        if (count > 100)
+            count = 100;
 
         var nodes = await _db.FileNodes
             .AsNoTracking()

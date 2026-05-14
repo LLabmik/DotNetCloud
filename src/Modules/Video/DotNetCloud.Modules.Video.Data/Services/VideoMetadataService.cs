@@ -31,7 +31,8 @@ public sealed class VideoMetadataService : IVideoMetadataService
         var metadata = await _db.VideoMetadata
             .FirstOrDefaultAsync(m => m.VideoId == videoId, cancellationToken);
 
-        if (metadata is null) return null;
+        if (metadata is null)
+            return null;
 
         var subtitleCount = await _db.Subtitles
             .CountAsync(s => s.VideoId == videoId, cancellationToken);

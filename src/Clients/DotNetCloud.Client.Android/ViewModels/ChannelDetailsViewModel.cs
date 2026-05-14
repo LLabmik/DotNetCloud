@@ -113,7 +113,8 @@ public sealed partial class ChannelDetailsViewModel : ObservableObject
     [RelayCommand]
     private async Task LeaveChannelAsync(CancellationToken ct)
     {
-        if (_serverUrl is null || _accessToken is null) return;
+        if (_serverUrl is null || _accessToken is null)
+            return;
 
         try
         {

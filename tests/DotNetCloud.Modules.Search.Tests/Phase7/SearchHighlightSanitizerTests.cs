@@ -155,7 +155,8 @@ public static class HighlightSanitizer
     /// </summary>
     public static string SanitizeHighlight(string html)
     {
-        if (string.IsNullOrEmpty(html)) return html;
+        if (string.IsNullOrEmpty(html))
+            return html;
 
         var result = html;
         // Replace <mark> tags with placeholders
@@ -170,7 +171,8 @@ public static class HighlightSanitizer
     /// <summary>Strips HTML highlight tags for plain-text display.</summary>
     public static string StripHighlight(string text)
     {
-        if (string.IsNullOrEmpty(text)) return text;
+        if (string.IsNullOrEmpty(text))
+            return text;
         return text.Replace("<mark>", "").Replace("</mark>", "");
     }
 }

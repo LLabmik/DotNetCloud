@@ -172,10 +172,21 @@ public sealed class ContactsImportProvider : IImportProvider
             if (line.Equals("BEGIN:VCARD", StringComparison.OrdinalIgnoreCase))
             {
                 inVCard = true;
-                displayName = null; firstName = null; lastName = null; middleName = null;
-                prefix = null; suffix = null; org = null; dept = null; jobTitle = null;
-                notes = null; websiteUrl = null; birthday = null;
-                emails = []; phones = []; addresses = [];
+                displayName = null;
+                firstName = null;
+                lastName = null;
+                middleName = null;
+                prefix = null;
+                suffix = null;
+                org = null;
+                dept = null;
+                jobTitle = null;
+                notes = null;
+                websiteUrl = null;
+                birthday = null;
+                emails = [];
+                phones = [];
+                addresses = [];
                 continue;
             }
 
@@ -216,7 +227,8 @@ public sealed class ContactsImportProvider : IImportProvider
                 continue;
             }
 
-            if (!inVCard) continue;
+            if (!inVCard)
+                continue;
 
             if (line.StartsWith("FN:", StringComparison.OrdinalIgnoreCase))
             {
@@ -228,11 +240,16 @@ public sealed class ContactsImportProvider : IImportProvider
                 if (colonIdx >= 0)
                 {
                     var parts = line[(colonIdx + 1)..].Split(';');
-                    if (parts.Length > 0) lastName = NullIfEmpty(UnescapeVCardValue(parts[0]));
-                    if (parts.Length > 1) firstName = NullIfEmpty(UnescapeVCardValue(parts[1]));
-                    if (parts.Length > 2) middleName = NullIfEmpty(UnescapeVCardValue(parts[2]));
-                    if (parts.Length > 3) prefix = NullIfEmpty(UnescapeVCardValue(parts[3]));
-                    if (parts.Length > 4) suffix = NullIfEmpty(UnescapeVCardValue(parts[4]));
+                    if (parts.Length > 0)
+                        lastName = NullIfEmpty(UnescapeVCardValue(parts[0]));
+                    if (parts.Length > 1)
+                        firstName = NullIfEmpty(UnescapeVCardValue(parts[1]));
+                    if (parts.Length > 2)
+                        middleName = NullIfEmpty(UnescapeVCardValue(parts[2]));
+                    if (parts.Length > 3)
+                        prefix = NullIfEmpty(UnescapeVCardValue(parts[3]));
+                    if (parts.Length > 4)
+                        suffix = NullIfEmpty(UnescapeVCardValue(parts[4]));
                 }
             }
             else if (line.StartsWith("ORG:", StringComparison.OrdinalIgnoreCase) || line.StartsWith("ORG;", StringComparison.OrdinalIgnoreCase))
@@ -242,7 +259,8 @@ public sealed class ContactsImportProvider : IImportProvider
                 {
                     var parts = line[(colonIdx + 1)..].Split(';');
                     org = NullIfEmpty(UnescapeVCardValue(parts[0]));
-                    if (parts.Length > 1) dept = NullIfEmpty(UnescapeVCardValue(parts[1]));
+                    if (parts.Length > 1)
+                        dept = NullIfEmpty(UnescapeVCardValue(parts[1]));
                 }
             }
             else if (line.StartsWith("TITLE:", StringComparison.OrdinalIgnoreCase))

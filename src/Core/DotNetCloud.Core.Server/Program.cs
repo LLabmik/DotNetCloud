@@ -31,7 +31,6 @@ using DotNetCloud.Modules.Email.Data;
 using DotNetCloud.Modules.AI.Data;
 using DotNetCloud.Modules.Search;
 using DotNetCloud.Modules.Search.Client;
-using DotNetCloud.Modules.Search.Data;
 using DotNetCloud.Modules.Files.Services;
 using DotNetCloud.UI.Web.Client.Services;
 using DotNetCloud.UI.Web.Services;
@@ -246,32 +245,7 @@ public class Program
         // Register in-process module data services for interactive module UI actions,
         // using the same provider as the configured core database.
         var provider = DatabaseProviderDetector.DetectProvider(connectionString);
-        builder.Services.AddDbContext<FilesDbContext>(options =>
-            ConfigureModuleDbContext(options, provider, connectionString));
-        builder.Services.AddDbContext<ChatDbContext>(options =>
-            ConfigureModuleDbContext(options, provider, connectionString));
-        builder.Services.AddDbContext<ContactsDbContext>(options =>
-            ConfigureModuleDbContext(options, provider, connectionString));
-        builder.Services.AddDbContext<CalendarDbContext>(options =>
-            ConfigureModuleDbContext(options, provider, connectionString));
-        builder.Services.AddDbContext<NotesDbContext>(options =>
-            ConfigureModuleDbContext(options, provider, connectionString));
-        builder.Services.AddDbContext<TracksDbContext>(options =>
-            ConfigureModuleDbContext(options, provider, connectionString));
-        builder.Services.AddDbContext<PhotosDbContext>(options =>
-            ConfigureModuleDbContext(options, provider, connectionString));
-        builder.Services.AddDbContext<MusicDbContext>(options =>
-            ConfigureModuleDbContext(options, provider, connectionString));
-        builder.Services.AddDbContext<VideoDbContext>(options =>
-            ConfigureModuleDbContext(options, provider, connectionString));
-        builder.Services.AddDbContext<AiDbContext>(options =>
-            ConfigureModuleDbContext(options, provider, connectionString));
-        builder.Services.AddDbContext<SearchDbContext>(options =>
-            ConfigureModuleDbContext(options, provider, connectionString));
-        builder.Services.AddDbContext<BookmarksDbContext>(options =>
-            ConfigureModuleDbContext(options, provider, connectionString));
-        builder.Services.AddDbContext<EmailDbContext>(options =>
-            ConfigureModuleDbContext(options, provider, connectionString));
+        builder.Services.AddModuleDbContexts(provider, connectionString);
 
         // Register schema services for lazy module schema creation.
         // SelfManagedSchemaProvider and ModuleSchemaService are registered by AddDotNetCloudDbContext.

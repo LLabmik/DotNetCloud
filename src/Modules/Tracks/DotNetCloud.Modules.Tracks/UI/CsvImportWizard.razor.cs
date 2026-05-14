@@ -89,7 +89,8 @@ public class CsvImportWizardBase : ComponentBase, IDisposable
     {
         _selectedFile = e.File;
 
-        if (_selectedFile is null) return;
+        if (_selectedFile is null)
+            return;
 
         _fileStream = _selectedFile.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024); // 10MB max
 
@@ -135,7 +136,8 @@ public class CsvImportWizardBase : ComponentBase, IDisposable
 
     protected async Task GoNext()
     {
-        if (!CanGoNext) return;
+        if (!CanGoNext)
+            return;
 
         _errorMessage = null;
 
@@ -166,7 +168,8 @@ public class CsvImportWizardBase : ComponentBase, IDisposable
 
     private async Task RunValidationAsync()
     {
-        if (_selectedFile is null || _parseResult is null) return;
+        if (_selectedFile is null || _parseResult is null)
+            return;
 
         var mapping = BuildColumnMapping();
 
@@ -186,7 +189,8 @@ public class CsvImportWizardBase : ComponentBase, IDisposable
 
     private async Task RunImportAsync()
     {
-        if (_selectedFile is null || _parseResult is null) return;
+        if (_selectedFile is null || _parseResult is null)
+            return;
 
         var mapping = BuildColumnMapping();
 
@@ -218,14 +222,30 @@ public class CsvImportWizardBase : ComponentBase, IDisposable
             var col = fm.SelectedColumn;
             switch (fm.Label)
             {
-                case "Title *": mapping.TitleColumn = col; break;
-                case "Description": mapping.DescriptionColumn = col; break;
-                case "Priority": mapping.PriorityColumn = col; break;
-                case "Type": mapping.TypeColumn = col; break;
-                case "Story Points": mapping.StoryPointsColumn = col; break;
-                case "Assignee (Email)": mapping.AssigneeEmailColumn = col; break;
-                case "Due Date": mapping.DueDateColumn = col; break;
-                case "Labels": mapping.LabelsColumn = col; break;
+                case "Title *":
+                    mapping.TitleColumn = col;
+                    break;
+                case "Description":
+                    mapping.DescriptionColumn = col;
+                    break;
+                case "Priority":
+                    mapping.PriorityColumn = col;
+                    break;
+                case "Type":
+                    mapping.TypeColumn = col;
+                    break;
+                case "Story Points":
+                    mapping.StoryPointsColumn = col;
+                    break;
+                case "Assignee (Email)":
+                    mapping.AssigneeEmailColumn = col;
+                    break;
+                case "Due Date":
+                    mapping.DueDateColumn = col;
+                    break;
+                case "Labels":
+                    mapping.LabelsColumn = col;
+                    break;
             }
         }
 

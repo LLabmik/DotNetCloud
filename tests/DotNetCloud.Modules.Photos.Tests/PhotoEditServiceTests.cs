@@ -87,7 +87,10 @@ public class PhotoEditServiceTests
             OperationType = PhotoEditType.Crop,
             Parameters = new Dictionary<string, string>
             {
-                ["x"] = "10", ["y"] = "20", ["width"] = "100", ["height"] = "200"
+                ["x"] = "10",
+                ["y"] = "20",
+                ["width"] = "100",
+                ["height"] = "200"
             }
         };
 

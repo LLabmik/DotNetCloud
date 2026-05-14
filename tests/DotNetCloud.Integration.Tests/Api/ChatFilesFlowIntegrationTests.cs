@@ -246,7 +246,7 @@ public sealed class ChatFilesFlowIntegrationTests
 
             var linkedAttachment = attachments.FirstOrDefault(a =>
                 a.GetProperty("fileName").GetString() == "linked-document.pdf");
-            
+
             if (linkedAttachment.ValueKind != System.Text.Json.JsonValueKind.Undefined)
             {
                 Assert.IsTrue(linkedAttachment.TryGetProperty("fileNodeId", out var nodeIdElem), "Should have fileNodeId property");

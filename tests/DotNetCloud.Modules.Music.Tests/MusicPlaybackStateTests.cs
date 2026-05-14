@@ -780,8 +780,16 @@ public class MusicPlaybackStateTests
         var presetId = Guid.NewGuid();
         var bands = new Dictionary<string, double>
         {
-            ["31"] = 3.0, ["63"] = 2.0, ["125"] = 1.0, ["250"] = 0.5, ["500"] = 0,
-            ["1K"] = -0.5, ["2K"] = -1.0, ["4K"] = -2.0, ["8K"] = -3.0, ["16K"] = -4.0
+            ["31"] = 3.0,
+            ["63"] = 2.0,
+            ["125"] = 1.0,
+            ["250"] = 0.5,
+            ["500"] = 0,
+            ["1K"] = -0.5,
+            ["2K"] = -1.0,
+            ["4K"] = -2.0,
+            ["8K"] = -3.0,
+            ["16K"] = -4.0
         };
         var preset = new EqPresetDto
         {

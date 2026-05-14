@@ -206,7 +206,8 @@ public sealed class EmailApiClient : IEmailApiClient
     public async Task<IReadOnlyList<EmailRule>> ListRulesAsync(Guid? accountId = null, CancellationToken ct = default)
     {
         var url = "api/v1/email/rules";
-        if (accountId.HasValue) url += $"?accountId={accountId.Value}";
+        if (accountId.HasValue)
+            url += $"?accountId={accountId.Value}";
         return await ReadDataAsync<IReadOnlyList<EmailRule>>(url, ct) ?? [];
     }
 
@@ -239,8 +240,10 @@ public sealed class EmailApiClient : IEmailApiClient
         if (accountId.HasValue || mailboxId.HasValue)
         {
             url += "?";
-            if (accountId.HasValue) url += $"accountId={accountId.Value}&";
-            if (mailboxId.HasValue) url += $"mailboxId={mailboxId.Value}&";
+            if (accountId.HasValue)
+                url += $"accountId={accountId.Value}&";
+            if (mailboxId.HasValue)
+                url += $"mailboxId={mailboxId.Value}&";
             url = url.TrimEnd('&');
         }
         var response = await _httpClient.PostAsync(url, null, ct);
@@ -274,7 +277,8 @@ public sealed class EmailApiClient : IEmailApiClient
 
     private static async Task EnsureSuccessOrThrowAsync(HttpResponseMessage response)
     {
-        if (response.IsSuccessStatusCode) return;
+        if (response.IsSuccessStatusCode)
+            return;
 
         var body = await response.Content.ReadAsStringAsync();
         string message;

@@ -87,7 +87,7 @@ public static class DatabaseProviderDetector
         // - Contains "Port=3306" or port 3306 in server specification
         // - Uses Pomelo MySQL provider keyword variations
         var lowerConnectionString = connectionString.ToLowerInvariant();
-        
+
         if (lowerConnectionString.Contains("server=") && lowerConnectionString.Contains(":3306"))
         {
             return true;

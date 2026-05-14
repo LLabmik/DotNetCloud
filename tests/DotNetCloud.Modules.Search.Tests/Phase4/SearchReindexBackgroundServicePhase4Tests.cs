@@ -262,7 +262,9 @@ public class SearchReindexBackgroundServicePhase4Tests
     [TestMethod]
     public async Task DefaultBatchSize_Is200()
     {
+#pragma warning disable MSTEST0032 // Regression guard — will fail if constant is changed.
         Assert.AreEqual(200, SearchReindexBackgroundService.DefaultBatchSize);
+#pragma warning restore MSTEST0032
     }
 
     // --- Stale Entry Cleanup Tests ---

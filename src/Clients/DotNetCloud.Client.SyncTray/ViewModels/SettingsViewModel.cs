@@ -473,7 +473,8 @@ public sealed class SettingsViewModel : ViewModelBase
         dialog.Closed += (_, _) => tcs.TrySetResult(dialog.DataContext is AddAccountDialogViewModel vm ? vm.DialogResult : null);
         var result = await tcs.Task;
 
-        if (result is null) return;
+        if (result is null)
+            return;
 
         await AddAccountAsync(result.ServerUrl, result.LocalFolderPath);
     }
@@ -540,7 +541,8 @@ public sealed class SettingsViewModel : ViewModelBase
             };
 
             // Ensure the sync folder exists before registering.
-            try { Directory.CreateDirectory(localFolderPath); }
+            try
+            { Directory.CreateDirectory(localFolderPath); }
             catch (Exception dirEx)
             {
                 _logger.LogWarning(dirEx, "Could not pre-create sync folder {Path}.", localFolderPath);
@@ -659,7 +661,8 @@ public sealed class SettingsViewModel : ViewModelBase
 
     private void OpenSyncIgnoreInEditor()
     {
-        if (_syncIgnoreRoot is null) return;
+        if (_syncIgnoreRoot is null)
+            return;
         var path = Path.Combine(_syncIgnoreRoot, ".syncignore");
         // Ensure the file exists so the editor can open it.
         if (!File.Exists(path))
@@ -690,7 +693,8 @@ public sealed class SettingsViewModel : ViewModelBase
 
     private async Task PersistIgnoreRulesAsync()
     {
-        if (_syncIgnoreRoot is null) return;
+        if (_syncIgnoreRoot is null)
+            return;
         try
         {
             await _syncIgnore.SaveAsync(_syncIgnoreRoot);
@@ -735,11 +739,16 @@ public sealed class SettingsViewModel : ViewModelBase
         try
         {
             var strategies = new List<string>();
-            if (_strategyIdentical) strategies.Add("identical");
-            if (_strategyFastForward) strategies.Add("fast-forward");
-            if (_strategyCleanMerge) strategies.Add("clean-merge");
-            if (_strategyNewerWins) strategies.Add("newer-wins");
-            if (_strategyAppendOnly) strategies.Add("append-only");
+            if (_strategyIdentical)
+                strategies.Add("identical");
+            if (_strategyFastForward)
+                strategies.Add("fast-forward");
+            if (_strategyCleanMerge)
+                strategies.Add("clean-merge");
+            if (_strategyNewerWins)
+                strategies.Add("newer-wins");
+            if (_strategyAppendOnly)
+                strategies.Add("append-only");
 
             await _syncManager.PersistConflictResolutionSettingsAsync(
                 new ConflictResolutionSettings
@@ -901,7 +910,8 @@ public sealed class SettingsViewModel : ViewModelBase
         try
         {
             var parts = accessToken.Split('.');
-            if (parts.Length < 2) return Guid.Empty;
+            if (parts.Length < 2)
+                return Guid.Empty;
 
             var payload = parts[1];
             var padded = payload.PadRight(payload.Length + (4 - payload.Length % 4) % 4, '=');
@@ -1132,7 +1142,8 @@ internal sealed class AsyncRelayCommand : ICommand
     {
         _isRunning = true;
         CanExecuteChanged?.Invoke(this, EventArgs.Empty);
-        try { await _execute(); }
+        try
+        { await _execute(); }
         finally
         {
             _isRunning = false;

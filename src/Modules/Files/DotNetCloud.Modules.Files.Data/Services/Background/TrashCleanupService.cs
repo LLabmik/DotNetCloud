@@ -133,7 +133,7 @@ internal sealed class TrashCleanupService : BackgroundService
             }
         }
 
-        ChunkGC:
+    ChunkGC:
 
         // GC unreferenced chunks (check both ReferenceCount AND actual FK references)
         var orphanChunks = await db.FileChunks

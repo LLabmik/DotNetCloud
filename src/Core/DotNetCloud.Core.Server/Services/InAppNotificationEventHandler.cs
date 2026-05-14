@@ -31,7 +31,7 @@ internal sealed class InAppNotificationEventHandler :
             SourceModuleId = @event.SourceModuleId,
             Type = NotificationType.Share,
             Title = $"{@event.EntityType} shared with you",
-            Message = $"{ @event.EntityDisplayName } was shared with permission: {@event.Permission}.",
+            Message = $"{@event.EntityDisplayName} was shared with permission: {@event.Permission}.",
             Priority = NotificationPriority.Normal,
             ActionUrl = BuildActionUrl(@event.EntityType, @event.EntityId),
             RelatedEntityType = MapEntityType(@event.EntityType),

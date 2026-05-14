@@ -54,12 +54,15 @@ public sealed class CommandPaletteService : ICommandPaletteService
                         .Where(wi => wi.ProductId == currentProductId.Value && wi.ItemNumber == num && !wi.IsDeleted)
                         .Select(wi => new PaletteItem
                         {
-                            Id = wi.Id.ToString(), Title = $"#{wi.ItemNumber} {wi.Title}",
-                            Subtitle = wi.Type.ToString(), Action = "navigate",
+                            Id = wi.Id.ToString(),
+                            Title = $"#{wi.ItemNumber} {wi.Title}",
+                            Subtitle = wi.Type.ToString(),
+                            Action = "navigate",
                             ActionUrl = $"/apps/tracks?product={currentProductId}&workItem={wi.Id}"
                         })
                         .FirstOrDefaultAsync(ct);
-                    if (item is not null) result.WorkItems = [item];
+                    if (item is not null)
+                        result.WorkItems = [item];
                 }
 
                 if (result.WorkItems.Count == 0)
@@ -71,8 +74,10 @@ public sealed class CommandPaletteService : ICommandPaletteService
                         .Take(8)
                         .Select(wi => new PaletteItem
                         {
-                            Id = wi.Id.ToString(), Title = $"#{wi.ItemNumber} {wi.Title}",
-                            Subtitle = wi.Type.ToString(), Action = "navigate",
+                            Id = wi.Id.ToString(),
+                            Title = $"#{wi.ItemNumber} {wi.Title}",
+                            Subtitle = wi.Type.ToString(),
+                            Action = "navigate",
                             ActionUrl = $"/apps/tracks?product={currentProductId}&workItem={wi.Id}"
                         })
                         .ToListAsync(ct);
@@ -96,7 +101,8 @@ public sealed class CommandPaletteService : ICommandPaletteService
             new() { Id = "dark-mode", Title = "Toggle Dark Mode", Subtitle = "Quick Action", Action = "toggle-dark-mode", ActionUrl = "" },
             new() { Id = "shortcuts", Title = "Keyboard Shortcuts", Subtitle = "Quick Action", Action = "shortcuts", ActionUrl = "" },
         };
-        if (string.IsNullOrWhiteSpace(query)) return all;
+        if (string.IsNullOrWhiteSpace(query))
+            return all;
         return all.Where(a => a.Title.Contains(query, StringComparison.OrdinalIgnoreCase)).ToList();
     }
 }

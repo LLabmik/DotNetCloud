@@ -22,7 +22,8 @@ public sealed class BookmarksApiClient : IBookmarksApiClient
     public async Task<IReadOnlyList<BookmarkItem>> ListAsync(Guid? folderId = null, int skip = 0, int take = 50, CancellationToken ct = default)
     {
         var url = $"api/v1/bookmarks?skip={skip}&take={take}";
-        if (folderId.HasValue) url += $"&folderId={folderId.Value}";
+        if (folderId.HasValue)
+            url += $"&folderId={folderId.Value}";
         return await ReadDataAsync<IReadOnlyList<BookmarkItem>>(url, ct) ?? [];
     }
 
@@ -60,7 +61,8 @@ public sealed class BookmarksApiClient : IBookmarksApiClient
     public async Task<IReadOnlyList<BookmarkFolder>> ListFoldersAsync(Guid? parentId = null, CancellationToken ct = default)
     {
         var url = "api/v1/bookmarks/folders";
-        if (parentId.HasValue) url += $"?parentId={parentId.Value}";
+        if (parentId.HasValue)
+            url += $"?parentId={parentId.Value}";
         return await ReadDataAsync<IReadOnlyList<BookmarkFolder>>(url, ct) ?? [];
     }
 
@@ -95,7 +97,8 @@ public sealed class BookmarksApiClient : IBookmarksApiClient
         content.Add(new StreamContent(fileStream), "file", fileName);
 
         var url = "api/v1/bookmarks/import";
-        if (folderId.HasValue) url += $"?folderId={folderId.Value}";
+        if (folderId.HasValue)
+            url += $"?folderId={folderId.Value}";
 
         var response = await _httpClient.PostAsync(url, content, ct);
         await EnsureSuccessOrThrowAsync(response);
@@ -105,7 +108,8 @@ public sealed class BookmarksApiClient : IBookmarksApiClient
     public async Task<byte[]> ExportAsync(Guid? folderId = null, CancellationToken ct = default)
     {
         var url = "api/v1/bookmarks/export";
-        if (folderId.HasValue) url += $"?folderId={folderId.Value}";
+        if (folderId.HasValue)
+            url += $"?folderId={folderId.Value}";
         var response = await _httpClient.GetAsync(url, ct);
         await EnsureSuccessOrThrowAsync(response);
         return await response.Content.ReadAsByteArrayAsync(ct);
@@ -148,7 +152,8 @@ public sealed class BookmarksApiClient : IBookmarksApiClient
 
     private static async Task EnsureSuccessOrThrowAsync(HttpResponseMessage response)
     {
-        if (response.IsSuccessStatusCode) return;
+        if (response.IsSuccessStatusCode)
+            return;
 
         var body = await response.Content.ReadAsStringAsync();
         string message;

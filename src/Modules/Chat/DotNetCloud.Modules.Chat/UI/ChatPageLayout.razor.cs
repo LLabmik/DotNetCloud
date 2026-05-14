@@ -8,6 +8,7 @@ using DotNetCloud.Modules.Chat.Models;
 using DotNetCloud.Modules.Chat.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.Extensions.Logging;
 using Microsoft.JSInterop;
 
 namespace DotNetCloud.Modules.Chat.UI;
@@ -43,6 +44,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     [Inject] private GlobalChatNotificationState GlobalNotificationState { get; set; } = default!;
     [Inject] private IChatImageStore ChatImageStore { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
+    [Inject] private ILogger<ChatPageLayout> Logger { get; set; } = default!;
 
     // Channel state
     private List<ChannelViewModel> _channels = [];
@@ -204,7 +206,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     /// </summary>
     private void SafeStateHasChanged()
     {
-        if (_isDisposed) return;
+        if (_isDisposed)
+            return;
         try
         {
             _ = InvokeAsync(StateHasChanged);
@@ -289,10 +292,14 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
         if (_webRtcInitialized)
         {
-            try { await WebRtcInterop.HangupAsync(); } catch { /* best-effort cleanup */ }
+            try
+            { await WebRtcInterop.HangupAsync(); }
+            catch { /* best-effort cleanup */ }
         }
 
-        try { await JS.InvokeVoidAsync("dotnetcloudChatScroll.disconnectSentinel"); } catch { /* best-effort */ }
+        try
+        { await JS.InvokeVoidAsync("dotnetcloudChatScroll.disconnectSentinel"); }
+        catch { /* best-effort */ }
 
         _dotNetRef?.Dispose();
         _signalingLock.Dispose();
@@ -300,7 +307,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
     private void OnRemoteMessageReceived(Guid channelId, MessageDto message)
     {
-        if (_isDisposed) return;
+        if (_isDisposed)
+            return;
         InvokeAsync(async () =>
         {
             if (_selectedChannel is not null && _selectedChannel.Id == channelId)
@@ -311,7 +319,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
                 }
 
                 bool wasNearBottom;
-                try { wasNearBottom = await JS.InvokeAsync<bool>("dotnetcloudChatScroll.isNearBottom", ".chat-message-list", 150); }
+                try
+                { wasNearBottom = await JS.InvokeAsync<bool>("dotnetcloudChatScroll.isNearBottom", ".chat-message-list", 150); }
                 catch { wasNearBottom = true; }
 
                 _messages.Add(ToMessageViewModel(message));
@@ -319,7 +328,9 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
                 if (wasNearBottom)
                 {
-                    try { await JS.InvokeVoidAsync("dotnetcloudChatScroll.scrollToBottom", ".chat-message-list"); } catch { /* best-effort */ }
+                    try
+                    { await JS.InvokeVoidAsync("dotnetcloudChatScroll.scrollToBottom", ".chat-message-list"); }
+                    catch { /* best-effort */ }
                 }
             }
             else
@@ -337,8 +348,10 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
     private void OnRemoteMessageEdited(Guid channelId, MessageDto message)
     {
-        if (_isDisposed) return;
-        if (_selectedChannel is null || _selectedChannel.Id != channelId) return;
+        if (_isDisposed)
+            return;
+        if (_selectedChannel is null || _selectedChannel.Id != channelId)
+            return;
 
         InvokeAsync(() =>
         {
@@ -353,8 +366,10 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
     private void OnRemoteMessageDeleted(Guid channelId, Guid messageId)
     {
-        if (_isDisposed) return;
-        if (_selectedChannel is null || _selectedChannel.Id != channelId) return;
+        if (_isDisposed)
+            return;
+        if (_selectedChannel is null || _selectedChannel.Id != channelId)
+            return;
 
         InvokeAsync(() =>
         {
@@ -367,7 +382,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
     private void OnUserPresenceChanged(UserPresenceChangedNotification notification)
     {
-        if (_isDisposed) return;
+        if (_isDisposed)
+            return;
         InvokeAsync(() =>
         {
             var changed = false;
@@ -403,15 +419,19 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
     private void OnMediaStateChanged(MediaStateChangedNotification notification)
     {
-        if (_isDisposed) return;
+        if (_isDisposed)
+            return;
         // Ignore our own media state changes — we already know our own state
-        if (notification.UserId == _currentUserId) return;
-        if (_currentCallId is null || notification.CallId != _currentCallId) return;
+        if (notification.UserId == _currentUserId)
+            return;
+        if (_currentCallId is null || notification.CallId != _currentCallId)
+            return;
 
         InvokeAsync(() =>
         {
             var participant = _remoteParticipants.FirstOrDefault(p => p.UserId == notification.UserId);
-            if (participant is null) return;
+            if (participant is null)
+                return;
 
             switch (notification.MediaType)
             {
@@ -434,7 +454,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
     private async Task LoadChannelsAsync()
     {
-        if (_isLoadingChannels) return;
+        if (_isLoadingChannels)
+            return;
         try
         {
             _isLoadingChannels = true;
@@ -584,7 +605,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     /// <summary>Checks if the selected DM peer has blocked the current user.</summary>
     private async Task CheckIfBlockedByPeerAsync()
     {
-        if (SelectedDirectPeerUserId is not Guid peerId) return;
+        if (SelectedDirectPeerUserId is not Guid peerId)
+            return;
 
         try
         {
@@ -641,7 +663,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
     private void OnChannelAdded(Guid channelId)
     {
-        if (_isDisposed) return;
+        if (_isDisposed)
+            return;
         // A new channel (e.g. a DM started by another user) has been added.
         // Blazor Server runs InvokeAsync callbacks INLINE (up to their first real await) when
         // called from the circuit thread. Guard against the three cases where we should skip:
@@ -651,9 +674,12 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         //   3. _isLoadingChannels: another reload is already in progress.
         _ = InvokeAsync(async () =>
         {
-            if (_dmCreationInProgress) return;
-            if (_channels.Any(c => c.Id == channelId)) return;
-            if (_isLoadingChannels) return;
+            if (_dmCreationInProgress)
+                return;
+            if (_channels.Any(c => c.Id == channelId))
+                return;
+            if (_isLoadingChannels)
+                return;
             await LoadChannelsAsync();
             StateHasChanged();
         });
@@ -661,7 +687,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
     private void OnChannelDeleted(Guid channelId)
     {
-        if (_isDisposed) return;
+        if (_isDisposed)
+            return;
         // A channel was deleted (e.g. the other DM participant left) — remove it from the sidebar
         // and navigate away if it was the active channel.
         _ = InvokeAsync(async () =>
@@ -689,8 +716,10 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
     private void OnUserBlockStatusChanged(UserBlockStatusChangedNotification notification)
     {
-        if (_isDisposed) return;
-        if (notification.TargetUserId != _currentUserId) return;
+        if (_isDisposed)
+            return;
+        if (notification.TargetUserId != _currentUserId)
+            return;
 
         InvokeAsync(() =>
         {
@@ -766,7 +795,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     /// <summary>Saves channel settings from the dialog.</summary>
     protected async Task HandleSaveChannelSettings((string Name, string? Topic, string? Description) args)
     {
-        if (_selectedChannel is null) return;
+        if (_selectedChannel is null)
+            return;
 
         try
         {
@@ -799,7 +829,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     /// <summary>Handles notification preference change from settings dialog.</summary>
     protected async Task HandleNotificationPrefChanged(string pref)
     {
-        if (_selectedChannel is null) return;
+        if (_selectedChannel is null)
+            return;
 
         try
         {
@@ -818,7 +849,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     /// <summary>Handles deleting a channel from the settings dialog.</summary>
     protected async Task HandleDeleteChannel()
     {
-        if (_selectedChannel is null) return;
+        if (_selectedChannel is null)
+            return;
 
         try
         {
@@ -848,7 +880,9 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     private async Task LoadMessagesAsync(Guid channelId)
     {
         // Disconnect any previous sentinel observer before loading new channel messages
-        try { await JS.InvokeVoidAsync("dotnetcloudChatScroll.disconnectSentinel"); } catch { /* best-effort */ }
+        try
+        { await JS.InvokeVoidAsync("dotnetcloudChatScroll.disconnectSentinel"); }
+        catch { /* best-effort */ }
 
         try
         {
@@ -892,7 +926,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     [Microsoft.JSInterop.JSInvokable]
     public async Task OnScrolledToTop()
     {
-        if (_selectedChannel is null || !_hasMoreMessages || _isLoadingMore) return;
+        if (_selectedChannel is null || !_hasMoreMessages || _isLoadingMore)
+            return;
 
         _isLoadingMore = true;
         StateHasChanged();
@@ -947,7 +982,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     /// <summary>Handles sending a new message.</summary>
     protected async Task HandleSendMessage((string Content, Guid? ReplyToMessageId) args)
     {
-        if (_selectedChannel is null) return;
+        if (_selectedChannel is null)
+            return;
 
         try
         {
@@ -989,7 +1025,9 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
             ChatMessageNotifier.NotifyMessageReceived(_selectedChannel.Id, sent);
 
             // Scroll to bottom to show the just-sent message
-            try { await JS.InvokeVoidAsync("dotnetcloudChatScroll.scrollToBottom", ".chat-message-list"); } catch { /* best-effort */ }
+            try
+            { await JS.InvokeVoidAsync("dotnetcloudChatScroll.scrollToBottom", ".chat-message-list"); }
+            catch { /* best-effort */ }
 
             var members = await MemberService.ListMembersAsync(_selectedChannel.Id, caller);
             var preview = BuildMessagePreview(sent.Content);
@@ -1235,7 +1273,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     /// <summary>Sends a channel invite to a user by username.</summary>
     protected async Task HandleSendInvite()
     {
-        if (_selectedChannel is null || string.IsNullOrWhiteSpace(_inviteUsername)) return;
+        if (_selectedChannel is null || string.IsNullOrWhiteSpace(_inviteUsername))
+            return;
 
         _isInviting = true;
         _inviteErrorMessage = null;
@@ -1275,7 +1314,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     /// <summary>Promotes a member to Admin role.</summary>
     protected async Task HandlePromoteMember(Guid userId)
     {
-        if (_selectedChannel is null) return;
+        if (_selectedChannel is null)
+            return;
         try
         {
             var caller = await GetCallerContextAsync();
@@ -1291,7 +1331,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     /// <summary>Demotes a member to Member role.</summary>
     protected async Task HandleDemoteMember(Guid userId)
     {
-        if (_selectedChannel is null) return;
+        if (_selectedChannel is null)
+            return;
         try
         {
             var caller = await GetCallerContextAsync();
@@ -1307,7 +1348,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     /// <summary>Removes a member from the channel.</summary>
     protected async Task HandleRemoveMember(Guid userId)
     {
-        if (_selectedChannel is null) return;
+        if (_selectedChannel is null)
+            return;
         try
         {
             var caller = await GetCallerContextAsync();
@@ -1323,7 +1365,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     /// <summary>Adds a member to the channel from the settings dialog.</summary>
     protected async Task HandleAddMember(Guid userId)
     {
-        if (_selectedChannel is null) return;
+        if (_selectedChannel is null)
+            return;
         try
         {
             var caller = await GetCallerContextAsync();
@@ -1339,7 +1382,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     /// <summary>Changes a member's role from the settings dialog.</summary>
     protected async Task HandleChangeMemberRole((Guid UserId, string Role) args)
     {
-        if (_selectedChannel is null) return;
+        if (_selectedChannel is null)
+            return;
         try
         {
             var caller = await GetCallerContextAsync();
@@ -1396,7 +1440,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     /// <summary>Executes a message search.</summary>
     protected async Task HandleSearchSubmit(string query)
     {
-        if (_selectedChannel is null || string.IsNullOrWhiteSpace(query)) return;
+        if (_selectedChannel is null || string.IsNullOrWhiteSpace(query))
+            return;
 
         try
         {
@@ -1435,7 +1480,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     /// <summary>Handles typing indicator action.</summary>
     protected async Task HandleTyping()
     {
-        if (_selectedChannel is null) return;
+        if (_selectedChannel is null)
+            return;
         try
         {
             var caller = await GetCallerContextAsync();
@@ -1466,7 +1512,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     /// <summary>Handles an image pasted into the composer.</summary>
     protected async Task HandlePasteImage(PastedImageData pastedImage)
     {
-        if (_selectedChannel is null) return;
+        if (_selectedChannel is null)
+            return;
 
         // If the image was already uploaded via HTTP, just add metadata
         if (!string.IsNullOrEmpty(pastedImage.Url))
@@ -1485,7 +1532,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         }
 
         // Fallback: image data sent via SignalR (small images only)
-        if (pastedImage.Data.Length == 0) return;
+        if (pastedImage.Data.Length == 0)
+            return;
 
         try
         {
@@ -1515,7 +1563,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     [JSInvokable]
     public async Task HandleImageUploaded(string url, string fileName, string mimeType, long fileSize)
     {
-        if (_selectedChannel is null) return;
+        if (_selectedChannel is null)
+            return;
 
         _pendingAttachments.Add(new PendingAttachment
         {
@@ -1533,13 +1582,15 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     [JSInvokable]
     public async Task HandleFileSelected(string fileName, string contentType, string dataUrl, long sizeBytes)
     {
-        if (_selectedChannel is null) return;
+        if (_selectedChannel is null)
+            return;
 
         byte[] data;
         try
         {
             var commaIndex = dataUrl.IndexOf(',');
-            if (commaIndex < 0) return;
+            if (commaIndex < 0)
+                return;
             data = Convert.FromBase64String(dataUrl[(commaIndex + 1)..]);
         }
         catch (FormatException)
@@ -1722,7 +1773,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     private async Task ResolveDmChannelNamesAsync()
     {
         var dmChannels = _channels.Where(c => c.Type == "DirectMessage").ToList();
-        if (dmChannels.Count == 0) return;
+        if (dmChannels.Count == 0)
+            return;
 
         var dmToOtherUser = new Dictionary<Guid, Guid>();
 
@@ -1741,7 +1793,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
             }
         }
 
-        if (dmToOtherUser.Count == 0) return;
+        if (dmToOtherUser.Count == 0)
+            return;
 
         // Batch-resolve unknown display names
         var unknownIds = dmToOtherUser.Values
@@ -1799,7 +1852,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
             .Distinct()
             .ToList();
 
-        if (unknownIds.Count == 0) return;
+        if (unknownIds.Count == 0)
+            return;
 
         var names = await UserDirectory.GetDisplayNamesAsync(unknownIds);
         foreach (var (id, name) in names)
@@ -1818,7 +1872,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
     private void OnGlobalCallAccepted()
     {
-        if (_isDisposed) return;
+        if (_isDisposed)
+            return;
         var pending = GlobalNotificationState.ConsumePendingAccept();
         if (pending is not null)
         {
@@ -1836,7 +1891,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
     private void OnCallHostTransferred(CallHostTransferredNotification notification)
     {
-        if (_isDisposed) return;
+        if (_isDisposed)
+            return;
         if (_currentCallId is null || _currentCallId != notification.CallId)
         {
             return;
@@ -1867,9 +1923,11 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
     private void OnCallAccepted(CallAcceptedNotification notification)
     {
-        if (_isDisposed) return;
+        if (_isDisposed)
+            return;
         // Only the caller (who initiated this call) should react
-        if (_currentCallId is null || _currentCallId != notification.CallId) return;
+        if (_currentCallId is null || _currentCallId != notification.CallId)
+            return;
 
         _currentCallState = "Active";
         _hasActiveCall = true;
@@ -1949,7 +2007,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
     private void OnCallParticipantLeft(CallParticipantLeftNotification notification)
     {
-        if (_isDisposed) return;
+        if (_isDisposed)
+            return;
         if (_currentCallId is null || _currentCallId != notification.CallId)
             return;
 
@@ -1986,7 +2045,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
     private void OnCallEnded(CallEndedNotification notification)
     {
-        if (_isDisposed) return;
+        if (_isDisposed)
+            return;
         // If we're in the call that just ended, clean up the UI
         if (_currentCallId is not null && _currentCallId == notification.CallId)
         {
@@ -2050,10 +2110,13 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
     private void OnCallSignalReceived(CallSignalNotification notification)
     {
-        if (_isDisposed) return;
-        if (_currentCallId is null || notification.CallId != _currentCallId) return;
+        if (_isDisposed)
+            return;
+        if (_currentCallId is null || notification.CallId != _currentCallId)
+            return;
         // Only process signals addressed to this user — ignore signals we sent ourselves
-        if (notification.ToUserId != _currentUserId) return;
+        if (notification.ToUserId != _currentUserId)
+            return;
         var peerId = notification.FromUserId.ToString();
 
         _ = InvokeAsync(async () =>
@@ -2067,7 +2130,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
                     await StartWebRtcAsync();
                 }
 
-                if (!_webRtcInitialized) return; // Still failed, bail
+                if (!_webRtcInitialized)
+                    return; // Still failed, bail
 
                 switch (notification.Type)
                 {
@@ -2102,7 +2166,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
     private async Task StartWebRtcAsync()
     {
-        if (_webRtcInitialized || _dotNetRef is null || _currentCallId is null) return;
+        if (_webRtcInitialized || _dotNetRef is null || _currentCallId is null)
+            return;
 
         try
         {
@@ -2115,12 +2180,14 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
             };
 
             var initialized = await WebRtcInterop.InitializeCallAsync(_dotNetRef, config);
-            if (!initialized) return;
+            if (!initialized)
+                return;
 
             _webRtcInitialized = true;
 
             // Check browser support for background blur
-            try { _isBlurSupported = await WebRtcInterop.IsBackgroundBlurSupportedAsync(); }
+            try
+            { _isBlurSupported = await WebRtcInterop.IsBackgroundBlurSupportedAsync(); }
             catch { _isBlurSupported = false; }
 
             // StartLocalMediaAsync may fail if the device has no camera/mic — continue without local media
@@ -2207,7 +2274,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         _callDurationTimer = new System.Timers.Timer(1000);
         _callDurationTimer.Elapsed += (_, _) =>
         {
-            if (_isDisposed) return;
+            if (_isDisposed)
+                return;
             _callDurationSeconds++;
             SafeStateHasChanged();
         };
@@ -2222,7 +2290,9 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
         if (_webRtcInitialized)
         {
-            try { await WebRtcInterop.HangupAsync(); } catch { /* best-effort */ }
+            try
+            { await WebRtcInterop.HangupAsync(); }
+            catch { /* best-effort */ }
             _webRtcInitialized = false;
         }
 
@@ -2236,7 +2306,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     [JSInvokable]
     public async Task OnIceCandidate(string peerId, string candidateJson)
     {
-        if (_currentCallId is null) return;
+        if (_currentCallId is null)
+            return;
         await _signalingLock.WaitAsync();
         try
         {
@@ -2328,7 +2399,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         // Don't overwrite _messageErrorMessage (which hides the chat message list).
         if (string.Equals(context, "getUserMedia", StringComparison.Ordinal))
         {
-            Console.WriteLine($"[WebRTC] getUserMedia unavailable: {message}");
+            Logger.LogWarning("WebRTC getUserMedia unavailable: {Message}", message);
             return;
         }
 
@@ -2349,7 +2420,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     [JSInvokable]
     public async Task OnNegotiationNeeded(string peerId)
     {
-        if (_currentCallId is null) return;
+        if (_currentCallId is null)
+            return;
 
         // Skip the initial negotiation triggered by addTrack — it's handled explicitly
         if (!_initialNegotiationDone)
@@ -2461,7 +2533,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
                 .ToList();
             var avatarUrls = await UserDirectory.GetAvatarUrlsAsync(filtered.Select(r => r.Id), cts.Token);
 
-            if (cts.IsCancellationRequested) return;
+            if (cts.IsCancellationRequested)
+                return;
 
             _dmSearchResults = filtered
                 .Select(r => new UserSearchResultViewModel
@@ -2845,7 +2918,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
     private async Task InitiateCallAsync(string mediaType, bool cameraOff)
     {
-        if (_selectedChannel is null) return;
+        if (_selectedChannel is null)
+            return;
         if (_selectedChannel.IsMuted)
         {
             _messageErrorMessage = "This channel is muted. Unmute it to start calls.";
@@ -2902,7 +2976,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[Call] ToggleMute failed: {ex.Message}");
+            Logger.LogError(ex, "ToggleMute failed");
         }
     }
 
@@ -2919,7 +2993,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[Call] ToggleCamera failed: {ex.Message}");
+            Logger.LogError(ex, "ToggleCamera failed");
         }
     }
 
@@ -2927,7 +3001,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     {
         try
         {
-            if (!_webRtcInitialized) return;
+            if (!_webRtcInitialized)
+                return;
             if (sharing)
             {
                 await WebRtcInterop.StartScreenShareAsync();
@@ -2940,79 +3015,81 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[Call] ToggleScreenShare failed: {ex.Message}");
+            Logger.LogError(ex, "ToggleScreenShare failed");
         }
     }
 
     private async Task HandleCallToggleBackgroundBlur(bool blurred)
     {
-        if (!_webRtcInitialized || !_isBlurSupported) return;
+        if (!_webRtcInitialized || !_isBlurSupported)
+            return;
 
         try
         {
-        if (blurred)
-        {
-            // Switching to blur mode — clear any virtual background
-            var success = await WebRtcInterop.SetBackgroundBlurAsync(true);
-            if (success)
+            if (blurred)
             {
-                _isCallBackgroundBlurred = true;
-                _hasVirtualBackground = false;
-                _activeVirtualBackgroundUrl = null;
-
-                // Persist preference
-                try
+                // Switching to blur mode — clear any virtual background
+                var success = await WebRtcInterop.SetBackgroundBlurAsync(true);
+                if (success)
                 {
-                    await UserSettingsService.UpsertSettingAsync(
-                        _currentUserId,
-                        "dotnetcloud.video",
-                        "background-blur-enabled",
-                        new UpsertUserSettingDto { Value = "true" });
-                    await UserSettingsService.UpsertSettingAsync(
-                        _currentUserId,
-                        "dotnetcloud.video",
-                        "virtual-background-url",
-                        new UpsertUserSettingDto { Value = "" });
+                    _isCallBackgroundBlurred = true;
+                    _hasVirtualBackground = false;
+                    _activeVirtualBackgroundUrl = null;
+
+                    // Persist preference
+                    try
+                    {
+                        await UserSettingsService.UpsertSettingAsync(
+                            _currentUserId,
+                            "dotnetcloud.video",
+                            "background-blur-enabled",
+                            new UpsertUserSettingDto { Value = "true" });
+                        await UserSettingsService.UpsertSettingAsync(
+                            _currentUserId,
+                            "dotnetcloud.video",
+                            "virtual-background-url",
+                            new UpsertUserSettingDto { Value = "" });
+                    }
+                    catch { /* Non-critical */ }
                 }
-                catch { /* Non-critical */ }
             }
-        }
-        else
-        {
-            // Disabling all effects
-            var success = await WebRtcInterop.SetBackgroundBlurAsync(false);
-            if (success)
+            else
             {
-                _isCallBackgroundBlurred = false;
-                _hasVirtualBackground = false;
-                _activeVirtualBackgroundUrl = null;
-
-                try
+                // Disabling all effects
+                var success = await WebRtcInterop.SetBackgroundBlurAsync(false);
+                if (success)
                 {
-                    await UserSettingsService.UpsertSettingAsync(
-                        _currentUserId,
-                        "dotnetcloud.video",
-                        "background-blur-enabled",
-                        new UpsertUserSettingDto { Value = "false" });
-                    await UserSettingsService.UpsertSettingAsync(
-                        _currentUserId,
-                        "dotnetcloud.video",
-                        "virtual-background-url",
-                        new UpsertUserSettingDto { Value = "" });
+                    _isCallBackgroundBlurred = false;
+                    _hasVirtualBackground = false;
+                    _activeVirtualBackgroundUrl = null;
+
+                    try
+                    {
+                        await UserSettingsService.UpsertSettingAsync(
+                            _currentUserId,
+                            "dotnetcloud.video",
+                            "background-blur-enabled",
+                            new UpsertUserSettingDto { Value = "false" });
+                        await UserSettingsService.UpsertSettingAsync(
+                            _currentUserId,
+                            "dotnetcloud.video",
+                            "virtual-background-url",
+                            new UpsertUserSettingDto { Value = "" });
+                    }
+                    catch { /* Non-critical */ }
                 }
-                catch { /* Non-critical */ }
             }
-        }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[Call] ToggleBackgroundBlur failed: {ex.Message}");
+            Logger.LogError(ex, "ToggleBackgroundBlur failed");
         }
     }
 
     private async Task HandleCallBlurIntensityChanged(int intensity)
     {
-        if (!_webRtcInitialized || !_isBlurSupported) return;
+        if (!_webRtcInitialized || !_isBlurSupported)
+            return;
 
         _blurIntensity = intensity;
         try
@@ -3029,64 +3106,66 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
     private async Task HandleCallVirtualBackgroundSelected(string? imageUrl)
     {
-        if (!_webRtcInitialized || !_isBlurSupported) return;
+        if (!_webRtcInitialized || !_isBlurSupported)
+            return;
 
         try
         {
-        if (string.IsNullOrEmpty(imageUrl))
-        {
-            // Clear all effects
-            var success = await WebRtcInterop.SetBackgroundBlurAsync(false);
-            if (success)
+            if (string.IsNullOrEmpty(imageUrl))
             {
-                _isCallBackgroundBlurred = false;
-                _hasVirtualBackground = false;
-                _activeVirtualBackgroundUrl = null;
-
-                try
+                // Clear all effects
+                var success = await WebRtcInterop.SetBackgroundBlurAsync(false);
+                if (success)
                 {
-                    await UserSettingsService.UpsertSettingAsync(
-                        _currentUserId, "dotnetcloud.video", "background-blur-enabled",
-                        new UpsertUserSettingDto { Value = "false" });
-                    await UserSettingsService.UpsertSettingAsync(
-                        _currentUserId, "dotnetcloud.video", "virtual-background-url",
-                        new UpsertUserSettingDto { Value = "" });
+                    _isCallBackgroundBlurred = false;
+                    _hasVirtualBackground = false;
+                    _activeVirtualBackgroundUrl = null;
+
+                    try
+                    {
+                        await UserSettingsService.UpsertSettingAsync(
+                            _currentUserId, "dotnetcloud.video", "background-blur-enabled",
+                            new UpsertUserSettingDto { Value = "false" });
+                        await UserSettingsService.UpsertSettingAsync(
+                            _currentUserId, "dotnetcloud.video", "virtual-background-url",
+                            new UpsertUserSettingDto { Value = "" });
+                    }
+                    catch { /* Non-critical */ }
                 }
-                catch { /* Non-critical */ }
             }
-        }
-        else
-        {
-            // Set virtual background
-            var success = await WebRtcInterop.SetVirtualBackgroundAsync(imageUrl);
-            if (success)
+            else
             {
-                _hasVirtualBackground = true;
-                _activeVirtualBackgroundUrl = imageUrl;
-                _isCallBackgroundBlurred = false;
-
-                try
+                // Set virtual background
+                var success = await WebRtcInterop.SetVirtualBackgroundAsync(imageUrl);
+                if (success)
                 {
-                    await UserSettingsService.UpsertSettingAsync(
-                        _currentUserId, "dotnetcloud.video", "background-blur-enabled",
-                        new UpsertUserSettingDto { Value = "false" });
-                    await UserSettingsService.UpsertSettingAsync(
-                        _currentUserId, "dotnetcloud.video", "virtual-background-url",
-                        new UpsertUserSettingDto { Value = imageUrl });
+                    _hasVirtualBackground = true;
+                    _activeVirtualBackgroundUrl = imageUrl;
+                    _isCallBackgroundBlurred = false;
+
+                    try
+                    {
+                        await UserSettingsService.UpsertSettingAsync(
+                            _currentUserId, "dotnetcloud.video", "background-blur-enabled",
+                            new UpsertUserSettingDto { Value = "false" });
+                        await UserSettingsService.UpsertSettingAsync(
+                            _currentUserId, "dotnetcloud.video", "virtual-background-url",
+                            new UpsertUserSettingDto { Value = imageUrl });
+                    }
+                    catch { /* Non-critical */ }
                 }
-                catch { /* Non-critical */ }
             }
-        }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[Call] VirtualBackgroundSelected failed: {ex.Message}");
+            Logger.LogError(ex, "VirtualBackgroundSelected failed");
         }
     }
 
     private async Task SendMediaStateChangeAsync(string mediaType, bool enabled)
     {
-        if (_currentCallId is null) return;
+        if (_currentCallId is null)
+            return;
         try
         {
             var caller = await GetCallerContextAsync();
@@ -3095,7 +3174,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[Call] Failed to send media state change: {ex.Message}");
+            Logger.LogError(ex, "Failed to send media state change");
         }
     }
 
@@ -3159,7 +3238,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
     private async Task AcceptCallAsync(bool withVideo)
     {
-        if (_incomingCallId is null) return;
+        if (_incomingCallId is null)
+            return;
         try
         {
             var caller = await GetCallerContextAsync();
@@ -3224,7 +3304,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
     private async Task HandleLoadMoreCallHistory()
     {
-        if (_selectedChannel is null || _isLoadingMoreCallHistory || !_hasMoreCallHistory) return;
+        if (_selectedChannel is null || _isLoadingMoreCallHistory || !_hasMoreCallHistory)
+            return;
 
         _isLoadingMoreCallHistory = true;
         try
@@ -3247,7 +3328,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
     private async Task LoadCallHistoryAsync()
     {
-        if (_selectedChannel is null) return;
+        if (_selectedChannel is null)
+            return;
 
         _isLoadingCallHistory = true;
         try

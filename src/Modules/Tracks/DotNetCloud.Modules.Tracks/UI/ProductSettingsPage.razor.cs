@@ -147,7 +147,8 @@ public partial class ProductSettingsPage : ComponentBase
     /// </summary>
     private async Task ResolveMemberDisplayNamesAsync()
     {
-        if (_members.Count == 0) return;
+        if (_members.Count == 0)
+            return;
 
         var userIds = _members.Select(m => m.UserId).Distinct().ToList();
         try
@@ -308,7 +309,8 @@ public partial class ProductSettingsPage : ComponentBase
     private async Task UpdateMemberRole(Guid userId, ChangeEventArgs e)
     {
         var roleStr = e.Value?.ToString();
-        if (roleStr is null || !Enum.TryParse<ProductMemberRole>(roleStr, out var role)) return;
+        if (roleStr is null || !Enum.TryParse<ProductMemberRole>(roleStr, out var role))
+            return;
 
         try
         {
@@ -343,7 +345,8 @@ public partial class ProductSettingsPage : ComponentBase
 
     private async Task CreateLabelAsync()
     {
-        if (string.IsNullOrWhiteSpace(_newLabelTitle)) return;
+        if (string.IsNullOrWhiteSpace(_newLabelTitle))
+            return;
 
         try
         {
@@ -352,7 +355,8 @@ public partial class ProductSettingsPage : ComponentBase
                 Title = _newLabelTitle.Trim(),
                 Color = _newLabelColor
             });
-            if (label is not null) _labels.Add(label);
+            if (label is not null)
+                _labels.Add(label);
             _showCreateLabel = false;
             _newLabelTitle = "";
         }
@@ -389,7 +393,8 @@ public partial class ProductSettingsPage : ComponentBase
                 Description = _editDescription
             });
             _successMessage = "Product archived. You can restore it from the product list.";
-            if (updated is not null) await OnProductUpdated.InvokeAsync(updated);
+            if (updated is not null)
+                await OnProductUpdated.InvokeAsync(updated);
         }
         catch (Exception ex)
         {
@@ -403,7 +408,8 @@ public partial class ProductSettingsPage : ComponentBase
 
     private async Task TransferOwnershipAsync()
     {
-        if (!Guid.TryParse(_transferTargetUserId, out var newOwnerId)) return;
+        if (!Guid.TryParse(_transferTargetUserId, out var newOwnerId))
+            return;
 
         _showTransferOwner = false;
         _isSaving = true;
@@ -425,7 +431,8 @@ public partial class ProductSettingsPage : ComponentBase
 
     private async Task PermanentDeleteAsync()
     {
-        if (_deleteConfirmName != Product.Name) return;
+        if (_deleteConfirmName != Product.Name)
+            return;
 
         _showDeleteConfirm = false;
         _isSaving = true;
@@ -446,7 +453,8 @@ public partial class ProductSettingsPage : ComponentBase
 
     private static string GetInitials(string? name)
     {
-        if (string.IsNullOrWhiteSpace(name)) return "?";
+        if (string.IsNullOrWhiteSpace(name))
+            return "?";
         var parts = name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
         return parts.Length >= 2
             ? $"{parts[0][0]}{parts[1][0]}".ToUpperInvariant()
@@ -509,7 +517,8 @@ public partial class ProductSettingsPage : ComponentBase
         {
             for (int j = 0; j < _transitionSwimlanes.Count; j++)
             {
-                if (i == j) continue;
+                if (i == j)
+                    continue;
                 // Only allow moving to the next column
                 _transitionRules[(_transitionSwimlanes[i].Id, _transitionSwimlanes[j].Id)] = (j == i + 1);
             }
@@ -523,7 +532,8 @@ public partial class ProductSettingsPage : ComponentBase
         {
             for (int j = 0; j < _transitionSwimlanes.Count; j++)
             {
-                if (i == j) continue;
+                if (i == j)
+                    continue;
                 // Allow forward moves (to higher position) only
                 _transitionRules[(_transitionSwimlanes[i].Id, _transitionSwimlanes[j].Id)] = (j > i);
             }
@@ -560,7 +570,8 @@ public partial class ProductSettingsPage : ComponentBase
 
     private static string Truncate(string text, int maxLength)
     {
-        if (string.IsNullOrEmpty(text)) return "";
+        if (string.IsNullOrEmpty(text))
+            return "";
         return text.Length <= maxLength ? text : text[..maxLength] + "…";
     }
 

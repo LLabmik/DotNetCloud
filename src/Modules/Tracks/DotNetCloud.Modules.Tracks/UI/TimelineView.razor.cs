@@ -91,7 +91,8 @@ public partial class TimelineView : ComponentBase
 
     private void ComputeLayoutData()
     {
-        if (_planOverview is null) return;
+        if (_planOverview is null)
+            return;
 
         var sprints = _planOverview;
 
@@ -126,7 +127,8 @@ public partial class TimelineView : ComponentBase
         while (current <= _planEnd)
         {
             var monthEnd = new DateTime(current.Year, current.Month, 1).AddMonths(1).AddDays(-1);
-            if (monthEnd > _planEnd) monthEnd = _planEnd;
+            if (monthEnd > _planEnd)
+                monthEnd = _planEnd;
 
             var startDay = (current - _planStart).Days + 1;
             var endDay = (monthEnd - _planStart).Days + 1;
@@ -152,7 +154,8 @@ public partial class TimelineView : ComponentBase
 
     private string GetMonthsGridStyle()
     {
-        if (_totalDays <= 0) return "";
+        if (_totalDays <= 0)
+            return "";
         return $"display: grid; grid-template-columns: repeat({_totalDays}, 1fr);";
     }
 
@@ -184,7 +187,8 @@ public partial class TimelineView : ComponentBase
 
     internal static double GetProgressPercent(SprintDto sprint)
     {
-        if (sprint.TotalStoryPoints <= 0) return 0;
+        if (sprint.TotalStoryPoints <= 0)
+            return 0;
         return Math.Min(100, (double)sprint.CompletedStoryPoints / sprint.TotalStoryPoints * 100);
     }
 
@@ -212,7 +216,8 @@ public partial class TimelineView : ComponentBase
 
     private async Task HandleSprintClick(SprintDto sprint)
     {
-        if (_adjustingSprint is not null) return; // Don't navigate while adjusting
+        if (_adjustingSprint is not null)
+            return; // Don't navigate while adjusting
         await OnSprintSelected.InvokeAsync(sprint);
     }
 
@@ -234,8 +239,10 @@ public partial class TimelineView : ComponentBase
 
     private async Task ConfirmAdjust()
     {
-        if (_adjustingSprint is null) return;
-        if (_adjustDurationWeeks < 1 || _adjustDurationWeeks > 16) return;
+        if (_adjustingSprint is null)
+            return;
+        if (_adjustDurationWeeks < 1 || _adjustDurationWeeks > 16)
+            return;
 
         _isAdjusting = true;
         try

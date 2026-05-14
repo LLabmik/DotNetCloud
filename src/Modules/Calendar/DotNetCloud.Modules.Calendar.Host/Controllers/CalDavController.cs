@@ -196,7 +196,8 @@ public class CalDavController : ControllerBase
         var caller = GetCaller();
         var calendar = await _calendarService.GetCalendarAsync(calendarId, caller);
 
-        if (calendar is null) return NotFound();
+        if (calendar is null)
+            return NotFound();
 
         var events = await _eventService.ListEventsAsync(calendarId, caller, take: 1000);
 

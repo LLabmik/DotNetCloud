@@ -83,7 +83,8 @@ public class EmailController : EmailControllerBase
         {
             var caller = GetAuthenticatedCaller();
             var account = await _accountService.GetAsync(id, caller);
-            if (account is null) return NotFound(ErrorEnvelope(ErrorCodes.EmailAccountNotFound, "Email account not found."));
+            if (account is null)
+                return NotFound(ErrorEnvelope(ErrorCodes.EmailAccountNotFound, "Email account not found."));
             return Ok(Envelope(account));
         }
         catch (ValidationException ex)
@@ -422,7 +423,8 @@ public class EmailController : EmailControllerBase
         {
             var caller = GetAuthenticatedCaller();
             var rule = await _ruleService.GetAsync(id, caller);
-            if (rule is null) return NotFound(ErrorEnvelope(ErrorCodes.EmailRuleNotFound, "Email rule not found."));
+            if (rule is null)
+                return NotFound(ErrorEnvelope(ErrorCodes.EmailRuleNotFound, "Email rule not found."));
             return Ok(Envelope(rule));
         }
         catch (ValidationException ex)

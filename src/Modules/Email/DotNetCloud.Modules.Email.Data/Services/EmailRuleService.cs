@@ -96,10 +96,14 @@ public sealed class EmailRuleService : IEmailRuleService
             .FirstOrDefaultAsync(r => r.Id == id && r.OwnerId == caller.UserId, ct)
             ?? throw new ValidationException(ErrorCodes.EmailRuleNotFound, "Email rule not found.");
 
-        if (request.Name is not null) rule.Name = request.Name;
-        if (request.IsEnabled.HasValue) rule.IsEnabled = request.IsEnabled.Value;
-        if (request.Priority.HasValue) rule.Priority = request.Priority.Value;
-        if (request.StopProcessing.HasValue) rule.StopProcessing = request.StopProcessing.Value;
+        if (request.Name is not null)
+            rule.Name = request.Name;
+        if (request.IsEnabled.HasValue)
+            rule.IsEnabled = request.IsEnabled.Value;
+        if (request.Priority.HasValue)
+            rule.Priority = request.Priority.Value;
+        if (request.StopProcessing.HasValue)
+            rule.StopProcessing = request.StopProcessing.Value;
 
         if (request.ConditionGroups is not null)
         {
@@ -287,7 +291,8 @@ public sealed class EmailRuleService : IEmailRuleService
         }
 
         var value = GetFieldValue(condition.Field, message);
-        if (value is null) return false;
+        if (value is null)
+            return false;
 
         return condition.Operator switch
         {

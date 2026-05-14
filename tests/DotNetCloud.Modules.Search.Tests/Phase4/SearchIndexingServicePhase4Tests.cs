@@ -471,15 +471,15 @@ public class SearchIndexingServicePhase4Tests
     private static SearchDocument CreateSearchDocument(
         string moduleId, string entityId, string entityType, string title,
         string content = "", IReadOnlyDictionary<string, string>? metadata = null) => new()
-    {
-        ModuleId = moduleId,
-        EntityId = entityId,
-        EntityType = entityType,
-        Title = title,
-        Content = content,
-        OwnerId = Guid.NewGuid(),
-        CreatedAt = DateTimeOffset.UtcNow,
-        UpdatedAt = DateTimeOffset.UtcNow,
-        Metadata = metadata ?? new Dictionary<string, string>()
-    };
+        {
+            ModuleId = moduleId,
+            EntityId = entityId,
+            EntityType = entityType,
+            Title = title,
+            Content = content,
+            OwnerId = Guid.NewGuid(),
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+            Metadata = metadata ?? new Dictionary<string, string>()
+        };
 }

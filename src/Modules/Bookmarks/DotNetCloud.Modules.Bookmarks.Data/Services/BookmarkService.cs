@@ -92,13 +92,18 @@ public sealed class BookmarkService : IBookmarkService
             bookmark.Url = request.Url;
             bookmark.NormalizedUrl = NormalizeUrl(request.Url);
         }
-        if (request.Title is not null) bookmark.Title = request.Title;
-        if (request.Description is not null) bookmark.Description = request.Description;
-        if (request.Notes is not null) bookmark.Notes = request.Notes;
+        if (request.Title is not null)
+            bookmark.Title = request.Title;
+        if (request.Description is not null)
+            bookmark.Description = request.Description;
+        if (request.Notes is not null)
+            bookmark.Notes = request.Notes;
         if (request.Tags is not null)
             bookmark.TagsJson = request.Tags.Count > 0 ? System.Text.Json.JsonSerializer.Serialize(request.Tags) : null;
-        if (request.FolderId is not null) bookmark.FolderId = request.FolderId;
-        if (request.IsFavorite.HasValue) bookmark.IsFavorite = request.IsFavorite.Value;
+        if (request.FolderId is not null)
+            bookmark.FolderId = request.FolderId;
+        if (request.IsFavorite.HasValue)
+            bookmark.IsFavorite = request.IsFavorite.Value;
         bookmark.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(ct);
@@ -349,15 +354,20 @@ public sealed class BookmarkService : IBookmarkService
                             bookmark.Url = bu.Url;
                             bookmark.NormalizedUrl = NormalizeUrl(bu.Url);
                         }
-                        if (bu.Title is not null) bookmark.Title = bu.Title;
-                        if (bu.Description is not null) bookmark.Description = bu.Description;
-                        if (bu.Notes is not null) bookmark.Notes = bu.Notes;
+                        if (bu.Title is not null)
+                            bookmark.Title = bu.Title;
+                        if (bu.Description is not null)
+                            bookmark.Description = bu.Description;
+                        if (bu.Notes is not null)
+                            bookmark.Notes = bu.Notes;
                         if (bu.Tags is not null)
                             bookmark.TagsJson = bu.Tags.Count > 0
                                 ? System.Text.Json.JsonSerializer.Serialize(bu.Tags)
                                 : null;
-                        if (bu.FolderId is not null) bookmark.FolderId = bu.FolderId;
-                        if (bu.IsFavorite.HasValue) bookmark.IsFavorite = bu.IsFavorite.Value;
+                        if (bu.FolderId is not null)
+                            bookmark.FolderId = bu.FolderId;
+                        if (bu.IsFavorite.HasValue)
+                            bookmark.IsFavorite = bu.IsFavorite.Value;
                         bookmark.UpdatedAt = DateTime.UtcNow;
 
                         await _db.SaveChangesAsync(ct);

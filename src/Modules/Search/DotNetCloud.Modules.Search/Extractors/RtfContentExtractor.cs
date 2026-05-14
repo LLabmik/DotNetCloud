@@ -70,7 +70,8 @@ public sealed partial class RtfContentExtractor : IContentExtractor
 
                 case '}':
                     depth--;
-                    if (depth < 0) depth = 0;
+                    if (depth < 0)
+                        depth = 0;
                     skipDestination = false;
                     i++;
                     break;
@@ -114,7 +115,8 @@ public sealed partial class RtfContentExtractor : IContentExtractor
     {
         // Skip the backslash
         pos++;
-        if (pos >= rtf.Length) return pos;
+        if (pos >= rtf.Length)
+            return pos;
 
         var ch = rtf[pos];
 

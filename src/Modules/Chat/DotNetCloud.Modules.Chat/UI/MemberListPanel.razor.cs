@@ -77,7 +77,8 @@ public partial class MemberListPanel : ComponentBase
     /// <summary>Gets initials from a display name.</summary>
     protected static string GetInitials(string name)
     {
-        if (string.IsNullOrWhiteSpace(name)) return "?";
+        if (string.IsNullOrWhiteSpace(name))
+            return "?";
         var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         return parts.Length switch
         {

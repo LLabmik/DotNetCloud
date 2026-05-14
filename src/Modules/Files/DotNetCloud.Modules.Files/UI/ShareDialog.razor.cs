@@ -205,7 +205,8 @@ public partial class ShareDialog : ComponentBase
     /// <summary>Creates a share for the selected recipient.</summary>
     protected async Task CreateShareAsync()
     {
-        if (_selectedSearchResult is null) return;
+        if (_selectedSearchResult is null)
+            return;
 
         _shareErrorMessage = string.Empty;
         _isCreatingShare = true;
@@ -250,7 +251,8 @@ public partial class ShareDialog : ComponentBase
     /// <summary>Updates the permission level for an existing share.</summary>
     protected async Task UpdateSharePermissionAsync(ShareViewModel share, string newPermission)
     {
-        if (share.Permission == newPermission) return;
+        if (share.Permission == newPermission)
+            return;
 
         share.Permission = newPermission;
         await OnShareUpdated.InvokeAsync(new ShareUpdatedEventArgs
@@ -299,7 +301,8 @@ public partial class ShareDialog : ComponentBase
     /// <summary>Updates public link settings (permission, max downloads, expiry).</summary>
     protected async Task UpdatePublicLinkAsync()
     {
-        if (_publicLinkShare is null) return;
+        if (_publicLinkShare is null)
+            return;
 
         await OnShareUpdated.InvokeAsync(new ShareUpdatedEventArgs
         {
@@ -313,7 +316,8 @@ public partial class ShareDialog : ComponentBase
     /// <summary>Sets a password on the public link.</summary>
     protected async Task SetLinkPasswordAsync()
     {
-        if (_publicLinkShare is null || string.IsNullOrEmpty(_linkPassword)) return;
+        if (_publicLinkShare is null || string.IsNullOrEmpty(_linkPassword))
+            return;
 
         await OnShareUpdated.InvokeAsync(new ShareUpdatedEventArgs
         {
@@ -326,7 +330,8 @@ public partial class ShareDialog : ComponentBase
     /// <summary>Removes the password from the public link.</summary>
     protected async Task RemoveLinkPasswordAsync()
     {
-        if (_publicLinkShare is null) return;
+        if (_publicLinkShare is null)
+            return;
 
         await OnShareUpdated.InvokeAsync(new ShareUpdatedEventArgs
         {

@@ -48,7 +48,7 @@ public class SecurityHeadersMiddleware
 
         if (_options.EnableStrictTransportSecurity && context.Request.IsHttps)
         {
-            context.Response.Headers["Strict-Transport-Security"] = 
+            context.Response.Headers["Strict-Transport-Security"] =
                 $"max-age={_options.StrictTransportSecurityMaxAge}; includeSubDomains; preload";
         }
 
@@ -100,7 +100,7 @@ public class SecurityHeadersOptions
     /// <summary>
     /// Gets or sets the Content-Security-Policy value.
     /// </summary>
-    public string ContentSecurityPolicy { get; set; } = 
+    public string ContentSecurityPolicy { get; set; } =
         "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' ws: wss:; frame-ancestors 'self';";
 
     /// <summary>
@@ -146,7 +146,7 @@ public class SecurityHeadersOptions
     /// <summary>
     /// Gets or sets the Permissions-Policy value.
     /// </summary>
-    public string PermissionsPolicy { get; set; } = 
+    public string PermissionsPolicy { get; set; } =
         "geolocation=(), microphone=(), camera=()";
 
     /// <summary>

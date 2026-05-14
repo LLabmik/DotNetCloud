@@ -50,7 +50,8 @@ public sealed class UpdateCheckBackgroundService : IDisposable
     /// </summary>
     public void Start()
     {
-        if (_disposed) return;
+        if (_disposed)
+            return;
 
         // Initial check after 30 seconds, then at the configured interval.
         _timer = new Timer(
@@ -111,7 +112,8 @@ public sealed class UpdateCheckBackgroundService : IDisposable
     /// <inheritdoc/>
     public void Dispose()
     {
-        if (_disposed) return;
+        if (_disposed)
+            return;
         _disposed = true;
         _timer?.Dispose();
     }

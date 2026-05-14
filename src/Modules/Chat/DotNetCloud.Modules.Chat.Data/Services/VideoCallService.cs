@@ -168,7 +168,8 @@ internal sealed class VideoCallService : IVideoCallService
             {
                 var blocked = await _userBlockService.IsBlockedAsync(
                     caller.UserId, targetId, cancellationToken);
-                if (!blocked) nonBlockedTargets.Add(targetId);
+                if (!blocked)
+                    nonBlockedTargets.Add(targetId);
             }
             targetMemberIds = nonBlockedTargets;
         }
@@ -501,9 +502,12 @@ internal sealed class VideoCallService : IVideoCallService
     {
         ArgumentNullException.ThrowIfNull(caller);
 
-        if (skip < 0) skip = 0;
-        if (take <= 0) take = 20;
-        if (take > 100) take = 100;
+        if (skip < 0)
+            skip = 0;
+        if (take <= 0)
+            take = 20;
+        if (take > 100)
+            take = 100;
 
         var calls = await _db.VideoCalls
             .AsNoTracking()

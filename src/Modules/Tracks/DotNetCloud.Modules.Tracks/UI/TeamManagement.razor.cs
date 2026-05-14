@@ -134,7 +134,8 @@ public sealed partial class TeamManagement : ComponentBase
 
     private async Task CreateTeamAsync()
     {
-        if (string.IsNullOrWhiteSpace(_newTeamName)) return;
+        if (string.IsNullOrWhiteSpace(_newTeamName))
+            return;
 
         try
         {
@@ -298,7 +299,8 @@ public sealed partial class TeamManagement : ComponentBase
 
     private static string GetInitials(string? name)
     {
-        if (string.IsNullOrWhiteSpace(name)) return "?";
+        if (string.IsNullOrWhiteSpace(name))
+            return "?";
         var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         return parts.Length >= 2
             ? $"{parts[0][0]}{parts[1][0]}".ToUpperInvariant()

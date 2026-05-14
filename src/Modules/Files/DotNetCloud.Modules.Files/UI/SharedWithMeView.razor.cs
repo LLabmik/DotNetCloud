@@ -78,26 +78,40 @@ public partial class SharedWithMeView : ComponentBase
     /// <summary>Returns an emoji icon based on node type and MIME type.</summary>
     protected static string GetNodeIcon(SharedItemViewModel item)
     {
-        if (item.NodeType == "Folder") return "📁";
-        if (item.MimeType is null) return "📄";
-        if (item.MimeType.StartsWith("image/")) return "🖼️";
-        if (item.MimeType.StartsWith("video/")) return "🎬";
-        if (item.MimeType.StartsWith("audio/")) return "🎵";
-        if (item.MimeType.StartsWith("text/")) return "📝";
-        if (item.MimeType == "application/pdf") return "📕";
-        if (item.MimeType.Contains("spreadsheet") || item.MimeType.Contains("excel")) return "📊";
-        if (item.MimeType.Contains("presentation") || item.MimeType.Contains("powerpoint")) return "📈";
-        if (item.MimeType.Contains("document") || item.MimeType.Contains("word")) return "📘";
-        if (item.MimeType.Contains("zip") || item.MimeType.Contains("compressed")) return "🗜️";
+        if (item.NodeType == "Folder")
+            return "📁";
+        if (item.MimeType is null)
+            return "📄";
+        if (item.MimeType.StartsWith("image/"))
+            return "🖼️";
+        if (item.MimeType.StartsWith("video/"))
+            return "🎬";
+        if (item.MimeType.StartsWith("audio/"))
+            return "🎵";
+        if (item.MimeType.StartsWith("text/"))
+            return "📝";
+        if (item.MimeType == "application/pdf")
+            return "📕";
+        if (item.MimeType.Contains("spreadsheet") || item.MimeType.Contains("excel"))
+            return "📊";
+        if (item.MimeType.Contains("presentation") || item.MimeType.Contains("powerpoint"))
+            return "📈";
+        if (item.MimeType.Contains("document") || item.MimeType.Contains("word"))
+            return "📘";
+        if (item.MimeType.Contains("zip") || item.MimeType.Contains("compressed"))
+            return "🗜️";
         return "📄";
     }
 
     /// <summary>Formats a file size in human-readable units.</summary>
     protected static string FormatSize(long bytes)
     {
-        if (bytes < 1024) return $"{bytes} B";
-        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
-        if (bytes < 1024L * 1024 * 1024) return $"{bytes / (1024.0 * 1024.0):F1} MB";
+        if (bytes < 1024)
+            return $"{bytes} B";
+        if (bytes < 1024 * 1024)
+            return $"{bytes / 1024.0:F1} KB";
+        if (bytes < 1024L * 1024 * 1024)
+            return $"{bytes / (1024.0 * 1024.0):F1} MB";
         return $"{bytes / (1024.0 * 1024.0 * 1024.0):F2} GB";
     }
 
@@ -105,11 +119,16 @@ public partial class SharedWithMeView : ComponentBase
     protected static string FormatRelativeDate(DateTime dateUtc)
     {
         var diff = dateUtc - DateTime.UtcNow;
-        if (diff.TotalDays < 0) return "expired";
-        if (diff.TotalDays < 1) return "today";
-        if (diff.TotalDays < 2) return "tomorrow";
-        if (diff.TotalDays < 7) return $"in {(int)diff.TotalDays} days";
-        if (diff.TotalDays < 30) return $"in {(int)(diff.TotalDays / 7)} weeks";
+        if (diff.TotalDays < 0)
+            return "expired";
+        if (diff.TotalDays < 1)
+            return "today";
+        if (diff.TotalDays < 2)
+            return "tomorrow";
+        if (diff.TotalDays < 7)
+            return $"in {(int)diff.TotalDays} days";
+        if (diff.TotalDays < 30)
+            return $"in {(int)(diff.TotalDays / 7)} weeks";
         return dateUtc.ToString("MMM d, yyyy");
     }
 }

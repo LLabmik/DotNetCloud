@@ -171,7 +171,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         {
             if (Shell.Current is not null)
             {
-                await Shell.Current.DisplayAlert("Sync Disabled",
+                await Shell.Current.DisplayAlertAsync("Sync Disabled",
                     "Enable auto-upload first to sync files.", "OK");
             }
             return;
@@ -183,7 +183,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             await _mediaUploadService.ScanAndUploadNowAsync(ct);
             if (Shell.Current is not null)
             {
-                await Shell.Current.DisplayAlert("Sync Complete",
+                await Shell.Current.DisplayAlertAsync("Sync Complete",
                     "All new media has been uploaded.", "OK");
             }
         }
@@ -192,7 +192,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             _logger.LogError(ex, "Manual sync failed.");
             if (Shell.Current is not null)
             {
-                await Shell.Current.DisplayAlert("Sync Failed",
+                await Shell.Current.DisplayAlertAsync("Sync Failed",
                     $"Could not complete sync: {ex.Message}", "OK");
             }
         }

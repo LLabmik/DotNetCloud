@@ -41,10 +41,14 @@ internal static class PasswordValidator
 
         foreach (var c in password)
         {
-            if (char.IsUpper(c)) hasUpper = true;
-            else if (char.IsLower(c)) hasLower = true;
-            else if (char.IsDigit(c)) hasDigit = true;
-            else hasSpecial = true;
+            if (char.IsUpper(c))
+                hasUpper = true;
+            else if (char.IsLower(c))
+                hasLower = true;
+            else if (char.IsDigit(c))
+                hasDigit = true;
+            else
+                hasSpecial = true;
         }
 
         var categoryCount = (hasUpper ? 1 : 0) + (hasLower ? 1 : 0)

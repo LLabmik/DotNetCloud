@@ -264,7 +264,8 @@ public partial class AutomationRuleEditor : ComponentBase
         try
         {
             var actions = JsonSerializer.Deserialize<List<JsonElement>>(actionsJson);
-            if (actions is null || actions.Count == 0) return "Nothing";
+            if (actions is null || actions.Count == 0)
+                return "Nothing";
             var parts = actions.Select(a =>
             {
                 var type = a.GetProperty("type").GetString() ?? "";
@@ -287,7 +288,8 @@ public partial class AutomationRuleEditor : ComponentBase
 
     private string FormatActionsPreview()
     {
-        if (_editActions.Count == 0) return "do nothing";
+        if (_editActions.Count == 0)
+            return "do nothing";
         var parts = _editActions.Select(a => a.Type switch
         {
             "add_label" => "add label",

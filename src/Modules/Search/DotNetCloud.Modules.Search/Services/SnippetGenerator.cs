@@ -126,9 +126,11 @@ public static partial class SnippetGenerator
         var snippet = content[start..end];
         var sb = new StringBuilder();
 
-        if (start > 0) sb.Append("...");
+        if (start > 0)
+            sb.Append("...");
         sb.Append(snippet);
-        if (end < content.Length) sb.Append("...");
+        if (end < content.Length)
+            sb.Append("...");
 
         return sb.ToString();
     }
@@ -139,7 +141,8 @@ public static partial class SnippetGenerator
         {
             // HTML-encode the term for matching against encoded text
             var encodedTerm = HttpUtility.HtmlEncode(term);
-            if (string.IsNullOrEmpty(encodedTerm)) continue;
+            if (string.IsNullOrEmpty(encodedTerm))
+                continue;
 
             // Use regex for case-insensitive replace, escaping regex special chars
             var pattern = Regex.Escape(encodedTerm);

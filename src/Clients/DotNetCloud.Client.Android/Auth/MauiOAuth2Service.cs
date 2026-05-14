@@ -111,11 +111,14 @@ internal sealed class MauiOAuth2Service : IOAuth2Service
         foreach (var part in parts)
         {
             var kv = part.Split('=', 2);
-            if (kv.Length != 2) continue;
+            if (kv.Length != 2)
+                continue;
             var key = Uri.UnescapeDataString(kv[0]);
             var value = Uri.UnescapeDataString(kv[1]);
-            if (key == "code") code = value;
-            if (key == "state") state = value;
+            if (key == "code")
+                code = value;
+            if (key == "state")
+                state = value;
         }
 
         if (state != expectedState)

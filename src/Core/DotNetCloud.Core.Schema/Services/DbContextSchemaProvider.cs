@@ -32,19 +32,19 @@ public class DbContextSchemaProvider : IModuleSchemaProvider
 
     private static readonly Dictionary<string, Type> ModuleDbContextTypes = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["dotnetcloud.files"]     = typeof(FilesDbContext),
-        ["dotnetcloud.chat"]      = typeof(ChatDbContext),
-        ["dotnetcloud.search"]    = typeof(SearchDbContext),
-        ["dotnetcloud.contacts"]  = typeof(ContactsDbContext),
-        ["dotnetcloud.calendar"]  = typeof(CalendarDbContext),
-        ["dotnetcloud.notes"]     = typeof(NotesDbContext),
-        ["dotnetcloud.tracks"]    = typeof(TracksDbContext),
-        ["dotnetcloud.photos"]    = typeof(PhotosDbContext),
-        ["dotnetcloud.music"]     = typeof(MusicDbContext),
-        ["dotnetcloud.video"]     = typeof(VideoDbContext),
-        ["dotnetcloud.ai"]        = typeof(AiDbContext),
-        ["dotnetcloud.bookmarks"]  = typeof(BookmarksDbContext),
-        ["dotnetcloud.email"]      = typeof(EmailDbContext),
+        ["dotnetcloud.files"] = typeof(FilesDbContext),
+        ["dotnetcloud.chat"] = typeof(ChatDbContext),
+        ["dotnetcloud.search"] = typeof(SearchDbContext),
+        ["dotnetcloud.contacts"] = typeof(ContactsDbContext),
+        ["dotnetcloud.calendar"] = typeof(CalendarDbContext),
+        ["dotnetcloud.notes"] = typeof(NotesDbContext),
+        ["dotnetcloud.tracks"] = typeof(TracksDbContext),
+        ["dotnetcloud.photos"] = typeof(PhotosDbContext),
+        ["dotnetcloud.music"] = typeof(MusicDbContext),
+        ["dotnetcloud.video"] = typeof(VideoDbContext),
+        ["dotnetcloud.ai"] = typeof(AiDbContext),
+        ["dotnetcloud.bookmarks"] = typeof(BookmarksDbContext),
+        ["dotnetcloud.email"] = typeof(EmailDbContext),
     };
 
     public DbContextSchemaProvider(IServiceScopeFactory scopeFactory, ILogger<DbContextSchemaProvider> logger)

@@ -102,7 +102,8 @@ public partial class FileUploadComponent : ComponentBase, IDisposable
     /// </summary>
     protected async Task HandleFileInputChange()
     {
-        if (_isUploading) return;
+        if (_isUploading)
+            return;
 
         _isDragging = false;
         _errorMessage = null;
@@ -135,7 +136,8 @@ public partial class FileUploadComponent : ComponentBase, IDisposable
     /// <summary>Removes a single pending file from the queue.</summary>
     protected async Task RemoveFile(UploadFileItem file)
     {
-        if (_isUploading) return;
+        if (_isUploading)
+            return;
 
         var index = _files.IndexOf(file);
         if (index >= 0)
@@ -152,7 +154,8 @@ public partial class FileUploadComponent : ComponentBase, IDisposable
     /// </summary>
     protected async Task StartUpload()
     {
-        if (_files.Count == 0) return;
+        if (_files.Count == 0)
+            return;
 
         _errorMessage = null;
         _isUploading = true;
@@ -174,7 +177,8 @@ public partial class FileUploadComponent : ComponentBase, IDisposable
             for (var i = 0; i < _files.Count; i++)
             {
                 var file = _files[i];
-                if (file.Status != UploadStatus.Pending) continue;
+                if (file.Status != UploadStatus.Pending)
+                    continue;
 
                 file.Status = UploadStatus.Uploading;
                 file.StatusText = "Starting...";
@@ -262,14 +266,16 @@ public partial class FileUploadComponent : ComponentBase, IDisposable
 
     internal void ApplyProgress(int fileIndex, int percent, string statusText)
     {
-        if (fileIndex < 0 || fileIndex >= _files.Count) return;
+        if (fileIndex < 0 || fileIndex >= _files.Count)
+            return;
         _files[fileIndex].Progress = percent;
         _files[fileIndex].StatusText = statusText;
     }
 
     internal void ApplyComplete(int fileIndex)
     {
-        if (fileIndex < 0 || fileIndex >= _files.Count) return;
+        if (fileIndex < 0 || fileIndex >= _files.Count)
+            return;
         _files[fileIndex].Progress = 100;
         _files[fileIndex].Status = UploadStatus.Complete;
         _files[fileIndex].StatusText = "Complete";
@@ -277,7 +283,8 @@ public partial class FileUploadComponent : ComponentBase, IDisposable
 
     internal void ApplyError(int fileIndex, string error)
     {
-        if (fileIndex < 0 || fileIndex >= _files.Count) return;
+        if (fileIndex < 0 || fileIndex >= _files.Count)
+            return;
         _files[fileIndex].Status = UploadStatus.Failed;
         _files[fileIndex].StatusText = "Failed";
         _errorMessage = error;
@@ -286,7 +293,8 @@ public partial class FileUploadComponent : ComponentBase, IDisposable
     /// <summary>Removes all files from the queue (only when not uploading).</summary>
     protected async Task ClearFiles()
     {
-        if (_isUploading) return;
+        if (_isUploading)
+            return;
         _files.Clear();
         await JS!.InvokeVoidAsync("dotnetcloudUpload.clearFiles");
     }
@@ -294,9 +302,11 @@ public partial class FileUploadComponent : ComponentBase, IDisposable
     /// <summary>Pauses an in-progress upload at the current chunk boundary.</summary>
     protected async Task PauseUpload(int fileIndex)
     {
-        if (fileIndex < 0 || fileIndex >= _files.Count) return;
+        if (fileIndex < 0 || fileIndex >= _files.Count)
+            return;
         var file = _files[fileIndex];
-        if (file.Status != UploadStatus.Uploading) return;
+        if (file.Status != UploadStatus.Uploading)
+            return;
 
         await JS!.InvokeVoidAsync("dotnetcloudUpload.pauseUpload", fileIndex);
         file.Status = UploadStatus.Paused;
@@ -307,9 +317,11 @@ public partial class FileUploadComponent : ComponentBase, IDisposable
     /// <summary>Resumes a paused upload from where it left off.</summary>
     protected async Task ResumeUpload(int fileIndex)
     {
-        if (fileIndex < 0 || fileIndex >= _files.Count) return;
+        if (fileIndex < 0 || fileIndex >= _files.Count)
+            return;
         var file = _files[fileIndex];
-        if (file.Status != UploadStatus.Paused) return;
+        if (file.Status != UploadStatus.Paused)
+            return;
 
         file.Status = UploadStatus.Uploading;
         file.StatusText = "Resuming...";
@@ -326,9 +338,11 @@ public partial class FileUploadComponent : ComponentBase, IDisposable
     /// <summary>Cancels an upload and cleans up the server-side session.</summary>
     protected async Task CancelUpload(int fileIndex)
     {
-        if (fileIndex < 0 || fileIndex >= _files.Count) return;
+        if (fileIndex < 0 || fileIndex >= _files.Count)
+            return;
         var file = _files[fileIndex];
-        if (file.Status is not (UploadStatus.Uploading or UploadStatus.Paused)) return;
+        if (file.Status is not (UploadStatus.Uploading or UploadStatus.Paused))
+            return;
 
         await JS!.InvokeVoidAsync("dotnetcloudUpload.cancelUpload", fileIndex);
         file.Status = UploadStatus.Failed;
@@ -339,16 +353,20 @@ public partial class FileUploadComponent : ComponentBase, IDisposable
     /// <summary>Formats a byte count as a human-readable size string.</summary>
     protected static string FormatSize(long bytes)
     {
-        if (bytes < 1024) return $"{bytes} B";
-        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
-        if (bytes < 1024L * 1024 * 1024) return $"{bytes / (1024.0 * 1024.0):F1} MB";
+        if (bytes < 1024)
+            return $"{bytes} B";
+        if (bytes < 1024 * 1024)
+            return $"{bytes / 1024.0:F1} KB";
+        if (bytes < 1024L * 1024 * 1024)
+            return $"{bytes / (1024.0 * 1024.0):F1} MB";
         return $"{bytes / (1024.0 * 1024.0 * 1024.0):F2} GB";
     }
 
     /// <summary>Truncates a filename to keep the UI compact.</summary>
     protected static string TruncateName(string name, int maxLength = 32)
     {
-        if (name.Length <= maxLength) return name;
+        if (name.Length <= maxLength)
+            return name;
         var ext = Path.GetExtension(name);
         var stem = Path.GetFileNameWithoutExtension(name);
         var budget = maxLength - ext.Length - 1;

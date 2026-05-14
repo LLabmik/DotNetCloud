@@ -96,12 +96,12 @@ public class DbInitializerTests
         // Assert - Verify system settings were seeded
         var settings = await _context.SystemSettings.ToListAsync();
         Assert.IsTrue(settings.Count >= 20, $"Should seed at least 20 system settings, got {settings.Count}");
-        
+
         // Verify core settings
         var sessionTimeout = settings.FirstOrDefault(s => s.Module == "dotnetcloud.core" && s.Key == "SessionTimeout");
         Assert.IsNotNull(sessionTimeout, "Should include SessionTimeout setting");
         Assert.AreEqual("3600", sessionTimeout.Value, "SessionTimeout should be 3600 seconds");
-        
+
         // Verify files settings
         var maxUploadSize = settings.FirstOrDefault(s => s.Module == "dotnetcloud.files" && s.Key == "MaxUploadSizeBytes");
         Assert.IsNotNull(maxUploadSize, "Should include MaxUploadSizeBytes setting");

@@ -107,10 +107,14 @@ public sealed class NoteFolderService : INoteFolderService
             .FirstOrDefaultAsync(f => f.Id == folderId && f.OwnerId == caller.UserId, cancellationToken)
             ?? throw new Core.Errors.ValidationException(Core.Errors.ErrorCodes.NoteFolderNotFound, "Folder not found.");
 
-        if (dto.Name is not null) folder.Name = dto.Name;
-        if (dto.ParentId.HasValue) folder.ParentId = dto.ParentId;
-        if (dto.Color is not null) folder.Color = dto.Color;
-        if (dto.SortOrder.HasValue) folder.SortOrder = dto.SortOrder.Value;
+        if (dto.Name is not null)
+            folder.Name = dto.Name;
+        if (dto.ParentId.HasValue)
+            folder.ParentId = dto.ParentId;
+        if (dto.Color is not null)
+            folder.Color = dto.Color;
+        if (dto.SortOrder.HasValue)
+            folder.SortOrder = dto.SortOrder.Value;
 
         folder.UpdatedAt = DateTime.UtcNow;
 

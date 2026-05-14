@@ -122,11 +122,16 @@ public sealed class CalendarService : ICalendarService
         if (!await CanAccessCalendarAsync(calendar, caller, requireWrite: true, cancellationToken))
             throw new Core.Errors.ValidationException(Core.Errors.ErrorCodes.Forbidden, "You do not have permission to modify this calendar.");
 
-        if (dto.Name is not null) calendar.Name = dto.Name;
-        if (dto.Description is not null) calendar.Description = dto.Description;
-        if (dto.Color is not null) calendar.Color = dto.Color;
-        if (dto.Timezone is not null) calendar.Timezone = dto.Timezone;
-        if (dto.IsVisible is not null) calendar.IsVisible = dto.IsVisible.Value;
+        if (dto.Name is not null)
+            calendar.Name = dto.Name;
+        if (dto.Description is not null)
+            calendar.Description = dto.Description;
+        if (dto.Color is not null)
+            calendar.Color = dto.Color;
+        if (dto.Timezone is not null)
+            calendar.Timezone = dto.Timezone;
+        if (dto.IsVisible is not null)
+            calendar.IsVisible = dto.IsVisible.Value;
 
         calendar.SyncToken = Guid.NewGuid().ToString("N");
         calendar.UpdatedAt = DateTime.UtcNow;
@@ -194,8 +199,10 @@ public sealed class CalendarService : ICalendarService
 
         // Org-owned: user must be an active member
         var isMember = await _orgDirectory.IsOrganizationMemberAsync(calendar.OrganizationId.Value, caller.UserId, cancellationToken);
-        if (!isMember) return false;
-        if (!requireWrite) return true;
+        if (!isMember)
+            return false;
+        if (!requireWrite)
+            return true;
 
         // Write access: check for Manager+ role
         var member = await _orgDirectory.GetMemberAsync(calendar.OrganizationId.Value, caller.UserId, cancellationToken);

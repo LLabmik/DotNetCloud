@@ -35,7 +35,8 @@ public partial class TagInput : ComponentBase
 
     private async Task AddTag()
     {
-        if (string.IsNullOrWhiteSpace(_tagName)) return;
+        if (string.IsNullOrWhiteSpace(_tagName))
+            return;
 
         var name = _tagName.Trim();
         var color = _tagColor == "#3b82f6" ? null : _tagColor; // null means "use existing color or default"
@@ -47,8 +48,10 @@ public partial class TagInput : ComponentBase
 
     private async Task HandleKeyDown(KeyboardEventArgs e)
     {
-        if (e.Key == "Enter") await AddTag();
-        if (e.Key == "Escape") { _showSuggestions = false; _tagName = string.Empty; }
+        if (e.Key == "Enter")
+            await AddTag();
+        if (e.Key == "Escape")
+        { _showSuggestions = false; _tagName = string.Empty; }
     }
 
     private async Task SelectSuggestion(FileTagViewModel suggestion)

@@ -40,12 +40,14 @@ public sealed class MusicBrainzClient : IMusicBrainzClient
         var url = $"artist/?query=artist:\"{encodedName}\"&fmt=json";
 
         var json = await GetJsonAsync(url, cancellationToken);
-        if (json is null) return null;
+        if (json is null)
+            return null;
 
         try
         {
             var response = JsonSerializer.Deserialize<MbArtistSearchResponse>(json, JsonOptions);
-            if (response?.Artists is null) return [];
+            if (response?.Artists is null)
+                return [];
 
             return response.Artists.Select(a => new MusicBrainzArtistResult
             {
@@ -68,12 +70,14 @@ public sealed class MusicBrainzClient : IMusicBrainzClient
         var url = $"artist/{Uri.EscapeDataString(mbid)}?inc=url-rels+annotation&fmt=json";
 
         var json = await GetJsonAsync(url, cancellationToken);
-        if (json is null) return null;
+        if (json is null)
+            return null;
 
         try
         {
             var response = JsonSerializer.Deserialize<MbArtistDetail>(json, JsonOptions);
-            if (response is null) return null;
+            if (response is null)
+                return null;
 
             string? wikipediaUrl = null;
             string? discogsUrl = null;
@@ -84,7 +88,8 @@ public sealed class MusicBrainzClient : IMusicBrainzClient
                 foreach (var rel in response.Relations)
                 {
                     var targetUrl = rel.Url?.Resource;
-                    if (targetUrl is null) continue;
+                    if (targetUrl is null)
+                        continue;
 
                     if (rel.Type == "wikipedia")
                         wikipediaUrl = targetUrl;
@@ -120,12 +125,14 @@ public sealed class MusicBrainzClient : IMusicBrainzClient
         var url = $"release-group/?query=releasegroup:\"{encodedAlbum}\" AND artist:\"{encodedArtist}\"&fmt=json";
 
         var json = await GetJsonAsync(url, cancellationToken);
-        if (json is null) return null;
+        if (json is null)
+            return null;
 
         try
         {
             var response = JsonSerializer.Deserialize<MbReleaseGroupSearchResponse>(json, JsonOptions);
-            if (response?.ReleaseGroups is null) return [];
+            if (response?.ReleaseGroups is null)
+                return [];
 
             return response.ReleaseGroups.Select(rg => new MusicBrainzReleaseGroupResult
             {
@@ -148,12 +155,14 @@ public sealed class MusicBrainzClient : IMusicBrainzClient
         var url = $"release-group/{Uri.EscapeDataString(mbid)}?inc=releases&fmt=json";
 
         var json = await GetJsonAsync(url, cancellationToken);
-        if (json is null) return null;
+        if (json is null)
+            return null;
 
         try
         {
             var response = JsonSerializer.Deserialize<MbReleaseGroupDetail>(json, JsonOptions);
-            if (response is null) return null;
+            if (response is null)
+                return null;
 
             return new MusicBrainzReleaseGroupDetail
             {
@@ -183,12 +192,14 @@ public sealed class MusicBrainzClient : IMusicBrainzClient
         var url = $"recording/?query=recording:\"{encodedTitle}\" AND artist:\"{encodedArtist}\"&fmt=json";
 
         var json = await GetJsonAsync(url, cancellationToken);
-        if (json is null) return null;
+        if (json is null)
+            return null;
 
         try
         {
             var response = JsonSerializer.Deserialize<MbRecordingSearchResponse>(json, JsonOptions);
-            if (response?.Recordings is null) return [];
+            if (response?.Recordings is null)
+                return [];
 
             return response.Recordings.Select(r => new MusicBrainzRecordingResult
             {
@@ -211,12 +222,14 @@ public sealed class MusicBrainzClient : IMusicBrainzClient
         var url = $"recording/{Uri.EscapeDataString(mbid)}?fmt=json";
 
         var json = await GetJsonAsync(url, cancellationToken);
-        if (json is null) return null;
+        if (json is null)
+            return null;
 
         try
         {
             var response = JsonSerializer.Deserialize<MbRecordingDetail>(json, JsonOptions);
-            if (response is null) return null;
+            if (response is null)
+                return null;
 
             return new MusicBrainzRecordingDetail
             {

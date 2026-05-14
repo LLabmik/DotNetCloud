@@ -46,9 +46,15 @@ public class CrossModuleResultAggregationTests
         {
             _db.SearchIndexEntries.Add(new SearchIndexEntry
             {
-                ModuleId = "files", EntityId = $"file-{i}", EntityType = "FileNode",
-                Title = $"Project Document {i}", Content = $"This is project document number {i} with important content.",
-                OwnerId = _userId, CreatedAt = now.AddDays(-i), UpdatedAt = now.AddDays(-i), IndexedAt = now
+                ModuleId = "files",
+                EntityId = $"file-{i}",
+                EntityType = "FileNode",
+                Title = $"Project Document {i}",
+                Content = $"This is project document number {i} with important content.",
+                OwnerId = _userId,
+                CreatedAt = now.AddDays(-i),
+                UpdatedAt = now.AddDays(-i),
+                IndexedAt = now
             });
         }
 
@@ -57,9 +63,15 @@ public class CrossModuleResultAggregationTests
         {
             _db.SearchIndexEntries.Add(new SearchIndexEntry
             {
-                ModuleId = "notes", EntityId = $"note-{i}", EntityType = "Note",
-                Title = $"Project Note {i}", Content = $"Project planning note {i} with details about the project.",
-                OwnerId = _userId, CreatedAt = now.AddDays(-i), UpdatedAt = now.AddDays(-i), IndexedAt = now
+                ModuleId = "notes",
+                EntityId = $"note-{i}",
+                EntityType = "Note",
+                Title = $"Project Note {i}",
+                Content = $"Project planning note {i} with details about the project.",
+                OwnerId = _userId,
+                CreatedAt = now.AddDays(-i),
+                UpdatedAt = now.AddDays(-i),
+                IndexedAt = now
             });
         }
 
@@ -68,9 +80,15 @@ public class CrossModuleResultAggregationTests
         {
             _db.SearchIndexEntries.Add(new SearchIndexEntry
             {
-                ModuleId = "chat", EntityId = $"msg-{i}", EntityType = "Message",
-                Title = $"Project Channel", Content = $"Discussion about the project in message {i}.",
-                OwnerId = _userId, CreatedAt = now.AddDays(-i), UpdatedAt = now.AddDays(-i), IndexedAt = now
+                ModuleId = "chat",
+                EntityId = $"msg-{i}",
+                EntityType = "Message",
+                Title = $"Project Channel",
+                Content = $"Discussion about the project in message {i}.",
+                OwnerId = _userId,
+                CreatedAt = now.AddDays(-i),
+                UpdatedAt = now.AddDays(-i),
+                IndexedAt = now
             });
         }
 
@@ -79,18 +97,30 @@ public class CrossModuleResultAggregationTests
         {
             _db.SearchIndexEntries.Add(new SearchIndexEntry
             {
-                ModuleId = "calendar", EntityId = $"event-{i}", EntityType = "CalendarEvent",
-                Title = $"Project Meeting {i}", Content = $"Scheduled project meeting {i} to discuss milestones.",
-                OwnerId = _userId, CreatedAt = now.AddDays(-i), UpdatedAt = now.AddDays(-i), IndexedAt = now
+                ModuleId = "calendar",
+                EntityId = $"event-{i}",
+                EntityType = "CalendarEvent",
+                Title = $"Project Meeting {i}",
+                Content = $"Scheduled project meeting {i} to discuss milestones.",
+                OwnerId = _userId,
+                CreatedAt = now.AddDays(-i),
+                UpdatedAt = now.AddDays(-i),
+                IndexedAt = now
             });
         }
 
         // 1 contacts entry
         _db.SearchIndexEntries.Add(new SearchIndexEntry
         {
-            ModuleId = "contacts", EntityId = "contact-1", EntityType = "Contact",
-            Title = "Project Lead", Content = "John Doe, project lead at DotNetCloud.",
-            OwnerId = _userId, CreatedAt = now.AddDays(-1), UpdatedAt = now.AddDays(-1), IndexedAt = now
+            ModuleId = "contacts",
+            EntityId = "contact-1",
+            EntityType = "Contact",
+            Title = "Project Lead",
+            Content = "John Doe, project lead at DotNetCloud.",
+            OwnerId = _userId,
+            CreatedAt = now.AddDays(-1),
+            UpdatedAt = now.AddDays(-1),
+            IndexedAt = now
         });
 
         _db.SaveChanges();
@@ -361,9 +391,14 @@ public class CrossModuleResultAggregationTests
         // Add an entry with metadata
         _db.SearchIndexEntries.Add(new SearchIndexEntry
         {
-            ModuleId = "files", EntityId = "meta-test", EntityType = "FileNode",
-            Title = "Metadata Test File", Content = "Project file with metadata",
-            OwnerId = _userId, CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow,
+            ModuleId = "files",
+            EntityId = "meta-test",
+            EntityType = "FileNode",
+            Title = "Metadata Test File",
+            Content = "Project file with metadata",
+            OwnerId = _userId,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
             IndexedAt = DateTimeOffset.UtcNow,
             MetadataJson = "{\"MimeType\":\"application/pdf\",\"FileSize\":\"1024\"}"
         });

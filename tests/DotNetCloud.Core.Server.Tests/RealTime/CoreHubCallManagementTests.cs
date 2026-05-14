@@ -380,7 +380,8 @@ public class CoreHubCallManagementTests
     {
         var hub = CreateHubWithoutVideoCallService();
 
-        try { await hub.InviteToCallAsync(Guid.NewGuid(), Guid.NewGuid()); }
+        try
+        { await hub.InviteToCallAsync(Guid.NewGuid(), Guid.NewGuid()); }
         catch (HubException) { /* expected */ }
 
         _videoCallServiceMock.Verify(s => s.InviteToCallAsync(
@@ -393,7 +394,8 @@ public class CoreHubCallManagementTests
     {
         var hub = CreateHubWithoutVideoCallService();
 
-        try { await hub.TransferHostAsync(Guid.NewGuid(), Guid.NewGuid()); }
+        try
+        { await hub.TransferHostAsync(Guid.NewGuid(), Guid.NewGuid()); }
         catch (HubException) { /* expected */ }
 
         _videoCallServiceMock.Verify(s => s.TransferHostAsync(

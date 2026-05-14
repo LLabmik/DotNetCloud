@@ -53,7 +53,7 @@ public sealed class ConflictResolver : IConflictResolver
         }
 
         // ── Strategy 1: Identical content (hash match) ─────────────────────
-        if (_settings.IsStrategyEnabled("identical") &&!string.IsNullOrEmpty(conflict.LocalContentHash) &&
+        if (_settings.IsStrategyEnabled("identical") && !string.IsNullOrEmpty(conflict.LocalContentHash) &&
             !string.IsNullOrEmpty(conflict.RemoteContentHash) &&
             conflict.LocalContentHash.Equals(conflict.RemoteContentHash, StringComparison.OrdinalIgnoreCase))
         {
@@ -421,7 +421,8 @@ public sealed class ConflictResolver : IConflictResolver
         int len = Math.Min(a.Length, b.Length);
         for (int i = 0; i < len; i++)
         {
-            if (a[i] != b[i]) return i;
+            if (a[i] != b[i])
+                return i;
         }
         return len;
     }

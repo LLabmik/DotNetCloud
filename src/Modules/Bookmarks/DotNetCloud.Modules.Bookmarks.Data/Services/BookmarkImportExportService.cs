@@ -51,13 +51,15 @@ public sealed class BookmarkImportExportService : IBookmarkImportExportService
     {
         foreach (var dt in dlElement.Children)
         {
-            if (dt.TagName is not "DT") continue;
+            if (dt.TagName is not "DT")
+                continue;
 
             var heading = dt.QuerySelector("h3");
             if (heading is not null)
             {
                 var folderName = heading.TextContent.Trim();
-                if (string.IsNullOrWhiteSpace(folderName)) continue;
+                if (string.IsNullOrWhiteSpace(folderName))
+                    continue;
 
                 var importPath = BuildImportPath(folderMap, parentFolderId, folderName);
 
@@ -78,7 +80,8 @@ public sealed class BookmarkImportExportService : IBookmarkImportExportService
             else
             {
                 var anchor = dt.QuerySelector("a");
-                if (anchor is null) continue;
+                if (anchor is null)
+                    continue;
 
                 var url = anchor.GetAttribute("href");
                 if (string.IsNullOrWhiteSpace(url))

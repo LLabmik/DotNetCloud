@@ -32,7 +32,8 @@ public sealed class PhotoMetadataService
     public async Task<PhotoMetadata?> ExtractAndStoreAsync(Guid photoId, string filePath, string mimeType, CancellationToken cancellationToken = default)
     {
         var photo = await _db.Photos.FindAsync([photoId], cancellationToken);
-        if (photo is null) return null;
+        if (photo is null)
+            return null;
 
         MediaMetadataDto? extracted = null;
         if (_exifExtractor is not null && _exifExtractor.CanExtract(mimeType))

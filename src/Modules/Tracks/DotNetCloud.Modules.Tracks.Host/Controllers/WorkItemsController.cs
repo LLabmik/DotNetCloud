@@ -507,10 +507,12 @@ public class WorkItemsController : TracksControllerBase
             switch (dto.Action)
             {
                 case "archive":
-                    foreach (var item in items) item.IsArchived = true;
+                    foreach (var item in items)
+                        item.IsArchived = true;
                     break;
                 case "unarchive":
-                    foreach (var item in items) item.IsArchived = false;
+                    foreach (var item in items)
+                        item.IsArchived = false;
                     break;
                 case "delete":
                     foreach (var item in items)
@@ -524,7 +526,8 @@ public class WorkItemsController : TracksControllerBase
                         .FirstOrDefaultAsync(s => s.Id == dto.TargetSwimlaneId.Value, ct);
                     if (targetSwimlane is null)
                         return BadRequest(ErrorEnvelope(ErrorCodes.BadRequest, "Target swimlane not found."));
-                    foreach (var item in items) item.SwimlaneId = dto.TargetSwimlaneId.Value;
+                    foreach (var item in items)
+                        item.SwimlaneId = dto.TargetSwimlaneId.Value;
                     break;
                 case "add-label" when dto.LabelId.HasValue:
                     foreach (var item in items)
@@ -541,7 +544,8 @@ public class WorkItemsController : TracksControllerBase
                     }
                     break;
                 case "set-priority" when dto.Priority.HasValue:
-                    foreach (var item in items) item.Priority = dto.Priority.Value;
+                    foreach (var item in items)
+                        item.Priority = dto.Priority.Value;
                     break;
                 case "assign-sprint" when dto.SprintId.HasValue:
                     foreach (var item in items)

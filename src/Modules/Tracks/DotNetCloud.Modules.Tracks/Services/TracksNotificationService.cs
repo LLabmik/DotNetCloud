@@ -33,8 +33,10 @@ internal sealed class TracksNotificationService : ITracksNotificationService
     /// <inheritdoc />
     public async Task NotifyCardAssignedAsync(Guid boardId, Guid cardId, string cardTitle, Guid assignedUserId, Guid assignedByUserId, CancellationToken cancellationToken)
     {
-        if (_notificationService is null) return;
-        if (assignedUserId == assignedByUserId) return; // Don't notify for self-assignment
+        if (_notificationService is null)
+            return;
+        if (assignedUserId == assignedByUserId)
+            return; // Don't notify for self-assignment
 
         var notification = new NotificationDto
         {
@@ -62,17 +64,20 @@ internal sealed class TracksNotificationService : ITracksNotificationService
     /// <inheritdoc />
     public async Task NotifyMentionsAsync(Guid boardId, Guid cardId, string cardTitle, Guid commentAuthorId, string commentContent, CancellationToken cancellationToken)
     {
-        if (_notificationService is null || _userDirectory is null) return;
+        if (_notificationService is null || _userDirectory is null)
+            return;
 
         var usernames = MentionParser.ParseMentions(commentContent);
-        if (usernames.Count == 0) return;
+        if (usernames.Count == 0)
+            return;
 
         foreach (var username in usernames)
         {
             try
             {
                 var userId = await _userDirectory.FindUserIdByUsernameAsync(username, cancellationToken);
-                if (userId is null || userId.Value == commentAuthorId) continue;
+                if (userId is null || userId.Value == commentAuthorId)
+                    continue;
 
                 var notification = new NotificationDto
                 {
@@ -99,10 +104,12 @@ internal sealed class TracksNotificationService : ITracksNotificationService
     /// <inheritdoc />
     public async Task NotifySprintStartedAsync(Guid boardId, string sprintTitle, Guid startedByUserId, IReadOnlyList<Guid> boardMemberIds, CancellationToken cancellationToken)
     {
-        if (_notificationService is null) return;
+        if (_notificationService is null)
+            return;
 
         var recipients = boardMemberIds.Where(id => id != startedByUserId).ToList();
-        if (recipients.Count == 0) return;
+        if (recipients.Count == 0)
+            return;
 
         var notification = new NotificationDto
         {
@@ -130,10 +137,12 @@ internal sealed class TracksNotificationService : ITracksNotificationService
     /// <inheritdoc />
     public async Task NotifySprintCompletedAsync(Guid boardId, string sprintTitle, Guid completedByUserId, IReadOnlyList<Guid> boardMemberIds, CancellationToken cancellationToken)
     {
-        if (_notificationService is null) return;
+        if (_notificationService is null)
+            return;
 
         var recipients = boardMemberIds.Where(id => id != completedByUserId).ToList();
-        if (recipients.Count == 0) return;
+        if (recipients.Count == 0)
+            return;
 
         var notification = new NotificationDto
         {
@@ -161,8 +170,10 @@ internal sealed class TracksNotificationService : ITracksNotificationService
     /// <inheritdoc />
     public async Task NotifyTeamMemberAddedAsync(Guid teamId, string teamName, Guid addedUserId, Guid addedByUserId, CancellationToken cancellationToken)
     {
-        if (_notificationService is null) return;
-        if (addedUserId == addedByUserId) return;
+        if (_notificationService is null)
+            return;
+        if (addedUserId == addedByUserId)
+            return;
 
         var notification = new NotificationDto
         {
@@ -190,7 +201,8 @@ internal sealed class TracksNotificationService : ITracksNotificationService
     /// <inheritdoc />
     public async Task NotifyTeamMemberRemovedAsync(Guid teamId, string teamName, Guid removedUserId, CancellationToken cancellationToken)
     {
-        if (_notificationService is null) return;
+        if (_notificationService is null)
+            return;
 
         var notification = new NotificationDto
         {
@@ -218,10 +230,12 @@ internal sealed class TracksNotificationService : ITracksNotificationService
     /// <inheritdoc />
     public async Task NotifyCommentAddedAsync(Guid boardId, Guid cardId, string cardTitle, Guid commentAuthorId, IReadOnlyList<Guid> cardAssigneeIds, CancellationToken cancellationToken)
     {
-        if (_notificationService is null) return;
+        if (_notificationService is null)
+            return;
 
         var recipients = cardAssigneeIds.Where(id => id != commentAuthorId).ToList();
-        if (recipients.Count == 0) return;
+        if (recipients.Count == 0)
+            return;
 
         var notification = new NotificationDto
         {
@@ -249,7 +263,8 @@ internal sealed class TracksNotificationService : ITracksNotificationService
     /// <inheritdoc />
     public async Task NotifyDueSoonAsync(Guid boardId, Guid cardId, string cardTitle, DateTime dueDate, Guid assigneeUserId, CancellationToken cancellationToken = default)
     {
-        if (_notificationService is null) return;
+        if (_notificationService is null)
+            return;
 
         var hoursRemaining = (int)Math.Round((dueDate - DateTime.UtcNow).TotalHours);
         var timeLabel = hoursRemaining <= 1 ? "less than an hour" : $"{hoursRemaining} hours";

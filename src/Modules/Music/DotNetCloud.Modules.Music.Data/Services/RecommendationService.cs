@@ -76,7 +76,8 @@ public sealed class RecommendationService : IRecommendationService
             .Include(t => t.TrackGenres)
             .FirstOrDefaultAsync(t => t.Id == trackId, cancellationToken);
 
-        if (track is null) return [];
+        if (track is null)
+            return [];
 
         var genreIds = track.TrackGenres.Select(tg => tg.GenreId).ToList();
         var artistIds = track.TrackArtists.Select(ta => ta.ArtistId).ToList();

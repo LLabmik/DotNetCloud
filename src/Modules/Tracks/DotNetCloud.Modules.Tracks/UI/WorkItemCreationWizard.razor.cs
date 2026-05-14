@@ -146,7 +146,8 @@ public partial class WorkItemCreationWizard : ComponentBase
 
     private async Task SubmitAsync()
     {
-        if (!IsStepValid(0)) return;
+        if (!IsStepValid(0))
+            return;
 
         _isSubmitting = true;
         _errorMessage = null;

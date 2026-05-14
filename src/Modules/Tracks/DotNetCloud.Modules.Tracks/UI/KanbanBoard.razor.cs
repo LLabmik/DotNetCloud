@@ -73,7 +73,8 @@ public partial class KanbanBoard : ComponentBase
 
     private IReadOnlyList<WorkItemDto> GetFilteredWorkItems(Guid swimlaneId)
     {
-        if (!WorkItemsBySwimlane.TryGetValue(swimlaneId, out var items)) return [];
+        if (!WorkItemsBySwimlane.TryGetValue(swimlaneId, out var items))
+            return [];
 
         IEnumerable<WorkItemDto> filtered = items.Where(c => !c.IsArchived);
 
@@ -123,15 +124,18 @@ public partial class KanbanBoard : ComponentBase
 
     private async Task HandleDropOnSwimlane(Guid targetSwimlaneId)
     {
-        if (_draggedItem is null) return;
+        if (_draggedItem is null)
+            return;
 
         var item = _draggedItem;
         var dropTarget = _dropTargetItemId;
         _draggedItem = null;
         _dropTargetItemId = null;
 
-        if (item.SwimlaneId == targetSwimlaneId && dropTarget is null) return;
-        if (dropTarget == item.Id) return;
+        if (item.SwimlaneId == targetSwimlaneId && dropTarget is null)
+            return;
+        if (dropTarget == item.Id)
+            return;
 
         // ── WIP Limit Check (client-side preview) ──
         var targetSwimlane = Swimlanes.FirstOrDefault(s => s.Id == targetSwimlaneId);
@@ -207,7 +211,7 @@ public partial class KanbanBoard : ComponentBase
                 position = targetItems.Count > 0 ? targetItems.Max(c => c.Position) + 1000 : 1000;
             }
 
-            doMove:
+        doMove:
             var moved = await ApiClient.MoveWorkItemAsync(item.Id, new MoveWorkItemDto
             {
                 TargetSwimlaneId = targetSwimlaneId,
@@ -250,13 +254,16 @@ public partial class KanbanBoard : ComponentBase
 
     private async Task HandleAddItemKeyDown(KeyboardEventArgs e)
     {
-        if (e.Key == "Enter") await SubmitNewItemAsync();
-        else if (e.Key == "Escape") CancelAddItem();
+        if (e.Key == "Enter")
+            await SubmitNewItemAsync();
+        else if (e.Key == "Escape")
+            CancelAddItem();
     }
 
     private async Task SubmitNewItemAsync()
     {
-        if (_addingItemToSwimlane is null || string.IsNullOrWhiteSpace(_newItemTitle)) return;
+        if (_addingItemToSwimlane is null || string.IsNullOrWhiteSpace(_newItemTitle))
+            return;
 
         try
         {
@@ -286,13 +293,16 @@ public partial class KanbanBoard : ComponentBase
 
     private async Task HandleAddSwimlaneKeyDown(KeyboardEventArgs e)
     {
-        if (e.Key == "Enter") await SubmitNewSwimlaneAsync();
-        else if (e.Key == "Escape") _showAddSwimlane = false;
+        if (e.Key == "Enter")
+            await SubmitNewSwimlaneAsync();
+        else if (e.Key == "Escape")
+            _showAddSwimlane = false;
     }
 
     private async Task SubmitNewSwimlaneAsync()
     {
-        if (string.IsNullOrWhiteSpace(_newSwimlaneTitle)) return;
+        if (string.IsNullOrWhiteSpace(_newSwimlaneTitle))
+            return;
 
         try
         {
@@ -362,7 +372,8 @@ public partial class KanbanBoard : ComponentBase
     /// </summary>
     private static string GetContrastTextColor(string? hexColor)
     {
-        if (string.IsNullOrEmpty(hexColor)) return "#fff";
+        if (string.IsNullOrEmpty(hexColor))
+            return "#fff";
 
         var hex = hexColor.TrimStart('#');
         if (hex.Length == 3)
@@ -397,7 +408,8 @@ public partial class KanbanBoard : ComponentBase
 
     private static string GetInitials(string? name)
     {
-        if (string.IsNullOrWhiteSpace(name)) return "?";
+        if (string.IsNullOrWhiteSpace(name))
+            return "?";
         var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         return parts.Length >= 2
             ? $"{parts[0][0]}{parts[1][0]}".ToUpperInvariant()
