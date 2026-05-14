@@ -1,3 +1,4 @@
+@using System.Linq
 @using Microsoft.AspNetCore.Components.Routing
 @using DotNetCloud.UI.Web.Services
 
@@ -9,11 +10,7 @@
         <Authorized>
             <ul class="nav-list">
                 <li class="nav-item">
-                    <NavLink href="/"
-                             Match="NavLinkMatch.All"
-                             class="nav-link"
-                             title="Home"
-                             aria-label="Home">
+                    <NavLink href="/" Match="NavLinkMatch.All" class="nav-link" title="Home" aria-label="Home">
                         <span class="nav-icon">🏠</span>
                         @if (!Collapsed)
                         {
@@ -28,10 +25,7 @@
                     <div class="nav-separator"></div>
                     <ul class="nav-list">
                         <li class="nav-item">
-                            <NavLink href="/admin"
-                                     Match="NavLinkMatch.All"
-                                     class="nav-link"
-                                     title="Dashboard"
+                            <NavLink href="/admin" Match="NavLinkMatch.All" class="nav-link" title="Dashboard"
                                      aria-label="Dashboard">
                                 <span class="nav-icon">📊</span>
                                 @if (!Collapsed)
@@ -41,10 +35,7 @@
                             </NavLink>
                         </li>
                         <li class="nav-item">
-                            <NavLink href="/admin/users"
-                                     Match="NavLinkMatch.Prefix"
-                                     class="nav-link"
-                                     title="Users"
+                            <NavLink href="/admin/users" Match="NavLinkMatch.Prefix" class="nav-link" title="Users"
                                      aria-label="Users">
                                 <span class="nav-icon">👥</span>
                                 @if (!Collapsed)
@@ -54,11 +45,8 @@
                             </NavLink>
                         </li>
                         <li class="nav-item">
-                            <NavLink href="/admin/organizations"
-                                     Match="NavLinkMatch.Prefix"
-                                     class="nav-link"
-                                     title="Organizations"
-                                     aria-label="Organizations">
+                            <NavLink href="/admin/organizations" Match="NavLinkMatch.Prefix" class="nav-link"
+                                     title="Organizations" aria-label="Organizations">
                                 <span class="nav-icon">🏢</span>
                                 @if (!Collapsed)
                                 {
@@ -67,10 +55,7 @@
                             </NavLink>
                         </li>
                         <li class="nav-item">
-                            <NavLink href="/admin/groups"
-                                     Match="NavLinkMatch.Prefix"
-                                     class="nav-link"
-                                     title="Groups"
+                            <NavLink href="/admin/groups" Match="NavLinkMatch.Prefix" class="nav-link" title="Groups"
                                      aria-label="Groups">
                                 <span class="nav-icon">🧩</span>
                                 @if (!Collapsed)
@@ -80,11 +65,8 @@
                             </NavLink>
                         </li>
                         <li class="nav-item">
-                            <NavLink href="/admin/files/shared-folders"
-                                     Match="NavLinkMatch.Prefix"
-                                     class="nav-link"
-                                     title="Shared Folders"
-                                     aria-label="Shared Folders">
+                            <NavLink href="/admin/files/shared-folders" Match="NavLinkMatch.Prefix" class="nav-link"
+                                     title="Shared Folders" aria-label="Shared Folders">
                                 <span class="nav-icon">🗂</span>
                                 @if (!Collapsed)
                                 {
@@ -93,10 +75,7 @@
                             </NavLink>
                         </li>
                         <li class="nav-item">
-                            <NavLink href="/admin/modules"
-                                     Match="NavLinkMatch.Prefix"
-                                     class="nav-link"
-                                     title="Modules"
+                            <NavLink href="/admin/modules" Match="NavLinkMatch.Prefix" class="nav-link" title="Modules"
                                      aria-label="Modules">
                                 <span class="nav-icon">📦</span>
                                 @if (!Collapsed)
@@ -106,11 +85,8 @@
                             </NavLink>
                         </li>
                         <li class="nav-item">
-                            <NavLink href="/admin/settings"
-                                     Match="NavLinkMatch.Prefix"
-                                     class="nav-link"
-                                     title="Settings"
-                                     aria-label="Settings">
+                            <NavLink href="/admin/settings" Match="NavLinkMatch.Prefix" class="nav-link"
+                                     title="Settings" aria-label="Settings">
                                 <span class="nav-icon">⚙</span>
                                 @if (!Collapsed)
                                 {
@@ -119,10 +95,7 @@
                             </NavLink>
                         </li>
                         <li class="nav-item">
-                            <NavLink href="/admin/health"
-                                     Match="NavLinkMatch.Prefix"
-                                     class="nav-link"
-                                     title="Health"
+                            <NavLink href="/admin/health" Match="NavLinkMatch.Prefix" class="nav-link" title="Health"
                                      aria-label="Health">
                                 <span class="nav-icon">💚</span>
                                 @if (!Collapsed)
@@ -132,10 +105,7 @@
                             </NavLink>
                         </li>
                         <li class="nav-item">
-                            <NavLink href="/admin/search"
-                                     Match="NavLinkMatch.Prefix"
-                                     class="nav-link"
-                                     title="Search"
+                            <NavLink href="/admin/search" Match="NavLinkMatch.Prefix" class="nav-link" title="Search"
                                      aria-label="Search">
                                 <span class="nav-icon">🔍</span>
                                 @if (!Collapsed)
@@ -145,11 +115,8 @@
                             </NavLink>
                         </li>
                         <li class="nav-item">
-                            <NavLink href="/admin/sync-devices"
-                                     Match="NavLinkMatch.Prefix"
-                                     class="nav-link"
-                                     title="Sync Devices"
-                                     aria-label="Sync Devices">
+                            <NavLink href="/admin/sync-devices" Match="NavLinkMatch.Prefix" class="nav-link"
+                                     title="Sync Devices" aria-label="Sync Devices">
                                 <span class="nav-icon">🔄</span>
                                 @if (!Collapsed)
                                 {
@@ -158,10 +125,7 @@
                             </NavLink>
                         </li>
                         <li class="nav-item">
-                            <NavLink href="/admin/backup"
-                                     Match="NavLinkMatch.Prefix"
-                                     class="nav-link"
-                                     title="Backup"
+                            <NavLink href="/admin/backup" Match="NavLinkMatch.Prefix" class="nav-link" title="Backup"
                                      aria-label="Backup">
                                 <span class="nav-icon">💾</span>
                                 @if (!Collapsed)
@@ -171,10 +135,7 @@
                             </NavLink>
                         </li>
                         <li class="nav-item">
-                            <NavLink href="/admin/updates"
-                                     Match="NavLinkMatch.Prefix"
-                                     class="nav-link"
-                                     title="Updates"
+                            <NavLink href="/admin/updates" Match="NavLinkMatch.Prefix" class="nav-link" title="Updates"
                                      aria-label="Updates">
                                 <span class="nav-icon">⬆</span>
                                 @if (!Collapsed)
@@ -187,17 +148,43 @@
                 </Authorized>
             </AuthorizeView>
 
-            @if (ModuleRegistry.NavItems.Count > 0)
+            @{
+                var bottomItems = ModuleRegistry.NavItems
+                    .Where(i => string.Equals(i.ModuleId, "dotnetcloud.about", StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+                var mainItems = ModuleRegistry.NavItems
+                    .Except(bottomItems)
+                    .ToList();
+            }
+
+            @if (mainItems.Count > 0)
             {
                 <div class="nav-separator"></div>
                 <ul class="nav-list">
-                    @foreach (var item in ModuleRegistry.NavItems)
+                    @foreach (var item in mainItems)
                     {
                         <li class="nav-item">
-                            <NavLink href="@item.Href"
-                                     Match="NavLinkMatch.Prefix"
-                                     class="nav-link"
-                                     title="@item.Label"
+                            <NavLink href="@item.Href" Match="NavLinkMatch.Prefix" class="nav-link" title="@item.Label"
+                                     aria-label="@item.Label">
+                                <span class="nav-icon">@item.Icon</span>
+                                @if (!Collapsed)
+                                {
+                                    <span class="nav-text">@item.Label</span>
+                                }
+                            </NavLink>
+                        </li>
+                    }
+                </ul>
+            }
+
+            @if (bottomItems.Count > 0)
+            {
+                <div class="nav-separator"></div>
+                <ul class="nav-list">
+                    @foreach (var item in bottomItems)
+                    {
+                        <li class="nav-item">
+                            <NavLink href="@item.Href" Match="NavLinkMatch.Prefix" class="nav-link" title="@item.Label"
                                      aria-label="@item.Label">
                                 <span class="nav-icon">@item.Icon</span>
                                 @if (!Collapsed)
@@ -213,10 +200,7 @@
         <NotAuthorized>
             <ul class="nav-list">
                 <li class="nav-item">
-                    <NavLink href="/auth/login"
-                             class="nav-link"
-                             title="Login"
-                             aria-label="Login">
+                    <NavLink href="/auth/login" class="nav-link" title="Login" aria-label="Login">
                         <span class="nav-icon">🔑</span>
                         @if (!Collapsed)
                         {
