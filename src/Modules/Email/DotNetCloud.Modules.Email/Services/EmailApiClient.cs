@@ -79,8 +79,8 @@ public sealed class EmailApiClient : IEmailApiClient
     public async Task SendAsync(Guid accountId, EmailSendRequest request, CancellationToken ct = default)
     {
         var url = $"api/v1/email/accounts/{accountId}/send";
-        _logger.LogInformation("EmailApiClient.SendAsync: POST {Url} with To={To}, Subject={Subj}",
-            url, request.To?.Count, request.Subject);
+        _logger.LogInformation("EmailApiClient.SendAsync: POST {Url} with To={RecipientCount}, Subject={SubjLen}",
+            url, request.To?.Count, request.Subject?.Length);
         try
         {
             var response = await _httpClient.PostAsJsonAsync(url, request, ct);

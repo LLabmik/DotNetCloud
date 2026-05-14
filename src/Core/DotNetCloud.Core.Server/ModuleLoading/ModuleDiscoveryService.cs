@@ -100,8 +100,17 @@ internal sealed class ModuleDiscoveryService
     {
         ArgumentNullException.ThrowIfNull(moduleId);
 
-        var modulesDir = GetModulesDirectory();
-        var moduleDir = Path.Combine(modulesDir, moduleId);
+        var modulesDir = Path.GetFullPath(GetModulesDirectory());
+        var moduleDir = Path.GetFullPath(Path.Combine(modulesDir, moduleId));
+
+        // Prevent path traversal: the resolved module directory must be within the modules root
+        if (!moduleDir.StartsWith(modulesDir, StringComparison.Ordinal))
+        {
+            _logger.LogWarning(
+                "Path traversal blocked for module {ModuleId}: resolved path {Path} is outside modules directory",
+                moduleId, moduleDir);
+            return null;
+        }
 
         if (!Directory.Exists(moduleDir))
         {

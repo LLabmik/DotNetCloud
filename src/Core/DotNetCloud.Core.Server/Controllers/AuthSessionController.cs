@@ -89,7 +89,7 @@ public sealed class AuthSessionController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Form login failed for {Email}", email);
+            _logger.LogError(ex, "Form login failed");
             return RedirectToLogin($"Login error: {ex.GetType().Name}", returnUrl, email);
         }
     }
@@ -129,7 +129,7 @@ public sealed class AuthSessionController : ControllerBase
         if (!changeResult.Succeeded)
         {
             var errors = string.Join(" ", changeResult.Errors.Select(e => e.Description));
-            _logger.LogWarning("Password change failed for user {UserId}: {Errors}", user.Id, errors);
+            _logger.LogWarning("Password change failed: {Errors}", errors);
             return RedirectToChangePassword(errors, safeReturn);
         }
 
@@ -191,6 +191,6 @@ public sealed class AuthSessionController : ControllerBase
             .Where(u => u.NormalizedEmail == normalizedEmail)
             .ExecuteUpdateAsync(s => s.SetProperty(u => u.LastLoginAt, now));
         if (updated == 0)
-            _logger.LogWarning("Could not persist LastLoginAt for {Email}: user not found", email);
+            _logger.LogWarning("Could not persist LastLoginAt: user not found");
     }
 }

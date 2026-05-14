@@ -55,9 +55,8 @@ public sealed class OAuth2Service : IOAuth2Service
         var authUrl = BuildAuthorizationUrl(serverBaseUrl, clientId, challenge, state, scope);
 
         _logger.LogInformation(
-            "Opening OAuth authorize URL for client '{ClientId}' with scope '{Scope}'.",
-            clientId,
-            scope);
+            "Opening OAuth authorize URL for client '{ClientId}'.",
+            clientId);
 
         // Start the localhost callback listener BEFORE opening the browser.
         // If the user is already authenticated, the server may redirect

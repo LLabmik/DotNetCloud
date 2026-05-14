@@ -32,7 +32,7 @@ public sealed class EncryptedFileTokenStore : ITokenStore
         var encrypted = EncryptAesGcm(json);
         var path = GetPath(accountKey);
         await File.WriteAllBytesAsync(path, encrypted, cancellationToken);
-        _logger.LogDebug("Saved tokens for account {AccountKey}.", accountKey);
+        _logger.LogDebug("Saved encrypted tokens for account.");
     }
 
     /// <inheritdoc/>
@@ -50,7 +50,7 @@ public sealed class EncryptedFileTokenStore : ITokenStore
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to load tokens for account {AccountKey}.", accountKey);
+            _logger.LogWarning(ex, "Failed to load encrypted tokens for account.");
             return null;
         }
     }

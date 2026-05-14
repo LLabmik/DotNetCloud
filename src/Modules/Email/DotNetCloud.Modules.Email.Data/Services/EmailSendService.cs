@@ -176,8 +176,8 @@ public sealed class EmailSendService : IEmailSendService
 
         await _db.SaveChangesAsync(ct);
 
-        _logger.LogInformation("Email sent from account {AccountId} to {Recipients}, messageId={MessageId}",
-            accountId, string.Join(", ", request.To.Select(t => t.Email)), sentMessage.Id);
+        _logger.LogInformation("Email sent from account {AccountId} to {RecipientCount} recipient(s), messageId={MessageId}",
+            accountId, request.To.Count, sentMessage.Id);
 
         await _eventBus.PublishAsync(new EmailSentEvent
         {

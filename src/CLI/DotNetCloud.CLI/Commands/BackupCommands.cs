@@ -302,13 +302,22 @@ internal static class BackupCommands
             var dataEntries = archive.Entries.Where(e => e.FullName.StartsWith("data/")).ToList();
             if (dataEntries.Count > 0)
             {
+                var resolvedDataDir = Path.GetFullPath(config.DataDirectory);
                 foreach (var entry in dataEntries)
                 {
                     var relativePath = entry.FullName["data/".Length..];
                     if (string.IsNullOrEmpty(relativePath))
                         continue;
 
-                    var targetPath = Path.Combine(config.DataDirectory, relativePath.Replace('/', Path.DirectorySeparatorChar));
+                    var targetPath = Path.GetFullPath(Path.Combine(config.DataDirectory, relativePath.Replace('/', Path.DirectorySeparatorChar)));
+
+                    // Prevent Zip Slip: ensure the resolved path is within the data directory
+                    if (!targetPath.StartsWith(resolvedDataDir, StringComparison.Ordinal))
+                    {
+                        ConsoleOutput.WriteWarning($"Skipping entry '{entry.FullName}' — path traversal detected.");
+                        continue;
+                    }
+
                     Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
                     entry.ExtractToFile(targetPath, overwrite: true);
                 }

@@ -131,7 +131,7 @@ public sealed class AuthService : IAuthService
         {
             var confirmToken = await _userManager.GenerateEmailConfirmationTokenAsync(user);
             _logger.LogInformation(
-                "Email confirmation token for {UserId}: {Token}", user.Id, confirmToken);
+                "Email confirmation token generated for user {UserId}", user.Id);
 
             var encodedToken = HttpUtility.UrlEncode(confirmToken);
             var confirmUrl = $"{_smtpOptions.BaseUrl.TrimEnd('/')}/auth/confirm-email?userId={user.Id}&token={encodedToken}";
@@ -150,7 +150,7 @@ public sealed class AuthService : IAuthService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to send confirmation email to {Email}", user.Email);
+                _logger.LogError(ex, "Failed to send confirmation email");
             }
         }
 
@@ -397,7 +397,7 @@ public sealed class AuthService : IAuthService
 
         var token = await _userManager.GeneratePasswordResetTokenAsync(user);
         _logger.LogInformation(
-            "Password reset token for {UserId}: {Token}", user.Id, token);
+            "Password reset token generated for user {UserId}", user.Id);
 
         var encodedToken = HttpUtility.UrlEncode(token);
         var encodedEmail = HttpUtility.UrlEncode(email);

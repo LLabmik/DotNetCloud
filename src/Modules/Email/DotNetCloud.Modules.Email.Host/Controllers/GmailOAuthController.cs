@@ -89,6 +89,15 @@ public class GmailOAuthController : EmailControllerBase
         });
 
         _logger.LogInformation("Gmail OAuth flow started, redirecting to Google (state={State})", state);
+
+        // Validate the redirect URL is a known Google OAuth endpoint to prevent open redirect
+        const string expectedPrefix = "https://accounts.google.com/o/oauth2/v2/auth?";
+        if (!authUrl.StartsWith(expectedPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogError("Gmail OAuth auth URL validation failed");
+            return Redirect("/apps/email?gmail=error&reason=invalid_auth_url");
+        }
+
         return Redirect(authUrl);
     }
 

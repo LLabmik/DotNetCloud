@@ -36,7 +36,7 @@ public sealed class EmailSyncBackgroundService : BackgroundService, IEmailSyncSe
 
         if (account is null)
         {
-            _logger.LogWarning("Sync requested for non-existent account {AccountId}", accountId);
+            _logger.LogWarning("Sync requested for non-existent account");
             return;
         }
 

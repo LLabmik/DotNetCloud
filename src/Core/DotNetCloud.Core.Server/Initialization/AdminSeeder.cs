@@ -67,11 +67,11 @@ internal sealed class AdminSeeder
                     if (!assignRoleResult.Succeeded)
                     {
                         var errors = string.Join("; ", assignRoleResult.Errors.Select(e => e.Description));
-                        _logger.LogError("Failed to assign Administrator role to existing admin {Email}: {Errors}", email, errors);
+                        _logger.LogError("Failed to assign Administrator role to existing admin: {Errors}", errors);
                         throw new InvalidOperationException($"Admin role assignment failed: {errors}");
                     }
 
-                    _logger.LogInformation("Assigned Administrator role to existing admin user {Email}.", email);
+                    _logger.LogInformation("Assigned Administrator role to existing admin user.");
                 }
 
                 return;
@@ -96,7 +96,7 @@ internal sealed class AdminSeeder
             return;
         }
 
-        _logger.LogInformation("Creating initial admin user {Email}...", email);
+        _logger.LogInformation("Creating initial admin user...");
 
         var user = new ApplicationUser
         {
@@ -129,7 +129,7 @@ internal sealed class AdminSeeder
         // to the built-in All Users group.
         await AddAdminToAllOrganizationsAsync(user);
 
-        _logger.LogInformation("Admin user {Email} created and assigned Administrator role.", email);
+        _logger.LogInformation("Admin user created and assigned Administrator role.");
     }
 
     /// <summary>
@@ -169,8 +169,8 @@ internal sealed class AdminSeeder
         {
             await _dbContext.SaveChangesAsync();
             _logger.LogInformation(
-                "Added admin user {Email} to {Count} organization(s).",
-                user.Email, organizations.Count);
+                "Added admin user to {Count} organization(s).",
+                organizations.Count);
         }
     }
 

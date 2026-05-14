@@ -35,8 +35,7 @@ public sealed class SmtpEmailSender : ITransactionalEmailSender
         if (string.IsNullOrWhiteSpace(_options.Host))
         {
             _logger.LogWarning(
-                "SMTP not configured (Smtp:Host is empty). Skipping email to {ToEmail}: {Subject}",
-                toEmail, subject);
+                "SMTP not configured (Smtp:Host is empty). Skipping email.");
             return;
         }
 
@@ -59,20 +58,20 @@ public sealed class SmtpEmailSender : ITransactionalEmailSender
 
             if (!string.IsNullOrEmpty(_options.Username))
             {
-                _logger.LogInformation("SMTP Send: authenticating as {Username}", _options.Username);
+                _logger.LogDebug("SMTP Send: authenticating");
                 await client.AuthenticateAsync(_options.Username, _options.Password, ct);
             }
 
-            _logger.LogInformation("SMTP Send: sending to {ToEmail}", toEmail);
+            _logger.LogDebug("SMTP Send: sending");
             await client.SendAsync(message, ct);
 
             await client.DisconnectAsync(true, ct);
 
-            _logger.LogInformation("SMTP Send: completed to {ToEmail} ({Subject})", toEmail, subject);
+            _logger.LogInformation("SMTP Send: completed");
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to send email to {ToEmail} ({Subject})", toEmail, subject);
+            _logger.LogError(ex, "Failed to send email");
             throw;
         }
     }

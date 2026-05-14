@@ -24,7 +24,13 @@ public class CultureController : Controller
             HttpContext.Response.Cookies.Append(
                 CookieRequestCultureProvider.DefaultCookieName,
                 CookieRequestCultureProvider.MakeCookieValue(
-                    new RequestCulture(culture, culture)));
+                    new RequestCulture(culture, culture)),
+                new CookieOptions
+                {
+                    HttpOnly = true,
+                    Secure = true,
+                    SameSite = SameSiteMode.Lax,
+                });
         }
 
         return LocalRedirect(redirectUri);

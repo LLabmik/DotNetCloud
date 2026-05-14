@@ -359,6 +359,15 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
                 return null;
             }
 
+            // Validate the executable actually exists on disk
+            if (!File.Exists(fullExePath))
+            {
+                _logger.LogError(
+                    "Module {ModuleId} executable not found at {Path}",
+                    discovered.ModuleId, fullExePath);
+                return null;
+            }
+
             var isDll = fullExePath.EndsWith(".dll", StringComparison.OrdinalIgnoreCase);
             var startInfo = new ProcessStartInfo
             {

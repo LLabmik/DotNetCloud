@@ -78,7 +78,7 @@ public sealed class EmailAccountService : IEmailAccountService
 
         _db.EmailAccounts.Add(account);
         await _db.SaveChangesAsync(ct);
-        _logger.LogInformation("Email account created: {AccountId} ({EmailAddress})", account.Id, account.EmailAddress);
+        _logger.LogInformation("Email account created: {AccountId}", account.Id);
         return account;
     }
 
