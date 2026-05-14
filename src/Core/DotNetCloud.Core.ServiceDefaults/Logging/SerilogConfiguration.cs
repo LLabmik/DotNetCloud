@@ -100,6 +100,7 @@ public static class SerilogConfigurationExtensions
         SerilogOptions options)
     {
         configuration
+            .Destructure.With<SafeStringDestructuringPolicy>()
             .Enrich.FromLogContext()
             .Enrich.WithMachineName()
             .Enrich.WithEnvironmentName()
