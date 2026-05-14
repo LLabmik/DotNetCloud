@@ -359,10 +359,10 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
                 return null;
             }
 
-            var isDll = discovered.ExecutablePath.EndsWith(".dll", StringComparison.OrdinalIgnoreCase);
+            var isDll = fullExePath.EndsWith(".dll", StringComparison.OrdinalIgnoreCase);
             var startInfo = new ProcessStartInfo
             {
-                FileName = isDll ? "dotnet" : discovered.ExecutablePath,
+                FileName = isDll ? "dotnet" : fullExePath,
                 UseShellExecute = false,
                 CreateNoWindow = true,
                 RedirectStandardOutput = true,
@@ -371,13 +371,13 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
 
             if (isDll)
             {
-                startInfo.ArgumentList.Add(discovered.ExecutablePath);
+                startInfo.ArgumentList.Add(fullExePath);
             }
 
             startInfo.Environment["DOTNETCLOUD_MODULE_ID"] = discovered.ModuleId;
             startInfo.Environment["DOTNETCLOUD_GRPC_ENDPOINT"] = grpcEndpoint;
             startInfo.Environment["DOTNETCLOUD_CORE_ENDPOINT"] = BuildCoreEndpoint();
-            startInfo.WorkingDirectory = discovered.ModuleDirectory;
+            startInfo.WorkingDirectory = fullModuleDir;
 
             var process = Process.Start(startInfo);
             if (process is null)
