@@ -272,6 +272,8 @@ Create a sample appsettings.Development.json for local configuration.
 - ✓ Create local development database setup guide (PostgreSQL, SQL Server, MariaDB)
 - ✓ Document Docker setup for local testing and multi-database CI/CD
 - ✓ Create development workflow guidelines (branching, commits, PRs, code review)
+- ✓ Create general code review plan — `docs/CODE_REVIEW_PLAN.md` (5 phases, efficiency/completeness/tests/readability)
+- ✓ Create security-focused review plan — `docs/SECURITY_REVIEW_PLAN.md` (10 phases, OWASP-mapped, 20 pre-discovery findings)
 - ✓ Updated IMPLEMENTATION_CHECKLIST.md to mark all Development Environment Setup tasks as completed
 - ✓ Updated MASTER_PROJECT_PLAN.md with completion status
 

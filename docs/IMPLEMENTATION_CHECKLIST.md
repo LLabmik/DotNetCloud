@@ -83,6 +83,15 @@
 - ✓ Configure package publishing pipeline skeleton
 - ✓ Create status badge documentation (docs/development/STATUS_BADGES.md)
 
+### Code Review Plans
+
+**Objective:** Plan comprehensive code reviews before feature-complete milestone
+
+- ✓ Create general code review plan (`docs/CODE_REVIEW_PLAN.md`) — 5 phases, 62 projects, ~14-22h
+- ✓ Create security-focused review plan (`docs/SECURITY_REVIEW_PLAN.md`) — 10 phases, OWASP-mapped, ~16-26h, 20 pre-discovery findings
+- ☐ Execute Phase 1 — Automated Analysis (both plans)
+- ☐ Execute Phase 2 onward — incremental per plan
+
 ---
 
 ## Phase 0: Foundation
