@@ -53,169 +53,209 @@
 
                 <div class="about-card">
                     <h2>What is DotNetCloud?</h2>
-                    <p>DotNetCloud is a self-hosted, open-source cloud platform — a modern alternative to NextCloud. It provides file storage with sync clients, chat, calendar, contacts, notes, bookmarks, email, photos, music, video, project tracking, and AI assistant capabilities — all running on your own infrastructure.</p>
-                    <p>Built with <strong>.NET 10</strong> and <strong>C#</strong>, DotNetCloud uses a modular monolith architecture with process-isolated modules communicating via gRPC over Unix sockets or Named Pipes. Each feature is a separate process, and third-party modules use the exact same interface as first-party ones.</p>
-                </div>
+                    <p>DotNetCloud is a self-hosted, open-source cloud platform — a modern alternative to NextCloud. It provides
+                        file storage with sync clients, chat, calendar, contacts, notes, bookmarks, email, photos, music, video,
+                        project tracking, and AI assistant capabilities — all running on your own infrastructure.</p>
+                        <p>Built with <strong>.NET 10</strong> and <strong>C#</strong>, DotNetCloud uses a modular monolith
+                            architecture with process-isolated modules communicating via gRPC over Unix sockets or Named Pipes. Each
+                            feature is a separate process, and third-party modules use the exact same interface as first-party ones.
+                        </p>
+                    </div>
 
-                <div class="about-card">
-                    <h2>Architecture</h2>
-                    <div class="about-arch-grid">
-                        <div class="about-arch-item">
-                            <div class="about-arch-label">Modular Monolith</div>
-                            <div class="about-arch-desc">Features as isolated processes with gRPC</div>
-                        </div>
-                        <div class="about-arch-item">
-                            <div class="about-arch-label">Capability System</div>
-                            <div class="about-arch-desc">Tiered access: Public → Restricted → Privileged → Forbidden</div>
-                        </div>
-                        <div class="about-arch-item">
-                            <div class="about-arch-label">Multi-Database</div>
-                            <div class="about-arch-desc">PostgreSQL, SQL Server, and MariaDB</div>
-                        </div>
-                        <div class="about-arch-item">
-                            <div class="about-arch-label">Cross-Platform</div>
-                            <div class="about-arch-desc">Linux/Windows server, Avalonia desktop, MAUI mobile</div>
-                        </div>
-                        <div class="about-arch-item">
-                            <div class="about-arch-label">Open Standards</div>
-                            <div class="about-arch-desc">OAuth2/OIDC, OpenTelemetry, gRPC</div>
+                    <div class="about-card">
+                        <h2>Architecture</h2>
+                        <div class="about-arch-grid">
+                            <div class="about-arch-item">
+                                <div class="about-arch-label">Modular Monolith</div>
+                                <div class="about-arch-desc">Features as isolated processes with gRPC</div>
+                            </div>
+                            <div class="about-arch-item">
+                                <div class="about-arch-label">Capability System</div>
+                                <div class="about-arch-desc">Tiered access: Public → Restricted → Privileged → Forbidden</div>
+                            </div>
+                            <div class="about-arch-item">
+                                <div class="about-arch-label">Multi-Database</div>
+                                <div class="about-arch-desc">PostgreSQL, SQL Server, and MariaDB</div>
+                            </div>
+                            <div class="about-arch-item">
+                                <div class="about-arch-label">Cross-Platform</div>
+                                <div class="about-arch-desc">Linux/Windows server, Avalonia desktop, MAUI mobile</div>
+                            </div>
+                            <div class="about-arch-item">
+                                <div class="about-arch-label">Open Standards</div>
+                                <div class="about-arch-desc">OAuth2/OIDC, OpenTelemetry, gRPC</div>
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                <div class="about-card">
-                    <h2>License</h2>
-                    <div class="about-license-grid">
-                        <div class="about-license-item">
-                            <span class="about-license-name">DotNetCloud</span>
-                            <span class="about-license-badge">AGPL-3.0</span>
+                    <div class="about-card">
+                        <h2>License</h2>
+                        <div class="about-license-grid">
+                            <div class="about-license-item">
+                                <span class="about-license-name">DotNetCloud</span>
+                                <span class="about-license-badge">AGPL-3.0</span>
+                            </div>
+                            <div class="about-license-item">
+                                <span class="about-license-name">Logo &amp; Mascot</span>
+                                <span class="about-license-badge">CC BY-ND 4.0</span>
+                            </div>
+                            <div class="about-license-item">
+                                <span class="about-license-name">Documentation</span>
+                                <span class="about-license-badge">CC BY-SA 4.0</span>
+                            </div>
                         </div>
-                        <div class="about-license-item">
-                            <span class="about-license-name">Logo &amp; Mascot</span>
-                            <span class="about-license-badge">CC BY-ND 4.0</span>
-                        </div>
-                        <div class="about-license-item">
-                            <span class="about-license-name">Documentation</span>
-                            <span class="about-license-badge">CC BY-SA 4.0</span>
-                        </div>
+                        <p class="about-repo-link">
+                            <a href="https://github.com/LLabmik/DotNetCloud" target="_blank"
+                               rel="noopener">github.com/LLabmik/DotNetCloud</a>
+                        </p>
                     </div>
-                    <p class="about-repo-link">
-                        <a href="https://github.com/LLabmik/DotNetCloud" target="_blank" rel="noopener">github.com/LLabmik/DotNetCloud</a>
-                    </p>
-                </div>
-                break;
+                    break;
 
             case "version":
-                <header class="about-page-header">
-                    <h1>Version Information</h1>
-                </header>
+                        <header class="about-page-header">
+                            <h1>Version Information</h1>
+                        </header>
 
-                <div class="about-card">
-                    <h2>System</h2>
-                    <table class="about-table">
-                        <tbody>
-                            <tr><td class="about-table-label">Product</td><td>@_productName</td></tr>
-                            <tr><td class="about-table-label">Version</td><td><span class="about-badge about-badge-version">@_informationalVersion</span></td></tr>
-                            <tr><td class="about-table-label">File Version</td><td><code>@_fileVersion</code></td></tr>
-                            <tr><td class="about-table-label">.NET Runtime</td><td>@_runtimeVersion</td></tr>
-                            <tr><td class="about-table-label">Operating System</td><td>@_osDescription</td></tr>
-                            <tr><td class="about-table-label">Architecture</td><td>@_processArchitecture</td></tr>
-                            <tr><td class="about-table-label">Logical Processors</td><td>@Environment.ProcessorCount</td></tr>
-                        </tbody>
-                    </table>
-                </div>
+                        <div class="about-card">
+                            <h2>System</h2>
+                            <table class="about-table">
+                                <tbody>
+                                    <tr>
+                                        <td class="about-table-label">Product</td>
+                                        <td>@_productName</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="about-table-label">Version</td>
+                                        <td><span class="about-badge about-badge-version">@_informationalVersion</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="about-table-label">File Version</td>
+                                        <td><code>@_fileVersion</code></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="about-table-label">.NET Runtime</td>
+                                        <td>@_runtimeVersion</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="about-table-label">Operating System</td>
+                                        <td>@_osDescription</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="about-table-label">Architecture</td>
+                                        <td>@_processArchitecture</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="about-table-label">Logical Processors</td>
+                                        <td>@Environment.ProcessorCount</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
 
-                <div class="about-card">
-                    <h2>Modules</h2>
-                    <p>Each DotNetCloud module tracks its own version independently of the core platform. Visit the <a href="/admin/modules">Modules admin page</a> to see individual module versions and statuses.</p>
-                </div>
-                break;
+                        <div class="about-card">
+                            <h2>Modules</h2>
+                            <p>Each DotNetCloud module tracks its own version independently of the core platform. Visit the <a
+                                href="/admin/modules">Modules admin page</a> to see individual module versions and statuses.</p>
+                            </div>
+                            break;
 
             case "attributions":
-                <header class="about-page-header">
-                    <h1>Open-Source Attributions</h1>
-                    <p class="about-page-subtitle">DotNetCloud is built with and bundles the following open-source components.</p>
-                </header>
+                                <header class="about-page-header">
+                                    <h1>Open-Source Attributions</h1>
+                                    <p class="about-page-subtitle">DotNetCloud is built with and bundles the following open-source components.
+                                    </p>
+                                </header>
 
-                <div class="about-card">
-                    <h2>Bundled Libraries</h2>
-                    <p>These libraries are distributed with DotNetCloud and require prominent attribution.</p>
-                    <div class="about-table-wrap">
-                        <table class="about-table">
-                            <thead>
-                                <tr><th>Component</th><th>Version</th><th>License</th><th>Copyright</th></tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td><a href="https://highlightjs.org/" target="_blank" rel="noopener">highlight.js</a></td>
-                                    <td>11.11.1</td>
-                                    <td><span class="about-license-tag">BSD-3-Clause</span></td>
-                                    <td>2006–2024 Josh Goebel and contributors</td>
-                                </tr>
-                                <tr>
-                                    <td><a href="https://github.com/jberg/butterchurn" target="_blank" rel="noopener">Butterchurn</a></td>
-                                    <td>—</td>
-                                    <td><span class="about-license-tag">MIT</span></td>
-                                    <td>jberg/butterchurn contributors</td>
-                                </tr>
-                                <tr>
-                                    <td><a href="https://github.com/davidshimjs/qrcodejs" target="_blank" rel="noopener">QRCode.js</a></td>
-                                    <td>—</td>
-                                    <td><span class="about-license-tag">MIT</span></td>
-                                    <td>davidshimjs/qrcodejs contributors</td>
-                                </tr>
-                                <tr>
-                                    <td><a href="https://developers.google.com/mediapipe" target="_blank" rel="noopener">MediaPipe</a></td>
-                                    <td>—</td>
-                                    <td><span class="about-license-tag">Apache-2.0</span></td>
-                                    <td>Google LLC</td>
-                                </tr>
-                                <tr>
-                                    <td><a href="https://github.com/mozilla/webextension-polyfill" target="_blank" rel="noopener">webextension-polyfill</a></td>
-                                    <td>^0.10.0</td>
-                                    <td><span class="about-license-tag about-license-mpl">MPL-2.0</span></td>
-                                    <td>Mozilla</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+                                <div class="about-card">
+                                    <h2>Bundled Libraries</h2>
+                                    <p>These libraries are distributed with DotNetCloud and require prominent attribution.</p>
+                                    <div class="about-table-wrap">
+                                        <table class="about-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>Component</th>
+                                                    <th>Version</th>
+                                                    <th>License</th>
+                                                    <th>Copyright</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr>
+                                                    <td><a href="https://highlightjs.org/" target="_blank" rel="noopener">highlight.js</a></td>
+                                                    <td>11.11.1</td>
+                                                    <td><span class="about-license-tag">BSD-3-Clause</span></td>
+                                                    <td>2006–2024 Josh Goebel and contributors</td>
+                                                </tr>
+                                                <tr>
+                                                    <td><a href="https://github.com/jberg/butterchurn" target="_blank"
+                                                               rel="noopener">Butterchurn</a></td>
+                                                        <td>—</td>
+                                                        <td><span class="about-license-tag">MIT</span></td>
+                                                        <td>jberg/butterchurn contributors</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td><a href="https://github.com/davidshimjs/qrcodejs" target="_blank"
+                                                                   rel="noopener">QRCode.js</a></td>
+                                                            <td>—</td>
+                                                            <td><span class="about-license-tag">MIT</span></td>
+                                                            <td>davidshimjs/qrcodejs contributors</td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td><a href="https://developers.google.com/mediapipe" target="_blank"
+                                                                       rel="noopener">MediaPipe</a></td>
+                                                                <td>—</td>
+                                                                <td><span class="about-license-tag">Apache-2.0</span></td>
+                                                                <td>Google LLC</td>
+                                                            </tr>
+                                                            <tr>
+                                                                <td><a href="https://github.com/mozilla/webextension-polyfill" target="_blank"
+                                                                           rel="noopener">webextension-polyfill</a></td>
+                                                                    <td>^0.10.0</td>
+                                                                    <td><span class="about-license-tag about-license-mpl">MPL-2.0</span></td>
+                                                                    <td>Mozilla</td>
+                                                                </tr>
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
 
-                <div class="about-card">
-                    <h2>NuGet Packages</h2>
-                    <p>The following open-source NuGet packages are used across the platform.</p>
-                    <div class="about-package-grid">
-                        @foreach (var pkg in _packages)
-                        {
-                            <div class="about-package-item">
-                                <span class="about-package-name">@pkg.Name</span>
-                                <span class="about-license-tag">@pkg.License</span>
-                            </div>
-                        }
-                    </div>
-                </div>
+                                                <div class="about-card">
+                                                    <h2>NuGet Packages</h2>
+                                                    <p>The following open-source NuGet packages are used across the platform.</p>
+                                                    <div class="about-package-grid">
+                                                        @foreach (var pkg in _packages)
+                                                        {
+                                                            <div class="about-package-item">
+                                                                <span class="about-package-name">@pkg.Name</span>
+                                                                <span class="about-license-tag">@pkg.License</span>
+                                                            </div>
+                                                        }
+                                                    </div>
+                                                </div>
 
-                <div class="about-card">
-                    <h2>Docker Base Images</h2>
-                    <div class="about-package-grid">
-                        <div class="about-package-item">
-                            <span class="about-package-name"><code>mcr.microsoft.com/dotnet/sdk:10.0</code></span>
-                            <span class="about-license-tag">MIT</span>
-                        </div>
-                        <div class="about-package-item">
-                            <span class="about-package-name"><code>mcr.microsoft.com/dotnet/aspnet:10.0</code></span>
-                            <span class="about-license-tag">MIT</span>
-                        </div>
-                    </div>
-                </div>
+                                                <div class="about-card">
+                                                    <h2>Docker Base Images</h2>
+                                                    <div class="about-package-grid">
+                                                        <div class="about-package-item">
+                                                            <span class="about-package-name"><code>mcr.microsoft.com/dotnet/sdk:10.0</code></span>
+                                                            <span class="about-license-tag">MIT</span>
+                                                        </div>
+                                                        <div class="about-package-item">
+                                                            <span class="about-package-name"><code>mcr.microsoft.com/dotnet/aspnet:10.0</code></span>
+                                                            <span class="about-license-tag">MIT</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
 
-                <div class="about-attribution-note">
-                    <p>Full license texts are available in the source repository and the <code>.nuget/packages/</code> SDK cache. To obtain source code for any component provided under a license requiring source distribution, contact the DotNetCloud maintainers or visit the respective project repositories.</p>
-                </div>
-                break;
-        }
-    </main>
-</div>
+                                                <div class="about-attribution-note">
+                                                    <p>Full license texts are available in the source repository and the <code>.nuget/packages/</code> SDK
+                                                        cache. To obtain source code for any component provided under a license requiring source distribution,
+                                                        contact the DotNetCloud maintainers or visit the respective project repositories.</p>
+                                                    </div>
+                                                    break;
+                                                }
+                                            </main>
+                                        </div>
 
 @code {
     private bool _sidebarCollapsed;
@@ -242,6 +282,7 @@
         ("Google.Protobuf", "BSD-3-Clause"),
         ("Grpc.*", "Apache-2.0"),
         ("HtmlSanitizer", "MIT"),
+        ("LTRData.FuseDotNet", "MIT"),
         ("MailKit", "MIT"),
         ("Markdig", "BSD-2-Clause"),
         ("Microsoft.AspNetCore.*", "MIT"),
