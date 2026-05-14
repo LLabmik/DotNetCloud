@@ -18,6 +18,10 @@
     <PackageReference Include="MSTest.TestFramework" />
     <!-- Security: override vulnerable transitive dependency (GHSA-37gx-xxp4-5rgx, GHSA-w3x6-4m5h-cxqf) -->
     <PackageReference Include="System.Security.Cryptography.Xml" />
+    <PackageReference Include="coverlet.collector">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
   </ItemGroup>
 
   <ItemGroup>
