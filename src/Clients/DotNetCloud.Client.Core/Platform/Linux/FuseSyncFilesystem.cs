@@ -492,17 +492,17 @@ public sealed class FuseSyncFilesystem : IVirtualFileProvider
         {
             _logger.LogInformation("Unmounting FUSE at {SyncRoot}", _syncRootPath);
 
-            using var proc = new Process
+            var fuseStartInfo = new ProcessStartInfo
             {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = "fusermount3",
-                    Arguments = $"-u \"{_syncRootPath}\"",
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                }
+                FileName = "fusermount3",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
             };
+            fuseStartInfo.ArgumentList.Add("-u");
+            fuseStartInfo.ArgumentList.Add(_syncRootPath);
+
+            using var proc = new Process { StartInfo = fuseStartInfo };
             proc.Start();
             proc.WaitForExit(10000);
 

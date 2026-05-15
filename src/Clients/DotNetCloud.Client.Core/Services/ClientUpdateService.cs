@@ -160,18 +160,20 @@ public sealed class ClientUpdateService : IClientUpdateService
 
         _logger.LogInformation("Extracting tarball to {ExtractDir}...", extractDir);
 
-        var process = new System.Diagnostics.Process
+        var tarStartInfo = new System.Diagnostics.ProcessStartInfo
         {
-            StartInfo = new System.Diagnostics.ProcessStartInfo
-            {
-                FileName = "tar",
-                Arguments = $"xzf \"{archivePath}\" -C \"{extractDir}\"",
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-            }
+            FileName = "tar",
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
         };
+        tarStartInfo.ArgumentList.Add("xzf");
+        tarStartInfo.ArgumentList.Add(archivePath);
+        tarStartInfo.ArgumentList.Add("-C");
+        tarStartInfo.ArgumentList.Add(extractDir);
+
+        var process = new System.Diagnostics.Process { StartInfo = tarStartInfo };
         process.Start();
         await process.WaitForExitAsync(ct);
         if (process.ExitCode != 0)
@@ -179,6 +181,9 @@ public sealed class ClientUpdateService : IClientUpdateService
             var error = await process.StandardError.ReadToEndAsync(ct);
             throw new InvalidOperationException($"Failed to extract update archive (exit code {process.ExitCode}): {error}");
         }
+
+        // Validate extracted paths to prevent zip slip / path traversal attacks
+        ValidateNoZipSlip(extractDir);
 
         // Stage 2: locate the payload directory.
         // Expected structure: {extractDir}/linux-x64/payload/SyncTray/
@@ -249,6 +254,27 @@ public sealed class ClientUpdateService : IClientUpdateService
             }
         }
         return null;
+    }
+
+    /// <summary>
+    /// Validates that no extracted file escapes the extraction directory (zip slip / path traversal protection).
+    /// </summary>
+    /// <param name="extractDir">The root extraction directory.</param>
+    /// <exception cref="InvalidOperationException">Thrown if a file is found outside the extraction directory.</exception>
+    private static void ValidateNoZipSlip(string extractDir)
+    {
+        var fullExtractDir = Path.GetFullPath(extractDir);
+        foreach (var file in Directory.EnumerateFiles(fullExtractDir, "*", SearchOption.AllDirectories))
+        {
+            var fullPath = Path.GetFullPath(file);
+            var relative = Path.GetRelativePath(fullExtractDir, fullPath);
+            if (relative.StartsWith($"..{Path.DirectorySeparatorChar}", StringComparison.Ordinal) ||
+                Path.IsPathRooted(relative))
+            {
+                throw new InvalidOperationException(
+                    $"Zip slip detected: archive entry at '{relative}' escapes the extraction directory.");
+            }
+        }
     }
 
     private Task ApplyUpdateWindowsAsync(string archivePath, string installDir, CancellationToken ct)

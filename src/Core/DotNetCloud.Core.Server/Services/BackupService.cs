@@ -174,7 +174,10 @@ public sealed class BackupService : DotNetCloud.Core.Services.IBackupService
         // Security: Validate backup path to prevent path traversal attacks
         var fullBackupDir = Path.GetFullPath(backupDir);
         var fullBackupPath = Path.GetFullPath(backupPath);
-        if (!fullBackupPath.StartsWith(fullBackupDir, StringComparison.Ordinal))
+        var relativeBackupPath = Path.GetRelativePath(fullBackupDir, fullBackupPath);
+        if (relativeBackupPath.Equals("..", StringComparison.Ordinal) ||
+            relativeBackupPath.StartsWith($"..{Path.DirectorySeparatorChar}", StringComparison.Ordinal) ||
+            Path.IsPathRooted(relativeBackupPath))
         {
             throw new UnauthorizedAccessException("The backup path must be within the configured backup directory.");
         }
