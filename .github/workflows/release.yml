@@ -90,11 +90,14 @@ jobs:
       - name: Publish module hosts
         run: |
           for host_csproj in \
-            src/Modules/Example/DotNetCloud.Modules.Example.Host/DotNetCloud.Modules.Example.Host.csproj \
             src/Modules/Files/DotNetCloud.Modules.Files.Host/DotNetCloud.Modules.Files.Host.csproj \
-            src/Modules/Chat/DotNetCloud.Modules.Chat.Host/DotNetCloud.Modules.Chat.Host.csproj; do
+            src/Modules/Chat/DotNetCloud.Modules.Chat.Host/DotNetCloud.Modules.Chat.Host.csproj \
+            src/Modules/Calendar/DotNetCloud.Modules.Calendar.Host/DotNetCloud.Modules.Calendar.Host.csproj \
+            src/Modules/Contacts/DotNetCloud.Modules.Contacts.Host/DotNetCloud.Modules.Contacts.Host.csproj \
+            src/Modules/Search/DotNetCloud.Modules.Search.Host/DotNetCloud.Modules.Search.Host.csproj \
+            src/Modules/About/DotNetCloud.Modules.About.Host/DotNetCloud.Modules.About.Host.csproj; do
 
-            # Derive module name from assembly: dotnetcloud.example -> example
+            # Derive module name from assembly: dotnetcloud.files -> files
             MODULE_NAME=$(grep -oP '(?<=<AssemblyName>dotnetcloud\.)\w+' "$host_csproj" || true)
             if [ -z "$MODULE_NAME" ]; then
               # Fallback: derive from directory name
