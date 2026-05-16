@@ -90,7 +90,14 @@ public static class KestrelConfiguration
             // Suppress the "Server: Kestrel" header to avoid leaking server technology.
             options.AddServerHeader = false;
 
-            ConfigureEndpoints(options, kestrelOptions, builder.Environment);
+            var canServeHttps = CanServeHttps(kestrelOptions, builder.Environment);
+            if (kestrelOptions.EnableHttps && !canServeHttps)
+            {
+                Console.WriteLine($"  ⚠ HTTPS enabled but no TLS certificate configured. HTTPS will be unavailable until a certificate is provisioned.");
+                Console.WriteLine($"  ⚠ Run 'dotnetcloud setup' or 'dotnetcloud cert-renew' to provision a Let's Encrypt certificate.");
+            }
+
+            ConfigureEndpoints(options, kestrelOptions, builder.Environment, canServeHttps);
             ConfigureLimits(options, kestrelOptions);
         });
 
@@ -100,8 +107,13 @@ public static class KestrelConfiguration
     private static void ConfigureEndpoints(
         KestrelServerOptions options,
         KestrelOptions config,
-        IWebHostEnvironment environment)
+        IWebHostEnvironment environment,
+        bool canServeHttps)
     {
+        // If HTTPS is enabled but no certificate is configured, skip HTTPS
+        // rather than crashing. This allows Let's Encrypt users to reach the
+        // HTTP endpoint and run 'dotnetcloud setup' to provision a certificate.
+
         // If specific listen addresses are provided, use them
         if (config.ListenAddresses.Length > 0)
         {
@@ -112,7 +124,7 @@ public static class KestrelConfiguration
                     ConfigureHttpProtocols(listenOptions, config);
                 });
 
-                if (config.EnableHttps)
+                if (config.EnableHttps && canServeHttps)
                 {
                     options.Listen(IPAddress.Parse(address), config.HttpsPort, listenOptions =>
                     {
@@ -130,7 +142,7 @@ public static class KestrelConfiguration
                 ConfigureHttpProtocols(listenOptions, config);
             });
 
-            if (config.EnableHttps)
+            if (config.EnableHttps && canServeHttps)
             {
                 options.ListenAnyIP(config.HttpsPort, listenOptions =>
                 {
@@ -139,6 +151,21 @@ public static class KestrelConfiguration
                 });
             }
         }
+    }
+
+    private static bool CanServeHttps(KestrelOptions config, IWebHostEnvironment environment)
+    {
+        if (!string.IsNullOrEmpty(config.CertificatePath))
+        {
+            return true;
+        }
+
+        if (environment.IsDevelopment())
+        {
+            return true; // Will use the dev cert
+        }
+
+        return false;
     }
 
     private static void ConfigureHttpProtocols(ListenOptions listenOptions, KestrelOptions config)

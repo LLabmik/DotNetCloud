@@ -74,10 +74,27 @@ public static class DatabaseProviderDetector
         // - Contains "Initial Catalog=" or "Database="
         // - Port 1433 (default) or specified port
         var lowerConnectionString = connectionString.ToLowerInvariant();
-        return (lowerConnectionString.Contains("data source=") || lowerConnectionString.Contains("server=")) &&
-               !lowerConnectionString.Contains("host=") &&
-               !lowerConnectionString.Contains("server=postgresql") &&
-               !IsMariaDbConnectionString(connectionString);
+
+        // SQL Server-specific keywords take priority
+        if (lowerConnectionString.Contains("data source=") ||
+            lowerConnectionString.Contains("initial catalog=") ||
+            lowerConnectionString.Contains("integrated security=") ||
+            lowerConnectionString.Contains("trustservercertificate=") ||
+            lowerConnectionString.Contains("multipleactiveresultsets="))
+        {
+            return true;
+        }
+
+        // Generic "Server=" + "Database=" pattern — exclude MariaDB/MySQL
+        if (lowerConnectionString.Contains("server=") &&
+            !lowerConnectionString.Contains("host=") &&
+            !lowerConnectionString.Contains("server=postgresql") &&
+            !IsMariaDbConnectionString(connectionString))
+        {
+            return true;
+        }
+
+        return false;
     }
 
     private static bool IsMariaDbConnectionString(string connectionString)
@@ -96,6 +113,15 @@ public static class DatabaseProviderDetector
         if (lowerConnectionString.Contains("port=3306"))
         {
             return true;
+        }
+
+        // Exclude SQL Server connections (they also use Server= + Database=)
+        if (lowerConnectionString.Contains("trustservercertificate=") ||
+            lowerConnectionString.Contains("integrated security=") ||
+            lowerConnectionString.Contains("initial catalog=") ||
+            lowerConnectionString.Contains("multipleactiveresultsets="))
+        {
+            return false;
         }
 
         // Additional MySQL/MariaDB specific keywords
