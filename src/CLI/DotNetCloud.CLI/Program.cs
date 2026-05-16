@@ -55,6 +55,9 @@ public static class Program
         // Backup & restore
         rootCommand.Subcommands.Add(BackupCommands.Create());
 
+        // Certificate management
+        rootCommand.Subcommands.Add(CertRenewCommand.Create());
+
         // Miscellaneous
         rootCommand.Subcommands.Add(MiscCommands.CreateUpdate());
         rootCommand.Subcommands.Add(MiscCommands.CreateVersion());

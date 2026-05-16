@@ -132,5 +132,7 @@
     <PackageVersion Include="Xamarin.Firebase.Messaging" Version="123.1.2.0" />
     <!-- Reverse proxy -->
     <PackageVersion Include="Yarp.ReverseProxy" Version="2.2.0" />
+    <!-- Certes (ACME / Let's Encrypt) -->
+    <PackageVersion Include="Certes" Version="3.0.4" />
   </ItemGroup>
 </Project>

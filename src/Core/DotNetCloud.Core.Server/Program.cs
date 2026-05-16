@@ -91,7 +91,59 @@ public class Program
         // Initialize database with retry — waits for PostgreSQL to become available
         await InitializeDatabaseAsync(app);
 
+        // Check if the Let's Encrypt TLS certificate is expiring soon and log a warning.
+        // The user should run 'dotnetcloud cert-renew' or set up a systemd timer.
+        CheckCertificateExpiry(app);
+
         app.Run();
+    }
+
+    /// <summary>
+    /// Checks the configured TLS certificate and logs a warning if it's expiring within 30 days.
+    /// Does NOT block startup — the cert was valid enough when the server started.
+    /// </summary>
+    private static void CheckCertificateExpiry(WebApplication app)
+    {
+        var logger = app.Services.GetRequiredService<ILogger<Program>>();
+        var certPath = app.Configuration["Kestrel:CertificatePath"];
+
+        if (string.IsNullOrEmpty(certPath) || !File.Exists(certPath))
+        {
+            return;
+        }
+
+        try
+        {
+            using var cert = System.Security.Cryptography.X509Certificates.X509CertificateLoader.LoadCertificate(
+                System.IO.File.ReadAllBytes(certPath));
+            var daysRemaining = (cert.NotAfter - DateTime.UtcNow).Days;
+
+            if (daysRemaining <= 0)
+            {
+                logger.LogCritical(
+                    "TLS certificate at {CertPath} has expired ({ExpiryDate}). " +
+                    "Renew immediately: sudo dotnetcloud cert-renew",
+                    certPath, cert.NotAfter.ToString("yyyy-MM-dd"));
+            }
+            else if (daysRemaining <= 7)
+            {
+                logger.LogWarning(
+                    "TLS certificate at {CertPath} expires in {Days} day(s) ({ExpiryDate}). " +
+                    "Renew soon: sudo dotnetcloud cert-renew",
+                    certPath, daysRemaining, cert.NotAfter.ToString("yyyy-MM-dd"));
+            }
+            else if (daysRemaining <= 30)
+            {
+                logger.LogInformation(
+                    "TLS certificate at {CertPath} expires in {Days} day(s) ({ExpiryDate}). " +
+                    "Schedule renewal: sudo dotnetcloud cert-renew",
+                    certPath, daysRemaining, cert.NotAfter.ToString("yyyy-MM-dd"));
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Could not read TLS certificate at {CertPath}.", certPath);
+        }
     }
 
     /// <summary>

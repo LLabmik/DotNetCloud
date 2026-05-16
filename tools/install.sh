@@ -33,6 +33,7 @@ REQUIRED_CONFIG_SCHEMA_VERSION=2
 IS_UPGRADE=false
 INSTALLED_VERSION=""
 LATEST_VERSION=""
+SETUP_MODE=""     # "beginner" or "normal"; set by ask_setup_mode
 
 # --- Colors ---
 RED='\033[0;31m'
@@ -1179,6 +1180,49 @@ maybe_install_collabora() {
     fi
 }
 
+# --- Ask the user which setup mode to run ---
+# Prompts at the beginning of a fresh install. The wizard will run
+# with --beginner for beginner mode, or without for normal/advanced mode.
+ask_setup_mode() {
+    # Only prompt for fresh installs, not upgrades
+    if [[ "$IS_UPGRADE" == true ]]; then
+        SETUP_MODE="beginner"
+        return
+    fi
+
+    # Non-interactive: default to beginner
+    if [[ ! -t 0 ]] && ! { exec 3</dev/tty; } 2>/dev/null; then
+        SETUP_MODE="beginner"
+        return
+    fi
+
+    local mode_choice
+    echo ""
+    echo -e "${BLUE}How would you like to configure DotNetCloud?${NC}"
+    echo "  1. Beginner — Recommended for local/home-server installs. Uses safe defaults,"
+    echo "     guides you through the essential settings with fewer questions."
+    echo "  2. Normal  — Full interactive setup with all options. Best for production"
+    echo "     servers, custom database configurations, Let's Encrypt TLS, etc."
+    echo ""
+
+    if [[ -t 0 ]]; then
+        # stdin is a terminal
+        read -r -p "Choice [1]: " mode_choice
+    else
+        # stdin is piped — read from /dev/tty
+        read -r -p "Choice [1]: " mode_choice < /dev/tty
+    fi
+
+    if [[ "$mode_choice" == "2" ]]; then
+        SETUP_MODE="normal"
+        info "Normal/advanced mode selected. You will be guided through all setup options."
+    else
+        SETUP_MODE="beginner"
+        info "Beginner mode selected. Using recommended defaults for a quick setup."
+    fi
+    echo ""
+}
+
 # --- Main ---
 main() {
     echo ""
@@ -1191,6 +1235,9 @@ main() {
     detect_existing_install
     get_latest_version
     check_version_skip
+
+    # Ask setup mode for fresh installs
+    ask_setup_mode
 
     if [[ "$IS_UPGRADE" == true ]]; then
         info "Upgrade mode: v${INSTALLED_VERSION} → v${LATEST_VERSION}"
@@ -1226,19 +1273,32 @@ main() {
         SETUP_SKIPPED_NONINTERACTIVE=false
         if [[ -t 0 ]]; then
             # stdin is already a terminal (script was downloaded then run)
-            $SUDO "${INSTALL_DIR}/dotnetcloud" setup --beginner || SETUP_EXIT=$?
+            if [[ "$SETUP_MODE" == "normal" ]]; then
+                $SUDO "${INSTALL_DIR}/dotnetcloud" setup || SETUP_EXIT=$?
+            else
+                $SUDO "${INSTALL_DIR}/dotnetcloud" setup --beginner || SETUP_EXIT=$?
+            fi
         else
             # stdin is a pipe (curl | bash) — try redirecting from the controlling terminal
             if { exec 3</dev/tty; } 2>/dev/null; then
-                $SUDO "${INSTALL_DIR}/dotnetcloud" setup --beginner <&3 || SETUP_EXIT=$?
+                if [[ "$SETUP_MODE" == "normal" ]]; then
+                    $SUDO "${INSTALL_DIR}/dotnetcloud" setup <&3 || SETUP_EXIT=$?
+                else
+                    $SUDO "${INSTALL_DIR}/dotnetcloud" setup --beginner <&3 || SETUP_EXIT=$?
+                fi
                 exec 3<&-
             else
                 SETUP_EXIT=1
                 SETUP_SKIPPED_NONINTERACTIVE=true
                 warn "No interactive terminal detected (stdin is piped and /dev/tty is unavailable)."
                 info "Skipping setup wizard in non-interactive environment."
-                info "Run the beginner-friendly setup wizard manually in an interactive shell:"
-                echo "  sudo dotnetcloud setup --beginner"
+                if [[ "$SETUP_MODE" == "normal" ]]; then
+                    info "Run the full setup wizard manually in an interactive shell:"
+                    echo "  sudo dotnetcloud setup"
+                else
+                    info "Run the beginner-friendly setup wizard manually in an interactive shell:"
+                    echo "  sudo dotnetcloud setup --beginner"
+                fi
             fi
         fi
 
@@ -1283,18 +1343,30 @@ main() {
             if [[ "$SETUP_SKIPPED_NONINTERACTIVE" == true ]]; then
                 warn "Setup wizard was skipped because no interactive terminal is available."
                 info "Re-run setup from an interactive shell:"
-                echo "  sudo dotnetcloud setup --beginner"
+                if [[ "$SETUP_MODE" == "normal" ]]; then
+                    echo "  sudo dotnetcloud setup"
+                else
+                    echo "  sudo dotnetcloud setup --beginner"
+                fi
             else
                 warn "Setup did not complete (exit code: $SETUP_EXIT)."
                 info "You can re-run it at any time:"
-                echo "  sudo dotnetcloud setup --beginner"
+                if [[ "$SETUP_MODE" == "normal" ]]; then
+                    echo "  sudo dotnetcloud setup"
+                else
+                    echo "  sudo dotnetcloud setup --beginner"
+                fi
             fi
         fi
         echo ""
     fi
 
     info "If setup did not complete or the service is not running, run:"
-    echo "  sudo dotnetcloud setup --beginner"
+    if [[ "$SETUP_MODE" == "normal" ]]; then
+        echo "  sudo dotnetcloud setup"
+    else
+        echo "  sudo dotnetcloud setup --beginner"
+    fi
     echo ""
 
     info "Documentation: https://github.com/${REPO}"

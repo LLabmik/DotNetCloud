@@ -729,7 +729,7 @@ internal static class SetupCommand
 
         ConsoleOutput.WriteSuccess("Data directories created.");
 
-        if (!EnsureTlsCertificateIfNeeded(config))
+        if (!await EnsureTlsCertificateIfNeeded(config))
         {
             return 1;
         }
@@ -1412,9 +1412,82 @@ internal static class SetupCommand
         return $"http://localhost:{config.HttpPort}";
     }
 
-    private static bool EnsureTlsCertificateIfNeeded(CliConfig config)
+    private static async Task<bool> ProvisionLetsEncryptCertificateAsync(CliConfig config)
     {
-        if (!config.EnableHttps || !config.UseSelfSignedTls)
+        var domain = config.LetsEncryptDomain;
+        if (string.IsNullOrWhiteSpace(domain))
+        {
+            ConsoleOutput.WriteError("Let's Encrypt is enabled but no domain is configured.");
+            return false;
+        }
+
+        var adminEmail = config.AdminEmail;
+        if (string.IsNullOrWhiteSpace(adminEmail))
+        {
+            adminEmail = $"admin@{domain}";
+        }
+
+        // Check DNS resolution first
+        ConsoleOutput.WriteInfo($"Checking DNS for {domain}...");
+        if (!AcmeService.CanDomainResolveToLocalMachine(domain))
+        {
+            ConsoleOutput.WriteWarning($"Domain '{domain}' does not appear to resolve to this server.");
+            ConsoleOutput.WriteInfo("Ensure DNS A/AAAA record points to this machine's public IP before continuing.");
+            if (!ConsoleOutput.PromptConfirm("Continue anyway?", defaultValue: false))
+            {
+                return false;
+            }
+        }
+
+        // Check port 80 availability
+        if (!AcmeService.IsPort80Available())
+        {
+            ConsoleOutput.WriteWarning("Port 80 is not available. Let's Encrypt HTTP-01 validation requires port 80.");
+            ConsoleOutput.WriteInfo("Ensure no other service is using port 80 and try again.");
+            return false;
+        }
+
+        ConsoleOutput.WriteInfo($"Provisioning Let's Encrypt certificate for {domain}...");
+
+        // Determine the target cert path before provisioning so the service
+        // knows where to look when it starts.
+        config.TlsCertificatePath = AcmeService.GetCertificatePath(config, domain);
+
+        var success = await AcmeService.ProvisionCertificateAsync(
+            domain,
+            adminEmail,
+            config);
+
+        if (success)
+        {
+            ConsoleOutput.WriteSuccess($"Let's Encrypt certificate for {domain} is ready.");
+            ConsoleOutput.WriteInfo($"Certificate path: {config.TlsCertificatePath}");
+        }
+        else
+        {
+            ConsoleOutput.WriteError("Let's Encrypt certificate provisioning failed.");
+            ConsoleOutput.WriteInfo("You can re-run setup and choose a different TLS mode:");
+            ConsoleOutput.WriteInfo("  - Option 2: Self-signed (private testing)");
+            ConsoleOutput.WriteInfo("  - Option 3: Use an existing certificate file");
+        }
+
+        return success;
+    }
+
+    private static async Task<bool> EnsureTlsCertificateIfNeeded(CliConfig config)
+    {
+        if (!config.EnableHttps)
+        {
+            return true;
+        }
+
+        // Handle Let's Encrypt / ACME provisioning
+        if (config.UseLetsEncrypt)
+        {
+            return await ProvisionLetsEncryptCertificateAsync(config);
+        }
+
+        if (!config.UseSelfSignedTls)
         {
             return true;
         }

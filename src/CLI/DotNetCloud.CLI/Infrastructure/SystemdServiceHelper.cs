@@ -159,6 +159,20 @@ internal static class SystemdServiceHelper
         return RunSystemctl("enable --now dotnetcloud.service");
     }
 
+    /// <summary>
+    /// Restarts the dotnetcloud systemd service.
+    /// </summary>
+    /// <returns><c>true</c> if systemctl exited successfully; <c>false</c> otherwise.</returns>
+    public static bool RestartService()
+    {
+        if (!ServiceFileExists())
+        {
+            return false;
+        }
+
+        return RunSystemctl("restart dotnetcloud.service");
+    }
+
     private static bool RunSystemctl(string arguments)
     {
         try
