@@ -521,7 +521,12 @@ install_dotnetcloud() {
     fi
 
     info "Setting permissions..."
-    $SUDO chown -R "${SERVICE_USER}:${SERVICE_GROUP}" "$DATA_DIR" "$LOG_DIR" "$RUN_DIR" "$CONFIG_DIR"
+    # Only chown RUN_DIR if it already exists (it's a tmpfs created at runtime)
+    local chown_targets="$DATA_DIR $LOG_DIR $CONFIG_DIR"
+    if [[ -d "$RUN_DIR" ]]; then
+        chown_targets="$chown_targets $RUN_DIR"
+    fi
+    $SUDO chown -R "${SERVICE_USER}:${SERVICE_GROUP}" $chown_targets
     $SUDO chown -R root:root "$INSTALL_DIR"
     $SUDO chmod 755 "$INSTALL_DIR"
 
