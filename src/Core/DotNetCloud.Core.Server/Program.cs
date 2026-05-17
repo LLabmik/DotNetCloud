@@ -40,6 +40,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting.WindowsServices;
 using System.Net.Http;
@@ -264,9 +265,14 @@ public class Program
             .SetApplicationName("DotNetCloud")
             .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeysPath));
 
-        // Resolve database connection string. The CLI's config.json uses the
-        // flat key "connectionString"; ASP.NET convention uses "ConnectionStrings:DefaultConnection".
-        // Check both so the single config.json file is the source of truth.
+        // Resolve configured database provider (authoritative), then resolve
+        // connection string. We support both canonical and legacy provider keys
+        // during migration from older config schema.
+        var provider = ResolveConfiguredDatabaseProvider(builder.Configuration);
+
+        // The CLI config.json uses the flat key "connectionString"; ASP.NET
+        // convention uses "ConnectionStrings:DefaultConnection".
+        // Check both so the single config.json file remains the source of truth.
         var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
             ?? builder.Configuration["connectionString"];
 
@@ -276,11 +282,10 @@ public class Program
                 "Connection string not found. Set 'ConnectionStrings:DefaultConnection' in appsettings.json " +
                 "or 'connectionString' in config.json (DOTNETCLOUD_CONFIG_DIR).");
         }
-        builder.Services.AddDotNetCloudDbContext(connectionString);
+        builder.Services.AddDotNetCloudDbContext(connectionString, provider);
 
         // Register in-process module data services for interactive module UI actions,
         // using the same provider as the configured core database.
-        var provider = DatabaseProviderDetector.DetectProvider(connectionString);
         builder.Services.AddModuleDbContexts(provider, connectionString);
 
         // Register schema services for lazy module schema creation.
@@ -510,6 +515,26 @@ public class Program
             // Limit the number of proxy hops to prevent header injection chains.
             options.ForwardLimit = 2;
         });
+    }
+
+    private static DatabaseProvider ResolveConfiguredDatabaseProvider(IConfiguration configuration)
+    {
+        var configuredProvider = configuration["Database:Provider"] ?? configuration["databaseProvider"];
+
+        if (string.IsNullOrWhiteSpace(configuredProvider))
+        {
+            throw new InvalidOperationException(
+                "Database provider not configured. Set 'Database:Provider' (recommended) or legacy 'databaseProvider' " +
+                "in config.json, or set environment variable 'Database__Provider'.");
+        }
+
+        if (!DatabaseProviderConfiguration.TryParseConfiguredProvider(configuredProvider, out var provider))
+        {
+            throw new InvalidOperationException(
+                $"Invalid database provider '{configuredProvider}'. Supported values: PostgreSQL, SqlServer, MariaDB.");
+        }
+
+        return provider;
     }
 
     private static void ConfigureModuleDbContext(

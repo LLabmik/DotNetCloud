@@ -1,4 +1,5 @@
 using System.Text.Json;
+using DotNetCloud.Core.Data.Naming;
 
 namespace DotNetCloud.CLI.Infrastructure;
 
@@ -64,7 +65,9 @@ internal static class CliConfiguration
         }
 
         var json = File.ReadAllText(ConfigFilePath);
-        return JsonSerializer.Deserialize<CliConfig>(json, JsonOptions) ?? new CliConfig();
+        var config = JsonSerializer.Deserialize<CliConfig>(json, JsonOptions) ?? new CliConfig();
+        NormalizeProviderFields(config);
+        return config;
     }
 
     /// <summary>
@@ -88,6 +91,7 @@ internal static class CliConfiguration
         {
             var json = File.ReadAllText(ConfigFilePath);
             config = JsonSerializer.Deserialize<CliConfig>(json, JsonOptions) ?? new CliConfig();
+            NormalizeProviderFields(config);
             return true;
         }
         catch (UnauthorizedAccessException)
@@ -114,10 +118,42 @@ internal static class CliConfiguration
     public static void Save(CliConfig config)
     {
         ArgumentNullException.ThrowIfNull(config);
+        NormalizeProviderFields(config);
 
         Directory.CreateDirectory(ConfigDirectory);
         var json = JsonSerializer.Serialize(config, JsonOptions);
         File.WriteAllText(ConfigFilePath, json);
+    }
+
+    internal static bool TryResolveDatabaseProvider(string? configuredProvider, out DatabaseProvider provider)
+    {
+        return DatabaseProviderConfiguration.TryParseConfiguredProvider(configuredProvider, out provider);
+    }
+
+    private static void NormalizeProviderFields(CliConfig config)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+
+        var canonicalCandidate = !string.IsNullOrWhiteSpace(config.Database.Provider)
+            ? config.Database.Provider
+            : config.DatabaseProvider;
+
+        if (DatabaseProviderConfiguration.TryParseConfiguredProvider(canonicalCandidate, out var provider))
+        {
+            var canonicalValue = DatabaseProviderConfiguration.ToConfigValue(provider);
+            config.DatabaseProvider = canonicalValue;
+            config.Database.Provider = canonicalValue;
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(config.Database.Provider) && !string.IsNullOrWhiteSpace(config.DatabaseProvider))
+        {
+            config.Database.Provider = config.DatabaseProvider;
+        }
+        else if (string.IsNullOrWhiteSpace(config.DatabaseProvider) && !string.IsNullOrWhiteSpace(config.Database.Provider))
+        {
+            config.DatabaseProvider = config.Database.Provider;
+        }
     }
 
     /// <summary>
@@ -150,6 +186,11 @@ internal sealed class CliConfig
     /// The database provider name (PostgreSQL, SqlServer, MariaDB).
     /// </summary>
     public string DatabaseProvider { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Canonical database section (supports Database:Provider key mapping).
+    /// </summary>
+    public CliDatabaseConfig Database { get; set; } = new();
 
     /// <summary>
     /// The database connection string.
@@ -273,4 +314,15 @@ internal sealed class CliConfig
     /// When the setup wizard was last run.
     /// </summary>
     public DateTime? SetupCompletedAt { get; set; }
+}
+
+/// <summary>
+/// Canonical database configuration section.
+/// </summary>
+internal sealed class CliDatabaseConfig
+{
+    /// <summary>
+    /// The configured database provider.
+    /// </summary>
+    public string Provider { get; set; } = string.Empty;
 }

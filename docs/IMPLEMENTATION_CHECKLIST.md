@@ -236,6 +236,14 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Implement `SqlServerNamingStrategy` (use schemas)
 - ✓ Implement `MariaDbNamingStrategy` (use table prefixes)
 - ✓ Create provider detection logic based on connection string
+- ✓ **Refactored: Authoritative provider resolution from config** (not connection-string heuristics)
+  - ✓ `DatabaseProviderConfiguration` — shared parser/normalizer for configured provider values
+  - ✓ Server startup resolves `Database:Provider` from config (canonical) or `databaseProvider` (legacy), fail-fast if absent
+  - ✓ `AddDotNetCloudDbContext` and `AddModuleDbContexts` accept explicit `DatabaseProvider` parameter
+  - ✓ CLI `ServiceProviderFactory` and `SetupCommand` use explicit configured provider
+  - ✓ Backward-compatible config reads: `Database:Provider` + legacy `databaseProvider` both supported; canonical key written forward
+  - ✓ Provider normalization in `CliConfiguration.Load/Save` — `PostgreSQL`, `SqlServer`, `MariaDB` + aliases recognized
+  - ✓ `appsettings.json` and `appsettings.Development.json` include `Database.Provider` default
 
 #### CoreDbContext & Models
 

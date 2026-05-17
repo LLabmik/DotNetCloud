@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using DotNetCloud.CLI.Infrastructure;
+using DotNetCloud.Core.Data.Naming;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -833,7 +834,13 @@ internal static class SetupCommand
             return 1;
         }
 
-        await using var provider = ServiceProviderFactory.CreateFromConnectionString(config.ConnectionString);
+        if (!TryGetConfiguredProvider(config, out var databaseProvider))
+        {
+            ConsoleOutput.WriteError("No valid database provider configured. Run 'dotnetcloud setup' again.");
+            return 1;
+        }
+
+        await using var provider = ServiceProviderFactory.CreateFromConnectionString(config.ConnectionString, databaseProvider);
         if (provider is null)
         {
             ConsoleOutput.WriteError("Could not connect to the database. Check your connection string.");
@@ -905,7 +912,13 @@ internal static class SetupCommand
 
         try
         {
-            await using var provider = ServiceProviderFactory.CreateFromConnectionString(config.ConnectionString);
+            if (!TryGetConfiguredProvider(config, out var databaseProvider))
+            {
+                ConsoleOutput.WriteWarning("Could not resolve configured database provider. Skipping module sync.");
+                return;
+            }
+
+            await using var provider = ServiceProviderFactory.CreateFromConnectionString(config.ConnectionString, databaseProvider);
             if (provider is null)
             {
                 return;
@@ -1169,7 +1182,12 @@ internal static class SetupCommand
     {
         try
         {
-            await using var provider = ServiceProviderFactory.CreateFromConnectionString(config.ConnectionString);
+            if (!TryGetConfiguredProvider(config, out var databaseProvider))
+            {
+                return false;
+            }
+
+            await using var provider = ServiceProviderFactory.CreateFromConnectionString(config.ConnectionString, databaseProvider);
             if (provider is null)
             {
                 return false;
@@ -1181,6 +1199,14 @@ internal static class SetupCommand
         {
             return false;
         }
+    }
+
+    private static bool TryGetConfiguredProvider(CliConfig config, out DatabaseProvider provider)
+    {
+        provider = default;
+
+        return CliConfiguration.TryResolveDatabaseProvider(config.Database.Provider, out provider) ||
+            CliConfiguration.TryResolveDatabaseProvider(config.DatabaseProvider, out provider);
     }
 
     internal static string MaskConnectionString(string connectionString)

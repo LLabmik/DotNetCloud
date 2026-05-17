@@ -690,9 +690,21 @@ Location: tests/DotNetCloud.Core.Tests/
   - ✓ Snake_case naming for tables and columns
   - ✓ Identifier truncation support for MySQL 64-character limit
 - ✓ `DatabaseProviderDetector` with provider detection from connection string
+- ✓ `DatabaseProviderConfiguration` — shared parser/normalizer for configured provider values
 - ✓ `DefaultDbContextFactory` implementation
 - ✓ `CoreDbContext` skeleton with naming strategy integration
 - ✓ Comprehensive README with usage examples
+
+**Refinements (authoritative provider resolution):**
+
+- ✓ **Provider now resolved from config (`Database:Provider` / legacy `databaseProvider`) — not connection-string heuristics**
+  - `DatabaseProviderConfiguration.TryParseConfiguredProvider` — strict parsing with aliases
+  - `ResolveConfiguredDatabaseProvider` in server startup — fail-fast if absent
+  - `AddDotNetCloudDbContext(connectionString, provider)` — explicit provider parameter
+  - `AddModuleDbContexts(provider, connectionString)` — no re-detection
+  - CLI: `ServiceProviderFactory` and `SetupCommand` use configured provider
+  - Backward-compatible: `Database:Provider` (canonical) + `databaseProvider` (legacy) both read; canonical written forward
+  - `appsettings.json` / `appsettings.Development.json` include `Database.Provider`
 
 **Quality Metrics:**
 
@@ -700,12 +712,14 @@ Location: tests/DotNetCloud.Core.Tests/
 - Provider detection supports all three database types
 - Factory pattern enables easy context creation
 - Build passes with no errors
+- All 3500+ tests pass (0 failures)
+- Provider resolution no longer relies on connection-string keyword heuristics
 - Ready for entity model configuration (phase-0.2.2)
 
 **File Location:** `src/Core/DotNetCloud.Core.Data/`  
 **Dependencies:** None  
 **Blocking Issues:** None  
-**Notes:** Multi-database support foundation complete. Enables identical codebase across PostgreSQL, SQL Server, and MariaDB. Factory and naming strategies automatically handle provider-specific requirements.
+**Notes:** Multi-database support foundation complete. Enables identical codebase across PostgreSQL, SQL Server, and MariaDB. Factory and naming strategies automatically handle provider-specific requirements. Provider is now authoritative from config/install selection — connection-string detection is no longer used in normal startup paths.
 
 ---
 

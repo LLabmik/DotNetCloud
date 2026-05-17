@@ -18,13 +18,14 @@ public static class DataServiceExtensions
     /// </summary>
     /// <param name="services">The service collection</param>
     /// <param name="connectionString">The database connection string</param>
+    /// <param name="provider">The configured database provider</param>
     /// <returns>The service collection for chaining</returns>
-    public static IServiceCollection AddDotNetCloudDbContext(this IServiceCollection services, string connectionString)
+    public static IServiceCollection AddDotNetCloudDbContext(
+        this IServiceCollection services,
+        string connectionString,
+        DatabaseProvider provider)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-
-        // Detect database provider from connection string
-        var provider = DatabaseProviderDetector.DetectProvider(connectionString);
 
         // Register the naming strategy for the provider
         var namingStrategy = DatabaseProviderDetector.GetNamingStrategy(provider);
