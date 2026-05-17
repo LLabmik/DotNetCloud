@@ -77,26 +77,6 @@ public class DatabaseSetupHelperTests
     }
 
     [TestMethod]
-    public void BuildMariaDbConnectionString_ReturnsExpectedFormat()
-    {
-        var result = DatabaseSetupHelper.BuildMariaDbConnectionString(
-            "localhost", "dotnetcloud", "dbuser", "s3cret");
-
-        Assert.AreEqual(
-            "Server=localhost;Database=dotnetcloud;User=dbuser;Password=s3cret",
-            result);
-    }
-
-    [TestMethod]
-    public void BuildMariaDbConnectionString_WithCustomServer_IncludesServer()
-    {
-        var result = DatabaseSetupHelper.BuildMariaDbConnectionString(
-            "maria.local", "appdb", "admin", "pass");
-
-        Assert.IsTrue(result.StartsWith("Server=maria.local;", StringComparison.Ordinal));
-    }
-
-    [TestMethod]
     public void BuildPostgreSqlConnectionString_AllPartsAppearInOutput()
     {
         var result = DatabaseSetupHelper.BuildPostgreSqlConnectionString(
@@ -108,15 +88,4 @@ public class DatabaseSetupHelperTests
         Assert.IsTrue(result.Contains("Password=mypass", StringComparison.Ordinal));
     }
 
-    [TestMethod]
-    public void BuildMariaDbConnectionString_AllPartsAppearInOutput()
-    {
-        var result = DatabaseSetupHelper.BuildMariaDbConnectionString(
-            "myhost", "mydb", "myuser", "mypass");
-
-        Assert.IsTrue(result.Contains("Server=myhost", StringComparison.Ordinal));
-        Assert.IsTrue(result.Contains("Database=mydb", StringComparison.Ordinal));
-        Assert.IsTrue(result.Contains("User=myuser", StringComparison.Ordinal));
-        Assert.IsTrue(result.Contains("Password=mypass", StringComparison.Ordinal));
-    }
 }

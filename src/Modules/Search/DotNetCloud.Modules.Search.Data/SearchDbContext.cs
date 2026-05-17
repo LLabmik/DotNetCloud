@@ -17,7 +17,7 @@ namespace DotNetCloud.Modules.Search.Data;
 /// </para>
 /// <para>
 /// <b>Multi-Database Support:</b>
-/// Works with PostgreSQL, SQL Server, and MariaDB through provider-specific configuration.
+/// Works with PostgreSQL and SQL Server through provider-specific configuration.
 /// Provider-specific full-text search indexes are applied via migrations.
 /// </para>
 /// </remarks>

@@ -11,7 +11,7 @@ public class BackupOptions
     public bool IncludeDatabaseDump { get; set; } = true;
 
     /// <summary>
-    /// The database provider identifier (e.g., "PostgreSQL", "SQLServer", "MariaDB").
+    /// The database provider identifier (e.g., "PostgreSQL", "SQLServer").
     /// Used to select the correct dump tool.
     /// </summary>
     public string? DatabaseProvider { get; set; }
@@ -58,7 +58,7 @@ public class RestoreOptions
     public bool RestoreDatabase { get; set; }
 
     /// <summary>
-    /// The database provider identifier (e.g., "PostgreSQL", "SQLServer", "MariaDB").
+    /// The database provider identifier (e.g., "PostgreSQL", "SQLServer").
     /// </summary>
     public string? DatabaseProvider { get; set; }
 

@@ -66,7 +66,6 @@ The `CoreDbContext` extends `IdentityDbContext<ApplicationUser, ApplicationRole,
 - User claims, logins, tokens
 - Role claims
 
-All Identity tables are automatically named according to the active naming strategy (PostgreSQL, SQL Server, or MariaDB).
 
 ## Usage Example
 
@@ -146,7 +145,6 @@ The Identity models work with all supported database providers:
 
 - ✅ **PostgreSQL** - Uses schema `core` with snake_case naming
 - ✅ **SQL Server** - Uses schema `[core]` with PascalCase naming
-- ⏳ **MariaDB** - Will use table prefix `core_` with snake_case naming (awaiting Pomelo package update)
 
 The naming strategy is automatically applied based on the connection string.
 

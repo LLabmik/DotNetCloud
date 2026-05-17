@@ -17,7 +17,6 @@ public class UserDeviceConfiguration : IEntityTypeConfiguration<UserDevice>
         // Table naming will be handled by ITableNamingStrategy
         // PostgreSQL: core.user_devices
         // SQL Server: [core].[UserDevices]
-        // MariaDB: core_user_devices
 
         // Primary Key
         builder.HasKey(d => d.Id);

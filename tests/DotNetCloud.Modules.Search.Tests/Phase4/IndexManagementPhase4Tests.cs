@@ -33,12 +33,12 @@ public class IndexManagementPhase4Tests
         _db.Dispose();
     }
 
-    // --- Index Statistics Tests (via MariaDbSearchProvider as reference implementation) ---
+    // --- Index Statistics Tests (via SqlServerSearchProvider as reference implementation) ---
 
     [TestMethod]
     public async Task GetIndexStats_EmptyIndex_ReturnsZeroCounts()
     {
-        var provider = new MariaDbSearchProvider(_db, NullLogger<MariaDbSearchProvider>.Instance);
+        var provider = new SqlServerSearchProvider(_db, NullLogger<SqlServerSearchProvider>.Instance);
 
         var stats = await provider.GetIndexStatsAsync();
 
@@ -56,7 +56,7 @@ public class IndexManagementPhase4Tests
         await SeedIndexEntries("notes", 3);
         await SeedIndexEntries("chat", 2);
 
-        var provider = new MariaDbSearchProvider(_db, NullLogger<MariaDbSearchProvider>.Instance);
+        var provider = new SqlServerSearchProvider(_db, NullLogger<SqlServerSearchProvider>.Instance);
         var stats = await provider.GetIndexStatsAsync();
 
         Assert.AreEqual(10, stats.TotalDocuments);
@@ -76,7 +76,7 @@ public class IndexManagementPhase4Tests
         _db.SearchIndexEntries.Add(CreateEntry("files", "e2", newer));
         await _db.SaveChangesAsync();
 
-        var provider = new MariaDbSearchProvider(_db, NullLogger<MariaDbSearchProvider>.Instance);
+        var provider = new SqlServerSearchProvider(_db, NullLogger<SqlServerSearchProvider>.Instance);
         var stats = await provider.GetIndexStatsAsync();
 
         Assert.IsNotNull(stats.LastIncrementalIndexAt);
@@ -98,7 +98,7 @@ public class IndexManagementPhase4Tests
         });
         await _db.SaveChangesAsync();
 
-        var provider = new MariaDbSearchProvider(_db, NullLogger<MariaDbSearchProvider>.Instance);
+        var provider = new SqlServerSearchProvider(_db, NullLogger<SqlServerSearchProvider>.Instance);
         var stats = await provider.GetIndexStatsAsync();
 
         Assert.IsNotNull(stats.LastFullReindexAt);
@@ -109,7 +109,7 @@ public class IndexManagementPhase4Tests
     [TestMethod]
     public async Task IndexDocument_NewDocument_AddsToIndex()
     {
-        var provider = new MariaDbSearchProvider(_db, NullLogger<MariaDbSearchProvider>.Instance);
+        var provider = new SqlServerSearchProvider(_db, NullLogger<SqlServerSearchProvider>.Instance);
 
         var doc = CreateDocument("files", "e1", "FileNode", "Test File", "File content");
         await provider.IndexDocumentAsync(doc);
@@ -124,7 +124,7 @@ public class IndexManagementPhase4Tests
     [TestMethod]
     public async Task IndexDocument_ExistingDocument_Updates()
     {
-        var provider = new MariaDbSearchProvider(_db, NullLogger<MariaDbSearchProvider>.Instance);
+        var provider = new SqlServerSearchProvider(_db, NullLogger<SqlServerSearchProvider>.Instance);
 
         var original = CreateDocument("files", "e1", "FileNode", "Original", "Original content");
         await provider.IndexDocumentAsync(original);
@@ -143,7 +143,7 @@ public class IndexManagementPhase4Tests
     [TestMethod]
     public async Task IndexDocument_SetsIndexedAt()
     {
-        var provider = new MariaDbSearchProvider(_db, NullLogger<MariaDbSearchProvider>.Instance);
+        var provider = new SqlServerSearchProvider(_db, NullLogger<SqlServerSearchProvider>.Instance);
         var before = DateTimeOffset.UtcNow;
 
         var doc = CreateDocument("files", "e1", "FileNode", "Title", "Content");
@@ -156,7 +156,7 @@ public class IndexManagementPhase4Tests
     [TestMethod]
     public async Task IndexDocument_WithMetadata_SerializedToJson()
     {
-        var provider = new MariaDbSearchProvider(_db, NullLogger<MariaDbSearchProvider>.Instance);
+        var provider = new SqlServerSearchProvider(_db, NullLogger<SqlServerSearchProvider>.Instance);
 
         var doc = new SearchDocument
         {
@@ -185,7 +185,7 @@ public class IndexManagementPhase4Tests
     [TestMethod]
     public async Task IndexDocument_EmptyMetadata_NullMetadataJson()
     {
-        var provider = new MariaDbSearchProvider(_db, NullLogger<MariaDbSearchProvider>.Instance);
+        var provider = new SqlServerSearchProvider(_db, NullLogger<SqlServerSearchProvider>.Instance);
 
         var doc = CreateDocument("files", "e1", "FileNode", "Title", "Content");
         await provider.IndexDocumentAsync(doc);
@@ -197,7 +197,7 @@ public class IndexManagementPhase4Tests
     [TestMethod]
     public async Task RemoveDocument_ExistingEntry_Removed()
     {
-        var provider = new MariaDbSearchProvider(_db, NullLogger<MariaDbSearchProvider>.Instance);
+        var provider = new SqlServerSearchProvider(_db, NullLogger<SqlServerSearchProvider>.Instance);
 
         var doc = CreateDocument("files", "e1", "FileNode", "Title", "Content");
         await provider.IndexDocumentAsync(doc);
@@ -211,7 +211,7 @@ public class IndexManagementPhase4Tests
     [TestMethod]
     public async Task RemoveDocument_NonExistentEntry_NoOp()
     {
-        var provider = new MariaDbSearchProvider(_db, NullLogger<MariaDbSearchProvider>.Instance);
+        var provider = new SqlServerSearchProvider(_db, NullLogger<SqlServerSearchProvider>.Instance);
 
         await provider.RemoveDocumentAsync("files", "nonexistent");
 
@@ -222,7 +222,7 @@ public class IndexManagementPhase4Tests
     [TestMethod]
     public async Task ReindexModule_ClearsOnlyTargetModule()
     {
-        var provider = new MariaDbSearchProvider(_db, NullLogger<MariaDbSearchProvider>.Instance);
+        var provider = new SqlServerSearchProvider(_db, NullLogger<SqlServerSearchProvider>.Instance);
 
         await provider.IndexDocumentAsync(CreateDocument("files", "f1", "FileNode", "File 1", "content"));
         await provider.IndexDocumentAsync(CreateDocument("files", "f2", "FileNode", "File 2", "content"));
@@ -240,7 +240,7 @@ public class IndexManagementPhase4Tests
     [TestMethod]
     public async Task Search_ByTitle_FindsMatches()
     {
-        var provider = new MariaDbSearchProvider(_db, NullLogger<MariaDbSearchProvider>.Instance);
+        var provider = new SqlServerSearchProvider(_db, NullLogger<SqlServerSearchProvider>.Instance);
         var userId = Guid.NewGuid();
 
         await provider.IndexDocumentAsync(CreateDocument("files", "f1", "FileNode", "Quarterly Report", "content", userId));
@@ -263,7 +263,7 @@ public class IndexManagementPhase4Tests
     [TestMethod]
     public async Task Search_PermissionScoped_OnlyOwnDocuments()
     {
-        var provider = new MariaDbSearchProvider(_db, NullLogger<MariaDbSearchProvider>.Instance);
+        var provider = new SqlServerSearchProvider(_db, NullLogger<SqlServerSearchProvider>.Instance);
         var user1 = Guid.NewGuid();
         var user2 = Guid.NewGuid();
 
@@ -287,7 +287,7 @@ public class IndexManagementPhase4Tests
     [TestMethod]
     public async Task Search_WithModuleFilter_RestrictsResults()
     {
-        var provider = new MariaDbSearchProvider(_db, NullLogger<MariaDbSearchProvider>.Instance);
+        var provider = new SqlServerSearchProvider(_db, NullLogger<SqlServerSearchProvider>.Instance);
         var userId = Guid.NewGuid();
 
         await provider.IndexDocumentAsync(CreateDocument("files", "f1", "FileNode", "Test", "content", userId));
@@ -311,7 +311,7 @@ public class IndexManagementPhase4Tests
     [TestMethod]
     public async Task Search_WithEntityTypeFilter_RestrictsResults()
     {
-        var provider = new MariaDbSearchProvider(_db, NullLogger<MariaDbSearchProvider>.Instance);
+        var provider = new SqlServerSearchProvider(_db, NullLogger<SqlServerSearchProvider>.Instance);
         var userId = Guid.NewGuid();
 
         await provider.IndexDocumentAsync(CreateDocument("files", "f1", "FileNode", "Test", "content", userId));
@@ -335,7 +335,7 @@ public class IndexManagementPhase4Tests
     [TestMethod]
     public async Task Search_Pagination_ReturnsCorrectPage()
     {
-        var provider = new MariaDbSearchProvider(_db, NullLogger<MariaDbSearchProvider>.Instance);
+        var provider = new SqlServerSearchProvider(_db, NullLogger<SqlServerSearchProvider>.Instance);
         var userId = Guid.NewGuid();
 
         for (int i = 1; i <= 15; i++)
@@ -361,7 +361,7 @@ public class IndexManagementPhase4Tests
     [TestMethod]
     public async Task Search_FacetCounts_ReturnsPerModuleCounts()
     {
-        var provider = new MariaDbSearchProvider(_db, NullLogger<MariaDbSearchProvider>.Instance);
+        var provider = new SqlServerSearchProvider(_db, NullLogger<SqlServerSearchProvider>.Instance);
         var userId = Guid.NewGuid();
 
         await provider.IndexDocumentAsync(CreateDocument("files", "f1", "FileNode", "Test", "keyword", userId));
@@ -381,7 +381,7 @@ public class IndexManagementPhase4Tests
     [TestMethod]
     public async Task Search_SortByDateDesc_OrdersCorrectly()
     {
-        var provider = new MariaDbSearchProvider(_db, NullLogger<MariaDbSearchProvider>.Instance);
+        var provider = new SqlServerSearchProvider(_db, NullLogger<SqlServerSearchProvider>.Instance);
         var userId = Guid.NewGuid();
 
         await provider.IndexDocumentAsync(new SearchDocument
@@ -427,7 +427,7 @@ public class IndexManagementPhase4Tests
     [TestMethod]
     public async Task Search_SortByDateAsc_OrdersCorrectly()
     {
-        var provider = new MariaDbSearchProvider(_db, NullLogger<MariaDbSearchProvider>.Instance);
+        var provider = new SqlServerSearchProvider(_db, NullLogger<SqlServerSearchProvider>.Instance);
         var userId = Guid.NewGuid();
 
         await provider.IndexDocumentAsync(new SearchDocument
@@ -473,7 +473,7 @@ public class IndexManagementPhase4Tests
     [TestMethod]
     public async Task Search_SnippetGeneration_ContainsQueryText()
     {
-        var provider = new MariaDbSearchProvider(_db, NullLogger<MariaDbSearchProvider>.Instance);
+        var provider = new SqlServerSearchProvider(_db, NullLogger<SqlServerSearchProvider>.Instance);
         var userId = Guid.NewGuid();
 
         await provider.IndexDocumentAsync(CreateDocument(
@@ -505,27 +505,13 @@ public class IndexManagementPhase4Tests
     }
 
     [TestMethod]
-    public async Task MariaDbProvider_IndexAndSearch_Works()
-    {
-        var provider = new MariaDbSearchProvider(_db, NullLogger<MariaDbSearchProvider>.Instance);
-        var userId = Guid.NewGuid();
-
-        await provider.IndexDocumentAsync(CreateDocument("files", "f1", "FileNode", "Test Document", "content here", userId));
-
-        var query = new SearchQuery { QueryText = "Test", UserId = userId, Page = 1, PageSize = 20 };
-        var result = await provider.SearchAsync(query);
-
-        Assert.AreEqual(1, result.TotalCount);
-    }
-
-    [TestMethod]
-    public async Task AllProviders_ReindexModule_ClearsEntries()
+    public async Task ReindexModule_ClearsAndReplacesEntries()
     {
         var providers = new ISearchProvider[]
         {
-            new MariaDbSearchProvider(_db, NullLogger<MariaDbSearchProvider>.Instance),
             new SqlServerSearchProvider(_db, NullLogger<SqlServerSearchProvider>.Instance),
-            new MariaDbSearchProvider(_db, NullLogger<MariaDbSearchProvider>.Instance)
+            new SqlServerSearchProvider(_db, NullLogger<SqlServerSearchProvider>.Instance),
+            new SqlServerSearchProvider(_db, NullLogger<SqlServerSearchProvider>.Instance)
         };
 
         foreach (var provider in providers)

@@ -29,16 +29,9 @@ public static class DatabaseProviderDetector
             return DatabaseProvider.SqlServer;
         }
 
-        // Check for MariaDB/MySQL connection string patterns
-        if (IsMariaDbConnectionString(connectionString))
-        {
-            return DatabaseProvider.MariaDB;
-        }
-
         throw new InvalidOperationException(
             $"Unable to determine database provider from connection string. " +
-            $"Connection string should contain 'Server=' (SQL Server/PostgreSQL), 'Data Source=' (SQL Server), " +
-            $"or 'Server=' with port 3306 (MariaDB/MySQL).");
+            $"Connection string should contain 'Server=' (SQL Server/PostgreSQL) or 'Data Source=' (SQL Server).");
     }
 
     /// <summary>
@@ -52,7 +45,6 @@ public static class DatabaseProviderDetector
         {
             DatabaseProvider.PostgreSQL => new PostgreSqlNamingStrategy(),
             DatabaseProvider.SqlServer => new SqlServerNamingStrategy(),
-            DatabaseProvider.MariaDB => new MariaDbNamingStrategy(),
             _ => throw new ArgumentException($"Unsupported database provider: {provider}", nameof(provider))
         };
     }
@@ -85,53 +77,12 @@ public static class DatabaseProviderDetector
             return true;
         }
 
-        // Generic "Server=" + "Database=" pattern — exclude MariaDB/MySQL
+        // Generic "Server=" + "Database=" pattern
         if (lowerConnectionString.Contains("server=") &&
             !lowerConnectionString.Contains("host=") &&
-            !lowerConnectionString.Contains("server=postgresql") &&
-            !IsMariaDbConnectionString(connectionString))
+            !lowerConnectionString.Contains("server=postgresql"))
         {
             return true;
-        }
-
-        return false;
-    }
-
-    private static bool IsMariaDbConnectionString(string connectionString)
-    {
-        // MariaDB/MySQL connection string patterns:
-        // - Contains "Server=" with port 3306
-        // - Contains "Port=3306" or port 3306 in server specification
-        // - Uses Pomelo MySQL provider keyword variations
-        var lowerConnectionString = connectionString.ToLowerInvariant();
-
-        if (lowerConnectionString.Contains("server=") && lowerConnectionString.Contains(":3306"))
-        {
-            return true;
-        }
-
-        if (lowerConnectionString.Contains("port=3306"))
-        {
-            return true;
-        }
-
-        // Exclude SQL Server connections (they also use Server= + Database=)
-        if (lowerConnectionString.Contains("trustservercertificate=") ||
-            lowerConnectionString.Contains("integrated security=") ||
-            lowerConnectionString.Contains("initial catalog=") ||
-            lowerConnectionString.Contains("multipleactiveresultsets="))
-        {
-            return false;
-        }
-
-        // Additional MySQL/MariaDB specific keywords
-        if (lowerConnectionString.Contains("database=") && lowerConnectionString.Contains("server="))
-        {
-            // Check if it's not PostgreSQL or SQL Server
-            if (!lowerConnectionString.Contains("host=") && !lowerConnectionString.Contains("data source="))
-            {
-                return true;
-            }
         }
 
         return false;

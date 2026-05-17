@@ -5,7 +5,7 @@ namespace DotNetCloud.Core.Capabilities;
 /// <summary>
 /// Provider-agnostic full-text search abstraction.
 /// Implementations use native database FTS capabilities (PostgreSQL tsvector,
-/// SQL Server Full-Text Index, MariaDB FULLTEXT INDEX).
+/// SQL Server Full-Text Index).
 /// </summary>
 /// <remarks>
 /// <para>

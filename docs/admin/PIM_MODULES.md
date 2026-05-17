@@ -9,11 +9,11 @@
 
 The PIM (Personal Information Management) suite includes three modules:
 
-| Module | Module ID | Description |
-|---|---|---|
-| **Contacts** | `dotnetcloud.contacts` | Contact management with CardDAV sync |
-| **Calendar** | `dotnetcloud.calendar` | Calendars and events with CalDAV sync |
-| **Notes** | `dotnetcloud.notes` | Markdown notes with folders, tags, and versioning |
+| Module       | Module ID              | Description                                       |
+| ------------ | ---------------------- | ------------------------------------------------- |
+| **Contacts** | `dotnetcloud.contacts` | Contact management with CardDAV sync              |
+| **Calendar** | `dotnetcloud.calendar` | Calendars and events with CalDAV sync             |
+| **Notes**    | `dotnetcloud.notes`    | Markdown notes with folders, tags, and versioning |
 
 All three modules follow the standard DotNetCloud module architecture (separate Core, Data, and Host projects) and use the shared `CoreDbContext` for persistence.
 
@@ -25,15 +25,15 @@ PIM modules are discovered automatically via `ProjectReference` from `DotNetClou
 
 ### Required Core Capabilities
 
-| Capability | Contacts | Calendar | Notes |
-|---|---|---|---|
-| `INotificationService` | ✓ | ✓ | ✓ |
-| `IUserDirectory` | ✓ | ✓ | ✓ |
-| `ICurrentUserContext` | ✓ | ✓ | ✓ |
-| `IAuditLogger` | ✓ | ✓ | ✓ |
-| `ICrossModuleLinkResolver` | ✓ | ✓ | ✓ |
-| `IContactDirectory` | — | ✓ | ✓ |
-| `ICalendarDirectory` | — | — | ✓ |
+| Capability                 | Contacts | Calendar | Notes |
+| -------------------------- | -------- | -------- | ----- |
+| `INotificationService`     | ✓        | ✓        | ✓     |
+| `IUserDirectory`           | ✓        | ✓        | ✓     |
+| `ICurrentUserContext`      | ✓        | ✓        | ✓     |
+| `IAuditLogger`             | ✓        | ✓        | ✓     |
+| `ICrossModuleLinkResolver` | ✓        | ✓        | ✓     |
+| `IContactDirectory`        | —        | ✓        | ✓     |
+| `ICalendarDirectory`       | —        | —        | ✓     |
 
 If any required capability is unavailable, the module will not start. Check logs for capability resolution errors if a module fails to initialize.
 
@@ -45,11 +45,10 @@ All three modules store data in the shared `CoreDbContext`. No separate database
 
 ### Supported Providers
 
-| Provider | Schema/Prefix | Status |
-|---|---|---|
+| Provider   | Schema/Prefix  | Status                   |
+| ---------- | -------------- | ------------------------ |
 | PostgreSQL | `core.` schema | Default, fully supported |
-| SQL Server | `core.` schema | Fully supported |
-| MariaDB | `core_` prefix | Pending Pomelo .NET 10 release |
+| SQL Server | `core.` schema | Fully supported          |
 
 ### Migrations
 
@@ -86,12 +85,12 @@ The PIM modules currently use sensible defaults and do not require module-specif
 
 ### Standard Core Configuration Used
 
-| Section | Purpose |
-|---|---|
-| `ConnectionStrings:CoreDb` | Database for all PIM data |
-| `OpenIddict` | Authentication for API endpoints |
-| `Serilog` | Structured logging |
-| `OpenTelemetry` | Metrics and tracing |
+| Section                    | Purpose                          |
+| -------------------------- | -------------------------------- |
+| `ConnectionStrings:CoreDb` | Database for all PIM data        |
+| `OpenIddict`               | Authentication for API endpoints |
+| `Serilog`                  | Structured logging               |
+| `OpenTelemetry`            | Metrics and tracing              |
 
 ### Future Configuration (Planned)
 
@@ -129,10 +128,10 @@ Contact avatars and attachments are stored on disk. The storage location is reso
 
 **File size limits:**
 
-| Type | Maximum Size |
-|---|---|
-| Avatar | 5 MB |
-| Attachment | 25 MB |
+| Type       | Maximum Size |
+| ---------- | ------------ |
+| Avatar     | 5 MB         |
+| Attachment | 25 MB        |
 
 **Allowed avatar formats:** JPEG, PNG, GIF, WebP, SVG
 
@@ -164,10 +163,10 @@ There is no global admin override for PIM data. Administrators manage users and 
 
 ### Sharing Permissions
 
-| Permission | Can View | Can Edit | Can Delete | Can Re-share |
-|---|---|---|---|---|
-| `ReadOnly` | ✓ | — | — | — |
-| `ReadWrite` | ✓ | ✓ | — | — |
+| Permission  | Can View | Can Edit | Can Delete | Can Re-share |
+| ----------- | -------- | -------- | ---------- | ------------ |
+| `ReadOnly`  | ✓        | —        | —          | —            |
+| `ReadWrite` | ✓        | ✓        | —          | —            |
 
 Only the record owner can delete records or manage shares.
 
@@ -177,10 +176,10 @@ Only the record owner can delete records or manage shares.
 
 ### Discovery Endpoints
 
-| Standard | Well-Known URL | Purpose |
-|---|---|---|
-| CardDAV | `/.well-known/carddav` | RFC 6764 address book discovery |
-| CalDAV | `/.well-known/caldav` | RFC 6764 calendar discovery |
+| Standard | Well-Known URL         | Purpose                         |
+| -------- | ---------------------- | ------------------------------- |
+| CardDAV  | `/.well-known/carddav` | RFC 6764 address book discovery |
+| CalDAV   | `/.well-known/caldav`  | RFC 6764 calendar discovery     |
 
 These endpoints redirect clients to the user's address book or calendar collection.
 
@@ -188,12 +187,12 @@ These endpoints redirect clients to the user's address book or calendar collecti
 
 Tested with these DAV clients:
 
-| Client | CardDAV | CalDAV | Notes |
-|---|---|---|---|
-| **DAVx5** (Android) | ✓ | ✓ | OAuth Bearer recommended |
-| **Thunderbird** | ✓ | ✓ | Use CardBook add-on for contacts |
-| **iOS/macOS** | ✓ | ✓ | Accounts → Add CalDAV/CardDAV |
-| **GNOME Online Accounts** | ✓ | ✓ | WebDAV accounts |
+| Client                    | CardDAV | CalDAV | Notes                            |
+| ------------------------- | ------- | ------ | -------------------------------- |
+| **DAVx5** (Android)       | ✓       | ✓      | OAuth Bearer recommended         |
+| **Thunderbird**           | ✓       | ✓      | Use CardBook add-on for contacts |
+| **iOS/macOS**             | ✓       | ✓      | Accounts → Add CalDAV/CardDAV    |
+| **GNOME Online Accounts** | ✓       | ✓      | WebDAV accounts                  |
 
 ### Sync Token / ETag
 
@@ -237,27 +236,27 @@ For IIS, ensure URL Rewrite + ARR forwards all HTTP methods, not just GET/POST.
 
 The core import infrastructure supports bulk data import for all three PIM modules:
 
-| Data Type | Format | Provider |
-|---|---|---|
-| Contacts | vCard 3.0 (`.vcf`) | `ContactsImportProvider` |
-| Calendar Events | iCalendar (`.ics`) | `CalendarImportProvider` |
-| Notes | JSON manifest or Markdown | `NotesImportProvider` |
+| Data Type       | Format                    | Provider                 |
+| --------------- | ------------------------- | ------------------------ |
+| Contacts        | vCard 3.0 (`.vcf`)        | `ContactsImportProvider` |
+| Calendar Events | iCalendar (`.ics`)        | `CalendarImportProvider` |
+| Notes           | JSON manifest or Markdown | `NotesImportProvider`    |
 
 ### Import Sources
 
-| Source | Description |
-|---|---|
-| `Generic` | Standard format import (default) |
-| `Nextcloud` | NextCloud export format |
-| `StandardFile` | Standard Notes export |
+| Source         | Description                      |
+| -------------- | -------------------------------- |
+| `Generic`      | Standard format import (default) |
+| `Nextcloud`    | NextCloud export format          |
+| `StandardFile` | Standard Notes export            |
 
 ### Conflict Strategies
 
-| Strategy | Behavior |
-|---|---|
-| `Skip` | Ignore records that match existing data (default) |
-| `Overwrite` | Replace existing records with imported data |
-| `CreateCopy` | Import alongside existing records |
+| Strategy     | Behavior                                          |
+| ------------ | ------------------------------------------------- |
+| `Skip`       | Ignore records that match existing data (default) |
+| `Overwrite`  | Replace existing records with imported data       |
+| `CreateCopy` | Import alongside existing records                 |
 
 ### Dry-Run Mode
 
@@ -270,11 +269,11 @@ Set `DryRun = true` on import requests to validate data without persisting:
 
 ### Duplicate Detection
 
-| Module | Detection Method |
-|---|---|
-| Contacts | Primary email address match |
+| Module   | Detection Method               |
+| -------- | ------------------------------ |
+| Contacts | Primary email address match    |
 | Calendar | Start time + title combination |
-| Notes | Title + owner match |
+| Notes    | Title + owner match            |
 
 ---
 
@@ -284,19 +283,19 @@ PIM modules publish and subscribe to events for cross-module coordination:
 
 ### Published Events
 
-| Module | Events |
-|---|---|
-| Contacts | `ContactCreatedEvent`, `ContactUpdatedEvent`, `ContactDeletedEvent`, `ResourceSharedEvent` |
+| Module   | Events                                                                                                                                                                                             |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Contacts | `ContactCreatedEvent`, `ContactUpdatedEvent`, `ContactDeletedEvent`, `ResourceSharedEvent`                                                                                                         |
 | Calendar | `CalendarEventCreatedEvent`, `CalendarEventUpdatedEvent`, `CalendarEventDeletedEvent`, `CalendarEventRsvpEvent`, `CalendarReminderTriggeredEvent`, `ReminderTriggeredEvent`, `ResourceSharedEvent` |
-| Notes | `NoteCreatedEvent`, `NoteUpdatedEvent`, `NoteDeletedEvent`, `ResourceSharedEvent`, `UserMentionedEvent` |
+| Notes    | `NoteCreatedEvent`, `NoteUpdatedEvent`, `NoteDeletedEvent`, `ResourceSharedEvent`, `UserMentionedEvent`                                                                                            |
 
 ### Subscribed Events
 
-| Module | Subscribes To |
-|---|---|
-| Contacts | `CalendarEventCreatedEvent`, `NoteCreatedEvent` |
-| Calendar | `ContactCreatedEvent`, `ContactDeletedEvent` |
-| Notes | `ContactCreatedEvent`, `CalendarEventCreatedEvent` |
+| Module   | Subscribes To                                      |
+| -------- | -------------------------------------------------- |
+| Contacts | `CalendarEventCreatedEvent`, `NoteCreatedEvent`    |
+| Calendar | `ContactCreatedEvent`, `ContactDeletedEvent`       |
+| Notes    | `ContactCreatedEvent`, `CalendarEventCreatedEvent` |
 
 ---
 
@@ -304,11 +303,11 @@ PIM modules publish and subscribe to events for cross-module coordination:
 
 Each module exposes a gRPC service for core-to-module communication:
 
-| Module | Service | RPCs |
-|---|---|---|
-| Contacts | `ContactsService` | 7 (Create, Get, List, Update, Delete, ExportVCard, ImportVCards) |
-| Calendar | `CalendarGrpcService` | 11 (CRUD for calendars + events, RSVP, Export/Import iCal) |
-| Notes | `NotesGrpcService` | 10 (CRUD for notes + folders, Search, Version History, Restore) |
+| Module   | Service               | RPCs                                                             |
+| -------- | --------------------- | ---------------------------------------------------------------- |
+| Contacts | `ContactsService`     | 7 (Create, Get, List, Update, Delete, ExportVCard, ImportVCards) |
+| Calendar | `CalendarGrpcService` | 11 (CRUD for calendars + events, RSVP, Export/Import iCal)       |
+| Notes    | `NotesGrpcService`    | 10 (CRUD for notes + folders, Search, Version History, Restore)  |
 
 gRPC communication uses Unix domain sockets (Linux) or Named Pipes (Windows) per the standard module isolation architecture.
 
@@ -332,10 +331,10 @@ The `ReminderDispatchService` is a background service that continuously scans fo
 
 **Behavior:**
 
-| Parameter | Default |
-|---|---|
-| Scan interval | 30 seconds |
-| Look-ahead window | 24 hours |
+| Parameter                | Default                     |
+| ------------------------ | --------------------------- |
+| Scan interval            | 30 seconds                  |
+| Look-ahead window        | 24 hours                    |
 | Max recurrence expansion | 1,000 occurrences per event |
 
 **How it works:**
@@ -396,6 +395,7 @@ PIM data is stored in the same database as all other core data. The standard bac
 **Symptom:** PIM module fails to initialize, logs show capability resolution errors.
 
 **Check:**
+
 1. All required core capabilities are registered (see Required Core Capabilities table above)
 2. Database migrations are up to date: `dotnet ef database update`
 3. OpenIddict is configured and token validation is working
@@ -403,6 +403,7 @@ PIM data is stored in the same database as all other core data. The standard bac
 ### CardDAV/CalDAV Clients Cannot Connect
 
 **Check:**
+
 1. Well-known URLs (`/.well-known/carddav`, `/.well-known/caldav`) return 301 redirects
 2. Bearer authentication is working (test with `curl -H "Authorization: Bearer <token>"`)
 3. Reverse proxy forwards PROPFIND and REPORT methods
@@ -411,6 +412,7 @@ PIM data is stored in the same database as all other core data. The standard bac
 ### Import Errors
 
 **Check:**
+
 1. Use dry-run mode first to identify problematic records
 2. Review the `ImportReport.Items` array for per-item error messages
 3. Verify the import format matches the expected standard (vCard 3.0, iCalendar RFC 5545, or JSON manifest)
@@ -429,6 +431,7 @@ PIM data is stored in the same database as all other core data. The standard bac
 **Symptom:** Users report not receiving reminders for calendar events.
 
 **Check:**
+
 1. Verify the `ReminderDispatchService` is running (look for scan log entries every 30 seconds)
 2. Check that the event has reminders configured (`EventReminders` table)
 3. Verify the event is not soft-deleted (`DeletedAt IS NULL`)

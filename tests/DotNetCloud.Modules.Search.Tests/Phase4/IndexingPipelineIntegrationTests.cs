@@ -20,12 +20,12 @@ namespace DotNetCloud.Modules.Search.Tests.Phase4;
 public class IndexingPipelineIntegrationTests
 {
     private SearchDbContext _db = null!;
-    private MariaDbSearchProvider _provider = null!;
     private SearchIndexingService _indexingService = null!;
     private SearchQueryService _queryService = null!;
     private SearchIndexRequestEventHandler _eventHandler = null!;
     private Mock<ISearchableModule> _filesModuleMock = null!;
     private Mock<ISearchableModule> _notesModuleMock = null!;
+    private ISearchProvider _provider = null!;
     private Guid _userId;
 
     [TestInitialize]
@@ -36,8 +36,7 @@ public class IndexingPipelineIntegrationTests
             .Options;
         _db = new SearchDbContext(options);
 
-        _provider = new MariaDbSearchProvider(_db, NullLogger<MariaDbSearchProvider>.Instance);
-
+        _provider = new SqlServerSearchProvider(_db, NullLogger<SqlServerSearchProvider>.Instance);
         _userId = Guid.NewGuid();
 
         _filesModuleMock = new Mock<ISearchableModule>();

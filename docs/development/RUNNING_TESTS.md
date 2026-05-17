@@ -44,15 +44,15 @@ dotnet test
 
 This discovers and runs all test projects in the solution:
 
-| Test Project | Description | Test Count |
-|---|---|---|
-| `DotNetCloud.Core.Tests` | Core abstractions, capabilities, events, modules, authorization | 108 |
-| `DotNetCloud.Core.Data.Tests` | Database models, naming strategies, DbContext | varies |
-| `DotNetCloud.Core.Server.Tests` | Server middleware, gRPC, process supervisor, observability | varies |
-| `DotNetCloud.Core.Auth.Tests` | Authentication integration tests | 18 |
-| `DotNetCloud.CLI.Tests` | CLI commands, configuration, console output | 66 |
-| `DotNetCloud.Modules.Example.Tests` | Example module lifecycle, events, manifest | 51 |
-| `DotNetCloud.Integration.Tests` | Multi-database integration tests (requires Docker) | varies |
+| Test Project                        | Description                                                     | Test Count |
+| ----------------------------------- | --------------------------------------------------------------- | ---------- |
+| `DotNetCloud.Core.Tests`            | Core abstractions, capabilities, events, modules, authorization | 108        |
+| `DotNetCloud.Core.Data.Tests`       | Database models, naming strategies, DbContext                   | varies     |
+| `DotNetCloud.Core.Server.Tests`     | Server middleware, gRPC, process supervisor, observability      | varies     |
+| `DotNetCloud.Core.Auth.Tests`       | Authentication integration tests                                | 18         |
+| `DotNetCloud.CLI.Tests`             | CLI commands, configuration, console output                     | 66         |
+| `DotNetCloud.Modules.Example.Tests` | Example module lifecycle, events, manifest                      | 51         |
+| `DotNetCloud.Integration.Tests`     | Multi-database integration tests (requires Docker)              | varies     |
 
 ---
 
@@ -111,11 +111,10 @@ dotnet test tests\DotNetCloud.Integration.Tests\DotNetCloud.Integration.Tests.cs
 
 ### Supported Databases
 
-| Database | Container Image | Status |
-|---|---|---|
-| PostgreSQL 16 | `postgres:16-alpine` | ✅ Fully supported |
+| Database        | Container Image                              | Status                                 |
+| --------------- | -------------------------------------------- | -------------------------------------- |
+| PostgreSQL 16   | `postgres:16-alpine`                         | ✅ Fully supported                     |
 | SQL Server 2022 | `mcr.microsoft.com/mssql/server:2022-latest` | ✅ CI only (WSL2 kernel compatibility) |
-| MariaDB | `mariadb:11` | ⏳ Pending Pomelo .NET 10 support |
 
 ### Skipping Integration Tests
 
@@ -175,10 +174,10 @@ Tests run automatically on every push and pull request via GitHub Actions and Gi
 
 ### CI Test Matrix
 
-| Job | What It Does |
-|---|---|
-| **Build** | Restore, compile (Release), publish Core Server + CLI, upload artifacts |
-| **Unit Tests** | Run all unit tests with MSTest, generate TRX logs and Cobertura coverage |
+| Job                   | What It Does                                                                  |
+| --------------------- | ----------------------------------------------------------------------------- |
+| **Build**             | Restore, compile (Release), publish Core Server + CLI, upload artifacts       |
+| **Unit Tests**        | Run all unit tests with MSTest, generate TRX logs and Cobertura coverage      |
 | **Integration Tests** | Multi-database matrix (PostgreSQL 16, SQL Server 2022) via service containers |
 
 ### Running CI Locally
@@ -203,14 +202,14 @@ All test projects use **MSTest** (`Microsoft.VisualStudio.TestTools.UnitTesting`
 
 ### Key Attributes
 
-| Attribute | Purpose |
-|---|---|
-| `[TestClass]` | Marks a class as containing test methods |
-| `[TestMethod]` | Marks a method as a test |
-| `[DataTestMethod]` | Parameterized test method |
-| `[DataRow(...)]` | Provides data for parameterized tests |
-| `[TestInitialize]` | Runs before each test method |
-| `[TestCleanup]` | Runs after each test method |
+| Attribute             | Purpose                                                        |
+| --------------------- | -------------------------------------------------------------- |
+| `[TestClass]`         | Marks a class as containing test methods                       |
+| `[TestMethod]`        | Marks a method as a test                                       |
+| `[DataTestMethod]`    | Parameterized test method                                      |
+| `[DataRow(...)]`      | Provides data for parameterized tests                          |
+| `[TestInitialize]`    | Runs before each test method                                   |
+| `[TestCleanup]`       | Runs after each test method                                    |
 | `[ExpectedException]` | Expects a specific exception (prefer `Assert.ThrowsException`) |
 
 ### Mocking

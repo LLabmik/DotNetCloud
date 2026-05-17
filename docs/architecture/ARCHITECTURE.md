@@ -129,18 +129,18 @@ dotnetcloud (core process — supervisor)
 | ---------- | ------------------ | --------------------------------------------- |
 | PostgreSQL | ✅ Initial release | Npgsql (PostgreSQL License)                   |
 | SQL Server | ✅ Initial release | Microsoft.EntityFrameworkCore.SqlServer (MIT) |
-| MariaDB    | ✅ Initial release | Pomelo.EntityFrameworkCore.MySql (MIT)        |
+|  |
 | Oracle     | 🔜 Future          | Oracle.EntityFrameworkCore                    |
 
 ### Schema Isolation
 
 Each module owns its own `DbContext` with its own tables. Modules never share database tables or access other modules' data directly.
 
-| Approach   | Database support                                         |
-| ---------- | -------------------------------------------------------- |
-| PostgreSQL | Separate schemas (`files.*`, `chat.*`)                   |
-| SQL Server | Separate schemas (`files.Documents`, `chat.Messages`)    |
-| MariaDB    | Table name prefixes (`Files_Documents`, `Chat_Messages`) |
+| Approach   | Database support                                      |
+| ---------- | ----------------------------------------------------- |
+| PostgreSQL | Separate schemas (`files.*`, `chat.*`)                |
+| SQL Server | Separate schemas (`files.Documents`, `chat.Messages`) |
+|  |
 
 A configurable table naming strategy defaults to prefixes for universal compatibility, with real schemas on Postgres/SQL Server.
 
@@ -961,12 +961,12 @@ dotnetcloud backup --schedule daily --keep 30 --output /backups/
 
 ### Pipeline Stages
 
-| Stage   | What                                                                                       |
-| ------- | ------------------------------------------------------------------------------------------ |
-| Build   | `dotnet build` all projects                                                                |
-| Test    | Unit tests + integration tests against PostgreSQL, SQL Server, MariaDB (Docker containers) |
-| Package | Build `.deb`, `.rpm`, Windows MSI, Docker images, Android APK (both flavors)               |
-| Publish | Push to APT repo, Docker Hub, Google Play Store, F-Droid                                   |
+| Stage   | What                                                                                 |
+| ------- | ------------------------------------------------------------------------------------ |
+| Build   | `dotnet build` all projects                                                          |
+| Test    | Unit tests + integration tests against PostgreSQL and SQL Server (Docker containers) |
+| Package | Build `.deb`, `.rpm`, Windows MSI, Docker images, Android APK (both flavors)         |
+| Publish | Push to APT repo, Docker Hub, Google Play Store, F-Droid                             |
 
 ---
 
@@ -1026,7 +1026,7 @@ All dependencies are open source with permissive or compatible licenses. Zero co
 | Serilog                                 | Structured logging                           | Apache 2.0         | ✅          |
 | OpenTelemetry .NET                      | Metrics & tracing                            | Apache 2.0         | ✅          |
 | Npgsql                                  | PostgreSQL provider                          | PostgreSQL License | ✅          |
-| Pomelo.EntityFrameworkCore.MySql        | MariaDB provider                             | MIT                | ✅          |
+| MIT                                     | ✅                                           |
 | Microsoft.EntityFrameworkCore.SqlServer | SQL Server provider                          | MIT                | ✅          |
 | LiveKit                                 | Video SFU (optional external)                | Apache 2.0         | ❌ (Go)     |
 | Collabora CODE                          | Online document editing (optional, built-in) | MPL-2.0            | ❌ (C++/JS) |
@@ -1271,21 +1271,21 @@ A `SearchReindexBackgroundService` runs scheduled full reindexes (default: 24 ho
 
 `SearchQueryParser` parses user input into `ParsedSearchQuery`:
 
-| Input | Parsed As |
-|---|---|
+| Input              | Parsed As                  |
+| ------------------ | -------------------------- |
 | `quarterly report` | Terms: [quarterly, report] |
-| `"project plan"` | Phrases: [project plan] |
-| `in:notes` | ModuleFilter: notes |
-| `type:pdf` | TypeFilter: pdf |
-| `-draft` | Exclusions: [draft] |
+| `"project plan"`   | Phrases: [project plan]    |
+| `in:notes`         | ModuleFilter: notes        |
+| `type:pdf`         | TypeFilter: pdf            |
+| `-draft`           | Exclusions: [draft]        |
 
 `ParsedSearchQuery` generates provider-specific query strings:
 
-| Provider | Format |
-|---|---|
-| PostgreSQL | `to_tsquery('quarterly & report & !draft')` |
-| SQL Server | `CONTAINS(*, '"quarterly" AND "report" AND NOT "draft"')` |
-| MariaDB | `MATCH() AGAINST('+quarterly +report -draft' IN BOOLEAN MODE)` |
+| Provider   | Format                                                         |
+| ---------- | -------------------------------------------------------------- |
+| PostgreSQL | `to_tsquery('quarterly & report & !draft')`                    |
+| SQL Server | `CONTAINS(*, '"quarterly" AND "report" AND NOT "draft"')`      |
+| MariaDB    | `MATCH() AGAINST('+quarterly +report -draft' IN BOOLEAN MODE)` |
 
 `SnippetGenerator` produces XSS-safe highlighted snippets using `<mark>` tags with ~60 characters of context around matches.
 
@@ -1303,13 +1303,13 @@ Files, Notes, Chat, Contacts, Calendar, Photos, Music, Video, and Tracks all imp
 
 ### Content Extraction
 
-| Extractor | MIME Types | Library |
-|---|---|---|
-| PlainText | `text/plain`, `text/csv` | Built-in |
-| Markdown | `text/markdown` | Regex-based |
-| PDF | `application/pdf` | UglyToad.PdfPig |
-| DOCX | `application/vnd.openxmlformats-officedocument.wordprocessingml.document` | DocumentFormat.OpenXml |
-| XLSX | `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` | DocumentFormat.OpenXml |
+| Extractor | MIME Types                                                                | Library                |
+| --------- | ------------------------------------------------------------------------- | ---------------------- |
+| PlainText | `text/plain`, `text/csv`                                                  | Built-in               |
+| Markdown  | `text/markdown`                                                           | Regex-based            |
+| PDF       | `application/pdf`                                                         | UglyToad.PdfPig        |
+| DOCX      | `application/vnd.openxmlformats-officedocument.wordprocessingml.document` | DocumentFormat.OpenXml |
+| XLSX      | `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`       | DocumentFormat.OpenXml |
 
 Max extracted content: 100KB per document.
 

@@ -64,11 +64,11 @@ src/Modules/MyModule/
     └── Protos/
 ```
 
-| Project | Purpose | References |
-|---|---|---|
-| **Core** | Business logic, manifest, domain models, events | `DotNetCloud.Core` |
-| **Data** | EF Core context, entities, migrations | `DotNetCloud.Core.Data` |
-| **Host** | gRPC service host, entry point | Core + Data + `DotNetCloud.Core.Grpc` |
+| Project  | Purpose                                         | References                            |
+| -------- | ----------------------------------------------- | ------------------------------------- |
+| **Core** | Business logic, manifest, domain models, events | `DotNetCloud.Core`                    |
+| **Data** | EF Core context, entities, migrations           | `DotNetCloud.Core.Data`               |
+| **Host** | gRPC service host, entry point                  | Core + Data + `DotNetCloud.Core.Grpc` |
 
 ---
 
@@ -184,12 +184,12 @@ public interface IModuleLifecycle : IModule, IAsyncDisposable
 
 ### Lifecycle Guarantees
 
-| Phase | Called | Purpose |
-|---|---|---|
-| `InitializeAsync` | Exactly once, before `StartAsync` | Set up DI, subscribe to events, load config |
-| `StartAsync` | Exactly once, after all modules initialized | Begin accepting work |
-| `StopAsync` | Exactly once, on shutdown | Drain active work, unsubscribe events |
-| `DisposeAsync` | Exactly once, after `StopAsync` | Release resources |
+| Phase             | Called                                      | Purpose                                     |
+| ----------------- | ------------------------------------------- | ------------------------------------------- |
+| `InitializeAsync` | Exactly once, before `StartAsync`           | Set up DI, subscribe to events, load config |
+| `StartAsync`      | Exactly once, after all modules initialized | Begin accepting work                        |
+| `StopAsync`       | Exactly once, on shutdown                   | Drain active work, unsubscribe events       |
+| `DisposeAsync`    | Exactly once, after `StopAsync`             | Release resources                           |
 
 ### Initialization Context
 
@@ -239,12 +239,12 @@ Capabilities are the permission model for modules. They control what platform fe
 
 ### Capability Tiers
 
-| Tier | Approval | Examples |
-|---|---|---|
-| **Public** | Automatic | `IUserDirectory`, `ICurrentUserContext`, `INotificationService`, `IEventBus` |
-| **Restricted** | Admin approval | `IStorageProvider`, `IModuleSettings`, `ITeamDirectory` |
-| **Privileged** | Admin approval + warning | `IUserManager`, `IBackupProvider` |
-| **Forbidden** | Never granted | Direct database access, process management |
+| Tier           | Approval                 | Examples                                                                     |
+| -------------- | ------------------------ | ---------------------------------------------------------------------------- |
+| **Public**     | Automatic                | `IUserDirectory`, `ICurrentUserContext`, `INotificationService`, `IEventBus` |
+| **Restricted** | Admin approval           | `IStorageProvider`, `IModuleSettings`, `ITeamDirectory`                      |
+| **Privileged** | Admin approval + warning | `IUserManager`, `IBackupProvider`                                            |
+| **Forbidden**  | Never granted            | Direct database access, process management                                   |
 
 ### Requesting Capabilities
 
@@ -351,11 +351,10 @@ Each module owns its own `DbContext` with isolated tables.
 
 ### Schema Isolation
 
-| Database | Strategy | Example |
-|---|---|---|
+| Database   | Strategy        | Example          |
+| ---------- | --------------- | ---------------- |
 | PostgreSQL | Separate schema | `mymodule.items` |
 | SQL Server | Separate schema | `mymodule.Items` |
-| MariaDB | Table prefix | `MyModule_Items` |
 
 ### Creating a Module DbContext
 

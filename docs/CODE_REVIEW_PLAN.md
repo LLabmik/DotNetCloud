@@ -55,7 +55,6 @@ A phased, tool-assisted comprehensive code review of the entire DotNetCloud code
 - ✓ **Bookmarks** — No test project (✅ Now has `Bookmarks.Tests` with `BookmarkFolderServiceTests.cs` and `BookmarkServiceTests.cs`)
 - ✓ **Email** — No test project (✅ Now has `Email.Tests` with `EmailAccountServiceTests.cs` and `EmailRuleServiceTests.cs`)
 - ✓ **About** — No test project (✅ Now has `About.Tests` with `AboutHealthCheckTests.cs` and `AboutModuleTests.cs`)
-- ☐ 3 active TODO/FIXME markers: 1 in Core (MariaDB .NET 10 support), 2 in Email (OAuth credentials)
 
 ### Pre-Discovery Findings
 
@@ -233,7 +232,6 @@ src/Core/DotNetCloud.Core/
 - ✓ **Soft delete:** Query filter applied correctly. No hard deletes bypassing filter.
 - ✓ **Timestamp interceptors:** Automatic `CreatedAt`/`UpdatedAt` handling. No manual timestamp setting.
 - ✓ **Migration quality:** Migrations are clean and reversible. No data loss in down methods.
-- ✓ **Table naming:** `ITableNamingStrategy` correctly implemented for PostgreSQL (schemas), SQL Server (schemas), MariaDB (prefixes)
 - ✓ **Provider detection:** `DatabaseProviderDetector` correctly identifies provider from connection string
 - ✓ **Relationships:** Navigation properties are correct. No missing foreign keys. Cascade delete behavior is intentional.
 - ✓ **Indexes:** Appropriate indexes for query patterns. No missing indexes causing table scans.

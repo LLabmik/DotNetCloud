@@ -12,7 +12,7 @@ namespace DotNetCloud.Modules.Search.Tests.Phase8;
 
 /// <summary>
 /// Multi-database provider integration tests that verify identical behavior
-/// across PostgreSQL (ILIKE fallback), SQL Server (Contains fallback), and MariaDB (Contains fallback)
+/// across PostgreSQL (ILIKE fallback), SQL Server (Contains fallback), and SqlServer (Contains fallback)
 /// search providers using InMemory databases.
 /// </summary>
 [TestClass]
@@ -59,12 +59,12 @@ public class MultiDatabaseProviderTests
         var providers = new List<(string Name, ISearchProvider Provider, SearchDbContext Db)>();
 
         // NOTE: PostgreSQL provider uses EF.Functions.ILike which doesn't work with InMemory.
-        // Search tests use SqlServer and MariaDB providers only. PostgreSQL tested separately with live DB.
+        // Search tests use SqlServer and SqlServer providers only. PostgreSQL tested separately with live DB.
         var dbSql = CreateDbContext("SQL_SimpleSearch");
         providers.Add(("SqlServer", new SqlServerSearchProvider(dbSql, NullLogger<SqlServerSearchProvider>.Instance), dbSql));
 
         var dbMaria = CreateDbContext("Maria_SimpleSearch");
-        providers.Add(("MariaDB", new MariaDbSearchProvider(dbMaria, NullLogger<MariaDbSearchProvider>.Instance), dbMaria));
+        providers.Add(("SqlServer", new SqlServerSearchProvider(dbMaria, NullLogger<SqlServerSearchProvider>.Instance), dbMaria));
 
         foreach (var (name, provider, _) in providers)
         {
@@ -108,7 +108,7 @@ public class MultiDatabaseProviderTests
         providers.Add(("SqlServer", new SqlServerSearchProvider(dbSql, NullLogger<SqlServerSearchProvider>.Instance), dbSql));
 
         var dbMaria = CreateDbContext("Maria_ModuleFilter");
-        providers.Add(("MariaDB", new MariaDbSearchProvider(dbMaria, NullLogger<MariaDbSearchProvider>.Instance), dbMaria));
+        providers.Add(("SqlServer", new SqlServerSearchProvider(dbMaria, NullLogger<SqlServerSearchProvider>.Instance), dbMaria));
 
         foreach (var (_, provider, _) in providers)
         {
@@ -144,7 +144,7 @@ public class MultiDatabaseProviderTests
         providers.Add(("SqlServer", new SqlServerSearchProvider(dbSql, NullLogger<SqlServerSearchProvider>.Instance), dbSql));
 
         var dbMaria = CreateDbContext("Maria_IndexAndSearch");
-        providers.Add(("MariaDB", new MariaDbSearchProvider(dbMaria, NullLogger<MariaDbSearchProvider>.Instance), dbMaria));
+        providers.Add(("SqlServer", new SqlServerSearchProvider(dbMaria, NullLogger<SqlServerSearchProvider>.Instance), dbMaria));
 
         foreach (var (name, provider, _) in providers)
         {
@@ -177,7 +177,7 @@ public class MultiDatabaseProviderTests
         providers.Add(("SqlServer", new SqlServerSearchProvider(dbSql, NullLogger<SqlServerSearchProvider>.Instance), dbSql));
 
         var dbMaria = CreateDbContext("Maria_RemoveAndSearch");
-        providers.Add(("MariaDB", new MariaDbSearchProvider(dbMaria, NullLogger<MariaDbSearchProvider>.Instance), dbMaria));
+        providers.Add(("SqlServer", new SqlServerSearchProvider(dbMaria, NullLogger<SqlServerSearchProvider>.Instance), dbMaria));
 
         foreach (var (name, provider, _) in providers)
         {
@@ -208,7 +208,7 @@ public class MultiDatabaseProviderTests
         providers.Add(("SqlServer", new SqlServerSearchProvider(dbSql, NullLogger<SqlServerSearchProvider>.Instance), dbSql));
 
         var dbMaria = CreateDbContext("Maria_Upsert");
-        providers.Add(("MariaDB", new MariaDbSearchProvider(dbMaria, NullLogger<MariaDbSearchProvider>.Instance), dbMaria));
+        providers.Add(("SqlServer", new SqlServerSearchProvider(dbMaria, NullLogger<SqlServerSearchProvider>.Instance), dbMaria));
 
         foreach (var (name, provider, _) in providers)
         {
@@ -242,7 +242,7 @@ public class MultiDatabaseProviderTests
         providers.Add(("SqlServer", new SqlServerSearchProvider(dbSql, NullLogger<SqlServerSearchProvider>.Instance), dbSql));
 
         var dbMaria = CreateDbContext("Maria_Stats");
-        providers.Add(("MariaDB", new MariaDbSearchProvider(dbMaria, NullLogger<MariaDbSearchProvider>.Instance), dbMaria));
+        providers.Add(("SqlServer", new SqlServerSearchProvider(dbMaria, NullLogger<SqlServerSearchProvider>.Instance), dbMaria));
 
         foreach (var (name, provider, _) in providers)
         {
@@ -271,7 +271,7 @@ public class MultiDatabaseProviderTests
         providers.Add(("SqlServer", new SqlServerSearchProvider(dbSql, NullLogger<SqlServerSearchProvider>.Instance), dbSql));
 
         var dbMaria = CreateDbContext("Maria_Reindex");
-        providers.Add(("MariaDB", new MariaDbSearchProvider(dbMaria, NullLogger<MariaDbSearchProvider>.Instance), dbMaria));
+        providers.Add(("SqlServer", new SqlServerSearchProvider(dbMaria, NullLogger<SqlServerSearchProvider>.Instance), dbMaria));
 
         foreach (var (name, provider, _) in providers)
         {
@@ -299,7 +299,7 @@ public class MultiDatabaseProviderTests
         providers.Add(("SqlServer", new SqlServerSearchProvider(dbSql, NullLogger<SqlServerSearchProvider>.Instance), dbSql));
 
         var dbMaria = CreateDbContext("Maria_Exclusions");
-        providers.Add(("MariaDB", new MariaDbSearchProvider(dbMaria, NullLogger<MariaDbSearchProvider>.Instance), dbMaria));
+        providers.Add(("SqlServer", new SqlServerSearchProvider(dbMaria, NullLogger<SqlServerSearchProvider>.Instance), dbMaria));
 
         foreach (var (name, provider, _) in providers)
         {
@@ -331,7 +331,7 @@ public class MultiDatabaseProviderTests
         providers.Add(("SqlServer", new SqlServerSearchProvider(dbSql, NullLogger<SqlServerSearchProvider>.Instance), dbSql));
 
         var dbMaria = CreateDbContext("Maria_Pagination");
-        providers.Add(("MariaDB", new MariaDbSearchProvider(dbMaria, NullLogger<MariaDbSearchProvider>.Instance), dbMaria));
+        providers.Add(("SqlServer", new SqlServerSearchProvider(dbMaria, NullLogger<SqlServerSearchProvider>.Instance), dbMaria));
 
         foreach (var (name, provider, _) in providers)
         {
@@ -381,7 +381,7 @@ public class MultiDatabaseProviderTests
         providers.Add(("SqlServer", new SqlServerSearchProvider(dbSql, NullLogger<SqlServerSearchProvider>.Instance), dbSql));
 
         var dbMaria = CreateDbContext("Maria_Metadata");
-        providers.Add(("MariaDB", new MariaDbSearchProvider(dbMaria, NullLogger<MariaDbSearchProvider>.Instance), dbMaria));
+        providers.Add(("SqlServer", new SqlServerSearchProvider(dbMaria, NullLogger<SqlServerSearchProvider>.Instance), dbMaria));
 
         foreach (var (name, provider, _) in providers)
         {

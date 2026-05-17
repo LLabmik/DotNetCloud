@@ -110,9 +110,9 @@ docker run --rm ubuntu echo "Docker is working!"
 ### What is Docker Compose?
 
 Docker Compose allows you to define and run multi-container applications. For DotNetCloud, we use it to run:
+
 - PostgreSQL database
 - SQL Server database
-- MariaDB database
 - Application (optional for local dev)
 
 ### Create `docker-compose.yml`
@@ -120,7 +120,7 @@ Docker Compose allows you to define and run multi-container applications. For Do
 Create a file at the repository root: `docker-compose.yml`
 
 ```yaml
-version: '3.8'
+version: "3.8"
 
 services:
   # PostgreSQL Database
@@ -154,26 +154,11 @@ services:
     volumes:
       - sqlserver_data:/var/opt/mssql
     healthcheck:
-      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'SqlServer2022!Local' -Q 'SELECT 1' || exit 1"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  # MariaDB Database
-  mariadb:
-    image: mariadb:11
-    container_name: dotnetcloud-mariadb
-    environment:
-      MARIADB_ROOT_PASSWORD: mariadb_root_123
-      MARIADB_USER: dotnetcloud
-      MARIADB_PASSWORD: mariadb_dev_local_123
-      MARIADB_DATABASE: dotnetcloud_dev
-    ports:
-      - "3306:3306"
-    volumes:
-      - mariadb_data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD", "healthcheck.sh", "--su=dotnetcloud", "--connect", "--innodb_initialized"]
+      test:
+        [
+          "CMD-SHELL",
+          "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'SqlServer2022!Local' -Q 'SELECT 1' || exit 1",
+        ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -181,7 +166,6 @@ services:
 volumes:
   postgres_data:
   sqlserver_data:
-  mariadb_data:
 ```
 
 ### Create Development Override File (Optional)
@@ -189,7 +173,7 @@ volumes:
 For developer-specific settings, create `docker-compose.override.yml`:
 
 ```yaml
-version: '3.8'
+version: "3.8"
 
 services:
   postgres:
@@ -273,16 +257,6 @@ sqlcmd -S localhost -U sa -P "SqlServer2022!Local" -Q "SELECT @@version;"
 docker compose exec sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "SqlServer2022!Local" -Q "SELECT @@version;"
 ```
 
-#### MariaDB
-
-```bash
-# Connect from command line
-mysql -h localhost -u dotnetcloud -p -D dotnetcloud_dev -e "SELECT VERSION();"
-
-# Or use Docker Compose exec
-docker compose exec mariadb mysql -u dotnetcloud -p -D dotnetcloud_dev -e "SELECT VERSION();"
-```
-
 ---
 
 ## Application Container Setup
@@ -339,28 +313,28 @@ docker build -t dotnetcloud:dev-$(date +%s) .
 Add to `docker-compose.yml`:
 
 ```yaml
-  app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: dotnetcloud-app
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      ConnectionStrings__PostgreSQL: "Server=postgres;Port=5432;Database=dotnetcloud_dev;User Id=dotnetcloud;Password=postgres_dev_local_123;"
-      Database__Provider: "PostgreSQL"
-      ASPNETCORE_ENVIRONMENT: "Development"
-      ASPNETCORE_URLS: "http://+:5000"
-    ports:
-      - "5000:5000"
-    volumes:
-      - ./src:/app/src  # Hot reload (if supported)
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
+app:
+  build:
+    context: .
+    dockerfile: Dockerfile
+  container_name: dotnetcloud-app
+  depends_on:
+    postgres:
+      condition: service_healthy
+  environment:
+    ConnectionStrings__PostgreSQL: "Server=postgres;Port=5432;Database=dotnetcloud_dev;User Id=dotnetcloud;Password=postgres_dev_local_123;"
+    Database__Provider: "PostgreSQL"
+    ASPNETCORE_ENVIRONMENT: "Development"
+    ASPNETCORE_URLS: "http://+:5000"
+  ports:
+    - "5000:5000"
+  volumes:
+    - ./src:/app/src # Hot reload (if supported)
+  healthcheck:
+    test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+    interval: 10s
+    timeout: 5s
+    retries: 3
 ```
 
 ### Run Full Stack
@@ -386,7 +360,7 @@ This is the recommended setup for development:
 
 ```bash
 # Terminal 1: Start databases only
-docker compose up -d postgres  # or sqlserver/mariadb
+docker compose up -d postgres  # or sqlserver
 
 # Verify health
 docker compose ps
@@ -413,16 +387,13 @@ docker compose logs -f app
 
 ```bash
 # Ensure databases are running
-docker compose up -d postgres sqlserver mariadb
+docker compose up -d postgres sqlserver
 
 # Run tests against PostgreSQL
 dotnet test -- --Database:Provider=PostgreSQL
 
 # Run tests against SQL Server
 dotnet test -- --Database:Provider=SqlServer
-
-# Run tests against MariaDB
-dotnet test -- --Database:Provider=MariaDb
 
 # Stop databases
 docker compose down
@@ -448,7 +419,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        database: [PostgreSQL, SqlServer, MariaDb]
+        database: [PostgreSQL, SqlServer]
     services:
       postgres:
         image: postgres:16-alpine
@@ -467,8 +438,8 @@ jobs:
       sqlserver:
         image: mcr.microsoft.com/mssql/server:2022-latest
         env:
-          SA_PASSWORD: 'SqlServer2022!Local'
-          ACCEPT_EULA: 'Y'
+          SA_PASSWORD: "SqlServer2022!Local"
+          ACCEPT_EULA: "Y"
         options: >-
           --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'SqlServer2022!Local' -Q 'SELECT 1'"
           --health-interval 10s
@@ -477,26 +448,11 @@ jobs:
         ports:
           - 1433:1433
 
-      mariadb:
-        image: mariadb:11
-        env:
-          MARIADB_ROOT_PASSWORD: mariadb_root_123
-          MARIADB_USER: dotnetcloud
-          MARIADB_PASSWORD: mariadb_dev_local_123
-          MARIADB_DATABASE: dotnetcloud_dev
-        options: >-
-          --health-cmd "healthcheck.sh --su=dotnetcloud --connect --innodb_initialized"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 3306:3306
-
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-dotnet@v3
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: "10.0.x"
 
       - name: Restore dependencies
         run: dotnet restore
@@ -515,7 +471,7 @@ jobs:
 # test-all-databases.sh
 
 echo "Starting databases..."
-docker compose up -d postgres sqlserver mariadb
+docker compose up -d postgres sqlserver
 
 # Wait for health checks
 sleep 10
@@ -526,9 +482,6 @@ dotnet test -- --Database:Provider=PostgreSQL
 echo "Running tests against SQL Server..."
 dotnet test -- --Database:Provider=SqlServer
 
-echo "Running tests against MariaDB..."
-dotnet test -- --Database:Provider=MariaDb
-
 echo "Stopping databases..."
 docker compose down
 
@@ -536,6 +489,7 @@ echo "All tests completed!"
 ```
 
 Run:
+
 ```bash
 chmod +x test-all-databases.sh
 ./test-all-databases.sh
@@ -570,8 +524,7 @@ docker compose exec postgres psql -U dotnetcloud -d dotnetcloud_dev -c "SELECT *
 # Interactive PowerShell in SQL Server
 docker compose exec sqlserver powershell
 
-# Run command in MariaDB
-docker compose exec mariadb mysql -u dotnetcloud -p -D dotnetcloud_dev -e "SHOW TABLES;"
+
 ```
 
 ### Inspect Container
@@ -611,6 +564,7 @@ docker compose logs postgres | grep -i error
 ### Containers Won't Start
 
 #### Check Docker Daemon
+
 ```bash
 # Verify Docker is running
 docker ps
@@ -622,12 +576,14 @@ docker ps
 ```
 
 #### View Error Logs
+
 ```bash
 docker compose logs postgres  # View specific service logs
 docker compose logs          # View all logs
 ```
 
 #### Port Already in Use
+
 ```bash
 # Find process using port
 # Windows: netstat -ano | findstr :5432
@@ -640,6 +596,7 @@ docker compose down
 ### Database Connection Errors
 
 #### Connection Refused (PostgreSQL)
+
 ```bash
 # Verify container is running
 docker compose ps
@@ -652,6 +609,7 @@ docker compose exec postgres psql -U dotnetcloud -d dotnetcloud_dev -c "SELECT 1
 ```
 
 #### SQL Server Authentication Failed
+
 ```bash
 # Verify password matches docker-compose.yml
 # SQL Server requires strong passwords (uppercase, lowercase, number, special char)
@@ -660,18 +618,10 @@ docker compose exec postgres psql -U dotnetcloud -d dotnetcloud_dev -c "SELECT 1
 docker compose exec sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "YourPassword" -Q "SELECT 1;"
 ```
 
-#### MariaDB Connection Issues
-```bash
-# Verify credentials
-docker compose exec mariadb mysql -u dotnetcloud -p -D dotnetcloud_dev -e "SELECT 1;"
-
-# Check MariaDB logs
-docker compose logs mariadb
-```
-
 ### Volume and Data Issues
 
 #### Volumes Taking Up Space
+
 ```bash
 # List volumes
 docker volume ls
@@ -684,6 +634,7 @@ docker volume rm dotnetcloud_postgres_data
 ```
 
 #### Data Not Persisting After Restart
+
 ```bash
 # Ensure volumes are defined in docker-compose.yml
 # Check volume mount paths are correct
@@ -695,11 +646,13 @@ docker inspect dotnetcloud-postgres | grep -A 5 Mounts
 ### Performance Issues
 
 #### Slow Database Operations
+
 - Docker on Windows/macOS uses virtualization with performance overhead
 - Consider running databases natively on Windows (SQL Server) or Linux VM
 - Increase Docker resources: Docker Desktop → Settings → Resources
 
 #### High CPU/Memory Usage
+
 ```bash
 # Monitor resource usage
 docker stats
@@ -745,7 +698,6 @@ docker system prune -a
 2. **Strong passwords** for database services
    - PostgreSQL: 12+ characters, mixed case, numbers
    - SQL Server: 8+ characters, uppercase, lowercase, number, special char
-   - MariaDB: 12+ characters, mixed case, numbers
 
 3. **Network isolation** in production
    - Use custom Docker networks instead of `host`
@@ -766,6 +718,7 @@ docker system prune -a
 ### Development Workflow
 
 1. **Use `.env` file** for configuration
+
    ```bash
    # .env
    DATABASE_PASSWORD=mypassword

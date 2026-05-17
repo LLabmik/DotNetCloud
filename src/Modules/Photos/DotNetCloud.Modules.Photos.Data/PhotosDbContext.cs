@@ -17,7 +17,7 @@ namespace DotNetCloud.Modules.Photos.Data;
 /// </para>
 /// <para>
 /// <b>Multi-Database Support:</b>
-/// Works with PostgreSQL, SQL Server, and MariaDB through provider-specific configuration.
+/// Works with PostgreSQL and SQL Server through provider-specific configuration.
 /// </para>
 /// </remarks>
 public class PhotosDbContext : DbContext

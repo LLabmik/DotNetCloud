@@ -17,7 +17,6 @@ public class ModuleCapabilityGrantConfiguration : IEntityTypeConfiguration<Modul
         // Table naming will be handled by ITableNamingStrategy
         // PostgreSQL: core.module_capability_grants
         // SQL Server: [core].[ModuleCapabilityGrants]
-        // MariaDB: core_module_capability_grants
 
         // Primary Key
         builder.HasKey(g => g.Id);

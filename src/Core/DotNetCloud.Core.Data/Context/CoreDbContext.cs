@@ -46,7 +46,6 @@ namespace DotNetCloud.Core.Data.Context;
 /// <list type="bullet">
 /// <item>PostgreSQL: Uses schemas (core.*, files.*) and snake_case naming</item>
 /// <item>SQL Server: Uses schemas ([core], [files]) and PascalCase naming</item>
-/// <item>MariaDB: Uses table prefixes (core_*, files_*) and snake_case naming</item>
 /// </list>
 /// </para>
 ///
@@ -284,7 +283,6 @@ public class CoreDbContext : IdentityDbContext<ApplicationUser, ApplicationRole,
 
         // Apply provider-specific JSON column types for serialized properties.
         // PostgreSQL uses native 'jsonb'; SQL Server uses 'nvarchar(max)';
-        // MariaDB uses 'longtext'. Without this, EnsureCreated/migrations would
         // emit the wrong DDL type for non-PostgreSQL providers.
         ApplyJsonColumnTypes(modelBuilder);
     }
@@ -386,7 +384,7 @@ public class CoreDbContext : IdentityDbContext<ApplicationUser, ApplicationRole,
             Guid>();
 
         // Override table names using the active naming strategy (PostgreSQL: schema + snake_case,
-        // SQL Server: schema + PascalCase, MariaDB: prefix + snake_case)
+        // SQL Server: schema + PascalCase)
         ApplyTableName<OpenIddictApplication>(modelBuilder, "OpenIddictApplications", "core");
         ApplyTableName<OpenIddictAuthorization>(modelBuilder, "OpenIddictAuthorizations", "core");
         ApplyTableName<OpenIddictScope>(modelBuilder, "OpenIddictScopes", "core");
@@ -403,7 +401,7 @@ public class CoreDbContext : IdentityDbContext<ApplicationUser, ApplicationRole,
     /// <remarks>
     /// Properties that store JSON (e.g., RoleIds as a serialized list) need different
     /// column types per provider: <c>jsonb</c> for PostgreSQL (enables native JSON operators),
-    /// <c>nvarchar(max)</c> for SQL Server, and <c>longtext</c> for MariaDB.
+    /// <c>nvarchar(max)</c> for SQL Server.
     /// </remarks>
     private void ApplyJsonColumnTypes(ModelBuilder modelBuilder)
     {
@@ -411,7 +409,6 @@ public class CoreDbContext : IdentityDbContext<ApplicationUser, ApplicationRole,
         {
             Naming.DatabaseProvider.PostgreSQL => "jsonb",
             Naming.DatabaseProvider.SqlServer => "nvarchar(max)",
-            Naming.DatabaseProvider.MariaDB => "longtext",
             _ => "nvarchar(max)",
         };
 
@@ -449,7 +446,7 @@ public class CoreDbContext : IdentityDbContext<ApplicationUser, ApplicationRole,
     /// For schema-supporting databases (PostgreSQL, SQL Server) the entity name is converted
     /// using <see cref="ITableNamingStrategy.GetColumnName"/> and the schema is taken from
     /// <see cref="ITableNamingStrategy.GetSchemaForModule"/>.
-    /// For MariaDB (no schema support), the full prefixed table name is returned by
+    /// The full prefixed table name is returned by
     /// <see cref="ITableNamingStrategy.GetTableName"/>.
     /// </remarks>
     private void ApplyTableName<TEntity>(ModelBuilder modelBuilder, string entityName, string module)
@@ -464,7 +461,6 @@ public class CoreDbContext : IdentityDbContext<ApplicationUser, ApplicationRole,
         }
         else
         {
-            // No-schema provider (MariaDB): use module-prefixed table name
             var tableName = _namingStrategy.GetTableName(entityName, module);
             modelBuilder.Entity<TEntity>().ToTable(tableName);
         }

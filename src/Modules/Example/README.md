@@ -93,7 +93,6 @@ Events follow these conventions:
 - Injects `ITableNamingStrategy` for provider-appropriate schema naming
 - Self-managed schema with `HasDefaultSchema` for table isolation
 - Standard EF Core entity configuration with fluent API
-- Works with PostgreSQL, SQL Server, and MariaDB
 
 ### 6. Blazor UI (`UI/`)
 

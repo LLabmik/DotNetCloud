@@ -438,7 +438,6 @@ internal static class BackupCommands
         {
             "POSTGRESQL" => ("pg_dump", BuildPgDumpArgs(connectionString, outputPath)),
             "SQLSERVER" => ("sqlcmd", new List<string> { "-Q", $"BACKUP DATABASE [dotnetcloud] TO DISK = '{outputPath}'" }),
-            "MARIADB" or "MYSQL" => ("mysqldump", new List<string> { $"--result-file={outputPath}", "dotnetcloud" }),
             _ => throw new NotSupportedException($"Database provider '{provider}' is not supported for automated dump.")
         };
 
@@ -527,7 +526,6 @@ internal static class BackupCommands
     {
         "POSTGRESQL" => "pg_dump",
         "SQLSERVER" => "sqlcmd",
-        "MARIADB" or "MYSQL" => "mysqldump",
         _ => provider,
     };
 
@@ -535,7 +533,6 @@ internal static class BackupCommands
     {
         "POSTGRESQL" => "apt install postgresql-client or yum install postgresql",
         "SQLSERVER" => "Install SQL Server Command Line Utilities (sqlcmd)",
-        "MARIADB" or "MYSQL" => "apt install mariadb-client or yum install mariadb",
         _ => $"Install the {provider} command-line client",
     };
 
@@ -543,7 +540,6 @@ internal static class BackupCommands
     {
         "POSTGRESQL" => "pg_dump dotnetcloud > dotnetcloud-db.sql",
         "SQLSERVER" => "BACKUP DATABASE [dotnetcloud] TO DISK = 'dotnetcloud-db.bak'",
-        "MARIADB" or "MYSQL" => "mysqldump dotnetcloud > dotnetcloud-db.sql",
         _ => "Use your database provider's backup tool",
     };
 

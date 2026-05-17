@@ -17,7 +17,6 @@ public sealed class ExampleNoteConfiguration : IEntityTypeConfiguration<ExampleN
         // Table naming:
         // PostgreSQL: example.example_notes
         // SQL Server: [example].[ExampleNotes]
-        // MariaDB: example_example_notes
 
         builder.HasKey(n => n.Id);
 

@@ -20,44 +20,44 @@ DotNetCloud gives you full control of your data by running your own cloud server
 
 ### Features (Planned)
 
-| Feature                 | Description                                                                                                                            | Status            |
-| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
-| 📁 **Files**            | File sync and sharing with desktop client, browser UI with context menus, drag-drop move, upload queue management, and paste-to-upload | ✅ Phase 1        |
-| 📝 **Document Editing** | Browser-based editing via Collabora Online (LibreOffice-based)                                                                         | ✅ Phase 1        |
-| 💬 **Chat**             | Real-time messaging, channels, direct messages                                                                                         | ✅ Phase 2        |
-| 📱 **Android App**      | Mobile client with photo auto-upload                                                                                                   | ✅ Phase 2        |
-| 👤 **Contacts**         | Contact management with CardDAV support                                                                                                | ✅ Phase 3        |
-| 📅 **Calendar**         | Events, scheduling, CalDAV support                                                                                                     | ✅ Phase 3        |
-| 📝 **Notes**            | Markdown-based note taking                                                                                                             | ✅ Phase 3        |
-| 📋 **Tracks**           | Kanban boards and project management                                                                                                   | ✅ Phase 4        |
-| 🖼️ **Photos**           | Photo library, albums, geo-clustering, slideshow, editing                                                                              | ✅ Phase 5        |
-| 🎵 **Music**            | Music player with equalizer, playlists, favorites, Subsonic API                                                                        | ✅ Phase 5        |
-| 🎬 **Video**            | Video library, collections, subtitles, watch progress, streaming                                                                       | ✅ Phase 5        |
-| 📧 **Email**            | Integrated email client (SMTP/IMAP/Gmail)                                                                                              | ✅ Phase 6        |
-| 🔖 **Bookmarks**        | Browser bookmark sync via extension                                                                                                    | ✅ Phase 6        |
-| 📹 **Video Calls**      | WebRTC video calling and screen sharing                                                                                                | ✅ Phase 7        |
-| 🔍 **Search**           | Full-text search across all modules                                                                                                    | ✅ Phase 8        |
-| 🤖 **AI Assistant**     | LLM-powered assistant via Ollama (local) or Claude/OpenAI (cloud)                                                                      | ✅ Phase 9        |
-| 🔒 **E2EE**             | Optional zero-knowledge encryption                                                                                                     | Phase 10          |
+| Feature                 | Description                                                                                                                            | Status     |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| 📁 **Files**            | File sync and sharing with desktop client, browser UI with context menus, drag-drop move, upload queue management, and paste-to-upload | ✅ Phase 1 |
+| 📝 **Document Editing** | Browser-based editing via Collabora Online (LibreOffice-based)                                                                         | ✅ Phase 1 |
+| 💬 **Chat**             | Real-time messaging, channels, direct messages                                                                                         | ✅ Phase 2 |
+| 📱 **Android App**      | Mobile client with photo auto-upload                                                                                                   | ✅ Phase 2 |
+| 👤 **Contacts**         | Contact management with CardDAV support                                                                                                | ✅ Phase 3 |
+| 📅 **Calendar**         | Events, scheduling, CalDAV support                                                                                                     | ✅ Phase 3 |
+| 📝 **Notes**            | Markdown-based note taking                                                                                                             | ✅ Phase 3 |
+| 📋 **Tracks**           | Kanban boards and project management                                                                                                   | ✅ Phase 4 |
+| 🖼️ **Photos**           | Photo library, albums, geo-clustering, slideshow, editing                                                                              | ✅ Phase 5 |
+| 🎵 **Music**            | Music player with equalizer, playlists, favorites, Subsonic API                                                                        | ✅ Phase 5 |
+| 🎬 **Video**            | Video library, collections, subtitles, watch progress, streaming                                                                       | ✅ Phase 5 |
+| 📧 **Email**            | Integrated email client (SMTP/IMAP/Gmail)                                                                                              | ✅ Phase 6 |
+| 🔖 **Bookmarks**        | Browser bookmark sync via extension                                                                                                    | ✅ Phase 6 |
+| 📹 **Video Calls**      | WebRTC video calling and screen sharing                                                                                                | ✅ Phase 7 |
+| 🔍 **Search**           | Full-text search across all modules                                                                                                    | ✅ Phase 8 |
+| 🤖 **AI Assistant**     | LLM-powered assistant via Ollama (local) or Claude/OpenAI (cloud)                                                                      | ✅ Phase 9 |
+| 🔒 **E2EE**             | Optional zero-knowledge encryption                                                                                                     | Phase 10   |
 
 ### Roadmap
 
 See [MASTER_PROJECT_PLAN.md](docs/MASTER_PROJECT_PLAN.md) for the full phased implementation plan with detailed status tracking.
 
-| Phase        | Milestone                                                                                                                                               | Status            |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
-| **Phase 0**  | Foundation — core platform, auth, module system, CLI, web shell, observability                                                                          | ✅ Complete       |
-| **Phase 1**  | Files + Desktop Sync Client — file browser, upload/download, sharing, Collabora editing, bulk operations, trash, tags, versioning, Windows & Linux sync | ✅ Complete       |
-| **Phase 2**  | Chat + Notifications + Android — real-time messaging, push notifications, Android MAUI client                                                           | ✅ Complete       |
-| **Phase 3**  | Contacts + Calendar + Notes + NextCloud Migration                                                                                                       | ✅ Complete       |
-| **Phase 4**  | Project Management (Tracks)                                                                                                                             | ✅ Complete       |
-| **Phase 5**  | Photos + Music + Video                                                                                                                                  | ✅ Complete       |
-| **Phase 6**  | Email + Bookmarks                                                                                                                                       | ✅ Complete       |
-| **Phase 7**  | Video Calling + Screen Sharing                                                                                                                          | ✅ Complete       |
-| **Phase 8**  | Search                                                                                                                                                  | ✅ Complete       |
-| **Phase 9**  | AI Assistant                                                                                                                                            | ✅ Complete       |
-| **Phase 10** | End-to-End Encryption (E2EE)                                                                                                                            | 🔜 Future         |
-| **Phase 11** | Auto-Updates — server, CLI, admin UI, desktop, Android                                                                                                  | ✅ Complete       |
+| Phase        | Milestone                                                                                                                                               | Status      |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| **Phase 0**  | Foundation — core platform, auth, module system, CLI, web shell, observability                                                                          | ✅ Complete |
+| **Phase 1**  | Files + Desktop Sync Client — file browser, upload/download, sharing, Collabora editing, bulk operations, trash, tags, versioning, Windows & Linux sync | ✅ Complete |
+| **Phase 2**  | Chat + Notifications + Android — real-time messaging, push notifications, Android MAUI client                                                           | ✅ Complete |
+| **Phase 3**  | Contacts + Calendar + Notes + NextCloud Migration                                                                                                       | ✅ Complete |
+| **Phase 4**  | Project Management (Tracks)                                                                                                                             | ✅ Complete |
+| **Phase 5**  | Photos + Music + Video                                                                                                                                  | ✅ Complete |
+| **Phase 6**  | Email + Bookmarks                                                                                                                                       | ✅ Complete |
+| **Phase 7**  | Video Calling + Screen Sharing                                                                                                                          | ✅ Complete |
+| **Phase 8**  | Search                                                                                                                                                  | ✅ Complete |
+| **Phase 9**  | AI Assistant                                                                                                                                            | ✅ Complete |
+| **Phase 10** | End-to-End Encryption (E2EE)                                                                                                                            | 🔜 Future   |
+| **Phase 11** | Auto-Updates — server, CLI, admin UI, desktop, Android                                                                                                  | ✅ Complete |
 
 ---
 
@@ -67,7 +67,7 @@ See [MASTER_PROJECT_PLAN.md](docs/MASTER_PROJECT_PLAN.md) for the full phased im
 - **Modern platform** — Built on .NET 10 with true async/multithreaded performance, overcoming the limitations PHP-based alternatives have hit
 - **Extensible** — Third-party developers can build modules with the same power as first-party features using a well-documented plugin API
 - **Cross-platform** — Server runs on Windows and Linux. Clients for Windows, Linux, and Android.
-- **Multiple databases** — Supports PostgreSQL, SQL Server, and MariaDB via Entity Framework Core
+- **Multiple databases** — Supports PostgreSQL and SQL Server via Entity Framework Core
 - **Secure** — Process-isolated modules, granular permissions, OAuth2/OIDC, MFA (TOTP + FIDO2), optional zero-knowledge encryption
 - **Easy to install** — One-command setup with interactive wizard
 
@@ -239,7 +239,7 @@ graph TB
     end
 
     %% ── Core Database ────────────────────────────────────────
-    CoreDB[("Core Database<br/><small>PostgreSQL · SQL Server · MariaDB</small><br/><small>Users · Roles · Teams · Orgs<br/>Permissions · Settings · Modules</small>")]
+    CoreDB[("Core Database<br/><small>PostgreSQL · SQL Server</small><br/><small>Users · Roles · Teams · Orgs<br/>Permissions · Settings · Modules</small>")]
 
     %% ── Connections: Clients → Core ──────────────────────────
     BlazorUI -- "HTTP · SignalR<br/>WebSocket" --> RESTAPI
@@ -313,8 +313,8 @@ For full details, see the [Architecture Document](docs/architecture/ARCHITECTURE
 | ---------- | ------------ |
 | PostgreSQL | ✅ Supported |
 | SQL Server | ✅ Supported |
-| MariaDB    | ✅ Supported |
-| Oracle     | 🔜 Future    |
+
+| Oracle | 🔜 Future |
 
 ---
 

@@ -31,14 +31,14 @@ Search is not listed at all. No enforcement exists at runtime.
 
 ### Database schemas (current `dotnetcloud_dev`)
 
-| Schema | Tables | Modules |
-|--------|--------|---------|
-| `core` | 4 | Core identity + settings |
+| Schema   | Tables  | Modules                                                                                |
+| -------- | ------- | -------------------------------------------------------------------------------------- |
+| `core`   | 4       | Core identity + settings                                                               |
 | `public` | **117** | Files, Chat, Search, Contacts, Calendar, Notes, AI, Example, some Tracks — all jumbled |
-| `music` | 13 | Music |
-| `video` | 8 | Video |
-| `photos` | 7 | Photos |
-| `tracks` | 2 | Some Tracks tables |
+| `music`  | 13      | Music                                                                                  |
+| `video`  | 8       | Video                                                                                  |
+| `photos` | 7       | Photos                                                                                 |
+| `tracks` | 2       | Some Tracks tables                                                                     |
 
 Root cause: most module DbContexts don't call `HasDefaultSchema`, so tables land in the connection default (`public` / `dbo`).
 
@@ -48,23 +48,23 @@ Module migrations are **not** run by module Host processes (they all use `UseInM
 
 ### Current core server migration strategies (Program.cs lines 120-209)
 
-| Module | Strategy |
-|--------|----------|
-| Files | `MigrateAsync()` with legacy migration history baseline |
-| Chat | `MigrateAsync()` |
-| Photos | `MigrateAsync()` |
-| Music | `MigrateAsync()` |
-| Video | `MigrateAsync()` |
+| Module   | Strategy                                                                       |
+| -------- | ------------------------------------------------------------------------------ |
+| Files    | `MigrateAsync()` with legacy migration history baseline                        |
+| Chat     | `MigrateAsync()`                                                               |
+| Photos   | `MigrateAsync()`                                                               |
+| Music    | `MigrateAsync()`                                                               |
+| Video    | `MigrateAsync()`                                                               |
 | Contacts | `EnsureModuleTablesCreatedAsync` (no EF migrations — uses `CreateTablesAsync`) |
-| Calendar | `EnsureModuleTablesCreatedAsync` |
-| Notes | `EnsureModuleTablesCreatedAsync` |
-| AI | `EnsureModuleTablesCreatedAsync` |
-| Search | `EnsureModuleTablesCreatedAsync` |
-| Tracks | `TracksDbInitializer.InitializeAsync()` (calls `MigrateAsync`) |
+| Calendar | `EnsureModuleTablesCreatedAsync`                                               |
+| Notes    | `EnsureModuleTablesCreatedAsync`                                               |
+| AI       | `EnsureModuleTablesCreatedAsync`                                               |
+| Search   | `EnsureModuleTablesCreatedAsync`                                               |
+| Tracks   | `TracksDbInitializer.InitializeAsync()` (calls `MigrateAsync`)                 |
 
 ### Existing infrastructure we'll leverage
 
-- `ITableNamingStrategy` with three implementations (PostgreSQL, SQL Server, MariaDB) — currently only used by `CoreDbContext`
+- `ITableNamingStrategy` with implementations for PostgreSQL and SQL Server — currently only used by `CoreDbContext`
 - `DatabaseProviderDetector` — detects provider from connection string
 - `DataServiceExtensions.AddDotNetCloudDbContext` — registers naming strategy + DbContext in DI
 - `EnsureModuleTablesCreatedAsync` helper in core server `Program.cs` — calls `IRelationalDatabaseCreator.CreateTablesAsync` for a module without EF migrations
@@ -127,7 +127,7 @@ RequiredModules.GetSchemaName("calendar") -> "calendar"
 ...
 ```
 
-Works identically for PostgreSQL (`schema.table`) and SQL Server (`[schema].[table]`). MariaDB uses table prefixes instead of schemas — required modules get `core_` prefix, optional modules get their own prefix.
+Works identically for PostgreSQL (`schema.table`) and SQL Server (`[schema].[table]`). — required modules get `core_` prefix, optional modules get their own prefix.
 
 ### 3. `IsRequired` column on `InstalledModules`
 
@@ -213,7 +213,7 @@ After recreation, only core migrations are applied (see Phase 3). Module schemas
 
 ---
 
-### Phase 2 — Schema enforcement in naming strategies (PostgreSQL + SQL Server + MariaDB)
+### Phase 2 — Schema enforcement in naming strategies (PostgreSQL + SQL Server)
 
 #### 2.1 `src/Core/DotNetCloud.Core.Data/Naming/PostgreSqlNamingStrategy.cs`
 
@@ -233,10 +233,6 @@ public string? GetSchemaForModule(string moduleName)
 }
 ```
 
-#### 2.3 `src/Core/DotNetCloud.Core.Data/Naming/MariaDbNamingStrategy.cs`
-
-MariaDB has no schemas — it uses table prefixes. Update `GetTableName`:
-
 ```csharp
 public string GetTableName(string entityName, string moduleName)
 {
@@ -255,19 +251,19 @@ Every module DbContext:
 
 The short name is the module suffix (e.g., `"files"`, `"chat"`). RequiredModules handles the lookup.
 
-| # | File | Short name | Result schema |
-|---|---|---|---|
-| 2.4 | `src/Modules/Files/...Data/FilesDbContext.cs` | `"files"` | `core` |
-| 2.5 | `src/Modules/Chat/...Data/ChatDbContext.cs` | `"chat"` | `core` |
-| 2.6 | `src/Modules/Search/...Data/SearchDbContext.cs` | `"search"` | `core` |
-| 2.7 | `src/Modules/Contacts/...Data/ContactsDbContext.cs` | `"contacts"` | `contacts` |
-| 2.8 | `src/Modules/Calendar/...Data/CalendarDbContext.cs` | `"calendar"` | `calendar` |
-| 2.9 | `src/Modules/Notes/...Data/NotesDbContext.cs` | `"notes"` | `notes` |
-| 2.10 | `src/Modules/Tracks/...Data/TracksDbContext.cs` | `"tracks"` | `tracks` |
-| 2.11 | `src/Modules/Photos/...Data/PhotosDbContext.cs` | `"photos"` | `photos` |
-| 2.12 | `src/Modules/Music/...Data/MusicDbContext.cs` | `"music"` | `music` |
-| 2.13 | `src/Modules/Video/...Data/VideoDbContext.cs` | `"video"` | `video` |
-| 2.14 | `src/Modules/AI/...Data/AiDbContext.cs` | `"ai"` | `ai` |
+| #    | File                                                | Short name   | Result schema |
+| ---- | --------------------------------------------------- | ------------ | ------------- |
+| 2.4  | `src/Modules/Files/...Data/FilesDbContext.cs`       | `"files"`    | `core`        |
+| 2.5  | `src/Modules/Chat/...Data/ChatDbContext.cs`         | `"chat"`     | `core`        |
+| 2.6  | `src/Modules/Search/...Data/SearchDbContext.cs`     | `"search"`   | `core`        |
+| 2.7  | `src/Modules/Contacts/...Data/ContactsDbContext.cs` | `"contacts"` | `contacts`    |
+| 2.8  | `src/Modules/Calendar/...Data/CalendarDbContext.cs` | `"calendar"` | `calendar`    |
+| 2.9  | `src/Modules/Notes/...Data/NotesDbContext.cs`       | `"notes"`    | `notes`       |
+| 2.10 | `src/Modules/Tracks/...Data/TracksDbContext.cs`     | `"tracks"`   | `tracks`      |
+| 2.11 | `src/Modules/Photos/...Data/PhotosDbContext.cs`     | `"photos"`   | `photos`      |
+| 2.12 | `src/Modules/Music/...Data/MusicDbContext.cs`       | `"music"`    | `music`       |
+| 2.13 | `src/Modules/Video/...Data/VideoDbContext.cs`       | `"video"`    | `video`       |
+| 2.14 | `src/Modules/AI/...Data/AiDbContext.cs`             | `"ai"`       | `ai`          |
 
 For DbContexts that already hardcode `HasDefaultSchema` (Photos, Music, Video), replace the hardcoded string with the strategy call. For all others, add the call.
 
@@ -283,9 +279,9 @@ First-party modules (shipped with DotNetCloud) have their DbContext types known 
 
 Two schema management strategies:
 
-| Strategy | Who migrates | Used by |
-|----------|-------------|---------|
-| **Core-managed** | Core server resolves the module's DbContext from DI and calls `MigrateAsync` | First-party modules |
+| Strategy         | Who migrates                                                                       | Used by             |
+| ---------------- | ---------------------------------------------------------------------------------- | ------------------- |
+| **Core-managed** | Core server resolves the module's DbContext from DI and calls `MigrateAsync`       | First-party modules |
 | **Self-managed** | The module process connects to the database and runs its own migrations on startup | Third-party modules |
 
 The module's `manifest.json` declares its strategy via a `schemaProvider` field:
@@ -714,6 +710,7 @@ Guard uninstall: `if (RequiredModules.IsRequired(moduleId))` -> error.
 #### 5.5 `SetupCommand.cs`
 
 Three changes:
+
 - `requiredModules` array -> `RequiredModules.ModuleIds`
 - User message updated to use `string.Join`
 - `SyncEnabledModulesToDatabaseAsync` skips disabling required modules
@@ -889,6 +886,7 @@ public static partial class Program
 ```
 
 Key changes from current:
+
 - `Main` becomes `async Task Main` (needed for `MigrateAsync` / `RunAsync`)
 - Registers `ITableNamingStrategy` in DI
 - Reads `DOTNETCLOUD_CONNECTION_STRING` environment variable (set by core server's `ProcessSupervisor`)
@@ -919,36 +917,36 @@ dotnet ef migrations add InitialCreate \
 
 ## Order of Operations
 
-| Step | What | Files |
-|------|------|-------|
-| 1 | Create `RequiredModules` class | `DotNetCloud.Core/Modules/RequiredModules.cs` (new) |
-| 2 | Add `IsRequired` to entity | `InstalledModule.cs` |
-| 3 | Add EF configuration | `InstalledModuleConfiguration.cs` |
-| 4 | Generate EF migration for CoreDbContext | `dotnet ef migrations add` |
-| 5 | Add `IsRequired` to `ModuleDto` | `ModuleDtos.cs` |
-| 6 | Update naming strategies (3 files) | `PostgreSqlNamingStrategy.cs`, `SqlServerNamingStrategy.cs`, `MariaDbNamingStrategy.cs` |
-| 7 | Update all module DbContexts (11 files) | Each module's `*DbContext.cs` |
-| 8 | Create `ModuleSchemaService` | `DotNetCloud.Core.Data/Services/ModuleSchemaService.cs` (new) |
-| 9 | Register `ModuleSchemaService` in DI | `DataServiceExtensions.cs` or core `Program.cs` |
-| 10 | Gate core server `DbInitializer` on installed modules | Core server `Program.cs` |
-| 11 | Trigger schema creation in `SeedKnownModulesAsync` | `ModuleUiRegistrationHostedService.cs` |
-| 12 | Trigger schema creation in `SyncEnabledModulesToDatabaseAsync` | `SetupCommand.cs` |
-| 13 | Trigger schema creation in CLI `InstallModuleAsync` | `ModuleCommands.cs` |
-| 14 | Map `IsRequired` in DTO | `AdminModuleService.cs` |
-| 15 | Guard `StopModuleAsync` | `AdminModuleService.cs` |
-| 16 | Guard controller endpoint | `AdminController.cs` |
-| 17 | Guard CLI stop/uninstall | `ModuleCommands.cs` |
-| 18 | Set `IsRequired` in supervisor sync | `ProcessSupervisor.cs` |
-| 19 | Replace hardcoded required array | `SetupCommand.cs` |
-| 20 | Guard setup sync from disabling required | `SetupCommand.cs` |
-| 21 | Verify install.sh needs no changes | `tools/install.sh` |
-| 22 | Stop all dotnetcloud processes | `systemctl stop` + `pkill` |
-| 23 | Drop and recreate database | `dropdb` + `createdb` + core migration only |
-| 24 | Update Example module manifest.json | `manifest.json` — add `schemaProvider: "self"` |
-| 25 | Update ExampleDbContext | `ExampleDbContext.cs` — inject `ITableNamingStrategy`, add `HasDefaultSchema` |
-| 26 | Update Example Host Program.cs | `Program.cs` — self-migrate pattern, env var connection string |
-| 27 | Update Example README.md | `README.md` — document schema management patterns |
-| 28 | Add initial EF migration for Example | `dotnet ef migrations add InitialCreate` |
+| Step                                                                                                   | What                                                           | Files                                                                         |
+| ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| 1                                                                                                      | Create `RequiredModules` class                                 | `DotNetCloud.Core/Modules/RequiredModules.cs` (new)                           |
+| 2                                                                                                      | Add `IsRequired` to entity                                     | `InstalledModule.cs`                                                          |
+| 3                                                                                                      | Add EF configuration                                           | `InstalledModuleConfiguration.cs`                                             |
+| 4                                                                                                      | Generate EF migration for CoreDbContext                        | `dotnet ef migrations add`                                                    |
+| 5                                                                                                      | Add `IsRequired` to `ModuleDto`                                | `ModuleDtos.cs`                                                               |
+| 6 \| Update naming strategies (2 files) \| `PostgreSqlNamingStrategy.cs`, `SqlServerNamingStrategy.cs` |
+| 7                                                                                                      | Update all module DbContexts (11 files)                        | Each module's `*DbContext.cs`                                                 |
+| 8                                                                                                      | Create `ModuleSchemaService`                                   | `DotNetCloud.Core.Data/Services/ModuleSchemaService.cs` (new)                 |
+| 9                                                                                                      | Register `ModuleSchemaService` in DI                           | `DataServiceExtensions.cs` or core `Program.cs`                               |
+| 10                                                                                                     | Gate core server `DbInitializer` on installed modules          | Core server `Program.cs`                                                      |
+| 11                                                                                                     | Trigger schema creation in `SeedKnownModulesAsync`             | `ModuleUiRegistrationHostedService.cs`                                        |
+| 12                                                                                                     | Trigger schema creation in `SyncEnabledModulesToDatabaseAsync` | `SetupCommand.cs`                                                             |
+| 13                                                                                                     | Trigger schema creation in CLI `InstallModuleAsync`            | `ModuleCommands.cs`                                                           |
+| 14                                                                                                     | Map `IsRequired` in DTO                                        | `AdminModuleService.cs`                                                       |
+| 15                                                                                                     | Guard `StopModuleAsync`                                        | `AdminModuleService.cs`                                                       |
+| 16                                                                                                     | Guard controller endpoint                                      | `AdminController.cs`                                                          |
+| 17                                                                                                     | Guard CLI stop/uninstall                                       | `ModuleCommands.cs`                                                           |
+| 18                                                                                                     | Set `IsRequired` in supervisor sync                            | `ProcessSupervisor.cs`                                                        |
+| 19                                                                                                     | Replace hardcoded required array                               | `SetupCommand.cs`                                                             |
+| 20                                                                                                     | Guard setup sync from disabling required                       | `SetupCommand.cs`                                                             |
+| 21                                                                                                     | Verify install.sh needs no changes                             | `tools/install.sh`                                                            |
+| 22                                                                                                     | Stop all dotnetcloud processes                                 | `systemctl stop` + `pkill`                                                    |
+| 23                                                                                                     | Drop and recreate database                                     | `dropdb` + `createdb` + core migration only                                   |
+| 24                                                                                                     | Update Example module manifest.json                            | `manifest.json` — add `schemaProvider: "self"`                                |
+| 25                                                                                                     | Update ExampleDbContext                                        | `ExampleDbContext.cs` — inject `ITableNamingStrategy`, add `HasDefaultSchema` |
+| 26                                                                                                     | Update Example Host Program.cs                                 | `Program.cs` — self-migrate pattern, env var connection string                |
+| 27                                                                                                     | Update Example README.md                                       | `README.md` — document schema management patterns                             |
+| 28                                                                                                     | Add initial EF migration for Example                           | `dotnet ef migrations add InitialCreate`                                      |
 
 ---
 

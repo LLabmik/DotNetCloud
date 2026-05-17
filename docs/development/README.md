@@ -7,7 +7,9 @@
 Choose your development environment and follow the guides:
 
 ### 1. 🛠️ **IDE Setup** → [IDE_SETUP.md](./IDE_SETUP.md)
+
 Install and configure your editor:
+
 - Visual Studio 2022 (Windows)
 - Visual Studio Code (any platform)
 - JetBrains Rider (any platform)
@@ -15,15 +17,18 @@ Install and configure your editor:
 **Time:** 15-20 minutes
 
 ### 2. 🗄️ **Database Setup** → [DATABASE_SETUP.md](./DATABASE_SETUP.md)
+
 Choose and configure your database:
+
 - PostgreSQL (recommended)
 - SQL Server (Windows/Docker)
-- MariaDB (MySQL-compatible)
 
 **Time:** 10-20 minutes (depending on choice)
 
 ### 3. 🐳 **Docker Setup** (Optional) → [DOCKER_SETUP.md](./DOCKER_SETUP.md)
+
 Run databases and services in containers:
+
 - Docker Desktop installation
 - docker-compose configuration
 - Multi-database testing
@@ -31,7 +36,9 @@ Run databases and services in containers:
 **Time:** 15-30 minutes (if using Docker)
 
 ### 4. 📋 **Development Workflow** → [DEVELOPMENT_WORKFLOW.md](./DEVELOPMENT_WORKFLOW.md)
+
 Learn team collaboration standards:
+
 - Branching strategy
 - Commit conventions
 - Pull request process
@@ -100,12 +107,12 @@ git push -u origin feature/my-feature
 
 ```bash
 # Start all databases
-docker compose up -d postgres sqlserver mariadb
+docker compose up -d postgres sqlserver
 
 # Test against each
 dotnet test -- --Database:Provider=PostgreSQL
 dotnet test -- --Database:Provider=SqlServer
-dotnet test -- --Database:Provider=MariaDb
+
 
 # Clean up
 docker compose down
@@ -127,14 +134,14 @@ docker compose down
 
 ## Troubleshooting
 
-| Problem | Solution | Resource |
-|---------|----------|----------|
-| IDE not finding .NET 10 | Reinstall .NET 10 SDK, restart IDE | IDE_SETUP.md |
-| Database won't start | Check port usage, service status | DATABASE_SETUP.md |
-| Docker containers failing | Verify credentials, check logs | DOCKER_SETUP.md |
-| Connection string errors | Check syntax in appsettings.json | DATABASE_SETUP.md |
-| Tests not discovering | Rebuild project, restart IDE | IDE_SETUP.md |
-| Merge conflicts | Understand both changes, test | DEVELOPMENT_WORKFLOW.md |
+| Problem                   | Solution                           | Resource                |
+| ------------------------- | ---------------------------------- | ----------------------- |
+| IDE not finding .NET 10   | Reinstall .NET 10 SDK, restart IDE | IDE_SETUP.md            |
+| Database won't start      | Check port usage, service status   | DATABASE_SETUP.md       |
+| Docker containers failing | Verify credentials, check logs     | DOCKER_SETUP.md         |
+| Connection string errors  | Check syntax in appsettings.json   | DATABASE_SETUP.md       |
+| Tests not discovering     | Rebuild project, restart IDE       | IDE_SETUP.md            |
+| Merge conflicts           | Understand both changes, test      | DEVELOPMENT_WORKFLOW.md |
 
 ---
 
@@ -153,7 +160,7 @@ docker compose down
 ### Technology Stack
 
 - **.NET Version:** 10 (pinned in `global.json`)
-- **Databases:** PostgreSQL, SQL Server, MariaDB (all supported)
+- **Databases:** PostgreSQL and SQL Server
 - **Web Framework:** ASP.NET Core
 - **Web UI:** Blazor
 - **Testing:** xUnit
@@ -167,18 +174,18 @@ docker compose down
 - **Format:** Run `dotnet format` before commits
 - **Commits:** Follow Conventional Commits (see DEVELOPMENT_WORKFLOW.md)
 - **Tests:** Minimum 80% coverage
-- **Branches:** Git Flow model (feature/*, bugfix/*, release/*)
+- **Branches:** Git Flow model (feature/_, bugfix/_, release/\*)
 
 ### Important Files
 
-| File | Purpose |
-|------|---------|
-| `.editorconfig` | Code style rules (auto-enforced by IDEs) |
-| `global.json` | .NET 10 version pinning |
-| `Directory.Build.props` | Common project properties |
-| `NuGet.config` | Package sources |
-| `docker-compose.yml` | Local database containers |
-| `.github/` | Workflows (CI/CD) |
+| File                    | Purpose                                  |
+| ----------------------- | ---------------------------------------- |
+| `.editorconfig`         | Code style rules (auto-enforced by IDEs) |
+| `global.json`           | .NET 10 version pinning                  |
+| `Directory.Build.props` | Common project properties                |
+| `NuGet.config`          | Package sources                          |
+| `docker-compose.yml`    | Local database containers                |
+| `.github/`              | Workflows (CI/CD)                        |
 
 ---
 

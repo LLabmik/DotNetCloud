@@ -4,7 +4,6 @@ namespace DotNetCloud.Modules.Search.Tests;
 
 /// <summary>
 /// Tests for <see cref="ParsedSearchQuery"/> — validates provider-specific query string generation
-/// (PostgreSQL tsquery, SQL Server CONTAINS, MariaDB BOOLEAN MODE).
 /// </summary>
 [TestClass]
 public class ParsedSearchQueryTests
@@ -187,89 +186,6 @@ public class ParsedSearchQueryTests
         };
 
         Assert.AreEqual("\"quarterly report\"", query.ToSqlServerContainsQuery());
-    }
-
-    #endregion
-
-    #region ToMariaDbBooleanQuery
-
-    [TestMethod]
-    public void ToMariaDbBooleanQuery_SingleTerm_PlusPrefixed()
-    {
-        var query = new ParsedSearchQuery
-        {
-            Terms = ["budget"],
-            Phrases = [],
-            Exclusions = []
-        };
-
-        Assert.AreEqual("+budget", query.ToMariaDbBooleanQuery());
-    }
-
-    [TestMethod]
-    public void ToMariaDbBooleanQuery_MultipleTerms_EachPlusPrefixed()
-    {
-        var query = new ParsedSearchQuery
-        {
-            Terms = ["quarterly", "report"],
-            Phrases = [],
-            Exclusions = []
-        };
-
-        Assert.AreEqual("+quarterly +report", query.ToMariaDbBooleanQuery());
-    }
-
-    [TestMethod]
-    public void ToMariaDbBooleanQuery_WithPhrase_PlusQuotedPhrase()
-    {
-        var query = new ParsedSearchQuery
-        {
-            Terms = [],
-            Phrases = ["quarterly report"],
-            Exclusions = []
-        };
-
-        Assert.AreEqual("+\"quarterly report\"", query.ToMariaDbBooleanQuery());
-    }
-
-    [TestMethod]
-    public void ToMariaDbBooleanQuery_WithExclusion_MinusPrefixed()
-    {
-        var query = new ParsedSearchQuery
-        {
-            Terms = ["budget"],
-            Phrases = [],
-            Exclusions = ["draft"]
-        };
-
-        Assert.AreEqual("+budget -draft", query.ToMariaDbBooleanQuery());
-    }
-
-    [TestMethod]
-    public void ToMariaDbBooleanQuery_ComplexQuery_AllPrefixes()
-    {
-        var query = new ParsedSearchQuery
-        {
-            Terms = ["annual"],
-            Phrases = ["quarterly report"],
-            Exclusions = ["draft", "old"]
-        };
-
-        Assert.AreEqual("+annual +\"quarterly report\" -draft -old", query.ToMariaDbBooleanQuery());
-    }
-
-    [TestMethod]
-    public void ToMariaDbBooleanQuery_SpecialCharacters_Sanitized()
-    {
-        var query = new ParsedSearchQuery
-        {
-            Terms = ["test+~*()"],
-            Phrases = [],
-            Exclusions = []
-        };
-
-        var result = query.ToMariaDbBooleanQuery();
-        Assert.AreEqual("+test", result);
     }
 
     #endregion

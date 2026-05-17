@@ -10,7 +10,7 @@ namespace DotNetCloud.Modules.Search.Tests.Phase5;
 /// <summary>
 /// Integration tests for the Phase 5 Search Query Engine.
 /// Tests the full query pipeline: query parsing → provider-specific FTS → result aggregation.
-/// Uses SQL Server and MariaDB providers (which fall back to <c>Contains</c> on InMemory).
+/// Uses SQL Server provider (which falls back to <c>Contains</c> on InMemory).
 /// PostgreSQL provider uses <c>EF.Functions.ILike</c> which is not supported by InMemory,
 /// so it is not tested here — it requires a live PostgreSQL database.
 /// </summary>
@@ -359,111 +359,6 @@ public class SearchQueryEngineIntegrationTests
 
     #endregion
 
-    #region MariaDB Provider Tests
-
-    [TestMethod]
-    public async Task MariaDb_SimpleKeywordSearch_ReturnsMatchingResults()
-    {
-        var provider = new MariaDbSearchProvider(_db, NullLogger<MariaDbSearchProvider>.Instance);
-        var query = new SearchQuery { QueryText = "budget", UserId = _userId };
-
-        var result = await provider.SearchAsync(query);
-
-        Assert.IsTrue(result.TotalCount >= 3);
-    }
-
-    [TestMethod]
-    public async Task MariaDb_ExclusionSearch_ExcludesResults()
-    {
-        var provider = new MariaDbSearchProvider(_db, NullLogger<MariaDbSearchProvider>.Instance);
-        var query = new SearchQuery { QueryText = "meeting -draft", UserId = _userId };
-
-        var result = await provider.SearchAsync(query);
-
-        Assert.IsTrue(result.Items.All(i => i.EntityId != "f3"),
-            "Entry with 'draft' should be excluded");
-    }
-
-    [TestMethod]
-    public async Task MariaDb_EntityTypeFilter_RestrictsResults()
-    {
-        var provider = new MariaDbSearchProvider(_db, NullLogger<MariaDbSearchProvider>.Instance);
-        var query = new SearchQuery
-        {
-            QueryText = "budget",
-            UserId = _userId,
-            EntityTypeFilter = "FileNode"
-        };
-
-        var result = await provider.SearchAsync(query);
-
-        Assert.IsTrue(result.Items.All(i => i.EntityType == "FileNode"));
-    }
-
-    [TestMethod]
-    public async Task MariaDb_RelevanceScoring_ProducesNonZeroScores()
-    {
-        var provider = new MariaDbSearchProvider(_db, NullLogger<MariaDbSearchProvider>.Instance);
-        var query = new SearchQuery { QueryText = "budget", UserId = _userId };
-
-        var result = await provider.SearchAsync(query);
-
-        Assert.IsTrue(result.Items.All(i => i.RelevanceScore > 0),
-            "All matching results should have positive relevance scores");
-    }
-
-    #endregion
-
-    #region Cross-Provider Consistency Tests (SQL Server & MariaDB)
-
-    [TestMethod]
-    public async Task BothProviders_SameQuery_ReturnSameResultCount()
-    {
-        var sqlProvider = new SqlServerSearchProvider(_db, NullLogger<SqlServerSearchProvider>.Instance);
-        var mariaProvider = new MariaDbSearchProvider(_db, NullLogger<MariaDbSearchProvider>.Instance);
-
-        var query = new SearchQuery { QueryText = "budget", UserId = _userId };
-
-        var sqlResult = await sqlProvider.SearchAsync(query);
-        var mariaResult = await mariaProvider.SearchAsync(query);
-
-        Assert.AreEqual(sqlResult.TotalCount, mariaResult.TotalCount,
-            $"SQL Server ({sqlResult.TotalCount}) and MariaDB ({mariaResult.TotalCount}) should return same count");
-    }
-
-    [TestMethod]
-    public async Task BothProviders_SameQuery_ReturnSameEntityIds()
-    {
-        var sqlProvider = new SqlServerSearchProvider(_db, NullLogger<SqlServerSearchProvider>.Instance);
-        var mariaProvider = new MariaDbSearchProvider(_db, NullLogger<MariaDbSearchProvider>.Instance);
-
-        var query = new SearchQuery { QueryText = "search", UserId = _userId, SortOrder = SearchSortOrder.DateDesc };
-
-        var sqlResult = await sqlProvider.SearchAsync(query);
-        var mariaResult = await mariaProvider.SearchAsync(query);
-
-        var sqlIds = sqlResult.Items.Select(i => i.EntityId).OrderBy(x => x).ToList();
-        var mariaIds = mariaResult.Items.Select(i => i.EntityId).OrderBy(x => x).ToList();
-
-        CollectionAssert.AreEqual(sqlIds, mariaIds, "SQL Server and MariaDB should return same entity IDs");
-    }
-
-    [TestMethod]
-    public async Task BothProviders_ExclusionQuery_SameExclusions()
-    {
-        var sqlProvider = new SqlServerSearchProvider(_db, NullLogger<SqlServerSearchProvider>.Instance);
-        var mariaProvider = new MariaDbSearchProvider(_db, NullLogger<MariaDbSearchProvider>.Instance);
-
-        var query = new SearchQuery { QueryText = "meeting -draft", UserId = _userId, SortOrder = SearchSortOrder.DateDesc };
-
-        var sqlResult = await sqlProvider.SearchAsync(query);
-        var mariaResult = await mariaProvider.SearchAsync(query);
-
-        Assert.AreEqual(sqlResult.TotalCount, mariaResult.TotalCount);
-    }
-
-    #endregion
-
     #region Empty/Edge Case Tests
 
     [TestMethod]
@@ -538,8 +433,7 @@ public class SearchQueryEngineIntegrationTests
     {
         return
         [
-            new SqlServerSearchProvider(_db, NullLogger<SqlServerSearchProvider>.Instance),
-            new MariaDbSearchProvider(_db, NullLogger<MariaDbSearchProvider>.Instance)
+            new SqlServerSearchProvider(_db, NullLogger<SqlServerSearchProvider>.Instance)
         ];
     }
 }

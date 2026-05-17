@@ -32,11 +32,13 @@
 Phase 5 adds three new process-isolated modules — **Photos**, **Music**, and **Video** — following the established modular monolith pattern. All three leverage the existing Files module for storage: media items are `FileNode` records with media-specific metadata overlays. There is no duplicated storage — Photos, Music, and Video are metadata + UI layers over the existing file storage engine.
 
 **Scope includes:**
+
 - Photos: library, albums, thumbnails, slideshow, basic non-destructive editing, EXIF/GPS, timeline, geo-grouping
 - Music: library scanning, metadata, playlists, streaming, equalizer presets, recommendations, Subsonic API compatibility
 - Video: library, collections/series, subtitles (SRT/VTT), watch progress/resume, streaming
 
 **Deferred to post-Phase 5:**
+
 - Android auto-upload (server-side upload API is already generic; client-side auto-upload is a sync client task)
 - HLS/DASH adaptive bitrate streaming (initial impl is direct HTTP range-request streaming)
 - Full smart playlist query builder (start with single-criteria presets)
@@ -45,18 +47,18 @@ Phase 5 adds three new process-isolated modules — **Photos**, **Music**, and *
 
 ## Key Technical Decisions
 
-| # | Decision | Rationale |
-|---|----------|-----------|
-| 1 | **Media ↔ Files Relationship** — Media records reference `FileNode` IDs from the Files module. No duplicated storage. | Single source of truth for files. Media modules are metadata + UI layers. Quota enforcement automatic via Files. |
-| 2 | **Metadata Libraries** — ImageSharp (photos, already in project), TagLibSharp (music ID3/Vorbis/FLAC), FFprobe via existing FFmpeg integration (video). | Mature .NET libraries. ImageSharp already proven in codebase. TagLibSharp is the standard for audio metadata in .NET. |
-| 3 | **HTTP Range-Request Streaming** — Shared middleware for all three modules. No HLS/DASH initially. | Simpler implementation, works for direct playback. HLS/DASH can be layered on later without breaking changes. |
-| 4 | **Subsonic API v1.16 Subset** — ~25 key endpoints for third-party music app compatibility (DSub, Ultrasonic, play:Sub, Symfonium). | Huge ecosystem of existing Subsonic clients. Implementing the subset covers 95% of use cases without full API burden. |
-| 5 | **Non-Destructive Photo Editing** — Edit operations stored as JSON, originals preserved, edited versions generated on demand and cached. | Users never lose originals. Edit history is replayable. Cache invalidation is straightforward. |
-| 6 | **Client-Side Equalizer** — Web Audio API in browser. Server stores/retrieves EQ presets only. | No server-side audio processing needed. EQ is inherently a client-side real-time operation. |
-| 7 | **Subsonic Auth Bridge** — Users generate a "Subsonic password" in account settings (app-password pattern), mapped to DotNetCloud auth. | Subsonic uses MD5(password+salt) tokens, incompatible with JWT/OIDC. App-password pattern is proven (used by Nextcloud, Navidrome). |
-| 8 | **Three Separate Modules** — Photos, Music, Video each run as their own process. | Consistent with architecture. Independent scaling, deployment, and failure isolation. |
-| 9 | **No Transcoding by Default** — Direct streaming. Optional transcoding via config (requires server-side FFmpeg). | Transcoding is CPU-intensive. Most modern devices handle common formats natively. Opt-in keeps default deployment simple. |
-| 10 | **Map Provider** — Leaflet.js with OpenStreetMap tiles for photo geo-clustering. | Free, no API key required, well-maintained, privacy-respecting. |
+| #   | Decision                                                                                                                                                | Rationale                                                                                                                           |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **Media ↔ Files Relationship** — Media records reference `FileNode` IDs from the Files module. No duplicated storage.                                   | Single source of truth for files. Media modules are metadata + UI layers. Quota enforcement automatic via Files.                    |
+| 2   | **Metadata Libraries** — ImageSharp (photos, already in project), TagLibSharp (music ID3/Vorbis/FLAC), FFprobe via existing FFmpeg integration (video). | Mature .NET libraries. ImageSharp already proven in codebase. TagLibSharp is the standard for audio metadata in .NET.               |
+| 3   | **HTTP Range-Request Streaming** — Shared middleware for all three modules. No HLS/DASH initially.                                                      | Simpler implementation, works for direct playback. HLS/DASH can be layered on later without breaking changes.                       |
+| 4   | **Subsonic API v1.16 Subset** — ~25 key endpoints for third-party music app compatibility (DSub, Ultrasonic, play:Sub, Symfonium).                      | Huge ecosystem of existing Subsonic clients. Implementing the subset covers 95% of use cases without full API burden.               |
+| 5   | **Non-Destructive Photo Editing** — Edit operations stored as JSON, originals preserved, edited versions generated on demand and cached.                | Users never lose originals. Edit history is replayable. Cache invalidation is straightforward.                                      |
+| 6   | **Client-Side Equalizer** — Web Audio API in browser. Server stores/retrieves EQ presets only.                                                          | No server-side audio processing needed. EQ is inherently a client-side real-time operation.                                         |
+| 7   | **Subsonic Auth Bridge** — Users generate a "Subsonic password" in account settings (app-password pattern), mapped to DotNetCloud auth.                 | Subsonic uses MD5(password+salt) tokens, incompatible with JWT/OIDC. App-password pattern is proven (used by Nextcloud, Navidrome). |
+| 8   | **Three Separate Modules** — Photos, Music, Video each run as their own process.                                                                        | Consistent with architecture. Independent scaling, deployment, and failure isolation.                                               |
+| 9   | **No Transcoding by Default** — Direct streaming. Optional transcoding via config (requires server-side FFmpeg).                                        | Transcoding is CPU-intensive. Most modern devices handle common formats natively. Opt-in keeps default deployment simple.           |
+| 10  | **Map Provider** — Leaflet.js with OpenStreetMap tiles for photo geo-clustering.                                                                        | Free, no API key required, well-maintained, privacy-respecting.                                                                     |
 
 ---
 
@@ -88,6 +90,7 @@ All three module tracks can proceed in parallel after 5.1 + 5.2.
 **Status:** ✅ Complete
 
 **Deliverables:**
+
 - ✓ `IMediaStreamingService` interface in `DotNetCloud.Core` — range-request streaming abstraction
 - ✓ `MediaStreamingMiddleware` in Core.ServiceDefaults — handles HTTP Range headers, partial content (206), content-type detection
 - ✓ Shared media DTOs: `MediaItemDto`, `MediaThumbnailDto`, `MediaMetadataDto`, `GeoCoordinate`
@@ -96,6 +99,7 @@ All three module tracks can proceed in parallel after 5.1 + 5.2.
 - ✓ Unit tests for range-request parsing and streaming logic (19 middleware tests + 26 DTO/capability tests)
 
 **Key files to create/modify:**
+
 - `src/Core/DotNetCloud.Core/Capabilities/IMediaStreamingService.cs`
 - `src/Core/DotNetCloud.Core/DTOs/Media/` (shared DTOs)
 - `src/Core/DotNetCloud.Core.ServiceDefaults/Middleware/MediaStreamingMiddleware.cs`
@@ -108,6 +112,7 @@ All three module tracks can proceed in parallel after 5.1 + 5.2.
 **Status:** ✅ Complete
 
 **Deliverables:**
+
 - ✓ `ExifMetadataExtractor` — uses ImageSharp for EXIF, GPS, camera info (TryGetValue API for v3.x)
 - ✓ `AudioMetadataExtractor` — uses TagLibSharp for ID3v2, Vorbis comments, FLAC tags, album art
 - ✓ `VideoMetadataExtractor` — uses FFprobe for duration, resolution, codec, bitrate, audio tracks
@@ -116,6 +121,7 @@ All three module tracks can proceed in parallel after 5.1 + 5.2.
 - ✓ Unit tests for each extractor (12 EXIF + 10 audio + 9 video + 7 DI registration tests)
 
 **Key files to create:**
+
 - `src/Core/DotNetCloud.Core.ServiceDefaults/Media/ExifMetadataExtractor.cs`
 - `src/Core/DotNetCloud.Core.ServiceDefaults/Media/AudioMetadataExtractor.cs`
 - `src/Core/DotNetCloud.Core.ServiceDefaults/Media/VideoMetadataExtractor.cs`
@@ -130,6 +136,7 @@ All three module tracks can proceed in parallel after 5.1 + 5.2.
 **Status:** ✓ Complete
 
 **Deliverables:**
+
 - ✓ `IPhotoDirectory` capability interface (Public tier) — photo/album lookup for other modules
 - ✓ Photos DTOs: `PhotoDto`, `AlbumDto`, `PhotoMetadataDto`, `PhotoEditOperationDto`, `GeoClusterDto`
 - ✓ Photos events: `PhotoUploadedEvent`, `PhotoDeletedEvent`, `AlbumCreatedEvent`, `AlbumSharedEvent`, `PhotoEditedEvent`
@@ -147,9 +154,10 @@ All three module tracks can proceed in parallel after 5.1 + 5.2.
 **Status:** ✓ Complete
 
 **Deliverables:**
+
 - ✓ Entities: `Photo` (links to FileNode ID), `Album`, `AlbumPhoto` (junction), `PhotoMetadata` (EXIF, GPS, camera), `PhotoTag`, `PhotoShare`, `PhotoEditRecord` (non-destructive edit history)
 - ✓ EF Core configurations in `Photos.Data/Configuration/`
-- ✓ `PhotosDbContext` with schema `photos` (PostgreSQL) / prefix `photos_` (MariaDB)
+- ✓ `PhotosDbContext` with schema `photos` (PostgreSQL) / prefix `photos_`
 - ✓ Initial migration (`InitialCreate` — 7 tables, all configurations applied)
 - ✓ `PhotosDbContextDesignTimeFactory` for EF Core tooling
 - ✓ Indexes: by user+date, by GPS coordinates (for geo queries), by album, by file node ID
@@ -162,6 +170,7 @@ All three module tracks can proceed in parallel after 5.1 + 5.2.
 **Status:** ✓ Complete
 
 **Deliverables:**
+
 - ✓ `IPhotoService` + `PhotoService` — CRUD, search, timeline queries (photos by date range), favorites
 - ✓ `IAlbumService` + `AlbumService` — CRUD, add/remove photos, cover photo, album sharing
 - ✓ `IPhotoMetadataService` + `PhotoMetadataService` — EXIF extraction on upload (via ExifMetadataExtractor), auto-rotation based on EXIF orientation
@@ -179,6 +188,7 @@ All three module tracks can proceed in parallel after 5.1 + 5.2.
 **Status:** ✓ Complete
 
 **Deliverables:**
+
 - ✓ `IPhotoEditService` + `PhotoEditService` — non-destructive editing pipeline
   - Operations: crop, rotate (90/180/270), flip (H/V), brightness, contrast, saturation, sharpen, blur
   - Edit stack stored as JSON array of operations on `PhotoEditRecord`
@@ -195,6 +205,7 @@ All three module tracks can proceed in parallel after 5.1 + 5.2.
 **Status:** ✓ Complete (API/gRPC/Host — Blazor UI deferred to integration phase)
 
 **Deliverables:**
+
 - ✓ `PhotosController` — REST endpoints: photos CRUD, album CRUD, search, timeline, geo-clusters, edit operations, share management
 - ✓ `PhotosGrpcService` + `photos_service.proto` — inter-module gRPC contract
 - ✓ Photos Host project setup (Kestrel, gRPC, health checks)
@@ -219,6 +230,7 @@ All three module tracks can proceed in parallel after 5.1 + 5.2.
 **Status:** ✅ Complete
 
 **Deliverables:**
+
 - ✓ `IMusicDirectory` capability interface (Public tier) — artist/album/track lookup
 - ✓ Music DTOs: `ArtistDto`, `MusicAlbumDto`, `TrackDto`, `PlaylistDto`, `NowPlayingDto`, `EqPresetDto`, `LibraryScanResultDto`
 - ✓ Music events: `TrackPlayedEvent`, `PlaylistCreatedEvent`, `LibraryScanCompletedEvent`, `TrackScrobbledEvent`
@@ -234,6 +246,7 @@ All three module tracks can proceed in parallel after 5.1 + 5.2.
 **Status:** ✅ Complete
 
 **Deliverables:**
+
 - ✓ Entities: `Artist`, `MusicAlbum`, `Track` (links to FileNode ID), `TrackArtist` (junction, handles multi-artist), `Genre`, `TrackGenre`
 - ✓ Entities: `Playlist`, `PlaylistTrack` (ordered), `PlaybackHistory`, `EqPreset`, `UserMusicPreference`
 - ✓ Entities: `ScrobbleRecord` (for last.fm-style history), `StarredItem` (favorites — artist/album/track polymorphic)
@@ -250,6 +263,7 @@ All three module tracks can proceed in parallel after 5.1 + 5.2.
 **Status:** ✅ Complete
 
 **Deliverables:**
+
 - ✓ `ILibraryScanService` + `LibraryScanService` — scans user's Files for audio MIME types, reads metadata via AudioMetadataExtractor, creates/updates Artist → Album → Track hierarchy
 - ✓ `IMusicMetadataService` + `MusicMetadataService` — tag reading/writing, album art extraction/embedding
 - ✓ `LibraryScanBackgroundService` — periodic rescan (configurable interval), watches FileUploadedEvent for real-time indexing of new audio files
@@ -265,6 +279,7 @@ All three module tracks can proceed in parallel after 5.1 + 5.2.
 **Status:** ✅ Complete
 
 **Deliverables:**
+
 - ✓ `IArtistService` + `ArtistService` — browse, search, artist detail with discography
 - ✓ `IMusicAlbumService` + `MusicAlbumService` — browse, search, album tracks, album art
 - ✓ `ITrackService` + `TrackService` — search, starred/favorites, recently added
@@ -282,6 +297,7 @@ All three module tracks can proceed in parallel after 5.1 + 5.2.
 **Status:** ✅ Complete
 
 **Deliverables:**
+
 - ✓ `IMusicStreamingService` + `MusicStreamingService` — serve audio files with HTTP Range support for seeking
 - ☐ On-the-fly format transcoding (optional): FLAC → MP3/OGG at configurable bitrate (deferred)
 - ✓ Gapless playback metadata (track duration, silence trimming hints)
@@ -297,6 +313,7 @@ All three module tracks can proceed in parallel after 5.1 + 5.2.
 **Status:** ✅ Complete
 
 **Deliverables:**
+
 - ✓ `SubsonicController` — implements Subsonic REST API v1.16 compatible endpoints (~25 endpoints)
 - ✓ Subsonic authentication: `SubsonicAuth` with MD5 token+salt validation mapped to DotNetCloud auth
 - ✓ **System endpoints:** `ping`, `getLicense`, `getOpenSubsonicExtensions`
@@ -316,6 +333,7 @@ All three module tracks can proceed in parallel after 5.1 + 5.2.
 **Status:** ✅ Complete (API/gRPC/Host — Blazor UI deferred to integration phase)
 
 **Deliverables:**
+
 - ✓ `MusicController` — ~30 REST endpoints for web UI (artists, albums, tracks, playlists, playback, recommendations, EQ presets, streaming)
 - ✓ `MusicGrpcServiceImpl` + `music_service.proto` — inter-module gRPC contract
 - ✓ Music Host project setup (`Program.cs` with Kestrel, gRPC, health checks, `InProcessEventBus`, `MusicHealthCheck`)
@@ -342,6 +360,7 @@ All three module tracks can proceed in parallel after 5.1 + 5.2.
 **Status:** ✅ Completed
 
 **Deliverables:**
+
 - ✓ `IVideoDirectory` capability interface (Public tier)
 - ✓ Video DTOs: `VideoDto`, `VideoCollectionDto`, `SubtitleDto`, `WatchProgressDto`, `VideoMetadataDto`, `CreateVideoCollectionDto`, `UpdateVideoCollectionDto`, `UploadSubtitleDto`, `UpdateWatchProgressDto`
 - ✓ Video events: `VideoAddedEvent`, `VideoDeletedEvent`, `VideoWatchedEvent`
@@ -362,6 +381,7 @@ All three module tracks can proceed in parallel after 5.1 + 5.2.
 **Status:** ✅ Completed
 
 **Deliverables:**
+
 - ✓ `VideoService` — CRUD, search, recently watched, favorites
 - ✓ `VideoMetadataService` — metadata persistence (get/save)
 - ✓ `VideoCollectionService` — organize videos into collections/series with add/remove
@@ -381,6 +401,7 @@ All three module tracks can proceed in parallel after 5.1 + 5.2.
 **Status:** ✅ Completed
 
 **Deliverables:**
+
 - ✓ `VideoStreamingService` — token-based streaming URL generation and validation
 - ☐ HLS segment generation — deferred (flagged for future adaptive bitrate)
 - ☐ Content-type negotiation — deferred (initial impl is direct streaming)
@@ -397,6 +418,7 @@ All three module tracks can proceed in parallel after 5.1 + 5.2.
 **Status:** ☐ Deferred to integration phase
 
 **Deliverables:**
+
 - ☐ **Blazor UI components** — deferred to integration phase (step 5.19+)
 
 ---
@@ -409,6 +431,7 @@ All three module tracks can proceed in parallel after 5.1 + 5.2.
 **Status:** ✅ Completed
 
 **Deliverables:**
+
 - ✓ Photos ↔ Files: `FileUploadedPhotoHandler` with `IPhotoIndexingCallback` (9 image MIME types, callback pattern avoids circular dependency)
 - ✓ Music ↔ Files: `FileUploadedMusicHandler` with `IMusicIndexingCallback` (15 audio MIME types)
 - ✓ Video ↔ Files: `FileUploadedVideoHandler` with `IVideoIndexingCallback` (12 video MIME types)
@@ -431,6 +454,7 @@ All three module tracks can proceed in parallel after 5.1 + 5.2.
 **Status:** ✅ Completed (test suites)
 
 **Deliverables:**
+
 - ✓ **Test suites:**
   - Photos: 119 total tests (95 existing + 24 new: FileUploadedPhotoHandler 12 tests, AlbumSharedNotificationHandler 6 tests, PhotoIndexingCallback 6 tests)
   - Music: 156 total tests (131 existing + 25 new: FileUploadedMusicHandler 12 tests, PlaylistSharedNotificationHandler 9 tests, MusicIndexingCallback 4 tests)
@@ -477,38 +501,38 @@ tests/
 
 ### Existing Files to Modify
 
-| File/Directory | Changes |
-|----------------|---------|
-| `src/Core/DotNetCloud.Core/Capabilities/` | Add `IPhotoDirectory`, `IMusicDirectory`, `IVideoDirectory`, `IMediaStreamingService` |
-| `src/Core/DotNetCloud.Core/Events/` | Add media events (Photo*, Track*, Video*) |
-| `src/Core/DotNetCloud.Core/DTOs/` | Add shared media DTOs under `Media/` |
-| `src/Core/DotNetCloud.Core.ServiceDefaults/` | Add `MediaStreamingMiddleware`, metadata extractors under `Media/` |
-| `DotNetCloud.sln` | Add 12 new module projects + 3 test projects |
-| `DotNetCloud.CI.slnf` | Add new projects to CI filter |
+| File/Directory                               | Changes                                                                               |
+| -------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `src/Core/DotNetCloud.Core/Capabilities/`    | Add `IPhotoDirectory`, `IMusicDirectory`, `IVideoDirectory`, `IMediaStreamingService` |
+| `src/Core/DotNetCloud.Core/Events/`          | Add media events (Photo*, Track*, Video\*)                                            |
+| `src/Core/DotNetCloud.Core/DTOs/`            | Add shared media DTOs under `Media/`                                                  |
+| `src/Core/DotNetCloud.Core.ServiceDefaults/` | Add `MediaStreamingMiddleware`, metadata extractors under `Media/`                    |
+| `DotNetCloud.sln`                            | Add 12 new module projects + 3 test projects                                          |
+| `DotNetCloud.CI.slnf`                        | Add new projects to CI filter                                                         |
 
 ### Reference Files (Pattern Templates)
 
-| Pattern | Reference File |
-|---------|---------------|
-| Module manifest | `src/Modules/Files/DotNetCloud.Modules.Files/FilesModuleManifest.cs` |
-| JSON manifest | `src/Modules/Example/manifest.json` |
-| gRPC proto | `src/Modules/Files/DotNetCloud.Modules.Files.Host/Protos/files_service.proto` |
-| Storage abstraction | `src/Modules/Files/DotNetCloud.Modules.Files/Services/IFileStorageEngine.cs` |
-| Thumbnail pattern | `src/Modules/Files/DotNetCloud.Modules.Files/Services/IThumbnailService.cs` |
-| FFmpeg integration | `src/Modules/Files/DotNetCloud.Modules.Files/Services/FfmpegVideoFrameExtractor.cs` |
-| Background indexing | `src/Modules/Files/DotNetCloud.Modules.Files/Services/ISyncChangeNotifier.cs` |
+| Pattern             | Reference File                                                                      |
+| ------------------- | ----------------------------------------------------------------------------------- |
+| Module manifest     | `src/Modules/Files/DotNetCloud.Modules.Files/FilesModuleManifest.cs`                |
+| JSON manifest       | `src/Modules/Example/manifest.json`                                                 |
+| gRPC proto          | `src/Modules/Files/DotNetCloud.Modules.Files.Host/Protos/files_service.proto`       |
+| Storage abstraction | `src/Modules/Files/DotNetCloud.Modules.Files/Services/IFileStorageEngine.cs`        |
+| Thumbnail pattern   | `src/Modules/Files/DotNetCloud.Modules.Files/Services/IThumbnailService.cs`         |
+| FFmpeg integration  | `src/Modules/Files/DotNetCloud.Modules.Files/Services/FfmpegVideoFrameExtractor.cs` |
+| Background indexing | `src/Modules/Files/DotNetCloud.Modules.Files/Services/ISyncChangeNotifier.cs`       |
 
 ---
 
 ## Parallelism Opportunities
 
-| Parallel Track | Steps | Can Start After |
-|----------------|-------|-----------------|
-| **Photos track** | 5.3 → 5.4 → 5.5 → 5.6 → 5.7 | 5.1 + 5.2 complete |
-| **Music track** | 5.8 → 5.9 → 5.10 → 5.11 → 5.12 → 5.13/5.14 | 5.1 + 5.2 complete |
-| **Video track** | 5.15 → 5.16 → 5.17 → 5.18 | 5.1 + 5.2 complete |
-| **Subsonic + Music UI** | 5.13 ‖ 5.14 | 5.12 complete |
-| **Contracts + Data** | 5.3+5.4, 5.8+5.9, 5.15 | Independent of each other, only need 5.1 |
+| Parallel Track          | Steps                                      | Can Start After                          |
+| ----------------------- | ------------------------------------------ | ---------------------------------------- |
+| **Photos track**        | 5.3 → 5.4 → 5.5 → 5.6 → 5.7                | 5.1 + 5.2 complete                       |
+| **Music track**         | 5.8 → 5.9 → 5.10 → 5.11 → 5.12 → 5.13/5.14 | 5.1 + 5.2 complete                       |
+| **Video track**         | 5.15 → 5.16 → 5.17 → 5.18                  | 5.1 + 5.2 complete                       |
+| **Subsonic + Music UI** | 5.13 ‖ 5.14                                | 5.12 complete                            |
+| **Contracts + Data**    | 5.3+5.4, 5.8+5.9, 5.15                     | Independent of each other, only need 5.1 |
 
 After completing 5.1 and 5.2, all three module tracks (B, C, D) are fully independent and can be worked in parallel. Within the Music track, steps 5.13 (Subsonic API) and 5.14 (REST + UI) are parallel after 5.12.
 
@@ -572,18 +596,18 @@ After completing 5.1 and 5.2, all three module tracks (B, C, D) are fully indepe
 
 ## Decisions Log
 
-| # | Decision | Alternatives Considered | Chosen Because |
-|---|----------|------------------------|----------------|
-| D-1 | Three separate modules (Photos, Music, Video) | Single combined "Media" module | Process isolation per architecture. Independent scaling and failure domains. Each module can be disabled independently. |
-| D-2 | Media items reference FileNode IDs — no separate storage | Duplicate files into media-specific storage | Single source of truth. No storage duplication. Quota enforcement automatic. Files module handles chunked upload, versioning, sharing infrastructure. |
-| D-3 | HTTP range-request streaming (no HLS/DASH) | HLS adaptive bitrate, WebRTC | Simpler to implement. Works for direct playback. HLS can be added as enhancement later without breaking changes. Most users are on local networks. |
-| D-4 | Subsonic API v1.16 subset (~25 endpoints) | Full Subsonic API (100+ endpoints), no compatibility, Jellyfin API | Covers 95% of use cases. DSub/Ultrasonic/Symfonium only use this subset. Full API is massive with diminishing returns. |
-| D-5 | Non-destructive photo editing (JSON edit stack) | Destructive editing (overwrite file), separate edited copies | Users never lose originals. Edit history is replayable and auditable. Storage efficient — only cache edited versions on demand. |
-| D-6 | TagLibSharp for audio metadata | NAudio, FFprobe for audio tags, custom parser | TagLibSharp is the .NET standard for audio metadata. Supports all major formats. Well-maintained, Apache 2.0 license. |
-| D-7 | Client-side EQ (Web Audio API) | Server-side audio processing, no EQ | No server CPU cost. Real-time adjustment. Natural fit for browser playback. Server just stores presets. |
-| D-8 | Subsonic auth via app-password bridge | Map Subsonic tokens directly to JWT, shared credentials | Clean separation. App passwords are revocable. Doesn't expose primary credentials. Proven pattern (Nextcloud, Navidrome). |
-| D-9 | Leaflet.js + OpenStreetMap for photo maps | Google Maps, Mapbox, no map view | Free, no API key. Privacy-respecting (no Google tracking). Open source. Well-maintained. |
-| D-10 | Defer Android auto-upload | Include in Phase 5 | Server-side upload API is already generic (Files module). Auto-upload is a sync client feature requiring MAUI work on a different machine. Cleaner to handle separately. |
+| #    | Decision                                                 | Alternatives Considered                                            | Chosen Because                                                                                                                                                           |
+| ---- | -------------------------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| D-1  | Three separate modules (Photos, Music, Video)            | Single combined "Media" module                                     | Process isolation per architecture. Independent scaling and failure domains. Each module can be disabled independently.                                                  |
+| D-2  | Media items reference FileNode IDs — no separate storage | Duplicate files into media-specific storage                        | Single source of truth. No storage duplication. Quota enforcement automatic. Files module handles chunked upload, versioning, sharing infrastructure.                    |
+| D-3  | HTTP range-request streaming (no HLS/DASH)               | HLS adaptive bitrate, WebRTC                                       | Simpler to implement. Works for direct playback. HLS can be added as enhancement later without breaking changes. Most users are on local networks.                       |
+| D-4  | Subsonic API v1.16 subset (~25 endpoints)                | Full Subsonic API (100+ endpoints), no compatibility, Jellyfin API | Covers 95% of use cases. DSub/Ultrasonic/Symfonium only use this subset. Full API is massive with diminishing returns.                                                   |
+| D-5  | Non-destructive photo editing (JSON edit stack)          | Destructive editing (overwrite file), separate edited copies       | Users never lose originals. Edit history is replayable and auditable. Storage efficient — only cache edited versions on demand.                                          |
+| D-6  | TagLibSharp for audio metadata                           | NAudio, FFprobe for audio tags, custom parser                      | TagLibSharp is the .NET standard for audio metadata. Supports all major formats. Well-maintained, Apache 2.0 license.                                                    |
+| D-7  | Client-side EQ (Web Audio API)                           | Server-side audio processing, no EQ                                | No server CPU cost. Real-time adjustment. Natural fit for browser playback. Server just stores presets.                                                                  |
+| D-8  | Subsonic auth via app-password bridge                    | Map Subsonic tokens directly to JWT, shared credentials            | Clean separation. App passwords are revocable. Doesn't expose primary credentials. Proven pattern (Nextcloud, Navidrome).                                                |
+| D-9  | Leaflet.js + OpenStreetMap for photo maps                | Google Maps, Mapbox, no map view                                   | Free, no API key. Privacy-respecting (no Google tracking). Open source. Well-maintained.                                                                                 |
+| D-10 | Defer Android auto-upload                                | Include in Phase 5                                                 | Server-side upload API is already generic (Files module). Auto-upload is a sync client feature requiring MAUI work on a different machine. Cleaner to handle separately. |
 
 ---
 
@@ -592,6 +616,7 @@ After completing 5.1 and 5.2, all three module tracks (B, C, D) are fully indepe
 ### 1. Reverse Geocoding for Photo Locations
 
 Photos with GPS coordinates could show location names (e.g., "Paris, France" instead of "48.8566° N, 2.3522° E"). Options:
+
 - **Nominatim (OpenStreetMap)** — free, self-hostable, rate-limited on public instance
 - **Offline geocoding database** — bundle a lightweight reverse geocoding dataset
 - **Skip for now** — show coordinates only, add location names later
@@ -601,6 +626,7 @@ Photos with GPS coordinates could show location names (e.g., "Paris, France" ins
 ### 2. Music Lyrics Support
 
 Not in current scope but frequently requested:
+
 - Embedded lyrics (USLT/SYLT ID3 frames) — TagLibSharp can read these
 - External .lrc files (timed lyrics)
 - Synced lyrics display during playback
@@ -610,6 +636,7 @@ Not in current scope but frequently requested:
 ### 3. Video Transcoding Pipeline
 
 Current plan is direct streaming only. For broader device compatibility:
+
 - Server-side FFmpeg transcoding queue for format conversion
 - Multiple quality presets (1080p, 720p, 480p)
 - Background transcoding on upload
@@ -619,6 +646,7 @@ Current plan is direct streaming only. For broader device compatibility:
 ### 4. Smart Playlist Complexity
 
 Current plan: single-criteria presets (Recently Added, Most Played, Random by Genre). Full query builder would support:
+
 - Multiple criteria with AND/OR logic
 - Dynamic updates (playlist auto-refreshes when matching tracks change)
 - Rule-based: "tracks added in last 30 days AND genre is Jazz AND rating ≥ 4"
@@ -628,6 +656,7 @@ Current plan: single-criteria presets (Recently Added, Most Played, Random by Ge
 ### 5. Podcast Support
 
 The Music module's infrastructure (audio streaming, metadata, playlists) could extend to podcasts:
+
 - RSS feed import
 - Episode tracking (listened/unlistened)
 - Auto-download new episodes

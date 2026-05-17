@@ -132,20 +132,18 @@ internal static class SetupCommand
             {
                 "PostgreSQL" => 0,
                 "SqlServer" => 1,
-                "MariaDB" => 2,
                 _ => -1
             };
 
             var dbChoice = ConsoleOutput.PromptChoice(
                 "Select database provider:",
-                ["PostgreSQL (recommended)", "SQL Server", "MariaDB"],
+                ["PostgreSQL (recommended)", "SQL Server"],
                 defaultIndex: previousDbIndex);
 
             config.DatabaseProvider = dbChoice switch
             {
                 0 => "PostgreSQL",
                 1 => "SqlServer",
-                2 => "MariaDB",
                 _ => "PostgreSQL"
             };
 
@@ -190,7 +188,6 @@ internal static class SetupCommand
                     {
                         "PostgreSQL" => "Host=localhost;Database=dotnetcloud;Username=dotnetcloud;Password=yourpassword",
                         "SqlServer" => "Server=localhost;Database=dotnetcloud;Trusted_Connection=True;TrustServerCertificate=True;MultipleActiveResultSets=True",
-                        "MariaDB" => "Server=localhost;Database=dotnetcloud;User=dotnetcloud;Password=yourpassword",
                         _ => ""
                     };
                     config.ConnectionString = ConsoleOutput.Prompt("Connection string", defaultConnStr);
@@ -1072,37 +1069,6 @@ internal static class SetupCommand
 
                 return DatabaseSetupHelper.BuildSqlServerConnectionString(
                     server, database, username, dbPassword, trustedConnection: false);
-            }
-
-            case "MariaDB":
-            {
-                var server = ConsoleOutput.Prompt("Server address", "localhost");
-                var database = ConsoleOutput.Prompt("Database name", "dotnetcloud");
-                var username = ConsoleOutput.Prompt("Database username", "dotnetcloud");
-
-                while (true)
-                {
-                    var password = ConsoleOutput.PromptPassword("Database password");
-                    var error = PasswordValidator.Validate(password);
-                    if (error is not null)
-                    {
-                        ConsoleOutput.WriteError(error);
-                        continue;
-                    }
-
-                    var confirm = ConsoleOutput.PromptPassword("Confirm database password");
-                    if (password != confirm)
-                    {
-                        ConsoleOutput.WriteError("Passwords do not match. Please try again.");
-                        continue;
-                    }
-
-                    dbPassword = password;
-                    break;
-                }
-
-                return DatabaseSetupHelper.BuildMariaDbConnectionString(
-                    server, database, username, dbPassword);
             }
 
             default:

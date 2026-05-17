@@ -89,7 +89,7 @@ docs/
 ### Data Layer (`DotNetCloud.Core.Data`)
 
 - `CoreDbContext` is the single EF Core DbContext. Entity configurations live in `Configuration/`.
-- **Multi-database**: PostgreSQL (default), SQL Server, MariaDB (pending Pomelo .NET 10 release). Naming differs by provider: PostgreSQL/SQL Server use schemas (`core.users`), MariaDB uses prefixes (`core_users`), controlled by `ITableNamingStrategy`.
+- **Multi-database**: PostgreSQL (default) and SQL Server. Naming differs by provider: PostgreSQL uses snake_case schemas (`core.users`), SQL Server uses PascalCase schemas (`[core].[Users]`), controlled by `ITableNamingStrategy`.
 - Built-in: soft delete (query filters), automatic timestamp interceptors, ASP.NET Core Identity extension, OpenIddict OAuth2/OIDC entities.
 
 ### Shared Infrastructure (`DotNetCloud.Core.ServiceDefaults`)

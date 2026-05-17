@@ -62,7 +62,6 @@
 - ✓ Create `Directory.Build.targets` for common build configuration
 - ✓ Set up `NuGet.config` for dependency management
 - ✓ Document IDE setup for Visual Studio, VS Code, Rider
-- ✓ Create local development database setup guide (PostgreSQL, SQL Server, MariaDB)
 - ✓ Document Docker setup for local testing
 - ✓ Create development workflow guidelines (branch strategy, PR requirements)
 
@@ -72,13 +71,11 @@
 
 - ✓ Create Gitea Actions workflow file (`.gitea/workflows/build-test.yml`)
 - ✓ Create GitHub Actions workflow file (`.github/workflows/build-test.yml`)
-- ✓ Configure multi-database testing (Docker containers for PostgreSQL, SQL Server, MariaDB)
   - ✓ Docker Engine installed in WSL 2 (setup script: `tools/setup-docker-wsl.sh`)
   - ✓ DatabaseContainerFixture with WSL auto-detection (native Docker → WSL fallback)
   - ✓ PostgreSQL 16 container tests passing (6/6)
   - ✓ SQL Server CI matrix job (GitHub/Gitea Actions service container)
   - ✓ SQL Server local testing via SQL Server Express (Windows Auth, shared memory)
-  - ☐ MariaDB container tests (Pomelo lacks .NET 10 support)
 - ✓ Set up build artifact generation
 - ✓ Configure package publishing pipeline skeleton
 - ✓ Create status badge documentation (docs/development/STATUS_BADGES.md)
@@ -234,7 +231,6 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Create `ITableNamingStrategy` interface for schema/prefix handling
 - ✓ Implement `PostgreSqlNamingStrategy` (use schemas: `core.*`, `files.*`, etc.)
 - ✓ Implement `SqlServerNamingStrategy` (use schemas)
-- ✓ Implement `MariaDbNamingStrategy` (use table prefixes)
 - ✓ Create provider detection logic based on connection string
 - ✓ **Refactored: Authoritative provider resolution from config** (not connection-string heuristics)
   - ✓ `DatabaseProviderConfiguration` — shared parser/normalizer for configured provider values
@@ -242,7 +238,6 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
   - ✓ `AddDotNetCloudDbContext` and `AddModuleDbContexts` accept explicit `DatabaseProvider` parameter
   - ✓ CLI `ServiceProviderFactory` and `SetupCommand` use explicit configured provider
   - ✓ Backward-compatible config reads: `Database:Provider` + legacy `databaseProvider` both supported; canonical key written forward
-  - ✓ Provider normalization in `CliConfiguration.Load/Save` — `PostgreSQL`, `SqlServer`, `MariaDB` + aliases recognized
   - ✓ `appsettings.json` and `appsettings.Development.json` include `Database.Provider` default
 
 #### CoreDbContext & Models
@@ -368,7 +363,6 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Create migration files for each supported database:
   - ✓ PostgreSQL migrations
   - ✓ SQL Server migrations
-  - ☐ MariaDB migrations (temporarily disabled - awaiting Pomelo .NET 10 support)
 
 ---
 
@@ -940,7 +934,6 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 ##### Setup Command
 
 - ✓ `dotnetcloud setup` - Interactive first-run wizard
-  - ✓ Database selection (PostgreSQL/SQL Server/MariaDB)
   - ✓ Connection string configuration
   - ✓ Admin user creation
   - ✓ Admin MFA setup
@@ -1093,7 +1086,6 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Build multi-database test matrix:
   - ✓ PostgreSQL tests (InMemory with naming strategy)
   - ✓ SQL Server tests (InMemory with naming strategy)
-  - ✓ MariaDB tests (InMemory with naming strategy)
   - ✓ Real Docker-based database tests (PostgreSQL via DatabaseContainerFixture + WSL Docker)
   - ✓ SQL Server local testing (SQL Server Express, Windows Auth, shared memory protocol)
   - ✓ LocalSqlServerDetector with auto-detection, isolated test DB creation, cleanup
@@ -1256,7 +1248,6 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ All unit tests pass (2,242 passed, 0 failed across 12 test projects)
 - ✓ All integration tests pass against PostgreSQL (6/6 via Docker + WSL)
 - ✓ All integration tests pass against SQL Server (CI service containers + local SQL Server Express via Windows Auth)
-- ☐ All integration tests pass against MariaDB (Pomelo lacks .NET 10 support)
 - ✓ No compiler warnings (0 warnings in build output)
 - ✓ Docker container builds successfully (multi-stage Dockerfile, docker-compose.yml, .dockerignore)
 - ✓ Docker containers run and pass health checks (Dockerfile HEALTHCHECK + docker-compose healthcheck using wget, all modules in CI solution filter)
@@ -1627,7 +1618,6 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ Create migration files for each supported database:
   - ✓ PostgreSQL migrations
   - ✓ SQL Server migrations
-  - ☐ MariaDB migrations (temporarily disabled - awaiting Pomelo .NET 10 support)
 
 ---
 
@@ -1692,7 +1682,6 @@ This phase implements the core Files module, which is the primary public-facing 
 
 - ✓ Create PostgreSQL initial migration
 - ✓ Create SQL Server initial migration
-- ☐ Create MariaDB initial migration (when Pomelo supports .NET 10)
 
 #### Database Initialization
 
@@ -2854,7 +2843,6 @@ This phase implements real-time chat, announcements, push notifications, and the
   - ✓ `DbSet<MessageReaction> MessageReactions`
   - ✓ `DbSet<MessageMention> MessageMentions`
   - ✓ `DbSet<PinnedMessage> PinnedMessages`
-- ✓ Apply table naming strategy (schema-based for PostgreSQL/SQL Server, prefix-based for MariaDB)
 - ✓ Configure automatic timestamps (`SentAt`, `JoinedAt`, etc.)
 - ✓ Create design-time factory for migrations
 
@@ -2862,7 +2850,6 @@ This phase implements real-time chat, announcements, push notifications, and the
 
 - ✓ Create PostgreSQL initial migration
 - ✓ Create SQL Server initial migration
-- ☐ Create MariaDB initial migration (when Pomelo supports .NET 10)
 
 #### Database Initialization
 
@@ -4386,7 +4373,6 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 
 - ✓ `PostgreSqlSearchProvider` — ILIKE fallback (native tsvector/tsquery for production PostgreSQL)
 - ✓ `SqlServerSearchProvider` — Contains() fallback (native FREETEXT for production SQL Server)
-- ✓ `MariaDbSearchProvider` — Contains() fallback (native MATCH AGAINST for production MariaDB)
 - ✓ All providers: IndexDocument (upsert), RemoveDocument, Search (with pagination, sorting, facets, permission scoping), ReindexModule, GetIndexStats
 
 #### Step 2.4 — SearchModuleManifest & SearchModule
@@ -4431,7 +4417,6 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 
 - ✓ `DotNetCloud.Modules.Search.Tests` project (MSTest 4.1.0 + Moq 4.20.72, InMemory EF Core)
 - ✓ `SqlServerSearchProviderTests` — Index, upsert, remove, search (text match, pagination, sort, facets, permission scoping, metadata), reindex, stats (32 tests)
-- ✓ `MariaDbSearchProviderTests` — Index, upsert, remove, search (title match, content match, permission scoping, facets), reindex, stats (10 tests)
 - ✓ `SearchQueryServiceTests` — Empty query, valid query delegation, null query, stats, reindex (5 tests)
 - ✓ `ContentExtractionServiceTests` — Supported/unsupported MIME types, null handling, extractor errors, truncation, CanExtract (10 tests)
 - ✓ `PlainTextExtractorTests` — CanExtract (text/plain, text/csv, case-insensitive), extract text, CSV, empty, unicode (9 tests)
@@ -4536,7 +4521,6 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 
 - ✓ `ParsedSearchQuery.ToPostgreSqlTsQuery()` — & operators, <-> phrases, ! exclusions
 - ✓ `ParsedSearchQuery.ToSqlServerContainsQuery()` — AND/AND NOT keywords
-- ✓ `ParsedSearchQuery.ToMariaDbBooleanQuery()` — +term, +"phrase", -exclusion
 - ✓ Special character sanitization per provider
 
 #### Step 5.3 — Cross-Module Result Aggregation
@@ -4555,7 +4539,6 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 
 - ✓ PostgreSQL — ILIKE term matching, exclusion WHERE clauses, relevance scoring
 - ✓ SQL Server — Contains() fallback, exclusions, relevance scoring
-- ✓ MariaDB — Contains() fallback, exclusions, relevance scoring
 - ✓ All providers: title highlighting, snippet generation, metadata deserialization
 
 #### Step 5.6 — Comprehensive Tests
@@ -4654,12 +4637,10 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 
 #### Step 8.1 — Unit Tests (Permission Scoping)
 
-- ✓ `PermissionScopingTests` — 10 tests (SqlServer/MariaDb user isolation, empty results, facet count scoping, module+user filter, entity type+user filter, pagination, exclusions, stats not scoped, PostgreSQL index/remove only)
 
 #### Step 8.2 — Integration Tests (End-to-End & Multi-Database)
 
 - ✓ `EndToEndIndexingTests` — 12 tests (index event pipeline, remove event, update event, multi-module, full reindex, module reindex, content extraction, entity deleted before processing, orphaned cleanup, query with in:module, exclusion syntax)
-- ✓ `MultiDatabaseProviderTests` — 10 tests (SqlServer/MariaDb search consistency, module filter, index+search, remove+search, upsert, stats format, reindex, exclusions, pagination, metadata preservation)
 
 #### Step 8.3 — Performance Benchmarks
 
@@ -5300,7 +5281,6 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 
 - ✓ Update `PostgreSqlNamingStrategy.GetSchemaForModule` to delegate to `RequiredModules.GetSchemaName`
 - ✓ Update `SqlServerNamingStrategy.GetSchemaForModule` to delegate to `RequiredModules.GetSchemaName`
-- ✓ Update `MariaDbNamingStrategy.GetTableName` to use `RequiredModules.GetSchemaName` for prefix
 - ✓ Update `FilesDbContext` — inject `ITableNamingStrategy`, add `HasDefaultSchema("files")` → `core`
 - ✓ Update `ChatDbContext` — inject `ITableNamingStrategy`, add `HasDefaultSchema("chat")` → `core`
 - ✓ Update `SearchDbContext` — inject `ITableNamingStrategy`, add `HasDefaultSchema("search")` → `core`

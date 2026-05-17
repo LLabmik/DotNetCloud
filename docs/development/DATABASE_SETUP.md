@@ -11,7 +11,6 @@
 1. [Overview](#overview)
 2. [PostgreSQL Setup](#postgresql-setup)
 3. [SQL Server Setup](#sql-server-setup)
-4. [MariaDB Setup](#mariadb-setup)
 5. [Multi-Database Testing](#multi-database-testing)
 6. [Connection Strings](#connection-strings)
 7. [Database Initialization](#database-initialization)
@@ -27,7 +26,6 @@ DotNetCloud supports three database engines for flexibility and portability:
 |----------|----------|----------|----------|
 | **PostgreSQL** | Linux, macOS, Windows | Primary (recommended) | Npgsql |
 | **SQL Server** | Windows, Linux, Docker | Enterprise | System.Data.SqlClient |
-| **MariaDB** | Linux, macOS, Windows | Alternative MySQL-compatible | MySql.Data |
 
 ### Development Workflow
 
@@ -41,7 +39,6 @@ DotNetCloud uses schema/prefix naming per database provider:
 
 - **PostgreSQL:** Schemas (`core.*`, `files.*`, etc.)
 - **SQL Server:** Schemas (`dbo.`, `core.`, etc.)
-- **MariaDB:** Table prefixes (`core_users`, `files_metadata`, etc.)
 
 ---
 
@@ -273,24 +270,17 @@ See [DOCKER_SETUP.md](./DOCKER_SETUP.md) for containerized SQL Server.
 
 ---
 
-## MariaDB Setup
 
 ### Windows
 
-#### Option 1: MariaDB MSI Installer
 
-1. **Download MariaDB**
-   - Visit: [https://mariadb.org/download/](https://mariadb.org/download/)
-   - Download MariaDB 10.11.x or 11.x
 
 2. **Run Installer**
    ```bash
-   mariadb-11.0.x-msi-x64.msi
    ```
    - Port: `3306` (default)
    - Root password: Choose strong password
    - Install as Windows Service: Yes
-   - Service name: `MariaDB`
 
 3. **Verify Installation**
    ```bash
@@ -300,7 +290,6 @@ See [DOCKER_SETUP.md](./DOCKER_SETUP.md) for containerized SQL Server.
 #### Option 2: Chocolatey
 
 ```bash
-choco install mariadb
 ```
 
 ### Linux (Ubuntu/Debian)
@@ -309,15 +298,11 @@ choco install mariadb
 # Update package lists
 sudo apt update
 
-# Install MariaDB
-sudo apt install -y mariadb-server mariadb-client
 
 # Secure installation
 sudo mysql_secure_installation
 
 # Start and enable service
-sudo systemctl start mariadb
-sudo systemctl enable mariadb
 
 # Verify
 mysql --version
@@ -329,10 +314,8 @@ mysql --version
 
 ```bash
 # Install
-brew install mariadb
 
 # Start service (one-time)
-brew services start mariadb
 
 # Secure installation
 mysql_secure_installation
@@ -343,7 +326,6 @@ mysql --version
 
 ### Post-Installation Setup
 
-1. **Connect to MariaDB**
    ```bash
    mysql -u root -p
    # Enter root password
@@ -377,23 +359,18 @@ mysql --version
 
 ### Additional Configuration
 
-1. **Check MariaDB Status**
    ```bash
    # Linux
-   sudo systemctl status mariadb
 
    # Windows
-   Get-Service -Name "MariaDB"
    ```
 
 2. **Configure Character Set (UTF-8)**
-   - Edit `/etc/mysql/mariadb.conf.d/50-server.cnf` (Linux) or `C:\ProgramData\MariaDB\my.ini` (Windows)
    - Add to `[mysqld]` section:
      ```ini
      default-character-set = utf8mb4
      collation-server = utf8mb4_unicode_ci
      ```
-   - Restart MariaDB: `sudo systemctl restart mariadb`
 
 ---
 
@@ -408,10 +385,8 @@ Store connection strings in `appsettings.json` or `appsettings.Development.json`
   "ConnectionStrings": {
     "PostgreSQL": "Server=localhost;Port=5432;Database=dotnetcloud_dev;User Id=dotnetcloud;Password=dotnetcloud_dev_password;",
     "SqlServer": "Server=localhost\\SQLEXPRESS;Database=dotnetcloud_dev;User Id=dotnetcloud;Password=DotNetCloud2024!Dev;MultipleActiveResultSets=True;",
-    "MariaDb": "Server=localhost;Port=3306;Database=dotnetcloud_dev;Uid=dotnetcloud;Pwd=dotnetcloud_dev_password;"
   },
   "Database": {
-    "Provider": "PostgreSQL"  // or "SqlServer", "MariaDb"
   }
 }
 ```
@@ -535,8 +510,6 @@ dotnet test --configuration Release -- --Database:Provider=PostgreSQL
 # Test with SQL Server
 dotnet test --configuration Release -- --Database:Provider=SqlServer
 
-# Test with MariaDB
-dotnet test --configuration Release -- --Database:Provider=MariaDb
 ```
 
 ### Test Fixture Configuration
@@ -566,7 +539,6 @@ public class DatabaseFixture : IAsyncLifetime
                         case "SqlServer":
                             options.UseSqlServer("Server=localhost\\SQLEXPRESS;Database=dotnetcloud_test;User Id=sa;Password=Test@123;MultipleActiveResultSets=True;");
                             break;
-                        case "MariaDb":
                             options.UseMySql("Server=localhost;Port=3306;Database=dotnetcloud_test;Uid=root;Pwd=test_password;", ServerVersion.AutoDetect("Server=localhost;Port=3306;Uid=root;Pwd=test_password;"));
                             break;
                     }
@@ -638,11 +610,7 @@ netstat -ano | findstr :1433
 Restart-Service -Name "MSSQL$SQLEXPRESS"
 ```
 
-### MariaDB
 
-#### "Can't Connect to MySQL Server"
-- **Check Service:** `sudo systemctl status mariadb` (Linux) or Services app (Windows)
-- **Start Service:** `sudo systemctl start mariadb` or `net start MariaDB`
 - **Check Port:** Default is `3306`
 
 #### "Access Denied for User"

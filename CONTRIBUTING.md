@@ -89,7 +89,7 @@ Feature suggestions are welcome! Please:
 ### Prerequisites
 
 - .NET 10 SDK or later
-- PostgreSQL 14+ (or SQL Server 2019+, MariaDB 10.5+)
+- PostgreSQL 14+ (or SQL Server 2019+)
 - Docker & Docker Compose
 - Git
 
@@ -158,12 +158,12 @@ namespace DotNetCloud.Core.Capabilities;
 public sealed class MyService : IMyService
 {
     private readonly ILogger<MyService> _logger;
-    
+
     public MyService(ILogger<MyService> logger)
     {
         _logger = logger;
     }
-    
+
     /// <summary>
     /// Clear XML documentation for public members.
     /// </summary>
@@ -172,12 +172,12 @@ public sealed class MyService : IMyService
     public async Task<string> ProcessAsync(string input)
     {
         ArgumentNullException.ThrowIfNull(input);
-        
+
         _logger.LogInformation("Processing input: {Input}", input);
-        
+
         return await DoWorkAsync(input);
     }
-    
+
     private async Task<string> DoWorkAsync(string input)
     {
         // Implementation
@@ -194,23 +194,23 @@ public class MyServiceTests
 {
     private MyService _service;
     private Mock<ILogger<MyService>> _loggerMock;
-    
+
     [TestInitialize]
     public void Setup()
     {
         _loggerMock = new Mock<ILogger<MyService>>();
         _service = new MyService(_loggerMock.Object);
     }
-    
+
     [TestMethod]
     public async Task ProcessAsync_WithValidInput_ReturnsExpectedResult()
     {
         // Arrange
         var input = "test";
-        
+
         // Act
         var result = await _service.ProcessAsync(input);
-        
+
         // Assert
         Assert.AreEqual("test", result);
     }
@@ -230,6 +230,7 @@ The project is organized by phases as defined in [MASTER_PROJECT_PLAN.md](./docs
 ### When Completing a Phase Task
 
 1. Update IMPLEMENTATION_CHECKLIST.md:
+
    ```markdown
    - [x] Task name - completion date
    ```
@@ -311,6 +312,7 @@ Refs:
 ```
 
 **Type:**
+
 - `feat`: New feature
 - `fix`: Bug fix
 - `docs`: Documentation
@@ -320,6 +322,7 @@ Refs:
 - `chore`: Build or dependency updates
 
 **Scope examples:**
+
 - `files`
 - `server`
 - `ui`
@@ -356,6 +359,7 @@ Include Why, What changed, Tests, Docs, Deployment/Ops, and Refs.
 The one-click SCM “generate message” action may return short summaries only.
 
 **Examples:**
+
 ```
 feat(core): add capability system interfaces for phase-0.1.1
 
@@ -436,6 +440,7 @@ For full details, see [docs/architecture/internationalization.md](docs/architect
 When contributing code, also update documentation:
 
 1. **Inline XML Documentation** (`///`):
+
    ```csharp
    /// <summary>
    /// Description of what the member does.

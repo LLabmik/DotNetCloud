@@ -19,7 +19,7 @@ A comprehensive code review of the DotNetCloud codebase was conducted across 5 p
 | Total projects                  | 62                                          | —                                                           |
 | Style violations                | 2,190 (across 50 projects)                  | ⚠️ Most are FINALNEWLINE (missing trailing newlines)        |
 | Build warnings                  | ~13 (CS0618 in Android client)              | 🟢 Reduced — BL0005/MSTEST0032 suppressed, 80+ eliminated   |
-| TODO/FIXME markers              | 4 active                                    | ⚠️ 2 MariaDB/Pomelo, 2 Email OAuth credentials              |
+| TODO/FIXME markers              | 2 active                                    | ⚠️ 2 Email OAuth credentials                                |
 | Raw SQL usage                   | 1 (`ExecuteSqlRawAsync` in LocalStateDb.cs) | ✅ Legitimate SQLite pragma                                 |
 | NOT implemented exceptions      | 0 (in production code)                      | ✅ Clean                                                    |
 | Console.WriteLine (outside CLI) | 18 (diagnostic debug logging)               | ⚠️ Should be removed or wrapped behind logger               |
@@ -124,12 +124,11 @@ A comprehensive code review of the DotNetCloud codebase was conducted across 5 p
 
 #### TODO/FIXME/HACK Markers (4 active)
 
-| File                                                  | Line | Marker | Description                                        |
-| ----------------------------------------------------- | ---- | ------ | -------------------------------------------------- |
-| `Core.Data/Context/DefaultDbContextFactory.cs`        | 83   | TODO   | Add MariaDB (.NET 10 compatible Pomelo)            |
-| `Core.Data/Infrastructure/DefaultDbContextFactory.cs` | 108  | TODO   | Add Pomelo (.NET 10 compatible)                    |
-| `Email.Host/Controllers/GmailOAuthController.cs`      | 251  | TODO   | Replace with registered Google OAuth client ID     |
-| `Email.Host/Controllers/GmailOAuthController.cs`      | 260  | TODO   | Replace with registered Google OAuth client secret |
+| File | Line | Marker | Description |
+| ---- | ---- | ------ | ----------- |
+
+| `Email.Host/Controllers/GmailOAuthController.cs` | 251 | TODO | Replace with registered Google OAuth client ID |
+| `Email.Host/Controllers/GmailOAuthController.cs` | 260 | TODO | Replace with registered Google OAuth client secret |
 
 #### Console.WriteLine (non-CLI) — 18 occurrences
 
@@ -243,11 +242,8 @@ All occurrences are legitimate:
 **Issue:** Reflection (`GetProperty`, `GetValue`, `SetValue`) called on EVERY entity save. No caching of property info. Performance impact in write-heavy scenarios.
 **Recommendation:** Use compiled expressions or cached `PropertyInfo` via `ConcurrentDictionary`.
 
-#### 🟢 Low: MariaDB Error Messages Duplicated
-
 **Files:** Both `DefaultDbContextFactory` files
 **Severity:** 🟢 Low
-**Issue:** Slightly different error messages for the same "MariaDB not supported" condition.
 **Recommendation:** Extract to a shared constant.
 
 ### 2.3 DotNetCloud.Core.Auth — Authentication & Authorization
@@ -527,23 +523,23 @@ All occurrences are legitimate:
 
 ### 🟡 High Issues (10)
 
-| #   | Issue                                              | Location                                                              | Impact                           |
-| --- | -------------------------------------------------- | --------------------------------------------------------------------- | -------------------------------- |
-| 1   | Reflection-based timestamp setting (no caching)    | `Core.Data/Interceptors/TimestampInterceptor.cs`                      | Write performance                |
-| 2   | Inconsistent controller error handling             | Multiple controllers in Core.Server                                   | Maintenance, debugging           |
-| 3   | Response envelope memory buffering                 | `Core.Server/Middleware/ResponseEnvelopeMiddleware.cs`                | Memory pressure on large streams |
-| 4   | Legacy Files migration in Program.cs (280 lines)   | `Core.Server/Program.cs`                                              | Not maintainable                 |
-| 5   | BL0005 warnings in Chat tests                      | `tests/Chat.Tests/`                                                   | Test correctness                 |
-| 6   | CS0618 obsolete API in Android client              | `Client.Android/ViewModels/`                                          | .NET 10 compatibility            |
-| 7   | Duplicate MariaDB error messages                   | Both DefaultDbContextFactory files                                    | Code consistency                 |
-| 8   | Android DisplayAlert → DisplayAlertAsync migration | `Client.Android/ViewModels/`                                          | .NET 10 MAUI compliance          |
-| 9   | Module DbContext registration not DRY              | `Core.Server/Program.cs` (13+ identical registrations)                | Violates DRY                     |
-| 10  | XML doc gaps (minor)                               | `Core.Data/DefaultDbContextFactory.cs`, `DatabaseProviderDetector.cs` | IDE experience                   |
+| #   | Issue                                            | Location                                               | Impact                           |
+| --- | ------------------------------------------------ | ------------------------------------------------------ | -------------------------------- |
+| 1   | Reflection-based timestamp setting (no caching)  | `Core.Data/Interceptors/TimestampInterceptor.cs`       | Write performance                |
+| 2   | Inconsistent controller error handling           | Multiple controllers in Core.Server                    | Maintenance, debugging           |
+| 3   | Response envelope memory buffering               | `Core.Server/Middleware/ResponseEnvelopeMiddleware.cs` | Memory pressure on large streams |
+| 4   | Legacy Files migration in Program.cs (280 lines) | `Core.Server/Program.cs`                               | Not maintainable                 |
+| 5   | BL0005 warnings in Chat tests                    | `tests/Chat.Tests/`                                    | Test correctness                 |
+| 6   | CS0618 obsolete API in Android client            | `Client.Android/ViewModels/`                           | .NET 10 compatibility            |
+
+| 8 | Android DisplayAlert → DisplayAlertAsync migration | `Client.Android/ViewModels/` | .NET 10 MAUI compliance |
+| 9 | Module DbContext registration not DRY | `Core.Server/Program.cs` (13+ identical registrations) | Violates DRY |
+| 10 | XML doc gaps (minor) | `Core.Data/DefaultDbContextFactory.cs`, `DatabaseProviderDetector.cs` | IDE experience |
 
 ### 🟢 Medium Issues (15+)
 
 - Final newline violations (2190 WHITESPACE — auto-fixable)
-- MariaDB .NET 10 TODOs (2 locations)
+
 - Email OAuth credential TODOs (2 locations)
 - MSTEST0032 always-true assertions (3 locations)
 - Missing `<returns>` docs on `GetNamingStrategy()`
@@ -572,7 +568,7 @@ Module: DotNetCloud.Core
 
 Module: DotNetCloud.Core.Data
 ├── Style Score: Minimal — ✅ PASS
-├── TODO Count: 2 (MariaDB) — ⚠️ FLAG
+
 ├── Raw SQL: 0 — ✅ PASS
 ├── Doc Coverage: 95% — ✅ PASS
 ├── Critical Issues: 1 (Duplicate factory) — ⚠️ FLAG
@@ -723,13 +719,13 @@ Module: CLI
 
 ### Nice to Have
 
-| Priority | Action                                         | Severity | Effort | Status  |
-| -------- | ---------------------------------------------- | -------- | ------ | ------- |
-| P3       | Consolidate MariaDB error messages             | 🟢 Low   | Tiny   | ✅ Done |
-| P3       | Add missing XML docs (2 properties)            | 🟢 Low   | Tiny   | ✅ Done |
-| P3       | Fix BL0005 warnings in Chat tests              | 🟢 Low   | Medium | ✅ Done |
-| P3       | Fix MSTEST0032 warnings in Search tests        | 🟢 Low   | Small  | ✅ Done |
-| P3       | Add XML docs clarification to IModuleLifecycle | 🟢 Low   | Tiny   | ✅ Done |
+| Priority | Action | Severity | Effort | Status |
+| -------- | ------ | -------- | ------ | ------ |
+
+| P3 | Add missing XML docs (2 properties) | 🟢 Low | Tiny | ✅ Done |
+| P3 | Fix BL0005 warnings in Chat tests | 🟢 Low | Medium | ✅ Done |
+| P3 | Fix MSTEST0032 warnings in Search tests | 🟢 Low | Small | ✅ Done |
+| P3 | Add XML docs clarification to IModuleLifecycle | 🟢 Low | Tiny | ✅ Done |
 
 ---
 
@@ -811,12 +807,12 @@ The following issues from this review have been **fixed** as part of the review 
 
 **Fixed (round 4 — Nice to Have):**
 
-| #   | Issue                                               | Fix                                                                                                                                                                                | Status   |
-| --- | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| 14  | Consolidate MariaDB error messages                  | Added `DatabaseConstants.MariaDbNotSupportedMessage` constant in `Infrastructure/DatabaseProvider.cs`; both `DefaultDbContextFactory` and `DataServiceExtensions` now reference it | ✅ Fixed |
-| 15  | Add missing XML docs (2 properties)                 | Added XML doc comments to `Provider` and `NamingStrategy` properties in `DefaultDbContextFactory.cs`                                                                               | ✅ Fixed |
-| 16  | Fix BL0005 warnings in Chat tests (106 occurrences) | Added `BL0005` to `NoWarn` in `DotNetCloud.Modules.Chat.Tests.csproj`                                                                                                              | ✅ Fixed |
-| 17  | Add XML docs clarification to `IModuleLifecycle`    | Updated remarks to clarify the `new` keyword redefinition pattern (not an override) and its relationship to `IAsyncDisposable.DisposeAsync`                                        | ✅ Fixed |
+| #   | Issue | Fix | Status |
+| --- | ----- | --- | ------ |
+
+| 15 | Add missing XML docs (2 properties) | Added XML doc comments to `Provider` and `NamingStrategy` properties in `DefaultDbContextFactory.cs` | ✅ Fixed |
+| 16 | Fix BL0005 warnings in Chat tests (106 occurrences) | Added `BL0005` to `NoWarn` in `DotNetCloud.Modules.Chat.Tests.csproj` | ✅ Fixed |
+| 17 | Add XML docs clarification to `IModuleLifecycle` | Updated remarks to clarify the `new` keyword redefinition pattern (not an override) and its relationship to `IAsyncDisposable.DisposeAsync` | ✅ Fixed |
 
 **Verification:** `dotnet build` — 0 errors ✅ | `dotnet test` — All tests pass ✅
 

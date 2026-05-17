@@ -317,7 +317,6 @@ public sealed class BackupService : DotNetCloud.Core.Services.IBackupService
         {
             "POSTGRESQL" => ("pg_dump", BuildPgDumpArgs(connectionString, outputPath)),
             "SQLSERVER" => ("sqlcmd", BuildSqlCmdArgs(connectionString, outputPath)),
-            "MARIADB" or "MYSQL" => ("mysqldump", BuildMySqlDumpArgs(connectionString, outputPath)),
             _ => throw new NotSupportedException($"Database provider '{provider}' is not supported for automated dump. Please use the provider's native backup tool.")
         };
 
@@ -432,18 +431,10 @@ public sealed class BackupService : DotNetCloud.Core.Services.IBackupService
         return connectionString; // fallback: use raw connection string
     }
 
-    private static List<string> BuildMySqlDumpArgs(string? connectionString, string outputPath)
-    {
-        if (string.IsNullOrEmpty(connectionString))
-            return new List<string> { $"--result-file={outputPath}", "dotnetcloud" };
-        return new List<string> { $"--result-file={outputPath}", "--default-auth=mysql_native_password" };
-    }
-
     private static string GetDumpToolName(string provider) => provider.ToUpperInvariant() switch
     {
         "POSTGRESQL" => "pg_dump",
         "SQLSERVER" => "sqlcmd",
-        "MARIADB" or "MYSQL" => "mysqldump",
         _ => provider,
     };
 
@@ -465,11 +456,6 @@ public sealed class BackupService : DotNetCloud.Core.Services.IBackupService
             case "SQLSERVER":
                 tool = "sqlcmd";
                 argList = BuildSqlCmdRestoreArgs(options.ConnectionString, dumpFile);
-                break;
-            case "MARIADB" or "MYSQL":
-                tool = "mysql";
-                argList = BuildMySqlRestoreArgs(options.ConnectionString);
-                useStdinRedirect = true;
                 break;
             default:
                 throw new NotSupportedException($"Database provider '{options.DatabaseProvider}' is not supported for automated restore.");
@@ -525,9 +511,6 @@ public sealed class BackupService : DotNetCloud.Core.Services.IBackupService
         var server = ParseSqlServerConnectionString(connectionString);
         return new List<string> { "-S", server, "-Q", $"RESTORE DATABASE [dotnetcloud] FROM DISK = '{dumpFile}'" };
     }
-
-    private static List<string> BuildMySqlRestoreArgs(string? connectionString)
-        => new List<string> { "dotnetcloud" };
 
     private static void CopyDirectory(string sourceDir, string targetDir)
     {

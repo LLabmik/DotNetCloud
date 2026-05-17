@@ -36,7 +36,6 @@
     <!-- Health Checks -->
     <PackageReference Include="AspNetCore.HealthChecks.NpgSql" />
     <PackageReference Include="AspNetCore.HealthChecks.SqlServer" />
-    <PackageReference Include="AspNetCore.HealthChecks.MySql" />
 
     <!-- ASP.NET Core -->
     <PackageReference Include="Microsoft.AspNetCore.Http.Abstractions" />

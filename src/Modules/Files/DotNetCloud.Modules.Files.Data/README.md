@@ -66,7 +66,6 @@ DotNetCloud.Modules.Files.Data/
 
 ## Database Schema
 
-All tables live under the `files` schema (PostgreSQL/SQL Server) or use the `files_` prefix (MariaDB).
 
 ## Related Projects
 

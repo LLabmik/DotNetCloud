@@ -531,7 +531,7 @@ public class Program
         if (!DatabaseProviderConfiguration.TryParseConfiguredProvider(configuredProvider, out var provider))
         {
             throw new InvalidOperationException(
-                $"Invalid database provider '{configuredProvider}'. Supported values: PostgreSQL, SqlServer, MariaDB.");
+                $"Invalid database provider '{configuredProvider}'. Supported values: PostgreSQL, SqlServer.");
         }
 
         return provider;
@@ -559,9 +559,6 @@ public class Program
                     sqlServerOptions.CommandTimeout(30);
                 });
                 break;
-
-            case DatabaseProvider.MariaDB:
-                throw new NotSupportedException("MariaDB support is temporarily disabled pending Pomelo .NET 10 update");
 
             default:
                 throw new InvalidOperationException($"Unsupported database provider: {provider}");

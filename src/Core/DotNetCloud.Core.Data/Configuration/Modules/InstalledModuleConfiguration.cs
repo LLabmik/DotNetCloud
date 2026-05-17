@@ -17,7 +17,6 @@ public class InstalledModuleConfiguration : IEntityTypeConfiguration<InstalledMo
         // Table naming will be handled by ITableNamingStrategy
         // PostgreSQL: core.installed_modules
         // SQL Server: [core].[InstalledModules]
-        // MariaDB: core_installed_modules
 
         // Primary Key (ModuleId is the natural key, not auto-generated)
         builder.HasKey(m => m.ModuleId);

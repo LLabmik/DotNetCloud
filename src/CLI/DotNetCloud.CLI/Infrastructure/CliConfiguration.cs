@@ -183,7 +183,7 @@ internal sealed class CliConfig
     public int ConfigSchemaVersion { get; set; } = CliConfiguration.CurrentConfigSchemaVersion;
 
     /// <summary>
-    /// The database provider name (PostgreSQL, SqlServer, MariaDB).
+    /// The database provider name (PostgreSQL, SqlServer).
     /// </summary>
     public string DatabaseProvider { get; set; } = string.Empty;
 

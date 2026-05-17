@@ -19,9 +19,11 @@ Comprehensive test suite for the DotNetCloud data access layer has been successf
 ## Test Files Created
 
 ### 1. **SoftDeleteTests.cs** (7 tests)
+
 **Location:** `tests/DotNetCloud.Core.Data.Tests/Entities/Organizations/SoftDeleteTests.cs`
 
 Tests soft-delete query filtering for Organization, Team, and Group entities:
+
 - `Organization_WhenDeleted_IsExcludedFromQueries` - Verify soft-deleted orgs excluded from normal queries
 - `Team_WhenDeleted_IsExcludedFromQueries` - Verify soft-deleted teams excluded
 - `Group_WhenDeleted_IsExcludedFromQueries` - Verify soft-deleted groups excluded
@@ -32,6 +34,7 @@ Tests soft-delete query filtering for Organization, Team, and Group entities:
 - `SoftDeleteFilter_RestoreDeletedEntity_BecomesVisibleAgain` - Restoration test
 
 **Key Validations:**
+
 - Soft-delete query filters working correctly
 - IgnoreQueryFilters() retrieves soft-deleted records
 - IsDeleted/DeletedAt properties properly set
@@ -40,9 +43,11 @@ Tests soft-delete query filtering for Organization, Team, and Group entities:
 ---
 
 ### 2. **RelationshipTests.cs** (12 tests)
+
 **Location:** `tests/DotNetCloud.Core.Data.Tests/Entities/Organizations/RelationshipTests.cs`
 
 Tests organization hierarchy entity relationships:
+
 - One-to-many: Organization → Teams, Organization → Groups
 - Many-to-one: Team → Organization, Group → Organization
 - Composite keys: TeamMember, GroupMember
@@ -53,6 +58,7 @@ Tests organization hierarchy entity relationships:
 - Navigation property loading
 
 **Key Validations:**
+
 - All relationships properly configured
 - Composite keys working correctly
 - Audit trail data preserved
@@ -62,9 +68,11 @@ Tests organization hierarchy entity relationships:
 ---
 
 ### 3. **RolePermissionTests.cs** (13 tests)
+
 **Location:** `tests/DotNetCloud.Core.Data.Tests/Entities/Permissions/RolePermissionTests.cs`
 
 Tests role-permission junction table and relationships:
+
 - Many-to-many: Roles ↔ Permissions
 - Composite key: (RoleId, PermissionId)
 - Unique constraints: Permission.Code, Role.Name
@@ -74,6 +82,7 @@ Tests role-permission junction table and relationships:
 - Cascade delete behavior
 
 **Key Validations:**
+
 - Many-to-many relationships working
 - Unique constraints enforced (Code, Name)
 - Composite key identification
@@ -83,9 +92,11 @@ Tests role-permission junction table and relationships:
 ---
 
 ### 4. **SettingsHierarchyTests.cs** (11 tests)
+
 **Location:** `tests/DotNetCloud.Core.Data.Tests/Entities/Settings/SettingsHierarchyTests.cs`
 
 Tests three-level settings hierarchy (System → Organization → User):
+
 - SystemSetting composite key: (Module, Key)
 - OrganizationSetting overrides SystemSetting
 - UserSetting overrides both parent levels
@@ -96,6 +107,7 @@ Tests three-level settings hierarchy (System → Organization → User):
 - Multi-module settings separation
 
 **Key Validations:**
+
 - Settings hierarchy working correctly
 - Override precedence (System < Organization < User)
 - Unique constraints preventing duplicates
@@ -105,9 +117,11 @@ Tests three-level settings hierarchy (System → Organization → User):
 ---
 
 ### 5. **DeviceModuleRegistryTests.cs** (13 tests)
+
 **Location:** `tests/DotNetCloud.Core.Data.Tests/Entities/Modules/DeviceModuleRegistryTests.cs`
 
 Tests user devices and module registry:
+
 - UserDevice presence tracking (LastSeenAt)
 - InstalledModule lifecycle (Enabled, Disabled, UpdateAvailable, Failed, etc.)
 - ModuleCapabilityGrant audit trail
@@ -118,6 +132,7 @@ Tests user devices and module registry:
 - Navigation relationships
 
 **Key Validations:**
+
 - Device presence tracking working
 - Module status values valid
 - Version storage proper
@@ -127,17 +142,20 @@ Tests user devices and module registry:
 ---
 
 ### 6. **MultiDatabaseTests.cs** (11 tests)
+
 **Location:** `tests/DotNetCloud.Core.Data.Tests/Integration/MultiDatabaseTests.cs`
 
 Tests multi-database provider support:
-- Provider detection: PostgreSQL, SQL Server, MariaDB
-- Naming strategies: PostgreSQL (snake_case, schemas), SQL Server (PascalCase), MariaDB (prefixes)
+
+- Provider detection: PostgreSQL, SQL Server
+- Naming strategies: PostgreSQL (snake_case, schemas), SQL Server (PascalCase)
 - Schema/naming consistency across providers
 - Context creation with different strategies
 - Identical data handling across databases
 - Index and foreign key naming
 
 **Key Validations:**
+
 - All 3 database providers detectable
 - Naming strategies correctly applied
 - Schema/naming inconsistencies caught
@@ -147,9 +165,11 @@ Tests multi-database provider support:
 ---
 
 ### 7. **DbContextConfigurationTests.cs** (13 tests)
+
 **Location:** `tests/DotNetCloud.Core.Data.Tests/Integration/DbContextConfigurationTests.cs`
 
 Tests CoreDbContext configuration:
+
 - Context initialization
 - All required DbSets present (30+)
 - Entity type configuration (25+)
@@ -162,6 +182,7 @@ Tests CoreDbContext configuration:
 - IdentityDbContext inheritance
 
 **Key Validations:**
+
 - CoreDbContext fully configured
 - All entities registered
 - Relationships properly defined
@@ -173,21 +194,22 @@ Tests CoreDbContext configuration:
 
 ## Test Statistics
 
-| Metric | Value |
-|--------|-------|
-| **Total Test Methods** | 80+ |
-| **Test Success Rate** | 100% |
-| **Files Created** | 7 |
-| **Code Coverage** | 80%+ |
-| **Build Status** | ✅ Successful |
-| **Compiler Warnings** | 0 |
-| **Compiler Errors** | 0 |
+| Metric                 | Value         |
+| ---------------------- | ------------- |
+| **Total Test Methods** | 80+           |
+| **Test Success Rate**  | 100%          |
+| **Files Created**      | 7             |
+| **Code Coverage**      | 80%+          |
+| **Build Status**       | ✅ Successful |
+| **Compiler Warnings**  | 0             |
+| **Compiler Errors**    | 0             |
 
 ---
 
 ## Test Coverage by Component
 
 ### Entity Models
+
 - ✅ Identity (ApplicationUser, ApplicationRole)
 - ✅ Organizations (Organization, Team, Group, Members)
 - ✅ Permissions (Permission, Role, RolePermission)
@@ -196,6 +218,7 @@ Tests CoreDbContext configuration:
 - ✅ Authentication (OpenIddict entities - configuration only)
 
 ### Relationships
+
 - ✅ One-to-many (Organization → Teams/Groups)
 - ✅ Many-to-one (Team → Organization)
 - ✅ Many-to-many (Role ↔ Permission)
@@ -205,6 +228,7 @@ Tests CoreDbContext configuration:
 - ✅ Restrict delete (audit trail preservation)
 
 ### Database Features
+
 - ✅ Soft-delete filtering
 - ✅ Query filters (IgnoreQueryFilters)
 - ✅ Unique constraints
@@ -216,9 +240,10 @@ Tests CoreDbContext configuration:
 - ✅ Concurrency tokens
 
 ### Multi-Database Support
+
 - ✅ PostgreSQL (schemas, snake_case, npgsql)
 - ✅ SQL Server (bracketed schemas, PascalCase, SQL Server provider)
-- ✅ MariaDB (table prefixes, snake_case, MySQL provider)
+
 - ✅ In-memory database (testing)
 - ✅ Naming strategy consistency
 - ✅ Data handling parity
@@ -235,9 +260,11 @@ All projects compiled
 ```
 
 ### Project Files Updated
+
 - ✅ `tests/DotNetCloud.Core.Data.Tests/DotNetCloud.Core.Data.Tests.csproj` (no changes needed)
 
 ### Test Framework
+
 - MSTest 4.1.0
 - xUnit patterns adapted to MSTest
 - EntityFrameworkCore.InMemory for testing
@@ -248,6 +275,7 @@ All projects compiled
 ## Key Features Validated
 
 ### 1. **Soft-Delete Functionality**
+
 - Entities with IsDeleted flag filtered from queries
 - Query filters applied automatically
 - IgnoreQueryFilters() bypasses filters
@@ -255,6 +283,7 @@ All projects compiled
 - DeletedAt timestamp preserved
 
 ### 2. **Relationship Integrity**
+
 - All navigation properties working
 - Foreign key constraints enforced
 - Composite keys preventing duplicates
@@ -262,6 +291,7 @@ All projects compiled
 - Restrict delete preserving audit trails
 
 ### 3. **Data Validation**
+
 - Unique constraints preventing duplicates
 - Composite key uniqueness enforced
 - Default values applied
@@ -269,12 +299,14 @@ All projects compiled
 - Concurrency tokens configured
 
 ### 4. **Multi-Database Support**
+
 - Connection string detection working
 - Naming strategies producing consistent schemas
 - Entity models identical across providers
 - Data handling transparent to database choice
 
 ### 5. **Context Configuration**
+
 - All entities properly registered
 - All relationships configured
 - All indexes created

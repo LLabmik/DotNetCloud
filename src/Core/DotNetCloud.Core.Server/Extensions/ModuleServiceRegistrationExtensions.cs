@@ -77,11 +77,6 @@ internal static class ModuleServiceRegistrationExtensions
                 });
                 break;
 
-            case DatabaseProvider.MariaDB:
-                throw new NotSupportedException(
-                    "MariaDB support is temporarily disabled pending a Pomelo.EntityFrameworkCore.MySql " +
-                    ".NET 10 compatible release. Use PostgreSQL or SQL Server instead.");
-
             default:
                 throw new ArgumentException($"Unsupported database provider: {provider}", nameof(provider));
         }

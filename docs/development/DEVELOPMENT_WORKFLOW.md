@@ -77,21 +77,23 @@ refactor/* (refactoring branches)
 
 #### Main Branches
 
-| Branch | Purpose | Protection | Merge Strategy |
-|--------|---------|-----------|-----------------|
-| `main` | Production-ready code | Strict | Squash merge from release/* |
-| `develop` | Integration branch for next release | Moderate | Squash merge from feature/* |
+| Branch    | Purpose                             | Protection | Merge Strategy               |
+| --------- | ----------------------------------- | ---------- | ---------------------------- |
+| `main`    | Production-ready code               | Strict     | Squash merge from release/\* |
+| `develop` | Integration branch for next release | Moderate   | Squash merge from feature/\* |
 
 #### Feature Branches
 
 **Naming:** `feature/short-description` or `feature/PHASE-number`
 
 Examples:
+
 - `feature/files-upload-api`
 - `feature/user-authentication`
 - `feature/PHASE-1-core-abstractions`
 
 Naming rules:
+
 - Start with `feature/`
 - Use kebab-case (lowercase, hyphens)
 - Keep descriptions short (2-4 words)
@@ -102,10 +104,12 @@ Naming rules:
 **Naming:** `bugfix/short-description` or `bugfix/ISSUE-number`
 
 Examples:
+
 - `bugfix/connection-timeout-issue`
 - `bugfix/ISSUE-456-memory-leak`
 
 Naming rules:
+
 - Start with `bugfix/`
 - Use kebab-case
 - Reference issue number if available
@@ -115,10 +119,12 @@ Naming rules:
 **Naming:** `release/v{version}`
 
 Examples:
+
 - `release/v0.1.0-alpha`
 - `release/v1.0.0`
 
 Naming rules:
+
 - Start with `release/v`
 - Follow semantic versioning: `MAJOR.MINOR.PATCH[-PRERELEASE]`
 
@@ -127,6 +133,7 @@ Naming rules:
 **Naming:** `refactor/short-description`
 
 Examples:
+
 - `refactor/extract-common-interfaces`
 - `refactor/improve-error-handling`
 
@@ -239,6 +246,7 @@ Optional, but recommended. Specifies the area affected:
 ### Commit Examples
 
 #### Simple Commit
+
 ```
 feat(files): implement file upload API
 
@@ -249,6 +257,7 @@ Closes #42
 ```
 
 #### Bug Fix
+
 ```
 fix(auth): prevent token refresh race condition
 
@@ -257,6 +266,7 @@ Prevents 401 errors when multiple requests occur simultaneously.
 ```
 
 #### Documentation
+
 ```
 docs: update database setup guide for PostgreSQL
 
@@ -264,6 +274,7 @@ Clarifies connection string format and troubleshooting section.
 ```
 
 #### Breaking Change
+
 ```
 refactor(core)!: rename ICapabilityRequest to ICapabilityGrant
 
@@ -304,12 +315,14 @@ Migration guide: Replace "ICapabilityRequest" with "ICapabilityGrant" in your co
 #### Before Opening PR
 
 1. **Ensure local branch is up-to-date**
+
    ```bash
    git fetch origin
    git rebase origin/develop  # or merge if you prefer
    ```
 
 2. **Local build succeeds**
+
    ```bash
    dotnet clean
    dotnet build
@@ -328,6 +341,7 @@ Migration guide: Replace "ICapabilityRequest" with "ICapabilityGrant" in your co
 #### Opening PR
 
 1. **Push feature branch**
+
    ```bash
    git push origin feature/my-feature
    ```
@@ -342,12 +356,15 @@ Use the template below (create `.github/pull_request_template.md`):
 
 ```markdown
 ## Description
+
 Brief description of changes
 
 ## Related Issues
+
 Closes #123
 
 ## Type of Change
+
 - [ ] Bug fix (non-breaking)
 - [ ] New feature (non-breaking)
 - [ ] Breaking change
@@ -355,20 +372,24 @@ Closes #123
 - [ ] Refactoring/performance
 
 ## Changes Made
+
 - Describe change 1
 - Describe change 2
 - Describe change 3
 
 ## Testing Done
+
 - [ ] Unit tests added/updated
 - [ ] Integration tests added/updated
 - [ ] Manual testing completed
-- [ ] Tested against all database providers (PostgreSQL, SQL Server, MariaDB)
+- [ ] Tested against all database providers (PostgreSQL, SQL Server)
 
 ## Screenshots/Evidence (if applicable)
+
 <!-- Add screenshots or logs demonstrating the change -->
 
 ## Checklist
+
 - [ ] Code follows style guidelines
 - [ ] Comments added for complex logic
 - [ ] Documentation updated
@@ -391,6 +412,7 @@ Follow Conventional Commits for PR titles:
 ```
 
 Examples:
+
 - `[Phase 0] feat(core): add capability system interfaces`
 - `[Phase 1] fix(files): prevent concurrent upload errors`
 - `[Phase 0] docs: update IDE setup guide`
@@ -398,11 +420,13 @@ Examples:
 ### PR Lifecycle
 
 #### 1. Await Review
+
 - Minimum 24 hours for community feedback
 - Maintainers usually review within 48 hours
 - Don't merge your own PRs
 
 #### 2. Address Feedback
+
 ```bash
 # Make requested changes
 # Commit with descriptive message
@@ -414,11 +438,13 @@ git push origin feature/my-feature
 ```
 
 #### 3. Approval & Merge
+
 - Require minimum 1 approval from maintainer
 - All checks must pass (tests, linting, coverage)
 - Squash merge to develop branch
 
 #### 4. Cleanup
+
 ```bash
 # Delete local branch
 git branch -d feature/my-feature
@@ -468,31 +494,39 @@ git push origin --delete feature/my-feature
 Use comment categories for clarity:
 
 #### 🔴 Blocker (Must Fix)
-```
+
+````
 🔴 BLOCKER: Missing null check will cause NullReferenceException in production.
 
 Please add:
 ```csharp
 if (user == null)
     throw new ArgumentNullException(nameof(user));
-```
+````
+
 ```
 
 #### 🟡 Issue (Should Fix)
 ```
+
 🟡 ISSUE: This LINQ query will load entire table into memory.
 
 Consider using .AsAsyncEnumerable() and paginating results.
+
 ```
 
 #### 💡 Suggestion (Nice to Have)
 ```
+
 💡 SUGGESTION: Consider extracting this method into a separate class for better testability.
+
 ```
 
 #### 📝 Nit (Style)
 ```
+
 📝 NIT: Formatting inconsistency. See .editorconfig for correct spacing.
+
 ```
 
 ### Giving Feedback
@@ -545,20 +579,22 @@ For significant changes to already-approved PR:
 ### Test Organization
 
 ```
+
 tests/
-├── DotNetCloud.Core.Tests/          # Unit tests for core
-│   ├── Authorization/
-│   ├── Capabilities/
-│   └── Events/
-├── DotNetCloud.Integration.Tests/   # Integration tests (database)
-│   ├── Database/
-│   ├── Api/
-│   └── ModuleLoading/
-└── DotNetCloud.E2E.Tests/          # End-to-end tests (full stack)
-    ├── Authentication/
-    ├── FileUpload/
-    └── UserWorkflows/
-```
+├── DotNetCloud.Core.Tests/ # Unit tests for core
+│ ├── Authorization/
+│ ├── Capabilities/
+│ └── Events/
+├── DotNetCloud.Integration.Tests/ # Integration tests (database)
+│ ├── Database/
+│ ├── Api/
+│ └── ModuleLoading/
+└── DotNetCloud.E2E.Tests/ # End-to-end tests (full stack)
+├── Authentication/
+├── FileUpload/
+└── UserWorkflows/
+
+````
 
 ### Pre-PR Testing Checklist
 
@@ -579,7 +615,7 @@ dotnet test /p:CollectCoverage=true
 
 # 5. Verify no warnings
 dotnet build /nologo /v:m  # Should not show warnings
-```
+````
 
 ### Test Naming Convention
 
@@ -592,10 +628,10 @@ public class UserAuthenticationTests
     {
         // Arrange
         var credentials = new LoginRequest { Email = "user@example.com", Password = "correct" };
-        
+
         // Act
         var token = await _authService.AuthenticateAsync(credentials);
-        
+
         // Assert
         Assert.NotNull(token);
     }
@@ -605,7 +641,7 @@ public class UserAuthenticationTests
     {
         // Arrange
         var credentials = new LoginRequest { Email = "user@example.com", Password = "wrong" };
-        
+
         // Act & Assert
         await Assert.ThrowsAsync<UnauthorizedException>(
             () => _authService.AuthenticateAsync(credentials)
@@ -667,7 +703,7 @@ dotnet build   # Verify build
 dotnet test
 
 # Verify against all databases (if applicable)
-docker compose up -d postgres sqlserver mariadb
+docker compose up -d postgres sqlserver
 dotnet test -- --Database:Provider=PostgreSQL
 dotnet test -- --Database:Provider=SqlServer
 dotnet test -- --Database:Provider=MariaDb
@@ -709,6 +745,7 @@ git stash pop  # Restore stashed changes
 ### Preventing Conflicts
 
 1. **Pull frequently**
+
    ```bash
    git pull origin develop
    ```
@@ -765,15 +802,18 @@ git rebase --abort
 ### Conflict Resolution Strategy
 
 **For files you modified:**
+
 - Keep your changes and integrate theirs
 - Test after merge to ensure correctness
 
 **For files others modified:**
+
 - Understand both changes
 - Ask original author if unclear
 - Test thoroughly
 
 **For generated files (csproj, lock files):**
+
 - Use local version and rebuild
 - Regenerate dependencies: `dotnet restore`
 
@@ -801,6 +841,7 @@ public async Task<AuthenticationToken> AuthenticateAsync(LoginRequest credential
 ### Markdown Documentation
 
 #### README Standards
+
 - What is this component?
 - How to use it?
 - Configuration options?
@@ -808,6 +849,7 @@ public async Task<AuthenticationToken> AuthenticateAsync(LoginRequest credential
 - Troubleshooting?
 
 #### Inline Comments
+
 ```csharp
 // Use for "why", not "what"
 ✅ GOOD:
@@ -835,6 +877,7 @@ Follow Semantic Versioning: `MAJOR.MINOR.PATCH[-PRERELEASE]`
 ### Release Steps
 
 1. **Create release branch**
+
    ```bash
    git checkout develop
    git pull origin develop
@@ -847,6 +890,7 @@ Follow Semantic Versioning: `MAJOR.MINOR.PATCH[-PRERELEASE]`
    - Commit: `chore: bump version to 0.1.0`
 
 3. **Test release build**
+
    ```bash
    dotnet build -c Release
    dotnet test -c Release

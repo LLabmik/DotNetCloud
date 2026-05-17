@@ -43,24 +43,6 @@ public class MultiDatabaseTests
     }
 
     [TestMethod]
-    public void DatabaseProvider_MariaDB_IsDetected()
-    {
-        // Arrange
-        var connectionStrings = new[]
-        {
-            "Server=localhost;Port=3306;Database=testdb;User=root;Password=password",
-            "Server=localhost;Database=testdb;User Id=root;Password=password"
-        };
-
-        // Act & Assert
-        foreach (var connectionString in connectionStrings)
-        {
-            var provider = DatabaseProviderDetector.DetectProvider(connectionString);
-            Assert.AreEqual(DatabaseProvider.MariaDB, provider, $"MariaDB connection string should be detected: {connectionString}");
-        }
-    }
-
-    [TestMethod]
     public void NamingStrategy_PostgreSQL_UsesSchemasAndSnakeCase()
     {
         // Arrange
@@ -88,21 +70,6 @@ public class MultiDatabaseTests
         // Assert
         Assert.AreEqual("[core].[Organization]", tableName, "SQL Server should use schema-qualified PascalCase");
         Assert.AreEqual("DisplayName", columnName, "SQL Server should use PascalCase");
-    }
-
-    [TestMethod]
-    public void NamingStrategy_MariaDB_UsesPrefixesAndSnakeCase()
-    {
-        // Arrange
-        var strategy = new MariaDbNamingStrategy();
-
-        // Act
-        var tableName = strategy.GetTableName("Organization", "core");
-        var columnName = strategy.GetColumnName("DisplayName");
-
-        // Assert
-        Assert.AreEqual("core_organization", tableName, "MariaDB should use prefixed snake_case");
-        Assert.AreEqual("display_name", columnName, "MariaDB should use snake_case");
     }
 
     [TestMethod]
@@ -196,7 +163,6 @@ public class MultiDatabaseTests
         {
             new PostgreSqlNamingStrategy(),
             new SqlServerNamingStrategy(),
-            new MariaDbNamingStrategy()
         };
 
         // Act & Assert
@@ -234,7 +200,6 @@ public class MultiDatabaseTests
         {
             new PostgreSqlNamingStrategy(),
             new SqlServerNamingStrategy(),
-            new MariaDbNamingStrategy()
         };
 
         // Act & Assert

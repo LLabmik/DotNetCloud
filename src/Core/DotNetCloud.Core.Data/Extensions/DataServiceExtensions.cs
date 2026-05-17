@@ -71,10 +71,6 @@ public static class DataServiceExtensions
                 });
                 break;
 
-            case DatabaseProvider.MariaDB:
-                // MariaDB support deferred until Pomelo updates to .NET 10
-                throw new NotSupportedException(DatabaseConstants.MariaDbNotSupportedMessage);
-
             default:
                 throw new InvalidOperationException($"Unsupported database provider: {provider}");
         }

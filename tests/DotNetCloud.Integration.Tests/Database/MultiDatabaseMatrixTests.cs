@@ -21,13 +21,11 @@ public class MultiDatabaseMatrixTests
     [
         new PostgreSqlNamingStrategy(),
         new SqlServerNamingStrategy(),
-        new MariaDbNamingStrategy(),
     ];
 
     [TestMethod]
     [DataRow("PostgreSQL")]
     [DataRow("SqlServer")]
-    [DataRow("MariaDB")]
     public void Context_CreatesSuccessfully_ForEachProvider(string providerName)
     {
         // Arrange
@@ -83,7 +81,6 @@ public class MultiDatabaseMatrixTests
     [TestMethod]
     [DataRow("PostgreSQL")]
     [DataRow("SqlServer")]
-    [DataRow("MariaDB")]
     public async Task Crud_Organization_WorksForEachProvider(string providerName)
     {
         // Arrange
@@ -126,7 +123,6 @@ public class MultiDatabaseMatrixTests
     [TestMethod]
     [DataRow("PostgreSQL")]
     [DataRow("SqlServer")]
-    [DataRow("MariaDB")]
     public async Task Crud_User_WorksForEachProvider(string providerName)
     {
         // Arrange
@@ -152,7 +148,6 @@ public class MultiDatabaseMatrixTests
     [TestMethod]
     [DataRow("PostgreSQL")]
     [DataRow("SqlServer")]
-    [DataRow("MariaDB")]
     public async Task Crud_SystemSetting_WorksForEachProvider(string providerName)
     {
         // Arrange
@@ -181,7 +176,6 @@ public class MultiDatabaseMatrixTests
     [TestMethod]
     [DataRow("PostgreSQL")]
     [DataRow("SqlServer")]
-    [DataRow("MariaDB")]
     public async Task Crud_Permission_WorksForEachProvider(string providerName)
     {
         // Arrange
@@ -222,22 +216,12 @@ public class MultiDatabaseMatrixTests
     }
 
     [TestMethod]
-    public void ProviderDetection_MariaDB_IsDetected()
-    {
-        var provider = DatabaseProviderDetector.DetectProvider(
-            "Server=localhost;Port=3306;Database=testdb;User=root;Password=pass");
-        Assert.AreEqual(DatabaseProvider.MariaDB, provider);
-    }
-
-    [TestMethod]
     public void NamingStrategy_GetNamingStrategy_ReturnsCorrectType()
     {
         Assert.IsInstanceOfType<PostgreSqlNamingStrategy>(
             DatabaseProviderDetector.GetNamingStrategy(DatabaseProvider.PostgreSQL));
         Assert.IsInstanceOfType<SqlServerNamingStrategy>(
             DatabaseProviderDetector.GetNamingStrategy(DatabaseProvider.SqlServer));
-        Assert.IsInstanceOfType<MariaDbNamingStrategy>(
-            DatabaseProviderDetector.GetNamingStrategy(DatabaseProvider.MariaDB));
     }
 
     private static CoreDbContext CreateContext(ITableNamingStrategy strategy)
@@ -252,7 +236,6 @@ public class MultiDatabaseMatrixTests
     {
         "PostgreSQL" => new PostgreSqlNamingStrategy(),
         "SqlServer" => new SqlServerNamingStrategy(),
-        "MariaDB" => new MariaDbNamingStrategy(),
         _ => throw new ArgumentException($"Unknown provider: {providerName}"),
     };
 }

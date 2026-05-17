@@ -11,24 +11,24 @@
 
 The Search module provides full-text search across all DotNetCloud modules. Users type a query and get results from Files, Notes, Chat, Contacts, Calendar, Photos, Music, Video, and Tracks — with permission-scoped visibility ensuring users only see their own content.
 
-The module supports three database backends (PostgreSQL, SQL Server, MariaDB) with provider-specific query optimization, advanced query syntax (phrases, filters, exclusions), and a background indexing pipeline driven by domain events.
+The module supports two database backends (PostgreSQL, SQL Server) with provider-specific query optimization, advanced query syntax (phrases, filters, exclusions), and a background indexing pipeline driven by domain events.
 
 ## Key Features
 
-| Feature | Description |
-|---|---|
-| **Cross-Module Search** | Single query searches Files, Notes, Chat, Contacts, Calendar, Photos, Music, Video, Tracks |
-| **Multi-Database Support** | PostgreSQL (`tsvector`/`tsquery`), SQL Server (`FREETEXT`), MariaDB (`MATCH AGAINST`) |
-| **Advanced Query Syntax** | Quoted phrases, `in:module` filter, `type:value` filter, `-exclusion` negation |
-| **Permission Scoping** | Results filtered by `OwnerId` — users only see their own content |
-| **Event-Driven Indexing** | Modules publish `SearchIndexRequestEvent` on CRUD; search indexes incrementally |
-| **Scheduled Reindex** | Background service runs full reindex every 24 hours (configurable) |
-| **Content Extraction** | Extracts searchable text from PDF, DOCX, XLSX, Markdown, and plain text |
-| **Snippet Generation** | Context-aware snippets with `<mark>` highlighting (XSS-safe) |
-| **Faceted Results** | Result counts per module for sidebar filtering |
-| **REST + gRPC APIs** | REST for web/mobile clients, gRPC for inter-module communication |
-| **Blazor UI** | Global search bar (Ctrl+K), results page with facets, per-module result cards |
-| **Graceful Degradation** | Modules fall back to LIKE queries when the Search module is unavailable |
+| Feature                                                                                  | Description                                                                                |
+| ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| **Cross-Module Search**                                                                  | Single query searches Files, Notes, Chat, Contacts, Calendar, Photos, Music, Video, Tracks |
+| **Multi-Database Support** \| PostgreSQL (`tsvector`/`tsquery`), SQL Server (`FREETEXT`) |
+| **Advanced Query Syntax**                                                                | Quoted phrases, `in:module` filter, `type:value` filter, `-exclusion` negation             |
+| **Permission Scoping**                                                                   | Results filtered by `OwnerId` — users only see their own content                           |
+| **Event-Driven Indexing**                                                                | Modules publish `SearchIndexRequestEvent` on CRUD; search indexes incrementally            |
+| **Scheduled Reindex**                                                                    | Background service runs full reindex every 24 hours (configurable)                         |
+| **Content Extraction**                                                                   | Extracts searchable text from PDF, DOCX, XLSX, Markdown, and plain text                    |
+| **Snippet Generation**                                                                   | Context-aware snippets with `<mark>` highlighting (XSS-safe)                               |
+| **Faceted Results**                                                                      | Result counts per module for sidebar filtering                                             |
+| **REST + gRPC APIs**                                                                     | REST for web/mobile clients, gRPC for inter-module communication                           |
+| **Blazor UI**                                                                            | Global search bar (Ctrl+K), results page with facets, per-module result cards              |
+| **Graceful Degradation**                                                                 | Modules fall back to LIKE queries when the Search module is unavailable                    |
 
 ## Architecture
 
@@ -95,7 +95,7 @@ SearchQueryParser.Parse() → ParsedSearchQuery
 ParsedSearchQuery → Provider-specific query string
   • PostgreSQL: to_tsquery('quarterly & report & !draft')
   • SQL Server: CONTAINS(*, '"quarterly" AND "report" AND NOT "draft"')
-  • MariaDB: MATCH() AGAINST('+quarterly +report -draft' IN BOOLEAN MODE)
+
         │
         ▼
 ISearchProvider.SearchAsync() → SearchResultDto
@@ -108,37 +108,37 @@ ISearchProvider.SearchAsync() → SearchResultDto
 
 ### Capability Interfaces
 
-| Interface | Tier | Purpose |
-|---|---|---|
-| `ISearchProvider` | Restricted | Core search operations: index, remove, search, reindex, stats |
-| `ISearchableModule` | Public | Modules implement this to expose their content for indexing |
-| `IContentExtractor` | Restricted | Extract plain text from file/document streams |
+| Interface           | Tier       | Purpose                                                       |
+| ------------------- | ---------- | ------------------------------------------------------------- |
+| `ISearchProvider`   | Restricted | Core search operations: index, remove, search, reindex, stats |
+| `ISearchableModule` | Public     | Modules implement this to expose their content for indexing   |
+| `IContentExtractor` | Restricted | Extract plain text from file/document streams                 |
 
 ### DTOs (`DotNetCloud.Core.DTOs.Search`)
 
-| Type | Purpose |
-|---|---|
-| `SearchDocument` | Single indexable item (ModuleId, EntityId, EntityType, Title, Content, OwnerId, Metadata) |
-| `SearchQuery` | Search request (QueryText, ModuleFilter, EntityTypeFilter, UserId, Page, PageSize, SortOrder) |
-| `SearchResultDto` | Search response (Items, TotalCount, Page, PageSize, FacetCounts) |
-| `SearchResultItem` | Individual result (ModuleId, EntityId, Title, Snippet, RelevanceScore, Metadata) |
-| `SearchIndexStats` | Index health (TotalDocuments, DocumentsPerModule, LastFullReindexAt) |
-| `ExtractedContent` | Extraction result (Text, Metadata dictionary) |
+| Type               | Purpose                                                                                       |
+| ------------------ | --------------------------------------------------------------------------------------------- |
+| `SearchDocument`   | Single indexable item (ModuleId, EntityId, EntityType, Title, Content, OwnerId, Metadata)     |
+| `SearchQuery`      | Search request (QueryText, ModuleFilter, EntityTypeFilter, UserId, Page, PageSize, SortOrder) |
+| `SearchResultDto`  | Search response (Items, TotalCount, Page, PageSize, FacetCounts)                              |
+| `SearchResultItem` | Individual result (ModuleId, EntityId, Title, Snippet, RelevanceScore, Metadata)              |
+| `SearchIndexStats` | Index health (TotalDocuments, DocumentsPerModule, LastFullReindexAt)                          |
+| `ExtractedContent` | Extraction result (Text, Metadata dictionary)                                                 |
 
 ### Events
 
-| Event | Payload | Published When |
-|---|---|---|
-| `SearchIndexRequestEvent` | ModuleId, EntityId, Action (Index/Remove) | Any module creates/updates/deletes searchable content |
-| `SearchIndexCompletedEvent` | Status, DocumentsProcessed, ModuleId | Search module finishes processing a batch |
+| Event                       | Payload                                   | Published When                                        |
+| --------------------------- | ----------------------------------------- | ----------------------------------------------------- |
+| `SearchIndexRequestEvent`   | ModuleId, EntityId, Action (Index/Remove) | Any module creates/updates/deletes searchable content |
+| `SearchIndexCompletedEvent` | Status, DocumentsProcessed, ModuleId      | Search module finishes processing a batch             |
 
 ### Search Sort Order
 
-| Value | Description |
-|---|---|
+| Value       | Description                         |
+| ----------- | ----------------------------------- |
 | `Relevance` | Full-text relevance score (default) |
-| `DateDesc` | Newest first by UpdatedAt |
-| `DateAsc` | Oldest first by UpdatedAt |
+| `DateDesc`  | Newest first by UpdatedAt           |
+| `DateAsc`   | Oldest first by UpdatedAt           |
 
 ## Services
 
@@ -184,14 +184,14 @@ Orchestrates content extraction from file streams.
 
 Parses user input into a structured `ParsedSearchQuery`.
 
-| Syntax | Example | Effect |
-|---|---|---|
-| Keywords | `quarterly report` | Matches documents containing both terms |
-| Quoted phrase | `"quarterly report"` | Matches exact phrase |
-| Module filter | `in:notes` | Restricts to Notes module |
-| Type filter | `type:pdf` | Restricts to entity type |
-| Exclusion | `-draft` | Excludes documents containing "draft" |
-| Combined | `"project plan" in:files -template` | Phrase search in Files, excluding "template" |
+| Syntax        | Example                             | Effect                                       |
+| ------------- | ----------------------------------- | -------------------------------------------- |
+| Keywords      | `quarterly report`                  | Matches documents containing both terms      |
+| Quoted phrase | `"quarterly report"`                | Matches exact phrase                         |
+| Module filter | `in:notes`                          | Restricts to Notes module                    |
+| Type filter   | `type:pdf`                          | Restricts to entity type                     |
+| Exclusion     | `-draft`                            | Excludes documents containing "draft"        |
+| Combined      | `"project plan" in:files -template` | Phrase search in Files, excluding "template" |
 
 ### SnippetGenerator
 
@@ -204,13 +204,13 @@ Generates context-aware text snippets with search term highlighting.
 
 ## Content Extractors
 
-| Extractor | MIME Types | Library | Features |
-|---|---|---|---|
-| `PlainTextExtractor` | `text/plain`, `text/csv` | Built-in | UTF-8 stream reading |
-| `MarkdownContentExtractor` | `text/markdown` | Built-in + regex | Strips headings, bold, italic, links, images, code blocks |
-| `PdfContentExtractor` | `application/pdf` | UglyToad.PdfPig | Per-page text extraction, author/title metadata |
-| `DocxContentExtractor` | `application/vnd.openxmlformats-officedocument.wordprocessingml.document` | DocumentFormat.OpenXml | Paragraph extraction, author/title metadata |
-| `XlsxContentExtractor` | `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` | DocumentFormat.OpenXml | Cell values from all sheets, shared string table resolution |
+| Extractor                  | MIME Types                                                                | Library                | Features                                                    |
+| -------------------------- | ------------------------------------------------------------------------- | ---------------------- | ----------------------------------------------------------- |
+| `PlainTextExtractor`       | `text/plain`, `text/csv`                                                  | Built-in               | UTF-8 stream reading                                        |
+| `MarkdownContentExtractor` | `text/markdown`                                                           | Built-in + regex       | Strips headings, bold, italic, links, images, code blocks   |
+| `PdfContentExtractor`      | `application/pdf`                                                         | UglyToad.PdfPig        | Per-page text extraction, author/title metadata             |
+| `DocxContentExtractor`     | `application/vnd.openxmlformats-officedocument.wordprocessingml.document` | DocumentFormat.OpenXml | Paragraph extraction, author/title metadata                 |
+| `XlsxContentExtractor`     | `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`       | DocumentFormat.OpenXml | Cell values from all sheets, shared string table resolution |
 
 ## Database Providers
 
@@ -239,51 +239,51 @@ Generates context-aware text snippets with search term highlighting.
 
 #### `SearchIndexEntry`
 
-| Column | Type | Constraints |
-|---|---|---|
-| `Id` | `long` | PK, auto-increment |
-| `ModuleId` | `string(50)` | Required, indexed |
-| `EntityId` | `string(64)` | Required, unique with ModuleId |
-| `EntityType` | `string(100)` | Required, indexed |
-| `Title` | `string(500)` | Required |
-| `Content` | `string(102400)` | Max 100KB |
-| `Summary` | `string(1000)` | Optional |
-| `OwnerId` | `Guid` | Required, indexed (permission scoping) |
-| `OrganizationId` | `Guid?` | Optional, indexed |
-| `CreatedAt` | `DateTimeOffset` | |
-| `UpdatedAt` | `DateTimeOffset` | Indexed |
-| `IndexedAt` | `DateTimeOffset` | |
-| `MetadataJson` | `string(4000)` | Optional, serialized JSON |
+| Column           | Type             | Constraints                            |
+| ---------------- | ---------------- | -------------------------------------- |
+| `Id`             | `long`           | PK, auto-increment                     |
+| `ModuleId`       | `string(50)`     | Required, indexed                      |
+| `EntityId`       | `string(64)`     | Required, unique with ModuleId         |
+| `EntityType`     | `string(100)`    | Required, indexed                      |
+| `Title`          | `string(500)`    | Required                               |
+| `Content`        | `string(102400)` | Max 100KB                              |
+| `Summary`        | `string(1000)`   | Optional                               |
+| `OwnerId`        | `Guid`           | Required, indexed (permission scoping) |
+| `OrganizationId` | `Guid?`          | Optional, indexed                      |
+| `CreatedAt`      | `DateTimeOffset` |                                        |
+| `UpdatedAt`      | `DateTimeOffset` | Indexed                                |
+| `IndexedAt`      | `DateTimeOffset` |                                        |
+| `MetadataJson`   | `string(4000)`   | Optional, serialized JSON              |
 
 #### `IndexingJob`
 
-| Column | Type | Constraints |
-|---|---|---|
-| `Id` | `Guid` | PK |
-| `ModuleId` | `string?` | Null = global reindex |
-| `Type` | `IndexJobType` | Full / Incremental |
-| `Status` | `IndexJobStatus` | Pending / Running / Completed / Failed |
-| `StartedAt` | `DateTimeOffset?` | |
-| `CompletedAt` | `DateTimeOffset?` | |
-| `DocumentsProcessed` | `int` | |
-| `DocumentsTotal` | `int` | |
-| `ErrorMessage` | `string?` | |
+| Column               | Type              | Constraints                            |
+| -------------------- | ----------------- | -------------------------------------- |
+| `Id`                 | `Guid`            | PK                                     |
+| `ModuleId`           | `string?`         | Null = global reindex                  |
+| `Type`               | `IndexJobType`    | Full / Incremental                     |
+| `Status`             | `IndexJobStatus`  | Pending / Running / Completed / Failed |
+| `StartedAt`          | `DateTimeOffset?` |                                        |
+| `CompletedAt`        | `DateTimeOffset?` |                                        |
+| `DocumentsProcessed` | `int`             |                                        |
+| `DocumentsTotal`     | `int`             |                                        |
+| `ErrorMessage`       | `string?`         |                                        |
 
 ## Searchable Modules
 
 Each module implements `ISearchableModule` and publishes `SearchIndexRequestEvent` on CRUD operations:
 
-| Module | Entity Types | CRUD Events |
-|---|---|---|
-| **Files** | FileNode | CreateFolder, Rename, Move → Index; Delete → Remove |
-| **Notes** | Note | Create, Update → Index; Delete → Remove |
-| **Chat** | Message | Send, Edit → Index; Delete → Remove |
-| **Contacts** | Contact | Create, Update → Index; Delete → Remove |
-| **Calendar** | CalendarEvent | Create, Update → Index; Delete → Remove |
-| **Photos** | Photo | Create → Index; Delete → Remove |
-| **Music** | Track, Artist, Album | IndexFile → Index; Delete → Remove |
-| **Video** | Video | Create → Index; Delete → Remove |
-| **Tracks** | Card, Board, Label | Create, Update, Move → Index; Delete → Remove |
+| Module       | Entity Types         | CRUD Events                                         |
+| ------------ | -------------------- | --------------------------------------------------- |
+| **Files**    | FileNode             | CreateFolder, Rename, Move → Index; Delete → Remove |
+| **Notes**    | Note                 | Create, Update → Index; Delete → Remove             |
+| **Chat**     | Message              | Send, Edit → Index; Delete → Remove                 |
+| **Contacts** | Contact              | Create, Update → Index; Delete → Remove             |
+| **Calendar** | CalendarEvent        | Create, Update → Index; Delete → Remove             |
+| **Photos**   | Photo                | Create → Index; Delete → Remove                     |
+| **Music**    | Track, Artist, Album | IndexFile → Index; Delete → Remove                  |
+| **Video**    | Video                | Create → Index; Delete → Remove                     |
+| **Tracks**   | Card, Board, Label   | Create, Update, Move → Index; Delete → Remove       |
 
 ## Configuration
 
@@ -304,10 +304,10 @@ Modules that consume search use `SearchFtsClientOptions`:
 }
 ```
 
-| Key | Type | Default | Description |
-|---|---|---|---|
-| `SearchModuleAddress` | `string?` | `null` | gRPC address. Supports `http://`, `https://`, `unix://`. Null disables. |
-| `Timeout` | `TimeSpan` | 10 seconds | gRPC call deadline |
+| Key                   | Type       | Default    | Description                                                             |
+| --------------------- | ---------- | ---------- | ----------------------------------------------------------------------- |
+| `SearchModuleAddress` | `string?`  | `null`     | gRPC address. Supports `http://`, `https://`, `unix://`. Null disables. |
+| `Timeout`             | `TimeSpan` | 10 seconds | gRPC call deadline                                                      |
 
 Registration:
 
@@ -352,12 +352,14 @@ See [docs/api/search.md](../api/search.md) for the complete API reference.
 ### Triggering a Reindex
 
 **Full reindex (all modules):**
+
 ```bash
 curl -X POST https://your-instance/api/v1/search/admin/reindex \
   -H "Authorization: Bearer <admin-token>"
 ```
 
 **Module-specific reindex:**
+
 ```bash
 curl -X POST https://your-instance/api/v1/search/admin/reindex/files \
   -H "Authorization: Bearer <admin-token>"
@@ -371,6 +373,7 @@ curl https://your-instance/api/v1/search/stats \
 ```
 
 Returns:
+
 ```json
 {
   "success": true,
@@ -391,10 +394,10 @@ Returns:
 
 ## Tests
 
-| Test File | Phase | Tests | Coverage |
-|---|---|---|---|
-| `SqlServerSearchProviderTests` | 2 | 32 | Index, upsert, remove, search, pagination, facets, permission scoping |
-| `MariaDbSearchProviderTests` | 2 | 10 | Index, upsert, remove, search, permission scoping, facets |
+| Test File                      | Phase | Tests | Coverage                                                              |
+| ------------------------------ | ----- | ----- | --------------------------------------------------------------------- |
+| `SqlServerSearchProviderTests` | 2     | 32    | Index, upsert, remove, search, pagination, facets, permission scoping |
+
 | `SearchQueryServiceTests` | 2 | 5 | Empty query, delegation, stats, reindex |
 | `ContentExtractionServiceTests` | 2 | 10 | MIME routing, truncation, error handling |
 | `PlainTextExtractorTests` | 2 | 9 | text/plain, text/csv, Unicode, empty |
@@ -416,9 +419,9 @@ Returns:
 
 ## Documentation
 
-| Document | Audience | Path |
-|---|---|---|
-| Module Documentation | Developers | [docs/modules/SEARCH.md](SEARCH.md) (this file) |
-| API Reference | Developers | [docs/api/search.md](../api/search.md) |
-| Architecture | Developers | [docs/architecture/ARCHITECTURE.md](../architecture/ARCHITECTURE.md) (Section 25) |
-| Implementation Plan | Developers | [docs/FULL_TEXT_SEARCH_IMPLEMENTATION_PLAN.md](../FULL_TEXT_SEARCH_IMPLEMENTATION_PLAN.md) |
+| Document             | Audience   | Path                                                                                       |
+| -------------------- | ---------- | ------------------------------------------------------------------------------------------ |
+| Module Documentation | Developers | [docs/modules/SEARCH.md](SEARCH.md) (this file)                                            |
+| API Reference        | Developers | [docs/api/search.md](../api/search.md)                                                     |
+| Architecture         | Developers | [docs/architecture/ARCHITECTURE.md](../architecture/ARCHITECTURE.md) (Section 25)          |
+| Implementation Plan  | Developers | [docs/FULL_TEXT_SEARCH_IMPLEMENTATION_PLAN.md](../FULL_TEXT_SEARCH_IMPLEMENTATION_PLAN.md) |

@@ -39,6 +39,7 @@
 ### Project Initialization
 
 1. **Open DotNetCloud Solution**
+
    ```
    File → Open → Project/Solution
    Navigate to: D:\Repos\dotnetcloud\DotNetCloud.sln
@@ -136,11 +137,13 @@
    ```bash
    dotnet --version
    ```
+
    - Should output 10.x.x or later
 
 ### Initial Setup
 
 1. **Open Workspace**
+
    ```bash
    code D:\Repos\dotnetcloud
    ```
@@ -178,6 +181,7 @@
 ### Configuration
 
 1. **Create `.vscode/settings.json`** (if not present)
+
    ```json
    {
      "omnisharp.enableRoslynAnalyzers": true,
@@ -317,7 +321,7 @@
 
 ### Rider Features
 
-- **Database Tools:** Connect to SQL Server, PostgreSQL, MariaDB directly in IDE
+- **Database Tools:** Connect to SQL Server, PostgreSQL directly in IDE
 - **Git Integration:** Built-in Git client with merge conflict resolution
 - **REST Client:** Built-in for API testing
 - **Profiling:** Integrated CPU and memory profilers
@@ -429,7 +433,7 @@ csharp_indent_switch_labels = true
 
 3. **DBeaver** - Recommended
    - Multi-database GUI tool
-   - Supports PostgreSQL, SQL Server, MariaDB
+   - Supports PostgreSQL, SQL Server
    - Free and open-source
    - Download from [https://dbeaver.io/](https://dbeaver.io/)
 
@@ -454,12 +458,14 @@ csharp_indent_switch_labels = true
 ### Common Issues
 
 #### ".NET 10 SDK Not Found"
+
 - **Solution:**
   - Download and install from [https://dot.net/download](https://dot.net/download)
   - Verify: `dotnet --version`
   - Restart IDE after installation
 
 #### "Unable to Restore NuGet Packages"
+
 - **Solution:**
   - Check internet connection
   - Clear NuGet cache: `nuget locals all -clear`
@@ -467,6 +473,7 @@ csharp_indent_switch_labels = true
   - Try: `dotnet nuget locals all --clear` then `dotnet restore`
 
 #### "Breakpoints Not Working"
+
 - **Reason:** Debug symbols not generated
 - **Solution:**
   - Ensure project built in Debug configuration
@@ -474,6 +481,7 @@ csharp_indent_switch_labels = true
   - Restart debugging
 
 #### "IntelliSense Not Working"
+
 - **Solution (Visual Studio):**
   - Tools → Import and Export Settings → Reset
   - Or: File → Troubleshoot IDE Performance → Disable problematic extensions
@@ -487,6 +495,7 @@ csharp_indent_switch_labels = true
   - Rider rebuilds indexes
 
 #### "Tests Not Discovering"
+
 - **Solution:**
   - Ensure test files end with `.Tests.cs` or are in `*Tests` namespace
   - Confirm xUnit is installed: `dotnet add package xunit`
@@ -494,6 +503,7 @@ csharp_indent_switch_labels = true
   - Refresh test explorer
 
 #### "Solution File Not Found"
+
 - **Solution:**
   - Ensure `DotNetCloud.sln` exists in repository root
   - If missing, recreate: `dotnet new globaljson --sdk-version 10.x.x` then manually add projects

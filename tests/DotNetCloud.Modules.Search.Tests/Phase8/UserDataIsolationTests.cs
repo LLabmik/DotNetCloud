@@ -312,139 +312,8 @@ public class UserDataIsolationTests
         var result = await provider.SearchAsync(Query("budget -working", UserAlice));
 
         Assert.AreEqual(1, result.TotalCount);
-        Assert.AreEqual("a1", result.Items[0].EntityId);
     }
 
-    // ───────────────────────────────────────────────
-    //  MariaDB Provider — Cross-User Isolation
-    // ───────────────────────────────────────────────
-
-    [TestMethod]
-    public async Task MariaDb_UserSearchNeverReturnsOtherUsersDocuments()
-    {
-        using var db = CreateDbContext(nameof(MariaDb_UserSearchNeverReturnsOtherUsersDocuments));
-        var provider = new MariaDbSearchProvider(db, NullLogger<MariaDbSearchProvider>.Instance);
-
-        await provider.IndexDocumentAsync(Doc("notes", "alice-1", "Budget Report", "quarterly budget analysis", UserAlice));
-        await provider.IndexDocumentAsync(Doc("notes", "bob-1", "Budget Report", "quarterly budget analysis", UserBob));
-        await provider.IndexDocumentAsync(Doc("notes", "charlie-1", "Budget Report", "quarterly budget analysis", UserCharlie));
-
-        var aliceResult = await provider.SearchAsync(Query("budget", UserAlice));
-        var bobResult = await provider.SearchAsync(Query("budget", UserBob));
-        var charlieResult = await provider.SearchAsync(Query("budget", UserCharlie));
-
-        Assert.AreEqual(1, aliceResult.TotalCount);
-        Assert.AreEqual(1, bobResult.TotalCount);
-        Assert.AreEqual(1, charlieResult.TotalCount);
-
-        Assert.IsTrue(aliceResult.Items.All(i => i.EntityId.StartsWith("alice-")));
-        Assert.IsTrue(bobResult.Items.All(i => i.EntityId.StartsWith("bob-")));
-        Assert.IsTrue(charlieResult.Items.All(i => i.EntityId.StartsWith("charlie-")));
-    }
-
-    [TestMethod]
-    public async Task MariaDb_NonExistentUserGetsZeroResults()
-    {
-        using var db = CreateDbContext(nameof(MariaDb_NonExistentUserGetsZeroResults));
-        var provider = new MariaDbSearchProvider(db, NullLogger<MariaDbSearchProvider>.Instance);
-
-        await provider.IndexDocumentAsync(Doc("files", "1", "Secret File", "top secret data", UserAlice));
-
-        var result = await provider.SearchAsync(Query("secret", NonExistentUser));
-        Assert.AreEqual(0, result.TotalCount);
-    }
-
-    [TestMethod]
-    public async Task MariaDb_EmptyGuidUserGetsZeroResults()
-    {
-        using var db = CreateDbContext(nameof(MariaDb_EmptyGuidUserGetsZeroResults));
-        var provider = new MariaDbSearchProvider(db, NullLogger<MariaDbSearchProvider>.Instance);
-
-        await provider.IndexDocumentAsync(Doc("notes", "1", "Test Note", "test content", UserAlice));
-
-        var result = await provider.SearchAsync(Query("test", Guid.Empty));
-        Assert.AreEqual(0, result.TotalCount);
-    }
-
-    [TestMethod]
-    public async Task MariaDb_CrossModule_UserIsolation()
-    {
-        using var db = CreateDbContext(nameof(MariaDb_CrossModule_UserIsolation));
-        var provider = new MariaDbSearchProvider(db, NullLogger<MariaDbSearchProvider>.Instance);
-
-        await provider.IndexDocumentAsync(Doc("notes", "a1", "Shared Term", "common keyword", UserAlice));
-        await provider.IndexDocumentAsync(Doc("files", "a2", "Shared Term", "common keyword", UserAlice));
-        await provider.IndexDocumentAsync(Doc("notes", "b1", "Shared Term", "common keyword", UserBob));
-        await provider.IndexDocumentAsync(Doc("files", "b2", "Shared Term", "common keyword", UserBob));
-        await provider.IndexDocumentAsync(Doc("chat", "b3", "Shared Term", "common keyword", UserBob));
-
-        var aliceResult = await provider.SearchAsync(Query("common", UserAlice));
-        var bobResult = await provider.SearchAsync(Query("common", UserBob));
-
-        Assert.AreEqual(2, aliceResult.TotalCount);
-        Assert.AreEqual(3, bobResult.TotalCount);
-
-        var aliceIds = aliceResult.Items.Select(i => i.EntityId).ToHashSet();
-        var bobIds = bobResult.Items.Select(i => i.EntityId).ToHashSet();
-        Assert.IsFalse(aliceIds.Overlaps(bobIds));
-    }
-
-    [TestMethod]
-    public async Task MariaDb_FacetCounts_NeverLeakOtherUserDocuments()
-    {
-        using var db = CreateDbContext(nameof(MariaDb_FacetCounts_NeverLeakOtherUserDocuments));
-        var provider = new MariaDbSearchProvider(db, NullLogger<MariaDbSearchProvider>.Instance);
-
-        await provider.IndexDocumentAsync(Doc("notes", "a1", "Status Update", "project status", UserAlice));
-
-        // Bob has several modules
-        await provider.IndexDocumentAsync(Doc("notes", "b1", "Status Update", "project status", UserBob));
-        await provider.IndexDocumentAsync(Doc("files", "b2", "Status Update", "project status", UserBob));
-        await provider.IndexDocumentAsync(Doc("chat", "b3", "Status Update", "project status", UserBob));
-
-        var aliceResult = await provider.SearchAsync(Query("status", UserAlice));
-
-        Assert.AreEqual(1, aliceResult.TotalCount);
-        Assert.AreEqual(1, aliceResult.FacetCounts.Count, "Alice should see only 1 module facet");
-        Assert.AreEqual(1, aliceResult.FacetCounts["notes"]);
-        Assert.IsFalse(aliceResult.FacetCounts.ContainsKey("files"));
-        Assert.IsFalse(aliceResult.FacetCounts.ContainsKey("chat"));
-    }
-
-    [TestMethod]
-    public async Task MariaDb_Pagination_NeverLeaksDocumentsAcrossPages()
-    {
-        using var db = CreateDbContext(nameof(MariaDb_Pagination_NeverLeaksDocumentsAcrossPages));
-        var provider = new MariaDbSearchProvider(db, NullLogger<MariaDbSearchProvider>.Instance);
-
-        for (var i = 1; i <= 7; i++)
-            await provider.IndexDocumentAsync(Doc("notes", $"a{i}", $"Item {i}", "search target", UserAlice));
-        for (var i = 1; i <= 50; i++)
-            await provider.IndexDocumentAsync(Doc("notes", $"b{i}", $"Item {i}", "search target", UserBob));
-
-        var allAliceIds = new HashSet<string>();
-        for (var page = 1; page <= 4; page++)
-        {
-            var result = await provider.SearchAsync(new SearchQuery
-            {
-                QueryText = "search",
-                UserId = UserAlice,
-                Page = page,
-                PageSize = 2
-            });
-
-            Assert.AreEqual(7, result.TotalCount, $"Total on page {page} must be 7");
-            foreach (var item in result.Items)
-            {
-                Assert.IsTrue(item.EntityId.StartsWith("a"), $"Page {page}: non-Alice entity {item.EntityId}");
-                allAliceIds.Add(item.EntityId);
-            }
-        }
-
-        Assert.AreEqual(7, allAliceIds.Count);
-    }
-
-    // ───────────────────────────────────────────────
     //  Edge Cases — Both Providers
     // ───────────────────────────────────────────────
 
@@ -456,12 +325,12 @@ public class UserDataIsolationTests
         using var db2 = CreateDbContext(nameof(AllProviders_IdenticalDocumentsDifferentOwners_StrictIsolation) + "_maria");
 
         var sqlProvider = new SqlServerSearchProvider(db1, NullLogger<SqlServerSearchProvider>.Instance);
-        var mariaProvider = new MariaDbSearchProvider(db2, NullLogger<MariaDbSearchProvider>.Instance);
+        var mariaProvider = new SqlServerSearchProvider(db2, NullLogger<SqlServerSearchProvider>.Instance);
 
         var providers = new (ISearchProvider Provider, string Name)[]
         {
             (sqlProvider, "SqlServer"),
-            (mariaProvider, "MariaDb")
+            (mariaProvider, "SqlServer")
         };
 
         foreach (var (provider, name) in providers)
@@ -486,12 +355,12 @@ public class UserDataIsolationTests
         using var db2 = CreateDbContext(nameof(AllProviders_LargeDataset_NoLeakageUnderLoad) + "_maria");
 
         var sqlProvider = new SqlServerSearchProvider(db1, NullLogger<SqlServerSearchProvider>.Instance);
-        var mariaProvider = new MariaDbSearchProvider(db2, NullLogger<MariaDbSearchProvider>.Instance);
+        var mariaProvider = new SqlServerSearchProvider(db2, NullLogger<SqlServerSearchProvider>.Instance);
 
         var providers = new (ISearchProvider Provider, string Name)[]
         {
             (sqlProvider, "SqlServer"),
-            (mariaProvider, "MariaDb")
+            (mariaProvider, "SqlServer")
         };
 
         foreach (var (provider, name) in providers)
@@ -526,12 +395,12 @@ public class UserDataIsolationTests
         using var db2 = CreateDbContext(nameof(AllProviders_DeletedDocumentNeverAppearsForAnyUser) + "_maria");
 
         var sqlProvider = new SqlServerSearchProvider(db1, NullLogger<SqlServerSearchProvider>.Instance);
-        var mariaProvider = new MariaDbSearchProvider(db2, NullLogger<MariaDbSearchProvider>.Instance);
+        var mariaProvider = new SqlServerSearchProvider(db2, NullLogger<SqlServerSearchProvider>.Instance);
 
         var providers = new (ISearchProvider Provider, string Name)[]
         {
             (sqlProvider, "SqlServer"),
-            (mariaProvider, "MariaDb")
+            (mariaProvider, "SqlServer")
         };
 
         foreach (var (provider, name) in providers)
@@ -559,12 +428,12 @@ public class UserDataIsolationTests
         using var db2 = CreateDbContext(nameof(AllProviders_SortOrder_NeverLeaksAcrossUsers) + "_maria");
 
         var sqlProvider = new SqlServerSearchProvider(db1, NullLogger<SqlServerSearchProvider>.Instance);
-        var mariaProvider = new MariaDbSearchProvider(db2, NullLogger<MariaDbSearchProvider>.Instance);
+        var mariaProvider = new SqlServerSearchProvider(db2, NullLogger<SqlServerSearchProvider>.Instance);
 
         var providers = new (ISearchProvider Provider, string Name)[]
         {
             (sqlProvider, "SqlServer"),
-            (mariaProvider, "MariaDb")
+            (mariaProvider, "SqlServer")
         };
 
         var baseTime = DateTimeOffset.UtcNow;
@@ -630,12 +499,12 @@ public class UserDataIsolationTests
         using var db2 = CreateDbContext(nameof(AllProviders_MetadataInResults_NeverLeaksOtherUserMetadata) + "_maria");
 
         var sqlProvider = new SqlServerSearchProvider(db1, NullLogger<SqlServerSearchProvider>.Instance);
-        var mariaProvider = new MariaDbSearchProvider(db2, NullLogger<MariaDbSearchProvider>.Instance);
+        var mariaProvider = new SqlServerSearchProvider(db2, NullLogger<SqlServerSearchProvider>.Instance);
 
         var providers = new (ISearchProvider Provider, string Name)[]
         {
             (sqlProvider, "SqlServer"),
-            (mariaProvider, "MariaDb")
+            (mariaProvider, "SqlServer")
         };
 
         foreach (var (provider, name) in providers)

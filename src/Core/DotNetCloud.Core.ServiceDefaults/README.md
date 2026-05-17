@@ -22,7 +22,7 @@ This library provides shared infrastructure and cross-cutting concerns for all D
 
 ### ❤️ Health Checks
 
-- **Database Health Check**: Multi-provider support (PostgreSQL, SQL Server, MariaDB)
+- **Database Health Check**: Multi-provider support (PostgreSQL, SQL Server)
 - **Module Health Checks**: Interface for module-specific health monitoring
 - **Multiple Endpoints**: `/health`, `/health/ready`, `/health/live`
 
@@ -186,7 +186,7 @@ public class MyModuleHealthCheck : IModuleHealthCheck
         {
             // Perform health check logic
             var isHealthy = await CheckModuleStatusAsync(cancellationToken);
-            
+
             return isHealthy
                 ? ModuleHealthCheckResult.Healthy("Module is operational")
                 : ModuleHealthCheckResult.Degraded("Module is degraded");
@@ -210,7 +210,7 @@ using System.Diagnostics;
 
 public class MyService
 {
-    private static readonly ActivitySource _activitySource = 
+    private static readonly ActivitySource _activitySource =
         new ActivitySource("MyCompany.MyService");
 
     public async Task DoWorkAsync()

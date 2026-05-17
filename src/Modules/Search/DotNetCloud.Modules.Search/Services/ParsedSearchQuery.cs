@@ -95,32 +95,6 @@ public sealed record ParsedSearchQuery
         return positive;
     }
 
-    /// <summary>
-    /// Builds a MariaDB <c>MATCH ... AGAINST ... IN BOOLEAN MODE</c>-compatible query string.
-    /// Terms prefixed with <c>+</c>, exclusions with <c>-</c>, phrases double-quoted.
-    /// </summary>
-    public string ToMariaDbBooleanQuery()
-    {
-        var parts = new List<string>();
-
-        foreach (var term in Terms)
-        {
-            parts.Add($"+{SanitizeBooleanTerm(term)}");
-        }
-
-        foreach (var phrase in Phrases)
-        {
-            parts.Add($"+\"{SanitizeBooleanTerm(phrase)}\"");
-        }
-
-        foreach (var exclusion in Exclusions)
-        {
-            parts.Add($"-{SanitizeBooleanTerm(exclusion)}");
-        }
-
-        return string.Join(' ', parts);
-    }
-
     private static string SanitizeTsQueryTerm(string term)
     {
         // Remove characters that are special in tsquery syntax
@@ -133,9 +107,4 @@ public sealed record ParsedSearchQuery
         return term.Replace("\"", "", StringComparison.Ordinal);
     }
 
-    private static string SanitizeBooleanTerm(string term)
-    {
-        // Remove characters that are special in BOOLEAN MODE: + - < > ( ) ~ * "
-        return new string(term.Where(c => char.IsLetterOrDigit(c) || c == '_' || c == ' ').ToArray());
-    }
 }

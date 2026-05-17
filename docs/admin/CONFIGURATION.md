@@ -24,10 +24,10 @@ The `IFileStorageEngine` stores file chunks on the local file system. Configure 
 }
 ```
 
-| Platform | Default |
-|---|---|
-| Linux | `/var/lib/dotnetcloud/files` |
-| Windows | `%ProgramData%\DotNetCloud\files` |
+| Platform | Default                           |
+| -------- | --------------------------------- |
+| Linux    | `/var/lib/dotnetcloud/files`      |
+| Windows  | `%ProgramData%\DotNetCloud\files` |
 
 ### Directory Structure
 
@@ -46,10 +46,10 @@ The storage engine uses a content-addressable layout based on chunk hashes:
 
 ### Storage Permissions
 
-| Platform | User/Group | Permissions |
-|---|---|---|
-| Linux | `dotnetcloud:dotnetcloud` | `750` (rwxr-x---) |
-| Windows | `NETWORK SERVICE` or app pool identity | Full Control |
+| Platform | User/Group                             | Permissions       |
+| -------- | -------------------------------------- | ----------------- |
+| Linux    | `dotnetcloud:dotnetcloud`              | `750` (rwxr-x---) |
+| Windows  | `NETWORK SERVICE` or app pool identity | Full Control      |
 
 Ensure the DotNetCloud process has read/write access to the storage root.
 
@@ -75,13 +75,13 @@ Ensure the DotNetCloud process has read/write access to the storage root.
 
 ### Configuration Reference
 
-| Setting | Default | Description |
-|---|---|---|
-| `DefaultQuotaBytes` | `10737418240` (10 GB) | Default storage limit for new users. Set to `0` for unlimited. |
-| `ExcludeTrashedFromQuota` | `false` | When `true`, files in trash do not count against quota. |
-| `WarnAtPercent` | `80.0` | Publish `QuotaWarningEvent` at this usage percentage. |
-| `CriticalAtPercent` | `95.0` | Publish `QuotaCriticalEvent` at this usage percentage. |
-| `RecalculationInterval` | `24:00:00` | How often the background service recalculates all user quotas. |
+| Setting                   | Default               | Description                                                    |
+| ------------------------- | --------------------- | -------------------------------------------------------------- |
+| `DefaultQuotaBytes`       | `10737418240` (10 GB) | Default storage limit for new users. Set to `0` for unlimited. |
+| `ExcludeTrashedFromQuota` | `false`               | When `true`, files in trash do not count against quota.        |
+| `WarnAtPercent`           | `80.0`                | Publish `QuotaWarningEvent` at this usage percentage.          |
+| `CriticalAtPercent`       | `95.0`                | Publish `QuotaCriticalEvent` at this usage percentage.         |
+| `RecalculationInterval`   | `24:00:00`            | How often the background service recalculates all user quotas. |
 
 ### Per-User Quota Management
 
@@ -128,10 +128,10 @@ Or wait for the next automatic recalculation cycle.
 
 ### Configuration Reference
 
-| Setting | Default | Description |
-|---|---|---|
-| `RetentionDays` | `30` | Days to keep items in trash before permanent deletion. Set to `0` to disable auto-cleanup. |
-| `CleanupInterval` | `06:00:00` (6 hours) | How often the `TrashCleanupService` runs. |
+| Setting           | Default              | Description                                                                                |
+| ----------------- | -------------------- | ------------------------------------------------------------------------------------------ |
+| `RetentionDays`   | `30`                 | Days to keep items in trash before permanent deletion. Set to `0` to disable auto-cleanup. |
+| `CleanupInterval` | `06:00:00` (6 hours) | How often the `TrashCleanupService` runs.                                                  |
 
 ### How Auto-Cleanup Works
 
@@ -164,11 +164,11 @@ Or wait for the next automatic recalculation cycle.
 
 ### Configuration Reference
 
-| Setting | Default | Description |
-|---|---|---|
-| `MaxVersionCount` | `50` | Maximum versions per file. Set to `0` for unlimited. |
-| `RetentionDays` | `0` (disabled) | Delete unlabeled versions older than this. Set to `0` to disable. |
-| `CleanupInterval` | `24:00:00` | How often the `VersionCleanupService` runs. |
+| Setting           | Default        | Description                                                       |
+| ----------------- | -------------- | ----------------------------------------------------------------- |
+| `MaxVersionCount` | `50`           | Maximum versions per file. Set to `0` for unlimited.              |
+| `RetentionDays`   | `0` (disabled) | Delete unlabeled versions older than this. Set to `0` to disable. |
+| `CleanupInterval` | `24:00:00`     | How often the `VersionCleanupService` runs.                       |
 
 ### Labeled Version Protection
 
@@ -198,8 +198,8 @@ The maximum upload file size is configurable via the `FileUpload` section:
 }
 ```
 
-| Setting | Default | Description |
-|---|---|---|
+| Setting            | Default               | Description                                                                                                                                                                                     |
+| ------------------ | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `MaxFileSizeBytes` | `16106127360` (15 GB) | Maximum file size allowed for upload. The web UI validates this client-side before uploading, showing a user-friendly error with the formatted size limit. The server also enforces this limit. |
 
 The client retrieves this limit from `GET /api/v1/files/config` on page load and rejects oversized files immediately with a clear error message.
@@ -232,12 +232,12 @@ The chunk size is fixed at 4 MB (4,194,304 bytes). This is not configurable — 
 
 The Files module runs several background services. All are started automatically when the module loads.
 
-| Service | Default Interval | Purpose |
-|---|---|---|
-| `UploadSessionCleanupService` | 1 hour | Expire stale upload sessions, GC orphaned chunks |
-| `TrashCleanupService` | 6 hours | Permanently delete expired trash items |
-| `QuotaRecalculationService` | 24 hours | Recalculate per-user storage usage |
-| `VersionCleanupService` | 24 hours | Prune old unlabeled versions exceeding retention limits |
+| Service                       | Default Interval | Purpose                                                 |
+| ----------------------------- | ---------------- | ------------------------------------------------------- |
+| `UploadSessionCleanupService` | 1 hour           | Expire stale upload sessions, GC orphaned chunks        |
+| `TrashCleanupService`         | 6 hours          | Permanently delete expired trash items                  |
+| `QuotaRecalculationService`   | 24 hours         | Recalculate per-user storage usage                      |
+| `VersionCleanupService`       | 24 hours         | Prune old unlabeled versions exceeding retention limits |
 
 ### Monitoring Background Services
 
@@ -256,11 +256,10 @@ Background service activity is logged via Serilog. Look for log entries with the
 
 The Files module uses its own `FilesDbContext` that connects to the same database as the core platform but uses a separate schema:
 
-| Provider | Schema | Example Table |
-|---|---|---|
+| Provider   | Schema  | Example Table      |
+| ---------- | ------- | ------------------ |
 | PostgreSQL | `files` | `files.file_nodes` |
 | SQL Server | `files` | `files.file_nodes` |
-| MariaDB | _(prefix)_ | `files_file_nodes` |
 
 The connection string is inherited from the core platform configuration.
 

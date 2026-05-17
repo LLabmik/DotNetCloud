@@ -73,23 +73,4 @@ internal sealed class DatabaseContainerConfig
         HealthCheckCommand = "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P TestP@ssw0rd! -C -Q \"SELECT 1\"",
     };
 
-    /// <summary>
-    /// Preset configuration for MariaDB 11.
-    /// </summary>
-    public static DatabaseContainerConfig MariaDb() => new()
-    {
-        ImageName = "mariadb:11",
-        ContainerPort = 3306,
-        DatabaseName = "dotnetcloud_test",
-        EnvironmentVariables = new Dictionary<string, string>
-        {
-            ["MYSQL_ROOT_PASSWORD"] = "testpass",
-            ["MYSQL_DATABASE"] = "dotnetcloud_test",
-            ["MYSQL_USER"] = "testuser",
-            ["MYSQL_PASSWORD"] = "testpass",
-        },
-        ConnectionStringFactory = hostPort =>
-            $"Server=localhost;Port={hostPort};Database=dotnetcloud_test;User=testuser;Password=testpass",
-        HealthCheckCommand = "mariadb-admin ping -h localhost -u testuser --password=testpass",
-    };
 }

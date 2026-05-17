@@ -23,14 +23,12 @@ public static class DatabaseProviderConfiguration
         {
             "postgresql" or "postgres" or "postgre" => DatabaseProvider.PostgreSQL,
             "sqlserver" or "sql-server" or "mssql" => DatabaseProvider.SqlServer,
-            "mariadb" or "mysql" => DatabaseProvider.MariaDB,
             _ => default
         };
 
         return providerValue.Trim().ToLowerInvariant() is
             "postgresql" or "postgres" or "postgre" or
-            "sqlserver" or "sql-server" or "mssql" or
-            "mariadb" or "mysql";
+            "sqlserver" or "sql-server" or "mssql";
     }
 
     /// <summary>
@@ -42,7 +40,6 @@ public static class DatabaseProviderConfiguration
         {
             DatabaseProvider.PostgreSQL => "PostgreSQL",
             DatabaseProvider.SqlServer => "SqlServer",
-            DatabaseProvider.MariaDB => "MariaDB",
             _ => throw new ArgumentOutOfRangeException(nameof(provider), provider, "Unsupported database provider.")
         };
     }

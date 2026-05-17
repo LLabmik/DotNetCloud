@@ -90,33 +90,10 @@ public class PermissionScopingTests
     }
 
     [TestMethod]
-    public async Task MariaDb_UserA_CannotSee_UserB_Documents()
-    {
-        using var db = CreateDbContext(nameof(MariaDb_UserA_CannotSee_UserB_Documents));
-        var provider = new MariaDbSearchProvider(db, NullLogger<MariaDbSearchProvider>.Instance);
-
-        await provider.IndexDocumentAsync(CreateDoc("files", "f1", "UserA File", "confidential A", UserA));
-        await provider.IndexDocumentAsync(CreateDoc("files", "f2", "UserB File", "confidential B", UserB));
-
-        var query = new SearchQuery
-        {
-            QueryText = "confidential",
-            UserId = UserA,
-            Page = 1,
-            PageSize = 20
-        };
-
-        var result = await provider.SearchAsync(query);
-
-        Assert.AreEqual(1, result.TotalCount);
-        Assert.AreEqual("f1", result.Items[0].EntityId);
-    }
-
-    [TestMethod]
     public async Task PostgreSql_IndexAndRemove_Scoped()
     {
         // NOTE: PostgreSQL provider uses EF.Functions.ILike which doesn't work with InMemory.
-        // Testing index/remove/stats operations only. Search operations tested via SqlServer/MariaDB providers.
+        // Testing index/remove/stats operations only. Search operations tested via SqlServer/SqlServer providers.
         using var db = CreateDbContext(nameof(PostgreSql_IndexAndRemove_Scoped));
         var provider = new PostgreSqlSearchProvider(db, NullLogger<PostgreSqlSearchProvider>.Instance);
 
@@ -157,7 +134,7 @@ public class PermissionScopingTests
     public async Task PermissionScoping_GroupScopedDocument_HiddenWithoutMatchingGroup()
     {
         using var db = CreateDbContext(nameof(PermissionScoping_GroupScopedDocument_HiddenWithoutMatchingGroup));
-        var provider = new MariaDbSearchProvider(db, NullLogger<MariaDbSearchProvider>.Instance);
+        var provider = new SqlServerSearchProvider(db, NullLogger<SqlServerSearchProvider>.Instance);
         var sharedGroupId = Guid.NewGuid();
 
         await provider.IndexDocumentAsync(CreateGroupScopedDoc("shared-2", "Shared Report", "quarterly mounted data", UserB, sharedGroupId));
@@ -230,7 +207,7 @@ public class PermissionScopingTests
     public async Task PermissionScoping_ModuleFilter_WithUserScope()
     {
         using var db = CreateDbContext(nameof(PermissionScoping_ModuleFilter_WithUserScope));
-        var provider = new MariaDbSearchProvider(db, NullLogger<MariaDbSearchProvider>.Instance);
+        var provider = new SqlServerSearchProvider(db, NullLogger<SqlServerSearchProvider>.Instance);
 
         await provider.IndexDocumentAsync(CreateDoc("notes", "1", "Work Note", "meeting notes", UserA));
         await provider.IndexDocumentAsync(CreateDoc("files", "2", "Work File", "meeting schedule", UserA));
@@ -371,7 +348,7 @@ public class PermissionScopingTests
     public async Task PermissionScoping_Exclusions_ScopedToUser()
     {
         using var db = CreateDbContext(nameof(PermissionScoping_Exclusions_ScopedToUser));
-        var provider = new MariaDbSearchProvider(db, NullLogger<MariaDbSearchProvider>.Instance);
+        var provider = new SqlServerSearchProvider(db, NullLogger<SqlServerSearchProvider>.Instance);
 
         await provider.IndexDocumentAsync(CreateDoc("notes", "1", "Draft Note", "draft budget proposal", UserA));
         await provider.IndexDocumentAsync(CreateDoc("notes", "2", "Final Note", "final budget proposal", UserA));

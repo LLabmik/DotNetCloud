@@ -39,7 +39,6 @@ DotNetCloud.Modules.Chat.Data/
 |----------|--------|---------|
 | PostgreSQL | Supported | `Npgsql.EntityFrameworkCore.PostgreSQL` 10.0.0 |
 | SQL Server | Supported | `Microsoft.EntityFrameworkCore.SqlServer` 10.0.3 |
-| MariaDB | Pending | Awaiting Pomelo .NET 10 release |
 
 ## DbContext
 

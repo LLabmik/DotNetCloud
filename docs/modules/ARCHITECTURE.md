@@ -43,68 +43,68 @@ FileQuota                     (per-user storage limits)
 
 The unified tree node representing both files and folders. Distinguished by `NodeType` (File or Folder).
 
-| Property | Type | Description |
-|---|---|---|
-| `Id` | `Guid` | Primary key |
-| `Name` | `string` | Display name |
-| `NodeType` | `FileNodeType` | `File` or `Folder` |
-| `MimeType` | `string?` | MIME type (null for folders) |
-| `Size` | `long` | Size in bytes (0 for folders) |
-| `ParentId` | `Guid?` | FK to parent folder (null = root) |
-| `OwnerId` | `Guid` | Owner user ID |
-| `MaterializedPath` | `string` | `/root-id/parent-id/this-id` for tree queries |
-| `Depth` | `int` | Tree depth (0 = root level) |
-| `ContentHash` | `string?` | SHA-256 of current content |
-| `CurrentVersion` | `int` | Latest version number |
-| `StoragePath` | `string?` | Content-addressable storage path |
-| `IsDeleted` | `bool` | Soft-delete flag (trash) |
-| `DeletedAt` | `DateTime?` | When trashed |
-| `DeletedByUserId` | `Guid?` | Who trashed it |
-| `OriginalParentId` | `Guid?` | Restore target |
-| `IsFavorite` | `bool` | Favorite flag |
-| `CreatedAt` | `DateTime` | Creation timestamp (UTC) |
-| `UpdatedAt` | `DateTime` | Last modified timestamp (UTC) |
+| Property           | Type           | Description                                   |
+| ------------------ | -------------- | --------------------------------------------- |
+| `Id`               | `Guid`         | Primary key                                   |
+| `Name`             | `string`       | Display name                                  |
+| `NodeType`         | `FileNodeType` | `File` or `Folder`                            |
+| `MimeType`         | `string?`      | MIME type (null for folders)                  |
+| `Size`             | `long`         | Size in bytes (0 for folders)                 |
+| `ParentId`         | `Guid?`        | FK to parent folder (null = root)             |
+| `OwnerId`          | `Guid`         | Owner user ID                                 |
+| `MaterializedPath` | `string`       | `/root-id/parent-id/this-id` for tree queries |
+| `Depth`            | `int`          | Tree depth (0 = root level)                   |
+| `ContentHash`      | `string?`      | SHA-256 of current content                    |
+| `CurrentVersion`   | `int`          | Latest version number                         |
+| `StoragePath`      | `string?`      | Content-addressable storage path              |
+| `IsDeleted`        | `bool`         | Soft-delete flag (trash)                      |
+| `DeletedAt`        | `DateTime?`    | When trashed                                  |
+| `DeletedByUserId`  | `Guid?`        | Who trashed it                                |
+| `OriginalParentId` | `Guid?`        | Restore target                                |
+| `IsFavorite`       | `bool`         | Favorite flag                                 |
+| `CreatedAt`        | `DateTime`     | Creation timestamp (UTC)                      |
+| `UpdatedAt`        | `DateTime`     | Last modified timestamp (UTC)                 |
 
 #### FileVersion
 
 Every content update creates a new version. Versions reference their content through `FileVersionChunk` records.
 
-| Property | Type | Description |
-|---|---|---|
-| `Id` | `Guid` | Primary key |
-| `FileNodeId` | `Guid` | FK to FileNode |
-| `VersionNumber` | `int` | 1-based ascending version number |
-| `Size` | `long` | Size in bytes |
-| `ContentHash` | `string` | SHA-256 hash |
-| `StoragePath` | `string` | Content-addressable path |
-| `MimeType` | `string?` | MIME type at creation |
-| `CreatedByUserId` | `Guid` | Creator user ID |
-| `CreatedAt` | `DateTime` | Version creation time |
-| `Label` | `string?` | Optional label (e.g., "Final draft") |
+| Property          | Type       | Description                          |
+| ----------------- | ---------- | ------------------------------------ |
+| `Id`              | `Guid`     | Primary key                          |
+| `FileNodeId`      | `Guid`     | FK to FileNode                       |
+| `VersionNumber`   | `int`      | 1-based ascending version number     |
+| `Size`            | `long`     | Size in bytes                        |
+| `ContentHash`     | `string`   | SHA-256 hash                         |
+| `StoragePath`     | `string`   | Content-addressable path             |
+| `MimeType`        | `string?`  | MIME type at creation                |
+| `CreatedByUserId` | `Guid`     | Creator user ID                      |
+| `CreatedAt`       | `DateTime` | Version creation time                |
+| `Label`           | `string?`  | Optional label (e.g., "Final draft") |
 
 #### FileChunk
 
 Content-addressed chunk storage. Identical chunks are stored once across all users and files.
 
-| Property | Type | Description |
-|---|---|---|
-| `Id` | `Guid` | Primary key |
-| `ChunkHash` | `string` | SHA-256 hash (unique deduplication key) |
-| `Size` | `int` | Chunk size in bytes (max 4 MB) |
-| `StoragePath` | `string` | Disk storage path |
-| `ReferenceCount` | `int` | Number of file versions referencing this chunk |
-| `CreatedAt` | `DateTime` | First stored |
-| `LastReferencedAt` | `DateTime` | Last reference count update |
+| Property           | Type       | Description                                    |
+| ------------------ | ---------- | ---------------------------------------------- |
+| `Id`               | `Guid`     | Primary key                                    |
+| `ChunkHash`        | `string`   | SHA-256 hash (unique deduplication key)        |
+| `Size`             | `int`      | Chunk size in bytes (max 4 MB)                 |
+| `StoragePath`      | `string`   | Disk storage path                              |
+| `ReferenceCount`   | `int`      | Number of file versions referencing this chunk |
+| `CreatedAt`        | `DateTime` | First stored                                   |
+| `LastReferencedAt` | `DateTime` | Last reference count update                    |
 
 #### FileVersionChunk
 
 Junction table linking versions to their constituent chunks in order.
 
-| Property | Type | Description |
-|---|---|---|
-| `FileVersionId` | `Guid` | FK to FileVersion |
-| `FileChunkId` | `Guid` | FK to FileChunk |
-| `SequenceIndex` | `int` | Chunk order within the file |
+| Property        | Type   | Description                 |
+| --------------- | ------ | --------------------------- |
+| `FileVersionId` | `Guid` | FK to FileVersion           |
+| `FileChunkId`   | `Guid` | FK to FileChunk             |
+| `SequenceIndex` | `int`  | Chunk order within the file |
 
 ---
 
@@ -145,11 +145,11 @@ Files are split into fixed-size chunks for efficient transfer and storage:
 
 ### Chunk Parameters
 
-| Parameter | Value |
-|---|---|
-| **Chunk size** | 4 MB (4,194,304 bytes) |
-| **Hash algorithm** | SHA-256 |
-| **Last chunk** | May be smaller than 4 MB |
+| Parameter          | Value                    |
+| ------------------ | ------------------------ |
+| **Chunk size**     | 4 MB (4,194,304 bytes)   |
+| **Hash algorithm** | SHA-256                  |
+| **Last chunk**     | May be smaller than 4 MB |
 
 ### Chunking Process
 
@@ -271,12 +271,12 @@ Client                          Server
 
 ### Upload Session Lifecycle
 
-| Status | Description |
-|---|---|
-| `InProgress` | Session active, accepting chunks |
-| `Completed` | All chunks received, file assembled |
-| `Failed` | Error during assembly |
-| `Expired` | Session timed out (default: 24 hours) |
+| Status       | Description                           |
+| ------------ | ------------------------------------- |
+| `InProgress` | Session active, accepting chunks      |
+| `Completed`  | All chunks received, file assembled   |
+| `Failed`     | Error during assembly                 |
+| `Expired`    | Session timed out (default: 24 hours) |
 
 Stale sessions are cleaned up by `UploadSessionCleanupService` (runs every hour).
 
@@ -299,13 +299,13 @@ Files are served as seekable streams reconstructed from chunks. The `Concatenate
 
 ## Background Services
 
-| Service | Interval | Purpose |
-|---|---|---|
-| `UploadSessionCleanupService` | 1 hour | Expire stale upload sessions, GC orphaned chunks |
-| `TrashCleanupService` | 6 hours | Permanently delete items past retention period, GC chunks |
-| `QuotaRecalculationService` | 24 hours | Recalculate per-user storage usage |
-| `VersionCleanupService` | 24 hours | Prune old unlabeled versions exceeding retention limits |
-| `CollaboraProcessManager` | Continuous | Supervise built-in Collabora CODE process |
+| Service                       | Interval   | Purpose                                                   |
+| ----------------------------- | ---------- | --------------------------------------------------------- |
+| `UploadSessionCleanupService` | 1 hour     | Expire stale upload sessions, GC orphaned chunks          |
+| `TrashCleanupService`         | 6 hours    | Permanently delete items past retention period, GC chunks |
+| `QuotaRecalculationService`   | 24 hours   | Recalculate per-user storage usage                        |
+| `VersionCleanupService`       | 24 hours   | Prune old unlabeled versions exceeding retention limits   |
+| `CollaboraProcessManager`     | Continuous | Supervise built-in Collabora CODE process                 |
 
 ---
 
@@ -318,11 +318,11 @@ Files are served as seekable streams reconstructed from chunks. The `Concatenate
 
 ### Share Permissions
 
-| Level | Capabilities |
-|---|---|
-| `Read` | View, download |
+| Level       | Capabilities                                              |
+| ----------- | --------------------------------------------------------- |
+| `Read`      | View, download                                            |
 | `ReadWrite` | View, download, upload, rename, move within shared folder |
-| `Full` | All operations including re-share and delete |
+| `Full`      | All operations including re-share and delete              |
 
 ### Permission Cascade
 
@@ -342,27 +342,26 @@ The `IPermissionService` validates every file operation against:
 
 ### Table Naming
 
-| Provider | Strategy | Example |
-|---|---|---|
+| Provider   | Strategy     | Example            |
+| ---------- | ------------ | ------------------ |
 | PostgreSQL | Schema-based | `files.file_nodes` |
 | SQL Server | Schema-based | `files.file_nodes` |
-| MariaDB | Prefix-based | `files_file_nodes` |
 
 ### Indexes
 
-| Table | Index | Purpose |
-|---|---|---|
-| `FileNode` | `ParentId` | Fast child listing |
-| `FileNode` | `OwnerId` | Fast user file listing |
-| `FileNode` | `MaterializedPath` | Fast descendant queries |
-| `FileVersion` | `(FileNodeId, VersionNumber)` | Fast version lookup |
-| `FileChunk` | `ChunkHash` (unique) | Deduplication lookup |
-| `FileShare` | `SharedWithUserId` | Fast "shared with me" queries |
-| `FileShare` | `LinkToken` (unique) | Public link resolution |
-| `FileShare` | `ExpiresAt` | Expired share cleanup |
-| `FileTag` | `(FileNodeId, Name, CreatedByUserId)` (unique) | Prevent duplicate tags |
-| `FileComment` | `FileNodeId` | Fast comment listing |
-| `ChunkedUploadSession` | `UserId`, `Status`, `ExpiresAt` | Session management |
+| Table                  | Index                                          | Purpose                       |
+| ---------------------- | ---------------------------------------------- | ----------------------------- |
+| `FileNode`             | `ParentId`                                     | Fast child listing            |
+| `FileNode`             | `OwnerId`                                      | Fast user file listing        |
+| `FileNode`             | `MaterializedPath`                             | Fast descendant queries       |
+| `FileVersion`          | `(FileNodeId, VersionNumber)`                  | Fast version lookup           |
+| `FileChunk`            | `ChunkHash` (unique)                           | Deduplication lookup          |
+| `FileShare`            | `SharedWithUserId`                             | Fast "shared with me" queries |
+| `FileShare`            | `LinkToken` (unique)                           | Public link resolution        |
+| `FileShare`            | `ExpiresAt`                                    | Expired share cleanup         |
+| `FileTag`              | `(FileNodeId, Name, CreatedByUserId)` (unique) | Prevent duplicate tags        |
+| `FileComment`          | `FileNodeId`                                   | Fast comment listing          |
+| `ChunkedUploadSession` | `UserId`, `Status`, `ExpiresAt`                | Session management            |
 
 ### Soft-Delete Query Filters
 

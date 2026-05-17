@@ -220,7 +220,6 @@ public class DbContextConfigurationTests
         {
             new PostgreSqlNamingStrategy(),
             new SqlServerNamingStrategy(),
-            new MariaDbNamingStrategy()
         };
 
         // Act
@@ -238,8 +237,6 @@ public class DbContextConfigurationTests
         // Assert
         Assert.AreEqual(modelEntityCounts[0], modelEntityCounts[1],
             "PostgreSQL and SQL Server should produce consistent entity models");
-        Assert.AreEqual(modelEntityCounts[0], modelEntityCounts[2],
-            "PostgreSQL and MariaDB should produce consistent entity models");
     }
 
     [TestMethod]

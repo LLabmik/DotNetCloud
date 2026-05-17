@@ -9,7 +9,6 @@ namespace DotNetCloud.Core.Data.Infrastructure;
 /// <list type="bullet">
 /// <item><description>PostgreSQL: Uses schemas (core.users, files.file_items)</description></item>
 /// <item><description>SQL Server: Uses schemas ([core].[Users], [files].[FileItems])</description></item>
-/// <item><description>MariaDB/MySQL: Uses table prefixes (core_users, files_file_items)</description></item>
 /// </list>
 /// </remarks>
 public interface ITableNamingStrategy

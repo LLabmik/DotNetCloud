@@ -8,7 +8,6 @@ namespace DotNetCloud.Core.Data.Infrastructure;
 /// <list type="bullet">
 /// <item><description>PostgreSQL: Contains "Host=" or "Server=" with "Port=" or "postgres"</description></item>
 /// <item><description>SQL Server: Contains "Data Source=" or "Server=" with "Initial Catalog=" or "sqlserver"</description></item>
-/// <item><description>MariaDB: Contains "Server=" with "Database=" or "mysql" or "mariadb"</description></item>
 /// </list>
 /// </remarks>
 public static class DatabaseProviderDetector
@@ -50,19 +49,9 @@ public static class DatabaseProviderDetector
             return DatabaseProvider.SqlServer;
         }
 
-        // MariaDB/MySQL detection
-        if (lowerConnectionString.Contains("mysql") ||
-            lowerConnectionString.Contains("mariadb") ||
-            (lowerConnectionString.Contains("server=") &&
-             lowerConnectionString.Contains("database=") &&
-             !lowerConnectionString.Contains("data source=")))
-        {
-            return DatabaseProvider.MariaDB;
-        }
-
         throw new InvalidOperationException(
             $"Could not detect database provider from connection string. " +
-            $"Supported providers: PostgreSQL, SQL Server, MariaDB/MySQL. " +
+            $"Supported providers: PostgreSQL, SQL Server. " +
             $"Connection string must contain recognizable provider-specific keywords.");
     }
 
@@ -116,7 +105,6 @@ public static class DatabaseProviderDetector
         {
             DatabaseProvider.PostgreSQL => new PostgreSqlNamingStrategy(),
             DatabaseProvider.SqlServer => new SqlServerNamingStrategy(),
-            DatabaseProvider.MariaDB => new MariaDbNamingStrategy(),
             _ => throw new ArgumentOutOfRangeException(nameof(provider), provider, "Unsupported database provider.")
         };
     }

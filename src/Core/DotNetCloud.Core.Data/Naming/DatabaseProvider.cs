@@ -11,6 +11,4 @@ public enum DatabaseProvider
     /// <summary>SQL Server database provider</summary>
     SqlServer,
 
-    /// <summary>MariaDB/MySQL database provider</summary>
-    MariaDB
 }

@@ -2,7 +2,7 @@ namespace DotNetCloud.Core.Data.Naming;
 
 /// <summary>
 /// Strategy interface for mapping entity types and property names to database table and column names.
-/// Different database providers (PostgreSQL, SQL Server, MariaDB) have different naming conventions and constraints.
+/// Different database providers (PostgreSQL, SQL Server) have different naming conventions and constraints.
 /// </summary>
 public interface ITableNamingStrategy
 {

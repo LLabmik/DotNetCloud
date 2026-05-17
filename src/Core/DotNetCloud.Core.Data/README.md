@@ -6,19 +6,16 @@
 
 ## Overview
 
-The `DotNetCloud.Core.Data` project provides the Entity Framework Core data access layer for the DotNetCloud platform. It implements a multi-database provider strategy supporting PostgreSQL, SQL Server, and MariaDB (when .NET 10 compatible).
 
 ## Key Features
 
 ✅ **Multi-Database Provider Support**
 - PostgreSQL (Npgsql) - Primary target
 - SQL Server - Enterprise support
-- MariaDB - Planned (awaiting Pomelo.EntityFrameworkCore.MySql .NET 10 support)
 
 ✅ **Flexible Table Naming Strategies**
 - PostgreSQL: Schema-based (`core.users`, `files.documents`)
 - SQL Server: Schema-based
-- MariaDB: Prefix-based (`core_users`, `files_documents`)
 
 ✅ **Comprehensive Entity Models**
 - ASP.NET Core Identity integration with custom user/role models
@@ -73,7 +70,6 @@ DotNetCloud.Core.Data/
 │   ├── ITableNamingStrategy.cs
 │   ├── PostgreSqlNamingStrategy.cs
 │   ├── SqlServerNamingStrategy.cs
-│   ├── MariaDbNamingStrategy.cs
 │   ├── DatabaseProvider.cs
 │   └── DatabaseProviderDetector.cs
 ├── Infrastructure/                       # DbContext factory
@@ -211,11 +207,8 @@ Tracks user devices for push notifications:
 - **Naming:** Schema-based (e.g., `core.users`)
 - **Migration Folder:** `Migrations/SqlServer/`
 
-### MariaDB (Future)
-- **Provider:** Pomelo.EntityFrameworkCore.MySql
 - **Version:** Awaiting .NET 10 support
 - **Naming:** Prefix-based (e.g., `core_users`, `core_organizations`)
-- **Status:** ⏸️ Temporarily disabled until Pomelo releases .NET 10 compatible version
 
 ## Naming Strategies
 
@@ -244,7 +237,6 @@ CREATE TABLE core.users (...);
 CREATE TABLE files.documents (...);
 ```
 
-### MariaDB Strategy
 Uses table prefixes (schemas not fully supported):
 ```sql
 CREATE TABLE core_users (...);
@@ -324,7 +316,6 @@ dotnet ef database update --project src\Core\DotNetCloud.Core.Data --context Cor
 }
 ```
 
-#### MariaDB (Future)
 ```json
 {
   "ConnectionStrings": {
@@ -345,7 +336,6 @@ services.AddSingleton<ITableNamingStrategy>(provider switch
 {
     DatabaseProvider.PostgreSql => new PostgreSqlNamingStrategy(),
     DatabaseProvider.SqlServer => new SqlServerNamingStrategy(),
-    DatabaseProvider.MariaDb => new MariaDbNamingStrategy(),
     _ => throw new NotSupportedException($"Database provider {provider} is not supported.")
 });
 
@@ -362,7 +352,6 @@ services.AddDbContext<CoreDbContext>((serviceProvider, options) =>
         case DatabaseProvider.SqlServer:
             options.UseSqlServer(connectionString);
             break;
-        case DatabaseProvider.MariaDb:
             options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString));
             break;
     }
@@ -411,13 +400,10 @@ dotnet test tests\DotNetCloud.Core.Data.Tests\DotNetCloud.Core.Data.Tests.csproj
 
 ## Known Limitations
 
-1. **MariaDB Support:** Temporarily disabled pending Pomelo.EntityFrameworkCore.MySql .NET 10 support
-2. **Schema Support:** MariaDB uses table prefixes instead of native schemas
 3. **Migration Management:** Separate migration folders required for SQL Server
 
 ## Future Enhancements
 
-- [ ] Add MariaDB migrations when Pomelo supports .NET 10
 - [ ] Implement read-only replicas support
 - [ ] Add database sharding support for large deployments
 - [ ] Implement audit logging interceptor

@@ -108,15 +108,6 @@ internal static class DatabaseSetupHelper
         return $"Server={server};Database={database};User Id={username};Password={password};TrustServerCertificate=True;MultipleActiveResultSets=True";
     }
 
-    /// <summary>
-    /// Builds a MariaDB connection string from individual parts.
-    /// </summary>
-    public static string BuildMariaDbConnectionString(
-        string server, string database, string username, string password)
-    {
-        return $"Server={server};Database={database};User={username};Password={password}";
-    }
-
     private static bool RunSudoPostgres(string psqlArgs)
     {
         return RunCommand("sudo", $"-u postgres psql {psqlArgs}");

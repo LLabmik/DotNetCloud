@@ -20,7 +20,6 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
     <PackageReference Include="OpenIddict.EntityFrameworkCore" />
-    <!-- TODO: Add Pomelo.EntityFrameworkCore.MySql when .NET 10 compatible version is released -->
   </ItemGroup>
 
   <ItemGroup>

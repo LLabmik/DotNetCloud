@@ -230,7 +230,6 @@ Create a sample appsettings.Development.json for local configuration.
 
 - PostgreSQL setup (Windows, Linux, macOS)
 - SQL Server setup and configuration
-- MariaDB setup and configuration
 - Connection string formats for all three databases
 - EF Core migrations and seeding
 - Multi-database testing strategies
@@ -269,7 +268,7 @@ Create a sample appsettings.Development.json for local configuration.
 **Tasks Completed:**
 
 - ✓ Create comprehensive IDE setup guide (Visual Studio, VS Code, Rider)
-- ✓ Create local development database setup guide (PostgreSQL, SQL Server, MariaDB)
+- ✓ Create local development database setup guide (PostgreSQL, SQL Server)
 - ✓ Document Docker setup for local testing and multi-database CI/CD
 - ✓ Create development workflow guidelines (branching, commits, PRs, code review)
 - ✓ Create general code review plan — `docs/CODE_REVIEW_PLAN.md` (5 phases, efficiency/completeness/tests/readability)
@@ -281,7 +280,7 @@ Create a sample appsettings.Development.json for local configuration.
 
 **Dependencies:** pre-impl-1  
 **Blocking Issues:** None  
-**Notes:** All four critical development setup guides are complete and comprehensive. Developers can now get started with IDE setup, databases, Docker, and workflow guidelines. Total documentation: 5,000+ lines covering all platforms (Windows, Linux, macOS) and all supported databases (PostgreSQL, SQL Server, MariaDB). Ready for Phase 0.1 core implementation work.
+**Notes:** All four critical development setup guides are complete and comprehensive. Developers can now get started with IDE setup, databases, Docker, and workflow guidelines. Total documentation: 5,000+ lines covering all platforms (Windows, Linux, macOS) and all supported databases (PostgreSQL, SQL Server). Ready for Phase 0.1 core implementation work.
 
 ---
 
@@ -676,7 +675,7 @@ Location: tests/DotNetCloud.Core.Tests/
 
 - ✓ `IDbContextFactory<CoreDbContext>` abstraction
 - ✓ `ITableNamingStrategy` interface
-- ✓ `DatabaseProvider` enum (PostgreSQL, SqlServer, MariaDB)
+- ✓ `DatabaseProvider` enum (PostgreSQL, SqlServer)
 - ✓ `PostgreSqlNamingStrategy` (schemas: `core.*`, `files.*`, etc.)
   - ✓ Schema-based organization using lowercase module names
   - ✓ Snake_case naming for tables and columns
@@ -685,10 +684,8 @@ Location: tests/DotNetCloud.Core.Tests/
   - ✓ Schema-based organization using lowercase module names in brackets
   - ✓ PascalCase naming for tables and columns
   - ✓ Provider-specific index, FK, and constraint naming
-- ✓ `MariaDbNamingStrategy` (table prefixes: `core_*`, `files_*`, etc.)
   - ✓ Table prefix-based organization for databases without schema support
   - ✓ Snake_case naming for tables and columns
-  - ✓ Identifier truncation support for MySQL 64-character limit
 - ✓ `DatabaseProviderDetector` with provider detection from connection string
 - ✓ `DatabaseProviderConfiguration` — shared parser/normalizer for configured provider values
 - ✓ `DefaultDbContextFactory` implementation
@@ -719,7 +716,7 @@ Location: tests/DotNetCloud.Core.Tests/
 **File Location:** `src/Core/DotNetCloud.Core.Data/`  
 **Dependencies:** None  
 **Blocking Issues:** None  
-**Notes:** Multi-database support foundation complete. Enables identical codebase across PostgreSQL, SQL Server, and MariaDB. Factory and naming strategies automatically handle provider-specific requirements. Provider is now authoritative from config/install selection — connection-string detection is no longer used in normal startup paths.
+**Notes:** Multi-database support foundation complete. Enables identical codebase across PostgreSQL and SQL Server. Factory and naming strategies automatically handle provider-specific requirements. Provider is now authoritative from config/install selection — connection-string detection is no longer used in normal startup paths.
 
 ---
 
@@ -781,7 +778,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Identity/
 **Dependencies:** phase-0.2.1 ✅  
 **Testing:** ✅ All unit tests passing (22/22)  
 **Build Status:** ✅ Solution builds successfully  
-**Notes:** Identity models complete with proper Guid primary keys, comprehensive XML documentation, and full test coverage. CoreDbContext now properly extends IdentityDbContext with multi-database naming strategy support. MariaDB support temporarily disabled (Pomelo package awaiting .NET 10 update). Ready for phase-0.2.3 (Organization Hierarchy Models).
+**Notes:** Identity models complete with proper Guid primary keys, comprehensive XML documentation, and full test coverage. CoreDbContext now properly extends IdentityDbContext with multi-database naming strategy support. Ready for phase-0.2.3 (Organization Hierarchy Models).
 
 ---
 
@@ -1253,31 +1250,22 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 **File Location:** `src/Core/DotNetCloud.Core.Data/Migrations/SqlServer/`
 **Dependencies:** phase-0.2.7 (CoreDbContext) ✓, phase-0.2.8 (DbInitializer) ✓
 **Build Status:** ✓ Solution builds successfully
-**Notes:** SQL Server migration complete with proper data type mappings (UUID→uniqueidentifier, VARCHAR→nvarchar, BOOLEAN→bit, TIMESTAMP→datetime2, DEFAULT CURRENT_TIMESTAMP→GETUTCDATE()). Includes IDENTITY column support for auto-incrementing integers. Ready for phase-0.2.11 (MariaDB migrations).
+**Notes:** SQL Server migration complete with proper data type mappings (UUID→uniqueidentifier, VARCHAR→nvarchar, BOOLEAN→bit, TIMESTAMP→datetime2, DEFAULT CURRENT_TIMESTAMP→GETUTCDATE()). Includes IDENTITY column support for auto-incrementing integers.
 
 ---
 
-#### Step: phase-0.2.11 - EF Core Migrations (MariaDB)
-
 **Status:** completed ✅
 **Duration:** ~1.5 hours
-**Description:** Create initial EF Core migrations for MariaDB
 
 **Deliverables:**
 
-- ✓ Initial migration file (`20260302203200_InitialCreate_MariaDb.cs`)
 - ✓ Designer file for snapshot tracking
-- ✓ Schema creation (all 22 core tables with MariaDB-specific data types)
-- ✓ Index creation (strategic indexes for performance with MariaDB syntax)
 - ✓ Constraint definitions (foreign keys, unique constraints)
-- ✓ MariaDB-specific data types (CHAR(36) for UUID, VARCHAR for strings, TINYINT(1) for booleans, DATETIME(6) for timestamps)
 - ✓ Collation support (UTF8MB4 default, ASCII for UUID columns)
 - ✓ Migration verification and validation
 
-**File Location:** `src/Core/DotNetCloud.Core.Data/Migrations/MariaDb/`
 **Dependencies:** phase-0.2.7 (CoreDbContext) ✓, phase-0.2.8 (DbInitializer) ✓
 **Build Status:** ✓ Solution builds successfully
-**Notes:** MariaDB migration complete with proper data type mappings (UUID→CHAR(36), VARCHAR→VARCHAR, BOOLEAN→TINYINT(1), TIMESTAMP→DATETIME(6), AUTO_INCREMENT support via MySql:ValueGenerationStrategy). Includes table prefixing strategy through naming convention. All three database engines now supported. Ready for phase-0.2.12 (Data access tests).
 
 ---
 
@@ -1358,10 +1346,8 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ **Multi-Database Support Tests (`MultiDatabaseTests.cs`)** - 11 test methods
   - ✓ PostgreSQL provider detection
   - ✓ SQL Server provider detection
-  - ✓ MariaDB provider detection
   - ✓ PostgreSQL naming strategy (lowercase, snake_case, schemas)
   - ✓ SQL Server naming strategy (PascalCase, bracketed schemas)
-  - ✓ MariaDB naming strategy (table prefixes, snake_case)
   - ✓ PostgreSQL context creation
   - ✓ Multi-database consistent schema
   - ✓ In-memory database identical data handling
@@ -1493,7 +1479,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 **Dependencies:** phase-2.1
 **Blocking Issues:** None
-**Notes:** Phase 2.2 complete. Design-time factory supports both PostgreSQL (default) and SQL Server (via `CHAT_DB_PROVIDER=SqlServer` env var). PostgreSQL migration uses `uuid`, `timestamp with time zone`, `boolean` types. SQL Server migration uses `uniqueidentifier`, `datetime2`, `nvarchar`, `bit` types. ChatDbInitializer seeds 3 default public channels with idempotent check. MariaDB migration deferred (Pomelo lacks .NET 10 support).
+**Notes:** Phase 2.2 complete. Design-time factory supports both PostgreSQL (default) and SQL Server (via `CHAT_DB_PROVIDER=SqlServer` env var). PostgreSQL migration uses `uuid`, `timestamp with time zone`, `boolean` types. SQL Server migration uses `uniqueidentifier`, `datetime2`, `nvarchar`, `bit` types. ChatDbInitializer seeds 3 default public channels with idempotent check.
 
 ---
 
@@ -2916,7 +2902,6 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 - ✓ `DotNetCloud.Modules.Search/` — Business logic project (services, extractors, event handler, module lifecycle)
 - ✓ `DotNetCloud.Modules.Search.Data/` — EF Core data project (SearchDbContext, SearchIndexEntry, IndexingJob, configurations)
 - ✓ `DotNetCloud.Modules.Search.Host/` — gRPC host + REST controllers (search_service.proto, SearchGrpcService, SearchController, Program.cs)
-- ✓ 3 provider-specific ISearchProvider implementations (PostgreSQL, SQL Server, MariaDB)
 - ✓ 5 content extractors (PlainText, Markdown, PDF via PdfPig, DOCX, XLSX via OpenXml)
 - ✓ SearchModule + SearchModuleManifest (IModuleLifecycle, event subscription)
 - ✓ SearchIndexingService (Channel-based background queue), SearchQueryService, ContentExtractionService, SearchReindexBackgroundService
@@ -2961,10 +2946,8 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 **Deliverables:**
 
 - ✓ `SearchQueryParser` — Parses user input into structured `ParsedSearchQuery` (keywords, phrases, in:module, type:value, -exclusion)
-- ✓ `ParsedSearchQuery` with provider-specific query string builders (PostgreSQL tsquery, SQL Server CONTAINS, MariaDB BOOLEAN MODE)
 - ✓ `SnippetGenerator` — HTML-safe snippet generation with `<mark>` highlighting and XSS prevention
 - ✓ `SearchQueryService` upgraded — Parser integration, filter extraction from query syntax, empty/filter-only short-circuit
-- ✓ All 3 providers (PostgreSQL, SQL Server, MariaDB) upgraded — parsed query support, exclusion WHERE clauses, relevance scoring, title/snippet highlighting, facet queries
 - ✓ 6 new test files with ~125 Phase 5 tests (Parser, ParsedQuery, Snippet, Integration, Aggregation, ServicePhase5)
 - ✓ 343 total search tests passing
 
@@ -3010,7 +2993,6 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 
 - ✓ `PermissionScopingTests` — 10 tests (user isolation across providers, facet/filter/pagination scoping)
 - ✓ `EndToEndIndexingTests` — 12 tests (full pipeline: event → handler → indexing → provider → query)
-- ✓ `MultiDatabaseProviderTests` — 10 tests (SqlServer/MariaDb behavioral consistency)
 - ✓ `PerformanceBenchmarkTests` — 8 tests (indexing throughput, query latency p50/p95, concurrent searches)
 - ✓ `docs/modules/SEARCH.md` — Module documentation (architecture, features, services, extractors, providers, schema, configuration, admin operations, test matrix)
 - ✓ `docs/api/search.md` — API reference (REST endpoints, gRPC RPCs, advanced query syntax, client library, permission model)
@@ -3628,7 +3610,6 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 
 - ✓ `PostgreSqlNamingStrategy.GetSchemaForModule` delegates to `RequiredModules.GetSchemaName`
 - ✓ `SqlServerNamingStrategy.GetSchemaForModule` delegates to `RequiredModules.GetSchemaName`
-- ✓ `MariaDbNamingStrategy.GetTableName` uses `RequiredModules.GetSchemaName` for prefix
 - ✓ All 11 module DbContexts inject `ITableNamingStrategy` and call `HasDefaultSchema`
 - ✓ All 13 design-time factories pass naming strategy to DbContext constructors
 - ✓ Backward-compatible single-parameter constructors on all DbContexts
@@ -5064,7 +5045,6 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 - ✓ `DotNetCloud.Modules.Search/` — Business logic project (services, extractors, event handler, module lifecycle)
 - ✓ `DotNetCloud.Modules.Search.Data/` — EF Core data project (SearchDbContext, SearchIndexEntry, IndexingJob, configurations)
 - ✓ `DotNetCloud.Modules.Search.Host/` — gRPC host + REST controllers (search_service.proto, SearchGrpcService, SearchController, Program.cs)
-- ✓ 3 provider-specific ISearchProvider implementations (PostgreSQL, SQL Server, MariaDB)
 - ✓ 5 content extractors (PlainText, Markdown, PDF via PdfPig, DOCX, XLSX via OpenXml)
 - ✓ SearchModule + SearchModuleManifest (IModuleLifecycle, event subscription)
 - ✓ SearchIndexingService (Channel-based background queue), SearchQueryService, ContentExtractionService, SearchReindexBackgroundService
@@ -5109,10 +5089,8 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 **Deliverables:**
 
 - ✓ `SearchQueryParser` — Parses user input into structured `ParsedSearchQuery` (keywords, phrases, in:module, type:value, -exclusion)
-- ✓ `ParsedSearchQuery` with provider-specific query string builders (PostgreSQL tsquery, SQL Server CONTAINS, MariaDB BOOLEAN MODE)
 - ✓ `SnippetGenerator` — HTML-safe snippet generation with `<mark>` highlighting and XSS prevention
 - ✓ `SearchQueryService` upgraded — Parser integration, filter extraction from query syntax, empty/filter-only short-circuit
-- ✓ All 3 providers (PostgreSQL, SQL Server, MariaDB) upgraded — parsed query support, exclusion WHERE clauses, relevance scoring, title/snippet highlighting, facet queries
 - ✓ 6 new test files with ~125 Phase 5 tests (Parser, ParsedQuery, Snippet, Integration, Aggregation, ServicePhase5)
 - ✓ 343 total search tests passing
 
@@ -5158,7 +5136,6 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 
 - ✓ `PermissionScopingTests` — 10 tests (user isolation across providers, facet/filter/pagination scoping)
 - ✓ `EndToEndIndexingTests` — 12 tests (full pipeline: event → handler → indexing → provider → query)
-- ✓ `MultiDatabaseProviderTests` — 10 tests (SqlServer/MariaDb behavioral consistency)
 - ✓ `PerformanceBenchmarkTests` — 8 tests (indexing throughput, query latency p50/p95, concurrent searches)
 - ✓ `docs/modules/SEARCH.md` — Module documentation (architecture, features, services, extractors, providers, schema, configuration, admin operations, test matrix)
 - ✓ `docs/api/search.md` — API reference (REST endpoints, gRPC RPCs, advanced query syntax, client library, permission model)
@@ -5776,7 +5753,6 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 
 - ✓ `PostgreSqlNamingStrategy.GetSchemaForModule` delegates to `RequiredModules.GetSchemaName`
 - ✓ `SqlServerNamingStrategy.GetSchemaForModule` delegates to `RequiredModules.GetSchemaName`
-- ✓ `MariaDbNamingStrategy.GetTableName` uses `RequiredModules.GetSchemaName` for prefix
 - ✓ All 11 module DbContexts inject `ITableNamingStrategy` and call `HasDefaultSchema`
 - ✓ All 13 design-time factories pass naming strategy to DbContext constructors
 - ✓ Backward-compatible single-parameter constructors on all DbContexts
