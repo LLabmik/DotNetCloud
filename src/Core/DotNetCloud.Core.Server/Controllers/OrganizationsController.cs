@@ -353,11 +353,16 @@ public class OrganizationsController : ControllerBase
         if (!orgExists)
             return NotFound(new { success = false, error = new { code = "NOT_FOUND", message = "Organization not found." } });
 
-        var memberUserIds = _db.OrganizationMembers
+        // Get existing member IDs
+        var memberUserIds = await _db.OrganizationMembers
             .Where(om => om.OrganizationId == id)
-            .Select(om => om.UserId);
+            .Select(om => om.UserId)
+            .ToListAsync(ct);
 
-        var query = _userManager.Users
+        // Project to anonymous type FIRST (before OrderBy) so EF Core only selects
+        // the three columns we need, avoiding any DateTime? column read issues.
+        var query = _db.Users
+            .AsNoTracking()
             .Where(u => u.IsActive && !memberUserIds.Contains(u.Id));
 
         if (!string.IsNullOrWhiteSpace(search))
@@ -366,18 +371,25 @@ public class OrganizationsController : ControllerBase
             query = query.Where(u => u.DisplayName.ToLower().Contains(term) || u.Email!.ToLower().Contains(term));
         }
 
-        var users = await query
+        var rawUsers = await query
+            .Select(u => new
+            {
+                u.Id,
+                u.DisplayName,
+                u.Email
+            })
             .OrderBy(u => u.DisplayName)
             .Take(50)
-            .Select(u => new OrganizationMemberDto
-            {
-                UserId = u.Id,
-                Email = u.Email!,
-                DisplayName = u.DisplayName,
-                JoinedAt = default,
-                IsActive = true
-            })
             .ToListAsync(ct);
+
+        var users = rawUsers.Select(u => new OrganizationMemberDto
+        {
+            UserId = u.Id,
+            Email = u.Email!,
+            DisplayName = u.DisplayName,
+            JoinedAt = DateTime.UnixEpoch,
+            IsActive = true
+        }).ToList();
 
         return Ok(new { success = true, data = users });
     }
