@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Data.Extensions;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Modules.Photos.Data.Configuration;
 using DotNetCloud.Modules.Photos.Models;
@@ -75,5 +76,11 @@ public class PhotosDbContext : DbContext
         modelBuilder.ApplyConfiguration(new PhotoTagConfiguration());
         modelBuilder.ApplyConfiguration(new PhotoShareConfiguration());
         modelBuilder.ApplyConfiguration(new PhotoEditRecordConfiguration());
+
+        // Fix PostgreSQL-specific column types for SQL Server
+        if (_namingStrategy is SqlServerNamingStrategy)
+        {
+            modelBuilder.FixColumnTypesForSqlServer();
+        }
     }
 }

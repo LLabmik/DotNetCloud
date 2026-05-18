@@ -39,7 +39,7 @@ namespace DotNetCloud.Modules.Bookmarks.Data.SqlServer.Migrations
                         principalSchema: "bookmarks",
                         principalTable: "BookmarkFolders",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.SetNull);
+                        onDelete: ReferentialAction.NoAction);
                 });
 
             migrationBuilder.CreateTable(
@@ -55,7 +55,7 @@ namespace DotNetCloud.Modules.Bookmarks.Data.SqlServer.Migrations
                     Title = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     Description = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: true),
                     Notes = table.Column<string>(type: "text", nullable: true),
-                    TagsJson = table.Column<string>(type: "jsonb", nullable: true),
+                    TagsJson = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     IsFavorite = table.Column<bool>(type: "bit", nullable: false),
                     IsDeleted = table.Column<bool>(type: "bit", nullable: false),
                     DeletedAt = table.Column<DateTime>(type: "datetime2", nullable: true),

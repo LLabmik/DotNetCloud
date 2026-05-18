@@ -272,9 +272,10 @@ public class Program
 
         // The CLI config.json uses the flat key "connectionString"; ASP.NET
         // convention uses "ConnectionStrings:DefaultConnection".
-        // Check both so the single config.json file remains the source of truth.
-        var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-            ?? builder.Configuration["connectionString"];
+        // Prefer the CLI config so the appsettings.json dev defaults don't
+        // override the production config set by dotnetcloud setup.
+        var connectionString = builder.Configuration["connectionString"]
+            ?? builder.Configuration.GetConnectionString("DefaultConnection");
 
         if (string.IsNullOrEmpty(connectionString))
         {

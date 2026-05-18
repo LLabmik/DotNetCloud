@@ -18,7 +18,7 @@ public sealed class BookmarkItemConfiguration : IEntityTypeConfiguration<Bookmar
         builder.Property(b => b.Title).IsRequired().HasMaxLength(500);
         builder.Property(b => b.Description).HasMaxLength(2000);
         builder.Property(b => b.Notes).HasColumnType("text");
-        builder.Property(b => b.TagsJson).HasColumnType("jsonb");
+        builder.Property(b => b.TagsJson);
         builder.Property(b => b.CreatedAt).IsRequired().HasDefaultValueSql("CURRENT_TIMESTAMP");
         builder.Property(b => b.UpdatedAt).IsRequired().HasDefaultValueSql("CURRENT_TIMESTAMP");
         builder.HasQueryFilter(b => !b.IsDeleted);

@@ -39,7 +39,7 @@ namespace DotNetCloud.Modules.Notes.Data.SqlServer.Migrations
                         principalSchema: "notes",
                         principalTable: "NoteFolders",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.SetNull);
+                        onDelete: ReferentialAction.NoAction);
                 });
 
             migrationBuilder.CreateTable(

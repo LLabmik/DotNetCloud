@@ -63,7 +63,7 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
                         .HasColumnType("int");
 
                     b.Property<string>("SyncStateJson")
-                        .HasColumnType("jsonb");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime>("UpdatedAt")
                         .ValueGeneratedOnAdd()
@@ -184,7 +184,7 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
 
                     b.Property<string>("BccJson")
                         .IsRequired()
-                        .HasColumnType("jsonb");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("BodyHtml")
                         .HasColumnType("text");
@@ -194,7 +194,7 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
 
                     b.Property<string>("CcJson")
                         .IsRequired()
-                        .HasColumnType("jsonb");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
@@ -208,11 +208,11 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<string>("FlagsJson")
-                        .HasColumnType("jsonb");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("FromJson")
                         .IsRequired()
-                        .HasColumnType("jsonb");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("InReplyTo")
                         .HasMaxLength(500)
@@ -253,7 +253,7 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
 
                     b.Property<string>("ToJson")
                         .IsRequired()
-                        .HasColumnType("jsonb");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime>("UpdatedAt")
                         .ValueGeneratedOnAdd()
@@ -441,7 +441,7 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
 
                     b.Property<string>("ParticipantsJson")
                         .IsRequired()
-                        .HasColumnType("jsonb");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("ProviderThreadId")
                         .IsRequired()

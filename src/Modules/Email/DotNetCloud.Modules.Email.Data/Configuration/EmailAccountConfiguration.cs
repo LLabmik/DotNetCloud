@@ -16,7 +16,7 @@ public sealed class EmailAccountConfiguration : IEntityTypeConfiguration<EmailAc
         builder.Property(a => a.DisplayName).IsRequired().HasMaxLength(200);
         builder.Property(a => a.EmailAddress).IsRequired().HasMaxLength(320);
         builder.Property(a => a.EncryptedCredentialBlob).HasColumnType("text");
-        builder.Property(a => a.SyncStateJson).HasColumnType("jsonb");
+        builder.Property(a => a.SyncStateJson);
         builder.Property(a => a.ProviderType).HasConversion<int>();
         builder.Property(a => a.CreatedAt).IsRequired().HasDefaultValueSql("CURRENT_TIMESTAMP");
         builder.Property(a => a.UpdatedAt).IsRequired().HasDefaultValueSql("CURRENT_TIMESTAMP");

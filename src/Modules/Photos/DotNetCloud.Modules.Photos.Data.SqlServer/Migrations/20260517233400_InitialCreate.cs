@@ -53,8 +53,8 @@ namespace DotNetCloud.Modules.Photos.Data.SqlServer.Migrations
                     DeletedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "CURRENT_TIMESTAMP"),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "CURRENT_TIMESTAMP"),
-                    ThumbnailGrid = table.Column<byte[]>(type: "bytea", nullable: true),
-                    ThumbnailDetail = table.Column<byte[]>(type: "bytea", nullable: true)
+                    ThumbnailGrid = table.Column<byte[]>(type: "varbinary(max)", nullable: true),
+                    ThumbnailDetail = table.Column<byte[]>(type: "varbinary(max)", nullable: true)
                 },
                 constraints: table =>
                 {

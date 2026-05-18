@@ -514,6 +514,7 @@ else
         _membersGroupIsBuiltIn = group.IsAllUsersGroup;
         _membersError = string.Empty;
         _showMembers = true;
+        StateHasChanged();
         await LoadMembersAsync();
     }
 

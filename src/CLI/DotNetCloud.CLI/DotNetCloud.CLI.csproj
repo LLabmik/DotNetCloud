@@ -25,6 +25,22 @@
     <ProjectReference Include="..\..\Core\DotNetCloud.Core.Data\DotNetCloud.Core.Data.csproj" />
     <ProjectReference Include="..\..\Core\DotNetCloud.Core.Schema\DotNetCloud.Core.Schema.csproj" />
     <ProjectReference Include="..\..\Core\DotNetCloud.Core.ServiceDefaults\DotNetCloud.Core.ServiceDefaults.csproj" />
+
+    <!-- SQL Server migration assemblies — needed by dotnetcloud migrate at runtime -->
+    <ProjectReference Include="..\..\Core\DotNetCloud.Core.Data.SqlServer\DotNetCloud.Core.Data.SqlServer.csproj" />
+    <ProjectReference Include="..\..\Modules\AI\DotNetCloud.Modules.AI.Data.SqlServer\DotNetCloud.Modules.AI.Data.SqlServer.csproj" />
+    <ProjectReference Include="..\..\Modules\Bookmarks\DotNetCloud.Modules.Bookmarks.Data.SqlServer\DotNetCloud.Modules.Bookmarks.Data.SqlServer.csproj" />
+    <ProjectReference Include="..\..\Modules\Calendar\DotNetCloud.Modules.Calendar.Data.SqlServer\DotNetCloud.Modules.Calendar.Data.SqlServer.csproj" />
+    <ProjectReference Include="..\..\Modules\Chat\DotNetCloud.Modules.Chat.Data.SqlServer\DotNetCloud.Modules.Chat.Data.SqlServer.csproj" />
+    <ProjectReference Include="..\..\Modules\Contacts\DotNetCloud.Modules.Contacts.Data.SqlServer\DotNetCloud.Modules.Contacts.Data.SqlServer.csproj" />
+    <ProjectReference Include="..\..\Modules\Email\DotNetCloud.Modules.Email.Data.SqlServer\DotNetCloud.Modules.Email.Data.SqlServer.csproj" />
+    <ProjectReference Include="..\..\Modules\Files\DotNetCloud.Modules.Files.Data.SqlServer\DotNetCloud.Modules.Files.Data.SqlServer.csproj" />
+    <ProjectReference Include="..\..\Modules\Music\DotNetCloud.Modules.Music.Data.SqlServer\DotNetCloud.Modules.Music.Data.SqlServer.csproj" />
+    <ProjectReference Include="..\..\Modules\Notes\DotNetCloud.Modules.Notes.Data.SqlServer\DotNetCloud.Modules.Notes.Data.SqlServer.csproj" />
+    <ProjectReference Include="..\..\Modules\Photos\DotNetCloud.Modules.Photos.Data.SqlServer\DotNetCloud.Modules.Photos.Data.SqlServer.csproj" />
+    <ProjectReference Include="..\..\Modules\Search\DotNetCloud.Modules.Search.Data.SqlServer\DotNetCloud.Modules.Search.Data.SqlServer.csproj" />
+    <ProjectReference Include="..\..\Modules\Tracks\DotNetCloud.Modules.Tracks.Data.SqlServer\DotNetCloud.Modules.Tracks.Data.SqlServer.csproj" />
+    <ProjectReference Include="..\..\Modules\Video\DotNetCloud.Modules.Video.Data.SqlServer\DotNetCloud.Modules.Video.Data.SqlServer.csproj" />
   </ItemGroup>
 
 </Project>

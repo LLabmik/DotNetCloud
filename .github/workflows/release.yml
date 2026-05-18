@@ -65,16 +65,14 @@ jobs:
         run: dotnet test DotNetCloud.CI.slnf --no-build --configuration Release --verbosity normal --settings .runsettings
 
       # ------------------------------------------------------------------
-      # Publish self-contained linux-x64 binaries
+      # Publish framework-dependent linux-x64 binaries
       # ------------------------------------------------------------------
       - name: Publish CLI
         run: |
           dotnet publish src/CLI/DotNetCloud.CLI/DotNetCloud.CLI.csproj \
             --configuration Release \
             --runtime linux-x64 \
-            --self-contained true \
-            -p:PublishSingleFile=true \
-            -p:IncludeNativeLibrariesForSelfExtract=true \
+            --self-contained false \
             -p:Version=${{ steps.version.outputs.version }} \
             --output artifacts/publish/cli
 
@@ -83,7 +81,7 @@ jobs:
           dotnet publish src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj \
             --configuration Release \
             --runtime linux-x64 \
-            --self-contained true \
+            --self-contained false \
             -p:Version=${{ steps.version.outputs.version }} \
             --output artifacts/publish/server
 
@@ -108,7 +106,7 @@ jobs:
             dotnet publish "$host_csproj" \
               --configuration Release \
               --runtime linux-x64 \
-              --self-contained true \
+              --self-contained false \
               -p:Version=${{ steps.version.outputs.version }} \
               --output "artifacts/publish/modules/${MODULE_NAME}"
           done
@@ -123,11 +121,11 @@ jobs:
           mkdir -p "${STAGING}/server"
           mkdir -p "${STAGING}/modules"
 
-          # CLI binary (single-file) → root of install dir
-          cp artifacts/publish/cli/dotnetcloud "${STAGING}/dotnetcloud"
+          # CLI (framework-dependent) → root of install dir.
+          cp -r artifacts/publish/cli/* "${STAGING}/"
           chmod +x "${STAGING}/dotnetcloud"
 
-          # Core Server → server/ subdirectory
+          # Core Server (framework-dependent) → server/ subdirectory.
           cp -r artifacts/publish/server/* "${STAGING}/server/"
           chmod +x "${STAGING}/server/DotNetCloud.Core.Server"
 

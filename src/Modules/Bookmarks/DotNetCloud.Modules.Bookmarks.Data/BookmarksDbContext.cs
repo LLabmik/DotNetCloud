@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Data.Extensions;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Modules.Bookmarks.Models;
 using Microsoft.EntityFrameworkCore;
@@ -43,5 +44,6 @@ public class BookmarksDbContext : DbContext
         modelBuilder.ApplyConfiguration(new Configuration.BookmarkFolderConfiguration());
         modelBuilder.ApplyConfiguration(new Configuration.BookmarkItemConfiguration());
         modelBuilder.ApplyConfiguration(new Configuration.BookmarkPreviewConfiguration());
+
     }
 }

@@ -292,6 +292,33 @@ check_prerequisites() {
         $SUDO apt-get update -qq && $SUDO apt-get install -y -qq ffmpeg
     fi
 
+    # ── .NET 10 Runtime ──────────────────────────────────────────
+    # DotNetCloud server, CLI, and modules are all framework-dependent on .NET 10.
+    if ! command -v dotnet &>/dev/null; then
+        warn ".NET 10 is required but 'dotnet' was not found."
+        if $SUDO apt-get update -qq && $SUDO apt-get install -y -qq dotnet-sdk-10.0 2>/dev/null; then
+            ok "Installed .NET 10 SDK."
+        else
+            warn "Could not install dotnet-sdk-10.0 via APT."
+            info "Install it manually, then re-run this installer:"
+            echo "  https://learn.microsoft.com/dotnet/core/install/linux"
+            echo ""
+        fi
+    fi
+
+    if command -v dotnet &>/dev/null; then
+        if dotnet --list-runtimes 2>/dev/null | grep -q 'Microsoft.NETCore.App 10\.'; then
+            ok ".NET 10 runtime detected."
+        else
+            error ".NET 10 runtime is required but was not found."
+            info "  Run: dotnet --list-runtimes  to see installed runtimes."
+            info "  Install .NET 10: https://learn.microsoft.com/dotnet/core/install/linux"
+            fatal "Install .NET 10 and re-run this installer."
+        fi
+    else
+        fatal "dotnet command not available after installation attempt. Install .NET 10 manually."
+    fi
+
     # ── FUSE filesystem (Files On-Demand for SyncTray desktop client) ────
     if ! command -v fusermount3 &>/dev/null; then
         info "Installing fuse3 for virtual file system support..."
@@ -346,7 +373,7 @@ detect_existing_install() {
         INSTALLED_VERSION=$(cat "${INSTALL_DIR}/VERSION" | tr -d '[:space:]')
         IS_UPGRADE=true
         info "Existing installation detected: v${INSTALLED_VERSION}"
-    elif [[ -f "${INSTALL_DIR}/dotnetcloud" ]]; then
+    elif [[ -f "${INSTALL_DIR}/server/dotnetcloud.dll" ]]; then
         # Binary exists but no VERSION file (pre-VERSION-file install)
         INSTALLED_VERSION="unknown"
         IS_UPGRADE=true
@@ -512,8 +539,8 @@ install_dotnetcloud() {
     fi
 
     # Verify critical files were extracted
-    if [[ ! -f "${INSTALL_DIR}/dotnetcloud" ]]; then
-        fatal "Extraction succeeded but CLI binary (${INSTALL_DIR}/dotnetcloud) is missing. The release archive may be corrupted or have an unexpected layout."
+    if [[ ! -f "${INSTALL_DIR}/server/dotnetcloud.dll" ]]; then
+        fatal "Extraction succeeded but CLI DLL (${INSTALL_DIR}/server/dotnetcloud.dll) is missing. The release archive may be corrupted or have an unexpected layout."
     fi
 
     if [[ ! -f "${INSTALL_DIR}/server/DotNetCloud.Core.Server" ]] && [[ ! -f "${INSTALL_DIR}/DotNetCloud.Core.Server" ]]; then
@@ -529,11 +556,6 @@ install_dotnetcloud() {
     $SUDO chown -R "${SERVICE_USER}:${SERVICE_GROUP}" $chown_targets
     $SUDO chown -R root:root "$INSTALL_DIR"
     $SUDO chmod 755 "$INSTALL_DIR"
-
-    # Ensure CLI binary is executable
-    if [[ -f "${INSTALL_DIR}/dotnetcloud" ]]; then
-        $SUDO chmod 755 "${INSTALL_DIR}/dotnetcloud"
-    fi
 
     # Ensure server binary is executable (permissions may be lost if archive
     # was built on Windows or transferred through a non-Unix-aware tool)
@@ -553,7 +575,13 @@ install_dotnetcloud() {
     fi
 
     # Symlink CLI to PATH
-    $SUDO ln -sf "${INSTALL_DIR}/dotnetcloud" /usr/local/bin/dotnetcloud
+    # Create a wrapper script so 'dotnetcloud' works from anywhere
+    # using the system .NET runtime (framework-dependent deployment).
+    $SUDO tee /usr/local/bin/dotnetcloud > /dev/null <<'DCNWRAPPER'
+#!/usr/bin/env bash
+exec /usr/bin/dotnet /opt/dotnetcloud/server/dotnetcloud.dll "$@"
+DCNWRAPPER
+    $SUDO chmod 755 /usr/local/bin/dotnetcloud
 
     rm -f "$TEMP_FILE"
 
@@ -564,21 +592,10 @@ install_dotnetcloud() {
 install_service() {
     info "Installing systemd service..."
 
-    # Fresh installs get a permissive service file — no security hardening yet.
-    # 'dotnetcloud setup' applies NoNewPrivileges, ProtectSystem, ProtectHome, and
-    # PrivateTmp after the setup wizard completes successfully. This avoids the
-    # chicken-and-egg problem where NoNewPrivileges blocks sudo during first-run setup.
-    #
-    # Upgrades already have a hardened service file from a previous setup, so we
-    # regenerate with hardening to preserve the locked-down state.
-    if [[ "$IS_UPGRADE" == true ]]; then
-        local HARDENING="true"
-    else
-        local HARDENING="false"
-    fi
-
-    if [[ "$HARDENING" == "true" ]]; then
-        $SUDO tee /etc/systemd/system/dotnetcloud.service > /dev/null <<EOF
+    # Always hardened. 'dotnetcloud setup' runs as root directly (not via systemd),
+    # so NoNewPrivileges/ProtectSystem don't block the setup wizard. The hardening
+    # only takes effect when the service STARTS, which happens after setup completes.
+    $SUDO tee /etc/systemd/system/dotnetcloud.service > /dev/null <<EOF
 [Unit]
 Description=DotNetCloud Core Server
 Documentation=https://github.com/LLabmik/DotNetCloud
@@ -586,28 +603,27 @@ After=network.target postgresql.service
 Requires=network.target
 
 [Service]
-Type=forking
-PIDFile=${RUN_DIR}/dotnetcloud.pid
-GuessMainPID=no
+Type=simple
 User=${SERVICE_USER}
 Group=${SERVICE_GROUP}
 RuntimeDirectory=dotnetcloud
 WorkingDirectory=${INSTALL_DIR}/server
-ExecStart=${INSTALL_DIR}/dotnetcloud start
+ExecStart=/usr/bin/dotnet ${INSTALL_DIR}/server/DotNetCloud.Core.Server.dll
 Restart=on-failure
 RestartSec=10
 TimeoutStartSec=60
 TimeoutStopSec=30
 
-# Security hardening (applied by dotnetcloud setup)
+# Security hardening
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=${DATA_DIR} ${LOG_DIR} ${RUN_DIR} ${CONFIG_DIR}
+ReadWritePaths=${DATA_DIR} ${LOG_DIR} ${RUN_DIR} ${CONFIG_DIR} ${INSTALL_DIR}/server
 PrivateTmp=true
 
 # Environment
 Environment=DOTNET_ENVIRONMENT=Production
+Environment=DOTNET_ROOT=/usr/lib/dotnet
 Environment=DOTNETCLOUD_CONFIG_DIR=${CONFIG_DIR}
 Environment=DOTNETCLOUD_DATA_DIR=${DATA_DIR}
 Environment=DOTNETCLOUD_LOG_DIR=${LOG_DIR}
@@ -616,39 +632,6 @@ Environment=Video__Enrichment__TmdbApiKey=a15fa8fabf06e1d13623369b28bba1c5
 [Install]
 WantedBy=multi-user.target
 EOF
-    else
-        $SUDO tee /etc/systemd/system/dotnetcloud.service > /dev/null <<EOF
-[Unit]
-Description=DotNetCloud Core Server
-Documentation=https://github.com/LLabmik/DotNetCloud
-After=network.target postgresql.service
-Requires=network.target
-
-[Service]
-Type=forking
-PIDFile=${RUN_DIR}/dotnetcloud.pid
-GuessMainPID=no
-User=${SERVICE_USER}
-Group=${SERVICE_GROUP}
-RuntimeDirectory=dotnetcloud
-WorkingDirectory=${INSTALL_DIR}/server
-ExecStart=${INSTALL_DIR}/dotnetcloud start
-Restart=on-failure
-RestartSec=10
-TimeoutStartSec=60
-TimeoutStopSec=30
-
-# Environment
-Environment=DOTNET_ENVIRONMENT=Production
-Environment=DOTNETCLOUD_CONFIG_DIR=${CONFIG_DIR}
-Environment=DOTNETCLOUD_DATA_DIR=${DATA_DIR}
-Environment=DOTNETCLOUD_LOG_DIR=${LOG_DIR}
-Environment=Video__Enrichment__TmdbApiKey=a15fa8fabf06e1d13623369b28bba1c5
-
-[Install]
-WantedBy=multi-user.target
-EOF
-    fi
 
     $SUDO systemctl daemon-reload
 
@@ -671,7 +654,7 @@ post_upgrade() {
     # Run as root (this script already has root). The CLI's SudoHelper detects
     # root via geteuid() and skips sudo re-exec. Migrations only need database
     # access (from config), not service-user filesystem ownership.
-    if "${INSTALL_DIR}/dotnetcloud" migrate 2>/dev/null; then
+    if /usr/bin/dotnet "${INSTALL_DIR}/server/dotnetcloud.dll" migrate 2>/dev/null; then
         ok "Database migrations complete."
     else
         warn "Database migration skipped (migrations will run automatically on next startup)."
@@ -778,7 +761,7 @@ maybe_run_setup_on_schema_upgrade() {
         read -r -p "Run setup wizard now to review the new settings? [Y/n]: " response
         if [[ -z "$response" || "$response" =~ ^[Yy]$ ]]; then
             info "Running setup wizard..."
-            if $SUDO "${INSTALL_DIR}/dotnetcloud" setup; then
+            if $SUDO /usr/bin/dotnet "${INSTALL_DIR}/server/dotnetcloud.dll" setup; then
                 rm -f "$setup_required_marker" 2>/dev/null || true
             else
                 warn "Setup wizard did not complete successfully."
@@ -1262,6 +1245,47 @@ main() {
         ok "Binaries installed. Starting setup wizard..."
         echo ""
 
+        # ── Database Permissions Notice ──────────────────────────────────────
+        # Show provider-specific permissions so the installing user knows what
+        # the database user must be granted before and after setup.
+        # ─────────────────────────────────────────────────────────────────────
+        if [[ -t 0 ]] || { exec 3</dev/tty; } 2>/dev/null; then
+            echo ""
+            echo -e "${BLUE}┌────────────────────────────────────────────────────────┐${NC}"
+            echo -e "${BLUE}│              Database Permissions Notice                │${NC}"
+            echo -e "${BLUE}└────────────────────────────────────────────────────────┘${NC}"
+            echo ""
+            echo -e "${YELLOW}If you choose PostgreSQL:${NC}"
+            echo ""
+            echo "  Required during install:"
+            echo "    CREATEDB  (or database must already exist)"
+            echo "    CREATE    (tables, indexes, constraints)"
+            echo "    Temporary: CREATEROLE  (needed by setup wizard only)"
+            echo ""
+            echo "  After install (ongoing operation):"
+            echo "    CONNECT     on the database"
+            echo "    SELECT, INSERT, UPDATE, DELETE  on all tables"
+            echo ""
+            echo -e "${YELLOW}If you choose SQL Server:${NC}"
+            echo ""
+            echo "  Required during install:"
+            echo "    CREATE DATABASE  (or database must already exist)"
+            echo "    CREATE TABLE, CREATE SCHEMA, CREATE INDEX"
+            echo ""
+            echo "  After install (ongoing operation):"
+            echo "    CONNECT     on the database"
+            echo "    SELECT, INSERT, UPDATE, DELETE  on all tables"
+            echo ""
+            echo -e "${BLUE}──────────────────────────────────────────────────────────${NC}"
+            echo ""
+            read -r -p "Press Enter to continue with setup... " < /dev/tty
+        else
+            warn "Database permissions notice:"
+            info  "PostgreSQL needs CREATEDB + CREATE during install; CONNECT + CRUD after."
+            info  "SQL Server needs CREATE DATABASE/TABLE/SCHEMA during install; CONNECT + CRUD after."
+            echo ""
+        fi
+
         # Run setup wizard immediately — no prompt needed.
         # The wizard handles database config, admin user, TLS, modules, and
         # starts the service via systemctl enable --now.
@@ -1279,17 +1303,17 @@ main() {
         if [[ -t 0 ]]; then
             # stdin is already a terminal (script was downloaded then run)
             if [[ "$SETUP_MODE" == "normal" ]]; then
-                $SUDO "${INSTALL_DIR}/dotnetcloud" setup || SETUP_EXIT=$?
+                $SUDO /usr/bin/dotnet "${INSTALL_DIR}/server/dotnetcloud.dll" setup || SETUP_EXIT=$?
             else
-                $SUDO "${INSTALL_DIR}/dotnetcloud" setup --beginner || SETUP_EXIT=$?
+                $SUDO /usr/bin/dotnet "${INSTALL_DIR}/server/dotnetcloud.dll" setup --beginner || SETUP_EXIT=$?
             fi
         else
             # stdin is a pipe (curl | bash) — try redirecting from the controlling terminal
             if { exec 3</dev/tty; } 2>/dev/null; then
                 if [[ "$SETUP_MODE" == "normal" ]]; then
-                    $SUDO "${INSTALL_DIR}/dotnetcloud" setup <&3 || SETUP_EXIT=$?
+                    $SUDO /usr/bin/dotnet "${INSTALL_DIR}/server/dotnetcloud.dll" setup <&3 || SETUP_EXIT=$?
                 else
-                    $SUDO "${INSTALL_DIR}/dotnetcloud" setup --beginner <&3 || SETUP_EXIT=$?
+                    $SUDO /usr/bin/dotnet "${INSTALL_DIR}/server/dotnetcloud.dll" setup --beginner <&3 || SETUP_EXIT=$?
                 fi
                 exec 3<&-
             else

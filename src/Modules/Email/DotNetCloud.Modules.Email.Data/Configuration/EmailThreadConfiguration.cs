@@ -16,7 +16,7 @@ public sealed class EmailThreadConfiguration : IEntityTypeConfiguration<EmailThr
         builder.Property(t => t.ProviderThreadId).IsRequired().HasMaxLength(200);
         builder.Property(t => t.Subject).IsRequired().HasMaxLength(500);
         builder.Property(t => t.Snippet).HasMaxLength(500);
-        builder.Property(t => t.ParticipantsJson).HasColumnType("jsonb");
+        builder.Property(t => t.ParticipantsJson);
         builder.Property(t => t.CreatedAt).IsRequired().HasDefaultValueSql("CURRENT_TIMESTAMP");
         builder.Property(t => t.UpdatedAt).IsRequired().HasDefaultValueSql("CURRENT_TIMESTAMP");
 

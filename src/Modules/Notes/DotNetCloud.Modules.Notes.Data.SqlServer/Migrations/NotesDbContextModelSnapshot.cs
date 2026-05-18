@@ -311,7 +311,7 @@ namespace DotNetCloud.Modules.Notes.Data.SqlServer.Migrations
                     b.HasOne("DotNetCloud.Modules.Notes.Models.NoteFolder", "Parent")
                         .WithMany("Children")
                         .HasForeignKey("ParentId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.Navigation("Parent");
                 });

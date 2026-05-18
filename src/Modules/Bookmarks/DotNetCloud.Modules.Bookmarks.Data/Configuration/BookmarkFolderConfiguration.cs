@@ -22,7 +22,7 @@ public sealed class BookmarkFolderConfiguration : IEntityTypeConfiguration<Bookm
         builder.HasOne(f => f.Parent)
             .WithMany(f => f.Children)
             .HasForeignKey(f => f.ParentId)
-            .OnDelete(DeleteBehavior.SetNull);
+            .OnDelete(DeleteBehavior.NoAction);
 
         builder.HasIndex(f => f.OwnerId).HasDatabaseName("ix_bookmark_folders_owner_id");
         builder.HasIndex(f => new { f.OwnerId, f.ParentId }).HasDatabaseName("ix_bookmark_folders_owner_parent");

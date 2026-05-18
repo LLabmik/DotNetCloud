@@ -36,7 +36,7 @@ public sealed class NoteFolderConfiguration : IEntityTypeConfiguration<NoteFolde
         builder.HasOne(f => f.Parent)
             .WithMany(f => f.Children)
             .HasForeignKey(f => f.ParentId)
-            .OnDelete(DeleteBehavior.SetNull);
+            .OnDelete(DeleteBehavior.NoAction);
 
         // Indexes
         builder.HasIndex(f => f.OwnerId)

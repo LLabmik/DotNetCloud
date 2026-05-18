@@ -115,7 +115,7 @@ namespace DotNetCloud.Modules.Bookmarks.Data.SqlServer.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("TagsJson")
-                        .HasColumnType("jsonb");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Title")
                         .IsRequired()
@@ -233,7 +233,7 @@ namespace DotNetCloud.Modules.Bookmarks.Data.SqlServer.Migrations
                     b.HasOne("DotNetCloud.Modules.Bookmarks.Models.BookmarkFolder", "Parent")
                         .WithMany("Children")
                         .HasForeignKey("ParentId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.Navigation("Parent");
                 });
