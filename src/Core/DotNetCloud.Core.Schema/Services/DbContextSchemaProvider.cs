@@ -73,13 +73,38 @@ public class DbContextSchemaProvider : IModuleSchemaProvider
             {
                 _logger.LogInformation("Applying {Count} pending migrations for {ModuleId}",
                     pending.Count(), moduleId);
-                await context.Database.MigrateAsync(cancellationToken);
+                try
+                {
+                    await context.Database.MigrateAsync(cancellationToken);
+                }
+                catch (Exception ex) when (ex is InvalidOperationException or System.Data.Common.DbException)
+                {
+                    _logger.LogWarning(ex,
+                        "Migrations failed for module {ModuleId}, schema may need creation via EnsureCreated",
+                        moduleId);
+                    // If migrations fail, the tables don't exist yet.
+                    // EnsureCreated will create them (safe when no tables exist).
+                    await context.Database.EnsureCreatedAsync(cancellationToken);
+                }
             }
             return;
         }
 
         _logger.LogInformation("Creating schema for module {ModuleId}", moduleId);
-        await context.Database.MigrateAsync(cancellationToken);
+
+        // Try to apply migrations first; fall back to EnsureCreated if migrations
+        // fail (e.g. PostgreSQL-generated migrations on SQL Server).
+        try
+        {
+            await context.Database.MigrateAsync(cancellationToken);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or System.Data.Common.DbException)
+        {
+            _logger.LogWarning(ex,
+                "Migrations failed for module {ModuleId}, falling back to EnsureCreated", moduleId);
+            await context.Database.EnsureCreatedAsync(cancellationToken);
+        }
+
         _logger.LogInformation("Created schema for module {ModuleId}", moduleId);
     }
 

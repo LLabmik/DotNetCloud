@@ -13,6 +13,7 @@ using DotNetCloud.Modules.Search.Data;
 using DotNetCloud.Modules.Tracks.Data;
 using DotNetCloud.Modules.Video.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 
 namespace DotNetCloud.Core.Server.Extensions;
 
@@ -24,6 +25,10 @@ internal static class ModuleServiceRegistrationExtensions
     /// <summary>
     /// Registers all module-specific DbContexts with the same database provider and connection string.
     /// </summary>
+    /// <summary>
+    /// Registers all module-specific DbContexts with the same database provider and connection string.
+    /// For SQL Server, modules with dedicated migration assemblies are configured accordingly.
+    /// </summary>
     public static IServiceCollection AddModuleDbContexts(
         this IServiceCollection services,
         DatabaseProvider provider,
@@ -31,22 +36,47 @@ internal static class ModuleServiceRegistrationExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        void Configure(DbContextOptionsBuilder options) =>
-            ConfigureModuleDbContext(options, provider, connectionString);
+        // Modules that have dedicated SQL Server migration assemblies
+        const string AiMigrationsAssembly = "DotNetCloud.Modules.AI.Data.SqlServer";
+        const string BookmarksMigrationsAssembly = "DotNetCloud.Modules.Bookmarks.Data.SqlServer";
+        const string CalendarMigrationsAssembly = "DotNetCloud.Modules.Calendar.Data.SqlServer";
+        const string ChatMigrationsAssembly = "DotNetCloud.Modules.Chat.Data.SqlServer";
+        const string ContactsMigrationsAssembly = "DotNetCloud.Modules.Contacts.Data.SqlServer";
+        const string EmailMigrationsAssembly = "DotNetCloud.Modules.Email.Data.SqlServer";
+        const string FilesMigrationsAssembly = "DotNetCloud.Modules.Files.Data.SqlServer";
+        const string MusicMigrationsAssembly = "DotNetCloud.Modules.Music.Data.SqlServer";
+        const string NotesMigrationsAssembly = "DotNetCloud.Modules.Notes.Data.SqlServer";
+        const string PhotosMigrationsAssembly = "DotNetCloud.Modules.Photos.Data.SqlServer";
+        const string SearchMigrationsAssembly = "DotNetCloud.Modules.Search.Data.SqlServer";
+        const string TracksMigrationsAssembly = "DotNetCloud.Modules.Tracks.Data.SqlServer";
+        const string VideoMigrationsAssembly = "DotNetCloud.Modules.Video.Data.SqlServer";
 
-        services.AddDbContext<FilesDbContext>(Configure);
-        services.AddDbContext<ChatDbContext>(Configure);
-        services.AddDbContext<ContactsDbContext>(Configure);
-        services.AddDbContext<CalendarDbContext>(Configure);
-        services.AddDbContext<NotesDbContext>(Configure);
-        services.AddDbContext<TracksDbContext>(Configure);
-        services.AddDbContext<PhotosDbContext>(Configure);
-        services.AddDbContext<MusicDbContext>(Configure);
-        services.AddDbContext<VideoDbContext>(Configure);
-        services.AddDbContext<AiDbContext>(Configure);
-        services.AddDbContext<SearchDbContext>(Configure);
-        services.AddDbContext<BookmarksDbContext>(Configure);
-        services.AddDbContext<EmailDbContext>(Configure);
+        services.AddDbContext<AiDbContext>(options =>
+            ConfigureModuleDbContext(options, provider, connectionString, AiMigrationsAssembly));
+        services.AddDbContext<BookmarksDbContext>(options =>
+            ConfigureModuleDbContext(options, provider, connectionString, BookmarksMigrationsAssembly));
+        services.AddDbContext<CalendarDbContext>(options =>
+            ConfigureModuleDbContext(options, provider, connectionString, CalendarMigrationsAssembly));
+        services.AddDbContext<ChatDbContext>(options =>
+            ConfigureModuleDbContext(options, provider, connectionString, ChatMigrationsAssembly));
+        services.AddDbContext<ContactsDbContext>(options =>
+            ConfigureModuleDbContext(options, provider, connectionString, ContactsMigrationsAssembly));
+        services.AddDbContext<EmailDbContext>(options =>
+            ConfigureModuleDbContext(options, provider, connectionString, EmailMigrationsAssembly));
+        services.AddDbContext<FilesDbContext>(options =>
+            ConfigureModuleDbContext(options, provider, connectionString, FilesMigrationsAssembly));
+        services.AddDbContext<MusicDbContext>(options =>
+            ConfigureModuleDbContext(options, provider, connectionString, MusicMigrationsAssembly));
+        services.AddDbContext<NotesDbContext>(options =>
+            ConfigureModuleDbContext(options, provider, connectionString, NotesMigrationsAssembly));
+        services.AddDbContext<PhotosDbContext>(options =>
+            ConfigureModuleDbContext(options, provider, connectionString, PhotosMigrationsAssembly));
+        services.AddDbContext<SearchDbContext>(options =>
+            ConfigureModuleDbContext(options, provider, connectionString, SearchMigrationsAssembly));
+        services.AddDbContext<TracksDbContext>(options =>
+            ConfigureModuleDbContext(options, provider, connectionString, TracksMigrationsAssembly));
+        services.AddDbContext<VideoDbContext>(options =>
+            ConfigureModuleDbContext(options, provider, connectionString, VideoMigrationsAssembly));
 
         return services;
     }
@@ -57,7 +87,8 @@ internal static class ModuleServiceRegistrationExtensions
     private static void ConfigureModuleDbContext(
         DbContextOptionsBuilder options,
         DatabaseProvider provider,
-        string connectionString)
+        string connectionString,
+        string? migrationsAssembly = null)
     {
         switch (provider)
         {
@@ -74,11 +105,24 @@ internal static class ModuleServiceRegistrationExtensions
                 {
                     sqlServerOptions.EnableRetryOnFailure(maxRetryCount: 3);
                     sqlServerOptions.CommandTimeout(30);
+
+                    if (!string.IsNullOrEmpty(migrationsAssembly))
+                    {
+                        sqlServerOptions.MigrationsAssembly(migrationsAssembly);
+                    }
                 });
                 break;
 
             default:
                 throw new ArgumentException($"Unsupported database provider: {provider}", nameof(provider));
         }
+
+        // Suppress pending model changes warning for modules that don't have
+        // a dedicated SQL Server migrations assembly. Their migrations were
+        // generated for the PostgreSQL provider.
+        options.ConfigureWarnings(warnings =>
+        {
+            warnings.Ignore(RelationalEventId.PendingModelChangesWarning);
+        });
     }
 }

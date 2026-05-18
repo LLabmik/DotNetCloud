@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Capabilities;
+using DotNetCloud.Core.Data.Infrastructure;
 using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Search.Events;
 using DotNetCloud.Modules.Search.Extractors;
@@ -24,8 +25,18 @@ public static class SearchServiceRegistration
     {
         services.TryAddSingleton<IBackgroundServiceTracker, BackgroundServiceTracker>();
 
-        // Search provider — PostgreSQL as default
-        services.AddScoped<ISearchProvider, PostgreSqlSearchProvider>();
+        // Search provider — auto-selected based on database provider configuration
+        var provider = ResolveDatabaseProvider(configuration);
+        switch (provider)
+        {
+            case DatabaseProvider.SqlServer:
+                services.AddScoped<ISearchProvider, SqlServerSearchProvider>();
+                break;
+            case DatabaseProvider.PostgreSQL:
+            default:
+                services.AddScoped<ISearchProvider, PostgreSqlSearchProvider>();
+                break;
+        }
 
         // Content extractors
         services.AddSingleton<IContentExtractor, PlainTextExtractor>();
@@ -52,5 +63,22 @@ public static class SearchServiceRegistration
         services.AddScoped<SearchIndexRequestEventHandler>();
 
         return services;
+    }
+
+    private static DatabaseProvider ResolveDatabaseProvider(IConfiguration? configuration)
+    {
+        if (configuration == null)
+            return DatabaseProvider.PostgreSQL; // default
+
+        var configuredProvider = configuration["Database:Provider"] ?? configuration["databaseProvider"];
+        if (string.IsNullOrWhiteSpace(configuredProvider))
+            return DatabaseProvider.PostgreSQL; // default
+
+        // Normalize: "SqlServer" (from config.json) or "SQL Server" → DatabaseProvider.SqlServer
+        var lower = configuredProvider.ToLowerInvariant();
+        if (lower.Contains("sqlserver") || lower.Contains("sql server"))
+            return DatabaseProvider.SqlServer;
+
+        return DatabaseProvider.PostgreSQL;
     }
 }

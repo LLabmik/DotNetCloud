@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Data.Infrastructure;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Search;
 using DotNetCloud.Modules.Search.Data;
@@ -21,8 +22,18 @@ builder.Services.AddDbContext<SearchDbContext>(options =>
 // In-process event bus for standalone operation
 builder.Services.AddSingleton<IEventBus, InProcessEventBus>();
 
-// Search provider — PostgreSQL as default; auto-selected based on DB config in production
-builder.Services.AddScoped<ISearchProvider, PostgreSqlSearchProvider>();
+// Search provider — auto-selected based on database provider configuration
+var dbProvider = ResolveDatabaseProvider(builder.Configuration);
+switch (dbProvider)
+{
+    case DatabaseProvider.SqlServer:
+        builder.Services.AddScoped<ISearchProvider, SqlServerSearchProvider>();
+        break;
+    case DatabaseProvider.PostgreSQL:
+    default:
+        builder.Services.AddScoped<ISearchProvider, PostgreSqlSearchProvider>();
+        break;
+}
 
 // Register all search services (query, indexing, extractors, reindex background service)
 builder.Services.AddSearchServices(builder.Configuration);
@@ -56,6 +67,21 @@ app.MapGet("/", () => Results.Ok(new
     version = "1.0.0",
     status = "running"
 }));
+
+// Resolves the database provider from configuration.
+// Falls back to PostgreSQL if configuration is missing or unrecognized.
+static DatabaseProvider ResolveDatabaseProvider(IConfiguration configuration)
+{
+    var configuredProvider = configuration["Database:Provider"] ?? configuration["databaseProvider"];
+    if (string.IsNullOrWhiteSpace(configuredProvider))
+        return DatabaseProvider.PostgreSQL;
+
+    var lower = configuredProvider.ToLowerInvariant();
+    if (lower.Contains("sqlserver") || lower.Contains("sql server"))
+        return DatabaseProvider.SqlServer;
+
+    return DatabaseProvider.PostgreSQL;
+}
 
 app.Run();
 
