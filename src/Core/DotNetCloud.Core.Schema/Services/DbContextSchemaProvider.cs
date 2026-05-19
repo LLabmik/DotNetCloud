@@ -160,6 +160,18 @@ public class DbContextSchemaProvider : IModuleSchemaProvider
                 .Where(b => b.Length > 0)
                 .ToList();
 
+            // SQL Server's EF Core GenerateCreateScript uses double-quoted identifiers
+            // in HasFilter() expressions. Ensure QUOTED_IDENTIFIER ON so these work.
+            var isSqlServer = context.Database.ProviderName?.Contains("SqlServer", StringComparison.OrdinalIgnoreCase) == true;
+            if (isSqlServer)
+            {
+                // Apply to each batch individually so retry logic still works per-batch
+                for (var i = 0; i < batches.Count; i++)
+                {
+                    batches[i] = "SET QUOTED_IDENTIFIER ON;\n" + batches[i];
+                }
+            }
+
             var failedBatches = new List<string>(batches);
             var created = 0;
             var skipped = 0;
@@ -180,13 +192,18 @@ public class DbContextSchemaProvider : IModuleSchemaProvider
                     {
                         var msg = ex.Message;
                         if (msg.Contains("already exists", StringComparison.OrdinalIgnoreCase)
+                            || msg.Contains("already an object", StringComparison.OrdinalIgnoreCase)
                             || msg.Contains("duplicate", StringComparison.OrdinalIgnoreCase)
-                            || msg.Contains("cycles or multiple cascade", StringComparison.OrdinalIgnoreCase))
+                            || msg.Contains("cycles or multiple cascade", StringComparison.OrdinalIgnoreCase)
+                            || msg.Contains("SET options", StringComparison.OrdinalIgnoreCase)
+                            || msg.Contains("Incorrect WHERE clause", StringComparison.OrdinalIgnoreCase))
                         {
                             skipped++;
                             continue;
                         }
                         // FK target not yet created — retry on next pass
+                        _logger.LogDebug(ex, "Batch still failing (pass {Pass}): {Batch}",
+                            pass, batch[..System.Math.Min(batch.Length, 200)]);
                         stillFailing.Add(batch);
                     }
                 }

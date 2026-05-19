@@ -1,5 +1,6 @@
 using DotNetCloud.Core.Data.Entities.Identity;
 using DotNetCloud.Core.Server.Initialization;
+using DotNetCloud.Core.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -15,6 +16,7 @@ public class AdminSeederTests
     private Mock<UserManager<ApplicationUser>> _userManagerMock = null!;
     private Mock<IRoleStore<ApplicationRole>> _roleStoreMock = null!;
     private Mock<RoleManager<ApplicationRole>> _roleManagerMock = null!;
+    private Mock<IAdminSettingsService> _adminSettingsMock = null!;
     private ILogger<AdminSeeder> _logger = null!;
 
     [TestInitialize]
@@ -26,6 +28,7 @@ public class AdminSeederTests
         _roleStoreMock = new Mock<IRoleStore<ApplicationRole>>();
         _roleManagerMock = new Mock<RoleManager<ApplicationRole>>(
             _roleStoreMock.Object, null!, null!, null!, null!);
+        _adminSettingsMock = new Mock<IAdminSettingsService>();
         _logger = NullLogger<AdminSeeder>.Instance;
     }
 
@@ -48,7 +51,7 @@ public class AdminSeederTests
             })
             .Build();
 
-        var seeder = new AdminSeeder(_userManagerMock.Object, _roleManagerMock.Object, null!, config, _logger);
+        var seeder = new AdminSeeder(_userManagerMock.Object, _roleManagerMock.Object, null!, config, _adminSettingsMock.Object, _logger);
 
         // Act
         await seeder.SeedAsync();
@@ -68,7 +71,7 @@ public class AdminSeederTests
 
         var config = new ConfigurationBuilder().Build();
 
-        var seeder = new AdminSeeder(_userManagerMock.Object, _roleManagerMock.Object, null!, config, _logger);
+        var seeder = new AdminSeeder(_userManagerMock.Object, _roleManagerMock.Object, null!, config, _adminSettingsMock.Object, _logger);
 
         // Act
         await seeder.SeedAsync();
@@ -93,7 +96,7 @@ public class AdminSeederTests
             })
             .Build();
 
-        var seeder = new AdminSeeder(_userManagerMock.Object, _roleManagerMock.Object, null!, config, _logger);
+        var seeder = new AdminSeeder(_userManagerMock.Object, _roleManagerMock.Object, null!, config, _adminSettingsMock.Object, _logger);
 
         // Act
         await seeder.SeedAsync();
@@ -125,7 +128,7 @@ public class AdminSeederTests
             })
             .Build();
 
-        var seeder = new AdminSeeder(_userManagerMock.Object, _roleManagerMock.Object, null!, config, _logger);
+        var seeder = new AdminSeeder(_userManagerMock.Object, _roleManagerMock.Object, null!, config, _adminSettingsMock.Object, _logger);
 
         // Act
         await seeder.SeedAsync();
@@ -168,7 +171,7 @@ public class AdminSeederTests
             })
             .Build();
 
-        var seeder = new AdminSeeder(_userManagerMock.Object, _roleManagerMock.Object, null!, config, _logger);
+        var seeder = new AdminSeeder(_userManagerMock.Object, _roleManagerMock.Object, null!, config, _adminSettingsMock.Object, _logger);
 
         // Act & Assert
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(
@@ -200,7 +203,7 @@ public class AdminSeederTests
             })
             .Build();
 
-        var seeder = new AdminSeeder(_userManagerMock.Object, _roleManagerMock.Object, null!, config, _logger);
+        var seeder = new AdminSeeder(_userManagerMock.Object, _roleManagerMock.Object, null!, config, _adminSettingsMock.Object, _logger);
 
         // Act & Assert
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(
@@ -233,7 +236,7 @@ public class AdminSeederTests
             })
             .Build();
 
-        var seeder = new AdminSeeder(_userManagerMock.Object, _roleManagerMock.Object, null!, config, _logger);
+        var seeder = new AdminSeeder(_userManagerMock.Object, _roleManagerMock.Object, null!, config, _adminSettingsMock.Object, _logger);
 
         // Act
         await seeder.SeedAsync();

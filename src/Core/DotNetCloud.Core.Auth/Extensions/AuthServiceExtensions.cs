@@ -87,6 +87,12 @@ public static class AuthServiceExtensions
             options.AccessDeniedPath = "/auth/login";
             options.ReturnUrlParameter = "returnUrl";
 
+            // Session lifetime: persistent cookies expire after 24 hours of inactivity.
+            // Sliding expiration resets the clock on each request, so idle sessions
+            // eventually force re-auth even with persistent cookies.
+            options.ExpireTimeSpan = TimeSpan.FromHours(24);
+            options.SlidingExpiration = true;
+
             // Cookie security hardening
             // Use __Host- prefix: requires Secure + Path=/ + no Domain attribute,
             // preventing subdomain cookie overwrite attacks.

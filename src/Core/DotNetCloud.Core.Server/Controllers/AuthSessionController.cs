@@ -100,6 +100,7 @@ public sealed class AuthSessionController : ControllerBase
 
             if (result.RequiresTwoFactor)
             {
+                _logger.LogInformation("Login requires 2FA for {Email}, redirecting to MFA verify", email);
                 var mfaReturnUrl = IsSafeLocalReturnUrl(returnUrl) ? returnUrl! : "/";
                 return LocalRedirect($"/auth/mfa-verify?returnUrl={Uri.EscapeDataString(mfaReturnUrl)}");
             }
@@ -167,6 +168,79 @@ public sealed class AuthSessionController : ControllerBase
         return LocalRedirect($"/auth/change-password?returnUrl={encodedReturn}&changed=true");
     }
 
+    /// <summary>
+    /// Verifies a TOTP code from the authenticator app via form POST.
+    /// Must be a real HTTP POST (not Blazor SignalR) so the auth cookie can be set on the response.
+    /// </summary>
+    [HttpPost("mfa-verify")]
+    [AllowAnonymous]
+    public async Task<IActionResult> MfaVerifyAsync(
+        [FromForm] string code,
+        [FromForm] string? returnUrl = null)
+    {
+        var safeReturn = IsSafeLocalReturnUrl(returnUrl) ? returnUrl! : "/";
+
+        if (string.IsNullOrWhiteSpace(code))
+            return RedirectToMfaVerify("Verification code is required.", safeReturn);
+
+        try
+        {
+            var result = await _signInManager.TwoFactorAuthenticatorSignInAsync(
+                code, isPersistent: true, rememberClient: true);
+
+            if (result.Succeeded)
+            {
+                var target = await ResolveMfaPostLoginTargetAsync(safeReturn);
+                return LocalRedirect(target);
+            }
+
+            if (result.IsLockedOut)
+                return RedirectToMfaVerify("Account locked. Please try again later.", safeReturn);
+
+            return RedirectToMfaVerify("Invalid verification code.", safeReturn);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "MFA form verification failed");
+            return RedirectToMfaVerify($"Verification error: {ex.GetType().Name}", safeReturn);
+        }
+    }
+
+    /// <summary>
+    /// Signs out the current user and clears the auth cookie via form POST.
+    /// Must be a real HTTP POST (not Blazor SignalR) so the cookie can be cleared on the response.
+    /// </summary>
+    [HttpPost("logout")]
+    public async Task<IActionResult> LogoutAsync([FromForm] string? returnUrl = null)
+    {
+        try
+        {
+            await _signInManager.SignOutAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "SignOutAsync failed");
+        }
+
+        // Explicitly clear the auth cookie as well, since SignOutAsync may not
+        // always produce a Set-Cookie header that the browser honors before the
+        // redirect is followed (Blazor enhanced nav race condition).
+        foreach (var cookie in Request.Cookies.Keys)
+        {
+            if (cookie.StartsWith(".AspNetCore.", StringComparison.OrdinalIgnoreCase)
+                || cookie.StartsWith("__Host-.AspNetCore.", StringComparison.OrdinalIgnoreCase)
+                || cookie.StartsWith("Identity.", StringComparison.OrdinalIgnoreCase))
+            {
+                Response.Cookies.Delete(cookie);
+            }
+        }
+
+        _logger.LogInformation("User logged out via form POST");
+
+        var safeReturn = IsSafeLocalReturnUrl(returnUrl) ? returnUrl! : "/auth/login";
+        return LocalRedirect(safeReturn);
+    }
+
     private IActionResult RedirectToLogin(string error, string? returnUrl, string? email)
     {
         var safeReturn = IsSafeLocalReturnUrl(returnUrl) ? returnUrl! : "/";
@@ -182,6 +256,14 @@ public sealed class AuthSessionController : ControllerBase
         var encodedError = Uri.EscapeDataString(error);
         var encodedReturn = Uri.EscapeDataString(safeReturn);
         return LocalRedirect($"/auth/change-password?returnUrl={encodedReturn}&error={encodedError}");
+    }
+
+    private IActionResult RedirectToMfaVerify(string error, string? returnUrl)
+    {
+        var safeReturn = IsSafeLocalReturnUrl(returnUrl) ? returnUrl! : "/";
+        var encodedError = Uri.EscapeDataString(error);
+        var encodedReturn = Uri.EscapeDataString(safeReturn);
+        return LocalRedirect($"/auth/mfa-verify?returnUrl={encodedReturn}&error={encodedError}");
     }
 
     private static bool IsSafeLocalReturnUrl(string? returnUrl)
@@ -204,6 +286,20 @@ public sealed class AuthSessionController : ControllerBase
         var isAdmin = await _userManager.IsInRoleAsync(user, SystemRoleNames.Administrator);
 
         return isAdmin ? safeTarget : "/";
+    }
+
+    private async Task<string> ResolveMfaPostLoginTargetAsync(string returnUrl)
+    {
+        if (!returnUrl.StartsWith(AdminBasePath, StringComparison.OrdinalIgnoreCase))
+            return returnUrl;
+
+        var user = await _signInManager.GetTwoFactorAuthenticationUserAsync();
+        if (user is null)
+            return "/";
+
+        var isAdmin = await _userManager.IsInRoleAsync(user, SystemRoleNames.Administrator);
+
+        return isAdmin ? returnUrl : "/";
     }
 
     private async Task UpdateLastLoginAsync(string email)

@@ -1,6 +1,4 @@
 @page "/auth/mfa-verify"
-@using Microsoft.AspNetCore.Identity
-@using DotNetCloud.Core.Data.Entities.Identity
 @layout AuthLayout
 
 <PageTitle>MFA Verification - DotNetCloud</PageTitle>
@@ -13,24 +11,29 @@
             <p>Enter the code from your authenticator app</p>
         </div>
 
-        <EditForm Model="_model" OnValidSubmit="VerifyAsync" FormName="mfa-verify">
+        <form method="post" action="/auth/session/mfa-verify" data-enhance-nav="false">
             <div class="form-group">
                 <label for="code">Verification Code</label>
-                <InputText id="code" class="input input-code" @bind-Value="_model!.Code"
-                           placeholder="000000" maxlength="6" />
+                <input id="code" name="code" class="input input-code" type="text"
+                       inputmode="numeric" pattern="[0-9]*" maxlength="6"
+                       placeholder="000000" required autofocus />
             </div>
 
-            @if (!string.IsNullOrWhiteSpace(_errorMessage))
+            <input type="hidden" name="returnUrl" value="@SafeReturnUrl" />
+
+            @if (!string.IsNullOrWhiteSpace(Error))
             {
-                <div class="alert alert-danger">@_errorMessage</div>
+                <div class="alert alert-danger">@Error</div>
             }
 
             <div class="form-actions">
-                <button type="submit" class="btn btn-primary btn-full" disabled="@_submitting">
-                    @(_submitting ? "Verifying..." : "Verify")
-                </button>
+                <button type="submit" class="btn btn-primary btn-full">Verify</button>
             </div>
-        </EditForm>
+        </form>
+
+        <div class="session-info">
+            Sessions expire after 24 hours of inactivity.
+        </div>
 
         <div class="auth-footer">
             <a href="/auth/login">Back to login</a>
@@ -39,92 +42,18 @@
 </div>
 
 @code {
-    private const string AdminBasePath = "/admin";
-
-    [Inject] private SignInManager<ApplicationUser> SignInManager { get; set; } = default!;
-    [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
-    [Inject] private NavigationManager Navigation { get; set; } = default!;
-
     [SupplyParameterFromQuery]
     private string? ReturnUrl { get; set; }
 
-    [SupplyParameterFromForm]
-    private MfaModel? _model { get; set; }
+    [SupplyParameterFromQuery]
+    private string? Error { get; set; }
 
-    private bool _submitting;
-    private string? _errorMessage;
-
-    protected override void OnInitialized()
-    {
-        _model ??= new();
-    }
-
-    private async Task VerifyAsync()
-    {
-        _model ??= new();
-        _errorMessage = null;
-        _submitting = true;
-        try
-        {
-            var result = await SignInManager.TwoFactorAuthenticatorSignInAsync(
-                _model.Code, isPersistent: true, rememberClient: true);
-
-            if (result.Succeeded)
-            {
-                var target = await ResolvePostLoginTargetAsync(ReturnUrl);
-                Navigation.NavigateTo(target, forceLoad: true);
-                return;
-            }
-
-            if (result.IsLockedOut)
-            {
-                _errorMessage = "Account locked. Please try again later.";
-            }
-            else
-            {
-                _errorMessage = "Invalid verification code.";
-            }
-        }
-        finally
-        {
-            _submitting = false;
-        }
-    }
-
-    private sealed class MfaModel
-    {
-        public string Code { get; set; } = string.Empty;
-    }
+    private string SafeReturnUrl => IsSafeLocalReturnUrl(ReturnUrl) ? ReturnUrl! : "/";
 
     private static bool IsSafeLocalReturnUrl(string? returnUrl)
     {
         return !string.IsNullOrWhiteSpace(returnUrl)
             && returnUrl.StartsWith("/", StringComparison.Ordinal)
             && !returnUrl.StartsWith("//", StringComparison.Ordinal);
-    }
-
-    private async Task<string> ResolvePostLoginTargetAsync(string? returnUrl)
-    {
-        var safeTarget = IsSafeLocalReturnUrl(returnUrl) ? returnUrl! : "/";
-        if (!safeTarget.StartsWith(AdminBasePath, StringComparison.OrdinalIgnoreCase))
-        {
-            return safeTarget;
-        }
-
-        var user = await UserManager.GetUserAsync(SignInManager.Context.User);
-        if (user is null)
-        {
-            user = await SignInManager.GetTwoFactorAuthenticationUserAsync();
-        }
-
-        if (user is null)
-        {
-            return "/";
-        }
-
-        var isAdmin = await UserManager.IsInRoleAsync(user, "Administrator")
-            || await UserManager.IsInRoleAsync(user, "admin");
-
-        return isAdmin ? safeTarget : "/";
     }
 }
