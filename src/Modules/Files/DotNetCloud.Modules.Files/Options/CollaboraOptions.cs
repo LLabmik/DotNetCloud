@@ -15,6 +15,14 @@ public sealed class CollaboraOptions
     public string ServerUrl { get; set; } = string.Empty;
 
     /// <summary>
+    /// Internal URL used by the server for discovery and health checks.
+    /// When set, the discovery request is made to this URL instead of <see cref="ServerUrl"/>.
+    /// This allows the browser iframe to use the public <see cref="ServerUrl"/> while
+    /// health checks use a loopback or internal address. Falls back to <see cref="ServerUrl"/> if empty.
+    /// </summary>
+    public string DiscoveryUrl { get; set; } = string.Empty;
+
+    /// <summary>
     /// Whether Collabora integration is enabled.
     /// </summary>
     public bool Enabled { get; set; }

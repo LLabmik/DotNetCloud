@@ -50,7 +50,10 @@ internal sealed class CollaboraDiscoveryService : ICollaboraDiscoveryService
                 return new CollaboraDiscoveryResult { IsAvailable = false };
             }
 
-            var discoveryUrl = $"{_options.ServerUrl.TrimEnd('/')}/hosting/discovery";
+            var discoveryBaseUrl = !string.IsNullOrWhiteSpace(_options.DiscoveryUrl)
+                ? _options.DiscoveryUrl
+                : _options.ServerUrl;
+            var discoveryUrl = $"{discoveryBaseUrl.TrimEnd('/')}/hosting/discovery";
 
             using var client = _httpClientFactory.CreateClient("Collabora");
             client.Timeout = TimeSpan.FromSeconds(10);

@@ -777,6 +777,13 @@ internal static class SetupCommand
 
         await SyncEnabledModulesToDatabaseAsync(config);
 
+        // Provision Collabora Online certs and env file if running in BuiltIn mode
+        if (string.Equals(config.CollaboraMode, "BuiltIn", StringComparison.OrdinalIgnoreCase))
+        {
+            CertRenewCommand.ProvisionCollaboraCertsFromConfig(config);
+            CertRenewCommand.WriteCollaboraEnvFile(config);
+        }
+
         // Show login URL
         var loginUrl = BuildLoginUrl(config);
         Console.WriteLine();
@@ -1547,6 +1554,22 @@ internal static class SetupCommand
             if (!EnsureCertificateFilePermissions(certPath))
             {
                 return false;
+            }
+
+            // Also export PEM for tools that need separate key/cert/chain files (e.g. coolwsd)
+            var pemPath = Path.ChangeExtension(certPath, ".pem");
+            var certPem = cert.ExportCertificatePem();
+            var keyPem = cert.GetRSAPrivateKey()?.ExportRSAPrivateKeyPem();
+            if (keyPem != null)
+            {
+                var pemContent = keyPem + "\n" + certPem;
+                File.WriteAllText(pemPath, pemContent);
+                if (!OperatingSystem.IsWindows())
+                {
+                    File.SetUnixFileMode(pemPath,
+                        UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead);
+                    SystemdServiceHelper.FixOwnership(pemPath);
+                }
             }
 
             ConsoleOutput.WriteSuccess($"Generated self-signed TLS certificate: {certPath}");
