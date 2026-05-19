@@ -172,6 +172,14 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
         var visitedFolders = new HashSet<Guid>();
         var candidatesById = new Dictionary<Guid, MediaFileCandidate>();
 
+        // Report initial discovery progress
+        progress?.Report(new MediaScanProgress
+        {
+            Phase = "Discovering files...",
+            FilesDiscovered = 0,
+            PercentComplete = 0,
+        });
+
         foreach (var source in enabledSources)
         {
             var sourceCandidates = await CollectSourceFilesAsync(
@@ -180,7 +188,8 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
                 caller,
                 extensions,
                 visitedFolders,
-                cancellationToken);
+                cancellationToken,
+                progress);
 
             if (sourceCandidates.Count == 0 && source.SourceKind == MediaLibrarySourceKind.SharedMount)
             {
@@ -194,6 +203,15 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
         }
 
         result.TotalFound = candidatesById.Count;
+
+        // Report discovery complete — user now sees the file count
+        progress?.Report(new MediaScanProgress
+        {
+            Phase = "Discovering files...",
+            FilesDiscovered = result.TotalFound,
+            PercentComplete = 0,
+        });
+
         _logger.LogInformation(
             "Media source scan: found {Count} {MediaType} files across {SourceCount} sources for user {OwnerId}",
             result.TotalFound, parsed, enabledSources.Count, ownerId);
@@ -225,6 +243,7 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
             {
                 Phase = "Indexing media",
                 CurrentFile = file.Name,
+                FilesDiscovered = result.TotalFound,
                 FilesProcessed = filesProcessed,
                 TotalFiles = filesToIndex.Count,
                 Imported = result.Imported,
@@ -299,7 +318,8 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
         CallerContext caller,
         HashSet<string> extensions,
         HashSet<Guid> visitedFolders,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IProgress<MediaScanProgress>? progress = null)
     {
         var roots = await ResolveSourceRootsAsync(source, fileService, caller, cancellationToken);
         if (roots.Count == 0)
@@ -310,7 +330,7 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
         var candidates = new Dictionary<Guid, MediaFileCandidate>();
         foreach (var root in roots)
         {
-            await CollectMatchingFilesAsync(root, fileService, caller, extensions, candidates, visitedFolders, cancellationToken);
+            await CollectMatchingFilesAsync(root, fileService, caller, extensions, candidates, visitedFolders, cancellationToken, progress);
         }
 
         return candidates.Values.ToList();
@@ -354,7 +374,8 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
         HashSet<string> extensions,
         IDictionary<Guid, MediaFileCandidate> candidates,
         ISet<Guid> visitedFolders,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IProgress<MediaScanProgress>? progress = null)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -370,7 +391,7 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
                 var children = await fileService.ListChildrenAsync(node.Id, caller, cancellationToken);
                 foreach (var child in children)
                 {
-                    await CollectMatchingFilesAsync(child, fileService, caller, extensions, candidates, visitedFolders, cancellationToken);
+                    await CollectMatchingFilesAsync(child, fileService, caller, extensions, candidates, visitedFolders, cancellationToken, progress);
                 }
             }
             catch (Exception ex)
@@ -393,6 +414,17 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
         }
 
         candidates[node.Id] = new MediaFileCandidate(node.Id, node.Name, node.Size, node.MimeType, node.IsVirtual);
+
+        // Report discovery progress periodically so the UI shows files being found
+        if (progress is not null && candidates.Count % 25 == 0)
+        {
+            progress.Report(new MediaScanProgress
+            {
+                Phase = "Discovering files...",
+                FilesDiscovered = candidates.Count,
+                PercentComplete = 0,
+            });
+        }
     }
 
     private async Task<HashSet<Guid>> GetAlreadyIndexedIdsAsync(IServiceProvider serviceProvider, MediaType mediaType, Guid ownerId, CancellationToken cancellationToken)

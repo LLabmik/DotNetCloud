@@ -243,22 +243,27 @@ public sealed class LibraryScanService
         }
 
         // ── Extract metadata from the file ──
+        // Prefer file-path-based extraction — TagLib is significantly faster
+        // reading from a local file path than from a stream (especially when the
+        // stream wraps a temp file reassembled from chunks or a direct mount).
         AudioMetadata? metadata = null;
-        if (audioStream is not null)
+        var resolvedPath = audioStream is FileStream fs ? fs.Name : metadataFilePath;
+
+        if (resolvedPath is not null)
+        {
+            metadata = _metadataService.ExtractMetadata(resolvedPath);
+        }
+
+        if (metadata is null && audioStream is not null)
         {
             metadata = _metadataService.ExtractMetadata(audioStream, mimeType, fileName);
         }
 
-        if (metadata is null && metadataFilePath is not null)
-        {
-            metadata = _metadataService.ExtractMetadata(metadataFilePath);
-        }
-
         // Filepath fallback: if TagLib# produced garbage, merge with Artist/Album/Track
         // parsed from directory structure when available.
-        if (metadata is not null && metadataFilePath is not null)
+        if (metadata is not null && resolvedPath is not null)
         {
-            var parsed = TryParseMetadataFromPath(metadataFilePath, fileName);
+            var parsed = TryParseMetadataFromPath(resolvedPath, fileName);
             if (parsed is not null)
             {
                 var hasGarbageArtist = IsGarbageValue(metadata.Artist);
@@ -296,7 +301,7 @@ public sealed class LibraryScanService
         if (metadata is null)
         {
             _logger.LogWarning("Could not extract metadata for {FileName} (stream={HasStream}, path={Path}), creating track from filename",
-                fileName, audioStream is not null, metadataFilePath);
+                fileName, audioStream is not null, resolvedPath);
             metadata = new AudioMetadata
             {
                 Title = Path.GetFileNameWithoutExtension(fileName),
@@ -316,14 +321,14 @@ public sealed class LibraryScanService
         if (!album.HasCoverArt)
         {
             string? artPath = null;
-            if (audioStream is not null && audioStream.CanSeek)
+            if (resolvedPath is not null)
+            {
+                artPath = _albumArtService.ExtractAndCacheArt(resolvedPath, _artCacheDir, album.Id);
+            }
+            else if (audioStream is not null && audioStream.CanSeek)
             {
                 audioStream.Position = 0;
                 artPath = _albumArtService.ExtractAndCacheArt(audioStream, mimeType, fileName, _artCacheDir, album.Id);
-            }
-            else if (metadataFilePath is not null)
-            {
-                artPath = _albumArtService.ExtractAndCacheArt(metadataFilePath, _artCacheDir, album.Id);
             }
 
             if (artPath is not null)

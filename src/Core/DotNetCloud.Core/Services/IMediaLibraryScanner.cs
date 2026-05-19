@@ -76,6 +76,9 @@ public sealed class MediaScanProgress
     /// <summary>Name of the file currently being processed.</summary>
     public string? CurrentFile { get; init; }
 
+    /// <summary>Number of files discovered so far during the discovery phase.</summary>
+    public int FilesDiscovered { get; init; }
+
     /// <summary>Number of files processed so far.</summary>
     public int FilesProcessed { get; init; }
 

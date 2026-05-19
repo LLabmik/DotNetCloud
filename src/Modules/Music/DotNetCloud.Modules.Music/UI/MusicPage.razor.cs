@@ -977,6 +977,7 @@ public partial class MusicPage : IAsyncDisposable
                 {
                     Phase = msp.Phase,
                     CurrentFile = msp.CurrentFile,
+                    FilesDiscovered = msp.FilesDiscovered,
                     FilesProcessed = msp.FilesProcessed,
                     TotalFiles = msp.TotalFiles,
                     TracksAdded = msp.Imported,

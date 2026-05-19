@@ -920,7 +920,14 @@
                                         <span class="scan-elapsed">@FormatElapsed(p.ElapsedTime)</span>
                                     </div>
                                     <div class="scan-progress-bar">
-                                        <div class="scan-progress-fill" style="width: @(p.PercentComplete)%"></div>
+                                        @if (p.Phase == "Discovering files..." || p.TotalFiles == 0)
+                                        {
+                                            <div class="scan-progress-fill indeterminate"></div>
+                                        }
+                                        else
+                                        {
+                                            <div class="scan-progress-fill" style="width: @(p.PercentComplete)%"></div>
+                                        }
                                     </div>
                                     <div class="scan-progress-detail">
                                         @if (!string.IsNullOrEmpty(p.CurrentFile))
@@ -928,32 +935,43 @@
                                             <span class="scan-current-file" title="@p.CurrentFile">@TruncateFileName(p.CurrentFile, 60)</span>
                                         }
                                         <div class="scan-counts">
-                                            <span class="scan-count added">+@p.TracksAdded added</span>
-                                            <span class="scan-count updated">↻@p.TracksUpdated updated</span>
-                                            <span class="scan-count skipped">→@p.TracksSkipped skipped</span>
-                                            @if (p.TracksFailed > 0)
+                                            @if (p.FilesDiscovered > 0 && p.TotalFiles == 0)
                                             {
-                                                <span class="scan-count failed">✕@p.TracksFailed failed</span>
+                                                <span class="scan-count discovered">@p.FilesDiscovered files found</span>
                                             }
-                                            @if (p.AlbumArtFetched > 0)
+                                            else
                                             {
-                                                <span class="scan-count art">🎨@p.AlbumArtFetched covers</span>
-                                            }
-                                            @if (p.AlbumArtRemaining > 0)
-                                            {
-                                                <span class="scan-count art">⌛@p.AlbumArtRemaining art left</span>
+                                                <span class="scan-count added">+@p.TracksAdded added</span>
+                                                <span class="scan-count updated">↻@p.TracksUpdated updated</span>
+                                                <span class="scan-count skipped">→@p.TracksSkipped skipped</span>
+                                                @if (p.TracksFailed > 0)
+                                                {
+                                                    <span class="scan-count failed">✕@p.TracksFailed failed</span>
+                                                }
+                                                @if (p.AlbumArtFetched > 0)
+                                                {
+                                                    <span class="scan-count art">🎨@p.AlbumArtFetched covers</span>
+                                                }
+                                                @if (p.AlbumArtRemaining > 0)
+                                                {
+                                                    <span class="scan-count art">⌛@p.AlbumArtRemaining art left</span>
+                                                }
                                             }
                                         </div>
                                         @if (p.TotalFiles > 0)
                                         {
                                             <span class="scan-file-count">@p.FilesProcessed / @p.TotalFiles files (@p.PercentComplete%)</span>
                                         }
+                                        else if (p.FilesDiscovered > 0)
+                                        {
+                                            <span class="scan-file-count">@p.FilesDiscovered files discovered</span>
+                                        }
                                     </div>
                                 }
                                 else
                                 {
                                     <div class="scan-progress-header">
-                                        <span class="scan-phase">Discovering files…</span>
+                                        <span class="scan-phase">Scan starting…</span>
                                     </div>
                                     <div class="scan-progress-bar">
                                         <div class="scan-progress-fill indeterminate"></div>
