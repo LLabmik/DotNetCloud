@@ -112,8 +112,7 @@ internal static class ServiceCommands
                     ["Kestrel__HttpPort"] = config.HttpPort.ToString(),
                     ["Kestrel__HttpsPort"] = config.HttpsPort.ToString(),
                     ["Kestrel__EnableHttps"] = config.EnableHttps.ToString(),
-                    ["DotNetCloud__AdminEmail"] = config.AdminEmail ?? "",
-                    ["DotNetCloud__AdminMfaEnabled"] = config.EnableAdminMfa ? "true" : "false"
+                    ["DotNetCloud__AdminEmail"] = config.AdminEmail ?? ""
                 }
             };
 

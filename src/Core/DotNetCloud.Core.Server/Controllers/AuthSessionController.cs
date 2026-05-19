@@ -1,5 +1,7 @@
 using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.Constants;
 using DotNetCloud.Core.Data.Entities.Identity;
+using DotNetCloud.Core.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -18,6 +20,7 @@ public sealed class AuthSessionController : ControllerBase
 
     private readonly SignInManager<ApplicationUser> _signInManager;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly IAdminSettingsService _adminSettings;
     private readonly ILogger<AuthSessionController> _logger;
 
     /// <summary>
@@ -26,10 +29,12 @@ public sealed class AuthSessionController : ControllerBase
     public AuthSessionController(
         SignInManager<ApplicationUser> signInManager,
         UserManager<ApplicationUser> userManager,
+        IAdminSettingsService adminSettings,
         ILogger<AuthSessionController> logger)
     {
         _signInManager = signInManager;
         _userManager = userManager;
+        _adminSettings = adminSettings;
         _logger = logger;
     }
 
@@ -69,16 +74,23 @@ public sealed class AuthSessionController : ControllerBase
                     return LocalRedirect($"/auth/change-password?returnUrl={encodedReturn}");
                 }
 
-                // Redirect to MFA setup if admin user was created with MFA flag enabled
-                // but hasn't completed MFA enrollment yet.
-                if (user is not null && user.MfaSetupRequired)
+                // Redirect to MFA setup if AdminMfaRequired system setting is enabled
+                // and this admin user hasn't completed TOTP enrollment yet.
+                // This applies to ALL admin users (existing and future), unlike the
+                // per-user MfaSetupRequired flag which only worked for the first seeded admin.
+                if (user is not null && !await _userManager.GetTwoFactorEnabledAsync(user))
                 {
-                    var twoFactorEnabled = await _userManager.GetTwoFactorEnabledAsync(user);
-                    if (!twoFactorEnabled)
+                    var isAdmin = await _userManager.IsInRoleAsync(user, SystemRoleNames.Administrator);
+                    if (isAdmin)
                     {
-                        _logger.LogInformation(
-                            "MFA setup required for user {UserId}, redirecting to MFA setup page", user.Id);
-                        return LocalRedirect("/auth/mfa-setup");
+                        var mfaSetting = await _adminSettings.GetSettingAsync(
+                            SystemSettingKeys.CoreModule, SystemSettingKeys.AdminMfaRequired);
+                        if (mfaSetting?.Value == "true")
+                        {
+                            _logger.LogInformation(
+                                "AdminMfaRequired enabled: redirecting admin user {UserId} to MFA setup", user.Id);
+                            return LocalRedirect("/auth/mfa-setup");
+                        }
                     }
                 }
 

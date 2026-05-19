@@ -1,6 +1,5 @@
 @page "/auth/mfa-setup"
 @using Microsoft.AspNetCore.Identity
-@using Microsoft.Extensions.Logging
 @using DotNetCloud.Core.Data.Entities.Identity
 @using DotNetCloud.Core.DTOs
 @using DotNetCloud.Core.Services
@@ -141,7 +140,6 @@
     [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
     [Inject] private IJSRuntime Js { get; set; } = default!;
-    [Inject] private ILogger<MfaSetup> _logger { get; set; } = default!;
 
     [SupplyParameterFromQuery]
     private string? ReturnUrl { get; set; }
@@ -216,16 +214,11 @@
                 return;
             }
 
-            // Clear the MFA setup required flag (set by AdminSeeder during first-run setup)
+            // Clear the MFA setup required flag (set by older versions)
             if (user.MfaSetupRequired)
             {
                 user.MfaSetupRequired = false;
-                var clearResult = await UserManager.UpdateAsync(user);
-                if (!clearResult.Succeeded)
-                {
-                    var clearErrors = string.Join("; ", clearResult.Errors.Select(e => e.Description));
-                    _logger.LogWarning("Could not clear MfaSetupRequired for user {UserId}: {Errors}", user.Id, clearErrors);
-                }
+                await UserManager.UpdateAsync(user);
             }
 
             // Generate backup codes
@@ -267,9 +260,9 @@
         {
             await Js.InvokeVoidAsync("navigator.clipboard.writeText", text);
         }
-        catch (Exception ex)
+        catch
         {
-            _logger.LogWarning(ex, "Failed to copy backup codes to clipboard");
+            // Clipboard API may fail in some browser contexts; silently ignore
         }
     }
 

@@ -1,6 +1,9 @@
+using DotNetCloud.Core.Constants;
 using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Core.Data.Entities.Identity;
 using DotNetCloud.Core.Data.Entities.Organizations;
+using DotNetCloud.Core.DTOs;
+using DotNetCloud.Core.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -30,6 +33,7 @@ internal sealed class AdminSeeder
     private readonly RoleManager<ApplicationRole> _roleManager;
     private readonly CoreDbContext _dbContext;
     private readonly IConfiguration _configuration;
+    private readonly IAdminSettingsService _adminSettings;
     private readonly ILogger<AdminSeeder> _logger;
 
     public AdminSeeder(
@@ -37,12 +41,14 @@ internal sealed class AdminSeeder
         RoleManager<ApplicationRole> roleManager,
         CoreDbContext dbContext,
         IConfiguration configuration,
+        IAdminSettingsService adminSettings,
         ILogger<AdminSeeder> logger)
     {
         _userManager = userManager;
         _roleManager = roleManager;
         _dbContext = dbContext;
         _configuration = configuration;
+        _adminSettings = adminSettings;
         _logger = logger;
     }
 
@@ -74,12 +80,11 @@ internal sealed class AdminSeeder
                     _logger.LogInformation("Assigned Administrator role to existing admin user.");
                 }
 
-                // Apply MFA enrollment flag for existing admin users when MFA was
-                // enabled during setup but the user hasn't completed enrollment yet.
-                // This handles the case where the admin user was created by an older
-                // version before MfaSetupRequired existed, or where setup was re-run
-                // with MFA enabled for an existing installation.
-                await ApplyMfaSetupFlagAsync(existingAdmin);
+                // Seed the AdminMfaRequired system setting if MFA was enabled during setup.
+                // This applies to ALL admin users (existing and future), not just the
+                // first seeded user. The login handler checks this setting + admin role
+                // to decide whether to redirect to /auth/mfa-setup.
+                await SeedAdminMfaSettingAsync();
 
                 return;
             }
@@ -136,25 +141,10 @@ internal sealed class AdminSeeder
         // to the built-in All Users group.
         await AddAdminToAllOrganizationsAsync(user);
 
-        // If MFA was requested during CLI setup, flag the user for MFA enrollment.
-        // The web UI redirects to /auth/mfa-setup on first login.
-        var adminMfaEnabled = GetConfigValue("DotNetCloud:AdminMfaEnabled", "enableAdminMfa");
-        if (string.Equals(adminMfaEnabled, "true", StringComparison.OrdinalIgnoreCase))
-        {
-            user.MfaSetupRequired = true;
-            var updateResult = await _userManager.UpdateAsync(user);
-            if (updateResult.Succeeded)
-            {
-                _logger.LogInformation("MFA setup flagged for admin user {UserId}.", user.Id);
-            }
-            else
-            {
-                var updateErrors = string.Join("; ", updateResult.Errors.Select(e => e.Description));
-                _logger.LogWarning(
-                    "Could not flag MFA setup for admin user {UserId}: {Errors}",
-                    user.Id, updateErrors);
-            }
-        }
+        // Seed the AdminMfaRequired system setting if MFA was requested during CLI setup.
+        // This applies to ALL admin users (existing and future), not just this first user.
+        // The login handler checks this setting + admin role to redirect to /auth/mfa-setup.
+        await SeedAdminMfaSettingAsync();
 
         _logger.LogInformation("Admin user created and assigned Administrator role.");
     }
@@ -227,15 +217,17 @@ internal sealed class AdminSeeder
     }
 
     /// <summary>
-    /// Applies the MFA enrollment flag to an existing admin user when:
-    /// <list type="bullet">
-    ///   <item>MFA was enabled in CLI config (<c>DotNetCloud:AdminMfaEnabled</c>), and</item>
-    ///   <item>The user hasn't completed MFA enrollment yet (<c>TwoFactorEnabled</c> is <c>false</c>).</item>
-    /// </list>
-    /// This handles the case where the admin user was created by an older version,
-    /// or where setup was re-run with MFA enabled for an existing installation.
+    /// Seeds the <c>AdminMfaRequired</c> system setting if MFA was enabled in the CLI config.
+    /// This setting causes the login handler to redirect all administrator users (existing
+    /// and future) to <c>/auth/mfa-setup</c> until they complete TOTP enrollment.
     /// </summary>
-    private async Task ApplyMfaSetupFlagAsync(ApplicationUser user)
+    /// <remarks>
+    /// Reads <c>DotNetCloud:AdminMfaEnabled</c> (env var from CLI or systemd env file)
+    /// and <c>enableAdminMfa</c> (flat key from config.json) as fallback.
+    /// Only writes the setting if MFA is enabled — the default is <c>"false"</c> from
+    /// the <c>DbInitializer</c> default settings seed.
+    /// </remarks>
+    private async Task SeedAdminMfaSettingAsync()
     {
         var adminMfaEnabled = GetConfigValue("DotNetCloud:AdminMfaEnabled", "enableAdminMfa");
         if (!string.Equals(adminMfaEnabled, "true", StringComparison.OrdinalIgnoreCase))
@@ -243,32 +235,25 @@ internal sealed class AdminSeeder
             return;
         }
 
-        var twoFactorEnabled = await _userManager.GetTwoFactorEnabledAsync(user);
-        if (twoFactorEnabled)
+        // Check if already seeded to avoid unnecessary DB writes on every startup
+        var existing = await _adminSettings.GetSettingAsync(
+            SystemSettingKeys.CoreModule, SystemSettingKeys.AdminMfaRequired);
+        if (existing?.Value == "true")
         {
-            return; // MFA already fully set up — nothing to do
+            return; // Already seeded — nothing to do
         }
 
-        if (user.MfaSetupRequired)
-        {
-            return; // Flag already set — nothing to do
-        }
+        await _adminSettings.UpsertSettingAsync(
+            SystemSettingKeys.CoreModule,
+            SystemSettingKeys.AdminMfaRequired,
+            new UpsertSystemSettingDto
+            {
+                Value = "true",
+                Description = "When true, all administrator accounts must set up multi-factor authentication (TOTP) before accessing the system"
+            });
 
-        user.MfaSetupRequired = true;
-        var updateResult = await _userManager.UpdateAsync(user);
-        if (updateResult.Succeeded)
-        {
-            _logger.LogInformation(
-                "MFA setup flagged for existing admin user {UserId} (was created before MfaSetupRequired existed).",
-                user.Id);
-        }
-        else
-        {
-            var errors = string.Join("; ", updateResult.Errors.Select(e => e.Description));
-            _logger.LogWarning(
-                "Could not flag MFA setup for existing admin user {UserId}: {Errors}",
-                user.Id, errors);
-        }
+        _logger.LogInformation(
+            "AdminMfaRequired system setting seeded to 'true'. All admin users will be prompted to set up MFA on next login.");
     }
 
     /// <summary>

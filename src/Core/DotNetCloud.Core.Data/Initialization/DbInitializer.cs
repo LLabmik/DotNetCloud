@@ -473,6 +473,13 @@ public class DbInitializer
                 Value = "15",
                 Description = "Account lockout duration in minutes after max login attempts"
             },
+            new SystemSetting
+            {
+                Module = "dotnetcloud.core",
+                Key = "AdminMfaRequired",
+                Value = "false",
+                Description = "When true, all administrator accounts must set up multi-factor authentication (TOTP) before accessing the system"
+            },
 
             // Files module settings
             new SystemSetting

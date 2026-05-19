@@ -56,4 +56,29 @@ public static class SystemSettingKeys
     /// Default value for <see cref="DemoModeEnabled"/> when the setting is not present.
     /// </summary>
     public const string DemoModeEnabledDefault = "false";
+
+    // ──────────────────────────────────────────────
+    //  Admin MFA Settings
+    // ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Setting key for requiring MFA on admin accounts. When <c>"true"</c>, all users
+    /// with the Administrator role are required to set up multi-factor authentication
+    /// (TOTP) before they can access the system. Users who haven't set up MFA yet
+    /// are redirected to <c>/auth/mfa-setup</c> after login.
+    /// </summary>
+    /// <remarks>
+    /// <b>Module:</b> <see cref="CoreModule"/><br/>
+    /// <b>Type:</b> <see cref="bool"/> serialized as <c>"true"</c> or <c>"false"</c><br/>
+    /// <b>Default:</b> <c>"false"</c> (MFA not required for admins)<br/>
+    /// <b>Effect:</b> When enabled, existing and future admin users are prompted to
+    /// set up TOTP on next login. Set during initial <c>dotnetcloud setup</c> when the
+    /// user answers Yes to the TOTP MFA prompt.
+    /// </remarks>
+    public const string AdminMfaRequired = "AdminMfaRequired";
+
+    /// <summary>
+    /// Default value for <see cref="AdminMfaRequired"/> when the setting is not present.
+    /// </summary>
+    public const string AdminMfaRequiredDefault = "false";
 }
