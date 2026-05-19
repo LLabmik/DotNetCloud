@@ -63,4 +63,12 @@ internal static class ChunkReferenceHelper
     /// <summary>Returns true when the context is backed by the EF InMemory provider (test scenarios).</summary>
     internal static bool IsInMemoryProvider(FilesDbContext db)
         => db.Database.ProviderName == "Microsoft.EntityFrameworkCore.InMemory";
+
+    /// <summary>Returns true when the context is backed by PostgreSQL (Npgsql).</summary>
+    internal static bool IsPostgresProvider(FilesDbContext db)
+        => db.Database.ProviderName?.Contains("Npgsql", StringComparison.OrdinalIgnoreCase) == true;
+
+    /// <summary>Returns true when the context is backed by SQL Server.</summary>
+    internal static bool IsSqlServerProvider(FilesDbContext db)
+        => db.Database.ProviderName?.Contains("SqlServer", StringComparison.OrdinalIgnoreCase) == true;
 }

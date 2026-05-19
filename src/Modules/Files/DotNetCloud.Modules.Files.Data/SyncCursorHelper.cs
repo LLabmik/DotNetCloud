@@ -43,22 +43,54 @@ internal static class SyncCursorHelper
             return;
         }
 
-        // Atomic upsert: inserts with sequence=1 if no row exists, otherwise increments.
-        // PostgreSQL's INSERT ... ON CONFLICT DO UPDATE acquires a row-level lock, preventing
-        // concurrent reads of the same value. RETURNING gives us the post-increment value.
-        // Note: EF Core considers RETURNING-based SQL non-composable, so we materialize with
-        // ToListAsync first — .SingleAsync() would fail with InvalidOperationException.
-        var nextSequence = (await db.Database.SqlQueryRaw<long>(
-            """
-            INSERT INTO "core"."UserSyncCounters" ("UserId", "CurrentSequence", "UpdatedAt")
-            VALUES ({0}, 1, NOW())
-            ON CONFLICT ("UserId") DO UPDATE
-            SET "CurrentSequence" = "core"."UserSyncCounters"."CurrentSequence" + 1,
-                "UpdatedAt" = NOW()
-            RETURNING "CurrentSequence"
-            """,
-            ownerId
-        ).ToListAsync(cancellationToken)).Single();
+        long nextSequence;
+
+        if (ChunkReferenceHelper.IsPostgresProvider(db))
+        {
+            // PostgreSQL upsert with RETURNING for gap-free atomic increment.
+            // INSERT ... ON CONFLICT DO UPDATE acquires a row-level lock, preventing
+            // concurrent reads of the same value. RETURNING gives us the post-increment value.
+            // Note: EF Core considers RETURNING-based SQL non-composable, so we materialize
+            // with ToListAsync first — .SingleAsync() would fail with InvalidOperationException.
+            nextSequence = (await db.Database.SqlQueryRaw<long>(
+                """
+                INSERT INTO "core"."UserSyncCounters" ("UserId", "CurrentSequence", "UpdatedAt")
+                VALUES ({0}, 1, NOW())
+                ON CONFLICT ("UserId") DO UPDATE
+                SET "CurrentSequence" = "core"."UserSyncCounters"."CurrentSequence" + 1,
+                    "UpdatedAt" = NOW()
+                RETURNING "CurrentSequence"
+                """,
+                ownerId
+            ).ToListAsync(cancellationToken)).Single();
+        }
+        else if (ChunkReferenceHelper.IsSqlServerProvider(db))
+        {
+            // SQL Server equivalent using MERGE with OUTPUT for atomic upsert.
+            // HOLDLOCK serializes concurrent access to the same row.
+            nextSequence = (await db.Database.SqlQueryRaw<long>(
+                """
+                MERGE [core].[UserSyncCounters] WITH (HOLDLOCK) AS target
+                USING (VALUES ({0})) AS source (UserId)
+                ON target.[UserId] = source.[UserId]
+                WHEN MATCHED THEN
+                    UPDATE SET
+                        [CurrentSequence] = target.[CurrentSequence] + 1,
+                        [UpdatedAt] = CURRENT_TIMESTAMP
+                WHEN NOT MATCHED THEN
+                    INSERT ([UserId], [CurrentSequence], [UpdatedAt])
+                    VALUES (source.[UserId], 1, CURRENT_TIMESTAMP)
+                OUTPUT INSERTED.[CurrentSequence];
+                """,
+                ownerId
+            ).ToListAsync(cancellationToken)).Single();
+        }
+        else
+        {
+            throw new NotSupportedException(
+                $"Unsupported database provider: {db.Database.ProviderName}. " +
+                "SyncCursorHelper supports PostgreSQL, SQL Server, and InMemory providers.");
+        }
 
         node.SyncSequence = nextSequence;
 

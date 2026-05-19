@@ -3,7 +3,8 @@
     "ss": true,
     "netstat": true,
     "dotnet run": true,
-    "dotnet build": true
+    "dotnet build": true,
+    "dotnet test": true
   },
   "sarif-viewer.connectToGithubCodeScanning": "on"
 }
