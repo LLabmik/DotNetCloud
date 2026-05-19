@@ -51,7 +51,7 @@ internal sealed class AdminSeeder
     /// </summary>
     public async Task SeedAsync(CancellationToken cancellationToken = default)
     {
-        var email = _configuration["DotNetCloud:AdminEmail"];
+        var email = GetConfigValue("DotNetCloud:AdminEmail", "adminEmail");
 
         // On existing installations, ensure the configured admin account has the Administrator role.
         if (!string.IsNullOrWhiteSpace(email))
@@ -73,6 +73,13 @@ internal sealed class AdminSeeder
 
                     _logger.LogInformation("Assigned Administrator role to existing admin user.");
                 }
+
+                // Apply MFA enrollment flag for existing admin users when MFA was
+                // enabled during setup but the user hasn't completed enrollment yet.
+                // This handles the case where the admin user was created by an older
+                // version before MfaSetupRequired existed, or where setup was re-run
+                // with MFA enabled for an existing installation.
+                await ApplyMfaSetupFlagAsync(existingAdmin);
 
                 return;
             }
@@ -128,6 +135,26 @@ internal sealed class AdminSeeder
         // Add admin to all organizations as a member, which implicitly adds them
         // to the built-in All Users group.
         await AddAdminToAllOrganizationsAsync(user);
+
+        // If MFA was requested during CLI setup, flag the user for MFA enrollment.
+        // The web UI redirects to /auth/mfa-setup on first login.
+        var adminMfaEnabled = GetConfigValue("DotNetCloud:AdminMfaEnabled", "enableAdminMfa");
+        if (string.Equals(adminMfaEnabled, "true", StringComparison.OrdinalIgnoreCase))
+        {
+            user.MfaSetupRequired = true;
+            var updateResult = await _userManager.UpdateAsync(user);
+            if (updateResult.Succeeded)
+            {
+                _logger.LogInformation("MFA setup flagged for admin user {UserId}.", user.Id);
+            }
+            else
+            {
+                var updateErrors = string.Join("; ", updateResult.Errors.Select(e => e.Description));
+                _logger.LogWarning(
+                    "Could not flag MFA setup for admin user {UserId}: {Errors}",
+                    user.Id, updateErrors);
+            }
+        }
 
         _logger.LogInformation("Admin user created and assigned Administrator role.");
     }
@@ -200,6 +227,51 @@ internal sealed class AdminSeeder
     }
 
     /// <summary>
+    /// Applies the MFA enrollment flag to an existing admin user when:
+    /// <list type="bullet">
+    ///   <item>MFA was enabled in CLI config (<c>DotNetCloud:AdminMfaEnabled</c>), and</item>
+    ///   <item>The user hasn't completed MFA enrollment yet (<c>TwoFactorEnabled</c> is <c>false</c>).</item>
+    /// </list>
+    /// This handles the case where the admin user was created by an older version,
+    /// or where setup was re-run with MFA enabled for an existing installation.
+    /// </summary>
+    private async Task ApplyMfaSetupFlagAsync(ApplicationUser user)
+    {
+        var adminMfaEnabled = GetConfigValue("DotNetCloud:AdminMfaEnabled", "enableAdminMfa");
+        if (!string.Equals(adminMfaEnabled, "true", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var twoFactorEnabled = await _userManager.GetTwoFactorEnabledAsync(user);
+        if (twoFactorEnabled)
+        {
+            return; // MFA already fully set up — nothing to do
+        }
+
+        if (user.MfaSetupRequired)
+        {
+            return; // Flag already set — nothing to do
+        }
+
+        user.MfaSetupRequired = true;
+        var updateResult = await _userManager.UpdateAsync(user);
+        if (updateResult.Succeeded)
+        {
+            _logger.LogInformation(
+                "MFA setup flagged for existing admin user {UserId} (was created before MfaSetupRequired existed).",
+                user.Id);
+        }
+        else
+        {
+            var errors = string.Join("; ", updateResult.Errors.Select(e => e.Description));
+            _logger.LogWarning(
+                "Could not flag MFA setup for existing admin user {UserId}: {Errors}",
+                user.Id, errors);
+        }
+    }
+
+    /// <summary>
     /// Reads the admin password from environment variable or one-time seed file.
     /// The seed file is deleted after reading to ensure the password is not persisted.
     /// </summary>
@@ -239,5 +311,24 @@ internal sealed class AdminSeeder
             _logger.LogWarning(ex, "Could not read admin seed file at {Path}.", seedFile);
             return null;
         }
+    }
+
+    /// <summary>
+    /// Reads a configuration value with fallback support.
+    /// Tries the primary key first (e.g. <c>DotNetCloud:AdminEmail</c> from env vars),
+    /// then falls back to a flat key (e.g. <c>adminEmail</c> from config.json).
+    /// This ensures the seeder works whether the value comes from environment variables
+    /// (set by <c>dotnetcloud start</c>) or from the flat CLI config.json (systemd path).
+    /// </summary>
+    private string? GetConfigValue(string primaryKey, string fallbackKey)
+    {
+        var value = _configuration[primaryKey];
+        if (!string.IsNullOrWhiteSpace(value))
+        {
+            return value;
+        }
+
+        value = _configuration[fallbackKey];
+        return !string.IsNullOrWhiteSpace(value) ? value : null;
     }
 }

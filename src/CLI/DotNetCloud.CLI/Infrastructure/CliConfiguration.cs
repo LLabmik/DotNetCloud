@@ -248,6 +248,12 @@ internal sealed class CliConfig
     public string? AdminEmail { get; set; }
 
     /// <summary>
+    /// Whether TOTP MFA should be enabled for the admin user on first login.
+    /// Set during interactive setup when the user answers Yes to the MFA prompt.
+    /// </summary>
+    public bool EnableAdminMfa { get; set; }
+
+    /// <summary>
     /// List of module IDs selected during setup.
     /// </summary>
     public List<string> EnabledModules { get; set; } = [];

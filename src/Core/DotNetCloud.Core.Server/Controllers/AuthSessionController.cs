@@ -69,6 +69,19 @@ public sealed class AuthSessionController : ControllerBase
                     return LocalRedirect($"/auth/change-password?returnUrl={encodedReturn}");
                 }
 
+                // Redirect to MFA setup if admin user was created with MFA flag enabled
+                // but hasn't completed MFA enrollment yet.
+                if (user is not null && user.MfaSetupRequired)
+                {
+                    var twoFactorEnabled = await _userManager.GetTwoFactorEnabledAsync(user);
+                    if (!twoFactorEnabled)
+                    {
+                        _logger.LogInformation(
+                            "MFA setup required for user {UserId}, redirecting to MFA setup page", user.Id);
+                        return LocalRedirect("/auth/mfa-setup");
+                    }
+                }
+
                 var target = await ResolvePostLoginTargetAsync(email, returnUrl);
                 return LocalRedirect(target);
             }

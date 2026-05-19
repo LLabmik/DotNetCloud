@@ -315,8 +315,8 @@ internal static class SetupCommand
         // Step 4: MFA setup prompt
         // ───────────────────────────────────────────────
         ConsoleOutput.WriteStep(4, TotalSteps, "Multi-Factor Authentication");
-        var enableMfa = PromptTotpWithHelp();
-        if (enableMfa)
+        config.EnableAdminMfa = PromptTotpWithHelp();
+        if (config.EnableAdminMfa)
         {
             ConsoleOutput.WriteInfo("MFA will be configured on first login via the web UI.");
         }
@@ -777,11 +777,14 @@ internal static class SetupCommand
 
         await SyncEnabledModulesToDatabaseAsync(config);
 
-        // Provision Collabora Online certs and env file if running in BuiltIn mode
+        // Write runtime environment file with admin credentials and Collabora settings.
+        // This is consumed by the systemd unit's EnvironmentFile directive.
+        CertRenewCommand.WriteEnvironmentFile(config);
+
+        // Provision Collabora Online certs if running in BuiltIn mode
         if (string.Equals(config.CollaboraMode, "BuiltIn", StringComparison.OrdinalIgnoreCase))
         {
             CertRenewCommand.ProvisionCollaboraCertsFromConfig(config);
-            CertRenewCommand.WriteCollaboraEnvFile(config);
         }
 
         // Show login URL

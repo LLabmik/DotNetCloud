@@ -64,4 +64,13 @@ public class ApplicationUser : IdentityUser<Guid>
     /// Default is <c>false</c>.
     /// </summary>
     public bool IsDemoUser { get; set; } = false;
+
+    /// <summary>
+    /// Gets or sets whether the user still needs to complete MFA setup.
+    /// Set to <c>true</c> by the admin seeder when the admin user was
+    /// created with MFA enabled during CLI setup. The web UI checks this flag
+    /// after login and redirects to <c>/auth/mfa-setup</c> until MFA is configured.
+    /// Cleared after MFA is successfully set up.
+    /// </summary>
+    public bool MfaSetupRequired { get; set; } = false;
 }
