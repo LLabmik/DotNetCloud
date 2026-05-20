@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Events.Search;
@@ -22,6 +23,7 @@ public sealed class LibraryScanService
     private readonly IEventBus _eventBus;
     private readonly IMetadataEnrichmentService? _enrichmentService;
     private readonly ILogger<LibraryScanService> _logger;
+    private readonly ITableNamingStrategy _namingStrategy;
     private readonly string _artCacheDir;
     private readonly bool _autoFetchArt;
     private readonly bool _autoEnrichArtists;
@@ -45,6 +47,7 @@ public sealed class LibraryScanService
         IEventBus eventBus,
         IConfiguration configuration,
         ILogger<LibraryScanService> logger,
+        ITableNamingStrategy namingStrategy,
         IMetadataEnrichmentService? enrichmentService = null)
     {
         _db = db;
@@ -52,6 +55,7 @@ public sealed class LibraryScanService
         _albumArtService = albumArtService;
         _eventBus = eventBus;
         _enrichmentService = enrichmentService;
+        _namingStrategy = namingStrategy;
         _logger = logger;
         var storageRoot = configuration["Files:Storage:RootPath"] ?? Path.GetTempPath();
         _artCacheDir = Path.Combine(storageRoot, ".album-art");
@@ -494,6 +498,186 @@ public sealed class LibraryScanService
     }
 
     /// <summary>
+    /// Attempts a bulk cross-owner copy for a set of file nodes. Queries all source tracks
+    /// matching by ContentHash in a single query, then does a single batch insert for all
+    /// new Track/Artist/Album/Genre records. Skips files already indexed for this owner.
+    /// Returns the set of FileNode IDs that were successfully indexed via cross-owner copy.
+    /// </summary>
+    public async Task<HashSet<Guid>> TryBulkIndexFromExistingAsync(
+        IReadOnlyCollection<Guid> fileNodeIds,
+        IReadOnlyDictionary<Guid, string?> contentHashMap,
+        Guid ownerId,
+        CancellationToken cancellationToken = default)
+    {
+        if (fileNodeIds.Count == 0)
+            return [];
+
+        var hashes = contentHashMap.Values.Where(h => h is not null).Cast<string>().Distinct().ToList();
+
+        if (hashes.Count == 0)
+            return [];
+
+        // Step 2: Find ALL source tracks matching these hashes from other users (single query)
+        var sourceTracks = await _db.Tracks
+            .Include(t => t.Album)
+            .Include(t => t.TrackArtists).ThenInclude(ta => ta.Artist)
+            .Include(t => t.TrackGenres).ThenInclude(tg => tg.Genre)
+            .IgnoreQueryFilters()
+            .Where(t => t.ContentHash != null && hashes.Contains(t.ContentHash) && t.OwnerId != ownerId && !t.IsDeleted)
+            .ToListAsync(cancellationToken);
+
+        if (sourceTracks.Count == 0)
+            return [];
+
+        // Step 3: Build lookup by ContentHash (one source track per unique hash)
+        var sourceByHash = sourceTracks
+            .GroupBy(t => t.ContentHash!)
+            .ToDictionary(g => g.Key, g => g.First());
+
+        // Step 4: Get already-indexed FileNodeIds for this user
+        var alreadyIndexed = await _db.Tracks
+            .Where(t => t.OwnerId == ownerId && fileNodeIds.Contains(t.FileNodeId) && !t.IsDeleted)
+            .Select(t => t.FileNodeId)
+            .ToListAsync(cancellationToken);
+        var alreadyIndexedSet = alreadyIndexed.ToHashSet();
+
+        // Step 5: Build all records in memory using caches
+        var newTracks = new List<Track>();
+        var newTrackArtists = new List<TrackArtist>();
+        var newTrackGenres = new List<TrackGenre>();
+        var copiedIds = new HashSet<Guid>();
+
+        foreach (var fileNodeId in fileNodeIds)
+        {
+            if (alreadyIndexedSet.Contains(fileNodeId))
+                continue;
+
+            if (!contentHashMap.TryGetValue(fileNodeId, out var contentHash) || contentHash is null)
+                continue;
+
+            if (!sourceByHash.TryGetValue(contentHash, out var sourceTrack))
+                continue;
+
+            // Get or create artist (uses in-memory cache, no DB hit after first unique name)
+            var sourceArtistName = sourceTrack.TrackArtists
+                .FirstOrDefault(ta => ta.IsPrimary)?.Artist?.Name
+                ?? sourceTrack.TrackArtists.FirstOrDefault()?.Artist?.Name
+                ?? "Unknown Artist";
+            var newArtist = await GetOrCreateArtistAsync(sourceArtistName, ownerId, cancellationToken);
+
+            // Get or create album
+            MusicAlbum? newAlbum = null;
+            if (sourceTrack.AlbumId.HasValue && sourceTrack.Album is not null)
+            {
+                newAlbum = await GetOrCreateAlbumAsync(
+                    sourceTrack.Album.Title, newArtist.Id, ownerId, sourceTrack.Album.Year, cancellationToken);
+
+                // Copy album art from the source user's cached art
+                if (!newAlbum.HasCoverArt && sourceTrack.Album.HasCoverArt)
+                {
+                    var artPath = _albumArtService.CopyArtFromExisting(
+                        _artCacheDir, sourceTrack.Album.Id, newAlbum.Id);
+                    if (artPath is not null)
+                    {
+                        newAlbum.HasCoverArt = true;
+                        newAlbum.CoverArtPath = artPath;
+                    }
+                }
+            }
+
+            // Get or create genre
+            Genre? newGenre = null;
+            var sourceGenre = sourceTrack.TrackGenres.FirstOrDefault()?.Genre;
+            if (sourceGenre is not null)
+                newGenre = await GetOrCreateGenreAsync(sourceGenre.Name, cancellationToken);
+
+            // Create track record
+            var newTrack = new Track
+            {
+                FileNodeId = fileNodeId,
+                OwnerId = ownerId,
+                Title = sourceTrack.Title,
+                FileName = sourceTrack.FileName,
+                MimeType = sourceTrack.MimeType,
+                TrackNumber = sourceTrack.TrackNumber,
+                DiscNumber = sourceTrack.DiscNumber,
+                DurationTicks = sourceTrack.DurationTicks,
+                SizeBytes = sourceTrack.SizeBytes,
+                Bitrate = sourceTrack.Bitrate,
+                SampleRate = sourceTrack.SampleRate,
+                Channels = sourceTrack.Channels,
+                AlbumId = newAlbum?.Id,
+                Year = sourceTrack.Year,
+                ContentHash = contentHash,
+                MusicBrainzRecordingId = sourceTrack.MusicBrainzRecordingId,
+            };
+            newTracks.Add(newTrack);
+
+            // Track-artist junction
+            newTrackArtists.Add(new TrackArtist
+            {
+                TrackId = newTrack.Id,
+                ArtistId = newArtist.Id,
+                IsPrimary = true
+            });
+
+            // Track-genre junction
+            if (newGenre is not null)
+            {
+                newTrackGenres.Add(new TrackGenre
+                {
+                    TrackId = newTrack.Id,
+                    GenreId = newGenre.Id
+                });
+            }
+
+            // Update album duration incrementally
+            if (newAlbum is not null)
+            {
+                if (!_albumDurationCache.TryGetValue(newAlbum.Id, out var currentDuration))
+                {
+                    currentDuration = await _db.Tracks
+                        .Where(t => t.AlbumId == newAlbum.Id)
+                        .SumAsync(t => t.DurationTicks, cancellationToken);
+                }
+                currentDuration += newTrack.DurationTicks;
+                _albumDurationCache[newAlbum.Id] = currentDuration;
+                newAlbum.TotalDurationTicks = currentDuration;
+            }
+
+            copiedIds.Add(fileNodeId);
+        }
+
+        if (newTracks.Count == 0)
+            return copiedIds;
+
+        // Step 6: Single bulk save for ALL files at once
+        _db.Tracks.AddRange(newTracks);
+        _db.TrackArtists.AddRange(newTrackArtists);
+        _db.TrackGenres.AddRange(newTrackGenres);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        // Step 7: Publish search index events
+        foreach (var track in newTracks)
+        {
+            await _eventBus.PublishAsync(new SearchIndexRequestEvent
+            {
+                EventId = Guid.NewGuid(),
+                CreatedAt = DateTime.UtcNow,
+                ModuleId = "music",
+                EntityId = track.Id.ToString(),
+                Action = SearchIndexAction.Index
+            }, new CallerContext(ownerId, ["user"], CallerType.User), cancellationToken);
+        }
+
+        _logger.LogInformation(
+            "Bulk cross-owner copy: indexed {Count} tracks for owner {OwnerId} from {SourceCount} unique source tracks",
+            newTracks.Count, ownerId, sourceByHash.Count);
+
+        return copiedIds;
+    }
+
+    /// <summary>
     /// Performs a full library scan for a user, indexing all audio files found at the given paths.
     /// Optionally reports real-time progress and runs metadata enrichment after the scan phase.
     /// </summary>
@@ -841,8 +1025,15 @@ public sealed class LibraryScanService
     {
         try
         {
+            // Note: This raw SQL goes against the shared "core"."FileNodes" table which is not
+            // part of MusicDbContext's model. The table/column names are resolved via the
+            // injected ITableNamingStrategy for multi-provider support.
+            var tableName = _namingStrategy.GetTableName("FileNodes", "core");
+            var idCol = _namingStrategy.GetColumnName("Id");
+            var hashCol = _namingStrategy.GetColumnName("ContentHash");
+            var sql = $"SELECT {hashCol} AS Value FROM {tableName} WHERE {idCol} = {{0}}";
             return await _db.Database
-                .SqlQueryRaw<string>(@"SELECT ""ContentHash"" AS ""Value"" FROM core.""FileNodes"" WHERE ""Id"" = {0}", fileNodeId)
+                .SqlQueryRaw<string>(sql, fileNodeId)
                 .FirstOrDefaultAsync(cancellationToken);
         }
         catch (Exception ex)

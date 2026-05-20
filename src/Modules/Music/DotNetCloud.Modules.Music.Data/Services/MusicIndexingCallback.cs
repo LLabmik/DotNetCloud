@@ -86,4 +86,10 @@ public sealed class MusicIndexingCallback : IMusicIndexingCallback
     {
         await _libraryScanService.ResetCollectionAsync(ownerId, cancellationToken);
     }
+
+    /// <inheritdoc />
+    public async Task<HashSet<Guid>> BulkIndexFromExistingAsync(IReadOnlyCollection<Guid> fileNodeIds, IReadOnlyDictionary<Guid, string?> contentHashMap, Guid ownerId, CancellationToken cancellationToken = default)
+    {
+        return await _libraryScanService.TryBulkIndexFromExistingAsync(fileNodeIds, contentHashMap, ownerId, cancellationToken);
+    }
 }

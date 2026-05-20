@@ -231,9 +231,47 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
                 result.Skipped, parsed, ownerId);
         }
 
+        // ── Bulk cross-owner copy: if another user already indexed matching files
+        //     (by ContentHash), copy all metadata in a single batch operation instead
+        //     of iterating file-by-file. Returns the set of FileNodeIds that were handled.
+        var bulkHandledIds = new HashSet<Guid>();
+        if (filesToIndex.Count > 0 && parsed == MediaType.Music)
+        {
+            var musicCallback = serviceProvider.GetService<IMusicIndexingCallback>();
+            if (musicCallback is not null)
+            {
+                var idsToCheck = filesToIndex.Select(c => c.Id).ToList();
+
+                // Resolve ContentHashes via FilesDbContext (which has proper provider-agnostic
+                // table naming), then pass the map to the bulk copy method.
+                var fileNodes = await filesDb.FileNodes
+                    .Where(n => idsToCheck.Contains(n.Id))
+                    .Select(n => new { n.Id, n.ContentHash })
+                    .ToListAsync(cancellationToken);
+                var contentHashMap = fileNodes.ToDictionary(n => n.Id, n => n.ContentHash);
+
+                bulkHandledIds = await musicCallback.BulkIndexFromExistingAsync(
+                    idsToCheck, contentHashMap, ownerId, cancellationToken);
+
+                if (bulkHandledIds.Count > 0)
+                {
+                    _logger.LogInformation(
+                        "Bulk cross-owner copy handled {Count} {MediaType} files for user {OwnerId}, skipping per-file loop",
+                        bulkHandledIds.Count, parsed, ownerId);
+                }
+            }
+        }
+
         var filesProcessed = 0;
         foreach (var file in filesToIndex)
         {
+            if (bulkHandledIds.Contains(file.Id))
+            {
+                result.Imported++;
+                filesProcessed++;
+                continue;
+            }
+
             if (cancellationToken.IsCancellationRequested)
             {
                 break;

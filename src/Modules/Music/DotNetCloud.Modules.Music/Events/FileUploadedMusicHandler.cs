@@ -145,4 +145,16 @@ public interface IMusicIndexingCallback
     /// <param name="ownerId">Owner whose library will be reset.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     Task ResetCollectionAsync(Guid ownerId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Attempts a bulk cross-owner copy for a set of file nodes. If another user already indexed
+    /// files matching these by ContentHash, copies all metadata in bulk with minimal DB round trips.
+    /// Skips files already indexed for this owner.
+    /// </summary>
+    /// <param name="fileNodeIds">FileNode IDs to check and copy.</param>
+    /// <param name="contentHashMap">Pre-resolved ContentHash for each FileNodeId (avoids cross-DB raw SQL).</param>
+    /// <param name="ownerId">Owner to copy metadata for.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Set of FileNode IDs that were successfully indexed via cross-owner copy.</returns>
+    Task<HashSet<Guid>> BulkIndexFromExistingAsync(IReadOnlyCollection<Guid> fileNodeIds, IReadOnlyDictionary<Guid, string?> contentHashMap, Guid ownerId, CancellationToken cancellationToken = default);
 }
