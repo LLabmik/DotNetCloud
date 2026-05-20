@@ -174,7 +174,7 @@ public sealed class PlaylistService : Music.Services.IPlaylistService
         // Load all valid tracks with their album ordering info
         var validTracks = await _db.Tracks
             .Where(t => trackIds.Contains(t.Id))
-            .Select(t => new { t.Id, t.AlbumId, t.DiscNumber, t.TrackNumber })
+            .Select(t => new { t.Id, t.AlbumId, AlbumTitle = t.Album != null ? t.Album.Title : (string?)null, t.DiscNumber, t.TrackNumber })
             .ToListAsync(cancellationToken);
 
         if (validTracks.Count == 0)
@@ -188,10 +188,10 @@ public sealed class PlaylistService : Music.Services.IPlaylistService
             .Select(pt => pt.TrackId)
             .ToListAsync(cancellationToken);
 
-        // Filter to only NEW tracks, sorted by album order
+        // Filter to only NEW tracks, sorted by album title then disc/track number
         var newTracks = validTracks
             .Where(t => !alreadyInPlaylist.Contains(t.Id))
-            .OrderBy(t => t.AlbumId ?? Guid.Empty)
+            .OrderBy(t => t.AlbumTitle ?? "")
             .ThenBy(t => t.DiscNumber ?? 1)
             .ThenBy(t => t.TrackNumber ?? 0)
             .ToList();

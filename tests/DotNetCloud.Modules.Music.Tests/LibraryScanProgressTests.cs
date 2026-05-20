@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Music.Data;
@@ -64,6 +65,7 @@ public class LibraryScanProgressTests
             _mockEventBus.Object,
             config ?? _configuration,
             NullLogger<LibraryScanService>.Instance,
+            Mock.Of<ITableNamingStrategy>(),
             _mockEnrichment.Object);
     }
 

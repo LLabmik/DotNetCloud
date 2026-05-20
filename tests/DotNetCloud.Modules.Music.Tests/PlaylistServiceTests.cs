@@ -130,9 +130,10 @@ public class PlaylistServiceTests
 
         var result = await _service.ListPlaylistsAsync(_caller);
 
-        // Service returns only playlists owned by the caller
-        Assert.AreEqual(1, result.Count);
+        // Service returns own playlists + public playlists from other users
+        Assert.AreEqual(2, result.Count);
         Assert.AreEqual("Mine", result[0].Name);
+        Assert.AreEqual("Other Public", result[1].Name);
     }
 
     // ─── Update ───────────────────────────────────────────────────────

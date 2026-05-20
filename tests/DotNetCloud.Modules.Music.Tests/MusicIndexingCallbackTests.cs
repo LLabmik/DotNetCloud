@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Files.Services;
 using DotNetCloud.Modules.Music.Data;
@@ -25,7 +26,8 @@ public class MusicIndexingCallbackTests
         var albumArtService = new AlbumArtService(metadataService, Mock.Of<ILogger<AlbumArtService>>());
         _libraryScanService = new LibraryScanService(
             _db, metadataService, albumArtService,
-            Mock.Of<IEventBus>(), new ConfigurationBuilder().Build(), Mock.Of<ILogger<LibraryScanService>>());
+            Mock.Of<IEventBus>(), new ConfigurationBuilder().Build(), Mock.Of<ILogger<LibraryScanService>>(),
+            Mock.Of<ITableNamingStrategy>());
 
         // Mock IDownloadService — returns empty stream (metadata extraction will fall back to filename)
         var downloadMock = new Mock<IDownloadService>();
