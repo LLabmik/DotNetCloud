@@ -28,9 +28,21 @@ public sealed class MusicIndexingCallback : IMusicIndexingCallback
     /// <inheritdoc />
     public async Task IndexAudioAsync(Guid fileNodeId, string fileName, string mimeType, long sizeBytes, Guid ownerId, string? storagePath = null, CancellationToken cancellationToken = default)
     {
-        // Use IDownloadService to reassemble all chunks into a single seekable stream.
-        // Files are stored as content-addressable chunks; individual chunks are NOT
-        // complete audio files, so we must reassemble before TagLib can parse metadata.
+        // Step 1: Try cross-owner copy first — if another user already indexed this
+        //         file, clone their metadata to avoid downloading and re-extracting.
+        //         This is READ-ONLY on the source user's data.
+        var crossOwnerTrack = await _libraryScanService.TryIndexFromExistingOwnerAsync(
+            fileNodeId, fileName, mimeType, sizeBytes, ownerId, cancellationToken);
+        if (crossOwnerTrack is not null)
+        {
+            _logger.LogDebug("Audio indexed via cross-owner copy for FileNode {FileNodeId} by user {OwnerId}", fileNodeId, ownerId);
+            return;
+        }
+
+        // Step 2: No cross-owner match — must download and extract metadata.
+        //         Use IDownloadService to reassemble all chunks into a single seekable stream.
+        //         Files are stored as content-addressable chunks; individual chunks are NOT
+        //         complete audio files, so we must reassemble before TagLib can parse metadata.
         Stream? audioStream = null;
         try
         {

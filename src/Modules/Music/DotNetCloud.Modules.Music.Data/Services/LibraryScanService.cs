@@ -82,164 +82,11 @@ public sealed class LibraryScanService
 
         // ── Cross-owner copy: if another user already indexed this file, clone their
         //     metadata to avoid re-running expensive TagLib/ffmpeg extraction.
-        //     IMPORTANT: This is READ-ONLY on the other user's data. Nothing is modified,
-        //     deleted, or reassigned. We only CREATE new records for the current owner.
-        Track? sourceTrack = null;
-        string? contentHash = null;
-        string? copyStrategy = null;
-
-        // Strategy 1: Same FileNodeId (same file visible to multiple users via sharing)
-        sourceTrack = await _db.Tracks
-            .Include(t => t.Album)
-            .Include(t => t.TrackArtists).ThenInclude(ta => ta.Artist)
-            .Include(t => t.TrackGenres).ThenInclude(tg => tg.Genre)
-            .IgnoreQueryFilters()
-            .FirstOrDefaultAsync(t => t.FileNodeId == fileNodeId && t.OwnerId != ownerId && !t.IsDeleted,
-                cancellationToken);
-
-        if (sourceTrack is not null)
+        var crossOwnerTrack = await TryIndexFromExistingOwnerAsync(
+            fileNodeId, fileName, mimeType, sizeBytes, ownerId, cancellationToken);
+        if (crossOwnerTrack is not null)
         {
-            copyStrategy = "FileNodeId";
-        }
-        else
-        {
-            // Strategy 2: Same ContentHash (different uploads of identical file content)
-            contentHash = await LookupContentHashAsync(fileNodeId, cancellationToken);
-
-            if (contentHash is not null)
-            {
-                sourceTrack = await _db.Tracks
-                    .Include(t => t.Album)
-                    .Include(t => t.TrackArtists).ThenInclude(ta => ta.Artist)
-                    .Include(t => t.TrackGenres).ThenInclude(tg => tg.Genre)
-                    .IgnoreQueryFilters()
-                    .FirstOrDefaultAsync(t => t.ContentHash == contentHash && t.OwnerId != ownerId && !t.IsDeleted,
-                        cancellationToken);
-
-                if (sourceTrack is not null)
-                    copyStrategy = "ContentHash";
-            }
-        }
-
-        if (sourceTrack is not null)
-        {
-            _logger.LogInformation(
-                "Cross-owner copy ({Strategy}): cloning metadata from track {SourceTrackId} (owner={SourceOwnerId}) for FileNode {FileNodeId} into owner {OwnerId}",
-                copyStrategy, sourceTrack.Id, sourceTrack.OwnerId, fileNodeId, ownerId);
-
-            // ── SAFETY: Never touch sourceTrack or anything owned by sourceTrack.OwnerId ──
-            // All new records below use ownerId (the CURRENT user), never sourceTrack.OwnerId.
-
-            // Clone artist for the current owner
-            var sourceArtistName = sourceTrack.TrackArtists
-                .FirstOrDefault(ta => ta.IsPrimary)?.Artist?.Name
-                ?? sourceTrack.TrackArtists.FirstOrDefault()?.Artist?.Name
-                ?? "Unknown Artist";
-
-            var newArtist = await GetOrCreateArtistAsync(sourceArtistName, ownerId, cancellationToken);
-
-            // Clone album for the current owner
-            MusicAlbum? newAlbum = null;
-            if (sourceTrack.AlbumId.HasValue && sourceTrack.Album is not null)
-            {
-                newAlbum = await GetOrCreateAlbumAsync(
-                    sourceTrack.Album.Title, newArtist.Id, ownerId, sourceTrack.Album.Year, cancellationToken);
-            }
-
-            // Clone genre
-            Genre? newGenre = null;
-            var sourceGenre = sourceTrack.TrackGenres.FirstOrDefault()?.Genre;
-            if (sourceGenre is not null)
-                newGenre = await GetOrCreateGenreAsync(sourceGenre.Name, cancellationToken);
-
-            // Create NEW track record for the current owner — copies metadata only
-            var newTrack = new Track
-            {
-                FileNodeId = fileNodeId,
-                OwnerId = ownerId,  // <-- CURRENT user, NOT source owner
-                Title = sourceTrack.Title,
-                FileName = sourceTrack.FileName,
-                MimeType = sourceTrack.MimeType,
-                TrackNumber = sourceTrack.TrackNumber,
-                DiscNumber = sourceTrack.DiscNumber,
-                DurationTicks = sourceTrack.DurationTicks,
-                SizeBytes = sourceTrack.SizeBytes,
-                Bitrate = sourceTrack.Bitrate,
-                SampleRate = sourceTrack.SampleRate,
-                Channels = sourceTrack.Channels,
-                AlbumId = newAlbum?.Id,
-                Year = sourceTrack.Year,
-                ContentHash = contentHash,
-                MusicBrainzRecordingId = sourceTrack.MusicBrainzRecordingId,
-            };
-
-            _db.Tracks.Add(newTrack);
-            await _db.SaveChangesAsync(cancellationToken);
-
-            // Fill in ContentHash for Strategy 1 (not yet known at query time)
-            if (newTrack.ContentHash is null)
-            {
-                newTrack.ContentHash = await LookupContentHashAsync(fileNodeId, cancellationToken);
-                if (newTrack.ContentHash is not null)
-                    await _db.SaveChangesAsync(cancellationToken);
-            }
-
-            // Create track-artist junction for the NEW track
-            _db.TrackArtists.Add(new TrackArtist
-            {
-                TrackId = newTrack.Id,
-                ArtistId = newArtist.Id,
-                IsPrimary = true
-            });
-
-            // Create track-genre junction for the NEW track
-            if (newGenre is not null)
-            {
-                _db.TrackGenres.Add(new TrackGenre
-                {
-                    TrackId = newTrack.Id,
-                    GenreId = newGenre.Id
-                });
-            }
-
-            // Update NEW album total duration (only counts tracks owned by current user)
-            if (newAlbum is not null)
-            {
-                newAlbum.TotalDurationTicks = await _db.Tracks
-                    .Where(t => t.AlbumId == newAlbum.Id)
-                    .SumAsync(t => t.DurationTicks, cancellationToken);
-            }
-
-            await _db.SaveChangesAsync(cancellationToken);
-
-            _logger.LogInformation(
-                "Indexed track {TrackId} '{Title}' by '{Artist}' on '{Album}' (cloned from {SourceTrackId}, owner={OwnerId})",
-                newTrack.Id, newTrack.Title, newArtist.Name, newAlbum?.Title ?? "(none)", sourceTrack.Id, ownerId);
-
-            await _eventBus.PublishAsync(new SearchIndexRequestEvent
-            {
-                EventId = Guid.NewGuid(),
-                CreatedAt = DateTime.UtcNow,
-                ModuleId = "music",
-                EntityId = newTrack.Id.ToString(),
-                Action = SearchIndexAction.Index
-            }, new CallerContext(ownerId, ["user"], CallerType.User), cancellationToken);
-
-            // ── SAFETY AUDIT: Verify source track was NOT modified ──
-            var verifySource = await _db.Tracks
-                .IgnoreQueryFilters()
-                .FirstOrDefaultAsync(t => t.Id == sourceTrack.Id, cancellationToken);
-
-            if (verifySource is null || verifySource.IsDeleted || verifySource.OwnerId != sourceTrack.OwnerId)
-            {
-                _logger.LogError(
-                    "CRITICAL: Source track {SourceTrackId} was unexpectedly modified during cross-owner copy! " +
-                    "exists={Exists}, isDeleted={IsDeleted}, ownerId={OwnerId}, expectedOwner={ExpectedOwner}",
-                    sourceTrack.Id,
-                    verifySource is not null, verifySource?.IsDeleted, verifySource?.OwnerId, sourceTrack.OwnerId);
-            }
-
-            return newTrack;
+            return crossOwnerTrack;
         }
 
         // ── Extract metadata from the file ──
@@ -435,6 +282,187 @@ public sealed class LibraryScanService
         }, new CallerContext(ownerId, ["user"], CallerType.User), cancellationToken);
 
         return track;
+    }
+
+    /// <summary>
+    /// Attempts to find an existing track for this file owned by another user and clones
+    /// their metadata into a new track record for the current owner.
+    /// Returns the new track if a source was found and copied, or null if no cross-owner
+    /// match exists (caller should proceed with full metadata extraction).
+    /// This is READ-ONLY on the source user's data — never modifies, deletes, or reassigns.
+    /// Only CREATEs new records for the current user.
+    /// </summary>
+    public async Task<Track?> TryIndexFromExistingOwnerAsync(
+        Guid fileNodeId,
+        string fileName,
+        string mimeType,
+        long sizeBytes,
+        Guid ownerId,
+        CancellationToken cancellationToken = default)
+    {
+        // ── Cross-owner copy: if another user already indexed this file, clone their
+        //     metadata to avoid re-running expensive TagLib/ffmpeg extraction.
+        //     IMPORTANT: This is READ-ONLY on the other user's data. Nothing is modified,
+        //     deleted, or reassigned. We only CREATE new records for the current owner.
+        Track? sourceTrack = null;
+        string? contentHash = null;
+        string? copyStrategy = null;
+
+        // Strategy 1: Same FileNodeId (same file visible to multiple users via sharing)
+        sourceTrack = await _db.Tracks
+            .Include(t => t.Album)
+            .Include(t => t.TrackArtists).ThenInclude(ta => ta.Artist)
+            .Include(t => t.TrackGenres).ThenInclude(tg => tg.Genre)
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(t => t.FileNodeId == fileNodeId && t.OwnerId != ownerId && !t.IsDeleted,
+                cancellationToken);
+
+        if (sourceTrack is not null)
+        {
+            copyStrategy = "FileNodeId";
+        }
+        else
+        {
+            // Strategy 2: Same ContentHash (different uploads of identical file content)
+            contentHash = await LookupContentHashAsync(fileNodeId, cancellationToken);
+
+            if (contentHash is not null)
+            {
+                sourceTrack = await _db.Tracks
+                    .Include(t => t.Album)
+                    .Include(t => t.TrackArtists).ThenInclude(ta => ta.Artist)
+                    .Include(t => t.TrackGenres).ThenInclude(tg => tg.Genre)
+                    .IgnoreQueryFilters()
+                    .FirstOrDefaultAsync(t => t.ContentHash == contentHash && t.OwnerId != ownerId && !t.IsDeleted,
+                        cancellationToken);
+
+                if (sourceTrack is not null)
+                    copyStrategy = "ContentHash";
+            }
+        }
+
+        if (sourceTrack is null)
+        {
+            return null;
+        }
+
+        _logger.LogInformation(
+            "Cross-owner copy ({Strategy}): cloning metadata from track {SourceTrackId} (owner={SourceOwnerId}) for FileNode {FileNodeId} into owner {OwnerId}",
+            copyStrategy, sourceTrack.Id, sourceTrack.OwnerId, fileNodeId, ownerId);
+
+        // ── SAFETY: Never touch sourceTrack or anything owned by sourceTrack.OwnerId ──
+        // All new records below use ownerId (the CURRENT user), never sourceTrack.OwnerId.
+
+        // Clone artist for the current owner
+        var sourceArtistName = sourceTrack.TrackArtists
+            .FirstOrDefault(ta => ta.IsPrimary)?.Artist?.Name
+            ?? sourceTrack.TrackArtists.FirstOrDefault()?.Artist?.Name
+            ?? "Unknown Artist";
+
+        var newArtist = await GetOrCreateArtistAsync(sourceArtistName, ownerId, cancellationToken);
+
+        // Clone album for the current owner
+        MusicAlbum? newAlbum = null;
+        if (sourceTrack.AlbumId.HasValue && sourceTrack.Album is not null)
+        {
+            newAlbum = await GetOrCreateAlbumAsync(
+                sourceTrack.Album.Title, newArtist.Id, ownerId, sourceTrack.Album.Year, cancellationToken);
+        }
+
+        // Clone genre
+        Genre? newGenre = null;
+        var sourceGenre = sourceTrack.TrackGenres.FirstOrDefault()?.Genre;
+        if (sourceGenre is not null)
+            newGenre = await GetOrCreateGenreAsync(sourceGenre.Name, cancellationToken);
+
+        // Create NEW track record for the current owner — copies metadata only
+        var newTrack = new Track
+        {
+            FileNodeId = fileNodeId,
+            OwnerId = ownerId,  // <-- CURRENT user, NOT source owner
+            Title = sourceTrack.Title,
+            FileName = sourceTrack.FileName,
+            MimeType = sourceTrack.MimeType,
+            TrackNumber = sourceTrack.TrackNumber,
+            DiscNumber = sourceTrack.DiscNumber,
+            DurationTicks = sourceTrack.DurationTicks,
+            SizeBytes = sourceTrack.SizeBytes,
+            Bitrate = sourceTrack.Bitrate,
+            SampleRate = sourceTrack.SampleRate,
+            Channels = sourceTrack.Channels,
+            AlbumId = newAlbum?.Id,
+            Year = sourceTrack.Year,
+            ContentHash = contentHash,
+            MusicBrainzRecordingId = sourceTrack.MusicBrainzRecordingId,
+        };
+
+        _db.Tracks.Add(newTrack);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        // Fill in ContentHash for Strategy 1 (not yet known at query time)
+        if (newTrack.ContentHash is null)
+        {
+            newTrack.ContentHash = await LookupContentHashAsync(fileNodeId, cancellationToken);
+            if (newTrack.ContentHash is not null)
+                await _db.SaveChangesAsync(cancellationToken);
+        }
+
+        // Create track-artist junction for the NEW track
+        _db.TrackArtists.Add(new TrackArtist
+        {
+            TrackId = newTrack.Id,
+            ArtistId = newArtist.Id,
+            IsPrimary = true
+        });
+
+        // Create track-genre junction for the NEW track
+        if (newGenre is not null)
+        {
+            _db.TrackGenres.Add(new TrackGenre
+            {
+                TrackId = newTrack.Id,
+                GenreId = newGenre.Id
+            });
+        }
+
+        // Update NEW album total duration (only counts tracks owned by current user)
+        if (newAlbum is not null)
+        {
+            newAlbum.TotalDurationTicks = await _db.Tracks
+                .Where(t => t.AlbumId == newAlbum.Id)
+                .SumAsync(t => t.DurationTicks, cancellationToken);
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation(
+            "Indexed track {TrackId} '{Title}' by '{Artist}' on '{Album}' (cloned from {SourceTrackId}, owner={OwnerId})",
+            newTrack.Id, newTrack.Title, newArtist.Name, newAlbum?.Title ?? "(none)", sourceTrack.Id, ownerId);
+
+        await _eventBus.PublishAsync(new SearchIndexRequestEvent
+        {
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            ModuleId = "music",
+            EntityId = newTrack.Id.ToString(),
+            Action = SearchIndexAction.Index
+        }, new CallerContext(ownerId, ["user"], CallerType.User), cancellationToken);
+
+        // ── SAFETY AUDIT: Verify source track was NOT modified ──
+        var verifySource = await _db.Tracks
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(t => t.Id == sourceTrack.Id, cancellationToken);
+
+        if (verifySource is null || verifySource.IsDeleted || verifySource.OwnerId != sourceTrack.OwnerId)
+        {
+            _logger.LogError(
+                "CRITICAL: Source track {SourceTrackId} was unexpectedly modified during cross-owner copy! " +
+                "exists={Exists}, isDeleted={IsDeleted}, ownerId={OwnerId}, expectedOwner={ExpectedOwner}",
+                sourceTrack.Id,
+                verifySource is not null, verifySource?.IsDeleted, verifySource?.OwnerId, sourceTrack.OwnerId);
+        }
+
+        return newTrack;
     }
 
     /// <summary>
