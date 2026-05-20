@@ -512,29 +512,47 @@ public sealed class LibraryScanService
         if (fileNodeIds.Count == 0)
             return [];
 
-        var hashes = contentHashMap.Values.Where(h => h is not null).Cast<string>().Distinct().ToList();
-
-        if (hashes.Count == 0)
-            return [];
-
-        // Step 2: Find ALL source tracks matching these hashes from other users (single query)
-        var sourceTracks = await _db.Tracks
+        // ── Strategy 1: Match by FileNodeId (same virtual FileNode for both users, e.g. admin shared folders) ──
+        var sourceById = new Dictionary<Guid, Track>();
+        var fileNodeIdTracks = await _db.Tracks
             .Include(t => t.Album)
             .Include(t => t.TrackArtists).ThenInclude(ta => ta.Artist)
             .Include(t => t.TrackGenres).ThenInclude(tg => tg.Genre)
             .IgnoreQueryFilters()
-            .Where(t => t.ContentHash != null && hashes.Contains(t.ContentHash) && t.OwnerId != ownerId && !t.IsDeleted)
+            .Where(t => fileNodeIds.Contains(t.FileNodeId) && t.OwnerId != ownerId && !t.IsDeleted)
             .ToListAsync(cancellationToken);
 
-        if (sourceTracks.Count == 0)
+        foreach (var track in fileNodeIdTracks)
+        {
+            if (!sourceById.ContainsKey(track.FileNodeId))
+                sourceById[track.FileNodeId] = track;
+        }
+
+        // ── Strategy 2: Match by ContentHash (different FileNodes with same content) ──
+        var sourceByHash = new Dictionary<string, Track>();
+        var hashes = contentHashMap.Values.Where(h => h is not null).Cast<string>().Distinct().ToList();
+
+        if (hashes.Count > 0)
+        {
+            var hashTracks = await _db.Tracks
+                .Include(t => t.Album)
+                .Include(t => t.TrackArtists).ThenInclude(ta => ta.Artist)
+                .Include(t => t.TrackGenres).ThenInclude(tg => tg.Genre)
+                .IgnoreQueryFilters()
+                .Where(t => t.ContentHash != null && hashes.Contains(t.ContentHash) && t.OwnerId != ownerId && !t.IsDeleted)
+                .ToListAsync(cancellationToken);
+
+            foreach (var track in hashTracks)
+            {
+                if (track.ContentHash is not null && !sourceByHash.ContainsKey(track.ContentHash))
+                    sourceByHash[track.ContentHash] = track;
+            }
+        }
+
+        if (sourceById.Count == 0 && sourceByHash.Count == 0)
             return [];
 
-        // Step 3: Build lookup by ContentHash (one source track per unique hash)
-        var sourceByHash = sourceTracks
-            .GroupBy(t => t.ContentHash!)
-            .ToDictionary(g => g.Key, g => g.First());
-
-        // Step 4: Get already-indexed FileNodeIds for this user
+        // Step 3: Get already-indexed FileNodeIds for this user
         var alreadyIndexed = await _db.Tracks
             .Where(t => t.OwnerId == ownerId && fileNodeIds.Contains(t.FileNodeId) && !t.IsDeleted)
             .Select(t => t.FileNodeId)
@@ -552,11 +570,22 @@ public sealed class LibraryScanService
             if (alreadyIndexedSet.Contains(fileNodeId))
                 continue;
 
-            if (!contentHashMap.TryGetValue(fileNodeId, out var contentHash) || contentHash is null)
-                continue;
-
-            if (!sourceByHash.TryGetValue(contentHash, out var sourceTrack))
-                continue;
+            // Try Strategy 1: Same FileNodeId (admin shared folders / mounted entries)
+            Track? sourceTrack = null;
+            string? contentHash = null;
+            if (sourceById.TryGetValue(fileNodeId, out var idMatch))
+            {
+                sourceTrack = idMatch;
+            }
+            else
+            {
+                // Try Strategy 2: Same ContentHash (different uploads of identical files)
+                if (!contentHashMap.TryGetValue(fileNodeId, out contentHash) || contentHash is null)
+                    continue;
+                if (!sourceByHash.TryGetValue(contentHash, out var hashMatch))
+                    continue;
+                sourceTrack = hashMatch;
+            }
 
             // Get or create artist (uses in-memory cache, no DB hit after first unique name)
             var sourceArtistName = sourceTrack.TrackArtists
