@@ -93,6 +93,39 @@ public sealed class AlbumArtService
         return null;
     }
 
+    /// <summary>
+    /// Copies album art from a source album's cache entry to a new album's cache entry.
+    /// Used during cross-owner copy to avoid re-extracting art from the audio file.
+    /// </summary>
+    /// <param name="cacheDir">Directory where cached art is stored.</param>
+    /// <param name="sourceAlbumId">The source album whose art is already cached.</param>
+    /// <param name="targetAlbumId">The new album to copy art to.</param>
+    /// <returns>The cache path for the target album's art, or null if source has no cached art.</returns>
+    public string? CopyArtFromExisting(string cacheDir, Guid sourceAlbumId, Guid targetAlbumId)
+    {
+        var sourcePath = GetCachedArtPath(cacheDir, sourceAlbumId);
+        if (sourcePath is null)
+            return null;
+
+        try
+        {
+            Directory.CreateDirectory(cacheDir);
+            var extension = Path.GetExtension(sourcePath);
+            var targetFileName = $"{targetAlbumId}{extension}";
+            var targetPath = Path.Combine(cacheDir, targetFileName);
+            File.Copy(sourcePath, targetPath, overwrite: true);
+            _logger.LogDebug("Copied album art from {SourceAlbumId} to {TargetAlbumId} at {Path}",
+                sourceAlbumId, targetAlbumId, targetPath);
+            return targetPath;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to copy album art from {SourceAlbumId} to {TargetAlbumId}",
+                sourceAlbumId, targetAlbumId);
+            return null;
+        }
+    }
+
     private string? CacheArtData(byte[] data, string mimeType, string cacheDir, Guid albumId)
     {
         try

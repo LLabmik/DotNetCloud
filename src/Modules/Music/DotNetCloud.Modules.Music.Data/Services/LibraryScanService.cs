@@ -383,6 +383,19 @@ public sealed class LibraryScanService
         {
             newAlbum = await GetOrCreateAlbumAsync(
                 sourceTrack.Album.Title, newArtist.Id, ownerId, sourceTrack.Album.Year, cancellationToken);
+
+            // Copy album art from the source user's cached art (avoids re-extracting from file).
+            // Only copy if the source has art and the new album doesn't already have it.
+            if (!newAlbum.HasCoverArt && sourceTrack.Album.HasCoverArt)
+            {
+                var artPath = _albumArtService.CopyArtFromExisting(
+                    _artCacheDir, sourceTrack.Album.Id, newAlbum.Id);
+                if (artPath is not null)
+                {
+                    newAlbum.HasCoverArt = true;
+                    newAlbum.CoverArtPath = artPath;
+                }
+            }
         }
 
         // Clone genre
