@@ -1044,6 +1044,21 @@ public sealed class LibraryScanService
     }
 
     /// <summary>
+    /// Returns all distinct ContentHashes from any other user's tracks.
+    /// Used by the scanner to pre-resolve cross-owner matches without enumerating files.
+    /// </summary>
+    public async Task<HashSet<string>> GetExistingContentHashesAsync(CancellationToken cancellationToken = default)
+    {
+        var hashes = await _db.Tracks
+            .IgnoreQueryFilters()
+            .Where(t => t.ContentHash != null && !t.IsDeleted)
+            .Select(t => t.ContentHash!)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+        return [.. hashes];
+    }
+
+    /// <summary>
     /// Returns the set of FileNode IDs that are already indexed in the music library for the given owner.
     /// Only non-deleted tracks are returned; soft-deleted tracks are excluded so they can be re-indexed
     /// if the source file reappears.

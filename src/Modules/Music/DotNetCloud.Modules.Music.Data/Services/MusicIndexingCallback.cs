@@ -92,4 +92,10 @@ public sealed class MusicIndexingCallback : IMusicIndexingCallback
     {
         return await _libraryScanService.TryBulkIndexFromExistingAsync(fileNodeIds, contentHashMap, ownerId, cancellationToken);
     }
+
+    /// <inheritdoc />
+    public async Task<HashSet<string>> GetExistingContentHashesAsync(CancellationToken cancellationToken = default)
+    {
+        return await _libraryScanService.GetExistingContentHashesAsync(cancellationToken);
+    }
 }

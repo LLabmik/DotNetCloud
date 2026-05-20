@@ -157,4 +157,10 @@ public interface IMusicIndexingCallback
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Set of FileNode IDs that were successfully indexed via cross-owner copy.</returns>
     Task<HashSet<Guid>> BulkIndexFromExistingAsync(IReadOnlyCollection<Guid> fileNodeIds, IReadOnlyDictionary<Guid, string?> contentHashMap, Guid ownerId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns all distinct ContentHashes from any other user's tracks.
+    /// Used by the scanner to pre-resolve cross-owner matches without enumerating files.
+    /// </summary>
+    Task<HashSet<string>> GetExistingContentHashesAsync(CancellationToken cancellationToken = default);
 }
