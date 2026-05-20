@@ -98,4 +98,10 @@ public sealed class MusicIndexingCallback : IMusicIndexingCallback
     {
         return await _libraryScanService.GetExistingContentHashesAsync(cancellationToken);
     }
+
+    /// <inheritdoc />
+    public async Task<int> CloneLibraryFromExistingAsync(Guid ownerId, CancellationToken cancellationToken = default)
+    {
+        return await _libraryScanService.CloneLibraryFromExistingAsync(ownerId, cancellationToken);
+    }
 }

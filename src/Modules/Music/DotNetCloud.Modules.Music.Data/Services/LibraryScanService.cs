@@ -1088,6 +1088,160 @@ public sealed class LibraryScanService
     }
 
     /// <summary>
+    /// Clones another user's entire music library into the current user in a single batch.
+    /// No file discovery, no tree walk, no per-file processing — just copies all track
+    /// metadata where the FileNodeId matches (admin shared folders use shared virtual IDs).
+    /// Skips tracks already indexed for the current user.
+    /// </summary>
+    public async Task<int> CloneLibraryFromExistingAsync(Guid ownerId, CancellationToken cancellationToken = default)
+    {
+        // Get all source tracks from any other user
+        var sourceTracks = await _db.Tracks
+            .Include(t => t.Album)
+            .Include(t => t.TrackArtists).ThenInclude(ta => ta.Artist)
+            .Include(t => t.TrackGenres).ThenInclude(tg => tg.Genre)
+            .IgnoreQueryFilters()
+            .Where(t => t.OwnerId != ownerId && !t.IsDeleted)
+            .ToListAsync(cancellationToken);
+
+        if (sourceTracks.Count == 0)
+            return 0;
+
+        // Get already-indexed FileNodeIds for this user
+        var existingFileNodeIds = await _db.Tracks
+            .Where(t => t.OwnerId == ownerId && !t.IsDeleted)
+            .Select(t => t.FileNodeId)
+            .ToListAsync(cancellationToken);
+        var existingSet = existingFileNodeIds.ToHashSet();
+
+        // Build all records in memory
+        var newTracks = new List<Track>();
+        var newTrackArtists = new List<TrackArtist>();
+        var newTrackGenres = new List<TrackGenre>();
+        var processed = 0;
+
+        foreach (var sourceTrack in sourceTracks)
+        {
+            if (existingSet.Contains(sourceTrack.FileNodeId))
+                continue;
+
+            // Get or create artist (uses in-memory cache)
+            var sourceArtistName = sourceTrack.TrackArtists
+                .FirstOrDefault(ta => ta.IsPrimary)?.Artist?.Name
+                ?? sourceTrack.TrackArtists.FirstOrDefault()?.Artist?.Name
+                ?? "Unknown Artist";
+            var newArtist = await GetOrCreateArtistAsync(sourceArtistName, ownerId, cancellationToken);
+
+            // Get or create album
+            MusicAlbum? newAlbum = null;
+            if (sourceTrack.AlbumId.HasValue && sourceTrack.Album is not null)
+            {
+                newAlbum = await GetOrCreateAlbumAsync(
+                    sourceTrack.Album.Title, newArtist.Id, ownerId, sourceTrack.Album.Year, cancellationToken);
+
+                // Copy album art
+                if (!newAlbum.HasCoverArt && sourceTrack.Album.HasCoverArt)
+                {
+                    var artPath = _albumArtService.CopyArtFromExisting(
+                        _artCacheDir, sourceTrack.Album.Id, newAlbum.Id);
+                    if (artPath is not null)
+                    {
+                        newAlbum.HasCoverArt = true;
+                        newAlbum.CoverArtPath = artPath;
+                    }
+                }
+            }
+
+            // Get or create genre
+            Genre? newGenre = null;
+            var sourceGenre = sourceTrack.TrackGenres.FirstOrDefault()?.Genre;
+            if (sourceGenre is not null)
+                newGenre = await GetOrCreateGenreAsync(sourceGenre.Name, cancellationToken);
+
+            // Create track
+            var newTrack = new Track
+            {
+                FileNodeId = sourceTrack.FileNodeId,
+                OwnerId = ownerId,
+                Title = sourceTrack.Title,
+                FileName = sourceTrack.FileName,
+                MimeType = sourceTrack.MimeType,
+                TrackNumber = sourceTrack.TrackNumber,
+                DiscNumber = sourceTrack.DiscNumber,
+                DurationTicks = sourceTrack.DurationTicks,
+                SizeBytes = sourceTrack.SizeBytes,
+                Bitrate = sourceTrack.Bitrate,
+                SampleRate = sourceTrack.SampleRate,
+                Channels = sourceTrack.Channels,
+                AlbumId = newAlbum?.Id,
+                Year = sourceTrack.Year,
+                ContentHash = sourceTrack.ContentHash,
+                MusicBrainzRecordingId = sourceTrack.MusicBrainzRecordingId,
+            };
+            newTracks.Add(newTrack);
+
+            newTrackArtists.Add(new TrackArtist
+            {
+                TrackId = newTrack.Id,
+                ArtistId = newArtist.Id,
+                IsPrimary = true
+            });
+
+            if (newGenre is not null)
+            {
+                newTrackGenres.Add(new TrackGenre
+                {
+                    TrackId = newTrack.Id,
+                    GenreId = newGenre.Id
+                });
+            }
+
+            // Update album duration incrementally
+            if (newAlbum is not null)
+            {
+                if (!_albumDurationCache.TryGetValue(newAlbum.Id, out var currentDuration))
+                {
+                    currentDuration = await _db.Tracks
+                        .Where(t => t.AlbumId == newAlbum.Id)
+                        .SumAsync(t => t.DurationTicks, cancellationToken);
+                }
+                currentDuration += newTrack.DurationTicks;
+                _albumDurationCache[newAlbum.Id] = currentDuration;
+                newAlbum.TotalDurationTicks = currentDuration;
+            }
+
+            processed++;
+            existingSet.Add(sourceTrack.FileNodeId);
+        }
+
+        if (newTracks.Count == 0)
+            return 0;
+
+        _db.Tracks.AddRange(newTracks);
+        _db.TrackArtists.AddRange(newTrackArtists);
+        _db.TrackGenres.AddRange(newTrackGenres);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        foreach (var track in newTracks)
+        {
+            await _eventBus.PublishAsync(new SearchIndexRequestEvent
+            {
+                EventId = Guid.NewGuid(),
+                CreatedAt = DateTime.UtcNow,
+                ModuleId = "music",
+                EntityId = track.Id.ToString(),
+                Action = SearchIndexAction.Index
+            }, new CallerContext(ownerId, ["user"], CallerType.User), cancellationToken);
+        }
+
+        _logger.LogInformation(
+            "CloneLibraryFromExisting: cloned {Count} tracks for owner {OwnerId} from {SourceCount} source tracks",
+            newTracks.Count, ownerId, sourceTracks.Count);
+
+        return newTracks.Count;
+    }
+
+    /// <summary>
     /// Returns the set of FileNode IDs that are already indexed in the music library for the given owner.
     /// Only non-deleted tracks are returned; soft-deleted tracks are excluded so they can be re-indexed
     /// if the source file reappears.

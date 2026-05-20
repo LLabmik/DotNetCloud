@@ -163,4 +163,14 @@ public interface IMusicIndexingCallback
     /// Used by the scanner to pre-resolve cross-owner matches without enumerating files.
     /// </summary>
     Task<HashSet<string>> GetExistingContentHashesAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Clones another user's entire music library into the current user in a single batch.
+    /// No file discovery, no tree walk, no per-file processing — just copies all track
+    /// metadata where the FileNodeId matches (admin shared folders use shared virtual IDs).
+    /// </summary>
+    /// <param name="ownerId">User to clone tracks for.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Number of tracks cloned.</returns>
+    Task<int> CloneLibraryFromExistingAsync(Guid ownerId, CancellationToken cancellationToken = default);
 }

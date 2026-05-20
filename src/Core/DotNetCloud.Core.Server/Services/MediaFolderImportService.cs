@@ -223,30 +223,23 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
                 result.Skipped, parsed, ownerId);
         }
 
-        // ── Bulk cross-owner copy: if another user already indexed matching files
-        //     (by ContentHash), copy all metadata in a single batch operation instead
-        //     of iterating file-by-file. Returns the set of FileNodeIds that were handled.
-        var bulkHandledIds = new HashSet<Guid>();
+        // ── Clone from existing user (no discovery needed) ──
+        // If another user already has tracks indexed, clone their entire library
+        // for the current user in a single batch. No file discovery, no tree walk.
+        // Admin shared folders use shared virtual FileNodeIds, so IDs match directly.
         if (filesToIndex.Count > 0 && parsed == MediaType.Music)
         {
             var musicCallback = serviceProvider.GetService<IMusicIndexingCallback>();
             if (musicCallback is not null)
             {
-                var idsToCheck = filesToIndex.Select(c => c.Id).ToList();
-                var fileNodes = await filesDb.FileNodes
-                    .Where(n => idsToCheck.Contains(n.Id))
-                    .Select(n => new { n.Id, n.ContentHash })
-                    .ToListAsync(cancellationToken);
-                var contentHashMap = fileNodes.ToDictionary(n => n.Id, n => n.ContentHash);
-
-                bulkHandledIds = await musicCallback.BulkIndexFromExistingAsync(
-                    idsToCheck, contentHashMap, ownerId, cancellationToken);
-
-                if (bulkHandledIds.Count > 0)
+                var cloned = await musicCallback.CloneLibraryFromExistingAsync(ownerId, cancellationToken);
+                if (cloned > 0)
                 {
                     _logger.LogInformation(
-                        "Bulk cross-owner copy handled {Count} {MediaType} files for user {OwnerId}, skipping per-file loop",
-                        bulkHandledIds.Count, parsed, ownerId);
+                        "Cloned {Count} {MediaType} tracks from existing user for {OwnerId} — skipping per-file loop",
+                        cloned, parsed, ownerId);
+                    result.Imported += cloned;
+                    result.Skipped += cloned;
                 }
             }
         }
@@ -254,11 +247,9 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
         var filesProcessed = 0;
         foreach (var file in filesToIndex)
         {
-            if (bulkHandledIds.Contains(file.Id))
+            if (cancellationToken.IsCancellationRequested)
             {
-                result.Imported++;
-                filesProcessed++;
-                continue;
+                break;
             }
 
             if (cancellationToken.IsCancellationRequested)
