@@ -54,6 +54,8 @@ public partial class MusicPage : IAsyncDisposable
     private List<TrackDto>? _searchResults;
     private List<PlaylistDto> _playlists = [];
     private List<TrackDto> _playlistTracks = [];
+    private List<PlaylistDto> _myPlaylists => _playlists.Where(p => p.OwnerId == _caller?.UserId).ToList();
+    private List<PlaylistDto> _publicPlaylists => _playlists.Where(p => p.OwnerId != _caller?.UserId && p.IsPublic).ToList();
     private List<string> _genres = [];
 
     // ── Selection state ──
@@ -168,6 +170,7 @@ public partial class MusicPage : IAsyncDisposable
         catch { /* localStorage unavailable */ }
 
         Playback.OnChange += OnPlaybackStateChanged;
+        ActivePlaylist.OnPlaylistChanged += OnActivePlaylistChanged;
         ScanProgress.OnProgressChanged += OnScanProgressChanged;
 
         try
@@ -319,6 +322,17 @@ public partial class MusicPage : IAsyncDisposable
     private void OnPlaybackStateChanged()
     {
         InvokeAsync(StateHasChanged);
+    }
+
+    private async void OnActivePlaylistChanged()
+    {
+        // When the user clicks the playlist name in the playbar, navigate to it
+        if (ActivePlaylist.PlaylistId.HasValue)
+        {
+            await SwitchSection(Section.Playlists);
+            await SelectPlaylistAsync(ActivePlaylist.PlaylistId.Value);
+        }
+        await InvokeAsync(StateHasChanged);
     }
 
     private void OnScanProgressChanged()
@@ -716,6 +730,7 @@ public partial class MusicPage : IAsyncDisposable
 
     private async Task PlayTrackAsync(TrackDto track)
     {
+        ActivePlaylist.ClearPlaylist();
         Playback.PlayTrack(track);
 
         // Start visualizer render loop if enabled
@@ -731,6 +746,7 @@ public partial class MusicPage : IAsyncDisposable
 
     private async Task PlayAlbumAsync(Guid albumId)
     {
+        ActivePlaylist.ClearPlaylist();
         try
         {
             var caller = await GetCallerAsync();
@@ -751,6 +767,9 @@ public partial class MusicPage : IAsyncDisposable
         try
         {
             var caller = await GetCallerAsync();
+            var playlist = _playlists.FirstOrDefault(p => p.Id == playlistId);
+            var playlistName = playlist?.Name ?? "Unknown Playlist";
+            ActivePlaylist.SetPlaylist(playlistId, playlistName);
             var tracks = (await PlaylistService.GetPlaylistTracksAsync(playlistId, caller)).ToList();
             if (tracks.Count > 0)
             {
@@ -1462,6 +1481,7 @@ public partial class MusicPage : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         Playback.OnChange -= OnPlaybackStateChanged;
+        ActivePlaylist.OnPlaylistChanged -= OnActivePlaylistChanged;
         ScanProgress.OnProgressChanged -= OnScanProgressChanged;
 
         try

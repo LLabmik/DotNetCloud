@@ -6315,6 +6315,31 @@ textarea.form-control {
   color: var(--color-muted, #94a3b8);
 }
 
+.gmp-playlist {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
+  color: var(--color-primary, #6366f1);
+  cursor: pointer;
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: color var(--transition, 200ms ease);
+  margin-top: 1px;
+}
+
+.gmp-playlist:hover {
+  color: var(--color-primary-hover, #4f46e5);
+  text-decoration: underline;
+}
+
+.gmp-playlist-icon {
+  font-size: 0.7rem;
+  flex-shrink: 0;
+}
+
 .gmp-star {
   background: none;
   border: none;

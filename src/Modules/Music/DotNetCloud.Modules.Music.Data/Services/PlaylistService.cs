@@ -73,13 +73,13 @@ public sealed class PlaylistService : Music.Services.IPlaylistService
     }
 
     /// <summary>
-    /// Lists playlists for the authenticated user.
+    /// Lists playlists visible to the caller — own playlists and public playlists from other users.
     /// </summary>
     public async Task<IReadOnlyList<PlaylistDto>> ListPlaylistsAsync(CallerContext caller, CancellationToken cancellationToken = default)
     {
         var playlists = await _db.Playlists
             .Include(p => p.PlaylistTracks).ThenInclude(pt => pt.Track)
-            .Where(p => p.OwnerId == caller.UserId)
+            .Where(p => p.OwnerId == caller.UserId || p.IsPublic)
             .OrderBy(p => p.Name)
             .ToListAsync(cancellationToken);
 

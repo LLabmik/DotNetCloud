@@ -20,6 +20,7 @@
 @inject IJSRuntime Js
 @inject Microsoft.Extensions.Logging.ILogger<MusicPage> Logger
 @inject MusicPlaybackState Playback
+@inject ActivePlaylistContext ActivePlaylist
 @inject ScanProgressState ScanProgress
 @inject IMetadataEnrichmentService EnrichmentService
 @inject IMusicEnrichmentBackgroundQueue EnrichmentBackgroundQueue
@@ -112,26 +113,6 @@
                 }
             </button>
         </nav>
-
-        @* Playlists in sidebar *@
-        @if (!_sidebarCollapsed && (_section == Section.Playlists || _playlists.Count > 0))
-        {
-            <div class="sidebar-playlist-list">
-                <div class="sidebar-playlist-header">
-                    <span class="playlist-label">Your Playlists</span>
-                    <button class="btn-icon" @onclick="BeginCreatePlaylist" title="New Playlist">+</button>
-                </div>
-                @foreach (var pl in _playlists)
-                {
-                    <button class="sidebar-playlist-item @(_selectedPlaylistId == pl.Id ? "active" : "")"
-                            @onclick="() => SelectPlaylistAsync(pl.Id)">
-                        <span class="playlist-icon">♫</span>
-                        <span class="playlist-name">@pl.Name</span>
-                        <span class="playlist-count">@pl.TrackCount</span>
-                    </button>
-                }
-            </div>
-        }
 
         <ModuleHelpLink ModuleId="music" Collapsed="_sidebarCollapsed" />
     </aside>
@@ -695,47 +676,127 @@
             }
 
             @* ─── Playlists ─── *@
-            @if (_section == Section.Playlists && _selectedPlaylist is not null)
+            @if (_section == Section.Playlists)
             {
-                <div class="playlist-detail">
-                    <div class="playlist-detail-header">
-                        <h3>@_selectedPlaylist.Name</h3>
-                        <span class="playlist-meta">@_selectedPlaylist.TrackCount tracks · @FormatDuration(_selectedPlaylist.TotalDuration)</span>
-                        <div class="playlist-actions">
-                            <button class="btn-play" @onclick="() => PlayPlaylistAsync(_selectedPlaylist.Id)">▶ Play</button>
-                            <button class="btn-icon-action" @onclick="() => _showEditPlaylistDialog = true" title="Edit">✎</button>
-                            <button class="btn-icon-action danger" @onclick="() => DeletePlaylistAsync(_selectedPlaylist.Id)" title="Delete">🗑</button>
-                        </div>
-                    </div>
-                    <div class="track-list">
-                        @foreach (var (track, index) in _playlistTracks.Select((t, i) => (t, i)))
-                        {
-                            <div class="track-row @(Playback.NowPlaying?.Id == track.Id ? "playing" : "")"
-                                 @ondblclick="() => PlayTrackAsync(track)">
-                                <span class="track-num">@(index + 1)</span>
-                                <div class="track-info">
-                                    <span class="track-title">@track.Title</span>
-                                    <span class="track-artist">@track.ArtistName — @track.AlbumTitle</span>
+                @if (_selectedPlaylist is null)
+                {
+                    @* Playlist overview with two sections *@
+                    <div class="playlist-overview">
+                        @* Your Playlists *@
+                        <section class="playlist-section">
+                            <div class="playlist-section-header">
+                                <h4>Your Playlists</h4>
+                                <button class="btn-primary btn-sm" @onclick="BeginCreatePlaylist">+ New Playlist</button>
+                            </div>
+                            @if (_myPlaylists.Count == 0)
+                            {
+                                <div class="playlist-section-empty">
+                                    <p>No playlists yet. Create one to get started.</p>
                                 </div>
-                                <span class="track-duration">@FormatDuration(track.Duration)</span>
-                                <button class="track-action danger" @onclick="() => RemoveFromPlaylistAsync(_selectedPlaylist.Id, track.Id)" title="Remove">✕</button>
-                                <div class="track-menu">
-                                    <button class="btn-icon" @onclick="() => ShowTrackMenu(track)">⋯</button>
-                                    @if (_trackMenuId == track.Id)
+                            }
+                            else
+                            {
+                                <div class="playlists-grid">
+                                    @foreach (var pl in _myPlaylists)
                                     {
-                                        <div class="track-dropdown">
-                                            <button @onclick="() => AddToQueue(track)">Add to Queue</button>
-                                            @foreach (var pl in _playlists)
-                                            {
-                                                <button @onclick="() => AddToPlaylistAsync(pl.Id, track.Id)">Add to @pl.Name</button>
-                                            }
+                                        <div class="playlist-card" @onclick="() => SelectPlaylistAsync(pl.Id)">
+                                            <div class="playlist-card-art playlist-card-art-own">
+                                                <div class="playlist-card-icon">♫</div>
+                                                <div class="playlist-card-overlay">
+                                                    <span class="playlist-card-play">▶</span>
+                                                </div>
+                                            </div>
+                                            <div class="playlist-card-info">
+                                                <span class="playlist-card-title">@pl.Name</span>
+                                                <span class="playlist-card-meta">@pl.TrackCount tracks · @FormatDuration(pl.TotalDuration)</span>
+                                                @if (!string.IsNullOrWhiteSpace(pl.Description))
+                                                {
+                                                    <span class="playlist-card-desc">@pl.Description</span>
+                                                }
+                                            </div>
                                         </div>
                                     }
                                 </div>
-                            </div>
+                            }
+                        </section>
+
+                        @* Public Playlists *@
+                        @if (_publicPlaylists.Count > 0)
+                        {
+                            <section class="playlist-section">
+                                <div class="playlist-section-header">
+                                    <h4>Public Playlists</h4>
+                                </div>
+                                <div class="playlists-grid">
+                                    @foreach (var pl in _publicPlaylists)
+                                    {
+                                        <div class="playlist-card" @onclick="() => SelectPlaylistAsync(pl.Id)">
+                                            <div class="playlist-card-art playlist-card-art-public">
+                                                <div class="playlist-card-icon">♫</div>
+                                                <div class="playlist-card-overlay">
+                                                    <span class="playlist-card-play">▶</span>
+                                                </div>
+                                            </div>
+                                            <div class="playlist-card-info">
+                                                <span class="playlist-card-title">@pl.Name</span>
+                                                <span class="playlist-card-meta">@pl.TrackCount tracks · @FormatDuration(pl.TotalDuration)</span>
+                                                @if (!string.IsNullOrWhiteSpace(pl.Description))
+                                                {
+                                                    <span class="playlist-card-desc">@pl.Description</span>
+                                                }
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            </section>
                         }
                     </div>
-                </div>
+                }
+                else
+                {
+                    <div class="playlist-detail">
+                        <div class="playlist-detail-header">
+                            <div class="playlist-detail-title-row">
+                                <button class="btn-back" @onclick="() => { _selectedPlaylist = null; _selectedPlaylistId = null; StateHasChanged(); }" title="Back to playlists">← Back</button>
+                                <h3>@_selectedPlaylist.Name</h3>
+                            </div>
+                            <span class="playlist-meta">@_selectedPlaylist.TrackCount tracks · @FormatDuration(_selectedPlaylist.TotalDuration)</span>
+                            <div class="playlist-actions">
+                                <button class="btn-play" @onclick="() => PlayPlaylistAsync(_selectedPlaylist.Id)">▶ Play</button>
+                                <button class="btn-icon-action" @onclick="() => _showEditPlaylistDialog = true" title="Edit">✎</button>
+                                <button class="btn-icon-action danger" @onclick="() => DeletePlaylistAsync(_selectedPlaylist.Id)" title="Delete">🗑</button>
+                            </div>
+                        </div>
+                        <div class="track-list">
+                            @foreach (var (track, index) in _playlistTracks.Select((t, i) => (t, i)))
+                            {
+                                <div class="track-row @(Playback.NowPlaying?.Id == track.Id ? "playing" : "")"
+                                     @ondblclick="() => PlayTrackAsync(track)">
+                                    <span class="track-num">@(index + 1)</span>
+                                    <div class="track-info">
+                                        <span class="track-title">@track.Title</span>
+                                        <span class="track-artist">@track.ArtistName — @track.AlbumTitle</span>
+                                    </div>
+                                    <span class="track-duration">@FormatDuration(track.Duration)</span>
+                                    <button class="track-action danger" @onclick="() => RemoveFromPlaylistAsync(_selectedPlaylist.Id, track.Id)" title="Remove">✕</button>
+                                    <div class="track-menu">
+                                        <button class="btn-icon" @onclick="() => ShowTrackMenu(track)">⋯</button>
+                                        @if (_trackMenuId == track.Id)
+                                        {
+                                            <div class="track-dropdown">
+                                                <button @onclick="() => AddToQueue(track)">Add to Queue</button>
+                                                @foreach (var pl in _playlists)
+                                                {
+                                                    <button @onclick="() => AddToPlaylistAsync(pl.Id, track.Id)">Add to @pl.Name</button>
+                                                }
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
             }
 
             @* ─── Favorites ─── *@

@@ -43,6 +43,9 @@ public static class MusicServiceRegistration
         // Shared playback state (survives page navigations within a circuit)
         services.AddScoped<MusicPlaybackState>();
 
+        // Active playlist context (tracks which playlist the current playback originates from)
+        services.AddScoped<ActivePlaylistContext>();
+
         // Shared per-user scan and enrichment progress state
         services.AddSingleton<ScanProgressState>();
 

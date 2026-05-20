@@ -14,6 +14,7 @@
 @inject IJSRuntime Js
 @inject ILogger<GlobalMusicPlaybar> Logger
 @inject IPlaylistService PlaylistService
+@inject ActivePlaylistContext ActivePlaylist
 @implements IAsyncDisposable
 
 @if (_musicModuleEnabled && Playback.NowPlaying is not null)
@@ -66,6 +67,14 @@
                         <span>@Playback.NowPlaying.AlbumTitle</span>
                     }
                 </span>
+                @if (ActivePlaylist.PlaylistId.HasValue)
+                {
+                    <a class="gmp-playlist" href="" @onclick="NavigateToActivePlaylistAsync"
+                       @onclick:preventDefault title="View playlist">
+                        <span class="gmp-playlist-icon">📃</span>
+                        @ActivePlaylist.PlaylistName
+                    </a>
+                }
             </div>
             <button class="gmp-star" @onclick="ToggleStarAsync">
                 @(Playback.NowPlaying.IsStarred ? "★" : "☆")
@@ -585,6 +594,14 @@
     private void NavigateToMusicPage()
     {
         Navigation.NavigateTo("/apps/music?playing=true");
+    }
+
+    private async Task NavigateToActivePlaylistAsync()
+    {
+        Navigation.NavigateTo("/apps/music");
+        // Small delay to let MusicPage initialize, then trigger playlist navigation
+        await Task.Delay(100);
+        ActivePlaylist.RequestNavigateToPlaylist();
     }
 
     // ── JS Interop callbacks (invoked from music-player.js) ──
