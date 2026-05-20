@@ -172,7 +172,42 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
         var visitedFolders = new HashSet<Guid>();
         var candidatesById = new Dictionary<Guid, MediaFileCandidate>();
 
-        // Report initial discovery progress
+        // ── Clone from existing user first (no discovery, no tree walk) ──
+        if (parsed == MediaType.Music)
+        {
+            var musicCallback = serviceProvider.GetService<IMusicIndexingCallback>();
+            if (musicCallback is not null)
+            {
+                progress?.Report(new MediaScanProgress
+                {
+                    Phase = "Cloning music library from existing user...",
+                    FilesDiscovered = 0,
+                    PercentComplete = 0,
+                });
+
+                var cloned = await musicCallback.CloneLibraryFromExistingAsync(ownerId, cancellationToken);
+                if (cloned > 0)
+                {
+                    _logger.LogInformation(
+                        "Cloned {Count} {MediaType} tracks from existing user for {OwnerId} — skipping discovery and per-file loop",
+                        cloned, parsed, ownerId);
+                    progress?.Report(new MediaScanProgress
+                    {
+                        Phase = "Complete",
+                        FilesDiscovered = cloned,
+                        TotalFiles = cloned,
+                        FilesProcessed = cloned,
+                        Imported = cloned,
+                        PercentComplete = 100,
+                    });
+                    result.Imported = cloned;
+                    result.TotalFound = cloned;
+                    return result;
+                }
+            }
+        }
+
+        // Report initial discovery progress (only if clone returned 0)
         progress?.Report(new MediaScanProgress
         {
             Phase = "Discovering files...",
@@ -216,33 +251,6 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
             .ToList();
 
         result.Skipped = result.TotalFound - filesToIndex.Count;
-        if (result.Skipped > 0)
-        {
-            _logger.LogInformation(
-                "Skipping {Skipped} already-indexed {MediaType} files for user {OwnerId}",
-                result.Skipped, parsed, ownerId);
-        }
-
-        // ── Clone from existing user (no discovery needed) ──
-        // If another user already has tracks indexed, clone their entire library
-        // for the current user in a single batch. No file discovery, no tree walk.
-        // Admin shared folders use shared virtual FileNodeIds, so IDs match directly.
-        if (filesToIndex.Count > 0 && parsed == MediaType.Music)
-        {
-            var musicCallback = serviceProvider.GetService<IMusicIndexingCallback>();
-            if (musicCallback is not null)
-            {
-                var cloned = await musicCallback.CloneLibraryFromExistingAsync(ownerId, cancellationToken);
-                if (cloned > 0)
-                {
-                    _logger.LogInformation(
-                        "Cloned {Count} {MediaType} tracks from existing user for {OwnerId} — skipping per-file loop",
-                        cloned, parsed, ownerId);
-                    result.Imported += cloned;
-                    result.Skipped += cloned;
-                }
-            }
-        }
 
         var filesProcessed = 0;
         foreach (var file in filesToIndex)
