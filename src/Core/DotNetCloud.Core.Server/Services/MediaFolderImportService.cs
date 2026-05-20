@@ -169,114 +169,92 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
         var filesDb = serviceProvider.GetRequiredService<FilesDbContext>()!;
         var fileService = serviceProvider.GetRequiredService<IFileService>();
         var caller = new CallerContext(ownerId, ["user"], CallerType.User);
-        var visitedFolders = new HashSet<Guid>();
         var candidatesById = new Dictionary<Guid, MediaFileCandidate>();
 
-        // ── Pre-discovery bulk cross-owner copy ──
-        // Before enumerating the file tree, check if any other user already has tracks.
-        // If so, find the current user's FileNodes matching those ContentHashes directly
-        // (no tree walk needed), bulk-copy metadata, and skip file discovery for those files.
-        var preBulkHandledIds = new HashSet<Guid>();
-        if (parsed == MediaType.Music)
+        // ── Discover files via direct DB query (no recursive tree walk) ──
+        // Query all FileNodes for this user that match the media extension patterns.
+        // This replaces the per-folder recursive traversal that was slow for 21k+ files.
+        var musicCallback = parsed == MediaType.Music
+            ? serviceProvider.GetService<IMusicIndexingCallback>()
+            : null;
+
+        // Collect source folder IDs to scope the query
+        var sourceFolderIds = new List<Guid>();
+        foreach (var source in enabledSources)
         {
-            var musicCallback = serviceProvider.GetService<IMusicIndexingCallback>();
-            if (musicCallback is not null)
+            if (source.SourceKind == MediaLibrarySourceKind.OwnedFileNode && source.FolderId.HasValue)
+                sourceFolderIds.Add(source.FolderId.Value);
+        }
+
+        // Query file nodes matching extensions in one shot
+        var extensionPatterns = extensions.Select(e => e.TrimStart('.')).ToList();
+        var allCandidates = new List<MediaFileCandidate>();
+
+        if (sourceFolderIds.Count > 0)
+        {
+            // Scoped to specific folders (common case)
+            foreach (var folderId in sourceFolderIds)
             {
-                var existingHashes = await musicCallback.GetExistingContentHashesAsync(cancellationToken);
-                if (existingHashes.Count > 0)
+                // Query files under this folder using MaterializedPath prefix
+                var prefix = $"/{folderId}/";
+                var folderNodes = await filesDb.FileNodes
+                    .Where(n => n.OwnerId == ownerId
+                             && n.NodeType == DotNetCloud.Modules.Files.Models.FileNodeType.File
+                             && !n.IsDeleted
+                             && (n.MaterializedPath != null && n.MaterializedPath.StartsWith(prefix)
+                              || n.ParentId == folderId))
+                    .ToListAsync(cancellationToken);
+
+                foreach (var node in folderNodes)
                 {
-                    var matchingFileNodes = await filesDb.FileNodes
-                        .Where(n => n.OwnerId == ownerId
-                                 && n.ContentHash != null
-                                 && existingHashes.Contains(n.ContentHash)
-                                 && !n.IsDeleted)
-                        .Select(n => new { n.Id, n.ContentHash })
-                        .ToListAsync(cancellationToken);
-
-                    if (matchingFileNodes.Count > 0)
+                    var ext = Path.GetExtension(node.Name)?.TrimStart('.').ToLowerInvariant();
+                    if (ext is not null && extensionPatterns.Contains(ext))
                     {
-                        var contentHashMap = matchingFileNodes.ToDictionary(n => n.Id, n => n.ContentHash);
-                        var matchIds = matchingFileNodes.Select(n => n.Id).ToList();
-
-                        // Only copy files not already indexed
-                        var alreadyIndexedPre = await GetAlreadyIndexedIdsAsync(serviceProvider, parsed, ownerId, cancellationToken);
-                        var newIds = matchIds.Where(id => !alreadyIndexedPre.Contains(id)).ToList();
-
-                        if (newIds.Count > 0)
-                        {
-                            var newHashMap = newIds.ToDictionary(id => id, id => contentHashMap[id]);
-                            preBulkHandledIds = await musicCallback.BulkIndexFromExistingAsync(
-                                newIds, newHashMap, ownerId, cancellationToken);
-
-                            _logger.LogInformation(
-                                "Pre-discovery bulk cross-owner copy: handled {Count} {MediaType} files for user {OwnerId} " +
-                                "(skipping file tree enumeration for these)",
-                                preBulkHandledIds.Count, parsed, ownerId);
-
-                            result.TotalFound += preBulkHandledIds.Count;
-                            result.Skipped += preBulkHandledIds.Count;
-                        }
+                        allCandidates.Add(new MediaFileCandidate(node.Id, node.Name, node.Size, node.MimeType, false));
                     }
                 }
             }
         }
-
-        // Now discover remaining files that weren't handled by bulk copy
-        foreach (var source in enabledSources)
+        else
         {
-            var sourceCandidates = await CollectSourceFilesAsync(
-                source,
-                fileService,
-                caller,
-                extensions,
-                visitedFolders,
-                cancellationToken,
-                progress);
+            // No specific folder — query all files for this user (fallback)
+            var allFileNodes = await filesDb.FileNodes
+                .Where(n => n.OwnerId == ownerId && n.NodeType == DotNetCloud.Modules.Files.Models.FileNodeType.File && !n.IsDeleted)
+                .ToListAsync(cancellationToken);
 
-            if (sourceCandidates.Count == 0 && source.SourceKind == MediaLibrarySourceKind.SharedMount)
+            foreach (var node in allFileNodes)
             {
-                result.Errors.Add($"{source.DisplayPath}: shared folder is unavailable or no longer accessible.");
-            }
-
-            foreach (var candidate in sourceCandidates)
-            {
-                // Skip candidates already handled by pre-discovery bulk copy
-                if (!preBulkHandledIds.Contains(candidate.Id))
+                var ext = Path.GetExtension(node.Name)?.TrimStart('.').ToLowerInvariant();
+                if (ext is not null && extensionPatterns.Contains(ext))
                 {
-                    candidatesById[candidate.Id] = candidate;
+                    allCandidates.Add(new MediaFileCandidate(node.Id, node.Name, node.Size, node.MimeType, false));
                 }
             }
         }
 
-        var finalDiscovered = candidatesById.Count;
-        result.TotalFound += finalDiscovered;
+        foreach (var candidate in allCandidates)
+        {
+            candidatesById[candidate.Id] = candidate;
+        }
 
-        // Report discovery complete
-        if (finalDiscovered > 0 || preBulkHandledIds.Count == 0)
+        result.TotalFound = candidatesById.Count;
+        _logger.LogInformation(
+            "Media source scan: found {Count} {MediaType} files for user {OwnerId} (direct DB query, no tree walk)",
+            result.TotalFound, parsed, ownerId);
+
+        progress?.Report(new MediaScanProgress
         {
-            progress?.Report(new MediaScanProgress
-            {
-                Phase = "Discovering files...",
-                FilesDiscovered = result.TotalFound,
-                PercentComplete = 0,
-            });
-        }
-        else
-        {
-            // All files handled by bulk copy — skip discovery phase
-            _logger.LogInformation(
-                "All {Count} {MediaType} files handled by pre-discovery bulk copy — skipping file tree enumeration for user {OwnerId}",
-                preBulkHandledIds.Count, parsed, ownerId);
-        }
+            Phase = "Discovering files...",
+            FilesDiscovered = result.TotalFound,
+            PercentComplete = 0,
+        });
 
         var alreadyIndexedIds = await GetAlreadyIndexedIdsAsync(serviceProvider, parsed, ownerId, cancellationToken);
-        alreadyIndexedIds.UnionWith(preBulkHandledIds);
         var currentFileNodeIds = candidatesById.Keys.ToHashSet();
         var filesToIndex = candidatesById.Values
             .Where(candidate => !alreadyIndexedIds.Contains(candidate.Id))
             .OrderBy(candidate => candidate.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
-
         result.Skipped = result.TotalFound - filesToIndex.Count;
         if (result.Skipped > 0)
         {
@@ -289,30 +267,23 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
         //     (by ContentHash), copy all metadata in a single batch operation instead
         //     of iterating file-by-file. Returns the set of FileNodeIds that were handled.
         var bulkHandledIds = new HashSet<Guid>();
-        if (filesToIndex.Count > 0 && parsed == MediaType.Music)
+        if (filesToIndex.Count > 0 && parsed == MediaType.Music && musicCallback is not null)
         {
-            var musicCallback = serviceProvider.GetService<IMusicIndexingCallback>();
-            if (musicCallback is not null)
+            var idsToCheck = filesToIndex.Select(c => c.Id).ToList();
+            var fileNodes = await filesDb.FileNodes
+                .Where(n => idsToCheck.Contains(n.Id))
+                .Select(n => new { n.Id, n.ContentHash })
+                .ToListAsync(cancellationToken);
+            var contentHashMap = fileNodes.ToDictionary(n => n.Id, n => n.ContentHash);
+
+            bulkHandledIds = await musicCallback.BulkIndexFromExistingAsync(
+                idsToCheck, contentHashMap, ownerId, cancellationToken);
+
+            if (bulkHandledIds.Count > 0)
             {
-                var idsToCheck = filesToIndex.Select(c => c.Id).ToList();
-
-                // Resolve ContentHashes via FilesDbContext (which has proper provider-agnostic
-                // table naming), then pass the map to the bulk copy method.
-                var fileNodes = await filesDb.FileNodes
-                    .Where(n => idsToCheck.Contains(n.Id))
-                    .Select(n => new { n.Id, n.ContentHash })
-                    .ToListAsync(cancellationToken);
-                var contentHashMap = fileNodes.ToDictionary(n => n.Id, n => n.ContentHash);
-
-                bulkHandledIds = await musicCallback.BulkIndexFromExistingAsync(
-                    idsToCheck, contentHashMap, ownerId, cancellationToken);
-
-                if (bulkHandledIds.Count > 0)
-                {
-                    _logger.LogInformation(
-                        "Bulk cross-owner copy handled {Count} {MediaType} files for user {OwnerId}, skipping per-file loop",
-                        bulkHandledIds.Count, parsed, ownerId);
-                }
+                _logger.LogInformation(
+                    "Bulk cross-owner copy handled {Count} {MediaType} files for user {OwnerId}, skipping per-file loop",
+                    bulkHandledIds.Count, parsed, ownerId);
             }
         }
 
