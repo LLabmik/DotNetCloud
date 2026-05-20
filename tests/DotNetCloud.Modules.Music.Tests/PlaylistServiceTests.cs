@@ -221,33 +221,40 @@ public class PlaylistServiceTests
     public async Task AddTrackRange_AddsMultipleTracks()
     {
         var pl = await TestHelpers.SeedPlaylistAsync(_db, _caller.UserId);
-        var (_, _, t1) = await TestHelpers.SeedCompleteTrackAsync(_db, trackTitle: "First", ownerId: _caller.UserId);
-        var (_, _, t2) = await TestHelpers.SeedCompleteTrackAsync(_db, trackTitle: "Second", artistName: "A2", albumTitle: "Al2", ownerId: _caller.UserId);
-        var (_, _, t3) = await TestHelpers.SeedCompleteTrackAsync(_db, trackTitle: "Third", artistName: "A3", albumTitle: "Al3", ownerId: _caller.UserId);
+        var (artist, album, _) = await TestHelpers.SeedCompleteTrackAsync(_db, ownerId: _caller.UserId);
+        var t1 = await TestHelpers.SeedTrackAsync(_db, album.Id, "Song A", trackNumber: 1, discNumber: 1, ownerId: _caller.UserId);
+        var t2 = await TestHelpers.SeedTrackAsync(_db, album.Id, "Song B", trackNumber: 2, discNumber: 1, ownerId: _caller.UserId);
+        var t3 = await TestHelpers.SeedTrackAsync(_db, album.Id, "Song C", trackNumber: 3, discNumber: 1, ownerId: _caller.UserId);
+        foreach (var t in new[] { t1, t2, t3 })
+            await TestHelpers.SeedTrackArtistAsync(_db, t.Id, artist.Id);
 
-        await _service.AddTrackRangeAsync(pl.Id, [t1.Id, t2.Id, t3.Id], _caller);
+        // Pass tracks in reverse album order — they should still appear in track number order
+        await _service.AddTrackRangeAsync(pl.Id, [t3.Id, t1.Id, t2.Id], _caller);
 
         var tracks = await _service.GetPlaylistTracksAsync(pl.Id, _caller);
         Assert.AreEqual(3, tracks.Count);
-        Assert.AreEqual("First", tracks[0].Title);
-        Assert.AreEqual("Second", tracks[1].Title);
-        Assert.AreEqual("Third", tracks[2].Title);
+        Assert.AreEqual("Song A", tracks[0].Title);
+        Assert.AreEqual("Song B", tracks[1].Title);
+        Assert.AreEqual("Song C", tracks[2].Title);
     }
 
     [TestMethod]
     public async Task AddTrackRange_SkipsDuplicatesSilently()
     {
         var pl = await TestHelpers.SeedPlaylistAsync(_db, _caller.UserId);
-        var (_, _, t1) = await TestHelpers.SeedCompleteTrackAsync(_db, trackTitle: "First", ownerId: _caller.UserId);
-        var (_, _, t2) = await TestHelpers.SeedCompleteTrackAsync(_db, trackTitle: "Second", artistName: "A2", albumTitle: "Al2", ownerId: _caller.UserId);
+        var (artist, album, _) = await TestHelpers.SeedCompleteTrackAsync(_db, ownerId: _caller.UserId);
+        var t1 = await TestHelpers.SeedTrackAsync(_db, album.Id, "Song A", trackNumber: 1, discNumber: 1, ownerId: _caller.UserId);
+        var t2 = await TestHelpers.SeedTrackAsync(_db, album.Id, "Song B", trackNumber: 2, discNumber: 1, ownerId: _caller.UserId);
+        foreach (var t in new[] { t1, t2 })
+            await TestHelpers.SeedTrackArtistAsync(_db, t.Id, artist.Id);
         await _service.AddTrackAsync(pl.Id, t1.Id, _caller);
 
         await _service.AddTrackRangeAsync(pl.Id, [t1.Id, t2.Id], _caller);
 
         var tracks = await _service.GetPlaylistTracksAsync(pl.Id, _caller);
         Assert.AreEqual(2, tracks.Count);
-        Assert.AreEqual("First", tracks[0].Title);
-        Assert.AreEqual("Second", tracks[1].Title);
+        Assert.AreEqual("Song A", tracks[0].Title);
+        Assert.AreEqual("Song B", tracks[1].Title);
     }
 
     [TestMethod]
@@ -289,18 +296,80 @@ public class PlaylistServiceTests
     public async Task AddTrackRange_PreservesSortOrderWithExistingTracks()
     {
         var pl = await TestHelpers.SeedPlaylistAsync(_db, _caller.UserId);
-        var (_, _, existing) = await TestHelpers.SeedCompleteTrackAsync(_db, trackTitle: "Existing", ownerId: _caller.UserId);
-        var (_, _, t1) = await TestHelpers.SeedCompleteTrackAsync(_db, trackTitle: "New1", artistName: "A2", albumTitle: "Al2", ownerId: _caller.UserId);
-        var (_, _, t2) = await TestHelpers.SeedCompleteTrackAsync(_db, trackTitle: "New2", artistName: "A3", albumTitle: "Al3", ownerId: _caller.UserId);
+        var (artist, album, _) = await TestHelpers.SeedCompleteTrackAsync(_db, ownerId: _caller.UserId);
+        var existing = await TestHelpers.SeedTrackAsync(_db, album.Id, "Existing", trackNumber: 1, discNumber: 1, ownerId: _caller.UserId);
+        var t1 = await TestHelpers.SeedTrackAsync(_db, album.Id, "New1", trackNumber: 2, discNumber: 1, ownerId: _caller.UserId);
+        var t2 = await TestHelpers.SeedTrackAsync(_db, album.Id, "New2", trackNumber: 3, discNumber: 1, ownerId: _caller.UserId);
+        foreach (var t in new[] { existing, t1, t2 })
+            await TestHelpers.SeedTrackArtistAsync(_db, t.Id, artist.Id);
         await TestHelpers.SeedPlaylistTrackAsync(_db, pl.Id, existing.Id, 0);
 
-        await _service.AddTrackRangeAsync(pl.Id, [t1.Id, t2.Id], _caller);
+        await _service.AddTrackRangeAsync(pl.Id, [t2.Id, t1.Id], _caller);
 
         var tracks = await _service.GetPlaylistTracksAsync(pl.Id, _caller);
         Assert.AreEqual(3, tracks.Count);
         Assert.AreEqual("Existing", tracks[0].Title);
         Assert.AreEqual("New1", tracks[1].Title);
         Assert.AreEqual("New2", tracks[2].Title);
+    }
+
+    [TestMethod]
+    public async Task AddTrackRange_SortsAcrossAlbums()
+    {
+        var pl = await TestHelpers.SeedPlaylistAsync(_db, _caller.UserId);
+        var (artistA, albumA, _) = await TestHelpers.SeedCompleteTrackAsync(_db, albumTitle: "Album A", ownerId: _caller.UserId);
+        var (artistB, albumB, _) = await TestHelpers.SeedCompleteTrackAsync(_db, albumTitle: "Album B", artistName: "Other", ownerId: _caller.UserId);
+        var albumATrack2 = await TestHelpers.SeedTrackAsync(_db, albumA.Id, "A Song 2", trackNumber: 2, discNumber: 1, ownerId: _caller.UserId);
+        var albumATrack1 = await TestHelpers.SeedTrackAsync(_db, albumA.Id, "A Song 1", trackNumber: 1, discNumber: 1, ownerId: _caller.UserId);
+        var albumBTrack1 = await TestHelpers.SeedTrackAsync(_db, albumB.Id, "B Song 1", trackNumber: 1, discNumber: 1, ownerId: _caller.UserId);
+        foreach (var t in new[] { albumATrack2, albumATrack1, albumBTrack1 })
+            await TestHelpers.SeedTrackArtistAsync(_db, t.Id, t.AlbumId == albumA.Id ? artistA.Id : artistB.Id);
+
+        // Pass in mixed order: B1, A2, A1 — should sort A1, A2, B1 (by album, then track)
+        await _service.AddTrackRangeAsync(pl.Id, [albumBTrack1.Id, albumATrack2.Id, albumATrack1.Id], _caller);
+
+        var tracks = await _service.GetPlaylistTracksAsync(pl.Id, _caller);
+        Assert.AreEqual(3, tracks.Count);
+        Assert.AreEqual("A Song 1", tracks[0].Title);
+        Assert.AreEqual("A Song 2", tracks[1].Title);
+        Assert.AreEqual("B Song 1", tracks[2].Title);
+    }
+
+    [TestMethod]
+    public async Task AddTrackRange_SortsByDiscAndTrackNumber()
+    {
+        var pl = await TestHelpers.SeedPlaylistAsync(_db, _caller.UserId);
+        var (artist, album, _) = await TestHelpers.SeedCompleteTrackAsync(_db, ownerId: _caller.UserId);
+        var disc1t2 = await TestHelpers.SeedTrackAsync(_db, album.Id, "Disc1 Track2", trackNumber: 2, discNumber: 1, ownerId: _caller.UserId);
+        var disc2t1 = await TestHelpers.SeedTrackAsync(_db, album.Id, "Disc2 Track1", trackNumber: 1, discNumber: 2, ownerId: _caller.UserId);
+        var disc1t1 = await TestHelpers.SeedTrackAsync(_db, album.Id, "Disc1 Track1", trackNumber: 1, discNumber: 1, ownerId: _caller.UserId);
+        foreach (var t in new[] { disc1t2, disc2t1, disc1t1 })
+            await TestHelpers.SeedTrackArtistAsync(_db, t.Id, artist.Id);
+
+        // Pass in reverse — should sort by disc, then track
+        await _service.AddTrackRangeAsync(pl.Id, [disc2t1.Id, disc1t2.Id, disc1t1.Id], _caller);
+
+        var tracks = await _service.GetPlaylistTracksAsync(pl.Id, _caller);
+        Assert.AreEqual(3, tracks.Count);
+        Assert.AreEqual("Disc1 Track1", tracks[0].Title);
+        Assert.AreEqual("Disc1 Track2", tracks[1].Title);
+        Assert.AreEqual("Disc2 Track1", tracks[2].Title);
+    }
+
+    [TestMethod]
+    public async Task AddTrackRange_TracksWithoutAlbum_SortTogether()
+    {
+        var pl = await TestHelpers.SeedPlaylistAsync(_db, _caller.UserId);
+        var (artist, album, _) = await TestHelpers.SeedCompleteTrackAsync(_db, ownerId: _caller.UserId);
+        var albumTrack = await TestHelpers.SeedTrackAsync(_db, album.Id, "Album Track", trackNumber: 1, discNumber: 1, ownerId: _caller.UserId);
+        var noAlbumTrack = await TestHelpers.SeedTrackAsync(_db, albumId: null, "Orphan Track", trackNumber: 1, discNumber: 1, ownerId: _caller.UserId);
+        await TestHelpers.SeedTrackArtistAsync(_db, albumTrack.Id, artist.Id);
+        await TestHelpers.SeedTrackArtistAsync(_db, noAlbumTrack.Id, artist.Id);
+
+        await _service.AddTrackRangeAsync(pl.Id, [noAlbumTrack.Id, albumTrack.Id], _caller);
+
+        var tracks = await _service.GetPlaylistTracksAsync(pl.Id, _caller);
+        Assert.AreEqual(2, tracks.Count);
     }
 
     // ─── GetPlaylistTracks ────────────────────────────────────────────

@@ -171,37 +171,46 @@ public sealed class PlaylistService : Music.Services.IPlaylistService
             .FirstOrDefaultAsync(p => p.Id == playlistId && p.OwnerId == caller.UserId, cancellationToken)
             ?? throw new BusinessRuleException(ErrorCodes.PlaylistNotFound, "Playlist not found.");
 
-        // Load all valid tracks in one query
-        var existingTrackIds = await _db.Tracks
+        // Load all valid tracks with their album ordering info
+        var validTracks = await _db.Tracks
             .Where(t => trackIds.Contains(t.Id))
-            .Select(t => t.Id)
+            .Select(t => new { t.Id, t.AlbumId, t.DiscNumber, t.TrackNumber })
             .ToListAsync(cancellationToken);
 
-        if (existingTrackIds.Count == 0)
+        if (validTracks.Count == 0)
             return;
+
+        var validTrackIds = validTracks.Select(t => t.Id).ToList();
 
         // Find which tracks are already in the playlist
         var alreadyInPlaylist = await _db.PlaylistTracks
-            .Where(pt => pt.PlaylistId == playlistId && existingTrackIds.Contains(pt.TrackId))
+            .Where(pt => pt.PlaylistId == playlistId && validTrackIds.Contains(pt.TrackId))
             .Select(pt => pt.TrackId)
             .ToListAsync(cancellationToken);
 
-        var newTrackIds = existingTrackIds.Except(alreadyInPlaylist).ToList();
-        if (newTrackIds.Count == 0)
+        // Filter to only NEW tracks, sorted by album order
+        var newTracks = validTracks
+            .Where(t => !alreadyInPlaylist.Contains(t.Id))
+            .OrderBy(t => t.AlbumId ?? Guid.Empty)
+            .ThenBy(t => t.DiscNumber ?? 1)
+            .ThenBy(t => t.TrackNumber ?? 0)
+            .ToList();
+
+        if (newTracks.Count == 0)
             return;
 
         var maxOrder = await _db.PlaylistTracks
             .Where(pt => pt.PlaylistId == playlistId)
             .MaxAsync(pt => (int?)pt.SortOrder, cancellationToken) ?? -1;
 
-        var playlistTracks = new List<PlaylistTrack>(newTrackIds.Count);
-        foreach (var trackId in newTrackIds)
+        var playlistTracks = new List<PlaylistTrack>(newTracks.Count);
+        foreach (var track in newTracks)
         {
             maxOrder++;
             playlistTracks.Add(new PlaylistTrack
             {
                 PlaylistId = playlistId,
-                TrackId = trackId,
+                TrackId = track.Id,
                 SortOrder = maxOrder
             });
         }
@@ -212,7 +221,7 @@ public sealed class PlaylistService : Music.Services.IPlaylistService
 
         _logger.LogInformation(
             "Added {Count} tracks to playlist {PlaylistId} (skipped {Skipped} duplicates/missing)",
-            newTrackIds.Count, playlistId, trackIds.Count - newTrackIds.Count);
+            newTracks.Count, playlistId, trackIds.Count - newTracks.Count);
     }
 
     /// <summary>
