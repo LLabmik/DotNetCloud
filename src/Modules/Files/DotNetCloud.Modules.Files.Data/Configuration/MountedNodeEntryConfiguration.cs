@@ -31,5 +31,9 @@ public sealed class MountedNodeEntryConfiguration : IEntityTypeConfiguration<Mou
 
         builder.HasIndex(entry => entry.SharedFolderId)
             .HasDatabaseName("ix_mounted_node_entries_shared_folder_id");
+
+        builder.HasIndex(entry => new { entry.SharedFolderId, entry.RelativePath, entry.IsDirectory })
+            .HasDatabaseName("ix_mounted_node_entries_unique_path")
+            .IsUnique();
     }
 }

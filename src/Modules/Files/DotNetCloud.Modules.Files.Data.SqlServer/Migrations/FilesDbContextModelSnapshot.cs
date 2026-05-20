@@ -733,6 +733,10 @@ namespace DotNetCloud.Modules.Files.Data.SqlServer.Migrations
                     b.HasIndex("SharedFolderId")
                         .HasDatabaseName("ix_mounted_node_entries_shared_folder_id");
 
+                    b.HasIndex("SharedFolderId", "RelativePath", "IsDirectory")
+                        .IsUnique()
+                        .HasDatabaseName("ix_mounted_node_entries_unique_path");
+
                     b.ToTable("MountedNodeEntries", "core");
                 });
 

@@ -996,6 +996,7 @@ internal sealed class FileService : IFileService
                 .ToList();
 
             var result = new List<FileNodeDto>(entries.Count);
+            var foundIds = new HashSet<Guid>(entries.Count);
             foreach (var entry in entries)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -1005,6 +1006,7 @@ internal sealed class FileService : IFileService
                     : $"{relativePath}/{entry.Name}";
                 var isDirectory = entry is DirectoryInfo;
                 var id = VirtualMountedNodeRegistry.GetMountedNodeId(definition.Id, entryRelativePath, isDirectory);
+                foundIds.Add(id);
                 await VirtualMountedNodeRegistry.RegisterAndPersistAsync(new VirtualMountedNodeDescriptor(id, definition.Id, entryRelativePath, isDirectory), _db, cancellationToken);
 
                 var dto = await CreateMountedEntryDtoAsync(definition, entryRelativePath, isDirectory, parentId, cancellationToken);
@@ -1012,6 +1014,23 @@ internal sealed class FileService : IFileService
                 {
                     result.Add(dto);
                 }
+            }
+
+            // Clean up stale entries for files/folders that were deleted from disk
+            var pathPrefix = string.IsNullOrEmpty(relativePath) ? "" : relativePath + "/";
+            var persistedEntries = await _db.MountedNodeEntries
+                .AsNoTracking()
+                .Where(e => e.SharedFolderId == definition.Id && e.RelativePath.StartsWith(pathPrefix))
+                .ToListAsync(cancellationToken);
+
+            var staleEntries = persistedEntries
+                .Where(e => !e.RelativePath[pathPrefix.Length..].Contains('/') && !foundIds.Contains(e.Id))
+                .ToList();
+
+            if (staleEntries.Count > 0)
+            {
+                _db.MountedNodeEntries.RemoveRange(staleEntries);
+                await _db.SaveChangesAsync(cancellationToken);
             }
 
             return result;
