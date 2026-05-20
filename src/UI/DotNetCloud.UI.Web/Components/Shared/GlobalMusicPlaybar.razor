@@ -441,12 +441,11 @@
     private async Task SeekAsync(MouseEventArgs e)
     {
         if (Playback.NowPlaying is null) return;
-        var fraction = Math.Clamp(e.OffsetX / 400.0, 0, 1);
-        var seekPos = TimeSpan.FromTicks((long)(Playback.NowPlaying.Duration.Ticks * fraction));
-        Playback.Seek(seekPos);
+        // Delegate to JS which uses the element's actual rendered width
+        // (via getBoundingClientRect) to compute the correct fraction.
         if (_jsInitialized)
         {
-            await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.seek", seekPos.TotalSeconds);
+            await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.handleProgressClick", e.ClientX);
         }
     }
 

@@ -159,6 +159,22 @@ window.dotnetcloudMusicPlayer = window.dotnetcloudMusicPlayer || (function () {
         if (audio && isFinite(seconds)) audio.currentTime = seconds;
     }
 
+    /**
+     * Handle a click on the progress bar using the actual rendered width.
+     * @param {number} clientX - The clientX coordinate from the MouseEvent.
+     */
+    function handleProgressClick(clientX) {
+        var progressBar = document.querySelector(".gmp-progress-bar");
+        if (!progressBar || !audio || !isFinite(audio.duration) || audio.duration <= 0) return;
+        var rect = progressBar.getBoundingClientRect();
+        var fraction = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+        audio.currentTime = fraction * audio.duration;
+        // Immediately notify .NET of the new position
+        if (dotNetRef) {
+            dotNetRef.invokeMethodAsync("OnJsTimeUpdate", audio.currentTime, audio.duration || 0);
+        }
+    }
+
     function setVolume(level) {
         // level: 0-100
         if (audio) audio.volume = Math.max(0, Math.min(1, level / 100));
@@ -217,5 +233,5 @@ window.dotnetcloudMusicPlayer = window.dotnetcloudMusicPlayer || (function () {
         }
     }
 
-    return { init: init, detach: detach, isPlaying: isPlaying, dispose: dispose, play: play, resume: resume, pause: pause, stop: stop, seek: seek, setVolume: setVolume, setMuted: setMuted, setEqBand: setEqBand, setEqBands: setEqBands, getAudioContext: function () { return audioCtx; }, getSourceNode: function () { return sourceNode; } };
+    return { init: init, detach: detach, isPlaying: isPlaying, dispose: dispose, play: play, resume: resume, pause: pause, stop: stop, seek: seek, setVolume: setVolume, setMuted: setMuted, setEqBand: setEqBand, setEqBands: setEqBands, handleProgressClick: handleProgressClick, getAudioContext: function () { return audioCtx; }, getSourceNode: function () { return sourceNode; } };
 })();
