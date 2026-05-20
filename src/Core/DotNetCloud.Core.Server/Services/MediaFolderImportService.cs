@@ -204,6 +204,10 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
                     result.TotalFound = cloned;
                     return result;
                 }
+
+                _logger.LogInformation(
+                    "Clone returned 0 for user {OwnerId} — {MediaType} library may already be fully indexed, falling through to discovery",
+                    ownerId, parsed);
             }
         }
 
