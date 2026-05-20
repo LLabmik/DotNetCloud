@@ -26,6 +26,15 @@ public sealed class LibraryScanService
     private readonly bool _autoFetchArt;
     private readonly bool _autoEnrichArtists;
 
+    // Per-scan caches to eliminate redundant DB round trips for repeated
+    // Artist/Album/Genre lookups across many files (common during bulk scans).
+    private readonly Dictionary<(string Name, Guid OwnerId), Artist> _artistCache = new();
+    private readonly Dictionary<(string Title, Guid ArtistId, Guid OwnerId), MusicAlbum> _albumCache = new();
+    private readonly Dictionary<string, Genre> _genreCache = new();
+
+    // Tracks album total duration incrementally to avoid O(n²) SUM queries.
+    private readonly Dictionary<Guid, long> _albumDurationCache = new();
+
     /// <summary>
     /// Initializes a new instance of the <see cref="LibraryScanService"/> class.
     /// </summary>
@@ -158,10 +167,10 @@ public sealed class LibraryScanService
             };
         }
 
-        // Get or create artist
+        // Get or create artist (uses in-memory cache, defers save)
         var artist = await GetOrCreateArtistAsync(metadata.AlbumArtist ?? metadata.Artist, ownerId, cancellationToken);
 
-        // Get or create album
+        // Get or create album (uses in-memory cache, defers save)
         var album = await GetOrCreateAlbumAsync(metadata.Album, artist.Id, ownerId, metadata.Year, cancellationToken);
 
         // Handle album art
@@ -185,7 +194,7 @@ public sealed class LibraryScanService
             }
         }
 
-        // Get or create genre
+        // Get or create genre (uses in-memory cache, defers save)
         Genre? genre = null;
         if (!string.IsNullOrWhiteSpace(metadata.Genre))
         {
@@ -226,14 +235,10 @@ public sealed class LibraryScanService
         track.Year = metadata.Year;
         track.UpdatedAt = DateTime.UtcNow;
 
-        await _db.SaveChangesAsync(cancellationToken);
-
         // Store ContentHash for future cross-owner lookup
         track.ContentHash = await LookupContentHashAsync(fileNodeId, cancellationToken);
-        if (track.ContentHash is not null)
-            await _db.SaveChangesAsync(cancellationToken);
 
-        // Create track-artist association
+        // Create track-artist association (if not already existing for re-index)
         var trackArtistExists = await _db.TrackArtists
             .AnyAsync(ta => ta.TrackId == track.Id && ta.ArtistId == artist.Id, cancellationToken);
         if (!trackArtistExists)
@@ -261,11 +266,18 @@ public sealed class LibraryScanService
             }
         }
 
-        // Update album total duration
-        album.TotalDurationTicks = await _db.Tracks
-            .Where(t => t.AlbumId == album.Id)
-            .SumAsync(t => t.DurationTicks, cancellationToken);
+        // Update album total duration incrementally (avoids O(n²) SUM queries)
+        if (!_albumDurationCache.TryGetValue(album.Id, out var currentDuration))
+        {
+            currentDuration = await _db.Tracks
+                .Where(t => t.AlbumId == album.Id)
+                .SumAsync(t => t.DurationTicks, cancellationToken);
+        }
+        currentDuration += track.DurationTicks;
+        _albumDurationCache[album.Id] = currentDuration;
+        album.TotalDurationTicks = currentDuration;
 
+        // Single batch save for all changes in this file.
         await _db.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation(
@@ -353,6 +365,10 @@ public sealed class LibraryScanService
         // ── SAFETY: Never touch sourceTrack or anything owned by sourceTrack.OwnerId ──
         // All new records below use ownerId (the CURRENT user), never sourceTrack.OwnerId.
 
+        // Look up content hash upfront so we don't need an intermediate save.
+        if (contentHash is null)
+            contentHash = await LookupContentHashAsync(fileNodeId, cancellationToken);
+
         // Clone artist for the current owner
         var sourceArtistName = sourceTrack.TrackArtists
             .FirstOrDefault(ta => ta.IsPrimary)?.Artist?.Name
@@ -397,15 +413,6 @@ public sealed class LibraryScanService
         };
 
         _db.Tracks.Add(newTrack);
-        await _db.SaveChangesAsync(cancellationToken);
-
-        // Fill in ContentHash for Strategy 1 (not yet known at query time)
-        if (newTrack.ContentHash is null)
-        {
-            newTrack.ContentHash = await LookupContentHashAsync(fileNodeId, cancellationToken);
-            if (newTrack.ContentHash is not null)
-                await _db.SaveChangesAsync(cancellationToken);
-        }
 
         // Create track-artist junction for the NEW track
         _db.TrackArtists.Add(new TrackArtist
@@ -425,14 +432,22 @@ public sealed class LibraryScanService
             });
         }
 
-        // Update NEW album total duration (only counts tracks owned by current user)
+        // Update NEW album total duration incrementally (avoids O(n²) SUM queries)
         if (newAlbum is not null)
         {
-            newAlbum.TotalDurationTicks = await _db.Tracks
-                .Where(t => t.AlbumId == newAlbum.Id)
-                .SumAsync(t => t.DurationTicks, cancellationToken);
+            if (!_albumDurationCache.TryGetValue(newAlbum.Id, out var currentDuration))
+            {
+                // First time seeing this album in this scan — load existing total
+                currentDuration = await _db.Tracks
+                    .Where(t => t.AlbumId == newAlbum.Id)
+                    .SumAsync(t => t.DurationTicks, cancellationToken);
+            }
+            currentDuration += newTrack.DurationTicks;
+            _albumDurationCache[newAlbum.Id] = currentDuration;
+            newAlbum.TotalDurationTicks = currentDuration;
         }
 
+        // Single batch save for all changes in this file.
         await _db.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation(
@@ -678,11 +693,18 @@ public sealed class LibraryScanService
     /// </summary>
     internal async Task<Artist> GetOrCreateArtistAsync(string name, Guid ownerId, CancellationToken cancellationToken)
     {
+        var key = (name, ownerId);
+        if (_artistCache.TryGetValue(key, out var cached))
+            return cached;
+
         var artist = await _db.Artists
             .FirstOrDefaultAsync(a => a.OwnerId == ownerId && a.Name == name, cancellationToken);
 
         if (artist is not null)
+        {
+            _artistCache[key] = artist;
             return artist;
+        }
 
         artist = new Artist
         {
@@ -691,7 +713,8 @@ public sealed class LibraryScanService
             SortName = GenerateSortName(name)
         };
         _db.Artists.Add(artist);
-        await _db.SaveChangesAsync(cancellationToken);
+        _artistCache[key] = artist;
+        // Note: SaveChangesAsync is deferred to the caller for batching.
         return artist;
     }
 
@@ -700,11 +723,18 @@ public sealed class LibraryScanService
     /// </summary>
     internal async Task<MusicAlbum> GetOrCreateAlbumAsync(string title, Guid artistId, Guid ownerId, int? year, CancellationToken cancellationToken)
     {
+        var key = (title, artistId, ownerId);
+        if (_albumCache.TryGetValue(key, out var cached))
+            return cached;
+
         var album = await _db.Albums
             .FirstOrDefaultAsync(a => a.ArtistId == artistId && a.Title == title && a.OwnerId == ownerId, cancellationToken);
 
         if (album is not null)
+        {
+            _albumCache[key] = album;
             return album;
+        }
 
         album = new MusicAlbum
         {
@@ -714,7 +744,8 @@ public sealed class LibraryScanService
             Year = year
         };
         _db.Albums.Add(album);
-        await _db.SaveChangesAsync(cancellationToken);
+        _albumCache[key] = album;
+        // Note: SaveChangesAsync is deferred to the caller for batching.
         return album;
     }
 
@@ -723,15 +754,22 @@ public sealed class LibraryScanService
     /// </summary>
     internal async Task<Genre> GetOrCreateGenreAsync(string name, CancellationToken cancellationToken)
     {
+        if (_genreCache.TryGetValue(name, out var cached))
+            return cached;
+
         var genre = await _db.Genres
             .FirstOrDefaultAsync(g => g.Name == name, cancellationToken);
 
         if (genre is not null)
+        {
+            _genreCache[name] = genre;
             return genre;
+        }
 
         genre = new Genre { Name = name };
         _db.Genres.Add(genre);
-        await _db.SaveChangesAsync(cancellationToken);
+        _genreCache[name] = genre;
+        // Note: SaveChangesAsync is deferred to the caller for batching.
         return genre;
     }
 
