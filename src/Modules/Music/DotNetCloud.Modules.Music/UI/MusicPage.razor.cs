@@ -170,6 +170,7 @@ public partial class MusicPage : IAsyncDisposable
         catch { /* localStorage unavailable */ }
 
         Playback.OnChange += OnPlaybackStateChanged;
+        Playback.OnTrackChanged += OnTrackChanged;
         ActivePlaylist.OnPlaylistChanged += OnActivePlaylistChanged;
         ScanProgress.OnProgressChanged += OnScanProgressChanged;
 
@@ -322,6 +323,28 @@ public partial class MusicPage : IAsyncDisposable
     private void OnPlaybackStateChanged()
     {
         InvokeAsync(StateHasChanged);
+    }
+
+    private async void OnTrackChanged(TrackDto track)
+    {
+        // Play audio via JS interop when a new track starts.
+        // This is needed because GlobalMusicPlaybar (in a separate Blazor circuit)
+        // cannot receive MusicPlaybackState events directly.
+        await InvokeAsync(async () =>
+        {
+            try
+            {
+                if (track.FileNodeId != Guid.Empty)
+                {
+                    var audioUrl = MusicPlaybackState.GetAudioUrl(track);
+                    await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.play", audioUrl);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Failed to start audio playback for track {TrackId}", track.Id);
+            }
+        });
     }
 
     private async void OnActivePlaylistChanged()
@@ -770,7 +793,15 @@ public partial class MusicPage : IAsyncDisposable
             var playlist = _playlists.FirstOrDefault(p => p.Id == playlistId);
             var playlistName = playlist?.Name ?? "Unknown Playlist";
             ActivePlaylist.SetPlaylist(playlistId, playlistName);
-            var tracks = (await PlaylistService.GetPlaylistTracksAsync(playlistId, caller)).ToList();
+
+            // Use already-loaded tracks to avoid a second DbContext query
+            // (SelectPlaylistAsync already populated _playlistTracks).
+            var tracks = _playlistTracks;
+            if (tracks.Count == 0)
+            {
+                // Fallback: load if not already cached
+                tracks = (await PlaylistService.GetPlaylistTracksAsync(playlistId, caller)).ToList();
+            }
             if (tracks.Count > 0)
             {
                 Playback.PlayQueue(tracks);
@@ -1481,6 +1512,7 @@ public partial class MusicPage : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         Playback.OnChange -= OnPlaybackStateChanged;
+        Playback.OnTrackChanged -= OnTrackChanged;
         ActivePlaylist.OnPlaylistChanged -= OnActivePlaylistChanged;
         ScanProgress.OnProgressChanged -= OnScanProgressChanged;
 
