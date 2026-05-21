@@ -1220,7 +1220,7 @@ textarea.input {
 /* --- Files Page Layout (Sidebar + Main) --- */
 .files-page-layout {
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
+  grid-template-columns: 240px minmax(0, 1fr);
   gap: 16px;
   min-height: calc(100vh - 120px);
 }
@@ -1531,10 +1531,9 @@ textarea.input {
 .trash-list-header,
 .trash-item {
   display: grid;
-  grid-template-columns: 32px 28px minmax(120px, 1fr) minmax(
-      100px,
-      140px
-    ) minmax(60px, 80px) auto;
+  grid-template-columns:
+    32px 28px minmax(120px, 1fr) minmax(100px, 140px)
+    minmax(60px, 80px) auto;
   align-items: center;
   gap: 6px;
   padding: 8px 10px;
