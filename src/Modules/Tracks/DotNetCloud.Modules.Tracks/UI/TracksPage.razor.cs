@@ -132,6 +132,15 @@ public partial class TracksPage : ComponentBase, IDisposable
                 var orgs = await OrgDirectory.GetUserOrganizationsAsync(userId.Value);
                 _organizations.Clear();
                 _organizations.AddRange(orgs);
+
+                // Restore the last-selected organization if one was persisted
+                var lastOrgKey = $"tracks_last_org_{userId}";
+                var lastOrgVal = await JS.InvokeAsync<string>("localStorage.getItem", lastOrgKey);
+                if (Guid.TryParse(lastOrgVal, out var lastOrgId) && lastOrgId != Guid.Empty
+                    && _organizations.Any(o => o.Id == lastOrgId))
+                {
+                    await SelectOrganization(lastOrgId);
+                }
             }
 
             var teamsTask = ApiClient.ListTeamsAsync();
@@ -150,8 +159,28 @@ public partial class TracksPage : ComponentBase, IDisposable
 
     private async Task OnOrgSelected()
     {
-        if (_selectedOrgId.HasValue)
-            await SelectOrganization(_selectedOrgId.Value);
+        var userId = await GetCurrentUserIdAsync();
+        if (userId.HasValue)
+        {
+            var key = $"tracks_last_org_{userId}";
+
+            if (_selectedOrgId.HasValue)
+            {
+                await JS.InvokeVoidAsync("localStorage.setItem", key, _selectedOrgId.Value.ToString());
+                await SelectOrganization(_selectedOrgId.Value);
+            }
+            else
+            {
+                // "Personal" selected — clear the persisted preference
+                await JS.InvokeVoidAsync("localStorage.removeItem", key);
+                _selectedProduct = null;
+                _selectedEpic = null;
+                _selectedFeature = null;
+                _selectedWorkItem = null;
+                _products.Clear();
+                _view = TracksView.ProductList;
+            }
+        }
     }
 
     private async Task<Guid?> GetCurrentUserIdAsync()
