@@ -1910,7 +1910,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ User search integration via `IUserDirectory` for team member selection
 - ✓ `TracksPage.razor.css` — Full CSS for wizards, hierarchy indicators, type badges, depth styling
 
-**Notes:** Addresses user confusion about hierarchy levels. All kanban boards looked identical across Product/Epic/Feature/Item levels — now visually distinct with level indicators, type badges, and depth styling. Guided wizard creation replaces simple modal/inline forms. Builds with 0 errors, 435 core tests pass.
+**Notes:** Addresses user confusion about hierarchy levels. All kanban boards looked identical across Product/Epic/Feature/Item levels — now visually distinct with level indicators, type badges, and depth styling. Guided wizard creation replaces simple modal/inline forms. Builds with 0 errors, 435 core tests pass. **Bug fix:** Swimlane drag-and-drop reordering was missing from Step 2 (Color & Settings) of ProductCreationWizard — drag handle had `cursor: grab` but no event handlers. Added HTML5 native drag-and-drop with `draggable`, `@ondragstart`, `@ondragover`, `@ondrop`, `@ondragend`. Same fix applied to ProductSettingsPage swimlane list.
 
 ---
 
@@ -1950,7 +1950,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ `TracksView.Settings` enum value
 - ✓ Settings gear icon ⚙️ in sidebar (product-level and epic-level)
 
-**Notes:** Full professional settings page. Swimlane save uses delete+recreate for simplicity. Member search reuses `SearchUsersAsync`. Transfer ownership updates member role to Owner.
+**Notes:** Full professional settings page. Swimlane save uses delete+recreate for simplicity. Member search reuses `SearchUsersAsync`. Transfer ownership updates member role to Owner. Drag-and-drop reordering added for swimlanes (HTML5 native, both in ProductCreationWizard Step 2 and ProductSettingsPage).
 
 #### Step: tracks-prof-b3 - Saved Filters / Custom Views
 

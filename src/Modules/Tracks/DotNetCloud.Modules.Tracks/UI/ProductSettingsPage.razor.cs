@@ -205,6 +205,39 @@ public partial class ProductSettingsPage : ComponentBase
 
     // ── Swimlanes ───────────────────────────────────────────
 
+    private int? _dragSwimlaneIndex;
+
+    private void HandleSwimlaneDragStart(int index)
+    {
+        _dragSwimlaneIndex = index;
+    }
+
+    private void HandleSwimlaneDragOver(int index)
+    {
+        if (_dragSwimlaneIndex is null || _dragSwimlaneIndex.Value == index)
+            return;
+
+        var item = _swimlanes[_dragSwimlaneIndex.Value];
+        _swimlanes.RemoveAt(_dragSwimlaneIndex.Value);
+
+        var insertAt = index;
+        if (_dragSwimlaneIndex.Value < index)
+            insertAt--;
+
+        _swimlanes.Insert(insertAt, item);
+        _dragSwimlaneIndex = insertAt;
+    }
+
+    private void HandleSwimlaneDrop()
+    {
+        _dragSwimlaneIndex = null;
+    }
+
+    private void HandleSwimlaneDragEnd()
+    {
+        _dragSwimlaneIndex = null;
+    }
+
     private void AddSwimlane()
     {
         _swimlanes.Add(new SettingsSwimlane
