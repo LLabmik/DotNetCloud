@@ -38,6 +38,7 @@
             </button>
         </div>
 
+        <div class="music-sidebar-content">
         <nav class="music-nav">
             <button class="music-nav-item @(_section == Section.Library ? "active" : "")"
                     @onclick="() => SwitchSection(Section.Library)" title="Library">
@@ -113,6 +114,7 @@
                 }
             </button>
         </nav>
+        </div>
 
         <ModuleHelpLink ModuleId="music" Collapsed="_sidebarCollapsed" />
     </aside>

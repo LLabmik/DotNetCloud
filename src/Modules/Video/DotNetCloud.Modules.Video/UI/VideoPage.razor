@@ -35,6 +35,7 @@
             </button>
         </div>
 
+        <div class="video-sidebar-content">
         <nav class="video-nav">
             <button class="video-nav-item @(_section == Section.Home ? "active" : "")"
                     @onclick="() => SwitchSection(Section.Home)" title="Home">
@@ -103,6 +104,7 @@
                 }
             </div>
         }
+        </div>
 
         <ModuleHelpLink ModuleId="video" Collapsed="_sidebarCollapsed" />
     </aside>
