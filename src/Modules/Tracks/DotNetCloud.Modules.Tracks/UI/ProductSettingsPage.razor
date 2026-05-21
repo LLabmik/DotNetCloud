@@ -34,9 +34,7 @@
                     @foreach (var color in _colorPresets)
                     {
                         <button class="tracks-color-swatch @(_editColor == color ? "active" : "")"
-                                style="background: @color;"
-                                @onclick="() => _editColor = color"
-                                title="@color"
+                                style="background: @color;" @onclick="() => _editColor = color" title="@color"
                                 type="button"></button>
                     }
                     <input type="color" class="tracks-color-custom" @bind="_editColor" />
@@ -56,285 +54,291 @@
         @* ── Swimlanes ── *@
         <section class="tracks-settings-section">
             <h3>Swimlanes</h3>
-            <p class="tracks-settings-hint">Default swimlanes for new products. Drag to reorder, edit names inline. Set card limits for WIP enforcement.</p>
-            <div class="tracks-settings-swimlane-list">
-                @for (int i = 0; i < _swimlanes.Count; i++)
-                {
-                    var swimlane = _swimlanes[i];
-                    var idx = i;
-                    <div class="tracks-settings-swimlane-row">
-                        <span class="tracks-swimlane-drag-handle">⋮⋮</span>
-                        <input type="text" class="form-control form-control-sm" @bind="_swimlanes[idx].Title" />
-                        <div class="tracks-swimlane-wip">
-                            <label class="tracks-wip-label">WIP</label>
-                            <input type="number" class="form-control form-control-sm tracks-wip-input"
-                                   min="0" placeholder="∞"
-                                   @bind="_swimlanes[idx].CardLimit" />
-                        </div>
-                        <div class="tracks-swimlane-toggle">
-                            <label>
-                                <input type="checkbox" @bind="_swimlanes[idx].IsDone" />
-                                <span>Done</span>
-                            </label>
-                        </div>
-                        <button class="tracks-icon-btn" @onclick="() => RemoveSwimlane(idx)" title="Remove">×</button>
-                    </div>
-                }
-            </div>
-            <button class="btn btn-sm btn-outline" @onclick="AddSwimlane">+ Add Swimlane</button>
-            <div class="tracks-settings-wip-options">
-                <label class="tracks-checkbox-label">
-                    <input type="checkbox" @bind="_enforceWipStrictly" />
-                    <span>Enforce WIP limits strictly (block moves that exceed column limits)</span>
-                </label>
-            </div>
-            <div class="tracks-settings-section-actions">
-                <button class="btn btn-primary" @onclick="SaveSwimlanesAsync" disabled="@_isSaving">
-                    @(_isSaving ? "Saving..." : "Save Swimlanes")
-                </button>
-            </div>
-        </section>
-
-        @* ── Transition Rules ── *@
-        <section class="tracks-settings-section">
-            <h3>Swimlane Transition Rules</h3>
-            <p class="tracks-settings-hint">Control which swimlanes can transition to which. Unchecked boxes block that move. Default: all transitions allowed.</p>
-            @if (_transitionLoading)
-            {
-                <p class="tracks-settings-hint">Loading transition rules...</p>
-            }
-            else if (_transitionSwimlanes.Count > 0)
-            {
-                <div class="tracks-transition-presets">
-                    <button class="btn btn-sm btn-outline" @onclick="() => SetAllTransitions(true)">Allow All</button>
-                    <button class="btn btn-sm btn-outline" @onclick="() => SetLinearOnly()">Linear Only</button>
-                    <button class="btn btn-sm btn-outline" @onclick="() => SetForwardOnly()">Forward Only</button>
-                </div>
-                <div class="tracks-transition-matrix">
-                    <div class="tracks-transition-matrix-header">
-                        <span class="tracks-transition-corner">From ↓ / To →</span>
-                        @foreach (var sl in _transitionSwimlanes)
-                        {
-                            <span class="tracks-transition-col-header" title="@sl.Title">@Truncate(sl.Title, 8)</span>
-                        }
-                    </div>
-                    @foreach (var fromSl in _transitionSwimlanes)
+            <p class="tracks-settings-hint">Default swimlanes for new products. Drag to reorder, edit names inline. Set
+                card limits for WIP enforcement.</p>
+                <div class="tracks-settings-swimlane-list">
+                    @for (int i = 0; i < _swimlanes.Count; i++)
                     {
-                        <div class="tracks-transition-matrix-row">
-                            <span class="tracks-transition-row-header" title="@fromSl.Title">@Truncate(fromSl.Title, 8)</span>
-                            @foreach (var toSl in _transitionSwimlanes)
-                            {
-                                var key = (fromSl.Id, toSl.Id);
-                                var isAllowed = fromSl.Id == toSl.Id || !_transitionRules.ContainsKey(key) || _transitionRules[key];
-                                <label class="tracks-transition-cell @(!isAllowed ? "blocked" : "")">
-                                    <input type="checkbox"
-                                           checked="@isAllowed"
-                                           disabled="@(fromSl.Id == toSl.Id)"
-                                           @onchange="e => ToggleTransition(fromSl.Id, toSl.Id, (bool)(e.Value ?? false))" />
+                        var swimlane = _swimlanes[i];
+                        var idx = i;
+                        <div class="tracks-settings-swimlane-row @(_dragSwimlaneIndex == idx ? "dragging" : "")"
+                             draggable="true" @ondragstart="() => HandleSwimlaneDragStart(idx)"
+                             @ondragover="() => HandleSwimlaneDragOver(idx)" @ondrop="HandleSwimlaneDrop"
+                             @ondragend="HandleSwimlaneDragEnd">
+                            <span class="tracks-swimlane-drag-handle">⋮⋮</span>
+                            <input type="text" class="form-control form-control-sm" @bind="_swimlanes[idx].Title"
+                                   @ondragstart:preventDefault />
+                            <div class="tracks-swimlane-wip">
+                                <label class="tracks-wip-label">WIP</label>
+                                <input type="number" class="form-control form-control-sm tracks-wip-input" min="0"
+                                       placeholder="∞" @bind="_swimlanes[idx].CardLimit" @ondragstart:preventDefault />
+                            </div>
+                            <div class="tracks-swimlane-toggle">
+                                <label>
+                                    <input type="checkbox" @bind="_swimlanes[idx].IsDone" @ondragstart:preventDefault />
+                                    <span>Done</span>
                                 </label>
-                            }
+                            </div>
+                            <button class="tracks-icon-btn" @onclick="() => RemoveSwimlane(idx)" title="Remove">×</button>
                         </div>
                     }
+                </div>
+                <button class="btn btn-sm btn-outline" @onclick="AddSwimlane">+ Add Swimlane</button>
+                <div class="tracks-settings-wip-options">
+                    <label class="tracks-checkbox-label">
+                        <input type="checkbox" @bind="_enforceWipStrictly" />
+                        <span>Enforce WIP limits strictly (block moves that exceed column limits)</span>
+                    </label>
                 </div>
                 <div class="tracks-settings-section-actions">
-                    <button class="btn btn-primary" @onclick="SaveTransitionRulesAsync" disabled="@_isSaving">
-                        @(_isSaving ? "Saving..." : "Save Transition Rules")
+                    <button class="btn btn-primary" @onclick="SaveSwimlanesAsync" disabled="@_isSaving">
+                        @(_isSaving ? "Saving..." : "Save Swimlanes")
                     </button>
                 </div>
-            }
-            else
-            {
-                <p class="tracks-settings-hint">Add swimlanes first, then configure transition rules here.</p>
-            }
-        </section>
+            </section>
 
-        @* ── Members ── *@
-        <section class="tracks-settings-section">
-            <h3>Members</h3>
-            <div class="tracks-settings-member-list">
-                @foreach (var member in _members)
-                {
-                    <div class="tracks-settings-member-row">
-                        <span class="tracks-member-avatar">@GetInitials(member.DisplayName)</span>
-                        <span class="tracks-member-name">@GetDisplayText(member.DisplayName)</span>
-                        <select class="form-control form-control-sm tracks-member-role-select" value="@member.Role.ToString()"
-                                @onchange="e => UpdateMemberRole(member.UserId, e)">
-                            <option value="Viewer">Viewer</option>
-                            <option value="Member">Member</option>
-                            <option value="Admin">Admin</option>
-                            @if (member.Role == ProductMemberRole.Owner)
-                            {
-                                <option value="Owner" selected>Owner</option>
-                            }
-                        </select>
-                        @if (member.Role != ProductMemberRole.Owner)
-                        {
-                            <button class="tracks-icon-btn" @onclick="() => RemoveMemberAsync(member.UserId)" title="Remove member">×</button>
-                        }
-                    </div>
-                }
-            </div>
-            @if (_showAddMember)
-            {
-                <div class="tracks-settings-add-member">
-                    <input type="text" class="form-control form-control-sm" placeholder="Search users..."
-                           @bind="_memberSearchTerm" @bind:event="oninput"
-                           @onkeyup="HandleMemberSearch" />
-                    @if (_memberSearchResults.Count > 0)
+            @* ── Transition Rules ── *@
+            <section class="tracks-settings-section">
+                <h3>Swimlane Transition Rules</h3>
+                <p class="tracks-settings-hint">Control which swimlanes can transition to which. Unchecked boxes block that
+                    move. Default: all transitions allowed.</p>
+                    @if (_transitionLoading)
                     {
-                        <div class="tracks-settings-member-dropdown">
-                            @foreach (var user in _memberSearchResults)
+                        <p class="tracks-settings-hint">Loading transition rules...</p>
+                    }
+                    else if (_transitionSwimlanes.Count > 0)
+                    {
+                        <div class="tracks-transition-presets">
+                            <button class="btn btn-sm btn-outline" @onclick="() => SetAllTransitions(true)">Allow All</button>
+                            <button class="btn btn-sm btn-outline" @onclick="() => SetLinearOnly()">Linear Only</button>
+                            <button class="btn btn-sm btn-outline" @onclick="() => SetForwardOnly()">Forward Only</button>
+                        </div>
+                        <div class="tracks-transition-matrix">
+                            <div class="tracks-transition-matrix-header">
+                                <span class="tracks-transition-corner">From ↓ / To →</span>
+                                @foreach (var sl in _transitionSwimlanes)
+                                {
+                                    <span class="tracks-transition-col-header" title="@sl.Title">@Truncate(sl.Title, 8)</span>
+                                }
+                            </div>
+                            @foreach (var fromSl in _transitionSwimlanes)
                             {
-                                <button class="tracks-member-search-item"
-                                        @onclick="() => AddMemberAsync(user.Id)" type="button">
-                                    @user.DisplayName (@user.Email)
-                                </button>
+                                <div class="tracks-transition-matrix-row">
+                                    <span class="tracks-transition-row-header" title="@fromSl.Title">@Truncate(fromSl.Title, 8)</span>
+                                    @foreach (var toSl in _transitionSwimlanes)
+                                    {
+                                        var key = (fromSl.Id, toSl.Id);
+                                        var isAllowed = fromSl.Id == toSl.Id || !_transitionRules.ContainsKey(key) || _transitionRules[key];
+                                        <label class="tracks-transition-cell @(!isAllowed ? "blocked" : "")">
+                                            <input type="checkbox" checked="@isAllowed" disabled="@(fromSl.Id == toSl.Id)"
+                                                   @onchange="e => ToggleTransition(fromSl.Id, toSl.Id, (bool)(e.Value ?? false))" />
+                                        </label>
+                                    }
+                                </div>
                             }
                         </div>
+                        <div class="tracks-settings-section-actions">
+                            <button class="btn btn-primary" @onclick="SaveTransitionRulesAsync" disabled="@_isSaving">
+                                @(_isSaving ? "Saving..." : "Save Transition Rules")
+                            </button>
+                        </div>
                     }
-                    <button class="btn btn-sm btn-secondary" @onclick="() => _showAddMember = false">Cancel</button>
-                </div>
-            }
-            else
-            {
-                <button class="btn btn-sm btn-outline" @onclick="StartAddMember">+ Add Member</button>
-            }
-        </section>
+                    else
+                    {
+                        <p class="tracks-settings-hint">Add swimlanes first, then configure transition rules here.</p>
+                    }
+                </section>
 
-        @* ── Labels ── *@
-        <section class="tracks-settings-section">
-            <h3>Labels</h3>
-            <div class="tracks-settings-label-list">
-                @foreach (var label in _labels)
-                {
-                    <div class="tracks-settings-label-row">
-                        <span class="tracks-label-color-dot" style="background: @label.Color;"></span>
-                        <span>@label.Title</span>
-                        <button class="tracks-icon-btn" @onclick="() => DeleteLabelAsync(label.Id)" title="Delete label">×</button>
-                    </div>
-                }
-            </div>
-            @if (_showCreateLabel)
-            {
-                <div class="tracks-settings-create-label">
-                    <input type="text" class="form-control form-control-sm" placeholder="Label name..."
-                           @bind="_newLabelTitle" />
-                    <div class="tracks-color-row">
-                        @foreach (var c in _labelColors)
+                @* ── Members ── *@
+                <section class="tracks-settings-section">
+                    <h3>Members</h3>
+                    <div class="tracks-settings-member-list">
+                        @foreach (var member in _members)
                         {
-                            <button class="tracks-color-swatch @(_newLabelColor == c ? "active" : "")"
-                                    style="background: @c;" @onclick="() => _newLabelColor = c" type="button"></button>
+                            <div class="tracks-settings-member-row">
+                                <span class="tracks-member-avatar">@GetInitials(member.DisplayName)</span>
+                                <span class="tracks-member-name">@GetDisplayText(member.DisplayName)</span>
+                                <select class="form-control form-control-sm tracks-member-role-select"
+                                        value="@member.Role.ToString()" @onchange="e => UpdateMemberRole(member.UserId, e)">
+                                    <option value="Viewer">Viewer</option>
+                                    <option value="Member">Member</option>
+                                    <option value="Admin">Admin</option>
+                                    @if (member.Role == ProductMemberRole.Owner)
+                                    {
+                                        <option value="Owner" selected>Owner</option>
+                                    }
+                                </select>
+                                @if (member.Role != ProductMemberRole.Owner)
+                                {
+                                    <button class="tracks-icon-btn" @onclick="() => RemoveMemberAsync(member.UserId)"
+                                            title="Remove member">×</button>
+                                }
+                            </div>
                         }
                     </div>
-                    <div class="tracks-settings-create-label-actions">
-                        <button class="btn btn-sm btn-primary" @onclick="CreateLabelAsync"
-                                disabled="@string.IsNullOrWhiteSpace(_newLabelTitle)">Create</button>
-                        <button class="btn btn-sm btn-secondary" @onclick="() => _showCreateLabel = false">Cancel</button>
-                    </div>
-                </div>
-            }
-            else
-            {
-                <button class="btn btn-sm btn-outline" @onclick="() => _showCreateLabel = true">+ Create Label</button>
-            }
-        </section>
-
-        @* ── Danger Zone ── *@
-        <section class="tracks-settings-section tracks-settings-danger">
-            <h3>Danger Zone</h3>
-
-            <div class="tracks-danger-item">
-                <div class="tracks-danger-info">
-                    <strong>Archive this product</strong>
-                    <p>Archived products are hidden from the main view but can be restored.</p>
-                </div>
-                <button class="btn btn-outline" @onclick="() => _showArchiveConfirm = true"
-                        disabled="@Product.IsArchived">
-                    @(Product.IsArchived ? "Already Archived" : "Archive Product")
-                </button>
-            </div>
-
-            <div class="tracks-danger-item">
-                <div class="tracks-danger-info">
-                    <strong>Transfer ownership</strong>
-                    <p>Transfer product ownership to another admin member. You will become an Admin.</p>
-                </div>
-                <button class="btn btn-outline" @onclick="() => _showTransferOwner = true">Transfer Ownership</button>
-            </div>
-
-            <div class="tracks-danger-item">
-                <div class="tracks-danger-info">
-                    <strong>Delete product</strong>
-                    <p>Permanently delete this product and all its data. This action cannot be undone.</p>
-                </div>
-                <button class="btn btn-danger" @onclick="() => _showDeleteConfirm = true">Delete Product</button>
-            </div>
-        </section>
-
-        @* ── Archive Confirmation Modal ── *@
-        @if (_showArchiveConfirm)
-        {
-            <DncModal Title="Archive Product" StartVisible OnClose="CancelArchiveConfirm">
-                <ChildContent>
-                    <p>Are you sure you want to archive <strong>@Product.Name</strong>?</p>
-                    <p class="tracks-modal-warning">Archived products are hidden from the main view but can be restored later.</p>
-                </ChildContent>
-                <Footer>
-                    <button class="btn btn-primary" @onclick="ArchiveProductAsync" disabled="@_isSaving">
-                        @(_isSaving ? "Archiving..." : "Archive")
-                    </button>
-                    <button class="btn btn-secondary" @onclick="CancelArchiveConfirm">Cancel</button>
-                </Footer>
-            </DncModal>
-        }
-
-        @* ── Transfer Ownership Modal ── *@
-        @if (_showTransferOwner)
-        {
-            <DncModal Title="Transfer Ownership" StartVisible OnClose="CancelTransferOwner">
-                <ChildContent>
-                    <p>Transfer ownership of <strong>@Product.Name</strong> to another admin. You will become an Admin.</p>
-                    <p class="tracks-modal-warning">This action cannot be undone by you after the transfer.</p>
-                    <div class="tracks-settings-transfer" style="margin-top: 1rem;">
-                        <select class="form-control form-control-sm" @bind="_transferTargetUserId">
-                            <option value="">Select admin...</option>
-                            @foreach (var member in _members.Where(m => m.Role == ProductMemberRole.Admin && m.UserId != Product.OwnerId))
+                    @if (_showAddMember)
+                    {
+                        <div class="tracks-settings-add-member">
+                            <input type="text" class="form-control form-control-sm" placeholder="Search users..."
+                                   @bind="_memberSearchTerm" @bind:event="oninput" @onkeyup="HandleMemberSearch" />
+                            @if (_memberSearchResults.Count > 0)
                             {
-                                <option value="@member.UserId">@(member.DisplayName ?? member.UserId.ToString())</option>
+                                <div class="tracks-settings-member-dropdown">
+                                    @foreach (var user in _memberSearchResults)
+                                    {
+                                        <button class="tracks-member-search-item" @onclick="() => AddMemberAsync(user.Id)" type="button">
+                                            @user.DisplayName (@user.Email)
+                                        </button>
+                                    }
+                                </div>
                             }
-                        </select>
-                    </div>
-                </ChildContent>
-                <Footer>
-                    <button class="btn btn-primary" @onclick="TransferOwnershipAsync"
-                            disabled="@string.IsNullOrEmpty(_transferTargetUserId) || _isSaving">
-                        @(_isSaving ? "Transferring..." : "Transfer")
-                    </button>
-                    <button class="btn btn-secondary" @onclick="CancelTransferOwner">Cancel</button>
-                </Footer>
-            </DncModal>
-        }
+                            <button class="btn btn-sm btn-secondary" @onclick="() => _showAddMember = false">Cancel</button>
+                        </div>
+                    }
+                    else
+                    {
+                        <button class="btn btn-sm btn-outline" @onclick="StartAddMember">+ Add Member</button>
+                    }
+                </section>
 
-        @* ── Delete Product Confirmation Modal ── *@
-        @if (_showDeleteConfirm)
-        {
-            <DncModal Title="Delete Product" StartVisible OnClose="CancelDeleteConfirm" CloseOnOverlayClick="false">
-                <ChildContent>
-                    <p>Are you sure you want to <strong>permanently delete</strong> @Product.Name?</p>
-                    <p class="tracks-modal-warning">⚠️ This will permanently delete all work items, comments, and data. This action cannot be undone.</p>
-                    <div style="margin-top: 1rem;">
-                        <input type="text" class="form-control form-control-sm" placeholder="Type product name to confirm"
-                               @bind="_deleteConfirmName" />
+                @* ── Labels ── *@
+                <section class="tracks-settings-section">
+                    <h3>Labels</h3>
+                    <div class="tracks-settings-label-list">
+                        @foreach (var label in _labels)
+                        {
+                            <div class="tracks-settings-label-row">
+                                <span class="tracks-label-color-dot" style="background: @label.Color;"></span>
+                                <span>@label.Title</span>
+                                <button class="tracks-icon-btn" @onclick="() => DeleteLabelAsync(label.Id)"
+                                        title="Delete label">×</button>
+                            </div>
+                        }
                     </div>
-                </ChildContent>
-                <Footer>
-                    <button class="btn btn-danger" @onclick="PermanentDeleteAsync"
-                            disabled="@(_deleteConfirmName != Product.Name) || _isSaving">
-                        @(_isSaving ? "Deleting..." : "Yes, Delete Forever")
-                    </button>
-                    <button class="btn btn-secondary" @onclick="CancelDeleteConfirm">Cancel</button>
-                </Footer>
-            </DncModal>
-        }
-    </div>
-</div>
+                    @if (_showCreateLabel)
+                    {
+                        <div class="tracks-settings-create-label">
+                            <input type="text" class="form-control form-control-sm" placeholder="Label name..."
+                                   @bind="_newLabelTitle" />
+                            <div class="tracks-color-row">
+                                @foreach (var c in _labelColors)
+                                {
+                                    <button class="tracks-color-swatch @(_newLabelColor == c ? "active" : "")" style="background: @c;"
+                                            @onclick="() => _newLabelColor = c" type="button"></button>
+                                }
+                            </div>
+                            <div class="tracks-settings-create-label-actions">
+                                <button class="btn btn-sm btn-primary" @onclick="CreateLabelAsync"
+                                        disabled="@string.IsNullOrWhiteSpace(_newLabelTitle)">Create</button>
+                                <button class="btn btn-sm btn-secondary" @onclick="() => _showCreateLabel = false">Cancel</button>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <button class="btn btn-sm btn-outline" @onclick="() => _showCreateLabel = true">+ Create Label</button>
+                    }
+                </section>
+
+                @* ── Danger Zone ── *@
+                <section class="tracks-settings-section tracks-settings-danger">
+                    <h3>Danger Zone</h3>
+
+                    <div class="tracks-danger-item">
+                        <div class="tracks-danger-info">
+                            <strong>Archive this product</strong>
+                            <p>Archived products are hidden from the main view but can be restored.</p>
+                        </div>
+                        <button class="btn btn-outline" @onclick="() => _showArchiveConfirm = true"
+                                disabled="@Product.IsArchived">
+                            @(Product.IsArchived ? "Already Archived" : "Archive Product")
+                        </button>
+                    </div>
+
+                    <div class="tracks-danger-item">
+                        <div class="tracks-danger-info">
+                            <strong>Transfer ownership</strong>
+                            <p>Transfer product ownership to another admin member. You will become an Admin.</p>
+                        </div>
+                        <button class="btn btn-outline" @onclick="() => _showTransferOwner = true">Transfer Ownership</button>
+                    </div>
+
+                    <div class="tracks-danger-item">
+                        <div class="tracks-danger-info">
+                            <strong>Delete product</strong>
+                            <p>Permanently delete this product and all its data. This action cannot be undone.</p>
+                        </div>
+                        <button class="btn btn-danger" @onclick="() => _showDeleteConfirm = true">Delete Product</button>
+                    </div>
+                </section>
+
+                @* ── Archive Confirmation Modal ── *@
+                @if (_showArchiveConfirm)
+                {
+                    <DncModal Title="Archive Product" StartVisible OnClose="CancelArchiveConfirm">
+                        <ChildContent>
+                            <p>Are you sure you want to archive <strong>@Product.Name</strong>?</p>
+                            <p class="tracks-modal-warning">Archived products are hidden from the main view but can be restored
+                                later.</p>
+                            </ChildContent>
+                            <Footer>
+                                <button class="btn btn-primary" @onclick="ArchiveProductAsync" disabled="@_isSaving">
+                                    @(_isSaving ? "Archiving..." : "Archive")
+                                </button>
+                                <button class="btn btn-secondary" @onclick="CancelArchiveConfirm">Cancel</button>
+                            </Footer>
+                        </DncModal>
+                    }
+
+                    @* ── Transfer Ownership Modal ── *@
+                    @if (_showTransferOwner)
+                    {
+                        <DncModal Title="Transfer Ownership" StartVisible OnClose="CancelTransferOwner">
+                            <ChildContent>
+                                <p>Transfer ownership of <strong>@Product.Name</strong> to another admin. You will become an Admin.</p>
+                                <p class="tracks-modal-warning">This action cannot be undone by you after the transfer.</p>
+                                <div class="tracks-settings-transfer" style="margin-top: 1rem;">
+                                    <select class="form-control form-control-sm" @bind="_transferTargetUserId">
+                                        <option value="">Select admin...</option>
+                                        @foreach (var member in _members.Where(m => m.Role == ProductMemberRole.Admin && m.UserId !=
+                                    Product.OwnerId))
+                                        {
+                                            <option value="@member.UserId">@(member.DisplayName ?? member.UserId.ToString())</option>
+                                        }
+                                    </select>
+                                </div>
+                            </ChildContent>
+                            <Footer>
+                                <button class="btn btn-primary" @onclick="TransferOwnershipAsync"
+                                        disabled="@string.IsNullOrEmpty(_transferTargetUserId) || _isSaving">
+                                    @(_isSaving ? "Transferring..." : "Transfer")
+                                </button>
+                                <button class="btn btn-secondary" @onclick="CancelTransferOwner">Cancel</button>
+                            </Footer>
+                        </DncModal>
+                    }
+
+                    @* ── Delete Product Confirmation Modal ── *@
+                    @if (_showDeleteConfirm)
+                    {
+                        <DncModal Title="Delete Product" StartVisible OnClose="CancelDeleteConfirm" CloseOnOverlayClick="false">
+                            <ChildContent>
+                                <p>Are you sure you want to <strong>permanently delete</strong> @Product.Name?</p>
+                                <p class="tracks-modal-warning">⚠️ This will permanently delete all work items, comments, and data. This
+                                    action cannot be undone.</p>
+                                    <div style="margin-top: 1rem;">
+                                        <input type="text" class="form-control form-control-sm" placeholder="Type product name to confirm"
+                                               @bind="_deleteConfirmName" />
+                                    </div>
+                                </ChildContent>
+                                <Footer>
+                                    <button class="btn btn-danger" @onclick="PermanentDeleteAsync"
+                                            disabled="@(_deleteConfirmName != Product.Name || _isSaving)">
+                                        @(_isSaving ? "Deleting..." : "Yes, Delete Forever")
+                                    </button>
+                                    <button class="btn btn-secondary" @onclick="CancelDeleteConfirm">Cancel</button>
+                                </Footer>
+                            </DncModal>
+                        }
+                    </div>
+                </div>

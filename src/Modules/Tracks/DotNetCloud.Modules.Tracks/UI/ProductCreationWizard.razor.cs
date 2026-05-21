@@ -46,6 +46,9 @@ public partial class ProductCreationWizard : ComponentBase
     private readonly List<UserSearchResult> _selectedMembers = [];
     private bool _isSearching;
 
+    // Drag-and-drop state
+    private int? _dragIndex;
+
     // State
     private bool _isSubmitting;
     private string? _errorMessage;
@@ -116,6 +119,41 @@ public partial class ProductCreationWizard : ComponentBase
             _defaultSwimlanes.RemoveAt(index);
     }
 
+    // ── Drag-and-drop reordering ──
+
+    private void HandleSwimlaneDragStart(int index)
+    {
+        _dragIndex = index;
+    }
+
+    private void HandleSwimlaneDragOver(int index)
+    {
+        if (_dragIndex is null || _dragIndex.Value == index)
+            return;
+
+        // Reorder the list by moving the dragged item to the new position
+        var item = _defaultSwimlanes[_dragIndex.Value];
+        _defaultSwimlanes.RemoveAt(_dragIndex.Value);
+
+        // Adjust index if the removal shifted positions
+        var insertAt = index;
+        if (_dragIndex.Value < index)
+            insertAt--;
+
+        _defaultSwimlanes.Insert(insertAt, item);
+        _dragIndex = insertAt;
+    }
+
+    private void HandleSwimlaneDrop()
+    {
+        _dragIndex = null;
+    }
+
+    private void HandleSwimlaneDragEnd()
+    {
+        _dragIndex = null;
+    }
+
     private async Task SearchMembersAsync()
     {
         if (string.IsNullOrWhiteSpace(_memberSearchTerm) || _memberSearchTerm.Length < 2)
@@ -180,6 +218,11 @@ public partial class ProductCreationWizard : ComponentBase
                 // Create default swimlanes if setup was shown
                 if (_showSwimlaneSetup)
                 {
+                    // Remove the server-auto-created default swimlanes before applying the wizard's configuration
+                    var existing = await ApiClient.ListProductSwimlanesAsync(product.Id);
+                    foreach (var s in existing)
+                        await ApiClient.DeleteSwimlaneAsync(s.Id);
+
                     foreach (var sw in _defaultSwimlanes.Where(s => !string.IsNullOrWhiteSpace(s.Title)))
                     {
                         await ApiClient.CreateProductSwimlaneAsync(product.Id, new CreateSwimlaneDto
