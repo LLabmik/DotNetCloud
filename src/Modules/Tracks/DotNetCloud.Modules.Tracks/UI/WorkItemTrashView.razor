@@ -1,0 +1,89 @@
+@namespace DotNetCloud.Modules.Tracks.UI
+
+<div class="tracks-trash-view">
+    @if (_deletedItems.Count > 0)
+    {
+        <div class="tracks-deleted-section">
+            <button class="tracks-deleted-toggle" @onclick="() => _showDeleted = !_showDeleted">
+                <span class="tracks-deleted-toggle-icon">@(_showDeleted ? "▼" : "▶")</span>
+                <span>🗑 Trash (@_deletedItems.Count)</span>
+                <span class="tracks-deleted-toggle-hint">Restorable within 30 days</span>
+            </button>
+
+            @if (_showDeleted)
+            {
+                @if (IsAdmin)
+                {
+                    <div class="tracks-trash-actions">
+                        <button class="btn btn-sm btn-danger" @onclick="EmptyTrashAsync"
+                                disabled="@(_isEmptyingTrash || _deletedItems.Count == 0)">
+                            @(_isEmptyingTrash ? "Emptying..." : "🗑 Empty Trash")
+                        </button>
+                        <span class="tracks-trash-hint">Permanently delete all @_deletedItems.Count trashed items</span>
+                    </div>
+
+                    @if (_showEmptyConfirm)
+                    {
+                        <div class="tracks-wizard-overlay" @onclick="() => _showEmptyConfirm = false">
+                            <div class="tracks-confirm-dialog" @onclick:stopPropagation>
+                                <div class="tracks-confirm-icon">⚠️</div>
+                                <h3>Empty Trash?</h3>
+                                <p>This will <strong>permanently delete</strong> all @_deletedItems.Count trashed items. This cannot be
+                                    undone.</p>
+                                    <div class="tracks-confirm-actions">
+                                        <button class="btn btn-danger" @onclick="ConfirmEmptyTrashAsync" disabled="@_isEmptyingTrash">
+                                            @(_isEmptyingTrash ? "Deleting..." : "Yes, Empty Trash")
+                                        </button>
+                                        <button class="btn btn-secondary" @onclick="() => _showEmptyConfirm = false">Cancel</button>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    }
+
+                    <div class="tracks-deleted-grid">
+                        @foreach (var item in _deletedItems)
+                        {
+                            <div class="tracks-board-card tracks-board-card--deleted">
+                                <div class="tracks-board-card-color" style="background: #6b7280; opacity: 0.5;"></div>
+                                <div class="tracks-board-card-body">
+                                    <div class="tracks-board-card-header">
+                                        <h3>
+                                            @GetTypeIcon(item.Type) #@item.ItemNumber @item.Title
+                                        </h3>
+                                        <div class="tracks-board-card-header-actions">
+                                            @if (item.DeletedAt.HasValue)
+                                            {
+                                                var daysLeft = 30 - (int)(DateTime.UtcNow - item.DeletedAt.Value).TotalDays;
+                                                <span
+                                                    class="tracks-badge @(daysLeft <= 7 ? "tracks-badge--warning" : "tracks-badge--muted")">
+                                                    @daysLeft day@(daysLeft != 1 ? "s" : "") left
+                                                </span>
+                                            }
+                                            <button class="tracks-deleted-restore-btn" @onclick="() => RestoreItemAsync(item)"
+                                                    disabled="@(_restoringId == item.Id)" title="Restore work item">
+                                                @(_restoringId == item.Id ? "Restoring..." : "↩ Restore")
+                                            </button>
+                                            @if (IsAdmin)
+                                            {
+                                                <button class="tracks-deleted-permanent-btn" @onclick="() => PermanentDeleteItemAsync(item)"
+                                                        disabled="@(_deletingId == item.Id)" title="Permanently delete — cannot be undone">
+                                                    @(_deletingId == item.Id ? "Deleting..." : "🗑")
+                                                </button>
+                                            }
+                                        </div>
+                                    </div>
+                                    @if (item.DeletedAt.HasValue)
+                                    {
+                                        <div class="tracks-deleted-date">
+                                            Deleted @item.DeletedAt.Value.ToString("MMM d, yyyy")
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    </div>

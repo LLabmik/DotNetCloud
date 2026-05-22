@@ -95,6 +95,9 @@ public sealed record WorkItemDto
     public required string ETag { get; init; }
     public required DateTime CreatedAt { get; init; }
     public required DateTime UpdatedAt { get; init; }
+    public DateTime? DeletedAt { get; init; }
+    public Guid? DeletedByUserId { get; init; }
+    public string? DeletedByDisplayName { get; init; }
 }
 
 public sealed record WorkItemAssignmentDto
@@ -121,6 +124,8 @@ public sealed record WorkItemCommentDto
     public string? DisplayName { get; init; }
     public required string Content { get; init; }
     public bool IsEdited { get; init; }
+    public bool IsDeleted { get; init; }
+    public DateTime? DeletedAt { get; init; }
     public required DateTime CreatedAt { get; init; }
     public required DateTime UpdatedAt { get; init; }
 }

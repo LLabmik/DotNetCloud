@@ -1,4 +1,6 @@
+using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
+using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Tracks.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -8,11 +10,15 @@ public sealed class WorkItemService
 {
     private readonly TracksDbContext _db;
     private readonly SwimlaneTransitionService _transitionService;
+    private readonly IEventBus _eventBus;
+    private readonly ActivityService _activityService;
 
-    public WorkItemService(TracksDbContext db, SwimlaneTransitionService transitionService)
+    public WorkItemService(TracksDbContext db, SwimlaneTransitionService transitionService, IEventBus eventBus, ActivityService activityService)
     {
         _db = db;
         _transitionService = transitionService;
+        _eventBus = eventBus;
+        _activityService = activityService;
     }
 
     public async Task<WorkItemDto> CreateWorkItemAsync(
@@ -341,7 +347,7 @@ public sealed class WorkItemService
         return await GetWorkItemAsync(workItemId, ct);
     }
 
-    public async Task DeleteWorkItemAsync(Guid workItemId, CancellationToken ct)
+    public async Task DeleteWorkItemAsync(Guid workItemId, Guid deletedByUserId, CancellationToken ct)
     {
         var workItem = await _db.WorkItems
             .FirstOrDefaultAsync(wi => wi.Id == workItemId, ct)
@@ -349,10 +355,196 @@ public sealed class WorkItemService
 
         workItem.IsDeleted = true;
         workItem.DeletedAt = DateTime.UtcNow;
+        workItem.DeletedByUserId = deletedByUserId;
         workItem.ETag = Guid.NewGuid().ToString("N");
         workItem.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(ct);
+
+        // Record activity
+        await _activityService.WriteWorkItemDeletedActivityAsync(workItem.ProductId, deletedByUserId, workItemId, workItem.Title, ct);
+
+        // Publish deletion event
+        var caller = new CallerContext(deletedByUserId, Array.Empty<string>(), CallerType.User);
+        await _eventBus.PublishAsync(new WorkItemDeletedEvent
+        {
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            WorkItemId = workItemId,
+            Type = workItem.Type
+        }, caller, ct);
+    }
+
+    /// <summary>
+    /// Permanently deletes a work item and all its child data.
+    /// </summary>
+    public async Task HardDeleteWorkItemAsync(Guid workItemId, CancellationToken ct)
+    {
+        // Collect all child work item IDs for cascade
+        var allIds = new List<Guid> { workItemId };
+        var childIds = await _db.WorkItems
+            .IgnoreQueryFilters()
+            .Where(wi => wi.ParentWorkItemId == workItemId)
+            .Select(wi => wi.Id)
+            .ToListAsync(ct);
+        allIds.AddRange(childIds);
+
+        // Collect sprint IDs for work items that are epics
+        var sprintIds = await _db.Sprints
+            .Where(s => allIds.Contains(s.EpicId))
+            .Select(s => s.Id)
+            .ToListAsync(ct);
+
+        // Collect swimlane IDs for work-item-level swimlanes
+        var swimlaneIds = await _db.Swimlanes
+            .Where(s => s.ContainerType == SwimlaneContainerType.WorkItem && allIds.Contains(s.ContainerId))
+            .Select(s => s.Id)
+            .ToListAsync(ct);
+
+        // Delete in reverse-dependency order
+
+        // PokerVotes → PokerSessions
+        var pokerSessionIds = await _db.PokerSessions
+            .Where(ps => allIds.Contains(ps.EpicId))
+            .Select(ps => ps.Id)
+            .ToListAsync(ct);
+        if (pokerSessionIds.Count > 0)
+        {
+            await _db.PokerVotes
+                .Where(pv => pokerSessionIds.Contains(pv.SessionId))
+                .ExecuteDeleteAsync(ct);
+            await _db.PokerSessions
+                .Where(ps => pokerSessionIds.Contains(ps.Id))
+                .ExecuteDeleteAsync(ct);
+        }
+
+        // ReviewSessions
+        await _db.Set<ReviewSession>()
+            .Where(rs => allIds.Contains(rs.EpicId))
+            .ExecuteDeleteAsync(ct);
+
+        // SprintItems → Sprints
+        if (sprintIds.Count > 0)
+        {
+            await _db.SprintItems
+                .Where(si => sprintIds.Contains(si.SprintId))
+                .ExecuteDeleteAsync(ct);
+            await _db.Sprints
+                .Where(s => sprintIds.Contains(s.Id))
+                .ExecuteDeleteAsync(ct);
+        }
+
+        // ChecklistItems → Checklists
+        var checklistIds = await _db.Checklists
+            .Where(c => allIds.Contains(c.ItemId))
+            .Select(c => c.Id)
+            .ToListAsync(ct);
+        if (checklistIds.Count > 0)
+        {
+            await _db.Set<ChecklistItem>()
+                .Where(ci => checklistIds.Contains(ci.ChecklistId))
+                .ExecuteDeleteAsync(ct);
+            await _db.Checklists
+                .Where(c => checklistIds.Contains(c.Id))
+                .ExecuteDeleteAsync(ct);
+        }
+
+        // WorkItemDependencies (both directions)
+        await _db.WorkItemDependencies
+            .Where(d => allIds.Contains(d.WorkItemId) || allIds.Contains(d.DependsOnWorkItemId))
+            .ExecuteDeleteAsync(ct);
+
+        // WorkItemAttachments, Comments, Labels, Assignments, TimeEntries, Watchers, FieldValues
+        await _db.WorkItemAttachments
+            .Where(a => allIds.Contains(a.WorkItemId))
+            .ExecuteDeleteAsync(ct);
+        await _db.WorkItemComments
+            .Where(c => allIds.Contains(c.WorkItemId))
+            .ExecuteDeleteAsync(ct);
+        await _db.WorkItemLabels
+            .Where(wl => allIds.Contains(wl.WorkItemId))
+            .ExecuteDeleteAsync(ct);
+        await _db.WorkItemAssignments
+            .Where(a => allIds.Contains(a.WorkItemId))
+            .ExecuteDeleteAsync(ct);
+        await _db.TimeEntries
+            .Where(te => allIds.Contains(te.WorkItemId))
+            .ExecuteDeleteAsync(ct);
+        await _db.WorkItemWatchers
+            .Where(ww => allIds.Contains(ww.WorkItemId))
+            .ExecuteDeleteAsync(ct);
+        await _db.WorkItemFieldValues
+            .Where(fv => allIds.Contains(fv.WorkItemId))
+            .ExecuteDeleteAsync(ct);
+
+        // Work items themselves (children first, then parent)
+        if (childIds.Count > 0)
+        {
+            await _db.WorkItems
+                .IgnoreQueryFilters()
+                .Where(wi => childIds.Contains(wi.Id))
+                .ExecuteDeleteAsync(ct);
+        }
+        await _db.WorkItems
+            .IgnoreQueryFilters()
+            .Where(wi => wi.Id == workItemId)
+            .ExecuteDeleteAsync(ct);
+
+        // Swimlanes
+        if (swimlaneIds.Count > 0)
+        {
+            await _db.Swimlanes
+                .Where(s => swimlaneIds.Contains(s.Id))
+                .ExecuteDeleteAsync(ct);
+        }
+    }
+
+    /// <summary>
+    /// Lists soft-deleted work items for a product.
+    /// </summary>
+    public async Task<List<WorkItemDto>> ListDeletedWorkItemsAsync(Guid productId, CancellationToken ct)
+    {
+        var items = await _db.WorkItems
+            .IgnoreQueryFilters()
+            .Where(wi => wi.ProductId == productId && wi.IsDeleted)
+            .OrderByDescending(wi => wi.DeletedAt)
+            .ToListAsync(ct);
+
+        return items.Select(MapToDeletedDto).ToList();
+    }
+
+    /// <summary>
+    /// Restores a soft-deleted work item.
+    /// </summary>
+    public async Task<WorkItemDto> RestoreWorkItemAsync(Guid workItemId, Guid restoredByUserId, CancellationToken ct)
+    {
+        var workItem = await _db.WorkItems
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(wi => wi.Id == workItemId && wi.IsDeleted, ct)
+            ?? throw new InvalidOperationException($"Deleted work item {workItemId} not found.");
+
+        workItem.IsDeleted = false;
+        workItem.DeletedAt = null;
+        workItem.DeletedByUserId = null;
+        workItem.ETag = Guid.NewGuid().ToString("N");
+        workItem.UpdatedAt = DateTime.UtcNow;
+
+        await _db.SaveChangesAsync(ct);
+
+        // Record activity
+        await _activityService.WriteWorkItemRestoredActivityAsync(workItem.ProductId, restoredByUserId, workItemId, workItem.Title, ct);
+
+        // Publish update event for restore
+        var caller = new CallerContext(restoredByUserId, Array.Empty<string>(), CallerType.User);
+        await _eventBus.PublishAsync(new WorkItemUpdatedEvent
+        {
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            WorkItemId = workItemId,
+            Type = workItem.Type
+        }, caller, ct);
+
+        return await GetWorkItemAsync(workItemId, ct);
     }
 
     public async Task<WorkItemDto> MoveWorkItemAsync(Guid workItemId, MoveWorkItemDto dto, CancellationToken ct)
@@ -625,6 +817,33 @@ public sealed class WorkItemService
             ETag = workItem.ETag,
             CreatedAt = workItem.CreatedAt,
             UpdatedAt = workItem.UpdatedAt
+        };
+    }
+
+    private static WorkItemDto MapToDeletedDto(WorkItem workItem)
+    {
+        return new WorkItemDto
+        {
+            Id = workItem.Id,
+            ProductId = workItem.ProductId,
+            ParentWorkItemId = workItem.ParentWorkItemId,
+            Type = workItem.Type,
+            SwimlaneId = workItem.SwimlaneId,
+            ItemNumber = workItem.ItemNumber,
+            Title = workItem.Title,
+            Description = workItem.Description,
+            Position = workItem.Position,
+            Priority = workItem.Priority,
+            DueDate = workItem.DueDate,
+            StoryPoints = workItem.StoryPoints,
+            IsArchived = workItem.IsArchived,
+            CommentCount = 0,
+            AttachmentCount = 0,
+            ETag = workItem.ETag,
+            CreatedAt = workItem.CreatedAt,
+            UpdatedAt = workItem.UpdatedAt,
+            DeletedAt = workItem.DeletedAt,
+            DeletedByUserId = workItem.DeletedByUserId
         };
     }
 }

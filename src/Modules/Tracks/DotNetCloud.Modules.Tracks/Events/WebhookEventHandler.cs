@@ -14,6 +14,7 @@ internal sealed class WebhookEventHandler :
     IEventHandler<WorkItemDeletedEvent>,
     IEventHandler<WorkItemMovedEvent>,
     IEventHandler<WorkItemCommentAddedEvent>,
+    IEventHandler<WorkItemCommentDeletedEvent>,
     IEventHandler<SprintStartedEvent>,
     IEventHandler<SprintCompletedEvent>,
     IEventHandler<MilestoneReachedEvent>
@@ -51,6 +52,10 @@ internal sealed class WebhookEventHandler :
     /// <inheritdoc />
     public async Task HandleAsync(WorkItemCommentAddedEvent @event, CancellationToken ct)
         => await _dispatchService.DispatchAsync("comment.added", @event, ct);
+
+    /// <inheritdoc />
+    public async Task HandleAsync(WorkItemCommentDeletedEvent @event, CancellationToken ct)
+        => await _dispatchService.DispatchAsync("comment.deleted", @event, ct);
 
     /// <inheritdoc />
     public async Task HandleAsync(SprintStartedEvent @event, CancellationToken ct)

@@ -14,6 +14,7 @@ internal sealed class TracksRealtimeEventHandler :
     IEventHandler<WorkItemDeletedEvent>,
     IEventHandler<WorkItemAssignedEvent>,
     IEventHandler<WorkItemCommentAddedEvent>,
+    IEventHandler<WorkItemCommentDeletedEvent>,
     IEventHandler<ProductCreatedEvent>,
     IEventHandler<ProductDeletedEvent>,
     IEventHandler<SprintStartedEvent>,
@@ -79,6 +80,13 @@ internal sealed class TracksRealtimeEventHandler :
         _logger.LogDebug("Broadcasting comment added: {CommentId} on work item {WorkItemId}", @event.CommentId, @event.WorkItemId);
         await _realtimeService.BroadcastCommentActionAsync(Guid.Empty, @event.WorkItemId, @event.CommentId, "added",
             cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task HandleAsync(WorkItemCommentDeletedEvent @event, CancellationToken cancellationToken)
+    {
+        _logger.LogDebug("Broadcasting comment deleted: {CommentId} on work item {WorkItemId}", @event.CommentId, @event.WorkItemId);
+        await _realtimeService.BroadcastCommentActionAsync(Guid.Empty, @event.WorkItemId, @event.CommentId, "deleted", cancellationToken);
     }
 
     /// <inheritdoc />

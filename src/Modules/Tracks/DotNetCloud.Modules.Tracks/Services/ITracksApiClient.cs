@@ -57,6 +57,16 @@ public interface ITracksApiClient
     Task<WorkItemDto?> MoveWorkItemAsync(Guid workItemId, MoveWorkItemDto dto, CancellationToken ct = default);
     Task<IReadOnlyList<WorkItemDto>> GetChildWorkItemsAsync(Guid parentWorkItemId, CancellationToken ct = default);
 
+    // Deletion Lifecycle
+    /// <summary>Lists soft-deleted work items for a product (trash view).</summary>
+    Task<IReadOnlyList<WorkItemDto>> ListDeletedWorkItemsAsync(Guid productId, CancellationToken ct = default);
+    /// <summary>Restores a soft-deleted work item.</summary>
+    Task<WorkItemDto?> RestoreWorkItemAsync(Guid workItemId, CancellationToken ct = default);
+    /// <summary>Permanently deletes a work item.</summary>
+    Task PermanentDeleteWorkItemAsync(Guid workItemId, CancellationToken ct = default);
+    /// <summary>Permanently deletes ALL soft-deleted work items for a product (empty trash).</summary>
+    Task<int> EmptyWorkItemTrashAsync(Guid productId, CancellationToken ct = default);
+
     // Export
     /// <summary>Exports work items as a CSV file. Returns raw bytes.</summary>
     Task<byte[]> ExportWorkItemsCsvAsync(Guid productId, Guid? swimlaneId = null, Guid? labelId = null, Priority? priority = null, CancellationToken ct = default);
@@ -82,6 +92,12 @@ public interface ITracksApiClient
     Task<WorkItemCommentDto?> CreateCommentAsync(Guid workItemId, string content, CancellationToken ct = default);
     Task<WorkItemCommentDto?> UpdateCommentAsync(Guid workItemId, Guid commentId, string content, CancellationToken ct = default);
     Task DeleteCommentAsync(Guid workItemId, Guid commentId, CancellationToken ct = default);
+    /// <summary>Lists soft-deleted comments for a work item.</summary>
+    Task<IReadOnlyList<WorkItemCommentDto>> ListDeletedCommentsAsync(Guid workItemId, CancellationToken ct = default);
+    /// <summary>Restores a soft-deleted comment.</summary>
+    Task RestoreCommentAsync(Guid workItemId, Guid commentId, CancellationToken ct = default);
+    /// <summary>Permanently deletes a comment.</summary>
+    Task PermanentDeleteCommentAsync(Guid workItemId, Guid commentId, CancellationToken ct = default);
 
     // Checklists
     Task<IReadOnlyList<ChecklistDto>> ListChecklistsAsync(Guid itemId, CancellationToken ct = default);

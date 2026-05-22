@@ -260,6 +260,23 @@ public partial class WorkItemListView : ComponentBase, IDisposable
         finally { _isBulkActing = false; }
     }
 
+    private async Task BulkRestoreAsync()
+    {
+        if (_selectedIds.Count == 0)
+            return;
+        _isBulkActing = true;
+        try
+        {
+            await ApiClient.BulkWorkItemActionAsync(Product.Id, new BulkWorkItemActionDto
+            {
+                WorkItemIds = _selectedIds.ToList(),
+                Action = "restore"
+            });
+            await ReloadAsync();
+        }
+        finally { _isBulkActing = false; }
+    }
+
     private async Task BulkMoveAsync()
     {
         if (_selectedIds.Count == 0 || !_bulkTargetSwimlaneId.HasValue)

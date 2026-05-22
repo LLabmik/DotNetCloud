@@ -99,6 +99,12 @@ public partial class WorkItemDetailPanel : ComponentBase, IDisposable
     private int _liveTrackedMinutes;
     private Timer? _liveTimer;
 
+    // Deleted comments state
+    private readonly List<WorkItemCommentDto> _deletedComments = [];
+    private bool _showDeletedComments;
+    private Guid? _restoringCommentId;
+    private Guid? _deletingCommentId;
+
     // Watcher state
     private bool _isWatching;
     private bool _isTogglingWatch;
@@ -128,8 +134,9 @@ public partial class WorkItemDetailPanel : ComponentBase, IDisposable
             ApiClient.ListAttachmentsAsync(WorkItem.Id),
             ApiClient.ListDependenciesAsync(WorkItem.Id),
             ApiClient.ListTimeEntriesAsync(WorkItem.Id),
-            ApiClient.GetWorkItemActivityAsync(WorkItem.Id),
-            LoadWatcherStateAsync() // Check if current user is watching
+            LoadWatcherStateAsync(), // Check if current user is watching
+            LoadDeletedCommentsAsync(),
+            LoadActivitiesAsync()
         };
 
         // Checklists only for Items without SubItems
@@ -150,7 +157,6 @@ public partial class WorkItemDetailPanel : ComponentBase, IDisposable
 
         await Task.WhenAll(tasks);
 
-        // Extract results (they're awaited below for ordering but actual loading happened in parallel)
         RecalculateLiveMinutes();
         StartLiveTimerIfNeeded();
     }
@@ -521,6 +527,75 @@ public partial class WorkItemDetailPanel : ComponentBase, IDisposable
     {
         await ApiClient.DeleteCommentAsync(WorkItem.Id, commentId);
         _comments.RemoveAll(c => c.Id == commentId);
+
+        // If there are now deleted comments, reload the deleted list
+        await LoadDeletedCommentsAsync();
+        StateHasChanged();
+    }
+
+    private async Task LoadDeletedCommentsAsync()
+    {
+        try
+        {
+            _deletedComments.Clear();
+            _deletedComments.AddRange(await ApiClient.ListDeletedCommentsAsync(WorkItem.Id));
+        }
+        catch
+        {
+            // Non-critical
+        }
+    }
+
+    private async Task RestoreCommentAsync(Guid commentId)
+    {
+        _restoringCommentId = commentId;
+        try
+        {
+            await ApiClient.RestoreCommentAsync(WorkItem.Id, commentId);
+            _deletedComments.RemoveAll(c => c.Id == commentId);
+            // Reload active comments to include the restored one
+            _comments.Clear();
+            _comments.AddRange(await ApiClient.ListCommentsAsync(WorkItem.Id));
+        }
+        catch
+        {
+            // Can retry
+        }
+        finally
+        {
+            _restoringCommentId = null;
+        }
+    }
+
+    private async Task PermanentDeleteCommentAsync(Guid commentId)
+    {
+        _deletingCommentId = commentId;
+        try
+        {
+            await ApiClient.PermanentDeleteCommentAsync(WorkItem.Id, commentId);
+            _deletedComments.RemoveAll(c => c.Id == commentId);
+        }
+        catch
+        {
+            // Can retry
+        }
+        finally
+        {
+            _deletingCommentId = null;
+        }
+    }
+
+    private async Task LoadActivitiesAsync()
+    {
+        try
+        {
+            _activities.Clear();
+            _activities.AddRange(await ApiClient.GetWorkItemActivityAsync(WorkItem.Id));
+        }
+        catch
+        {
+            // Non-critical; activity feed is best-effort
+        }
     }
 
     /// <summary>
@@ -790,6 +865,11 @@ public partial class WorkItemDetailPanel : ComponentBase, IDisposable
             "workitem.updated" => FormatWorkItemUpdated(details),
             "workitem.moved" => FormatWorkItemMoved(details),
             "workitem.deleted" => $"deleted item{GetDetail(details, "title", " \"{0}\"")}",
+            "workitem.restored" => $"restored item{GetDetail(details, "title", " \"{0}\"")}",
+            "workitem.permanent_deleted" => $"permanently deleted{GetDetail(details, "title", " \"{0}\"")}",
+            "comment.deleted" => "deleted a comment",
+            "comment.restored" => "restored a comment",
+            "trash.emptied" => $"emptied trash ({GetDetail(details, "count", "{0}")} items)",
             "workitem.assigned" => $"assigned {GetDetail(details, "displayName", "{0}")} to item",
             "workitem.unassigned" => $"unassigned {GetDetail(details, "displayName", "{0}")} from item",
             "comment.added" => "added a comment",

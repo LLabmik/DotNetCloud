@@ -262,6 +262,43 @@
                                                 </div>
                                             }
                                         </div>
+
+                                        @* Deleted comments toggle *@
+                                        @if (_deletedComments.Count > 0)
+                                        {
+                                            <button class="tracks-link-btn tracks-deleted-comments-toggle"
+                                                    @onclick="() => _showDeletedComments = !_showDeletedComments">
+                                                @(_showDeletedComments ? "▼" : "▶") Show @_deletedComments.Count deleted comment@(_deletedComments.Count != 1 ? "s" : "")
+                                            </button>
+
+                                            @if (_showDeletedComments)
+                                            {
+                                                @foreach (var comment in _deletedComments.OrderByDescending(c => c.DeletedAt))
+                                                {
+                                                    <div class="tracks-comment tracks-comment--deleted">
+                                                        <div class="tracks-comment-header">
+                                                            <strong>@(comment.DisplayName ?? "User")</strong>
+                                                            <span class="tracks-comment-date">Deleted @comment.DeletedAt?.ToString("MMM d, h:mm tt")</span>
+                                                        </div>
+                                                        <div class="tracks-comment-body markdown-body tracks-comment-body--deleted">
+                                                            @((MarkupString)RenderCommentContent(comment.Content))
+                                                        </div>
+                                                        <div class="tracks-comment-actions">
+                                                            <button class="tracks-link-btn"
+                                                                    @onclick="() => RestoreCommentAsync(comment.Id)"
+                                                                    disabled="@(_restoringCommentId == comment.Id)">
+                                                                @(_restoringCommentId == comment.Id ? "Restoring..." : "↩ Restore")
+                                                            </button>
+                                                            <button class="tracks-link-btn tracks-link-btn--danger"
+                                                                    @onclick="() => PermanentDeleteCommentAsync(comment.Id)"
+                                                                    disabled="@(_deletingCommentId == comment.Id)">
+                                                                @(_deletingCommentId == comment.Id ? "Deleting..." : "🗑 Permanent")
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                }
+                                            }
+                                        }
                                     </div>
 
                                     @* Activity Log *@
@@ -271,7 +308,7 @@
                                         {
                                             <p class="tracks-muted">No activity yet.</p>
                                         }
-                                        @foreach (var activity in _activities.Take(10))
+                                        @foreach (var activity in _activities)
                                         {
                                             <div class="tracks-activity-item">
                                                 <span>@FormatActivityAction(activity)</span>

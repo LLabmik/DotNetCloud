@@ -213,6 +213,32 @@ public sealed class TracksApiClient : ITracksApiClient
         await EnsureSuccessOrThrowAsync(response);
     }
 
+    // ── Deletion Lifecycle ───────────────────────────────────
+
+    public async Task<IReadOnlyList<WorkItemDto>> ListDeletedWorkItemsAsync(Guid productId, CancellationToken ct = default)
+        => await ReadDataAsync<IReadOnlyList<WorkItemDto>>($"api/v1/products/{productId}/work-items/deleted", ct) ?? [];
+
+    public async Task<WorkItemDto?> RestoreWorkItemAsync(Guid workItemId, CancellationToken ct = default)
+    {
+        var response = await _httpClient.PostAsync($"api/v1/workitems/{workItemId}/restore", null, ct);
+        await EnsureSuccessOrThrowAsync(response);
+        return await ReadDataFromResponseAsync<WorkItemDto>(response, ct);
+    }
+
+    public async Task PermanentDeleteWorkItemAsync(Guid workItemId, CancellationToken ct = default)
+    {
+        var response = await _httpClient.DeleteAsync($"api/v1/workitems/{workItemId}/permanent", ct);
+        await EnsureSuccessOrThrowAsync(response);
+    }
+
+    public async Task<int> EmptyWorkItemTrashAsync(Guid productId, CancellationToken ct = default)
+    {
+        var response = await _httpClient.DeleteAsync($"api/v1/products/{productId}/work-items/trash", ct);
+        await EnsureSuccessOrThrowAsync(response);
+        var result = await ReadDataFromResponseAsync<JsonElement>(response, ct);
+        return result.TryGetProperty("deleted", out var deleted) ? deleted.GetInt32() : 0;
+    }
+
     public async Task<WorkItemDto?> MoveWorkItemAsync(Guid workItemId, MoveWorkItemDto dto, CancellationToken ct = default)
     {
         var response = await _httpClient.PutAsJsonAsync($"api/v1/workitems/{workItemId}/move", dto, ct);
@@ -315,6 +341,23 @@ public sealed class TracksApiClient : ITracksApiClient
     public async Task DeleteCommentAsync(Guid workItemId, Guid commentId, CancellationToken ct = default)
     {
         var response = await _httpClient.DeleteAsync($"api/v1/workitems/{workItemId}/comments/{commentId}", ct);
+        await EnsureSuccessOrThrowAsync(response);
+    }
+
+    // ── Comment Deletion Lifecycle ───────────────────────────
+
+    public async Task<IReadOnlyList<WorkItemCommentDto>> ListDeletedCommentsAsync(Guid workItemId, CancellationToken ct = default)
+        => await ReadDataAsync<IReadOnlyList<WorkItemCommentDto>>($"api/v1/workitems/{workItemId}/comments/deleted", ct) ?? [];
+
+    public async Task RestoreCommentAsync(Guid workItemId, Guid commentId, CancellationToken ct = default)
+    {
+        var response = await _httpClient.PostAsync($"api/v1/workitems/{workItemId}/comments/{commentId}/restore", null, ct);
+        await EnsureSuccessOrThrowAsync(response);
+    }
+
+    public async Task PermanentDeleteCommentAsync(Guid workItemId, Guid commentId, CancellationToken ct = default)
+    {
+        var response = await _httpClient.DeleteAsync($"api/v1/workitems/{workItemId}/comments/{commentId}/permanent", ct);
         await EnsureSuccessOrThrowAsync(response);
     }
 

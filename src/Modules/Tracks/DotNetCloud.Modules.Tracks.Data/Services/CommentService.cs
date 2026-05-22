@@ -1,4 +1,6 @@
+using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
+using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Tracks.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -7,10 +9,14 @@ namespace DotNetCloud.Modules.Tracks.Data.Services;
 public sealed class CommentService
 {
     private readonly TracksDbContext _db;
+    private readonly IEventBus _eventBus;
+    private readonly ActivityService _activityService;
 
-    public CommentService(TracksDbContext db)
+    public CommentService(TracksDbContext db, IEventBus eventBus, ActivityService activityService)
     {
         _db = db;
+        _eventBus = eventBus;
+        _activityService = activityService;
     }
 
     public async Task<WorkItemCommentDto> CreateCommentAsync(
@@ -88,7 +94,77 @@ public sealed class CommentService
         comment.IsDeleted = true;
         comment.DeletedAt = now;
         comment.UpdatedAt = now;
+        comment.DeletedByUserId = userId;
 
+        await _db.SaveChangesAsync(ct);
+
+        // Record activity
+        await _activityService.WriteCommentDeletedActivityAsync(comment.WorkItemId, userId, comment.WorkItemId, commentId, ct);
+
+        // Publish comment deletion event
+        var caller = new CallerContext(userId, Array.Empty<string>(), CallerType.User);
+        await _eventBus.PublishAsync(new WorkItemCommentDeletedEvent
+        {
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            WorkItemId = comment.WorkItemId,
+            CommentId = commentId,
+            UserId = userId
+        }, caller, ct);
+    }
+
+    /// <summary>
+    /// Lists soft-deleted comments for a work item.
+    /// </summary>
+    public async Task<List<WorkItemCommentDto>> ListDeletedCommentsAsync(Guid workItemId, CancellationToken ct)
+    {
+        return await _db.WorkItemComments
+            .IgnoreQueryFilters()
+            .Where(c => c.WorkItemId == workItemId && c.IsDeleted)
+            .OrderByDescending(c => c.DeletedAt)
+            .Select(c => Map(c))
+            .ToListAsync(ct);
+    }
+
+    /// <summary>
+    /// Restores a soft-deleted comment.
+    /// </summary>
+    public async Task RestoreCommentAsync(Guid commentId, Guid userId, CancellationToken ct)
+    {
+        var comment = await _db.WorkItemComments
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(c => c.Id == commentId && c.IsDeleted, ct)
+            ?? throw new InvalidOperationException("Deleted comment not found.");
+
+        if (comment.UserId != userId)
+        {
+            // Allow admins to restore any comment; only author can restore their own
+            throw new InvalidOperationException("Not authorized to restore this comment.");
+        }
+
+        comment.IsDeleted = false;
+        comment.DeletedAt = null;
+        comment.UpdatedAt = DateTime.UtcNow;
+
+        await _db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>
+    /// Permanently deletes a comment.
+    /// </summary>
+    public async Task PermanentDeleteCommentAsync(Guid commentId, Guid userId, CancellationToken ct)
+    {
+        var comment = await _db.WorkItemComments
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(c => c.Id == commentId, ct)
+            ?? throw new InvalidOperationException("Comment not found.");
+
+        if (comment.UserId != userId)
+        {
+            throw new InvalidOperationException("Not authorized to permanently delete this comment.");
+        }
+
+        _db.WorkItemComments.Remove(comment);
         await _db.SaveChangesAsync(ct);
     }
 
@@ -228,6 +304,8 @@ public sealed class CommentService
         UserId = c.UserId,
         Content = c.Content,
         IsEdited = c.IsEdited,
+        IsDeleted = c.IsDeleted,
+        DeletedAt = c.DeletedAt,
         CreatedAt = c.CreatedAt,
         UpdatedAt = c.UpdatedAt
     };

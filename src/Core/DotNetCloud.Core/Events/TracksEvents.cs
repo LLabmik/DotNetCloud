@@ -96,6 +96,18 @@ public sealed record WorkItemCommentAddedEvent : IEvent
 }
 
 /// <summary>
+/// Raised when a comment is deleted from a WorkItem.
+/// </summary>
+public sealed record WorkItemCommentDeletedEvent : IEvent
+{
+    public required Guid EventId { get; init; }
+    public required DateTime CreatedAt { get; init; }
+    public required Guid WorkItemId { get; init; }
+    public required Guid CommentId { get; init; }
+    public required Guid UserId { get; init; }
+}
+
+/// <summary>
 /// Raised when a sprint is started.
 /// </summary>
 public sealed record SprintStartedEvent : IEvent

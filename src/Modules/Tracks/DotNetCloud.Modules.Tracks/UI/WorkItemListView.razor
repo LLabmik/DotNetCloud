@@ -84,6 +84,7 @@
             <span class="tracks-list-bulk-label">@_selectedIds.Count selected —</span>
             <button class="btn btn-sm btn-outline" @onclick="() => _ = BulkArchiveAsync()" disabled="@_isBulkActing">📦 Archive</button>
             <button class="btn btn-sm btn-outline btn-danger" @onclick="() => _ = BulkDeleteAsync()" disabled="@_isBulkActing">🗑️ Delete</button>
+            <button class="btn btn-sm btn-outline" @onclick="() => _ = BulkRestoreAsync()" disabled="@_isBulkActing">↩ Restore</button>
             @if (Swimlanes.Count > 0)
             {
                 <div class="tracks-list-bulk-dropdown">

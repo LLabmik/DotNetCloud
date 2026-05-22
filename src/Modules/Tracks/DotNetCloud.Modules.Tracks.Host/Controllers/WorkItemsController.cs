@@ -18,6 +18,8 @@ namespace DotNetCloud.Modules.Tracks.Host.Controllers;
 public class WorkItemsController : TracksControllerBase
 {
     private readonly WorkItemService _workItemService;
+    private readonly ProductService _productService;
+    private readonly ActivityService _activityService;
     private readonly IFileValidationService _fileValidation;
     private readonly TracksDbContext _db;
     private readonly ILogger<WorkItemsController> _logger;
@@ -25,9 +27,17 @@ public class WorkItemsController : TracksControllerBase
     /// <summary>
     /// Initializes a new instance of the <see cref="WorkItemsController"/> class.
     /// </summary>
-    public WorkItemsController(WorkItemService workItemService, IFileValidationService fileValidation, TracksDbContext db, ILogger<WorkItemsController> logger)
+    public WorkItemsController(
+        WorkItemService workItemService,
+        ProductService productService,
+        ActivityService activityService,
+        IFileValidationService fileValidation,
+        TracksDbContext db,
+        ILogger<WorkItemsController> logger)
     {
         _workItemService = workItemService;
+        _productService = productService;
+        _activityService = activityService;
         _fileValidation = fileValidation;
         _db = db;
         _logger = logger;
@@ -160,13 +170,133 @@ public class WorkItemsController : TracksControllerBase
         var caller = GetAuthenticatedCaller();
         try
         {
-            await _workItemService.DeleteWorkItemAsync(workItemId, ct);
+            await _workItemService.DeleteWorkItemAsync(workItemId, caller.UserId, ct);
             return Ok(Envelope(new { deleted = true }));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to delete work item {WorkItemId}", workItemId);
             return NotFound(ErrorEnvelope(ErrorCodes.CardNotFound, ex.Message));
+        }
+    }
+
+    // ─── Trash / Restore / Permanent Delete ────────────────────────────
+
+    /// <summary>Lists soft-deleted work items for a product (trash view).</summary>
+    [HttpGet("products/{productId:guid}/work-items/deleted")]
+    public async Task<IActionResult> ListDeletedWorkItemsAsync(Guid productId, CancellationToken ct)
+    {
+        var caller = GetAuthenticatedCaller();
+        try
+        {
+            var items = await _workItemService.ListDeletedWorkItemsAsync(productId, ct);
+            return Ok(Envelope(items));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to list deleted work items for product {ProductId}", productId);
+            return BadRequest(ErrorEnvelope(ErrorCodes.BadRequest, ex.Message));
+        }
+    }
+
+    /// <summary>Restores a soft-deleted work item. Requires Admin or Owner role.</summary>
+    [HttpPost("workitems/{workItemId:guid}/restore")]
+    public async Task<IActionResult> RestoreWorkItemAsync(Guid workItemId, CancellationToken ct)
+    {
+        var caller = GetAuthenticatedCaller();
+        try
+        {
+            var productId = await _db.WorkItems
+                .IgnoreQueryFilters()
+                .Where(wi => wi.Id == workItemId)
+                .Select(wi => wi.ProductId)
+                .FirstOrDefaultAsync(ct);
+
+            if (productId == Guid.Empty)
+                return NotFound(ErrorEnvelope(ErrorCodes.CardNotFound, "Work item not found."));
+
+            var role = await _productService.GetUserProductRoleAsync(productId, caller.UserId, ct);
+            if (role is not (ProductMemberRole.Admin or ProductMemberRole.Owner))
+                return Unauthorized(ErrorEnvelope(ErrorCodes.Forbidden, "Only admins and owners can restore work items."));
+
+            var item = await _workItemService.RestoreWorkItemAsync(workItemId, caller.UserId, ct);
+            return Ok(Envelope(item));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to restore work item {WorkItemId}", workItemId);
+            if (ex.Message.Contains("not found"))
+                return NotFound(ErrorEnvelope(ErrorCodes.CardNotFound, ex.Message));
+            return BadRequest(ErrorEnvelope(ErrorCodes.BadRequest, ex.Message));
+        }
+    }
+
+    /// <summary>Permanently deletes a work item. Requires Admin or Owner role. Irreversible.</summary>
+    [HttpDelete("workitems/{workItemId:guid}/permanent")]
+    public async Task<IActionResult> PermanentDeleteWorkItemAsync(Guid workItemId, CancellationToken ct)
+    {
+        var caller = GetAuthenticatedCaller();
+        try
+        {
+            var productId = await _db.WorkItems
+                .IgnoreQueryFilters()
+                .Where(wi => wi.Id == workItemId)
+                .Select(wi => wi.ProductId)
+                .FirstOrDefaultAsync(ct);
+
+            if (productId == Guid.Empty)
+                return NotFound(ErrorEnvelope(ErrorCodes.CardNotFound, "Work item not found."));
+
+            var role = await _productService.GetUserProductRoleAsync(productId, caller.UserId, ct);
+            if (role is not (ProductMemberRole.Admin or ProductMemberRole.Owner))
+                return Unauthorized(ErrorEnvelope(ErrorCodes.Forbidden, "Only admins and owners can permanently delete work items."));
+
+            await _workItemService.HardDeleteWorkItemAsync(workItemId, ct);
+            return Ok(Envelope(new { deleted = true, permanent = true }));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to permanently delete work item {WorkItemId}", workItemId);
+            return BadRequest(ErrorEnvelope(ErrorCodes.BadRequest, ex.Message));
+        }
+    }
+
+    /// <summary>Permanently deletes ALL soft-deleted work items for a product (empty trash). Requires Admin or Owner.</summary>
+    [HttpDelete("products/{productId:guid}/work-items/trash")]
+    public async Task<IActionResult> EmptyTrashAsync(Guid productId, CancellationToken ct)
+    {
+        var caller = GetAuthenticatedCaller();
+        try
+        {
+            var role = await _productService.GetUserProductRoleAsync(productId, caller.UserId, ct);
+            if (role is not (ProductMemberRole.Admin or ProductMemberRole.Owner))
+                return Unauthorized(ErrorEnvelope(ErrorCodes.Forbidden, "Only admins and owners can empty the trash."));
+
+            // Get all soft-deleted work item IDs for this product
+            var deletedIds = await _db.WorkItems
+                .IgnoreQueryFilters()
+                .Where(wi => wi.ProductId == productId && wi.IsDeleted)
+                .Select(wi => wi.Id)
+                .ToListAsync(ct);
+
+            if (deletedIds.Count == 0)
+                return Ok(Envelope(new { deleted = 0 }));
+
+            // Hard-delete each one (cascade handles children)
+            foreach (var id in deletedIds)
+            {
+                await _workItemService.HardDeleteWorkItemAsync(id, ct);
+            }
+
+            // Record activity
+            await _activityService.WriteTrashEmptiedActivityAsync(productId, caller.UserId, deletedIds.Count, ct);
+
+            return Ok(Envelope(new { deleted = deletedIds.Count }));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to empty trash for product {ProductId}", productId);
+            return BadRequest(ErrorEnvelope(ErrorCodes.BadRequest, ex.Message));
         }
     }
 
@@ -522,8 +652,26 @@ public class WorkItemsController : TracksControllerBase
                     {
                         item.IsDeleted = true;
                         item.DeletedAt = DateTime.UtcNow;
+                        item.DeletedByUserId = caller.UserId;
                     }
                     break;
+                case "restore":
+                {
+                    // Verify admin/owner role
+                    var role = await _productService.GetUserProductRoleAsync(productId, caller.UserId, ct);
+                    if (role is not (ProductMemberRole.Admin or ProductMemberRole.Owner))
+                        return Unauthorized(ErrorEnvelope(ErrorCodes.Forbidden, "Only admins and owners can restore work items."));
+
+                    await _db.WorkItems
+                        .IgnoreQueryFilters()
+                        .Where(wi => dto.WorkItemIds.Contains(wi.Id) && wi.ProductId == productId && wi.IsDeleted)
+                        .ExecuteUpdateAsync(calls => calls
+                            .SetProperty(wi => wi.IsDeleted, false)
+                            .SetProperty(wi => wi.DeletedAt, (DateTime?)null)
+                            .SetProperty(wi => wi.DeletedByUserId, (Guid?)null)
+                            .SetProperty(wi => wi.UpdatedAt, DateTime.UtcNow), ct);
+                }
+                break;
                 case "move" when dto.TargetSwimlaneId.HasValue:
                     var targetSwimlane = await _db.Swimlanes
                         .FirstOrDefaultAsync(s => s.Id == dto.TargetSwimlaneId.Value, ct);

@@ -84,6 +84,53 @@ public class CommentsController : TracksControllerBase
         }
     }
 
+    // ── Comment Trash / Restore ────────────────────────────────────────────
+
+    /// <summary>Lists soft-deleted comments for a work item.</summary>
+    [HttpGet("api/v1/workitems/{workItemId:guid}/comments/deleted")]
+    public async Task<IActionResult> ListDeletedCommentsAsync(Guid workItemId, CancellationToken ct)
+    {
+        var caller = GetAuthenticatedCaller();
+        var comments = await _commentService.ListDeletedCommentsAsync(workItemId, ct);
+        return Ok(Envelope(comments));
+    }
+
+    /// <summary>Restores a soft-deleted comment. Only the author may restore their own comment.</summary>
+    [HttpPost("api/v1/workitems/{workItemId:guid}/comments/{commentId:guid}/restore")]
+    public async Task<IActionResult> RestoreCommentAsync(Guid workItemId, Guid commentId, CancellationToken ct)
+    {
+        var caller = GetAuthenticatedCaller();
+        try
+        {
+            await _commentService.RestoreCommentAsync(commentId, caller.UserId, ct);
+            return Ok(Envelope(new { restored = true }));
+        }
+        catch (System.InvalidOperationException ex)
+        {
+            return ex.Message.Contains("not authorized", StringComparison.OrdinalIgnoreCase)
+                ? StatusCode(403, ErrorEnvelope(ErrorCodes.Forbidden, ex.Message))
+                : BadRequest(ErrorEnvelope(ErrorCodes.InvalidOperation, ex.Message));
+        }
+    }
+
+    /// <summary>Permanently deletes a comment. Irreversible. Only the author may permanently delete their own comment.</summary>
+    [HttpDelete("api/v1/workitems/{workItemId:guid}/comments/{commentId:guid}/permanent")]
+    public async Task<IActionResult> PermanentDeleteCommentAsync(Guid workItemId, Guid commentId, CancellationToken ct)
+    {
+        var caller = GetAuthenticatedCaller();
+        try
+        {
+            await _commentService.PermanentDeleteCommentAsync(commentId, caller.UserId, ct);
+            return Ok(Envelope(new { deleted = true, permanent = true }));
+        }
+        catch (System.InvalidOperationException ex)
+        {
+            return ex.Message.Contains("not authorized", StringComparison.OrdinalIgnoreCase)
+                ? StatusCode(403, ErrorEnvelope(ErrorCodes.Forbidden, ex.Message))
+                : BadRequest(ErrorEnvelope(ErrorCodes.InvalidOperation, ex.Message));
+        }
+    }
+
     // ── Reactions ──────────────────────────────────────────────────────────
 
     /// <summary>Gets all reactions for a comment, grouped by emoji with counts.</summary>

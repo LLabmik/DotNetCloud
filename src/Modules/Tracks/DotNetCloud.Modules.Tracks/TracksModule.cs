@@ -53,6 +53,7 @@ public sealed class TracksModule : IModuleLifecycle
         await _eventBus.SubscribeAsync<WorkItemDeletedEvent>(_realtimeHandler, cancellationToken);
         await _eventBus.SubscribeAsync<WorkItemAssignedEvent>(_realtimeHandler, cancellationToken);
         await _eventBus.SubscribeAsync<WorkItemCommentAddedEvent>(_realtimeHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<WorkItemCommentDeletedEvent>(_realtimeHandler, cancellationToken);
         await _eventBus.SubscribeAsync<ProductCreatedEvent>(_realtimeHandler, cancellationToken);
         await _eventBus.SubscribeAsync<ProductDeletedEvent>(_realtimeHandler, cancellationToken);
         await _eventBus.SubscribeAsync<SprintStartedEvent>(_realtimeHandler, cancellationToken);
@@ -82,6 +83,7 @@ public sealed class TracksModule : IModuleLifecycle
         await _eventBus.SubscribeAsync<WorkItemDeletedEvent>(_webhookHandler, cancellationToken);
         await _eventBus.SubscribeAsync<WorkItemMovedEvent>(_webhookHandler, cancellationToken);
         await _eventBus.SubscribeAsync<WorkItemCommentAddedEvent>(_webhookHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<WorkItemCommentDeletedEvent>(_webhookHandler, cancellationToken);
         await _eventBus.SubscribeAsync<SprintStartedEvent>(_webhookHandler, cancellationToken);
         await _eventBus.SubscribeAsync<SprintCompletedEvent>(_webhookHandler, cancellationToken);
         await _eventBus.SubscribeAsync<MilestoneReachedEvent>(_webhookHandler, cancellationToken);
@@ -129,6 +131,7 @@ public sealed class TracksModule : IModuleLifecycle
                 await _eventBus.UnsubscribeAsync<WorkItemDeletedEvent>(_realtimeHandler, cancellationToken);
                 await _eventBus.UnsubscribeAsync<WorkItemAssignedEvent>(_realtimeHandler, cancellationToken);
                 await _eventBus.UnsubscribeAsync<WorkItemCommentAddedEvent>(_realtimeHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<WorkItemCommentDeletedEvent>(_realtimeHandler, cancellationToken);
                 await _eventBus.UnsubscribeAsync<ProductCreatedEvent>(_realtimeHandler, cancellationToken);
                 await _eventBus.UnsubscribeAsync<ProductDeletedEvent>(_realtimeHandler, cancellationToken);
                 await _eventBus.UnsubscribeAsync<SprintStartedEvent>(_realtimeHandler, cancellationToken);
@@ -156,6 +159,7 @@ public sealed class TracksModule : IModuleLifecycle
                 await _eventBus.UnsubscribeAsync<WorkItemDeletedEvent>(_webhookHandler, cancellationToken);
                 await _eventBus.UnsubscribeAsync<WorkItemMovedEvent>(_webhookHandler, cancellationToken);
                 await _eventBus.UnsubscribeAsync<WorkItemCommentAddedEvent>(_webhookHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<WorkItemCommentDeletedEvent>(_webhookHandler, cancellationToken);
                 await _eventBus.UnsubscribeAsync<SprintStartedEvent>(_webhookHandler, cancellationToken);
                 await _eventBus.UnsubscribeAsync<SprintCompletedEvent>(_webhookHandler, cancellationToken);
                 await _eventBus.UnsubscribeAsync<MilestoneReachedEvent>(_webhookHandler, cancellationToken);

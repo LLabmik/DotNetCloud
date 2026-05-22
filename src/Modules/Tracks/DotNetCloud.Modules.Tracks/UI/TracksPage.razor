@@ -281,6 +281,11 @@
                                              OnWorkItemSelected="SelectWorkItem"
                                              OnPlanSprint="OpenSprintPlanning" />
                             }
+
+                            @* Trash / Recycle Bin for soft-deleted work items *@
+                            <WorkItemTrashView Product="_selectedProduct"
+                                                IsAdmin="true"
+                                                OnChanged="RefreshCurrentKanbanAsync" />
                         </div>
 
                         @if (_selectedWorkItem is not null)
