@@ -17,6 +17,8 @@ namespace DotNetCloud.Integration.Tests.Database;
 /// Tests are skipped gracefully when neither source is available.
 /// </summary>
 /// <remarks>
+/// Uses test containers for database isolation.
+/// </remarks>
 [TestClass]
 [TestCategory("Integration")]
 [TestCategory("Docker")]

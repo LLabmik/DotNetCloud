@@ -1,7 +1,22 @@
 @page "/apps/tracks"
 @rendermode InteractiveServer
 @attribute [Authorize]
+@using Microsoft.AspNetCore.Components
 
 <PageTitle>Tracks - DotNetCloud</PageTitle>
 
-<ModulePageHost RouteKey="tracks.page" />
+<ModulePageHost RouteKey="tracks.page" Parameters="_parameters" />
+
+@code {
+    [SupplyParameterFromQuery(Name = "kanban")]
+    public string? KanbanId { get; set; }
+
+    private Dictionary<string, object>? _parameters;
+
+    protected override void OnParametersSet()
+    {
+        _parameters = string.IsNullOrWhiteSpace(KanbanId)
+            ? null
+            : new Dictionary<string, object> { ["KanbanId"] = KanbanId };
+    }
+}

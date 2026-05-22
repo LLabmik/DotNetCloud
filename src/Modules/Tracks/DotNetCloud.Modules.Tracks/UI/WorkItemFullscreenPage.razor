@@ -37,6 +37,6 @@ else if (_workItem is not null && _product is not null)
                              OnClose="NavigateBack"
                              OnWorkItemUpdated="HandleWorkItemUpdated"
                              OnWorkItemDeleted="HandleWorkItemDeleted"
-                             OnOpenKanban="_ => Task.CompletedTask" />
+                             OnOpenKanban="OpenKanban" />
     </div>
 }

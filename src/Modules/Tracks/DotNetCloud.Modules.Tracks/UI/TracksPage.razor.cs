@@ -16,6 +16,13 @@ namespace DotNetCloud.Modules.Tracks.UI;
 /// </summary>
 public partial class TracksPage : ComponentBase, IDisposable
 {
+    /// <summary>
+    /// Optional work item ID to auto-navigate to its kanban board.
+    /// Set via the <c>kanban</c> query parameter on <c>/apps/tracks</c>.
+    /// </summary>
+    [Parameter]
+    public string? KanbanId { get; set; }
+
     [Inject] private ITracksApiClient ApiClient { get; set; } = default!;
     [Inject] private ITracksSignalRService SignalRService { get; set; } = default!;
     [Inject] private AuthenticationStateProvider AuthStateProvider { get; set; } = default!;
@@ -91,6 +98,11 @@ public partial class TracksPage : ComponentBase, IDisposable
     {
         SubscribeToRealtimeEvents();
         await LoadInitialDataAsync();
+
+        if (!string.IsNullOrWhiteSpace(KanbanId) && Guid.TryParse(KanbanId, out var parsed))
+        {
+            await NavigateToKanbanAsync(parsed);
+        }
     }
 
     /// <inheritdoc />
@@ -241,6 +253,51 @@ public partial class TracksPage : ComponentBase, IDisposable
         finally
         {
             _isLoading = false;
+        }
+    }
+
+    /// <summary>
+    /// Navigates to the kanban board for the given work item (Epic or Feature).
+    /// Called after the initial page load when a <c>kanban</c> query parameter is present.
+    /// </summary>
+    private async Task NavigateToKanbanAsync(Guid workItemId)
+    {
+        try
+        {
+            var workItem = await ApiClient.GetWorkItemAsync(workItemId);
+            if (workItem is null)
+                return;
+
+            // Ensure the product is selected first, since kanban views need _selectedProduct
+            if (_selectedProduct?.Id != workItem.ProductId)
+            {
+                // Find the product in the already-loaded list, or fetch it
+                var product = _products.FirstOrDefault(p => p.Id == workItem.ProductId);
+                if (product is null)
+                {
+                    product = await ApiClient.GetProductAsync(workItem.ProductId);
+                    if (product is null)
+                        return;
+                    _products.Add(product);
+                }
+
+                // Select the product (loads its kanban data, sets view to ProductKanban)
+                await SelectProduct(product.Id);
+            }
+
+            // Now navigate to the specific kanban view
+            if (workItem.Type == WorkItemType.Epic)
+            {
+                await OpenEpicKanban(workItemId);
+            }
+            else if (workItem.Type == WorkItemType.Feature)
+            {
+                await OpenFeatureKanban(workItemId);
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to navigate to kanban: {ex.Message}";
         }
     }
 

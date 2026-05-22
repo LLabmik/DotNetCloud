@@ -77,6 +77,11 @@ public partial class WorkItemFullscreenPage : ComponentBase
         Navigation.NavigateTo("/apps/tracks");
     }
 
+    private void OpenKanban(Guid workItemId)
+    {
+        Navigation.NavigateTo($"/apps/tracks?kanban={workItemId}");
+    }
+
     private void HandleWorkItemUpdated(WorkItemDto item)
     {
         _workItem = item;

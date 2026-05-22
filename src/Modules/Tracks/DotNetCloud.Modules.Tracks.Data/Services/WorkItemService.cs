@@ -83,6 +83,43 @@ public sealed class WorkItemService
 
         _db.WorkItems.Add(workItem);
 
+        // Replicate product-level swimlanes when an Epic or Feature is created,
+        // so child work items have the same swimlane structure as the product.
+        if (type is WorkItemType.Epic or WorkItemType.Feature)
+        {
+            var productSwimlanes = await _db.Swimlanes
+                .Where(s => s.ContainerType == SwimlaneContainerType.Product
+                         && s.ContainerId == productId
+                         && !s.IsArchived)
+                .OrderBy(s => s.Position)
+                .ToListAsync(ct);
+
+            if (productSwimlanes.Count > 0)
+            {
+                var childSwimlanes = productSwimlanes.Select(s => new Swimlane
+                {
+                    ContainerType = SwimlaneContainerType.WorkItem,
+                    ContainerId = workItem.Id,
+                    Title = s.Title,
+                    Color = s.Color,
+                    Position = s.Position,
+                    CardLimit = s.CardLimit,
+                    IsDone = s.IsDone
+                }).ToList();
+
+                _db.Swimlanes.AddRange(childSwimlanes);
+            }
+            else
+            {
+                // Fallback: create 3 default swimlanes if product has none
+                _db.Swimlanes.AddRange(
+                    new Swimlane { ContainerType = SwimlaneContainerType.WorkItem, ContainerId = workItem.Id, Title = "To Do", Position = 1000 },
+                    new Swimlane { ContainerType = SwimlaneContainerType.WorkItem, ContainerId = workItem.Id, Title = "In Progress", Position = 2000 },
+                    new Swimlane { ContainerType = SwimlaneContainerType.WorkItem, ContainerId = workItem.Id, Title = "Done", Position = 3000, IsDone = true }
+                );
+            }
+        }
+
         // Auto-subscribe the creator so they get notified of changes
         _db.WorkItemWatchers.Add(new WorkItemWatcher
         {
