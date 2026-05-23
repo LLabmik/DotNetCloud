@@ -31,4 +31,13 @@ public interface IVideoCollectionService
 
     /// <summary>Gets all videos in a collection.</summary>
     Task<IReadOnlyList<VideoDto>> GetCollectionVideosAsync(Guid collectionId, CallerContext caller, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Finds a collection by name for the caller, or creates one if it doesn't exist.
+    /// </summary>
+    /// <param name="name">The collection name to find or create.</param>
+    /// <param name="caller">The caller context.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The existing or newly created collection.</returns>
+    Task<VideoCollectionDto> FindOrCreateByNameAsync(string name, CallerContext caller, CancellationToken cancellationToken = default);
 }

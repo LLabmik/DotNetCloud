@@ -181,6 +181,36 @@ public sealed class VideoCollectionService : IVideoCollectionService
         return videos.Select(v => MapVideoToDto(v, caller.UserId)).ToList();
     }
 
+    /// <summary>
+    /// Finds a collection by name for the caller, or creates one if it doesn't exist.
+    /// </summary>
+    public async Task<VideoCollectionDto> FindOrCreateByNameAsync(string name, CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        var existing = await _db.VideoCollections
+            .Include(c => c.Items).ThenInclude(ci => ci.Video)
+            .FirstOrDefaultAsync(c => c.Name == name && c.OwnerId == caller.UserId && !c.IsDeleted, cancellationToken);
+
+        if (existing is not null)
+        {
+            return MapToDto(existing);
+        }
+
+        var collection = new VideoCollection
+        {
+            OwnerId = caller.UserId,
+            Name = name,
+            Description = null
+        };
+
+        _db.VideoCollections.Add(collection);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("Collection {CollectionId} '{Name}' auto-created by FindOrCreateByName for user {UserId}",
+            collection.Id, collection.Name, caller.UserId);
+
+        return MapToDto(collection);
+    }
+
     private VideoCollectionDto MapToDto(VideoCollection collection)
     {
         var totalDurationTicks = collection.Items?

@@ -16,6 +16,7 @@ namespace DotNetCloud.Modules.Video.Data.Services;
 public sealed class VideoIndexingCallback : IVideoIndexingCallback
 {
     private readonly VideoService _videoService;
+    private readonly IVideoCollectionService _collectionService;
     private readonly VideoDbContext _db;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IConfiguration _configuration;
@@ -24,9 +25,10 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
     /// <summary>
     /// Initializes a new instance of the <see cref="VideoIndexingCallback"/> class.
     /// </summary>
-    public VideoIndexingCallback(VideoService videoService, VideoDbContext db, IServiceScopeFactory scopeFactory, IConfiguration configuration, ILogger<VideoIndexingCallback> logger)
+    public VideoIndexingCallback(VideoService videoService, IVideoCollectionService collectionService, VideoDbContext db, IServiceScopeFactory scopeFactory, IConfiguration configuration, ILogger<VideoIndexingCallback> logger)
     {
         _videoService = videoService;
+        _collectionService = collectionService;
         _db = db;
         _scopeFactory = scopeFactory;
         _configuration = configuration;
@@ -34,10 +36,32 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
     }
 
     /// <inheritdoc />
-    public async Task IndexVideoAsync(Guid fileNodeId, string fileName, string mimeType, long sizeBytes, Guid ownerId, string? storagePath = null, CancellationToken cancellationToken = default)
+    public async Task IndexVideoAsync(Guid fileNodeId, string fileName, string mimeType, long sizeBytes, Guid ownerId, string? storagePath = null, string? sourceName = null, CancellationToken cancellationToken = default)
     {
         var caller = new CallerContext(ownerId, ["user"], CallerType.System);
         var video = await _videoService.CreateVideoAsync(fileNodeId, fileName, mimeType, sizeBytes, ownerId, caller, cancellationToken);
+
+        // ── Source-based collection assignment ──
+        // When the scan pipeline provides a source name, ensure a collection with that
+        // name exists for this owner and add the newly indexed video to it.
+        if (!string.IsNullOrWhiteSpace(sourceName))
+        {
+            try
+            {
+                var collection = await _collectionService.FindOrCreateByNameAsync(sourceName, caller, cancellationToken);
+                await _collectionService.AddVideoAsync(collection.Id, video.Id, caller, cancellationToken);
+                _logger.LogDebug(
+                    "Video {VideoId} assigned to source collection '{CollectionName}' ({CollectionId})",
+                    video.Id, sourceName, collection.Id);
+            }
+            catch (Exception ex)
+            {
+                // Graceful failure — video indexing itself succeeded, collection assignment is best-effort.
+                _logger.LogWarning(ex,
+                    "Failed to assign video {VideoId} to source collection '{SourceName}'",
+                    video.Id, sourceName);
+            }
+        }
 
         // TMDB enrichment (fire-and-forget — network-dependent, graceful failure).
         // Thumbnail and screenshots are only generated as a fallback when TMDB doesn't provide a poster,

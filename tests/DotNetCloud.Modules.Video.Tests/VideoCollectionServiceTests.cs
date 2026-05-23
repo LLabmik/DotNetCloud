@@ -166,4 +166,95 @@ public class VideoCollectionServiceTests
         Assert.AreEqual(2, videos.Count);
         Assert.AreEqual("First", videos[0].Title);
     }
+
+    [TestMethod]
+    public async Task FindOrCreateByNameAsync_ReturnsExisting_WhenFound()
+    {
+        var caller = TestHelpers.CreateCaller();
+        var existing = await TestHelpers.SeedCollectionAsync(_db, "Movies", caller.UserId);
+
+        var result = await _service.FindOrCreateByNameAsync("Movies", caller);
+
+        Assert.IsNotNull(result);
+        Assert.AreEqual("Movies", result.Name);
+        Assert.AreEqual(existing.Id, result.Id);
+
+        // Verify only one collection exists with that name
+        var count = _db.VideoCollections.Count(c => c.Name == "Movies" && c.OwnerId == caller.UserId);
+        Assert.AreEqual(1, count);
+    }
+
+    [TestMethod]
+    public async Task FindOrCreateByNameAsync_CreatesNew_WhenNotFound()
+    {
+        var caller = TestHelpers.CreateCaller();
+
+        var result = await _service.FindOrCreateByNameAsync("TV", caller);
+
+        Assert.IsNotNull(result);
+        Assert.AreEqual("TV", result.Name);
+        Assert.AreEqual(0, result.VideoCount);
+
+        // Verify it was persisted
+        var fromDb = await _service.GetCollectionAsync(result.Id, caller);
+        Assert.IsNotNull(fromDb);
+    }
+
+    [TestMethod]
+    public async Task FindOrCreateByNameAsync_DoesNotReturnOtherUsersCollection()
+    {
+        var caller = TestHelpers.CreateCaller();
+        var otherUser = Guid.NewGuid();
+        await TestHelpers.SeedCollectionAsync(_db, "Shared", otherUser);
+
+        var result = await _service.FindOrCreateByNameAsync("Shared", caller);
+
+        // Should create a NEW collection for this user, not return the other user's
+        Assert.IsNotNull(result);
+        Assert.AreEqual("Shared", result.Name);
+
+        var allShared = _db.VideoCollections.Count(c => c.Name == "Shared");
+        Assert.AreEqual(2, allShared);
+    }
+
+    [TestMethod]
+    public async Task FindOrCreateByNameAsync_CreatesNew_WhenExistingIsDeleted()
+    {
+        var caller = TestHelpers.CreateCaller();
+        var existing = await TestHelpers.SeedCollectionAsync(_db, "Old", caller.UserId);
+        await _service.DeleteCollectionAsync(existing.Id, caller);
+
+        var result = await _service.FindOrCreateByNameAsync("Old", caller);
+
+        Assert.IsNotNull(result);
+        Assert.AreEqual("Old", result.Name);
+        Assert.AreNotEqual(existing.Id, result.Id);
+    }
+
+    [TestMethod]
+    public async Task FindOrCreateByNameAsync_WithWhitespaceName_CreatesCollection()
+    {
+        var caller = TestHelpers.CreateCaller();
+
+        var result = await _service.FindOrCreateByNameAsync("   ", caller);
+
+        Assert.IsNotNull(result);
+        Assert.AreEqual("   ", result.Name);
+    }
+
+    [TestMethod]
+    public async Task FindOrCreateByNameAsync_DifferentUsers_SameName_CreatesSeparateCollections()
+    {
+        var caller1 = TestHelpers.CreateCaller();
+        var caller2 = TestHelpers.CreateCaller(Guid.NewGuid());
+
+        var result1 = await _service.FindOrCreateByNameAsync("Favorites", caller1);
+        var result2 = await _service.FindOrCreateByNameAsync("Favorites", caller2);
+
+        Assert.IsNotNull(result1);
+        Assert.IsNotNull(result2);
+        Assert.AreEqual("Favorites", result1.Name);
+        Assert.AreEqual("Favorites", result2.Name);
+        Assert.AreNotEqual(result1.Id, result2.Id);
+    }
 }

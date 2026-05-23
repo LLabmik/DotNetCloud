@@ -235,9 +235,10 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
                 result.Errors.Add($"{source.DisplayPath}: shared folder is unavailable or no longer accessible.");
             }
 
+            var collectionName = string.IsNullOrWhiteSpace(source.DisplayName) ? null : source.DisplayName.TrimEnd();
             foreach (var candidate in sourceCandidates)
             {
-                candidatesById[candidate.Id] = candidate;
+                candidatesById[candidate.Id] = candidate with { SourceName = collectionName };
             }
         }
 
@@ -443,7 +444,7 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
             return;
         }
 
-        candidates[node.Id] = new MediaFileCandidate(node.Id, node.Name, node.Size, node.MimeType, node.IsVirtual);
+        candidates[node.Id] = new MediaFileCandidate(node.Id, node.Name, node.Size, node.MimeType, node.IsVirtual, SourceName: null);
 
         // Report discovery progress periodically so the UI shows files being found
         if (progress is not null && candidates.Count % 25 == 0)
@@ -551,7 +552,7 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
                 var videoCallback = serviceProvider.GetService<IVideoIndexingCallback>();
                 if (videoCallback is not null)
                 {
-                    await videoCallback.IndexVideoAsync(candidate.Id, candidate.Name, mime, candidate.Size, ownerId, storagePath, cancellationToken);
+                    await videoCallback.IndexVideoAsync(candidate.Id, candidate.Name, mime, candidate.Size, ownerId, storagePath, candidate.SourceName, cancellationToken);
                 }
                 else
                 {
@@ -749,7 +750,7 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
         };
     }
 
-    private sealed record MediaFileCandidate(Guid Id, string Name, long Size, string? MimeType, bool IsVirtual);
+    private sealed record MediaFileCandidate(Guid Id, string Name, long Size, string? MimeType, bool IsVirtual, string? SourceName);
 
     private static readonly HashSet<string> PhotoExtensions =
     [

@@ -43,7 +43,7 @@ public sealed class FileUploadedVideoHandler : IEventHandler<FileUploadedEvent>
             {
                 await _indexingCallback.IndexVideoAsync(
                     @event.FileNodeId, @event.FileName, @event.MimeType, @event.Size,
-                    @event.UploadedByUserId, @event.StoragePath, cancellationToken);
+                    @event.UploadedByUserId, @event.StoragePath, cancellationToken: cancellationToken);
 
                 _logger.LogInformation(
                     "Video auto-created for uploaded file: {FileName} ({MimeType}) by user {UserId}",
@@ -83,8 +83,9 @@ public interface IVideoIndexingCallback
     /// <param name="sizeBytes">File size in bytes.</param>
     /// <param name="ownerId">Owner user ID.</param>
     /// <param name="storagePath">Relative content-addressable storage path. Null when unavailable.</param>
+    /// <param name="sourceName">Optional source collection name. When set, the video is added to a source-named collection.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    Task IndexVideoAsync(Guid fileNodeId, string fileName, string mimeType, long sizeBytes, Guid ownerId, string? storagePath = null, CancellationToken cancellationToken = default);
+    Task IndexVideoAsync(Guid fileNodeId, string fileName, string mimeType, long sizeBytes, Guid ownerId, string? storagePath = null, string? sourceName = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Returns the set of FileNode IDs already indexed in the video library for the given owner.
