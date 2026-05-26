@@ -1,9 +1,12 @@
 using System.Text.RegularExpressions;
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
+using DotNetCloud.Core.Errors;
+using DotNetCloud.Modules.Video.Models;
 using DotNetCloud.Modules.Video.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace DotNetCloud.Modules.Video.Data.Services;
@@ -15,17 +18,22 @@ public sealed partial class VideoEnrichmentService : IVideoEnrichmentService
 {
     private readonly VideoDbContext _db;
     private readonly ITmdbClient _tmdbClient;
+    private readonly IVideoSettingsProvider _settingsProvider;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly string _posterCacheDir;
     private readonly ILogger<VideoEnrichmentService> _logger;
 
     private static readonly TimeSpan EnrichmentCooldown = TimeSpan.FromDays(30);
 
-    public VideoEnrichmentService(VideoDbContext db, ITmdbClient tmdbClient, IConfiguration configuration, ILogger<VideoEnrichmentService> logger)
+    public VideoEnrichmentService(VideoDbContext db, ITmdbClient tmdbClient, IVideoSettingsProvider settingsProvider, IServiceScopeFactory scopeFactory, IConfiguration configuration, ILogger<VideoEnrichmentService> logger)
     {
         _db = db;
         _tmdbClient = tmdbClient;
+        _settingsProvider = settingsProvider;
+        _scopeFactory = scopeFactory;
         _logger = logger;
 
+        // Check file config as a startup fallback — runtime DB check happens in enrichment methods
         IsTmdbAvailable = !string.IsNullOrWhiteSpace(configuration["Video:Enrichment:TmdbApiKey"]);
 
         var storageRoot = configuration["Files:Storage:RootPath"] ?? Path.GetTempPath();
@@ -110,7 +118,65 @@ public sealed partial class VideoEnrichmentService : IVideoEnrichmentService
         video.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
 
+        // Phase 4: Check if the movie belongs to a TMDB collection (franchise)
+        if (detail?.BelongsToCollection is not null)
+        {
+            await AssignVideoToFranchiseAsync(video, detail.BelongsToCollection, caller, cancellationToken);
+        }
+
         _logger.LogInformation("Video {VideoId} enriched from TMDB: {Title}", videoId, video.TmdbTitle ?? video.Title);
+    }
+
+    /// <summary>
+    /// Assigns a video to a movie franchise series based on TMDB collection data.
+    /// </summary>
+    private async Task AssignVideoToFranchiseAsync(Models.Video video, TmdbCollectionInfo collection, CallerContext caller, CancellationToken cancellationToken)
+    {
+        try
+        {
+            // Use a scope to get a properly-resolved VideoSeriesService with its own logger
+            await using var scope = _scopeFactory.CreateAsyncScope();
+            var seriesService = scope.ServiceProvider.GetRequiredService<IVideoSeriesService>();
+
+            // Find or create a MovieFranchise series using the collection name
+            var series = await seriesService.FindOrCreateByNameAsync(collection.Name ?? "Unknown Collection", "MovieFranchise", caller, cancellationToken);
+
+            // Check if video is already in this series
+            var alreadyInSeries = await _db.VideoSeriesItems
+                .AnyAsync(i => i.SeriesId == Guid.Parse(series.Id.ToString()) && i.VideoId == video.Id, cancellationToken);
+
+            if (alreadyInSeries)
+                return;
+
+            // Get the collection details to find this movie's sort order among parts
+            var collectionDetail = await _tmdbClient.GetCollectionAsync(collection.Id, cancellationToken);
+            var partIndex = 0;
+            if (collectionDetail is not null)
+            {
+                var part = collectionDetail.Parts
+                    .Select((p, idx) => new { p.Id, Index = idx })
+                    .FirstOrDefault(p => p.Id == video.TmdbId);
+                if (part is not null)
+                    partIndex = part.Index;
+            }
+
+            await seriesService.AddVideoToSeriesAsync(
+                Guid.Parse(series.Id.ToString()),
+                video.Id,
+                partIndex > 0 ? partIndex : null,
+                video.TmdbTitle,
+                caller,
+                cancellationToken);
+
+            _logger.LogInformation(
+                "Video {VideoId} ('{Title}') assigned to movie franchise '{SeriesName}' at position {Position}",
+                video.Id, video.TmdbTitle ?? video.Title, collection.Name, partIndex);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to assign video {VideoId} to TMDB collection '{CollectionName}'",
+                video.Id, collection.Name);
+        }
     }
 
     /// <inheritdoc />
@@ -180,6 +246,131 @@ public sealed partial class VideoEnrichmentService : IVideoEnrichmentService
                 AlbumArtFound = enriched,
                 AlbumArtRemaining = total - (i + 1)
             });
+        }
+    }
+
+    // ─── Series Enrichment ───────────────────────────────────────────
+
+    /// <inheritdoc />
+    public async Task EnrichSeriesAsync(Guid seriesId, CallerContext caller, bool force = false, CancellationToken cancellationToken = default)
+    {
+        var series = await _db.VideoSeries
+            .Include(s => s.Seasons)
+            .FirstOrDefaultAsync(s => s.Id == seriesId && s.OwnerId == caller.UserId, cancellationToken);
+
+        if (series is null)
+            throw new BusinessRuleException(ErrorCodes.VideoSeriesNotFound, "Series not found.");
+
+        var tmdbAvailable = await _settingsProvider.IsTmdbAvailableAsync(cancellationToken);
+        if (!tmdbAvailable)
+        {
+            _logger.LogDebug("TMDB not available, skipping enrichment for series {SeriesId}", seriesId);
+            return;
+        }
+
+        // Enrich based on series type
+        if (series.Type == Models.SeriesType.TvSeries)
+            await EnrichTvSeriesAsync(series, caller, cancellationToken);
+        else
+            await EnrichMovieFranchiseAsync(series, caller, cancellationToken);
+
+        series.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("Series {SeriesId} '{Name}' enriched from TMDB", seriesId, series.Name);
+    }
+
+    /// <summary>
+    /// Enriches a TV series from TMDB — fetches overview, rating, seasons, poster.
+    /// </summary>
+    private async Task EnrichTvSeriesAsync(VideoSeries series, CallerContext caller, CancellationToken cancellationToken)
+    {
+        // Search for the series by name
+        var results = await _tmdbClient.SearchTvSeriesAsync(series.Name, cancellationToken);
+        if (results is null || results.Count == 0)
+        {
+            _logger.LogDebug("No TMDB TV series results found for '{Name}'", series.Name);
+            return;
+        }
+
+        var best = results[0];
+
+        // Get full details
+        var detail = await _tmdbClient.GetTvSeriesAsync(best.Id, cancellationToken);
+        if (detail is null)
+        {
+            _logger.LogDebug("TMDB TV series detail unavailable for {TmdbId}", best.Id);
+            return;
+        }
+
+        series.TmdbId = detail.Id;
+        series.TmdbName = detail.Name;
+        series.TmdbOverview = detail.Overview;
+        series.TmdbRating = detail.VoteAverage;
+        series.Genres = detail.Genres.Count > 0 ? string.Join(", ", detail.Genres.Select(g => g.Name)) : null;
+        series.Status = detail.Status;
+        series.TotalSeasons = detail.NumberOfSeasons;
+        series.TotalEpisodes = detail.NumberOfEpisodes;
+
+        // Download poster
+        var posterPath = detail.PosterPath ?? best.PosterPath;
+        if (posterPath is not null && (!series.HasExternalPoster || !File.Exists(series.ExternalPosterPath)))
+        {
+            var poster = await _tmdbClient.DownloadPosterAsync(posterPath, cancellationToken: cancellationToken);
+            if (poster is not null)
+            {
+                var cachePath = CacheExternalPoster(poster.Data, poster.MimeType, series.Id);
+                if (cachePath is not null)
+                {
+                    series.HasExternalPoster = true;
+                    series.ExternalPosterPath = cachePath;
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Enriches a movie franchise from TMDB — fetches collection overview, parts, poster.
+    /// </summary>
+    private async Task EnrichMovieFranchiseAsync(VideoSeries series, CallerContext caller, CancellationToken cancellationToken)
+    {
+        // Search for the collection by name
+        var results = await _tmdbClient.SearchCollectionAsync(series.Name, cancellationToken);
+        if (results is null || results.Count == 0)
+        {
+            _logger.LogDebug("No TMDB collection results found for '{Name}'", series.Name);
+            return;
+        }
+
+        var best = results[0];
+
+        // Get full collection details
+        var detail = await _tmdbClient.GetCollectionAsync(best.Id, cancellationToken);
+        if (detail is null)
+        {
+            _logger.LogDebug("TMDB collection detail unavailable for {TmdbId}", best.Id);
+            return;
+        }
+
+        series.TmdbId = detail.Id;
+        series.TmdbName = detail.Name;
+        series.TmdbOverview = detail.Overview;
+        series.TotalEpisodes = detail.Parts.Count;
+
+        // Download poster
+        var posterPath = detail.PosterPath ?? best.PosterPath;
+        if (posterPath is not null && (!series.HasExternalPoster || !File.Exists(series.ExternalPosterPath)))
+        {
+            var poster = await _tmdbClient.DownloadPosterAsync(posterPath, cancellationToken: cancellationToken);
+            if (poster is not null)
+            {
+                var cachePath = CacheExternalPoster(poster.Data, poster.MimeType, series.Id);
+                if (cachePath is not null)
+                {
+                    series.HasExternalPoster = true;
+                    series.ExternalPosterPath = cachePath;
+                }
+            }
         }
     }
 

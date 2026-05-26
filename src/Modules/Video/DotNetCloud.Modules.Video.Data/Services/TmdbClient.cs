@@ -1,7 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using DotNetCloud.Modules.Video.Services;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace DotNetCloud.Modules.Video.Data.Services;
@@ -13,7 +12,7 @@ public sealed class TmdbClient : ITmdbClient
 {
     private readonly HttpClient _httpClient;
     private readonly TmdbRateLimiter _rateLimiter;
-    private readonly string? _apiKey;
+    private readonly IVideoSettingsProvider _settingsProvider;
     private readonly ILogger<TmdbClient> _logger;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -22,39 +21,38 @@ public sealed class TmdbClient : ITmdbClient
         PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
     };
 
-    public TmdbClient(HttpClient httpClient, TmdbRateLimiter rateLimiter, IConfiguration configuration, ILogger<TmdbClient> logger)
+    public TmdbClient(HttpClient httpClient, TmdbRateLimiter rateLimiter, IVideoSettingsProvider settingsProvider, ILogger<TmdbClient> logger)
     {
         _httpClient = httpClient;
         _rateLimiter = rateLimiter;
-        _apiKey = configuration["Video:Enrichment:TmdbApiKey"];
+        _settingsProvider = settingsProvider;
         _logger = logger;
-
-        if (string.IsNullOrWhiteSpace(_apiKey))
-            _logger.LogInformation("TMDB API key is not configured (Video:Enrichment:TmdbApiKey). TMDB enrichment is disabled.");
     }
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<TmdbMovieSearchResult>?> SearchMovieAsync(string title, int? year = null, CancellationToken cancellationToken = default)
     {
-        if (_apiKey is null)
+        var apiKey = await GetApiKeyAsync(cancellationToken);
+        if (apiKey is null)
             return null;
 
         var query = Uri.EscapeDataString(title);
-        var url = $"search/movie?api_key={_apiKey}&query={query}&language=en-US";
+        var url = $"search/movie?api_key={apiKey}&query={query}&language=en-US";
         if (year.HasValue)
             url += $"&year={year.Value}";
 
-        var response = await GetJsonAsync<TmdbSearchResponse>(url, cancellationToken);
+        var response = await GetJsonAsync<TmdbSearchResponse<TmdbMovieSearchResult>>(url, cancellationToken);
         return response?.Results;
     }
 
     /// <inheritdoc />
     public async Task<TmdbMovieDetail?> GetMovieAsync(int tmdbId, CancellationToken cancellationToken = default)
     {
-        if (_apiKey is null)
+        var apiKey = await GetApiKeyAsync(cancellationToken);
+        if (apiKey is null)
             return null;
 
-        var url = $"movie/{tmdbId}?api_key={_apiKey}&language=en-US";
+        var url = $"movie/{tmdbId}?api_key={apiKey}&language=en-US";
         return await GetJsonAsync<TmdbMovieDetail>(url, cancellationToken);
     }
 
@@ -121,12 +119,90 @@ public sealed class TmdbClient : ITmdbClient
         }
     }
 
+    // ─── TV Series Endpoints ─────────────────────────────────────────
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<TmdbTvSeriesSearchResult>?> SearchTvSeriesAsync(string query, CancellationToken cancellationToken = default)
+    {
+        var apiKey = await GetApiKeyAsync(cancellationToken);
+        if (apiKey is null)
+            return null;
+
+        var encoded = Uri.EscapeDataString(query);
+        var url = $"search/tv?api_key={apiKey}&query={encoded}&language=en-US";
+        var response = await GetJsonAsync<TmdbSearchResponse<TmdbTvSeriesSearchResult>>(url, cancellationToken);
+        return response?.Results;
+    }
+
+    /// <inheritdoc />
+    public async Task<TmdbTvSeriesDetail?> GetTvSeriesAsync(int tmdbId, CancellationToken cancellationToken = default)
+    {
+        var apiKey = await GetApiKeyAsync(cancellationToken);
+        if (apiKey is null)
+            return null;
+
+        var url = $"tv/{tmdbId}?api_key={apiKey}&language=en-US";
+        return await GetJsonAsync<TmdbTvSeriesDetail>(url, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<TmdbTvSeasonDetail?> GetTvSeasonAsync(int seriesTmdbId, int seasonNumber, CancellationToken cancellationToken = default)
+    {
+        var apiKey = await GetApiKeyAsync(cancellationToken);
+        if (apiKey is null)
+            return null;
+
+        var url = $"tv/{seriesTmdbId}/season/{seasonNumber}?api_key={apiKey}&language=en-US";
+        return await GetJsonAsync<TmdbTvSeasonDetail>(url, cancellationToken);
+    }
+
+    // ─── Collection (Franchise) Endpoints ────────────────────────────
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<TmdbCollectionSearchResult>?> SearchCollectionAsync(string query, CancellationToken cancellationToken = default)
+    {
+        var apiKey = await GetApiKeyAsync(cancellationToken);
+        if (apiKey is null)
+            return null;
+
+        var encoded = Uri.EscapeDataString(query);
+        var url = $"search/collection?api_key={apiKey}&query={encoded}&language=en-US";
+        var response = await GetJsonAsync<TmdbSearchResponse<TmdbCollectionSearchResult>>(url, cancellationToken);
+        return response?.Results;
+    }
+
+    /// <inheritdoc />
+    public async Task<TmdbCollectionDetail?> GetCollectionAsync(int collectionId, CancellationToken cancellationToken = default)
+    {
+        var apiKey = await GetApiKeyAsync(cancellationToken);
+        if (apiKey is null)
+            return null;
+
+        var url = $"collection/{collectionId}?api_key={apiKey}&language=en-US";
+        return await GetJsonAsync<TmdbCollectionDetail>(url, cancellationToken);
+    }
+
     /// <summary>
-    /// Internal model for TMDB search response wrapper.
+    /// Gets the TMDB API key from the settings provider (DB with file fallback).
+    /// Returns null if not configured.
     /// </summary>
-    private sealed class TmdbSearchResponse
+    private async Task<string?> GetApiKeyAsync(CancellationToken cancellationToken)
+    {
+        var key = await _settingsProvider.GetTmdbApiKeyAsync(cancellationToken);
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            _logger.LogInformation("TMDB API key is not configured. TMDB enrichment is disabled.");
+            return null;
+        }
+        return key;
+    }
+
+    /// <summary>
+    /// Generic internal model for TMDB search response wrapper.
+    /// </summary>
+    private sealed class TmdbSearchResponse<T>
     {
         [JsonPropertyName("results")]
-        public List<TmdbMovieSearchResult> Results { get; set; } = [];
+        public List<T> Results { get; set; } = [];
     }
 }

@@ -17,6 +17,7 @@ public class VideoIndexingCallbackTests
     private VideoDbContext _db = null!;
     private VideoService _videoService = null!;
     private Mock<IVideoCollectionService> _collectionServiceMock = null!;
+    private Mock<IVideoSeriesService> _seriesServiceMock = null!;
     private VideoIndexingCallback _callback = null!;
 
     [TestInitialize]
@@ -37,7 +38,8 @@ public class VideoIndexingCallbackTests
         _collectionServiceMock
             .Setup(x => x.AddVideoAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
-        _callback = new VideoIndexingCallback(_videoService, _collectionServiceMock.Object, _db, Mock.Of<IServiceScopeFactory>(), Mock.Of<IConfiguration>(), Mock.Of<ILogger<VideoIndexingCallback>>());
+        _seriesServiceMock = new Mock<IVideoSeriesService>();
+        _callback = new VideoIndexingCallback(_videoService, _collectionServiceMock.Object, _seriesServiceMock.Object, _db, Mock.Of<IServiceScopeFactory>(), Mock.Of<IConfiguration>(), Mock.Of<ILogger<VideoIndexingCallback>>());
     }
 
     [TestCleanup]

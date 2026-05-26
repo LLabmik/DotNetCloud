@@ -115,6 +115,257 @@ public sealed record UpdateVideoCollectionDto
     public string? Description { get; init; }
 }
 
+// ── Video Series DTOs ───────────────────────────────────────────────
+
+/// <summary>
+/// Represents a video series (TV series or movie franchise).
+/// </summary>
+public sealed record VideoSeriesDto
+{
+    /// <summary>Unique identifier for this series.</summary>
+    public required Guid Id { get; init; }
+
+    /// <summary>Series name.</summary>
+    public required string Name { get; init; }
+
+    /// <summary>Optional description.</summary>
+    public string? Description { get; init; }
+
+    /// <summary>Series type (MovieFranchise or TvSeries).</summary>
+    public required string Type { get; init; }
+
+    /// <summary>Release or start year.</summary>
+    public int? Year { get; init; }
+
+    /// <summary>Average vote from TMDB (0-10).</summary>
+    public double? TmdbRating { get; init; }
+
+    /// <summary>Comma-separated genres.</summary>
+    public string? Genres { get; init; }
+
+    /// <summary>Series status (e.g. "Ended", "Returning Series", "Released").</summary>
+    public string? Status { get; init; }
+
+    /// <summary>Number of seasons (for TV series).</summary>
+    public int TotalSeasons { get; init; }
+
+    /// <summary>Total number of episodes across all seasons.</summary>
+    public int TotalEpisodes { get; init; }
+
+    /// <summary>Whether an external poster (TMDB) is available.</summary>
+    public bool HasExternalPoster { get; init; }
+
+    /// <summary>When the series was created (UTC).</summary>
+    public required DateTime CreatedAt { get; init; }
+
+    /// <summary>When the series was last modified (UTC).</summary>
+    public required DateTime UpdatedAt { get; init; }
+}
+
+/// <summary>
+/// Request to create a new video series.
+/// </summary>
+public sealed record CreateVideoSeriesDto
+{
+    /// <summary>Series name.</summary>
+    public required string Name { get; init; }
+
+    /// <summary>Optional description.</summary>
+    public string? Description { get; init; }
+
+    /// <summary>Series type. Defaults to TvSeries if not specified.</summary>
+    public string? Type { get; init; }
+
+    /// <summary>Release or start year.</summary>
+    public int? Year { get; init; }
+}
+
+/// <summary>
+/// Request to update a video series.
+/// </summary>
+public sealed record UpdateVideoSeriesDto
+{
+    /// <summary>Updated name.</summary>
+    public string? Name { get; init; }
+
+    /// <summary>Updated description.</summary>
+    public string? Description { get; init; }
+
+    /// <summary>Updated series type.</summary>
+    public string? Type { get; init; }
+
+    /// <summary>Updated release or start year.</summary>
+    public int? Year { get; init; }
+}
+
+// ── Video Season DTOs ───────────────────────────────────────────────
+
+/// <summary>
+/// Represents a season within a TV series.
+/// </summary>
+public sealed record VideoSeasonDto
+{
+    /// <summary>Unique identifier for this season.</summary>
+    public required Guid Id { get; init; }
+
+    /// <summary>The series this season belongs to.</summary>
+    public required Guid SeriesId { get; init; }
+
+    /// <summary>Season number (1-based).</summary>
+    public required int SeasonNumber { get; init; }
+
+    /// <summary>Season name (e.g. "Season 1").</summary>
+    public string? Name { get; init; }
+
+    /// <summary>Optional overview.</summary>
+    public string? Overview { get; init; }
+
+    /// <summary>Number of episodes in this season.</summary>
+    public int EpisodeCount { get; init; }
+
+    /// <summary>Whether an external poster (TMDB) is available.</summary>
+    public bool HasExternalPoster { get; init; }
+
+    /// <summary>Original air date.</summary>
+    public DateTime? AirDate { get; init; }
+
+    /// <summary>When the season was created (UTC).</summary>
+    public required DateTime CreatedAt { get; init; }
+}
+
+/// <summary>
+/// Request to create a new season within a TV series.
+/// </summary>
+public sealed record CreateVideoSeasonDto
+{
+    /// <summary>The series ID this season belongs to.</summary>
+    public required Guid SeriesId { get; init; }
+
+    /// <summary>Season number (1-based).</summary>
+    public required int SeasonNumber { get; init; }
+
+    /// <summary>Season name.</summary>
+    public string? Name { get; init; }
+
+    /// <summary>Optional overview.</summary>
+    public string? Overview { get; init; }
+}
+
+/// <summary>
+/// Request to update a season.
+/// </summary>
+public sealed record UpdateVideoSeasonDto
+{
+    /// <summary>Updated season number.</summary>
+    public int? SeasonNumber { get; init; }
+
+    /// <summary>Updated name.</summary>
+    public string? Name { get; init; }
+
+    /// <summary>Updated overview.</summary>
+    public string? Overview { get; init; }
+}
+
+// ── Video Series Item DTOs ──────────────────────────────────────────
+
+/// <summary>
+/// Represents a video item in a movie franchise series.
+/// </summary>
+public sealed record VideoSeriesItemDto
+{
+    /// <summary>Unique identifier.</summary>
+    public required Guid Id { get; init; }
+
+    /// <summary>The series this item belongs to.</summary>
+    public required Guid SeriesId { get; init; }
+
+    /// <summary>The video in this slot.</summary>
+    public required Guid VideoId { get; init; }
+
+    /// <summary>Sort order within the series.</summary>
+    public int SortOrder { get; init; }
+
+    /// <summary>Optional episode title (e.g. "Episode IV – A New Hope").</summary>
+    public string? EpisodeTitle { get; init; }
+
+    /// <summary>Nested video details.</summary>
+    public VideoDto? Video { get; init; }
+}
+
+/// <summary>
+/// Request to add a video to a movie franchise series.
+/// </summary>
+public sealed record AddVideoToSeriesDto
+{
+    /// <summary>The video ID to add.</summary>
+    public required Guid VideoId { get; init; }
+
+    /// <summary>Optional sort order. Auto-appended if not specified.</summary>
+    public int? SortOrder { get; init; }
+
+    /// <summary>Optional episode title.</summary>
+    public string? EpisodeTitle { get; init; }
+}
+
+// ── Video Episode DTOs ──────────────────────────────────────────────
+
+/// <summary>
+/// Represents an episode in a TV series season.
+/// </summary>
+public sealed record VideoEpisodeDto
+{
+    /// <summary>Unique identifier.</summary>
+    public required Guid Id { get; init; }
+
+    /// <summary>The season this episode belongs to.</summary>
+    public required Guid SeasonId { get; init; }
+
+    /// <summary>The video for this episode.</summary>
+    public required Guid VideoId { get; init; }
+
+    /// <summary>Episode number within the season.</summary>
+    public required int EpisodeNumber { get; init; }
+
+    /// <summary>Episode title.</summary>
+    public string? Title { get; init; }
+
+    /// <summary>Episode overview.</summary>
+    public string? Overview { get; init; }
+
+    /// <summary>Sort order within the season.</summary>
+    public int SortOrder { get; init; }
+
+    /// <summary>Nested video details.</summary>
+    public VideoDto? Video { get; init; }
+}
+
+/// <summary>
+/// Request to add a video as an episode to a season.
+/// </summary>
+public sealed record AddEpisodeDto
+{
+    /// <summary>The video ID to add as an episode.</summary>
+    public required Guid VideoId { get; init; }
+
+    /// <summary>Episode number within the season.</summary>
+    public required int EpisodeNumber { get; init; }
+
+    /// <summary>Optional episode title.</summary>
+    public string? Title { get; init; }
+
+    /// <summary>Optional episode overview.</summary>
+    public string? Overview { get; init; }
+}
+
+/// <summary>
+/// Request to reorder items within a series or season.
+/// </summary>
+public sealed record ReorderRequestDto
+{
+    /// <summary>New sort order value.</summary>
+    public required int NewSortOrder { get; init; }
+}
+
 // ── Subtitle DTOs ───────────────────────────────────────────────────
 
 /// <summary>

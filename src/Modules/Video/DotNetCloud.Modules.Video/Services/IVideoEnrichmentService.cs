@@ -4,7 +4,7 @@ using DotNetCloud.Core.DTOs;
 namespace DotNetCloud.Modules.Video.Services;
 
 /// <summary>
-/// Orchestrates TMDB movie metadata and poster art enrichment for videos.
+/// Orchestrates TMDB movie metadata and poster art enrichment for videos and series.
 /// </summary>
 public interface IVideoEnrichmentService
 {
@@ -19,4 +19,7 @@ public interface IVideoEnrichmentService
 
     /// <summary>Batch-enriches all unenriched videos for a user.</summary>
     Task EnrichAllAsync(Guid ownerId, IProgress<EnrichmentProgress>? progress = null, CancellationToken cancellationToken = default);
+
+    /// <summary>Enriches a series with TMDB metadata (TV series or movie collection).</summary>
+    Task EnrichSeriesAsync(Guid seriesId, CallerContext caller, bool force = false, CancellationToken cancellationToken = default);
 }

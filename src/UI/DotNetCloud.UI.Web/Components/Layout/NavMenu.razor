@@ -135,6 +135,16 @@
                             </NavLink>
                         </li>
                         <li class="nav-item">
+                            <NavLink href="/admin/video" Match="NavLinkMatch.Prefix" class="nav-link" title="Video Settings"
+                                     aria-label="Video Settings">
+                                <span class="nav-icon">🎬</span>
+                                @if (!Collapsed)
+                                {
+                                    <span class="nav-text">Video</span>
+                                }
+                            </NavLink>
+                        </li>
+                        <li class="nav-item">
                             <NavLink href="/admin/updates" Match="NavLinkMatch.Prefix" class="nav-link" title="Updates"
                                      aria-label="Updates">
                                 <span class="nav-icon">⬆</span>

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 using DotNetCloud.Modules.Video.Services;
@@ -110,24 +111,70 @@ internal sealed class VideoEnrichmentBackgroundService : BackgroundService
     {
         using var scope = _scopeFactory.CreateScope();
         var enrichmentService = scope.ServiceProvider.GetRequiredService<IVideoEnrichmentService>();
+        var scanProgress = scope.ServiceProvider.GetRequiredService<VideoScanProgressState>();
 
-        var progress = new Progress<Core.DTOs.EnrichmentProgress>(report =>
+        // Mark enrichment as in-progress
+        var elapsedStopwatch = System.Diagnostics.Stopwatch.StartNew();
+        scanProgress.UpdateProgress(job.OwnerId, new DotNetCloud.Core.DTOs.LibraryScanProgress
+        {
+            Phase = "Enriching videos from TMDB…",
+            TotalFiles = job.TotalFiles,
+            TracksAdded = job.VideosAdded,
+            TracksSkipped = job.VideosSkipped,
+            TracksFailed = job.VideosFailed,
+            TracksRemoved = job.VideosRemoved,
+            ElapsedTime = elapsedStopwatch.Elapsed
+        });
+
+        var enrichmentProgress = new Progress<Core.DTOs.EnrichmentProgress>(report =>
         {
             _logger.LogDebug("Video enrichment [{Phase}] {Current}/{Total}: {Item}",
                 report.Phase, report.Current, report.Total, report.CurrentItem);
+
+            scanProgress.UpdateProgress(job.OwnerId, new DotNetCloud.Core.DTOs.LibraryScanProgress
+            {
+                Phase = report.Phase,
+                CurrentFile = report.CurrentItem,
+                FilesProcessed = report.Current,
+                TotalFiles = report.Total,
+                TracksAdded = job.VideosAdded,
+                TracksSkipped = job.VideosSkipped,
+                TracksFailed = job.VideosFailed,
+                TracksRemoved = job.VideosRemoved,
+                AlbumArtFetched = report.AlbumArtFound,
+                AlbumArtRemaining = report.AlbumArtRemaining,
+                PercentComplete = report.Total > 0 ? (int)((double)report.Current / report.Total * 100) : 0,
+                ElapsedTime = elapsedStopwatch.Elapsed
+            });
         });
 
         try
         {
             if (job.FetchPosters)
-                await enrichmentService.EnrichVideosWithoutPosterAsync(job.OwnerId, progress, stoppingToken);
+                await enrichmentService.EnrichVideosWithoutPosterAsync(job.OwnerId, enrichmentProgress, stoppingToken);
 
             if (job.FetchMetadata)
-                await enrichmentService.EnrichAllAsync(job.OwnerId, progress, stoppingToken);
+                await enrichmentService.EnrichAllAsync(job.OwnerId, enrichmentProgress, stoppingToken);
+
+            scanProgress.UpdateProgress(job.OwnerId, new DotNetCloud.Core.DTOs.LibraryScanProgress
+            {
+                Phase = "Enrichment complete",
+                TracksAdded = job.VideosAdded,
+                TracksSkipped = job.VideosSkipped,
+                TracksFailed = job.VideosFailed,
+                TracksRemoved = job.VideosRemoved,
+                AlbumArtFetched = enrichmentProgress is not null ? 0 : 0,
+                PercentComplete = 100,
+                ElapsedTime = elapsedStopwatch.Elapsed
+            });
         }
         catch (OperationCanceledException)
         {
             _logger.LogInformation("Background video enrichment cancelled for user {UserId}", job.OwnerId);
+        }
+        finally
+        {
+            scanProgress.CompleteScan(job.OwnerId);
         }
     }
 }

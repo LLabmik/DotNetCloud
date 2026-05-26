@@ -266,6 +266,52 @@ namespace DotNetCloud.Modules.Video.Data.SqlServer.Migrations
                     b.ToTable("VideoCollectionItems", "video");
                 });
 
+            modelBuilder.Entity("DotNetCloud.Modules.Video.Models.VideoEpisode", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("AddedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<int>("EpisodeNumber")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Overview")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<Guid>("SeasonId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Title")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid>("VideoId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SeasonId")
+                        .HasDatabaseName("ix_video_episodes_season_id");
+
+                    b.HasIndex("VideoId")
+                        .HasDatabaseName("ix_video_episodes_video_id");
+
+                    b.HasIndex("SeasonId", "VideoId")
+                        .IsUnique()
+                        .HasDatabaseName("uq_video_episodes_season_video");
+
+                    b.ToTable("VideoEpisodes", "video");
+                });
+
             modelBuilder.Entity("DotNetCloud.Modules.Video.Models.VideoMetadata", b =>
                 {
                     b.Property<Guid>("Id")
@@ -317,6 +363,199 @@ namespace DotNetCloud.Modules.Video.Data.SqlServer.Migrations
                         .HasDatabaseName("uq_video_metadata_video_id");
 
                     b.ToTable("VideoMetadata", "video");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Video.Models.VideoSeason", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("AirDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("EpisodeCount")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("HasExternalPoster")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("Overview")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<int>("SeasonNumber")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("SeriesId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte[]>("ThumbnailPoster")
+                        .HasColumnType("varbinary(max)");
+
+                    b.Property<int?>("TmdbId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SeriesId")
+                        .HasDatabaseName("ix_video_seasons_series_id");
+
+                    b.HasIndex("SeriesId", "SeasonNumber")
+                        .IsUnique()
+                        .HasDatabaseName("uq_video_seasons_series_season_number");
+
+                    b.ToTable("VideoSeasons", "video");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Video.Models.VideoSeries", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<string>("ExternalPosterPath")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Genres")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<bool>("HasExternalPoster")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<Guid>("OwnerId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Status")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<byte[]>("ThumbnailPoster")
+                        .HasColumnType("varbinary(max)");
+
+                    b.Property<int?>("TmdbId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("TmdbName")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("TmdbOverview")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<double?>("TmdbRating")
+                        .HasColumnType("float");
+
+                    b.Property<int>("TotalEpisodes")
+                        .HasColumnType("int");
+
+                    b.Property<int>("TotalSeasons")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<int?>("Year")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .HasDatabaseName("ix_video_series_name");
+
+                    b.HasIndex("OwnerId")
+                        .HasDatabaseName("ix_video_series_owner_id");
+
+                    b.HasIndex("TmdbId")
+                        .HasDatabaseName("ix_video_series_tmdb_id");
+
+                    b.ToTable("VideoSeries", "video");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Video.Models.VideoSeriesItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("AddedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("EpisodeTitle")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid>("SeriesId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("VideoId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SeriesId")
+                        .HasDatabaseName("ix_video_series_items_series_id");
+
+                    b.HasIndex("VideoId")
+                        .HasDatabaseName("ix_video_series_items_video_id");
+
+                    b.HasIndex("SeriesId", "VideoId")
+                        .IsUnique()
+                        .HasDatabaseName("uq_video_series_items_series_video");
+
+                    b.ToTable("VideoSeriesItems", "video");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Video.Models.VideoShare", b =>
@@ -469,6 +708,25 @@ namespace DotNetCloud.Modules.Video.Data.SqlServer.Migrations
                     b.Navigation("Video");
                 });
 
+            modelBuilder.Entity("DotNetCloud.Modules.Video.Models.VideoEpisode", b =>
+                {
+                    b.HasOne("DotNetCloud.Modules.Video.Models.VideoSeason", "Season")
+                        .WithMany("Episodes")
+                        .HasForeignKey("SeasonId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("DotNetCloud.Modules.Video.Models.Video", "Video")
+                        .WithMany()
+                        .HasForeignKey("VideoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Season");
+
+                    b.Navigation("Video");
+                });
+
             modelBuilder.Entity("DotNetCloud.Modules.Video.Models.VideoMetadata", b =>
                 {
                     b.HasOne("DotNetCloud.Modules.Video.Models.Video", "Video")
@@ -476,6 +734,36 @@ namespace DotNetCloud.Modules.Video.Data.SqlServer.Migrations
                         .HasForeignKey("DotNetCloud.Modules.Video.Models.VideoMetadata", "VideoId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("Video");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Video.Models.VideoSeason", b =>
+                {
+                    b.HasOne("DotNetCloud.Modules.Video.Models.VideoSeries", "Series")
+                        .WithMany("Seasons")
+                        .HasForeignKey("SeriesId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Series");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Video.Models.VideoSeriesItem", b =>
+                {
+                    b.HasOne("DotNetCloud.Modules.Video.Models.VideoSeries", "Series")
+                        .WithMany("Items")
+                        .HasForeignKey("SeriesId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("DotNetCloud.Modules.Video.Models.Video", "Video")
+                        .WithMany()
+                        .HasForeignKey("VideoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Series");
 
                     b.Navigation("Video");
                 });
@@ -531,6 +819,18 @@ namespace DotNetCloud.Modules.Video.Data.SqlServer.Migrations
             modelBuilder.Entity("DotNetCloud.Modules.Video.Models.VideoCollection", b =>
                 {
                     b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Video.Models.VideoSeason", b =>
+                {
+                    b.Navigation("Episodes");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Video.Models.VideoSeries", b =>
+                {
+                    b.Navigation("Items");
+
+                    b.Navigation("Seasons");
                 });
 #pragma warning restore 612, 618
         }

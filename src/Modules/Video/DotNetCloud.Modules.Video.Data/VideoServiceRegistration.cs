@@ -32,6 +32,10 @@ public static class VideoServiceRegistration
         services.AddScoped<IVideoMetadataService>(sp => sp.GetRequiredService<VideoMetadataService>());
         services.AddScoped<VideoStreamingService>();
         services.AddScoped<IVideoStreamingService>(sp => sp.GetRequiredService<VideoStreamingService>());
+        services.AddScoped<VideoSeriesService>();
+        services.AddScoped<IVideoSeriesService>(sp => sp.GetRequiredService<VideoSeriesService>());
+        services.AddScoped<VideoSettingsProvider>();
+        services.AddScoped<IVideoSettingsProvider>(sp => sp.GetRequiredService<VideoSettingsProvider>());
 
         // Thumbnail service (FFmpeg + ImageSharp)
         services.AddScoped<VideoThumbnailService>();
@@ -55,6 +59,9 @@ public static class VideoServiceRegistration
         services.AddSingleton<InMemoryVideoEnrichmentBackgroundQueue>();
         services.AddSingleton<IVideoEnrichmentBackgroundQueue>(sp => sp.GetRequiredService<InMemoryVideoEnrichmentBackgroundQueue>());
         services.AddHostedService<VideoEnrichmentBackgroundService>();
+
+        // Scan progress state (singleton — shared across all video page sessions)
+        services.AddSingleton<VideoScanProgressState>();
 
         // Indexing callback (bridges Module → Data for FileUploadedEvent handling)
         services.AddScoped<IVideoIndexingCallback, VideoIndexingCallback>();

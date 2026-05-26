@@ -1,0 +1,74 @@
+@page "/admin/video"
+@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveAutoRenderMode(prerender: false))
+@attribute [Authorize(Policy = "RequireAdmin")]
+@using DotNetCloud.Core.DTOs
+
+<PageTitle>Video Settings - DotNetCloud</PageTitle>
+
+<div class="page-header">
+    <h1>Video Module Settings</h1>
+    <div class="page-header-actions">
+        <a href="/admin/settings?module=dotnetcloud.video" class="btn btn-outline btn-sm">All Video Settings</a>
+    </div>
+</div>
+
+<p class="text-muted">
+    Configure metadata enrichment for movies and TV series.
+</p>
+
+@if (_loading)
+{
+    <LoadingIndicator Message="Loading video settings..." />
+}
+else
+{
+    <div class="settings-section">
+        <h3>TMDB Enrichment</h3>
+        <p class="settings-description">
+            The Movie Database (TMDB) provides metadata for movies and TV series including
+            overviews, ratings, genres, posters, and episode information. Get a free API key at
+            <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noopener">themoviedb.org/settings/api</a>.
+        </p>
+
+        <div class="form-group">
+            <label for="tmdb-api-key">TMDB API Key</label>
+            <input id="tmdb-api-key"
+                   type="password"
+                   class="form-control"
+                   placeholder="Enter your TMDB API key"
+                   @bind="_tmdbApiKey" />
+            <small class="form-text text-muted">
+                Required for automatic metadata enrichment of movies and TV series.
+            </small>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(_tmdbApiKey))
+        {
+            <div class="form-group">
+                <label>Coverage</label>
+                <ul class="coverage-list">
+                    <li>🎬 Movie metadata (titles, overviews, ratings, genres, release dates)</li>
+                    <li>📺 TV series metadata (seasons, episodes, status, ratings)</li>
+                    <li>🎥 Movie franchise collections (Star Wars, LOTR, etc.)</li>
+                    <li>🖼 Poster art for movies, series, and seasons</li>
+                </ul>
+            </div>
+        }
+
+        @if (!string.IsNullOrEmpty(_errorMessage))
+        {
+            <div class="alert alert-danger" role="alert">@_errorMessage</div>
+        }
+
+        @if (_isSaved)
+        {
+            <div class="alert alert-success" role="alert">Settings saved successfully.</div>
+        }
+
+        <div class="form-actions">
+            <button type="button" class="btn btn-primary" @onclick="SaveSettings" disabled="@_isSaving">
+                @(_isSaving ? "Saving..." : "Save Settings")
+            </button>
+        </div>
+    </div>
+}

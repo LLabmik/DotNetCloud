@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Modules.Video.Events;
 using DotNetCloud.Modules.Video.Services;
@@ -5,7 +6,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using System.Collections.Generic;
 
 namespace DotNetCloud.Modules.Video.Data.Services;
 
@@ -17,18 +17,28 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
 {
     private readonly VideoService _videoService;
     private readonly IVideoCollectionService _collectionService;
+    private readonly IVideoSeriesService _seriesService;
     private readonly VideoDbContext _db;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IConfiguration _configuration;
     private readonly ILogger<VideoIndexingCallback> _logger;
 
+    private static readonly Regex TvSeriesPattern = new(
+        @"^(.+?)[._\s]+[Ss](\d{1,2})[Ee](\d{1,3})",
+        RegexOptions.Compiled);
+
+    private static readonly Regex SeasonFolderPattern = new(
+        @"[Ss]eason[\s._]*(\d{1,2})",
+        RegexOptions.Compiled);
+
     /// <summary>
     /// Initializes a new instance of the <see cref="VideoIndexingCallback"/> class.
     /// </summary>
-    public VideoIndexingCallback(VideoService videoService, IVideoCollectionService collectionService, VideoDbContext db, IServiceScopeFactory scopeFactory, IConfiguration configuration, ILogger<VideoIndexingCallback> logger)
+    public VideoIndexingCallback(VideoService videoService, IVideoCollectionService collectionService, IVideoSeriesService seriesService, VideoDbContext db, IServiceScopeFactory scopeFactory, IConfiguration configuration, ILogger<VideoIndexingCallback> logger)
     {
         _videoService = videoService;
         _collectionService = collectionService;
+        _seriesService = seriesService;
         _db = db;
         _scopeFactory = scopeFactory;
         _configuration = configuration;
@@ -61,6 +71,13 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
                     "Failed to assign video {VideoId} to source collection '{SourceName}'",
                     video.Id, sourceName);
             }
+        }
+
+        // ── Series auto-detection ──
+        // Detect TV series patterns from file path and assign the video to a series/season.
+        if (!string.IsNullOrWhiteSpace(storagePath) || !string.IsNullOrWhiteSpace(fileName))
+        {
+            await AutoDetectSeriesAsync(video.Id, storagePath ?? fileName, caller, cancellationToken);
         }
 
         // TMDB enrichment (fire-and-forget — network-dependent, graceful failure).
@@ -261,5 +278,122 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
             videos.Count, ownerId);
 
         return videos.Count;
+    }
+
+    /// <summary>
+    /// Attempts to auto-detect a TV series and season from the video's storage path or filename,
+    /// and assigns the video to the detected series/season.
+    /// </summary>
+    private async Task AutoDetectSeriesAsync(Guid videoId, string path, CallerContext caller, CancellationToken cancellationToken)
+    {
+        try
+        {
+            // Normalize path separators
+            var normalizedPath = path.Replace('\\', '/');
+            var fileName = System.IO.Path.GetFileNameWithoutExtension(normalizedPath);
+
+            // Try filename pattern: "Series.Name.S01E01.ext"
+            var tvMatch = TvSeriesPattern.Match(fileName);
+            if (!tvMatch.Success)
+            {
+                // Try subfolder pattern: look for "Season 01" or "S01" in the path
+                var segments = normalizedPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+                for (var i = 1; i < segments.Length; i++)
+                {
+                    var folderSeason = SeasonFolderPattern.Match(segments[i]);
+                    if (folderSeason.Success && i > 0)
+                    {
+                        // The parent folder is the series name
+                        var seriesName = CleanSeriesName(segments[i - 1]);
+                        var seasonNumber = int.Parse(folderSeason.Groups[1].Value);
+
+                        var series = await _seriesService.FindOrCreateByNameAsync(seriesName, "TvSeries", caller, cancellationToken);
+                        var season = await _seriesService.FindOrCreateSeasonAsync(Guid.Parse(series.Id.ToString()), seasonNumber, null, caller, cancellationToken);
+
+                        // Add as episode without a specific episode number from the folder pattern
+                        await _seriesService.AddEpisodeAsync(
+                            Guid.Parse(season.Id.ToString()), videoId, 0, null, null, caller, cancellationToken);
+
+                        _logger.LogInformation(
+                            "Video {VideoId} auto-assigned to series '{SeriesName}', season {SeasonNumber}",
+                            videoId, seriesName, seasonNumber);
+                        return;
+                    }
+                }
+
+                // ── Movie franchise fallback: if the video is in a subfolder, use parent folder name ──
+                if (segments.Length >= 2)
+                {
+                    // The file is at least one level deep — use the immediate parent folder as franchise name
+                    // Skip library root folders (e.g., "Movies", "Videos", "_DotNetCloud")
+                    var parentFolder = segments[^2];
+                    var folderNameLower = parentFolder.ToLowerInvariant();
+
+                    // Don't treat generic folders as franchise names
+                    var genericFolders = new HashSet<string> { "movies", "videos", "video", "films", "library", "media", "content", "_dotnetcloud", "files" };
+                    if (!genericFolders.Contains(folderNameLower))
+                    {
+                        var franchiseName = CleanSeriesName(parentFolder);
+
+                        var series = await _seriesService.FindOrCreateByNameAsync(franchiseName, "MovieFranchise", caller, cancellationToken);
+
+                        // Check if already in series
+                        var alreadyInSeries = await _db.VideoSeriesItems
+                            .AnyAsync(i => i.SeriesId == Guid.Parse(series.Id.ToString()) && i.VideoId == videoId, cancellationToken);
+
+                        if (!alreadyInSeries)
+                        {
+                            // Get the next sort order
+                            var maxOrder = await _db.VideoSeriesItems
+                                .Where(i => i.SeriesId == Guid.Parse(series.Id.ToString()))
+                                .MaxAsync(i => (int?)i.SortOrder, cancellationToken) ?? -1;
+
+                            await _seriesService.AddVideoToSeriesAsync(
+                                Guid.Parse(series.Id.ToString()), videoId, maxOrder + 1, null, caller, cancellationToken);
+
+                            _logger.LogInformation(
+                                "Video {VideoId} auto-assigned to movie franchise '{FranchiseName}' (folder-based)",
+                                videoId, franchiseName);
+                        }
+                        return;
+                    }
+                }
+                return;
+            }
+
+            // Extract series name, season, and episode
+            var rawSeriesName = tvMatch.Groups[1].Value;
+            var seasonNum = int.Parse(tvMatch.Groups[2].Value);
+            var episodeNum = int.Parse(tvMatch.Groups[3].Value);
+            var seriesNameClean = CleanSeriesName(rawSeriesName);
+
+            // Find or create the series (default to TvSeries type)
+            var seriesDto = await _seriesService.FindOrCreateByNameAsync(seriesNameClean, "TvSeries", caller, cancellationToken);
+
+            // Find or create the season
+            var seasonDto = await _seriesService.FindOrCreateSeasonAsync(
+                Guid.Parse(seriesDto.Id.ToString()), seasonNum, null, caller, cancellationToken);
+
+            // Add the video as an episode
+            await _seriesService.AddEpisodeAsync(
+                Guid.Parse(seasonDto.Id.ToString()), videoId, episodeNum, null, null, caller, cancellationToken);
+
+            _logger.LogInformation(
+                "Video {VideoId} auto-assigned to series '{SeriesName}', season {SeasonNumber}, episode {EpisodeNumber}",
+                videoId, seriesNameClean, seasonNum, episodeNum);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Series auto-detection failed for video {VideoId}", videoId);
+        }
+    }
+
+    /// <summary>
+    /// Cleans a raw series name extracted from a filename by replacing separators and collapsing whitespace.
+    /// </summary>
+    private static string CleanSeriesName(string raw)
+    {
+        return System.Text.RegularExpressions.Regex.Replace(
+            raw.Replace('.', ' ').Replace('_', ' ').Replace('-', ' ').Trim(), @"\s+", " ");
     }
 }

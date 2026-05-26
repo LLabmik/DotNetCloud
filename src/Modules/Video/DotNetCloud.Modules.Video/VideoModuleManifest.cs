@@ -1,5 +1,6 @@
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Modules;
+using DotNetCloud.Modules.Video.Events;
 
 namespace DotNetCloud.Modules.Video;
 
@@ -32,7 +33,10 @@ public sealed class VideoModuleManifest : IModuleManifest
     {
         nameof(VideoAddedEvent),
         nameof(VideoDeletedEvent),
-        nameof(VideoWatchedEvent)
+        nameof(VideoWatchedEvent),
+        nameof(VideoSeriesCreatedEvent),
+        nameof(VideoSeriesDeletedEvent),
+        nameof(VideoAddedToSeriesEvent)
     };
 
     /// <inheritdoc />

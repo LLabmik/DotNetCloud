@@ -21,6 +21,8 @@
 @inject Microsoft.Extensions.Logging.ILogger<VideoPage> Logger
 @inject IVideoEnrichmentService EnrichmentService
 @inject IVideoEnrichmentBackgroundQueue EnrichmentBackgroundQueue
+@inject IVideoSeriesService SeriesService
+@inject VideoScanProgressState ScanProgress
 
 <div class="video-layout">
     @* ─── Sidebar ─── *@
@@ -51,6 +53,14 @@
                 @if (!_sidebarCollapsed)
                 {
                     <span class="video-nav-text">Library</span>
+                }
+            </button>
+            <button class="video-nav-item @(_section == Section.Series ? "active" : "")"
+                    @onclick="() => SwitchSection(Section.Series)" title="Series">
+                <span class="nav-icon">📺</span>
+                @if (!_sidebarCollapsed)
+                {
+                    <span class="video-nav-text">Series</span>
                 }
             </button>
             <button class="video-nav-item @(_section == Section.Collections ? "active" : "")"
@@ -335,6 +345,21 @@
                         </div>
                     </div>
 
+                    @if (_totalCollectionVideos > CollectionVideoPageSize)
+                    {
+                        <div class="videos-toolbar">
+                            <button class="btn-icon" @onclick="PrevCollectionVideoPageAsync" disabled="@(_collectionVideoPage == 0)" title="Previous page">
+                                <span>◀</span>
+                            </button>
+                            <div class="videos-page-info">
+                                <span>Showing @(_collectionVideos.Count == 0 ? 0 : _collectionVideoPage * CollectionVideoPageSize + 1)-@(_collectionVideoPage * CollectionVideoPageSize + _collectionVideos.Count) of @_totalCollectionVideos videos</span>
+                            </div>
+                            <button class="btn-icon" @onclick="NextCollectionVideoPageAsync" disabled="@(!_hasMoreCollectionVideos)" title="Next page">
+                                <span>▶</span>
+                            </button>
+                        </div>
+                    }
+
                     <div class="video-grid">
                         @foreach (var video in _collectionVideos)
                         {
@@ -388,6 +413,302 @@
                         }
                     </div>
                 }
+            }
+
+            @* ─── Series list ─── *@
+            @if (_section == Section.Series && _selectedSeries is null && !_playerOpen && _searchResults is null)
+            {
+                @if (_seriesList.Count == 0)
+                {
+                    <div class="video-empty">
+                        <div class="empty-icon">📺</div>
+                        <h4>No series yet</h4>
+                        <p>Series are auto-detected when scanning your video library. Files named like "Show.Name.S01E01.mp4" or organized in "Show Name/Season 01/" folders are grouped automatically.</p>
+                    </div>
+                }
+                else
+                {
+                    @if (_totalSeries > SeriesPageSize)
+                    {
+                        <div class="videos-toolbar">
+                            <button class="btn-icon" @onclick="PrevSeriesPageAsync" disabled="@(_seriesPage == 0)" title="Previous page">
+                                <span>◀</span>
+                            </button>
+                            <div class="videos-page-info">
+                                <span>Showing @(_seriesPage * SeriesPageSize + 1)-@(_seriesPage * SeriesPageSize + _seriesList.Count) of @_totalSeries series</span>
+                            </div>
+                            <button class="btn-icon" @onclick="NextSeriesPageAsync" disabled="@(!_hasMoreSeries)" title="Next page">
+                                <span>▶</span>
+                            </button>
+                        </div>
+                    }
+                    <div class="series-grid">
+                        @foreach (var series in _seriesList)
+                        {
+                            var capturedSeries = series;
+                            <div class="series-card"
+                                 @onclick="() => OpenSeriesDetailAsync(capturedSeries)">
+                                <div class="series-card-poster">
+                                    @if (series.HasExternalPoster)
+                                    {
+                                        <img src="@GetSeriesThumbnailUrl(series.Id)" alt="@series.Name" loading="lazy" />
+                                    }
+                                    else
+                                    {
+                                        <div class="series-card-poster-placeholder">
+                                            <span class="series-placeholder-icon">📺</span>
+                                        </div>
+                                    }
+                                    <div class="series-card-type-badge">
+                                        @(series.Type == "TvSeries" ? "TV Series" : "Franchise")
+                                    </div>
+                                </div>
+                                <div class="series-card-info">
+                                    <span class="series-card-title">@series.Name</span>
+                                    <span class="series-card-meta">
+                                        @if (series.Year.HasValue)
+                                        {
+                                            <text>@series.Year.Value</text>
+                                            if (series.TotalEpisodes > 0) { <text> · </text> }
+                                        }
+                                        @if (series.TotalEpisodes > 0)
+                                        {
+                                            if (series.Type == "TvSeries")
+                                            {
+                                                <text>@series.TotalSeasons seasons · @series.TotalEpisodes episodes</text>
+                                            }
+                                            else
+                                            {
+                                                <text>@series.TotalEpisodes videos</text>
+                                            }
+                                        }
+                                    </span>
+                                    @if (series.TmdbRating.HasValue)
+                                    {
+                                        <span class="series-card-rating">★ @series.TmdbRating.Value.ToString("F1")</span>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            }
+
+            @* ─── Series detail (TV Series — seasons) ─── *@
+            @if (_section == Section.Series && _selectedSeries is not null && _selectedSeason is null && !_playerOpen && _searchResults is null)
+            {
+                <div class="series-detail">
+                    <div class="series-detail-header">
+                        <div class="series-detail-poster">
+                            @if (_selectedSeries.HasExternalPoster)
+                            {
+                                <img src="@GetSeriesThumbnailUrl(_selectedSeries.Id)" alt="@_selectedSeries.Name" />
+                            }
+                            else
+                            {
+                                <div class="series-detail-poster-placeholder">
+                                    <span>📺</span>
+                                </div>
+                            }
+                        </div>
+                        <div class="series-detail-info">
+                            <div class="series-detail-type-badge">
+                                @(_selectedSeries.Type == "TvSeries" ? "TV Series" : "Movie Franchise")
+                            </div>
+                            <h3>@_selectedSeries.Name</h3>
+                            @if (_selectedSeries.TmdbRating.HasValue)
+                            {
+                                <div class="series-detail-rating">★ @_selectedSeries.TmdbRating.Value.ToString("F1") / 10</div>
+                            }
+                            @if (_selectedSeries.Year.HasValue || _selectedSeries.Status is not null)
+                            {
+                                <div class="series-detail-year-status">
+                                    @if (_selectedSeries.Year.HasValue)
+                                    {
+                                        <span>@_selectedSeries.Year.Value</span>
+                                    }
+                                    @if (_selectedSeries.Status is not null)
+                                    {
+                                        <span class="series-detail-status">@_selectedSeries.Status</span>
+                                    }
+                                </div>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(_selectedSeries.Genres))
+                            {
+                                <div class="tmdb-genres" style="margin-top: 8px;">
+                                    @foreach (var genre in _selectedSeries.Genres.Split(", "))
+                                    {
+                                        <span class="tmdb-genre-tag">@genre</span>
+                                    }
+                                </div>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(_selectedSeries.Description))
+                            {
+                                <p class="series-detail-desc">@_selectedSeries.Description</p>
+                            }
+                            <div class="series-detail-stats">
+                                <span>@_selectedSeries.TotalSeasons seasons</span>
+                                <span>·</span>
+                                <span>@_selectedSeries.TotalEpisodes episodes</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    @if (_selectedSeries.Type == "TvSeries")
+                    {
+                        <div class="seasons-list">
+                            <h4 class="seasons-list-title">Seasons</h4>
+                            @if (_seriesSeasons.Count == 0)
+                            {
+                                <div class="video-empty" style="padding: 32px;">
+                                    <p>No seasons found in this series.</p>
+                                </div>
+                            }
+                            else
+                            {
+                                @foreach (var season in _seriesSeasons)
+                                {
+                                    var capturedSeason = season;
+                                    <div class="season-card"
+                                         @onclick="() => OpenSeasonDetailAsync(capturedSeason)">
+                                        <div class="season-card-poster">
+                                            @if (season.HasExternalPoster)
+                                            {
+                                                <img src="/api/v1/videos/season/@season.Id/thumbnail" alt="@(season.Name ?? $"Season {season.SeasonNumber}")" loading="lazy" />
+                                            }
+                                            else
+                                            {
+                                                <div class="season-card-poster-placeholder">
+                                                    <span class="season-placeholder-num">@season.SeasonNumber</span>
+                                                </div>
+                                            }
+                                        </div>
+                                        <div class="season-card-info">
+                                            <span class="season-card-name">@(season.Name ?? $"Season {season.SeasonNumber}")</span>
+                                            <span class="season-card-meta">@season.EpisodeCount episodes</span>
+                                            @if (!string.IsNullOrWhiteSpace(season.Overview))
+                                            {
+                                                <span class="season-card-overview">@season.Overview</span>
+                                            }
+                                            @if (season.AirDate.HasValue)
+                                            {
+                                                <span class="season-card-airdate">@season.AirDate.Value.ToString("yyyy")</span>
+                                            }
+                                        </div>
+                                        <div class="season-card-arrow">›</div>
+                                    </div>
+                                }
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        @* Movie franchise — show videos in order *@
+                        <div class="series-videos-list">
+                            <h4 class="seasons-list-title">Videos</h4>
+                            @if (_seriesVideos.Count == 0)
+                            {
+                                <div class="video-empty" style="padding: 32px;">
+                                    <p>No videos in this franchise yet.</p>
+                                </div>
+                            }
+                            else
+                            {
+                                @foreach (var item in _seriesVideos)
+                                {
+                                    var capturedItem = item;
+                                    <div class="episode-row"
+                                         @onclick="() => OpenSeriesVideoAsync(capturedItem)">
+                                        <div class="episode-row-num">@item.SortOrder</div>
+                                        <div class="episode-row-thumb">
+                                            @if (item.Video is not null)
+                                            {
+                                                <img src="@GetThumbnailUrl(item.Video.Id)" alt="@(item.EpisodeTitle ?? item.Video?.Title ?? "")" loading="lazy" />
+                                            }
+                                            else
+                                            {
+                                                <div class="episode-row-thumb-placeholder">🎬</div>
+                                            }
+                                            <span class="thumb-overlay-play">▶</span>
+                                        </div>
+                                        <div class="episode-row-info">
+                                            <span class="episode-row-title">@(item.EpisodeTitle ?? item.Video?.Title ?? "Unknown")</span>
+                                            @if (item.Video is not null)
+                                            {
+                                                <span class="episode-row-meta">
+                                                    @FormatDuration(item.Video.Duration) · @FormatFileSize(item.Video.SizeBytes)
+                                                </span>
+                                            }
+                                        </div>
+                                        <div class="episode-row-play">▶</div>
+                                    </div>
+                                }
+                            }
+                        </div>
+                    }
+                </div>
+            }
+
+            @* ─── Season detail (episodes) ─── *@
+            @if (_section == Section.Series && _selectedSeries is not null && _selectedSeason is not null && !_playerOpen && _searchResults is null)
+            {
+                <div class="season-detail">
+                    <div class="season-detail-header">
+                        <div>
+                            <h3>@(_selectedSeason.Name ?? $"Season {_selectedSeason.SeasonNumber}")</h3>
+                            <span class="season-detail-meta">@_selectedSeason.EpisodeCount episodes</span>
+                            @if (!string.IsNullOrWhiteSpace(_selectedSeason.Overview))
+                            {
+                                <p class="season-detail-overview">@_selectedSeason.Overview</p>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="episodes-list">
+                        @if (_seasonEpisodes.Count == 0)
+                        {
+                            <div class="video-empty" style="padding: 32px;">
+                                <p>No episodes in this season yet.</p>
+                            </div>
+                        }
+                        else
+                        {
+                            @foreach (var episode in _seasonEpisodes)
+                            {
+                                var capturedEpisode = episode;
+                                <div class="episode-row"
+                                     @onclick="() => OpenEpisodeVideoAsync(capturedEpisode)">
+                                    <div class="episode-row-num">@episode.EpisodeNumber</div>
+                                    <div class="episode-row-thumb">
+                                        @if (episode.Video is not null)
+                                        {
+                                            <img src="@GetThumbnailUrl(episode.Video.Id)" alt="@(episode.Title ?? episode.Video?.Title ?? "")" loading="lazy" />
+                                        }
+                                        else
+                                        {
+                                            <div class="episode-row-thumb-placeholder">🎬</div>
+                                        }
+                                        <span class="thumb-overlay-play">▶</span>
+                                    </div>
+                                    <div class="episode-row-info">
+                                        <span class="episode-row-title">@(episode.Title ?? episode.Video?.Title ?? $"Episode {episode.EpisodeNumber}")</span>
+                                        @if (!string.IsNullOrWhiteSpace(episode.Overview))
+                                        {
+                                            <span class="episode-row-overview">@episode.Overview</span>
+                                        }
+                                        @if (episode.Video is not null)
+                                        {
+                                            <span class="episode-row-meta">
+                                                @FormatDuration(episode.Video.Duration) · @FormatFileSize(episode.Video.SizeBytes)
+                                            </span>
+                                        }
+                                    </div>
+                                    <div class="episode-row-play">▶</div>
+                                </div>
+                            }
+                        }
+                    </div>
+                </div>
             }
 
             @* ─── Search Results ─── *@
@@ -462,6 +783,74 @@
                                 @(_settingsScanning ? "Scanning..." : "Scan Now")
                             </button>
                         </div>
+                        @* ─── Scan Progress Panel ─── *@
+                        @if (_isScanActive)
+                        {
+                            var p = _currentScanProgress;
+                            <div class="scan-progress-panel">
+                                @if (p is not null)
+                                {
+                                    <div class="scan-progress-header">
+                                        <span class="scan-phase">@p.Phase</span>
+                                        <span class="scan-elapsed">@FormatDuration(p.ElapsedTime)</span>
+                                    </div>
+                                    <div class="scan-progress-bar">
+                                        @if (p.Phase == "Discovering files..." || p.TotalFiles == 0)
+                                        {
+                                            <div class="scan-progress-fill indeterminate"></div>
+                                        }
+                                        else
+                                        {
+                                            <div class="scan-progress-fill" style="width: @(p.PercentComplete)%"></div>
+                                        }
+                                    </div>
+                                    <div class="scan-progress-detail">
+                                        @if (!string.IsNullOrEmpty(p.CurrentFile))
+                                        {
+                                            <span class="scan-current-file" title="@p.CurrentFile">@TruncateFileName(p.CurrentFile, 60)</span>
+                                        }
+                                        <div class="scan-counts">
+                                            @if (p.FilesDiscovered > 0 && p.TotalFiles == 0)
+                                            {
+                                                <span class="scan-count discovered">@p.FilesDiscovered files found</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="scan-count added">+@p.TracksAdded added</span>
+                                                <span class="scan-count updated">↻@p.TracksUpdated updated</span>
+                                                <span class="scan-count skipped">→@p.TracksSkipped skipped</span>
+                                                @if (p.TracksFailed > 0)
+                                                {
+                                                    <span class="scan-count failed">✕@p.TracksFailed failed</span>
+                                                }
+                                                @if (p.AlbumArtFetched > 0)
+                                                {
+                                                    <span class="scan-count art">🎨@p.AlbumArtFetched covers</span>
+                                                }
+                                                @if (p.AlbumArtRemaining > 0)
+                                                {
+                                                    <span class="scan-count art">⌛@p.AlbumArtRemaining art left</span>
+                                                }
+                                            }
+                                        </div>
+                                        @if (p.TotalFiles > 0)
+                                        {
+                                            <span class="scan-file-count">@p.FilesProcessed / @p.TotalFiles files (@p.PercentComplete%)</span>
+                                        }
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="scan-progress-header">
+                                        <span class="scan-phase">Scan starting…</span>
+                                    </div>
+                                    <div class="scan-progress-bar">
+                                        <div class="scan-progress-fill indeterminate"></div>
+                                    </div>
+                                }
+                            </div>
+                        }
+
                         @if (_scanResult is not null)
                         {
                             <div class="scan-result-banner">
@@ -668,6 +1057,33 @@
                         <div class="player-info-header">
                             <div class="player-title-section">
                                 <h3>@_playerVideo.Title</h3>
+                                @if (_playerSeriesContext is not null)
+                                {
+                                    <div class="player-series-context">
+                                        @if (_playerSeriesContext.Series is not null)
+                                        {
+                                            <button type="button" class="breadcrumb-item" @onclick="() => NavigateToSeriesFromPlayer()">
+                                                @_playerSeriesContext.Series.Name
+                                            </button>
+                                        }
+                                        @if (_playerSeriesContext.Season is not null)
+                                        {
+                                            <span class="breadcrumb-sep">›</span>
+                                            <button type="button" class="breadcrumb-item" @onclick="() => NavigateToSeasonFromPlayer()">
+                                                @(_playerSeriesContext.Season.Name ?? $"Season {_playerSeriesContext.Season.SeasonNumber}")
+                                            </button>
+                                        }
+                                        @if (_playerSeriesContext.EpisodeNumber.HasValue)
+                                        {
+                                            <span class="breadcrumb-sep">›</span>
+                                            <span class="player-series-ep">Episode @_playerSeriesContext.EpisodeNumber.Value</span>
+                                        }
+                                        @if (_playerSeriesContext.SortOrder.HasValue)
+                                        {
+                                            <span class="player-series-ep">#@_playerSeriesContext.SortOrder.Value in franchise</span>
+                                        }
+                                    </div>
+                                }
                                 <span class="player-meta">
                                     @FormatResolution(_playerVideo.Width, _playerVideo.Height) ·
                                     @FormatFileSize(_playerVideo.SizeBytes) ·

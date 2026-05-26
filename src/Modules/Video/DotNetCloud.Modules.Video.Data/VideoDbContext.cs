@@ -54,6 +54,18 @@ public class VideoDbContext : DbContext
     /// <summary>Video share records.</summary>
     public DbSet<VideoShare> VideoShares => Set<VideoShare>();
 
+    /// <summary>Video series (TV series and movie franchises).</summary>
+    public DbSet<VideoSeries> VideoSeries => Set<VideoSeries>();
+
+    /// <summary>Seasons within TV series.</summary>
+    public DbSet<VideoSeason> VideoSeasons => Set<VideoSeason>();
+
+    /// <summary>Direct video items in movie franchise series.</summary>
+    public DbSet<VideoSeriesItem> VideoSeriesItems => Set<VideoSeriesItem>();
+
+    /// <summary>Episode junction records linking videos to seasons.</summary>
+    public DbSet<VideoEpisode> VideoEpisodes => Set<VideoEpisode>();
+
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -68,5 +80,9 @@ public class VideoDbContext : DbContext
         modelBuilder.ApplyConfiguration(new WatchHistoryConfiguration());
         modelBuilder.ApplyConfiguration(new WatchProgressConfiguration());
         modelBuilder.ApplyConfiguration(new VideoShareConfiguration());
+        modelBuilder.ApplyConfiguration(new VideoSeriesConfiguration());
+        modelBuilder.ApplyConfiguration(new VideoSeasonConfiguration());
+        modelBuilder.ApplyConfiguration(new VideoSeriesItemConfiguration());
+        modelBuilder.ApplyConfiguration(new VideoEpisodeConfiguration());
     }
 }

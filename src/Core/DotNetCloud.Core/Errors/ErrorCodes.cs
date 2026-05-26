@@ -490,6 +490,24 @@ public static class ErrorCodes
     /// <summary>Error code for video concurrent stream limit exceeded.</summary>
     public const string VideoStreamLimitExceeded = "VIDEO_STREAM_LIMIT_EXCEEDED";
 
+    /// <summary>Error code for video series not found.</summary>
+    public const string VideoSeriesNotFound = "VIDEO_SERIES_NOT_FOUND";
+
+    /// <summary>Error code for video series already exists (duplicate name).</summary>
+    public const string VideoSeriesAlreadyExists = "VIDEO_SERIES_ALREADY_EXISTS";
+
+    /// <summary>Error code for video season not found.</summary>
+    public const string VideoSeasonNotFound = "VIDEO_SEASON_NOT_FOUND";
+
+    /// <summary>Error code for video episode not found.</summary>
+    public const string VideoEpisodeNotFound = "VIDEO_EPISODE_NOT_FOUND";
+
+    /// <summary>Error code for video already in series.</summary>
+    public const string VideoAlreadyInSeries = "VIDEO_ALREADY_IN_SERIES";
+
+    /// <summary>Error code for video already an episode in season.</summary>
+    public const string VideoAlreadyInSeason = "VIDEO_ALREADY_IN_SEASON";
+
     // Bookmarks
     /// <summary>Error code for bookmark not found.</summary>
     public const string BookmarkNotFound = "BOOKMARK_NOT_FOUND";

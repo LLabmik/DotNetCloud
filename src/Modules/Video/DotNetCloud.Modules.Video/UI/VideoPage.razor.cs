@@ -18,7 +18,7 @@ namespace DotNetCloud.Modules.Video.UI;
 public partial class VideoPage : IAsyncDisposable
 {
     // ── Section / State ──
-    private enum Section { Home, Library, Collections, Favorites, Settings }
+    private enum Section { Home, Library, Collections, Series, Favorites, Settings }
 
     private Section _section = Section.Home;
     private bool _sidebarCollapsed;
@@ -35,6 +35,14 @@ public partial class VideoPage : IAsyncDisposable
     private List<WatchProgressDto> _continueWatching = [];
     private List<VideoCollectionDto> _collections = [];
 
+    // ── Series / Seasons ──
+    private List<VideoSeriesDto> _seriesList = [];
+    private VideoSeriesDto? _selectedSeries;
+    private List<VideoSeasonDto> _seriesSeasons = [];
+    private VideoSeasonDto? _selectedSeason;
+    private List<VideoEpisodeDto> _seasonEpisodes = [];
+    private List<VideoSeriesItemDto> _seriesVideos = [];
+
     // ── Paging ──
     private int _videoPage;
     private const int VideoPageSize = 50;
@@ -45,6 +53,16 @@ public partial class VideoPage : IAsyncDisposable
     private const int RecentPageSize = 12;
     private int _totalRecentVideos;
     private bool _hasMoreRecent;
+
+    private int _seriesPage;
+    private const int SeriesPageSize = 24;
+    private int _totalSeries;
+    private bool _hasMoreSeries;
+
+    private int _collectionVideoPage;
+    private const int CollectionVideoPageSize = 50;
+    private int _totalCollectionVideos;
+    private bool _hasMoreCollectionVideos;
 
     // ── Selection ──
     private VideoCollectionDto? _selectedCollection;
@@ -72,6 +90,14 @@ public partial class VideoPage : IAsyncDisposable
     private Guid? _editCollectionId;
     private string _collectionName = string.Empty;
     private string _collectionDescription = string.Empty;
+
+    // ── Series context for player ──
+    private sealed record PlayerSeriesContext(
+        VideoSeriesDto? Series,
+        VideoSeasonDto? Season,
+        int? EpisodeNumber,
+        int? SortOrder);
+    private PlayerSeriesContext? _playerSeriesContext;
 
     // ── Breadcrumbs ──
     private record BreadcrumbItem(string Label, Action Action);
@@ -284,6 +310,8 @@ public partial class VideoPage : IAsyncDisposable
             _loading = true;
             _caller = await GetCallerAsync();
 
+            ScanProgress.OnProgressChanged += OnScanProgressChanged;
+
             _tmdbAvailable = EnrichmentService.IsTmdbAvailable;
 
             // Deep-link: auto-open from Files module if fileId parameter was supplied on first load
@@ -307,6 +335,26 @@ public partial class VideoPage : IAsyncDisposable
         {
             _loading = false;
         }
+    }
+
+    // ── Scan Progress ──
+
+    private bool _isScanActive => _caller is not null && ScanProgress.IsScanning(_caller.UserId);
+
+    private LibraryScanProgress? _currentScanProgress => _caller is null ? null : ScanProgress.GetCurrentProgress(_caller.UserId);
+
+    private void OnScanProgressChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    private static string TruncateFileName(string fileName, int maxLength)
+    {
+        if (string.IsNullOrEmpty(fileName) || fileName.Length <= maxLength)
+            return fileName ?? string.Empty;
+
+        var half = (maxLength - 3) / 2;
+        return $"{fileName[..half]}...{fileName[^half..]}";
     }
 
     protected override async Task OnParametersSetAsync()
@@ -345,11 +393,19 @@ public partial class VideoPage : IAsyncDisposable
         _section = section;
         _selectedCollection = null;
         _selectedCollectionId = null;
+        _selectedSeries = null;
+        _selectedSeason = null;
+        _seriesSeasons.Clear();
+        _seasonEpisodes.Clear();
+        _seriesVideos.Clear();
         _searchResults = null;
         _searchQuery = string.Empty;
         _playerOpen = false;
+        _playerSeriesContext = null;
         _videoPage = 0;
         _recentPage = 0;
+        _seriesPage = 0;
+        _collectionVideoPage = 0;
         _breadcrumb.Clear();
         await LoadCurrentSectionAsync();
     }
@@ -382,6 +438,11 @@ public partial class VideoPage : IAsyncDisposable
 
                 case Section.Library:
                     await LoadVideosPageAsync();
+                    break;
+
+                case Section.Series:
+                    _seriesPage = 0;
+                    await LoadSeriesPageAsync();
                     break;
 
                 case Section.Collections:
@@ -465,6 +526,74 @@ public partial class VideoPage : IAsyncDisposable
         await LoadRecentPageAsync();
     }
 
+    // ── Series Paging ──
+
+    private async Task LoadSeriesPageAsync()
+    {
+        if (_caller is null)
+            return;
+
+        var allSeries = (await SeriesService.ListSeriesAsync(_caller)).ToList();
+        _totalSeries = allSeries.Count;
+        _seriesList = allSeries
+            .Skip(_seriesPage * SeriesPageSize)
+            .Take(SeriesPageSize)
+            .ToList();
+        _hasMoreSeries = (_seriesPage + 1) * SeriesPageSize < _totalSeries;
+    }
+
+    private async Task PrevSeriesPageAsync()
+    {
+        if (_seriesPage > 0)
+        {
+            _seriesPage--;
+            await LoadSeriesPageAsync();
+        }
+    }
+
+    private async Task NextSeriesPageAsync()
+    {
+        if (!_hasMoreSeries)
+            return;
+
+        _seriesPage++;
+        await LoadSeriesPageAsync();
+    }
+
+    // ── Collection Videos Paging ──
+
+    private async Task LoadCollectionVideoPageAsync()
+    {
+        if (_caller is null || _selectedCollection is null)
+            return;
+
+        var allVideos = (await CollectionService.GetCollectionVideosAsync(_selectedCollection.Id, _caller)).ToList();
+        _totalCollectionVideos = allVideos.Count;
+        _collectionVideos = allVideos
+            .Skip(_collectionVideoPage * CollectionVideoPageSize)
+            .Take(CollectionVideoPageSize)
+            .ToList();
+        _hasMoreCollectionVideos = (_collectionVideoPage + 1) * CollectionVideoPageSize < _totalCollectionVideos;
+    }
+
+    private async Task PrevCollectionVideoPageAsync()
+    {
+        if (_collectionVideoPage > 0)
+        {
+            _collectionVideoPage--;
+            await LoadCollectionVideoPageAsync();
+        }
+    }
+
+    private async Task NextCollectionVideoPageAsync()
+    {
+        if (!_hasMoreCollectionVideos)
+            return;
+
+        _collectionVideoPage++;
+        await LoadCollectionVideoPageAsync();
+    }
+
     // ────────────────────────────────────────────────────────
     //  Video Detail → Player
     // ────────────────────────────────────────────────────────
@@ -526,6 +655,7 @@ public partial class VideoPage : IAsyncDisposable
         _codecErrorGuidance = null;
         _noAudioDetected = false;
         _videoErrorListenerAttached = false;
+        _playerSeriesContext = null;
         _breadcrumb.Clear();
         StopProgressTimer();
     }
@@ -559,6 +689,7 @@ public partial class VideoPage : IAsyncDisposable
         _section = Section.Collections;
         _selectedCollectionId = collectionId;
         _selectedCollection = _collections.FirstOrDefault(c => c.Id == collectionId);
+        _collectionVideoPage = 0;
 
         _breadcrumb =
         [
@@ -568,7 +699,7 @@ public partial class VideoPage : IAsyncDisposable
         try
         {
             var caller = await GetCallerAsync();
-            _collectionVideos = (await CollectionService.GetCollectionVideosAsync(collectionId, caller)).ToList();
+            await LoadCollectionVideoPageAsync();
         }
         catch (Exception ex)
         {
@@ -576,6 +707,150 @@ public partial class VideoPage : IAsyncDisposable
         }
         StateHasChanged();
     }
+
+    // ────────────────────────────────────────────────────────
+    //  Series / Seasons
+    // ────────────────────────────────────────────────────────
+
+    private async Task OpenSeriesDetailAsync(VideoSeriesDto series)
+    {
+        _selectedSeries = series;
+        _selectedSeason = null;
+        _seasonEpisodes.Clear();
+        _seriesVideos.Clear();
+
+        _breadcrumb =
+        [
+            new BreadcrumbItem("Series", () => { _selectedSeries = null; _selectedSeason = null; _seriesSeasons.Clear(); _seasonEpisodes.Clear(); _seriesVideos.Clear(); _breadcrumb.Clear(); StateHasChanged(); })
+        ];
+
+        try
+        {
+            var caller = await GetCallerAsync();
+            if (series.Type == "TvSeries")
+            {
+                _seriesSeasons = (await SeriesService.GetSeriesSeasonsAsync(series.Id, caller)).ToList();
+            }
+            else
+            {
+                _seriesVideos = (await SeriesService.GetSeriesVideosAsync(series.Id, caller)).ToList();
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading series detail for {SeriesId}", series.Id);
+        }
+        StateHasChanged();
+    }
+
+    private async Task OpenSeasonDetailAsync(VideoSeasonDto season)
+    {
+        _selectedSeason = season;
+        _seasonEpisodes.Clear();
+
+        _breadcrumb =
+        [
+            new BreadcrumbItem("Series", async () => { _selectedSeason = null; _seasonEpisodes.Clear(); await OpenSeriesDetailAsync(_selectedSeries!); }),
+            new BreadcrumbItem(season.Name ?? $"Season {season.SeasonNumber}", () => { /* current view */ })
+        ];
+
+        try
+        {
+            var caller = await GetCallerAsync();
+            _seasonEpisodes = (await SeriesService.GetSeasonEpisodesAsync(season.Id, caller)).ToList();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading episodes for season {SeasonId}", season.Id);
+        }
+        StateHasChanged();
+    }
+
+    private async Task OpenSeriesVideoAsync(VideoSeriesItemDto item)
+    {
+        if (item.Video is not null)
+        {
+            // Build series context for the player
+            _playerSeriesContext = new PlayerSeriesContext(
+                Series: _selectedSeries,
+                Season: null,
+                EpisodeNumber: null,
+                SortOrder: item.SortOrder);
+            await OpenVideoDetailAsync(item.Video);
+        }
+    }
+
+    private async Task OpenEpisodeVideoAsync(VideoEpisodeDto episode)
+    {
+        if (episode.Video is not null)
+        {
+            // Build series/season context for the player
+            _playerSeriesContext = new PlayerSeriesContext(
+                Series: _selectedSeries,
+                Season: _selectedSeason,
+                EpisodeNumber: episode.EpisodeNumber,
+                SortOrder: null);
+            await OpenVideoDetailAsync(episode.Video);
+        }
+    }
+
+    private async Task NavigateToSeriesFromPlayer()
+    {
+        if (_playerSeriesContext?.Series is null)
+            return;
+
+        _playerOpen = false;
+        _playerVideo = null;
+        _section = Section.Series;
+        _selectedSeason = null;
+        _seasonEpisodes.Clear();
+        _seriesVideos.Clear();
+        _breadcrumb.Clear();
+
+        // Re-fetch series data
+        var caller = await GetCallerAsync();
+        _selectedSeries = await SeriesService.GetSeriesAsync(_playerSeriesContext.Series.Id, caller);
+        if (_selectedSeries is not null)
+        {
+            if (_selectedSeries.Type == "TvSeries")
+            {
+                _seriesSeasons = (await SeriesService.GetSeriesSeasonsAsync(_selectedSeries.Id, caller)).ToList();
+            }
+            else
+            {
+                _seriesVideos = (await SeriesService.GetSeriesVideosAsync(_selectedSeries.Id, caller)).ToList();
+            }
+        }
+        _playerSeriesContext = null;
+        StateHasChanged();
+    }
+
+    private async Task NavigateToSeasonFromPlayer()
+    {
+        if (_playerSeriesContext?.Season is null || _playerSeriesContext?.Series is null)
+            return;
+
+        _playerOpen = false;
+        _playerVideo = null;
+        _section = Section.Series;
+        _breadcrumb.Clear();
+
+        var caller = await GetCallerAsync();
+        _selectedSeries = await SeriesService.GetSeriesAsync(_playerSeriesContext.Series.Id, caller);
+        if (_selectedSeries is not null)
+        {
+            _seriesSeasons = (await SeriesService.GetSeriesSeasonsAsync(_selectedSeries.Id, caller)).ToList();
+            var season = _seriesSeasons.FirstOrDefault(s => s.Id == _playerSeriesContext.Season.Id);
+            if (season is not null)
+            {
+                await OpenSeasonDetailAsync(season);
+            }
+        }
+        _playerSeriesContext = null;
+        StateHasChanged();
+    }
+
+    private static string GetSeriesThumbnailUrl(Guid seriesId) => $"/api/v1/series/{seriesId}/thumbnail";
 
     private void BeginCreateCollection()
     {
@@ -691,6 +966,8 @@ public partial class VideoPage : IAsyncDisposable
     {
         Section.Home => "Home",
         Section.Library => "Library",
+        Section.Series when _selectedSeries is not null => _selectedSeries.Name,
+        Section.Series => "Series",
         Section.Collections when _selectedCollection is not null => _selectedCollection.Name,
         Section.Collections => "Collections",
         Section.Favorites => "Favorites",
@@ -701,6 +978,7 @@ public partial class VideoPage : IAsyncDisposable
     {
         Section.Home => "Home",
         Section.Library => "Library",
+        Section.Series => "Series",
         Section.Collections => "Collections",
         Section.Favorites => "Favorites",
         _ => "Video"
@@ -890,16 +1168,46 @@ public partial class VideoPage : IAsyncDisposable
         _settingsSuccess = null;
         _scanResult = null;
         StateHasChanged();
+
+        var userId = _caller.UserId;
+        var scanCts = ScanProgress.StartScan(userId);
+
+        // Bridge MediaScanProgress → LibraryScanProgress
+        var elapsedStopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var progressBridge = new Progress<MediaScanProgress>(msp =>
+        {
+            ScanProgress.UpdateProgress(userId, new LibraryScanProgress
+            {
+                Phase = msp.Phase,
+                CurrentFile = msp.CurrentFile,
+                FilesDiscovered = msp.FilesDiscovered,
+                FilesProcessed = msp.FilesProcessed,
+                TotalFiles = msp.TotalFiles,
+                TracksAdded = msp.Imported,
+                TracksFailed = msp.Failed,
+                TracksRemoved = msp.Removed,
+                PercentComplete = msp.PercentComplete,
+                ElapsedTime = elapsedStopwatch.Elapsed
+            });
+        });
+
         try
         {
-            _scanResult = await MediaLibraryScanner.ScanSourcesAsync(_librarySources, _caller.UserId, "Video");
+            _scanResult = await MediaLibraryScanner.ScanSourcesAsync(_librarySources, userId, "Video", progressBridge, scanCts.Token);
+            ScanProgress.CompleteScan(userId);
             _settingsSuccess = $"Scan complete: {_scanResult.Imported} imported, {_scanResult.Skipped} already up to date.";
 
             // Fire-and-forget background enrichment
             _ = QueuePostScanEnrichmentAsync(DateTimeOffset.UtcNow);
         }
+        catch (OperationCanceledException)
+        {
+            ScanProgress.CompleteScan(userId);
+            _settingsError = "Scan cancelled.";
+        }
         catch (Exception ex)
         {
+            ScanProgress.CompleteScan(userId);
             _settingsError = $"Scan failed: {ex.Message}";
         }
         finally
@@ -930,11 +1238,18 @@ public partial class VideoPage : IAsyncDisposable
             _collectionVideos.Clear();
             _continueWatching.Clear();
             _collections.Clear();
+            _seriesList.Clear();
+            _selectedSeries = null;
+            _selectedSeason = null;
+            _seriesSeasons.Clear();
+            _seasonEpisodes.Clear();
+            _seriesVideos.Clear();
             _searchResults = null;
             _selectedCollection = null;
             _selectedCollectionId = null;
             _playerOpen = false;
             _playerVideo = null;
+            _playerSeriesContext = null;
         }
         catch (Exception ex)
         {
@@ -1294,6 +1609,7 @@ public partial class VideoPage : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         StopProgressTimer();
+        ScanProgress.OnProgressChanged -= OnScanProgressChanged;
         _dotNetRef?.Dispose();
         if (_idleAutoHideHandle is not null)
         {
