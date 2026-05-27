@@ -86,4 +86,9 @@ public interface IVideoSeriesService
     /// Gets the poster thumbnail bytes for a series.
     /// </summary>
     Task<byte[]?> GetSeriesThumbnailAsync(Guid seriesId, CallerContext caller, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Finds the series that a video belongs to, if any. Checks both TV series episodes and movie franchise items.
+    /// </summary>
+    Task<VideoSeriesDto?> FindSeriesByVideoIdAsync(Guid videoId, CallerContext caller, CancellationToken cancellationToken = default);
 }

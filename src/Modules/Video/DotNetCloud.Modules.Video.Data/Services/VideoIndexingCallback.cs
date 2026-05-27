@@ -317,6 +317,9 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
                         _logger.LogInformation(
                             "Video {VideoId} auto-assigned to series '{SeriesName}', season {SeasonNumber}",
                             videoId, seriesName, seasonNumber);
+
+                        // Fire-and-forget TMDB enrichment for this series to fetch posters/metadata
+                        EnrichSeriesInBackground(Guid.Parse(series.Id.ToString()), caller.UserId);
                         return;
                     }
                 }
@@ -354,6 +357,9 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
                             _logger.LogInformation(
                                 "Video {VideoId} auto-assigned to movie franchise '{FranchiseName}' (folder-based)",
                                 videoId, franchiseName);
+
+                            // Fire-and-forget TMDB enrichment for this series to fetch posters/metadata
+                            EnrichSeriesInBackground(Guid.Parse(series.Id.ToString()), caller.UserId);
                         }
                         return;
                     }
@@ -381,11 +387,35 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
             _logger.LogInformation(
                 "Video {VideoId} auto-assigned to series '{SeriesName}', season {SeasonNumber}, episode {EpisodeNumber}",
                 videoId, seriesNameClean, seasonNum, episodeNum);
+
+            // Fire-and-forget TMDB enrichment for this series to fetch posters/metadata
+            EnrichSeriesInBackground(Guid.Parse(seriesDto.Id.ToString()), caller.UserId);
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Series auto-detection failed for video {VideoId}", videoId);
         }
+    }
+
+    /// <summary>
+    /// Fire-and-forget TMDB enrichment for a series to fetch posters and metadata.
+    /// </summary>
+    private void EnrichSeriesInBackground(Guid seriesId, Guid ownerId)
+    {
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await using var scope = _scopeFactory.CreateAsyncScope();
+                var enrichmentService = scope.ServiceProvider.GetRequiredService<IVideoEnrichmentService>();
+                var caller = new CallerContext(ownerId, ["user"], CallerType.System);
+                await enrichmentService.EnrichSeriesAsync(seriesId, caller, cancellationToken: CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Background series enrichment failed for series {SeriesId}", seriesId);
+            }
+        }, CancellationToken.None);
     }
 
     /// <summary>

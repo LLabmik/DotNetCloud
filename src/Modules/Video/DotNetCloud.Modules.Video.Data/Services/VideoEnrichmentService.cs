@@ -168,6 +168,29 @@ public sealed partial class VideoEnrichmentService : IVideoEnrichmentService
                 caller,
                 cancellationToken);
 
+            // Download the collection poster for the series if not already set
+            if (collectionDetail?.PosterPath is not null)
+            {
+                var seriesEntity = await _db.VideoSeries
+                    .FirstOrDefaultAsync(s => s.Id == Guid.Parse(series.Id.ToString()), cancellationToken);
+
+                if (seriesEntity is not null && !seriesEntity.HasExternalPoster)
+                {
+                    var poster = await _tmdbClient.DownloadPosterAsync(collectionDetail.PosterPath, cancellationToken: cancellationToken);
+                    if (poster is not null)
+                    {
+                        var cachePath = CacheExternalPoster(poster.Data, poster.MimeType, seriesEntity.Id);
+                        if (cachePath is not null)
+                        {
+                            seriesEntity.HasExternalPoster = true;
+                            seriesEntity.ExternalPosterPath = cachePath;
+                            seriesEntity.UpdatedAt = DateTime.UtcNow;
+                            await _db.SaveChangesAsync(cancellationToken);
+                        }
+                    }
+                }
+            }
+
             _logger.LogInformation(
                 "Video {VideoId} ('{Title}') assigned to movie franchise '{SeriesName}' at position {Position}",
                 video.Id, video.TmdbTitle ?? video.Title, collection.Name, partIndex);

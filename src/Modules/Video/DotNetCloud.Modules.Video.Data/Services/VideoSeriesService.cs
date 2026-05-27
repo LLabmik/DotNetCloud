@@ -77,7 +77,11 @@ public sealed class VideoSeriesService : IVideoSeriesService
             .OrderBy(s => s.Name)
             .ToListAsync(cancellationToken);
 
-        return series.Select(MapToDto).ToList();
+        // Filter out series with only 1 item — a series needs at least 2 episodes or videos
+        return series
+            .Where(s => s.TotalEpisodes > 1 || s.Items.Count > 1)
+            .Select(MapToDto)
+            .ToList();
     }
 
     /// <inheritdoc />
@@ -535,6 +539,32 @@ public sealed class VideoSeriesService : IVideoSeriesService
             .FirstOrDefaultAsync(cancellationToken);
 
         return series;
+    }
+
+    /// <inheritdoc />
+    public async Task<VideoSeriesDto?> FindSeriesByVideoIdAsync(Guid videoId, CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        // Check if this video is an episode in a TV series season
+        var episodeSeries = await _db.VideoEpisodes
+            .Include(e => e.Season).ThenInclude(s => s!.Series)
+            .Where(e => e.VideoId == videoId && e.Season!.Series!.OwnerId == caller.UserId)
+            .Select(e => e.Season!.Series)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (episodeSeries is not null)
+            return MapToDto(episodeSeries);
+
+        // Check if this video is an item in a movie franchise
+        var itemSeries = await _db.VideoSeriesItems
+            .Include(i => i.Series)
+            .Where(i => i.VideoId == videoId && i.Series!.OwnerId == caller.UserId)
+            .Select(i => i.Series)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (itemSeries is not null)
+            return MapToDto(itemSeries);
+
+        return null;
     }
 
     // ─── Auto-Detection ──────────────────────────────────────────────

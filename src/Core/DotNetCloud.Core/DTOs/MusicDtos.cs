@@ -352,6 +352,9 @@ public sealed record LibraryScanProgress
     /// <summary>Album cover lookups still remaining in the current scan or enrichment job.</summary>
     public int AlbumArtRemaining { get; init; }
 
+    /// <summary>Series/franchises auto-detected during scan.</summary>
+    public int SeriesCreated { get; init; }
+
     /// <summary>Completion percentage (0-100).</summary>
     public int PercentComplete { get; init; }
 
