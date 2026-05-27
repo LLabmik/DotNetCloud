@@ -198,9 +198,17 @@
                                 <button class="btn-icon" @onclick="PrevRecentPageAsync" disabled="@(_recentPage == 0)" title="Previous page">
                                     <span>◀</span>
                                 </button>
+                                @if (!string.IsNullOrWhiteSpace(FirstRecentVideoTitle))
+                                {
+                                    <span class="page-edge-name page-edge-name-start" title="@FirstRecentVideoTitle">@FirstRecentVideoTitle</span>
+                                }
                                 <div class="videos-page-info">
                                     <span>Showing @(_recentVideos.Count == 0 ? 0 : _recentPage * RecentPageSize + 1)-@(_recentPage * RecentPageSize + _recentVideos.Count) of @_totalRecentVideos videos</span>
                                 </div>
+                                @if (!string.IsNullOrWhiteSpace(LastRecentVideoTitle))
+                                {
+                                    <span class="page-edge-name page-edge-name-end" title="@LastRecentVideoTitle">@LastRecentVideoTitle</span>
+                                }
                                 <button class="btn-icon" @onclick="NextRecentPageAsync" disabled="@(!_hasMoreRecent)" title="Next page">
                                     <span>▶</span>
                                 </button>
@@ -254,9 +262,17 @@
                         <button class="btn-icon" @onclick="PrevVideoPageAsync" disabled="@(_videoPage == 0)" title="Previous page">
                             <span>◀</span>
                         </button>
+                        @if (!string.IsNullOrWhiteSpace(FirstVideoTitle))
+                        {
+                            <span class="page-edge-name page-edge-name-start" title="@FirstVideoTitle">@FirstVideoTitle</span>
+                        }
                         <div class="videos-page-info">
                             <span>Showing @(_videos.Count == 0 ? 0 : _videoPage * VideoPageSize + 1)-@(_videoPage * VideoPageSize + _videos.Count) of @_totalVideos videos</span>
                         </div>
+                        @if (!string.IsNullOrWhiteSpace(LastVideoTitle))
+                        {
+                            <span class="page-edge-name page-edge-name-end" title="@LastVideoTitle">@LastVideoTitle</span>
+                        }
                         <button class="btn-icon" @onclick="NextVideoPageAsync" disabled="@(!_hasMoreVideos)" title="Next page">
                             <span>▶</span>
                         </button>
@@ -351,9 +367,17 @@
                             <button class="btn-icon" @onclick="PrevCollectionVideoPageAsync" disabled="@(_collectionVideoPage == 0)" title="Previous page">
                                 <span>◀</span>
                             </button>
+                            @if (!string.IsNullOrWhiteSpace(FirstCollectionVideoTitle))
+                            {
+                                <span class="page-edge-name page-edge-name-start" title="@FirstCollectionVideoTitle">@FirstCollectionVideoTitle</span>
+                            }
                             <div class="videos-page-info">
                                 <span>Showing @(_collectionVideos.Count == 0 ? 0 : _collectionVideoPage * CollectionVideoPageSize + 1)-@(_collectionVideoPage * CollectionVideoPageSize + _collectionVideos.Count) of @_totalCollectionVideos videos</span>
                             </div>
+                            @if (!string.IsNullOrWhiteSpace(LastCollectionVideoTitle))
+                            {
+                                <span class="page-edge-name page-edge-name-end" title="@LastCollectionVideoTitle">@LastCollectionVideoTitle</span>
+                            }
                             <button class="btn-icon" @onclick="NextCollectionVideoPageAsync" disabled="@(!_hasMoreCollectionVideos)" title="Next page">
                                 <span>▶</span>
                             </button>
@@ -434,9 +458,17 @@
                             <button class="btn-icon" @onclick="PrevSeriesPageAsync" disabled="@(_seriesPage == 0)" title="Previous page">
                                 <span>◀</span>
                             </button>
+                            @if (!string.IsNullOrWhiteSpace(FirstSeriesName))
+                            {
+                                <span class="page-edge-name page-edge-name-start" title="@FirstSeriesName">@FirstSeriesName</span>
+                            }
                             <div class="videos-page-info">
                                 <span>Showing @(_seriesPage * SeriesPageSize + 1)-@(_seriesPage * SeriesPageSize + _seriesList.Count) of @_totalSeries series</span>
                             </div>
+                            @if (!string.IsNullOrWhiteSpace(LastSeriesName))
+                            {
+                                <span class="page-edge-name page-edge-name-end" title="@LastSeriesName">@LastSeriesName</span>
+                            }
                             <button class="btn-icon" @onclick="NextSeriesPageAsync" disabled="@(!_hasMoreSeries)" title="Next page">
                                 <span>▶</span>
                             </button>

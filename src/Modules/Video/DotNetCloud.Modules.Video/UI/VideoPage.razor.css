@@ -416,6 +416,26 @@
   color: var(--color-muted, #94a3b8);
 }
 
+/* ── Page edge names (first/last item on page) ── */
+
+.page-edge-name {
+  min-width: 0;
+  max-width: 220px;
+  font-size: 0.8125rem;
+  color: var(--color-text, #1e293b);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.page-edge-name-start {
+  text-align: left;
+}
+
+.page-edge-name-end {
+  text-align: right;
+}
+
 /* ═══════════════════════════════════════════════════════════
    Video Cards & Grid
    ═══════════════════════════════════════════════════════════ */

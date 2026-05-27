@@ -1,3 +1,4 @@
+using System.IO;
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Errors;
@@ -535,10 +536,31 @@ public sealed class VideoSeriesService : IVideoSeriesService
     {
         var series = await _db.VideoSeries
             .Where(s => s.Id == seriesId && s.OwnerId == caller.UserId && !s.IsDeleted)
-            .Select(s => s.ThumbnailPoster)
+            .Select(s => new { s.ThumbnailPoster, s.HasExternalPoster, s.ExternalPosterPath })
             .FirstOrDefaultAsync(cancellationToken);
 
-        return series;
+        if (series is null)
+            return null;
+
+        // Return in-memory thumbnail if available
+        if (series.ThumbnailPoster is { Length: > 0 })
+            return series.ThumbnailPoster;
+
+        // Fall back to file cache (set by TMDB enrichment)
+        if (series.HasExternalPoster && !string.IsNullOrWhiteSpace(series.ExternalPosterPath))
+        {
+            try
+            {
+                if (File.Exists(series.ExternalPosterPath))
+                    return await File.ReadAllBytesAsync(series.ExternalPosterPath, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to read cached poster for series {SeriesId}", seriesId);
+            }
+        }
+
+        return null;
     }
 
     /// <inheritdoc />

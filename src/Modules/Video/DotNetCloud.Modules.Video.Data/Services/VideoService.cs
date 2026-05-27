@@ -126,9 +126,25 @@ public sealed class VideoService : IVideoService
     /// </summary>
     public async Task<IReadOnlyList<VideoDto>> SearchAsync(CallerContext caller, string query, int maxResults = 20, CancellationToken cancellationToken = default)
     {
-        var videos = await _db.Videos
+        if (string.IsNullOrWhiteSpace(query))
+            return [];
+
+        var searchTerms = query.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(t => t.ToLower())
+            .ToList();
+
+        IQueryable<Models.Video> queryable = _db.Videos
             .Include(v => v.Metadata)
-            .Where(v => v.OwnerId == caller.UserId && v.Title.ToLower().Contains(query.ToLower()))
+            .Where(v => v.OwnerId == caller.UserId);
+
+        // Apply each search term as a separate filter — ALL terms must match (AND logic)
+        foreach (var term in searchTerms)
+        {
+            var capturedTerm = term;
+            queryable = queryable.Where(v => v.Title.ToLower().Contains(capturedTerm));
+        }
+
+        var videos = await queryable
             .OrderBy(v => v.Title)
             .Take(maxResults)
             .ToListAsync(cancellationToken);

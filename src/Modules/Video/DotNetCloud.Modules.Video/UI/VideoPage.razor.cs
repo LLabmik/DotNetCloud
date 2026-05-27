@@ -64,6 +64,16 @@ public partial class VideoPage : IAsyncDisposable
     private int _totalCollectionVideos;
     private bool _hasMoreCollectionVideos;
 
+    // ── First/Last item names for paging display ──
+    private string FirstRecentVideoTitle => _recentVideos.Count > 0 ? _recentVideos[0].Title : string.Empty;
+    private string LastRecentVideoTitle => _recentVideos.Count > 0 ? _recentVideos[^1].Title : string.Empty;
+    private string FirstVideoTitle => _videos.Count > 0 ? _videos[0].Title : string.Empty;
+    private string LastVideoTitle => _videos.Count > 0 ? _videos[^1].Title : string.Empty;
+    private string FirstCollectionVideoTitle => _collectionVideos.Count > 0 ? _collectionVideos[0].Title : string.Empty;
+    private string LastCollectionVideoTitle => _collectionVideos.Count > 0 ? _collectionVideos[^1].Title : string.Empty;
+    private string FirstSeriesName => _seriesList.Count > 0 ? _seriesList[0].Name : string.Empty;
+    private string LastSeriesName => _seriesList.Count > 0 ? _seriesList[^1].Name : string.Empty;
+
     // ── Selection ──
     private VideoCollectionDto? _selectedCollection;
     private Guid? _selectedCollectionId;
