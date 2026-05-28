@@ -2,6 +2,7 @@ using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Storage;
 using DotNetCloud.Modules.Music.Data;
 using DotNetCloud.Modules.Music.Data.Services;
 using DotNetCloud.Modules.Music.Services;
@@ -57,7 +58,8 @@ public class LibraryScanProgressTests
     private LibraryScanService CreateService(IConfiguration? config = null)
     {
         var metadataService = new MusicMetadataService(NullLogger<MusicMetadataService>.Instance);
-        var albumArtService = new AlbumArtService(metadataService, NullLogger<AlbumArtService>.Instance);
+        var contentStorage = new ContentAddressedStorage(Path.GetTempPath());
+        var albumArtService = new AlbumArtService(metadataService, contentStorage, NullLogger<AlbumArtService>.Instance);
         return new LibraryScanService(
             _db,
             metadataService,

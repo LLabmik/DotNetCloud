@@ -1,38 +1,41 @@
+using DotNetCloud.Core.Storage;
 using Microsoft.Extensions.Logging;
 
 namespace DotNetCloud.Modules.Music.Data.Services;
 
 /// <summary>
 /// Manages album art extraction, caching, and retrieval.
+/// Uses content-addressed storage so identical art is stored once regardless of album.
 /// </summary>
 public sealed class AlbumArtService
 {
     private readonly MusicMetadataService _metadataService;
+    private readonly ContentAddressedStorage _contentStorage;
     private readonly ILogger<AlbumArtService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AlbumArtService"/> class.
     /// </summary>
-    public AlbumArtService(MusicMetadataService metadataService, ILogger<AlbumArtService> logger)
+    public AlbumArtService(MusicMetadataService metadataService, ContentAddressedStorage contentStorage, ILogger<AlbumArtService> logger)
     {
         _metadataService = metadataService;
+        _contentStorage = contentStorage;
         _logger = logger;
     }
 
     /// <summary>
     /// Extracts and caches album art from an audio file or falls back to folder art.
+    /// Returns the content hash of the cached art image.
     /// </summary>
     /// <param name="audioFilePath">Path to the audio file.</param>
-    /// <param name="cacheDir">Directory where cached art is stored.</param>
-    /// <param name="albumId">Album ID for the cache filename.</param>
-    /// <returns>The relative cache path to the art file, or null if none found.</returns>
-    public string? ExtractAndCacheArt(string audioFilePath, string cacheDir, Guid albumId)
+    /// <returns>The content hash of the cached art, or null if none found.</returns>
+    public string? ExtractAndCacheArt(string audioFilePath)
     {
         // Try embedded art first
         var embedded = _metadataService.ExtractEmbeddedArt(audioFilePath);
         if (embedded.HasValue)
         {
-            return CacheArtData(embedded.Value.Data, embedded.Value.MimeType, cacheDir, albumId);
+            return CacheArtData(embedded.Value.Data, embedded.Value.MimeType);
         }
 
         // Fall back to folder art
@@ -47,100 +50,58 @@ public sealed class AlbumArtService
                 {
                     var data = File.ReadAllBytes(artPath);
                     var mimeType = artName.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ? "image/png" : "image/jpeg";
-                    return CacheArtData(data, mimeType, cacheDir, albumId);
+                    return CacheArtData(data, mimeType);
                 }
             }
         }
 
-        _logger.LogDebug("No album art found for album {AlbumId} from {AudioFilePath}", albumId, audioFilePath);
+        _logger.LogDebug("No album art found from {AudioFilePath}", audioFilePath);
         return null;
     }
 
     /// <summary>
     /// Extracts and caches album art from an audio stream (reassembled from chunks).
+    /// Returns the content hash of the cached art image.
     /// </summary>
     /// <param name="audioStream">Seekable stream containing the complete audio file.</param>
     /// <param name="mimeType">Audio MIME type (e.g. "audio/mpeg").</param>
     /// <param name="fileName">Display file name for TagLib abstraction.</param>
-    /// <param name="cacheDir">Directory where cached art is stored.</param>
-    /// <param name="albumId">Album ID for the cache filename.</param>
-    /// <returns>The relative cache path to the art file, or null if none found.</returns>
-    public string? ExtractAndCacheArt(Stream audioStream, string mimeType, string fileName, string cacheDir, Guid albumId)
+    /// <returns>The content hash of the cached art, or null if none found.</returns>
+    public string? ExtractAndCacheArt(Stream audioStream, string mimeType, string fileName)
     {
         var embedded = _metadataService.ExtractEmbeddedArt(audioStream, mimeType, fileName);
         if (embedded.HasValue)
         {
-            return CacheArtData(embedded.Value.Data, embedded.Value.MimeType, cacheDir, albumId);
+            return CacheArtData(embedded.Value.Data, embedded.Value.MimeType);
         }
 
-        _logger.LogDebug("No album art found in stream for album {AlbumId}", albumId);
+        _logger.LogDebug("No album art found in stream");
         return null;
     }
 
     /// <summary>
-    /// Gets the cached art path for an album if it exists.
+    /// Returns the content hash for an existing cached art item. With content-addressed
+    /// storage, no copy is needed — the same hash works for any album referencing the same art.
     /// </summary>
-    public string? GetCachedArtPath(string cacheDir, Guid albumId)
+    /// <param name="contentHash">Existing content hash of the source art.</param>
+    /// <returns>The same content hash (no copy needed).</returns>
+    public string? CopyArtFromExisting(string? contentHash)
     {
-        var jpgPath = Path.Combine(cacheDir, $"{albumId}.jpg");
-        if (File.Exists(jpgPath))
-            return jpgPath;
-
-        var pngPath = Path.Combine(cacheDir, $"{albumId}.png");
-        if (File.Exists(pngPath))
-            return pngPath;
-
-        return null;
+        return contentHash; // Content-addressed: no copy needed, same hash works for all
     }
 
-    /// <summary>
-    /// Copies album art from a source album's cache entry to a new album's cache entry.
-    /// Used during cross-owner copy to avoid re-extracting art from the audio file.
-    /// </summary>
-    /// <param name="cacheDir">Directory where cached art is stored.</param>
-    /// <param name="sourceAlbumId">The source album whose art is already cached.</param>
-    /// <param name="targetAlbumId">The new album to copy art to.</param>
-    /// <returns>The cache path for the target album's art, or null if source has no cached art.</returns>
-    public string? CopyArtFromExisting(string cacheDir, Guid sourceAlbumId, Guid targetAlbumId)
-    {
-        var sourcePath = GetCachedArtPath(cacheDir, sourceAlbumId);
-        if (sourcePath is null)
-            return null;
-
-        try
-        {
-            Directory.CreateDirectory(cacheDir);
-            var extension = Path.GetExtension(sourcePath);
-            var targetFileName = $"{targetAlbumId}{extension}";
-            var targetPath = Path.Combine(cacheDir, targetFileName);
-            File.Copy(sourcePath, targetPath, overwrite: true);
-            _logger.LogDebug("Copied album art from {SourceAlbumId} to {TargetAlbumId} at {Path}",
-                sourceAlbumId, targetAlbumId, targetPath);
-            return targetPath;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to copy album art from {SourceAlbumId} to {TargetAlbumId}",
-                sourceAlbumId, targetAlbumId);
-            return null;
-        }
-    }
-
-    private string? CacheArtData(byte[] data, string mimeType, string cacheDir, Guid albumId)
+    private string? CacheArtData(byte[] data, string mimeType)
     {
         try
         {
-            Directory.CreateDirectory(cacheDir);
             var extension = mimeType.Contains("png", StringComparison.OrdinalIgnoreCase) ? ".png" : ".jpg";
-            var fileName = $"{albumId}{extension}";
-            var cachePath = Path.Combine(cacheDir, fileName);
-            File.WriteAllBytes(cachePath, data);
-            _logger.LogDebug("Cached album art for {AlbumId} at {Path}", albumId, cachePath);
-            return cachePath;
+            var hash = _contentStorage.Store(data, extension);
+            _logger.LogDebug("Cached album art with content hash {Hash}", hash);
+            return hash;
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to cache album art for {AlbumId}", albumId);
+            _logger.LogWarning(ex, "Failed to cache album art");
             return null;
         }
     }

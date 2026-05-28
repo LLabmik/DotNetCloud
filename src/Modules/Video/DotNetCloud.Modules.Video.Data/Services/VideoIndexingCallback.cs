@@ -206,14 +206,49 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
             .Where(m => ownedVideoIdSet.Contains(m.VideoId)).ToListAsync(cancellationToken);
         _db.VideoMetadata.RemoveRange(metadata);
 
+        // Clear old per-user series data (FK-safe order: episodes → seasons → series items → series)
+        var ownedSeriesIds = await _db.VideoSeries.IgnoreQueryFilters()
+            .Where(s => s.OwnerId == ownerId).Select(s => s.Id).ToListAsync(cancellationToken);
+
+        if (ownedSeriesIds.Count > 0)
+        {
+            var ownedSeasonIds = await _db.VideoSeasons.IgnoreQueryFilters()
+                .Where(s => ownedSeriesIds.Contains(s.SeriesId)).Select(s => s.Id).ToListAsync(cancellationToken);
+
+            if (ownedSeasonIds.Count > 0)
+            {
+                var episodes = await _db.VideoEpisodes.IgnoreQueryFilters()
+                    .Where(e => ownedSeasonIds.Contains(e.SeasonId)).ToListAsync(cancellationToken);
+                _db.VideoEpisodes.RemoveRange(episodes);
+            }
+
+            var seasons = await _db.VideoSeasons.IgnoreQueryFilters()
+                .Where(s => ownedSeriesIds.Contains(s.SeriesId)).ToListAsync(cancellationToken);
+            _db.VideoSeasons.RemoveRange(seasons);
+
+            var seriesItems = await _db.VideoSeriesItems.IgnoreQueryFilters()
+                .Where(i => ownedSeriesIds.Contains(i.SeriesId)).ToListAsync(cancellationToken);
+            _db.VideoSeriesItems.RemoveRange(seriesItems);
+
+            var series = await _db.VideoSeries.IgnoreQueryFilters()
+                .Where(s => s.OwnerId == ownerId).ToListAsync(cancellationToken);
+            _db.VideoSeries.RemoveRange(series);
+        }
+
+        // Clear old per-user videos
         var videos = await _db.Videos.IgnoreQueryFilters()
             .Where(v => v.OwnerId == ownerId).ToListAsync(cancellationToken);
         _db.Videos.RemoveRange(videos);
 
+        // Clear new per-user junction table (UserVideos)
+        var userVideos = await _db.UserVideos.IgnoreQueryFilters()
+            .Where(uv => uv.OwnerId == ownerId).ToListAsync(cancellationToken);
+        _db.UserVideos.RemoveRange(userVideos);
+
         await _db.SaveChangesAsync(cancellationToken);
 
-        _logger.LogWarning("RESET complete for owner {OwnerId}: {VideoCount} videos, {CollectionCount} collections",
-            ownerId, videos.Count, collections.Count);
+        _logger.LogWarning("RESET complete for owner {OwnerId}: {VideoCount} old videos, {UserVideoCount} user junctions, {SeriesCount} series, {CollectionCount} collections",
+            ownerId, videos.Count, userVideos.Count, ownedSeriesIds.Count, collections.Count);
     }
 
     /// <inheritdoc />

@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Storage;
 using DotNetCloud.Modules.Files.Events;
 using DotNetCloud.Modules.Music.Data.Services;
 using DotNetCloud.Modules.Music.Events;
@@ -34,6 +35,11 @@ public static class MusicServiceRegistration
         services.AddScoped<IRecommendationService>(sp => sp.GetRequiredService<RecommendationService>());
         services.AddScoped<EqPresetService>();
         services.AddScoped<IEqPresetService>(sp => sp.GetRequiredService<EqPresetService>());
+        // Content-addressed storage for binary assets (album art)
+        var storageRoot = configuration["Files:Storage:RootPath"] ?? Path.GetTempPath();
+        var mediaCachePath = configuration["Files:Storage:MediaCachePath"] ?? Path.Combine(storageRoot, ".media-cache");
+        services.AddSingleton(new ContentAddressedStorage(mediaCachePath));
+
         services.AddScoped<LibraryScanService>();
         services.AddScoped<MusicMetadataService>();
         services.AddScoped<AlbumArtService>();

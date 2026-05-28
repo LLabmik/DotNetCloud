@@ -1,5 +1,6 @@
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Storage;
 using DotNetCloud.Modules.Files.Services;
 using DotNetCloud.Modules.Music.Data;
 using DotNetCloud.Modules.Music.Data.Services;
@@ -23,7 +24,8 @@ public class MusicIndexingCallbackTests
     {
         _db = TestHelpers.CreateDb();
         var metadataService = new MusicMetadataService(Mock.Of<ILogger<MusicMetadataService>>());
-        var albumArtService = new AlbumArtService(metadataService, Mock.Of<ILogger<AlbumArtService>>());
+        var contentStorage = new ContentAddressedStorage(Path.GetTempPath());
+        var albumArtService = new AlbumArtService(metadataService, contentStorage, Mock.Of<ILogger<AlbumArtService>>());
         _libraryScanService = new LibraryScanService(
             _db, metadataService, albumArtService,
             Mock.Of<IEventBus>(), new ConfigurationBuilder().Build(), Mock.Of<ILogger<LibraryScanService>>(),

@@ -69,6 +69,40 @@ public class MusicDbContext : DbContext
     /// <summary>Starred (favorited) items.</summary>
     public DbSet<StarredItem> StarredItems => Set<StarredItem>();
 
+    // ── Canonical (shared) tables ──
+
+    /// <summary>Canonical tracks — shared audio metadata, keyed by ContentHash.</summary>
+    public DbSet<CanonicalTrack> CanonicalTracks => Set<CanonicalTrack>();
+
+    /// <summary>Canonical albums — shared album metadata.</summary>
+    public DbSet<CanonicalAlbum> CanonicalAlbums => Set<CanonicalAlbum>();
+
+    /// <summary>Canonical artists — shared artist metadata.</summary>
+    public DbSet<CanonicalArtist> CanonicalArtists => Set<CanonicalArtist>();
+
+    /// <summary>Canonical genres — shared genre names.</summary>
+    public DbSet<CanonicalGenre> CanonicalGenres => Set<CanonicalGenre>();
+
+    /// <summary>Canonical track-artist junction.</summary>
+    public DbSet<CanonicalTrackArtist> CanonicalTrackArtists => Set<CanonicalTrackArtist>();
+
+    /// <summary>Canonical track-genre junction.</summary>
+    public DbSet<CanonicalTrackGenre> CanonicalTrackGenres => Set<CanonicalTrackGenre>();
+
+    /// <summary>Canonical album-artist junction.</summary>
+    public DbSet<CanonicalAlbumArtist> CanonicalAlbumArtists => Set<CanonicalAlbumArtist>();
+
+    // ── Per-user junction tables ──
+
+    /// <summary>User-track junctions — lightweight per-user records referencing canonical tracks.</summary>
+    public DbSet<UserTrack> UserTracks => Set<UserTrack>();
+
+    /// <summary>User-artist junctions — lightweight per-user records referencing canonical artists.</summary>
+    public DbSet<UserArtist> UserArtists => Set<UserArtist>();
+
+    /// <summary>User-album junctions — lightweight per-user records referencing canonical albums.</summary>
+    public DbSet<UserAlbum> UserAlbums => Set<UserAlbum>();
+
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -88,5 +122,19 @@ public class MusicDbContext : DbContext
         modelBuilder.ApplyConfiguration(new UserMusicPreferenceConfiguration());
         modelBuilder.ApplyConfiguration(new ScrobbleRecordConfiguration());
         modelBuilder.ApplyConfiguration(new StarredItemConfiguration());
+
+        // Canonical (shared) tables
+        modelBuilder.ApplyConfiguration(new CanonicalTrackConfiguration());
+        modelBuilder.ApplyConfiguration(new CanonicalAlbumConfiguration());
+        modelBuilder.ApplyConfiguration(new CanonicalArtistConfiguration());
+        modelBuilder.ApplyConfiguration(new CanonicalGenreConfiguration());
+        modelBuilder.ApplyConfiguration(new CanonicalTrackArtistConfiguration());
+        modelBuilder.ApplyConfiguration(new CanonicalTrackGenreConfiguration());
+        modelBuilder.ApplyConfiguration(new CanonicalAlbumArtistConfiguration());
+
+        // Per-user junction tables
+        modelBuilder.ApplyConfiguration(new UserTrackConfiguration());
+        modelBuilder.ApplyConfiguration(new UserArtistConfiguration());
+        modelBuilder.ApplyConfiguration(new UserAlbumConfiguration());
     }
 }

@@ -23,6 +23,431 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("DotNetCloud.Modules.Video.Models.CanonicalSubtitle", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Format")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<bool>("IsDefault")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Label")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Language")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("VideoContentHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("VideoContentHash")
+                        .HasDatabaseName("ix_canonical_subtitles_video_content_hash");
+
+                    b.ToTable("canonical_subtitles", "video");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Video.Models.CanonicalTmdbData", b =>
+                {
+                    b.Property<int>("TmdbId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("TmdbId"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("ExternalPosterHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("Genres")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("LastEnrichedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Overview")
+                        .HasMaxLength(5000)
+                        .HasColumnType("character varying(5000)");
+
+                    b.Property<DateTime?>("ReleaseDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<double?>("TmdbRating")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("TmdbTitle")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.HasKey("TmdbId");
+
+                    b.ToTable("canonical_tmdb_data", "video");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Video.Models.CanonicalVideo", b =>
+                {
+                    b.Property<string>("ContentHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<long>("DurationTicks")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("EmbeddedDate")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("EmbeddedImdbId")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("EmbeddedLanguage")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("EmbeddedTitle")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int?>("EmbeddedTmdbId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ExternalPosterHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<bool>("HasExternalPoster")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("MimeType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<long>("SizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ThumbnailPosterHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.HasKey("ContentHash");
+
+                    b.HasIndex("EmbeddedImdbId")
+                        .HasDatabaseName("ix_canonical_videos_embedded_imdb_id");
+
+                    b.HasIndex("EmbeddedTmdbId")
+                        .HasDatabaseName("ix_canonical_videos_embedded_tmdb_id");
+
+                    b.HasIndex("Title")
+                        .HasDatabaseName("ix_canonical_videos_title");
+
+                    b.ToTable("canonical_videos", "video");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Video.Models.CanonicalVideoEpisode", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("AddedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("EpisodeNumber")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Overview")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<Guid>("SeasonId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Title")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("VideoContentHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SeasonId")
+                        .HasDatabaseName("ix_canonical_video_episodes_season_id");
+
+                    b.HasIndex("VideoContentHash")
+                        .HasDatabaseName("ix_canonical_video_episodes_video_content_hash");
+
+                    b.HasIndex("SeasonId", "EpisodeNumber")
+                        .IsUnique()
+                        .HasDatabaseName("uq_canonical_video_episodes_season_episode");
+
+                    b.ToTable("canonical_video_episodes", "video");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Video.Models.CanonicalVideoMetadata", b =>
+                {
+                    b.Property<string>("VideoContentHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("AudioCodec")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<int>("AudioTrackCount")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("Bitrate")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ContainerFormat")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("ExtractedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<double>("FrameRate")
+                        .HasColumnType("double precision");
+
+                    b.Property<int>("Height")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SubtitleTrackCount")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("VideoCodec")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<int>("Width")
+                        .HasColumnType("integer");
+
+                    b.HasKey("VideoContentHash");
+
+                    b.ToTable("canonical_video_metadata", "video");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Video.Models.CanonicalVideoSeason", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("AirDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<int>("EpisodeCount")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Name")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("Overview")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<string>("PosterHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<int>("SeasonNumber")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("SeriesId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int?>("TmdbId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SeriesId")
+                        .HasDatabaseName("ix_canonical_video_seasons_series_id");
+
+                    b.HasIndex("SeriesId", "SeasonNumber")
+                        .IsUnique()
+                        .HasDatabaseName("uq_canonical_video_seasons_series_season");
+
+                    b.ToTable("canonical_video_seasons", "video");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Video.Models.CanonicalVideoSeries", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<string>("Genres")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("PosterHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("Status")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int?>("TmdbId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("TmdbName")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("TmdbOverview")
+                        .HasColumnType("text");
+
+                    b.Property<double?>("TmdbRating")
+                        .HasColumnType("double precision");
+
+                    b.Property<int>("TotalEpisodes")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TotalSeasons")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .HasDatabaseName("ix_canonical_video_series_name");
+
+                    b.HasIndex("TmdbId")
+                        .HasDatabaseName("ix_canonical_video_series_tmdb_id");
+
+                    b.ToTable("canonical_video_series", "video");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Video.Models.CanonicalVideoSeriesItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("AddedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("EpisodeTitle")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid>("SeriesId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("VideoContentHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SeriesId")
+                        .HasDatabaseName("ix_canonical_video_series_items_series_id");
+
+                    b.HasIndex("VideoContentHash")
+                        .HasDatabaseName("ix_canonical_video_series_items_video_content_hash");
+
+                    b.ToTable("canonical_video_series_items", "video");
+                });
+
             modelBuilder.Entity("DotNetCloud.Modules.Video.Models.Subtitle", b =>
                 {
                     b.Property<Guid>("Id")
@@ -69,11 +494,75 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
                     b.ToTable("Subtitles", "video");
                 });
 
+            modelBuilder.Entity("DotNetCloud.Modules.Video.Models.UserVideo", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CanonicalContentHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("FileNodeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsFavorite")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("OwnerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<int>("ViewCount")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CanonicalContentHash")
+                        .HasDatabaseName("ix_user_videos_canonical_content_hash");
+
+                    b.HasIndex("IsDeleted")
+                        .HasDatabaseName("ix_user_videos_is_deleted");
+
+                    b.HasIndex("OwnerId")
+                        .HasDatabaseName("ix_user_videos_owner_id");
+
+                    b.HasIndex("FileNodeId", "OwnerId")
+                        .IsUnique()
+                        .HasDatabaseName("uq_user_videos_file_node_owner_id");
+
+                    b.HasIndex("OwnerId", "CreatedAt")
+                        .HasDatabaseName("ix_user_videos_owner_created_at");
+
+                    b.ToTable("user_videos", "video");
+                });
+
             modelBuilder.Entity("DotNetCloud.Modules.Video.Models.Video", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
+
+                    b.Property<string>("ContentHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
 
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
@@ -160,6 +649,9 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ContentHash")
+                        .HasDatabaseName("ix_videos_content_hash");
 
                     b.HasIndex("IsDeleted")
                         .HasDatabaseName("ix_videos_is_deleted");
@@ -678,6 +1170,61 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
                     b.ToTable("WatchProgresses", "video");
                 });
 
+            modelBuilder.Entity("DotNetCloud.Modules.Video.Models.CanonicalSubtitle", b =>
+                {
+                    b.HasOne("DotNetCloud.Modules.Video.Models.CanonicalVideo", "Video")
+                        .WithMany("Subtitles")
+                        .HasForeignKey("VideoContentHash")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Video");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Video.Models.CanonicalVideoEpisode", b =>
+                {
+                    b.HasOne("DotNetCloud.Modules.Video.Models.CanonicalVideoSeason", "Season")
+                        .WithMany("Episodes")
+                        .HasForeignKey("SeasonId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Season");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Video.Models.CanonicalVideoMetadata", b =>
+                {
+                    b.HasOne("DotNetCloud.Modules.Video.Models.CanonicalVideo", "Video")
+                        .WithOne("Metadata")
+                        .HasForeignKey("DotNetCloud.Modules.Video.Models.CanonicalVideoMetadata", "VideoContentHash")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Video");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Video.Models.CanonicalVideoSeason", b =>
+                {
+                    b.HasOne("DotNetCloud.Modules.Video.Models.CanonicalVideoSeries", "Series")
+                        .WithMany("Seasons")
+                        .HasForeignKey("SeriesId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Series");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Video.Models.CanonicalVideoSeriesItem", b =>
+                {
+                    b.HasOne("DotNetCloud.Modules.Video.Models.CanonicalVideoSeries", "Series")
+                        .WithMany("Items")
+                        .HasForeignKey("SeriesId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Series");
+                });
+
             modelBuilder.Entity("DotNetCloud.Modules.Video.Models.Subtitle", b =>
                 {
                     b.HasOne("DotNetCloud.Modules.Video.Models.Video", "Video")
@@ -687,6 +1234,17 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Video");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Video.Models.UserVideo", b =>
+                {
+                    b.HasOne("DotNetCloud.Modules.Video.Models.CanonicalVideo", "CanonicalVideo")
+                        .WithMany("UserVideos")
+                        .HasForeignKey("CanonicalContentHash")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CanonicalVideo");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Video.Models.VideoCollectionItem", b =>
@@ -799,6 +1357,27 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Video");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Video.Models.CanonicalVideo", b =>
+                {
+                    b.Navigation("Metadata");
+
+                    b.Navigation("Subtitles");
+
+                    b.Navigation("UserVideos");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Video.Models.CanonicalVideoSeason", b =>
+                {
+                    b.Navigation("Episodes");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Video.Models.CanonicalVideoSeries", b =>
+                {
+                    b.Navigation("Items");
+
+                    b.Navigation("Seasons");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Video.Models.Video", b =>

@@ -1,5 +1,6 @@
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
+using DotNetCloud.Core.Storage;
 using DotNetCloud.Modules.Music.Data;
 using DotNetCloud.Modules.Music.Data.Services;
 using DotNetCloud.Modules.Music.Services;
@@ -53,12 +54,14 @@ public class MetadataEnrichmentServiceTests
     private MetadataEnrichmentService CreateService()
     {
         var metadataService = new MusicMetadataService(NullLogger<MusicMetadataService>.Instance);
-        var albumArtService = new AlbumArtService(metadataService, NullLogger<AlbumArtService>.Instance);
+        var contentStorage = new ContentAddressedStorage(Path.GetTempPath());
+        var albumArtService = new AlbumArtService(metadataService, contentStorage, NullLogger<AlbumArtService>.Instance);
         return new MetadataEnrichmentService(
             _db,
             _mockMbClient.Object,
             _mockCaaClient.Object,
             albumArtService,
+            contentStorage,
             _configuration,
             NullLogger<MetadataEnrichmentService>.Instance);
     }

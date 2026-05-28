@@ -4124,6 +4124,88 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
   - ✓ Align Photos, Music, and Video collapsed sidebars with the Tracks-style pattern, including layout shrink behavior and persisted collapse state for Video
   - ☐ Security tests, performance tests, admin/user docs — deferred
 
+### Sub-Phase F: Media Content Deduplication (Canonical Data Model)
+
+**Objective:** Eliminate per-user duplication of music/video metadata and binary assets by introducing content-addressed canonical tables shared across all users.
+
+#### Phase 1: Foundation — Shared Cache Infrastructure
+
+- ✓ Create `ContentAddressedStorage` utility in `DotNetCloud.Core/Storage/` (SHA-256 hash-addressed, 2-level directory prefix)
+- ✓ Add `ContentHash` property + DB column + index to `Video` entity
+- ✓ Add `Files:Storage:MediaCachePath` config key support
+
+#### Phase 2: Music Canonical Deduplication
+
+**Canonical Entity Models (music schema, no OwnerId):**
+
+- ✓ `CanonicalTrack` (ContentHash PK, all intrinsic audio properties, MusicBrainzRecordingId, ISRC, BPM, Composers)
+- ✓ `CanonicalAlbum` (Id PK, Title, Year, CoverArtHash, MusicBrainz IDs, TotalDurationTicks)
+- ✓ `CanonicalArtist` (Id PK, Name, SortName, MusicBrainzId, Biography, external URLs)
+- ✓ `CanonicalGenre` (Id PK, Name unique)
+- ✓ `CanonicalTrackArtist` (TrackContentHash + ArtistId composite PK, IsPrimary)
+- ✓ `CanonicalTrackGenre` (TrackContentHash + GenreId composite PK)
+- ✓ `CanonicalAlbumArtist` (AlbumId + ArtistId composite PK, IsPrimary)
+
+**User Junction Models (per-user, lightweight):**
+
+- ✓ `UserTrack` (Id, OwnerId, FileNodeId, CanonicalTrackHash, CanonicalAlbumId, ContentHash, PlayCount, soft-delete, dates)
+- ✓ `UserArtist` (Id, OwnerId, CanonicalArtistId, soft-delete, dates)
+- ✓ `UserAlbum` (Id, OwnerId, CanonicalAlbumId, soft-delete, dates)
+
+**EF Core Configurations:**
+
+- ✓ All canonical entity configurations with unique constraints and optimized indexes
+- ✓ All user junction configurations with FK cascades and query filters
+
+**DbContext Updates:**
+
+- ✓ `MusicDbContext` — added DbSets and `OnModelCreating` configurations for all canonical + user junction tables
+
+**Album Art Service Updates:**
+
+- ✓ `AlbumArtService` — migrated from per-album-ID file caching to `ContentAddressedStorage` (hash-based dedup, no copy needed for identical art)
+
+**Enrichment Service Updates:**
+
+- ✓ `MetadataEnrichmentService` — uses `ContentAddressedStorage` for album art from Cover Art Archive
+
+**Service Updates:**
+
+- ✓ `MusicAlbumService` — accepts `ContentAddressedStorage`, resolves cover art via content hash
+
+**DI Registration:**
+
+- ✓ `ContentAddressedStorage` registered as singleton in `MusicServiceRegistration.cs`
+
+#### Phase 3: Video Canonical Deduplication
+
+**Canonical Entity Models (video schema, no OwnerId):**
+
+- ✓ `CanonicalVideo` (ContentHash PK, all intrinsic video properties, thumbnail hash, embedded metadata fields)
+- ✓ `CanonicalVideoMetadata` (VideoContentHash PK, resolution, codecs, bitrate, container format)
+- ✓ `CanonicalTmdbData` (TmdbId PK, TMDB enrichment data, external poster hash)
+- ✓ `CanonicalVideoSeries` (Id PK, shared series metadata, poster hash, TMDB IDs)
+- ✓ `CanonicalVideoSeason` (Id PK, series FK, season number, poster hash, TMDB data)
+- ✓ `CanonicalVideoEpisode` (Id PK, season FK, VideoContentHash, episode number, title)
+- ✓ `CanonicalSubtitle` (Id PK, VideoContentHash FK, language, format, content)
+- ✓ `CanonicalVideoSeriesItem` (Id PK, SeriesId FK, VideoContentHash, sort order)
+
+**User Junction Models (per-user, lightweight):**
+
+- ✓ `UserVideo` (Id, OwnerId, FileNodeId, CanonicalContentHash, IsFavorite, ViewCount, soft-delete, dates)
+
+**EF Core Configurations:**
+
+- ✓ All canonical/video configurations with unique constraints and optimized indexes
+
+**DbContext Updates:**
+
+- ✓ `VideoDbContext` — added DbSets and configurations for all canonical + user video tables
+
+**Build Verification:**
+
+- ✓ `dotnet build DotNetCloud.CI.slnf` — zero compilation errors
+
 ---
 
 ## Phase 9: AI Assistant
@@ -4636,7 +4718,6 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 ### Phase 8: Testing & Documentation ✅
 
 #### Step 8.1 — Unit Tests (Permission Scoping)
-
 
 #### Step 8.2 — Integration Tests (End-to-End & Multi-Database)
 

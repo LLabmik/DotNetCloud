@@ -1,6 +1,7 @@
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Errors;
+using DotNetCloud.Core.Storage;
 using DotNetCloud.Modules.Files.Services;
 using DotNetCloud.Modules.Music.Models;
 using DotNetCloud.Modules.Music.Services;
@@ -18,8 +19,8 @@ public sealed class MusicAlbumService : IMusicAlbumService
     private readonly MusicDbContext _db;
     private readonly AlbumArtService _albumArtService;
     private readonly IDownloadService _downloadService;
+    private readonly ContentAddressedStorage _contentStorage;
     private readonly ILogger<MusicAlbumService> _logger;
-    private readonly string _artCacheDir;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MusicAlbumService"/> class.
@@ -28,15 +29,15 @@ public sealed class MusicAlbumService : IMusicAlbumService
         MusicDbContext db,
         AlbumArtService albumArtService,
         IDownloadService downloadService,
+        ContentAddressedStorage contentStorage,
         IConfiguration configuration,
         ILogger<MusicAlbumService> logger)
     {
         _db = db;
         _albumArtService = albumArtService;
         _downloadService = downloadService;
+        _contentStorage = contentStorage;
         _logger = logger;
-        var storageRoot = configuration["Files:Storage:RootPath"] ?? Path.GetTempPath();
-        _artCacheDir = Path.Combine(storageRoot, ".album-art");
     }
 
     /// <summary>
@@ -146,6 +147,7 @@ public sealed class MusicAlbumService : IMusicAlbumService
 
     /// <summary>
     /// Gets the cover art path for an album. Attempts on-demand extraction if not cached.
+    /// Returns the content hash of the image, or null if not available.
     /// </summary>
     public async Task<string?> GetCoverArtPathAsync(Guid albumId, CancellationToken cancellationToken = default)
     {
@@ -155,25 +157,25 @@ public sealed class MusicAlbumService : IMusicAlbumService
         if (album is null)
             return null;
 
-        // If we have a cached path and the file exists, return it
-        if (album.CoverArtPath is not null && File.Exists(album.CoverArtPath))
+        // If we have a cached content hash, return it
+        if (album.CoverArtPath is not null && _contentStorage.Exists(album.CoverArtPath))
             return album.CoverArtPath;
 
         // On-demand extraction: try to extract from one of the album's tracks
-        var artPath = await ExtractCoverArtForAlbumAsync(album, cancellationToken);
+        var artHash = await ExtractCoverArtForAlbumAsync(album, cancellationToken);
 
         // If on-demand extraction also failed and the DB still claims we have art,
         // clear the stale state so the next enrichment run can re-fetch from MusicBrainz.
-        if (artPath is null && album.HasCoverArt)
+        if (artHash is null && album.HasCoverArt)
         {
             album.HasCoverArt = false;
             album.CoverArtPath = null;
             album.UpdatedAt = DateTime.UtcNow;
             await _db.SaveChangesAsync(cancellationToken);
-            _logger.LogInformation("Cleared stale cover art state for album {AlbumId} (file missing, extraction failed)", album.Id);
+            _logger.LogInformation("Cleared stale cover art state for album {AlbumId} (content hash missing, extraction failed)", album.Id);
         }
 
-        return artPath;
+        return artHash;
     }
 
     private async Task<string?> ExtractCoverArtForAlbumAsync(MusicAlbum album, CancellationToken cancellationToken)
@@ -194,16 +196,15 @@ public sealed class MusicAlbumService : IMusicAlbumService
                 if (stream is null)
                     continue;
 
-                Directory.CreateDirectory(_artCacheDir);
-                var artPath = _albumArtService.ExtractAndCacheArt(stream, track.MimeType, track.FileName, _artCacheDir, album.Id);
-                if (artPath is not null)
+                var artHash = _albumArtService.ExtractAndCacheArt(stream, track.MimeType, track.FileName);
+                if (artHash is not null)
                 {
                     album.HasCoverArt = true;
-                    album.CoverArtPath = artPath;
+                    album.CoverArtPath = artHash;
                     album.UpdatedAt = DateTime.UtcNow;
                     await _db.SaveChangesAsync(cancellationToken);
                     _logger.LogInformation("On-demand cover art extracted for album {AlbumId} from track {TrackId}", album.Id, track.Id);
-                    return artPath;
+                    return artHash;
                 }
             }
             catch (Exception ex)

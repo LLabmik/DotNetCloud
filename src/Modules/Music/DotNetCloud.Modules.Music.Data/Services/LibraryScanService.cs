@@ -180,21 +180,21 @@ public sealed class LibraryScanService
         // Handle album art
         if (!album.HasCoverArt)
         {
-            string? artPath = null;
+            string? artHash = null;
             if (resolvedPath is not null)
             {
-                artPath = _albumArtService.ExtractAndCacheArt(resolvedPath, _artCacheDir, album.Id);
+                artHash = _albumArtService.ExtractAndCacheArt(resolvedPath);
             }
             else if (audioStream is not null && audioStream.CanSeek)
             {
                 audioStream.Position = 0;
-                artPath = _albumArtService.ExtractAndCacheArt(audioStream, mimeType, fileName, _artCacheDir, album.Id);
+                artHash = _albumArtService.ExtractAndCacheArt(audioStream, mimeType, fileName);
             }
 
-            if (artPath is not null)
+            if (artHash is not null)
             {
                 album.HasCoverArt = true;
-                album.CoverArtPath = artPath;
+                album.CoverArtPath = artHash;
             }
         }
 
@@ -392,12 +392,11 @@ public sealed class LibraryScanService
             // Only copy if the source has art and the new album doesn't already have it.
             if (!newAlbum.HasCoverArt && sourceTrack.Album.HasCoverArt)
             {
-                var artPath = _albumArtService.CopyArtFromExisting(
-                    _artCacheDir, sourceTrack.Album.Id, newAlbum.Id);
-                if (artPath is not null)
+                var artHash = _albumArtService.CopyArtFromExisting(sourceTrack.Album.CoverArtPath);
+                if (artHash is not null)
                 {
                     newAlbum.HasCoverArt = true;
-                    newAlbum.CoverArtPath = artPath;
+                    newAlbum.CoverArtPath = artHash;
                 }
             }
         }
@@ -604,12 +603,11 @@ public sealed class LibraryScanService
                 // Copy album art from the source user's cached art
                 if (!newAlbum.HasCoverArt && sourceTrack.Album.HasCoverArt)
                 {
-                    var artPath = _albumArtService.CopyArtFromExisting(
-                        _artCacheDir, sourceTrack.Album.Id, newAlbum.Id);
-                    if (artPath is not null)
+                    var artHash = _albumArtService.CopyArtFromExisting(sourceTrack.Album.CoverArtPath);
+                    if (artHash is not null)
                     {
                         newAlbum.HasCoverArt = true;
-                        newAlbum.CoverArtPath = artPath;
+                        newAlbum.CoverArtPath = artHash;
                     }
                 }
             }
@@ -1142,12 +1140,11 @@ public sealed class LibraryScanService
                 // Copy album art
                 if (!newAlbum.HasCoverArt && sourceTrack.Album.HasCoverArt)
                 {
-                    var artPath = _albumArtService.CopyArtFromExisting(
-                        _artCacheDir, sourceTrack.Album.Id, newAlbum.Id);
-                    if (artPath is not null)
+                    var artHash = _albumArtService.CopyArtFromExisting(sourceTrack.Album.CoverArtPath);
+                    if (artHash is not null)
                     {
                         newAlbum.HasCoverArt = true;
-                        newAlbum.CoverArtPath = artPath;
+                        newAlbum.CoverArtPath = artHash;
                     }
                 }
             }

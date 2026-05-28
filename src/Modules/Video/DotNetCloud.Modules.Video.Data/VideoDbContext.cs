@@ -66,6 +66,37 @@ public class VideoDbContext : DbContext
     /// <summary>Episode junction records linking videos to seasons.</summary>
     public DbSet<VideoEpisode> VideoEpisodes => Set<VideoEpisode>();
 
+    // ── Canonical (shared) tables ──
+
+    /// <summary>Canonical videos — shared video metadata, keyed by ContentHash.</summary>
+    public DbSet<CanonicalVideo> CanonicalVideos => Set<CanonicalVideo>();
+
+    /// <summary>Canonical video metadata (resolution, codecs, etc.).</summary>
+    public DbSet<CanonicalVideoMetadata> CanonicalVideoMetadata => Set<CanonicalVideoMetadata>();
+
+    /// <summary>Canonical TMDB enrichment data.</summary>
+    public DbSet<CanonicalTmdbData> CanonicalTmdbData => Set<CanonicalTmdbData>();
+
+    /// <summary>Canonical video series (TV series and movie franchises).</summary>
+    public DbSet<CanonicalVideoSeries> CanonicalVideoSeries => Set<CanonicalVideoSeries>();
+
+    /// <summary>Canonical seasons within TV series.</summary>
+    public DbSet<CanonicalVideoSeason> CanonicalVideoSeasons => Set<CanonicalVideoSeason>();
+
+    /// <summary>Canonical episode junction records.</summary>
+    public DbSet<CanonicalVideoEpisode> CanonicalVideoEpisodes => Set<CanonicalVideoEpisode>();
+
+    /// <summary>Canonical subtitles (intrinsic to the video file).</summary>
+    public DbSet<CanonicalSubtitle> CanonicalSubtitles => Set<CanonicalSubtitle>();
+
+    /// <summary>Canonical video series items (for movie franchises).</summary>
+    public DbSet<CanonicalVideoSeriesItem> CanonicalVideoSeriesItems => Set<CanonicalVideoSeriesItem>();
+
+    // ── Per-user junction tables ──
+
+    /// <summary>User-video junctions — lightweight per-user records referencing canonical videos.</summary>
+    public DbSet<UserVideo> UserVideos => Set<UserVideo>();
+
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -84,5 +115,18 @@ public class VideoDbContext : DbContext
         modelBuilder.ApplyConfiguration(new VideoSeasonConfiguration());
         modelBuilder.ApplyConfiguration(new VideoSeriesItemConfiguration());
         modelBuilder.ApplyConfiguration(new VideoEpisodeConfiguration());
+
+        // Canonical (shared) tables
+        modelBuilder.ApplyConfiguration(new CanonicalVideoConfiguration());
+        modelBuilder.ApplyConfiguration(new CanonicalVideoMetadataConfiguration());
+        modelBuilder.ApplyConfiguration(new CanonicalTmdbDataConfiguration());
+        modelBuilder.ApplyConfiguration(new CanonicalVideoSeriesConfiguration());
+        modelBuilder.ApplyConfiguration(new CanonicalVideoSeasonConfiguration());
+        modelBuilder.ApplyConfiguration(new CanonicalVideoEpisodeConfiguration());
+        modelBuilder.ApplyConfiguration(new CanonicalSubtitleConfiguration());
+        modelBuilder.ApplyConfiguration(new CanonicalVideoSeriesItemConfiguration());
+
+        // Per-user junction tables
+        modelBuilder.ApplyConfiguration(new UserVideoConfiguration());
     }
 }

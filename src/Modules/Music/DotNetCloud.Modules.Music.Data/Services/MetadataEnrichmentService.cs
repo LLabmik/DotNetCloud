@@ -1,5 +1,6 @@
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
+using DotNetCloud.Core.Storage;
 using DotNetCloud.Modules.Music.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -17,8 +18,8 @@ public sealed class MetadataEnrichmentService : IMetadataEnrichmentService
     private readonly IMusicBrainzClient _musicBrainzClient;
     private readonly ICoverArtArchiveClient _coverArtClient;
     private readonly AlbumArtService _albumArtService;
+    private readonly ContentAddressedStorage _contentStorage;
     private readonly ILogger<MetadataEnrichmentService> _logger;
-    private readonly string _artCacheDir;
 
     /// <summary>
     /// Minimum score threshold for accepting MusicBrainz search results.
@@ -40,6 +41,7 @@ public sealed class MetadataEnrichmentService : IMetadataEnrichmentService
         IMusicBrainzClient musicBrainzClient,
         ICoverArtArchiveClient coverArtClient,
         AlbumArtService albumArtService,
+        ContentAddressedStorage contentStorage,
         IConfiguration configuration,
         ILogger<MetadataEnrichmentService> logger)
     {
@@ -47,10 +49,8 @@ public sealed class MetadataEnrichmentService : IMetadataEnrichmentService
         _musicBrainzClient = musicBrainzClient;
         _coverArtClient = coverArtClient;
         _albumArtService = albumArtService;
+        _contentStorage = contentStorage;
         _logger = logger;
-        var storageRoot = configuration["Files:Storage:RootPath"] ?? Path.GetTempPath();
-        _artCacheDir = Path.Combine(storageRoot, ".album-art");
-        Directory.CreateDirectory(_artCacheDir);
     }
 
     /// <inheritdoc/>
@@ -103,17 +103,17 @@ public sealed class MetadataEnrichmentService : IMetadataEnrichmentService
             // Store the first release ID
             album.MusicBrainzReleaseId = releaseGroup.Releases[0].Id;
 
-            // Fetch cover art if album doesn't have it or the cached file is missing
-            if (!album.HasCoverArt || (album.CoverArtPath is not null && !File.Exists(album.CoverArtPath)))
+            // Fetch cover art if album doesn't have it or the cached hash is missing
+            if (!album.HasCoverArt || (album.CoverArtPath is not null && !_contentStorage.Exists(album.CoverArtPath)))
             {
                 var coverArt = await _coverArtClient.GetFrontCoverFromReleasesAsync(releaseGroup.Releases, cancellationToken);
                 if (coverArt is not null)
                 {
-                    var cachePath = CacheExternalArt(coverArt.Data, coverArt.MimeType, album.Id);
-                    if (cachePath is not null)
+                    var artHash = CacheExternalArt(coverArt.Data, coverArt.MimeType);
+                    if (artHash is not null)
                     {
                         album.HasCoverArt = true;
-                        album.CoverArtPath = cachePath;
+                        album.CoverArtPath = artHash;
                         album.MusicBrainzReleaseId = coverArt.ReleaseMbid;
                         _logger.LogInformation("Fetched cover art for album '{AlbumTitle}' from release {ReleaseMbid}", album.Title, coverArt.ReleaseMbid);
                     }
@@ -391,23 +391,20 @@ public sealed class MetadataEnrichmentService : IMetadataEnrichmentService
     }
 
     /// <summary>
-    /// Caches externally-fetched art data to the album art cache directory.
+    /// Caches externally-fetched art data using content-addressed storage.
     /// </summary>
-    private string? CacheExternalArt(byte[] data, string mimeType, Guid albumId)
+    private string? CacheExternalArt(byte[] data, string mimeType)
     {
         try
         {
-            Directory.CreateDirectory(_artCacheDir);
             var extension = mimeType.Contains("png", StringComparison.OrdinalIgnoreCase) ? ".png" : ".jpg";
-            var fileName = $"{albumId}{extension}";
-            var cachePath = Path.Combine(_artCacheDir, fileName);
-            File.WriteAllBytes(cachePath, data);
-            _logger.LogDebug("Cached external album art for {AlbumId} at {Path}", albumId, cachePath);
-            return cachePath;
+            var hash = _contentStorage.Store(data, extension);
+            _logger.LogDebug("Cached external album art with content hash {Hash}", hash);
+            return hash;
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to cache external album art for {AlbumId}", albumId);
+            _logger.LogWarning(ex, "Failed to cache external album art");
             return null;
         }
     }

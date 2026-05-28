@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.Storage;
 using DotNetCloud.Modules.Files.Services;
 using DotNetCloud.Modules.Music.Data;
 using DotNetCloud.Modules.Music.Data.Services;
@@ -21,10 +22,11 @@ public class MusicAlbumServiceTests
     {
         _db = TestHelpers.CreateDb();
         var metadataService = new MusicMetadataService(NullLogger<MusicMetadataService>.Instance);
-        var albumArtService = new AlbumArtService(metadataService, NullLogger<AlbumArtService>.Instance);
+        var contentStorage = new ContentAddressedStorage(Path.GetTempPath());
+        var albumArtService = new AlbumArtService(metadataService, contentStorage, NullLogger<AlbumArtService>.Instance);
         var downloadService = new Mock<IDownloadService>();
         var config = new ConfigurationBuilder().AddInMemoryCollection().Build();
-        _service = new MusicAlbumService(_db, albumArtService, downloadService.Object, config, NullLogger<MusicAlbumService>.Instance);
+        _service = new MusicAlbumService(_db, albumArtService, downloadService.Object, contentStorage, config, NullLogger<MusicAlbumService>.Instance);
         _caller = TestHelpers.CreateCaller();
     }
 

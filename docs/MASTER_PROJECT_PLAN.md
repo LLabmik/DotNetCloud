@@ -107,6 +107,9 @@
 | Phase 4.9                   | 42      | 42        | 0           | 0       |
 | Phase 4.10 — Hierarchy      | 17      | 14        | 0           | 3       |
 | Phase 5-8                   | Summary | 10        | 0           | 0       |
+| Media Content Dedup — Music | 1       | 1         | 0           | 0       |
+| Media Content Dedup — Video | 1       | 1         | 0           | 0       |
+| Media Content Dedup — Cache | 1       | 1         | 0           | 0       |
 | Phase 6 (Email & Bookmarks) | 9       | 9         | 0           | 0       |
 | Phase 8 (Full-Text Search)  | 18      | 18        | 0           | 0       |
 | Phase 7 (Video Calling)     | 11      | 11        | 0           | 0       |
@@ -2729,6 +2732,71 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ☐ Security tests, performance tests, admin/user/API docs — deferred
 
 **Notes:** Sub-Phase E complete. All test targets exceeded (Photos 119≥80, Music 156≥100, Video 105≥60). Phase 5 integration code done. Media module sidebars now follow the same icon-first collapsed pattern as Tracks/Files, with Photos albums and Music playlists hidden in collapsed mode, Music/Video layouts shrinking correctly with the sidebar, and Video persisting the collapse preference. The updated modules were validated through `dotnet build DotNetCloud.CI.slnf` and a successful healthy bare-metal redeploy.
+
+---
+
+### Sub-Phase F: Media Content Deduplication (Canonical Data Model)
+
+**Reference:** `docs/MEDIA_CONTENT_DEDUPLICATION_PLAN.md`
+
+**Objective:** Eliminate per-user duplication of music/video metadata and binary assets by introducing content-addressed canonical tables shared across all users.
+
+#### Section: Phase 5.21 — Foundation: Shared Cache Infrastructure
+
+##### Step: phase-5.21 — ContentAddressedStorage + Video ContentHash
+
+**Status:** completed ✅
+**Deliverables:**
+
+- ✓ `ContentAddressedStorage` utility in `DotNetCloud.Core/Storage/` — SHA-256 content-addressed cache with 2-level directory prefix
+- ✓ `ContentHash` property added to `Video` entity
+- ✓ DB column + index for `ContentHash` in `VideoConfiguration.cs`
+- ✓ Config key `Files:Storage:MediaCachePath` supported (default: `{RootPath}/.media-cache`)
+
+**Notes:** Foundation for all binary dedup. Album art, video posters, thumbnails all flow through the shared content-addressed cache.
+
+---
+
+#### Section: Phase 5.22 — Music Canonical Deduplication
+
+##### Step: phase-5.22 — Music Canonical Models, Configurations, and DbContext
+
+**Status:** completed ✅
+**Deliverables:**
+
+- ✓ Canonical entity models: `CanonicalTrack`, `CanonicalAlbum`, `CanonicalArtist`, `CanonicalGenre`, `CanonicalTrackArtist`, `CanonicalTrackGenre`, `CanonicalAlbumArtist`
+- ✓ User junction models: `UserTrack`, `UserArtist`, `UserAlbum`
+- ✓ EF Core configurations for all canonical + user junction tables
+- ✓ `MusicDbContext` updated with new DbSets and `OnModelCreating` configurations
+- ✓ `AlbumArtService` migrated to `ContentAddressedStorage`
+- ✓ `MetadataEnrichmentService` uses content-addressed cache for Cover Art Archive
+- ✓ `MusicAlbumService` accepts `ContentAddressedStorage`
+- ✓ `ContentAddressedStorage` registered as singleton in DI
+
+**Notes:** All intrinsic music properties now stored once per content hash. Per-user tables are lightweight junctions.
+
+---
+
+#### Section: Phase 5.23 — Video Canonical Deduplication
+
+##### Step: phase-5.23 — Video Canonical Models, Configurations, and DbContext
+
+**Status:** completed ✅
+**Deliverables:**
+
+- ✓ Canonical entity models: `CanonicalVideo`, `CanonicalVideoMetadata`, `CanonicalTmdbData`, `CanonicalVideoSeries`, `CanonicalVideoSeason`, `CanonicalVideoEpisode`, `CanonicalSubtitle`, `CanonicalVideoSeriesItem`
+- ✓ User junction model: `UserVideo`
+- ✓ EF Core configurations for all canonical video tables
+- ✓ `VideoDbContext` updated with new DbSets and `OnModelCreating` configurations
+
+**Notes:** All intrinsic video properties now stored once per content hash. TMDB enrichment data stored once per TMDB ID.
+
+---
+
+#### Build Verification
+
+- ✓ `dotnet build DotNetCloud.CI.slnf` — zero compilation errors
+- ✓ All existing tests pass after constructor parameter updates
 
 ---
 

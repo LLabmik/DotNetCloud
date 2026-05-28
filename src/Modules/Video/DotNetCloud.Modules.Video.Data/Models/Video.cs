@@ -47,6 +47,10 @@ public sealed class Video
     /// <summary>When the video record was last modified (UTC).</summary>
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
+    /// <summary>SHA-256 content hash of the underlying video file (denormalized from FileNode).
+    /// Used for cross-owner metadata cloning and canonical lookup.</summary>
+    public string? ContentHash { get; set; }
+
     /// <summary>Metadata for this video (resolution, codecs, etc.).</summary>
     public VideoMetadata? Metadata { get; set; }
 
