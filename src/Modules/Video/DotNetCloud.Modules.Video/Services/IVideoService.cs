@@ -17,19 +17,25 @@ public interface IVideoService
     /// <summary>Gets a video by its Files-module FileNodeId.</summary>
     Task<VideoDto?> GetVideoByFileNodeIdAsync(Guid fileNodeId, CallerContext caller, CancellationToken cancellationToken = default);
 
-    /// <summary>Lists videos with paging.</summary>
-    Task<IReadOnlyList<VideoDto>> ListVideosAsync(CallerContext caller, int skip = 0, int take = 50, CancellationToken cancellationToken = default);
+    /// <summary>Lists videos with paging. Optionally excludes videos that belong to a series.</summary>
+    Task<IReadOnlyList<VideoDto>> ListVideosAsync(CallerContext caller, int skip = 0, int take = 50, bool excludeSeriesContent = false, CancellationToken cancellationToken = default);
 
-    /// <summary>Gets the total video count for a user.</summary>
-    Task<int> GetVideoCountAsync(Guid ownerId, CancellationToken cancellationToken = default);
+    /// <summary>Gets the total video count for a user. Optionally excludes series-linked videos.</summary>
+    Task<int> GetVideoCountAsync(Guid ownerId, bool excludeSeriesContent = false, CancellationToken cancellationToken = default);
 
-    /// <summary>Searches videos by query.</summary>
-    Task<IReadOnlyList<VideoDto>> SearchAsync(CallerContext caller, string query, int maxResults = 20, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Returns combined library content: all series (sorted by name) + paginated standalone videos.
+    /// Standalone videos exclude any video that belongs to a series (episode or franchise item).
+    /// </summary>
+    Task<VideoLibraryContentDto> ListLibraryContentAsync(CallerContext caller, int skip = 0, int take = 50, CancellationToken cancellationToken = default);
+
+    /// <summary>Searches videos and series by query. Returns series matches + standalone video matches.</summary>
+    Task<VideoSearchResultDto> SearchAsync(CallerContext caller, string query, int maxResults = 20, CancellationToken cancellationToken = default);
 
     /// <summary>Gets recently added videos with paging.</summary>
     Task<IReadOnlyList<VideoDto>> GetRecentVideosAsync(CallerContext caller, int skip = 0, int take = 20, CancellationToken cancellationToken = default);
 
-    /// <summary>Gets favorited videos.</summary>
+    /// <summary>Gets favorited videos, excluding videos that belong to a series.</summary>
     Task<IReadOnlyList<VideoDto>> GetFavoritesAsync(CallerContext caller, CancellationToken cancellationToken = default);
 
     /// <summary>Toggles the favorite flag on a video.</summary>

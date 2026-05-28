@@ -17,15 +17,17 @@ public sealed class VideoService : IVideoService
 {
     private readonly VideoDbContext _db;
     private readonly IEventBus _eventBus;
+    private readonly IVideoSeriesService _seriesService;
     private readonly ILogger<VideoService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="VideoService"/> class.
     /// </summary>
-    public VideoService(VideoDbContext db, IEventBus eventBus, ILogger<VideoService> logger)
+    public VideoService(VideoDbContext db, IEventBus eventBus, IVideoSeriesService seriesService, ILogger<VideoService> logger)
     {
         _db = db;
         _eventBus = eventBus;
+        _seriesService = seriesService;
         _logger = logger;
     }
 
@@ -106,13 +108,21 @@ public sealed class VideoService : IVideoService
     }
 
     /// <summary>
-    /// Lists videos for the authenticated user.
+    /// Lists videos for the authenticated user. Optionally excludes videos that belong to a series.
     /// </summary>
-    public async Task<IReadOnlyList<VideoDto>> ListVideosAsync(CallerContext caller, int skip = 0, int take = 50, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<VideoDto>> ListVideosAsync(CallerContext caller, int skip = 0, int take = 50, bool excludeSeriesContent = false, CancellationToken cancellationToken = default)
     {
-        var videos = await _db.Videos
+        IQueryable<Models.Video> query = _db.Videos
             .Include(v => v.Metadata)
-            .Where(v => v.OwnerId == caller.UserId)
+            .Where(v => v.OwnerId == caller.UserId);
+
+        if (excludeSeriesContent)
+        {
+            var seriesVideoIds = await GetSeriesVideoIdsAsync(cancellationToken);
+            query = query.Where(v => !seriesVideoIds.Contains(v.Id));
+        }
+
+        var videos = await query
             .OrderByDescending(v => v.CreatedAt)
             .Skip(skip)
             .Take(take)
@@ -122,34 +132,58 @@ public sealed class VideoService : IVideoService
     }
 
     /// <summary>
-    /// Searches videos by title.
+    /// Searches videos and series by title. Returns series matches + standalone video matches.
+    /// Videos that belong to a series are excluded from the video results.
     /// </summary>
-    public async Task<IReadOnlyList<VideoDto>> SearchAsync(CallerContext caller, string query, int maxResults = 20, CancellationToken cancellationToken = default)
+    public async Task<VideoSearchResultDto> SearchAsync(CallerContext caller, string query, int maxResults = 20, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(query))
-            return [];
+            return new VideoSearchResultDto();
 
         var searchTerms = query.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(t => t.ToLower())
             .ToList();
 
-        IQueryable<Models.Video> queryable = _db.Videos
-            .Include(v => v.Metadata)
-            .Where(v => v.OwnerId == caller.UserId);
+        // ── Search series ──
+        IQueryable<VideoSeries> seriesQuery = _db.VideoSeries
+            .Where(s => s.OwnerId == caller.UserId);
 
-        // Apply each search term as a separate filter — ALL terms must match (AND logic)
         foreach (var term in searchTerms)
         {
             var capturedTerm = term;
-            queryable = queryable.Where(v => v.Title.ToLower().Contains(capturedTerm));
+            seriesQuery = seriesQuery.Where(s => s.Name.ToLower().Contains(capturedTerm));
         }
 
-        var videos = await queryable
+        var matchedSeries = await seriesQuery
+            .Include(s => s.Seasons)
+            .Include(s => s.Items)
+            .OrderBy(s => s.Name)
+            .Take(maxResults)
+            .ToListAsync(cancellationToken);
+
+        // ── Search standalone videos (exclude series-linked) ──
+        var seriesVideoIds = await GetSeriesVideoIdsAsync(cancellationToken);
+
+        IQueryable<Models.Video> videoQuery = _db.Videos
+            .Include(v => v.Metadata)
+            .Where(v => v.OwnerId == caller.UserId && !seriesVideoIds.Contains(v.Id));
+
+        foreach (var term in searchTerms)
+        {
+            var capturedTerm = term;
+            videoQuery = videoQuery.Where(v => v.Title.ToLower().Contains(capturedTerm));
+        }
+
+        var videos = await videoQuery
             .OrderBy(v => v.Title)
             .Take(maxResults)
             .ToListAsync(cancellationToken);
 
-        return videos.Select(v => MapToDto(v, caller.UserId)).ToList();
+        return new VideoSearchResultDto
+        {
+            Series = matchedSeries.Select(s => MapSeriesToDto(s)).ToList(),
+            StandaloneVideos = videos.Select(v => MapToDto(v, caller.UserId)).ToList()
+        };
     }
 
     /// <summary>
@@ -169,21 +203,31 @@ public sealed class VideoService : IVideoService
     }
 
     /// <summary>
-    /// Gets the total video count for a user.
+    /// Gets the total video count for a user. Optionally excludes series-linked videos.
     /// </summary>
-    public async Task<int> GetVideoCountAsync(Guid ownerId, CancellationToken cancellationToken = default)
+    public async Task<int> GetVideoCountAsync(Guid ownerId, bool excludeSeriesContent = false, CancellationToken cancellationToken = default)
     {
-        return await _db.Videos.CountAsync(v => v.OwnerId == ownerId, cancellationToken);
+        IQueryable<Models.Video> query = _db.Videos.Where(v => v.OwnerId == ownerId);
+
+        if (excludeSeriesContent)
+        {
+            var seriesVideoIds = await GetSeriesVideoIdsAsync(cancellationToken);
+            query = query.Where(v => !seriesVideoIds.Contains(v.Id));
+        }
+
+        return await query.CountAsync(cancellationToken);
     }
 
     /// <summary>
-    /// Gets favorite videos.
+    /// Gets favorite videos, excluding videos that belong to a series.
     /// </summary>
     public async Task<IReadOnlyList<VideoDto>> GetFavoritesAsync(CallerContext caller, CancellationToken cancellationToken = default)
     {
+        var seriesVideoIds = await GetSeriesVideoIdsAsync(cancellationToken);
+
         var videos = await _db.Videos
             .Include(v => v.Metadata)
-            .Where(v => v.OwnerId == caller.UserId && v.IsFavorite)
+            .Where(v => v.OwnerId == caller.UserId && v.IsFavorite && !seriesVideoIds.Contains(v.Id))
             .OrderByDescending(v => v.UpdatedAt)
             .ToListAsync(cancellationToken);
 
@@ -260,6 +304,67 @@ public sealed class VideoService : IVideoService
             TmdbRating = video.TmdbRating,
             Genres = video.Genres,
             ReleaseDate = video.ReleaseDate
+        };
+    }
+
+    /// <summary>
+    /// Returns the set of video IDs that belong to any series (as episodes or franchise items).
+    /// </summary>
+    private async Task<HashSet<Guid>> GetSeriesVideoIdsAsync(CancellationToken cancellationToken = default)
+    {
+        var episodeVideoIds = await _db.VideoEpisodes
+            .Select(e => e.VideoId)
+            .ToListAsync(cancellationToken);
+
+        var franchiseVideoIds = await _db.VideoSeriesItems
+            .Select(i => i.VideoId)
+            .ToListAsync(cancellationToken);
+
+        return episodeVideoIds.Concat(franchiseVideoIds).ToHashSet();
+    }
+
+    /// <summary>
+    /// Returns combined library content: all series (sorted by name) + paginated standalone videos.
+    /// </summary>
+    public async Task<VideoLibraryContentDto> ListLibraryContentAsync(CallerContext caller, int skip = 0, int take = 50, CancellationToken cancellationToken = default)
+    {
+        var series = await _seriesService.ListSeriesAsync(caller, cancellationToken);
+        var standaloneVideos = await ListVideosAsync(caller, skip, take, excludeSeriesContent: true, cancellationToken);
+        var totalStandalone = await GetVideoCountAsync(caller.UserId, excludeSeriesContent: true, cancellationToken);
+
+        return new VideoLibraryContentDto
+        {
+            Series = series,
+            StandaloneVideos = standaloneVideos,
+            TotalStandaloneVideos = totalStandalone
+        };
+    }
+
+    /// <summary>
+    /// Maps a VideoSeries entity to a VideoSeriesDto.
+    /// </summary>
+    private static VideoSeriesDto MapSeriesToDto(VideoSeries series)
+    {
+        var totalSeasons = series.Seasons?.Count ?? 0;
+        var totalEpisodes = series.TotalEpisodes > 0
+            ? series.TotalEpisodes
+            : series.Items?.Count ?? 0;
+
+        return new VideoSeriesDto
+        {
+            Id = series.Id,
+            Name = series.Name,
+            Description = series.Description,
+            Type = series.Type.ToString(),
+            Year = series.Year,
+            TmdbRating = series.TmdbRating,
+            Genres = series.Genres,
+            Status = series.Status,
+            TotalSeasons = totalSeasons,
+            TotalEpisodes = totalEpisodes,
+            HasExternalPoster = series.HasExternalPoster,
+            CreatedAt = series.CreatedAt,
+            UpdatedAt = series.UpdatedAt
         };
     }
 }

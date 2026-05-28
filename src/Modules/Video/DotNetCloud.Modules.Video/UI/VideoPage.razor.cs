@@ -27,11 +27,11 @@ public partial class VideoPage : IAsyncDisposable
     private string _searchQuery = string.Empty;
 
     // ── Data ──
-    private List<VideoDto> _videos = [];
+    private VideoLibraryContentDto? _libraryContent;
     private List<VideoDto> _recentVideos = [];
     private List<VideoDto> _favoriteVideos = [];
-    private List<VideoDto> _collectionVideos = [];
-    private List<VideoDto>? _searchResults;
+    private VideoCollectionContentDto? _collectionContent;
+    private VideoSearchResultDto? _searchResults;
     private List<WatchProgressDto> _continueWatching = [];
     private List<VideoCollectionDto> _collections = [];
 
@@ -67,10 +67,10 @@ public partial class VideoPage : IAsyncDisposable
     // ── First/Last item names for paging display ──
     private string FirstRecentVideoTitle => _recentVideos.Count > 0 ? _recentVideos[0].Title : string.Empty;
     private string LastRecentVideoTitle => _recentVideos.Count > 0 ? _recentVideos[^1].Title : string.Empty;
-    private string FirstVideoTitle => _videos.Count > 0 ? _videos[0].Title : string.Empty;
-    private string LastVideoTitle => _videos.Count > 0 ? _videos[^1].Title : string.Empty;
-    private string FirstCollectionVideoTitle => _collectionVideos.Count > 0 ? _collectionVideos[0].Title : string.Empty;
-    private string LastCollectionVideoTitle => _collectionVideos.Count > 0 ? _collectionVideos[^1].Title : string.Empty;
+    private string FirstVideoTitle => _libraryContent?.StandaloneVideos.Count > 0 ? _libraryContent.StandaloneVideos[0].Title : string.Empty;
+    private string LastVideoTitle => _libraryContent?.StandaloneVideos.Count > 0 ? _libraryContent.StandaloneVideos[^1].Title : string.Empty;
+    private string FirstCollectionVideoTitle => _collectionContent?.StandaloneVideos.Count > 0 ? _collectionContent.StandaloneVideos[0].Title : string.Empty;
+    private string LastCollectionVideoTitle => _collectionContent?.StandaloneVideos.Count > 0 ? _collectionContent.StandaloneVideos[^1].Title : string.Empty;
     private string FirstSeriesName => _seriesList.Count > 0 ? _seriesList[0].Name : string.Empty;
     private string LastSeriesName => _seriesList.Count > 0 ? _seriesList[^1].Name : string.Empty;
 
@@ -409,6 +409,8 @@ public partial class VideoPage : IAsyncDisposable
         _seasonEpisodes.Clear();
         _seriesVideos.Clear();
         _searchResults = null;
+        _libraryContent = null;
+        _collectionContent = null;
         _searchQuery = string.Empty;
         _playerOpen = false;
         _playerSeriesContext = null;
@@ -483,10 +485,9 @@ public partial class VideoPage : IAsyncDisposable
         if (_caller is null)
             return;
 
-        _totalVideos = await VideoService.GetVideoCountAsync(_caller.UserId);
-        var videos = (await VideoService.ListVideosAsync(_caller, _videoPage * VideoPageSize, VideoPageSize)).ToList();
+        _libraryContent = await VideoService.ListLibraryContentAsync(_caller, _videoPage * VideoPageSize, VideoPageSize);
+        _totalVideos = _libraryContent.TotalStandaloneVideos;
         _hasMoreVideos = (_videoPage + 1) * VideoPageSize < _totalVideos;
-        _videos = videos;
     }
 
     private async Task PrevVideoPageAsync()
@@ -577,12 +578,8 @@ public partial class VideoPage : IAsyncDisposable
         if (_caller is null || _selectedCollection is null)
             return;
 
-        var allVideos = (await CollectionService.GetCollectionVideosAsync(_selectedCollection.Id, _caller)).ToList();
-        _totalCollectionVideos = allVideos.Count;
-        _collectionVideos = allVideos
-            .Skip(_collectionVideoPage * CollectionVideoPageSize)
-            .Take(CollectionVideoPageSize)
-            .ToList();
+        _collectionContent = await CollectionService.GetCollectionContentAsync(_selectedCollection.Id, _caller);
+        _totalCollectionVideos = _collectionContent.TotalItems;
         _hasMoreCollectionVideos = (_collectionVideoPage + 1) * CollectionVideoPageSize < _totalCollectionVideos;
     }
 
@@ -954,7 +951,7 @@ public partial class VideoPage : IAsyncDisposable
             try
             {
                 var caller = await GetCallerAsync();
-                _searchResults = (await VideoService.SearchAsync(caller, _searchQuery, 50)).ToList();
+                _searchResults = await VideoService.SearchAsync(caller, _searchQuery, 50);
                 _breadcrumb.Clear();
             }
             catch (Exception ex)
@@ -1242,10 +1239,10 @@ public partial class VideoPage : IAsyncDisposable
             _showResetConfirm = false;
 
             // Clear displayed data
-            _videos.Clear();
+            _libraryContent = null;
             _recentVideos.Clear();
             _favoriteVideos.Clear();
-            _collectionVideos.Clear();
+            _collectionContent = null;
             _continueWatching.Clear();
             _collections.Clear();
             _seriesList.Clear();
@@ -1474,10 +1471,10 @@ public partial class VideoPage : IAsyncDisposable
                 _enrichmentToast = updated.HasExternalPoster
                     ? "Movie poster fetched from TMDB!"
                     : "No poster found on TMDB.";
-                ReplaceInList(_videos, updated);
+                ReplaceInLibraryContent(_libraryContent, updated);
                 ReplaceInList(_recentVideos, updated);
                 ReplaceInList(_favoriteVideos, updated);
-                ReplaceInList(_collectionVideos, updated);
+                ReplaceInCollectionContent(_collectionContent, updated);
             }
         }
         catch (Exception ex)
@@ -1614,6 +1611,22 @@ public partial class VideoPage : IAsyncDisposable
                 return;
             }
         }
+    }
+
+    private static void ReplaceInLibraryContent(VideoLibraryContentDto? content, VideoDto updated)
+    {
+        if (content is null)
+            return;
+        var list = content.StandaloneVideos.ToList();
+        ReplaceInList(list, updated);
+    }
+
+    private static void ReplaceInCollectionContent(VideoCollectionContentDto? content, VideoDto updated)
+    {
+        if (content is null)
+            return;
+        var list = content.StandaloneVideos.ToList();
+        ReplaceInList(list, updated);
     }
 
     public async ValueTask DisposeAsync()

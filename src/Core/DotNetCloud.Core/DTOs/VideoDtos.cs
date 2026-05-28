@@ -366,6 +366,53 @@ public sealed record ReorderRequestDto
     public required int NewSortOrder { get; init; }
 }
 
+// ── Combined Listing DTOs ───────────────────────────────────────────
+
+/// <summary>
+/// Combined library content — series cards + standalone videos.
+/// </summary>
+public sealed record VideoLibraryContentDto
+{
+    /// <summary>All series for the current user (sorted by name).</summary>
+    public IReadOnlyList<VideoSeriesDto> Series { get; init; } = [];
+
+    /// <summary>Standalone videos (not part of any series) with paging applied.</summary>
+    public IReadOnlyList<VideoDto> StandaloneVideos { get; init; } = [];
+
+    /// <summary>Total number of standalone videos (for paging).</summary>
+    public int TotalStandaloneVideos { get; init; }
+}
+
+/// <summary>
+/// Combined collection content — series cards replace grouped series items, plus standalone videos.
+/// </summary>
+public sealed record VideoCollectionContentDto
+{
+    /// <summary>The collection metadata.</summary>
+    public required VideoCollectionDto Collection { get; init; }
+
+    /// <summary>Series that have videos in this collection (deduplicated).</summary>
+    public IReadOnlyList<VideoSeriesDto> Series { get; init; } = [];
+
+    /// <summary>Standalone videos in the collection (not part of any series).</summary>
+    public IReadOnlyList<VideoDto> StandaloneVideos { get; init; } = [];
+
+    /// <summary>Total items in the collection (for display).</summary>
+    public int TotalItems { get; init; }
+}
+
+/// <summary>
+/// Search results for the video module — includes both series and standalone video matches.
+/// </summary>
+public sealed record VideoSearchResultDto
+{
+    /// <summary>Series matching the search query.</summary>
+    public IReadOnlyList<VideoSeriesDto> Series { get; init; } = [];
+
+    /// <summary>Standalone videos matching the search query.</summary>
+    public IReadOnlyList<VideoDto> StandaloneVideos { get; init; } = [];
+}
+
 // ── Subtitle DTOs ───────────────────────────────────────────────────
 
 /// <summary>

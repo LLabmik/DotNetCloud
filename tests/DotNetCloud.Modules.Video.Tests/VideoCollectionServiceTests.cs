@@ -1,6 +1,7 @@
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Modules.Video.Data;
 using DotNetCloud.Modules.Video.Data.Services;
+using DotNetCloud.Modules.Video.Services;
 using Microsoft.Extensions.Logging;
 using Moq;
 
@@ -16,7 +17,7 @@ public class VideoCollectionServiceTests
     public void Setup()
     {
         _db = TestHelpers.CreateDb();
-        _service = new VideoCollectionService(_db, Mock.Of<ILogger<VideoCollectionService>>());
+        _service = new VideoCollectionService(_db, Mock.Of<IVideoSeriesService>(), Mock.Of<ILogger<VideoCollectionService>>());
     }
 
     [TestCleanup]

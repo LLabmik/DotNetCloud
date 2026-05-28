@@ -2,6 +2,7 @@ using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Video.Data;
 using DotNetCloud.Modules.Video.Data.Services;
+using DotNetCloud.Modules.Video.Services;
 using Microsoft.Extensions.Logging;
 using Moq;
 
@@ -19,7 +20,7 @@ public class VideoServiceCreateTests
     {
         _db = TestHelpers.CreateDb();
         _eventBusMock = new Mock<IEventBus>();
-        _service = new VideoService(_db, _eventBusMock.Object, Mock.Of<ILogger<VideoService>>());
+        _service = new VideoService(_db, _eventBusMock.Object, Mock.Of<IVideoSeriesService>(), Mock.Of<ILogger<VideoService>>());
     }
 
     [TestCleanup]

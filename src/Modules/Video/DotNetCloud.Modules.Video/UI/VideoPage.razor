@@ -245,10 +245,10 @@
                 </div>
             }
 
-            @* ─── Library (full grid) ─── *@
+            @* ─── Library (series first, then standalone videos) ─── *@
             @if (_section == Section.Library && !_playerOpen && _searchResults is null)
             {
-                @if (_videos.Count == 0)
+                @if (_libraryContent is null || (_libraryContent.Series.Count == 0 && _libraryContent.StandaloneVideos.Count == 0))
                 {
                     <div class="video-empty">
                         <div class="empty-icon">🎬</div>
@@ -258,55 +258,119 @@
                 }
                 else
                 {
-                    <div class="videos-toolbar">
-                        <button class="btn-icon" @onclick="PrevVideoPageAsync" disabled="@(_videoPage == 0)" title="Previous page">
-                            <span>◀</span>
-                        </button>
-                        @if (!string.IsNullOrWhiteSpace(FirstVideoTitle))
-                        {
-                            <span class="page-edge-name page-edge-name-start" title="@FirstVideoTitle">@FirstVideoTitle</span>
-                        }
-                        <div class="videos-page-info">
-                            <span>Showing @(_videos.Count == 0 ? 0 : _videoPage * VideoPageSize + 1)-@(_videoPage * VideoPageSize + _videos.Count) of @_totalVideos videos</span>
-                        </div>
-                        @if (!string.IsNullOrWhiteSpace(LastVideoTitle))
-                        {
-                            <span class="page-edge-name page-edge-name-end" title="@LastVideoTitle">@LastVideoTitle</span>
-                        }
-                        <button class="btn-icon" @onclick="NextVideoPageAsync" disabled="@(!_hasMoreVideos)" title="Next page">
-                            <span>▶</span>
-                        </button>
-                    </div>
-                    <div class="video-grid padded">
-                        @foreach (var video in _videos)
-                        {
-                            var capturedVideo = video;
-                            <div class="video-card"
-                                 @onclick="() => OpenVideoDetailAsync(capturedVideo)">
-                                <div class="video-thumb">
-                                    <img src="@GetThumbnailUrl(capturedVideo.Id)" alt="@capturedVideo.Title" loading="lazy" />
-                                    <span class="thumb-duration">@FormatDuration(capturedVideo.Duration)</span>
-                                    @if (capturedVideo.WatchPositionTicks.HasValue && capturedVideo.Duration.Ticks > 0)
-                                    {
-                                        <div class="video-progress-bar">
-                                            <div class="video-progress-fill" style="width: @GetWatchPercent(capturedVideo)%"></div>
+                    @* ── Series section (shown first) ── *@
+                    @if (_libraryContent.Series.Count > 0)
+                    {
+                        <section class="video-section">
+                            <h4>Series</h4>
+                            <div class="series-grid">
+                                @foreach (var series in _libraryContent.Series)
+                                {
+                                    var capturedSeries = series;
+                                    <div class="series-card"
+                                         @onclick="() => OpenSeriesDetailAsync(capturedSeries)">
+                                        <div class="series-card-poster">
+                                            @if (series.HasExternalPoster)
+                                            {
+                                                <img src="@GetSeriesThumbnailUrl(series.Id)" alt="@series.Name" loading="lazy" />
+                                            }
+                                            else
+                                            {
+                                                <div class="series-card-poster-placeholder">
+                                                    <span class="series-placeholder-icon">📺</span>
+                                                </div>
+                                            }
+                                            <div class="series-card-type-badge">
+                                                @(series.Type == "TvSeries" ? "TV Series" : "Franchise")
+                                            </div>
                                         </div>
-                                    }
-                                    <span class="thumb-overlay-play">▶</span>
-                                </div>
-                                <div class="video-card-info">
-                                    <span class="video-card-title">@capturedVideo.Title</span>
-                                    <span class="video-card-meta">
-                                        @FormatFileSize(capturedVideo.SizeBytes)
-                                        @if (capturedVideo.ViewCount > 0)
-                                        {
-                                            <text> · @capturedVideo.ViewCount views</text>
-                                        }
-                                    </span>
-                                </div>
+                                        <div class="series-card-info">
+                                            <span class="series-card-title">@series.Name</span>
+                                            <span class="series-card-meta">
+                                                @if (series.Year.HasValue)
+                                                {
+                                                    <text>@series.Year.Value</text>
+                                                    if (series.TotalEpisodes > 0) { <text> · </text> }
+                                                }
+                                                @if (series.TotalEpisodes > 0)
+                                                {
+                                                    if (series.Type == "TvSeries")
+                                                    {
+                                                        <text>@series.TotalSeasons seasons · @series.TotalEpisodes episodes</text>
+                                                    }
+                                                    else
+                                                    {
+                                                        <text>@series.TotalEpisodes videos</text>
+                                                    }
+                                                }
+                                            </span>
+                                            @if (series.TmdbRating.HasValue)
+                                            {
+                                                <span class="series-card-rating">★ @series.TmdbRating.Value.ToString("F1")</span>
+                                            }
+                                        </div>
+                                    </div>
+                                }
                             </div>
-                        }
-                    </div>
+                        </section>
+                    }
+
+                    @* ── Standalone videos section ── *@
+                    @if (_libraryContent.StandaloneVideos.Count > 0)
+                    {
+                        <section class="video-section">
+                            <h4>Videos</h4>
+                            <div class="videos-toolbar">
+                                <button class="btn-icon" @onclick="PrevVideoPageAsync" disabled="@(_videoPage == 0)" title="Previous page">
+                                    <span>◀</span>
+                                </button>
+                                @if (!string.IsNullOrWhiteSpace(FirstVideoTitle))
+                                {
+                                    <span class="page-edge-name page-edge-name-start" title="@FirstVideoTitle">@FirstVideoTitle</span>
+                                }
+                                <div class="videos-page-info">
+                                    <span>Showing @(_libraryContent.StandaloneVideos.Count == 0 ? 0 : _videoPage * VideoPageSize + 1)-@(_videoPage * VideoPageSize + _libraryContent.StandaloneVideos.Count) of @_totalVideos videos</span>
+                                </div>
+                                @if (!string.IsNullOrWhiteSpace(LastVideoTitle))
+                                {
+                                    <span class="page-edge-name page-edge-name-end" title="@LastVideoTitle">@LastVideoTitle</span>
+                                }
+                                <button class="btn-icon" @onclick="NextVideoPageAsync" disabled="@(!_hasMoreVideos)" title="Next page">
+                                    <span>▶</span>
+                                </button>
+                            </div>
+                            <div class="video-grid padded">
+                                @foreach (var video in _libraryContent.StandaloneVideos)
+                                {
+                                    var capturedVideo = video;
+                                    <div class="video-card"
+                                         @onclick="() => OpenVideoDetailAsync(capturedVideo)">
+                                        <div class="video-thumb">
+                                            <img src="@GetThumbnailUrl(capturedVideo.Id)" alt="@capturedVideo.Title" loading="lazy" />
+                                            <span class="thumb-duration">@FormatDuration(capturedVideo.Duration)</span>
+                                            @if (capturedVideo.WatchPositionTicks.HasValue && capturedVideo.Duration.Ticks > 0)
+                                            {
+                                                <div class="video-progress-bar">
+                                                    <div class="video-progress-fill" style="width: @GetWatchPercent(capturedVideo)%"></div>
+                                                </div>
+                                            }
+                                            <span class="thumb-overlay-play">▶</span>
+                                        </div>
+                                        <div class="video-card-info">
+                                            <span class="video-card-title">@capturedVideo.Title</span>
+                                            <span class="video-card-meta">
+                                                @FormatFileSize(capturedVideo.SizeBytes)
+                                                @if (capturedVideo.ViewCount > 0)
+                                                {
+                                                    <text> · @capturedVideo.ViewCount views</text>
+                                                }
+                                            </span>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </section>
+                    }
                 }
             }
 
@@ -361,47 +425,98 @@
                         </div>
                     </div>
 
-                    @if (_totalCollectionVideos > CollectionVideoPageSize)
+                    @if (_collectionContent is not null)
                     {
-                        <div class="videos-toolbar">
-                            <button class="btn-icon" @onclick="PrevCollectionVideoPageAsync" disabled="@(_collectionVideoPage == 0)" title="Previous page">
-                                <span>◀</span>
-                            </button>
-                            @if (!string.IsNullOrWhiteSpace(FirstCollectionVideoTitle))
-                            {
-                                <span class="page-edge-name page-edge-name-start" title="@FirstCollectionVideoTitle">@FirstCollectionVideoTitle</span>
-                            }
-                            <div class="videos-page-info">
-                                <span>Showing @(_collectionVideos.Count == 0 ? 0 : _collectionVideoPage * CollectionVideoPageSize + 1)-@(_collectionVideoPage * CollectionVideoPageSize + _collectionVideos.Count) of @_totalCollectionVideos videos</span>
-                            </div>
-                            @if (!string.IsNullOrWhiteSpace(LastCollectionVideoTitle))
-                            {
-                                <span class="page-edge-name page-edge-name-end" title="@LastCollectionVideoTitle">@LastCollectionVideoTitle</span>
-                            }
-                            <button class="btn-icon" @onclick="NextCollectionVideoPageAsync" disabled="@(!_hasMoreCollectionVideos)" title="Next page">
-                                <span>▶</span>
-                            </button>
-                        </div>
-                    }
-
-                    <div class="video-grid">
-                        @foreach (var video in _collectionVideos)
+                        @* ── Series in collection (shown first) ── *@
+                        @if (_collectionContent.Series.Count > 0)
                         {
-                            var capturedVideo = video;
-                            <div class="video-card"
-                                 @onclick="() => OpenVideoDetailAsync(capturedVideo)">
-                                <div class="video-thumb">
-                                    <img src="@GetThumbnailUrl(capturedVideo.Id)" alt="@capturedVideo.Title" loading="lazy" />
-                                    <span class="thumb-duration">@FormatDuration(capturedVideo.Duration)</span>
-                                    <span class="thumb-overlay-play">▶</span>
+                            <section class="video-section">
+                                <h4>Series</h4>
+                                <div class="series-grid">
+                                    @foreach (var series in _collectionContent.Series)
+                                    {
+                                        var capturedSeries = series;
+                                        <div class="series-card"
+                                             @onclick="() => OpenSeriesDetailAsync(capturedSeries)">
+                                            <div class="series-card-poster">
+                                                @if (series.HasExternalPoster)
+                                                {
+                                                    <img src="@GetSeriesThumbnailUrl(series.Id)" alt="@series.Name" loading="lazy" />
+                                                }
+                                                else
+                                                {
+                                                    <div class="series-card-poster-placeholder">
+                                                        <span class="series-placeholder-icon">📺</span>
+                                                    </div>
+                                                }
+                                                <div class="series-card-type-badge">
+                                                    @(series.Type == "TvSeries" ? "TV Series" : "Franchise")
+                                                </div>
+                                            </div>
+                                            <div class="series-card-info">
+                                                <span class="series-card-title">@series.Name</span>
+                                                <span class="series-card-meta">
+                                                    @if (series.Year.HasValue)
+                                                    {
+                                                        <text>@series.Year.Value</text>
+                                                        if (series.TotalEpisodes > 0) { <text> · </text> }
+                                                    }
+                                                    @if (series.TotalEpisodes > 0)
+                                                    {
+                                                        if (series.Type == "TvSeries")
+                                                        {
+                                                            <text>@series.TotalSeasons seasons · @series.TotalEpisodes episodes</text>
+                                                        }
+                                                        else
+                                                        {
+                                                            <text>@series.TotalEpisodes videos</text>
+                                                        }
+                                                    }
+                                                </span>
+                                                @if (series.TmdbRating.HasValue)
+                                                {
+                                                    <span class="series-card-rating">★ @series.TmdbRating.Value.ToString("F1")</span>
+                                                }
+                                            </div>
+                                        </div>
+                                    }
                                 </div>
-                                <div class="video-card-info">
-                                    <span class="video-card-title">@capturedVideo.Title</span>
-                                    <span class="video-card-meta">@FormatFileSize(capturedVideo.SizeBytes)</span>
+                            </section>
+                        }
+
+                        @* ── Standalone videos in collection ── *@
+                        @if (_collectionContent.StandaloneVideos.Count > 0)
+                        {
+                            <section class="video-section">
+                                <h4>Videos</h4>
+                                <div class="video-grid">
+                                    @foreach (var video in _collectionContent.StandaloneVideos)
+                                    {
+                                        var capturedVideo = video;
+                                        <div class="video-card"
+                                             @onclick="() => OpenVideoDetailAsync(capturedVideo)">
+                                            <div class="video-thumb">
+                                                <img src="@GetThumbnailUrl(capturedVideo.Id)" alt="@capturedVideo.Title" loading="lazy" />
+                                                <span class="thumb-duration">@FormatDuration(capturedVideo.Duration)</span>
+                                                <span class="thumb-overlay-play">▶</span>
+                                            </div>
+                                            <div class="video-card-info">
+                                                <span class="video-card-title">@capturedVideo.Title</span>
+                                                <span class="video-card-meta">@FormatFileSize(capturedVideo.SizeBytes)</span>
+                                            </div>
+                                        </div>
+                                    }
                                 </div>
+                            </section>
+                        }
+
+                        @if (_collectionContent.Series.Count == 0 && _collectionContent.StandaloneVideos.Count == 0)
+                        {
+                            <div class="video-empty" style="padding: 32px;">
+                                <p>This collection is empty.</p>
                             </div>
                         }
-                    </div>
+                    }
                 </div>
             }
 
@@ -748,24 +863,96 @@
             {
                 <div class="search-results">
                     <h4>Results for "@_searchQuery"</h4>
-                    <div class="video-grid padded">
-                        @foreach (var video in _searchResults)
-                        {
-                            var capturedVideo = video;
-                            <div class="video-card"
-                                 @onclick="() => OpenVideoDetailAsync(capturedVideo)">
-                                <div class="video-thumb">
-                                    <img src="@GetThumbnailUrl(capturedVideo.Id)" alt="@capturedVideo.Title" loading="lazy" />
-                                    <span class="thumb-duration">@FormatDuration(capturedVideo.Duration)</span>
-                                    <span class="thumb-overlay-play">▶</span>
-                                </div>
-                                <div class="video-card-info">
-                                    <span class="video-card-title">@capturedVideo.Title</span>
-                                    <span class="video-card-meta">@FormatFileSize(capturedVideo.SizeBytes)</span>
-                                </div>
+
+                    @* ── Series matches ── *@
+                    @if (_searchResults.Series.Count > 0)
+                    {
+                        <section class="video-section">
+                            <h5>Series</h5>
+                            <div class="series-grid">
+                                @foreach (var series in _searchResults.Series)
+                                {
+                                    var capturedSeries = series;
+                                    <div class="series-card"
+                                         @onclick="() => OpenSeriesDetailAsync(capturedSeries)">
+                                        <div class="series-card-poster">
+                                            @if (series.HasExternalPoster)
+                                            {
+                                                <img src="@GetSeriesThumbnailUrl(series.Id)" alt="@series.Name" loading="lazy" />
+                                            }
+                                            else
+                                            {
+                                                <div class="series-card-poster-placeholder">
+                                                    <span class="series-placeholder-icon">📺</span>
+                                                </div>
+                                            }
+                                            <div class="series-card-type-badge">
+                                                @(series.Type == "TvSeries" ? "TV Series" : "Franchise")
+                                            </div>
+                                        </div>
+                                        <div class="series-card-info">
+                                            <span class="series-card-title">@series.Name</span>
+                                            <span class="series-card-meta">
+                                                @if (series.Year.HasValue)
+                                                {
+                                                    <text>@series.Year.Value</text>
+                                                    if (series.TotalEpisodes > 0) { <text> · </text> }
+                                                }
+                                                @if (series.TotalEpisodes > 0)
+                                                {
+                                                    if (series.Type == "TvSeries")
+                                                    {
+                                                        <text>@series.TotalSeasons seasons · @series.TotalEpisodes episodes</text>
+                                                    }
+                                                    else
+                                                    {
+                                                        <text>@series.TotalEpisodes videos</text>
+                                                    }
+                                                }
+                                            </span>
+                                            @if (series.TmdbRating.HasValue)
+                                            {
+                                                <span class="series-card-rating">★ @series.TmdbRating.Value.ToString("F1")</span>
+                                            }
+                                        </div>
+                                    </div>
+                                }
                             </div>
-                        }
-                    </div>
+                        </section>
+                    }
+
+                    @* ── Video matches ── *@
+                    @if (_searchResults.StandaloneVideos.Count > 0)
+                    {
+                        <section class="video-section">
+                            <h5>Videos</h5>
+                            <div class="video-grid padded">
+                                @foreach (var video in _searchResults.StandaloneVideos)
+                                {
+                                    var capturedVideo = video;
+                                    <div class="video-card"
+                                         @onclick="() => OpenVideoDetailAsync(capturedVideo)">
+                                        <div class="video-thumb">
+                                            <img src="@GetThumbnailUrl(capturedVideo.Id)" alt="@capturedVideo.Title" loading="lazy" />
+                                            <span class="thumb-duration">@FormatDuration(capturedVideo.Duration)</span>
+                                            <span class="thumb-overlay-play">▶</span>
+                                        </div>
+                                        <div class="video-card-info">
+                                            <span class="video-card-title">@capturedVideo.Title</span>
+                                            <span class="video-card-meta">@FormatFileSize(capturedVideo.SizeBytes)</span>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </section>
+                    }
+
+                    @if (_searchResults.Series.Count == 0 && _searchResults.StandaloneVideos.Count == 0)
+                    {
+                        <div class="video-empty" style="padding: 32px;">
+                            <p>No results found for "@_searchQuery".</p>
+                        </div>
+                    }
                 </div>
             }
 

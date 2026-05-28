@@ -2,6 +2,7 @@ using DotNetCloud.Core.Errors;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Video.Data;
 using DotNetCloud.Modules.Video.Data.Services;
+using DotNetCloud.Modules.Video.Services;
 using Microsoft.Extensions.Logging;
 using Moq;
 
@@ -17,7 +18,7 @@ public class VideoServiceTests
     public void Setup()
     {
         _db = TestHelpers.CreateDb();
-        _service = new VideoService(_db, Mock.Of<IEventBus>(), Mock.Of<ILogger<VideoService>>());
+        _service = new VideoService(_db, Mock.Of<IEventBus>(), Mock.Of<IVideoSeriesService>(), Mock.Of<ILogger<VideoService>>());
     }
 
     [TestCleanup]
@@ -81,7 +82,7 @@ public class VideoServiceTests
 
         var result = await _service.SearchAsync(caller, "Vacation", 10);
 
-        Assert.AreEqual(2, result.Count);
+        Assert.AreEqual(2, result.StandaloneVideos.Count);
     }
 
     [TestMethod]

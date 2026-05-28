@@ -78,9 +78,9 @@ public sealed class VideoGrpcServiceImpl : VideoGrpcService.VideoGrpcServiceBase
         try
         {
             var caller = ParseCaller(request.UserId);
-            var videos = await _videoService.SearchAsync(caller, request.Query, request.Take);
+            var searchResult = await _videoService.SearchAsync(caller, request.Query, request.Take);
             var response = new ListVideosResponse { Success = true };
-            foreach (var v in videos)
+            foreach (var v in searchResult.StandaloneVideos)
                 response.Videos.Add(MapVideo(v));
             return response;
         }
@@ -299,7 +299,7 @@ public sealed class VideoGrpcServiceImpl : VideoGrpcService.VideoGrpcServiceBase
         var caller = new CallerContext(userId, ["user"], CallerType.User);
 
         var videos = await _videoService.ListVideosAsync(
-            caller, skip: 0, take: int.MaxValue, context.CancellationToken);
+            caller, skip: 0, take: int.MaxValue, cancellationToken: context.CancellationToken);
 
         foreach (var video in videos)
         {

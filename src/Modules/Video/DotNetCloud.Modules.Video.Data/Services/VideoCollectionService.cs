@@ -14,14 +14,16 @@ namespace DotNetCloud.Modules.Video.Data.Services;
 public sealed class VideoCollectionService : IVideoCollectionService
 {
     private readonly VideoDbContext _db;
+    private readonly IVideoSeriesService _seriesService;
     private readonly ILogger<VideoCollectionService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="VideoCollectionService"/> class.
     /// </summary>
-    public VideoCollectionService(VideoDbContext db, ILogger<VideoCollectionService> logger)
+    public VideoCollectionService(VideoDbContext db, IVideoSeriesService seriesService, ILogger<VideoCollectionService> logger)
     {
         _db = db;
+        _seriesService = seriesService;
         _logger = logger;
     }
 
@@ -179,6 +181,98 @@ public sealed class VideoCollectionService : IVideoCollectionService
             .ToListAsync(cancellationToken);
 
         return videos.Select(v => MapVideoToDto(v, caller.UserId)).ToList();
+    }
+
+    /// <summary>
+    /// Gets collection content with series grouping: videos that belong to a series are replaced
+    /// by their parent series card. Standalone videos are returned individually.
+    /// </summary>
+    public async Task<VideoCollectionContentDto> GetCollectionContentAsync(Guid collectionId, CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        var collection = await _db.VideoCollections
+            .Include(c => c.Items).ThenInclude(ci => ci.Video)
+            .FirstOrDefaultAsync(c => c.Id == collectionId && c.OwnerId == caller.UserId, cancellationToken);
+
+        if (collection is null)
+            return new VideoCollectionContentDto
+            {
+                Collection = new VideoCollectionDto
+                {
+                    Id = collectionId,
+                    Name = "Unknown",
+                    CreatedAt = DateTime.UtcNow
+                }
+            };
+
+        var allVideos = collection.Items?
+            .OrderBy(ci => ci.SortOrder)
+            .Select(ci => ci.Video)
+            .Where(v => v is not null)
+            .Cast<Models.Video>()
+            .ToList() ?? [];
+
+        // Find which video IDs belong to a series (episodes or franchise items)
+        var episodeVideoIds = await _db.VideoEpisodes
+            .Select(e => e.VideoId)
+            .ToListAsync(cancellationToken);
+        var franchiseVideoIds = await _db.VideoSeriesItems
+            .Select(i => i.VideoId)
+            .ToListAsync(cancellationToken);
+        var seriesVideoIdSet = episodeVideoIds.Concat(franchiseVideoIds).ToHashSet();
+
+        // Group series-linked videos by series
+        var seriesVideoIds = allVideos
+            .Where(v => seriesVideoIdSet.Contains(v.Id))
+            .Select(v => v.Id)
+            .ToList();
+
+        HashSet<Guid> resolvedSeriesIds = [];
+        var seriesDtos = new List<VideoSeriesDto>();
+
+        if (seriesVideoIds.Count > 0)
+        {
+            // Find which series these videos belong to (episodes)
+            var episodeSeriesIds = await _db.VideoEpisodes
+                .Where(e => seriesVideoIds.Contains(e.VideoId))
+                .Select(e => e.Season!.SeriesId)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+
+            // Find which series (franchise) these videos belong to
+            var franchiseSeriesIds = await _db.VideoSeriesItems
+                .Where(i => seriesVideoIds.Contains(i.VideoId))
+                .Select(i => i.SeriesId)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+
+            var allSeriesIds = episodeSeriesIds.Concat(franchiseSeriesIds).Distinct().ToList();
+
+            foreach (var sid in allSeriesIds)
+            {
+                if (resolvedSeriesIds.Add(sid))
+                {
+                    var seriesDto = await _seriesService.GetSeriesAsync(sid, caller, cancellationToken);
+                    if (seriesDto is not null)
+                    {
+                        seriesDtos.Add(seriesDto);
+                    }
+                }
+            }
+        }
+
+        // Remaining videos that are NOT in any series
+        var standaloneVideos = allVideos
+            .Where(v => !seriesVideoIdSet.Contains(v.Id))
+            .Select(v => MapVideoToDto(v, caller.UserId))
+            .ToList();
+
+        return new VideoCollectionContentDto
+        {
+            Collection = MapToDto(collection),
+            Series = seriesDtos.OrderBy(s => s.Name).ToList(),
+            StandaloneVideos = standaloneVideos,
+            TotalItems = allVideos.Count
+        };
     }
 
     /// <summary>

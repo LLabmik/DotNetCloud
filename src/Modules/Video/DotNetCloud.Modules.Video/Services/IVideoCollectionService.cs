@@ -33,6 +33,12 @@ public interface IVideoCollectionService
     Task<IReadOnlyList<VideoDto>> GetCollectionVideosAsync(Guid collectionId, CallerContext caller, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Gets collection content with series grouping: videos that belong to a series are replaced
+    /// by their parent series card. Standalone videos are returned individually.
+    /// </summary>
+    Task<VideoCollectionContentDto> GetCollectionContentAsync(Guid collectionId, CallerContext caller, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Finds a collection by name for the caller, or creates one if it doesn't exist.
     /// </summary>
     /// <param name="name">The collection name to find or create.</param>
