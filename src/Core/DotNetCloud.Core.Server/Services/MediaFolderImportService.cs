@@ -406,7 +406,8 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
         IDictionary<Guid, MediaFileCandidate> candidates,
         ISet<Guid> visitedFolders,
         CancellationToken cancellationToken,
-        IProgress<MediaScanProgress>? progress = null)
+        IProgress<MediaScanProgress>? progress = null,
+        string? currentRelativePath = null)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -422,7 +423,19 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
                 var children = await fileService.ListChildrenAsync(node.Id, caller, cancellationToken);
                 foreach (var child in children)
                 {
-                    await CollectMatchingFilesAsync(child, fileService, caller, extensions, candidates, visitedFolders, cancellationToken, progress);
+                    // Build relative path from source root: append folder names only
+                    if (IsFolder(child))
+                    {
+                        var childRelativePath = string.IsNullOrEmpty(currentRelativePath)
+                            ? child.Name
+                            : $"{currentRelativePath}/{child.Name}";
+                        await CollectMatchingFilesAsync(child, fileService, caller, extensions, candidates, visitedFolders, cancellationToken, progress, childRelativePath);
+                    }
+                    else
+                    {
+                        // Pass current relative path unchanged for file children
+                        await CollectMatchingFilesAsync(child, fileService, caller, extensions, candidates, visitedFolders, cancellationToken, progress, currentRelativePath);
+                    }
                 }
             }
             catch (Exception ex)
@@ -444,7 +457,7 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
             return;
         }
 
-        candidates[node.Id] = new MediaFileCandidate(node.Id, node.Name, node.Size, node.MimeType, node.IsVirtual, SourceName: null);
+        candidates[node.Id] = new MediaFileCandidate(node.Id, node.Name, node.Size, node.MimeType, node.IsVirtual, SourceName: null, SubFolderPath: currentRelativePath);
 
         // Report discovery progress periodically so the UI shows files being found
         if (progress is not null && candidates.Count % 25 == 0)
@@ -552,7 +565,7 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
                 var videoCallback = serviceProvider.GetService<IVideoIndexingCallback>();
                 if (videoCallback is not null)
                 {
-                    await videoCallback.IndexVideoAsync(candidate.Id, candidate.Name, mime, candidate.Size, ownerId, storagePath, candidate.SourceName, cancellationToken);
+                    await videoCallback.IndexVideoAsync(candidate.Id, candidate.Name, mime, candidate.Size, ownerId, storagePath, candidate.SourceName, candidate.SubFolderPath, cancellationToken);
                 }
                 else
                 {
@@ -750,7 +763,7 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
         };
     }
 
-    private sealed record MediaFileCandidate(Guid Id, string Name, long Size, string? MimeType, bool IsVirtual, string? SourceName);
+    private sealed record MediaFileCandidate(Guid Id, string Name, long Size, string? MimeType, bool IsVirtual, string? SourceName, string? SubFolderPath);
 
     private static readonly HashSet<string> PhotoExtensions =
     [

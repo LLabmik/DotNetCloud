@@ -46,7 +46,7 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
     }
 
     /// <inheritdoc />
-    public async Task IndexVideoAsync(Guid fileNodeId, string fileName, string mimeType, long sizeBytes, Guid ownerId, string? storagePath = null, string? sourceName = null, CancellationToken cancellationToken = default)
+    public async Task IndexVideoAsync(Guid fileNodeId, string fileName, string mimeType, long sizeBytes, Guid ownerId, string? storagePath = null, string? sourceName = null, string? subFolderPath = null, CancellationToken cancellationToken = default)
     {
         var caller = new CallerContext(ownerId, ["user"], CallerType.System);
         var video = await _videoService.CreateVideoAsync(fileNodeId, fileName, mimeType, sizeBytes, ownerId, caller, cancellationToken);
@@ -75,9 +75,15 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
 
         // ── Series auto-detection ──
         // Detect TV series patterns from file path and assign the video to a series/season.
-        if (!string.IsNullOrWhiteSpace(storagePath) || !string.IsNullOrWhiteSpace(fileName))
+        // Prefer subFolderPath (preserves original directory structure from scan) over
+        // storagePath (content-addressable, not useful for hierarchy parsing) and fileName.
+        // Construct full relative path including file name so directory-based detection works.
+        var seriesPath = subFolderPath is not null
+            ? $"{subFolderPath}/{fileName}"
+            : storagePath ?? fileName;
+        if (!string.IsNullOrWhiteSpace(seriesPath))
         {
-            await AutoDetectSeriesAsync(video.Id, storagePath ?? fileName, caller, cancellationToken);
+            await AutoDetectSeriesAsync(video.Id, seriesPath, caller, cancellationToken);
         }
 
         // TMDB enrichment (fire-and-forget — network-dependent, graceful failure).

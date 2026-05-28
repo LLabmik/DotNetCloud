@@ -84,8 +84,9 @@ public interface IVideoIndexingCallback
     /// <param name="ownerId">Owner user ID.</param>
     /// <param name="storagePath">Relative content-addressable storage path. Null when unavailable.</param>
     /// <param name="sourceName">Optional source collection name. When set, the video is added to a source-named collection.</param>
+    /// <param name="subFolderPath">Optional relative subfolder path from the library source root to the file's parent folder (e.g. "Movies/James Bond"). Used for series auto-detection. Null when unavailable (e.g., direct uploads).</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    Task IndexVideoAsync(Guid fileNodeId, string fileName, string mimeType, long sizeBytes, Guid ownerId, string? storagePath = null, string? sourceName = null, CancellationToken cancellationToken = default);
+    Task IndexVideoAsync(Guid fileNodeId, string fileName, string mimeType, long sizeBytes, Guid ownerId, string? storagePath = null, string? sourceName = null, string? subFolderPath = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Returns the set of FileNode IDs already indexed in the video library for the given owner.
