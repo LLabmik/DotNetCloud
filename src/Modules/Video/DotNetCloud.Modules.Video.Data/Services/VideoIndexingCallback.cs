@@ -46,6 +46,11 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// Canonical/user-junction deduplication is handled internally by <see cref="VideoService.CreateVideoAsync"/>.
+    /// Cross-owner dedup is automatic via ContentHash lookup. The callback remains focused on
+    /// collection assignment, series auto-detection, enrichment, and thumbnail generation.
+    /// </remarks>
     public async Task IndexVideoAsync(Guid fileNodeId, string fileName, string mimeType, long sizeBytes, Guid ownerId, string? storagePath = null, string? sourceName = null, string? subFolderPath = null, CancellationToken cancellationToken = default)
     {
         var caller = new CallerContext(ownerId, ["user"], CallerType.System);
@@ -100,10 +105,20 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
 
                 // Only generate local poster fallback if TMDB didn't provide one
                 var db = scope.ServiceProvider.GetRequiredService<VideoDbContext>();
-                var hasPoster = await db.Videos
-                    .Where(v => v.Id == video.Id)
-                    .Select(v => v.HasExternalPoster)
-                    .FirstOrDefaultAsync(CancellationToken.None);
+                var hasPoster = await db.CanonicalTmdbData
+                    .AnyAsync(ct => db.Videos
+                        .Where(v => v.Id == video.Id)
+                        .Select(v => v.TmdbId)
+                        .FirstOrDefault() == ct.TmdbId, CancellationToken.None);
+
+                // Fallback: check old Video.HasExternalPoster directly
+                if (!hasPoster)
+                {
+                    hasPoster = await db.Videos
+                        .Where(v => v.Id == video.Id)
+                        .Select(v => v.HasExternalPoster)
+                        .FirstOrDefaultAsync(CancellationToken.None);
+                }
 
                 if (!hasPoster)
                 {
@@ -351,9 +366,14 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
                         var series = await _seriesService.FindOrCreateByNameAsync(seriesName, "TvSeries", caller, cancellationToken);
                         var season = await _seriesService.FindOrCreateSeasonAsync(Guid.Parse(series.Id.ToString()), seasonNumber, null, caller, cancellationToken);
 
-                        // Add as episode without a specific episode number from the folder pattern
+                        // Assign an auto-incrementing episode number to avoid unique constraint violations
+                        var nextEpisodeNum = await _db.CanonicalVideoEpisodes
+                            .Where(e => e.SeasonId == Guid.Parse(season.Id.ToString()))
+                            .MaxAsync(e => (int?)e.EpisodeNumber, cancellationToken) ?? 0;
+                        nextEpisodeNum++;
+
                         await _seriesService.AddEpisodeAsync(
-                            Guid.Parse(season.Id.ToString()), videoId, 0, null, null, caller, cancellationToken);
+                            Guid.Parse(season.Id.ToString()), videoId, nextEpisodeNum, null, null, caller, cancellationToken);
 
                         _logger.LogInformation(
                             "Video {VideoId} auto-assigned to series '{SeriesName}', season {SeasonNumber}",

@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Errors;
+using DotNetCloud.Core.Storage;
 using DotNetCloud.Modules.Video.Models;
 using DotNetCloud.Modules.Video.Services;
 using Microsoft.EntityFrameworkCore;
@@ -13,6 +14,8 @@ namespace DotNetCloud.Modules.Video.Data.Services;
 
 /// <summary>
 /// Orchestrates TMDB movie metadata and poster art enrichment for videos.
+/// Writes enrichment data to <see cref="CanonicalTmdbData"/> with dual-write
+/// to old Video entity fields for backward compatibility.
 /// </summary>
 public sealed partial class VideoEnrichmentService : IVideoEnrichmentService
 {
@@ -20,6 +23,7 @@ public sealed partial class VideoEnrichmentService : IVideoEnrichmentService
     private readonly ITmdbClient _tmdbClient;
     private readonly IVideoSettingsProvider _settingsProvider;
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly ContentAddressedStorage _contentStorage;
     private readonly string _posterCacheDir;
     private readonly ILogger<VideoEnrichmentService> _logger;
 
@@ -38,6 +42,7 @@ public sealed partial class VideoEnrichmentService : IVideoEnrichmentService
 
         var storageRoot = configuration["Files:Storage:RootPath"] ?? Path.GetTempPath();
         _posterCacheDir = Path.Combine(storageRoot, ".video-posters");
+        _contentStorage = new ContentAddressedStorage(storageRoot);
     }
 
     /// <inheritdoc />
@@ -46,85 +51,178 @@ public sealed partial class VideoEnrichmentService : IVideoEnrichmentService
     /// <inheritdoc />
     public async Task EnrichVideoAsync(Guid videoId, CallerContext caller, bool force = false, CancellationToken cancellationToken = default)
     {
-        var video = await _db.Videos
-            .Where(v => v.Id == videoId && v.OwnerId == caller.UserId)
-            .FirstOrDefaultAsync(cancellationToken);
+        // ── Load video and resolve canonical content hash ──
+        var userVideo = await _db.UserVideos
+            .Include(uv => uv.CanonicalVideo)
+            .FirstOrDefaultAsync(uv => uv.Id == videoId && uv.OwnerId == caller.UserId, cancellationToken);
 
-        if (video is null)
+        var oldVideo = await _db.Videos
+            .FirstOrDefaultAsync(v => v.Id == videoId && v.OwnerId == caller.UserId, cancellationToken);
+
+        CanonicalVideo? canonicalVideo = userVideo?.CanonicalVideo;
+        if (canonicalVideo is null && oldVideo is null)
             return;
 
-        if (!force && video.LastEnrichedAt is not null && DateTime.UtcNow - video.LastEnrichedAt.Value < EnrichmentCooldown)
+        var videoTitle = canonicalVideo?.Title ?? oldVideo?.Title ?? string.Empty;
+        var videoFileName = oldVideo?.FileName ?? string.Empty;
+
+        if (oldVideo is not null && !force && oldVideo.LastEnrichedAt is not null && DateTime.UtcNow - oldVideo.LastEnrichedAt.Value < EnrichmentCooldown)
         {
             _logger.LogDebug("Video {VideoId} enriched recently, skipping (cooldown)", videoId);
             return;
         }
 
-        var year = ExtractYear(video.FileName);
+        // Source year from embedded metadata first, then folder context, then filename regex
+        var year = canonicalVideo?.EmbeddedDate is not null && TryExtractYearFromDate(canonicalVideo.EmbeddedDate, out var embeddedYear)
+            ? embeddedYear
+            : ExtractYear(videoFileName);
 
-        // Phase 1: Search TMDB
-        var results = await _tmdbClient.SearchMovieAsync(video.Title, year, cancellationToken);
-        if (results is null || results.Count == 0)
+        // ── Priority-based TMDB lookup ──
+
+        TmdbMovieDetail? detail = null;
+        TmdbMovieSearchResult? searchResult = null;
+
+        // Priority 1: Direct TMDB ID lookup if embedded
+        if (canonicalVideo?.EmbeddedTmdbId is not null)
         {
-            _logger.LogDebug("No TMDB results found for video {VideoId} ('{Title}')", videoId, video.Title);
-            video.LastEnrichedAt = DateTime.UtcNow;
-            video.UpdatedAt = DateTime.UtcNow;
+            detail = await _tmdbClient.GetMovieAsync(canonicalVideo.EmbeddedTmdbId.Value, cancellationToken);
+            if (detail is not null)
+            {
+                _logger.LogDebug("Used direct TMDB ID lookup: {TmdbId}", canonicalVideo.EmbeddedTmdbId);
+                // Create a search result from the detail for consistent downstream processing
+                searchResult = new TmdbMovieSearchResult
+                {
+                    Id = detail.Id,
+                    Title = detail.Title,
+                    Overview = detail.Overview,
+                    PosterPath = detail.PosterPath,
+                    ReleaseDate = detail.ReleaseDate?.ToString("yyyy-MM-dd"),
+                    VoteAverage = detail.VoteAverage
+                };
+            }
+        }
+
+        // Priority 2: IMDB ID lookup via TMDB cross-reference
+        if (searchResult is null && canonicalVideo?.EmbeddedImdbId is not null)
+        {
+            searchResult = await _tmdbClient.SearchMovieByImdbIdAsync(canonicalVideo.EmbeddedImdbId, cancellationToken);
+            if (searchResult is not null)
+            {
+                _logger.LogDebug("Used IMDB ID cross-reference: {ImdbId}", canonicalVideo.EmbeddedImdbId);
+                // Fetch full details since we only have search result fields
+                detail = await _tmdbClient.GetMovieAsync(searchResult.Id, cancellationToken);
+            }
+        }
+
+        // Priority 3: Search by title + year
+        if (searchResult is null)
+        {
+            var results = await _tmdbClient.SearchMovieAsync(videoTitle, year, cancellationToken);
+            if (results is not null && results.Count > 0)
+            {
+                searchResult = results[0];
+                detail = await _tmdbClient.GetMovieAsync(searchResult.Id, cancellationToken);
+                _logger.LogDebug("TMDB match for '{Title}': {TmdbTitle} (id={Id})", videoTitle, searchResult.Title, searchResult.Id);
+            }
+        }
+
+        if (searchResult is null)
+        {
+            _logger.LogDebug("No TMDB results found for video {VideoId} ('{Title}')", videoId, videoTitle);
+            if (oldVideo is not null)
+            {
+                oldVideo.LastEnrichedAt = DateTime.UtcNow;
+                oldVideo.UpdatedAt = DateTime.UtcNow;
+            }
             await _db.SaveChangesAsync(cancellationToken);
             return;
         }
 
-        var best = results[0];
-        _logger.LogDebug("TMDB match for '{Title}': {TmdbTitle} (score={Id})", video.Title, best.Title, best.Id);
+        var best = searchResult;
 
-        // Phase 2: Get full details
-        var detail = await _tmdbClient.GetMovieAsync(best.Id, cancellationToken);
-        if (detail is not null)
+        // ── Check/create CanonicalTmdbData ──
+        var canonicalTmdb = await _db.CanonicalTmdbData
+            .FirstOrDefaultAsync(ct => ct.TmdbId == best.Id, cancellationToken);
+
+        var tmdbOverview = detail?.Overview ?? best.Overview;
+        var tmdbReleaseDate = detail?.ReleaseDate is not null
+            ? DateTime.SpecifyKind(detail.ReleaseDate.Value, DateTimeKind.Utc)
+            : (best.ReleaseDate is not null && DateTime.TryParse(best.ReleaseDate, out var rd)
+                ? DateTime.SpecifyKind(rd, DateTimeKind.Utc)
+                : (DateTime?)null);
+        var tmdbRating = detail?.VoteAverage ?? best.VoteAverage;
+        var tmdbGenres = detail?.Genres is { Count: > 0 }
+            ? string.Join(", ", detail.Genres.Select(g => g.Name))
+            : null;
+        var tmdbTitle = detail?.Title ?? best.Title;
+
+        if (canonicalTmdb is null)
         {
-            video.TmdbId = detail.Id;
-            video.TmdbTitle = detail.Title;
-            video.Overview = detail.Overview;
-            video.ReleaseDate = detail.ReleaseDate is not null ? DateTime.SpecifyKind(detail.ReleaseDate.Value, DateTimeKind.Utc) : null;
-            video.TmdbRating = detail.VoteAverage;
-            video.Genres = detail.Genres.Count > 0 ? string.Join(", ", detail.Genres.Select(g => g.Name)) : null;
+            canonicalTmdb = new CanonicalTmdbData
+            {
+                TmdbId = best.Id,
+                TmdbTitle = tmdbTitle,
+                Overview = tmdbOverview,
+                ReleaseDate = tmdbReleaseDate,
+                TmdbRating = tmdbRating,
+                Genres = tmdbGenres,
+                LastEnrichedAt = DateTime.UtcNow
+            };
+            _db.CanonicalTmdbData.Add(canonicalTmdb);
         }
         else
         {
-            _logger.LogDebug("TMDB movie detail unavailable for {TmdbId}, falling back to search result", best.Id);
-            // Use search result as fallback
-            video.TmdbId = best.Id;
-            video.TmdbTitle = best.Title;
-            video.Overview = best.Overview;
-            video.TmdbRating = best.VoteAverage;
-            if (best.ReleaseDate is not null && DateTime.TryParse(best.ReleaseDate, out var rd))
-                video.ReleaseDate = DateTime.SpecifyKind(rd, DateTimeKind.Utc);
+            canonicalTmdb.TmdbTitle = tmdbTitle;
+            canonicalTmdb.Overview = tmdbOverview;
+            canonicalTmdb.ReleaseDate = tmdbReleaseDate;
+            canonicalTmdb.TmdbRating = tmdbRating;
+            canonicalTmdb.Genres = tmdbGenres;
+            canonicalTmdb.LastEnrichedAt = DateTime.UtcNow;
+            canonicalTmdb.UpdatedAt = DateTime.UtcNow;
         }
 
-        // Phase 3: Download poster
+        // Phase 3: Download poster and store in content-addressed storage
         var posterPath = detail?.PosterPath ?? best.PosterPath;
-        if (posterPath is not null && (!video.HasExternalPoster || !File.Exists(video.ExternalPosterPath)))
+        string? externalPosterHash = null;
+        if (posterPath is not null && (canonicalTmdb.ExternalPosterHash is null || !_contentStorage.Exists(canonicalTmdb.ExternalPosterHash)))
         {
             var poster = await _tmdbClient.DownloadPosterAsync(posterPath, cancellationToken: cancellationToken);
             if (poster is not null)
             {
-                var cachePath = CacheExternalPoster(poster.Data, poster.MimeType, video.Id);
-                if (cachePath is not null)
-                {
-                    video.HasExternalPoster = true;
-                    video.ExternalPosterPath = cachePath;
-                }
+                var ext = poster.MimeType.Contains("png", StringComparison.OrdinalIgnoreCase) ? ".png" : ".jpg";
+                externalPosterHash = _contentStorage.Store(poster.Data, ext);
+                canonicalTmdb.ExternalPosterHash = externalPosterHash;
+
+                // Also cache on disk for old-style access
+                var cachePath = CacheExternalPoster(poster.Data, poster.MimeType, videoId);
             }
         }
 
-        video.LastEnrichedAt = DateTime.UtcNow;
-        video.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(cancellationToken);
+
+        // ── Dual-write: update old Video fields ──
+        if (oldVideo is not null)
+        {
+            oldVideo.TmdbId = best.Id;
+            oldVideo.TmdbTitle = tmdbTitle;
+            oldVideo.Overview = tmdbOverview;
+            oldVideo.ReleaseDate = tmdbReleaseDate;
+            oldVideo.TmdbRating = tmdbRating;
+            oldVideo.Genres = tmdbGenres;
+            oldVideo.HasExternalPoster = canonicalTmdb.ExternalPosterHash is not null || externalPosterHash is not null;
+            oldVideo.LastEnrichedAt = DateTime.UtcNow;
+            oldVideo.UpdatedAt = DateTime.UtcNow;
+        }
+
         await _db.SaveChangesAsync(cancellationToken);
 
         // Phase 4: Check if the movie belongs to a TMDB collection (franchise)
-        if (detail?.BelongsToCollection is not null)
+        if (detail?.BelongsToCollection is not null && oldVideo is not null)
         {
-            await AssignVideoToFranchiseAsync(video, detail.BelongsToCollection, caller, cancellationToken);
+            await AssignVideoToFranchiseAsync(oldVideo, detail.BelongsToCollection, caller, cancellationToken);
         }
 
-        _logger.LogInformation("Video {VideoId} enriched from TMDB: {Title}", videoId, video.TmdbTitle ?? video.Title);
+        _logger.LogInformation("Video {VideoId} enriched from TMDB: {Title}", videoId, tmdbTitle);
     }
 
     /// <summary>
@@ -304,12 +402,54 @@ public sealed partial class VideoEnrichmentService : IVideoEnrichmentService
     }
 
     /// <summary>
-    /// Enriches a TV series from TMDB — fetches overview, rating, seasons, poster.
+    /// Enriches a TV series from TMDB — fetches overview, rating, seasons, poster,
+    /// and maps user episode videos to canonical episodes by episode number.
     /// </summary>
     private async Task EnrichTvSeriesAsync(VideoSeries series, CallerContext caller, CancellationToken cancellationToken)
     {
-        // Search for the series by name
-        var results = await _tmdbClient.SearchTvSeriesAsync(series.Name, cancellationToken);
+        // Try to determine year from series name or first existing episode
+        int? seriesYear = null;
+        var seasonEntities = await _db.VideoSeasons
+            .Where(vs => vs.SeriesId == series.Id)
+            .OrderBy(vs => vs.SeasonNumber)
+            .ToListAsync(cancellationToken);
+
+        if (seasonEntities.Count > 0)
+        {
+            var firstSeason = seasonEntities[0];
+            var episodeEntities = await _db.VideoEpisodes
+                .Where(ve => ve.SeasonId == firstSeason.Id)
+                .OrderBy(ve => ve.EpisodeNumber)
+                .Take(1)
+                .ToListAsync(cancellationToken);
+
+            if (episodeEntities.Count > 0)
+            {
+                var firstEpisode = episodeEntities[0];
+                var firstVideo = await _db.Videos
+                    .FirstOrDefaultAsync(v => v.Id == firstEpisode.VideoId, cancellationToken);
+
+                if (firstVideo?.ContentHash is not null)
+                {
+                    var firstUserVideo = await _db.UserVideos
+                        .Include(uv => uv.CanonicalVideo)
+                        .FirstOrDefaultAsync(uv => uv.CanonicalContentHash == firstVideo.ContentHash, cancellationToken);
+
+                    if (firstUserVideo?.CanonicalVideo is not null)
+                    {
+                        seriesYear = ExtractYear(firstUserVideo.CanonicalVideo.FileName);
+                        if (seriesYear is null && firstUserVideo.CanonicalVideo.EmbeddedDate is not null)
+                        {
+                            TryExtractYearFromDate(firstUserVideo.CanonicalVideo.EmbeddedDate, out var y);
+                            seriesYear = y > 0 ? y : null;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Search for the series by name with year filter
+        var results = await _tmdbClient.SearchTvSeriesAsync(series.Name, seriesYear, cancellationToken);
         if (results is null || results.Count == 0)
         {
             _logger.LogDebug("No TMDB TV series results found for '{Name}'", series.Name);
@@ -347,6 +487,117 @@ public sealed partial class VideoEnrichmentService : IVideoEnrichmentService
                 {
                     series.HasExternalPoster = true;
                     series.ExternalPosterPath = cachePath;
+                }
+            }
+        }
+
+        // ── Episode matching: map user videos to canonical episodes ──
+
+        // Find or create canonical series
+        var canonicalSeries = await _db.CanonicalVideoSeries
+            .FirstOrDefaultAsync(cvs => cvs.Name == series.Name, cancellationToken);
+
+        if (canonicalSeries is null)
+        {
+            canonicalSeries = new CanonicalVideoSeries
+            {
+                Name = series.Name,
+                Description = series.TmdbOverview,
+                Type = SeriesType.TvSeries,
+                TmdbId = detail.Id,
+                TmdbName = detail.Name,
+                TmdbOverview = detail.Overview,
+                TmdbRating = detail.VoteAverage,
+                Genres = series.Genres,
+                Status = detail.Status,
+                TotalSeasons = detail.NumberOfSeasons,
+                TotalEpisodes = detail.NumberOfEpisodes
+            };
+            _db.CanonicalVideoSeries.Add(canonicalSeries);
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+
+        foreach (var season in detail.Seasons)
+        {
+            if (season.SeasonNumber <= 0)
+                continue; // Skip "specials" or unnumbered seasons
+
+            var seasonDetail = await _tmdbClient.GetTvSeasonAsync(detail.Id, season.SeasonNumber, cancellationToken);
+            if (seasonDetail?.Episodes is null || seasonDetail.Episodes.Count == 0)
+                continue;
+
+            // Find or create canonical season
+            var canonicalSeason = await _db.CanonicalVideoSeasons
+                .FirstOrDefaultAsync(cs => cs.SeriesId == canonicalSeries.Id && cs.SeasonNumber == season.SeasonNumber, cancellationToken);
+
+            if (canonicalSeason is null)
+            {
+                canonicalSeason = new CanonicalVideoSeason
+                {
+                    SeriesId = canonicalSeries.Id,
+                    SeasonNumber = season.SeasonNumber,
+                    Name = season.Name ?? $"Season {season.SeasonNumber}",
+                    Overview = season.Overview,
+                    EpisodeCount = season.EpisodeCount
+                };
+                _db.CanonicalVideoSeasons.Add(canonicalSeason);
+                await _db.SaveChangesAsync(cancellationToken);
+            }
+
+            // Match each local season's episode videos to TMDB episodes
+            var localSeason = seasonEntities.FirstOrDefault(vs => vs.SeasonNumber == season.SeasonNumber);
+
+            if (localSeason is not null)
+            {
+                var localEpisodes = await _db.VideoEpisodes
+                    .Where(ve => ve.SeasonId == localSeason.Id)
+                    .ToListAsync(cancellationToken);
+
+                foreach (var localEpisode in localEpisodes)
+                {
+                    var tmdbEpisode = seasonDetail.Episodes
+                        .FirstOrDefault(e => e.EpisodeNumber == localEpisode.EpisodeNumber);
+
+                    if (tmdbEpisode is null)
+                        continue;
+
+                    // Resolve content hash from old Video -> UserVideo
+                    var episodeOldVideo = await _db.Videos
+                        .FirstOrDefaultAsync(v => v.Id == localEpisode.VideoId, cancellationToken);
+
+                    if (episodeOldVideo?.ContentHash is null)
+                        continue;
+
+                    var episodeUserVideo = await _db.UserVideos
+                        .FirstOrDefaultAsync(uv => uv.CanonicalContentHash == episodeOldVideo.ContentHash, cancellationToken);
+
+                    if (episodeUserVideo is null)
+                        continue;
+
+                    // Find or create canonical episode record
+                    var canonicalEpisode = await _db.CanonicalVideoEpisodes
+                        .FirstOrDefaultAsync(ce => ce.SeasonId == canonicalSeason.Id && ce.EpisodeNumber == localEpisode.EpisodeNumber, cancellationToken);
+
+                    if (canonicalEpisode is null)
+                    {
+                        canonicalEpisode = new CanonicalVideoEpisode
+                        {
+                            SeasonId = canonicalSeason.Id,
+                            VideoContentHash = episodeUserVideo.CanonicalContentHash,
+                            EpisodeNumber = localEpisode.EpisodeNumber,
+                            Title = tmdbEpisode.Name ?? localEpisode.Title,
+                            Overview = tmdbEpisode.Overview,
+                            SortOrder = localEpisode.EpisodeNumber
+                        };
+                        _db.CanonicalVideoEpisodes.Add(canonicalEpisode);
+                    }
+                    else
+                    {
+                        // Update the content hash if a different user shares the same episode file
+                        canonicalEpisode.VideoContentHash = episodeUserVideo.CanonicalContentHash;
+                        canonicalEpisode.Title ??= tmdbEpisode.Name ?? localEpisode.Title;
+                        canonicalEpisode.Overview ??= tmdbEpisode.Overview;
+                    }
                 }
             }
         }
@@ -414,7 +665,7 @@ public sealed partial class VideoEnrichmentService : IVideoEnrichmentService
         }
     }
 
-    [GeneratedRegex(@"\b(19|20)\d{2}\b")]
+    [GeneratedRegex(@"(?<![0-9])(19[0-9]{2}|20[0-9]{2})(?![0-9])")]
     private static partial Regex YearRegex();
 
     private static int? ExtractYear(string fileName)
@@ -423,5 +674,26 @@ public sealed partial class VideoEnrichmentService : IVideoEnrichmentService
         if (match.Success && int.TryParse(match.Value, out var year))
             return year;
         return null;
+    }
+
+    private static bool TryExtractYearFromDate(string dateValue, out int year)
+    {
+        year = 0;
+        if (string.IsNullOrWhiteSpace(dateValue))
+            return false;
+
+        // Handle formats: "1973", "1973-03-01", "1973-03", "1973/03/01"
+        if (dateValue.Length >= 4 && int.TryParse(dateValue[..4], out var y) && y >= 1900 && y <= 2099)
+        {
+            year = y;
+            return true;
+        }
+
+        // Fallback: try extracting a 4-digit year from anywhere in the string
+        var match = YearRegex().Match(dateValue);
+        if (match.Success && int.TryParse(match.Value, out year))
+            return true;
+
+        return false;
     }
 }

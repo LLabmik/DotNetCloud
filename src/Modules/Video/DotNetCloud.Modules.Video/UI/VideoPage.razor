@@ -1001,6 +1001,12 @@
                                     disabled="@(_settingsScanning || _librarySources.Count == 0)">
                                 @(_settingsScanning ? "Scanning..." : "Scan Now")
                             </button>
+                            @if (_isScanActive)
+                            {
+                                <button type="button" class="btn btn-danger btn-sm" @onclick="StopScan">
+                                    ⏹ Stop Indexing
+                                </button>
+                            }
                         </div>
                         @* ─── Scan Progress Panel ─── *@
                         @if (_isScanActive)

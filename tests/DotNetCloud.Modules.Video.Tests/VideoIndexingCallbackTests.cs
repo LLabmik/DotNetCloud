@@ -24,7 +24,7 @@ public class VideoIndexingCallbackTests
     public void Setup()
     {
         _db = TestHelpers.CreateDb();
-        _videoService = new VideoService(_db, Mock.Of<IEventBus>(), Mock.Of<IVideoSeriesService>(), Mock.Of<ILogger<VideoService>>());
+        _videoService = new VideoService(_db, Mock.Of<IEventBus>(), Mock.Of<IVideoSeriesService>(), Mock.Of<DotNetCloud.Core.Data.Naming.ITableNamingStrategy>(), Mock.Of<ILogger<VideoService>>());
         _collectionServiceMock = new Mock<IVideoCollectionService>();
         _collectionServiceMock
             .Setup(x => x.FindOrCreateByNameAsync(It.IsAny<string>(), It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))

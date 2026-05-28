@@ -25,7 +25,7 @@ public class VideoServiceSearchIndexTests
     {
         _db = TestHelpers.CreateDb();
         _eventBusMock = new Mock<IEventBus>();
-        _service = new VideoService(_db, _eventBusMock.Object, Mock.Of<IVideoSeriesService>(), Mock.Of<ILogger<VideoService>>());
+        _service = new VideoService(_db, _eventBusMock.Object, Mock.Of<IVideoSeriesService>(), Mock.Of<DotNetCloud.Core.Data.Naming.ITableNamingStrategy>(), Mock.Of<ILogger<VideoService>>());
         _caller = TestHelpers.CreateCaller();
     }
 

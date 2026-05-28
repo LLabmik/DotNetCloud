@@ -4177,6 +4177,19 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 
 - ✓ `ContentAddressedStorage` registered as singleton in `MusicServiceRegistration.cs`
 
+**Service Migrations (Music — Dual-Write):**
+
+- ✓ `LibraryScanService` — `IndexFileAsync` checks canonical_tracks by ContentHash first, creates canonical records if missing, then creates UserTrack junction + dual-write to old tables
+- ✓ `LibraryScanService.TryIndexFromExistingOwnerAsync` — simplified to canonical lookup (no per-user cloning)
+- ✓ `LibraryScanService` helpers migrated to canonical tables
+- ✓ `TrackService` — all queries join `UserTrack` + `CanonicalTrack`
+- ✓ `ArtistService` — all queries join `UserArtist` + `CanonicalArtist`
+- ✓ `MusicAlbumService` — all queries join `UserAlbum` + `CanonicalAlbum`
+- ✓ `MetadataEnrichmentService` — enrichment writes to canonical tables
+- ✓ `MusicIndexingCallback` — simplified via canonical lookup
+- ✓ `RecommendationService` — canonical joins for track queries
+- ✓ `PlaybackService` — updates `UserTrack.PlayCount`
+
 #### Phase 3: Video Canonical Deduplication
 
 **Canonical Entity Models (video schema, no OwnerId):**
@@ -4202,9 +4215,64 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 
 - ✓ `VideoDbContext` — added DbSets and configurations for all canonical + user video tables
 
+**Service Migrations (Video — Dual-Write):**
+
+- ✓ `VideoService.CreateVideoAsync` — checks `CanonicalVideos` by ContentHash first, creates `UserVideo` junction
+- ✓ `VideoService` — all query methods join `UserVideo` + `CanonicalVideo`
+- ✓ `VideoIndexingCallback` — cross-owner lookup via canonical system
+- ✓ `VideoThumbnailService` — stores posters in `ContentAddressedStorage` by hash
+- ✓ `VideoEnrichmentService` — TMDB enrichment writes to `CanonicalTmdbData` (shared)
+- ✓ `VideoSeriesService` — series/season/episode CRUD operates on canonical tables with dual-write
+- ✓ `SubtitleService` — subtitles stored in `CanonicalSubtitle` with dual-write
+
+**Phase 3.3 — Per-User Video Collection Tables:**
+
+- ✓ `UserVideoCollection` model (Id, OwnerId, Name, Description, dates)
+- ✓ `UserVideoCollectionItem` model (CollectionId, CanonicalContentHash, SortOrder)
+- ✓ EF Core configurations with unique constraints and FK cascades
+- ✓ `VideoDbContext` updated with new DbSets
+
+**Phase 4.1 — Embedded MusicBrainz ID Extraction:**
+
+- ✓ `AudioMetadata` DTO extended with 9 new fields (MusicBrainzTrackId, MusicBrainzArtistId, MusicBrainzAlbumId, MusicBrainzReleaseGroupId, MusicBrainzReleaseArtistId, MusicBrainzDiscId, ISRC, BPM, Composers)
+- ✓ `MusicMetadataService.BuildMetadata` extracts MBIDs from Xiph comments (FLAC/Vorbis) and ID3v2 TXXX frames (MP3)
+
+**Phase 4.2 — ffprobe Container Tag Extraction:**
+
+- ✓ `VideoThumbnailService.ExtractMetadataAsync` extracts `format.tags` (title, IMDB, TMDB, date, language) onto `CanonicalVideo` embedded fields
+- ✓ Canonical video metadata stored in `CanonicalVideoMetadata` table
+
+**Phase 4.3 — Direct MBID Lookups:**
+
+- ✓ `MetadataEnrichmentService.EnrichTrackAsync` — 3-level priority: direct MBID → artist MBID search → text search; ±2s duration verification
+- ✓ `MetadataEnrichmentService.EnrichAlbumAsync` — 4-level priority: RG MBID → release MBID → artist MBID search → text search
+- ✓ `MetadataEnrichmentService.EnrichArtistAsync` — 2-level priority: MBID GET → text search
+- ✓ `MetadataEnrichmentService.EnrichAlbumsWithoutArtAsync` — queries canonical albums
+- ✓ `IMusicBrainzClient` — new `SearchReleaseGroupByArtistMbidAsync`, `SearchRecordingByArtistMbidAsync`
+
+**Phase 4.4 — TMDB Search Improvements:**
+
+- ✓ `TmdbClient.SearchMovieAsync` uses `&primary_release_year=` + `&include_adult=false`
+- ✓ `ITmdbClient`/`TmdbClient` — new `SearchMovieByImdbIdAsync` via `/find/{imdbId}?external_source=imdb_id`
+- ✓ `VideoEnrichmentService.ExtractYear` — fixed regex to avoid false positives ("The 400 Blows")
+- ✓ `VideoEnrichmentService` — 3-level enrichment priority (EmbeddedTmdbId → EmbeddedImdbId → search)
+
+**Phase 4.5 — TV Series TMDB Enrichment:**
+
+- ✓ TV series search passes `&first_air_date_year=` + `&include_adult=false`
+- ✓ Episode-level matching: user episode videos matched to canonical episodes by episode number
+
+**Phase 5 — Service-Layer Verification:**
+
+- ✓ `VideoGrpcServiceImpl` — verified: no direct DbContext access, all through services
+- ✓ `MusicGrpcServiceImpl` — verified: no direct DbContext access, all through services
+- ✓ `WatchProgressService` — fixed to resolve canonical video IDs
+- ✓ `VideoService.MapFromCanonical` — correct canonical + user-junction DTO mapping
+
 **Build Verification:**
 
 - ✓ `dotnet build DotNetCloud.CI.slnf` — zero compilation errors
+- ✓ All existing tests pass with updated constructor parameters
 
 ---
 

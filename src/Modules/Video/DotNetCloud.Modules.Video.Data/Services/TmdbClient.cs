@@ -37,12 +37,25 @@ public sealed class TmdbClient : ITmdbClient
             return null;
 
         var query = Uri.EscapeDataString(title);
-        var url = $"search/movie?api_key={apiKey}&query={query}&language=en-US";
+        var url = $"search/movie?api_key={apiKey}&query={query}&language=en-US&include_adult=false";
         if (year.HasValue)
-            url += $"&year={year.Value}";
+            url += $"&primary_release_year={year.Value}";
 
         var response = await GetJsonAsync<TmdbSearchResponse<TmdbMovieSearchResult>>(url, cancellationToken);
         return response?.Results;
+    }
+
+    /// <inheritdoc />
+    public async Task<TmdbMovieSearchResult?> SearchMovieByImdbIdAsync(string imdbId, CancellationToken cancellationToken = default)
+    {
+        var apiKey = await GetApiKeyAsync(cancellationToken);
+        if (apiKey is null)
+            return null;
+
+        var encoded = Uri.EscapeDataString(imdbId);
+        var url = $"find/{encoded}?api_key={apiKey}&language=en-US&external_source=imdb_id";
+        var response = await GetJsonAsync<TmdbFindResponse>(url, cancellationToken);
+        return response?.MovieResults?.FirstOrDefault();
     }
 
     /// <inheritdoc />
@@ -122,14 +135,16 @@ public sealed class TmdbClient : ITmdbClient
     // ─── TV Series Endpoints ─────────────────────────────────────────
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<TmdbTvSeriesSearchResult>?> SearchTvSeriesAsync(string query, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<TmdbTvSeriesSearchResult>?> SearchTvSeriesAsync(string query, int? year = null, CancellationToken cancellationToken = default)
     {
         var apiKey = await GetApiKeyAsync(cancellationToken);
         if (apiKey is null)
             return null;
 
         var encoded = Uri.EscapeDataString(query);
-        var url = $"search/tv?api_key={apiKey}&query={encoded}&language=en-US";
+        var url = $"search/tv?api_key={apiKey}&query={encoded}&language=en-US&include_adult=false";
+        if (year.HasValue)
+            url += $"&first_air_date_year={year.Value}";
         var response = await GetJsonAsync<TmdbSearchResponse<TmdbTvSeriesSearchResult>>(url, cancellationToken);
         return response?.Results;
     }

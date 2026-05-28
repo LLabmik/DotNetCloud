@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text.Json;
 using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.Storage;
 using DotNetCloud.Modules.Files.Services;
 using DotNetCloud.Modules.Video.Models;
 using DotNetCloud.Modules.Video.Services;
@@ -14,7 +15,8 @@ namespace DotNetCloud.Modules.Video.Data.Services;
 
 /// <summary>
 /// Generates and stores video poster thumbnails by extracting a frame via FFmpeg
-/// and resizing with ImageSharp. Thumbnails are stored as JPEG bytes in the database.
+/// and resizing with ImageSharp. Thumbnails are stored in content-addressed storage
+/// with dual-write to the old Video.ThumbnailPoster for backward compatibility.
 /// </summary>
 public sealed class VideoThumbnailService : IVideoThumbnailService
 {
@@ -23,6 +25,7 @@ public sealed class VideoThumbnailService : IVideoThumbnailService
 
     private readonly VideoDbContext _db;
     private readonly IDownloadService _downloadService;
+    private readonly ContentAddressedStorage _contentStorage;
     private readonly string _ffmpegPath;
     private readonly string _screenshotCacheDir;
     private readonly string _posterCacheDir;
@@ -45,6 +48,7 @@ public sealed class VideoThumbnailService : IVideoThumbnailService
         var storageRoot = configuration["Files:Storage:RootPath"] ?? Path.GetTempPath();
         _screenshotCacheDir = Path.Combine(storageRoot, ".video-screenshots");
         _posterCacheDir = Path.Combine(storageRoot, ".video-posters");
+        _contentStorage = new ContentAddressedStorage(storageRoot);
     }
 
     /// <inheritdoc />
@@ -52,7 +56,22 @@ public sealed class VideoThumbnailService : IVideoThumbnailService
         Guid videoId,
         CancellationToken cancellationToken = default)
     {
-        // Priority 1: TMDB cached poster
+        // Priority 1: Content-addressed storage via CanonicalVideo.ThumbnailPosterHash
+        var canonicalHash = await _db.UserVideos
+            .Where(uv => uv.Id == videoId)
+            .Select(uv => uv.CanonicalVideo!.ThumbnailPosterHash)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (!string.IsNullOrEmpty(canonicalHash))
+        {
+            var casPath = _contentStorage.GetPath(canonicalHash, ".jpg");
+            if (File.Exists(casPath))
+            {
+                return (File.OpenRead(casPath), "image/jpeg");
+            }
+        }
+
+        // Priority 2: External poster from old Video record (dual-write fallback)
         var enriched = await _db.Videos.IgnoreQueryFilters()
             .Where(v => v.Id == videoId)
             .Select(v => new { v.HasExternalPoster, v.ExternalPosterPath })
@@ -65,14 +84,14 @@ public sealed class VideoThumbnailService : IVideoThumbnailService
             return (File.OpenRead(enriched.ExternalPosterPath), "image/jpeg");
         }
 
-        // Priority 2: Generated screenshots
+        // Priority 3: Generated screenshots
         var screenshotPaths = await GetScreenshotPathsAsync(videoId, cancellationToken);
         if (screenshotPaths is { Count: > 0 })
         {
             return (File.OpenRead(screenshotPaths[0]), "image/jpeg");
         }
 
-        // Priority 3: DB poster (existing ffmpegthumbnailer frame)
+        // Priority 4: DB poster (existing ffmpegthumbnailer frame — old table dual-write)
         var data = await _db.Videos.IgnoreQueryFilters()
             .Where(v => v.Id == videoId)
             .Select(v => v.ThumbnailPoster)
@@ -143,20 +162,37 @@ public sealed class VideoThumbnailService : IVideoThumbnailService
                 posterBytes = output.ToArray();
             }
 
-            // Store in DB
+            // ── Store in content-addressed storage ──
+            var posterHash = _contentStorage.Store(posterBytes, ".jpg");
+
+            // ── Update CanonicalVideo.ThumbnailPosterHash ──
+            var userVideo = await _db.UserVideos
+                .Include(uv => uv.CanonicalVideo)
+                .FirstOrDefaultAsync(uv => uv.Id == videoId, cancellationToken);
+
+            if (userVideo?.CanonicalVideo is not null)
+            {
+                userVideo.CanonicalVideo.ThumbnailPosterHash = posterHash;
+                userVideo.CanonicalVideo.UpdatedAt = DateTime.UtcNow;
+            }
+
+            // ── Dual-write: store in old Video.ThumbnailPoster ──
             var video = await _db.Videos.IgnoreQueryFilters()
                 .FirstOrDefaultAsync(v => v.Id == videoId, cancellationToken);
 
-            if (video is null)
+            if (video is not null)
             {
-                _logger.LogWarning("Video {VideoId} not found for thumbnail storage", videoId);
-                return;
+                video.ThumbnailPoster = posterBytes;
+            }
+            else
+            {
+                _logger.LogWarning("Video {VideoId} not found for dual-write thumbnail storage", videoId);
             }
 
-            video.ThumbnailPoster = posterBytes;
             await _db.SaveChangesAsync(cancellationToken);
 
-            _logger.LogInformation("Video thumbnail generated for {VideoId} ({Size} bytes)", videoId, posterBytes.Length);
+            _logger.LogInformation("Video thumbnail generated for {VideoId} ({Size} bytes, hash={Hash})",
+                videoId, posterBytes.Length, posterHash);
         }
         catch (Exception ex)
         {
@@ -177,6 +213,27 @@ public sealed class VideoThumbnailService : IVideoThumbnailService
     /// <inheritdoc />
     public async Task DeleteThumbnailAsync(Guid videoId, CancellationToken cancellationToken = default)
     {
+        // ── Clear canonical poster hash ──
+        var userVideo = await _db.UserVideos
+            .Include(uv => uv.CanonicalVideo)
+            .FirstOrDefaultAsync(uv => uv.Id == videoId, cancellationToken);
+
+        if (userVideo?.CanonicalVideo is not null)
+        {
+            var oldHash = userVideo.CanonicalVideo.ThumbnailPosterHash;
+            userVideo.CanonicalVideo.ThumbnailPosterHash = null;
+            userVideo.CanonicalVideo.UpdatedAt = DateTime.UtcNow;
+
+            // Clean up content-addressed file
+            if (!string.IsNullOrEmpty(oldHash))
+            {
+                try
+                { _contentStorage.Delete(oldHash); }
+                catch { /* best effort */ }
+            }
+        }
+
+        // ── Dual-write: clear old Video record ──
         var video = await _db.Videos.IgnoreQueryFilters()
             .FirstOrDefaultAsync(v => v.Id == videoId, cancellationToken);
 
@@ -193,9 +250,9 @@ public sealed class VideoThumbnailService : IVideoThumbnailService
                 video.ExternalPosterPath = null;
             }
             video.HasExternalPoster = false;
-
-            await _db.SaveChangesAsync(cancellationToken);
         }
+
+        await _db.SaveChangesAsync(cancellationToken);
 
         // Clean up screenshots on disk
         var screenshotPaths = await GetScreenshotPathsAsync(videoId, cancellationToken);
@@ -376,6 +433,48 @@ public sealed class VideoThumbnailService : IVideoThumbnailService
             var vid = EnumerateStreams(streams, "video");
             var aud = EnumerateStreams(streams, "audio");
 
+            // ── Extract container format tags for CanonicalVideo ──
+            var formatTags = format.ValueKind == JsonValueKind.Object && format.TryGetProperty("tags", out var tags) && tags.ValueKind == JsonValueKind.Object
+                ? tags
+                : default(JsonElement);
+
+            string? embeddedTitle = null;
+            string? embeddedImdbId = null;
+            int? embeddedTmdbId = null;
+            string? embeddedDate = null;
+            string? embeddedLanguage = null;
+
+            if (formatTags.ValueKind == JsonValueKind.Object)
+            {
+                embeddedTitle = GetString(formatTags, "title");
+                embeddedImdbId = GetString(formatTags, "IMDB") ?? GetString(formatTags, "imdb");
+                if (int.TryParse(GetString(formatTags, "TMDB") ?? GetString(formatTags, "tmdb"), out var tmdbId))
+                    embeddedTmdbId = tmdbId;
+                embeddedDate = GetString(formatTags, "date") ?? GetString(formatTags, "creation_time");
+                embeddedLanguage = GetString(formatTags, "language");
+            }
+
+            // ── Update CanonicalVideo with embedded metadata tags ──
+            var userVideo = await _db.UserVideos
+                .Include(uv => uv.CanonicalVideo)
+                .FirstOrDefaultAsync(uv => uv.Id == videoId, cancellationToken);
+
+            if (userVideo?.CanonicalVideo is not null)
+            {
+                var canonical = userVideo.CanonicalVideo;
+                if (embeddedTitle is not null)
+                    canonical.EmbeddedTitle = embeddedTitle;
+                if (embeddedImdbId is not null)
+                    canonical.EmbeddedImdbId = embeddedImdbId;
+                if (embeddedTmdbId.HasValue)
+                    canonical.EmbeddedTmdbId = embeddedTmdbId;
+                if (embeddedDate is not null)
+                    canonical.EmbeddedDate = embeddedDate;
+                if (embeddedLanguage is not null)
+                    canonical.EmbeddedLanguage = embeddedLanguage;
+                canonical.UpdatedAt = DateTime.UtcNow;
+            }
+
             var metadata = new VideoMetadata
             {
                 VideoId = videoId,
@@ -390,7 +489,7 @@ public sealed class VideoThumbnailService : IVideoThumbnailService
                 ContainerFormat = GetString(format, "format_name")?.Split(',').FirstOrDefault()?.Trim()
             };
 
-            // Save or update
+            // Save or update old VideoMetadata
             var existing = await _db.VideoMetadata
                 .FirstOrDefaultAsync(m => m.VideoId == videoId, cancellationToken);
 
@@ -411,6 +510,44 @@ public sealed class VideoThumbnailService : IVideoThumbnailService
             {
                 metadata.ExtractedAt = DateTime.UtcNow;
                 _db.VideoMetadata.Add(metadata);
+            }
+
+            // ── Also store metadata on CanonicalVideoMetadata ──
+            if (userVideo?.CanonicalVideo is not null)
+            {
+                var canonicalMetadata = await _db.CanonicalVideoMetadata
+                    .FirstOrDefaultAsync(cm => cm.VideoContentHash == userVideo.CanonicalContentHash, cancellationToken);
+
+                if (canonicalMetadata is not null)
+                {
+                    canonicalMetadata.Width = metadata.Width;
+                    canonicalMetadata.Height = metadata.Height;
+                    canonicalMetadata.FrameRate = metadata.FrameRate;
+                    canonicalMetadata.VideoCodec = metadata.VideoCodec;
+                    canonicalMetadata.AudioCodec = metadata.AudioCodec;
+                    canonicalMetadata.Bitrate = metadata.Bitrate;
+                    canonicalMetadata.AudioTrackCount = metadata.AudioTrackCount;
+                    canonicalMetadata.SubtitleTrackCount = metadata.SubtitleTrackCount;
+                    canonicalMetadata.ContainerFormat = metadata.ContainerFormat;
+                    canonicalMetadata.ExtractedAt = DateTime.UtcNow;
+                }
+                else
+                {
+                    _db.CanonicalVideoMetadata.Add(new CanonicalVideoMetadata
+                    {
+                        VideoContentHash = userVideo.CanonicalContentHash,
+                        Width = metadata.Width,
+                        Height = metadata.Height,
+                        FrameRate = metadata.FrameRate,
+                        VideoCodec = metadata.VideoCodec,
+                        AudioCodec = metadata.AudioCodec,
+                        Bitrate = metadata.Bitrate,
+                        AudioTrackCount = metadata.AudioTrackCount,
+                        SubtitleTrackCount = metadata.SubtitleTrackCount,
+                        ContainerFormat = metadata.ContainerFormat,
+                        ExtractedAt = DateTime.UtcNow
+                    });
+                }
             }
 
             await _db.SaveChangesAsync(cancellationToken);

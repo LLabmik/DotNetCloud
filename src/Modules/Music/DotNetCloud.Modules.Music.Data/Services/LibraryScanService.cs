@@ -14,6 +14,8 @@ namespace DotNetCloud.Modules.Music.Data.Services;
 
 /// <summary>
 /// Scans a user's files for audio content and builds/updates the music library.
+/// Uses a dual-write strategy: canonical (shared) tables for deduplicated metadata
+/// and per-user legacy tables for backward compatibility.
 /// </summary>
 public sealed class LibraryScanService
 {
@@ -28,11 +30,10 @@ public sealed class LibraryScanService
     private readonly bool _autoFetchArt;
     private readonly bool _autoEnrichArtists;
 
-    // Per-scan caches to eliminate redundant DB round trips for repeated
-    // Artist/Album/Genre lookups across many files (common during bulk scans).
-    private readonly Dictionary<(string Name, Guid OwnerId), Artist> _artistCache = new();
-    private readonly Dictionary<(string Title, Guid ArtistId, Guid OwnerId), MusicAlbum> _albumCache = new();
-    private readonly Dictionary<string, Genre> _genreCache = new();
+    // Per-scan caches for canonical (shared) entities to eliminate redundant DB round trips.
+    private readonly Dictionary<string, CanonicalArtist> _artistCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, CanonicalAlbum> _albumCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, CanonicalGenre> _genreCache = new(StringComparer.OrdinalIgnoreCase);
 
     // Tracks album total duration incrementally to avoid O(n²) SUM queries.
     private readonly Dictionary<Guid, long> _albumDurationCache = new();
@@ -67,8 +68,9 @@ public sealed class LibraryScanService
     }
 
     /// <summary>
-    /// Indexes a single audio file into the music library. Creates or updates
-    /// artist, album, track, and genre records from the file's metadata.
+    /// Indexes a single audio file into the music library. Uses a dual-write strategy:
+    /// writes to canonical (shared) tables for deduplication AND to per-user legacy tables
+    /// for backward compatibility.
     /// </summary>
     public async Task<Track?> IndexFileAsync(
         Guid fileNodeId,
@@ -82,7 +84,7 @@ public sealed class LibraryScanService
     {
         _logger.LogDebug("IndexFileAsync: FileNode={FileNodeId}, File={FileName}, Owner={OwnerId}", fileNodeId, fileName, ownerId);
 
-        // Check if already indexed for this user
+        // Check if already indexed for this user (via old tracks table)
         var existing = await _db.Tracks
             .IgnoreQueryFilters()
             .FirstOrDefaultAsync(t => t.FileNodeId == fileNodeId && t.OwnerId == ownerId, cancellationToken);
@@ -93,13 +95,69 @@ public sealed class LibraryScanService
             return existing;
         }
 
-        // ── Cross-owner copy: if another user already indexed this file, clone their
-        //     metadata to avoid re-running expensive TagLib/ffmpeg extraction.
-        var crossOwnerTrack = await TryIndexFromExistingOwnerAsync(
-            fileNodeId, fileName, mimeType, sizeBytes, ownerId, cancellationToken);
-        if (crossOwnerTrack is not null)
+        // ── Extract content hash first for canonical lookup ──
+        var contentHash = await LookupContentHashAsync(fileNodeId, cancellationToken);
+
+        // ── Check canonical tracks by content hash ──
+        if (contentHash is not null)
         {
-            return crossOwnerTrack;
+            var canonicalTrack = await _db.CanonicalTracks
+                .Include(ct => ct.TrackArtists)
+                .Include(ct => ct.TrackGenres)
+                .FirstOrDefaultAsync(ct => ct.ContentHash == contentHash, cancellationToken);
+
+            if (canonicalTrack is not null)
+            {
+                // Canonical track exists — ensure canonical artist/album/genre exist, then dual-write
+                _logger.LogDebug("Found existing canonical track {ContentHash} for FileNode {FileNodeId}", contentHash, fileNodeId);
+
+                // Resolve canonical entities from the existing track's junctions
+                var firstArtist = canonicalTrack.TrackArtists.FirstOrDefault();
+                var foundArtist = firstArtist is not null
+                    ? await _db.CanonicalArtists.FindAsync([firstArtist.ArtistId], cancellationToken)
+                    : await GetOrCreateCanonicalArtistAsync("Unknown Artist", cancellationToken);
+                if (foundArtist is null)
+                    foundArtist = await GetOrCreateCanonicalArtistAsync("Unknown Artist", cancellationToken);
+
+                var firstGenre = canonicalTrack.TrackGenres.FirstOrDefault();
+                CanonicalGenre? foundGenre = null;
+                if (firstGenre is not null)
+                {
+                    foundGenre = await _db.CanonicalGenres.FindAsync([firstGenre.GenreId], cancellationToken);
+                }
+
+                // Find canonical album via UserTracks that reference this canonical track
+                var userTrack = await _db.UserTracks
+                    .FirstOrDefaultAsync(ut => ut.CanonicalTrackHash == contentHash, cancellationToken);
+                CanonicalAlbum? foundAlbum = null;
+                if (userTrack?.CanonicalAlbumId is not null)
+                {
+                    foundAlbum = await _db.CanonicalAlbums.FindAsync([userTrack.CanonicalAlbumId.Value], cancellationToken);
+                }
+
+                return await CreateUserTrackAndDualWriteAsync(
+                    fileNodeId, fileName, mimeType, sizeBytes, ownerId,
+                    contentHash, canonicalTrack.Title,
+                    canonicalTrack, foundAlbum,
+                    foundArtist ?? await GetOrCreateCanonicalArtistAsync("Unknown Artist", cancellationToken),
+                    foundGenre,
+                    canonicalTrack.TrackNumber, canonicalTrack.DiscNumber,
+                    canonicalTrack.DurationTicks, canonicalTrack.Bitrate,
+                    canonicalTrack.SampleRate, canonicalTrack.Channels,
+                    canonicalTrack.Year, canonicalTrack.MusicBrainzRecordingId,
+                    cancellationToken);
+            }
+        }
+
+        // ── Cross-owner copy (fallback): if canonical lookup failed, try legacy cross-owner ──
+        if (contentHash is null)
+        {
+            var crossOwnerTrack = await TryIndexFromExistingOwnerAsync(
+                fileNodeId, fileName, mimeType, sizeBytes, ownerId, cancellationToken);
+            if (crossOwnerTrack is not null)
+            {
+                return crossOwnerTrack;
+            }
         }
 
         // ── Extract metadata from the file ──
@@ -171,14 +229,12 @@ public sealed class LibraryScanService
             };
         }
 
-        // Get or create artist (uses in-memory cache, defers save)
-        var artist = await GetOrCreateArtistAsync(metadata.AlbumArtist ?? metadata.Artist, ownerId, cancellationToken);
+        // ── Canonical: Get or create shared entities ──
+        var canonicalArtist = await GetOrCreateCanonicalArtistAsync(metadata.AlbumArtist ?? metadata.Artist, cancellationToken);
+        var canonicalAlbum = await GetOrCreateCanonicalAlbumAsync(metadata.Album, metadata.Year, cancellationToken);
 
-        // Get or create album (uses in-memory cache, defers save)
-        var album = await GetOrCreateAlbumAsync(metadata.Album, artist.Id, ownerId, metadata.Year, cancellationToken);
-
-        // Handle album art
-        if (!album.HasCoverArt)
+        // Handle album art on canonical album
+        if (!canonicalAlbum.HasCoverArt)
         {
             string? artHash = null;
             if (resolvedPath is not null)
@@ -193,120 +249,71 @@ public sealed class LibraryScanService
 
             if (artHash is not null)
             {
-                album.HasCoverArt = true;
-                album.CoverArtPath = artHash;
+                canonicalAlbum.HasCoverArt = true;
+                canonicalAlbum.CoverArtHash = artHash;
             }
         }
 
-        // Get or create genre (uses in-memory cache, defers save)
-        Genre? genre = null;
+        CanonicalGenre? canonicalGenre = null;
         if (!string.IsNullOrWhiteSpace(metadata.Genre))
         {
-            genre = await GetOrCreateGenreAsync(metadata.Genre, cancellationToken);
+            canonicalGenre = await GetOrCreateCanonicalGenreAsync(metadata.Genre, cancellationToken);
         }
 
-        // Create or update track
-        Track track;
-        if (existing is not null)
+        // ── Create canonical track record (only if content hash is available) ──
+        if (contentHash is not null)
         {
-            // Re-index previously deleted track
-            track = existing;
-            track.IsDeleted = false;
-            track.DeletedAt = null;
-        }
-        else
-        {
-            track = new Track
+            var existingCanonical = await _db.CanonicalTracks
+                .FindAsync([contentHash], cancellationToken);
+
+            if (existingCanonical is null)
             {
-                FileNodeId = fileNodeId,
-                OwnerId = ownerId,
-                Title = metadata.Title,
-                MimeType = mimeType,
-                FileName = Path.GetFileName(fileName)
-            };
-            _db.Tracks.Add(track);
-        }
-
-        track.Title = metadata.Title;
-        track.TrackNumber = metadata.TrackNumber;
-        track.DiscNumber = metadata.DiscNumber;
-        track.DurationTicks = metadata.DurationTicks;
-        track.SizeBytes = sizeBytes;
-        track.Bitrate = metadata.Bitrate;
-        track.SampleRate = metadata.SampleRate;
-        track.Channels = metadata.Channels;
-        track.AlbumId = album.Id;
-        track.Year = metadata.Year;
-        track.UpdatedAt = DateTime.UtcNow;
-
-        // Store ContentHash for future cross-owner lookup
-        track.ContentHash = await LookupContentHashAsync(fileNodeId, cancellationToken);
-
-        // Create track-artist association (if not already existing for re-index)
-        var trackArtistExists = await _db.TrackArtists
-            .AnyAsync(ta => ta.TrackId == track.Id && ta.ArtistId == artist.Id, cancellationToken);
-        if (!trackArtistExists)
-        {
-            _db.TrackArtists.Add(new TrackArtist
-            {
-                TrackId = track.Id,
-                ArtistId = artist.Id,
-                IsPrimary = true
-            });
-        }
-
-        // Create track-genre association
-        if (genre is not null)
-        {
-            var trackGenreExists = await _db.TrackGenres
-                .AnyAsync(tg => tg.TrackId == track.Id && tg.GenreId == genre.Id, cancellationToken);
-            if (!trackGenreExists)
-            {
-                _db.TrackGenres.Add(new TrackGenre
+                var newCanonicalTrack = new CanonicalTrack
                 {
-                    TrackId = track.Id,
-                    GenreId = genre.Id
-                });
+                    ContentHash = contentHash,
+                    Title = metadata.Title,
+                    TrackNumber = metadata.TrackNumber,
+                    DiscNumber = metadata.DiscNumber,
+                    DurationTicks = metadata.DurationTicks,
+                    Bitrate = metadata.Bitrate,
+                    SampleRate = metadata.SampleRate,
+                    Channels = metadata.Channels,
+                    MimeType = mimeType,
+                    Year = metadata.Year
+                };
+                _db.CanonicalTracks.Add(newCanonicalTrack);
+
+                // Create canonical junction records
+                AddCanonicalJunctions(contentHash, canonicalArtist, canonicalAlbum, canonicalGenre);
             }
         }
 
-        // Update album total duration incrementally (avoids O(n²) SUM queries)
-        if (!_albumDurationCache.TryGetValue(album.Id, out var currentDuration))
-        {
-            currentDuration = await _db.Tracks
-                .Where(t => t.AlbumId == album.Id)
-                .SumAsync(t => t.DurationTicks, cancellationToken);
-        }
-        currentDuration += track.DurationTicks;
-        _albumDurationCache[album.Id] = currentDuration;
-        album.TotalDurationTicks = currentDuration;
+        // ── Dual-write: user junctions + old per-user records ──
+        var canonicalTrackForDualWrite = contentHash is not null
+            ? (await _db.CanonicalTracks.FindAsync([contentHash], cancellationToken))!
+            : new CanonicalTrack
+            {
+                ContentHash = contentHash ?? Guid.NewGuid().ToString(),
+                Title = metadata.Title,
+                DurationTicks = metadata.DurationTicks,
+                MimeType = mimeType
+            };
 
-        // Single batch save for all changes in this file.
-        await _db.SaveChangesAsync(cancellationToken);
-
-        _logger.LogInformation(
-            "Indexed track {TrackId} '{Title}' by '{Artist}' on '{Album}'",
-            track.Id, track.Title, artist.Name, album.Title);
-
-        await _eventBus.PublishAsync(new SearchIndexRequestEvent
-        {
-            EventId = Guid.NewGuid(),
-            CreatedAt = DateTime.UtcNow,
-            ModuleId = "music",
-            EntityId = track.Id.ToString(),
-            Action = SearchIndexAction.Index
-        }, new CallerContext(ownerId, ["user"], CallerType.User), cancellationToken);
-
-        return track;
+        return await CreateUserTrackAndDualWriteAsync(
+            fileNodeId, fileName, mimeType, sizeBytes, ownerId,
+            contentHash ?? canonicalTrackForDualWrite.ContentHash,
+            metadata.Title,
+            canonicalTrackForDualWrite, canonicalAlbum, canonicalArtist, canonicalGenre,
+            metadata.TrackNumber, metadata.DiscNumber, metadata.DurationTicks,
+            metadata.Bitrate, metadata.SampleRate, metadata.Channels,
+            metadata.Year, null,
+            cancellationToken);
     }
 
     /// <summary>
-    /// Attempts to find an existing track for this file owned by another user and clones
-    /// their metadata into a new track record for the current owner.
-    /// Returns the new track if a source was found and copied, or null if no cross-owner
-    /// match exists (caller should proceed with full metadata extraction).
-    /// This is READ-ONLY on the source user's data — never modifies, deletes, or reassigns.
-    /// Only CREATEs new records for the current user.
+    /// Attempts to find an existing canonical track for this file and creates user junctions
+    /// plus dual-write old records for the current owner.
+    /// Looks up by canonical ContentHash first, then falls back to legacy FileNodeId strategy.
     /// </summary>
     public async Task<Track?> TryIndexFromExistingOwnerAsync(
         Guid fileNodeId,
@@ -316,16 +323,57 @@ public sealed class LibraryScanService
         Guid ownerId,
         CancellationToken cancellationToken = default)
     {
-        // ── Cross-owner copy: if another user already indexed this file, clone their
-        //     metadata to avoid re-running expensive TagLib/ffmpeg extraction.
-        //     IMPORTANT: This is READ-ONLY on the other user's data. Nothing is modified,
-        //     deleted, or reassigned. We only CREATE new records for the current owner.
-        Track? sourceTrack = null;
         string? contentHash = null;
-        string? copyStrategy = null;
 
-        // Strategy 1: Same FileNodeId (same file visible to multiple users via sharing)
-        sourceTrack = await _db.Tracks
+        // Strategy 1: Look up canonical track by ContentHash
+        contentHash = await LookupContentHashAsync(fileNodeId, cancellationToken);
+
+        if (contentHash is not null)
+        {
+            var canonicalTrack = await _db.CanonicalTracks
+                .Include(ct => ct.TrackArtists).ThenInclude(cta => cta.Artist)
+                .Include(ct => ct.TrackGenres).ThenInclude(ctg => ctg.Genre)
+                .FirstOrDefaultAsync(ct => ct.ContentHash == contentHash, cancellationToken);
+
+            if (canonicalTrack is not null)
+            {
+                _logger.LogInformation(
+                    "Cross-owner copy (CanonicalContentHash): creating user junctions for FileNode {FileNodeId} into owner {OwnerId}",
+                    fileNodeId, ownerId);
+
+                // Get or create canonical entities
+                var foundArtist = canonicalTrack.TrackArtists
+                    .Select(cta => cta.Artist)
+                    .FirstOrDefault() ?? await GetOrCreateCanonicalArtistAsync("Unknown Artist", cancellationToken);
+
+                var foundGenre = canonicalTrack.TrackGenres
+                    .Select(ctg => ctg.Genre)
+                    .FirstOrDefault();
+
+                // Find canonical album from UserTracks
+                var anyUserTrack = await _db.UserTracks
+                    .FirstOrDefaultAsync(ut => ut.CanonicalTrackHash == contentHash, cancellationToken);
+                CanonicalAlbum? foundAlbum = null;
+                if (anyUserTrack?.CanonicalAlbumId is not null)
+                {
+                    foundAlbum = await _db.CanonicalAlbums.FindAsync(
+                        [anyUserTrack.CanonicalAlbumId.Value], cancellationToken);
+                }
+
+                return await CreateUserTrackAndDualWriteAsync(
+                    fileNodeId, fileName, mimeType, sizeBytes, ownerId,
+                    contentHash, canonicalTrack.Title,
+                    canonicalTrack, foundAlbum, foundArtist, foundGenre,
+                    canonicalTrack.TrackNumber, canonicalTrack.DiscNumber,
+                    canonicalTrack.DurationTicks, canonicalTrack.Bitrate,
+                    canonicalTrack.SampleRate, canonicalTrack.Channels,
+                    canonicalTrack.Year, canonicalTrack.MusicBrainzRecordingId,
+                    cancellationToken);
+            }
+        }
+
+        // Strategy 2: Legacy — same FileNodeId (shared folders)
+        var sourceTrack = await _db.Tracks
             .Include(t => t.Album)
             .Include(t => t.TrackArtists).ThenInclude(ta => ta.Artist)
             .Include(t => t.TrackGenres).ThenInclude(tg => tg.Genre)
@@ -333,174 +381,98 @@ public sealed class LibraryScanService
             .FirstOrDefaultAsync(t => t.FileNodeId == fileNodeId && t.OwnerId != ownerId && !t.IsDeleted,
                 cancellationToken);
 
-        if (sourceTrack is not null)
-        {
-            copyStrategy = "FileNodeId";
-        }
-        else
-        {
-            // Strategy 2: Same ContentHash (different uploads of identical file content)
-            contentHash = await LookupContentHashAsync(fileNodeId, cancellationToken);
-
-            if (contentHash is not null)
-            {
-                sourceTrack = await _db.Tracks
-                    .Include(t => t.Album)
-                    .Include(t => t.TrackArtists).ThenInclude(ta => ta.Artist)
-                    .Include(t => t.TrackGenres).ThenInclude(tg => tg.Genre)
-                    .IgnoreQueryFilters()
-                    .FirstOrDefaultAsync(t => t.ContentHash == contentHash && t.OwnerId != ownerId && !t.IsDeleted,
-                        cancellationToken);
-
-                if (sourceTrack is not null)
-                    copyStrategy = "ContentHash";
-            }
-        }
-
         if (sourceTrack is null)
-        {
             return null;
-        }
 
         _logger.LogInformation(
-            "Cross-owner copy ({Strategy}): cloning metadata from track {SourceTrackId} (owner={SourceOwnerId}) for FileNode {FileNodeId} into owner {OwnerId}",
-            copyStrategy, sourceTrack.Id, sourceTrack.OwnerId, fileNodeId, ownerId);
+            "Cross-owner copy (Legacy FileNodeId): cloning from track {SourceTrackId} for FileNode {FileNodeId} into owner {OwnerId}",
+            sourceTrack.Id, fileNodeId, ownerId);
 
-        // ── SAFETY: Never touch sourceTrack or anything owned by sourceTrack.OwnerId ──
-        // All new records below use ownerId (the CURRENT user), never sourceTrack.OwnerId.
-
-        // Look up content hash upfront so we don't need an intermediate save.
         if (contentHash is null)
             contentHash = await LookupContentHashAsync(fileNodeId, cancellationToken);
 
-        // Clone artist for the current owner
+        // Get or create canonical entities from source track metadata
         var sourceArtistName = sourceTrack.TrackArtists
             .FirstOrDefault(ta => ta.IsPrimary)?.Artist?.Name
             ?? sourceTrack.TrackArtists.FirstOrDefault()?.Artist?.Name
             ?? "Unknown Artist";
 
-        var newArtist = await GetOrCreateArtistAsync(sourceArtistName, ownerId, cancellationToken);
+        var canonicalArtist = await GetOrCreateCanonicalArtistAsync(sourceArtistName, cancellationToken);
 
-        // Clone album for the current owner
-        MusicAlbum? newAlbum = null;
+        CanonicalAlbum? canonicalAlbum = null;
         if (sourceTrack.AlbumId.HasValue && sourceTrack.Album is not null)
         {
-            newAlbum = await GetOrCreateAlbumAsync(
-                sourceTrack.Album.Title, newArtist.Id, ownerId, sourceTrack.Album.Year, cancellationToken);
+            canonicalAlbum = await GetOrCreateCanonicalAlbumAsync(sourceTrack.Album.Title, sourceTrack.Album.Year, cancellationToken);
 
-            // Copy album art from the source user's cached art (avoids re-extracting from file).
-            // Only copy if the source has art and the new album doesn't already have it.
-            if (!newAlbum.HasCoverArt && sourceTrack.Album.HasCoverArt)
+            // Copy album art to canonical album if source has it
+            if (!canonicalAlbum.HasCoverArt && sourceTrack.Album.HasCoverArt)
             {
                 var artHash = _albumArtService.CopyArtFromExisting(sourceTrack.Album.CoverArtPath);
                 if (artHash is not null)
                 {
-                    newAlbum.HasCoverArt = true;
-                    newAlbum.CoverArtPath = artHash;
+                    canonicalAlbum.HasCoverArt = true;
+                    canonicalAlbum.CoverArtHash = artHash;
                 }
             }
         }
 
-        // Clone genre
-        Genre? newGenre = null;
+        CanonicalGenre? canonicalGenre = null;
         var sourceGenre = sourceTrack.TrackGenres.FirstOrDefault()?.Genre;
         if (sourceGenre is not null)
-            newGenre = await GetOrCreateGenreAsync(sourceGenre.Name, cancellationToken);
+            canonicalGenre = await GetOrCreateCanonicalGenreAsync(sourceGenre.Name, cancellationToken);
 
-        // Create NEW track record for the current owner — copies metadata only
-        var newTrack = new Track
+        // Create canonical track if content hash is available and it doesn't exist yet
+        if (contentHash is not null)
         {
-            FileNodeId = fileNodeId,
-            OwnerId = ownerId,  // <-- CURRENT user, NOT source owner
-            Title = sourceTrack.Title,
-            FileName = sourceTrack.FileName,
-            MimeType = sourceTrack.MimeType,
-            TrackNumber = sourceTrack.TrackNumber,
-            DiscNumber = sourceTrack.DiscNumber,
-            DurationTicks = sourceTrack.DurationTicks,
-            SizeBytes = sourceTrack.SizeBytes,
-            Bitrate = sourceTrack.Bitrate,
-            SampleRate = sourceTrack.SampleRate,
-            Channels = sourceTrack.Channels,
-            AlbumId = newAlbum?.Id,
-            Year = sourceTrack.Year,
-            ContentHash = contentHash,
-            MusicBrainzRecordingId = sourceTrack.MusicBrainzRecordingId,
-        };
-
-        _db.Tracks.Add(newTrack);
-
-        // Create track-artist junction for the NEW track
-        _db.TrackArtists.Add(new TrackArtist
-        {
-            TrackId = newTrack.Id,
-            ArtistId = newArtist.Id,
-            IsPrimary = true
-        });
-
-        // Create track-genre junction for the NEW track
-        if (newGenre is not null)
-        {
-            _db.TrackGenres.Add(new TrackGenre
+            var existingCanonical = await _db.CanonicalTracks.FindAsync([contentHash], cancellationToken);
+            if (existingCanonical is null)
             {
-                TrackId = newTrack.Id,
-                GenreId = newGenre.Id
-            });
-        }
+                var newCanonical = new CanonicalTrack
+                {
+                    ContentHash = contentHash,
+                    Title = sourceTrack.Title,
+                    TrackNumber = sourceTrack.TrackNumber,
+                    DiscNumber = sourceTrack.DiscNumber,
+                    DurationTicks = sourceTrack.DurationTicks,
+                    Bitrate = sourceTrack.Bitrate,
+                    SampleRate = sourceTrack.SampleRate,
+                    Channels = sourceTrack.Channels,
+                    MimeType = sourceTrack.MimeType,
+                    Year = sourceTrack.Year,
+                    MusicBrainzRecordingId = sourceTrack.MusicBrainzRecordingId
+                };
+                _db.CanonicalTracks.Add(newCanonical);
 
-        // Update NEW album total duration incrementally (avoids O(n²) SUM queries)
-        if (newAlbum is not null)
-        {
-            if (!_albumDurationCache.TryGetValue(newAlbum.Id, out var currentDuration))
-            {
-                // First time seeing this album in this scan — load existing total
-                currentDuration = await _db.Tracks
-                    .Where(t => t.AlbumId == newAlbum.Id)
-                    .SumAsync(t => t.DurationTicks, cancellationToken);
+                AddCanonicalJunctions(contentHash, canonicalArtist, canonicalAlbum, canonicalGenre);
             }
-            currentDuration += newTrack.DurationTicks;
-            _albumDurationCache[newAlbum.Id] = currentDuration;
-            newAlbum.TotalDurationTicks = currentDuration;
         }
 
-        // Single batch save for all changes in this file.
-        await _db.SaveChangesAsync(cancellationToken);
+        var canonicalForDualWrite = contentHash is not null
+            ? (await _db.CanonicalTracks.FindAsync([contentHash], cancellationToken))!
+            : new CanonicalTrack
+            {
+                ContentHash = Guid.NewGuid().ToString(),
+                Title = sourceTrack.Title,
+                DurationTicks = sourceTrack.DurationTicks,
+                MimeType = sourceTrack.MimeType
+            };
 
-        _logger.LogInformation(
-            "Indexed track {TrackId} '{Title}' by '{Artist}' on '{Album}' (cloned from {SourceTrackId}, owner={OwnerId})",
-            newTrack.Id, newTrack.Title, newArtist.Name, newAlbum?.Title ?? "(none)", sourceTrack.Id, ownerId);
-
-        await _eventBus.PublishAsync(new SearchIndexRequestEvent
-        {
-            EventId = Guid.NewGuid(),
-            CreatedAt = DateTime.UtcNow,
-            ModuleId = "music",
-            EntityId = newTrack.Id.ToString(),
-            Action = SearchIndexAction.Index
-        }, new CallerContext(ownerId, ["user"], CallerType.User), cancellationToken);
-
-        // ── SAFETY AUDIT: Verify source track was NOT modified ──
-        var verifySource = await _db.Tracks
-            .IgnoreQueryFilters()
-            .FirstOrDefaultAsync(t => t.Id == sourceTrack.Id, cancellationToken);
-
-        if (verifySource is null || verifySource.IsDeleted || verifySource.OwnerId != sourceTrack.OwnerId)
-        {
-            _logger.LogError(
-                "CRITICAL: Source track {SourceTrackId} was unexpectedly modified during cross-owner copy! " +
-                "exists={Exists}, isDeleted={IsDeleted}, ownerId={OwnerId}, expectedOwner={ExpectedOwner}",
-                sourceTrack.Id,
-                verifySource is not null, verifySource?.IsDeleted, verifySource?.OwnerId, sourceTrack.OwnerId);
-        }
-
-        return newTrack;
+        return await CreateUserTrackAndDualWriteAsync(
+            fileNodeId, fileName, mimeType, sizeBytes, ownerId,
+            contentHash ?? canonicalForDualWrite.ContentHash,
+            sourceTrack.Title,
+            canonicalForDualWrite, canonicalAlbum, canonicalArtist, canonicalGenre,
+            sourceTrack.TrackNumber, sourceTrack.DiscNumber, sourceTrack.DurationTicks,
+            sourceTrack.Bitrate, sourceTrack.SampleRate, sourceTrack.Channels,
+            sourceTrack.Year, sourceTrack.MusicBrainzRecordingId,
+            cancellationToken);
     }
 
     /// <summary>
-    /// Attempts a bulk cross-owner copy for a set of file nodes. Queries all source tracks
-    /// matching by ContentHash in a single query, then does a single batch insert for all
-    /// new Track/Artist/Album/Genre records. Skips files already indexed for this owner.
-    /// Returns the set of FileNode IDs that were successfully indexed via cross-owner copy.
+    /// Attempts a bulk cross-owner copy for a set of file nodes. Queries all canonical tracks
+    /// matching by ContentHash, then creates user junctions and dual-write old records in a
+    /// single batch. Skips files already indexed for this owner.
+    /// Returns the set of FileNode IDs that were successfully indexed.
     /// </summary>
     public async Task<HashSet<Guid>> TryBulkIndexFromExistingAsync(
         IReadOnlyCollection<Guid> fileNodeIds,
@@ -511,7 +483,31 @@ public sealed class LibraryScanService
         if (fileNodeIds.Count == 0)
             return [];
 
-        // ── Strategy 1: Match by FileNodeId (same virtual FileNode for both users, e.g. admin shared folders) ──
+        // Get all distinct content hashes
+        var hashes = contentHashMap.Values
+            .Where(h => h is not null)
+            .Cast<string>()
+            .Distinct()
+            .ToList();
+
+        // ── Strategy 1: Match by canonical ContentHash ──
+        var canonicalTracksByHash = new Dictionary<string, CanonicalTrack>();
+        if (hashes.Count > 0)
+        {
+            var found = await _db.CanonicalTracks
+                .Include(ct => ct.TrackArtists).ThenInclude(cta => cta.Artist)
+                .Include(ct => ct.TrackGenres).ThenInclude(ctg => ctg.Genre)
+                .Where(ct => hashes.Contains(ct.ContentHash))
+                .ToListAsync(cancellationToken);
+
+            foreach (var ct in found)
+            {
+                if (!canonicalTracksByHash.ContainsKey(ct.ContentHash))
+                    canonicalTracksByHash[ct.ContentHash] = ct;
+            }
+        }
+
+        // ── Strategy 2: Legacy — Match by FileNodeId ──
         var sourceById = new Dictionary<Guid, Track>();
         var fileNodeIdTracks = await _db.Tracks
             .Include(t => t.Album)
@@ -527,41 +523,17 @@ public sealed class LibraryScanService
                 sourceById[track.FileNodeId] = track;
         }
 
-        // ── Strategy 2: Match by ContentHash (different FileNodes with same content) ──
-        var sourceByHash = new Dictionary<string, Track>();
-        var hashes = contentHashMap.Values.Where(h => h is not null).Cast<string>().Distinct().ToList();
-
-        if (hashes.Count > 0)
-        {
-            var hashTracks = await _db.Tracks
-                .Include(t => t.Album)
-                .Include(t => t.TrackArtists).ThenInclude(ta => ta.Artist)
-                .Include(t => t.TrackGenres).ThenInclude(tg => tg.Genre)
-                .IgnoreQueryFilters()
-                .Where(t => t.ContentHash != null && hashes.Contains(t.ContentHash) && t.OwnerId != ownerId && !t.IsDeleted)
-                .ToListAsync(cancellationToken);
-
-            foreach (var track in hashTracks)
-            {
-                if (track.ContentHash is not null && !sourceByHash.ContainsKey(track.ContentHash))
-                    sourceByHash[track.ContentHash] = track;
-            }
-        }
-
-        if (sourceById.Count == 0 && sourceByHash.Count == 0)
+        if (canonicalTracksByHash.Count == 0 && sourceById.Count == 0)
             return [];
 
-        // Step 3: Get already-indexed FileNodeIds for this user
+        // Get already-indexed FileNodeIds for this user
         var alreadyIndexed = await _db.Tracks
             .Where(t => t.OwnerId == ownerId && fileNodeIds.Contains(t.FileNodeId) && !t.IsDeleted)
             .Select(t => t.FileNodeId)
             .ToListAsync(cancellationToken);
         var alreadyIndexedSet = alreadyIndexed.ToHashSet();
 
-        // Step 5: Build all records in memory using caches
-        var newTracks = new List<Track>();
-        var newTrackArtists = new List<TrackArtist>();
-        var newTrackGenres = new List<TrackGenre>();
+        // Build all records in memory
         var copiedIds = new HashSet<Guid>();
 
         foreach (var fileNodeId in fileNodeIds)
@@ -569,137 +541,107 @@ public sealed class LibraryScanService
             if (alreadyIndexedSet.Contains(fileNodeId))
                 continue;
 
-            // Try Strategy 1: Same FileNodeId (admin shared folders / mounted entries)
-            Track? sourceTrack = null;
-            string? contentHash = null;
-            if (sourceById.TryGetValue(fileNodeId, out var idMatch))
+            if (!contentHashMap.TryGetValue(fileNodeId, out var contentHash) || contentHash is null)
             {
-                sourceTrack = idMatch;
-            }
-            else
-            {
-                // Try Strategy 2: Same ContentHash (different uploads of identical files)
-                if (!contentHashMap.TryGetValue(fileNodeId, out contentHash) || contentHash is null)
+                // Fallback: try legacy FileNodeId match
+                if (!sourceById.TryGetValue(fileNodeId, out var legacySource))
                     continue;
-                if (!sourceByHash.TryGetValue(contentHash, out var hashMatch))
+
+                // Create canonical entities from legacy source
+                contentHash = await LookupContentHashAsync(fileNodeId, cancellationToken);
+                if (contentHash is null)
                     continue;
-                sourceTrack = hashMatch;
-            }
 
-            // Get or create artist (uses in-memory cache, no DB hit after first unique name)
-            var sourceArtistName = sourceTrack.TrackArtists
-                .FirstOrDefault(ta => ta.IsPrimary)?.Artist?.Name
-                ?? sourceTrack.TrackArtists.FirstOrDefault()?.Artist?.Name
-                ?? "Unknown Artist";
-            var newArtist = await GetOrCreateArtistAsync(sourceArtistName, ownerId, cancellationToken);
+                var sourceArtistName = legacySource.TrackArtists
+                    .FirstOrDefault(ta => ta.IsPrimary)?.Artist?.Name
+                    ?? legacySource.TrackArtists.FirstOrDefault()?.Artist?.Name
+                    ?? "Unknown Artist";
 
-            // Get or create album
-            MusicAlbum? newAlbum = null;
-            if (sourceTrack.AlbumId.HasValue && sourceTrack.Album is not null)
-            {
-                newAlbum = await GetOrCreateAlbumAsync(
-                    sourceTrack.Album.Title, newArtist.Id, ownerId, sourceTrack.Album.Year, cancellationToken);
-
-                // Copy album art from the source user's cached art
-                if (!newAlbum.HasCoverArt && sourceTrack.Album.HasCoverArt)
+                var cArtist = await GetOrCreateCanonicalArtistAsync(sourceArtistName, cancellationToken);
+                CanonicalAlbum? cAlbum = null;
+                if (legacySource.AlbumId.HasValue && legacySource.Album is not null)
                 {
-                    var artHash = _albumArtService.CopyArtFromExisting(sourceTrack.Album.CoverArtPath);
-                    if (artHash is not null)
+                    cAlbum = await GetOrCreateCanonicalAlbumAsync(legacySource.Album.Title, legacySource.Album.Year, cancellationToken);
+                }
+                CanonicalGenre? cGenre = null;
+                var sGenre = legacySource.TrackGenres.FirstOrDefault()?.Genre;
+                if (sGenre is not null)
+                    cGenre = await GetOrCreateCanonicalGenreAsync(sGenre.Name, cancellationToken);
+
+                // Ensure canonical track exists
+                var existingCt = await _db.CanonicalTracks.FindAsync([contentHash], cancellationToken);
+                if (existingCt is null)
+                {
+                    var newCt = new CanonicalTrack
                     {
-                        newAlbum.HasCoverArt = true;
-                        newAlbum.CoverArtPath = artHash;
-                    }
+                        ContentHash = contentHash,
+                        Title = legacySource.Title,
+                        TrackNumber = legacySource.TrackNumber,
+                        DiscNumber = legacySource.DiscNumber,
+                        DurationTicks = legacySource.DurationTicks,
+                        Bitrate = legacySource.Bitrate,
+                        SampleRate = legacySource.SampleRate,
+                        Channels = legacySource.Channels,
+                        MimeType = legacySource.MimeType,
+                        Year = legacySource.Year,
+                        MusicBrainzRecordingId = legacySource.MusicBrainzRecordingId
+                    };
+                    _db.CanonicalTracks.Add(newCt);
+                    AddCanonicalJunctions(contentHash, cArtist, cAlbum, cGenre);
                 }
+
+                var ctForWrite = (await _db.CanonicalTracks.FindAsync([contentHash], cancellationToken))!;
+                await CreateUserTrackAndDualWriteAsync(
+                    fileNodeId, legacySource.FileName, legacySource.MimeType, legacySource.SizeBytes,
+                    ownerId, contentHash, legacySource.Title,
+                    ctForWrite, cAlbum, cArtist, cGenre,
+                    legacySource.TrackNumber, legacySource.DiscNumber, legacySource.DurationTicks,
+                    legacySource.Bitrate, legacySource.SampleRate, legacySource.Channels,
+                    legacySource.Year, legacySource.MusicBrainzRecordingId,
+                    cancellationToken);
+
+                copiedIds.Add(fileNodeId);
+                continue;
             }
 
-            // Get or create genre
-            Genre? newGenre = null;
-            var sourceGenre = sourceTrack.TrackGenres.FirstOrDefault()?.Genre;
-            if (sourceGenre is not null)
-                newGenre = await GetOrCreateGenreAsync(sourceGenre.Name, cancellationToken);
+            // Primary: use canonical track
+            if (!canonicalTracksByHash.TryGetValue(contentHash, out var canonicalTrack))
+                continue;
 
-            // Create track record
-            var newTrack = new Track
-            {
-                FileNodeId = fileNodeId,
-                OwnerId = ownerId,
-                Title = sourceTrack.Title,
-                FileName = sourceTrack.FileName,
-                MimeType = sourceTrack.MimeType,
-                TrackNumber = sourceTrack.TrackNumber,
-                DiscNumber = sourceTrack.DiscNumber,
-                DurationTicks = sourceTrack.DurationTicks,
-                SizeBytes = sourceTrack.SizeBytes,
-                Bitrate = sourceTrack.Bitrate,
-                SampleRate = sourceTrack.SampleRate,
-                Channels = sourceTrack.Channels,
-                AlbumId = newAlbum?.Id,
-                Year = sourceTrack.Year,
-                ContentHash = contentHash,
-                MusicBrainzRecordingId = sourceTrack.MusicBrainzRecordingId,
-            };
-            newTracks.Add(newTrack);
+            var artist = canonicalTrack.TrackArtists.Select(cta => cta.Artist).FirstOrDefault()
+                ?? await GetOrCreateCanonicalArtistAsync("Unknown Artist", cancellationToken);
 
-            // Track-artist junction
-            newTrackArtists.Add(new TrackArtist
-            {
-                TrackId = newTrack.Id,
-                ArtistId = newArtist.Id,
-                IsPrimary = true
-            });
+            var genre = canonicalTrack.TrackGenres.Select(ctg => ctg.Genre).FirstOrDefault();
 
-            // Track-genre junction
-            if (newGenre is not null)
-            {
-                newTrackGenres.Add(new TrackGenre
-                {
-                    TrackId = newTrack.Id,
-                    GenreId = newGenre.Id
-                });
-            }
+            var anyUt = await _db.UserTracks
+                .FirstOrDefaultAsync(ut => ut.CanonicalTrackHash == contentHash, cancellationToken);
+            CanonicalAlbum? album = null;
+            if (anyUt?.CanonicalAlbumId is not null)
+                album = await _db.CanonicalAlbums.FindAsync([anyUt.CanonicalAlbumId.Value], cancellationToken);
 
-            // Update album duration incrementally
-            if (newAlbum is not null)
-            {
-                if (!_albumDurationCache.TryGetValue(newAlbum.Id, out var currentDuration))
-                {
-                    currentDuration = await _db.Tracks
-                        .Where(t => t.AlbumId == newAlbum.Id)
-                        .SumAsync(t => t.DurationTicks, cancellationToken);
-                }
-                currentDuration += newTrack.DurationTicks;
-                _albumDurationCache[newAlbum.Id] = currentDuration;
-                newAlbum.TotalDurationTicks = currentDuration;
-            }
+            // Look up filename from any existing old track for this content hash
+            var existingTrackForName = await _db.Tracks
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(t => t.ContentHash == contentHash, cancellationToken);
+            var bulkFileName = existingTrackForName?.FileName ?? contentHash;
+
+            await CreateUserTrackAndDualWriteAsync(
+                fileNodeId, bulkFileName, canonicalTrack.MimeType, existingTrackForName?.SizeBytes ?? 0,
+                ownerId, contentHash, canonicalTrack.Title,
+                canonicalTrack, album, artist, genre,
+                canonicalTrack.TrackNumber, canonicalTrack.DiscNumber, canonicalTrack.DurationTicks,
+                canonicalTrack.Bitrate, canonicalTrack.SampleRate, canonicalTrack.Channels,
+                canonicalTrack.Year, canonicalTrack.MusicBrainzRecordingId,
+                cancellationToken);
 
             copiedIds.Add(fileNodeId);
         }
 
-        if (newTracks.Count == 0)
-            return copiedIds;
-
-        // Step 6: Single bulk save for ALL files at once
-        _db.Tracks.AddRange(newTracks);
-        _db.TrackArtists.AddRange(newTrackArtists);
-        _db.TrackGenres.AddRange(newTrackGenres);
         await _db.SaveChangesAsync(cancellationToken);
 
-        // Step 7: Publish search index events
-        foreach (var track in newTracks)
-        {
-            await _eventBus.PublishAsync(new SearchIndexRequestEvent
-            {
-                EventId = Guid.NewGuid(),
-                CreatedAt = DateTime.UtcNow,
-                ModuleId = "music",
-                EntityId = track.Id.ToString(),
-                Action = SearchIndexAction.Index
-            }, new CallerContext(ownerId, ["user"], CallerType.User), cancellationToken);
-        }
-
         _logger.LogInformation(
-            "Bulk cross-owner copy: indexed {Count} tracks for owner {OwnerId} from {SourceCount} unique source tracks",
-            newTracks.Count, ownerId, sourceByHash.Count);
+            "Bulk cross-owner copy: indexed {Count} tracks for owner {OwnerId} via canonical dedup",
+            copiedIds.Count, ownerId);
 
         return copiedIds;
     }
@@ -913,75 +855,73 @@ public sealed class LibraryScanService
     }
 
     /// <summary>
-    /// Gets or creates an artist by name for a specific owner.
+    /// Gets or creates a canonical (shared) artist by name.
+    /// No OwnerId filter — canonical artists are shared across all users.
     /// </summary>
-    internal async Task<Artist> GetOrCreateArtistAsync(string name, Guid ownerId, CancellationToken cancellationToken)
+    internal async Task<CanonicalArtist> GetOrCreateCanonicalArtistAsync(string name, CancellationToken cancellationToken)
     {
-        var key = (name, ownerId);
-        if (_artistCache.TryGetValue(key, out var cached))
+        if (_artistCache.TryGetValue(name, out var cached))
             return cached;
 
-        var artist = await _db.Artists
-            .FirstOrDefaultAsync(a => a.OwnerId == ownerId && a.Name == name, cancellationToken);
+        var artist = await _db.CanonicalArtists
+            .FirstOrDefaultAsync(a => a.Name == name, cancellationToken);
 
         if (artist is not null)
         {
-            _artistCache[key] = artist;
+            _artistCache[name] = artist;
             return artist;
         }
 
-        artist = new Artist
+        artist = new CanonicalArtist
         {
             Name = name,
-            OwnerId = ownerId,
             SortName = GenerateSortName(name)
         };
-        _db.Artists.Add(artist);
-        _artistCache[key] = artist;
+        _db.CanonicalArtists.Add(artist);
+        _artistCache[name] = artist;
         // Note: SaveChangesAsync is deferred to the caller for batching.
         return artist;
     }
 
     /// <summary>
-    /// Gets or creates an album by title for a specific artist and owner.
+    /// Gets or creates a canonical (shared) album by title.
+    /// No OwnerId/ArtistId filter — canonical albums are shared across all users.
     /// </summary>
-    internal async Task<MusicAlbum> GetOrCreateAlbumAsync(string title, Guid artistId, Guid ownerId, int? year, CancellationToken cancellationToken)
+    internal async Task<CanonicalAlbum> GetOrCreateCanonicalAlbumAsync(string title, int? year, CancellationToken cancellationToken)
     {
-        var key = (title, artistId, ownerId);
-        if (_albumCache.TryGetValue(key, out var cached))
+        if (_albumCache.TryGetValue(title, out var cached))
             return cached;
 
-        var album = await _db.Albums
-            .FirstOrDefaultAsync(a => a.ArtistId == artistId && a.Title == title && a.OwnerId == ownerId, cancellationToken);
+        var album = await _db.CanonicalAlbums
+            .FirstOrDefaultAsync(a => a.Title == title, cancellationToken);
 
         if (album is not null)
         {
-            _albumCache[key] = album;
+            _albumCache[title] = album;
             return album;
         }
 
-        album = new MusicAlbum
+        album = new CanonicalAlbum
         {
             Title = title,
-            ArtistId = artistId,
-            OwnerId = ownerId,
             Year = year
         };
-        _db.Albums.Add(album);
-        _albumCache[key] = album;
+        _db.CanonicalAlbums.Add(album);
+        _albumCache[title] = album;
         // Note: SaveChangesAsync is deferred to the caller for batching.
         return album;
     }
 
     /// <summary>
-    /// Gets or creates a genre by name.
+    /// Gets or creates a canonical (shared) genre by name.
+    /// No OwnerId filter — canonical genres are shared across all users.
     /// </summary>
-    internal async Task<Genre> GetOrCreateGenreAsync(string name, CancellationToken cancellationToken)
+    internal async Task<CanonicalGenre> GetOrCreateCanonicalGenreAsync(string name, CancellationToken cancellationToken)
     {
         if (_genreCache.TryGetValue(name, out var cached))
             return cached;
 
-        var genre = await _db.Genres
+        var genre = await _db.CanonicalGenres
             .FirstOrDefaultAsync(g => g.Name == name, cancellationToken);
 
         if (genre is not null)
@@ -990,8 +930,8 @@ public sealed class LibraryScanService
             return genre;
         }
 
-        genre = new Genre { Name = name };
-        _db.Genres.Add(genre);
+        genre = new CanonicalGenre { Name = name };
+        _db.CanonicalGenres.Add(genre);
         _genreCache[name] = genre;
         // Note: SaveChangesAsync is deferred to the caller for batching.
         return genre;
@@ -1006,6 +946,257 @@ public sealed class LibraryScanService
         if (name.StartsWith("An ", StringComparison.OrdinalIgnoreCase))
             return name[3..] + ", An";
         return name;
+    }
+
+    /// <summary>
+    /// Creates a UserTrack junction and the corresponding old-style Track record (dual-write).
+    /// </summary>
+    private async Task<Track> CreateUserTrackAndDualWriteAsync(
+        Guid fileNodeId,
+        string fileName,
+        string mimeType,
+        long sizeBytes,
+        Guid ownerId,
+        string contentHash,
+        string title,
+        CanonicalTrack canonicalTrack,
+        CanonicalAlbum? canonicalAlbum,
+        CanonicalArtist canonicalArtist,
+        CanonicalGenre? canonicalGenre,
+        int? trackNumber,
+        int? discNumber,
+        long durationTicks,
+        long? bitrate,
+        int? sampleRate,
+        int? channels,
+        int? year,
+        string? musicBrainzRecordingId,
+        CancellationToken cancellationToken)
+    {
+        // ── 1. Create UserTrack junction ──
+        var userTrack = new UserTrack
+        {
+            OwnerId = ownerId,
+            FileNodeId = fileNodeId,
+            CanonicalTrackHash = contentHash,
+            ContentHash = contentHash,
+            CanonicalAlbumId = canonicalAlbum?.Id,
+            PlayCount = 0
+        };
+        _db.UserTracks.Add(userTrack);
+
+        // ── 2. Create UserAlbum junction if applicable ──
+        if (canonicalAlbum is not null)
+        {
+            var existingUserAlbum = await _db.UserAlbums
+                .FirstOrDefaultAsync(ua => ua.OwnerId == ownerId && ua.CanonicalAlbumId == canonicalAlbum.Id, cancellationToken);
+            if (existingUserAlbum is null)
+            {
+                _db.UserAlbums.Add(new UserAlbum
+                {
+                    OwnerId = ownerId,
+                    CanonicalAlbumId = canonicalAlbum.Id
+                });
+            }
+        }
+
+        // ── 3. Create UserArtist junction ──
+        var existingUserArtist = await _db.UserArtists
+            .FirstOrDefaultAsync(ua => ua.OwnerId == ownerId && ua.CanonicalArtistId == canonicalArtist.Id, cancellationToken);
+        if (existingUserArtist is null)
+        {
+            _db.UserArtists.Add(new UserArtist
+            {
+                OwnerId = ownerId,
+                CanonicalArtistId = canonicalArtist.Id
+            });
+        }
+
+        // ── 4. Dual-write: old per-user Artist record ──
+        var oldArtist = await _db.Artists
+            .FirstOrDefaultAsync(a => a.OwnerId == ownerId && a.Name == canonicalArtist.Name, cancellationToken);
+        if (oldArtist is null)
+        {
+            oldArtist = new Artist
+            {
+                Name = canonicalArtist.Name,
+                OwnerId = ownerId,
+                SortName = canonicalArtist.SortName
+            };
+            _db.Artists.Add(oldArtist);
+        }
+
+        // ── 5. Dual-write: old per-user MusicAlbum record ──
+        MusicAlbum? oldAlbum = null;
+        if (canonicalAlbum is not null)
+        {
+            oldAlbum = await _db.Albums
+                .FirstOrDefaultAsync(a => a.OwnerId == ownerId && a.Title == canonicalAlbum.Title, cancellationToken);
+            if (oldAlbum is null)
+            {
+                oldAlbum = new MusicAlbum
+                {
+                    Title = canonicalAlbum.Title,
+                    ArtistId = oldArtist.Id,
+                    OwnerId = ownerId,
+                    Year = canonicalAlbum.Year,
+                    HasCoverArt = canonicalAlbum.HasCoverArt,
+                    CoverArtPath = canonicalAlbum.CoverArtHash
+                };
+                _db.Albums.Add(oldAlbum);
+            }
+        }
+
+        // ── 6. Dual-write: old per-user Genre record ──
+        Genre? oldGenre = null;
+        if (canonicalGenre is not null)
+        {
+            oldGenre = await _db.Genres
+                .FirstOrDefaultAsync(g => g.Name == canonicalGenre.Name, cancellationToken);
+            if (oldGenre is null)
+            {
+                oldGenre = new Genre { Name = canonicalGenre.Name };
+                _db.Genres.Add(oldGenre);
+            }
+        }
+
+        // ── 7. Dual-write: old Track record ──
+        var existingTrack = await _db.Tracks
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(t => t.FileNodeId == fileNodeId && t.OwnerId == ownerId, cancellationToken);
+
+        Track track;
+        if (existingTrack is not null && !existingTrack.IsDeleted)
+        {
+            track = existingTrack;
+        }
+        else if (existingTrack is not null)
+        {
+            // Re-index previously deleted track
+            track = existingTrack;
+            track.IsDeleted = false;
+            track.DeletedAt = null;
+        }
+        else
+        {
+            track = new Track
+            {
+                FileNodeId = fileNodeId,
+                OwnerId = ownerId,
+                Title = title,
+                MimeType = mimeType,
+                FileName = Path.GetFileName(fileName)
+            };
+            _db.Tracks.Add(track);
+        }
+
+        track.Title = title;
+        track.TrackNumber = trackNumber;
+        track.DiscNumber = discNumber;
+        track.DurationTicks = durationTicks;
+        track.SizeBytes = sizeBytes;
+        track.Bitrate = bitrate;
+        track.SampleRate = sampleRate;
+        track.Channels = channels;
+        track.AlbumId = oldAlbum?.Id;
+        track.Year = year;
+        track.ContentHash = contentHash;
+        track.MusicBrainzRecordingId = musicBrainzRecordingId;
+        track.UpdatedAt = DateTime.UtcNow;
+
+        // ── 8. Dual-write: old TrackArtist junction ──
+        var trackArtistExists = await _db.TrackArtists
+            .AnyAsync(ta => ta.TrackId == track.Id && ta.ArtistId == oldArtist.Id, cancellationToken);
+        if (!trackArtistExists)
+        {
+            _db.TrackArtists.Add(new TrackArtist
+            {
+                TrackId = track.Id,
+                ArtistId = oldArtist.Id,
+                IsPrimary = true
+            });
+        }
+
+        // ── 9. Dual-write: old TrackGenre junction ──
+        if (oldGenre is not null)
+        {
+            var trackGenreExists = await _db.TrackGenres
+                .AnyAsync(tg => tg.TrackId == track.Id && tg.GenreId == oldGenre.Id, cancellationToken);
+            if (!trackGenreExists)
+            {
+                _db.TrackGenres.Add(new TrackGenre
+                {
+                    TrackId = track.Id,
+                    GenreId = oldGenre.Id
+                });
+            }
+        }
+
+        // ── 10. Update old album total duration ──
+        if (oldAlbum is not null)
+        {
+            if (!_albumDurationCache.TryGetValue(oldAlbum.Id, out var currentDuration))
+            {
+                currentDuration = await _db.Tracks
+                    .Where(t => t.AlbumId == oldAlbum.Id)
+                    .SumAsync(t => t.DurationTicks, cancellationToken);
+            }
+            currentDuration += durationTicks;
+            _albumDurationCache[oldAlbum.Id] = currentDuration;
+            oldAlbum.TotalDurationTicks = currentDuration;
+
+            // Also update canonical album duration
+            if (!_albumDurationCache.TryGetValue(canonicalAlbum!.Id, out var canonicalDuration))
+            {
+                canonicalDuration = await _db.CanonicalTracks
+                    .Where(ct => ct.UserTracks.Any(ut => ut.CanonicalAlbumId == canonicalAlbum.Id))
+                    .SumAsync(ct => ct.DurationTicks, cancellationToken);
+            }
+            canonicalDuration += durationTicks;
+            _albumDurationCache[canonicalAlbum.Id] = canonicalDuration;
+            canonicalAlbum.TotalDurationTicks = canonicalDuration;
+        }
+
+        return track;
+    }
+
+    /// <summary>
+    /// Creates canonical junction records (CanonicalTrackArtist, CanonicalTrackGenre, CanonicalAlbumArtist).
+    /// </summary>
+    private void AddCanonicalJunctions(
+        string contentHash,
+        CanonicalArtist artist,
+        CanonicalAlbum? album,
+        CanonicalGenre? genre)
+    {
+        // Track-artist junction
+        _db.CanonicalTrackArtists.Add(new CanonicalTrackArtist
+        {
+            TrackContentHash = contentHash,
+            ArtistId = artist.Id,
+            IsPrimary = true
+        });
+
+        // Track-genre junction
+        if (genre is not null)
+        {
+            _db.CanonicalTrackGenres.Add(new CanonicalTrackGenre
+            {
+                TrackContentHash = contentHash,
+                GenreId = genre.Id
+            });
+        }
+
+        // Album-artist junction
+        if (album is not null)
+        {
+            _db.CanonicalAlbumArtists.Add(new CanonicalAlbumArtist
+            {
+                AlbumId = album.Id,
+                ArtistId = artist.Id,
+                IsPrimary = true
+            });
+        }
     }
 
     /// <summary>
@@ -1071,15 +1262,13 @@ public sealed class LibraryScanService
     }
 
     /// <summary>
-    /// Returns all distinct ContentHashes from any other user's tracks.
-    /// Used by the scanner to pre-resolve cross-owner matches without enumerating files.
+    /// Returns all distinct ContentHashes from canonical tracks.
+    /// Used by the scanner to pre-resolve deduplicated matches without enumerating files.
     /// </summary>
     public async Task<HashSet<string>> GetExistingContentHashesAsync(CancellationToken cancellationToken = default)
     {
-        var hashes = await _db.Tracks
-            .IgnoreQueryFilters()
-            .Where(t => t.ContentHash != null && !t.IsDeleted)
-            .Select(t => t.ContentHash!)
+        var hashes = await _db.CanonicalTracks
+            .Select(ct => ct.ContentHash)
             .Distinct()
             .ToListAsync(cancellationToken);
         return [.. hashes];
@@ -1087,13 +1276,19 @@ public sealed class LibraryScanService
 
     /// <summary>
     /// Clones another user's entire music library into the current user in a single batch.
-    /// No file discovery, no tree walk, no per-file processing — just copies all track
-    /// metadata where the FileNodeId matches (admin shared folders use shared virtual IDs).
+    /// Uses canonical tables for deduplication with dual-write to old per-user tables.
     /// Skips tracks already indexed for the current user.
     /// </summary>
     public async Task<int> CloneLibraryFromExistingAsync(Guid ownerId, CancellationToken cancellationToken = default)
     {
-        // Get all source tracks from any other user
+        // Get all canonical tracks that have at least one user track from another user
+        var existingUserTrackFileNodeIds = await _db.UserTracks
+            .Where(ut => ut.OwnerId == ownerId)
+            .Select(ut => ut.FileNodeId)
+            .ToListAsync(cancellationToken);
+        var existingSet = existingUserTrackFileNodeIds.ToHashSet();
+
+        // Get source tracks from old table as fallback (tracks not yet migrated to canonical)
         var sourceTracks = await _db.Tracks
             .Include(t => t.Album)
             .Include(t => t.TrackArtists).ThenInclude(ta => ta.Artist)
@@ -1105,17 +1300,6 @@ public sealed class LibraryScanService
         if (sourceTracks.Count == 0)
             return 0;
 
-        // Get already-indexed FileNodeIds for this user
-        var existingFileNodeIds = await _db.Tracks
-            .Where(t => t.OwnerId == ownerId && !t.IsDeleted)
-            .Select(t => t.FileNodeId)
-            .ToListAsync(cancellationToken);
-        var existingSet = existingFileNodeIds.ToHashSet();
-
-        // Build all records in memory
-        var newTracks = new List<Track>();
-        var newTrackArtists = new List<TrackArtist>();
-        var newTrackGenres = new List<TrackGenre>();
         var processed = 0;
 
         foreach (var sourceTrack in sourceTracks)
@@ -1123,119 +1307,89 @@ public sealed class LibraryScanService
             if (existingSet.Contains(sourceTrack.FileNodeId))
                 continue;
 
-            // Get or create artist (uses in-memory cache)
+            // Get or create canonical entities
             var sourceArtistName = sourceTrack.TrackArtists
                 .FirstOrDefault(ta => ta.IsPrimary)?.Artist?.Name
                 ?? sourceTrack.TrackArtists.FirstOrDefault()?.Artist?.Name
                 ?? "Unknown Artist";
-            var newArtist = await GetOrCreateArtistAsync(sourceArtistName, ownerId, cancellationToken);
+            var canonicalArtist = await GetOrCreateCanonicalArtistAsync(sourceArtistName, cancellationToken);
 
-            // Get or create album
-            MusicAlbum? newAlbum = null;
+            CanonicalAlbum? canonicalAlbum = null;
             if (sourceTrack.AlbumId.HasValue && sourceTrack.Album is not null)
             {
-                newAlbum = await GetOrCreateAlbumAsync(
-                    sourceTrack.Album.Title, newArtist.Id, ownerId, sourceTrack.Album.Year, cancellationToken);
+                canonicalAlbum = await GetOrCreateCanonicalAlbumAsync(
+                    sourceTrack.Album.Title, sourceTrack.Album.Year, cancellationToken);
 
-                // Copy album art
-                if (!newAlbum.HasCoverArt && sourceTrack.Album.HasCoverArt)
+                if (!canonicalAlbum.HasCoverArt && sourceTrack.Album.HasCoverArt)
                 {
                     var artHash = _albumArtService.CopyArtFromExisting(sourceTrack.Album.CoverArtPath);
                     if (artHash is not null)
                     {
-                        newAlbum.HasCoverArt = true;
-                        newAlbum.CoverArtPath = artHash;
+                        canonicalAlbum.HasCoverArt = true;
+                        canonicalAlbum.CoverArtHash = artHash;
                     }
                 }
             }
 
-            // Get or create genre
-            Genre? newGenre = null;
+            CanonicalGenre? canonicalGenre = null;
             var sourceGenre = sourceTrack.TrackGenres.FirstOrDefault()?.Genre;
             if (sourceGenre is not null)
-                newGenre = await GetOrCreateGenreAsync(sourceGenre.Name, cancellationToken);
+                canonicalGenre = await GetOrCreateCanonicalGenreAsync(sourceGenre.Name, cancellationToken);
 
-            // Create track
-            var newTrack = new Track
+            // Ensure canonical track exists
+            var contentHash = sourceTrack.ContentHash ?? await LookupContentHashAsync(sourceTrack.FileNodeId, cancellationToken);
+            if (contentHash is not null)
             {
-                FileNodeId = sourceTrack.FileNodeId,
-                OwnerId = ownerId,
-                Title = sourceTrack.Title,
-                FileName = sourceTrack.FileName,
-                MimeType = sourceTrack.MimeType,
-                TrackNumber = sourceTrack.TrackNumber,
-                DiscNumber = sourceTrack.DiscNumber,
-                DurationTicks = sourceTrack.DurationTicks,
-                SizeBytes = sourceTrack.SizeBytes,
-                Bitrate = sourceTrack.Bitrate,
-                SampleRate = sourceTrack.SampleRate,
-                Channels = sourceTrack.Channels,
-                AlbumId = newAlbum?.Id,
-                Year = sourceTrack.Year,
-                ContentHash = sourceTrack.ContentHash,
-                MusicBrainzRecordingId = sourceTrack.MusicBrainzRecordingId,
-            };
-            newTracks.Add(newTrack);
-
-            newTrackArtists.Add(new TrackArtist
-            {
-                TrackId = newTrack.Id,
-                ArtistId = newArtist.Id,
-                IsPrimary = true
-            });
-
-            if (newGenre is not null)
-            {
-                newTrackGenres.Add(new TrackGenre
+                var existingCanonical = await _db.CanonicalTracks.FindAsync([contentHash], cancellationToken);
+                if (existingCanonical is null)
                 {
-                    TrackId = newTrack.Id,
-                    GenreId = newGenre.Id
-                });
+                    var newCanonical = new CanonicalTrack
+                    {
+                        ContentHash = contentHash,
+                        Title = sourceTrack.Title,
+                        TrackNumber = sourceTrack.TrackNumber,
+                        DiscNumber = sourceTrack.DiscNumber,
+                        DurationTicks = sourceTrack.DurationTicks,
+                        Bitrate = sourceTrack.Bitrate,
+                        SampleRate = sourceTrack.SampleRate,
+                        Channels = sourceTrack.Channels,
+                        MimeType = sourceTrack.MimeType,
+                        Year = sourceTrack.Year,
+                        MusicBrainzRecordingId = sourceTrack.MusicBrainzRecordingId
+                    };
+                    _db.CanonicalTracks.Add(newCanonical);
+                    AddCanonicalJunctions(contentHash, canonicalArtist, canonicalAlbum, canonicalGenre);
+                }
             }
 
-            // Update album duration incrementally
-            if (newAlbum is not null)
+            // Dual-write: user junctions + old per-user records
+            if (contentHash is not null)
             {
-                if (!_albumDurationCache.TryGetValue(newAlbum.Id, out var currentDuration))
-                {
-                    currentDuration = await _db.Tracks
-                        .Where(t => t.AlbumId == newAlbum.Id)
-                        .SumAsync(t => t.DurationTicks, cancellationToken);
-                }
-                currentDuration += newTrack.DurationTicks;
-                _albumDurationCache[newAlbum.Id] = currentDuration;
-                newAlbum.TotalDurationTicks = currentDuration;
+                var ct = (await _db.CanonicalTracks.FindAsync([contentHash], cancellationToken))!;
+                await CreateUserTrackAndDualWriteAsync(
+                    sourceTrack.FileNodeId, sourceTrack.FileName, sourceTrack.MimeType, sourceTrack.SizeBytes,
+                    ownerId, contentHash, sourceTrack.Title,
+                    ct, canonicalAlbum, canonicalArtist, canonicalGenre,
+                    sourceTrack.TrackNumber, sourceTrack.DiscNumber, sourceTrack.DurationTicks,
+                    sourceTrack.Bitrate, sourceTrack.SampleRate, sourceTrack.Channels,
+                    sourceTrack.Year, sourceTrack.MusicBrainzRecordingId,
+                    cancellationToken);
             }
 
             processed++;
             existingSet.Add(sourceTrack.FileNodeId);
         }
 
-        if (newTracks.Count == 0)
+        if (processed == 0)
             return 0;
 
-        _db.Tracks.AddRange(newTracks);
-        _db.TrackArtists.AddRange(newTrackArtists);
-        _db.TrackGenres.AddRange(newTrackGenres);
         await _db.SaveChangesAsync(cancellationToken);
 
-        foreach (var track in newTracks)
-        {
-            await _eventBus.PublishAsync(new SearchIndexRequestEvent
-            {
-                EventId = Guid.NewGuid(),
-                CreatedAt = DateTime.UtcNow,
-                ModuleId = "music",
-                EntityId = track.Id.ToString(),
-                Action = SearchIndexAction.Index
-            }, new CallerContext(ownerId, ["user"], CallerType.User), cancellationToken);
-        }
-
         _logger.LogInformation(
-            "CloneLibraryFromExisting: cloned {Count} tracks for owner {OwnerId} from {SourceCount} source tracks",
-            newTracks.Count, ownerId, sourceTracks.Count);
+            "CloneLibraryFromExisting: cloned {Count} tracks for owner {OwnerId} via canonical dedup",
+            processed, ownerId);
 
-        return newTracks.Count;
+        return processed;
     }
 
     /// <summary>

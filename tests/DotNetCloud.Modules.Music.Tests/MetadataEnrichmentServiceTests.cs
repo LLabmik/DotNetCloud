@@ -63,7 +63,8 @@ public class MetadataEnrichmentServiceTests
             albumArtService,
             contentStorage,
             _configuration,
-            NullLogger<MetadataEnrichmentService>.Instance);
+            NullLogger<MetadataEnrichmentService>.Instance,
+            new Mock<IHttpClientFactory>().Object);
     }
 
     // ── Album Enrichment ─────────────────────────────────────────────

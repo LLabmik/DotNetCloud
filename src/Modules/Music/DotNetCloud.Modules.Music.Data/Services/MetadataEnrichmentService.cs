@@ -1,6 +1,9 @@
+using System.Net.Http;
+using System.Text.Json;
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Storage;
+using DotNetCloud.Modules.Music.Models;
 using DotNetCloud.Modules.Music.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -19,6 +22,7 @@ public sealed class MetadataEnrichmentService : IMetadataEnrichmentService
     private readonly ICoverArtArchiveClient _coverArtClient;
     private readonly AlbumArtService _albumArtService;
     private readonly ContentAddressedStorage _contentStorage;
+    private readonly HttpClient _httpClient;
     private readonly ILogger<MetadataEnrichmentService> _logger;
 
     /// <summary>
@@ -43,44 +47,151 @@ public sealed class MetadataEnrichmentService : IMetadataEnrichmentService
         AlbumArtService albumArtService,
         ContentAddressedStorage contentStorage,
         IConfiguration configuration,
-        ILogger<MetadataEnrichmentService> logger)
+        ILogger<MetadataEnrichmentService> logger,
+        IHttpClientFactory httpClientFactory)
     {
         _db = db;
         _musicBrainzClient = musicBrainzClient;
         _coverArtClient = coverArtClient;
         _albumArtService = albumArtService;
         _contentStorage = contentStorage;
+        _httpClient = httpClientFactory.CreateClient("MusicBrainz");
         _logger = logger;
     }
 
     /// <inheritdoc/>
     public async Task EnrichAlbumAsync(Guid albumId, CallerContext caller, bool force = false, CancellationToken cancellationToken = default)
     {
-        var album = await _db.Albums
+        // Resolve UserAlbum -> CanonicalAlbum
+        var userAlbum = await _db.UserAlbums
+            .Include(ua => ua.CanonicalAlbum)
+            .FirstOrDefaultAsync(ua => ua.Id == albumId && ua.OwnerId == caller.UserId, cancellationToken);
+
+        // Fallback to old table
+        var oldAlbum = await _db.Albums
             .Include(a => a.Artist)
             .FirstOrDefaultAsync(a => a.Id == albumId, cancellationToken);
 
-        if (album is null)
+        var canonicalAlbum = userAlbum?.CanonicalAlbum;
+
+        if (canonicalAlbum is null && oldAlbum is null)
         {
             _logger.LogDebug("Album {AlbumId} not found for enrichment", albumId);
             return;
         }
 
-        if (!force && album.LastEnrichedAt.HasValue && DateTime.UtcNow - album.LastEnrichedAt.Value < EnrichmentCooldown)
+        // Check cooldown on canonical first, fall back to old
+        if (canonicalAlbum is not null && !force && canonicalAlbum.LastEnrichedAt.HasValue &&
+            DateTime.UtcNow - canonicalAlbum.LastEnrichedAt.Value < EnrichmentCooldown)
         {
-            _logger.LogDebug("Album {AlbumId} was recently enriched, skipping (last: {LastEnrichedAt})", albumId, album.LastEnrichedAt);
+            _logger.LogDebug("Album {AlbumId} was recently enriched (canonical), skipping", albumId);
             return;
         }
 
-        var artistName = album.Artist?.Name ?? "Unknown Artist";
-        _logger.LogInformation("Enriching album '{AlbumTitle}' by '{ArtistName}'", album.Title, artistName);
+        if (canonicalAlbum is null && oldAlbum is not null && !force && oldAlbum.LastEnrichedAt.HasValue &&
+            DateTime.UtcNow - oldAlbum.LastEnrichedAt.Value < EnrichmentCooldown)
+        {
+            _logger.LogDebug("Album {AlbumId} was recently enriched (old table), skipping", albumId);
+            return;
+        }
 
-        // Search MusicBrainz for the release group
-        var releaseGroups = await _musicBrainzClient.SearchReleaseGroupAsync(album.Title, artistName, cancellationToken);
+        var title = canonicalAlbum?.Title ?? oldAlbum?.Title ?? "Unknown Album";
+
+        // Resolve artist info — try canonical first
+        string? artistMbid = null;
+        string artistName = "Unknown Artist";
+        if (canonicalAlbum is not null)
+        {
+            var albumArtist = await _db.CanonicalAlbumArtists
+                .Include(aa => aa.Artist)
+                .FirstOrDefaultAsync(aa => aa.AlbumId == canonicalAlbum.Id, cancellationToken);
+            if (albumArtist?.Artist is not null)
+            {
+                artistName = albumArtist.Artist.Name;
+                artistMbid = albumArtist.Artist.MusicBrainzId;
+            }
+        }
+        else if (oldAlbum?.Artist is not null)
+        {
+            artistName = oldAlbum.Artist.Name;
+        }
+
+        _logger.LogInformation("Enriching album '{AlbumTitle}' by '{ArtistName}'", title, artistName);
+
+        // ── Priority-based MusicBrainz lookup ──
+
+        IReadOnlyList<MusicBrainzReleaseGroupResult>? releaseGroups = null;
+
+        // Priority 1: Direct MBID lookup (release group ID already known)
+        if (releaseGroups is null && canonicalAlbum?.MusicBrainzReleaseGroupId is not null)
+        {
+            var rgDetail = await _musicBrainzClient.GetReleaseGroupAsync(canonicalAlbum.MusicBrainzReleaseGroupId, cancellationToken);
+            if (rgDetail is not null)
+            {
+                releaseGroups = [new MusicBrainzReleaseGroupResult { Id = rgDetail.Id, Title = rgDetail.Title, Score = 100 }];
+                _logger.LogDebug("Used direct release group MBID lookup: {Mbid}", canonicalAlbum.MusicBrainzReleaseGroupId);
+            }
+        }
+
+        // Priority 2: Release MBID known — get release to find its release group
+        if (releaseGroups is null && canonicalAlbum?.MusicBrainzReleaseId is not null)
+        {
+            // Fetch the release group from the known release via the release-group lookup
+            // MusicBrainz releases contain a release-group reference; get the release to discover it
+            // Use: /release/{id}?inc=release-groups&fmt=json
+            var releaseUrl = $"release/{Uri.EscapeDataString(canonicalAlbum.MusicBrainzReleaseId)}?inc=release-groups&fmt=json";
+            var releaseJson = await GetMusicBrainzJsonAsync(releaseUrl, cancellationToken);
+            if (releaseJson is not null)
+            {
+                try
+                {
+                    using var doc = JsonDocument.Parse(releaseJson);
+                    var rgArray = doc.RootElement.TryGetProperty("release-group", out var rgElement)
+                        ? new[] { rgElement }
+                        : [];
+
+                    foreach (var rg in rgArray)
+                    {
+                        if (rg.TryGetProperty("id", out var idProp))
+                        {
+                            var rgId = idProp.GetString();
+                            if (rgId is not null)
+                            {
+                                var rgTitle = rg.TryGetProperty("title", out var tProp) ? tProp.GetString() : title;
+                                releaseGroups = [new MusicBrainzReleaseGroupResult { Id = rgId, Title = rgTitle ?? title, Score = 100 }];
+                                _logger.LogDebug("Resolved release group {RgId} from release MBID {ReleaseId}", rgId, canonicalAlbum.MusicBrainzReleaseId);
+                                break;
+                            }
+                        }
+                    }
+                }
+                catch (JsonException ex)
+                {
+                    _logger.LogWarning(ex, "Failed to parse release-group from release {ReleaseId}", canonicalAlbum.MusicBrainzReleaseId);
+                }
+            }
+        }
+
+        // Priority 3: Artist MBID known — search with arid:{mbid} AND releasegroup:"{title}"
+        if (releaseGroups is null && artistMbid is not null)
+        {
+            releaseGroups = await _musicBrainzClient.SearchReleaseGroupByArtistMbidAsync(artistMbid, title, cancellationToken);
+            _logger.LogDebug("Searched by artist MBID: {Mbid}, found {Count} results", artistMbid, releaseGroups?.Count ?? 0);
+        }
+
+        // Priority 4: Text search fallback
         if (releaseGroups is null || releaseGroups.Count == 0)
         {
-            _logger.LogDebug("No MusicBrainz release group found for '{AlbumTitle}' by '{ArtistName}'", album.Title, artistName);
-            album.LastEnrichedAt = DateTime.UtcNow;
+            releaseGroups = await _musicBrainzClient.SearchReleaseGroupAsync(title, artistName, cancellationToken);
+        }
+
+        if (releaseGroups is null || releaseGroups.Count == 0)
+        {
+            _logger.LogDebug("No MusicBrainz release group found for '{AlbumTitle}' by '{ArtistName}'", title, artistName);
+            if (canonicalAlbum is not null)
+                canonicalAlbum.LastEnrichedAt = DateTime.UtcNow;
+            if (oldAlbum is not null)
+                oldAlbum.LastEnrichedAt = DateTime.UtcNow;
             await _db.SaveChangesAsync(cancellationToken);
             return;
         }
@@ -88,23 +199,44 @@ public sealed class MetadataEnrichmentService : IMetadataEnrichmentService
         var topResult = releaseGroups[0];
         if (topResult.Score < MinMatchScore)
         {
-            _logger.LogWarning("MusicBrainz release group match for '{AlbumTitle}' has low score {Score}, skipping", album.Title, topResult.Score);
-            album.LastEnrichedAt = DateTime.UtcNow;
+            _logger.LogWarning("MusicBrainz release group match for '{AlbumTitle}' has low score {Score}, skipping", title, topResult.Score);
+            if (canonicalAlbum is not null)
+                canonicalAlbum.LastEnrichedAt = DateTime.UtcNow;
+            if (oldAlbum is not null)
+                oldAlbum.LastEnrichedAt = DateTime.UtcNow;
             await _db.SaveChangesAsync(cancellationToken);
             return;
         }
 
-        album.MusicBrainzReleaseGroupId = topResult.Id;
+        // Write to canonical
+        if (canonicalAlbum is not null)
+        {
+            canonicalAlbum.MusicBrainzReleaseGroupId = topResult.Id;
+        }
 
         // Get release group details (with releases) for cover art lookup
         var releaseGroup = await _musicBrainzClient.GetReleaseGroupAsync(topResult.Id, cancellationToken);
         if (releaseGroup?.Releases is not null && releaseGroup.Releases.Count > 0)
         {
-            // Store the first release ID
-            album.MusicBrainzReleaseId = releaseGroup.Releases[0].Id;
+            var firstReleaseId = releaseGroup.Releases[0].Id;
+
+            if (canonicalAlbum is not null)
+            {
+                canonicalAlbum.MusicBrainzReleaseId = firstReleaseId;
+            }
 
             // Fetch cover art if album doesn't have it or the cached hash is missing
-            if (!album.HasCoverArt || (album.CoverArtPath is not null && !_contentStorage.Exists(album.CoverArtPath)))
+            var needsCoverArt = false;
+            if (canonicalAlbum is not null)
+            {
+                needsCoverArt = !canonicalAlbum.HasCoverArt || (canonicalAlbum.CoverArtHash is not null && !_contentStorage.Exists(canonicalAlbum.CoverArtHash));
+            }
+            else if (oldAlbum is not null)
+            {
+                needsCoverArt = !oldAlbum.HasCoverArt || (oldAlbum.CoverArtPath is not null && !_contentStorage.Exists(oldAlbum.CoverArtPath));
+            }
+
+            if (needsCoverArt)
             {
                 var coverArt = await _coverArtClient.GetFrontCoverFromReleasesAsync(releaseGroup.Releases, cancellationToken);
                 if (coverArt is not null)
@@ -112,167 +244,413 @@ public sealed class MetadataEnrichmentService : IMetadataEnrichmentService
                     var artHash = CacheExternalArt(coverArt.Data, coverArt.MimeType);
                     if (artHash is not null)
                     {
-                        album.HasCoverArt = true;
-                        album.CoverArtPath = artHash;
-                        album.MusicBrainzReleaseId = coverArt.ReleaseMbid;
-                        _logger.LogInformation("Fetched cover art for album '{AlbumTitle}' from release {ReleaseMbid}", album.Title, coverArt.ReleaseMbid);
+                        if (canonicalAlbum is not null)
+                        {
+                            canonicalAlbum.HasCoverArt = true;
+                            canonicalAlbum.CoverArtHash = artHash;
+                            canonicalAlbum.MusicBrainzReleaseId = coverArt.ReleaseMbid;
+                        }
+
+                        // Dual-write to old table
+                        if (oldAlbum is not null)
+                        {
+                            oldAlbum.HasCoverArt = true;
+                            oldAlbum.CoverArtPath = artHash;
+                            oldAlbum.MusicBrainzReleaseId = coverArt.ReleaseMbid;
+                        }
+
+                        _logger.LogInformation("Fetched cover art for album '{AlbumTitle}' from release {ReleaseMbid}", title, coverArt.ReleaseMbid);
                     }
                 }
             }
         }
 
-        album.LastEnrichedAt = DateTime.UtcNow;
-        album.UpdatedAt = DateTime.UtcNow;
+        // Dual-write: update old MusicAlbum fields
+        if (oldAlbum is not null)
+        {
+            oldAlbum.MusicBrainzReleaseGroupId = topResult.Id;
+            if (releaseGroup?.Releases is { Count: > 0 })
+            {
+                oldAlbum.MusicBrainzReleaseId ??= releaseGroup.Releases[0].Id;
+            }
+            oldAlbum.LastEnrichedAt = DateTime.UtcNow;
+            oldAlbum.UpdatedAt = DateTime.UtcNow;
+        }
+
+        if (canonicalAlbum is not null)
+        {
+            canonicalAlbum.LastEnrichedAt = DateTime.UtcNow;
+            canonicalAlbum.UpdatedAt = DateTime.UtcNow;
+        }
+
         await _db.SaveChangesAsync(cancellationToken);
     }
 
     /// <inheritdoc/>
     public async Task EnrichArtistAsync(Guid artistId, CallerContext caller, bool force = false, CancellationToken cancellationToken = default)
     {
-        var artist = await _db.Artists
+        // Resolve UserArtist -> CanonicalArtist
+        var userArtist = await _db.UserArtists
+            .Include(ua => ua.CanonicalArtist)
+            .FirstOrDefaultAsync(ua => ua.Id == artistId && ua.OwnerId == caller.UserId, cancellationToken);
+
+        // Fallback to old table
+        var oldArtist = await _db.Artists
             .FirstOrDefaultAsync(a => a.Id == artistId, cancellationToken);
 
-        if (artist is null)
+        var canonicalArtist = userArtist?.CanonicalArtist;
+
+        if (canonicalArtist is null && oldArtist is null)
         {
             _logger.LogDebug("Artist {ArtistId} not found for enrichment", artistId);
             return;
         }
 
-        if (!force && artist.LastEnrichedAt.HasValue && DateTime.UtcNow - artist.LastEnrichedAt.Value < EnrichmentCooldown)
+        // Check cooldown on canonical first
+        if (canonicalArtist is not null && !force && canonicalArtist.LastEnrichedAt.HasValue &&
+            DateTime.UtcNow - canonicalArtist.LastEnrichedAt.Value < EnrichmentCooldown)
         {
-            _logger.LogDebug("Artist {ArtistId} was recently enriched, skipping (last: {LastEnrichedAt})", artistId, artist.LastEnrichedAt);
+            _logger.LogDebug("Artist {ArtistId} was recently enriched (canonical), skipping", artistId);
             return;
         }
 
-        _logger.LogInformation("Enriching artist '{ArtistName}'", artist.Name);
-
-        // Search MusicBrainz for the artist
-        var artists = await _musicBrainzClient.SearchArtistAsync(artist.Name, cancellationToken);
-        if (artists is null || artists.Count == 0)
+        if (canonicalArtist is null && oldArtist is not null && !force && oldArtist.LastEnrichedAt.HasValue &&
+            DateTime.UtcNow - oldArtist.LastEnrichedAt.Value < EnrichmentCooldown)
         {
-            _logger.LogDebug("No MusicBrainz artist found for '{ArtistName}'", artist.Name);
-            artist.LastEnrichedAt = DateTime.UtcNow;
-            await _db.SaveChangesAsync(cancellationToken);
+            _logger.LogDebug("Artist {ArtistId} was recently enriched (old table), skipping", artistId);
             return;
         }
 
-        var topResult = artists[0];
-        if (topResult.Score < MinMatchScore)
+        var name = canonicalArtist?.Name ?? oldArtist?.Name ?? "Unknown Artist";
+        _logger.LogInformation("Enriching artist '{ArtistName}'", name);
+
+        // ── Priority-based MusicBrainz lookup ──
+
+        MusicBrainzArtistDetail? detail = null;
+
+        // Priority 1: Direct MBID lookup if already known
+        if (canonicalArtist?.MusicBrainzId is not null)
         {
-            _logger.LogWarning("MusicBrainz artist match for '{ArtistName}' has low score {Score}, skipping", artist.Name, topResult.Score);
-            artist.LastEnrichedAt = DateTime.UtcNow;
-            await _db.SaveChangesAsync(cancellationToken);
-            return;
+            detail = await _musicBrainzClient.GetArtistAsync(canonicalArtist.MusicBrainzId, cancellationToken);
+            if (detail is not null)
+            {
+                _logger.LogDebug("Used direct artist MBID lookup: {Mbid}", canonicalArtist.MusicBrainzId);
+            }
         }
 
-        artist.MusicBrainzId = topResult.Id;
+        // Priority 2: Text search fallback
+        if (detail is null)
+        {
+            var artists = await _musicBrainzClient.SearchArtistAsync(name, cancellationToken);
+            if (artists is null || artists.Count == 0)
+            {
+                _logger.LogDebug("No MusicBrainz artist found for '{ArtistName}'", name);
+                if (canonicalArtist is not null)
+                    canonicalArtist.LastEnrichedAt = DateTime.UtcNow;
+                if (oldArtist is not null)
+                    oldArtist.LastEnrichedAt = DateTime.UtcNow;
+                await _db.SaveChangesAsync(cancellationToken);
+                return;
+            }
 
-        // Get full artist details with URL relations and annotation
-        var detail = await _musicBrainzClient.GetArtistAsync(topResult.Id, cancellationToken);
+            var topResult = artists[0];
+            if (topResult.Score < MinMatchScore)
+            {
+                _logger.LogWarning("MusicBrainz artist match for '{ArtistName}' has low score {Score}, skipping", name, topResult.Score);
+                if (canonicalArtist is not null)
+                    canonicalArtist.LastEnrichedAt = DateTime.UtcNow;
+                if (oldArtist is not null)
+                    oldArtist.LastEnrichedAt = DateTime.UtcNow;
+                await _db.SaveChangesAsync(cancellationToken);
+                return;
+            }
+
+            detail = await _musicBrainzClient.GetArtistAsync(topResult.Id, cancellationToken);
+        }
+
+        // Write to canonical
+        if (canonicalArtist is not null && detail is not null)
+        {
+            canonicalArtist.MusicBrainzId = detail.Id;
+            canonicalArtist.Biography = detail.Annotation;
+            canonicalArtist.WikipediaUrl = detail.WikipediaUrl;
+            canonicalArtist.DiscogsUrl = detail.DiscogsUrl;
+            canonicalArtist.OfficialUrl = detail.OfficialUrl;
+        }
+
+        // Dual-write to old table
+        if (oldArtist is not null && detail is not null)
+        {
+            oldArtist.MusicBrainzId = detail.Id;
+            oldArtist.Biography = detail.Annotation;
+            oldArtist.WikipediaUrl = detail.WikipediaUrl;
+            oldArtist.DiscogsUrl = detail.DiscogsUrl;
+            oldArtist.OfficialUrl = detail.OfficialUrl;
+        }
+
         if (detail is not null)
         {
-            artist.Biography = detail.Annotation;
-            artist.WikipediaUrl = detail.WikipediaUrl;
-            artist.DiscogsUrl = detail.DiscogsUrl;
-            artist.OfficialUrl = detail.OfficialUrl;
-
             _logger.LogInformation(
                 "Enriched artist '{ArtistName}': bio={HasBio}, wikipedia={HasWiki}, discogs={HasDiscogs}, official={HasOfficial}",
-                artist.Name,
+                name,
                 detail.Annotation is not null,
                 detail.WikipediaUrl is not null,
                 detail.DiscogsUrl is not null,
                 detail.OfficialUrl is not null);
         }
 
-        artist.LastEnrichedAt = DateTime.UtcNow;
-        artist.UpdatedAt = DateTime.UtcNow;
+        if (canonicalArtist is not null)
+        {
+            canonicalArtist.LastEnrichedAt = DateTime.UtcNow;
+            canonicalArtist.UpdatedAt = DateTime.UtcNow;
+        }
+
+        if (oldArtist is not null)
+        {
+            oldArtist.LastEnrichedAt = DateTime.UtcNow;
+            oldArtist.UpdatedAt = DateTime.UtcNow;
+        }
+
         await _db.SaveChangesAsync(cancellationToken);
     }
 
     /// <inheritdoc/>
     public async Task EnrichTrackAsync(Guid trackId, CallerContext caller, bool force = false, CancellationToken cancellationToken = default)
     {
-        var track = await _db.Tracks
+        // Resolve UserTrack -> CanonicalTrack
+        var userTrack = await _db.UserTracks
+            .Include(ut => ut.CanonicalTrack)
+            .FirstOrDefaultAsync(ut => ut.Id == trackId && ut.OwnerId == caller.UserId, cancellationToken);
+
+        // Fallback to old table
+        var oldTrack = await _db.Tracks
             .Include(t => t.TrackArtists)
                 .ThenInclude(ta => ta.Artist)
             .FirstOrDefaultAsync(t => t.Id == trackId, cancellationToken);
 
-        if (track is null)
+        var canonicalTrack = userTrack?.CanonicalTrack;
+
+        if (canonicalTrack is null && oldTrack is null)
         {
             _logger.LogDebug("Track {TrackId} not found for enrichment", trackId);
             return;
         }
 
-        if (!force && track.LastEnrichedAt.HasValue && DateTime.UtcNow - track.LastEnrichedAt.Value < EnrichmentCooldown)
+        if (canonicalTrack is not null && !force && canonicalTrack.UpdatedAt != default &&
+            DateTime.UtcNow - canonicalTrack.UpdatedAt < EnrichmentCooldown)
         {
-            _logger.LogDebug("Track {TrackId} was recently enriched, skipping", trackId);
+            _logger.LogDebug("Track {TrackId} was recently enriched (canonical), skipping", trackId);
             return;
         }
 
-        var artistName = track.TrackArtists.FirstOrDefault(ta => ta.IsPrimary)?.Artist?.Name ?? "Unknown Artist";
-        _logger.LogDebug("Enriching track '{TrackTitle}' by '{ArtistName}'", track.Title, artistName);
-
-        var recordings = await _musicBrainzClient.SearchRecordingAsync(track.Title, artistName, cancellationToken);
-        if (recordings is not null && recordings.Count > 0)
+        if (canonicalTrack is null && oldTrack is not null && !force && oldTrack.LastEnrichedAt.HasValue &&
+            DateTime.UtcNow - oldTrack.LastEnrichedAt.Value < EnrichmentCooldown)
         {
-            var topResult = recordings[0];
-            if (topResult.Score >= MinMatchScore)
+            _logger.LogDebug("Track {TrackId} was recently enriched (old table), skipping", trackId);
+            return;
+        }
+
+        var title = canonicalTrack?.Title ?? oldTrack?.Title ?? "Unknown Track";
+
+        // Resolve artist info
+        string? artistMbid = null;
+        string artistName = "Unknown Artist";
+        if (canonicalTrack is not null)
+        {
+            var trackArtist = await _db.CanonicalTrackArtists
+                .Include(ta => ta.Artist)
+                .FirstOrDefaultAsync(ta => ta.TrackContentHash == canonicalTrack.ContentHash, cancellationToken);
+            if (trackArtist?.Artist is not null)
             {
-                track.MusicBrainzRecordingId = topResult.Id;
-                _logger.LogDebug("Tagged track '{TrackTitle}' with MusicBrainz recording {RecordingId}", track.Title, topResult.Id);
+                artistName = trackArtist.Artist.Name;
+                artistMbid = trackArtist.Artist.MusicBrainzId;
             }
-            else
+        }
+        else if (oldTrack?.TrackArtists is not null)
+        {
+            var primary = oldTrack.TrackArtists.FirstOrDefault(ta => ta.IsPrimary);
+            if (primary?.Artist is not null)
             {
-                _logger.LogDebug("MusicBrainz recording match for '{TrackTitle}' has low score {Score}, skipping", track.Title, topResult.Score);
+                artistName = primary.Artist.Name;
             }
         }
 
-        track.LastEnrichedAt = DateTime.UtcNow;
-        track.UpdatedAt = DateTime.UtcNow;
+        _logger.LogDebug("Enriching track '{TrackTitle}' by '{ArtistName}'", title, artistName);
+
+        // ── Priority-based MusicBrainz lookup ──
+
+        IReadOnlyList<MusicBrainzRecordingResult>? recordings = null;
+
+        // Priority 1: Direct MBID lookup if recording ID already known
+        if (recordings is null && canonicalTrack?.MusicBrainzRecordingId is not null)
+        {
+            var recordingDetail = await _musicBrainzClient.GetRecordingAsync(canonicalTrack.MusicBrainzRecordingId, cancellationToken);
+            if (recordingDetail is not null)
+            {
+                recordings = [new MusicBrainzRecordingResult { Id = recordingDetail.Id, Title = recordingDetail.Title, Score = 100, Length = recordingDetail.Length }];
+                _logger.LogDebug("Used direct recording MBID lookup: {Mbid}", canonicalTrack.MusicBrainzRecordingId);
+            }
+        }
+
+        // Priority 2: Artist MBID known — search with arid:{mbid} AND recording:"{title}"
+        if (recordings is null && artistMbid is not null)
+        {
+            recordings = await _musicBrainzClient.SearchRecordingByArtistMbidAsync(artistMbid, title, cancellationToken);
+            _logger.LogDebug("Searched recording by artist MBID: {Mbid}, found {Count} results", artistMbid, recordings?.Count ?? 0);
+        }
+
+        // Priority 3: Text search fallback
+        if (recordings is null || recordings.Count == 0)
+        {
+            recordings = await _musicBrainzClient.SearchRecordingAsync(title, artistName, cancellationToken);
+        }
+
+        if (recordings is not null && recordings.Count > 0)
+        {
+            var topResult = recordings[0];
+
+            if (topResult.Score >= MinMatchScore)
+            {
+                // Verify recording length vs track duration (±2s tolerance)
+                var durationTicks = canonicalTrack?.DurationTicks ?? oldTrack?.DurationTicks ?? 0;
+                if (durationTicks > 0 && topResult.Length.HasValue)
+                {
+                    var durationMs = durationTicks / 10_000; // Convert ticks to milliseconds
+                    var diffMs = Math.Abs(topResult.Length.Value - (int)durationMs);
+                    if (diffMs > 2000) // ±2 seconds
+                    {
+                        _logger.LogWarning(
+                            "MusicBrainz recording '{RecordingTitle}' length ({Length}ms) differs from track duration ({Duration}ms) by {Diff}ms, rejecting",
+                            topResult.Title, topResult.Length, durationMs, diffMs);
+                    }
+                    else
+                    {
+                        ApplyTrackEnrichment(canonicalTrack, oldTrack, topResult.Id, title);
+                    }
+                }
+                else
+                {
+                    ApplyTrackEnrichment(canonicalTrack, oldTrack, topResult.Id, title);
+                }
+            }
+            else
+            {
+                _logger.LogDebug("MusicBrainz recording match for '{TrackTitle}' has low score {Score}, skipping", title, topResult.Score);
+            }
+        }
+
+        if (canonicalTrack is not null)
+        {
+            canonicalTrack.UpdatedAt = DateTime.UtcNow;
+        }
+
+        if (oldTrack is not null)
+        {
+            oldTrack.LastEnrichedAt = DateTime.UtcNow;
+            oldTrack.UpdatedAt = DateTime.UtcNow;
+        }
+
         await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Applies MusicBrainz recording enrichment to canonical and old track entities.
+    /// </summary>
+    private static void ApplyTrackEnrichment(CanonicalTrack? canonicalTrack, Track? oldTrack, string recordingId, string title)
+    {
+        if (canonicalTrack is not null)
+        {
+            canonicalTrack.MusicBrainzRecordingId = recordingId;
+        }
+
+        if (oldTrack is not null)
+        {
+            oldTrack.MusicBrainzRecordingId = recordingId;
+        }
     }
 
     /// <inheritdoc/>
     public async Task EnrichAlbumsWithoutArtAsync(Guid ownerId, IProgress<EnrichmentProgress>? progress = null, CancellationToken cancellationToken = default)
     {
-        var albumsWithoutArt = await _db.Albums
+        var canonicalAlbumsWithoutArt = await _db.CanonicalAlbums
+            .Where(a => !a.HasCoverArt)
+            .ToListAsync(cancellationToken);
+
+        var oldAlbumsWithoutArt = await _db.Albums
             .Include(a => a.Artist)
             .Where(a => a.OwnerId == ownerId && !a.HasCoverArt)
             .ToListAsync(cancellationToken);
 
-        _logger.LogInformation("Found {Count} albums without cover art for user {OwnerId}", albumsWithoutArt.Count, ownerId);
+        var totalAlbums = canonicalAlbumsWithoutArt.Count + oldAlbumsWithoutArt.Count;
+        _logger.LogInformation("Found {Count} albums without cover art ({Canonical} canonical, {Legacy} legacy)",
+            totalAlbums, canonicalAlbumsWithoutArt.Count, oldAlbumsWithoutArt.Count);
 
         var artFound = 0;
         var caller = new CallerContext(ownerId, ["user"], CallerType.User);
+        var processedCount = 0;
 
-        for (var i = 0; i < albumsWithoutArt.Count; i++)
+        for (var i = 0; i < canonicalAlbumsWithoutArt.Count; i++)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var album = albumsWithoutArt[i];
+            var canonicalAlbum = canonicalAlbumsWithoutArt[i];
+            processedCount++;
             progress?.Report(new EnrichmentProgress
             {
                 Phase = "Fetching cover art...",
-                Current = i + 1,
-                Total = albumsWithoutArt.Count,
-                CurrentItem = album.Title,
+                Current = processedCount,
+                Total = totalAlbums,
+                CurrentItem = canonicalAlbum.Title,
                 AlbumArtFound = artFound,
-                AlbumArtRemaining = Math.Max(0, albumsWithoutArt.Count - (i + 1)),
+                AlbumArtRemaining = Math.Max(0, totalAlbums - processedCount),
                 ArtistBiosFound = 0
             });
 
-            await EnrichAlbumAsync(album.Id, caller, cancellationToken: cancellationToken);
+            // Find the first user album referencing this canonical album for the caller context
+            var userAlbum = await _db.UserAlbums
+                .FirstOrDefaultAsync(ua => ua.CanonicalAlbumId == canonicalAlbum.Id && ua.OwnerId == ownerId, cancellationToken);
+
+            if (userAlbum is null)
+                continue;
+
+            await EnrichAlbumAsync(userAlbum.Id, caller, cancellationToken: cancellationToken);
 
             // Re-check if art was found after enrichment
-            await _db.Entry(album).ReloadAsync(cancellationToken);
-            if (album.HasCoverArt)
+            await _db.Entry(canonicalAlbum).ReloadAsync(cancellationToken);
+            if (canonicalAlbum.HasCoverArt)
             {
                 artFound++;
             }
         }
 
-        _logger.LogInformation("Cover art enrichment complete: {ArtFound}/{Total} albums enriched", artFound, albumsWithoutArt.Count);
+        // Also process old table albums without art (legacy)
+        for (var i = 0; i < oldAlbumsWithoutArt.Count; i++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var oldAlbum = oldAlbumsWithoutArt[i];
+            processedCount++;
+            progress?.Report(new EnrichmentProgress
+            {
+                Phase = "Fetching cover art (legacy)...",
+                Current = processedCount,
+                Total = totalAlbums,
+                CurrentItem = oldAlbum.Title,
+                AlbumArtFound = artFound,
+                AlbumArtRemaining = Math.Max(0, totalAlbums - processedCount),
+                ArtistBiosFound = 0
+            });
+
+            await EnrichAlbumAsync(oldAlbum.Id, caller, cancellationToken: cancellationToken);
+
+            await _db.Entry(oldAlbum).ReloadAsync(cancellationToken);
+            if (oldAlbum.HasCoverArt)
+            {
+                artFound++;
+            }
+        }
+
+        _logger.LogInformation("Cover art enrichment complete: {ArtFound} total", artFound);
     }
 
     /// <inheritdoc/>
@@ -282,35 +660,65 @@ public sealed class MetadataEnrichmentService : IMetadataEnrichmentService
         var artFound = 0;
         var biosFound = 0;
 
-        // Phase 1: Enrich artists
-        var unenrichedArtists = await _db.Artists
+        // Phase 1: Enrich artists — operate on canonical artists via user junctions
+        var userArtists = await _db.UserArtists
+            .Include(ua => ua.CanonicalArtist)
+            .Where(ua => ua.OwnerId == ownerId && ua.CanonicalArtist != null
+                && (ua.CanonicalArtist.LastEnrichedAt == null))
+            .ToListAsync(cancellationToken);
+
+        // Also include old table artists as fallback
+        var oldUnenrichedArtists = await _db.Artists
             .Where(a => a.OwnerId == ownerId && a.LastEnrichedAt == null)
             .ToListAsync(cancellationToken);
-        var pendingAlbumArtLookups = await _db.Albums
-            .Where(a => a.OwnerId == ownerId && a.LastEnrichedAt == null && !a.HasCoverArt)
-            .CountAsync(cancellationToken);
 
-        _logger.LogInformation("Enriching {Count} artists for user {OwnerId}", unenrichedArtists.Count, ownerId);
+        var totalArtists = userArtists.Count + oldUnenrichedArtists.Count;
+        _logger.LogInformation("Enriching {Count} artists for user {OwnerId}", totalArtists, ownerId);
 
-        for (var i = 0; i < unenrichedArtists.Count; i++)
+        var artistIdx = 0;
+        foreach (var ua in userArtists)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var artist = unenrichedArtists[i];
+            artistIdx++;
+            var name = ua.CanonicalArtist?.Name ?? "Unknown";
             progress?.Report(new EnrichmentProgress
             {
                 Phase = "Enriching artists...",
-                Current = i + 1,
-                Total = unenrichedArtists.Count,
+                Current = artistIdx,
+                Total = totalArtists,
+                CurrentItem = name,
+                AlbumArtFound = artFound,
+                AlbumArtRemaining = 0,
+                ArtistBiosFound = biosFound
+            });
+
+            await EnrichArtistAsync(ua.Id, caller, cancellationToken: cancellationToken);
+
+            if (ua.CanonicalArtist?.Biography is not null)
+            {
+                biosFound++;
+            }
+        }
+
+        foreach (var artist in oldUnenrichedArtists)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            artistIdx++;
+            progress?.Report(new EnrichmentProgress
+            {
+                Phase = "Enriching artists (legacy)...",
+                Current = artistIdx,
+                Total = totalArtists,
                 CurrentItem = artist.Name,
                 AlbumArtFound = artFound,
-                AlbumArtRemaining = pendingAlbumArtLookups,
+                AlbumArtRemaining = 0,
                 ArtistBiosFound = biosFound
             });
 
             await EnrichArtistAsync(artist.Id, caller, cancellationToken: cancellationToken);
 
-            // Check if bio was found
             await _db.Entry(artist).ReloadAsync(cancellationToken);
             if (artist.Biography is not null)
             {
@@ -318,28 +726,72 @@ public sealed class MetadataEnrichmentService : IMetadataEnrichmentService
             }
         }
 
-        // Phase 2: Enrich albums
-        var unenrichedAlbums = await _db.Albums
+        // Phase 2: Enrich albums — operate on user albums referencing canonical
+        var userAlbums = await _db.UserAlbums
+            .Include(ua => ua.CanonicalAlbum)
+            .Where(ua => ua.OwnerId == ownerId && ua.CanonicalAlbum != null
+                && ua.CanonicalAlbum.LastEnrichedAt == null)
+            .ToListAsync(cancellationToken);
+
+        var oldUnenrichedAlbums = await _db.Albums
             .Include(a => a.Artist)
             .Where(a => a.OwnerId == ownerId && a.LastEnrichedAt == null)
             .ToListAsync(cancellationToken);
 
-        _logger.LogInformation("Enriching {Count} albums for user {OwnerId}", unenrichedAlbums.Count, ownerId);
+        var totalAlbums = userAlbums.Count + oldUnenrichedAlbums.Count;
+        var pendingAlbumArtLookups = userAlbums.Count(ua => !ua.CanonicalAlbum!.HasCoverArt)
+            + oldUnenrichedAlbums.Count(a => !a.HasCoverArt);
 
-        for (var i = 0; i < unenrichedAlbums.Count; i++)
+        _logger.LogInformation("Enriching {Count} albums for user {OwnerId}", totalAlbums, ownerId);
+
+        var albumIdx = 0;
+        foreach (var ua in userAlbums)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var album = unenrichedAlbums[i];
-            var needsAlbumArtLookup = !album.HasCoverArt;
+            albumIdx++;
+            var title = ua.CanonicalAlbum?.Title ?? "Unknown";
+            var needsAlbumArt = !ua.CanonicalAlbum!.HasCoverArt;
+
             progress?.Report(new EnrichmentProgress
             {
                 Phase = "Enriching albums...",
-                Current = i + 1,
-                Total = unenrichedAlbums.Count,
+                Current = albumIdx,
+                Total = totalAlbums,
+                CurrentItem = title,
+                AlbumArtFound = artFound,
+                AlbumArtRemaining = Math.Max(0, pendingAlbumArtLookups - (needsAlbumArt ? 1 : 0)),
+                ArtistBiosFound = biosFound
+            });
+
+            await EnrichAlbumAsync(ua.Id, caller, cancellationToken: cancellationToken);
+
+            await _db.Entry(ua.CanonicalAlbum).ReloadAsync(cancellationToken);
+            if (ua.CanonicalAlbum.HasCoverArt)
+            {
+                artFound++;
+            }
+            if (needsAlbumArt)
+            {
+                pendingAlbumArtLookups = Math.Max(0, pendingAlbumArtLookups - 1);
+            }
+        }
+
+        foreach (var album in oldUnenrichedAlbums)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            albumIdx++;
+            var needsAlbumArt = !album.HasCoverArt;
+
+            progress?.Report(new EnrichmentProgress
+            {
+                Phase = "Enriching albums (legacy)...",
+                Current = albumIdx,
+                Total = totalAlbums,
                 CurrentItem = album.Title,
                 AlbumArtFound = artFound,
-                AlbumArtRemaining = Math.Max(0, pendingAlbumArtLookups - (needsAlbumArtLookup ? 1 : 0)),
+                AlbumArtRemaining = Math.Max(0, pendingAlbumArtLookups - (needsAlbumArt ? 1 : 0)),
                 ArtistBiosFound = biosFound
             });
 
@@ -350,32 +802,58 @@ public sealed class MetadataEnrichmentService : IMetadataEnrichmentService
             {
                 artFound++;
             }
-
-            if (needsAlbumArtLookup)
+            if (needsAlbumArt)
             {
                 pendingAlbumArtLookups = Math.Max(0, pendingAlbumArtLookups - 1);
             }
         }
 
         // Phase 3: Enrich tracks
-        var unenrichedTracks = await _db.Tracks
+        var userTracks = await _db.UserTracks
+            .Include(ut => ut.CanonicalTrack)
+            .Where(ut => ut.OwnerId == ownerId && ut.CanonicalTrack != null
+                && ut.CanonicalTrack.UpdatedAt == default)
+            .ToListAsync(cancellationToken);
+
+        var oldUnenrichedTracks = await _db.Tracks
             .Include(t => t.TrackArtists)
                 .ThenInclude(ta => ta.Artist)
             .Where(t => t.OwnerId == ownerId && t.LastEnrichedAt == null)
             .ToListAsync(cancellationToken);
 
-        _logger.LogInformation("Enriching {Count} tracks for user {OwnerId}", unenrichedTracks.Count, ownerId);
+        var totalTracks = userTracks.Count + oldUnenrichedTracks.Count;
+        _logger.LogInformation("Enriching {Count} tracks for user {OwnerId}", totalTracks, ownerId);
 
-        for (var i = 0; i < unenrichedTracks.Count; i++)
+        var trackIdx = 0;
+        foreach (var ut in userTracks)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var track = unenrichedTracks[i];
+            trackIdx++;
             progress?.Report(new EnrichmentProgress
             {
                 Phase = "Enriching tracks...",
-                Current = i + 1,
-                Total = unenrichedTracks.Count,
+                Current = trackIdx,
+                Total = totalTracks,
+                CurrentItem = ut.CanonicalTrack?.Title ?? "Unknown",
+                AlbumArtFound = artFound,
+                AlbumArtRemaining = pendingAlbumArtLookups,
+                ArtistBiosFound = biosFound
+            });
+
+            await EnrichTrackAsync(ut.Id, caller, cancellationToken: cancellationToken);
+        }
+
+        foreach (var track in oldUnenrichedTracks)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            trackIdx++;
+            progress?.Report(new EnrichmentProgress
+            {
+                Phase = "Enriching tracks (legacy)...",
+                Current = trackIdx,
+                Total = totalTracks,
                 CurrentItem = track.Title,
                 AlbumArtFound = artFound,
                 AlbumArtRemaining = pendingAlbumArtLookups,
@@ -388,6 +866,30 @@ public sealed class MetadataEnrichmentService : IMetadataEnrichmentService
         _logger.LogInformation(
             "Full enrichment complete for user {OwnerId}: {ArtFound} covers, {BiosFound} bios",
             ownerId, artFound, biosFound);
+    }
+
+    /// <summary>
+    /// Sends a rate-limited GET request to MusicBrainz and returns the raw JSON string.
+    /// </summary>
+    private async Task<string?> GetMusicBrainzJsonAsync(string relativeUrl, CancellationToken cancellationToken)
+    {
+        // This reuses the same rate-limited approach as the MusicBrainzClient;
+        // the HTTP client is configured with the same base address and User-Agent.
+        try
+        {
+            using var response = await _httpClient.GetAsync(relativeUrl, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("MusicBrainz returned {StatusCode} for {Url}", (int)response.StatusCode, relativeUrl);
+                return null;
+            }
+            return await response.Content.ReadAsStringAsync(cancellationToken);
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogWarning(ex, "Network error calling MusicBrainz for {Url}", relativeUrl);
+            return null;
+        }
     }
 
     /// <summary>

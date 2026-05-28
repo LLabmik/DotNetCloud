@@ -128,6 +128,9 @@ public partial class VideoPage : IAsyncDisposable
     private string? _settingsSuccess;
     private MediaScanResult? _scanResult;
 
+    // Scan cancellation
+    private CancellationTokenSource? _scanCts;
+
     // Reset Collection
     private bool _showResetConfirm;
     private bool _settingsResetting;
@@ -1174,10 +1177,13 @@ public partial class VideoPage : IAsyncDisposable
         _settingsError = null;
         _settingsSuccess = null;
         _scanResult = null;
+        _scanCts?.Cancel();
+        _scanCts?.Dispose();
         StateHasChanged();
 
         var userId = _caller.UserId;
-        var scanCts = ScanProgress.StartScan(userId);
+        _scanCts = ScanProgress.StartScan(userId);
+        var scanCts = _scanCts;
 
         // Bridge MediaScanProgress → LibraryScanProgress
         var elapsedStopwatch = System.Diagnostics.Stopwatch.StartNew();
@@ -1220,7 +1226,14 @@ public partial class VideoPage : IAsyncDisposable
         finally
         {
             _settingsScanning = false;
+            _scanCts?.Dispose();
+            _scanCts = null;
         }
+    }
+
+    private void StopScan()
+    {
+        _scanCts?.Cancel();
     }
 
     private async Task ResetCollectionAsync()

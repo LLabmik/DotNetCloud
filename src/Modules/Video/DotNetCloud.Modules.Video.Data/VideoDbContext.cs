@@ -97,6 +97,12 @@ public class VideoDbContext : DbContext
     /// <summary>User-video junctions — lightweight per-user records referencing canonical videos.</summary>
     public DbSet<UserVideo> UserVideos => Set<UserVideo>();
 
+    /// <summary>Per-user video collections (e.g., "Favorites", "Watch Later").</summary>
+    public DbSet<UserVideoCollection> UserVideoCollections => Set<UserVideoCollection>();
+
+    /// <summary>Junction linking user video collections to canonical videos via content hash.</summary>
+    public DbSet<UserVideoCollectionItem> UserVideoCollectionItems => Set<UserVideoCollectionItem>();
+
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -128,5 +134,7 @@ public class VideoDbContext : DbContext
 
         // Per-user junction tables
         modelBuilder.ApplyConfiguration(new UserVideoConfiguration());
+        modelBuilder.ApplyConfiguration(new UserVideoCollectionConfiguration());
+        modelBuilder.ApplyConfiguration(new UserVideoCollectionItemConfiguration());
     }
 }

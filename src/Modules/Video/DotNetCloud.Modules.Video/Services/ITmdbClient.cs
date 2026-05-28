@@ -14,8 +14,8 @@ public interface ITmdbClient
     /// <summary>Gets full movie details including genres, rating, overview.</summary>
     Task<TmdbMovieDetail?> GetMovieAsync(int tmdbId, CancellationToken cancellationToken = default);
 
-    /// <summary>Searches for TV series by title.</summary>
-    Task<IReadOnlyList<TmdbTvSeriesSearchResult>?> SearchTvSeriesAsync(string query, CancellationToken cancellationToken = default);
+    /// <summary>Searches for TV series by title (and optional first-air-date year).</summary>
+    Task<IReadOnlyList<TmdbTvSeriesSearchResult>?> SearchTvSeriesAsync(string query, int? year = null, CancellationToken cancellationToken = default);
 
     /// <summary>Gets full TV series details including seasons, status, genres.</summary>
     Task<TmdbTvSeriesDetail?> GetTvSeriesAsync(int tmdbId, CancellationToken cancellationToken = default);
@@ -31,6 +31,9 @@ public interface ITmdbClient
 
     /// <summary>Downloads a poster image from TMDB and returns raw bytes + content type.</summary>
     Task<TmdbImageResult?> DownloadPosterAsync(string posterPath, string size = "w500", CancellationToken cancellationToken = default);
+
+    /// <summary>Searches for a movie by IMDB ID using TMDB's cross-reference endpoint.</summary>
+    Task<TmdbMovieSearchResult?> SearchMovieByImdbIdAsync(string imdbId, CancellationToken cancellationToken = default);
 }
 
 // ── Movie DTOs ──
@@ -165,4 +168,15 @@ public sealed record TmdbImageResult
 {
     public required byte[] Data { get; init; }
     public required string MimeType { get; init; }
+}
+
+// ── Find (Cross-reference) DTOs ──
+
+public sealed record TmdbFindResponse
+{
+    [JsonPropertyName("movie_results")]
+    public List<TmdbMovieSearchResult> MovieResults { get; init; } = [];
+
+    [JsonPropertyName("tv_results")]
+    public List<TmdbTvSeriesSearchResult> TvResults { get; init; } = [];
 }

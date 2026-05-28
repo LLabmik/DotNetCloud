@@ -107,9 +107,11 @@
 | Phase 4.9                   | 42      | 42        | 0           | 0       |
 | Phase 4.10 — Hierarchy      | 17      | 14        | 0           | 3       |
 | Phase 5-8                   | Summary | 10        | 0           | 0       |
-| Media Content Dedup — Music | 1       | 1         | 0           | 0       |
-| Media Content Dedup — Video | 1       | 1         | 0           | 0       |
+| Media Content Dedup — Music | 4       | 4         | 0           | 0       |
+| Media Content Dedup — Video | 4       | 4         | 0           | 0       |
 | Media Content Dedup — Cache | 1       | 1         | 0           | 0       |
+| Media Content Dedup — TMDB  | 2       | 2         | 0           | 0       |
+| Media Content Dedup — gRPC  | 1       | 1         | 0           | 0       |
 | Phase 6 (Email & Bookmarks) | 9       | 9         | 0           | 0       |
 | Phase 8 (Full-Text Search)  | 18      | 18        | 0           | 0       |
 | Phase 7 (Video Calling)     | 11      | 11        | 0           | 0       |
@@ -2790,6 +2792,104 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ `VideoDbContext` updated with new DbSets and `OnModelCreating` configurations
 
 **Notes:** All intrinsic video properties now stored once per content hash. TMDB enrichment data stored once per TMDB ID.
+
+---
+
+#### Section: Phase 5.24 — Music Service Migration (Canonical)
+
+##### Step: phase-5.24 — Migrate Music Services to Canonical/User-Junction Model
+
+**Status:** completed ✅
+**Deliverables:**
+
+- ✓ `LibraryScanService.IndexFileAsync` — checks canonical_tracks by ContentHash first, creates canonical records if missing, then creates UserTrack junction + dual-write to old tables
+- ✓ `LibraryScanService.TryIndexFromExistingOwnerAsync` — simplified to canonical lookup (no per-user cloning)
+- ✓ `LibraryScanService.TryBulkIndexFromExistingAsync` — canonical batch lookup
+- ✓ `LibraryScanService.GetOrCreate*Async` helpers migrated to canonical tables
+- ✓ `TrackService` — all queries join `UserTrack` + `CanonicalTrack` + `CanonicalTrackArtist` + `CanonicalArtist`
+- ✓ `ArtistService` — all queries join `UserArtist` + `CanonicalArtist`
+- ✓ `MusicAlbumService` — all queries join `UserAlbum` + `CanonicalAlbum`
+- ✓ `MetadataEnrichmentService` — enrichment writes to canonical tables (`CanonicalAlbum`, `CanonicalArtist`)
+- ✓ `MusicIndexingCallback` — simplified via canonical lookup
+- ✓ `RecommendationService` — canonical joins for track queries
+- ✓ `PlaybackService` — updates `UserTrack.PlayCount` instead of `Track.PlayCount`
+
+**Notes:** All Music services migrated to canonical/junction model with dual-write to old tables for backward compatibility during migration.
+
+---
+
+#### Section: Phase 5.25 — Video Service Migration (Canonical)
+
+##### Step: phase-5.25 — Migrate Video Services to Canonical/User-Junction Model
+
+**Status:** completed ✅
+**Deliverables:**
+
+- ✓ `VideoService.CreateVideoAsync` — checks canonical_videos by ContentHash first, creates UserVideo junction
+- ✓ `VideoService` — all query methods join `UserVideo` + `CanonicalVideo`
+- ✓ `VideoIndexingCallback` — cross-owner lookup simplified via canonical system
+- ✓ `VideoThumbnailService` — stores posters in `ContentAddressedStorage` by hash, updates `CanonicalVideo.ThumbnailPosterHash`
+- ✓ `VideoThumbnailService.ExtractMetadataAsync` — extracts container tags onto `CanonicalVideo` embedded fields
+- ✓ `VideoEnrichmentService` — TMDB enrichment writes to `CanonicalTmdbData` (shared), stores poster in content-addressed cache
+- ✓ `VideoSeriesService` — series/season/episode CRUD operates on canonical tables with dual-write
+- ✓ `SubtitleService` — subtitles stored in `CanonicalSubtitle` with dual-write
+
+**Notes:** All Video services migrated to canonical/junction model with dual-write to old tables.
+
+---
+
+#### Section: Phase 5.26 — Video Collection Tables + MBID Extraction
+
+##### Step: phase-5.26 — UserVideoCollection, UserVideoCollectionItem, and Embedded MBID Extraction
+
+**Status:** completed ✅
+**Deliverables:**
+
+- ✓ `UserVideoCollection` / `UserVideoCollectionItem` models and EF Core configurations
+- ✓ `VideoDbContext` updated with new DbSets
+- ✓ `AudioMetadata` DTO extended with 9 new MusicBrainz fields (MusicBrainzTrackId, MusicBrainzArtistId, MusicBrainzAlbumId, MusicBrainzReleaseGroupId, MusicBrainzReleaseArtistId, MusicBrainzDiscId, ISRC, BPM, Composers)
+- ✓ `MusicMetadataService.BuildMetadata` extracts MusicBrainz IDs from Xiph comments (FLAC/Vorbis) and ID3v2 TXXX frames (MP3)
+- ✓ `WatchProgressService` — resolves canonical video IDs for watch progress tracking
+
+**Notes:** Foundation for direct MusicBrainz API lookups and enrichment priority optimization.
+
+---
+
+#### Section: Phase 5.27 — Direct MBID Lookups + TMDB Search Improvements
+
+##### Step: phase-5.27 — MBID-Prioritized Enrichment and Improved TMDB Queries
+
+**Status:** completed ✅
+**Deliverables:**
+
+- ✓ `MetadataEnrichmentService.EnrichTrackAsync` — 3-level priority: direct MBID GET → MBID search → text search; duration verification (±2s tolerance)
+- ✓ `MetadataEnrichmentService.EnrichAlbumAsync` — 4-level priority: RG MBID → release MBID → artist MBID search → text search
+- ✓ `MetadataEnrichmentService.EnrichArtistAsync` — 2-level priority: MBID GET → text search
+- ✓ `MetadataEnrichmentService.EnrichAlbumsWithoutArtAsync` — queries canonical albums, not per-user
+- ✓ `IMusicBrainzClient` / `MusicBrainzClient` — new `SearchReleaseGroupByArtistMbidAsync` and `SearchRecordingByArtistMbidAsync` methods
+- ✓ `TmdbClient.SearchMovieAsync` — uses `&primary_release_year=` (lenient) + `&include_adult=false`
+- ✓ `ITmdbClient` / `TmdbClient` — new `SearchMovieByImdbIdAsync` via `/find/{imdbId}?external_source=imdb_id`
+- ✓ `VideoEnrichmentService.ExtractYear` — fixed regex to avoid "The 400 Blows" false positive
+- ✓ `VideoEnrichmentService` — 3-level enrichment priority (EmbeddedTmdbId → EmbeddedImdbId → search)
+- ✓ TV series enrichment passes `&first_air_date_year=` + `&include_adult=false`
+
+**Notes:** Enrichment now prioritizes embedded IDs, uses direct API lookups, and applies confidence filters.
+
+---
+
+#### Phase 5.28 — gRPC/DTO Audit
+
+##### Step: phase-5.28 — DTO Mapping and gRPC Service Verification
+
+**Status:** completed ✅
+**Deliverables:**
+
+- ✓ `VideoGrpcServiceImpl` — verified: no direct DbContext access, all through services ✅
+- ✓ `MusicGrpcServiceImpl` — verified: no direct DbContext access, all through services ✅
+- ✓ `VideoService.MapFromCanonical` — correct canonical + user-junction DTO mapping ✅
+- ✓ `WatchProgressService` — fixed to resolve canonical video IDs for backward compatibility
+
+**Notes:** All gRPC services delegate to injected service classes. No direct table access in gRPC layer.
 
 ---
 

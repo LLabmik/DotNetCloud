@@ -54,6 +54,26 @@ public interface IMusicBrainzClient
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Recording details, or null if not found or request failed.</returns>
     Task<MusicBrainzRecordingDetail?> GetRecordingAsync(string mbid, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Searches for release groups (albums) by artist MBID and album title.
+    /// Uses Lucene query: <c>arid:{mbid} AND releasegroup:"{title}"</c>.
+    /// </summary>
+    /// <param name="artistMbid">MusicBrainz artist ID for precise filtering.</param>
+    /// <param name="albumTitle">Album title to search for.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>List of matching release groups, or null if the request failed.</returns>
+    Task<IReadOnlyList<MusicBrainzReleaseGroupResult>?> SearchReleaseGroupByArtistMbidAsync(string artistMbid, string albumTitle, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Searches for recordings by artist MBID and track title.
+    /// Uses Lucene query: <c>arid:{mbid} AND recording:"{title}"</c>.
+    /// </summary>
+    /// <param name="artistMbid">MusicBrainz artist ID for precise filtering.</param>
+    /// <param name="trackTitle">Track title to search for.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>List of matching recordings, or null if the request failed.</returns>
+    Task<IReadOnlyList<MusicBrainzRecordingResult>?> SearchRecordingByArtistMbidAsync(string artistMbid, string trackTitle, CancellationToken cancellationToken = default);
 }
 
 // ── MusicBrainz response DTOs ───────────────────────────────────────

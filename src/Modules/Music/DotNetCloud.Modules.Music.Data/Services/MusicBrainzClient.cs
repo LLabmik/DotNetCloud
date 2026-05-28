@@ -245,6 +245,68 @@ public sealed class MusicBrainzClient : IMusicBrainzClient
         }
     }
 
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<MusicBrainzReleaseGroupResult>?> SearchReleaseGroupByArtistMbidAsync(string artistMbid, string albumTitle, CancellationToken cancellationToken = default)
+    {
+        var encodedTitle = Uri.EscapeDataString(albumTitle);
+        var url = $"release-group/?query=arid:{Uri.EscapeDataString(artistMbid)} AND releasegroup:\"{encodedTitle}\"&fmt=json";
+
+        var json = await GetJsonAsync(url, cancellationToken);
+        if (json is null)
+            return null;
+
+        try
+        {
+            var response = JsonSerializer.Deserialize<MbReleaseGroupSearchResponse>(json, JsonOptions);
+            if (response?.ReleaseGroups is null)
+                return [];
+
+            return response.ReleaseGroups.Select(rg => new MusicBrainzReleaseGroupResult
+            {
+                Id = rg.Id,
+                Title = rg.Title,
+                Score = rg.Score,
+                PrimaryType = rg.PrimaryType
+            }).ToList();
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogWarning(ex, "Failed to deserialize MusicBrainz release group search by artist MBID response");
+            return null;
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<MusicBrainzRecordingResult>?> SearchRecordingByArtistMbidAsync(string artistMbid, string trackTitle, CancellationToken cancellationToken = default)
+    {
+        var encodedTitle = Uri.EscapeDataString(trackTitle);
+        var url = $"recording/?query=arid:{Uri.EscapeDataString(artistMbid)} AND recording:\"{encodedTitle}\"&fmt=json";
+
+        var json = await GetJsonAsync(url, cancellationToken);
+        if (json is null)
+            return null;
+
+        try
+        {
+            var response = JsonSerializer.Deserialize<MbRecordingSearchResponse>(json, JsonOptions);
+            if (response?.Recordings is null)
+                return [];
+
+            return response.Recordings.Select(r => new MusicBrainzRecordingResult
+            {
+                Id = r.Id,
+                Title = r.Title,
+                Score = r.Score,
+                Length = r.Length
+            }).ToList();
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogWarning(ex, "Failed to deserialize MusicBrainz recording search by artist MBID response");
+            return null;
+        }
+    }
+
     /// <summary>
     /// Sends a rate-limited GET request and returns the response body as string.
     /// Returns null on any HTTP error, timeout, or network failure.

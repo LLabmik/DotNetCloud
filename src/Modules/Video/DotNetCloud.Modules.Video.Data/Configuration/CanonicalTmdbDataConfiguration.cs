@@ -14,6 +14,7 @@ public sealed class CanonicalTmdbDataConfiguration : IEntityTypeConfiguration<Ca
     {
         builder.ToTable("canonical_tmdb_data");
         builder.HasKey(t => t.TmdbId);
+        builder.Property(t => t.TmdbId).ValueGeneratedNever();
 
         builder.Property(t => t.TmdbTitle).IsRequired().HasMaxLength(500);
         builder.Property(t => t.Overview).HasMaxLength(5000);

@@ -144,8 +144,58 @@ public sealed class MusicMetadataService
             Bitrate = properties.AudioBitrate > 0 ? properties.AudioBitrate * 1000L : null,
             SampleRate = properties.AudioSampleRate > 0 ? properties.AudioSampleRate : null,
             Channels = properties.AudioChannels > 0 ? properties.AudioChannels : null,
-            HasEmbeddedArt = tag.Pictures.Length > 0
+            HasEmbeddedArt = tag.Pictures.Length > 0,
+            MusicBrainzTrackId = GetMusicBrainzId(tagFile, "MUSICBRAINZ_TRACK_ID") ?? GetMusicBrainzId(tagFile, "MusicBrainz Recording Id"),
+            MusicBrainzArtistId = GetMusicBrainzId(tagFile, "MUSICBRAINZ_ARTIST_ID") ?? GetMusicBrainzId(tagFile, "MusicBrainz Artist Id"),
+            MusicBrainzAlbumId = GetMusicBrainzId(tagFile, "MUSICBRAINZ_ALBUM_ID") ?? GetMusicBrainzId(tagFile, "MusicBrainz Album Id"),
+            MusicBrainzReleaseGroupId = GetMusicBrainzId(tagFile, "MUSICBRAINZ_RELEASE_GROUP_ID"),
+            MusicBrainzReleaseArtistId = GetMusicBrainzId(tagFile, "MUSICBRAINZ_RELEASE_ARTIST_ID"),
+            MusicBrainzDiscId = GetMusicBrainzId(tagFile, "MUSICBRAINZ_DISC_ID"),
+            Isrc = tag.ISRC,
+            Bpm = tag.BeatsPerMinute > 0 ? (int)tag.BeatsPerMinute : null,
+            Composers = string.Join("; ", tag.Composers ?? [])
         };
+    }
+
+    private static string? GetMusicBrainzId(TagLib.File tagFile, string fieldName)
+    {
+        var tag = tagFile.Tag;
+
+        // Try TagLib's built-in properties first, then fall back to raw tag iteration
+        try
+        {
+            // Check Xiph comments (FLAC, Vorbis)
+            if (tag.TagTypes.HasFlag(TagLib.TagTypes.Xiph))
+            {
+                var xiph = (TagLib.Ogg.XiphComment)tagFile.GetTag(TagLib.TagTypes.Xiph);
+                if (xiph.GetField(fieldName) is { Length: > 0 } fields)
+                    return fields[0];
+            }
+        }
+        catch
+        {
+            // Ignore — fall through to next attempt
+        }
+
+        try
+        {
+            // Check ID3v2 TXXX frames (MP3)
+            if (tag.TagTypes.HasFlag(TagLib.TagTypes.Id3v2))
+            {
+                var id3v2 = (TagLib.Id3v2.Tag)tagFile.GetTag(TagLib.TagTypes.Id3v2);
+                foreach (var frame in id3v2.GetFrames<TagLib.Id3v2.UserTextInformationFrame>())
+                {
+                    if (frame.Description == fieldName && frame.Text?.Length > 0)
+                        return frame.Text[0];
+                }
+            }
+        }
+        catch
+        {
+            // Ignore — fall through
+        }
+
+        return null;
     }
 
     private static (byte[] Data, string MimeType)? ExtractArtFromTag(TagLib.File tagFile)
@@ -221,4 +271,31 @@ public sealed class AudioMetadata
 
     /// <summary>Whether embedded album art is present.</summary>
     public bool HasEmbeddedArt { get; init; }
+
+    /// <summary>MusicBrainz Track ID (recording MBID).</summary>
+    public string? MusicBrainzTrackId { get; init; }
+
+    /// <summary>MusicBrainz Artist ID.</summary>
+    public string? MusicBrainzArtistId { get; init; }
+
+    /// <summary>MusicBrainz Album ID (release MBID).</summary>
+    public string? MusicBrainzAlbumId { get; init; }
+
+    /// <summary>MusicBrainz Release Group ID.</summary>
+    public string? MusicBrainzReleaseGroupId { get; init; }
+
+    /// <summary>MusicBrainz Release Artist ID.</summary>
+    public string? MusicBrainzReleaseArtistId { get; init; }
+
+    /// <summary>MusicBrainz Disc ID.</summary>
+    public string? MusicBrainzDiscId { get; init; }
+
+    /// <summary>International Standard Recording Code.</summary>
+    public string? Isrc { get; init; }
+
+    /// <summary>Beats per minute.</summary>
+    public int? Bpm { get; init; }
+
+    /// <summary>Composer(s), semicolon-separated for multiple.</summary>
+    public string? Composers { get; init; }
 }
