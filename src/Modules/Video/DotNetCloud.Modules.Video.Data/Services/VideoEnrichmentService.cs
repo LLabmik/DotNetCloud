@@ -48,7 +48,13 @@ public sealed partial class VideoEnrichmentService : IVideoEnrichmentService
             return;
 
         var canonicalVideo = userVideo.CanonicalVideo;
-        var videoTitle = canonicalVideo.Title;
+
+        // Use embedded title (from ffprobe metadata) when available and non-empty,
+        // otherwise fall back to the raw filename-derived title. Clean both for TMDB search.
+        var rawTitle = !string.IsNullOrWhiteSpace(canonicalVideo.EmbeddedTitle)
+            ? canonicalVideo.EmbeddedTitle
+            : canonicalVideo.Title;
+        var videoTitle = CleanSearchTitle(rawTitle);
 
         // Source year from embedded metadata first, then filename regex
         var year = canonicalVideo.EmbeddedDate is not null && TryExtractYearFromDate(canonicalVideo.EmbeddedDate, out var embeddedYear)
@@ -93,14 +99,36 @@ public sealed partial class VideoEnrichmentService : IVideoEnrichmentService
         }
 
         // Priority 3: Search by title + year
-        if (searchResult is null)
+        if (searchResult is null && !string.IsNullOrWhiteSpace(videoTitle))
         {
-            var results = await _tmdbClient.SearchMovieAsync(videoTitle, year, cancellationToken);
-            if (results is not null && results.Count > 0)
-            {
-                searchResult = results[0];
+            searchResult = await TryMovieSearchAsync(videoTitle, year, videoId, cancellationToken);
+            if (searchResult is not null)
                 detail = await _tmdbClient.GetMovieAsync(searchResult.Id, cancellationToken);
-                _logger.LogDebug("TMDB match for '{Title}': {TmdbTitle} (id={Id})", videoTitle, searchResult.Title, searchResult.Id);
+        }
+
+        // Priority 4: If year-filtered search returned 0, retry WITHOUT year
+        // (the extracted year may be wrong — e.g. from a TV series air date or encoding noise)
+        if (searchResult is null && !string.IsNullOrWhiteSpace(videoTitle) && year.HasValue)
+        {
+            _logger.LogDebug("Year-filtered search returned 0 for '{Title}'; retrying without year", videoTitle);
+            searchResult = await TryMovieSearchAsync(videoTitle, null, videoId, cancellationToken);
+            if (searchResult is not null)
+                detail = await _tmdbClient.GetMovieAsync(searchResult.Id, cancellationToken);
+        }
+
+        // Priority 5: Try TV series search — either from series membership or as a fallback
+        if (searchResult is null && !string.IsNullOrWhiteSpace(videoTitle))
+        {
+            // Check if this video belongs to a known series (movie franchise or TV series)
+            var seriesName = await GetSeriesNameForVideoAsync(canonicalVideo.ContentHash, cancellationToken);
+            var tvQuery = seriesName ?? videoTitle;
+
+            (searchResult, detail) = await TryTvSeriesSearchWithDetailAsync(tvQuery, year, videoId, cancellationToken);
+
+            // Retry TV series search without year
+            if (searchResult is null && year.HasValue)
+            {
+                (searchResult, detail) = await TryTvSeriesSearchWithDetailAsync(tvQuery, null, videoId, cancellationToken);
             }
         }
 
@@ -165,6 +193,13 @@ public sealed partial class VideoEnrichmentService : IVideoEnrichmentService
             }
         }
 
+        // ── Mark the canonical video as TMDB-enriched ──
+        // This flag is checked by the enrichment background queue to skip future runs,
+        // and by the thumbnail/poster service to prefer the TMDB poster over screenshots.
+        canonicalVideo.HasExternalPoster = true;
+        canonicalVideo.ThumbnailPosterHash = null;
+        canonicalVideo.UpdatedAt = DateTime.UtcNow;
+
         await _db.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation("Video {VideoId} enriched from TMDB: {Title}", videoId, tmdbTitle);
@@ -174,6 +209,144 @@ public sealed partial class VideoEnrichmentService : IVideoEnrichmentService
 
     [GeneratedRegex(@"(?<![0-9])(19[0-9]{2}|20[0-9]{2})(?![0-9])")]
     private static partial Regex YearRegex();
+
+    /// <summary>
+    /// Matches leading bracketed year prefixes like "[1982]" or "(1999)".
+    /// </summary>
+    [GeneratedRegex(@"^[[(]\d{4}[\])]\s*")]
+    private static partial Regex LeadingBracketedYearRegex();
+
+    /// <summary>
+    /// Matches leading episode number patterns like "01 - ", "01 ", "01-".
+    /// </summary>
+    [GeneratedRegex(@"^\d{1,3}\s*[-–—]\s*|^\d{1,3}\s+")]
+    private static partial Regex LeadingEpisodeNumRegex();
+
+    /// <summary>
+    /// Matches trailing encoding noise patterns like ".1987.TVRip.H264.AC3.DD2.0"
+    /// anchored at the end: a dot followed by a 4-digit year then dot-separated quality tags.
+    /// </summary>
+    [GeneratedRegex(@"\.(?:19\d{2}|20\d{2})\.[A-Za-z0-9]+(?:\.[A-Za-z0-9]+)*$")]
+    private static partial Regex TrailingEncodingNoiseRegex();
+
+    /// <summary>
+    /// Matches leading or trailing underscores (test file markers like "_test_").
+    /// </summary>
+    [GeneratedRegex(@"^_+|_+$")]
+    private static partial Regex LeadingTrailingUnderscoreRegex();
+
+    /// <summary>
+    /// Cleans a raw video title string for use as a TMDB search query.
+    /// Strips bracketed years, episode numbering, encoding noise, and formatting artifacts.
+    /// </summary>
+    private static string CleanSearchTitle(string raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+            return raw;
+
+        var result = raw;
+
+        // Replace dots with spaces (common in EmbeddedTitle from ffprobe tags)
+        result = result.Replace('.', ' ');
+
+        // Remove trailing encoding noise: "1987 TVRip H264 AC3 DD2 0" after year
+        // (dots were already replaced with spaces above)
+        result = TrailingEncodingNoiseRegex().Replace(result, "");
+
+        // Remove leading bracketed year: "[1982] Tron" → "Tron"
+        result = LeadingBracketedYearRegex().Replace(result, "");
+
+        // Remove leading episode numbers: "01 - After-Shock" → "After-Shock"
+        result = LeadingEpisodeNumRegex().Replace(result, "");
+
+        // Remove leading/trailing underscores (test files)
+        result = LeadingTrailingUnderscoreRegex().Replace(result, "");
+
+        // Collapse multiple spaces into one and trim
+        result = string.Join(" ", result.Split(' ', StringSplitOptions.RemoveEmptyEntries));
+
+        return result;
+    }
+
+    /// <summary>
+    /// Searches TMDB for a movie by title (with optional year filter).
+    /// Returns the first matching result, or null if no match found.
+    /// The caller should fetch full details via <c>GetMovieAsync</c> on the returned ID.
+    /// </summary>
+    private async Task<TmdbMovieSearchResult?> TryMovieSearchAsync(
+        string title, int? year, Guid videoId,
+        CancellationToken cancellationToken)
+    {
+        var results = await _tmdbClient.SearchMovieAsync(title, year, cancellationToken);
+        if (results is null || results.Count == 0)
+            return null;
+
+        var match = results[0];
+        _logger.LogDebug("TMDB movie match for video {VideoId}: '{Title}' → '{MatchTitle}' (id={Id})",
+            videoId, title, match.Title, match.Id);
+        return match;
+    }
+
+    /// <summary>
+    /// Searches TMDB for a TV series by name (with optional year filter).
+    /// Returns a tuple with a movie-shaped search result and converted detail
+    /// for consistent downstream processing (poster download, metadata storage).
+    /// </summary>
+    private async Task<(TmdbMovieSearchResult? SearchResult, TmdbMovieDetail? Detail)> TryTvSeriesSearchWithDetailAsync(
+        string query, int? year, Guid videoId,
+        CancellationToken cancellationToken)
+    {
+        var results = await _tmdbClient.SearchTvSeriesAsync(query, year, cancellationToken);
+        if (results is null || results.Count == 0)
+            return (null, null);
+
+        var match = results[0];
+        var tvDetail = await _tmdbClient.GetTvSeriesAsync(match.Id, cancellationToken);
+
+        // Convert TV series result into movie-like format for downstream consistency
+        var convertedDetail = tvDetail is not null
+            ? new TmdbMovieDetail
+            {
+                Id = tvDetail.Id,
+                Title = tvDetail.Name,
+                Overview = tvDetail.Overview,
+                PosterPath = tvDetail.PosterPath,
+                ReleaseDate = tvDetail.Seasons is { Count: > 0 } && tvDetail.Seasons[0].AirDate is not null
+                    ? DateTime.TryParse(tvDetail.Seasons[0].AirDate, out var d) ? d : null
+                    : null,
+                VoteAverage = tvDetail.VoteAverage,
+                Genres = tvDetail.Genres
+            }
+            : null;
+
+        _logger.LogDebug("TMDB TV series match for video {VideoId}: '{Query}' → '{SeriesName}' (id={Id})",
+            videoId, query, match.Name, match.Id);
+
+        var searchResult = new TmdbMovieSearchResult
+        {
+            Id = match.Id,
+            Title = match.Name,
+            Overview = match.Overview,
+            PosterPath = match.PosterPath,
+            ReleaseDate = match.FirstAirDate,
+            VoteAverage = match.VoteAverage
+        };
+
+        return (searchResult, convertedDetail);
+    }
+
+    /// <summary>
+    /// Checks if the given canonical video content hash belongs to a known series
+    /// (movie franchise or TV series). Returns the series name if found, null otherwise.
+    /// </summary>
+    private async Task<string?> GetSeriesNameForVideoAsync(string contentHash, CancellationToken cancellationToken)
+    {
+        var seriesItem = await _db.CanonicalVideoSeriesItems
+            .Include(si => si.Series)
+            .FirstOrDefaultAsync(si => si.VideoContentHash == contentHash, cancellationToken);
+
+        return seriesItem?.Series?.Name;
+    }
 
     private static int? ExtractYear(string fileName)
     {

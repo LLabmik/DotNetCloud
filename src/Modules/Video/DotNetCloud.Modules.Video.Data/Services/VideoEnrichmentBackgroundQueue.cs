@@ -121,15 +121,15 @@ internal sealed class VideoEnrichmentBackgroundService : BackgroundService
         var caller = new CallerContext(job.OwnerId, ["user"], CallerType.System);
         var elapsedStopwatch = Stopwatch.StartNew();
 
-        // ── Find all videos that still need enrichment ──
-        // A video needs enrichment if it has no TMDB poster (HasExternalPoster == false)
-        // AND no locally generated thumbnail (ThumbnailPosterHash == null).
+        // ── Find all videos that still need TMDB enrichment ──
+        // Any video without TMDB poster data qualifies — this includes videos that
+        // previously fell back to screenshot thumbnails, since TMDB results should
+        // always override screenshot fallbacks when a match is found.
         var pendingVideos = await db.UserVideos
             .Include(uv => uv.CanonicalVideo)
             .Where(uv => uv.OwnerId == job.OwnerId && !uv.IsDeleted
                 && uv.CanonicalVideo != null
-                && !uv.CanonicalVideo.HasExternalPoster
-                && uv.CanonicalVideo.ThumbnailPosterHash == null)
+                && !uv.CanonicalVideo.HasExternalPoster)
             .ToListAsync(stoppingToken);
 
         var total = pendingVideos.Count;
@@ -184,6 +184,10 @@ internal sealed class VideoEnrichmentBackgroundService : BackgroundService
 
             try
             {
+                // Step 0: Extract embedded metadata via ffprobe (populates EmbeddedTitle,
+                // EmbeddedTmdbId, EmbeddedImdbId, etc. — needed for TMDB search quality)
+                await thumbnailService.ExtractMetadataAsync(userVideo.Id, userVideo.FileNodeId, stoppingToken);
+
                 // Step 1: Try TMDB enrichment
                 await enrichmentService.EnrichVideoAsync(userVideo.Id, caller, cancellationToken: stoppingToken);
 
@@ -198,13 +202,21 @@ internal sealed class VideoEnrichmentBackgroundService : BackgroundService
                     _logger.LogDebug("TMDB enrichment succeeded for video {VideoId}: '{Title}'",
                         userVideo.Id, displayName);
                 }
-                else
+                else if (updated.CanonicalVideo?.ThumbnailPosterHash is null)
                 {
-                    // Step 2: TMDB had no match — generate local thumbnail + screenshots
+                    // Step 2: TMDB had no match and no screenshot exists yet —
+                    // generate local thumbnail + screenshots as fallback
                     await thumbnailService.GenerateThumbnailAsync(userVideo.Id, userVideo.FileNodeId, stoppingToken);
                     await thumbnailService.GenerateScreenshotsAsync(userVideo.Id, userVideo.FileNodeId, stoppingToken);
                     screenshotFallback++;
                     _logger.LogDebug("Screenshot fallback for video {VideoId}: '{Title}'",
+                        userVideo.Id, displayName);
+                }
+                else
+                {
+                    // Video already has a screenshot thumbnail but no TMDB match.
+                    // Keep existing screenshots — no need to regenerate.
+                    _logger.LogDebug("TMDB still no match for video {VideoId}: '{Title}' — keeping existing screenshot",
                         userVideo.Id, displayName);
                 }
             }
