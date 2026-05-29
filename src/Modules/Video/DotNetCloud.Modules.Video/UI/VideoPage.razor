@@ -258,13 +258,35 @@
                 }
                 else
                 {
-                    @* ── Series section (shown first) ── *@
+                    @* ── Series section (shown first, paged) ── *@
                     @if (_libraryContent.Series.Count > 0)
                     {
                         <section class="video-section">
                             <h4>Series</h4>
+                            @if (_libraryContent.Series.Count > SeriesPageSize)
+                            {
+                                <div class="videos-toolbar">
+                                    <button class="btn-icon" @onclick="PrevLibrarySeriesPageAsync" disabled="@(_librarySeriesPage == 0)" title="Previous page">
+                                        <span>◀</span>
+                                    </button>
+                                    @if (!string.IsNullOrWhiteSpace(FirstLibrarySeriesName))
+                                    {
+                                        <span class="page-edge-name page-edge-name-start" title="@FirstLibrarySeriesName">@FirstLibrarySeriesName</span>
+                                    }
+                                    <div class="videos-page-info">
+                                        <span>Showing @(_librarySeriesPage * SeriesPageSize + 1)-@(_librarySeriesPage * SeriesPageSize + LibrarySeries.Count) of @_libraryContent.Series.Count series</span>
+                                    </div>
+                                    @if (!string.IsNullOrWhiteSpace(LastLibrarySeriesName))
+                                    {
+                                        <span class="page-edge-name page-edge-name-end" title="@LastLibrarySeriesName">@LastLibrarySeriesName</span>
+                                    }
+                                    <button class="btn-icon" @onclick="NextLibrarySeriesPageAsync" disabled="@(!_hasMoreLibrarySeries)" title="Next page">
+                                        <span>▶</span>
+                                    </button>
+                                </div>
+                            }
                             <div class="series-grid">
-                                @foreach (var series in _libraryContent.Series)
+                                @foreach (var series in LibrarySeries)
                                 {
                                     var capturedSeries = series;
                                     <div class="series-card"
@@ -1056,6 +1078,14 @@
                                                 {
                                                     <span class="scan-count art">⌛@p.AlbumArtRemaining art left</span>
                                                 }
+                                                @if (p.TmdbEnriched > 0)
+                                                {
+                                                    <span class="scan-count tmdb">🎬@p.TmdbEnriched TMDB</span>
+                                                }
+                                                @if (p.ScreenshotFallback > 0)
+                                                {
+                                                    <span class="scan-count fallback">🖼️@p.ScreenshotFallback screenshots</span>
+                                                }
                                             }
                                         </div>
                                         @if (p.TotalFiles > 0)
@@ -1090,6 +1120,27 @@
                                 }
                             </div>
                         }
+
+                        @* ─── Enrichment Result Banner ─── *@
+                        @if (_lastEnrichmentResult is not null && !_isScanActive)
+                        {
+                            <div class="enrichment-result-banner" style="margin-top: 12px; padding: 12px; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; background: rgba(255,255,255,0.03);">
+                                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                                    <strong>Enrichment Complete</strong>
+                                    <span class="hint">@FormatDuration(_lastEnrichmentResult.ElapsedTime)</span>
+                                </div>
+                                <div style="display: flex; flex-wrap: wrap; gap: 12px; font-size: 13px;">
+                                    <span>🎬 @_lastEnrichmentResult.TmdbEnriched from TMDB</span>
+                                    <span>🖼️ @_lastEnrichmentResult.ScreenshotFallback screenshot fallback</span>
+                                    <span>✅ @_lastEnrichmentResult.FilesProcessed / @_lastEnrichmentResult.TotalFiles files processed</span>
+                                    @if (_lastEnrichmentResult.TracksFailed > 0)
+                                    {
+                                        <span class="text-danger">✕ @_lastEnrichmentResult.TracksFailed failed</span>
+                                    }
+                                </div>
+                            </div>
+                        }
+
                         @if (!string.IsNullOrWhiteSpace(_settingsError))
                         {
                             <div class="alert alert-danger" style="margin-top: 12px; font-size: 13px;">@_settingsError</div>

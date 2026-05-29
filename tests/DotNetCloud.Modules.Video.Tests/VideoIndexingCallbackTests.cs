@@ -6,7 +6,6 @@ using DotNetCloud.Modules.Video.Data;
 using DotNetCloud.Modules.Video.Data.Services;
 using DotNetCloud.Modules.Video.Services;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Moq;
 
@@ -44,7 +43,7 @@ public class VideoIndexingCallbackTests
             .Setup(x => x.AddVideoAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
         _seriesServiceMock = new Mock<IVideoSeriesService>();
-        _callback = new VideoIndexingCallback(_videoService, _collectionServiceMock.Object, _seriesServiceMock.Object, _db, Mock.Of<IServiceScopeFactory>(), Mock.Of<IConfiguration>(), Mock.Of<ILogger<VideoIndexingCallback>>());
+        _callback = new VideoIndexingCallback(_videoService, _collectionServiceMock.Object, _seriesServiceMock.Object, _db, Mock.Of<IConfiguration>(), Mock.Of<ILogger<VideoIndexingCallback>>());
     }
 
     [TestCleanup]

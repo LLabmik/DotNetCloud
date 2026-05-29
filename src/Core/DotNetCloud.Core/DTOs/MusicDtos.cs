@@ -355,6 +355,12 @@ public sealed record LibraryScanProgress
     /// <summary>Series/franchises auto-detected during scan.</summary>
     public int SeriesCreated { get; init; }
 
+    /// <summary>Videos successfully enriched from TMDB during post-scan enrichment.</summary>
+    public int TmdbEnriched { get; init; }
+
+    /// <summary>Videos that fell back to local screenshot thumbnail generation (no TMDB match).</summary>
+    public int ScreenshotFallback { get; init; }
+
     /// <summary>Completion percentage (0-100).</summary>
     public int PercentComplete { get; init; }
 

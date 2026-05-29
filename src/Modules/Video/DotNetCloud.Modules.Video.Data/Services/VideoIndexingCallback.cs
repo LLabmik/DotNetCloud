@@ -4,7 +4,6 @@ using DotNetCloud.Modules.Video.Events;
 using DotNetCloud.Modules.Video.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace DotNetCloud.Modules.Video.Data.Services;
@@ -19,7 +18,6 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
     private readonly IVideoCollectionService _collectionService;
     private readonly IVideoSeriesService _seriesService;
     private readonly VideoDbContext _db;
-    private readonly IServiceScopeFactory _scopeFactory;
     private readonly IConfiguration _configuration;
     private readonly ILogger<VideoIndexingCallback> _logger;
 
@@ -34,13 +32,12 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
     /// <summary>
     /// Initializes a new instance of the <see cref="VideoIndexingCallback"/> class.
     /// </summary>
-    public VideoIndexingCallback(VideoService videoService, IVideoCollectionService collectionService, IVideoSeriesService seriesService, VideoDbContext db, IServiceScopeFactory scopeFactory, IConfiguration configuration, ILogger<VideoIndexingCallback> logger)
+    public VideoIndexingCallback(VideoService videoService, IVideoCollectionService collectionService, IVideoSeriesService seriesService, VideoDbContext db, IConfiguration configuration, ILogger<VideoIndexingCallback> logger)
     {
         _videoService = videoService;
         _collectionService = collectionService;
         _seriesService = seriesService;
         _db = db;
-        _scopeFactory = scopeFactory;
         _configuration = configuration;
         _logger = logger;
     }
@@ -48,8 +45,9 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
     /// <inheritdoc />
     /// <remarks>
     /// Canonical/user-junction deduplication is handled internally by <see cref="VideoService.CreateVideoAsync"/>.
-    /// Cross-owner dedup is automatic via ContentHash lookup. The callback remains focused on
-    /// collection assignment, series auto-detection, enrichment, and thumbnail generation.
+    /// Cross-owner dedup is automatic via ContentHash lookup. The callback handles
+    /// collection assignment and series auto-detection. TMDB enrichment and metadata
+    /// extraction run as a batch post-scan via <see cref="VideoEnrichmentBackgroundService"/>.
     /// </remarks>
     public async Task IndexVideoAsync(Guid fileNodeId, string fileName, string mimeType, long sizeBytes, Guid ownerId, string? storagePath = null, string? sourceName = null, string? subFolderPath = null, CancellationToken cancellationToken = default)
     {
@@ -91,66 +89,6 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
             await AutoDetectSeriesAsync(video.Id, seriesPath, caller, cancellationToken);
         }
 
-        // TMDB enrichment (fire-and-forget — network-dependent, graceful failure).
-        // Thumbnail and screenshots are only generated as a fallback when TMDB doesn't provide a poster,
-        // avoiding unnecessary ffmpeg work against every video file.
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                await using var scope = _scopeFactory.CreateAsyncScope();
-                var enrichmentService = scope.ServiceProvider.GetRequiredService<IVideoEnrichmentService>();
-                var caller = new CallerContext(ownerId, ["user"], CallerType.System);
-                await enrichmentService.EnrichVideoAsync(video.Id, caller, cancellationToken: CancellationToken.None);
-
-                // Only generate local poster fallback if TMDB didn't provide one
-                var db = scope.ServiceProvider.GetRequiredService<VideoDbContext>();
-                var hasPoster = await db.UserVideos
-                    .Where(uv => uv.Id == video.Id)
-                    .Select(uv => uv.CanonicalVideo != null && uv.CanonicalVideo.HasExternalPoster)
-                    .FirstOrDefaultAsync(CancellationToken.None);
-
-                if (!hasPoster)
-                {
-                    var thumbnailService = scope.ServiceProvider.GetRequiredService<IVideoThumbnailService>();
-                    await thumbnailService.GenerateThumbnailAsync(video.Id, fileNodeId, CancellationToken.None);
-                    await thumbnailService.GenerateScreenshotsAsync(video.Id, fileNodeId, CancellationToken.None);
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "TMDB enrichment failed for video {VideoId}", video.Id);
-
-                // Generate local poster fallback when TMDB is unavailable
-                try
-                {
-                    await using var fallbackScope = _scopeFactory.CreateAsyncScope();
-                    var thumbnailService = fallbackScope.ServiceProvider.GetRequiredService<IVideoThumbnailService>();
-                    await thumbnailService.GenerateThumbnailAsync(video.Id, fileNodeId, CancellationToken.None);
-                    await thumbnailService.GenerateScreenshotsAsync(video.Id, fileNodeId, CancellationToken.None);
-                }
-                catch (Exception fallbackEx)
-                {
-                    _logger.LogWarning(fallbackEx, "Poster fallback generation failed for video {VideoId}", video.Id);
-                }
-            }
-        }, CancellationToken.None);
-
-        // Metadata extraction (fire-and-forget — uses ffprobe, no network dependency)
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                await using var scope = _scopeFactory.CreateAsyncScope();
-                var thumbnailService = scope.ServiceProvider.GetRequiredService<IVideoThumbnailService>();
-                await thumbnailService.ExtractMetadataAsync(video.Id, fileNodeId, CancellationToken.None);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Metadata extraction failed for video {VideoId}", video.Id);
-            }
-        }, CancellationToken.None);
-
         _logger.LogDebug("Video indexed for FileNode {FileNodeId} by user {OwnerId}", fileNodeId, ownerId);
     }
 
@@ -172,15 +110,54 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
             }
         }
 
-        // Clear canonical per-user junction table (UserVideos)
+        // ── Clear per-user collections and their items ──
+        var collections = await _db.UserVideoCollections
+            .Where(c => c.OwnerId == ownerId).ToListAsync(cancellationToken);
+        var collectionIds = collections.Select(c => c.Id).ToList();
+        var collectionItems = await _db.UserVideoCollectionItems
+            .Where(ci => collectionIds.Contains(ci.CollectionId)).ToListAsync(cancellationToken);
+        _db.UserVideoCollectionItems.RemoveRange(collectionItems);
+        _db.UserVideoCollections.RemoveRange(collections);
+
+        // ── Clear per-user video junctions ──
         var userVideos = await _db.UserVideos.IgnoreQueryFilters()
             .Where(uv => uv.OwnerId == ownerId).ToListAsync(cancellationToken);
+        var userVideoIds = userVideos.Select(uv => uv.Id).ToList();
         _db.UserVideos.RemoveRange(userVideos);
+
+        // ── Clear watch progress and history for this user ──
+        var watchProgress = await _db.WatchProgresses
+            .Where(wp => wp.UserId == ownerId).ToListAsync(cancellationToken);
+        _db.WatchProgresses.RemoveRange(watchProgress);
+
+        var watchHistory = await _db.WatchHistories
+            .Where(wh => wh.UserId == ownerId).ToListAsync(cancellationToken);
+        _db.WatchHistories.RemoveRange(watchHistory);
+
+        // ── Clear video shares by this user ──
+        var shares = await _db.VideoShares
+            .Where(vs => vs.SharedByUserId == ownerId).ToListAsync(cancellationToken);
+        _db.VideoShares.RemoveRange(shares);
+
+        // ── Clear legacy per-user data ──
+        var legacyVideos = await _db.Videos
+            .Where(v => v.OwnerId == ownerId).ToListAsync(cancellationToken);
+        _db.Videos.RemoveRange(legacyVideos);
+
+        var legacyCollections = await _db.VideoCollections
+            .Where(vc => vc.OwnerId == ownerId).ToListAsync(cancellationToken);
+        var legacyCollectionIds = legacyCollections.Select(c => c.Id).ToList();
+        var legacyCollectionItems = await _db.VideoCollectionItems
+            .Where(ci => legacyCollectionIds.Contains(ci.CollectionId)).ToListAsync(cancellationToken);
+        _db.VideoCollectionItems.RemoveRange(legacyCollectionItems);
+        _db.VideoCollections.RemoveRange(legacyCollections);
 
         await _db.SaveChangesAsync(cancellationToken);
 
-        _logger.LogWarning("RESET complete for owner {OwnerId}: {UserVideoCount} user junctions cleared",
-            ownerId, userVideos.Count);
+        _logger.LogWarning(
+            "RESET complete for owner {OwnerId}: {UserVideoCount} user videos, {CollectionCount} collections, " +
+            "{ProgressCount} watch progress, {HistoryCount} watch history, {ShareCount} shares cleared",
+            ownerId, userVideos.Count, collections.Count, watchProgress.Count, watchHistory.Count, shares.Count);
     }
 
     /// <inheritdoc />

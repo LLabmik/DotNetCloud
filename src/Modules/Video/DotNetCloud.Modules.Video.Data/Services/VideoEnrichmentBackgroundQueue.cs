@@ -1,7 +1,10 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
+using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.DTOs;
 using DotNetCloud.Modules.Video.Services;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -111,68 +114,152 @@ internal sealed class VideoEnrichmentBackgroundService : BackgroundService
     {
         using var scope = _scopeFactory.CreateScope();
         var enrichmentService = scope.ServiceProvider.GetRequiredService<IVideoEnrichmentService>();
+        var thumbnailService = scope.ServiceProvider.GetRequiredService<IVideoThumbnailService>();
+        var db = scope.ServiceProvider.GetRequiredService<VideoDbContext>();
         var scanProgress = scope.ServiceProvider.GetRequiredService<VideoScanProgressState>();
 
-        // Mark enrichment as in-progress
-        var elapsedStopwatch = System.Diagnostics.Stopwatch.StartNew();
-        scanProgress.UpdateProgress(job.OwnerId, new DotNetCloud.Core.DTOs.LibraryScanProgress
+        var caller = new CallerContext(job.OwnerId, ["user"], CallerType.System);
+        var elapsedStopwatch = Stopwatch.StartNew();
+
+        // ── Find all videos that still need enrichment ──
+        // A video needs enrichment if it has no TMDB poster (HasExternalPoster == false)
+        // AND no locally generated thumbnail (ThumbnailPosterHash == null).
+        var pendingVideos = await db.UserVideos
+            .Include(uv => uv.CanonicalVideo)
+            .Where(uv => uv.OwnerId == job.OwnerId && !uv.IsDeleted
+                && uv.CanonicalVideo != null
+                && !uv.CanonicalVideo.HasExternalPoster
+                && uv.CanonicalVideo.ThumbnailPosterHash == null)
+            .ToListAsync(stoppingToken);
+
+        var total = pendingVideos.Count;
+        int tmdbEnriched = 0, screenshotFallback = 0, failed = 0;
+
+        _logger.LogInformation(
+            "Batch enrichment starting for user {UserId}: {Count} videos pending",
+            job.OwnerId, total);
+
+        if (total == 0)
+        {
+            scanProgress.UpdateProgress(job.OwnerId, new LibraryScanProgress
+            {
+                Phase = "Enrichment complete — all videos already enriched",
+                TotalFiles = job.TotalFiles,
+                TracksAdded = job.VideosAdded,
+                TracksSkipped = job.VideosSkipped,
+                TracksFailed = job.VideosFailed,
+                TracksRemoved = job.VideosRemoved,
+                TmdbEnriched = 0,
+                ScreenshotFallback = 0,
+                FilesProcessed = 0,
+                PercentComplete = 100,
+                ElapsedTime = elapsedStopwatch.Elapsed
+            });
+            scanProgress.CompleteScan(job.OwnerId);
+            return;
+        }
+
+        // Report initial state
+        scanProgress.UpdateProgress(job.OwnerId, new LibraryScanProgress
         {
             Phase = "Enriching videos from TMDB…",
-            TotalFiles = job.TotalFiles,
+            CurrentFile = pendingVideos[0].CanonicalVideo?.Title ?? pendingVideos[0].CanonicalVideo?.FileName ?? "Unknown",
+            TotalFiles = total,
             TracksAdded = job.VideosAdded,
             TracksSkipped = job.VideosSkipped,
             TracksFailed = job.VideosFailed,
             TracksRemoved = job.VideosRemoved,
+            FilesProcessed = 0,
+            PercentComplete = 0,
             ElapsedTime = elapsedStopwatch.Elapsed
         });
 
-        var enrichmentProgress = new Progress<Core.DTOs.EnrichmentProgress>(report =>
+        for (var i = 0; i < pendingVideos.Count; i++)
         {
-            _logger.LogDebug("Video enrichment [{Phase}] {Current}/{Total}: {Item}",
-                report.Phase, report.Current, report.Total, report.CurrentItem);
+            if (stoppingToken.IsCancellationRequested)
+                break;
 
-            scanProgress.UpdateProgress(job.OwnerId, new DotNetCloud.Core.DTOs.LibraryScanProgress
+            var userVideo = pendingVideos[i];
+            var displayName = userVideo.CanonicalVideo?.Title ?? userVideo.CanonicalVideo?.FileName ?? "Unknown";
+
+            try
             {
-                Phase = report.Phase,
-                CurrentFile = report.CurrentItem,
-                FilesProcessed = report.Current,
-                TotalFiles = report.Total,
+                // Step 1: Try TMDB enrichment
+                await enrichmentService.EnrichVideoAsync(userVideo.Id, caller, cancellationToken: stoppingToken);
+
+                // Re-fetch to check if TMDB provided a poster
+                var updated = await db.UserVideos
+                    .Include(uv => uv.CanonicalVideo)
+                    .FirstAsync(uv => uv.Id == userVideo.Id, stoppingToken);
+
+                if (updated.CanonicalVideo?.HasExternalPoster == true)
+                {
+                    tmdbEnriched++;
+                    _logger.LogDebug("TMDB enrichment succeeded for video {VideoId}: '{Title}'",
+                        userVideo.Id, displayName);
+                }
+                else
+                {
+                    // Step 2: TMDB had no match — generate local thumbnail + screenshots
+                    await thumbnailService.GenerateThumbnailAsync(userVideo.Id, userVideo.FileNodeId, stoppingToken);
+                    await thumbnailService.GenerateScreenshotsAsync(userVideo.Id, userVideo.FileNodeId, stoppingToken);
+                    screenshotFallback++;
+                    _logger.LogDebug("Screenshot fallback for video {VideoId}: '{Title}'",
+                        userVideo.Id, displayName);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                failed++;
+                _logger.LogWarning(ex, "Enrichment failed for video {VideoId}: '{Title}'",
+                    userVideo.Id, displayName);
+            }
+
+            // Report progress
+            var processed = i + 1;
+            scanProgress.UpdateProgress(job.OwnerId, new LibraryScanProgress
+            {
+                Phase = failed > 0 ? "Enriching videos from TMDB…" : "Enriching videos from TMDB…",
+                CurrentFile = processed < pendingVideos.Count
+                    ? (pendingVideos[processed].CanonicalVideo?.Title ?? pendingVideos[processed].CanonicalVideo?.FileName ?? "Unknown")
+                    : null,
+                FilesProcessed = processed,
+                TotalFiles = total,
                 TracksAdded = job.VideosAdded,
                 TracksSkipped = job.VideosSkipped,
-                TracksFailed = job.VideosFailed,
+                TracksFailed = job.VideosFailed + failed,
                 TracksRemoved = job.VideosRemoved,
-                AlbumArtFetched = report.AlbumArtFound,
-                AlbumArtRemaining = report.AlbumArtRemaining,
-                PercentComplete = report.Total > 0 ? (int)((double)report.Current / report.Total * 100) : 0,
+                TmdbEnriched = tmdbEnriched,
+                ScreenshotFallback = screenshotFallback,
+                PercentComplete = (int)((double)processed / total * 100),
                 ElapsedTime = elapsedStopwatch.Elapsed
             });
+        }
+
+        // ── Final report ──
+        scanProgress.UpdateProgress(job.OwnerId, new LibraryScanProgress
+        {
+            Phase = "Enrichment complete",
+            FilesProcessed = tmdbEnriched + screenshotFallback + failed,
+            TotalFiles = total,
+            TracksAdded = job.VideosAdded,
+            TracksSkipped = job.VideosSkipped,
+            TracksFailed = job.VideosFailed + failed,
+            TracksRemoved = job.VideosRemoved,
+            TmdbEnriched = tmdbEnriched,
+            ScreenshotFallback = screenshotFallback,
+            PercentComplete = 100,
+            ElapsedTime = elapsedStopwatch.Elapsed
         });
 
-        try
-        {
-            // Per-video enrichment is handled inline during IndexVideoAsync.
-            // Batch enrichment methods have been removed in favor of canonical-only data model.
-            _logger.LogDebug("Background enrichment job completed for user {UserId} (no-op: per-video enrichment is inline)", job.OwnerId);
+        _logger.LogInformation(
+            "Batch enrichment complete for user {UserId}: {Tmdb} TMDB, {Screenshot} screenshot fallback, {Failed} failed out of {Total}",
+            job.OwnerId, tmdbEnriched, screenshotFallback, failed, total);
 
-            scanProgress.UpdateProgress(job.OwnerId, new DotNetCloud.Core.DTOs.LibraryScanProgress
-            {
-                Phase = "Enrichment complete",
-                TracksAdded = job.VideosAdded,
-                TracksSkipped = job.VideosSkipped,
-                TracksFailed = job.VideosFailed,
-                TracksRemoved = job.VideosRemoved,
-                AlbumArtFetched = 0,
-                PercentComplete = 100,
-                ElapsedTime = elapsedStopwatch.Elapsed
-            });
-        }
-        catch (OperationCanceledException)
-        {
-            _logger.LogInformation("Background video enrichment cancelled for user {UserId}", job.OwnerId);
-        }
-        finally
-        {
-            scanProgress.CompleteScan(job.OwnerId);
-        }
+        scanProgress.CompleteScan(job.OwnerId);
     }
 }

@@ -75,9 +75,44 @@ public sealed class VideoSeriesService : IVideoSeriesService
     /// <inheritdoc />
     public async Task<IReadOnlyList<VideoSeriesDto>> ListSeriesAsync(CallerContext caller, CancellationToken cancellationToken = default)
     {
+        // Get content hashes for videos owned by this user
+        var userContentHashes = await _db.UserVideos
+            .Where(uv => uv.OwnerId == caller.UserId && !uv.IsDeleted)
+            .Select(uv => uv.CanonicalContentHash)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        if (userContentHashes.Count == 0)
+            return [];
+
+        // Find series that have episodes or franchise items matching the user's videos
+        var episodeSeriesIds = await _db.CanonicalVideoEpisodes
+            .Where(e => userContentHashes.Contains(e.VideoContentHash))
+            .Select(e => e.SeasonId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        var seasonSeriesIds = await _db.CanonicalVideoSeasons
+            .Where(s => episodeSeriesIds.Contains(s.Id))
+            .Select(s => s.SeriesId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        var franchiseSeriesIds = await _db.CanonicalVideoSeriesItems
+            .Where(i => userContentHashes.Contains(i.VideoContentHash))
+            .Select(i => i.SeriesId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        var matchingSeriesIds = seasonSeriesIds.Concat(franchiseSeriesIds).Distinct().ToHashSet();
+
+        if (matchingSeriesIds.Count == 0)
+            return [];
+
         var canonicalSeries = await _db.CanonicalVideoSeries
             .Include(s => s.Seasons)
             .Include(s => s.Items)
+            .Where(s => matchingSeriesIds.Contains(s.Id))
             .OrderBy(s => s.Name)
             .ToListAsync(cancellationToken);
 

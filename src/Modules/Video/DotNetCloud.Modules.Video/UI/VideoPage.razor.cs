@@ -59,6 +59,10 @@ public partial class VideoPage : IAsyncDisposable
     private int _totalSeries;
     private bool _hasMoreSeries;
 
+    // ── Library series paging (client-side slice of _libraryContent.Series) ──
+    private int _librarySeriesPage;
+    private bool _hasMoreLibrarySeries;
+
     private int _collectionVideoPage;
     private const int CollectionVideoPageSize = 50;
     private int _totalCollectionVideos;
@@ -73,6 +77,12 @@ public partial class VideoPage : IAsyncDisposable
     private string LastCollectionVideoTitle => _collectionContent?.StandaloneVideos.Count > 0 ? _collectionContent.StandaloneVideos[^1].Title : string.Empty;
     private string FirstSeriesName => _seriesList.Count > 0 ? _seriesList[0].Name : string.Empty;
     private string LastSeriesName => _seriesList.Count > 0 ? _seriesList[^1].Name : string.Empty;
+    private string FirstLibrarySeriesName => LibrarySeries.Count > 0 ? LibrarySeries[0].Name : string.Empty;
+    private string LastLibrarySeriesName => LibrarySeries.Count > 0 ? LibrarySeries[^1].Name : string.Empty;
+    private IReadOnlyList<VideoSeriesDto> LibrarySeries => _libraryContent?.Series
+        .Skip(_librarySeriesPage * SeriesPageSize)
+        .Take(SeriesPageSize)
+        .ToList() ?? [];
 
     // ── Selection ──
     private VideoCollectionDto? _selectedCollection;
@@ -143,6 +153,9 @@ public partial class VideoPage : IAsyncDisposable
     private bool _autoFetchMetadata = true;
     private bool _autoFetchPosters = true;
     private bool _settingsEnriching;
+
+    // Post-scan enrichment status
+    private LibraryScanProgress? _lastEnrichmentResult;
 
     // Directory Browser
     private bool _showDirBrowser;
@@ -358,6 +371,13 @@ public partial class VideoPage : IAsyncDisposable
 
     private void OnScanProgressChanged()
     {
+        // Capture the final enrichment result when enrichment completes
+        var progress = _currentScanProgress;
+        if (progress is not null &&
+            string.Equals(progress.Phase, "Enrichment complete", StringComparison.OrdinalIgnoreCase))
+        {
+            _lastEnrichmentResult = progress;
+        }
         InvokeAsync(StateHasChanged);
     }
 
@@ -418,6 +438,7 @@ public partial class VideoPage : IAsyncDisposable
         _playerOpen = false;
         _playerSeriesContext = null;
         _videoPage = 0;
+        _librarySeriesPage = 0;
         _recentPage = 0;
         _seriesPage = 0;
         _collectionVideoPage = 0;
@@ -491,6 +512,8 @@ public partial class VideoPage : IAsyncDisposable
         _libraryContent = await VideoService.ListLibraryContentAsync(_caller, _videoPage * VideoPageSize, VideoPageSize);
         _totalVideos = _libraryContent.TotalStandaloneVideos;
         _hasMoreVideos = (_videoPage + 1) * VideoPageSize < _totalVideos;
+        _librarySeriesPage = 0;
+        _hasMoreLibrarySeries = SeriesPageSize < _libraryContent.Series.Count;
     }
 
     private async Task PrevVideoPageAsync()
@@ -509,6 +532,30 @@ public partial class VideoPage : IAsyncDisposable
 
         _videoPage++;
         await LoadVideosPageAsync();
+    }
+
+    // ── Library Series Paging ──
+
+    private async Task PrevLibrarySeriesPageAsync()
+    {
+        if (_librarySeriesPage > 0)
+        {
+            _librarySeriesPage--;
+            _hasMoreLibrarySeries = true;
+            StateHasChanged();
+        }
+        await Task.CompletedTask;
+    }
+
+    private async Task NextLibrarySeriesPageAsync()
+    {
+        if (!_hasMoreLibrarySeries)
+            return;
+
+        _librarySeriesPage++;
+        _hasMoreLibrarySeries = (_librarySeriesPage + 1) * SeriesPageSize < (_libraryContent?.Series.Count ?? 0);
+        StateHasChanged();
+        await Task.CompletedTask;
     }
 
     private async Task LoadRecentPageAsync()
@@ -1178,6 +1225,7 @@ public partial class VideoPage : IAsyncDisposable
         _settingsError = null;
         _settingsSuccess = null;
         _scanResult = null;
+        _lastEnrichmentResult = null;
         _scanCts?.Cancel();
         _scanCts?.Dispose();
         StateHasChanged();
