@@ -78,19 +78,19 @@ internal static class TestHelpers
         return video;
     }
 
-    /// <summary>Seeds a video collection in the database.</summary>
-    public static async Task<VideoCollection> SeedCollectionAsync(
+    /// <summary>Seeds a video collection in the database (new per-user model).</summary>
+    public static async Task<UserVideoCollection> SeedCollectionAsync(
         VideoDbContext db,
         string name = "Test Collection",
         Guid? ownerId = null)
     {
-        var collection = new VideoCollection
+        var collection = new UserVideoCollection
         {
             OwnerId = ownerId ?? Guid.NewGuid(),
             Name = name,
             Description = "A test collection"
         };
-        db.VideoCollections.Add(collection);
+        db.UserVideoCollections.Add(collection);
         await db.SaveChangesAsync();
         return collection;
     }

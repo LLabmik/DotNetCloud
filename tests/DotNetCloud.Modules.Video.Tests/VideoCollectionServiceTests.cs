@@ -99,18 +99,16 @@ public class VideoCollectionServiceTests
     }
 
     [TestMethod]
-    public async Task DeleteCollectionAsync_SoftDeletesCollection()
+    public async Task DeleteCollectionAsync_RemovesCollection()
     {
         var caller = TestHelpers.CreateCaller();
         var collection = await TestHelpers.SeedCollectionAsync(_db, "ToDelete", caller.UserId);
 
         await _service.DeleteCollectionAsync(collection.Id, caller);
 
-        // Verify the collection is soft-deleted in the database
-        var deleted = await _db.VideoCollections.FindAsync(collection.Id);
-        Assert.IsNotNull(deleted);
-        Assert.IsTrue(deleted.IsDeleted);
-        Assert.IsNotNull(deleted.DeletedAt);
+        // Verify the collection is removed from the database
+        var deleted = await _db.UserVideoCollections.FindAsync(collection.Id);
+        Assert.IsNull(deleted);
     }
 
     [TestMethod]
@@ -184,7 +182,7 @@ public class VideoCollectionServiceTests
         Assert.AreEqual(existing.Id, result.Id);
 
         // Verify only one collection exists with that name
-        var count = _db.VideoCollections.Count(c => c.Name == "Movies" && c.OwnerId == caller.UserId);
+        var count = _db.UserVideoCollections.Count(c => c.Name == "Movies" && c.OwnerId == caller.UserId);
         Assert.AreEqual(1, count);
     }
 
@@ -217,7 +215,7 @@ public class VideoCollectionServiceTests
         Assert.IsNotNull(result);
         Assert.AreEqual("Shared", result.Name);
 
-        var allShared = _db.VideoCollections.Count(c => c.Name == "Shared");
+        var allShared = _db.UserVideoCollections.Count(c => c.Name == "Shared");
         Assert.AreEqual(2, allShared);
     }
 

@@ -10,6 +10,7 @@ namespace DotNetCloud.Modules.Video.Data.Services;
 
 /// <summary>
 /// Service for managing video collections — CRUD, add/remove videos, ordering.
+/// Uses the per-user video collection model (user_video_collections / user_video_collection_items).
 /// </summary>
 public sealed class VideoCollectionService : IVideoCollectionService
 {
@@ -32,14 +33,14 @@ public sealed class VideoCollectionService : IVideoCollectionService
     /// </summary>
     public async Task<VideoCollectionDto> CreateCollectionAsync(CreateVideoCollectionDto dto, CallerContext caller, CancellationToken cancellationToken = default)
     {
-        var collection = new VideoCollection
+        var collection = new UserVideoCollection
         {
             OwnerId = caller.UserId,
             Name = dto.Name,
             Description = dto.Description
         };
 
-        _db.VideoCollections.Add(collection);
+        _db.UserVideoCollections.Add(collection);
         await _db.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation("Collection {CollectionId} '{Name}' created by user {UserId}",
@@ -53,8 +54,8 @@ public sealed class VideoCollectionService : IVideoCollectionService
     /// </summary>
     public async Task<VideoCollectionDto?> GetCollectionAsync(Guid collectionId, CallerContext caller, CancellationToken cancellationToken = default)
     {
-        var collection = await _db.VideoCollections
-            .Include(c => c.Items).ThenInclude(ci => ci.Video)
+        var collection = await _db.UserVideoCollections
+            .Include(c => c.Items)
             .FirstOrDefaultAsync(c => c.Id == collectionId && c.OwnerId == caller.UserId, cancellationToken);
 
         return collection is null ? null : MapToDto(collection);
@@ -65,8 +66,8 @@ public sealed class VideoCollectionService : IVideoCollectionService
     /// </summary>
     public async Task<IReadOnlyList<VideoCollectionDto>> ListCollectionsAsync(CallerContext caller, CancellationToken cancellationToken = default)
     {
-        var collections = await _db.VideoCollections
-            .Include(c => c.Items).ThenInclude(ci => ci.Video)
+        var collections = await _db.UserVideoCollections
+            .Include(c => c.Items)
             .Where(c => c.OwnerId == caller.UserId)
             .OrderBy(c => c.Name)
             .ToListAsync(cancellationToken);
@@ -79,8 +80,8 @@ public sealed class VideoCollectionService : IVideoCollectionService
     /// </summary>
     public async Task<VideoCollectionDto> UpdateCollectionAsync(Guid collectionId, UpdateVideoCollectionDto dto, CallerContext caller, CancellationToken cancellationToken = default)
     {
-        var collection = await _db.VideoCollections
-            .Include(c => c.Items).ThenInclude(ci => ci.Video)
+        var collection = await _db.UserVideoCollections
+            .Include(c => c.Items)
             .FirstOrDefaultAsync(c => c.Id == collectionId && c.OwnerId == caller.UserId, cancellationToken)
             ?? throw new BusinessRuleException(ErrorCodes.VideoCollectionNotFound, "Collection not found.");
 
@@ -95,48 +96,46 @@ public sealed class VideoCollectionService : IVideoCollectionService
     }
 
     /// <summary>
-    /// Deletes a collection (soft delete).
+    /// Deletes a collection.
     /// </summary>
     public async Task DeleteCollectionAsync(Guid collectionId, CallerContext caller, CancellationToken cancellationToken = default)
     {
-        var collection = await _db.VideoCollections
+        var collection = await _db.UserVideoCollections
             .FirstOrDefaultAsync(c => c.Id == collectionId && c.OwnerId == caller.UserId, cancellationToken)
             ?? throw new BusinessRuleException(ErrorCodes.VideoCollectionNotFound, "Collection not found.");
 
-        collection.IsDeleted = true;
-        collection.DeletedAt = DateTime.UtcNow;
-        collection.UpdatedAt = DateTime.UtcNow;
+        _db.UserVideoCollections.Remove(collection);
         await _db.SaveChangesAsync(cancellationToken);
 
-        _logger.LogInformation("Collection {CollectionId} soft-deleted by user {UserId}", collectionId, caller.UserId);
+        _logger.LogInformation("Collection {CollectionId} deleted by user {UserId}", collectionId, caller.UserId);
     }
 
     /// <summary>
-    /// Adds a video to a collection.
+    /// Adds a video to a collection. The videoId is the UserVideo.Id (per-user video record).
     /// </summary>
     public async Task AddVideoAsync(Guid collectionId, Guid videoId, CallerContext caller, CancellationToken cancellationToken = default)
     {
-        var collection = await _db.VideoCollections
+        var collection = await _db.UserVideoCollections
             .FirstOrDefaultAsync(c => c.Id == collectionId && c.OwnerId == caller.UserId, cancellationToken)
             ?? throw new BusinessRuleException(ErrorCodes.VideoCollectionNotFound, "Collection not found.");
 
-        var videoExists = await _db.UserVideos.AnyAsync(uv => uv.Id == videoId, cancellationToken);
-        if (!videoExists)
-            throw new BusinessRuleException(ErrorCodes.VideoNotFound, "Video not found.");
+        var userVideo = await _db.UserVideos
+            .FirstOrDefaultAsync(uv => uv.Id == videoId && uv.OwnerId == caller.UserId, cancellationToken)
+            ?? throw new BusinessRuleException(ErrorCodes.VideoNotFound, "Video not found.");
 
-        var alreadyInCollection = await _db.VideoCollectionItems
-            .AnyAsync(ci => ci.CollectionId == collectionId && ci.VideoId == videoId, cancellationToken);
+        var alreadyInCollection = await _db.UserVideoCollectionItems
+            .AnyAsync(ci => ci.CollectionId == collectionId && ci.CanonicalContentHash == userVideo.CanonicalContentHash, cancellationToken);
         if (alreadyInCollection)
             throw new BusinessRuleException(ErrorCodes.VideoAlreadyInCollection, "Video is already in this collection.");
 
-        var maxOrder = await _db.VideoCollectionItems
+        var maxOrder = await _db.UserVideoCollectionItems
             .Where(ci => ci.CollectionId == collectionId)
             .MaxAsync(ci => (int?)ci.SortOrder, cancellationToken) ?? -1;
 
-        _db.VideoCollectionItems.Add(new VideoCollectionItem
+        _db.UserVideoCollectionItems.Add(new UserVideoCollectionItem
         {
             CollectionId = collectionId,
-            VideoId = videoId,
+            CanonicalContentHash = userVideo.CanonicalContentHash,
             SortOrder = maxOrder + 1
         });
 
@@ -149,15 +148,19 @@ public sealed class VideoCollectionService : IVideoCollectionService
     /// </summary>
     public async Task RemoveVideoAsync(Guid collectionId, Guid videoId, CallerContext caller, CancellationToken cancellationToken = default)
     {
-        var collection = await _db.VideoCollections
+        var collection = await _db.UserVideoCollections
             .FirstOrDefaultAsync(c => c.Id == collectionId && c.OwnerId == caller.UserId, cancellationToken)
             ?? throw new BusinessRuleException(ErrorCodes.VideoCollectionNotFound, "Collection not found.");
 
-        var item = await _db.VideoCollectionItems
-            .FirstOrDefaultAsync(ci => ci.CollectionId == collectionId && ci.VideoId == videoId, cancellationToken)
+        var userVideo = await _db.UserVideos
+            .FirstOrDefaultAsync(uv => uv.Id == videoId && uv.OwnerId == caller.UserId, cancellationToken)
+            ?? throw new BusinessRuleException(ErrorCodes.VideoNotFound, "Video not found.");
+
+        var item = await _db.UserVideoCollectionItems
+            .FirstOrDefaultAsync(ci => ci.CollectionId == collectionId && ci.CanonicalContentHash == userVideo.CanonicalContentHash, cancellationToken)
             ?? throw new BusinessRuleException(ErrorCodes.VideoNotFound, "Video is not in this collection.");
 
-        _db.VideoCollectionItems.Remove(item);
+        _db.UserVideoCollectionItems.Remove(item);
         collection.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
     }
@@ -167,20 +170,36 @@ public sealed class VideoCollectionService : IVideoCollectionService
     /// </summary>
     public async Task<IReadOnlyList<VideoDto>> GetCollectionVideosAsync(Guid collectionId, CallerContext caller, CancellationToken cancellationToken = default)
     {
-        var collection = await _db.VideoCollections
+        var collection = await _db.UserVideoCollections
             .FirstOrDefaultAsync(c => c.Id == collectionId && c.OwnerId == caller.UserId, cancellationToken);
 
         if (collection is null)
             return [];
 
-        var videos = await _db.VideoCollectionItems
-            .Include(ci => ci.Video).ThenInclude(v => v!.Metadata)
+        var items = await _db.UserVideoCollectionItems
             .Where(ci => ci.CollectionId == collectionId)
             .OrderBy(ci => ci.SortOrder)
-            .Select(ci => ci.Video!)
             .ToListAsync(cancellationToken);
 
-        return videos.Select(v => MapVideoToDto(v, caller.UserId)).ToList();
+        if (items.Count == 0)
+            return [];
+
+        var contentHashes = items.Select(ci => ci.CanonicalContentHash).ToList();
+
+        var userVideos = await _db.UserVideos
+            .Include(uv => uv.CanonicalVideo).ThenInclude(cv => cv!.Metadata)
+            .Where(uv => uv.OwnerId == caller.UserId && contentHashes.Contains(uv.CanonicalContentHash))
+            .ToListAsync(cancellationToken);
+
+        var userVideoLookup = userVideos.ToDictionary(uv => uv.CanonicalContentHash);
+
+        return items
+            .Select(ci => userVideoLookup.TryGetValue(ci.CanonicalContentHash, out var uv)
+                ? MapFromCanonical(uv, uv.CanonicalVideo!)
+                : null)
+            .Where(v => v is not null)
+            .Cast<VideoDto>()
+            .ToList();
     }
 
     /// <summary>
@@ -189,8 +208,8 @@ public sealed class VideoCollectionService : IVideoCollectionService
     /// </summary>
     public async Task<VideoCollectionContentDto> GetCollectionContentAsync(Guid collectionId, CallerContext caller, CancellationToken cancellationToken = default)
     {
-        var collection = await _db.VideoCollections
-            .Include(c => c.Items).ThenInclude(ci => ci.Video)
+        var collection = await _db.UserVideoCollections
+            .Include(c => c.Items)
             .FirstOrDefaultAsync(c => c.Id == collectionId && c.OwnerId == caller.UserId, cancellationToken);
 
         if (collection is null)
@@ -204,24 +223,46 @@ public sealed class VideoCollectionService : IVideoCollectionService
                 }
             };
 
-        var allVideos = collection.Items?
+        var items = collection.Items?
             .OrderBy(ci => ci.SortOrder)
-            .Select(ci => ci.Video)
-            .Where(v => v is not null)
-            .Cast<Models.Video>()
             .ToList() ?? [];
 
-        // Find which video IDs belong to a series (episodes or franchise items)
-        var episodeVideoIds = await _db.CanonicalVideoEpisodes
+        if (items.Count == 0)
+        {
+            return new VideoCollectionContentDto
+            {
+                Collection = MapToDto(collection),
+                Series = [],
+                StandaloneVideos = [],
+                TotalItems = 0
+            };
+        }
+
+        var contentHashes = items.Select(ci => ci.CanonicalContentHash).ToList();
+
+        var userVideos = await _db.UserVideos
+            .Include(uv => uv.CanonicalVideo).ThenInclude(cv => cv!.Metadata)
+            .Where(uv => uv.OwnerId == caller.UserId && contentHashes.Contains(uv.CanonicalContentHash))
+            .ToListAsync(cancellationToken);
+
+        var userVideoLookup = userVideos.ToDictionary(uv => uv.CanonicalContentHash);
+
+        // Find which content hashes belong to a series (episodes or franchise items)
+        var episodeHashes = await _db.CanonicalVideoEpisodes
             .Select(e => e.VideoContentHash)
             .ToListAsync(cancellationToken);
-        var franchiseVideoIds = await _db.CanonicalVideoSeriesItems
+        var franchiseHashes = await _db.CanonicalVideoSeriesItems
             .Select(i => i.VideoContentHash)
             .ToListAsync(cancellationToken);
-        var seriesContentHashSet = episodeVideoIds.Concat(franchiseVideoIds).ToHashSet();
+        var seriesContentHashSet = episodeHashes.Concat(franchiseHashes).ToHashSet();
 
-        var standaloneVideos = allVideos
-            .Select(v => MapVideoToDto(v, caller.UserId))
+        var standaloneVideos = items
+            .Where(ci => !seriesContentHashSet.Contains(ci.CanonicalContentHash))
+            .Select(ci => userVideoLookup.TryGetValue(ci.CanonicalContentHash, out var uv)
+                ? MapFromCanonical(uv, uv.CanonicalVideo!)
+                : null)
+            .Where(v => v is not null)
+            .Cast<VideoDto>()
             .ToList();
 
         return new VideoCollectionContentDto
@@ -229,7 +270,7 @@ public sealed class VideoCollectionService : IVideoCollectionService
             Collection = MapToDto(collection),
             Series = [],
             StandaloneVideos = standaloneVideos,
-            TotalItems = allVideos.Count
+            TotalItems = items.Count
         };
     }
 
@@ -238,23 +279,21 @@ public sealed class VideoCollectionService : IVideoCollectionService
     /// </summary>
     public async Task<VideoCollectionDto> FindOrCreateByNameAsync(string name, CallerContext caller, CancellationToken cancellationToken = default)
     {
-        var existing = await _db.VideoCollections
-            .Include(c => c.Items).ThenInclude(ci => ci.Video)
-            .FirstOrDefaultAsync(c => c.Name == name && c.OwnerId == caller.UserId && !c.IsDeleted, cancellationToken);
+        var existing = await _db.UserVideoCollections
+            .Include(c => c.Items)
+            .FirstOrDefaultAsync(c => c.Name == name && c.OwnerId == caller.UserId, cancellationToken);
 
         if (existing is not null)
-        {
             return MapToDto(existing);
-        }
 
-        var collection = new VideoCollection
+        var collection = new UserVideoCollection
         {
             OwnerId = caller.UserId,
             Name = name,
             Description = null
         };
 
-        _db.VideoCollections.Add(collection);
+        _db.UserVideoCollections.Add(collection);
         await _db.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation("Collection {CollectionId} '{Name}' auto-created by FindOrCreateByName for user {UserId}",
@@ -263,43 +302,66 @@ public sealed class VideoCollectionService : IVideoCollectionService
         return MapToDto(collection);
     }
 
-    private VideoCollectionDto MapToDto(VideoCollection collection)
+    private VideoCollectionDto MapToDto(UserVideoCollection collection)
     {
-        var totalDurationTicks = collection.Items?
-            .Sum(ci => ci.Video?.DurationTicks ?? 0) ?? 0;
-
         return new VideoCollectionDto
         {
             Id = collection.Id,
             Name = collection.Name,
             Description = collection.Description,
             VideoCount = collection.Items?.Count ?? 0,
-            TotalDuration = TimeSpan.FromTicks(totalDurationTicks),
+            TotalDuration = TimeSpan.Zero,
             CreatedAt = collection.CreatedAt,
             UpdatedAt = collection.UpdatedAt
         };
     }
 
-    private VideoDto MapVideoToDto(Models.Video video, Guid userId)
+    private VideoDto MapFromCanonical(UserVideo userVideo, CanonicalVideo canonical)
     {
         var watchProgress = _db.WatchProgresses
-            .FirstOrDefault(wp => wp.VideoId == video.Id && wp.UserId == userId);
+            .FirstOrDefault(wp => wp.VideoId == userVideo.Id && wp.UserId == userVideo.OwnerId);
+
+        // Load TMDB data from canonical enrichment
+        string? overview = null;
+        double? tmdbRating = null;
+        string? genres = null;
+        DateTime? releaseDate = null;
+        bool hasExternalPoster = canonical.HasExternalPoster;
+
+        if (canonical.EmbeddedTmdbId is not null)
+        {
+            var tmdbData = _db.CanonicalTmdbData
+                .FirstOrDefault(ct => ct.TmdbId == canonical.EmbeddedTmdbId.Value);
+            if (tmdbData is not null)
+            {
+                overview = tmdbData.Overview;
+                tmdbRating = tmdbData.TmdbRating;
+                genres = tmdbData.Genres;
+                releaseDate = tmdbData.ReleaseDate;
+                hasExternalPoster = tmdbData.ExternalPosterHash is not null || canonical.HasExternalPoster;
+            }
+        }
 
         return new VideoDto
         {
-            Id = video.Id,
-            FileNodeId = video.FileNodeId,
-            Title = video.Title,
-            FileName = video.FileName,
-            MimeType = video.MimeType,
-            SizeBytes = video.SizeBytes,
-            Duration = TimeSpan.FromTicks(video.DurationTicks),
-            Width = video.Metadata?.Width,
-            Height = video.Metadata?.Height,
-            IsFavorite = video.IsFavorite,
-            ViewCount = video.ViewCount,
+            Id = userVideo.Id,
+            FileNodeId = userVideo.FileNodeId,
+            Title = canonical.Title,
+            FileName = canonical.FileName,
+            MimeType = canonical.MimeType,
+            SizeBytes = canonical.SizeBytes,
+            Duration = TimeSpan.FromTicks(canonical.DurationTicks),
+            Width = canonical.Metadata?.Width,
+            Height = canonical.Metadata?.Height,
+            IsFavorite = userVideo.IsFavorite,
+            ViewCount = userVideo.ViewCount,
             WatchPositionTicks = watchProgress?.PositionTicks,
-            CreatedAt = video.CreatedAt
+            CreatedAt = userVideo.CreatedAt,
+            HasExternalPoster = hasExternalPoster,
+            Overview = overview,
+            TmdbRating = tmdbRating,
+            Genres = genres,
+            ReleaseDate = releaseDate
         };
     }
 }
