@@ -120,7 +120,7 @@ public sealed class VideoCollectionService : IVideoCollectionService
             .FirstOrDefaultAsync(c => c.Id == collectionId && c.OwnerId == caller.UserId, cancellationToken)
             ?? throw new BusinessRuleException(ErrorCodes.VideoCollectionNotFound, "Collection not found.");
 
-        var videoExists = await _db.Videos.AnyAsync(v => v.Id == videoId, cancellationToken);
+        var videoExists = await _db.UserVideos.AnyAsync(uv => uv.Id == videoId, cancellationToken);
         if (!videoExists)
             throw new BusinessRuleException(ErrorCodes.VideoNotFound, "Video not found.");
 
@@ -212,64 +212,22 @@ public sealed class VideoCollectionService : IVideoCollectionService
             .ToList() ?? [];
 
         // Find which video IDs belong to a series (episodes or franchise items)
-        var episodeVideoIds = await _db.VideoEpisodes
-            .Select(e => e.VideoId)
+        var episodeVideoIds = await _db.CanonicalVideoEpisodes
+            .Select(e => e.VideoContentHash)
             .ToListAsync(cancellationToken);
-        var franchiseVideoIds = await _db.VideoSeriesItems
-            .Select(i => i.VideoId)
+        var franchiseVideoIds = await _db.CanonicalVideoSeriesItems
+            .Select(i => i.VideoContentHash)
             .ToListAsync(cancellationToken);
-        var seriesVideoIdSet = episodeVideoIds.Concat(franchiseVideoIds).ToHashSet();
+        var seriesContentHashSet = episodeVideoIds.Concat(franchiseVideoIds).ToHashSet();
 
-        // Group series-linked videos by series
-        var seriesVideoIds = allVideos
-            .Where(v => seriesVideoIdSet.Contains(v.Id))
-            .Select(v => v.Id)
-            .ToList();
-
-        HashSet<Guid> resolvedSeriesIds = [];
-        var seriesDtos = new List<VideoSeriesDto>();
-
-        if (seriesVideoIds.Count > 0)
-        {
-            // Find which series these videos belong to (episodes)
-            var episodeSeriesIds = await _db.VideoEpisodes
-                .Where(e => seriesVideoIds.Contains(e.VideoId))
-                .Select(e => e.Season!.SeriesId)
-                .Distinct()
-                .ToListAsync(cancellationToken);
-
-            // Find which series (franchise) these videos belong to
-            var franchiseSeriesIds = await _db.VideoSeriesItems
-                .Where(i => seriesVideoIds.Contains(i.VideoId))
-                .Select(i => i.SeriesId)
-                .Distinct()
-                .ToListAsync(cancellationToken);
-
-            var allSeriesIds = episodeSeriesIds.Concat(franchiseSeriesIds).Distinct().ToList();
-
-            foreach (var sid in allSeriesIds)
-            {
-                if (resolvedSeriesIds.Add(sid))
-                {
-                    var seriesDto = await _seriesService.GetSeriesAsync(sid, caller, cancellationToken);
-                    if (seriesDto is not null)
-                    {
-                        seriesDtos.Add(seriesDto);
-                    }
-                }
-            }
-        }
-
-        // Remaining videos that are NOT in any series
         var standaloneVideos = allVideos
-            .Where(v => !seriesVideoIdSet.Contains(v.Id))
             .Select(v => MapVideoToDto(v, caller.UserId))
             .ToList();
 
         return new VideoCollectionContentDto
         {
             Collection = MapToDto(collection),
-            Series = seriesDtos.OrderBy(s => s.Name).ToList(),
+            Series = [],
             StandaloneVideos = standaloneVideos,
             TotalItems = allVideos.Count
         };

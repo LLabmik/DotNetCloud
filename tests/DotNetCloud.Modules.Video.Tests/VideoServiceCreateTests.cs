@@ -1,5 +1,6 @@
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Events.Search;
 using DotNetCloud.Modules.Video.Data;
 using DotNetCloud.Modules.Video.Data.Services;
 using DotNetCloud.Modules.Video.Services;
@@ -20,6 +21,8 @@ public class VideoServiceCreateTests
     {
         _db = TestHelpers.CreateDb();
         _eventBusMock = new Mock<IEventBus>();
+        _eventBusMock.Setup(x => x.PublishAsync(It.IsAny<VideoAddedEvent>(), It.IsAny<CallerContext>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        _eventBusMock.Setup(x => x.PublishAsync(It.IsAny<SearchIndexRequestEvent>(), It.IsAny<CallerContext>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         _service = new VideoService(_db, _eventBusMock.Object, Mock.Of<IVideoSeriesService>(), Mock.Of<DotNetCloud.Core.Data.Naming.ITableNamingStrategy>(), Mock.Of<ILogger<VideoService>>());
     }
 
@@ -142,9 +145,7 @@ public class VideoServiceCreateTests
         await _service.CreateVideoAsync(
             fileNodeId, "test.mp4", "video/mp4", 1024, Guid.NewGuid(), caller);
 
-        var video = await _db.Videos.FindAsync(fileNodeId);
-        // We need to query differently since FindAsync uses the primary key
-        var count = _db.Videos.Count(v => v.FileNodeId == fileNodeId);
+        var count = _db.UserVideos.Count(v => v.FileNodeId == fileNodeId);
         Assert.AreEqual(1, count);
     }
 
@@ -158,6 +159,6 @@ public class VideoServiceCreateTests
         await _service.CreateVideoAsync(Guid.NewGuid(), "vid2.mkv", "video/x-matroska", 2048, ownerId, caller);
         await _service.CreateVideoAsync(Guid.NewGuid(), "vid3.webm", "video/webm", 512, ownerId, caller);
 
-        Assert.AreEqual(3, _db.Videos.Count());
+        Assert.AreEqual(3, _db.UserVideos.Count());
     }
 }

@@ -104,17 +104,19 @@ public class VideoMetadataServiceTests
     [TestMethod]
     public async Task SaveMetadataAsync_SavesEvenForNonExistentVideo()
     {
-        var nonExistentVideoId = Guid.NewGuid();
+        var caller = TestHelpers.CreateCaller();
+        // Seed a video so the service can resolve the content hash from UserVideo
+        var video = await TestHelpers.SeedVideoAsync(_db, "Test", ownerId: caller.UserId);
         var metadata = new VideoMetadata
         {
-            VideoId = nonExistentVideoId,
+            VideoId = video.Id,
             Width = 1280,
             Height = 720
         };
 
-        await _service.SaveMetadataAsync(nonExistentVideoId, metadata);
+        await _service.SaveMetadataAsync(video.Id, metadata);
 
-        var result = await _service.GetMetadataAsync(nonExistentVideoId);
+        var result = await _service.GetMetadataAsync(video.Id);
         Assert.IsNotNull(result);
         Assert.AreEqual(1280, result.Width);
     }

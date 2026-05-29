@@ -3,6 +3,7 @@ using DotNetCloud.Modules.Video.Data;
 using DotNetCloud.Modules.Video.Models;
 using Microsoft.EntityFrameworkCore;
 using VideoModel = DotNetCloud.Modules.Video.Models.Video;
+using CanonicalVideoModel = DotNetCloud.Modules.Video.Models.CanonicalVideo;
 
 namespace DotNetCloud.Modules.Video.Tests;
 
@@ -24,7 +25,7 @@ internal static class TestHelpers
     public static CallerContext CreateCaller(Guid? userId = null)
         => new(userId ?? Guid.NewGuid(), ["user"], CallerType.User);
 
-    /// <summary>Seeds a video in the database.</summary>
+    /// <summary>Seeds a video in the database (legacy + canonical).</summary>
     public static async Task<VideoModel> SeedVideoAsync(
         VideoDbContext db,
         string title = "Test Video",
@@ -32,10 +33,11 @@ internal static class TestHelpers
         long sizeBytes = 500_000_000,
         Guid? ownerId = null)
     {
+        var owner = ownerId ?? Guid.NewGuid();
         var video = new VideoModel
         {
             FileNodeId = Guid.NewGuid(),
-            OwnerId = ownerId ?? Guid.NewGuid(),
+            OwnerId = owner,
             Title = title,
             FileName = $"{title.Replace(' ', '_').ToLowerInvariant()}.mp4",
             MimeType = mimeType,
@@ -44,6 +46,35 @@ internal static class TestHelpers
         };
         db.Videos.Add(video);
         await db.SaveChangesAsync();
+
+        // Also seed canonical data so services using the canonical path can find this video
+        var contentHash = Guid.NewGuid().ToString("N");
+        if (!db.CanonicalVideos.Any(cv => cv.ContentHash == contentHash))
+        {
+            db.CanonicalVideos.Add(new CanonicalVideoModel
+            {
+                ContentHash = contentHash,
+                Title = title,
+                FileName = video.FileName,
+                MimeType = mimeType,
+                SizeBytes = sizeBytes,
+                DurationTicks = video.DurationTicks
+            });
+            await db.SaveChangesAsync();
+        }
+
+        if (!db.UserVideos.Any(uv => uv.Id == video.Id))
+        {
+            db.UserVideos.Add(new UserVideo
+            {
+                Id = video.Id,
+                OwnerId = owner,
+                FileNodeId = video.FileNodeId,
+                CanonicalContentHash = contentHash
+            });
+            await db.SaveChangesAsync();
+        }
+
         return video;
     }
 
@@ -105,7 +136,7 @@ internal static class TestHelpers
         return progress;
     }
 
-    /// <summary>Seeds a video with metadata for complete testing.</summary>
+    /// <summary>Seeds a video with metadata for complete testing (legacy + canonical).</summary>
     public static async Task<(VideoModel Video, VideoMetadata Metadata)> SeedCompleteVideoAsync(
         VideoDbContext db,
         string title = "Complete Video",
@@ -126,7 +157,108 @@ internal static class TestHelpers
             ContainerFormat = "MP4"
         };
         db.VideoMetadata.Add(metadata);
+
+        // Also seed canonical metadata so services using the canonical path can find it
+        var userVideo = await db.UserVideos.FirstOrDefaultAsync(uv => uv.Id == video.Id);
+        if (userVideo is not null)
+        {
+            var contentHash = userVideo.CanonicalContentHash;
+            if (!db.CanonicalVideoMetadata.Any(cm => cm.VideoContentHash == contentHash))
+            {
+                db.CanonicalVideoMetadata.Add(new CanonicalVideoMetadata
+                {
+                    VideoContentHash = contentHash,
+                    Width = 1920,
+                    Height = 1080,
+                    FrameRate = 24.0,
+                    VideoCodec = "H.264",
+                    AudioCodec = "AAC",
+                    Bitrate = 8_000_000,
+                    AudioTrackCount = 2,
+                    SubtitleTrackCount = 1,
+                    ContainerFormat = "MP4",
+                    ExtractedAt = DateTime.UtcNow
+                });
+            }
+        }
+
         await db.SaveChangesAsync();
         return (video, metadata);
+    }
+
+    /// <summary>Seeds a canonical video + user video junction.</summary>
+    public static async Task<(CanonicalVideoModel Canonical, UserVideo UserVideo)> SeedCanonicalVideoAsync(
+        VideoDbContext db,
+        string title = "Canonical Video",
+        string contentHash = "abc123def456",
+        Guid? ownerId = null,
+        long sizeBytes = 500_000_000,
+        TimeSpan? duration = null)
+    {
+        var canonical = new CanonicalVideoModel
+        {
+            ContentHash = contentHash,
+            Title = title,
+            FileName = $"{title.Replace(' ', '_').ToLowerInvariant()}.mp4",
+            MimeType = "video/mp4",
+            SizeBytes = sizeBytes,
+            DurationTicks = (duration ?? TimeSpan.FromMinutes(90)).Ticks,
+            HasExternalPoster = false
+        };
+        db.CanonicalVideos.Add(canonical);
+        await db.SaveChangesAsync();
+
+        var userVideo = new UserVideo
+        {
+            OwnerId = ownerId ?? Guid.NewGuid(),
+            FileNodeId = Guid.NewGuid(),
+            CanonicalContentHash = contentHash
+        };
+        db.UserVideos.Add(userVideo);
+        await db.SaveChangesAsync();
+
+        return (canonical, userVideo);
+    }
+
+    /// <summary>Seeds a canonical TV series with one season and one episode linked to a canonical video.</summary>
+    public static async Task<(CanonicalVideoSeries Series, CanonicalVideoSeason Season, CanonicalVideoEpisode Episode)> SeedCanonicalSeriesWithEpisodeAsync(
+        VideoDbContext db,
+        string seriesName = "Test Series",
+        string videoContentHash = "abc123def456",
+        int seasonNumber = 1,
+        int episodeNumber = 1)
+    {
+        var series = new CanonicalVideoSeries
+        {
+            Name = seriesName,
+            Type = SeriesType.TvSeries,
+            TotalSeasons = 1,
+            TotalEpisodes = 1
+        };
+        db.CanonicalVideoSeries.Add(series);
+        await db.SaveChangesAsync();
+
+        var season = new CanonicalVideoSeason
+        {
+            SeriesId = series.Id,
+            SeasonNumber = seasonNumber,
+            Name = $"Season {seasonNumber}",
+            EpisodeCount = 1
+        };
+        db.CanonicalVideoSeasons.Add(season);
+        await db.SaveChangesAsync();
+
+        var episode = new CanonicalVideoEpisode
+        {
+            SeasonId = season.Id,
+            VideoContentHash = videoContentHash,
+            EpisodeNumber = episodeNumber,
+            Title = $"Episode {episodeNumber}",
+            SortOrder = episodeNumber
+        };
+        db.CanonicalVideoEpisodes.Add(episode);
+        await db.SaveChangesAsync();
+
+        return (series, season, episode);
     }
 }

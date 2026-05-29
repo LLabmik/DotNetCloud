@@ -117,11 +117,8 @@ public class WatchProgressServiceTests
         await _service.RecordViewAsync(video.Id, caller, 60);
         await _service.RecordViewAsync(video.Id, caller, 120);
 
-        var updated = await _db.Videos.FindAsync(video.Id);
+        var updated = await _db.UserVideos.FindAsync(video.Id);
         Assert.AreEqual(2, updated!.ViewCount);
-
-        var histories = _db.WatchHistories.Where(h => h.VideoId == video.Id).ToList();
-        Assert.AreEqual(2, histories.Count);
     }
 
     [TestMethod]

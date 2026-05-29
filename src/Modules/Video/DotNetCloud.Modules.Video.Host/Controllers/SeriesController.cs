@@ -111,7 +111,6 @@ public class SeriesController : VideoControllerBase
         var caller = GetAuthenticatedCaller();
         try
         {
-            await _enrichmentService.EnrichSeriesAsync(seriesId, caller, force);
             var series = await _seriesService.GetSeriesAsync(seriesId, caller);
             return series is null
                 ? NotFound(ErrorEnvelope(ErrorCodes.VideoSeriesNotFound, "Series not found."))

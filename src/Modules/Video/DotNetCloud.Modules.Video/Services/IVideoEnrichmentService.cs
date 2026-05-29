@@ -14,12 +14,4 @@ public interface IVideoEnrichmentService
     /// <summary>Enriches a single video with TMDB metadata and poster art.</summary>
     Task EnrichVideoAsync(Guid videoId, CallerContext caller, bool force = false, CancellationToken cancellationToken = default);
 
-    /// <summary>Batch-enriches videos without external posters for a user.</summary>
-    Task EnrichVideosWithoutPosterAsync(Guid ownerId, IProgress<EnrichmentProgress>? progress = null, CancellationToken cancellationToken = default);
-
-    /// <summary>Batch-enriches all unenriched videos for a user.</summary>
-    Task EnrichAllAsync(Guid ownerId, IProgress<EnrichmentProgress>? progress = null, CancellationToken cancellationToken = default);
-
-    /// <summary>Enriches a series with TMDB metadata (TV series or movie collection).</summary>
-    Task EnrichSeriesAsync(Guid seriesId, CallerContext caller, bool force = false, CancellationToken cancellationToken = default);
 }

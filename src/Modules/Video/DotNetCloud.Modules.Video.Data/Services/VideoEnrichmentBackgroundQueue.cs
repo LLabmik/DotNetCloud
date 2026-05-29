@@ -150,11 +150,9 @@ internal sealed class VideoEnrichmentBackgroundService : BackgroundService
 
         try
         {
-            if (job.FetchPosters)
-                await enrichmentService.EnrichVideosWithoutPosterAsync(job.OwnerId, enrichmentProgress, stoppingToken);
-
-            if (job.FetchMetadata)
-                await enrichmentService.EnrichAllAsync(job.OwnerId, enrichmentProgress, stoppingToken);
+            // Per-video enrichment is handled inline during IndexVideoAsync.
+            // Batch enrichment methods have been removed in favor of canonical-only data model.
+            _logger.LogDebug("Background enrichment job completed for user {UserId} (no-op: per-video enrichment is inline)", job.OwnerId);
 
             scanProgress.UpdateProgress(job.OwnerId, new DotNetCloud.Core.DTOs.LibraryScanProgress
             {
@@ -163,7 +161,7 @@ internal sealed class VideoEnrichmentBackgroundService : BackgroundService
                 TracksSkipped = job.VideosSkipped,
                 TracksFailed = job.VideosFailed,
                 TracksRemoved = job.VideosRemoved,
-                AlbumArtFetched = enrichmentProgress is not null ? 0 : 0,
+                AlbumArtFetched = 0,
                 PercentComplete = 100,
                 ElapsedTime = elapsedStopwatch.Elapsed
             });

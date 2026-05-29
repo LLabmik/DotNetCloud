@@ -105,20 +105,10 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
 
                 // Only generate local poster fallback if TMDB didn't provide one
                 var db = scope.ServiceProvider.GetRequiredService<VideoDbContext>();
-                var hasPoster = await db.CanonicalTmdbData
-                    .AnyAsync(ct => db.Videos
-                        .Where(v => v.Id == video.Id)
-                        .Select(v => v.TmdbId)
-                        .FirstOrDefault() == ct.TmdbId, CancellationToken.None);
-
-                // Fallback: check old Video.HasExternalPoster directly
-                if (!hasPoster)
-                {
-                    hasPoster = await db.Videos
-                        .Where(v => v.Id == video.Id)
-                        .Select(v => v.HasExternalPoster)
-                        .FirstOrDefaultAsync(CancellationToken.None);
-                }
+                var hasPoster = await db.UserVideos
+                    .Where(uv => uv.Id == video.Id)
+                    .Select(uv => uv.CanonicalVideo != null && uv.CanonicalVideo.HasExternalPoster)
+                    .FirstOrDefaultAsync(CancellationToken.None);
 
                 if (!hasPoster)
                 {
@@ -169,14 +159,6 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
     {
         _logger.LogWarning("RESET: Deleting video library metadata for owner {OwnerId}", ownerId);
 
-        // Get all video IDs owned by this user
-        var ownedVideoIds = await _db.Videos
-            .IgnoreQueryFilters()
-            .Where(v => v.OwnerId == ownerId)
-            .Select(v => v.Id)
-            .ToListAsync(cancellationToken);
-        var ownedVideoIdSet = ownedVideoIds.ToHashSet();
-
         // Clean up screenshot and poster cache directories
         var storageRoot = _configuration["Files:Storage:RootPath"] ?? Path.GetTempPath();
         foreach (var dir in new[] { ".video-screenshots", ".video-posters" })
@@ -190,88 +172,23 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
             }
         }
 
-        // Delete in FK-safe order: junction/child tables first, then parents.
-        // All deletes scoped to ownerId via owned video IDs.
-        var watchHistories = await _db.WatchHistories.IgnoreQueryFilters()
-            .Where(w => ownedVideoIdSet.Contains(w.VideoId)).ToListAsync(cancellationToken);
-        _db.WatchHistories.RemoveRange(watchHistories);
-
-        var watchProgresses = await _db.WatchProgresses.IgnoreQueryFilters()
-            .Where(w => ownedVideoIdSet.Contains(w.VideoId)).ToListAsync(cancellationToken);
-        _db.WatchProgresses.RemoveRange(watchProgresses);
-
-        var shares = await _db.VideoShares.IgnoreQueryFilters()
-            .Where(s => ownedVideoIdSet.Contains(s.VideoId)).ToListAsync(cancellationToken);
-        _db.VideoShares.RemoveRange(shares);
-
-        var subtitles = await _db.Subtitles.IgnoreQueryFilters()
-            .Where(s => ownedVideoIdSet.Contains(s.VideoId)).ToListAsync(cancellationToken);
-        _db.Subtitles.RemoveRange(subtitles);
-
-        var collectionItems = await _db.VideoCollectionItems.IgnoreQueryFilters()
-            .Where(ci => ownedVideoIdSet.Contains(ci.VideoId)).ToListAsync(cancellationToken);
-        _db.VideoCollectionItems.RemoveRange(collectionItems);
-
-        // Collections: scoped to owner
-        var collections = await _db.VideoCollections.IgnoreQueryFilters()
-            .Where(c => c.OwnerId == ownerId).ToListAsync(cancellationToken);
-        _db.VideoCollections.RemoveRange(collections);
-
-        var metadata = await _db.VideoMetadata.IgnoreQueryFilters()
-            .Where(m => ownedVideoIdSet.Contains(m.VideoId)).ToListAsync(cancellationToken);
-        _db.VideoMetadata.RemoveRange(metadata);
-
-        // Clear old per-user series data (FK-safe order: episodes → seasons → series items → series)
-        var ownedSeriesIds = await _db.VideoSeries.IgnoreQueryFilters()
-            .Where(s => s.OwnerId == ownerId).Select(s => s.Id).ToListAsync(cancellationToken);
-
-        if (ownedSeriesIds.Count > 0)
-        {
-            var ownedSeasonIds = await _db.VideoSeasons.IgnoreQueryFilters()
-                .Where(s => ownedSeriesIds.Contains(s.SeriesId)).Select(s => s.Id).ToListAsync(cancellationToken);
-
-            if (ownedSeasonIds.Count > 0)
-            {
-                var episodes = await _db.VideoEpisodes.IgnoreQueryFilters()
-                    .Where(e => ownedSeasonIds.Contains(e.SeasonId)).ToListAsync(cancellationToken);
-                _db.VideoEpisodes.RemoveRange(episodes);
-            }
-
-            var seasons = await _db.VideoSeasons.IgnoreQueryFilters()
-                .Where(s => ownedSeriesIds.Contains(s.SeriesId)).ToListAsync(cancellationToken);
-            _db.VideoSeasons.RemoveRange(seasons);
-
-            var seriesItems = await _db.VideoSeriesItems.IgnoreQueryFilters()
-                .Where(i => ownedSeriesIds.Contains(i.SeriesId)).ToListAsync(cancellationToken);
-            _db.VideoSeriesItems.RemoveRange(seriesItems);
-
-            var series = await _db.VideoSeries.IgnoreQueryFilters()
-                .Where(s => s.OwnerId == ownerId).ToListAsync(cancellationToken);
-            _db.VideoSeries.RemoveRange(series);
-        }
-
-        // Clear old per-user videos
-        var videos = await _db.Videos.IgnoreQueryFilters()
-            .Where(v => v.OwnerId == ownerId).ToListAsync(cancellationToken);
-        _db.Videos.RemoveRange(videos);
-
-        // Clear new per-user junction table (UserVideos)
+        // Clear canonical per-user junction table (UserVideos)
         var userVideos = await _db.UserVideos.IgnoreQueryFilters()
             .Where(uv => uv.OwnerId == ownerId).ToListAsync(cancellationToken);
         _db.UserVideos.RemoveRange(userVideos);
 
         await _db.SaveChangesAsync(cancellationToken);
 
-        _logger.LogWarning("RESET complete for owner {OwnerId}: {VideoCount} old videos, {UserVideoCount} user junctions, {SeriesCount} series, {CollectionCount} collections",
-            ownerId, videos.Count, userVideos.Count, ownedSeriesIds.Count, collections.Count);
+        _logger.LogWarning("RESET complete for owner {OwnerId}: {UserVideoCount} user junctions cleared",
+            ownerId, userVideos.Count);
     }
 
     /// <inheritdoc />
     public async Task<HashSet<Guid>> GetIndexedFileNodeIdsAsync(Guid ownerId, CancellationToken cancellationToken = default)
     {
-        var ids = await _db.Videos
-            .Where(v => v.OwnerId == ownerId)
-            .Select(v => v.FileNodeId)
+        var ids = await _db.UserVideos
+            .Where(uv => uv.OwnerId == ownerId)
+            .Select(uv => uv.FileNodeId)
             .ToListAsync(cancellationToken);
         return [.. ids];
     }
@@ -279,52 +196,19 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
     /// <inheritdoc />
     public async Task<int> RemoveDeletedVideosAsync(IReadOnlyCollection<Guid> deletedFileNodeIds, Guid ownerId, CancellationToken cancellationToken = default)
     {
-        var videos = await _db.Videos
-            .Where(v => v.OwnerId == ownerId && deletedFileNodeIds.Contains(v.FileNodeId) && !v.IsDeleted)
+        var videos = await _db.UserVideos
+            .Where(uv => uv.OwnerId == ownerId && deletedFileNodeIds.Contains(uv.FileNodeId) && !uv.IsDeleted)
             .ToListAsync(cancellationToken);
 
         if (videos.Count == 0)
             return 0;
 
-        var videoIds = videos.Select(v => v.Id).ToHashSet();
-
-        // Remove related junction/child records before soft-deleting parent.
-        var collectionItems = await _db.VideoCollectionItems
-            .Where(i => videoIds.Contains(i.VideoId))
-            .ToListAsync(cancellationToken);
-        _db.VideoCollectionItems.RemoveRange(collectionItems);
-
-        var watchProgresses = await _db.WatchProgresses
-            .Where(w => videoIds.Contains(w.VideoId))
-            .ToListAsync(cancellationToken);
-        _db.WatchProgresses.RemoveRange(watchProgresses);
-
-        var watchHistories = await _db.WatchHistories
-            .Where(w => videoIds.Contains(w.VideoId))
-            .ToListAsync(cancellationToken);
-        _db.WatchHistories.RemoveRange(watchHistories);
-
-        var shares = await _db.VideoShares
-            .Where(s => videoIds.Contains(s.VideoId))
-            .ToListAsync(cancellationToken);
-        _db.VideoShares.RemoveRange(shares);
-
-        var subtitles = await _db.Subtitles
-            .Where(s => videoIds.Contains(s.VideoId))
-            .ToListAsync(cancellationToken);
-        _db.Subtitles.RemoveRange(subtitles);
-
-        var metadatas = await _db.VideoMetadata
-            .Where(m => videoIds.Contains(m.VideoId))
-            .ToListAsync(cancellationToken);
-        _db.VideoMetadata.RemoveRange(metadatas);
-
-        // Soft-delete the video records.
+        // Soft-delete the user video records.
         var now = DateTime.UtcNow;
-        foreach (var video in videos)
+        foreach (var uv in videos)
         {
-            video.IsDeleted = true;
-            video.DeletedAt = now;
+            uv.IsDeleted = true;
+            uv.DeletedAt = now;
         }
 
         await _db.SaveChangesAsync(cancellationToken);
@@ -401,14 +285,23 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
 
                         var series = await _seriesService.FindOrCreateByNameAsync(franchiseName, "MovieFranchise", caller, cancellationToken);
 
-                        // Check if already in series
-                        var alreadyInSeries = await _db.VideoSeriesItems
-                            .AnyAsync(i => i.SeriesId == Guid.Parse(series.Id.ToString()) && i.VideoId == videoId, cancellationToken);
+                        // Check if already in series (via canonical content hash)
+                        var contentHash = await _db.UserVideos
+                            .Where(uv => uv.Id == videoId)
+                            .Select(uv => uv.CanonicalContentHash)
+                            .FirstOrDefaultAsync(cancellationToken);
+
+                        var alreadyInSeries = false;
+                        if (contentHash is not null)
+                        {
+                            alreadyInSeries = await _db.CanonicalVideoSeriesItems
+                                .AnyAsync(i => i.SeriesId == Guid.Parse(series.Id.ToString()) && i.VideoContentHash == contentHash, cancellationToken);
+                        }
 
                         if (!alreadyInSeries)
                         {
                             // Get the next sort order
-                            var maxOrder = await _db.VideoSeriesItems
+                            var maxOrder = await _db.CanonicalVideoSeriesItems
                                 .Where(i => i.SeriesId == Guid.Parse(series.Id.ToString()))
                                 .MaxAsync(i => (int?)i.SortOrder, cancellationToken) ?? -1;
 
@@ -463,20 +356,7 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
     /// </summary>
     private void EnrichSeriesInBackground(Guid seriesId, Guid ownerId)
     {
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                await using var scope = _scopeFactory.CreateAsyncScope();
-                var enrichmentService = scope.ServiceProvider.GetRequiredService<IVideoEnrichmentService>();
-                var caller = new CallerContext(ownerId, ["user"], CallerType.System);
-                await enrichmentService.EnrichSeriesAsync(seriesId, caller, cancellationToken: CancellationToken.None);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Background series enrichment failed for series {SeriesId}", seriesId);
-            }
-        }, CancellationToken.None);
+        // Series enrichment moved to canonical path — no longer needed as a background task
     }
 
     /// <summary>

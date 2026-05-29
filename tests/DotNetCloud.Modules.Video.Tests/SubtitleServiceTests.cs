@@ -86,8 +86,20 @@ public class SubtitleServiceTests
     {
         var caller = TestHelpers.CreateCaller();
         var video = await TestHelpers.SeedVideoAsync(_db, ownerId: caller.UserId);
-        await TestHelpers.SeedSubtitleAsync(_db, video.Id, "en", ownerId: caller.UserId);
-        await TestHelpers.SeedSubtitleAsync(_db, video.Id, "fr", ownerId: caller.UserId);
+        await _service.UploadSubtitleAsync(video.Id, new Core.DTOs.UploadSubtitleDto
+        {
+            Language = "en",
+            Label = "English subtitle",
+            Format = "srt",
+            Content = "1\n00:00:01,000 --> 00:00:04,000\nHello"
+        }, caller);
+        await _service.UploadSubtitleAsync(video.Id, new Core.DTOs.UploadSubtitleDto
+        {
+            Language = "fr",
+            Label = "French subtitle",
+            Format = "srt",
+            Content = "1\n00:00:01,000 --> 00:00:04,000\nBonjour"
+        }, caller);
 
         var result = await _service.GetSubtitlesAsync(video.Id, caller);
 
@@ -99,7 +111,14 @@ public class SubtitleServiceTests
     {
         var caller = TestHelpers.CreateCaller();
         var video = await TestHelpers.SeedVideoAsync(_db, ownerId: caller.UserId);
-        var subtitle = await TestHelpers.SeedSubtitleAsync(_db, video.Id, ownerId: caller.UserId);
+        var dto = new Core.DTOs.UploadSubtitleDto
+        {
+            Language = "en",
+            Label = "English",
+            Format = "srt",
+            Content = "1\n00:00:01,000 --> 00:00:04,000\nHello World\n"
+        };
+        var subtitle = await _service.UploadSubtitleAsync(video.Id, dto, caller);
 
         var result = await _service.GetSubtitleContentAsync(subtitle.Id);
 
@@ -121,7 +140,14 @@ public class SubtitleServiceTests
     {
         var caller = TestHelpers.CreateCaller();
         var video = await TestHelpers.SeedVideoAsync(_db, ownerId: caller.UserId);
-        var subtitle = await TestHelpers.SeedSubtitleAsync(_db, video.Id, ownerId: caller.UserId);
+        var dto = new Core.DTOs.UploadSubtitleDto
+        {
+            Language = "en",
+            Label = "English",
+            Format = "srt",
+            Content = "1\n00:00:01,000 --> 00:00:04,000\nHello World\n"
+        };
+        var subtitle = await _service.UploadSubtitleAsync(video.Id, dto, caller);
 
         await _service.DeleteSubtitleAsync(subtitle.Id, caller);
 

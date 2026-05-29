@@ -106,8 +106,11 @@ public class VideoCollectionServiceTests
 
         await _service.DeleteCollectionAsync(collection.Id, caller);
 
-        var result = await _service.GetCollectionAsync(collection.Id, caller);
-        Assert.IsNull(result);
+        // Verify the collection is soft-deleted in the database
+        var deleted = await _db.VideoCollections.FindAsync(collection.Id);
+        Assert.IsNotNull(deleted);
+        Assert.IsTrue(deleted.IsDeleted);
+        Assert.IsNotNull(deleted.DeletedAt);
     }
 
     [TestMethod]

@@ -30,41 +30,8 @@ public class VideoDbContext : DbContext
         _namingStrategy = namingStrategy;
     }
 
-    /// <summary>Videos in the library.</summary>
-    public DbSet<Models.Video> Videos => Set<Models.Video>();
-
-    /// <summary>Video metadata (resolution, codecs, etc.).</summary>
-    public DbSet<VideoMetadata> VideoMetadata => Set<VideoMetadata>();
-
-    /// <summary>Video collections (series, playlists).</summary>
-    public DbSet<VideoCollection> VideoCollections => Set<VideoCollection>();
-
-    /// <summary>Collection-video junction records.</summary>
-    public DbSet<VideoCollectionItem> VideoCollectionItems => Set<VideoCollectionItem>();
-
-    /// <summary>Subtitle tracks.</summary>
-    public DbSet<Subtitle> Subtitles => Set<Subtitle>();
-
-    /// <summary>Watch history records.</summary>
-    public DbSet<WatchHistory> WatchHistories => Set<WatchHistory>();
-
     /// <summary>Watch progress (resume position) records.</summary>
     public DbSet<WatchProgress> WatchProgresses => Set<WatchProgress>();
-
-    /// <summary>Video share records.</summary>
-    public DbSet<VideoShare> VideoShares => Set<VideoShare>();
-
-    /// <summary>Video series (TV series and movie franchises).</summary>
-    public DbSet<VideoSeries> VideoSeries => Set<VideoSeries>();
-
-    /// <summary>Seasons within TV series.</summary>
-    public DbSet<VideoSeason> VideoSeasons => Set<VideoSeason>();
-
-    /// <summary>Direct video items in movie franchise series.</summary>
-    public DbSet<VideoSeriesItem> VideoSeriesItems => Set<VideoSeriesItem>();
-
-    /// <summary>Episode junction records linking videos to seasons.</summary>
-    public DbSet<VideoEpisode> VideoEpisodes => Set<VideoEpisode>();
 
     // ── Canonical (shared) tables ──
 
@@ -103,26 +70,49 @@ public class VideoDbContext : DbContext
     /// <summary>Junction linking user video collections to canonical videos via content hash.</summary>
     public DbSet<UserVideoCollectionItem> UserVideoCollectionItems => Set<UserVideoCollectionItem>();
 
+    // ── Legacy tables (transitional, being migrated to canonical) ──
+
+    /// <summary>Legacy videos table.</summary>
+    public DbSet<Models.Video> Videos => Set<Models.Video>();
+
+    /// <summary>Legacy video metadata.</summary>
+    public DbSet<VideoMetadata> VideoMetadata => Set<VideoMetadata>();
+
+    /// <summary>Legacy subtitles.</summary>
+    public DbSet<Subtitle> Subtitles => Set<Subtitle>();
+
+    /// <summary>Legacy video series.</summary>
+    public DbSet<VideoSeries> VideoSeries => Set<VideoSeries>();
+
+    /// <summary>Legacy video seasons.</summary>
+    public DbSet<VideoSeason> VideoSeasons => Set<VideoSeason>();
+
+    /// <summary>Legacy video episodes.</summary>
+    public DbSet<VideoEpisode> VideoEpisodes => Set<VideoEpisode>();
+
+    /// <summary>Legacy video series items.</summary>
+    public DbSet<VideoSeriesItem> VideoSeriesItems => Set<VideoSeriesItem>();
+
+    /// <summary>Legacy video collections.</summary>
+    public DbSet<VideoCollection> VideoCollections => Set<VideoCollection>();
+
+    /// <summary>Legacy video collection items.</summary>
+    public DbSet<VideoCollectionItem> VideoCollectionItems => Set<VideoCollectionItem>();
+
+    /// <summary>Legacy video shares.</summary>
+    public DbSet<VideoShare> VideoShares => Set<VideoShare>();
+
+    /// <summary>Legacy watch history.</summary>
+    public DbSet<WatchHistory> WatchHistories => Set<WatchHistory>();
+
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(_namingStrategy.GetSchemaForModule("video"));
         base.OnModelCreating(modelBuilder);
 
-        modelBuilder.ApplyConfiguration(new VideoConfiguration());
-        modelBuilder.ApplyConfiguration(new VideoMetadataConfiguration());
-        modelBuilder.ApplyConfiguration(new VideoCollectionConfiguration());
-        modelBuilder.ApplyConfiguration(new VideoCollectionItemConfiguration());
-        modelBuilder.ApplyConfiguration(new SubtitleConfiguration());
-        modelBuilder.ApplyConfiguration(new WatchHistoryConfiguration());
-        modelBuilder.ApplyConfiguration(new WatchProgressConfiguration());
-        modelBuilder.ApplyConfiguration(new VideoShareConfiguration());
-        modelBuilder.ApplyConfiguration(new VideoSeriesConfiguration());
-        modelBuilder.ApplyConfiguration(new VideoSeasonConfiguration());
-        modelBuilder.ApplyConfiguration(new VideoSeriesItemConfiguration());
-        modelBuilder.ApplyConfiguration(new VideoEpisodeConfiguration());
-
         // Canonical (shared) tables
+        modelBuilder.ApplyConfiguration(new WatchProgressConfiguration());
         modelBuilder.ApplyConfiguration(new CanonicalVideoConfiguration());
         modelBuilder.ApplyConfiguration(new CanonicalVideoMetadataConfiguration());
         modelBuilder.ApplyConfiguration(new CanonicalTmdbDataConfiguration());

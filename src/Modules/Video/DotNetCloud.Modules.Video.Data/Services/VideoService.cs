@@ -13,8 +13,7 @@ namespace DotNetCloud.Modules.Video.Data.Services;
 
 /// <summary>
 /// Service for managing videos — CRUD, search, recently watched, favorites.
-/// Uses canonical/user-junction data model for content deduplication with dual-write
-/// to old per-user tables for backward compatibility.
+/// Uses canonical/user-junction data model for content deduplication.
 /// </summary>
 public sealed class VideoService : IVideoService
 {
@@ -38,20 +37,16 @@ public sealed class VideoService : IVideoService
 
     /// <summary>
     /// Creates a new video record linked to a FileNode.
-    /// Uses canonical/user-junction model with dual-write to old table for backward compatibility.
+    /// Uses canonical/user-junction model for content deduplication.
     /// </summary>
     public async Task<VideoDto> CreateVideoAsync(Guid fileNodeId, string fileName, string mimeType, long sizeBytes, Guid ownerId, CallerContext caller, CancellationToken cancellationToken = default)
     {
-        // Check for existing old-format video (backward-compat fast path)
-        var existingOld = await _db.Videos
-            .IgnoreQueryFilters()
-            .FirstOrDefaultAsync(v => v.FileNodeId == fileNodeId && v.OwnerId == ownerId && !v.IsDeleted, cancellationToken);
-
-        if (existingOld is not null)
-        {
-            _logger.LogDebug("Video already exists for FileNode {FileNodeId}", fileNodeId);
-            return MapToDto(existingOld, ownerId);
-        }
+        // ── Duplicate check: return existing UserVideo if same FileNodeId + OwnerId ──
+        var existing = await _db.UserVideos
+            .Include(uv => uv.CanonicalVideo).ThenInclude(cv => cv!.Metadata)
+            .FirstOrDefaultAsync(uv => uv.FileNodeId == fileNodeId && uv.OwnerId == ownerId && !uv.IsDeleted, cancellationToken);
+        if (existing?.CanonicalVideo is not null)
+            return MapFromCanonical(existing, existing.CanonicalVideo);
 
         // ── ContentHash lookup from FileNode ──
         var contentHash = await LookupContentHashAsync(fileNodeId, cancellationToken);
@@ -80,46 +75,50 @@ public sealed class VideoService : IVideoService
             _logger.LogInformation("CanonicalVideo {ContentHash} created for file {FileNodeId}", contentHash, fileNodeId);
         }
 
-        // ── User-video junction and dual-write ──
-        // When contentHash is available, create canonical + UserVideo junction + old Video (dual-write).
-        // When contentHash is null (file not yet hashed), create only old Video record to avoid FK violations.
-        UserVideo? userVideo = null;
-        Models.Video oldVideo;
+        // ── User-video junction ──
+        // Use fileNodeId as fallback content hash when FileNode record isn't available yet.
+        contentHash ??= fileNodeId.ToString("N");
 
-        if (contentHash is not null)
+        // Ensure a CanonicalVideo exists for the (possibly fallback) content hash
+        if (canonical is null)
         {
-            userVideo = new UserVideo
+            canonical = await _db.CanonicalVideos
+                .FirstOrDefaultAsync(cv => cv.ContentHash == contentHash, cancellationToken);
+
+            if (canonical is null)
             {
-                OwnerId = ownerId,
-                FileNodeId = fileNodeId,
-                CanonicalContentHash = contentHash
-            };
-            _db.UserVideos.Add(userVideo);
+                canonical = new CanonicalVideo
+                {
+                    ContentHash = contentHash,
+                    Title = title,
+                    FileName = fileName,
+                    MimeType = mimeType,
+                    SizeBytes = sizeBytes
+                };
+                _db.CanonicalVideos.Add(canonical);
+                await _db.SaveChangesAsync(cancellationToken);
+                _logger.LogInformation("CanonicalVideo {ContentHash} fallback-created for file {FileNodeId}", contentHash, fileNodeId);
+            }
         }
 
-        oldVideo = new Models.Video
+        var userVideo = new UserVideo
         {
-            FileNodeId = fileNodeId,
             OwnerId = ownerId,
-            Title = title,
-            FileName = fileName,
-            MimeType = mimeType,
-            SizeBytes = sizeBytes,
-            ContentHash = contentHash
+            FileNodeId = fileNodeId,
+            CanonicalContentHash = contentHash
         };
-        _db.Videos.Add(oldVideo);
+        _db.UserVideos.Add(userVideo);
 
         await _db.SaveChangesAsync(cancellationToken);
 
-        _logger.LogInformation("Video {VideoId} created for file {FileNodeId} by user {UserId}{Canonical}",
-            oldVideo.Id, fileNodeId, ownerId,
-            userVideo is not null ? $" (canonical={contentHash})" : " (no content hash, old table only)");
+        _logger.LogInformation("Video {VideoId} created for file {FileNodeId} by user {UserId} (canonical={ContentHash})",
+            userVideo.Id, fileNodeId, ownerId, contentHash);
 
         await _eventBus.PublishAsync(new VideoAddedEvent
         {
             EventId = Guid.NewGuid(),
             CreatedAt = DateTime.UtcNow,
-            VideoId = oldVideo.Id,
+            VideoId = userVideo.Id,
             FileNodeId = fileNodeId,
             OwnerId = ownerId,
             FileName = fileName
@@ -130,11 +129,11 @@ public sealed class VideoService : IVideoService
             EventId = Guid.NewGuid(),
             CreatedAt = DateTime.UtcNow,
             ModuleId = "video",
-            EntityId = oldVideo.Id.ToString(),
+            EntityId = userVideo.Id.ToString(),
             Action = SearchIndexAction.Index
         }, caller, cancellationToken);
 
-        return MapToDto(oldVideo, ownerId);
+        return MapFromCanonical(userVideo, canonical!);
     }
 
     /// <summary>
@@ -149,12 +148,7 @@ public sealed class VideoService : IVideoService
         if (userVideo?.CanonicalVideo is not null)
             return MapFromCanonical(userVideo, userVideo.CanonicalVideo);
 
-        // Fallback: old Video table
-        var oldVideo = await _db.Videos
-            .Include(v => v.Metadata)
-            .FirstOrDefaultAsync(v => v.Id == videoId && v.OwnerId == caller.UserId, cancellationToken);
-
-        return oldVideo is null ? null : MapToDto(oldVideo, caller.UserId);
+        return null;
     }
 
     /// <summary>
@@ -169,12 +163,7 @@ public sealed class VideoService : IVideoService
         if (userVideo?.CanonicalVideo is not null)
             return MapFromCanonical(userVideo, userVideo.CanonicalVideo);
 
-        // Fallback: old Video table
-        var oldVideo = await _db.Videos
-            .Include(v => v.Metadata)
-            .FirstOrDefaultAsync(v => v.FileNodeId == fileNodeId && v.OwnerId == caller.UserId, cancellationToken);
-
-        return oldVideo is null ? null : MapToDto(oldVideo, caller.UserId);
+        return null;
     }
 
     /// <summary>
@@ -319,45 +308,19 @@ public sealed class VideoService : IVideoService
     /// </summary>
     public async Task<bool> ToggleFavoriteAsync(Guid videoId, CallerContext caller, CancellationToken cancellationToken = default)
     {
-        // Try UserVideo first
         var userVideo = await _db.UserVideos
-            .FirstOrDefaultAsync(uv => uv.Id == videoId && uv.OwnerId == caller.UserId, cancellationToken);
-
-        if (userVideo is not null)
-        {
-            userVideo.IsFavorite = !userVideo.IsFavorite;
-            userVideo.UpdatedAt = DateTime.UtcNow;
-
-            // Dual-write: also update old Video record
-            var oldVideo = await _db.Videos
-                .FirstOrDefaultAsync(v => v.Id == videoId && v.OwnerId == caller.UserId, cancellationToken);
-            if (oldVideo is not null)
-            {
-                oldVideo.IsFavorite = userVideo.IsFavorite;
-                oldVideo.UpdatedAt = DateTime.UtcNow;
-            }
-
-            await _db.SaveChangesAsync(cancellationToken);
-
-            _logger.LogInformation("Video {VideoId} favorite toggled to {IsFavorite} by user {UserId}",
-                videoId, userVideo.IsFavorite, caller.UserId);
-
-            return userVideo.IsFavorite;
-        }
-
-        // Fallback: old Video table
-        var video = await _db.Videos
-            .FirstOrDefaultAsync(v => v.Id == videoId && v.OwnerId == caller.UserId, cancellationToken)
+            .FirstOrDefaultAsync(uv => uv.Id == videoId && uv.OwnerId == caller.UserId, cancellationToken)
             ?? throw new BusinessRuleException(ErrorCodes.VideoNotFound, "Video not found.");
 
-        video.IsFavorite = !video.IsFavorite;
-        video.UpdatedAt = DateTime.UtcNow;
+        userVideo.IsFavorite = !userVideo.IsFavorite;
+        userVideo.UpdatedAt = DateTime.UtcNow;
+
         await _db.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation("Video {VideoId} favorite toggled to {IsFavorite} by user {UserId}",
-            videoId, video.IsFavorite, caller.UserId);
+            videoId, userVideo.IsFavorite, caller.UserId);
 
-        return video.IsFavorite;
+        return userVideo.IsFavorite;
     }
 
     /// <summary>
@@ -365,24 +328,13 @@ public sealed class VideoService : IVideoService
     /// </summary>
     public async Task DeleteVideoAsync(Guid videoId, CallerContext caller, CancellationToken cancellationToken = default)
     {
-        // Dual-write: soft-delete UserVideo
         var userVideo = await _db.UserVideos
-            .FirstOrDefaultAsync(uv => uv.Id == videoId && uv.OwnerId == caller.UserId, cancellationToken);
-        if (userVideo is not null)
-        {
-            userVideo.IsDeleted = true;
-            userVideo.DeletedAt = DateTime.UtcNow;
-            userVideo.UpdatedAt = DateTime.UtcNow;
-        }
-
-        // Dual-write: soft-delete old Video record
-        var video = await _db.Videos
-            .FirstOrDefaultAsync(v => v.Id == videoId && v.OwnerId == caller.UserId, cancellationToken)
+            .FirstOrDefaultAsync(uv => uv.Id == videoId && uv.OwnerId == caller.UserId, cancellationToken)
             ?? throw new BusinessRuleException(ErrorCodes.VideoNotFound, "Video not found.");
 
-        video.IsDeleted = true;
-        video.DeletedAt = DateTime.UtcNow;
-        video.UpdatedAt = DateTime.UtcNow;
+        userVideo.IsDeleted = true;
+        userVideo.DeletedAt = DateTime.UtcNow;
+        userVideo.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation("Video {VideoId} soft-deleted by user {UserId}", videoId, caller.UserId);
@@ -395,37 +347,6 @@ public sealed class VideoService : IVideoService
             EntityId = videoId.ToString(),
             Action = SearchIndexAction.Remove
         }, caller, cancellationToken);
-    }
-
-    /// <summary>
-    /// Maps an old-format Video entity to VideoDto.
-    /// </summary>
-    internal VideoDto MapToDto(Models.Video video, Guid userId)
-    {
-        var watchProgress = _db.WatchProgresses
-            .FirstOrDefault(wp => wp.VideoId == video.Id && wp.UserId == userId);
-
-        return new VideoDto
-        {
-            Id = video.Id,
-            FileNodeId = video.FileNodeId,
-            Title = video.Title,
-            FileName = video.FileName,
-            MimeType = video.MimeType,
-            SizeBytes = video.SizeBytes,
-            Duration = TimeSpan.FromTicks(video.DurationTicks),
-            Width = video.Metadata?.Width,
-            Height = video.Metadata?.Height,
-            IsFavorite = video.IsFavorite,
-            ViewCount = video.ViewCount,
-            WatchPositionTicks = watchProgress?.PositionTicks,
-            CreatedAt = video.CreatedAt,
-            HasExternalPoster = video.HasExternalPoster,
-            Overview = video.Overview,
-            TmdbRating = video.TmdbRating,
-            Genres = video.Genres,
-            ReleaseDate = video.ReleaseDate
-        };
     }
 
     /// <summary>
@@ -443,16 +364,19 @@ public sealed class VideoService : IVideoService
         DateTime? releaseDate = null;
         bool hasExternalPoster = canonical.HasExternalPoster;
 
-        // Try to load TMDB data linked to old Video record (dual-write fallback)
-        var oldVideo = _db.Videos.IgnoreQueryFilters()
-            .FirstOrDefault(v => v.FileNodeId == userVideo.FileNodeId && v.OwnerId == userVideo.OwnerId);
-        if (oldVideo is not null)
+        // Load TMDB data from canonical enrichment
+        if (canonical.EmbeddedTmdbId is not null)
         {
-            overview = oldVideo.Overview;
-            tmdbRating = oldVideo.TmdbRating;
-            genres = oldVideo.Genres;
-            releaseDate = oldVideo.ReleaseDate;
-            hasExternalPoster = oldVideo.HasExternalPoster || canonical.HasExternalPoster;
+            var tmdbData = _db.CanonicalTmdbData
+                .FirstOrDefault(ct => ct.TmdbId == canonical.EmbeddedTmdbId.Value);
+            if (tmdbData is not null)
+            {
+                overview = tmdbData.Overview;
+                tmdbRating = tmdbData.TmdbRating;
+                genres = tmdbData.Genres;
+                releaseDate = tmdbData.ReleaseDate;
+                hasExternalPoster = tmdbData.ExternalPosterHash is not null || canonical.HasExternalPoster;
+            }
         }
 
         return new VideoDto

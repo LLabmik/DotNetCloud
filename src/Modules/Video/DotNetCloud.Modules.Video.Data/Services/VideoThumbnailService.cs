@@ -15,8 +15,7 @@ namespace DotNetCloud.Modules.Video.Data.Services;
 
 /// <summary>
 /// Generates and stores video poster thumbnails by extracting a frame via FFmpeg
-/// and resizing with ImageSharp. Thumbnails are stored in content-addressed storage
-/// with dual-write to the old Video.ThumbnailPoster for backward compatibility.
+/// and resizing with ImageSharp. Thumbnails are stored in content-addressed storage.
 /// </summary>
 public sealed class VideoThumbnailService : IVideoThumbnailService
 {
@@ -28,7 +27,6 @@ public sealed class VideoThumbnailService : IVideoThumbnailService
     private readonly ContentAddressedStorage _contentStorage;
     private readonly string _ffmpegPath;
     private readonly string _screenshotCacheDir;
-    private readonly string _posterCacheDir;
     private readonly ILogger<VideoThumbnailService> _logger;
 
     /// <summary>
@@ -47,7 +45,6 @@ public sealed class VideoThumbnailService : IVideoThumbnailService
 
         var storageRoot = configuration["Files:Storage:RootPath"] ?? Path.GetTempPath();
         _screenshotCacheDir = Path.Combine(storageRoot, ".video-screenshots");
-        _posterCacheDir = Path.Combine(storageRoot, ".video-posters");
         _contentStorage = new ContentAddressedStorage(storageRoot);
     }
 
@@ -71,17 +68,23 @@ public sealed class VideoThumbnailService : IVideoThumbnailService
             }
         }
 
-        // Priority 2: External poster from old Video record (dual-write fallback)
-        var enriched = await _db.Videos.IgnoreQueryFilters()
-            .Where(v => v.Id == videoId)
-            .Select(v => new { v.HasExternalPoster, v.ExternalPosterPath })
+        // Priority 2: External poster from canonical enrichment
+        var enriched = await _db.UserVideos
+            .Where(uv => uv.Id == videoId)
+            .Select(uv => new
+            {
+                HasExternalPoster = uv.CanonicalVideo != null && uv.CanonicalVideo.HasExternalPoster,
+                ExternalPosterHash = uv.CanonicalVideo != null ? uv.CanonicalVideo.ExternalPosterHash : null
+            })
             .FirstOrDefaultAsync(cancellationToken);
 
-        if (enriched?.HasExternalPoster == true &&
-            enriched.ExternalPosterPath is not null &&
-            File.Exists(enriched.ExternalPosterPath))
+        if (enriched?.HasExternalPoster == true && enriched.ExternalPosterHash is not null)
         {
-            return (File.OpenRead(enriched.ExternalPosterPath), "image/jpeg");
+            var casPath = _contentStorage.GetPath(enriched.ExternalPosterHash, ".jpg");
+            if (File.Exists(casPath))
+            {
+                return (File.OpenRead(casPath), "image/jpeg");
+            }
         }
 
         // Priority 3: Generated screenshots
@@ -91,16 +94,22 @@ public sealed class VideoThumbnailService : IVideoThumbnailService
             return (File.OpenRead(screenshotPaths[0]), "image/jpeg");
         }
 
-        // Priority 4: DB poster (existing ffmpegthumbnailer frame — old table dual-write)
-        var data = await _db.Videos.IgnoreQueryFilters()
-            .Where(v => v.Id == videoId)
-            .Select(v => v.ThumbnailPoster)
+        // Priority 4: DB poster via canonical thumbnail poster hash
+        var posterHash = await _db.UserVideos
+            .Where(uv => uv.Id == videoId)
+            .Select(uv => uv.CanonicalVideo!.ThumbnailPosterHash)
             .FirstOrDefaultAsync(cancellationToken);
 
-        if (data is null || data.Length == 0)
-            return (null, null);
+        if (!string.IsNullOrEmpty(posterHash))
+        {
+            var casPath = _contentStorage.GetPath(posterHash, ".jpg");
+            if (File.Exists(casPath))
+            {
+                return (File.OpenRead(casPath), "image/jpeg");
+            }
+        }
 
-        return (new MemoryStream(data, writable: false), "image/jpeg");
+        return (null, null);
     }
 
     /// <inheritdoc />
@@ -115,9 +124,9 @@ public sealed class VideoThumbnailService : IVideoThumbnailService
         try
         {
             // Resolve the owner so admin shared folders (_DotNetCloud/Movies) are reachable
-            var ownerId = await _db.Videos.IgnoreQueryFilters()
-                .Where(v => v.Id == videoId)
-                .Select(v => v.OwnerId)
+            var ownerId = await _db.UserVideos
+                .Where(uv => uv.Id == videoId)
+                .Select(uv => uv.OwnerId)
                 .FirstOrDefaultAsync(cancellationToken);
 
             // Download the video file to a temp location
@@ -176,19 +185,6 @@ public sealed class VideoThumbnailService : IVideoThumbnailService
                 userVideo.CanonicalVideo.UpdatedAt = DateTime.UtcNow;
             }
 
-            // ── Dual-write: store in old Video.ThumbnailPoster ──
-            var video = await _db.Videos.IgnoreQueryFilters()
-                .FirstOrDefaultAsync(v => v.Id == videoId, cancellationToken);
-
-            if (video is not null)
-            {
-                video.ThumbnailPoster = posterBytes;
-            }
-            else
-            {
-                _logger.LogWarning("Video {VideoId} not found for dual-write thumbnail storage", videoId);
-            }
-
             await _db.SaveChangesAsync(cancellationToken);
 
             _logger.LogInformation("Video thumbnail generated for {VideoId} ({Size} bytes, hash={Hash})",
@@ -233,25 +229,6 @@ public sealed class VideoThumbnailService : IVideoThumbnailService
             }
         }
 
-        // ── Dual-write: clear old Video record ──
-        var video = await _db.Videos.IgnoreQueryFilters()
-            .FirstOrDefaultAsync(v => v.Id == videoId, cancellationToken);
-
-        if (video is not null)
-        {
-            video.ThumbnailPoster = null;
-
-            // Clean up cached poster on disk
-            if (video.ExternalPosterPath is not null && File.Exists(video.ExternalPosterPath))
-            {
-                try
-                { File.Delete(video.ExternalPosterPath); }
-                catch { /* best effort */ }
-                video.ExternalPosterPath = null;
-            }
-            video.HasExternalPoster = false;
-        }
-
         await _db.SaveChangesAsync(cancellationToken);
 
         // Clean up screenshots on disk
@@ -276,9 +253,9 @@ public sealed class VideoThumbnailService : IVideoThumbnailService
 
         try
         {
-            var ownerId = await _db.Videos.IgnoreQueryFilters()
-                .Where(v => v.Id == videoId)
-                .Select(v => v.OwnerId)
+            var ownerId = await _db.UserVideos
+                .Where(uv => uv.Id == videoId)
+                .Select(uv => uv.OwnerId)
                 .FirstOrDefaultAsync(cancellationToken);
 
             var caller = new CallerContext(ownerId, [], CallerType.System);
@@ -369,9 +346,9 @@ public sealed class VideoThumbnailService : IVideoThumbnailService
 
         try
         {
-            var ownerId = await _db.Videos.IgnoreQueryFilters()
-                .Where(v => v.Id == videoId)
-                .Select(v => v.OwnerId)
+            var ownerId = await _db.UserVideos
+                .Where(uv => uv.Id == videoId)
+                .Select(uv => uv.OwnerId)
                 .FirstOrDefaultAsync(cancellationToken);
 
             var caller = new CallerContext(ownerId, [], CallerType.System);
@@ -475,60 +452,33 @@ public sealed class VideoThumbnailService : IVideoThumbnailService
                 canonical.UpdatedAt = DateTime.UtcNow;
             }
 
-            var metadata = new VideoMetadata
-            {
-                VideoId = videoId,
-                Width = vid.w ?? 0,
-                Height = vid.h ?? 0,
-                FrameRate = ParseFrameRate(vid.r),
-                VideoCodec = vid.c,
-                AudioCodec = aud.c,
-                Bitrate = ParseLong(vid.b) ?? ParseLong(format, "bit_rate") ?? 0,
-                AudioTrackCount = CountStreams(streams, "audio"),
-                SubtitleTrackCount = CountStreams(streams, "subtitle"),
-                ContainerFormat = GetString(format, "format_name")?.Split(',').FirstOrDefault()?.Trim()
-            };
-
-            // Save or update old VideoMetadata
-            var existing = await _db.VideoMetadata
-                .FirstOrDefaultAsync(m => m.VideoId == videoId, cancellationToken);
-
-            if (existing is not null)
-            {
-                existing.Width = metadata.Width;
-                existing.Height = metadata.Height;
-                existing.FrameRate = metadata.FrameRate;
-                existing.VideoCodec = metadata.VideoCodec;
-                existing.AudioCodec = metadata.AudioCodec;
-                existing.Bitrate = metadata.Bitrate;
-                existing.AudioTrackCount = metadata.AudioTrackCount;
-                existing.SubtitleTrackCount = metadata.SubtitleTrackCount;
-                existing.ContainerFormat = metadata.ContainerFormat;
-                existing.ExtractedAt = DateTime.UtcNow;
-            }
-            else
-            {
-                metadata.ExtractedAt = DateTime.UtcNow;
-                _db.VideoMetadata.Add(metadata);
-            }
-
-            // ── Also store metadata on CanonicalVideoMetadata ──
+            // ── Store metadata on CanonicalVideoMetadata ──
             if (userVideo?.CanonicalVideo is not null)
             {
                 var canonicalMetadata = await _db.CanonicalVideoMetadata
                     .FirstOrDefaultAsync(cm => cm.VideoContentHash == userVideo.CanonicalContentHash, cancellationToken);
 
+                var width = vid.w ?? 0;
+                var height = vid.h ?? 0;
+                var frameRate = ParseFrameRate(vid.r);
+                var videoCodec = vid.c;
+                var audioCodec = aud.c;
+                var bitrate = ParseLong(vid.b) ?? ParseLong(format, "bit_rate") ?? 0;
+                var audioTrackCount = CountStreams(streams, "audio");
+                var subtitleTrackCount = CountStreams(streams, "subtitle");
+                var containerFormat = GetString(format, "format_name")?.Split(',').FirstOrDefault()?.Trim();
+
                 if (canonicalMetadata is not null)
                 {
-                    canonicalMetadata.Width = metadata.Width;
-                    canonicalMetadata.Height = metadata.Height;
-                    canonicalMetadata.FrameRate = metadata.FrameRate;
-                    canonicalMetadata.VideoCodec = metadata.VideoCodec;
-                    canonicalMetadata.AudioCodec = metadata.AudioCodec;
-                    canonicalMetadata.Bitrate = metadata.Bitrate;
-                    canonicalMetadata.AudioTrackCount = metadata.AudioTrackCount;
-                    canonicalMetadata.SubtitleTrackCount = metadata.SubtitleTrackCount;
-                    canonicalMetadata.ContainerFormat = metadata.ContainerFormat;
+                    canonicalMetadata.Width = width;
+                    canonicalMetadata.Height = height;
+                    canonicalMetadata.FrameRate = frameRate;
+                    canonicalMetadata.VideoCodec = videoCodec;
+                    canonicalMetadata.AudioCodec = audioCodec;
+                    canonicalMetadata.Bitrate = bitrate;
+                    canonicalMetadata.AudioTrackCount = audioTrackCount;
+                    canonicalMetadata.SubtitleTrackCount = subtitleTrackCount;
+                    canonicalMetadata.ContainerFormat = containerFormat;
                     canonicalMetadata.ExtractedAt = DateTime.UtcNow;
                 }
                 else
@@ -536,24 +486,24 @@ public sealed class VideoThumbnailService : IVideoThumbnailService
                     _db.CanonicalVideoMetadata.Add(new CanonicalVideoMetadata
                     {
                         VideoContentHash = userVideo.CanonicalContentHash,
-                        Width = metadata.Width,
-                        Height = metadata.Height,
-                        FrameRate = metadata.FrameRate,
-                        VideoCodec = metadata.VideoCodec,
-                        AudioCodec = metadata.AudioCodec,
-                        Bitrate = metadata.Bitrate,
-                        AudioTrackCount = metadata.AudioTrackCount,
-                        SubtitleTrackCount = metadata.SubtitleTrackCount,
-                        ContainerFormat = metadata.ContainerFormat,
+                        Width = width,
+                        Height = height,
+                        FrameRate = frameRate,
+                        VideoCodec = videoCodec,
+                        AudioCodec = audioCodec,
+                        Bitrate = bitrate,
+                        AudioTrackCount = audioTrackCount,
+                        SubtitleTrackCount = subtitleTrackCount,
+                        ContainerFormat = containerFormat,
                         ExtractedAt = DateTime.UtcNow
                     });
                 }
+
+                await _db.SaveChangesAsync(cancellationToken);
+
+                _logger.LogInformation("Metadata extracted for video {VideoId}: {Width}x{Height} {Codec}",
+                    videoId, width, height, videoCodec);
             }
-
-            await _db.SaveChangesAsync(cancellationToken);
-
-            _logger.LogInformation("Metadata extracted for video {VideoId}: {Width}x{Height} {Codec}",
-                videoId, metadata.Width, metadata.Height, metadata.VideoCodec);
         }
         catch (Exception ex)
         {

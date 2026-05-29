@@ -474,7 +474,7 @@ public class VideoController : VideoControllerBase
             return NotFound(ErrorEnvelope("file_not_found", "Video file not found in storage."));
         }
 
-        var contentType = VideoStreamingService.GetContentType(video.MimeType);
+        var contentType = VideoStreamingService.GetContentType(video.CanonicalVideo?.MimeType ?? "application/octet-stream");
 
         // Remove X-Content-Type-Options: nosniff for this endpoint.
         // The global security middleware sets it on every response, but nosniff

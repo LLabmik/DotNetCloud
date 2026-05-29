@@ -1,6 +1,7 @@
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Events.Search;
 using DotNetCloud.Modules.Video.Data;
 using DotNetCloud.Modules.Video.Data.Services;
 using DotNetCloud.Modules.Video.Services;
@@ -15,6 +16,7 @@ namespace DotNetCloud.Modules.Video.Tests;
 public class VideoIndexingCallbackTests
 {
     private VideoDbContext _db = null!;
+    private Mock<IEventBus> _eventBusMock = null!;
     private VideoService _videoService = null!;
     private Mock<IVideoCollectionService> _collectionServiceMock = null!;
     private Mock<IVideoSeriesService> _seriesServiceMock = null!;
@@ -24,7 +26,10 @@ public class VideoIndexingCallbackTests
     public void Setup()
     {
         _db = TestHelpers.CreateDb();
-        _videoService = new VideoService(_db, Mock.Of<IEventBus>(), Mock.Of<IVideoSeriesService>(), Mock.Of<DotNetCloud.Core.Data.Naming.ITableNamingStrategy>(), Mock.Of<ILogger<VideoService>>());
+        _eventBusMock = new Mock<IEventBus>();
+        _eventBusMock.Setup(x => x.PublishAsync(It.IsAny<VideoAddedEvent>(), It.IsAny<CallerContext>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        _eventBusMock.Setup(x => x.PublishAsync(It.IsAny<SearchIndexRequestEvent>(), It.IsAny<CallerContext>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        _videoService = new VideoService(_db, _eventBusMock.Object, Mock.Of<IVideoSeriesService>(), Mock.Of<DotNetCloud.Core.Data.Naming.ITableNamingStrategy>(), Mock.Of<ILogger<VideoService>>());
         _collectionServiceMock = new Mock<IVideoCollectionService>();
         _collectionServiceMock
             .Setup(x => x.FindOrCreateByNameAsync(It.IsAny<string>(), It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
@@ -53,7 +58,7 @@ public class VideoIndexingCallbackTests
 
         await _callback.IndexVideoAsync(fileNodeId, "movie.mp4", "video/mp4", 500_000_000, ownerId);
 
-        var count = _db.Videos.Count(v => v.FileNodeId == fileNodeId);
+        var count = _db.UserVideos.Count(v => v.FileNodeId == fileNodeId);
         Assert.AreEqual(1, count);
     }
 
@@ -61,11 +66,13 @@ public class VideoIndexingCallbackTests
     public async Task IndexVideoAsync_SetsCorrectTitle()
     {
         var fileNodeId = Guid.NewGuid();
+        var ownerId = Guid.NewGuid();
 
-        await _callback.IndexVideoAsync(fileNodeId, "family-vacation.mkv", "video/x-matroska", 1024, Guid.NewGuid());
+        await _callback.IndexVideoAsync(fileNodeId, "family-vacation.mkv", "video/x-matroska", 1024, ownerId);
 
-        var video = _db.Videos.First(v => v.FileNodeId == fileNodeId);
-        Assert.AreEqual("family-vacation", video.Title);
+        var uv = _db.UserVideos.First(v => v.FileNodeId == fileNodeId);
+        var canonical = _db.CanonicalVideos.First(cv => cv.ContentHash == uv.CanonicalContentHash);
+        Assert.AreEqual("family-vacation", canonical.Title);
     }
 
     [TestMethod]
@@ -76,8 +83,8 @@ public class VideoIndexingCallbackTests
 
         await _callback.IndexVideoAsync(fileNodeId, "test.mp4", "video/mp4", 1024, ownerId);
 
-        var video = _db.Videos.First(v => v.FileNodeId == fileNodeId);
-        Assert.AreEqual(ownerId, video.OwnerId);
+        var uv = _db.UserVideos.First(v => v.FileNodeId == fileNodeId);
+        Assert.AreEqual(ownerId, uv.OwnerId);
     }
 
     [TestMethod]
@@ -89,7 +96,7 @@ public class VideoIndexingCallbackTests
         await _callback.IndexVideoAsync(fileNodeId, "first.mp4", "video/mp4", 1024, ownerId);
         await _callback.IndexVideoAsync(fileNodeId, "second.mp4", "video/mp4", 2048, ownerId);
 
-        var count = _db.Videos.Count(v => v.FileNodeId == fileNodeId);
+        var count = _db.UserVideos.Count(v => v.FileNodeId == fileNodeId);
         Assert.AreEqual(1, count);
     }
 
@@ -102,7 +109,7 @@ public class VideoIndexingCallbackTests
         await _callback.IndexVideoAsync(Guid.NewGuid(), "vid2.mkv", "video/x-matroska", 2048, ownerId);
         await _callback.IndexVideoAsync(Guid.NewGuid(), "vid3.webm", "video/webm", 512, ownerId);
 
-        Assert.AreEqual(3, _db.Videos.Count());
+        Assert.AreEqual(3, _db.UserVideos.Count());
     }
 
     [TestMethod]
@@ -164,7 +171,7 @@ public class VideoIndexingCallbackTests
         await _callback.IndexVideoAsync(fileNodeId, "episode.mp4", "video/mp4", 1024, ownerId, sourceName: "TV Shows");
 
         // Video should still be created despite collection error
-        var count = _db.Videos.Count(v => v.FileNodeId == fileNodeId);
+        var count = _db.UserVideos.Count(v => v.FileNodeId == fileNodeId);
         Assert.AreEqual(1, count);
     }
 

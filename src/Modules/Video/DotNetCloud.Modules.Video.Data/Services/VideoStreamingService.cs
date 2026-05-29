@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Errors;
+using DotNetCloud.Modules.Video.Models;
 using DotNetCloud.Modules.Video.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -35,10 +36,10 @@ public sealed class VideoStreamingService : IVideoStreamingService
     /// <summary>
     /// Gets a video by ID, verifying the user has access.
     /// </summary>
-    public async Task<Models.Video?> GetVideoForStreamingAsync(Guid videoId, Guid userId, CancellationToken cancellationToken = default)
+    public async Task<UserVideo?> GetVideoForStreamingAsync(Guid videoId, Guid userId, CancellationToken cancellationToken = default)
     {
-        return await _db.Videos
-            .FirstOrDefaultAsync(v => v.Id == videoId && v.OwnerId == userId, cancellationToken);
+        return await _db.UserVideos
+            .FirstOrDefaultAsync(uv => uv.Id == videoId && uv.OwnerId == userId, cancellationToken);
     }
 
     /// <summary>

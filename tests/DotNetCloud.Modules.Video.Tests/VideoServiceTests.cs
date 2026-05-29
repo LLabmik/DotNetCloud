@@ -28,9 +28,9 @@ public class VideoServiceTests
     public async Task ListVideosAsync_ReturnsUserVideos()
     {
         var caller = TestHelpers.CreateCaller();
-        await TestHelpers.SeedVideoAsync(_db, "Video 1", ownerId: caller.UserId);
-        await TestHelpers.SeedVideoAsync(_db, "Video 2", ownerId: caller.UserId);
-        await TestHelpers.SeedVideoAsync(_db, "Other User Video", ownerId: Guid.NewGuid());
+        await TestHelpers.SeedCanonicalVideoAsync(_db, "Video 1", contentHash: "hash1", ownerId: caller.UserId);
+        await TestHelpers.SeedCanonicalVideoAsync(_db, "Video 2", contentHash: "hash2", ownerId: caller.UserId);
+        await TestHelpers.SeedCanonicalVideoAsync(_db, "Other User Video", contentHash: "hash3", ownerId: Guid.NewGuid());
 
         var result = await _service.ListVideosAsync(caller, 0, 50);
 
@@ -42,7 +42,7 @@ public class VideoServiceTests
     {
         var caller = TestHelpers.CreateCaller();
         for (var i = 0; i < 5; i++)
-            await TestHelpers.SeedVideoAsync(_db, $"Video {i}", ownerId: caller.UserId);
+            await TestHelpers.SeedCanonicalVideoAsync(_db, $"Video {i}", contentHash: $"hash{i}", ownerId: caller.UserId);
 
         var result = await _service.ListVideosAsync(caller, 2, 2);
 
@@ -76,9 +76,9 @@ public class VideoServiceTests
     public async Task SearchAsync_FindsMatchingVideos()
     {
         var caller = TestHelpers.CreateCaller();
-        await TestHelpers.SeedVideoAsync(_db, "Vacation Highlights", ownerId: caller.UserId);
-        await TestHelpers.SeedVideoAsync(_db, "Birthday Party", ownerId: caller.UserId);
-        await TestHelpers.SeedVideoAsync(_db, "Vacation Clips", ownerId: caller.UserId);
+        await TestHelpers.SeedCanonicalVideoAsync(_db, "Vacation Highlights", contentHash: "shash1", ownerId: caller.UserId);
+        await TestHelpers.SeedCanonicalVideoAsync(_db, "Birthday Party", contentHash: "shash2", ownerId: caller.UserId);
+        await TestHelpers.SeedCanonicalVideoAsync(_db, "Vacation Clips", contentHash: "shash3", ownerId: caller.UserId);
 
         var result = await _service.SearchAsync(caller, "Vacation", 10);
 
@@ -89,8 +89,8 @@ public class VideoServiceTests
     public async Task GetRecentVideosAsync_ReturnsOrderedByCreatedAt()
     {
         var caller = TestHelpers.CreateCaller();
-        await TestHelpers.SeedVideoAsync(_db, "Older", ownerId: caller.UserId);
-        await TestHelpers.SeedVideoAsync(_db, "Newer", ownerId: caller.UserId);
+        await TestHelpers.SeedCanonicalVideoAsync(_db, "Older", contentHash: "rhash1", ownerId: caller.UserId);
+        await TestHelpers.SeedCanonicalVideoAsync(_db, "Newer", contentHash: "rhash2", ownerId: caller.UserId);
 
         var result = await _service.GetRecentVideosAsync(caller, take: 10);
 
@@ -127,10 +127,10 @@ public class VideoServiceTests
     public async Task GetFavoriteVideosAsync_ReturnsFavoritesOnly()
     {
         var caller = TestHelpers.CreateCaller();
-        var v1 = await TestHelpers.SeedVideoAsync(_db, "Fav", ownerId: caller.UserId);
-        await TestHelpers.SeedVideoAsync(_db, "Not Fav", ownerId: caller.UserId);
+        var (_, favVideo) = await TestHelpers.SeedCanonicalVideoAsync(_db, "Fav", contentHash: "fhash1", ownerId: caller.UserId);
+        await TestHelpers.SeedCanonicalVideoAsync(_db, "Not Fav", contentHash: "fhash2", ownerId: caller.UserId);
 
-        await _service.ToggleFavoriteAsync(v1.Id, caller);
+        await _service.ToggleFavoriteAsync(favVideo.Id, caller);
 
         var result = await _service.GetFavoritesAsync(caller);
 

@@ -724,6 +724,7 @@ public partial class VideoPage : IAsyncDisposable
 
     private async Task OpenSeriesDetailAsync(VideoSeriesDto series)
     {
+        _section = Section.Series;
         _selectedSeries = series;
         _selectedSeason = null;
         _seasonEpisodes.Clear();
