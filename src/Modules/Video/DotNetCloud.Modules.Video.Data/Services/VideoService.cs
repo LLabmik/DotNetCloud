@@ -23,6 +23,10 @@ public sealed class VideoService : IVideoService
     private readonly ITableNamingStrategy _namingStrategy;
     private readonly ILogger<VideoService> _logger;
 
+    // Per-circuit cache: series content hashes rarely change (only on library scan).
+    // Avoids scanning CanonicalVideoEpisodes + CanonicalVideoSeriesItems on every page turn.
+    private HashSet<string>? _cachedSeriesContentHashes;
+
     /// <summary>
     /// Initializes a new instance of the <see cref="VideoService"/> class.
     /// </summary>
@@ -168,8 +172,9 @@ public sealed class VideoService : IVideoService
 
     /// <summary>
     /// Lists videos for the authenticated user. Optionally excludes videos that belong to a series.
+    /// When <paramref name="sortAlphabetically"/> is true, sorts by title A-Z instead of newest first.
     /// </summary>
-    public async Task<IReadOnlyList<VideoDto>> ListVideosAsync(CallerContext caller, int skip = 0, int take = 50, bool excludeSeriesContent = false, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<VideoDto>> ListVideosAsync(CallerContext caller, int skip = 0, int take = 50, bool excludeSeriesContent = false, bool sortAlphabetically = false, CancellationToken cancellationToken = default)
     {
         IQueryable<UserVideo> query = _db.UserVideos
             .Include(uv => uv.CanonicalVideo).ThenInclude(cv => cv!.Metadata)
@@ -177,12 +182,25 @@ public sealed class VideoService : IVideoService
 
         if (excludeSeriesContent)
         {
-            var seriesContentHashes = await GetSeriesContentHashesAsync(cancellationToken);
-            query = query.Where(uv => !seriesContentHashes.Contains(uv.CanonicalContentHash));
+            // NOT EXISTS subqueries are far faster than loading all hashes into memory with NOT IN.
+            // The database uses indexes on VideoContentHash and short-circuits on first match.
+            query = query.Where(uv => !_db.CanonicalVideoEpisodes.Any(e => e.VideoContentHash == uv.CanonicalContentHash)
+                                   && !_db.CanonicalVideoSeriesItems.Any(i => i.VideoContentHash == uv.CanonicalContentHash));
         }
 
-        var userVideos = await query
-            .OrderByDescending(uv => uv.CreatedAt)
+        IQueryable<UserVideo> orderedQuery;
+        if (sortAlphabetically)
+        {
+            orderedQuery = query
+                .Where(uv => uv.CanonicalVideo != null)
+                .OrderBy(uv => uv.CanonicalVideo!.Title);
+        }
+        else
+        {
+            orderedQuery = query.OrderByDescending(uv => uv.CreatedAt);
+        }
+
+        var userVideos = await orderedQuery
             .Skip(skip)
             .Take(take)
             .ToListAsync(cancellationToken);
@@ -277,8 +295,8 @@ public sealed class VideoService : IVideoService
 
         if (excludeSeriesContent)
         {
-            var seriesContentHashes = await GetSeriesContentHashesAsync(cancellationToken);
-            query = query.Where(uv => !seriesContentHashes.Contains(uv.CanonicalContentHash));
+            query = query.Where(uv => !_db.CanonicalVideoEpisodes.Any(e => e.VideoContentHash == uv.CanonicalContentHash)
+                                   && !_db.CanonicalVideoSeriesItems.Any(i => i.VideoContentHash == uv.CanonicalContentHash));
         }
 
         return await query.CountAsync(cancellationToken);
@@ -349,6 +367,12 @@ public sealed class VideoService : IVideoService
         }, caller, cancellationToken);
     }
 
+    /// <inheritdoc />
+    public void InvalidateLibraryCache()
+    {
+        _cachedSeriesContentHashes = null;
+    }
+
     /// <summary>
     /// Maps a UserVideo + CanonicalVideo pair to VideoDto.
     /// </summary>
@@ -407,6 +431,9 @@ public sealed class VideoService : IVideoService
     /// </summary>
     private async Task<HashSet<string>> GetSeriesContentHashesAsync(CancellationToken cancellationToken = default)
     {
+        if (_cachedSeriesContentHashes is not null)
+            return _cachedSeriesContentHashes;
+
         var episodeHashes = await _db.CanonicalVideoEpisodes
             .Select(e => e.VideoContentHash)
             .ToListAsync(cancellationToken);
@@ -415,22 +442,50 @@ public sealed class VideoService : IVideoService
             .Select(i => i.VideoContentHash)
             .ToListAsync(cancellationToken);
 
-        return episodeHashes.Concat(franchiseHashes).ToHashSet();
+        _cachedSeriesContentHashes = episodeHashes.Concat(franchiseHashes).ToHashSet();
+        return _cachedSeriesContentHashes;
     }
 
     /// <summary>
-    /// Returns combined library content: all series (sorted by name) + paginated standalone videos.
+    /// Returns combined library content with two-phase server-side paging.
+    /// Series slots are consumed first (sorted by name), then standalone video slots (sorted by title, A-Z).
+    /// This avoids loading all data into memory — only the current page is fetched.
+    /// When <paramref name="preloadedSeries"/> is provided, skips the expensive ListSeriesAsync call
+    /// (series data doesn't change between page views).
     /// </summary>
-    public async Task<VideoLibraryContentDto> ListLibraryContentAsync(CallerContext caller, int skip = 0, int take = 50, CancellationToken cancellationToken = default)
+    public async Task<VideoLibraryContentDto> ListLibraryContentAsync(CallerContext caller, int skip = 0, int take = 50, IReadOnlyList<VideoSeriesDto>? preloadedSeries = null, CancellationToken cancellationToken = default)
     {
-        var series = await _seriesService.ListSeriesAsync(caller, cancellationToken);
-        var standaloneVideos = await ListVideosAsync(caller, skip, take, excludeSeriesContent: true, cancellationToken);
+        var allSeries = preloadedSeries ?? await _seriesService.ListSeriesAsync(caller, cancellationToken);
+        var seriesCount = allSeries.Count;
         var totalStandalone = await GetVideoCountAsync(caller.UserId, excludeSeriesContent: true, cancellationToken);
+
+        IReadOnlyList<VideoSeriesDto> pageSeries;
+        IReadOnlyList<VideoDto> pageVideos;
+
+        if (skip < seriesCount)
+        {
+            // Page starts in the series range
+            var seriesOnPage = Math.Min(take, seriesCount - skip);
+            pageSeries = allSeries.Skip(skip).Take(seriesOnPage).ToList();
+
+            var videoTake = take - seriesOnPage;
+            pageVideos = videoTake > 0
+                ? await ListVideosAsync(caller, 0, videoTake, excludeSeriesContent: true, sortAlphabetically: true, cancellationToken)
+                : [];
+        }
+        else
+        {
+            // Page starts past all series — entirely in video range
+            pageSeries = [];
+            var videoSkip = skip - seriesCount;
+            pageVideos = await ListVideosAsync(caller, videoSkip, take, excludeSeriesContent: true, sortAlphabetically: true, cancellationToken);
+        }
 
         return new VideoLibraryContentDto
         {
-            Series = series,
-            StandaloneVideos = standaloneVideos,
+            Series = pageSeries,
+            StandaloneVideos = pageVideos,
+            TotalSeries = seriesCount,
             TotalStandaloneVideos = totalStandalone
         };
     }

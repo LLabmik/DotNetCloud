@@ -18,16 +18,18 @@ public interface IVideoService
     Task<VideoDto?> GetVideoByFileNodeIdAsync(Guid fileNodeId, CallerContext caller, CancellationToken cancellationToken = default);
 
     /// <summary>Lists videos with paging. Optionally excludes videos that belong to a series.</summary>
-    Task<IReadOnlyList<VideoDto>> ListVideosAsync(CallerContext caller, int skip = 0, int take = 50, bool excludeSeriesContent = false, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<VideoDto>> ListVideosAsync(CallerContext caller, int skip = 0, int take = 50, bool excludeSeriesContent = false, bool sortAlphabetically = false, CancellationToken cancellationToken = default);
 
     /// <summary>Gets the total video count for a user. Optionally excludes series-linked videos.</summary>
     Task<int> GetVideoCountAsync(Guid ownerId, bool excludeSeriesContent = false, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Returns combined library content: all series (sorted by name) + paginated standalone videos.
+    /// Returns combined library content with two-phase server-side paging.
+    /// Series slots are consumed first (sorted by name), then standalone video slots (sorted by title, A-Z).
     /// Standalone videos exclude any video that belongs to a series (episode or franchise item).
+    /// When <paramref name="preloadedSeries"/> is provided, skips the expensive ListSeriesAsync call.
     /// </summary>
-    Task<VideoLibraryContentDto> ListLibraryContentAsync(CallerContext caller, int skip = 0, int take = 50, CancellationToken cancellationToken = default);
+    Task<VideoLibraryContentDto> ListLibraryContentAsync(CallerContext caller, int skip = 0, int take = 50, IReadOnlyList<VideoSeriesDto>? preloadedSeries = null, CancellationToken cancellationToken = default);
 
     /// <summary>Searches videos and series by query. Returns series matches + standalone video matches.</summary>
     Task<VideoSearchResultDto> SearchAsync(CallerContext caller, string query, int maxResults = 20, CancellationToken cancellationToken = default);
@@ -43,4 +45,7 @@ public interface IVideoService
 
     /// <summary>Deletes a video.</summary>
     Task DeleteVideoAsync(Guid videoId, CallerContext caller, CancellationToken cancellationToken = default);
+
+    /// <summary>Invalidates the per-circuit library cache (called after a library scan).</summary>
+    void InvalidateLibraryCache();
 }

@@ -59,10 +59,6 @@ public partial class VideoPage : IAsyncDisposable
     private int _totalSeries;
     private bool _hasMoreSeries;
 
-    // ── Library series paging (client-side slice of _libraryContent.Series) ──
-    private int _librarySeriesPage;
-    private bool _hasMoreLibrarySeries;
-
     private int _collectionVideoPage;
     private const int CollectionVideoPageSize = 50;
     private int _totalCollectionVideos;
@@ -77,12 +73,7 @@ public partial class VideoPage : IAsyncDisposable
     private string LastCollectionVideoTitle => _collectionContent?.StandaloneVideos.Count > 0 ? _collectionContent.StandaloneVideos[^1].Title : string.Empty;
     private string FirstSeriesName => _seriesList.Count > 0 ? _seriesList[0].Name : string.Empty;
     private string LastSeriesName => _seriesList.Count > 0 ? _seriesList[^1].Name : string.Empty;
-    private string FirstLibrarySeriesName => LibrarySeries.Count > 0 ? LibrarySeries[0].Name : string.Empty;
-    private string LastLibrarySeriesName => LibrarySeries.Count > 0 ? LibrarySeries[^1].Name : string.Empty;
-    private IReadOnlyList<VideoSeriesDto> LibrarySeries => _libraryContent?.Series
-        .Skip(_librarySeriesPage * SeriesPageSize)
-        .Take(SeriesPageSize)
-        .ToList() ?? [];
+
 
     // ── Selection ──
     private VideoCollectionDto? _selectedCollection;
@@ -102,6 +93,15 @@ public partial class VideoPage : IAsyncDisposable
     private IJSObjectReference? _keyboardShortcutsHandle;
     private DotNetObjectReference<VideoPage>? _dotNetRef;
     private bool _videoErrorListenerAttached;
+
+    // ── Page-load semaphore (serializes DbContext access to prevent concurrency on rapid clicks) ──
+    private readonly SemaphoreSlim _pageLoadSemaphore = new(1, 1);
+
+    // ── Library paging spinner ──
+    private bool _libraryPaging;
+
+    // ── Cached series list (avoids expensive ListSeriesAsync on every page turn) ──
+    private List<VideoSeriesDto>? _librarySeriesCache;
 
     // ── Dialogs ──
     private bool _showCreateCollectionDialog;
@@ -438,10 +438,10 @@ public partial class VideoPage : IAsyncDisposable
         _playerOpen = false;
         _playerSeriesContext = null;
         _videoPage = 0;
-        _librarySeriesPage = 0;
         _recentPage = 0;
         _seriesPage = 0;
         _collectionVideoPage = 0;
+        _librarySeriesCache = null; // series may have changed after a scan
         _breadcrumb.Clear();
         await LoadCurrentSectionAsync();
     }
@@ -459,6 +459,8 @@ public partial class VideoPage : IAsyncDisposable
         if (_caller is null)
             return;
 
+        // Note: individual page load methods (LoadVideosPageAsync, etc.) handle
+        // their own semaphore acquisition — do NOT acquire it here.
         try
         {
             _loading = true;
@@ -509,11 +511,26 @@ public partial class VideoPage : IAsyncDisposable
         if (_caller is null)
             return;
 
-        _libraryContent = await VideoService.ListLibraryContentAsync(_caller, _videoPage * VideoPageSize, VideoPageSize);
-        _totalVideos = _libraryContent.TotalStandaloneVideos;
-        _hasMoreVideos = (_videoPage + 1) * VideoPageSize < _totalVideos;
-        _librarySeriesPage = 0;
-        _hasMoreLibrarySeries = SeriesPageSize < _libraryContent.Series.Count;
+        _libraryPaging = true;
+        StateHasChanged();
+
+        // Serialize DbContext access to prevent concurrency errors on rapid page clicks.
+        await _pageLoadSemaphore.WaitAsync();
+        try
+        {
+            // Cache series between page loads — ListSeriesAsync is expensive (4-5 queries).
+            _librarySeriesCache ??= (await SeriesService.ListSeriesAsync(_caller)).ToList();
+
+            _libraryContent = await VideoService.ListLibraryContentAsync(_caller, _videoPage * VideoPageSize, VideoPageSize, _librarySeriesCache);
+            _totalVideos = _libraryContent.TotalSeries + _libraryContent.TotalStandaloneVideos;
+            _hasMoreVideos = (_videoPage + 1) * VideoPageSize < _totalVideos;
+        }
+        finally
+        {
+            _pageLoadSemaphore.Release();
+            _libraryPaging = false;
+            StateHasChanged();
+        }
     }
 
     private async Task PrevVideoPageAsync()
@@ -534,39 +551,23 @@ public partial class VideoPage : IAsyncDisposable
         await LoadVideosPageAsync();
     }
 
-    // ── Library Series Paging ──
-
-    private async Task PrevLibrarySeriesPageAsync()
-    {
-        if (_librarySeriesPage > 0)
-        {
-            _librarySeriesPage--;
-            _hasMoreLibrarySeries = true;
-            StateHasChanged();
-        }
-        await Task.CompletedTask;
-    }
-
-    private async Task NextLibrarySeriesPageAsync()
-    {
-        if (!_hasMoreLibrarySeries)
-            return;
-
-        _librarySeriesPage++;
-        _hasMoreLibrarySeries = (_librarySeriesPage + 1) * SeriesPageSize < (_libraryContent?.Series.Count ?? 0);
-        StateHasChanged();
-        await Task.CompletedTask;
-    }
-
     private async Task LoadRecentPageAsync()
     {
         if (_caller is null)
             return;
 
-        _totalRecentVideos = await VideoService.GetVideoCountAsync(_caller.UserId);
-        var videos = (await VideoService.GetRecentVideosAsync(_caller, _recentPage * RecentPageSize, RecentPageSize)).ToList();
-        _hasMoreRecent = (_recentPage + 1) * RecentPageSize < _totalRecentVideos;
-        _recentVideos = videos;
+        await _pageLoadSemaphore.WaitAsync();
+        try
+        {
+            _totalRecentVideos = await VideoService.GetVideoCountAsync(_caller.UserId);
+            var videos = (await VideoService.GetRecentVideosAsync(_caller, _recentPage * RecentPageSize, RecentPageSize)).ToList();
+            _hasMoreRecent = (_recentPage + 1) * RecentPageSize < _totalRecentVideos;
+            _recentVideos = videos;
+        }
+        finally
+        {
+            _pageLoadSemaphore.Release();
+        }
     }
 
     private async Task PrevRecentPageAsync()
@@ -594,13 +595,21 @@ public partial class VideoPage : IAsyncDisposable
         if (_caller is null)
             return;
 
-        var allSeries = (await SeriesService.ListSeriesAsync(_caller)).ToList();
-        _totalSeries = allSeries.Count;
-        _seriesList = allSeries
-            .Skip(_seriesPage * SeriesPageSize)
-            .Take(SeriesPageSize)
-            .ToList();
-        _hasMoreSeries = (_seriesPage + 1) * SeriesPageSize < _totalSeries;
+        await _pageLoadSemaphore.WaitAsync();
+        try
+        {
+            var allSeries = (await SeriesService.ListSeriesAsync(_caller)).ToList();
+            _totalSeries = allSeries.Count;
+            _seriesList = allSeries
+                .Skip(_seriesPage * SeriesPageSize)
+                .Take(SeriesPageSize)
+                .ToList();
+            _hasMoreSeries = (_seriesPage + 1) * SeriesPageSize < _totalSeries;
+        }
+        finally
+        {
+            _pageLoadSemaphore.Release();
+        }
     }
 
     private async Task PrevSeriesPageAsync()
@@ -1302,6 +1311,7 @@ public partial class VideoPage : IAsyncDisposable
 
             // Clear displayed data
             _libraryContent = null;
+            _librarySeriesCache = null;
             _recentVideos.Clear();
             _favoriteVideos.Clear();
             _collectionContent = null;
@@ -1714,5 +1724,7 @@ public partial class VideoPage : IAsyncDisposable
             { await _jsModule.DisposeAsync(); }
             catch { /* circuit may be gone */ }
         }
+
+        _pageLoadSemaphore.Dispose();
     }
 }

@@ -245,7 +245,7 @@
                 </div>
             }
 
-            @* ─── Library (series first, then standalone videos) ─── *@
+            @* ─── Library (unified view — series first, then standalone videos, single paging) ─── *@
             @if (_section == Section.Library && !_playerOpen && _searchResults is null)
             {
                 @if (_libraryContent is null || (_libraryContent.Series.Count == 0 && _libraryContent.StandaloneVideos.Count == 0))
@@ -258,35 +258,37 @@
                 }
                 else
                 {
-                    @* ── Series section (shown first, paged) ── *@
-                    @if (_libraryContent.Series.Count > 0)
+                    var pageStart = _videoPage * VideoPageSize + 1;
+                    var pageEnd = _videoPage * VideoPageSize + _libraryContent.Series.Count + _libraryContent.StandaloneVideos.Count;
+
+                    @* ── Unified toolbar (single paging for the combined view) ── *@
+                    <div class="videos-toolbar">
+                        <button class="btn-icon" @onclick="PrevVideoPageAsync" disabled="@(_videoPage == 0)" title="Previous page">
+                            <span>◀</span>
+                        </button>
+                        <div class="videos-page-info">
+                            <span>Showing @pageStart-@pageEnd of @_totalVideos items</span>
+                        </div>
+                        <button class="btn-icon" @onclick="NextVideoPageAsync" disabled="@(!_hasMoreVideos)" title="Next page">
+                            <span>▶</span>
+                        </button>
+                    </div>
+
+                    @if (_libraryPaging)
                     {
-                        <section class="video-section">
-                            <h4>Series</h4>
-                            @if (_libraryContent.Series.Count > SeriesPageSize)
-                            {
-                                <div class="videos-toolbar">
-                                    <button class="btn-icon" @onclick="PrevLibrarySeriesPageAsync" disabled="@(_librarySeriesPage == 0)" title="Previous page">
-                                        <span>◀</span>
-                                    </button>
-                                    @if (!string.IsNullOrWhiteSpace(FirstLibrarySeriesName))
-                                    {
-                                        <span class="page-edge-name page-edge-name-start" title="@FirstLibrarySeriesName">@FirstLibrarySeriesName</span>
-                                    }
-                                    <div class="videos-page-info">
-                                        <span>Showing @(_librarySeriesPage * SeriesPageSize + 1)-@(_librarySeriesPage * SeriesPageSize + LibrarySeries.Count) of @_libraryContent.Series.Count series</span>
-                                    </div>
-                                    @if (!string.IsNullOrWhiteSpace(LastLibrarySeriesName))
-                                    {
-                                        <span class="page-edge-name page-edge-name-end" title="@LastLibrarySeriesName">@LastLibrarySeriesName</span>
-                                    }
-                                    <button class="btn-icon" @onclick="NextLibrarySeriesPageAsync" disabled="@(!_hasMoreLibrarySeries)" title="Next page">
-                                        <span>▶</span>
-                                    </button>
-                                </div>
-                            }
+                        <div class="video-loading" style="padding: 48px 0;">
+                            <div class="loading-spinner"></div>
+                            <p>Loading…</p>
+                        </div>
+                    }
+                    else
+                    {
+                    <section class="video-section">
+                        @* ── Series cards (shown first) ── *@
+                        @if (_libraryContent.Series.Count > 0)
+                        {
                             <div class="series-grid">
-                                @foreach (var series in LibrarySeries)
+                                @foreach (var series in _libraryContent.Series)
                                 {
                                     var capturedSeries = series;
                                     <div class="series-card"
@@ -334,33 +336,11 @@
                                     </div>
                                 }
                             </div>
-                        </section>
-                    }
+                        }
 
-                    @* ── Standalone videos section ── *@
-                    @if (_libraryContent.StandaloneVideos.Count > 0)
-                    {
-                        <section class="video-section">
-                            <h4>Videos</h4>
-                            <div class="videos-toolbar">
-                                <button class="btn-icon" @onclick="PrevVideoPageAsync" disabled="@(_videoPage == 0)" title="Previous page">
-                                    <span>◀</span>
-                                </button>
-                                @if (!string.IsNullOrWhiteSpace(FirstVideoTitle))
-                                {
-                                    <span class="page-edge-name page-edge-name-start" title="@FirstVideoTitle">@FirstVideoTitle</span>
-                                }
-                                <div class="videos-page-info">
-                                    <span>Showing @(_libraryContent.StandaloneVideos.Count == 0 ? 0 : _videoPage * VideoPageSize + 1)-@(_videoPage * VideoPageSize + _libraryContent.StandaloneVideos.Count) of @_totalVideos videos</span>
-                                </div>
-                                @if (!string.IsNullOrWhiteSpace(LastVideoTitle))
-                                {
-                                    <span class="page-edge-name page-edge-name-end" title="@LastVideoTitle">@LastVideoTitle</span>
-                                }
-                                <button class="btn-icon" @onclick="NextVideoPageAsync" disabled="@(!_hasMoreVideos)" title="Next page">
-                                    <span>▶</span>
-                                </button>
-                            </div>
+                        @* ── Standalone video cards (shown after series) ── *@
+                        @if (_libraryContent.StandaloneVideos.Count > 0)
+                        {
                             <div class="video-grid padded">
                                 @foreach (var video in _libraryContent.StandaloneVideos)
                                 {
@@ -391,7 +371,8 @@
                                     </div>
                                 }
                             </div>
-                        </section>
+                        }
+                    </section>
                     }
                 }
             }

@@ -370,16 +370,21 @@ public sealed record ReorderRequestDto
 
 /// <summary>
 /// Combined library content — series cards + standalone videos.
+/// Series are returned first (sorted by name), followed by standalone videos (sorted by title).
+/// The server applies two-phase paging: series slots are consumed first, then video slots.
 /// </summary>
 public sealed record VideoLibraryContentDto
 {
-    /// <summary>All series for the current user (sorted by name).</summary>
+    /// <summary>Series on the current page (sorted by name).</summary>
     public IReadOnlyList<VideoSeriesDto> Series { get; init; } = [];
 
-    /// <summary>Standalone videos (not part of any series) with paging applied.</summary>
+    /// <summary>Standalone videos on the current page (sorted by title, not part of any series).</summary>
     public IReadOnlyList<VideoDto> StandaloneVideos { get; init; } = [];
 
-    /// <summary>Total number of standalone videos (for paging).</summary>
+    /// <summary>Total number of series across all pages.</summary>
+    public int TotalSeries { get; init; }
+
+    /// <summary>Total number of standalone videos across all pages.</summary>
     public int TotalStandaloneVideos { get; init; }
 }
 
