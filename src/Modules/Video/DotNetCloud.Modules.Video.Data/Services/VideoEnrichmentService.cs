@@ -198,6 +198,10 @@ public sealed partial class VideoEnrichmentService : IVideoEnrichmentService
         // and by the thumbnail/poster service to prefer the TMDB poster over screenshots.
         canonicalVideo.HasExternalPoster = true;
         canonicalVideo.ThumbnailPosterHash = null;
+        // Propagate the poster hash from CanonicalTmdbData to CanonicalVideo so that
+        // GetThumbnailAsync (Priority 2) can serve the poster via content-addressed storage.
+        if (canonicalTmdb.ExternalPosterHash is not null)
+            canonicalVideo.ExternalPosterHash = canonicalTmdb.ExternalPosterHash;
         canonicalVideo.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(cancellationToken);
