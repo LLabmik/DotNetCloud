@@ -80,7 +80,7 @@ public sealed partial class VideoEnrichmentService : IVideoEnrichmentService
                     Title = detail.Title,
                     Overview = detail.Overview,
                     PosterPath = detail.PosterPath,
-                    ReleaseDate = detail.ReleaseDate?.ToString("yyyy-MM-dd"),
+                    ReleaseDate = detail.ReleaseDate,
                     VoteAverage = detail.VoteAverage
                 };
             }
@@ -145,8 +145,8 @@ public sealed partial class VideoEnrichmentService : IVideoEnrichmentService
             .FirstOrDefaultAsync(ct => ct.TmdbId == best.Id, cancellationToken);
 
         var tmdbOverview = detail?.Overview ?? best.Overview;
-        var tmdbReleaseDate = detail?.ReleaseDate is not null
-            ? DateTime.SpecifyKind(detail.ReleaseDate.Value, DateTimeKind.Utc)
+        var tmdbReleaseDate = detail?.ReleaseDate is not null && DateTime.TryParse(detail.ReleaseDate, out var detailRd)
+            ? DateTime.SpecifyKind(detailRd, DateTimeKind.Utc)
             : (best.ReleaseDate is not null && DateTime.TryParse(best.ReleaseDate, out var rd)
                 ? DateTime.SpecifyKind(rd, DateTimeKind.Utc)
                 : (DateTime?)null);
@@ -327,8 +327,8 @@ public sealed partial class VideoEnrichmentService : IVideoEnrichmentService
                 Title = tvDetail.Name,
                 Overview = tvDetail.Overview,
                 PosterPath = tvDetail.PosterPath,
-                ReleaseDate = tvDetail.Seasons is { Count: > 0 } && tvDetail.Seasons[0].AirDate is not null
-                    ? DateTime.TryParse(tvDetail.Seasons[0].AirDate, out var d) ? d : null
+                ReleaseDate = tvDetail.Seasons is { Count: > 0 }
+                    ? tvDetail.Seasons[0].AirDate
                     : null,
                 VoteAverage = tvDetail.VoteAverage,
                 Genres = tvDetail.Genres

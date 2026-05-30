@@ -62,7 +62,12 @@ public sealed record TmdbMovieDetail
     public required string Title { get; init; }
     public string? Overview { get; init; }
     public string? PosterPath { get; init; }
-    public DateTime? ReleaseDate { get; init; }
+    /// <summary>
+    /// Release date from TMDB API. Stored as string? because TMDB returns empty string ""
+    /// for movies without a release date — System.Text.Json cannot deserialize "" to DateTime?.
+    /// Parse with DateTime.TryParse when a DateTime value is needed.
+    /// </summary>
+    public string? ReleaseDate { get; init; }
     public double? VoteAverage { get; init; }
     public List<TmdbGenre> Genres { get; init; } = [];
     public TmdbCollectionInfo? BelongsToCollection { get; init; }

@@ -88,6 +88,13 @@ public interface IVideoSeriesService
     Task<byte[]?> GetSeriesThumbnailAsync(Guid seriesId, CallerContext caller, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Enriches a series with TMDB metadata and poster art.
+    /// For TV series: searches TMDB TV by name and fetches series poster.
+    /// For movie franchises: searches TMDB collections by name and fetches poster.
+    /// </summary>
+    Task EnrichSeriesAsync(Guid seriesId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Finds the series that a video belongs to, if any. Checks both TV series episodes and movie franchise items.
     /// </summary>
     Task<VideoSeriesDto?> FindSeriesByVideoIdAsync(Guid videoId, CallerContext caller, CancellationToken cancellationToken = default);

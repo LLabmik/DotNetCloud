@@ -329,11 +329,22 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
     }
 
     /// <summary>
-    /// Fire-and-forget TMDB enrichment for a series to fetch posters and metadata.
+    /// Fires TMDB enrichment for a series to fetch posters and metadata.
+    /// Runs as a short-lived background task that doesn't block the indexing pipeline.
     /// </summary>
     private void EnrichSeriesInBackground(Guid seriesId, Guid ownerId)
     {
-        // Series enrichment moved to canonical path — no longer needed as a background task
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await _seriesService.EnrichSeriesAsync(seriesId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Background series enrichment failed for {SeriesId}", seriesId);
+            }
+        });
     }
 
     /// <summary>

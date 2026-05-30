@@ -126,6 +126,11 @@ public sealed class TmdbClient : ITmdbClient
             _logger.LogWarning(ex, "Network error calling TMDB API for {Uri}", requestUri);
             return null;
         }
+        catch (JsonException ex)
+        {
+            _logger.LogWarning(ex, "JSON deserialization error from TMDB API for {Uri}", requestUri);
+            return null;
+        }
         finally
         {
             _rateLimiter.Release();

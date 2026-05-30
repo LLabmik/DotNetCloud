@@ -2,6 +2,7 @@ using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Modules.Video.Data;
 using DotNetCloud.Modules.Video.Data.Services;
+using DotNetCloud.Modules.Video.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -23,7 +24,7 @@ public class VideoSeriesServiceTests
         configMock
             .Setup(c => c["Files:Storage:RootPath"])
             .Returns(System.IO.Path.GetTempPath());
-        _service = new VideoSeriesService(_db, Mock.Of<ILogger<VideoSeriesService>>(), configMock.Object);
+        _service = new VideoSeriesService(_db, Mock.Of<ITmdbClient>(), Mock.Of<ILogger<VideoSeriesService>>(), configMock.Object);
         _caller = TestHelpers.CreateCaller();
     }
 

@@ -2,6 +2,7 @@ using System.IO;
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Errors;
+using DotNetCloud.Core.Storage;
 using DotNetCloud.Modules.Video.Models;
 using DotNetCloud.Modules.Video.Services;
 using Microsoft.EntityFrameworkCore;
@@ -17,17 +18,21 @@ namespace DotNetCloud.Modules.Video.Data.Services;
 public sealed class VideoSeriesService : IVideoSeriesService
 {
     private readonly VideoDbContext _db;
+    private readonly ITmdbClient _tmdbClient;
+    private readonly ContentAddressedStorage _contentStorage;
     private readonly ILogger<VideoSeriesService> _logger;
     private readonly string _storageRoot;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="VideoSeriesService"/> class.
     /// </summary>
-    public VideoSeriesService(VideoDbContext db, ILogger<VideoSeriesService> logger, IConfiguration configuration)
+    public VideoSeriesService(VideoDbContext db, ITmdbClient tmdbClient, ILogger<VideoSeriesService> logger, IConfiguration configuration)
     {
         _db = db;
+        _tmdbClient = tmdbClient;
         _logger = logger;
         _storageRoot = configuration["Files:Storage:RootPath"] ?? Path.GetTempPath();
+        _contentStorage = new ContentAddressedStorage(_storageRoot);
     }
 
     // ─── Series CRUD ─────────────────────────────────────────────────
@@ -953,6 +958,140 @@ public sealed class VideoSeriesService : IVideoSeriesService
         }
 
         return null;
+    }
+
+    /// <inheritdoc />
+    public async Task EnrichSeriesAsync(Guid seriesId, CancellationToken cancellationToken = default)
+    {
+        // ── Load series ──
+        var series = await _db.CanonicalVideoSeries
+            .FirstOrDefaultAsync(s => s.Id == seriesId, cancellationToken);
+
+        if (series is null)
+        {
+            _logger.LogDebug("Series {SeriesId} not found for enrichment", seriesId);
+            return;
+        }
+
+        // Skip if already enriched (unless force is needed in future)
+        if (series.TmdbId is not null && !string.IsNullOrEmpty(series.PosterHash))
+        {
+            _logger.LogDebug("Series {SeriesId} ('{Name}') already enriched, skipping", seriesId, series.Name);
+            return;
+        }
+
+        try
+        {
+            if (series.Type == SeriesType.MovieFranchise)
+            {
+                await EnrichMovieFranchiseAsync(series, cancellationToken);
+            }
+            else
+            {
+                await EnrichTvSeriesAsync(series, cancellationToken);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Series enrichment failed for {SeriesId} ('{Name}')", seriesId, series.Name);
+        }
+    }
+
+    /// <summary>
+    /// Enriches a TV series by searching TMDB, fetching details, and downloading the poster.
+    /// </summary>
+    private async Task EnrichTvSeriesAsync(CanonicalVideoSeries series, CancellationToken cancellationToken)
+    {
+        // Search TMDB for TV series by name
+        var searchResults = await _tmdbClient.SearchTvSeriesAsync(series.Name, cancellationToken: cancellationToken);
+        var match = searchResults?.FirstOrDefault();
+        if (match is null)
+        {
+            _logger.LogDebug("No TMDB TV series match for '{Name}'", series.Name);
+            return;
+        }
+
+        // Get full TV series details
+        var detail = await _tmdbClient.GetTvSeriesAsync(match.Id, cancellationToken);
+        if (detail is null)
+        {
+            _logger.LogDebug("TMDB TV series detail not found for id {TmdbId}", match.Id);
+            return;
+        }
+
+        // Download poster
+        string? posterHash = null;
+        if (detail.PosterPath is not null)
+        {
+            var poster = await _tmdbClient.DownloadPosterAsync(detail.PosterPath, cancellationToken: cancellationToken);
+            if (poster is not null)
+            {
+                var ext = poster.MimeType.Contains("png", StringComparison.OrdinalIgnoreCase) ? ".png" : ".jpg";
+                posterHash = _contentStorage.Store(poster.Data, ext);
+            }
+        }
+
+        // Update series with TMDB data
+        series.TmdbId = match.Id;
+        series.TmdbName = detail.Name;
+        series.TmdbOverview = detail.Overview;
+        series.TmdbRating = detail.VoteAverage;
+        series.Genres = detail.Genres is { Count: > 0 }
+            ? string.Join(", ", detail.Genres.Select(g => g.Name))
+            : null;
+        series.Status = detail.Status;
+        series.TotalSeasons = detail.NumberOfSeasons;
+        series.TotalEpisodes = detail.NumberOfEpisodes;
+        series.PosterHash = posterHash;
+        series.UpdatedAt = DateTime.UtcNow;
+
+        await _db.SaveChangesAsync(cancellationToken);
+        _logger.LogInformation("TV series '{Name}' (id={TmdbId}) enriched with poster", series.Name, match.Id);
+    }
+
+    /// <summary>
+    /// Enriches a movie franchise by searching TMDB collections, fetching details, and downloading the poster.
+    /// </summary>
+    private async Task EnrichMovieFranchiseAsync(CanonicalVideoSeries series, CancellationToken cancellationToken)
+    {
+        // Search TMDB for collection by name
+        var searchResults = await _tmdbClient.SearchCollectionAsync(series.Name, cancellationToken);
+        var match = searchResults?.FirstOrDefault();
+        if (match is null)
+        {
+            _logger.LogDebug("No TMDB collection match for '{Name}'", series.Name);
+            return;
+        }
+
+        // Get full collection details
+        var detail = await _tmdbClient.GetCollectionAsync(match.Id, cancellationToken);
+        if (detail is null)
+        {
+            _logger.LogDebug("TMDB collection detail not found for id {TmdbId}", match.Id);
+            return;
+        }
+
+        // Download poster
+        string? posterHash = null;
+        if (detail.PosterPath is not null)
+        {
+            var poster = await _tmdbClient.DownloadPosterAsync(detail.PosterPath, cancellationToken: cancellationToken);
+            if (poster is not null)
+            {
+                var ext = poster.MimeType.Contains("png", StringComparison.OrdinalIgnoreCase) ? ".png" : ".jpg";
+                posterHash = _contentStorage.Store(poster.Data, ext);
+            }
+        }
+
+        // Update series with TMDB data
+        series.TmdbId = match.Id;
+        series.TmdbName = detail.Name;
+        series.TmdbOverview = detail.Overview;
+        series.PosterHash = posterHash;
+        series.UpdatedAt = DateTime.UtcNow;
+
+        await _db.SaveChangesAsync(cancellationToken);
+        _logger.LogInformation("Movie franchise '{Name}' (collectionId={TmdbId}) enriched with poster", series.Name, match.Id);
     }
 
     /// <inheritdoc />
