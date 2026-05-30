@@ -387,6 +387,10 @@ public sealed class VideoService : IVideoService
         string? genres = null;
         DateTime? releaseDate = null;
         bool hasExternalPoster = canonical.HasExternalPoster;
+        string? tmdbTagline = null;
+        int? tmdbVoteCount = null;
+        string? tmdbOriginalLanguage = null;
+        string? tmdbOriginalTitle = null;
 
         // Load TMDB data from canonical enrichment
         if (canonical.EmbeddedTmdbId is not null)
@@ -400,6 +404,10 @@ public sealed class VideoService : IVideoService
                 genres = tmdbData.Genres;
                 releaseDate = tmdbData.ReleaseDate;
                 hasExternalPoster = tmdbData.ExternalPosterHash is not null || canonical.HasExternalPoster;
+                tmdbTagline = tmdbData.Tagline;
+                tmdbVoteCount = tmdbData.VoteCount;
+                tmdbOriginalLanguage = tmdbData.OriginalLanguage;
+                tmdbOriginalTitle = tmdbData.OriginalTitle;
             }
         }
 
@@ -422,7 +430,11 @@ public sealed class VideoService : IVideoService
             Overview = overview,
             TmdbRating = tmdbRating,
             Genres = genres,
-            ReleaseDate = releaseDate
+            ReleaseDate = releaseDate,
+            TmdbTagline = tmdbTagline,
+            TmdbVoteCount = tmdbVoteCount,
+            TmdbOriginalLanguage = tmdbOriginalLanguage,
+            TmdbOriginalTitle = tmdbOriginalTitle
         };
     }
 

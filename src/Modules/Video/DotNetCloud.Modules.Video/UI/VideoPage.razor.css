@@ -926,6 +926,42 @@
   color: var(--color-text-secondary, #64748b);
 }
 
+.tmdb-tagline {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-style: italic;
+  color: var(--color-text, #1e293b);
+  line-height: 1.5;
+  max-width: 55ch;
+}
+
+.tmdb-vote-count {
+  font-size: 0.8125rem;
+  font-weight: 400;
+  color: var(--color-text-secondary, #64748b);
+}
+
+.tmdb-original-info {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8125rem;
+  color: var(--color-text-secondary, #64748b);
+}
+
+.tmdb-original-title {
+  font-size: 0.8125rem;
+  color: var(--color-text-secondary, #64748b);
+}
+
+.tmdb-original-lang {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.8125rem;
+  color: var(--color-text-secondary, #64748b);
+}
+
 .tmdb-genres {
   display: flex;
   flex-wrap: wrap;

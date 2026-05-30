@@ -66,6 +66,18 @@ public sealed record TmdbMovieDetail
     public double? VoteAverage { get; init; }
     public List<TmdbGenre> Genres { get; init; } = [];
     public TmdbCollectionInfo? BelongsToCollection { get; init; }
+
+    /// <summary>Short promotional tagline from TMDB.</summary>
+    public string? Tagline { get; init; }
+
+    /// <summary>Number of votes the rating is based on.</summary>
+    public int? VoteCount { get; init; }
+
+    /// <summary>Original language code (e.g. "en", "ja").</summary>
+    public string? OriginalLanguage { get; init; }
+
+    /// <summary>Original title in the source language.</summary>
+    public string? OriginalTitle { get; init; }
 }
 
 public sealed record TmdbGenre

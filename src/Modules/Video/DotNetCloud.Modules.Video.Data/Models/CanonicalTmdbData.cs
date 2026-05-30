@@ -24,6 +24,18 @@ public sealed class CanonicalTmdbData
     /// <summary>Comma-separated genres from TMDB.</summary>
     public string? Genres { get; set; }
 
+    /// <summary>Short promotional tagline from TMDB.</summary>
+    public string? Tagline { get; set; }
+
+    /// <summary>Number of votes the rating is based on.</summary>
+    public int? VoteCount { get; set; }
+
+    /// <summary>Original language code (e.g. "en", "ja").</summary>
+    public string? OriginalLanguage { get; set; }
+
+    /// <summary>Original title in the source language.</summary>
+    public string? OriginalTitle { get; set; }
+
     /// <summary>Content hash of the external poster (references .media-cache/images/).</summary>
     public string? ExternalPosterHash { get; set; }
 

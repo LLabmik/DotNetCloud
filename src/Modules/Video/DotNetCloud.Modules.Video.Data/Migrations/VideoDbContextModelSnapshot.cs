@@ -69,10 +69,7 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
             modelBuilder.Entity("DotNetCloud.Modules.Video.Models.CanonicalTmdbData", b =>
                 {
                     b.Property<int>("TmdbId")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("TmdbId"));
 
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
@@ -90,12 +87,21 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
                     b.Property<DateTime?>("LastEnrichedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("OriginalLanguage")
+                        .HasColumnType("text");
+
+                    b.Property<string>("OriginalTitle")
+                        .HasColumnType("text");
+
                     b.Property<string>("Overview")
                         .HasMaxLength(5000)
                         .HasColumnType("character varying(5000)");
 
                     b.Property<DateTime?>("ReleaseDate")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Tagline")
+                        .HasColumnType("text");
 
                     b.Property<double?>("TmdbRating")
                         .HasColumnType("double precision");
@@ -109,6 +115,9 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
                         .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<int?>("VoteCount")
+                        .HasColumnType("integer");
 
                     b.HasKey("TmdbId");
 
@@ -459,37 +468,28 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
                         .HasColumnType("text");
 
                     b.Property<DateTime>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Format")
                         .IsRequired()
-                        .HasMaxLength(10)
-                        .HasColumnType("character varying(10)");
+                        .HasColumnType("text");
 
                     b.Property<bool>("IsDefault")
                         .HasColumnType("boolean");
 
                     b.Property<string>("Label")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasColumnType("text");
 
                     b.Property<string>("Language")
                         .IsRequired()
-                        .HasMaxLength(10)
-                        .HasColumnType("character varying(10)");
+                        .HasColumnType("text");
 
                     b.Property<Guid>("VideoId")
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("VideoId")
-                        .HasDatabaseName("ix_subtitles_video_id");
-
-                    b.HasIndex("VideoId", "Language")
-                        .HasDatabaseName("ix_subtitles_video_language");
+                    b.HasIndex("VideoId");
 
                     b.ToTable("Subtitles", "video");
                 });
@@ -554,131 +554,7 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
                     b.ToTable("user_videos", "video");
                 });
 
-            modelBuilder.Entity("DotNetCloud.Modules.Video.Models.Video", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("ContentHash")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<long>("DurationTicks")
-                        .HasColumnType("bigint");
-
-                    b.Property<string>("ExternalPosterPath")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<string>("FileName")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)");
-
-                    b.Property<Guid>("FileNodeId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Genres")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<bool>("HasExternalPoster")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsFavorite")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTime?>("LastEnrichedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("MimeType")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("Overview")
-                        .HasMaxLength(5000)
-                        .HasColumnType("character varying(5000)");
-
-                    b.Property<Guid>("OwnerId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime?>("ReleaseDate")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<long>("SizeBytes")
-                        .HasColumnType("bigint");
-
-                    b.Property<byte[]>("ThumbnailPoster")
-                        .HasColumnType("bytea")
-                        .HasColumnName("thumbnail_poster");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<int?>("TmdbId")
-                        .HasColumnType("integer");
-
-                    b.Property<double?>("TmdbRating")
-                        .HasColumnType("double precision");
-
-                    b.Property<string>("TmdbTitle")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
-
-                    b.Property<int>("ViewCount")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ContentHash")
-                        .HasDatabaseName("ix_videos_content_hash");
-
-                    b.HasIndex("IsDeleted")
-                        .HasDatabaseName("ix_videos_is_deleted");
-
-                    b.HasIndex("LastEnrichedAt")
-                        .HasDatabaseName("ix_videos_last_enriched_at");
-
-                    b.HasIndex("OwnerId")
-                        .HasDatabaseName("ix_videos_owner_id");
-
-                    b.HasIndex("Title")
-                        .HasDatabaseName("ix_videos_title");
-
-                    b.HasIndex("TmdbId")
-                        .HasDatabaseName("ix_videos_tmdb_id");
-
-                    b.HasIndex("FileNodeId", "OwnerId")
-                        .IsUnique()
-                        .HasDatabaseName("uq_videos_file_node_owner_id");
-
-                    b.HasIndex("OwnerId", "CreatedAt")
-                        .HasDatabaseName("ix_videos_owner_created_at");
-
-                    b.ToTable("Videos", "video");
-                });
-
-            modelBuilder.Entity("DotNetCloud.Modules.Video.Models.VideoCollection", b =>
+            modelBuilder.Entity("DotNetCloud.Modules.Video.Models.UserVideoCollection", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -688,16 +564,10 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
                         .HasDefaultValueSql("CURRENT_TIMESTAMP");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Description")
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -715,10 +585,166 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("Name")
-                        .HasDatabaseName("ix_video_collections_name");
+                        .HasDatabaseName("ix_user_video_collections_name");
 
                     b.HasIndex("OwnerId")
-                        .HasDatabaseName("ix_video_collections_owner_id");
+                        .HasDatabaseName("ix_user_video_collections_owner_id");
+
+                    b.ToTable("user_video_collections", "video");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Video.Models.UserVideoCollectionItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("AddedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CanonicalContentHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid>("CollectionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CanonicalContentHash")
+                        .HasDatabaseName("ix_user_collection_items_canonical_hash");
+
+                    b.HasIndex("CollectionId")
+                        .HasDatabaseName("ix_user_collection_items_collection_id");
+
+                    b.HasIndex("CollectionId", "CanonicalContentHash")
+                        .IsUnique()
+                        .HasDatabaseName("uq_user_collection_items_collection_hash");
+
+                    b.ToTable("user_video_collection_items", "video");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Video.Models.Video", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ContentHash")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long>("DurationTicks")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ExternalPosterPath")
+                        .HasColumnType("text");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("FileNodeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Genres")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("HasExternalPoster")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsFavorite")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("LastEnrichedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("MimeType")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Overview")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("OwnerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ReleaseDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long>("SizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<byte[]>("ThumbnailPoster")
+                        .HasColumnType("bytea");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int?>("TmdbId")
+                        .HasColumnType("integer");
+
+                    b.Property<double?>("TmdbRating")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("TmdbTitle")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("ViewCount")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Videos", "video");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Video.Models.VideoCollection", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("OwnerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
 
                     b.ToTable("VideoCollections", "video");
                 });
@@ -730,9 +756,7 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("AddedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid>("CollectionId")
                         .HasColumnType("uuid");
@@ -745,15 +769,9 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CollectionId")
-                        .HasDatabaseName("ix_collection_items_collection_id");
+                    b.HasIndex("CollectionId");
 
-                    b.HasIndex("VideoId")
-                        .HasDatabaseName("ix_collection_items_video_id");
-
-                    b.HasIndex("CollectionId", "VideoId")
-                        .IsUnique()
-                        .HasDatabaseName("uq_collection_items_collection_video");
+                    b.HasIndex("VideoId");
 
                     b.ToTable("VideoCollectionItems", "video");
                 });
@@ -765,16 +783,13 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("AddedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<int>("EpisodeNumber")
                         .HasColumnType("integer");
 
                     b.Property<string>("Overview")
-                        .HasMaxLength(4000)
-                        .HasColumnType("character varying(4000)");
+                        .HasColumnType("text");
 
                     b.Property<Guid>("SeasonId")
                         .HasColumnType("uuid");
@@ -783,23 +798,16 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
                         .HasColumnType("integer");
 
                     b.Property<string>("Title")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
+                        .HasColumnType("text");
 
                     b.Property<Guid>("VideoId")
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("SeasonId")
-                        .HasDatabaseName("ix_video_episodes_season_id");
+                    b.HasIndex("SeasonId");
 
-                    b.HasIndex("VideoId")
-                        .HasDatabaseName("ix_video_episodes_video_id");
-
-                    b.HasIndex("SeasonId", "VideoId")
-                        .IsUnique()
-                        .HasDatabaseName("uq_video_episodes_season_video");
+                    b.HasIndex("VideoId");
 
                     b.ToTable("VideoEpisodes", "video");
                 });
@@ -811,8 +819,7 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<string>("AudioCodec")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
+                        .HasColumnType("text");
 
                     b.Property<int>("AudioTrackCount")
                         .HasColumnType("integer");
@@ -821,13 +828,10 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
                         .HasColumnType("bigint");
 
                     b.Property<string>("ContainerFormat")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
+                        .HasColumnType("text");
 
                     b.Property<DateTime>("ExtractedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<double>("FrameRate")
                         .HasColumnType("double precision");
@@ -839,8 +843,7 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
                         .HasColumnType("integer");
 
                     b.Property<string>("VideoCodec")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
+                        .HasColumnType("text");
 
                     b.Property<Guid>("VideoId")
                         .HasColumnType("uuid");
@@ -851,8 +854,7 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("VideoId")
-                        .IsUnique()
-                        .HasDatabaseName("uq_video_metadata_video_id");
+                        .IsUnique();
 
                     b.ToTable("VideoMetadata", "video");
                 });
@@ -867,9 +869,7 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTime>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("timestamp with time zone");
@@ -884,12 +884,10 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
                         .HasColumnType("boolean");
 
                     b.Property<string>("Name")
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
+                        .HasColumnType("text");
 
                     b.Property<string>("Overview")
-                        .HasMaxLength(4000)
-                        .HasColumnType("character varying(4000)");
+                        .HasColumnType("text");
 
                     b.Property<int>("SeasonNumber")
                         .HasColumnType("integer");
@@ -904,18 +902,11 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
                         .HasColumnType("integer");
 
                     b.Property<DateTime>("UpdatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+                        .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("SeriesId")
-                        .HasDatabaseName("ix_video_seasons_series_id");
-
-                    b.HasIndex("SeriesId", "SeasonNumber")
-                        .IsUnique()
-                        .HasDatabaseName("uq_video_seasons_series_season_number");
+                    b.HasIndex("SeriesId");
 
                     b.ToTable("VideoSeasons", "video");
                 });
@@ -927,24 +918,19 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Description")
-                        .HasMaxLength(4000)
-                        .HasColumnType("character varying(4000)");
+                        .HasColumnType("text");
 
                     b.Property<string>("ExternalPosterPath")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
+                        .HasColumnType("text");
 
                     b.Property<string>("Genres")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
+                        .HasColumnType("text");
 
                     b.Property<bool>("HasExternalPoster")
                         .HasColumnType("boolean");
@@ -954,15 +940,13 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
 
                     b.Property<string>("Name")
                         .IsRequired()
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
+                        .HasColumnType("text");
 
                     b.Property<Guid>("OwnerId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("Status")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasColumnType("text");
 
                     b.Property<byte[]>("ThumbnailPoster")
                         .HasColumnType("bytea");
@@ -971,8 +955,7 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
                         .HasColumnType("integer");
 
                     b.Property<string>("TmdbName")
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
+                        .HasColumnType("text");
 
                     b.Property<string>("TmdbOverview")
                         .HasColumnType("text");
@@ -990,23 +973,12 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
                         .HasColumnType("integer");
 
                     b.Property<DateTime>("UpdatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<int?>("Year")
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("Name")
-                        .HasDatabaseName("ix_video_series_name");
-
-                    b.HasIndex("OwnerId")
-                        .HasDatabaseName("ix_video_series_owner_id");
-
-                    b.HasIndex("TmdbId")
-                        .HasDatabaseName("ix_video_series_tmdb_id");
 
                     b.ToTable("VideoSeries", "video");
                 });
@@ -1018,13 +990,10 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("AddedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("EpisodeTitle")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
+                        .HasColumnType("text");
 
                     b.Property<Guid>("SeriesId")
                         .HasColumnType("uuid");
@@ -1037,15 +1006,9 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("SeriesId")
-                        .HasDatabaseName("ix_video_series_items_series_id");
+                    b.HasIndex("SeriesId");
 
-                    b.HasIndex("VideoId")
-                        .HasDatabaseName("ix_video_series_items_video_id");
-
-                    b.HasIndex("SeriesId", "VideoId")
-                        .IsUnique()
-                        .HasDatabaseName("uq_video_series_items_series_video");
+                    b.HasIndex("VideoId");
 
                     b.ToTable("VideoSeriesItems", "video");
                 });
@@ -1057,21 +1020,17 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTime?>("ExpiresAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Permission")
                         .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
+                        .HasColumnType("text");
 
                     b.Property<string>("ShareToken")
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
+                        .HasColumnType("text");
 
                     b.Property<Guid>("SharedByUserId")
                         .HasColumnType("uuid");
@@ -1084,17 +1043,7 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ShareToken")
-                        .HasDatabaseName("ix_video_shares_token");
-
-                    b.HasIndex("SharedByUserId")
-                        .HasDatabaseName("ix_video_shares_shared_by");
-
-                    b.HasIndex("SharedWithUserId")
-                        .HasDatabaseName("ix_video_shares_shared_with");
-
-                    b.HasIndex("VideoId")
-                        .HasDatabaseName("ix_video_shares_video_id");
+                    b.HasIndex("VideoId");
 
                     b.ToTable("VideoShares", "video");
                 });
@@ -1115,20 +1064,11 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("WatchedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+                        .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("UserId")
-                        .HasDatabaseName("ix_watch_history_user_id");
-
-                    b.HasIndex("VideoId")
-                        .HasDatabaseName("ix_watch_history_video_id");
-
-                    b.HasIndex("UserId", "WatchedAt")
-                        .HasDatabaseName("ix_watch_history_user_watched_at");
+                    b.HasIndex("VideoId");
 
                     b.ToTable("WatchHistories", "video");
                 });
@@ -1245,6 +1185,17 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("CanonicalVideo");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Video.Models.UserVideoCollectionItem", b =>
+                {
+                    b.HasOne("DotNetCloud.Modules.Video.Models.UserVideoCollection", "Collection")
+                        .WithMany("Items")
+                        .HasForeignKey("CollectionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Collection");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Video.Models.VideoCollectionItem", b =>
@@ -1378,6 +1329,11 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
                     b.Navigation("Items");
 
                     b.Navigation("Seasons");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Video.Models.UserVideoCollection", b =>
+                {
+                    b.Navigation("Items");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Video.Models.Video", b =>

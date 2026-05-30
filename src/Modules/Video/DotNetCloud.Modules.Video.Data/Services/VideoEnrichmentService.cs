@@ -155,6 +155,10 @@ public sealed partial class VideoEnrichmentService : IVideoEnrichmentService
             ? string.Join(", ", detail.Genres.Select(g => g.Name))
             : null;
         var tmdbTitle = detail?.Title ?? best.Title;
+        var tmdbTagline = detail?.Tagline;
+        var tmdbVoteCount = detail?.VoteCount;
+        var tmdbOriginalLanguage = detail?.OriginalLanguage;
+        var tmdbOriginalTitle = detail?.OriginalTitle;
 
         if (canonicalTmdb is null)
         {
@@ -166,6 +170,10 @@ public sealed partial class VideoEnrichmentService : IVideoEnrichmentService
                 ReleaseDate = tmdbReleaseDate,
                 TmdbRating = tmdbRating,
                 Genres = tmdbGenres,
+                Tagline = tmdbTagline,
+                VoteCount = tmdbVoteCount,
+                OriginalLanguage = tmdbOriginalLanguage,
+                OriginalTitle = tmdbOriginalTitle,
                 LastEnrichedAt = DateTime.UtcNow
             };
             _db.CanonicalTmdbData.Add(canonicalTmdb);
@@ -177,6 +185,10 @@ public sealed partial class VideoEnrichmentService : IVideoEnrichmentService
             canonicalTmdb.ReleaseDate = tmdbReleaseDate;
             canonicalTmdb.TmdbRating = tmdbRating;
             canonicalTmdb.Genres = tmdbGenres;
+            canonicalTmdb.Tagline = tmdbTagline;
+            canonicalTmdb.VoteCount = tmdbVoteCount;
+            canonicalTmdb.OriginalLanguage = tmdbOriginalLanguage;
+            canonicalTmdb.OriginalTitle = tmdbOriginalTitle;
             canonicalTmdb.LastEnrichedAt = DateTime.UtcNow;
             canonicalTmdb.UpdatedAt = DateTime.UtcNow;
         }

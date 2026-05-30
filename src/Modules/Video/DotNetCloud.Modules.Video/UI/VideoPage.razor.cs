@@ -1090,6 +1090,35 @@ public partial class VideoPage : IAsyncDisposable
 
     private static string GetThumbnailUrl(Guid videoId) => $"/api/v1/videos/{videoId}/thumbnail";
 
+    /// <summary>
+    /// Converts a TMDB language code to a human-readable label with a flag emoji where possible.
+    /// </summary>
+    private static string GetLanguageLabel(string? langCode)
+    {
+        return langCode?.ToLowerInvariant() switch
+        {
+            "en" => "English",
+            "ja" => "🇯🇵 Japanese",
+            "ko" => "🇰🇷 Korean",
+            "zh" => "🇨🇳 Chinese",
+            "fr" => "🇫🇷 French",
+            "de" => "🇩🇪 German",
+            "es" => "🇪🇸 Spanish",
+            "it" => "🇮🇹 Italian",
+            "pt" => "🇵🇹 Portuguese",
+            "ru" => "🇷🇺 Russian",
+            "ar" => "🇸🇦 Arabic",
+            "hi" => "🇮🇳 Hindi",
+            "sv" => "🇸🇪 Swedish",
+            "nl" => "🇳🇱 Dutch",
+            "pl" => "🇵🇱 Polish",
+            "tr" => "🇹🇷 Turkish",
+            "th" => "🇹🇭 Thai",
+            "vi" => "🇻🇳 Vietnamese",
+            _ => langCode ?? string.Empty
+        };
+    }
+
     private string GetStreamUrl(Guid videoId) =>
         _streamToken is not null
             ? $"/api/v1/videos/{videoId}/stream?token={Uri.EscapeDataString(_streamToken)}"

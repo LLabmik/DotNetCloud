@@ -1375,7 +1375,8 @@
                         </div>
 
                         @* TMDB Enrichment Info *@
-                        @if (_playerVideo.HasExternalPoster || _playerVideo.Overview is not null || _playerVideo.TmdbRating is not null || _playerVideo.ReleaseDate is not null)
+                        @if (_playerVideo.HasExternalPoster || _playerVideo.Overview is not null || _playerVideo.TmdbRating is not null || _playerVideo.ReleaseDate is not null
+                            || _playerVideo.TmdbTagline is not null || _playerVideo.TmdbOriginalLanguage is not null || _playerVideo.TmdbOriginalTitle is not null)
                         {
                             <div class="tmdb-info-section">
                                 @if (_playerVideo.HasExternalPoster)
@@ -1383,12 +1384,20 @@
                                     <img class="tmdb-poster" src="@GetThumbnailUrl(_playerVideo.Id)" alt="@_playerVideo.Title" />
                                 }
                                 <div class="tmdb-details">
+                                    @if (_playerVideo.TmdbTagline is not null)
+                                    {
+                                        <p class="tmdb-tagline">@_playerVideo.TmdbTagline</p>
+                                    }
                                     @if (_playerVideo.TmdbRating is not null)
                                     {
                                         <div class="tmdb-rating">
                                             <span class="tmdb-rating-star">★</span>
                                             <span>@_playerVideo.TmdbRating.Value.ToString("F1")</span>
                                             <span class="tmdb-rating-max">/ 10</span>
+                                            @if (_playerVideo.TmdbVoteCount.HasValue)
+                                            {
+                                                <span class="tmdb-vote-count">· @_playerVideo.TmdbVoteCount.Value.ToString("N0") votes</span>
+                                            }
                                         </div>
                                     }
                                     @if (_playerVideo.ReleaseDate is not null)
@@ -1401,6 +1410,19 @@
                                             @foreach (var genre in _playerVideo.Genres.Split(", "))
                                             {
                                                 <span class="tmdb-genre-tag">@genre</span>
+                                            }
+                                        </div>
+                                    }
+                                    @if (_playerVideo.TmdbOriginalLanguage is not null || _playerVideo.TmdbOriginalTitle is not null)
+                                    {
+                                        <div class="tmdb-original-info">
+                                            @if (_playerVideo.TmdbOriginalTitle is not null && !string.Equals(_playerVideo.TmdbOriginalTitle, _playerVideo.Title, StringComparison.OrdinalIgnoreCase))
+                                            {
+                                                <span class="tmdb-original-title">Original title: @_playerVideo.TmdbOriginalTitle</span>
+                                            }
+                                            @if (_playerVideo.TmdbOriginalLanguage is not null && !string.Equals(_playerVideo.TmdbOriginalLanguage, "en", StringComparison.OrdinalIgnoreCase))
+                                            {
+                                                <span class="tmdb-original-lang">@GetLanguageLabel(_playerVideo.TmdbOriginalLanguage)</span>
                                             }
                                         </div>
                                     }

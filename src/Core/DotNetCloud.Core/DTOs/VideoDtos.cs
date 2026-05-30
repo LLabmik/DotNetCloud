@@ -60,6 +60,18 @@ public sealed record VideoDto
 
     /// <summary>Release date from TMDB.</summary>
     public DateTime? ReleaseDate { get; init; }
+
+    /// <summary>Short promotional tagline from TMDB.</summary>
+    public string? TmdbTagline { get; init; }
+
+    /// <summary>Number of votes the rating is based on.</summary>
+    public int? TmdbVoteCount { get; init; }
+
+    /// <summary>Original language code (e.g. "en", "ja") from TMDB.</summary>
+    public string? TmdbOriginalLanguage { get; init; }
+
+    /// <summary>Original title in the source language from TMDB.</summary>
+    public string? TmdbOriginalTitle { get; init; }
 }
 
 // ── Video Collection DTOs ───────────────────────────────────────────
