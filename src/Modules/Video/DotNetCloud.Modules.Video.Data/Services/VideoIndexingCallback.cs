@@ -233,8 +233,14 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
                             .MaxAsync(e => (int?)e.EpisodeNumber, cancellationToken) ?? 0;
                         nextEpisodeNum++;
 
+                        // Look up the canonical video title to use as episode title
+                        var episodeTitle = await _db.UserVideos
+                            .Where(uv => uv.Id == videoId && uv.CanonicalVideo != null)
+                            .Select(uv => uv.CanonicalVideo!.Title)
+                            .FirstOrDefaultAsync(cancellationToken);
+
                         await _seriesService.AddEpisodeAsync(
-                            Guid.Parse(season.Id.ToString()), videoId, nextEpisodeNum, null, null, caller, cancellationToken);
+                            Guid.Parse(season.Id.ToString()), videoId, nextEpisodeNum, episodeTitle, null, caller, cancellationToken);
 
                         _logger.LogInformation(
                             "Video {VideoId} auto-assigned to series '{SeriesName}', season {SeasonNumber}",
@@ -282,8 +288,14 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
                                 .Where(i => i.SeriesId == Guid.Parse(series.Id.ToString()))
                                 .MaxAsync(i => (int?)i.SortOrder, cancellationToken) ?? -1;
 
+                            // Look up the canonical video title to use as episode title
+                            var episodeTitle = await _db.UserVideos
+                                .Where(uv => uv.Id == videoId && uv.CanonicalVideo != null)
+                                .Select(uv => uv.CanonicalVideo!.Title)
+                                .FirstOrDefaultAsync(cancellationToken);
+
                             await _seriesService.AddVideoToSeriesAsync(
-                                Guid.Parse(series.Id.ToString()), videoId, maxOrder + 1, null, caller, cancellationToken);
+                                Guid.Parse(series.Id.ToString()), videoId, maxOrder + 1, episodeTitle, caller, cancellationToken);
 
                             _logger.LogInformation(
                                 "Video {VideoId} auto-assigned to movie franchise '{FranchiseName}' (folder-based)",

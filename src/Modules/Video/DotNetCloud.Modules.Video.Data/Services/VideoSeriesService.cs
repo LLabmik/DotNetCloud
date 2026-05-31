@@ -328,14 +328,52 @@ public sealed class VideoSeriesService : IVideoSeriesService
             .OrderBy(i => i.SortOrder)
             .ToListAsync(cancellationToken);
 
+        if (items.Count == 0)
+            return [];
+
+        // Look up UserVideos for this user by content hash to include
+        // the actual video details (Id, FileNodeId, etc.) so the player
+        // can stream the content when a series item is clicked.
+        var contentHashes = items.Select(i => i.VideoContentHash).Distinct().ToList();
+        var userVideos = await _db.UserVideos
+            .Include(uv => uv.CanonicalVideo).ThenInclude(cv => cv!.Metadata)
+            .Where(uv => uv.OwnerId == caller.UserId && !uv.IsDeleted && contentHashes.Contains(uv.CanonicalContentHash))
+            .ToListAsync(cancellationToken);
+
+        var videoByHash = userVideos
+            .Where(uv => uv.CanonicalVideo is not null)
+            .ToDictionary(uv => uv.CanonicalContentHash, uv => MapUserVideoToDto(uv));
+
         return items.Select(i => new VideoSeriesItemDto
         {
             Id = i.Id,
             SeriesId = i.SeriesId,
-            VideoId = Guid.Empty, // Canonical items don't have a per-user video ID
+            VideoId = videoByHash.TryGetValue(i.VideoContentHash, out var videoDto) ? videoDto.Id : Guid.Empty,
             SortOrder = i.SortOrder,
-            EpisodeTitle = i.EpisodeTitle
+            EpisodeTitle = i.EpisodeTitle ?? videoDto?.Title,
+            Video = videoDto
         }).ToList();
+    }
+
+    private static VideoDto MapUserVideoToDto(UserVideo uv)
+    {
+        var canonical = uv.CanonicalVideo!;
+        return new VideoDto
+        {
+            Id = uv.Id,
+            FileNodeId = uv.FileNodeId,
+            Title = canonical.Title,
+            FileName = canonical.FileName,
+            MimeType = canonical.MimeType,
+            SizeBytes = canonical.SizeBytes,
+            Duration = TimeSpan.FromTicks(canonical.DurationTicks),
+            Width = canonical.Metadata?.Width,
+            Height = canonical.Metadata?.Height,
+            IsFavorite = uv.IsFavorite,
+            ViewCount = uv.ViewCount,
+            CreatedAt = uv.CreatedAt,
+            HasExternalPoster = canonical.HasExternalPoster,
+        };
     }
 
     // ─── Seasons ─────────────────────────────────────────────────────
