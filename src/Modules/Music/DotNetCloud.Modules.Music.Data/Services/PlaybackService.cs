@@ -9,6 +9,7 @@ namespace DotNetCloud.Modules.Music.Data.Services;
 
 /// <summary>
 /// Service for managing playback history, scrobbles, and play count tracking.
+/// Uses UserTrack (canonical) instead of the legacy Track table.
 /// </summary>
 public sealed class PlaybackService : IPlaybackService
 {
@@ -16,9 +17,6 @@ public sealed class PlaybackService : IPlaybackService
     private readonly IEventBus _eventBus;
     private readonly ILogger<PlaybackService> _logger;
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="PlaybackService"/> class.
-    /// </summary>
     public PlaybackService(MusicDbContext db, IEventBus eventBus, ILogger<PlaybackService> logger)
     {
         _db = db;
@@ -26,28 +24,26 @@ public sealed class PlaybackService : IPlaybackService
         _logger = logger;
     }
 
-    /// <summary>
-    /// Records a track play event, incrementing play count and creating a history entry.
-    /// </summary>
     public async Task RecordPlayAsync(Guid trackId, int durationPlayedSeconds, CallerContext caller, CancellationToken cancellationToken = default)
     {
-        var track = await _db.Tracks
-            .Include(t => t.TrackArtists).ThenInclude(ta => ta.Artist)
-            .FirstOrDefaultAsync(t => t.Id == trackId, cancellationToken);
+        var userTrack = await _db.UserTracks
+            .Include(ut => ut.CanonicalTrack)
+                .ThenInclude(ct => ct!.TrackArtists).ThenInclude(cta => cta.Artist)
+            .FirstOrDefaultAsync(ut => ut.Id == trackId, cancellationToken);
 
-        if (track is null)
+        if (userTrack is null)
         {
             _logger.LogWarning("Attempted to record play for non-existent track {TrackId}", trackId);
             return;
         }
 
-        track.PlayCount++;
-        track.UpdatedAt = DateTime.UtcNow;
+        userTrack.PlayCount++;
+        userTrack.UpdatedAt = DateTime.UtcNow;
 
         _db.PlaybackHistories.Add(new PlaybackHistory
         {
             UserId = caller.UserId,
-            TrackId = trackId,
+            UserTrackId = userTrack.Id,
             DurationPlayedSeconds = durationPlayedSeconds
         });
 
@@ -63,30 +59,29 @@ public sealed class PlaybackService : IPlaybackService
         }, caller, cancellationToken);
     }
 
-    /// <summary>
-    /// Records a scrobble (track play completion for last.fm-style history).
-    /// </summary>
     public async Task ScrobbleAsync(Guid trackId, CallerContext caller, CancellationToken cancellationToken = default)
     {
-        var track = await _db.Tracks
-            .Include(t => t.TrackArtists).ThenInclude(ta => ta.Artist)
-            .Include(t => t.Album)
-            .FirstOrDefaultAsync(t => t.Id == trackId, cancellationToken);
+        var userTrack = await _db.UserTracks
+            .Include(ut => ut.CanonicalTrack)
+                .ThenInclude(ct => ct!.TrackArtists).ThenInclude(cta => cta.Artist)
+            .Include(ut => ut.CanonicalAlbum)
+            .FirstOrDefaultAsync(ut => ut.Id == trackId, cancellationToken);
 
-        if (track is null)
+        if (userTrack?.CanonicalTrack is null)
             return;
 
-        var primaryArtist = track.TrackArtists?
-            .FirstOrDefault(ta => ta.IsPrimary)?.Artist
-            ?? track.TrackArtists?.FirstOrDefault()?.Artist;
+        var ct = userTrack.CanonicalTrack;
+        var primaryArtist = ct.TrackArtists
+            .FirstOrDefault(cta => cta.IsPrimary)?.Artist
+            ?? ct.TrackArtists.FirstOrDefault()?.Artist;
 
         var scrobble = new ScrobbleRecord
         {
             UserId = caller.UserId,
-            TrackId = trackId,
+            UserTrackId = userTrack.Id,
             ArtistName = primaryArtist?.Name ?? "Unknown Artist",
-            TrackTitle = track.Title,
-            AlbumTitle = track.Album?.Title
+            TrackTitle = ct.Title,
+            AlbumTitle = userTrack.CanonicalAlbum?.Title
         };
 
         _db.ScrobbleRecords.Add(scrobble);
@@ -104,34 +99,25 @@ public sealed class PlaybackService : IPlaybackService
         }, caller, cancellationToken);
     }
 
-    /// <summary>
-    /// Gets recently played tracks for a user.
-    /// </summary>
     public async Task<IReadOnlyList<PlaybackHistory>> GetRecentlyPlayedAsync(Guid userId, int count = 20, CancellationToken cancellationToken = default)
     {
         return await _db.PlaybackHistories
-            .Include(h => h.Track)
+            .Include(h => h.UserTrack)
             .Where(h => h.UserId == userId)
             .OrderByDescending(h => h.PlayedAt)
             .Take(count)
             .ToListAsync(cancellationToken);
     }
 
-    /// <summary>
-    /// Gets the most played tracks for a user.
-    /// </summary>
-    public async Task<IReadOnlyList<Track>> GetMostPlayedAsync(Guid userId, int count = 20, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<UserTrack>> GetMostPlayedAsync(Guid userId, int count = 20, CancellationToken cancellationToken = default)
     {
-        return await _db.Tracks
-            .Where(t => t.OwnerId == userId && t.PlayCount > 0)
-            .OrderByDescending(t => t.PlayCount)
+        return await _db.UserTracks
+            .Where(ut => ut.OwnerId == userId && ut.PlayCount > 0)
+            .OrderByDescending(ut => ut.PlayCount)
             .Take(count)
             .ToListAsync(cancellationToken);
     }
 
-    /// <summary>
-    /// Stars or unstars an item (artist, album, or track).
-    /// </summary>
     public async Task ToggleStarAsync(Guid itemId, StarredItemType itemType, CallerContext caller, CancellationToken cancellationToken = default)
     {
         var existing = await _db.StarredItems
@@ -140,25 +126,13 @@ public sealed class PlaybackService : IPlaybackService
                 cancellationToken);
 
         if (existing is not null)
-        {
             _db.StarredItems.Remove(existing);
-        }
         else
-        {
-            _db.StarredItems.Add(new StarredItem
-            {
-                UserId = caller.UserId,
-                ItemType = itemType,
-                ItemId = itemId
-            });
-        }
+            _db.StarredItems.Add(new StarredItem { UserId = caller.UserId, ItemType = itemType, ItemId = itemId });
 
         await _db.SaveChangesAsync(cancellationToken);
     }
 
-    /// <summary>
-    /// Gets starred items of a specific type for a user.
-    /// </summary>
     public async Task<IReadOnlyList<StarredItem>> GetStarredAsync(Guid userId, StarredItemType itemType, CancellationToken cancellationToken = default)
     {
         return await _db.StarredItems
@@ -167,9 +141,6 @@ public sealed class PlaybackService : IPlaybackService
             .ToListAsync(cancellationToken);
     }
 
-    /// <summary>
-    /// Checks if an item is starred by a user.
-    /// </summary>
     public async Task<bool> IsStarredAsync(Guid userId, Guid itemId, StarredItemType itemType, CancellationToken cancellationToken = default)
     {
         return await _db.StarredItems

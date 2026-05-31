@@ -19,12 +19,12 @@ public sealed class ScrobbleRecordConfiguration : IEntityTypeConfiguration<Scrob
         builder.Property(s => s.AlbumTitle).HasMaxLength(500);
         builder.Property(s => s.ScrobbledAt).IsRequired().HasDefaultValueSql("CURRENT_TIMESTAMP");
 
-        builder.HasOne(s => s.Track)
+        builder.HasOne(s => s.UserTrack)
             .WithMany()
-            .HasForeignKey(s => s.TrackId)
+            .HasForeignKey(s => s.UserTrackId)
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasIndex(s => new { s.UserId, s.ScrobbledAt }).HasDatabaseName("ix_scrobble_records_user_scrobbled_at");
-        builder.HasIndex(s => s.TrackId).HasDatabaseName("ix_scrobble_records_track_id");
+        builder.HasIndex(s => s.UserTrackId).HasDatabaseName("ix_scrobble_records_user_track_id");
     }
 }

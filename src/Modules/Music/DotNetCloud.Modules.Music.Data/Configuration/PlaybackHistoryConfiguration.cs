@@ -16,12 +16,12 @@ public sealed class PlaybackHistoryConfiguration : IEntityTypeConfiguration<Play
 
         builder.Property(h => h.PlayedAt).IsRequired().HasDefaultValueSql("CURRENT_TIMESTAMP");
 
-        builder.HasOne(h => h.Track)
+        builder.HasOne(h => h.UserTrack)
             .WithMany()
-            .HasForeignKey(h => h.TrackId)
+            .HasForeignKey(h => h.UserTrackId)
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasIndex(h => new { h.UserId, h.PlayedAt }).HasDatabaseName("ix_playback_history_user_played_at");
-        builder.HasIndex(h => h.TrackId).HasDatabaseName("ix_playback_history_track_id");
+        builder.HasIndex(h => h.UserTrackId).HasDatabaseName("ix_playback_history_user_track_id");
     }
 }

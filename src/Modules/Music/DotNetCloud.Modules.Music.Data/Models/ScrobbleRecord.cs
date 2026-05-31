@@ -11,8 +11,8 @@ public sealed class ScrobbleRecord
     /// <summary>The user who scrobbled.</summary>
     public Guid UserId { get; set; }
 
-    /// <summary>The track that was scrobbled.</summary>
-    public Guid TrackId { get; set; }
+    /// <summary>The user track that was scrobbled.</summary>
+    public Guid UserTrackId { get; set; }
 
     /// <summary>Artist name at time of scrobble.</summary>
     public required string ArtistName { get; set; }
@@ -26,6 +26,6 @@ public sealed class ScrobbleRecord
     /// <summary>When the scrobble occurred (UTC).</summary>
     public DateTime ScrobbledAt { get; set; } = DateTime.UtcNow;
 
-    /// <summary>Navigation to the track.</summary>
-    public Track? Track { get; set; }
+    /// <summary>Navigation to the user track.</summary>
+    public UserTrack? UserTrack { get; set; }
 }

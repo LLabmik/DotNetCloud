@@ -324,7 +324,7 @@ public class PlaylistServiceTests
         var albumATrack1 = await TestHelpers.SeedTrackAsync(_db, albumA.Id, "A Song 1", trackNumber: 1, discNumber: 1, ownerId: _caller.UserId);
         var albumBTrack1 = await TestHelpers.SeedTrackAsync(_db, albumB.Id, "B Song 1", trackNumber: 1, discNumber: 1, ownerId: _caller.UserId);
         foreach (var t in new[] { albumATrack2, albumATrack1, albumBTrack1 })
-            await TestHelpers.SeedTrackArtistAsync(_db, t.Id, t.AlbumId == albumA.Id ? artistA.Id : artistB.Id);
+            await TestHelpers.SeedTrackArtistAsync(_db, t.Id, t.CanonicalAlbumId == albumA.Id ? artistA.Id : artistB.Id);
 
         // Pass in mixed order: B1, A2, A1 — should sort A1, A2, B1 (by album, then track)
         await _service.AddTrackRangeAsync(pl.Id, [albumBTrack1.Id, albumATrack2.Id, albumATrack1.Id], _caller);

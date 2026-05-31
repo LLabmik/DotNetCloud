@@ -4,6 +4,7 @@ using DotNetCloud.Modules.Files.Services;
 using DotNetCloud.Modules.Music.Data;
 using DotNetCloud.Modules.Music.Data.Services;
 using DotNetCloud.Modules.Music.Services;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
@@ -59,7 +60,8 @@ public class MusicAlbumServiceTests
     {
         var artist = await TestHelpers.SeedArtistAsync(_db, ownerId: _caller.UserId);
         var album = await TestHelpers.SeedAlbumAsync(_db, artist.Id, "Deleted Album", ownerId: _caller.UserId);
-        album.IsDeleted = true;
+        var userAlbum = await _db.UserAlbums.FirstAsync(ua => ua.CanonicalAlbumId == album.Id);
+        userAlbum.IsDeleted = true;
         await _db.SaveChangesAsync();
 
         var result = await _service.GetAlbumAsync(album.Id, _caller);
@@ -124,7 +126,8 @@ public class MusicAlbumServiceTests
         var artist = await TestHelpers.SeedArtistAsync(_db, ownerId: _caller.UserId);
         var a1 = await TestHelpers.SeedAlbumAsync(_db, artist.Id, "Active", ownerId: _caller.UserId);
         var a2 = await TestHelpers.SeedAlbumAsync(_db, artist.Id, "Deleted", ownerId: _caller.UserId);
-        a2.IsDeleted = true;
+        var ua2 = await _db.UserAlbums.FirstAsync(ua => ua.CanonicalAlbumId == a2.Id);
+        ua2.IsDeleted = true;
         await _db.SaveChangesAsync();
 
         var result = await _service.ListAlbumsAsync(_caller, 0, 50);
@@ -200,7 +203,7 @@ public class MusicAlbumServiceTests
 
         await _service.DeleteAlbumAsync(album.Id, _caller);
 
-        var entry = await _db.Albums.FindAsync(album.Id);
+        var entry = await _db.UserAlbums.FirstAsync(ua => ua.CanonicalAlbumId == album.Id);
         Assert.IsNotNull(entry);
         Assert.IsTrue(entry.IsDeleted);
     }

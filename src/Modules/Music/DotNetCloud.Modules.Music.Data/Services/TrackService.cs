@@ -12,6 +12,7 @@ namespace DotNetCloud.Modules.Music.Data.Services;
 
 /// <summary>
 /// Service for managing tracks — search, starred/favorites, recently added.
+/// Uses UserTrack junction + CanonicalTrack (canonical/shared) tables.
 /// </summary>
 public sealed class TrackService : ITrackService
 {
@@ -30,29 +31,23 @@ public sealed class TrackService : ITrackService
     }
 
     /// <summary>
-    /// Gets a track by ID.
+    /// Gets a track by ID (UserTrack.Id).
     /// </summary>
     public async Task<TrackDto?> GetTrackAsync(Guid trackId, CallerContext caller, CancellationToken cancellationToken = default)
     {
-        var track = await _db.Tracks
-            .Include(t => t.Album)
-            .Include(t => t.TrackArtists).ThenInclude(ta => ta.Artist)
-            .Include(t => t.TrackGenres).ThenInclude(tg => tg.Genre)
-            .FirstOrDefaultAsync(t => t.Id == trackId && t.OwnerId == caller.UserId, cancellationToken);
+        var userTrack = await BaseTrackQuery()
+            .FirstOrDefaultAsync(ut => ut.Id == trackId && ut.OwnerId == caller.UserId, cancellationToken);
 
-        return track is null ? null : MapToDto(track, caller.UserId);
+        return userTrack is null ? null : MapToDto(userTrack, caller.UserId);
     }
 
     /// <inheritdoc/>
     public async Task<TrackDto?> GetTrackByFileNodeIdAsync(Guid fileNodeId, CallerContext caller, CancellationToken cancellationToken = default)
     {
-        var track = await _db.Tracks
-            .Include(t => t.Album)
-            .Include(t => t.TrackArtists).ThenInclude(ta => ta.Artist)
-            .Include(t => t.TrackGenres).ThenInclude(tg => tg.Genre)
-            .FirstOrDefaultAsync(t => t.FileNodeId == fileNodeId && t.OwnerId == caller.UserId, cancellationToken);
+        var userTrack = await BaseTrackQuery()
+            .FirstOrDefaultAsync(ut => ut.FileNodeId == fileNodeId && ut.OwnerId == caller.UserId, cancellationToken);
 
-        return track is null ? null : MapToDto(track, caller.UserId);
+        return userTrack is null ? null : MapToDto(userTrack, caller.UserId);
     }
 
     /// <summary>
@@ -60,36 +55,29 @@ public sealed class TrackService : ITrackService
     /// </summary>
     public async Task<IReadOnlyList<TrackDto>> ListTracksAsync(CallerContext caller, int skip = 0, int take = 50, CancellationToken cancellationToken = default)
     {
-        var tracks = await _db.Tracks
-            .Include(t => t.Album)
-            .Include(t => t.TrackArtists).ThenInclude(ta => ta.Artist)
-            .Include(t => t.TrackGenres).ThenInclude(tg => tg.Genre)
-            .Where(t => t.OwnerId == caller.UserId)
-            .OrderBy(t => t.Title)
+        var userTracks = await BaseTrackQuery()
+            .Where(ut => ut.OwnerId == caller.UserId)
+            .OrderBy(ut => ut.CanonicalTrack!.Title)
             .Skip(skip)
             .Take(take)
             .ToListAsync(cancellationToken);
 
-        return tracks.Select(t => MapToDto(t, caller.UserId)).ToList();
+        return userTracks.Select(ut => MapToDto(ut, caller.UserId)).ToList();
     }
 
     /// <summary>
-    /// Lists tracks by album.
+    /// Lists tracks by album (CanonicalAlbum.Id).
     /// </summary>
     public async Task<IReadOnlyList<TrackDto>> ListTracksByAlbumAsync(Guid albumId, CallerContext caller, CancellationToken cancellationToken = default)
     {
-        var tracks = await _db.Tracks
-            .Include(t => t.Album)
-            .Include(t => t.TrackArtists).ThenInclude(ta => ta.Artist)
-            .Include(t => t.TrackGenres).ThenInclude(tg => tg.Genre)
-            .Where(t => t.AlbumId == albumId && t.OwnerId == caller.UserId)
+        var userTracks = await BaseTrackQuery()
+            .Where(ut => ut.CanonicalAlbumId == albumId && ut.OwnerId == caller.UserId)
             .ToListAsync(cancellationToken);
 
-        var sorted = tracks
-            .OrderBy(t => t.DiscNumber ?? int.MaxValue)
-            .ThenBy(t => t.TrackNumber ?? ExtractTrackNumberFromFileName(t.FileName))
-            .ThenBy(t => t.FileName, NaturalFileNameComparer.Instance)
-            .Select(t => MapToDto(t, caller.UserId))
+        var sorted = userTracks
+            .OrderBy(ut => ut.CanonicalTrack!.DiscNumber ?? int.MaxValue)
+            .ThenBy(ut => ut.CanonicalTrack!.TrackNumber ?? ExtractTrackNumberFromFileName(""))
+            .Select(ut => MapToDto(ut, caller.UserId))
             .ToList();
 
         return sorted;
@@ -102,20 +90,17 @@ public sealed class TrackService : ITrackService
     {
         var queryLower = query.ToLowerInvariant();
 
-        var tracks = await _db.Tracks
-            .Include(t => t.Album)
-            .Include(t => t.TrackArtists).ThenInclude(ta => ta.Artist)
-            .Include(t => t.TrackGenres).ThenInclude(tg => tg.Genre)
-            .Where(t => t.OwnerId == caller.UserId && (
-                t.Title.ToLower().Contains(queryLower)
-                || (t.Album != null && t.Album.Title.ToLower().Contains(queryLower))
-                || t.TrackArtists!.Any(ta => ta.Artist != null && ta.Artist.Name.ToLower().Contains(queryLower))
+        var userTracks = await BaseTrackQuery()
+            .Where(ut => ut.OwnerId == caller.UserId && (
+                ut.CanonicalTrack!.Title.ToLower().Contains(queryLower)
+                || (ut.CanonicalAlbum != null && ut.CanonicalAlbum.Title.ToLower().Contains(queryLower))
+                || ut.CanonicalTrack!.TrackArtists.Any(cta => cta.Artist != null && cta.Artist.Name.ToLower().Contains(queryLower))
             ))
-            .OrderBy(t => t.Title)
+            .OrderBy(ut => ut.CanonicalTrack!.Title)
             .Take(maxResults)
             .ToListAsync(cancellationToken);
 
-        return tracks.Select(t => MapToDto(t, caller.UserId)).ToList();
+        return userTracks.Select(ut => MapToDto(ut, caller.UserId)).ToList();
     }
 
     /// <summary>
@@ -123,16 +108,13 @@ public sealed class TrackService : ITrackService
     /// </summary>
     public async Task<IReadOnlyList<TrackDto>> GetRecentTracksAsync(CallerContext caller, int count = 20, CancellationToken cancellationToken = default)
     {
-        var tracks = await _db.Tracks
-            .Include(t => t.Album)
-            .Include(t => t.TrackArtists).ThenInclude(ta => ta.Artist)
-            .Include(t => t.TrackGenres).ThenInclude(tg => tg.Genre)
-            .Where(t => t.OwnerId == caller.UserId)
-            .OrderByDescending(t => t.CreatedAt)
+        var userTracks = await BaseTrackQuery()
+            .Where(ut => ut.OwnerId == caller.UserId)
+            .OrderByDescending(ut => ut.CreatedAt)
             .Take(count)
             .ToListAsync(cancellationToken);
 
-        return tracks.Select(t => MapToDto(t, caller.UserId)).ToList();
+        return userTracks.Select(ut => MapToDto(ut, caller.UserId)).ToList();
     }
 
     /// <summary>
@@ -140,38 +122,34 @@ public sealed class TrackService : ITrackService
     /// </summary>
     public async Task<IReadOnlyList<TrackDto>> GetRandomTracksAsync(CallerContext caller, int count = 20, string? genre = null, CancellationToken cancellationToken = default)
     {
-        var query = _db.Tracks
-            .Include(t => t.Album)
-            .Include(t => t.TrackArtists).ThenInclude(ta => ta.Artist)
-            .Include(t => t.TrackGenres).ThenInclude(tg => tg.Genre)
-            .Where(t => t.OwnerId == caller.UserId);
+        var query = BaseTrackQuery()
+            .Where(ut => ut.OwnerId == caller.UserId);
 
         if (!string.IsNullOrWhiteSpace(genre))
         {
-            query = query.Where(t => t.TrackGenres.Any(tg => tg.Genre!.Name == genre));
+            query = query.Where(ut => ut.CanonicalTrack!.TrackGenres.Any(ctg => ctg.Genre!.Name == genre));
         }
 
-        // Use Guid to get random ordering
-        var tracks = await query
+        var userTracks = await query
             .OrderBy(_ => Guid.NewGuid())
             .Take(count)
             .ToListAsync(cancellationToken);
 
-        return tracks.Select(t => MapToDto(t, caller.UserId)).ToList();
+        return userTracks.Select(ut => MapToDto(ut, caller.UserId)).ToList();
     }
 
     /// <summary>
-    /// Soft-deletes a track.
+    /// Soft-deletes a track (UserTrack).
     /// </summary>
     public async Task DeleteTrackAsync(Guid trackId, CallerContext caller, CancellationToken cancellationToken = default)
     {
-        var track = await _db.Tracks
-            .FirstOrDefaultAsync(t => t.Id == trackId && t.OwnerId == caller.UserId, cancellationToken)
+        var userTrack = await _db.UserTracks
+            .FirstOrDefaultAsync(ut => ut.Id == trackId && ut.OwnerId == caller.UserId, cancellationToken)
             ?? throw new BusinessRuleException(ErrorCodes.TrackNotFound, "Track not found.");
 
-        track.IsDeleted = true;
-        track.DeletedAt = DateTime.UtcNow;
-        track.UpdatedAt = DateTime.UtcNow;
+        userTrack.IsDeleted = true;
+        userTrack.DeletedAt = DateTime.UtcNow;
+        userTrack.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation("Track {TrackId} soft-deleted by user {UserId}", trackId, caller.UserId);
@@ -200,52 +178,62 @@ public sealed class TrackService : ITrackService
         if (starredTrackIds.Count == 0)
             return [];
 
-        var tracks = await _db.Tracks
-            .Include(t => t.Album)
-            .Include(t => t.TrackArtists).ThenInclude(ta => ta.Artist)
-            .Include(t => t.TrackGenres).ThenInclude(tg => tg.Genre)
-            .Where(t => starredTrackIds.Contains(t.Id) && t.OwnerId == caller.UserId)
+        var userTracks = await BaseTrackQuery()
+            .Where(ut => starredTrackIds.Contains(ut.Id) && ut.OwnerId == caller.UserId)
             .ToListAsync(cancellationToken);
 
-        // Preserve starred-at ordering
-        var trackMap = tracks.ToDictionary(t => t.Id);
+        var trackMap = userTracks.ToDictionary(ut => ut.Id);
         return starredTrackIds
             .Where(id => trackMap.ContainsKey(id))
             .Select(id => MapToDto(trackMap[id], caller.UserId))
             .ToList();
     }
 
-    internal TrackDto MapToDto(Track track, Guid userId)
+    internal TrackDto MapToDto(UserTrack userTrack, Guid userId)
     {
-        var primaryArtist = track.TrackArtists?
-            .FirstOrDefault(ta => ta.IsPrimary)?.Artist
-            ?? track.TrackArtists?.FirstOrDefault()?.Artist;
+        var canonicalTrack = userTrack.CanonicalTrack;
+        var primaryArtist = canonicalTrack?.TrackArtists
+            .FirstOrDefault(cta => cta.IsPrimary)?.Artist
+            ?? canonicalTrack?.TrackArtists.FirstOrDefault()?.Artist;
 
-        var primaryGenre = track.TrackGenres?.FirstOrDefault()?.Genre?.Name;
+        var primaryGenre = canonicalTrack?.TrackGenres.FirstOrDefault()?.Genre?.Name;
 
         var isStarred = _db.StarredItems.Any(s =>
-            s.UserId == userId && s.ItemType == StarredItemType.Track && s.ItemId == track.Id);
+            s.UserId == userId && s.ItemType == StarredItemType.Track && s.ItemId == userTrack.Id);
 
         return new TrackDto
         {
-            Id = track.Id,
-            FileNodeId = track.FileNodeId,
-            Title = track.Title,
-            TrackNumber = track.TrackNumber,
-            DiscNumber = track.DiscNumber,
-            Duration = TimeSpan.FromTicks(track.DurationTicks),
-            SizeBytes = track.SizeBytes,
-            Bitrate = track.Bitrate,
-            MimeType = track.MimeType,
-            AlbumId = track.AlbumId,
-            AlbumTitle = track.Album?.Title,
+            Id = userTrack.Id,
+            FileNodeId = userTrack.FileNodeId,
+            Title = canonicalTrack?.Title ?? "Unknown",
+            TrackNumber = canonicalTrack?.TrackNumber,
+            DiscNumber = canonicalTrack?.DiscNumber,
+            Duration = TimeSpan.FromTicks(canonicalTrack?.DurationTicks ?? 0),
+            SizeBytes = 0, // Legacy field — size is now on FileNode
+            Bitrate = canonicalTrack?.Bitrate,
+            MimeType = canonicalTrack?.MimeType ?? "audio/mpeg",
+            AlbumId = userTrack.CanonicalAlbumId,
+            AlbumTitle = userTrack.CanonicalAlbum?.Title,
             ArtistId = primaryArtist?.Id ?? Guid.Empty,
             ArtistName = primaryArtist?.Name ?? "Unknown Artist",
             Genre = primaryGenre,
-            Year = track.Year,
+            Year = canonicalTrack?.Year,
             IsStarred = isStarred,
-            CreatedAt = track.CreatedAt
+            CreatedAt = userTrack.CreatedAt
         };
+    }
+
+    /// <summary>
+    /// Base query for UserTrack with canonical includes — reusable across all track queries.
+    /// </summary>
+    private IQueryable<UserTrack> BaseTrackQuery()
+    {
+        return _db.UserTracks
+            .Include(ut => ut.CanonicalTrack)
+                .ThenInclude(ct => ct!.TrackArtists).ThenInclude(cta => cta.Artist)
+            .Include(ut => ut.CanonicalTrack)
+                .ThenInclude(ct => ct!.TrackGenres).ThenInclude(ctg => ctg.Genre)
+            .Include(ut => ut.CanonicalAlbum);
     }
 
     /// <summary>

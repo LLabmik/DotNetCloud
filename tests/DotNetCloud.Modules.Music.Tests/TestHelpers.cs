@@ -7,11 +7,10 @@ using Microsoft.EntityFrameworkCore;
 namespace DotNetCloud.Modules.Music.Tests;
 
 /// <summary>
-/// Shared helpers for Music module service tests.
+/// Shared helpers for Music module service tests — uses canonical+junction tables only.
 /// </summary>
 internal static class TestHelpers
 {
-    /// <summary>Creates a fresh InMemory MusicDbContext.</summary>
     public static MusicDbContext CreateDb()
     {
         var options = new DbContextOptionsBuilder<MusicDbContext>()
@@ -20,127 +19,157 @@ internal static class TestHelpers
         return new MusicDbContext(options);
     }
 
-    /// <summary>Creates a CallerContext for a user.</summary>
     public static CallerContext CreateCaller(Guid? userId = null)
         => new(userId ?? Guid.NewGuid(), ["user"], CallerType.User);
 
-    /// <summary>Seeds an artist in the database.</summary>
-    public static async Task<Artist> SeedArtistAsync(
+    public static async Task<CanonicalArtist> SeedCanonicalArtistAsync(
         MusicDbContext db,
         string name = "Test Artist",
-        string? sortName = null,
-        Guid? ownerId = null)
+        string? sortName = null)
     {
-        var artist = new Artist
+        var artist = new CanonicalArtist
         {
             Name = name,
-            SortName = sortName ?? name,
-            OwnerId = ownerId ?? Guid.NewGuid()
+            SortName = sortName ?? name
         };
-        db.Artists.Add(artist);
+        db.CanonicalArtists.Add(artist);
         await db.SaveChangesAsync();
         return artist;
     }
 
-    /// <summary>Seeds a music album in the database.</summary>
-    public static async Task<MusicAlbum> SeedAlbumAsync(
+    public static async Task<UserArtist> SeedUserArtistAsync(
         MusicDbContext db,
-        Guid artistId,
-        string title = "Test Album",
-        int? year = 2024,
-        Guid? ownerId = null)
+        Guid canonicalArtistId,
+        Guid ownerId)
     {
-        var album = new MusicAlbum
+        var ua = new UserArtist
+        {
+            OwnerId = ownerId,
+            CanonicalArtistId = canonicalArtistId
+        };
+        db.UserArtists.Add(ua);
+        await db.SaveChangesAsync();
+        return ua;
+    }
+
+    public static async Task<CanonicalAlbum> SeedCanonicalAlbumAsync(
+        MusicDbContext db,
+        string title = "Test Album",
+        int? year = 2024)
+    {
+        var album = new CanonicalAlbum
         {
             Title = title,
-            ArtistId = artistId,
             Year = year,
-            TotalDurationTicks = TimeSpan.FromMinutes(45).Ticks,
-            OwnerId = ownerId ?? Guid.NewGuid()
+            TotalDurationTicks = TimeSpan.FromMinutes(45).Ticks
         };
-        db.Albums.Add(album);
+        db.CanonicalAlbums.Add(album);
         await db.SaveChangesAsync();
         return album;
     }
 
-    /// <summary>Seeds a track in the database.</summary>
-    public static async Task<Track> SeedTrackAsync(
+    public static async Task<UserAlbum> SeedUserAlbumAsync(
         MusicDbContext db,
-        Guid? albumId = null,
+        Guid canonicalAlbumId,
+        Guid ownerId)
+    {
+        var ua = new UserAlbum
+        {
+            OwnerId = ownerId,
+            CanonicalAlbumId = canonicalAlbumId
+        };
+        db.UserAlbums.Add(ua);
+        await db.SaveChangesAsync();
+        return ua;
+    }
+
+    public static async Task<CanonicalTrack> SeedCanonicalTrackAsync(
+        MusicDbContext db,
+        string contentHash,
         string title = "Test Track",
         int trackNumber = 1,
         int discNumber = 1,
-        string mimeType = "audio/flac",
-        long sizeBytes = 30_000_000,
-        Guid? ownerId = null)
+        string mimeType = "audio/flac")
     {
-        var track = new Track
+        var track = new CanonicalTrack
         {
-            FileNodeId = Guid.NewGuid(),
-            OwnerId = ownerId ?? Guid.NewGuid(),
+            ContentHash = contentHash,
             Title = title,
-            FileName = $"{title.Replace(' ', '_').ToLowerInvariant()}.flac",
             TrackNumber = trackNumber,
             DiscNumber = discNumber,
             DurationTicks = TimeSpan.FromMinutes(4).Ticks,
-            SizeBytes = sizeBytes,
             Bitrate = 1_411_000,
             SampleRate = 44100,
             Channels = 2,
-            MimeType = mimeType,
-            AlbumId = albumId
+            MimeType = mimeType
         };
-        db.Tracks.Add(track);
+        db.CanonicalTracks.Add(track);
         await db.SaveChangesAsync();
         return track;
     }
 
-    /// <summary>Seeds a track-artist link.</summary>
-    public static async Task<TrackArtist> SeedTrackArtistAsync(
+    public static async Task<UserTrack> SeedUserTrackAsync(
         MusicDbContext db,
-        Guid trackId,
+        Guid ownerId,
+        Guid fileNodeId,
+        string canonicalTrackHash,
+        Guid? canonicalAlbumId = null)
+    {
+        var ut = new UserTrack
+        {
+            OwnerId = ownerId,
+            FileNodeId = fileNodeId,
+            CanonicalTrackHash = canonicalTrackHash,
+            ContentHash = canonicalTrackHash,
+            CanonicalAlbumId = canonicalAlbumId
+        };
+        db.UserTracks.Add(ut);
+        await db.SaveChangesAsync();
+        return ut;
+    }
+
+    public static async Task<CanonicalTrackArtist> SeedCanonicalTrackArtistAsync(
+        MusicDbContext db,
+        string trackContentHash,
         Guid artistId,
         bool isPrimary = true)
     {
-        var ta = new TrackArtist
+        var cta = new CanonicalTrackArtist
         {
-            TrackId = trackId,
+            TrackContentHash = trackContentHash,
             ArtistId = artistId,
             IsPrimary = isPrimary
         };
-        db.Set<TrackArtist>().Add(ta);
+        db.CanonicalTrackArtists.Add(cta);
         await db.SaveChangesAsync();
-        return ta;
+        return cta;
     }
 
-    /// <summary>Seeds a genre.</summary>
-    public static async Task<Genre> SeedGenreAsync(
+    public static async Task<CanonicalGenre> SeedCanonicalGenreAsync(
         MusicDbContext db,
         string name = "Rock")
     {
-        var genre = new Genre { Name = name };
-        db.Genres.Add(genre);
+        var genre = new CanonicalGenre { Name = name };
+        db.CanonicalGenres.Add(genre);
         await db.SaveChangesAsync();
         return genre;
     }
 
-    /// <summary>Seeds a track-genre link.</summary>
-    public static async Task<TrackGenre> SeedTrackGenreAsync(
+    public static async Task<CanonicalTrackGenre> SeedCanonicalTrackGenreAsync(
         MusicDbContext db,
-        Guid trackId,
+        string trackContentHash,
         Guid genreId)
     {
-        var tg = new TrackGenre
+        var ctg = new CanonicalTrackGenre
         {
-            TrackId = trackId,
+            TrackContentHash = trackContentHash,
             GenreId = genreId
         };
-        db.Set<TrackGenre>().Add(tg);
+        db.CanonicalTrackGenres.Add(ctg);
         await db.SaveChangesAsync();
-        return tg;
+        return ctg;
     }
 
-    /// <summary>Seeds a playlist.</summary>
     public static async Task<Playlist> SeedPlaylistAsync(
         MusicDbContext db,
         Guid ownerId,
@@ -158,147 +187,114 @@ internal static class TestHelpers
         return playlist;
     }
 
-    /// <summary>Seeds a playlist track entry.</summary>
     public static async Task<PlaylistTrack> SeedPlaylistTrackAsync(
         MusicDbContext db,
         Guid playlistId,
-        Guid trackId,
+        Guid userTrackId,
         int sortOrder = 0)
     {
         var pt = new PlaylistTrack
         {
             PlaylistId = playlistId,
-            TrackId = trackId,
+            UserTrackId = userTrackId,
             SortOrder = sortOrder
         };
-        db.Set<PlaylistTrack>().Add(pt);
+        db.PlaylistTracks.Add(pt);
         await db.SaveChangesAsync();
         return pt;
     }
 
-    /// <summary>Seeds an EQ preset.</summary>
-    public static async Task<EqPreset> SeedEqPresetAsync(
+    public static async Task<PlaybackHistory> SeedPlaybackHistoryAsync(
         MusicDbContext db,
-        Guid? ownerId = null,
-        string name = "Custom Preset",
-        bool isBuiltIn = false)
+        Guid userId,
+        Guid userTrackId,
+        int durationPlayedSeconds = 30)
     {
-        var preset = new EqPreset
+        var ph = new PlaybackHistory
         {
-            OwnerId = ownerId,
-            Name = name,
-            IsBuiltIn = isBuiltIn,
-            BandsJson = "{\"60Hz\":0,\"230Hz\":0,\"910Hz\":0,\"3600Hz\":0,\"14000Hz\":0}"
+            UserId = userId,
+            UserTrackId = userTrackId,
+            DurationPlayedSeconds = durationPlayedSeconds
         };
+        db.PlaybackHistories.Add(ph);
+        await db.SaveChangesAsync();
+        return ph;
+    }
+
+    public static async Task<EqPreset> SeedEqPresetAsync(MusicDbContext db, Guid? ownerId = null, string name = "Flat", bool isBuiltIn = false)
+    {
+        var preset = new EqPreset { OwnerId = ownerId, Name = name, IsBuiltIn = isBuiltIn, BandsJson = "{}" };
         db.EqPresets.Add(preset);
         await db.SaveChangesAsync();
         return preset;
     }
 
-    /// <summary>Seeds a starred item.</summary>
-    public static async Task<StarredItem> SeedStarredItemAsync(
-        MusicDbContext db,
-        Guid userId,
-        Guid itemId,
-        StarredItemType itemType = StarredItemType.Track)
+    public static async Task SeedStarredItemAsync(MusicDbContext db, Guid userId, Guid itemId, StarredItemType itemType = StarredItemType.Track)
     {
-        var star = new StarredItem
-        {
-            UserId = userId,
-            ItemId = itemId,
-            ItemType = itemType,
-            StarredAt = DateTime.UtcNow
-        };
-        db.StarredItems.Add(star);
+        db.StarredItems.Add(new StarredItem { UserId = userId, ItemId = itemId, ItemType = itemType });
         await db.SaveChangesAsync();
-        return star;
     }
 
-    /// <summary>Seeds a playback history entry.</summary>
-    public static async Task<PlaybackHistory> SeedPlaybackHistoryAsync(
-        MusicDbContext db,
-        Guid userId,
-        Guid trackId)
+    public static async Task<(CanonicalArtist artist, CanonicalAlbum album, UserTrack track)> SeedCompleteTrackAsync(
+        MusicDbContext db, string artistName = "Test Artist", string albumTitle = "Test Album",
+        string trackTitle = "Test Track", string genreName = "Rock", Guid? ownerId = null)
     {
-        var history = new PlaybackHistory
-        {
-            UserId = userId,
-            TrackId = trackId,
-            PlayedAt = DateTime.UtcNow
-        };
-        db.PlaybackHistories.Add(history);
-        await db.SaveChangesAsync();
-        return history;
+        var owner = ownerId ?? Guid.NewGuid();
+        var artist = await SeedCanonicalArtistAsync(db, artistName);
+        await SeedUserArtistAsync(db, artist.Id, owner);
+        var album = await SeedCanonicalAlbumAsync(db, albumTitle);
+        await SeedUserAlbumAsync(db, album.Id, owner);
+        var contentHash = Guid.NewGuid().ToString("N");
+        await SeedCanonicalTrackAsync(db, contentHash, trackTitle);
+        await SeedCanonicalTrackArtistAsync(db, contentHash, artist.Id);
+        var genre = await SeedCanonicalGenreAsync(db, genreName);
+        await SeedCanonicalTrackGenreAsync(db, contentHash, genre.Id);
+        var userTrack = await SeedUserTrackAsync(db, owner, Guid.NewGuid(), contentHash, album.Id);
+        return (artist, album, userTrack);
     }
 
-    /// <summary>Seeds a complete track with artist and album.</summary>
-    public static async Task<(Artist Artist, MusicAlbum Album, Track Track)> SeedCompleteTrackAsync(
-        MusicDbContext db,
-        string artistName = "Test Artist",
-        string albumTitle = "Test Album",
-        string trackTitle = "Test Track",
-        Guid? ownerId = null)
+    // ── Legacy-compatible wrappers (create canonical+junction data) ──
+
+    public static async Task<CanonicalArtist> SeedArtistAsync(MusicDbContext db, string name = "Test Artist", string? sortName = null, Guid? ownerId = null)
     {
-        var artist = await SeedArtistAsync(db, artistName, ownerId: ownerId);
-        var album = await SeedAlbumAsync(db, artist.Id, albumTitle, ownerId: ownerId);
-        var track = await SeedTrackAsync(db, album.Id, trackTitle, ownerId: ownerId);
-        await SeedTrackArtistAsync(db, track.Id, artist.Id);
-        return (artist, album, track);
+        var a = await SeedCanonicalArtistAsync(db, name, sortName);
+        if (ownerId.HasValue)
+            await SeedUserArtistAsync(db, a.Id, ownerId.Value);
+        return a;
     }
 
-    /// <summary>Seeds an album with HasCoverArt = false, no CoverArtPath.</summary>
-    public static async Task<MusicAlbum> SeedAlbumWithoutArtAsync(
-        MusicDbContext db,
-        Guid artistId,
-        string title = "No Art Album",
-        Guid? ownerId = null)
+    public static async Task<CanonicalAlbum> SeedAlbumAsync(MusicDbContext db, Guid artistId, string title = "Test Album", int? year = 2024, Guid? ownerId = null)
     {
-        var album = new MusicAlbum
-        {
-            Title = title,
-            ArtistId = artistId,
-            HasCoverArt = false,
-            CoverArtPath = null,
-            TotalDurationTicks = TimeSpan.FromMinutes(45).Ticks,
-            OwnerId = ownerId ?? Guid.NewGuid()
-        };
-        db.Albums.Add(album);
-        await db.SaveChangesAsync();
-        return album;
+        var a = await SeedCanonicalAlbumAsync(db, title, year);
+        if (ownerId.HasValue)
+            await SeedUserAlbumAsync(db, a.Id, ownerId.Value);
+        return a;
     }
 
-    /// <summary>Seeds an artist with MusicBrainz enrichment data populated.</summary>
-    public static async Task<Artist> SeedEnrichedArtistAsync(
-        MusicDbContext db,
-        string name = "Enriched Artist",
-        Guid? ownerId = null)
+    public static async Task<UserTrack> SeedTrackAsync(MusicDbContext db, Guid? albumId = null, string title = "Test Track",
+        int trackNumber = 1, int discNumber = 1, string mimeType = "audio/flac", long sizeBytes = 30_000_000, Guid? ownerId = null)
     {
-        var artist = new Artist
-        {
-            Name = name,
-            SortName = name,
-            OwnerId = ownerId ?? Guid.NewGuid(),
-            MusicBrainzId = Guid.NewGuid().ToString(),
-            Biography = $"{name} is a well-known musical act.",
-            WikipediaUrl = $"https://en.wikipedia.org/wiki/{name.Replace(' ', '_')}",
-            DiscogsUrl = "https://www.discogs.com/artist/12345",
-            OfficialUrl = $"https://www.{name.Replace(' ', '-').ToLowerInvariant()}.com",
-            LastEnrichedAt = DateTime.UtcNow.AddDays(-10)
-        };
-        db.Artists.Add(artist);
-        await db.SaveChangesAsync();
-        return artist;
+        _ = sizeBytes; // Size is on FileNode, not tracked in canonical
+        var owner = ownerId ?? Guid.NewGuid();
+        var contentHash = Guid.NewGuid().ToString("N");
+        await SeedCanonicalTrackAsync(db, contentHash, title, trackNumber, discNumber, mimeType);
+        return await SeedUserTrackAsync(db, owner, Guid.NewGuid(), contentHash, albumId);
     }
 
-    /// <summary>Creates a JSON string mimicking a MusicBrainz artist search response.</summary>
-    public static string CreateMockMusicBrainzArtistJson(string name, string mbid, int score)
+    public static async Task<CanonicalTrackArtist> SeedTrackArtistAsync(MusicDbContext db, Guid trackId, Guid artistId, bool isPrimary = true)
     {
-        return $$"""
-        {
-            "artists": [
-                {"id":"{{mbid}}","name":"{{name}}","score":{{score}},"disambiguation":""}
-            ]
-        }
-        """;
+        var userTrack = await db.UserTracks.FirstOrDefaultAsync(ut => ut.Id == trackId);
+        var contentHash = userTrack?.CanonicalTrackHash ?? Guid.NewGuid().ToString("N");
+        return await SeedCanonicalTrackArtistAsync(db, contentHash, artistId, isPrimary);
+    }
+
+    public static async Task<CanonicalGenre> SeedGenreAsync(MusicDbContext db, string name = "Rock")
+        => await SeedCanonicalGenreAsync(db, name);
+
+    public static async Task<CanonicalTrackGenre> SeedTrackGenreAsync(MusicDbContext db, Guid trackId, Guid genreId)
+    {
+        var userTrack = await db.UserTracks.FirstOrDefaultAsync(ut => ut.Id == trackId);
+        var contentHash = userTrack?.CanonicalTrackHash ?? Guid.NewGuid().ToString("N");
+        return await SeedCanonicalTrackGenreAsync(db, contentHash, genreId);
     }
 }

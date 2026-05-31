@@ -523,7 +523,7 @@ public class SubsonicController : ControllerBase
 
         // The actual file serving would require file system access
         // For now, return a placeholder that the host can override
-        return Ok(new { trackId = track.Id, mimeType = track.MimeType, message = "Streaming requires file system integration" });
+        return Ok(new { trackId = track.Id, mimeType = track.CanonicalTrack?.MimeType ?? "audio/mpeg", message = "Streaming requires file system integration" });
     }
 
     /// <summary>Subsonic getCoverArt endpoint.</summary>

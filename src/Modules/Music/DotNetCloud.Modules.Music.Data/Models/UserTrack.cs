@@ -45,4 +45,7 @@ public sealed class UserTrack
 
     /// <summary>Navigation to the canonical album.</summary>
     public CanonicalAlbum? CanonicalAlbum { get; set; }
+
+    /// <summary>Playlist associations for this user track.</summary>
+    public ICollection<PlaylistTrack> PlaylistTracks { get; set; } = new List<PlaylistTrack>();
 }

@@ -13,6 +13,7 @@ namespace DotNetCloud.Modules.Music.Data.Services;
 
 /// <summary>
 /// Service for managing music albums — browse, search, album tracks, album art.
+/// Uses UserAlbum junction + CanonicalAlbum (canonical/shared) tables.
 /// </summary>
 public sealed class MusicAlbumService : IMusicAlbumService
 {
@@ -22,9 +23,6 @@ public sealed class MusicAlbumService : IMusicAlbumService
     private readonly ContentAddressedStorage _contentStorage;
     private readonly ILogger<MusicAlbumService> _logger;
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="MusicAlbumService"/> class.
-    /// </summary>
     public MusicAlbumService(
         MusicDbContext db,
         AlbumArtService albumArtService,
@@ -40,185 +38,136 @@ public sealed class MusicAlbumService : IMusicAlbumService
         _logger = logger;
     }
 
-    /// <summary>
-    /// Gets an album by ID.
-    /// </summary>
     public async Task<MusicAlbumDto?> GetAlbumAsync(Guid albumId, CallerContext caller, CancellationToken cancellationToken = default)
     {
-        var album = await _db.Albums
-            .Include(a => a.Artist)
-            .Include(a => a.Tracks)
-            .FirstOrDefaultAsync(a => a.Id == albumId && a.OwnerId == caller.UserId, cancellationToken);
-
-        return album is null ? null : MapToDto(album, caller.UserId);
+        var userAlbum = await _db.UserAlbums
+            .Include(ua => ua.CanonicalAlbum)
+            .FirstOrDefaultAsync(ua => ua.CanonicalAlbumId == albumId && ua.OwnerId == caller.UserId, cancellationToken);
+        return userAlbum is null ? null : await MapToDtoAsync(userAlbum, caller.UserId, cancellationToken);
     }
 
-    /// <summary>
-    /// Gets the total album count for a user.
-    /// </summary>
     public async Task<int> GetCountAsync(Guid ownerId, CancellationToken cancellationToken = default)
     {
-        return await _db.Albums.CountAsync(a => a.OwnerId == ownerId, cancellationToken);
+        return await _db.UserAlbums.CountAsync(ua => ua.OwnerId == ownerId, cancellationToken);
     }
 
-    /// <summary>
-    /// Lists albums for the authenticated user.
-    /// </summary>
     public async Task<IReadOnlyList<MusicAlbumDto>> ListAlbumsAsync(CallerContext caller, int skip = 0, int take = 50, CancellationToken cancellationToken = default)
     {
-        var albums = await _db.Albums
-            .Include(a => a.Artist)
-            .Include(a => a.Tracks)
-            .Where(a => a.OwnerId == caller.UserId)
-            .OrderBy(a => a.Artist!.SortName ?? a.Artist!.Name)
-            .ThenBy(a => a.Year)
-            .ThenBy(a => a.Title)
+        var userAlbums = await _db.UserAlbums
+            .Include(ua => ua.CanonicalAlbum)
+            .Where(ua => ua.OwnerId == caller.UserId)
+            .OrderBy(ua => ua.CanonicalAlbum!.Title)
             .Skip(skip)
             .Take(take)
             .ToListAsync(cancellationToken);
-
-        return albums.Select(a => MapToDto(a, caller.UserId)).ToList();
+        var result = new List<MusicAlbumDto>(userAlbums.Count);
+        foreach (var ua in userAlbums)
+            result.Add(await MapToDtoAsync(ua, caller.UserId, cancellationToken));
+        return result;
     }
 
-    /// <summary>
-    /// Lists albums by a specific artist.
-    /// </summary>
     public async Task<IReadOnlyList<MusicAlbumDto>> ListAlbumsByArtistAsync(Guid artistId, CallerContext caller, CancellationToken cancellationToken = default)
     {
-        var albums = await _db.Albums
-            .Include(a => a.Artist)
-            .Include(a => a.Tracks)
-            .Where(a => a.ArtistId == artistId && a.OwnerId == caller.UserId)
-            .OrderBy(a => a.Year)
-            .ThenBy(a => a.Title)
+        var userAlbums = await _db.UserAlbums
+            .Include(ua => ua.CanonicalAlbum)
+            .Where(ua => ua.OwnerId == caller.UserId &&
+                _db.CanonicalAlbumArtists.Any(caa => caa.AlbumId == ua.CanonicalAlbumId && caa.ArtistId == artistId))
+            .OrderBy(ua => ua.CanonicalAlbum!.Year)
+            .ThenBy(ua => ua.CanonicalAlbum!.Title)
             .ToListAsync(cancellationToken);
-
-        return albums.Select(a => MapToDto(a, caller.UserId)).ToList();
+        var result = new List<MusicAlbumDto>(userAlbums.Count);
+        foreach (var ua in userAlbums)
+            result.Add(await MapToDtoAsync(ua, caller.UserId, cancellationToken));
+        return result;
     }
 
-    /// <summary>
-    /// Searches albums by title.
-    /// </summary>
     public async Task<IReadOnlyList<MusicAlbumDto>> SearchAsync(CallerContext caller, string query, int maxResults = 20, CancellationToken cancellationToken = default)
     {
-        var albums = await _db.Albums
-            .Include(a => a.Artist)
-            .Include(a => a.Tracks)
-            .Where(a => a.OwnerId == caller.UserId && a.Title.ToLower().Contains(query.ToLower()))
-            .OrderBy(a => a.Title)
+        var queryLower = query.ToLowerInvariant();
+        var userAlbums = await _db.UserAlbums
+            .Include(ua => ua.CanonicalAlbum)
+            .Where(ua => ua.OwnerId == caller.UserId && ua.CanonicalAlbum!.Title.ToLower().Contains(queryLower))
+            .OrderBy(ua => ua.CanonicalAlbum!.Title)
             .Take(maxResults)
             .ToListAsync(cancellationToken);
-
-        return albums.Select(a => MapToDto(a, caller.UserId)).ToList();
+        var result = new List<MusicAlbumDto>(userAlbums.Count);
+        foreach (var ua in userAlbums)
+            result.Add(await MapToDtoAsync(ua, caller.UserId, cancellationToken));
+        return result;
     }
 
-    /// <summary>
-    /// Gets recently added albums.
-    /// </summary>
     public async Task<IReadOnlyList<MusicAlbumDto>> GetRecentAlbumsAsync(CallerContext caller, int count = 20, CancellationToken cancellationToken = default)
     {
-        var albums = await _db.Albums
-            .Include(a => a.Artist)
-            .Include(a => a.Tracks)
-            .Where(a => a.OwnerId == caller.UserId)
-            .OrderByDescending(a => a.CreatedAt)
+        var userAlbums = await _db.UserAlbums
+            .Include(ua => ua.CanonicalAlbum)
+            .Where(ua => ua.OwnerId == caller.UserId)
+            .OrderByDescending(ua => ua.CreatedAt)
             .Take(count)
             .ToListAsync(cancellationToken);
-
-        return albums.Select(a => MapToDto(a, caller.UserId)).ToList();
+        var result = new List<MusicAlbumDto>(userAlbums.Count);
+        foreach (var ua in userAlbums)
+            result.Add(await MapToDtoAsync(ua, caller.UserId, cancellationToken));
+        return result;
     }
 
-    /// <summary>
-    /// Deletes an album (soft delete).
-    /// </summary>
     public async Task DeleteAlbumAsync(Guid albumId, CallerContext caller, CancellationToken cancellationToken = default)
     {
-        var album = await _db.Albums
-            .FirstOrDefaultAsync(a => a.Id == albumId && a.OwnerId == caller.UserId, cancellationToken)
+        var userAlbum = await _db.UserAlbums
+            .FirstOrDefaultAsync(ua => ua.CanonicalAlbumId == albumId && ua.OwnerId == caller.UserId, cancellationToken)
             ?? throw new BusinessRuleException(ErrorCodes.MusicAlbumNotFound, "Album not found.");
-
-        album.IsDeleted = true;
-        album.DeletedAt = DateTime.UtcNow;
-        album.UpdatedAt = DateTime.UtcNow;
+        userAlbum.IsDeleted = true;
+        userAlbum.DeletedAt = DateTime.UtcNow;
+        userAlbum.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
-
         _logger.LogInformation("Album {AlbumId} soft-deleted by user {UserId}", albumId, caller.UserId);
     }
 
-    /// <summary>
-    /// Gets the cover art path for an album. Attempts on-demand extraction if not cached.
-    /// Returns the content hash of the image, or null if not available.
-    /// </summary>
     public async Task<string?> GetCoverArtPathAsync(Guid albumId, CancellationToken cancellationToken = default)
     {
-        var album = await _db.Albums
-            .Include(a => a.Tracks)
-            .FirstOrDefaultAsync(a => a.Id == albumId, cancellationToken);
-        if (album is null)
+        var canonicalAlbum = await _db.CanonicalAlbums.FindAsync([albumId], cancellationToken);
+        if (canonicalAlbum is null)
+            return null;
+        if (canonicalAlbum.CoverArtHash is not null && _contentStorage.Exists(canonicalAlbum.CoverArtHash))
+            return canonicalAlbum.CoverArtHash;
+
+        var anyUserTrack = await _db.UserTracks
+            .Include(ut => ut.CanonicalTrack)
+            .FirstOrDefaultAsync(ut => ut.CanonicalAlbumId == albumId && ut.FileNodeId != Guid.Empty, cancellationToken);
+        if (anyUserTrack is null)
             return null;
 
-        // If we have a cached content hash, return it
-        if (album.CoverArtPath is not null && _contentStorage.Exists(album.CoverArtPath))
-            return album.CoverArtPath;
-
-        // On-demand extraction: try to extract from one of the album's tracks
-        var artHash = await ExtractCoverArtForAlbumAsync(album, cancellationToken);
-
-        // If on-demand extraction also failed and the DB still claims we have art,
-        // clear the stale state so the next enrichment run can re-fetch from MusicBrainz.
-        if (artHash is null && album.HasCoverArt)
+        try
         {
-            album.HasCoverArt = false;
-            album.CoverArtPath = null;
-            album.UpdatedAt = DateTime.UtcNow;
+            var caller = new CallerContext(anyUserTrack.OwnerId, [], CallerType.System);
+            await using var stream = await _downloadService.DownloadCurrentAsync(anyUserTrack.FileNodeId, caller, cancellationToken);
+            if (stream is null)
+                return null;
+            var artHash = _albumArtService.ExtractAndCacheArt(stream,
+                anyUserTrack.CanonicalTrack?.MimeType ?? "audio/mpeg",
+                anyUserTrack.CanonicalTrack?.Title ?? "Unknown");
+            if (artHash is not null)
+            {
+                canonicalAlbum.HasCoverArt = true;
+                canonicalAlbum.CoverArtHash = artHash;
+                canonicalAlbum.UpdatedAt = DateTime.UtcNow;
+                await _db.SaveChangesAsync(cancellationToken);
+                return artHash;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to extract cover art for album {AlbumId}", albumId);
+        }
+        if (canonicalAlbum.HasCoverArt)
+        {
+            canonicalAlbum.HasCoverArt = false;
+            canonicalAlbum.CoverArtHash = null;
+            canonicalAlbum.UpdatedAt = DateTime.UtcNow;
             await _db.SaveChangesAsync(cancellationToken);
-            _logger.LogInformation("Cleared stale cover art state for album {AlbumId} (content hash missing, extraction failed)", album.Id);
         }
-
-        return artHash;
-    }
-
-    private async Task<string?> ExtractCoverArtForAlbumAsync(MusicAlbum album, CancellationToken cancellationToken)
-    {
-        var tracks = album.Tracks?.Where(t => t.FileNodeId != Guid.Empty).ToList()
-            ?? await _db.Tracks.Where(t => t.AlbumId == album.Id && t.FileNodeId != Guid.Empty)
-                .Take(3).ToListAsync(cancellationToken);
-
-        if (tracks.Count == 0)
-            return null;
-
-        foreach (var track in tracks)
-        {
-            try
-            {
-                var caller = new CallerContext(album.OwnerId, [], CallerType.System);
-                await using var stream = await _downloadService.DownloadCurrentAsync(track.FileNodeId, caller, cancellationToken);
-                if (stream is null)
-                    continue;
-
-                var artHash = _albumArtService.ExtractAndCacheArt(stream, track.MimeType, track.FileName);
-                if (artHash is not null)
-                {
-                    album.HasCoverArt = true;
-                    album.CoverArtPath = artHash;
-                    album.UpdatedAt = DateTime.UtcNow;
-                    await _db.SaveChangesAsync(cancellationToken);
-                    _logger.LogInformation("On-demand cover art extracted for album {AlbumId} from track {TrackId}", album.Id, track.Id);
-                    return artHash;
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogDebug(ex, "Failed to extract cover art from track {TrackId} for album {AlbumId}", track.Id, album.Id);
-            }
-        }
-
         return null;
     }
 
-    /// <summary>
-    /// Gets starred (favorited) albums for the current user.
-    /// </summary>
     public async Task<IReadOnlyList<MusicAlbumDto>> GetStarredAlbumsAsync(CallerContext caller, CancellationToken cancellationToken = default)
     {
         var starredAlbumIds = await _db.StarredItems
@@ -226,49 +175,54 @@ public sealed class MusicAlbumService : IMusicAlbumService
             .OrderByDescending(s => s.StarredAt)
             .Select(s => s.ItemId)
             .ToListAsync(cancellationToken);
-
         if (starredAlbumIds.Count == 0)
             return [];
-
-        var albums = await _db.Albums
-            .Include(a => a.Artist)
-            .Include(a => a.Tracks)
-            .Where(a => starredAlbumIds.Contains(a.Id) && a.OwnerId == caller.UserId)
+        var userAlbums = await _db.UserAlbums
+            .Include(ua => ua.CanonicalAlbum)
+            .Where(ua => starredAlbumIds.Contains(ua.CanonicalAlbumId) && ua.OwnerId == caller.UserId)
             .ToListAsync(cancellationToken);
-
-        var albumMap = albums.ToDictionary(a => a.Id);
-        return starredAlbumIds
-            .Where(id => albumMap.ContainsKey(id))
-            .Select(id => MapToDto(albumMap[id], caller.UserId))
-            .ToList();
+        var albumMap = userAlbums.ToDictionary(ua => ua.CanonicalAlbumId);
+        var result = new List<MusicAlbumDto>(starredAlbumIds.Count);
+        foreach (var id in starredAlbumIds)
+        {
+            if (albumMap.TryGetValue(id, out var ua))
+                result.Add(await MapToDtoAsync(ua, caller.UserId, cancellationToken));
+        }
+        return result;
     }
 
-    internal MusicAlbumDto MapToDto(MusicAlbum album, Guid userId)
+    private async Task<MusicAlbumDto> MapToDtoAsync(UserAlbum userAlbum, Guid userId, CancellationToken cancellationToken)
     {
-        var isStarred = _db.StarredItems.Any(s =>
-            s.UserId == userId && s.ItemType == StarredItemType.Album && s.ItemId == album.Id);
-
-        var primaryGenre = _db.TrackGenres
-            .Include(tg => tg.Genre)
-            .Where(tg => tg.Track!.AlbumId == album.Id)
-            .GroupBy(tg => tg.Genre!.Name)
+        var ca = userAlbum.CanonicalAlbum!;
+        var primaryArtist = await _db.CanonicalAlbumArtists
+            .Include(caa => caa.Artist)
+            .Where(caa => caa.AlbumId == ca.Id && caa.IsPrimary)
+            .Select(caa => caa.Artist)
+            .FirstOrDefaultAsync(cancellationToken);
+        var primaryGenre = await _db.CanonicalTrackGenres
+            .Include(ctg => ctg.Genre)
+            .Where(ctg => ctg.Track!.UserTracks.Any(ut => ut.CanonicalAlbumId == ca.Id))
+            .GroupBy(ctg => ctg.Genre!.Name)
             .OrderByDescending(g => g.Count())
             .Select(g => g.Key)
-            .FirstOrDefault();
-
+            .FirstOrDefaultAsync(cancellationToken);
+        var trackCount = await _db.UserTracks
+            .CountAsync(ut => ut.CanonicalAlbumId == ca.Id && ut.OwnerId == userId && !ut.IsDeleted, cancellationToken);
+        var isStarred = await _db.StarredItems.AnyAsync(s =>
+            s.UserId == userId && s.ItemType == StarredItemType.Album && s.ItemId == ca.Id, cancellationToken);
         return new MusicAlbumDto
         {
-            Id = album.Id,
-            Title = album.Title,
-            ArtistId = album.ArtistId,
-            ArtistName = album.Artist?.Name ?? "Unknown Artist",
-            Year = album.Year,
+            Id = ca.Id,
+            Title = ca.Title,
+            ArtistId = primaryArtist?.Id ?? Guid.Empty,
+            ArtistName = primaryArtist?.Name ?? "Unknown Artist",
+            Year = ca.Year,
             Genre = primaryGenre,
-            TrackCount = album.Tracks?.Count ?? 0,
-            TotalDuration = TimeSpan.FromTicks(album.TotalDurationTicks),
-            HasCoverArt = album.HasCoverArt,
+            TrackCount = trackCount,
+            TotalDuration = TimeSpan.FromTicks(ca.TotalDurationTicks),
+            HasCoverArt = ca.HasCoverArt,
             IsStarred = isStarred,
-            CreatedAt = album.CreatedAt
+            CreatedAt = userAlbum.CreatedAt
         };
     }
 }

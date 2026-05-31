@@ -96,10 +96,10 @@ public class MetadataEnrichmentServiceTests
         var service = CreateService();
         await service.EnrichAlbumAsync(album.Id, _caller);
 
-        var updatedAlbum = await _db.Albums.FindAsync(album.Id);
+        var updatedAlbum = await _db.CanonicalAlbums.FindAsync(new object[] { album.Id });
         Assert.IsNotNull(updatedAlbum);
         Assert.IsTrue(updatedAlbum.HasCoverArt);
-        Assert.IsNotNull(updatedAlbum.CoverArtPath);
+        Assert.IsNotNull(updatedAlbum.CoverArtHash);
     }
 
     [TestMethod]
@@ -114,7 +114,7 @@ public class MetadataEnrichmentServiceTests
         try
         {
             album.HasCoverArt = true;
-            album.CoverArtPath = tempCoverPath;
+            // Legacy CoverArtPath removed — canonical model uses CoverArtHash
             await _db.SaveChangesAsync();
 
             _mockMbClient.Setup(x => x.SearchReleaseGroupAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
@@ -170,7 +170,7 @@ public class MetadataEnrichmentServiceTests
         var service = CreateService();
         await service.EnrichAlbumAsync(album.Id, _caller);
 
-        var updated = await _db.Albums.FindAsync(album.Id);
+        var updated = await _db.CanonicalAlbums.FindAsync(new object[] { album.Id });
         Assert.AreEqual("rg-lat", updated!.MusicBrainzReleaseGroupId);
         Assert.AreEqual("r-lat", updated.MusicBrainzReleaseId);
     }
@@ -187,7 +187,7 @@ public class MetadataEnrichmentServiceTests
         var service = CreateService();
         await service.EnrichAlbumAsync(album.Id, _caller);
 
-        var updated = await _db.Albums.FindAsync(album.Id);
+        var updated = await _db.CanonicalAlbums.FindAsync(new object[] { album.Id });
         Assert.IsNull(updated!.MusicBrainzReleaseGroupId);
         Assert.IsFalse(updated.HasCoverArt);
     }
@@ -218,7 +218,7 @@ public class MetadataEnrichmentServiceTests
         var service = CreateService();
         await service.EnrichAlbumAsync(album.Id, _caller);
 
-        var updated = await _db.Albums.FindAsync(album.Id);
+        var updated = await _db.CanonicalAlbums.FindAsync(new object[] { album.Id });
         Assert.IsFalse(updated!.HasCoverArt);
     }
 
@@ -236,7 +236,7 @@ public class MetadataEnrichmentServiceTests
         var service = CreateService();
         await service.EnrichAlbumAsync(album.Id, _caller);
 
-        var updated = await _db.Albums.FindAsync(album.Id);
+        var updated = await _db.CanonicalAlbums.FindAsync(new object[] { album.Id });
         Assert.IsNotNull(updated!.LastEnrichedAt);
         Assert.IsTrue(updated.LastEnrichedAt >= beforeEnrich.AddSeconds(-1));
     }
@@ -291,7 +291,7 @@ public class MetadataEnrichmentServiceTests
         var service = CreateService();
         await service.EnrichAlbumAsync(album.Id, _caller);
 
-        var updated = await _db.Albums.FindAsync(album.Id);
+        var updated = await _db.CanonicalAlbums.FindAsync(new object[] { album.Id });
         Assert.IsNull(updated!.MusicBrainzReleaseGroupId);
         _mockMbClient.Verify(x => x.GetReleaseGroupAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
@@ -334,7 +334,7 @@ public class MetadataEnrichmentServiceTests
         var service = CreateService();
         await service.EnrichArtistAsync(artist.Id, _caller);
 
-        var updated = await _db.Artists.FindAsync(artist.Id);
+        var updated = await _db.CanonicalArtists.FindAsync(new object[] { artist.Id });
         Assert.AreEqual("Pink Floyd were an English rock band.", updated!.Biography);
         Assert.AreEqual("https://en.wikipedia.org/wiki/Pink_Floyd", updated.WikipediaUrl);
         Assert.AreEqual("https://www.discogs.com/artist/45467", updated.DiscogsUrl);
@@ -362,7 +362,7 @@ public class MetadataEnrichmentServiceTests
         var service = CreateService();
         await service.EnrichArtistAsync(artist.Id, _caller);
 
-        var updated = await _db.Artists.FindAsync(artist.Id);
+        var updated = await _db.CanonicalArtists.FindAsync(new object[] { artist.Id });
         Assert.AreEqual("mb-rh", updated!.MusicBrainzId);
     }
 
@@ -388,7 +388,7 @@ public class MetadataEnrichmentServiceTests
         var service = CreateService();
         await service.EnrichArtistAsync(artist.Id, _caller);
 
-        var updated = await _db.Artists.FindAsync(artist.Id);
+        var updated = await _db.CanonicalArtists.FindAsync(new object[] { artist.Id });
         Assert.IsNull(updated!.Biography);
     }
 
@@ -416,7 +416,7 @@ public class MetadataEnrichmentServiceTests
         var service = CreateService();
         await service.EnrichArtistAsync(artist.Id, _caller);
 
-        var updated = await _db.Artists.FindAsync(artist.Id);
+        var updated = await _db.CanonicalArtists.FindAsync(new object[] { artist.Id });
         Assert.IsNull(updated!.WikipediaUrl);
         Assert.IsNull(updated.DiscogsUrl);
         Assert.IsNull(updated.OfficialUrl);
@@ -433,7 +433,7 @@ public class MetadataEnrichmentServiceTests
         var service = CreateService();
         await service.EnrichArtistAsync(artist.Id, _caller);
 
-        var updated = await _db.Artists.FindAsync(artist.Id);
+        var updated = await _db.CanonicalArtists.FindAsync(new object[] { artist.Id });
         Assert.IsNull(updated!.MusicBrainzId);
         Assert.IsNull(updated.Biography);
     }
@@ -450,7 +450,7 @@ public class MetadataEnrichmentServiceTests
         var service = CreateService();
         await service.EnrichArtistAsync(artist.Id, _caller);
 
-        var updated = await _db.Artists.FindAsync(artist.Id);
+        var updated = await _db.CanonicalArtists.FindAsync(new object[] { artist.Id });
         Assert.IsNotNull(updated!.LastEnrichedAt);
         Assert.IsTrue(updated.LastEnrichedAt >= beforeEnrich.AddSeconds(-1));
     }
@@ -512,7 +512,7 @@ public class MetadataEnrichmentServiceTests
         var service = CreateService();
         await service.EnrichArtistAsync(artist.Id, _caller);
 
-        var updated = await _db.Artists.FindAsync(artist.Id);
+        var updated = await _db.CanonicalArtists.FindAsync(new object[] { artist.Id });
         Assert.AreEqual("https://en.wikipedia.org/wiki/Partial_Artist", updated!.WikipediaUrl);
         Assert.IsNull(updated.DiscogsUrl);
         Assert.IsNull(updated.OfficialUrl);
@@ -546,7 +546,7 @@ public class MetadataEnrichmentServiceTests
         var service = CreateService();
         await service.EnrichTrackAsync(track.Id, _caller);
 
-        var updated = await _db.Tracks.FindAsync(track.Id);
+        var updated = await _db.CanonicalTracks.FindAsync(new object[] { track.Id });
         Assert.AreEqual("rec-shine", updated!.MusicBrainzRecordingId);
     }
 
@@ -562,7 +562,7 @@ public class MetadataEnrichmentServiceTests
         var service = CreateService();
         await service.EnrichTrackAsync(track.Id, _caller);
 
-        var updated = await _db.Tracks.FindAsync(track.Id);
+        var updated = await _db.CanonicalTracks.FindAsync(new object[] { track.Id });
         Assert.IsNull(updated!.MusicBrainzRecordingId);
     }
 
@@ -579,9 +579,9 @@ public class MetadataEnrichmentServiceTests
         var service = CreateService();
         await service.EnrichTrackAsync(track.Id, _caller);
 
-        var updated = await _db.Tracks.FindAsync(track.Id);
-        Assert.IsNotNull(updated!.LastEnrichedAt);
-        Assert.IsTrue(updated.LastEnrichedAt >= beforeEnrich.AddSeconds(-1));
+        var updated = await _db.CanonicalTracks.FindAsync(new object[] { track.Id });
+        Assert.IsNotNull(updated!.UpdatedAt);
+        Assert.IsTrue(updated.UpdatedAt >= beforeEnrich.AddSeconds(-1));
     }
 
     // ── Batch Enrichment ─────────────────────────────────────────────
@@ -592,7 +592,8 @@ public class MetadataEnrichmentServiceTests
         var artist = await TestHelpers.SeedArtistAsync(_db, "Batch Artist", ownerId: _caller.UserId);
         var albumWithArt = await TestHelpers.SeedAlbumAsync(_db, artist.Id, "Has Art", ownerId: _caller.UserId);
         albumWithArt.HasCoverArt = true;
-        albumWithArt.CoverArtPath = "/existing.jpg";
+        // CoverArtPath renamed to CoverArtHash in canonical model
+        //
 
         var albumNoArt1 = await TestHelpers.SeedAlbumAsync(_db, artist.Id, "No Art 1", ownerId: _caller.UserId);
         var albumNoArt2 = await TestHelpers.SeedAlbumAsync(_db, artist.Id, "No Art 2", ownerId: _caller.UserId);

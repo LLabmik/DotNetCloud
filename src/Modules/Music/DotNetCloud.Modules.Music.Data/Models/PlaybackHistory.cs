@@ -11,8 +11,8 @@ public sealed class PlaybackHistory
     /// <summary>The user who played the track.</summary>
     public Guid UserId { get; set; }
 
-    /// <summary>The track that was played.</summary>
-    public Guid TrackId { get; set; }
+    /// <summary>The user track that was played.</summary>
+    public Guid UserTrackId { get; set; }
 
     /// <summary>When playback started (UTC).</summary>
     public DateTime PlayedAt { get; set; } = DateTime.UtcNow;
@@ -20,6 +20,6 @@ public sealed class PlaybackHistory
     /// <summary>Duration played in seconds.</summary>
     public int DurationPlayedSeconds { get; set; }
 
-    /// <summary>Navigation to the track.</summary>
-    public Track? Track { get; set; }
+    /// <summary>Navigation to the user track.</summary>
+    public UserTrack? UserTrack { get; set; }
 }

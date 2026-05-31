@@ -35,12 +35,13 @@ public sealed class MusicStreamingService : IMusicStreamingService
     }
 
     /// <summary>
-    /// Gets a track by ID, verifying the user has access.
+    /// Gets a user track by ID, verifying the user has access.
     /// </summary>
-    public async Task<Track?> GetTrackForStreamingAsync(Guid trackId, Guid userId, CancellationToken cancellationToken = default)
+    public async Task<UserTrack?> GetTrackForStreamingAsync(Guid trackId, Guid userId, CancellationToken cancellationToken = default)
     {
-        return await _db.Tracks
-            .FirstOrDefaultAsync(t => t.Id == trackId && t.OwnerId == userId, cancellationToken);
+        return await _db.UserTracks
+            .Include(ut => ut.CanonicalTrack)
+            .FirstOrDefaultAsync(ut => ut.Id == trackId && ut.OwnerId == userId, cancellationToken);
     }
 
     /// <summary>

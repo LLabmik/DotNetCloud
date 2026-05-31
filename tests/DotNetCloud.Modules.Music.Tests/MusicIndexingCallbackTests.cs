@@ -52,7 +52,7 @@ public class MusicIndexingCallbackTests
 
         // LibraryScanService should create a track (metadata extraction may fail but track
         // record should still be created from the filename)
-        var count = _db.Tracks.Count(t => t.FileNodeId == fileNodeId);
+        var count = _db.UserTracks.Count(ut => ut.FileNodeId == fileNodeId);
         Assert.AreEqual(1, count);
     }
 
@@ -64,7 +64,7 @@ public class MusicIndexingCallbackTests
 
         await _callback.IndexAudioAsync(fileNodeId, "track.flac", "audio/flac", 30_000_000, ownerId);
 
-        var track = _db.Tracks.FirstOrDefault(t => t.FileNodeId == fileNodeId);
+        var track = _db.UserTracks.FirstOrDefault(ut => ut.FileNodeId == fileNodeId);
         Assert.IsNotNull(track);
         Assert.AreEqual(ownerId, track.OwnerId);
     }
@@ -78,7 +78,7 @@ public class MusicIndexingCallbackTests
         await _callback.IndexAudioAsync(fileNodeId, "song.mp3", "audio/mpeg", 1024, ownerId);
         await _callback.IndexAudioAsync(fileNodeId, "song.mp3", "audio/mpeg", 1024, ownerId);
 
-        var count = _db.Tracks.Count(t => t.FileNodeId == fileNodeId);
+        var count = _db.UserTracks.Count(ut => ut.FileNodeId == fileNodeId);
         Assert.AreEqual(1, count);
     }
 
@@ -91,7 +91,7 @@ public class MusicIndexingCallbackTests
         await _callback.IndexAudioAsync(Guid.NewGuid(), "song2.flac", "audio/flac", 2048, ownerId);
         await _callback.IndexAudioAsync(Guid.NewGuid(), "song3.ogg", "audio/ogg", 512, ownerId);
 
-        Assert.AreEqual(3, _db.Tracks.Count());
+        Assert.AreEqual(3, _db.UserTracks.Count());
     }
 
     // ── Cross-owner copy tests ──
@@ -114,13 +114,13 @@ public class MusicIndexingCallbackTests
         await _callback.IndexAudioAsync(fileNodeId, "muduzz.flac", "audio/flac", 30_000_000, userB);
 
         // Assert: User B now has a track for this FileNodeId with cloned metadata
-        var userBTrack = _db.Tracks
-            .Include(t => t.Album)
-            .FirstOrDefault(t => t.FileNodeId == fileNodeId && t.OwnerId == userB);
+        var userBTrack = _db.UserTracks
+            .Include(ut => ut.CanonicalAlbum)
+            .FirstOrDefault(ut => ut.FileNodeId == fileNodeId && ut.OwnerId == userB);
         Assert.IsNotNull(userBTrack, "User B should have a cloned track");
-        Assert.AreEqual("Muduzz", userBTrack.Title);
-        Assert.IsNotNull(userBTrack.Album, "Album should be cloned along with track metadata");
-        Assert.AreEqual("IM The Supervisor", userBTrack.Album!.Title);
+        Assert.AreEqual("Muduzz", userBTrack.CanonicalTrack!.Title);
+        Assert.IsNotNull(userBTrack.CanonicalAlbum, "Album should be cloned along with track metadata");
+        Assert.AreEqual("IM The Supervisor", userBTrack.CanonicalAlbum!.Title);
     }
 
     [TestMethod]
@@ -142,11 +142,11 @@ public class MusicIndexingCallbackTests
         await _callback.IndexAudioAsync(fileNodeId, "muduzz.flac", "audio/flac", 30_000_000, userB);
 
         // Assert: User A's track still exists and is unchanged
-        var verifySource = _db.Tracks.IgnoreQueryFilters().FirstOrDefault(t => t.Id == sourceTrackId);
+        var verifySource = _db.UserTracks.IgnoreQueryFilters().FirstOrDefault(ut => ut.Id == sourceTrackId);
         Assert.IsNotNull(verifySource, "Source track should still exist");
         Assert.IsFalse(verifySource.IsDeleted, "Source track should NOT be deleted");
         Assert.AreEqual(userA, verifySource.OwnerId, "Source track OwnerId should be unchanged");
-        Assert.AreEqual(sourceTrack.Title, verifySource.Title, "Source track Title should be unchanged");
+        Assert.AreEqual(sourceTrack.CanonicalTrack!.Title, verifySource.CanonicalTrack!.Title, "Source track Title should be unchanged");
     }
 
     [TestMethod]
@@ -167,8 +167,8 @@ public class MusicIndexingCallbackTests
         await _callback.IndexAudioAsync(fileNodeId, "test.flac", "audio/flac", 10_000, userB);
 
         // Assert: Both users have exactly one track each for this FileNodeId
-        var userATracks = _db.Tracks.Count(t => t.FileNodeId == fileNodeId && t.OwnerId == userA);
-        var userBTracks = _db.Tracks.Count(t => t.FileNodeId == fileNodeId && t.OwnerId == userB);
+        var userATracks = _db.UserTracks.Count(ut => ut.FileNodeId == fileNodeId && ut.OwnerId == userA);
+        var userBTracks = _db.UserTracks.Count(ut => ut.FileNodeId == fileNodeId && ut.OwnerId == userB);
         Assert.AreEqual(1, userATracks, "User A should have 1 track");
         Assert.AreEqual(1, userBTracks, "User B should have 1 track");
     }
@@ -186,7 +186,7 @@ public class MusicIndexingCallbackTests
         await _callback.IndexAudioAsync(fileNodeId, "song.mp3", "audio/mpeg", 1024, ownerId);
 
         // Assert: Only one track exists
-        var count = _db.Tracks.Count(t => t.FileNodeId == fileNodeId && t.OwnerId == ownerId);
+        var count = _db.UserTracks.Count(ut => ut.FileNodeId == fileNodeId && ut.OwnerId == ownerId);
         Assert.AreEqual(1, count);
     }
 
@@ -207,10 +207,10 @@ public class MusicIndexingCallbackTests
         await _callback.IndexAudioAsync(fileNodeId, "standalone.flac", "audio/flac", 10_000, userB);
 
         // Assert: User B gets a track with no album (graceful handling)
-        var userBTrack = _db.Tracks.FirstOrDefault(t => t.FileNodeId == fileNodeId && t.OwnerId == userB);
+        var userBTrack = _db.UserTracks.FirstOrDefault(ut => ut.FileNodeId == fileNodeId && ut.OwnerId == userB);
         Assert.IsNotNull(userBTrack, "User B should still get a track even if source has no album");
-        Assert.AreEqual("Standalone Track", userBTrack.Title);
-        Assert.IsNull(userBTrack.AlbumId, "AlbumId should be null if source had no album");
+        Assert.AreEqual("Standalone Track", userBTrack.CanonicalTrack!.Title);
+        Assert.IsNull(userBTrack.CanonicalAlbumId, "CanonicalAlbumId should be null if source had no album");
     }
 
     [TestMethod]
@@ -231,7 +231,7 @@ public class MusicIndexingCallbackTests
         await _callback.IndexAudioAsync(fileNodeId, "song.mp3", "audio/mpeg", 5000, userB);
 
         // Assert: User B gets a track (from metadata extraction, not cross-owner copy since source is deleted)
-        var userBTrack = _db.Tracks.FirstOrDefault(t => t.FileNodeId == fileNodeId && t.OwnerId == userB);
+        var userBTrack = _db.UserTracks.FirstOrDefault(ut => ut.FileNodeId == fileNodeId && ut.OwnerId == userB);
         Assert.IsNotNull(userBTrack, "User B should get a track via fresh extraction");
         Assert.IsFalse(userBTrack.IsDeleted, "User B's track should not be deleted");
     }
@@ -258,8 +258,8 @@ public class MusicIndexingCallbackTests
         await _libraryScanService.ResetCollectionAsync(userA);
 
         // Assert: User A's tracks are gone, User B's tracks survive
-        var aTracks = _db.Tracks.IgnoreQueryFilters().Count(t => t.OwnerId == userA);
-        var bTracks = _db.Tracks.IgnoreQueryFilters().Count(t => t.OwnerId == userB);
+        var aTracks = _db.UserTracks.IgnoreQueryFilters().Count(ut => ut.OwnerId == userA);
+        var bTracks = _db.UserTracks.IgnoreQueryFilters().Count(ut => ut.OwnerId == userB);
         Assert.AreEqual(0, aTracks, "User A's tracks should be deleted");
         Assert.AreEqual(1, bTracks, "User B's tracks should survive");
     }
@@ -279,9 +279,9 @@ public class MusicIndexingCallbackTests
         await _libraryScanService.ResetCollectionAsync(userA);
 
         // Assert: User B still has everything
-        var bArtist = _db.Artists.IgnoreQueryFilters().FirstOrDefault(a => a.OwnerId == userB);
-        var bAlbum = _db.Albums.IgnoreQueryFilters().FirstOrDefault(a => a.OwnerId == userB);
-        var bTrack = _db.Tracks.IgnoreQueryFilters().FirstOrDefault(t => t.OwnerId == userB);
+        var bArtist = _db.UserArtists.IgnoreQueryFilters().FirstOrDefault(ua => ua.OwnerId == userB);
+        var bAlbum = _db.UserAlbums.IgnoreQueryFilters().FirstOrDefault(ua => ua.OwnerId == userB);
+        var bTrack = _db.UserTracks.IgnoreQueryFilters().FirstOrDefault(ut => ut.OwnerId == userB);
         Assert.IsNotNull(bArtist, "User B's artist should survive");
         Assert.IsNotNull(bAlbum, "User B's album should survive");
         Assert.IsNotNull(bTrack, "User B's track should survive");
@@ -299,7 +299,7 @@ public class MusicIndexingCallbackTests
         _db.PlaybackHistories.Add(new DotNetCloud.Modules.Music.Models.PlaybackHistory
         {
             UserId = userA,
-            TrackId = track.Id,
+            UserTrackId = track.Id,
             PlayedAt = DateTime.UtcNow,
             DurationPlayedSeconds = 120
         });
@@ -309,7 +309,7 @@ public class MusicIndexingCallbackTests
         await _libraryScanService.ResetCollectionAsync(userA);
 
         // Assert: Track and playback history are gone
-        var trackCount = _db.Tracks.IgnoreQueryFilters().Count(t => t.OwnerId == userA);
+        var trackCount = _db.UserTracks.IgnoreQueryFilters().Count(ut => ut.OwnerId == userA);
         var historyCount = _db.PlaybackHistories.IgnoreQueryFilters().Count();
         Assert.AreEqual(0, trackCount);
         Assert.AreEqual(0, historyCount);

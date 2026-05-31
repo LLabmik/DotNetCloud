@@ -1,6 +1,7 @@
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Modules.Music.Data;
 using DotNetCloud.Modules.Music.Data.Services;
+using Microsoft.EntityFrameworkCore;
 using DotNetCloud.Modules.Music.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -48,7 +49,8 @@ public class ArtistServiceTests
     public async Task GetArtist_SoftDeleted_ReturnsNull()
     {
         var artist = await TestHelpers.SeedArtistAsync(_db, "Deleted Artist", ownerId: _caller.UserId);
-        artist.IsDeleted = true;
+        var ua = await _db.UserArtists.FirstAsync(u => u.CanonicalArtistId == artist.Id);
+        ua.IsDeleted = true;
         await _db.SaveChangesAsync();
 
         var result = await _service.GetArtistAsync(artist.Id, _caller);
@@ -115,7 +117,8 @@ public class ArtistServiceTests
     {
         var a1 = await TestHelpers.SeedArtistAsync(_db, "Active", ownerId: _caller.UserId);
         var a2 = await TestHelpers.SeedArtistAsync(_db, "Deleted", ownerId: _caller.UserId);
-        a2.IsDeleted = true;
+        var ua2 = await _db.UserArtists.FirstAsync(u => u.CanonicalArtistId == a2.Id);
+        ua2.IsDeleted = true;
         await _db.SaveChangesAsync();
 
         var result = await _service.ListArtistsAsync(_caller, 0, 50);
@@ -168,7 +171,7 @@ public class ArtistServiceTests
 
         await _service.DeleteArtistAsync(artist.Id, _caller);
 
-        var entry = await _db.Artists.FindAsync(artist.Id);
+        var entry = await _db.UserArtists.FirstAsync(ua => ua.CanonicalArtistId == artist.Id);
         Assert.IsNotNull(entry);
         Assert.IsTrue(entry.IsDeleted);
     }
@@ -199,7 +202,8 @@ public class ArtistServiceTests
     {
         var a = await TestHelpers.SeedArtistAsync(_db, "Active", ownerId: _caller.UserId);
         var d = await TestHelpers.SeedArtistAsync(_db, "Deleted", ownerId: _caller.UserId);
-        d.IsDeleted = true;
+        var ud = await _db.UserArtists.FirstAsync(u => u.CanonicalArtistId == d.Id);
+        ud.IsDeleted = true;
         await _db.SaveChangesAsync();
 
         var count = await _service.GetCountAsync(_caller.UserId);

@@ -12,7 +12,7 @@ public sealed class PlaylistTrackConfiguration : IEntityTypeConfiguration<Playli
     /// <inheritdoc />
     public void Configure(EntityTypeBuilder<PlaylistTrack> builder)
     {
-        builder.HasKey(pt => new { pt.PlaylistId, pt.TrackId });
+        builder.HasKey(pt => new { pt.PlaylistId, pt.UserTrackId });
 
         builder.Property(pt => pt.AddedAt).IsRequired().HasDefaultValueSql("CURRENT_TIMESTAMP");
 
@@ -21,9 +21,9 @@ public sealed class PlaylistTrackConfiguration : IEntityTypeConfiguration<Playli
             .HasForeignKey(pt => pt.PlaylistId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        builder.HasOne(pt => pt.Track)
-            .WithMany(t => t.PlaylistTracks)
-            .HasForeignKey(pt => pt.TrackId)
+        builder.HasOne(pt => pt.UserTrack)
+            .WithMany(ut => ut.PlaylistTracks)
+            .HasForeignKey(pt => pt.UserTrackId)
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasIndex(pt => new { pt.PlaylistId, pt.SortOrder })

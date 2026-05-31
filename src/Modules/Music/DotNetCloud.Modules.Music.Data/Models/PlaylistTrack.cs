@@ -8,8 +8,8 @@ public sealed class PlaylistTrack
     /// <summary>The playlist ID.</summary>
     public Guid PlaylistId { get; set; }
 
-    /// <summary>The track ID.</summary>
-    public Guid TrackId { get; set; }
+    /// <summary>The user track ID.</summary>
+    public Guid UserTrackId { get; set; }
 
     /// <summary>Sort order within the playlist (0-based).</summary>
     public int SortOrder { get; set; }
@@ -20,6 +20,6 @@ public sealed class PlaylistTrack
     /// <summary>Navigation to the playlist.</summary>
     public Playlist? Playlist { get; set; }
 
-    /// <summary>Navigation to the track.</summary>
-    public Track? Track { get; set; }
+    /// <summary>Navigation to the user track.</summary>
+    public UserTrack? UserTrack { get; set; }
 }

@@ -30,24 +30,6 @@ public class MusicDbContext : DbContext
         _namingStrategy = namingStrategy;
     }
 
-    /// <summary>Artists in the music library.</summary>
-    public DbSet<Artist> Artists => Set<Artist>();
-
-    /// <summary>Music albums.</summary>
-    public DbSet<MusicAlbum> Albums => Set<MusicAlbum>();
-
-    /// <summary>Music tracks.</summary>
-    public DbSet<Track> Tracks => Set<Track>();
-
-    /// <summary>Track-artist junction records.</summary>
-    public DbSet<TrackArtist> TrackArtists => Set<TrackArtist>();
-
-    /// <summary>Music genres.</summary>
-    public DbSet<Genre> Genres => Set<Genre>();
-
-    /// <summary>Track-genre junction records.</summary>
-    public DbSet<TrackGenre> TrackGenres => Set<TrackGenre>();
-
     /// <summary>User playlists.</summary>
     public DbSet<Playlist> Playlists => Set<Playlist>();
 
@@ -109,12 +91,6 @@ public class MusicDbContext : DbContext
         modelBuilder.HasDefaultSchema(_namingStrategy.GetSchemaForModule("music"));
         base.OnModelCreating(modelBuilder);
 
-        modelBuilder.ApplyConfiguration(new ArtistConfiguration());
-        modelBuilder.ApplyConfiguration(new MusicAlbumConfiguration());
-        modelBuilder.ApplyConfiguration(new TrackConfiguration());
-        modelBuilder.ApplyConfiguration(new TrackArtistConfiguration());
-        modelBuilder.ApplyConfiguration(new GenreConfiguration());
-        modelBuilder.ApplyConfiguration(new TrackGenreConfiguration());
         modelBuilder.ApplyConfiguration(new PlaylistConfiguration());
         modelBuilder.ApplyConfiguration(new PlaylistTrackConfiguration());
         modelBuilder.ApplyConfiguration(new PlaybackHistoryConfiguration());

@@ -39,7 +39,7 @@ public class PlaybackServiceTests
 
         await _service.RecordPlayAsync(track.Id, 0, _caller);
 
-        var entry = await _db.Tracks.FindAsync(track.Id);
+        var entry = await _db.UserTracks.FindAsync(track.Id);
         Assert.IsNotNull(entry);
         Assert.AreEqual(1, entry.PlayCount);
     }
@@ -54,7 +54,7 @@ public class PlaybackServiceTests
         Assert.AreEqual(1, _db.PlaybackHistories.Count());
         var history = _db.PlaybackHistories.First();
         Assert.AreEqual(_caller.UserId, history.UserId);
-        Assert.AreEqual(track.Id, history.TrackId);
+        Assert.AreEqual(track.Id, history.UserTrackId);
     }
 
     [TestMethod]
@@ -81,7 +81,7 @@ public class PlaybackServiceTests
         await _service.RecordPlayAsync(track.Id, 0, _caller);
         await _service.RecordPlayAsync(track.Id, 0, _caller);
 
-        var entry = await _db.Tracks.FindAsync(track.Id);
+        var entry = await _db.UserTracks.FindAsync(track.Id);
         Assert.AreEqual(3, entry!.PlayCount);
     }
 
@@ -163,7 +163,7 @@ public class PlaybackServiceTests
         var result = await _service.GetMostPlayedAsync(_caller.UserId, 10);
 
         Assert.AreEqual(2, result.Count);
-        Assert.AreEqual("Popular", result[0].Title);
+        Assert.AreEqual("Popular", result[0].CanonicalTrack!.Title);
     }
 
     // ─── ToggleStar ───────────────────────────────────────────────────

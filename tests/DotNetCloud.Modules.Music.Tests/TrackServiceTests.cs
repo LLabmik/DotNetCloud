@@ -36,7 +36,7 @@ public class TrackServiceTests
         var result = await _service.GetTrackAsync(track.Id, _caller);
 
         Assert.IsNotNull(result);
-        Assert.AreEqual(track.Title, result.Title);
+        Assert.AreEqual(track.CanonicalTrack!.Title, result.Title);
     }
 
     [TestMethod]
@@ -230,7 +230,7 @@ public class TrackServiceTests
 
         await _service.DeleteTrackAsync(track.Id, _caller);
 
-        var entry = await _db.Tracks.FindAsync(track.Id);
+        var entry = await _db.UserTracks.FindAsync(track.Id);
         Assert.IsNotNull(entry);
         Assert.IsTrue(entry.IsDeleted);
     }

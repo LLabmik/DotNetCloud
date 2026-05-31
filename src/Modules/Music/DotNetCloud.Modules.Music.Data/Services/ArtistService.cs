@@ -10,6 +10,7 @@ namespace DotNetCloud.Modules.Music.Data.Services;
 
 /// <summary>
 /// Service for managing artists — browse, search, artist detail with discography.
+/// Uses UserArtist junction + CanonicalArtist (canonical/shared) tables.
 /// </summary>
 public sealed class ArtistService : IArtistService
 {
@@ -26,16 +27,15 @@ public sealed class ArtistService : IArtistService
     }
 
     /// <summary>
-    /// Gets an artist by ID.
+    /// Gets an artist by canonical artist ID, scoped to the calling user.
     /// </summary>
     public async Task<ArtistDto?> GetArtistAsync(Guid artistId, CallerContext caller, CancellationToken cancellationToken = default)
     {
-        var artist = await _db.Artists
-            .Include(a => a.Albums)
-            .Include(a => a.TrackArtists)
-            .FirstOrDefaultAsync(a => a.Id == artistId && a.OwnerId == caller.UserId, cancellationToken);
+        var userArtist = await _db.UserArtists
+            .Include(ua => ua.CanonicalArtist)
+            .FirstOrDefaultAsync(ua => ua.CanonicalArtistId == artistId && ua.OwnerId == caller.UserId, cancellationToken);
 
-        return artist is null ? null : MapToDto(artist, caller.UserId);
+        return userArtist is null ? null : await MapToDtoAsync(userArtist, caller.UserId, cancellationToken);
     }
 
     /// <summary>
@@ -43,16 +43,18 @@ public sealed class ArtistService : IArtistService
     /// </summary>
     public async Task<IReadOnlyList<ArtistDto>> ListArtistsAsync(CallerContext caller, int skip = 0, int take = 50, CancellationToken cancellationToken = default)
     {
-        var artists = await _db.Artists
-            .Include(a => a.Albums)
-            .Include(a => a.TrackArtists)
-            .Where(a => a.OwnerId == caller.UserId)
-            .OrderBy(a => a.SortName ?? a.Name)
+        var userArtists = await _db.UserArtists
+            .Include(ua => ua.CanonicalArtist)
+            .Where(ua => ua.OwnerId == caller.UserId)
+            .OrderBy(ua => ua.CanonicalArtist!.SortName ?? ua.CanonicalArtist!.Name)
             .Skip(skip)
             .Take(take)
             .ToListAsync(cancellationToken);
 
-        return artists.Select(a => MapToDto(a, caller.UserId)).ToList();
+        var result = new List<ArtistDto>(userArtists.Count);
+        foreach (var ua in userArtists)
+            result.Add(await MapToDtoAsync(ua, caller.UserId, cancellationToken));
+        return result;
     }
 
     /// <summary>
@@ -60,29 +62,33 @@ public sealed class ArtistService : IArtistService
     /// </summary>
     public async Task<IReadOnlyList<ArtistDto>> SearchAsync(CallerContext caller, string query, int maxResults = 20, CancellationToken cancellationToken = default)
     {
-        var artists = await _db.Artists
-            .Include(a => a.Albums)
-            .Include(a => a.TrackArtists)
-            .Where(a => a.OwnerId == caller.UserId && a.Name.ToLower().Contains(query.ToLower()))
-            .OrderBy(a => a.SortName ?? a.Name)
+        var queryLower = query.ToLowerInvariant();
+
+        var userArtists = await _db.UserArtists
+            .Include(ua => ua.CanonicalArtist)
+            .Where(ua => ua.OwnerId == caller.UserId && ua.CanonicalArtist!.Name.ToLower().Contains(queryLower))
+            .OrderBy(ua => ua.CanonicalArtist!.SortName ?? ua.CanonicalArtist!.Name)
             .Take(maxResults)
             .ToListAsync(cancellationToken);
 
-        return artists.Select(a => MapToDto(a, caller.UserId)).ToList();
+        var result = new List<ArtistDto>(userArtists.Count);
+        foreach (var ua in userArtists)
+            result.Add(await MapToDtoAsync(ua, caller.UserId, cancellationToken));
+        return result;
     }
 
     /// <summary>
-    /// Deletes an artist (soft delete).
+    /// Soft-deletes a user-artist junction.
     /// </summary>
     public async Task DeleteArtistAsync(Guid artistId, CallerContext caller, CancellationToken cancellationToken = default)
     {
-        var artist = await _db.Artists
-            .FirstOrDefaultAsync(a => a.Id == artistId && a.OwnerId == caller.UserId, cancellationToken)
+        var userArtist = await _db.UserArtists
+            .FirstOrDefaultAsync(ua => ua.CanonicalArtistId == artistId && ua.OwnerId == caller.UserId, cancellationToken)
             ?? throw new BusinessRuleException(ErrorCodes.ArtistNotFound, "Artist not found.");
 
-        artist.IsDeleted = true;
-        artist.DeletedAt = DateTime.UtcNow;
-        artist.UpdatedAt = DateTime.UtcNow;
+        userArtist.IsDeleted = true;
+        userArtist.DeletedAt = DateTime.UtcNow;
+        userArtist.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation("Artist {ArtistId} soft-deleted by user {UserId}", artistId, caller.UserId);
@@ -93,50 +99,64 @@ public sealed class ArtistService : IArtistService
     /// </summary>
     public async Task<int> GetCountAsync(Guid ownerId, CancellationToken cancellationToken = default)
     {
-        return await _db.Artists.CountAsync(a => a.OwnerId == ownerId, cancellationToken);
+        return await _db.UserArtists.CountAsync(ua => ua.OwnerId == ownerId, cancellationToken);
     }
 
     /// <summary>
-    /// Gets the artist biography and external links.
+    /// Gets the artist biography and external links from canonical artist.
     /// </summary>
     public async Task<ArtistBioDto?> GetArtistBioAsync(Guid artistId, CallerContext caller, CancellationToken cancellationToken = default)
     {
-        var artist = await _db.Artists
-            .FirstOrDefaultAsync(a => a.Id == artistId && a.OwnerId == caller.UserId, cancellationToken);
+        var userArtist = await _db.UserArtists
+            .Include(ua => ua.CanonicalArtist)
+            .FirstOrDefaultAsync(ua => ua.CanonicalArtistId == artistId && ua.OwnerId == caller.UserId, cancellationToken);
 
-        if (artist is null)
-        {
+        if (userArtist?.CanonicalArtist is null)
             return null;
-        }
 
+        var ca = userArtist.CanonicalArtist;
         return new ArtistBioDto
         {
-            ArtistId = artist.Id,
-            Name = artist.Name,
-            Biography = artist.Biography,
-            ImageUrl = artist.ImageUrl,
-            WikipediaUrl = artist.WikipediaUrl,
-            DiscogsUrl = artist.DiscogsUrl,
-            OfficialUrl = artist.OfficialUrl,
-            MusicBrainzId = artist.MusicBrainzId,
-            LastEnrichedAt = artist.LastEnrichedAt
+            ArtistId = ca.Id,
+            Name = ca.Name,
+            Biography = ca.Biography,
+            ImageUrl = ca.ImageUrl,
+            WikipediaUrl = ca.WikipediaUrl,
+            DiscogsUrl = ca.DiscogsUrl,
+            OfficialUrl = ca.OfficialUrl,
+            MusicBrainzId = ca.MusicBrainzId,
+            LastEnrichedAt = ca.LastEnrichedAt
         };
     }
 
-    internal ArtistDto MapToDto(Artist artist, Guid userId)
+    private async Task<ArtistDto> MapToDtoAsync(UserArtist userArtist, Guid userId, CancellationToken cancellationToken)
     {
-        var isStarred = _db.StarredItems.Any(s =>
-            s.UserId == userId && s.ItemType == StarredItemType.Artist && s.ItemId == artist.Id);
+        var ca = userArtist.CanonicalArtist!;
+
+        // Compute album/track counts from user junctions via canonical relationships
+        var albumCount = await _db.UserAlbums
+            .CountAsync(ua => ua.OwnerId == userId &&
+                _db.CanonicalAlbumArtists.Any(caa => caa.AlbumId == ua.CanonicalAlbumId && caa.ArtistId == ca.Id),
+                cancellationToken);
+
+        var trackCount = await _db.UserTracks
+            .CountAsync(ut => ut.OwnerId == userId &&
+                _db.CanonicalTrackArtists.Any(cta => cta.TrackContentHash == ut.CanonicalTrackHash && cta.ArtistId == ca.Id),
+                cancellationToken);
+
+        var isStarred = await _db.StarredItems.AnyAsync(s =>
+            s.UserId == userId && s.ItemType == StarredItemType.Artist && s.ItemId == ca.Id,
+            cancellationToken);
 
         return new ArtistDto
         {
-            Id = artist.Id,
-            Name = artist.Name,
-            SortName = artist.SortName,
-            AlbumCount = artist.Albums?.Count ?? 0,
-            TrackCount = artist.TrackArtists?.Count ?? 0,
+            Id = ca.Id,
+            Name = ca.Name,
+            SortName = ca.SortName,
+            AlbumCount = albumCount,
+            TrackCount = trackCount,
             IsStarred = isStarred,
-            CreatedAt = artist.CreatedAt
+            CreatedAt = userArtist.CreatedAt
         };
     }
 }
