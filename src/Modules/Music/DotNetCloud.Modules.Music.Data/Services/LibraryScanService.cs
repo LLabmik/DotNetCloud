@@ -134,7 +134,7 @@ public sealed class LibraryScanService
                     foundAlbum = await _db.CanonicalAlbums.FindAsync([userTrack.CanonicalAlbumId.Value], cancellationToken);
                 }
 
-                return await CreateUserTrackJunctionsAsync(
+                var indexedTrack = await CreateUserTrackJunctionsAsync(
                     fileNodeId, fileName, mimeType, sizeBytes, ownerId,
                     contentHash, canonicalTrack.Title,
                     canonicalTrack, foundAlbum,
@@ -145,6 +145,9 @@ public sealed class LibraryScanService
                     canonicalTrack.SampleRate, canonicalTrack.Channels,
                     canonicalTrack.Year, canonicalTrack.MusicBrainzRecordingId,
                     cancellationToken);
+
+                await _db.SaveChangesAsync(cancellationToken);
+                return indexedTrack;
             }
         }
 
@@ -155,6 +158,7 @@ public sealed class LibraryScanService
                 fileNodeId, fileName, mimeType, sizeBytes, ownerId, cancellationToken);
             if (crossOwnerTrack is not null)
             {
+                await _db.SaveChangesAsync(cancellationToken);
                 return crossOwnerTrack;
             }
         }
@@ -362,7 +366,7 @@ public sealed class LibraryScanService
                         [anyUserTrack.CanonicalAlbumId.Value], cancellationToken);
                 }
 
-                return await CreateUserTrackJunctionsAsync(
+                var indexedTrack = await CreateUserTrackJunctionsAsync(
                     fileNodeId, fileName, mimeType, sizeBytes, ownerId,
                     contentHash, canonicalTrack.Title,
                     canonicalTrack, foundAlbum, foundArtist, foundGenre,
@@ -371,6 +375,9 @@ public sealed class LibraryScanService
                     canonicalTrack.SampleRate, canonicalTrack.Channels,
                     canonicalTrack.Year, canonicalTrack.MusicBrainzRecordingId,
                     cancellationToken);
+
+                await _db.SaveChangesAsync(cancellationToken);
+                return indexedTrack;
             }
         }
 
@@ -450,7 +457,7 @@ public sealed class LibraryScanService
                 MimeType = sourceCanonicalTrack.MimeType
             };
 
-        return await CreateUserTrackJunctionsAsync(
+        var finalTrack = await CreateUserTrackJunctionsAsync(
             fileNodeId, fileName, mimeType, sizeBytes, ownerId,
             contentHash ?? canonicalForDualWrite.ContentHash,
             sourceCanonicalTrack.Title,
@@ -459,6 +466,9 @@ public sealed class LibraryScanService
             sourceCanonicalTrack.Bitrate, sourceCanonicalTrack.SampleRate, sourceCanonicalTrack.Channels,
             sourceCanonicalTrack.Year, sourceCanonicalTrack.MusicBrainzRecordingId,
             cancellationToken);
+
+        await _db.SaveChangesAsync(cancellationToken);
+        return finalTrack;
     }
 
     /// <summary>
