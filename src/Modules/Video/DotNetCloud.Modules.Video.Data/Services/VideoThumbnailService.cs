@@ -94,21 +94,6 @@ public sealed class VideoThumbnailService : IVideoThumbnailService
             return (File.OpenRead(screenshotPaths[0]), "image/jpeg");
         }
 
-        // Priority 4: DB poster via canonical thumbnail poster hash
-        var posterHash = await _db.UserVideos
-            .Where(uv => uv.Id == videoId)
-            .Select(uv => uv.CanonicalVideo!.ThumbnailPosterHash)
-            .FirstOrDefaultAsync(cancellationToken);
-
-        if (!string.IsNullOrEmpty(posterHash))
-        {
-            var casPath = _contentStorage.GetPath(posterHash, ".jpg");
-            if (File.Exists(casPath))
-            {
-                return (File.OpenRead(casPath), "image/jpeg");
-            }
-        }
-
         return (null, null);
     }
 

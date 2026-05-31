@@ -240,11 +240,11 @@ public sealed class VideoService : IVideoService
             .ToListAsync(cancellationToken);
 
         // ── Search standalone canonical videos (exclude series-linked) ──
-        var seriesContentHashes = await GetSeriesContentHashesAsync(cancellationToken);
-
         IQueryable<UserVideo> videoQuery = _db.UserVideos
             .Include(uv => uv.CanonicalVideo).ThenInclude(cv => cv!.Metadata)
-            .Where(uv => uv.OwnerId == caller.UserId && !uv.IsDeleted && !seriesContentHashes.Contains(uv.CanonicalContentHash));
+            .Where(uv => uv.OwnerId == caller.UserId && !uv.IsDeleted
+                && !_db.CanonicalVideoEpisodes.Any(e => e.VideoContentHash == uv.CanonicalContentHash)
+                && !_db.CanonicalVideoSeriesItems.Any(i => i.VideoContentHash == uv.CanonicalContentHash));
 
         foreach (var term in searchTerms)
         {
@@ -307,11 +307,11 @@ public sealed class VideoService : IVideoService
     /// </summary>
     public async Task<IReadOnlyList<VideoDto>> GetFavoritesAsync(CallerContext caller, CancellationToken cancellationToken = default)
     {
-        var seriesContentHashes = await GetSeriesContentHashesAsync(cancellationToken);
-
         var userVideos = await _db.UserVideos
             .Include(uv => uv.CanonicalVideo).ThenInclude(cv => cv!.Metadata)
-            .Where(uv => uv.OwnerId == caller.UserId && !uv.IsDeleted && uv.IsFavorite && !seriesContentHashes.Contains(uv.CanonicalContentHash))
+            .Where(uv => uv.OwnerId == caller.UserId && !uv.IsDeleted && uv.IsFavorite
+                && !_db.CanonicalVideoEpisodes.Any(e => e.VideoContentHash == uv.CanonicalContentHash)
+                && !_db.CanonicalVideoSeriesItems.Any(i => i.VideoContentHash == uv.CanonicalContentHash))
             .OrderByDescending(uv => uv.UpdatedAt)
             .ToListAsync(cancellationToken);
 
@@ -392,11 +392,12 @@ public sealed class VideoService : IVideoService
         string? tmdbOriginalLanguage = null;
         string? tmdbOriginalTitle = null;
 
-        // Load TMDB data from canonical enrichment
-        if (canonical.EmbeddedTmdbId is not null)
+        // Load TMDB data from canonical enrichment — check both enrichment TmdbId and embedded TmdbId
+        var tmdbId = canonical.TmdbId ?? canonical.EmbeddedTmdbId;
+        if (tmdbId is not null)
         {
             var tmdbData = _db.CanonicalTmdbData
-                .FirstOrDefault(ct => ct.TmdbId == canonical.EmbeddedTmdbId.Value);
+                .FirstOrDefault(ct => ct.TmdbId == tmdbId.Value);
             if (tmdbData is not null)
             {
                 overview = tmdbData.Overview;

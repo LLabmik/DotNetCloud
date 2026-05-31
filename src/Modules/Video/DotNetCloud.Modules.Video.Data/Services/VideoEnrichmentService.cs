@@ -209,6 +209,7 @@ public sealed partial class VideoEnrichmentService : IVideoEnrichmentService
         // This flag is checked by the enrichment background queue to skip future runs,
         // and by the thumbnail/poster service to prefer the TMDB poster over screenshots.
         canonicalVideo.HasExternalPoster = true;
+        canonicalVideo.TmdbId = best.Id;
         canonicalVideo.ThumbnailPosterHash = null;
         // Propagate the poster hash from CanonicalTmdbData to CanonicalVideo so that
         // GetThumbnailAsync (Priority 2) can serve the poster via content-addressed storage.
@@ -357,6 +358,17 @@ public sealed partial class VideoEnrichmentService : IVideoEnrichmentService
     /// </summary>
     private async Task<string?> GetSeriesNameForVideoAsync(string contentHash, CancellationToken cancellationToken)
     {
+        // Check TV series episodes first
+        var tvSeries = await _db.CanonicalVideoEpisodes
+            .Include(e => e.Season).ThenInclude(s => s!.Series)
+            .Where(e => e.VideoContentHash == contentHash)
+            .Select(e => e.Season!.Series)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (tvSeries is not null)
+            return tvSeries.Name;
+
+        // Fallback: check movie franchise items
         var seriesItem = await _db.CanonicalVideoSeriesItems
             .Include(si => si.Series)
             .FirstOrDefaultAsync(si => si.VideoContentHash == contentHash, cancellationToken);

@@ -328,14 +328,19 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
         }
     }
 
+    // Limits concurrent series enrichments during library scan to avoid overwhelming the TMDB API.
+    private static readonly System.Threading.SemaphoreSlim _seriesEnrichmentThrottle = new(3, 3);
+
     /// <summary>
     /// Fires TMDB enrichment for a series to fetch posters and metadata.
     /// Runs as a short-lived background task that doesn't block the indexing pipeline.
+    /// Concurrency is throttled to 3 simultaneous enrichments to avoid overwhelming the TMDB API.
     /// </summary>
     private void EnrichSeriesInBackground(Guid seriesId, Guid ownerId)
     {
         _ = Task.Run(async () =>
         {
+            await _seriesEnrichmentThrottle.WaitAsync();
             try
             {
                 await _seriesService.EnrichSeriesAsync(seriesId);
@@ -343,6 +348,10 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Background series enrichment failed for {SeriesId}", seriesId);
+            }
+            finally
+            {
+                _seriesEnrichmentThrottle.Release();
             }
         });
     }

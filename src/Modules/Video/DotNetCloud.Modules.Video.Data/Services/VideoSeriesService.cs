@@ -124,7 +124,6 @@ public sealed class VideoSeriesService : IVideoSeriesService
         return canonicalSeries
             .Where(s => s.TotalEpisodes > 1 || (s.Items?.Count ?? 0) > 1)
             .Select(MapCanonicalToDto)
-            .Where(s => s.TotalEpisodes > 1)
             .ToList();
     }
 
@@ -635,15 +634,6 @@ public sealed class VideoSeriesService : IVideoSeriesService
             };
 
             _db.CanonicalVideoEpisodes.Add(episode);
-            canonicalSeason.EpisodeCount = await _db.CanonicalVideoEpisodes
-                .CountAsync(e => e.SeasonId == seasonId, cancellationToken);
-            canonicalSeason.UpdatedAt = DateTime.UtcNow;
-
-            // Update canonical series totals
-            var series = canonicalSeason.Series!;
-            series.TotalEpisodes = await _db.CanonicalVideoEpisodes
-                .CountAsync(e => e.Season!.SeriesId == series.Id, cancellationToken);
-            series.UpdatedAt = DateTime.UtcNow;
 
             // ── Dual-write: old per-user episode ──
             var oldSeason = await _db.VideoSeasons
@@ -661,6 +651,25 @@ public sealed class VideoSeriesService : IVideoSeriesService
                     SortOrder = maxOrder + 1
                 };
                 _db.VideoEpisodes.Add(newOldEpisode);
+            }
+
+            // Save changes first so counts reflect database reality (Bug 10 fix)
+            await _db.SaveChangesAsync(cancellationToken);
+
+            // Update canonical season count after save
+            canonicalSeason.EpisodeCount = await _db.CanonicalVideoEpisodes
+                .CountAsync(e => e.SeasonId == seasonId, cancellationToken);
+            canonicalSeason.UpdatedAt = DateTime.UtcNow;
+
+            // Update canonical series totals after save
+            var series = canonicalSeason.Series!;
+            series.TotalEpisodes = await _db.CanonicalVideoEpisodes
+                .CountAsync(e => e.Season!.SeriesId == series.Id, cancellationToken);
+            series.UpdatedAt = DateTime.UtcNow;
+
+            // Update old-per-user counts after save
+            if (oldSeason is not null)
+            {
                 oldSeason.EpisodeCount = await _db.VideoEpisodes
                     .CountAsync(e => e.SeasonId == seasonId, cancellationToken);
                 oldSeason.UpdatedAt = DateTime.UtcNow;
@@ -748,9 +757,19 @@ public sealed class VideoSeriesService : IVideoSeriesService
     /// <inheritdoc />
     public async Task RemoveEpisodeAsync(Guid seasonId, Guid videoId, CallerContext caller, CancellationToken cancellationToken = default)
     {
-        // Try canonical
-        var canonicalEpisode = await _db.CanonicalVideoEpisodes
-            .FirstOrDefaultAsync(e => e.SeasonId == seasonId, cancellationToken);
+        // Resolve video's content hash
+        var contentHash = await _db.UserVideos
+            .Where(uv => uv.Id == videoId)
+            .Select(uv => uv.CanonicalContentHash)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        // Try canonical — find episode by season AND content hash (Bug 9 fix)
+        CanonicalVideoEpisode? canonicalEpisode = null;
+        if (!string.IsNullOrEmpty(contentHash))
+        {
+            canonicalEpisode = await _db.CanonicalVideoEpisodes
+                .FirstOrDefaultAsync(e => e.SeasonId == seasonId && e.VideoContentHash == contentHash, cancellationToken);
+        }
 
         if (canonicalEpisode is not null)
         {
@@ -762,7 +781,10 @@ public sealed class VideoSeriesService : IVideoSeriesService
             if (oldEpisode is not null)
                 _db.VideoEpisodes.Remove(oldEpisode);
 
-            // Update canonical season count
+            // Save changes first so counts reflect database reality (Bug 10 fix)
+            await _db.SaveChangesAsync(cancellationToken);
+
+            // Update canonical season count after save
             var canonicalSeason = await _db.CanonicalVideoSeasons
                 .Include(s => s.Series)
                 .FirstOrDefaultAsync(s => s.Id == seasonId, cancellationToken);
@@ -778,9 +800,9 @@ public sealed class VideoSeriesService : IVideoSeriesService
                         .CountAsync(e => e.Season!.SeriesId == canonicalSeason.Series.Id, cancellationToken);
                     canonicalSeason.Series.UpdatedAt = DateTime.UtcNow;
                 }
-            }
 
-            await _db.SaveChangesAsync(cancellationToken);
+                await _db.SaveChangesAsync(cancellationToken);
+            }
             return;
         }
 
@@ -1092,6 +1114,37 @@ public sealed class VideoSeriesService : IVideoSeriesService
 
         await _db.SaveChangesAsync(cancellationToken);
         _logger.LogInformation("Movie franchise '{Name}' (collectionId={TmdbId}) enriched with poster", series.Name, match.Id);
+    }
+
+    /// <inheritdoc />
+    public async Task EnrichAllUnenrichedSeriesAsync(CancellationToken cancellationToken = default)
+    {
+        var unenrichedSeries = await _db.CanonicalVideoSeries
+            .Where(s => s.TmdbId == null)
+            .ToListAsync(cancellationToken);
+
+        _logger.LogInformation("Enriching {Count} unenriched series from TMDB", unenrichedSeries.Count);
+
+        foreach (var series in unenrichedSeries)
+        {
+            if (cancellationToken.IsCancellationRequested)
+                break;
+
+            try
+            {
+                await EnrichSeriesAsync(series.Id, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Series enrichment failed for {SeriesId} ('{Name}')", series.Id, series.Name);
+            }
+        }
+
+        _logger.LogInformation("Series enrichment complete: {Count} series processed", unenrichedSeries.Count);
     }
 
     /// <inheritdoc />

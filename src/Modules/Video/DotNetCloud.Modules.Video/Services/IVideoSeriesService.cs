@@ -98,4 +98,10 @@ public interface IVideoSeriesService
     /// Finds the series that a video belongs to, if any. Checks both TV series episodes and movie franchise items.
     /// </summary>
     Task<VideoSeriesDto?> FindSeriesByVideoIdAsync(Guid videoId, CallerContext caller, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Enriches all unenriched series (those without TMDB data) with TMDB metadata and poster art.
+    /// Called after batch video enrichment to ensure existing series get enrichment data.
+    /// </summary>
+    Task EnrichAllUnenrichedSeriesAsync(CancellationToken cancellationToken = default);
 }

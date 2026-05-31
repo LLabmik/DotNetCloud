@@ -115,6 +115,7 @@ internal sealed class VideoEnrichmentBackgroundService : BackgroundService
         using var scope = _scopeFactory.CreateScope();
         var enrichmentService = scope.ServiceProvider.GetRequiredService<IVideoEnrichmentService>();
         var thumbnailService = scope.ServiceProvider.GetRequiredService<IVideoThumbnailService>();
+        var seriesService = scope.ServiceProvider.GetRequiredService<IVideoSeriesService>();
         var db = scope.ServiceProvider.GetRequiredService<VideoDbContext>();
         var scanProgress = scope.ServiceProvider.GetRequiredService<VideoScanProgressState>();
 
@@ -271,6 +272,20 @@ internal sealed class VideoEnrichmentBackgroundService : BackgroundService
         _logger.LogInformation(
             "Batch enrichment complete for user {UserId}: {Tmdb} TMDB, {Screenshot} screenshot fallback, {Failed} failed out of {Total}",
             job.OwnerId, tmdbEnriched, screenshotFallback, failed, total);
+
+        // Enrich all series without TMDB data (Bug 3 fix)
+        try
+        {
+            await seriesService.EnrichAllUnenrichedSeriesAsync(stoppingToken);
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // Shutdown requested during series enrichment
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Series enrichment failed during batch completion for user {UserId}", job.OwnerId);
+        }
 
         scanProgress.CompleteScan(job.OwnerId);
     }

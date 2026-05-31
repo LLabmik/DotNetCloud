@@ -247,11 +247,14 @@ public sealed class VideoCollectionService : IVideoCollectionService
 
         var userVideoLookup = userVideos.ToDictionary(uv => uv.CanonicalContentHash);
 
-        // Find which content hashes belong to a series (episodes or franchise items)
+        // Find which content hashes in this collection belong to a series (episodes or franchise items)
+        // Scope queries to only the collection's content hashes for performance (Bug 5 fix)
         var episodeHashes = await _db.CanonicalVideoEpisodes
+            .Where(e => contentHashes.Contains(e.VideoContentHash))
             .Select(e => e.VideoContentHash)
             .ToListAsync(cancellationToken);
         var franchiseHashes = await _db.CanonicalVideoSeriesItems
+            .Where(i => contentHashes.Contains(i.VideoContentHash))
             .Select(i => i.VideoContentHash)
             .ToListAsync(cancellationToken);
         var seriesContentHashSet = episodeHashes.Concat(franchiseHashes).ToHashSet();
@@ -265,10 +268,54 @@ public sealed class VideoCollectionService : IVideoCollectionService
             .Cast<VideoDto>()
             .ToList();
 
+        // Find series for the content hashes that belong to series (Bug 1 fix)
+        var seriesList = new List<VideoSeriesDto>();
+        if (seriesContentHashSet.Count > 0)
+        {
+            var episodeSeriesIds = await _db.CanonicalVideoEpisodes
+                .Where(e => seriesContentHashSet.Contains(e.VideoContentHash))
+                .Select(e => e.Season!.SeriesId)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+
+            var franchiseSeriesIds = await _db.CanonicalVideoSeriesItems
+                .Where(i => seriesContentHashSet.Contains(i.VideoContentHash))
+                .Select(i => i.SeriesId)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+
+            var allSeriesIds = episodeSeriesIds.Concat(franchiseSeriesIds).Distinct().ToList();
+            if (allSeriesIds.Count > 0)
+            {
+                var canonicalSeries = await _db.CanonicalVideoSeries
+                    .Include(s => s.Seasons)
+                    .Include(s => s.Items)
+                    .Where(s => allSeriesIds.Contains(s.Id))
+                    .OrderBy(s => s.Name)
+                    .ToListAsync(cancellationToken);
+
+                seriesList = canonicalSeries.Select(s => new VideoSeriesDto
+                {
+                    Id = s.Id,
+                    Name = s.Name,
+                    Description = s.Description,
+                    Type = s.Type.ToString(),
+                    TmdbRating = s.TmdbRating,
+                    Genres = s.Genres,
+                    Status = s.Status,
+                    TotalSeasons = s.Seasons?.Count ?? 0,
+                    TotalEpisodes = s.TotalEpisodes,
+                    HasExternalPoster = !string.IsNullOrEmpty(s.PosterHash),
+                    CreatedAt = s.CreatedAt,
+                    UpdatedAt = s.UpdatedAt
+                }).ToList();
+            }
+        }
+
         return new VideoCollectionContentDto
         {
             Collection = MapToDto(collection),
-            Series = [],
+            Series = seriesList,
             StandaloneVideos = standaloneVideos,
             TotalItems = items.Count
         };
@@ -321,17 +368,22 @@ public sealed class VideoCollectionService : IVideoCollectionService
         var watchProgress = _db.WatchProgresses
             .FirstOrDefault(wp => wp.VideoId == userVideo.Id && wp.UserId == userVideo.OwnerId);
 
-        // Load TMDB data from canonical enrichment
+        // Load TMDB data from canonical enrichment — check both enrichment TmdbId and embedded TmdbId
         string? overview = null;
         double? tmdbRating = null;
         string? genres = null;
         DateTime? releaseDate = null;
         bool hasExternalPoster = canonical.HasExternalPoster;
+        string? tmdbTagline = null;
+        int? tmdbVoteCount = null;
+        string? tmdbOriginalLanguage = null;
+        string? tmdbOriginalTitle = null;
 
-        if (canonical.EmbeddedTmdbId is not null)
+        var tmdbId = canonical.TmdbId ?? canonical.EmbeddedTmdbId;
+        if (tmdbId is not null)
         {
             var tmdbData = _db.CanonicalTmdbData
-                .FirstOrDefault(ct => ct.TmdbId == canonical.EmbeddedTmdbId.Value);
+                .FirstOrDefault(ct => ct.TmdbId == tmdbId.Value);
             if (tmdbData is not null)
             {
                 overview = tmdbData.Overview;
@@ -339,6 +391,10 @@ public sealed class VideoCollectionService : IVideoCollectionService
                 genres = tmdbData.Genres;
                 releaseDate = tmdbData.ReleaseDate;
                 hasExternalPoster = tmdbData.ExternalPosterHash is not null || canonical.HasExternalPoster;
+                tmdbTagline = tmdbData.Tagline;
+                tmdbVoteCount = tmdbData.VoteCount;
+                tmdbOriginalLanguage = tmdbData.OriginalLanguage;
+                tmdbOriginalTitle = tmdbData.OriginalTitle;
             }
         }
 
@@ -361,7 +417,11 @@ public sealed class VideoCollectionService : IVideoCollectionService
             Overview = overview,
             TmdbRating = tmdbRating,
             Genres = genres,
-            ReleaseDate = releaseDate
+            ReleaseDate = releaseDate,
+            TmdbTagline = tmdbTagline,
+            TmdbVoteCount = tmdbVoteCount,
+            TmdbOriginalLanguage = tmdbOriginalLanguage,
+            TmdbOriginalTitle = tmdbOriginalTitle
         };
     }
 }

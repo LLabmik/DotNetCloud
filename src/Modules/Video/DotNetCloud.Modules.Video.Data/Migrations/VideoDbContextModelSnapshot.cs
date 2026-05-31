@@ -186,6 +186,9 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<int?>("TmdbId")
+                        .HasColumnType("integer");
+
                     b.Property<DateTime>("UpdatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -201,6 +204,9 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
 
                     b.HasIndex("Title")
                         .HasDatabaseName("ix_canonical_videos_title");
+
+                    b.HasIndex("TmdbId")
+                        .HasDatabaseName("ix_canonical_videos_tmdb_id");
 
                     b.ToTable("canonical_videos", "video");
                 });

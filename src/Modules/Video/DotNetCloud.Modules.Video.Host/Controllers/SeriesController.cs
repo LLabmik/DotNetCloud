@@ -106,11 +106,12 @@ public class SeriesController : VideoControllerBase
 
     /// <summary>Triggers TMDB enrichment for a series.</summary>
     [HttpPost("{seriesId:guid}/enrich")]
-    public async Task<IActionResult> EnrichSeries(Guid seriesId, [FromQuery] bool force = false)
+    public async Task<IActionResult> EnrichSeries(Guid seriesId)
     {
         var caller = GetAuthenticatedCaller();
         try
         {
+            await _seriesService.EnrichSeriesAsync(seriesId);
             var series = await _seriesService.GetSeriesAsync(seriesId, caller);
             return series is null
                 ? NotFound(ErrorEnvelope(ErrorCodes.VideoSeriesNotFound, "Series not found."))
@@ -170,6 +171,10 @@ public class SeriesController : VideoControllerBase
         catch (BusinessRuleException ex) when (ex.ErrorCode == ErrorCodes.VideoSeriesNotFound)
         {
             return NotFound(ErrorEnvelope(ErrorCodes.VideoSeriesNotFound, ex.Message));
+        }
+        catch (BusinessRuleException ex) when (ex.ErrorCode == ErrorCodes.VideoNotFound)
+        {
+            return NotFound(ErrorEnvelope(ErrorCodes.VideoNotFound, ex.Message));
         }
     }
 

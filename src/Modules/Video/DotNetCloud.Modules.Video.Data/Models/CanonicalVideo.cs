@@ -42,6 +42,9 @@ public sealed class CanonicalVideo
     /// <summary>TMDB ID from embedded file metadata (ffprobe format.tags.TMDB).</summary>
     public int? EmbeddedTmdbId { get; set; }
 
+    /// <summary>TMDB ID from enrichment (populated by VideoEnrichmentService after TMDB search).</summary>
+    public int? TmdbId { get; set; }
+
     /// <summary>Date from embedded file metadata (ffprobe format.tags.date/creation_time).</summary>
     public string? EmbeddedDate { get; set; }
 
