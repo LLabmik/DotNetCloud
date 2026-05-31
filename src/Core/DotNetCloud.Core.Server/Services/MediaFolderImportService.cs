@@ -189,20 +189,9 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
                 if (cloned > 0)
                 {
                     _logger.LogInformation(
-                        "Cloned {Count} {MediaType} tracks from existing user for {OwnerId} — skipping discovery and per-file loop",
+                        "Cloned {Count} {MediaType} tracks from existing user for {OwnerId} — continuing to discover remaining files",
                         cloned, parsed, ownerId);
-                    progress?.Report(new MediaScanProgress
-                    {
-                        Phase = "Complete",
-                        FilesDiscovered = cloned,
-                        TotalFiles = cloned,
-                        FilesProcessed = cloned,
-                        Imported = cloned,
-                        PercentComplete = 100,
-                    });
                     result.Imported = cloned;
-                    result.TotalFound = cloned;
-                    return result;
                 }
 
                 _logger.LogInformation(

@@ -299,7 +299,7 @@ public sealed class LibraryScanService
                 MimeType = mimeType
             };
 
-        return await CreateUserTrackAndDualWriteAsync(
+        var track = await CreateUserTrackAndDualWriteAsync(
             fileNodeId, fileName, mimeType, sizeBytes, ownerId,
             contentHash ?? canonicalTrackForDualWrite.ContentHash,
             metadata.Title,
@@ -308,6 +308,9 @@ public sealed class LibraryScanService
             metadata.Bitrate, metadata.SampleRate, metadata.Channels,
             metadata.Year, null,
             cancellationToken);
+
+        await _db.SaveChangesAsync(cancellationToken);
+        return track;
     }
 
     /// <summary>
