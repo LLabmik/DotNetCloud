@@ -171,7 +171,7 @@ public class ArtistServiceTests
 
         await _service.DeleteArtistAsync(artist.Id, _caller);
 
-        var entry = await _db.UserArtists.FirstAsync(ua => ua.CanonicalArtistId == artist.Id);
+        var entry = await _db.UserArtists.IgnoreQueryFilters().FirstAsync(ua => ua.CanonicalArtistId == artist.Id);
         Assert.IsNotNull(entry);
         Assert.IsTrue(entry.IsDeleted);
     }

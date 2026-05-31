@@ -546,7 +546,7 @@ public class MetadataEnrichmentServiceTests
         var service = CreateService();
         await service.EnrichTrackAsync(track.Id, _caller);
 
-        var updated = await _db.CanonicalTracks.FindAsync(new object[] { track.Id });
+        var updated = await _db.CanonicalTracks.FindAsync(new object[] { track.CanonicalTrackHash });
         Assert.AreEqual("rec-shine", updated!.MusicBrainzRecordingId);
     }
 
@@ -562,7 +562,7 @@ public class MetadataEnrichmentServiceTests
         var service = CreateService();
         await service.EnrichTrackAsync(track.Id, _caller);
 
-        var updated = await _db.CanonicalTracks.FindAsync(new object[] { track.Id });
+        var updated = await _db.CanonicalTracks.FindAsync(new object[] { track.CanonicalTrackHash });
         Assert.IsNull(updated!.MusicBrainzRecordingId);
     }
 
@@ -579,7 +579,7 @@ public class MetadataEnrichmentServiceTests
         var service = CreateService();
         await service.EnrichTrackAsync(track.Id, _caller);
 
-        var updated = await _db.CanonicalTracks.FindAsync(new object[] { track.Id });
+        var updated = await _db.CanonicalTracks.FindAsync(new object[] { track.CanonicalTrackHash });
         Assert.IsNotNull(updated!.UpdatedAt);
         Assert.IsTrue(updated.UpdatedAt >= beforeEnrich.AddSeconds(-1));
     }

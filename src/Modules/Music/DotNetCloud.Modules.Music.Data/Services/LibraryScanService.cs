@@ -88,9 +88,20 @@ public sealed class LibraryScanService
             .IgnoreQueryFilters()
             .FirstOrDefaultAsync(ut => ut.FileNodeId == fileNodeId && ut.OwnerId == ownerId, cancellationToken);
 
-        if (existing is not null && !existing.IsDeleted)
+        if (existing is not null)
         {
-            _logger.LogDebug("File {FileNodeId} already indexed as user track {UserTrackId}", fileNodeId, existing.Id);
+            if (!existing.IsDeleted)
+            {
+                _logger.LogDebug("File {FileNodeId} already indexed as user track {UserTrackId}", fileNodeId, existing.Id);
+                return existing;
+            }
+
+            // Restore previously soft-deleted track — same FileNodeId/OwnerId pair
+            _logger.LogDebug("Restoring soft-deleted user track {UserTrackId} for file {FileNodeId}", existing.Id, fileNodeId);
+            existing.IsDeleted = false;
+            existing.DeletedAt = null;
+            existing.UpdatedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync(cancellationToken);
             return existing;
         }
 
@@ -1009,6 +1020,7 @@ public sealed class LibraryScanService
         if (canonicalAlbum is not null)
         {
             var existingUserAlbum = await _db.UserAlbums
+                .IgnoreQueryFilters()
                 .FirstOrDefaultAsync(ua => ua.OwnerId == ownerId && ua.CanonicalAlbumId == canonicalAlbum.Id, cancellationToken);
             if (existingUserAlbum is null)
             {
@@ -1018,10 +1030,17 @@ public sealed class LibraryScanService
                     CanonicalAlbumId = canonicalAlbum.Id
                 });
             }
+            else if (existingUserAlbum.IsDeleted)
+            {
+                existingUserAlbum.IsDeleted = false;
+                existingUserAlbum.DeletedAt = null;
+                existingUserAlbum.UpdatedAt = DateTime.UtcNow;
+            }
         }
 
         // ── 3. Create UserArtist junction ──
         var existingUserArtist = await _db.UserArtists
+            .IgnoreQueryFilters()
             .FirstOrDefaultAsync(ua => ua.OwnerId == ownerId && ua.CanonicalArtistId == canonicalArtist.Id, cancellationToken);
         if (existingUserArtist is null)
         {
@@ -1030,6 +1049,12 @@ public sealed class LibraryScanService
                 OwnerId = ownerId,
                 CanonicalArtistId = canonicalArtist.Id
             });
+        }
+        else if (existingUserArtist.IsDeleted)
+        {
+            existingUserArtist.IsDeleted = false;
+            existingUserArtist.DeletedAt = null;
+            existingUserArtist.UpdatedAt = DateTime.UtcNow;
         }
 
         // ── 4. Update canonical album total duration ──

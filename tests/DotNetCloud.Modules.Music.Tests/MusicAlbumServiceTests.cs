@@ -203,7 +203,7 @@ public class MusicAlbumServiceTests
 
         await _service.DeleteAlbumAsync(album.Id, _caller);
 
-        var entry = await _db.UserAlbums.FirstAsync(ua => ua.CanonicalAlbumId == album.Id);
+        var entry = await _db.UserAlbums.IgnoreQueryFilters().FirstAsync(ua => ua.CanonicalAlbumId == album.Id);
         Assert.IsNotNull(entry);
         Assert.IsTrue(entry.IsDeleted);
     }

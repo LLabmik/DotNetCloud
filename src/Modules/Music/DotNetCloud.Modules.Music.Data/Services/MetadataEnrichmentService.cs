@@ -262,15 +262,19 @@ public sealed class MetadataEnrichmentService : IMetadataEnrichmentService
     /// <inheritdoc/>
     public async Task EnrichTrackAsync(Guid trackId, CallerContext caller, bool force = false, CancellationToken cancellationToken = default)
     {
-        var canonicalTrack = await _db.CanonicalTracks.FindAsync([trackId], cancellationToken);
+        var userTrack = await _db.UserTracks
+            .IgnoreQueryFilters()
+            .Include(ut => ut.CanonicalTrack)
+            .FirstOrDefaultAsync(ut => ut.Id == trackId, cancellationToken);
 
-        if (canonicalTrack is null)
+        if (userTrack?.CanonicalTrack is null)
         {
             _logger.LogDebug("Track {TrackId} not found for enrichment", trackId);
             return;
         }
 
-        var ct = canonicalTrack!;
+        var canonicalTrack = userTrack.CanonicalTrack;
+        var ct = canonicalTrack;
 
         if (!force && ct.UpdatedAt != default &&
             DateTime.UtcNow - ct.UpdatedAt < EnrichmentCooldown)
@@ -404,7 +408,7 @@ public sealed class MetadataEnrichmentService : IMetadataEnrichmentService
             if (userAlbum is null)
                 continue;
 
-            await EnrichAlbumAsync(userAlbum.Id, caller, cancellationToken: cancellationToken);
+            await EnrichAlbumAsync(userAlbum.CanonicalAlbumId, caller, cancellationToken: cancellationToken);
 
             // Re-check if art was found after enrichment
             await _db.Entry(canonicalAlbum).ReloadAsync(cancellationToken);

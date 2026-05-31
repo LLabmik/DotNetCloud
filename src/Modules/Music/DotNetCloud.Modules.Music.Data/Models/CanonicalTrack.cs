@@ -52,7 +52,7 @@ public sealed class CanonicalTrack
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     /// <summary>When the canonical track record was last modified (UTC).</summary>
-    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; }
 
     /// <summary>Navigation: user tracks referencing this canonical track.</summary>
     public ICollection<UserTrack> UserTracks { get; set; } = new List<UserTrack>();

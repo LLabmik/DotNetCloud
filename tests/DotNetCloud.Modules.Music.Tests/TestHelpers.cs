@@ -223,7 +223,7 @@ internal static class TestHelpers
 
     public static async Task<EqPreset> SeedEqPresetAsync(MusicDbContext db, Guid? ownerId = null, string name = "Flat", bool isBuiltIn = false)
     {
-        var preset = new EqPreset { OwnerId = ownerId, Name = name, IsBuiltIn = isBuiltIn, BandsJson = "{}" };
+        var preset = new EqPreset { OwnerId = ownerId, Name = name, IsBuiltIn = isBuiltIn, BandsJson = "{\"60Hz\":0,\"230Hz\":0,\"910Hz\":0,\"3k6Hz\":0,\"14kHz\":0}" };
         db.EqPresets.Add(preset);
         await db.SaveChangesAsync();
         return preset;
@@ -247,6 +247,13 @@ internal static class TestHelpers
         var contentHash = Guid.NewGuid().ToString("N");
         await SeedCanonicalTrackAsync(db, contentHash, trackTitle);
         await SeedCanonicalTrackArtistAsync(db, contentHash, artist.Id);
+        db.CanonicalAlbumArtists.Add(new CanonicalAlbumArtist
+        {
+            AlbumId = album.Id,
+            ArtistId = artist.Id,
+            IsPrimary = true
+        });
+        await db.SaveChangesAsync();
         var genre = await SeedCanonicalGenreAsync(db, genreName);
         await SeedCanonicalTrackGenreAsync(db, contentHash, genre.Id);
         var userTrack = await SeedUserTrackAsync(db, owner, Guid.NewGuid(), contentHash, album.Id);
@@ -266,6 +273,13 @@ internal static class TestHelpers
     public static async Task<CanonicalAlbum> SeedAlbumAsync(MusicDbContext db, Guid artistId, string title = "Test Album", int? year = 2024, Guid? ownerId = null)
     {
         var a = await SeedCanonicalAlbumAsync(db, title, year);
+        db.CanonicalAlbumArtists.Add(new CanonicalAlbumArtist
+        {
+            AlbumId = a.Id,
+            ArtistId = artistId,
+            IsPrimary = true
+        });
+        await db.SaveChangesAsync();
         if (ownerId.HasValue)
             await SeedUserAlbumAsync(db, a.Id, ownerId.Value);
         return a;
