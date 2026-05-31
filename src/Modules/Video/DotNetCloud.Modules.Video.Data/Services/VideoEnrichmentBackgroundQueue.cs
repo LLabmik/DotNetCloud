@@ -257,7 +257,7 @@ internal sealed class VideoEnrichmentBackgroundService : BackgroundService
         scanProgress.UpdateProgress(job.OwnerId, new LibraryScanProgress
         {
             Phase = "Enrichment complete",
-            FilesProcessed = tmdbEnriched + screenshotFallback + failed,
+            FilesProcessed = total,
             TotalFiles = total,
             TracksAdded = job.VideosAdded,
             TracksSkipped = job.VideosSkipped,
