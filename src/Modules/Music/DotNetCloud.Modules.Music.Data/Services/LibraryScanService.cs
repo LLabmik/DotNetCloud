@@ -292,15 +292,26 @@ public sealed class LibraryScanService
         }
 
         // ── Dual-write: user junctions + old per-user records ──
-        var canonicalTrackForDualWrite = contentHash is not null
-            ? (await _db.CanonicalTracks.FindAsync([contentHash], cancellationToken))!
-            : new CanonicalTrack
+        CanonicalTrack canonicalTrackForDualWrite;
+        if (contentHash is not null)
+        {
+            canonicalTrackForDualWrite = (await _db.CanonicalTracks.FindAsync([contentHash], cancellationToken))!;
+        }
+        else
+        {
+            // Generate a deterministic content hash from the file path when the Files module
+            // hasn't computed one (e.g., shared mount). This ensures UserTrack.CanonicalTrackHash
+            // has a matching CanonicalTrack row for the FK constraint.
+            var fallbackHash = Guid.NewGuid().ToString();
+            canonicalTrackForDualWrite = new CanonicalTrack
             {
-                ContentHash = contentHash ?? Guid.NewGuid().ToString(),
+                ContentHash = fallbackHash,
                 Title = metadata.Title,
                 DurationTicks = metadata.DurationTicks,
                 MimeType = mimeType
             };
+            _db.CanonicalTracks.Add(canonicalTrackForDualWrite);
+        }
 
         var track = await CreateUserTrackJunctionsAsync(
             fileNodeId, fileName, mimeType, sizeBytes, ownerId,
@@ -447,15 +458,23 @@ public sealed class LibraryScanService
             }
         }
 
-        var canonicalForDualWrite = contentHash is not null
-            ? (await _db.CanonicalTracks.FindAsync([contentHash], cancellationToken))!
-            : new CanonicalTrack
+        CanonicalTrack canonicalForDualWrite;
+        if (contentHash is not null)
+        {
+            canonicalForDualWrite = (await _db.CanonicalTracks.FindAsync([contentHash], cancellationToken))!;
+        }
+        else
+        {
+            var fallbackHash = Guid.NewGuid().ToString();
+            canonicalForDualWrite = new CanonicalTrack
             {
-                ContentHash = Guid.NewGuid().ToString(),
+                ContentHash = fallbackHash,
                 Title = sourceCanonicalTrack.Title,
                 DurationTicks = sourceCanonicalTrack.DurationTicks,
                 MimeType = sourceCanonicalTrack.MimeType
             };
+            _db.CanonicalTracks.Add(canonicalForDualWrite);
+        }
 
         var finalTrack = await CreateUserTrackJunctionsAsync(
             fileNodeId, fileName, mimeType, sizeBytes, ownerId,
