@@ -217,7 +217,13 @@ public sealed class MusicBrainzClient : IMusicBrainzClient
                 }
             }
 
-            return seen.Values.OrderByDescending(r => r.Score).ToList();
+            // Sort: prefer exact title matches over score — prevents mashups like
+            // "Led Zeppelin x Led Zeppelin" (score 100) from outranking the actual
+            // debut album "Led Zeppelin" (score 99).
+            return seen.Values
+                .OrderByDescending(r => string.Equals(r.Title, safeAlbum, StringComparison.OrdinalIgnoreCase))
+                .ThenByDescending(r => r.Score)
+                .ToList();
         }
         catch (JsonException ex)
         {
@@ -361,7 +367,13 @@ public sealed class MusicBrainzClient : IMusicBrainzClient
                 }
             }
 
-            return seen.Values.OrderByDescending(r => r.Score).ToList();
+            // Sort: prefer exact title matches over score — prevents mashups like
+            // "Led Zeppelin x Led Zeppelin" (score 100) from outranking the actual
+            // debut album "Led Zeppelin" (score 99).
+            return seen.Values
+                .OrderByDescending(r => string.Equals(r.Title, safeTitle, StringComparison.OrdinalIgnoreCase))
+                .ThenByDescending(r => r.Score)
+                .ToList();
         }
         catch (JsonException ex)
         {
