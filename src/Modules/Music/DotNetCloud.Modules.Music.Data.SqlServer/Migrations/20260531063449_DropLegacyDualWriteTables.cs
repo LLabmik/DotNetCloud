@@ -54,7 +54,7 @@ namespace DotNetCloud.Modules.Music.Data.SqlServer.Migrations
                 name: "TrackId",
                 schema: "music",
                 table: "ScrobbleRecords",
-                newName: "UserTrackId");
+                newName: "TrackId");
 
             migrationBuilder.RenameIndex(
                 name: "ix_scrobble_records_track_id",
@@ -66,19 +66,19 @@ namespace DotNetCloud.Modules.Music.Data.SqlServer.Migrations
                 name: "TrackId",
                 schema: "music",
                 table: "PlaylistTracks",
-                newName: "UserTrackId");
+                newName: "TrackId");
 
             migrationBuilder.RenameIndex(
                 name: "IX_PlaylistTracks_TrackId",
                 schema: "music",
                 table: "PlaylistTracks",
-                newName: "IX_PlaylistTracks_UserTrackId");
+                newName: "IX_PlaylistTracks_TrackId");
 
             migrationBuilder.RenameColumn(
                 name: "TrackId",
                 schema: "music",
                 table: "PlaybackHistories",
-                newName: "UserTrackId");
+                newName: "TrackId");
 
             migrationBuilder.RenameIndex(
                 name: "ix_playback_history_track_id",
@@ -87,30 +87,30 @@ namespace DotNetCloud.Modules.Music.Data.SqlServer.Migrations
                 newName: "ix_playback_history_user_track_id");
 
             migrationBuilder.AddForeignKey(
-                name: "FK_PlaybackHistories_user_tracks_UserTrackId",
+                name: "FK_PlaybackHistories_user_tracks_TrackId",
                 schema: "music",
                 table: "PlaybackHistories",
-                column: "UserTrackId",
+                column: "TrackId",
                 principalSchema: "music",
                 principalTable: "user_tracks",
                 principalColumn: "Id",
                 onDelete: ReferentialAction.Cascade);
 
             migrationBuilder.AddForeignKey(
-                name: "FK_PlaylistTracks_user_tracks_UserTrackId",
+                name: "FK_PlaylistTracks_user_tracks_TrackId",
                 schema: "music",
                 table: "PlaylistTracks",
-                column: "UserTrackId",
+                column: "TrackId",
                 principalSchema: "music",
                 principalTable: "user_tracks",
                 principalColumn: "Id",
                 onDelete: ReferentialAction.Cascade);
 
             migrationBuilder.AddForeignKey(
-                name: "FK_ScrobbleRecords_user_tracks_UserTrackId",
+                name: "FK_ScrobbleRecords_user_tracks_TrackId",
                 schema: "music",
                 table: "ScrobbleRecords",
-                column: "UserTrackId",
+                column: "TrackId",
                 principalSchema: "music",
                 principalTable: "user_tracks",
                 principalColumn: "Id",
@@ -121,22 +121,22 @@ namespace DotNetCloud.Modules.Music.Data.SqlServer.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropForeignKey(
-                name: "FK_PlaybackHistories_user_tracks_UserTrackId",
+                name: "FK_PlaybackHistories_user_tracks_TrackId",
                 schema: "music",
                 table: "PlaybackHistories");
 
             migrationBuilder.DropForeignKey(
-                name: "FK_PlaylistTracks_user_tracks_UserTrackId",
+                name: "FK_PlaylistTracks_user_tracks_TrackId",
                 schema: "music",
                 table: "PlaylistTracks");
 
             migrationBuilder.DropForeignKey(
-                name: "FK_ScrobbleRecords_user_tracks_UserTrackId",
+                name: "FK_ScrobbleRecords_user_tracks_TrackId",
                 schema: "music",
                 table: "ScrobbleRecords");
 
             migrationBuilder.RenameColumn(
-                name: "UserTrackId",
+                name: "TrackId",
                 schema: "music",
                 table: "ScrobbleRecords",
                 newName: "TrackId");
@@ -148,19 +148,19 @@ namespace DotNetCloud.Modules.Music.Data.SqlServer.Migrations
                 newName: "ix_scrobble_records_track_id");
 
             migrationBuilder.RenameColumn(
-                name: "UserTrackId",
+                name: "TrackId",
                 schema: "music",
                 table: "PlaylistTracks",
                 newName: "TrackId");
 
             migrationBuilder.RenameIndex(
-                name: "IX_PlaylistTracks_UserTrackId",
+                name: "IX_PlaylistTracks_TrackId",
                 schema: "music",
                 table: "PlaylistTracks",
                 newName: "IX_PlaylistTracks_TrackId");
 
             migrationBuilder.RenameColumn(
-                name: "UserTrackId",
+                name: "TrackId",
                 schema: "music",
                 table: "PlaybackHistories",
                 newName: "TrackId");

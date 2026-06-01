@@ -113,6 +113,11 @@ internal static class ServiceProviderFactory
     private static IServiceCollection AddModuleDbContexts(
         this IServiceCollection services, DatabaseProvider provider, string connectionString)
     {
+        // Register naming strategy based on provider
+        services.AddSingleton<ITableNamingStrategy>(provider == DatabaseProvider.SqlServer
+            ? new SqlServerNamingStrategy()
+            : new PostgreSqlNamingStrategy());
+
         const string AiMigrationsAssembly = "DotNetCloud.Modules.AI.Data.SqlServer";
         const string BookmarksMigrationsAssembly = "DotNetCloud.Modules.Bookmarks.Data.SqlServer";
         const string CalendarMigrationsAssembly = "DotNetCloud.Modules.Calendar.Data.SqlServer";
@@ -142,6 +147,8 @@ internal static class ServiceProviderFactory
         services.AddDbContext<FilesDbContext>(options =>
             ConfigureModuleDbContext(options, provider, connectionString, FilesMigrationsAssembly));
         services.AddDbContext<MusicDbContext>(options =>
+            ConfigureModuleDbContext(options, provider, connectionString, MusicMigrationsAssembly));
+        services.AddDbContextFactory<MusicDbContext>(options =>
             ConfigureModuleDbContext(options, provider, connectionString, MusicMigrationsAssembly));
         services.AddDbContext<NotesDbContext>(options =>
             ConfigureModuleDbContext(options, provider, connectionString, NotesMigrationsAssembly));

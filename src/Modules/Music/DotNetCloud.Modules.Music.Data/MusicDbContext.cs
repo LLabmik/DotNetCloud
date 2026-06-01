@@ -14,14 +14,6 @@ public class MusicDbContext : DbContext
     private readonly ITableNamingStrategy _namingStrategy;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="MusicDbContext"/> class.
-    /// </summary>
-    public MusicDbContext(DbContextOptions<MusicDbContext> options)
-        : this(options, new PostgreSqlNamingStrategy())
-    {
-    }
-
-    /// <summary>
     /// Initializes a new instance of the <see cref="MusicDbContext"/> class with a specific naming strategy.
     /// </summary>
     public MusicDbContext(DbContextOptions<MusicDbContext> options, ITableNamingStrategy namingStrategy)

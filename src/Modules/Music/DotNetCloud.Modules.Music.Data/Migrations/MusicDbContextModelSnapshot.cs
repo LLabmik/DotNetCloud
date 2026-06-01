@@ -23,88 +23,6 @@ namespace DotNetCloud.Modules.Music.Data.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("DotNetCloud.Modules.Music.Models.Artist", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Biography")
-                        .HasMaxLength(10000)
-                        .HasColumnType("character varying(10000)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("DiscogsUrl")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<string>("ImageUrl")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTime?>("LastEnrichedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("MusicBrainzId")
-                        .HasMaxLength(36)
-                        .HasColumnType("character varying(36)");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<string>("OfficialUrl")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<Guid>("OwnerId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("SortName")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
-
-                    b.Property<string>("WikipediaUrl")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("IsDeleted")
-                        .HasDatabaseName("ix_artists_is_deleted");
-
-                    b.HasIndex("MusicBrainzId")
-                        .HasDatabaseName("ix_artists_musicbrainz_id");
-
-                    b.HasIndex("Name")
-                        .HasDatabaseName("ix_artists_name");
-
-                    b.HasIndex("OwnerId")
-                        .HasDatabaseName("ix_artists_owner_id");
-
-                    b.HasIndex("OwnerId", "Name")
-                        .IsUnique()
-                        .HasDatabaseName("uq_artists_owner_name");
-
-                    b.ToTable("Artists", "music");
-                });
-
             modelBuilder.Entity("DotNetCloud.Modules.Music.Models.CanonicalAlbum", b =>
                 {
                     b.Property<Guid>("Id")
@@ -432,106 +350,6 @@ namespace DotNetCloud.Modules.Music.Data.Migrations
                     b.ToTable("EqPresets", "music");
                 });
 
-            modelBuilder.Entity("DotNetCloud.Modules.Music.Models.Genre", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Name")
-                        .IsUnique()
-                        .HasDatabaseName("uq_genres_name");
-
-                    b.ToTable("Genres", "music");
-                });
-
-            modelBuilder.Entity("DotNetCloud.Modules.Music.Models.MusicAlbum", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("ArtistId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("CoverArtPath")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("HasCoverArt")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTime?>("LastEnrichedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("MusicBrainzReleaseGroupId")
-                        .HasMaxLength(36)
-                        .HasColumnType("character varying(36)");
-
-                    b.Property<string>("MusicBrainzReleaseId")
-                        .HasMaxLength(36)
-                        .HasColumnType("character varying(36)");
-
-                    b.Property<Guid>("OwnerId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<long>("TotalDurationTicks")
-                        .HasColumnType("bigint");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
-
-                    b.Property<int?>("Year")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ArtistId")
-                        .HasDatabaseName("ix_music_albums_artist_id");
-
-                    b.HasIndex("IsDeleted")
-                        .HasDatabaseName("ix_music_albums_is_deleted");
-
-                    b.HasIndex("MusicBrainzReleaseGroupId")
-                        .HasDatabaseName("ix_music_albums_musicbrainz_release_group_id");
-
-                    b.HasIndex("OwnerId")
-                        .HasDatabaseName("ix_music_albums_owner_id");
-
-                    b.HasIndex("Title")
-                        .HasDatabaseName("ix_music_albums_title");
-
-                    b.HasIndex("Year")
-                        .HasDatabaseName("ix_music_albums_year");
-
-                    b.ToTable("Albums", "music");
-                });
-
             modelBuilder.Entity("DotNetCloud.Modules.Music.Models.PlaybackHistory", b =>
                 {
                     b.Property<Guid>("Id")
@@ -546,16 +364,17 @@ namespace DotNetCloud.Modules.Music.Data.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
-                    b.Property<Guid>("TrackId")
-                        .HasColumnType("uuid");
-
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid>("UserTrackId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("UserTrackId");
+
                     b.HasKey("Id");
 
-                    b.HasIndex("TrackId")
-                        .HasDatabaseName("ix_playback_history_track_id");
+                    b.HasIndex("UserTrackId")
+                        .HasDatabaseName("ix_playback_history_user_track_id");
 
                     b.HasIndex("UserId", "PlayedAt")
                         .HasDatabaseName("ix_playback_history_user_played_at");
@@ -619,8 +438,9 @@ namespace DotNetCloud.Modules.Music.Data.Migrations
                     b.Property<Guid>("PlaylistId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("TrackId")
-                        .HasColumnType("uuid");
+                    b.Property<Guid>("UserTrackId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("UserTrackId");
 
                     b.Property<DateTime>("AddedAt")
                         .ValueGeneratedOnAdd()
@@ -630,9 +450,9 @@ namespace DotNetCloud.Modules.Music.Data.Migrations
                     b.Property<int>("SortOrder")
                         .HasColumnType("integer");
 
-                    b.HasKey("PlaylistId", "TrackId");
+                    b.HasKey("PlaylistId", "UserTrackId");
 
-                    b.HasIndex("TrackId");
+                    b.HasIndex("UserTrackId");
 
                     b.HasIndex("PlaylistId", "SortOrder")
                         .HasDatabaseName("ix_playlist_tracks_playlist_sort");
@@ -660,9 +480,6 @@ namespace DotNetCloud.Modules.Music.Data.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
-                    b.Property<Guid>("TrackId")
-                        .HasColumnType("uuid");
-
                     b.Property<string>("TrackTitle")
                         .IsRequired()
                         .HasMaxLength(500)
@@ -671,10 +488,14 @@ namespace DotNetCloud.Modules.Music.Data.Migrations
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid>("UserTrackId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("UserTrackId");
+
                     b.HasKey("Id");
 
-                    b.HasIndex("TrackId")
-                        .HasDatabaseName("ix_scrobble_records_track_id");
+                    b.HasIndex("UserTrackId")
+                        .HasDatabaseName("ix_scrobble_records_user_track_id");
 
                     b.HasIndex("UserId", "ScrobbledAt")
                         .HasDatabaseName("ix_scrobble_records_user_scrobbled_at");
@@ -712,158 +533,6 @@ namespace DotNetCloud.Modules.Music.Data.Migrations
                         .HasDatabaseName("uq_starred_items_user_type_item");
 
                     b.ToTable("StarredItems", "music");
-                });
-
-            modelBuilder.Entity("DotNetCloud.Modules.Music.Models.Track", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("AlbumId")
-                        .HasColumnType("uuid");
-
-                    b.Property<long?>("Bitrate")
-                        .HasColumnType("bigint");
-
-                    b.Property<int?>("Channels")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("ContentHash")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("DiscNumber")
-                        .HasColumnType("integer");
-
-                    b.Property<long>("DurationTicks")
-                        .HasColumnType("bigint");
-
-                    b.Property<string>("FileName")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)");
-
-                    b.Property<Guid>("FileNodeId")
-                        .HasColumnType("uuid");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTime?>("LastEnrichedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("MimeType")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("MusicBrainzRecordingId")
-                        .HasMaxLength(36)
-                        .HasColumnType("character varying(36)");
-
-                    b.Property<Guid>("OwnerId")
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("PlayCount")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("SampleRate")
-                        .HasColumnType("integer");
-
-                    b.Property<long>("SizeBytes")
-                        .HasColumnType("bigint");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<int?>("TrackNumber")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
-
-                    b.Property<int?>("Year")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AlbumId")
-                        .HasDatabaseName("ix_tracks_album_id");
-
-                    b.HasIndex("ContentHash")
-                        .HasDatabaseName("ix_tracks_content_hash");
-
-                    b.HasIndex("IsDeleted")
-                        .HasDatabaseName("ix_tracks_is_deleted");
-
-                    b.HasIndex("MusicBrainzRecordingId")
-                        .HasDatabaseName("ix_tracks_musicbrainz_recording_id");
-
-                    b.HasIndex("OwnerId")
-                        .HasDatabaseName("ix_tracks_owner_id");
-
-                    b.HasIndex("Title")
-                        .HasDatabaseName("ix_tracks_title");
-
-                    b.HasIndex("FileNodeId", "OwnerId")
-                        .IsUnique()
-                        .HasDatabaseName("uq_tracks_file_node_owner_id");
-
-                    b.HasIndex("OwnerId", "CreatedAt")
-                        .HasDatabaseName("ix_tracks_owner_created_at");
-
-                    b.ToTable("Tracks", "music");
-                });
-
-            modelBuilder.Entity("DotNetCloud.Modules.Music.Models.TrackArtist", b =>
-                {
-                    b.Property<Guid>("TrackId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("ArtistId")
-                        .HasColumnType("uuid");
-
-                    b.Property<bool>("IsPrimary")
-                        .HasColumnType("boolean");
-
-                    b.HasKey("TrackId", "ArtistId");
-
-                    b.HasIndex("ArtistId")
-                        .HasDatabaseName("ix_track_artists_artist_id");
-
-                    b.HasIndex("TrackId", "IsPrimary")
-                        .HasDatabaseName("ix_track_artists_track_primary");
-
-                    b.ToTable("TrackArtists", "music");
-                });
-
-            modelBuilder.Entity("DotNetCloud.Modules.Music.Models.TrackGenre", b =>
-                {
-                    b.Property<Guid>("TrackId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("GenreId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("TrackId", "GenreId");
-
-                    b.HasIndex("GenreId")
-                        .HasDatabaseName("ix_track_genres_genre_id");
-
-                    b.ToTable("TrackGenres", "music");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Music.Models.UserAlbum", b =>
@@ -1122,26 +791,15 @@ namespace DotNetCloud.Modules.Music.Data.Migrations
                     b.Navigation("Track");
                 });
 
-            modelBuilder.Entity("DotNetCloud.Modules.Music.Models.MusicAlbum", b =>
-                {
-                    b.HasOne("DotNetCloud.Modules.Music.Models.Artist", "Artist")
-                        .WithMany("Albums")
-                        .HasForeignKey("ArtistId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Artist");
-                });
-
             modelBuilder.Entity("DotNetCloud.Modules.Music.Models.PlaybackHistory", b =>
                 {
-                    b.HasOne("DotNetCloud.Modules.Music.Models.Track", "Track")
+                    b.HasOne("DotNetCloud.Modules.Music.Models.UserTrack", "UserTrack")
                         .WithMany()
-                        .HasForeignKey("TrackId")
+                        .HasForeignKey("UserTrackId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Track");
+                    b.Navigation("UserTrack");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Music.Models.PlaylistTrack", b =>
@@ -1152,74 +810,26 @@ namespace DotNetCloud.Modules.Music.Data.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("DotNetCloud.Modules.Music.Models.Track", "Track")
+                    b.HasOne("DotNetCloud.Modules.Music.Models.UserTrack", "UserTrack")
                         .WithMany("PlaylistTracks")
-                        .HasForeignKey("TrackId")
+                        .HasForeignKey("UserTrackId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("Playlist");
 
-                    b.Navigation("Track");
+                    b.Navigation("UserTrack");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Music.Models.ScrobbleRecord", b =>
                 {
-                    b.HasOne("DotNetCloud.Modules.Music.Models.Track", "Track")
+                    b.HasOne("DotNetCloud.Modules.Music.Models.UserTrack", "UserTrack")
                         .WithMany()
-                        .HasForeignKey("TrackId")
+                        .HasForeignKey("UserTrackId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Track");
-                });
-
-            modelBuilder.Entity("DotNetCloud.Modules.Music.Models.Track", b =>
-                {
-                    b.HasOne("DotNetCloud.Modules.Music.Models.MusicAlbum", "Album")
-                        .WithMany("Tracks")
-                        .HasForeignKey("AlbumId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("Album");
-                });
-
-            modelBuilder.Entity("DotNetCloud.Modules.Music.Models.TrackArtist", b =>
-                {
-                    b.HasOne("DotNetCloud.Modules.Music.Models.Artist", "Artist")
-                        .WithMany("TrackArtists")
-                        .HasForeignKey("ArtistId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("DotNetCloud.Modules.Music.Models.Track", "Track")
-                        .WithMany("TrackArtists")
-                        .HasForeignKey("TrackId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Artist");
-
-                    b.Navigation("Track");
-                });
-
-            modelBuilder.Entity("DotNetCloud.Modules.Music.Models.TrackGenre", b =>
-                {
-                    b.HasOne("DotNetCloud.Modules.Music.Models.Genre", "Genre")
-                        .WithMany("TrackGenres")
-                        .HasForeignKey("GenreId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("DotNetCloud.Modules.Music.Models.Track", "Track")
-                        .WithMany("TrackGenres")
-                        .HasForeignKey("TrackId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Genre");
-
-                    b.Navigation("Track");
+                    b.Navigation("UserTrack");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Music.Models.UserAlbum", b =>
@@ -1272,13 +882,6 @@ namespace DotNetCloud.Modules.Music.Data.Migrations
                     b.Navigation("CanonicalTrack");
                 });
 
-            modelBuilder.Entity("DotNetCloud.Modules.Music.Models.Artist", b =>
-                {
-                    b.Navigation("Albums");
-
-                    b.Navigation("TrackArtists");
-                });
-
             modelBuilder.Entity("DotNetCloud.Modules.Music.Models.CanonicalAlbum", b =>
                 {
                     b.Navigation("AlbumArtists");
@@ -1309,28 +912,14 @@ namespace DotNetCloud.Modules.Music.Data.Migrations
                     b.Navigation("UserTracks");
                 });
 
-            modelBuilder.Entity("DotNetCloud.Modules.Music.Models.Genre", b =>
-                {
-                    b.Navigation("TrackGenres");
-                });
-
-            modelBuilder.Entity("DotNetCloud.Modules.Music.Models.MusicAlbum", b =>
-                {
-                    b.Navigation("Tracks");
-                });
-
             modelBuilder.Entity("DotNetCloud.Modules.Music.Models.Playlist", b =>
                 {
                     b.Navigation("PlaylistTracks");
                 });
 
-            modelBuilder.Entity("DotNetCloud.Modules.Music.Models.Track", b =>
+            modelBuilder.Entity("DotNetCloud.Modules.Music.Models.UserTrack", b =>
                 {
                     b.Navigation("PlaylistTracks");
-
-                    b.Navigation("TrackArtists");
-
-                    b.Navigation("TrackGenres");
                 });
 #pragma warning restore 612, 618
         }

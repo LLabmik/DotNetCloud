@@ -14,6 +14,7 @@ public sealed class ScrobbleRecordConfiguration : IEntityTypeConfiguration<Scrob
     {
         builder.HasKey(s => s.Id);
 
+        builder.Property(s => s.UserTrackId);
         builder.Property(s => s.ArtistName).IsRequired().HasMaxLength(500);
         builder.Property(s => s.TrackTitle).IsRequired().HasMaxLength(500);
         builder.Property(s => s.AlbumTitle).HasMaxLength(500);

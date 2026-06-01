@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using DotNetCloud.Modules.Music.Services;
 using Microsoft.Extensions.Logging;
 
@@ -23,6 +24,35 @@ public sealed class MusicBrainzClient : IMusicBrainzClient
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
 
+    /// <summary>Regex for parenthetical suffixes: (Remastered), (Deluxe Edition), (1994 Remaster), etc.</summary>
+    private static readonly Regex ParentheticalSuffix = new(
+        @"\s*\([^)]*\)\s*$", RegexOptions.Compiled);
+
+    /// <summary>
+    /// Characters that break MusicBrainz Lucene query syntax when unescaped.
+    /// </summary>
+    private static readonly Regex LuceneSpecialChars = new(
+        @"([+\-!(){}\[\]^""~*?:\\/])", RegexOptions.Compiled);
+
+    /// <summary>
+    /// Strips trailing parenthetical suffixes (e.g. "(Remastered)") from album titles
+    /// and escapes Lucene special characters for safe MusicBrainz queries.
+    /// </summary>
+    private static string SanitizeMusicBrainzQuery(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return value;
+
+        // Strip parenthetical suffix — these break Lucene grouping syntax
+        var cleaned = ParentheticalSuffix.Replace(value, "").Trim();
+
+        // Escape Lucene special characters (inside quoted phrases, only " and \ matter,
+        // but escaping all is safer for unquoted terms)
+        cleaned = LuceneSpecialChars.Replace(cleaned, @"\$1");
+
+        return cleaned;
+    }
+
     /// <summary>
     /// Initializes a new instance of the <see cref="MusicBrainzClient"/> class.
     /// </summary>
@@ -36,7 +66,8 @@ public sealed class MusicBrainzClient : IMusicBrainzClient
     /// <inheritdoc/>
     public async Task<IReadOnlyList<MusicBrainzArtistResult>?> SearchArtistAsync(string name, CancellationToken cancellationToken = default)
     {
-        var encodedName = Uri.EscapeDataString(name);
+        var safeName = SanitizeMusicBrainzQuery(name);
+        var encodedName = Uri.EscapeDataString(safeName);
         var url = $"artist/?query=artist:\"{encodedName}\"&fmt=json";
 
         var json = await GetJsonAsync(url, cancellationToken);
@@ -120,9 +151,14 @@ public sealed class MusicBrainzClient : IMusicBrainzClient
     /// <inheritdoc/>
     public async Task<IReadOnlyList<MusicBrainzReleaseGroupResult>?> SearchReleaseGroupAsync(string album, string artist, CancellationToken cancellationToken = default)
     {
-        var encodedAlbum = Uri.EscapeDataString(album);
-        var encodedArtist = Uri.EscapeDataString(artist);
-        var url = $"release-group/?query=releasegroup:\"{encodedAlbum}\" AND artist:\"{encodedArtist}\"&fmt=json";
+        // Search the 'release' endpoint instead of 'release-group' — the release index
+        // handles spelling variations (e.g. favorite/favourite) much better, and each
+        // release result includes its parent release-group ID.
+        var safeAlbum = SanitizeMusicBrainzQuery(album);
+        var safeArtist = SanitizeMusicBrainzQuery(artist);
+        var encodedAlbum = Uri.EscapeDataString(safeAlbum);
+        var encodedArtist = Uri.EscapeDataString(safeArtist);
+        var url = $"release/?query=release:\"{encodedAlbum}\" AND artist:\"{encodedArtist}\"&fmt=json";
 
         var json = await GetJsonAsync(url, cancellationToken);
         if (json is null)
@@ -130,21 +166,36 @@ public sealed class MusicBrainzClient : IMusicBrainzClient
 
         try
         {
-            var response = JsonSerializer.Deserialize<MbReleaseGroupSearchResponse>(json, JsonOptions);
-            if (response?.ReleaseGroups is null)
+            var response = JsonSerializer.Deserialize<MbReleaseSearchResponse>(json, JsonOptions);
+            if (response?.Releases is null)
                 return [];
 
-            return response.ReleaseGroups.Select(rg => new MusicBrainzReleaseGroupResult
+            // Extract release-group info from each release, deduplicate by ID,
+            // and take the highest score for each unique release-group.
+            var seen = new Dictionary<string, MusicBrainzReleaseGroupResult>();
+            foreach (var release in response.Releases)
             {
-                Id = rg.Id,
-                Title = rg.Title,
-                Score = rg.Score,
-                PrimaryType = rg.PrimaryType
-            }).ToList();
+                var rg = release.ReleaseGroup;
+                if (rg is null)
+                    continue;
+
+                if (!seen.TryGetValue(rg.Id, out var existing) || release.Score > existing.Score)
+                {
+                    seen[rg.Id] = new MusicBrainzReleaseGroupResult
+                    {
+                        Id = rg.Id,
+                        Title = rg.Title,
+                        Score = release.Score,
+                        PrimaryType = rg.PrimaryType
+                    };
+                }
+            }
+
+            return seen.Values.OrderByDescending(r => r.Score).ToList();
         }
         catch (JsonException ex)
         {
-            _logger.LogWarning(ex, "Failed to deserialize MusicBrainz release group search response");
+            _logger.LogWarning(ex, "Failed to deserialize MusicBrainz release search response");
             return null;
         }
     }
@@ -187,8 +238,10 @@ public sealed class MusicBrainzClient : IMusicBrainzClient
     /// <inheritdoc/>
     public async Task<IReadOnlyList<MusicBrainzRecordingResult>?> SearchRecordingAsync(string title, string artist, CancellationToken cancellationToken = default)
     {
-        var encodedTitle = Uri.EscapeDataString(title);
-        var encodedArtist = Uri.EscapeDataString(artist);
+        var safeTitle = SanitizeMusicBrainzQuery(title);
+        var safeArtist = SanitizeMusicBrainzQuery(artist);
+        var encodedTitle = Uri.EscapeDataString(safeTitle);
+        var encodedArtist = Uri.EscapeDataString(safeArtist);
         var url = $"recording/?query=recording:\"{encodedTitle}\" AND artist:\"{encodedArtist}\"&fmt=json";
 
         var json = await GetJsonAsync(url, cancellationToken);
@@ -248,8 +301,10 @@ public sealed class MusicBrainzClient : IMusicBrainzClient
     /// <inheritdoc/>
     public async Task<IReadOnlyList<MusicBrainzReleaseGroupResult>?> SearchReleaseGroupByArtistMbidAsync(string artistMbid, string albumTitle, CancellationToken cancellationToken = default)
     {
-        var encodedTitle = Uri.EscapeDataString(albumTitle);
-        var url = $"release-group/?query=arid:{Uri.EscapeDataString(artistMbid)} AND releasegroup:\"{encodedTitle}\"&fmt=json";
+        // Search the 'release' endpoint for better spelling variation handling.
+        var safeTitle = SanitizeMusicBrainzQuery(albumTitle);
+        var encodedTitle = Uri.EscapeDataString(safeTitle);
+        var url = $"release/?query=arid:{Uri.EscapeDataString(artistMbid)} AND release:\"{encodedTitle}\"&fmt=json";
 
         var json = await GetJsonAsync(url, cancellationToken);
         if (json is null)
@@ -257,21 +312,34 @@ public sealed class MusicBrainzClient : IMusicBrainzClient
 
         try
         {
-            var response = JsonSerializer.Deserialize<MbReleaseGroupSearchResponse>(json, JsonOptions);
-            if (response?.ReleaseGroups is null)
+            var response = JsonSerializer.Deserialize<MbReleaseSearchResponse>(json, JsonOptions);
+            if (response?.Releases is null)
                 return [];
 
-            return response.ReleaseGroups.Select(rg => new MusicBrainzReleaseGroupResult
+            var seen = new Dictionary<string, MusicBrainzReleaseGroupResult>();
+            foreach (var release in response.Releases)
             {
-                Id = rg.Id,
-                Title = rg.Title,
-                Score = rg.Score,
-                PrimaryType = rg.PrimaryType
-            }).ToList();
+                var rg = release.ReleaseGroup;
+                if (rg is null)
+                    continue;
+
+                if (!seen.TryGetValue(rg.Id, out var existing) || release.Score > existing.Score)
+                {
+                    seen[rg.Id] = new MusicBrainzReleaseGroupResult
+                    {
+                        Id = rg.Id,
+                        Title = rg.Title,
+                        Score = release.Score,
+                        PrimaryType = rg.PrimaryType
+                    };
+                }
+            }
+
+            return seen.Values.OrderByDescending(r => r.Score).ToList();
         }
         catch (JsonException ex)
         {
-            _logger.LogWarning(ex, "Failed to deserialize MusicBrainz release group search by artist MBID response");
+            _logger.LogWarning(ex, "Failed to deserialize MusicBrainz release search by artist MBID response");
             return null;
         }
     }
@@ -383,6 +451,28 @@ public sealed class MusicBrainzClient : IMusicBrainzClient
     private sealed class MbRelationUrl
     {
         public string? Resource { get; set; }
+    }
+
+    private sealed class MbReleaseSearchResponse
+    {
+        public List<MbReleaseSearchItem>? Releases { get; set; }
+    }
+
+    private sealed class MbReleaseSearchItem
+    {
+        public string Id { get; set; } = "";
+        public string Title { get; set; } = "";
+        public int Score { get; set; }
+        [JsonPropertyName("release-group")]
+        public MbReleaseGroupRef? ReleaseGroup { get; set; }
+    }
+
+    private sealed class MbReleaseGroupRef
+    {
+        public string Id { get; set; } = "";
+        public string Title { get; set; } = "";
+        [JsonPropertyName("primary-type")]
+        public string? PrimaryType { get; set; }
     }
 
     private sealed class MbReleaseGroupSearchResponse

@@ -67,6 +67,8 @@ internal static class ModuleServiceRegistrationExtensions
             ConfigureModuleDbContext(options, provider, connectionString, FilesMigrationsAssembly));
         services.AddDbContext<MusicDbContext>(options =>
             ConfigureModuleDbContext(options, provider, connectionString, MusicMigrationsAssembly));
+        services.AddDbContextFactory<MusicDbContext>(options =>
+            ConfigureModuleDbContext(options, provider, connectionString, MusicMigrationsAssembly));
         services.AddDbContext<NotesDbContext>(options =>
             ConfigureModuleDbContext(options, provider, connectionString, NotesMigrationsAssembly));
         services.AddDbContext<PhotosDbContext>(options =>

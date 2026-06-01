@@ -14,6 +14,7 @@ public sealed class PlaybackHistoryConfiguration : IEntityTypeConfiguration<Play
     {
         builder.HasKey(h => h.Id);
 
+        builder.Property(h => h.UserTrackId);
         builder.Property(h => h.PlayedAt).IsRequired().HasDefaultValueSql("CURRENT_TIMESTAMP");
 
         builder.HasOne(h => h.UserTrack)

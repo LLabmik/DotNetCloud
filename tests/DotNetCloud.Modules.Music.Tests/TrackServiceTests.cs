@@ -224,15 +224,14 @@ public class TrackServiceTests
     // ─── Delete ───────────────────────────────────────────────────────
 
     [TestMethod]
-    public async Task DeleteTrack_SetsIsDeleted()
+    public async Task DeleteTrack_RemovesFromDatabase()
     {
         var (_, _, track) = await TestHelpers.SeedCompleteTrackAsync(_db, ownerId: _caller.UserId);
 
         await _service.DeleteTrackAsync(track.Id, _caller);
 
         var entry = await _db.UserTracks.FindAsync(track.Id);
-        Assert.IsNotNull(entry);
-        Assert.IsTrue(entry.IsDeleted);
+        Assert.IsNull(entry, "Track should be hard-deleted from the database");
     }
 
     [TestMethod]

@@ -92,12 +92,12 @@ public sealed class LibraryScanService
         {
             if (!existing.IsDeleted)
             {
-                _logger.LogDebug("File {FileNodeId} already indexed as user track {UserTrackId}", fileNodeId, existing.Id);
+                _logger.LogDebug("File {FileNodeId} already indexed as user track {TrackId}", fileNodeId, existing.Id);
                 return existing;
             }
 
             // Restore previously soft-deleted track — same FileNodeId/OwnerId pair
-            _logger.LogDebug("Restoring soft-deleted user track {UserTrackId} for file {FileNodeId}", existing.Id, fileNodeId);
+            _logger.LogDebug("Restoring soft-deleted user track {TrackId} for file {FileNodeId}", existing.Id, fileNodeId);
             existing.IsDeleted = false;
             existing.DeletedAt = null;
             existing.UpdatedAt = DateTime.UtcNow;
@@ -136,13 +136,52 @@ public sealed class LibraryScanService
                     foundGenre = await _db.CanonicalGenres.FindAsync([firstGenre.GenreId], cancellationToken);
                 }
 
-                // Find canonical album via UserTracks that reference this canonical track
-                var userTrack = await _db.UserTracks
-                    .FirstOrDefaultAsync(ut => ut.CanonicalTrackHash == contentHash, cancellationToken);
+                // Extract album metadata from the file to find/create canonical album.
+                // After a hard-delete reset, no UserTracks exist to look up CanonicalAlbumId from,
+                // so we must extract album info from the file itself.
                 CanonicalAlbum? foundAlbum = null;
-                if (userTrack?.CanonicalAlbumId is not null)
+                var albumPath = audioStream is FileStream fileStream ? fileStream.Name : metadataFilePath;
+                if (albumPath is not null)
                 {
-                    foundAlbum = await _db.CanonicalAlbums.FindAsync([userTrack.CanonicalAlbumId.Value], cancellationToken);
+                    try
+                    {
+                        var albumMetadata = _metadataService.ExtractMetadata(albumPath);
+                        if (albumMetadata is not null && !string.IsNullOrWhiteSpace(albumMetadata.Album))
+                        {
+                            foundAlbum = await GetOrCreateCanonicalAlbumAsync(albumMetadata.Album, albumMetadata.Year, cancellationToken);
+
+                            // Create CanonicalAlbumArtist junction if needed
+                            if (foundArtist is not null)
+                            {
+                                var existingAlbumArtist = await _db.CanonicalAlbumArtists
+                                    .FirstOrDefaultAsync(aa => aa.AlbumId == foundAlbum.Id && aa.ArtistId == foundArtist.Id, cancellationToken);
+                                if (existingAlbumArtist is null)
+                                {
+                                    _db.CanonicalAlbumArtists.Add(new CanonicalAlbumArtist
+                                    {
+                                        AlbumId = foundAlbum.Id,
+                                        ArtistId = foundArtist.Id
+                                    });
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to extract album metadata from {Path} for canonical track lookup", albumPath);
+                    }
+                }
+
+                // Fallback: try to find album via any UserTrack (including soft-deleted/other-owner)
+                if (foundAlbum is null)
+                {
+                    var otherUserTrack = await _db.UserTracks
+                        .IgnoreQueryFilters()
+                        .FirstOrDefaultAsync(ut => ut.CanonicalTrackHash == contentHash && ut.CanonicalAlbumId != null, cancellationToken);
+                    if (otherUserTrack?.CanonicalAlbumId is not null)
+                    {
+                        foundAlbum = await _db.CanonicalAlbums.FindAsync([otherUserTrack.CanonicalAlbumId.Value], cancellationToken);
+                    }
                 }
 
                 var indexedTrack = await CreateUserTrackJunctionsAsync(
@@ -298,7 +337,7 @@ public sealed class LibraryScanService
                 _db.CanonicalTracks.Add(newCanonicalTrack);
 
                 // Create canonical junction records
-                AddCanonicalJunctions(contentHash, canonicalArtist, canonicalAlbum, canonicalGenre);
+                await EnsureCanonicalJunctionsAsync(contentHash, canonicalArtist, canonicalAlbum, canonicalGenre, cancellationToken);
             }
         }
 
@@ -465,7 +504,7 @@ public sealed class LibraryScanService
                 };
                 _db.CanonicalTracks.Add(newCanonical);
 
-                AddCanonicalJunctions(contentHash, canonicalArtist, canonicalAlbum, canonicalGenre);
+                await EnsureCanonicalJunctionsAsync(contentHash, canonicalArtist, canonicalAlbum, canonicalGenre, cancellationToken);
             }
         }
 
@@ -620,7 +659,7 @@ public sealed class LibraryScanService
                         MusicBrainzRecordingId = srcCt.MusicBrainzRecordingId
                     };
                     _db.CanonicalTracks.Add(newCt);
-                    AddCanonicalJunctions(contentHash, cArtist, cAlbum, cGenre);
+                    await EnsureCanonicalJunctionsAsync(contentHash, cArtist, cAlbum, cGenre, cancellationToken);
                 }
 
                 var ctForWrite = (await _db.CanonicalTracks.FindAsync([contentHash], cancellationToken))!;
@@ -1057,6 +1096,9 @@ public sealed class LibraryScanService
             existingUserArtist.UpdatedAt = DateTime.UtcNow;
         }
 
+        // ── 3b. Ensure canonical junctions exist (track-artist, track-genre, album-artist) ──
+        await EnsureCanonicalJunctionsAsync(contentHash, canonicalArtist, canonicalAlbum, canonicalGenre, cancellationToken);
+
         // ── 4. Update canonical album total duration ──
         if (canonicalAlbum is not null)
         {
@@ -1075,41 +1117,58 @@ public sealed class LibraryScanService
     }
 
     /// <summary>
-    /// Creates canonical junction records (CanonicalTrackArtist, CanonicalTrackGenre, CanonicalAlbumArtist).
+    /// Ensures canonical junction records (CanonicalTrackArtist, CanonicalTrackGenre, CanonicalAlbumArtist)
+    /// exist. Checks for existing records first to avoid duplicates when called from multiple code paths.
     /// </summary>
-    private void AddCanonicalJunctions(
+    private async Task EnsureCanonicalJunctionsAsync(
         string contentHash,
         CanonicalArtist artist,
         CanonicalAlbum? album,
-        CanonicalGenre? genre)
+        CanonicalGenre? genre,
+        CancellationToken cancellationToken)
     {
         // Track-artist junction
-        _db.CanonicalTrackArtists.Add(new CanonicalTrackArtist
+        var existingTrackArtist = await _db.CanonicalTrackArtists
+            .FirstOrDefaultAsync(cta => cta.TrackContentHash == contentHash && cta.ArtistId == artist.Id, cancellationToken);
+        if (existingTrackArtist is null)
         {
-            TrackContentHash = contentHash,
-            ArtistId = artist.Id,
-            IsPrimary = true
-        });
+            _db.CanonicalTrackArtists.Add(new CanonicalTrackArtist
+            {
+                TrackContentHash = contentHash,
+                ArtistId = artist.Id,
+                IsPrimary = true
+            });
+        }
 
         // Track-genre junction
         if (genre is not null)
         {
-            _db.CanonicalTrackGenres.Add(new CanonicalTrackGenre
+            var existingTrackGenre = await _db.CanonicalTrackGenres
+                .FirstOrDefaultAsync(ctg => ctg.TrackContentHash == contentHash && ctg.GenreId == genre.Id, cancellationToken);
+            if (existingTrackGenre is null)
             {
-                TrackContentHash = contentHash,
-                GenreId = genre.Id
-            });
+                _db.CanonicalTrackGenres.Add(new CanonicalTrackGenre
+                {
+                    TrackContentHash = contentHash,
+                    GenreId = genre.Id
+                });
+            }
         }
 
         // Album-artist junction
         if (album is not null)
         {
-            _db.CanonicalAlbumArtists.Add(new CanonicalAlbumArtist
+            var existingAlbumArtist = await _db.CanonicalAlbumArtists
+                .FirstOrDefaultAsync(caa => caa.AlbumId == album.Id && caa.ArtistId == artist.Id, cancellationToken);
+            if (existingAlbumArtist is null)
             {
-                AlbumId = album.Id,
-                ArtistId = artist.Id,
-                IsPrimary = true
-            });
+                _db.CanonicalAlbumArtists.Add(new CanonicalAlbumArtist
+                {
+                    AlbumId = album.Id,
+                    ArtistId = artist.Id,
+                    IsPrimary = true
+                });
+            }
         }
     }
 
@@ -1260,7 +1319,7 @@ public sealed class LibraryScanService
                         MusicBrainzRecordingId = canonicalTrack.MusicBrainzRecordingId
                     };
                     _db.CanonicalTracks.Add(newCanonical);
-                    AddCanonicalJunctions(contentHash, canonicalArtist, canonicalAlbum, canonicalGenre);
+                    await EnsureCanonicalJunctionsAsync(contentHash, canonicalArtist, canonicalAlbum, canonicalGenre, cancellationToken);
                 }
             }
 
@@ -1311,19 +1370,17 @@ public sealed class LibraryScanService
     }
 
     /// <summary>
-    /// Soft-deletes UserTrack records whose source FileNodes no longer exist.
-    /// Legacy orphan cleanup (albums/artists) is handled by the canonical system.
+    /// Hard-deletes UserTrack records whose source FileNodes no longer exist.
+    /// Canonical data (CanonicalTrack, CanonicalAlbum, CanonicalArtist) is preserved.
     /// </summary>
     /// <param name="deletedFileNodeIds">FileNode IDs whose backing files have been deleted.</param>
     /// <param name="ownerId">Owner user ID.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>Number of tracks soft-deleted.</returns>
+    /// <returns>Number of tracks hard-deleted.</returns>
     public async Task<int> SoftDeleteTracksAsync(IReadOnlyCollection<Guid> deletedFileNodeIds, Guid ownerId, CancellationToken cancellationToken = default)
     {
         if (deletedFileNodeIds.Count == 0)
             return 0;
-
-        var now = DateTime.UtcNow;
 
         var tracksToDelete = await _db.UserTracks
             .Where(ut => ut.OwnerId == ownerId && deletedFileNodeIds.Contains(ut.FileNodeId) && !ut.IsDeleted)
@@ -1332,41 +1389,12 @@ public sealed class LibraryScanService
         if (tracksToDelete.Count == 0)
             return 0;
 
-        foreach (var track in tracksToDelete)
-        {
-            track.IsDeleted = true;
-            track.DeletedAt = now;
-            track.UpdatedAt = now;
-        }
-
+        _db.UserTracks.RemoveRange(tracksToDelete);
         await _db.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation(
-            "Soft-deleted {Count} tracks for user {OwnerId} (source files removed from library)",
+            "Hard-deleted {Count} tracks for user {OwnerId} (source files removed from library)",
             tracksToDelete.Count, ownerId);
-
-        // ── CROSS-OWNER AUDIT: Check if any other users still have tracks for these FileNodeIds ──
-        var affectedFileNodeIds = tracksToDelete.Select(t => t.FileNodeId).Distinct().ToList();
-        var otherOwnerTracks = await _db.UserTracks
-            .IgnoreQueryFilters()
-            .Where(ut => affectedFileNodeIds.Contains(ut.FileNodeId) && ut.OwnerId != ownerId && !ut.IsDeleted)
-            .GroupBy(ut => ut.OwnerId)
-            .Select(g => new { OwnerId = g.Key, Count = g.Count() })
-            .ToListAsync(cancellationToken);
-
-        if (otherOwnerTracks.Count > 0)
-        {
-            var otherOwnerSummary = string.Join(", ", otherOwnerTracks.Select(o => $"{o.OwnerId}={o.Count}"));
-            _logger.LogWarning(
-                "Cross-owner audit: {Count} tracks soft-deleted for owner {OwnerId}, but {OtherCount} other owners still have tracks for the same FileNodeIds: {Summary}",
-                tracksToDelete.Count, ownerId, otherOwnerTracks.Count, otherOwnerSummary);
-        }
-        else
-        {
-            _logger.LogDebug(
-                "Cross-owner audit: {Count} tracks soft-deleted for owner {OwnerId}, no other owners affected",
-                tracksToDelete.Count, ownerId);
-        }
 
         return tracksToDelete.Count;
     }
@@ -1387,23 +1415,23 @@ public sealed class LibraryScanService
         // ALL deletes are scoped to ownerId — never touch other users' data.
 
         // UserTrack IDs for this owner
-        var ownedUserTrackIds = await _db.UserTracks
+        var ownedTrackIds = await _db.UserTracks
             .IgnoreQueryFilters()
             .Where(ut => ut.OwnerId == ownerId)
             .Select(ut => ut.Id)
             .ToListAsync(cancellationToken);
-        var ownedUserTrackIdSet = ownedUserTrackIds.ToHashSet();
+        var ownedTrackIdSet = ownedTrackIds.ToHashSet();
 
         // PlaybackHistories: filter by owned user tracks
         var ph = await _db.PlaybackHistories
             .IgnoreQueryFilters()
-            .Where(h => ownedUserTrackIdSet.Contains(h.UserTrackId))
+            .Where(h => ownedTrackIdSet.Contains(h.UserTrackId))
             .ToListAsync(cancellationToken);
 
         // ScrobbleRecords: filter by owned user tracks
         var sr = await _db.ScrobbleRecords
             .IgnoreQueryFilters()
-            .Where(s => ownedUserTrackIdSet.Contains(s.UserTrackId))
+            .Where(s => ownedTrackIdSet.Contains(s.UserTrackId))
             .ToListAsync(cancellationToken);
 
         // StarredItems: filter by UserId (owner)
@@ -1415,7 +1443,7 @@ public sealed class LibraryScanService
         // PlaylistTracks: filter by owned user tracks
         var pt = await _db.PlaylistTracks
             .IgnoreQueryFilters()
-            .Where(pt => ownedUserTrackIdSet.Contains(pt.UserTrackId))
+            .Where(pt => ownedTrackIdSet.Contains(pt.UserTrackId))
             .ToListAsync(cancellationToken);
 
         // UserTracks: directly scoped to ownerId

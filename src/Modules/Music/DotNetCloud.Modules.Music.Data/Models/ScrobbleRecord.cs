@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations.Schema;
+
 namespace DotNetCloud.Modules.Music.Models;
 
 /// <summary>

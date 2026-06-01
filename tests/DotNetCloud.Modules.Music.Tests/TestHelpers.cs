@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Modules.Music.Data;
 using DotNetCloud.Modules.Music.Models;
 using DotNetCloud.Modules.Music.Services;
@@ -13,10 +14,28 @@ internal static class TestHelpers
 {
     public static MusicDbContext CreateDb()
     {
+        var (db, _) = CreateDbWithFactory();
+        return db;
+    }
+
+    /// <summary>
+    /// Creates a DbContext and an <see cref="IDbContextFactory{MusicDbContext}"/> that
+    /// produces fresh contexts sharing the same in-memory database (by name).
+    /// </summary>
+    public static (MusicDbContext db, IDbContextFactory<MusicDbContext> factory) CreateDbWithFactory()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        var db = CreateDbContext(dbName);
+        var factory = new TestDbContextFactory<MusicDbContext>(() => CreateDbContext(dbName));
+        return (db, factory);
+    }
+
+    private static MusicDbContext CreateDbContext(string dbName)
+    {
         var options = new DbContextOptionsBuilder<MusicDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(dbName)
             .Options;
-        return new MusicDbContext(options);
+        return new MusicDbContext(options, new PostgreSqlNamingStrategy());
     }
 
     public static CallerContext CreateCaller(Guid? userId = null)
@@ -311,4 +330,17 @@ internal static class TestHelpers
         var contentHash = userTrack?.CanonicalTrackHash ?? Guid.NewGuid().ToString("N");
         return await SeedCanonicalTrackGenreAsync(db, contentHash, genreId);
     }
+}
+
+/// <summary>
+/// Simple <see cref="IDbContextFactory{TContext}"/> wrapper for unit tests
+/// that creates a new DbContext instance on each call using the supplied factory function.
+/// </summary>
+internal sealed class TestDbContextFactory<TContext> : IDbContextFactory<TContext> where TContext : DbContext
+{
+    private readonly Func<TContext> _factory;
+
+    public TestDbContextFactory(Func<TContext> factory) => _factory = factory;
+
+    public TContext CreateDbContext() => _factory();
 }

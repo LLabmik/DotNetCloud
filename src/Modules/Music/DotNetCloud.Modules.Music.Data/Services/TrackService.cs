@@ -139,7 +139,8 @@ public sealed class TrackService : ITrackService
     }
 
     /// <summary>
-    /// Soft-deletes a track (UserTrack).
+    /// Hard-deletes a track (UserTrack) and all related user-owned records.
+    /// Canonical data (CanonicalTrack, CanonicalAlbum, CanonicalArtist) is preserved.
     /// </summary>
     public async Task DeleteTrackAsync(Guid trackId, CallerContext caller, CancellationToken cancellationToken = default)
     {
@@ -147,12 +148,31 @@ public sealed class TrackService : ITrackService
             .FirstOrDefaultAsync(ut => ut.Id == trackId && ut.OwnerId == caller.UserId, cancellationToken)
             ?? throw new BusinessRuleException(ErrorCodes.TrackNotFound, "Track not found.");
 
-        userTrack.IsDeleted = true;
-        userTrack.DeletedAt = DateTime.UtcNow;
-        userTrack.UpdatedAt = DateTime.UtcNow;
+        // Delete related records first (FK dependencies)
+        var playbackHistory = await _db.PlaybackHistories
+            .Where(ph => ph.UserTrackId == trackId)
+            .ToListAsync(cancellationToken);
+        _db.PlaybackHistories.RemoveRange(playbackHistory);
+
+        var scrobbleRecords = await _db.ScrobbleRecords
+            .Where(sr => sr.UserTrackId == trackId)
+            .ToListAsync(cancellationToken);
+        _db.ScrobbleRecords.RemoveRange(scrobbleRecords);
+
+        var starredItems = await _db.StarredItems
+            .Where(si => si.ItemId == trackId && si.ItemType == StarredItemType.Track)
+            .ToListAsync(cancellationToken);
+        _db.StarredItems.RemoveRange(starredItems);
+
+        var playlistTracks = await _db.PlaylistTracks
+            .Where(pt => pt.UserTrackId == trackId)
+            .ToListAsync(cancellationToken);
+        _db.PlaylistTracks.RemoveRange(playlistTracks);
+
+        _db.UserTracks.Remove(userTrack);
         await _db.SaveChangesAsync(cancellationToken);
 
-        _logger.LogInformation("Track {TrackId} soft-deleted by user {UserId}", trackId, caller.UserId);
+        _logger.LogInformation("Track {TrackId} hard-deleted by user {UserId}", trackId, caller.UserId);
 
         await _eventBus.PublishAsync(new SearchIndexRequestEvent
         {

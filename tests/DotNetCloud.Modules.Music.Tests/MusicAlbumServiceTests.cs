@@ -196,16 +196,15 @@ public class MusicAlbumServiceTests
     // ─── Delete ───────────────────────────────────────────────────────
 
     [TestMethod]
-    public async Task DeleteAlbum_SetsIsDeleted()
+    public async Task DeleteAlbum_RemovesFromDatabase()
     {
         var artist = await TestHelpers.SeedArtistAsync(_db, ownerId: _caller.UserId);
         var album = await TestHelpers.SeedAlbumAsync(_db, artist.Id, ownerId: _caller.UserId);
 
         await _service.DeleteAlbumAsync(album.Id, _caller);
 
-        var entry = await _db.UserAlbums.IgnoreQueryFilters().FirstAsync(ua => ua.CanonicalAlbumId == album.Id);
-        Assert.IsNotNull(entry);
-        Assert.IsTrue(entry.IsDeleted);
+        var entry = await _db.UserAlbums.IgnoreQueryFilters().FirstOrDefaultAsync(ua => ua.CanonicalAlbumId == album.Id && ua.OwnerId == _caller.UserId);
+        Assert.IsNull(entry, "Album junction should be hard-deleted from the database");
     }
 
     [TestMethod]

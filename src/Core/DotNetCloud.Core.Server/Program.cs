@@ -285,6 +285,11 @@ public class Program
         }
         builder.Services.AddDotNetCloudDbContext(connectionString, provider);
 
+        // Register naming strategy for all module DbContexts based on configured provider
+        builder.Services.AddSingleton<ITableNamingStrategy>(provider == DatabaseProvider.SqlServer
+            ? new SqlServerNamingStrategy()
+            : new PostgreSqlNamingStrategy());
+
         // Register in-process module data services for interactive module UI actions,
         // using the same provider as the configured core database.
         builder.Services.AddModuleDbContexts(provider, connectionString);

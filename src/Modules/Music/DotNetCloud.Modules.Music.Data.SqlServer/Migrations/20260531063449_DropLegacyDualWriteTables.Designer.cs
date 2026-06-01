@@ -371,12 +371,12 @@ namespace DotNetCloud.Modules.Music.Data.SqlServer.Migrations
                     b.Property<Guid>("UserId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid>("UserTrackId")
+                    b.Property<Guid>("TrackId")
                         .HasColumnType("uniqueidentifier");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("UserTrackId")
+                    b.HasIndex("TrackId")
                         .HasDatabaseName("ix_playback_history_user_track_id");
 
                     b.HasIndex("UserId", "PlayedAt")
@@ -441,7 +441,7 @@ namespace DotNetCloud.Modules.Music.Data.SqlServer.Migrations
                     b.Property<Guid>("PlaylistId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid>("UserTrackId")
+                    b.Property<Guid>("TrackId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime>("AddedAt")
@@ -452,9 +452,9 @@ namespace DotNetCloud.Modules.Music.Data.SqlServer.Migrations
                     b.Property<int>("SortOrder")
                         .HasColumnType("int");
 
-                    b.HasKey("PlaylistId", "UserTrackId");
+                    b.HasKey("PlaylistId", "TrackId");
 
-                    b.HasIndex("UserTrackId");
+                    b.HasIndex("TrackId");
 
                     b.HasIndex("PlaylistId", "SortOrder")
                         .HasDatabaseName("ix_playlist_tracks_playlist_sort");
@@ -490,12 +490,12 @@ namespace DotNetCloud.Modules.Music.Data.SqlServer.Migrations
                     b.Property<Guid>("UserId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid>("UserTrackId")
+                    b.Property<Guid>("TrackId")
                         .HasColumnType("uniqueidentifier");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("UserTrackId")
+                    b.HasIndex("TrackId")
                         .HasDatabaseName("ix_scrobble_records_user_track_id");
 
                     b.HasIndex("UserId", "ScrobbledAt")
@@ -796,7 +796,7 @@ namespace DotNetCloud.Modules.Music.Data.SqlServer.Migrations
                 {
                     b.HasOne("DotNetCloud.Modules.Music.Models.UserTrack", "UserTrack")
                         .WithMany()
-                        .HasForeignKey("UserTrackId")
+                        .HasForeignKey("TrackId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -813,7 +813,7 @@ namespace DotNetCloud.Modules.Music.Data.SqlServer.Migrations
 
                     b.HasOne("DotNetCloud.Modules.Music.Models.UserTrack", "UserTrack")
                         .WithMany("PlaylistTracks")
-                        .HasForeignKey("UserTrackId")
+                        .HasForeignKey("TrackId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -826,7 +826,7 @@ namespace DotNetCloud.Modules.Music.Data.SqlServer.Migrations
                 {
                     b.HasOne("DotNetCloud.Modules.Music.Models.UserTrack", "UserTrack")
                         .WithMany()
-                        .HasForeignKey("UserTrackId")
+                        .HasForeignKey("TrackId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 

@@ -17,8 +17,8 @@ public class ArtistServiceTests
     [TestInitialize]
     public void Setup()
     {
-        _db = TestHelpers.CreateDb();
-        _service = new ArtistService(_db, NullLogger<ArtistService>.Instance);
+        (_db, var factory) = TestHelpers.CreateDbWithFactory();
+        _service = new ArtistService(factory, NullLogger<ArtistService>.Instance);
         _caller = TestHelpers.CreateCaller();
     }
 
@@ -165,15 +165,14 @@ public class ArtistServiceTests
     // ─── Delete ───────────────────────────────────────────────────────
 
     [TestMethod]
-    public async Task DeleteArtist_SetsIsDeleted()
+    public async Task DeleteArtist_RemovesFromDatabase()
     {
         var artist = await TestHelpers.SeedArtistAsync(_db, "To Delete", ownerId: _caller.UserId);
 
         await _service.DeleteArtistAsync(artist.Id, _caller);
 
-        var entry = await _db.UserArtists.IgnoreQueryFilters().FirstAsync(ua => ua.CanonicalArtistId == artist.Id);
-        Assert.IsNotNull(entry);
-        Assert.IsTrue(entry.IsDeleted);
+        var entry = await _db.UserArtists.IgnoreQueryFilters().FirstOrDefaultAsync(ua => ua.CanonicalArtistId == artist.Id && ua.OwnerId == _caller.UserId);
+        Assert.IsNull(entry, "Artist junction should be hard-deleted from the database");
     }
 
     [TestMethod]

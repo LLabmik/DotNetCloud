@@ -14,6 +14,7 @@ public sealed class PlaylistTrackConfiguration : IEntityTypeConfiguration<Playli
     {
         builder.HasKey(pt => new { pt.PlaylistId, pt.UserTrackId });
 
+        builder.Property(pt => pt.UserTrackId);
         builder.Property(pt => pt.AddedAt).IsRequired().HasDefaultValueSql("CURRENT_TIMESTAMP");
 
         builder.HasOne(pt => pt.Playlist)

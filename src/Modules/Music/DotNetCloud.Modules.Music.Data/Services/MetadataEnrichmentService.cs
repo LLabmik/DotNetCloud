@@ -139,28 +139,28 @@ public sealed class MetadataEnrichmentService : IMetadataEnrichmentService
 
         if (releaseGroups is null || releaseGroups.Count == 0)
         {
-            _logger.LogDebug("No MusicBrainz release group found for '{AlbumTitle}' by '{ArtistName}'", title, artistName);
-            canonicalAlbum.LastEnrichedAt = DateTime.UtcNow;
-            await _db.SaveChangesAsync(cancellationToken);
+            _logger.LogInformation("No MusicBrainz release group found for '{AlbumTitle}' by '{ArtistName}'", title, artistName);
+            // Don't set LastEnrichedAt — allow retry on next scan
             return;
         }
 
         var topResult = releaseGroups[0];
         if (topResult.Score < MinMatchScore)
         {
-            _logger.LogWarning("MusicBrainz release group match for '{AlbumTitle}' has low score {Score}, skipping", title, topResult.Score);
-            canonicalAlbum.LastEnrichedAt = DateTime.UtcNow;
-            await _db.SaveChangesAsync(cancellationToken);
+            _logger.LogInformation("MusicBrainz release group match for '{AlbumTitle}' has low score {Score}, skipping", title, topResult.Score);
+            // Don't set LastEnrichedAt — allow retry on next scan
             return;
         }
 
         canonicalAlbum.MusicBrainzReleaseGroupId = topResult.Id;
+        var enrichmentSucceeded = false;
 
         var releaseGroup = await _musicBrainzClient.GetReleaseGroupAsync(topResult.Id, cancellationToken);
         if (releaseGroup?.Releases is { Count: > 0 })
         {
             var firstReleaseId = releaseGroup.Releases[0].Id;
             canonicalAlbum.MusicBrainzReleaseId = firstReleaseId;
+            enrichmentSucceeded = true;
 
             var needsCoverArt = !canonicalAlbum.HasCoverArt || (canonicalAlbum.CoverArtHash is not null && !_contentStorage.Exists(canonicalAlbum.CoverArtHash));
             if (needsCoverArt)
@@ -177,12 +177,24 @@ public sealed class MetadataEnrichmentService : IMetadataEnrichmentService
                         _logger.LogInformation("Fetched cover art for album '{AlbumTitle}' from release {ReleaseMbid}", title, coverArt.ReleaseMbid);
                     }
                 }
+                else
+                {
+                    _logger.LogInformation("No cover art available on Cover Art Archive for '{AlbumTitle}' ({ReleaseCount} releases tried)", title, releaseGroup.Releases.Count);
+                }
             }
         }
+        else
+        {
+            _logger.LogInformation("MusicBrainz release group for '{AlbumTitle}' has no releases — can't fetch cover art", title);
+        }
 
-        canonicalAlbum.LastEnrichedAt = DateTime.UtcNow;
-        canonicalAlbum.UpdatedAt = DateTime.UtcNow;
-        await _db.SaveChangesAsync(cancellationToken);
+        // Only set cooldown when we actually found the album on MusicBrainz
+        if (enrichmentSucceeded)
+        {
+            canonicalAlbum.LastEnrichedAt = DateTime.UtcNow;
+            canonicalAlbum.UpdatedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync(cancellationToken);
+        }
     }
 
     /// <inheritdoc/>

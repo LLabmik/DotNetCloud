@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Modules.Music;
 using DotNetCloud.Modules.Music.Data;
 using DotNetCloud.Modules.Music.Data.Services;
@@ -11,7 +12,10 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSingleton<MusicModule>();
 
 // Register EF Core with in-memory database (dev only)
+builder.Services.AddSingleton<ITableNamingStrategy>(new PostgreSqlNamingStrategy());
 builder.Services.AddDbContext<MusicDbContext>(options =>
+    options.UseInMemoryDatabase("MusicModule"));
+builder.Services.AddDbContextFactory<MusicDbContext>(options =>
     options.UseInMemoryDatabase("MusicModule"));
 
 // In-process event bus for standalone operation

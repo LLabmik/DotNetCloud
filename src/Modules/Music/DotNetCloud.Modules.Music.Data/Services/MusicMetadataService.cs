@@ -201,7 +201,7 @@ public sealed class MusicMetadataService
     private static (byte[] Data, string MimeType)? ExtractArtFromTag(TagLib.File tagFile)
     {
         var picture = tagFile.Tag.Pictures.FirstOrDefault();
-        if (picture is null)
+        if (picture is null || picture.Data.Data is null || picture.Data.Data.Length == 0)
             return null;
 
         return (picture.Data.Data, picture.MimeType ?? "image/jpeg");

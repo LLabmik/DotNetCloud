@@ -580,8 +580,8 @@ public class MetadataEnrichmentServiceTests
         await service.EnrichTrackAsync(track.Id, _caller);
 
         var updated = await _db.CanonicalTracks.FindAsync(new object[] { track.CanonicalTrackHash });
-        Assert.IsNotNull(updated!.UpdatedAt);
-        Assert.IsTrue(updated.UpdatedAt >= beforeEnrich.AddSeconds(-1));
+        Assert.IsTrue(updated!.UpdatedAt > DateTime.MinValue, "UpdatedAt should be set during enrichment");
+        Assert.IsTrue(updated.UpdatedAt >= beforeEnrich, "UpdatedAt should be set at or after enrichment started");
     }
 
     // ── Batch Enrichment ─────────────────────────────────────────────

@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations.Schema;
+
 namespace DotNetCloud.Modules.Music.Models;
 
 /// <summary>
@@ -12,6 +14,7 @@ public sealed class PlaybackHistory
     public Guid UserId { get; set; }
 
     /// <summary>The user track that was played.</summary>
+    [Column("UserTrackId")]
     public Guid UserTrackId { get; set; }
 
     /// <summary>When playback started (UTC).</summary>

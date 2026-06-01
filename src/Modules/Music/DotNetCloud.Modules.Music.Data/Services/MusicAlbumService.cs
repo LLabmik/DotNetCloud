@@ -115,11 +115,9 @@ public sealed class MusicAlbumService : IMusicAlbumService
         var userAlbum = await _db.UserAlbums
             .FirstOrDefaultAsync(ua => ua.CanonicalAlbumId == albumId && ua.OwnerId == caller.UserId, cancellationToken)
             ?? throw new BusinessRuleException(ErrorCodes.MusicAlbumNotFound, "Album not found.");
-        userAlbum.IsDeleted = true;
-        userAlbum.DeletedAt = DateTime.UtcNow;
-        userAlbum.UpdatedAt = DateTime.UtcNow;
+        _db.UserAlbums.Remove(userAlbum);
         await _db.SaveChangesAsync(cancellationToken);
-        _logger.LogInformation("Album {AlbumId} soft-deleted by user {UserId}", albumId, caller.UserId);
+        _logger.LogInformation("Album {AlbumId} hard-deleted by user {UserId}", albumId, caller.UserId);
     }
 
     public async Task<string?> GetCoverArtPathAsync(Guid albumId, CancellationToken cancellationToken = default)
