@@ -20,6 +20,9 @@
     [SupplyParameterFromQuery(Name = "playing")]
     public string? Playing { get; set; }
 
+    [SupplyParameterFromQuery(Name = "artistId")]
+    public string? ArtistId { get; set; }
+
     private Dictionary<string, object>? _parameters;
 
     protected override void OnParametersSet()
@@ -43,6 +46,12 @@
         if (string.Equals(Playing, "true", StringComparison.OrdinalIgnoreCase))
         {
             _parameters["ScrollToPlaying"] = "true";
+            hasParams = true;
+        }
+
+        if (!string.IsNullOrEmpty(ArtistId))
+        {
+            _parameters["ArtistId"] = ArtistId;
             hasParams = true;
         }
 

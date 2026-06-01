@@ -100,9 +100,11 @@ public partial class MusicPage : IAsyncDisposable
     [Parameter] public string? FileId { get; set; }
     [Parameter] public string? FileIdNav { get; set; }
     [Parameter] public string? TrackId { get; set; }
+    [Parameter] public string? ArtistId { get; set; }
     [Parameter] public string? ScrollToPlaying { get; set; }
     private string? _lastHandledNav;
     private string? _lastHandledTrackId;
+    private string? _lastHandledArtistId;
     private bool _pendingScrollToPlaying;
 
     // ── Library Settings ──
@@ -200,6 +202,13 @@ public partial class MusicPage : IAsyncDisposable
                 _lastHandledTrackId = TrackId;
                 await TryNavigateToTrackAlbumAsync(trackId, caller);
             }
+
+            // Deep-link: navigate to artist if artistId parameter was supplied
+            if (!string.IsNullOrEmpty(ArtistId) && Guid.TryParse(ArtistId, out var artistId))
+            {
+                _lastHandledArtistId = ArtistId;
+                await NavigateToArtistAsync(artistId);
+            }
         }
         catch (Exception ex)
         {
@@ -230,6 +239,13 @@ public partial class MusicPage : IAsyncDisposable
             _lastHandledTrackId = TrackId;
             var caller = _caller ?? await GetCallerAsync();
             await TryNavigateToTrackAlbumAsync(trackId, caller);
+        }
+
+        // Handle same-page navigation for artistId (e.g., from playbar artist link)
+        if (!string.IsNullOrEmpty(ArtistId) && ArtistId != _lastHandledArtistId && Guid.TryParse(ArtistId, out var artistId))
+        {
+            _lastHandledArtistId = ArtistId;
+            await NavigateToArtistAsync(artistId);
         }
 
         // Handle "scroll to playing track" when navigating from global playbar
@@ -628,6 +644,33 @@ public partial class MusicPage : IAsyncDisposable
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error navigating to album {AlbumId}", albumId);
+        }
+    }
+
+    /// <summary>
+    /// Navigate to an artist's detail page by ID. Used for deep-linking
+    /// from the global playbar and for artist name links throughout the UI.
+    /// </summary>
+    internal virtual async Task NavigateToArtistAsync(Guid? artistId)
+    {
+        if (artistId is null)
+            return;
+        try
+        {
+            var caller = _caller ?? await GetCallerAsync();
+            var artist = await ArtistService.GetArtistAsync(artistId.Value, caller);
+            if (artist is not null)
+            {
+                _section = Section.Artists;
+                _selectedAlbum = null;
+                _searchResults = null;
+                _searchQuery = string.Empty;
+                OpenArtistDetail(artist);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error navigating to artist {ArtistId}", artistId);
         }
     }
 

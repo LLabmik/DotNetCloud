@@ -339,7 +339,7 @@
                                         <span class="track-num">@(index + 1)</span>
                                         <div class="track-info">
                                             <span class="track-title">@track.Title</span>
-                                            <span class="track-artist">@track.ArtistName — <a class="album-link" @onclick="() => NavigateToAlbumAsync(track.AlbumId)" @onclick:stopPropagation="true">@track.AlbumTitle</a></span>
+                                            <span class="track-artist"><a class="artist-link-inline" @onclick="() => NavigateToArtistAsync(track.ArtistId)" @onclick:stopPropagation="true">@track.ArtistName</a> — <a class="album-link" @onclick="() => NavigateToAlbumAsync(track.AlbumId)" @onclick:stopPropagation="true">@track.AlbumTitle</a></span>
                                         </div>
                                         <span class="track-duration">@FormatDuration(track.Duration)</span>
                                         <div class="track-menu">
@@ -640,7 +640,7 @@
                             <span class="badge-album">ALBUM</span>
                             <h3>@_selectedAlbum.Title</h3>
                             <span class="album-detail-meta">
-                                @_selectedAlbum.ArtistName · @_selectedAlbum.Year · @_selectedAlbum.TrackCount tracks · @FormatDuration(_selectedAlbum.TotalDuration)
+                                <a class="artist-link-inline" @onclick="() => NavigateToArtistAsync(_selectedAlbum.ArtistId)" @onclick:stopPropagation="true">@_selectedAlbum.ArtistName</a> · @_selectedAlbum.Year · @_selectedAlbum.TrackCount tracks · @FormatDuration(_selectedAlbum.TotalDuration)
                             </span>
                             <div class="album-detail-actions">
                                 <button class="btn-play" @onclick="() => PlayAlbumAsync(_selectedAlbum.Id)">▶ Play</button>
@@ -661,7 +661,7 @@
                                     <span class="track-title">@track.Title</span>
                                     @if (track.ArtistName != _selectedAlbum.ArtistName)
                                     {
-                                        <span class="track-artist">@track.ArtistName</span>
+                                        <span class="track-artist"><a class="artist-link-inline" @onclick="() => NavigateToArtistAsync(track.ArtistId)" @onclick:stopPropagation="true">@track.ArtistName</a></span>
                                     }
                                 </div>
                                 <span class="track-duration">@FormatDuration(track.Duration)</span>

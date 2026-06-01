@@ -643,6 +643,17 @@
   text-decoration: underline;
 }
 
+.artist-link-inline {
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.artist-link-inline:hover {
+  color: var(--color-primary, #6366f1);
+  text-decoration: underline;
+}
+
 .track-duration {
   font-size: 0.8125rem;
   color: var(--color-muted, #94a3b8);

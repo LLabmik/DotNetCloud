@@ -60,7 +60,7 @@
                 <a class="gmp-title" href="" @onclick="NavigateToMusicPage"
                    @onclick:preventDefault>@Playback.NowPlaying.Title</a>
                 <span class="gmp-artist-album">
-                    <span>@Playback.NowPlaying.ArtistName</span>
+                    <a class="gmp-artist-link" href="" @onclick="() => NavigateToArtistPage(Playback.NowPlaying.ArtistId)" @onclick:preventDefault>@Playback.NowPlaying.ArtistName</a>
                     @if (!string.IsNullOrEmpty(Playback.NowPlaying.AlbumTitle))
                     {
                         <span class="gmp-separator"> · </span>
@@ -176,9 +176,9 @@
                     {
                         <div class="gmp-queue-item @(Playback.NowPlaying?.Id == track.Id ? "playing" : "")">
                             <span class="gmp-queue-num">@(index + 1)</span>
-                            <div class="gmp-queue-info" @onclick="() => Playback.PlayQueueAt(index)" style="cursor:pointer">
-                                <span>@track.Title</span>
-                                <span class="gmp-queue-artist">@track.ArtistName</span>
+                            <div class="gmp-queue-info">
+                                <span class="gmp-queue-title" @onclick="() => Playback.PlayQueueAt(index)" style="cursor:pointer">@track.Title</span>
+                                <span class="gmp-queue-artist"><a class="gmp-artist-link" href="" @onclick="() => NavigateToArtistPage(track.ArtistId)" @onclick:preventDefault @onclick:stopPropagation="true">@track.ArtistName</a></span>
                             </div>
                             <div class="gmp-queue-item-actions">
                                 <button class="gmp-queue-item-menu-btn" @onclick="() => ToggleQueueItemMenu(index)">⋯</button>
@@ -594,6 +594,11 @@
     private void NavigateToMusicPage()
     {
         Navigation.NavigateTo("/apps/music?playing=true");
+    }
+
+    private void NavigateToArtistPage(Guid artistId)
+    {
+        Navigation.NavigateTo($"/apps/music?artistId={artistId}");
     }
 
     private async Task NavigateToActivePlaylistAsync()
