@@ -47,6 +47,14 @@ public sealed class MusicBrainzClient : IMusicBrainzClient
         @"\s+I$", RegexOptions.Compiled);
 
     /// <summary>
+    /// Regex for trailing volume numbers: "Vol. 1", "Vol 2", "Volume One", etc.
+    /// These break MB lookups for compilations like "Early Days: The Best of
+    /// Led Zeppelin, Volume One" (tagged as "Early Days Vol. 1").
+    /// </summary>
+    private static readonly Regex TrailingVolumeNumber = new(
+        @"\s+Vol\.?\s*\d+$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    /// <summary>
     /// Characters that break MusicBrainz Lucene query syntax when unescaped.
     /// </summary>
     private static readonly Regex LuceneSpecialChars = new(
@@ -75,6 +83,10 @@ public sealed class MusicBrainzClient : IMusicBrainzClient
         // Strip tagger-added Roman numeral I suffix (e.g. "Led Zeppelin I" → "Led Zeppelin")
         // Only matches solitary "I" — "II", "III", "IV" are legitimate album titles
         cleaned = TaggerRomanNumeralI.Replace(cleaned, "").Trim();
+
+        // Strip trailing volume numbers (e.g. "Vol. 1", "Vol 2")
+        // These break MB lookup for compilations tagged with volume suffixes
+        cleaned = TrailingVolumeNumber.Replace(cleaned, "").Trim();
 
         return cleaned;
     }
