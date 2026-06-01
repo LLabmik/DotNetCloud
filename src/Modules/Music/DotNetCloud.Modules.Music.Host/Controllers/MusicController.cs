@@ -1,5 +1,7 @@
+using System.IO.Compression;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Errors;
+using DotNetCloud.Modules.Files.Services;
 using DotNetCloud.Modules.Music.Data.Services;
 using DotNetCloud.Modules.Music.Models;
 using DotNetCloud.Modules.Music.Services;
@@ -23,6 +25,7 @@ public class MusicController : MusicControllerBase
     private readonly EqPresetService _eqPresetService;
     private readonly IMetadataEnrichmentService _enrichmentService;
     private readonly ScanProgressState _scanProgressState;
+    private readonly IDownloadService _downloadService;
     private readonly ILogger<MusicController> _logger;
 
     /// <summary>
@@ -39,6 +42,7 @@ public class MusicController : MusicControllerBase
         EqPresetService eqPresetService,
         IMetadataEnrichmentService enrichmentService,
         ScanProgressState scanProgressState,
+        IDownloadService downloadService,
         ILogger<MusicController> logger)
     {
         _artistService = artistService;
@@ -51,6 +55,7 @@ public class MusicController : MusicControllerBase
         _eqPresetService = eqPresetService;
         _enrichmentService = enrichmentService;
         _scanProgressState = scanProgressState;
+        _downloadService = downloadService;
         _logger = logger;
     }
 
@@ -178,6 +183,75 @@ public class MusicController : MusicControllerBase
             ? "image/png"
             : "image/jpeg";
         return PhysicalFile(artPath, mimeType);
+    }
+
+    /// <summary>Downloads an album as a ZIP archive with minimal compression.</summary>
+    [HttpGet("albums/{albumId:guid}/download")]
+    public async Task<IActionResult> DownloadAlbumAsync(Guid albumId)
+    {
+        var caller = GetAuthenticatedCaller();
+        var album = await _albumService.GetAlbumAsync(albumId, caller);
+        if (album is null)
+            return NotFound(ErrorEnvelope(ErrorCodes.MusicAlbumNotFound, "Album not found."));
+
+        var tracks = await _trackService.ListTracksByAlbumAsync(albumId, caller);
+        var validTracks = tracks.Where(t => t.FileNodeId != Guid.Empty).ToList();
+        if (validTracks.Count == 0)
+            return NotFound(ErrorEnvelope(ErrorCodes.TrackNotFound, "Album has no downloadable tracks."));
+
+        var timestamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
+        var randomToken = Guid.NewGuid().ToString("N")[..8];
+        var safeArtistName = string.Join("_", album.ArtistName.Split(Path.GetInvalidFileNameChars())).Replace(' ', '_');
+        var safeAlbumName = string.Join("_", album.Title.Split(Path.GetInvalidFileNameChars())).Replace(' ', '_');
+        var tempPath = Path.Combine(Path.GetTempPath(), $"dotnetcloud-album-{albumId:N}-{timestamp}-{randomToken}.zip");
+
+        try
+        {
+            await using (var zipStream = new FileStream(tempPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 81920, FileOptions.Asynchronous))
+            using (var archive = new ZipArchive(zipStream, ZipArchiveMode.Create, leaveOpen: false))
+            {
+                foreach (var track in validTracks)
+                {
+                    await using var trackStream = await _downloadService.DownloadCurrentAsync(track.FileNodeId, caller);
+                    if (trackStream is null)
+                        continue;
+
+                    var ext = track.MimeType switch
+                    {
+                        "audio/flac" => ".flac",
+                        "audio/ogg" => ".ogg",
+                        "audio/opus" => ".opus",
+                        "audio/wav" => ".wav",
+                        "audio/aac" => ".aac",
+                        "audio/mp4" => ".m4a",
+                        "audio/wma" => ".wma",
+                        "audio/x-ms-wma" => ".wma",
+                        _ => ".mp3"
+                    };
+
+                    var safeTitle = string.Join("_", track.Title.Split(Path.GetInvalidFileNameChars()));
+                    var entryName = track.TrackNumber.HasValue
+                        ? $"{track.TrackNumber.Value:D2} - {safeTitle}{ext}"
+                        : $"{safeTitle}{ext}";
+
+                    var entry = archive.CreateEntry(entryName, CompressionLevel.NoCompression);
+                    await using var entryStream = entry.Open();
+                    await trackStream.CopyToAsync(entryStream);
+                }
+            }
+
+            _logger.LogInformation("album.downloaded {AlbumId} {AlbumTitle} {TrackCount} {UserId}",
+                albumId, album.Title, validTracks.Count, caller.UserId);
+
+            var fileName = $"{safeArtistName} - {safeAlbumName}.zip";
+            var fileStream = new FileStream(tempPath, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, FileOptions.Asynchronous | FileOptions.SequentialScan);
+            return base.File((Stream)fileStream, "application/zip", fileName);
+        }
+        catch
+        {
+            try { if (System.IO.File.Exists(tempPath)) System.IO.File.Delete(tempPath); } catch { /* best-effort */ }
+            throw;
+        }
     }
 
     // ─── Tracks ───────────────────────────────────────────────────────

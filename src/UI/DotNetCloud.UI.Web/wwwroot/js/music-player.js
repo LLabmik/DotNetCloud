@@ -235,3 +235,18 @@ window.dotnetcloudMusicPlayer = window.dotnetcloudMusicPlayer || (function () {
 
     return { init: init, detach: detach, isPlaying: isPlaying, dispose: dispose, play: play, resume: resume, pause: pause, stop: stop, seek: seek, setVolume: setVolume, setMuted: setMuted, setEqBand: setEqBand, setEqBands: setEqBands, handleProgressClick: handleProgressClick, getAudioContext: function () { return audioCtx; }, getSourceNode: function () { return sourceNode; } };
 })();
+
+/**
+ * Triggers a browser file download without navigating away from the current page.
+ * Creates a temporary anchor element, sets its href to the download URL, and clicks it.
+ * @param {string} url - The download endpoint URL.
+ */
+window.triggerDownload = function (url) {
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = '';
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+};

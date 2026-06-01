@@ -54,7 +54,9 @@ public class MusicBrainzClientTests
 
         Assert.AreEqual(1, handler.ReceivedRequests.Count);
         var url = handler.ReceivedRequests[0].RequestUri!.ToString();
-        Assert.IsTrue(url.Contains("release-group/"), $"URL should contain 'release-group/': {url}");
+        // SearchReleaseGroupAsync intentionally uses the 'release/' endpoint (not 'release-group/')
+        // because the release index handles spelling variations much better.
+        Assert.IsTrue(url.Contains("release/"), $"URL should contain 'release/': {url}");
         Assert.IsTrue(url.Contains("fmt=json"), $"URL should contain 'fmt=json': {url}");
     }
 
@@ -359,11 +361,12 @@ public class MusicBrainzClientTests
     [TestMethod]
     public async Task SearchReleaseGroup_DeserializesResults()
     {
+        // The release/ endpoint returns 'releases' with nested 'release-group' objects.
         var json = """
         {
-            "release-groups": [
-                {"id":"rg-1","title":"The Dark Side of the Moon","score":100,"primary-type":"Album"},
-                {"id":"rg-2","title":"Dark Side of the Moon (Live)","score":60,"primary-type":"Album"}
+            "releases": [
+                {"id":"r-1","title":"The Dark Side of the Moon","score":100,"release-group":{"id":"rg-1","title":"The Dark Side of the Moon","primary-type":"Album"}},
+                {"id":"r-2","title":"Dark Side of the Moon (Live)","score":60,"release-group":{"id":"rg-2","title":"Dark Side of the Moon (Live)","primary-type":"Album"}}
             ]
         }
         """;

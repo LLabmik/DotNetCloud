@@ -647,6 +647,7 @@
                                 <button class="btn-icon-action" @onclick="() => ToggleStarAlbumAsync(_selectedAlbum)" title="Star">
                                     @(_selectedAlbum.IsStarred ? "★" : "☆")
                                 </button>
+                                <button class="btn-download" style="padding:10px 24px;background:var(--color-surface,#fff);color:var(--color-primary,#3b82f6);border:1px solid var(--color-primary,#3b82f6);border-radius:999px;font-size:0.85rem;font-weight:500;cursor:pointer;opacity:@(_downloadingAlbum ? "0.6" : "1")" @onclick="() => DownloadAlbumAsync(_selectedAlbum.Id)" title="Download album as ZIP" disabled="@_downloadingAlbum">@(_downloadingAlbum ? "⏳ Preparing..." : "⬇ Download")</button>
                             </div>
                         </div>
                     </div>

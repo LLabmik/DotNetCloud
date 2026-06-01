@@ -87,6 +87,7 @@ public partial class MusicPage : IAsyncDisposable
     private double _visualizerBlendDuration = 2.0;
     private bool _allPresetsLoaded;
     private bool _loadingAllPresets;
+    private bool _downloadingAlbum;
     private bool _visualizerSupported = true; // assume yes until checked
 
     // ── Breadcrumbs ──
@@ -906,6 +907,37 @@ public partial class MusicPage : IAsyncDisposable
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error toggling album star");
+        }
+    }
+
+    /// <summary>
+    /// Triggers a browser download of the album as a ZIP archive.
+    /// Uses eval to create a temporary anchor element so the user stays on the page.
+    /// </summary>
+    private async Task DownloadAlbumAsync(Guid albumId)
+    {
+        if (_downloadingAlbum)
+            return;
+
+        _downloadingAlbum = true;
+        StateHasChanged();
+        try
+        {
+            var url = $"/api/v1/music/albums/{albumId}/download";
+            // Embed URL directly — eval() doesn't forward extra arguments
+            await Js.InvokeVoidAsync("eval",
+                $"var a=document.createElement('a');a.href='{url}';a.download='';a.style.display='none';document.body.appendChild(a);a.click();document.body.removeChild(a);");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error downloading album {AlbumId}", albumId);
+        }
+        finally
+        {
+            // Brief delay so the user sees the "Preparing..." state
+            await Task.Delay(800);
+            _downloadingAlbum = false;
+            StateHasChanged();
         }
     }
 

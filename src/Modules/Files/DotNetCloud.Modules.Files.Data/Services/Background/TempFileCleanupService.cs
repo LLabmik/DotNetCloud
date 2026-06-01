@@ -64,7 +64,7 @@ internal sealed class TempFileCleanupService : BackgroundService
         }
     }
 
-    private void Cleanup()
+    internal void Cleanup()
     {
         try
         {
@@ -77,11 +77,21 @@ internal sealed class TempFileCleanupService : BackgroundService
                     UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
             }
 
-            var cutoff = DateTime.UtcNow.AddHours(-1);
+            const long twentyFourHours = -24L;
+            const long oneHour = -1L;
+
+            var now = DateTime.UtcNow;
             var deleted = 0;
 
             foreach (var file in Directory.GetFiles(_tmpPath))
             {
+                var fileName = Path.GetFileName(file);
+
+                // Album ZIPs: 24-hour retention
+                var cutoff = fileName.StartsWith("dotnetcloud-album-", StringComparison.Ordinal)
+                    ? now.AddHours(twentyFourHours)
+                    : now.AddHours(oneHour);
+
                 if (File.GetLastWriteTimeUtc(file) < cutoff)
                 {
                     try

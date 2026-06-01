@@ -232,8 +232,26 @@ public class MetadataEnrichmentServiceTests
         var album = await TestHelpers.SeedAlbumAsync(_db, artist.Id, "OK Computer", ownerId: _caller.UserId);
         Assert.IsNull(album.LastEnrichedAt);
 
+        // Must return a non-empty result — empty results intentionally skip LastEnrichedAt
+        // so that the next scan can retry. Use a high-score match to trigger full enrichment.
         _mockMbClient.Setup(x => x.SearchReleaseGroupAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<MusicBrainzReleaseGroupResult>());
+            .ReturnsAsync(new List<MusicBrainzReleaseGroupResult>
+            {
+                new() { Id = "rg-ok-computer", Title = "OK Computer", Score = 100 }
+            });
+
+        _mockMbClient.Setup(x => x.GetReleaseGroupAsync("rg-ok-computer", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MusicBrainzReleaseGroupDetail
+            {
+                Id = "rg-ok-computer",
+                Title = "OK Computer",
+                Releases = [new MusicBrainzRelease { Id = "r-okc", Title = "OK Computer", Date = "1997", Country = "GB" }]
+            });
+
+        // LastEnrichedAt is only set when cover art is also fetched successfully.
+        _mockCaaClient.Setup(x => x.GetFrontCoverFromReleasesAsync(
+                It.IsAny<IReadOnlyList<MusicBrainzRelease>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new CoverArtResult { Data = [0xFF, 0xD8, 0xFF, 0xE0], MimeType = "image/jpeg", ReleaseMbid = "r-okc" });
 
         var beforeEnrich = DateTime.UtcNow;
         var service = CreateService();
@@ -242,6 +260,7 @@ public class MetadataEnrichmentServiceTests
         var updated = await _db.CanonicalAlbums.FindAsync(new object[] { album.Id });
         Assert.IsNotNull(updated!.LastEnrichedAt);
         Assert.IsTrue(updated.LastEnrichedAt >= beforeEnrich.AddSeconds(-1));
+        Assert.AreEqual("rg-ok-computer", updated.MusicBrainzReleaseGroupId);
     }
 
     [TestMethod]
