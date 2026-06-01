@@ -188,10 +188,20 @@ public sealed class MetadataEnrichmentService : IMetadataEnrichmentService
             _logger.LogInformation("MusicBrainz release group for '{AlbumTitle}' has no releases — can't fetch cover art", title);
         }
 
-        // Only set cooldown when we actually found the album on MusicBrainz
-        if (enrichmentSucceeded)
+        // Only set cooldown when cover art was actually fetched or already existed.
+        // If we found the release group but couldn't get art, leave LastEnrichedAt
+        // null so the next scan can retry.
+        var gotCoverArt = canonicalAlbum.HasCoverArt;
+        if (enrichmentSucceeded && gotCoverArt)
         {
             canonicalAlbum.LastEnrichedAt = DateTime.UtcNow;
+            canonicalAlbum.UpdatedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+        else if (enrichmentSucceeded)
+        {
+            // Found release group info but no cover art — save the MBIDs but don't
+            // set cooldown so cover art fetch can retry on next scan.
             canonicalAlbum.UpdatedAt = DateTime.UtcNow;
             await _db.SaveChangesAsync(cancellationToken);
         }
