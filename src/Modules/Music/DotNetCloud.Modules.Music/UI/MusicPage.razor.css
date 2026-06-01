@@ -715,7 +715,7 @@
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 16px;
-  padding-bottom: 16px;
+  padding: 8px 24px 16px;
 }
 
 .artists-toolbar .btn-icon {
@@ -729,7 +729,7 @@
   justify-content: center;
   padding: 0;
   font-size: 0.9rem;
-  color: var(--color-text-secondary, #64748b);
+  color: #06b6d4;
   cursor: pointer;
   transition: all var(--transition, 200ms ease);
   flex-shrink: 0;
@@ -757,7 +757,7 @@
   min-width: 0;
   max-width: 220px;
   font-size: 0.8125rem;
-  color: var(--color-text, #1e293b);
+  color: limegreen;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -775,6 +775,12 @@
   color: var(--color-muted, #94a3b8);
 }
 
+.artists-toolbar-bottom {
+  margin-top: 16px;
+  margin-bottom: 0;
+  padding: 16px 24px 0;
+}
+
 /* ── Albums toolbar ── */
 .albums-toolbar {
   display: flex;
@@ -782,7 +788,7 @@
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 16px;
-  padding: 0 24px 16px;
+  padding: 8px 24px 16px;
 }
 
 .albums-toolbar .btn-icon {
@@ -796,7 +802,7 @@
   justify-content: center;
   padding: 0;
   font-size: 0.9rem;
-  color: var(--color-text-secondary, #64748b);
+  color: #06b6d4;
   cursor: pointer;
   transition: all var(--transition, 200ms ease);
   flex-shrink: 0;
@@ -824,7 +830,7 @@
   min-width: 0;
   max-width: 220px;
   font-size: 0.8125rem;
-  color: var(--color-text, #1e293b);
+  color: limegreen;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -840,6 +846,12 @@
 
 .albums-page-info-more {
   color: var(--color-muted, #94a3b8);
+}
+
+.albums-toolbar-bottom {
+  margin-top: 16px;
+  margin-bottom: 0;
+  padding: 16px 24px 0;
 }
 
 .artists-grid {
