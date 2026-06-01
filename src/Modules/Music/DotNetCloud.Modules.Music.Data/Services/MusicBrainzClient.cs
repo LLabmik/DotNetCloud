@@ -39,6 +39,14 @@ public sealed class MusicBrainzClient : IMusicBrainzClient
         @"\s*\([^)]{1,25}$", RegexOptions.Compiled);
 
     /// <summary>
+    /// Regex for tagger-added Roman numeral I suffix. The debut Led Zeppelin
+    /// album is just "Led Zeppelin" on MB, not "Led Zeppelin I". Strips only
+    /// solitary " I" at end; "II", "III", "IV" are kept (legitimate titles).
+    /// </summary>
+    private static readonly Regex TaggerRomanNumeralI = new(
+        @"\s+I$", RegexOptions.Compiled);
+
+    /// <summary>
     /// Characters that break MusicBrainz Lucene query syntax when unescaped.
     /// </summary>
     private static readonly Regex LuceneSpecialChars = new(
@@ -63,6 +71,10 @@ public sealed class MusicBrainzClient : IMusicBrainzClient
         // Escape Lucene special characters (inside quoted phrases, only " and \ matter,
         // but escaping all is safer for unquoted terms)
         cleaned = LuceneSpecialChars.Replace(cleaned, @"\$1");
+
+        // Strip tagger-added Roman numeral I suffix (e.g. "Led Zeppelin I" → "Led Zeppelin")
+        // Only matches solitary "I" — "II", "III", "IV" are legitimate album titles
+        cleaned = TaggerRomanNumeralI.Replace(cleaned, "").Trim();
 
         return cleaned;
     }
