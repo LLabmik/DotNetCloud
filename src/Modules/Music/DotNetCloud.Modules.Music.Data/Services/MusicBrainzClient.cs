@@ -232,10 +232,46 @@ public sealed class MusicBrainzClient : IMusicBrainzClient
             // Sort: prefer exact title matches over score — prevents mashups like
             // "Led Zeppelin x Led Zeppelin" (score 100) from outranking the actual
             // debut album "Led Zeppelin" (score 99).
-            return seen.Values
+            var results = seen.Values
                 .OrderByDescending(r => string.Equals(r.Title, safeAlbum, StringComparison.OrdinalIgnoreCase))
                 .ThenByDescending(r => r.Score)
                 .ToList();
+
+            // Fallback: if phrase match returns nothing, retry with just the first
+            // 2-3 words. Helps for compilations like "Early Days - The Best Of Led
+            // Zeppelin Vol. 1" where MB uses colons and different wording.
+            if (results.Count == 0)
+            {
+                var words = safeAlbum.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                if (words.Length > 3)
+                {
+                    var shortQuery = string.Join(' ', words.Take(3));
+                    var encodedShort = Uri.EscapeDataString(shortQuery);
+                    var fallbackUrl = "release/?query=release:%22" + encodedShort + "%22+AND+artist:%22" + encodedArtist + "%22&fmt=json";
+                    var fallbackJson = await GetJsonAsync(fallbackUrl, cancellationToken);
+                    if (fallbackJson is not null)
+                    {
+                        var fallbackResponse = JsonSerializer.Deserialize<MbReleaseSearchResponse>(fallbackJson, JsonOptions);
+                        if (fallbackResponse?.Releases is not null)
+                        {
+                            var fallbackSeen = new Dictionary<string, MusicBrainzReleaseGroupResult>();
+                            foreach (var release in fallbackResponse.Releases)
+                            {
+                                var rg = release.ReleaseGroup;
+                                if (rg is null) continue;
+                                if (!fallbackSeen.TryGetValue(rg.Id, out var fexisting) || release.Score > fexisting.Score)
+                                    fallbackSeen[rg.Id] = new MusicBrainzReleaseGroupResult { Id = rg.Id, Title = rg.Title, Score = release.Score, PrimaryType = rg.PrimaryType };
+                            }
+                            results = fallbackSeen.Values
+                                .OrderByDescending(r => string.Equals(r.Title, shortQuery, StringComparison.OrdinalIgnoreCase))
+                                .ThenByDescending(r => r.Score)
+                                .ToList();
+                        }
+                    }
+                }
+            }
+
+            return results;
         }
         catch (JsonException ex)
         {
