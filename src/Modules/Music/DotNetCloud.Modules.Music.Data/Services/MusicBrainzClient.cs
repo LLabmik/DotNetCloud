@@ -242,7 +242,9 @@ public sealed class MusicBrainzClient : IMusicBrainzClient
             // Zeppelin Vol. 1" where MB uses colons and different wording.
             if (results.Count == 0)
             {
-                var words = safeAlbum.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                var words = safeAlbum.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                    .Where(w => w.Any(char.IsLetter))
+                    .ToArray();
                 if (words.Length > 3)
                 {
                     var shortQuery = string.Join(' ', words.Take(3));
