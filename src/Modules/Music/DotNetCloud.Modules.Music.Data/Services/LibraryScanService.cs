@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
+using System.Text.RegularExpressions;
 
 namespace DotNetCloud.Modules.Music.Data.Services;
 
@@ -953,30 +954,69 @@ public sealed class LibraryScanService
     }
 
     /// <summary>
+    /// Normalizes an album title by stripping parenthetical suffixes (both complete and
+    /// truncated ID3v1 variants) to prevent duplicate canonical album entries.
+    /// Examples: "Led Zeppelin IV (1994 Remaster)" → "Led Zeppelin IV"
+    ///           "In Through The Out Door (1994 " → "In Through The Out Door"
+    /// </summary>
+    private static string NormalizeAlbumTitle(string title)
+    {
+        if (string.IsNullOrWhiteSpace(title))
+            return title;
+
+        // Strip complete parenthetical suffixes: (Remastered), (1994 Remaster), (Disc 1), etc.
+        var cleaned = Regex.Replace(title, @"\s*\([^)]*\)\s*$", "").Trim();
+
+        // Strip truncated/broken parentheticals from ID3v1 tag truncation.
+        // Only strips if open-paren appears near the end indicating truncation.
+        cleaned = Regex.Replace(cleaned, @"\s*\([^)]{1,25}$", "").Trim();
+
+        return cleaned;
+    }
+
+    /// <summary>
     /// Gets or creates a canonical (shared) album by title.
     /// No OwnerId/ArtistId filter — canonical albums are shared across all users.
+    /// Album titles are normalized to prevent duplicates from ID3v1 truncation.
     /// </summary>
     internal async Task<CanonicalAlbum> GetOrCreateCanonicalAlbumAsync(string title, int? year, CancellationToken cancellationToken)
     {
-        if (_albumCache.TryGetValue(title, out var cached))
+        // Normalize the title to prevent duplicates from ID3v1 tag truncation
+        var normalizedTitle = NormalizeAlbumTitle(title);
+
+        if (_albumCache.TryGetValue(normalizedTitle, out var cached))
             return cached;
 
+        // Try exact match on normalized title first
         var album = await _db.CanonicalAlbums
-            .FirstOrDefaultAsync(a => a.Title == title, cancellationToken);
+            .FirstOrDefaultAsync(a => a.Title == normalizedTitle, cancellationToken);
 
         if (album is not null)
         {
-            _albumCache[title] = album;
+            _albumCache[normalizedTitle] = album;
             return album;
+        }
+
+        // Also try exact match on the original title (for legacy data)
+        if (normalizedTitle != title)
+        {
+            album = await _db.CanonicalAlbums
+                .FirstOrDefaultAsync(a => a.Title == title, cancellationToken);
+
+            if (album is not null)
+            {
+                _albumCache[normalizedTitle] = album;
+                return album;
+            }
         }
 
         album = new CanonicalAlbum
         {
-            Title = title,
+            Title = normalizedTitle,
             Year = year
         };
         _db.CanonicalAlbums.Add(album);
-        _albumCache[title] = album;
+        _albumCache[normalizedTitle] = album;
         // Note: SaveChangesAsync is deferred to the caller for batching.
         return album;
     }

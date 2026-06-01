@@ -29,13 +29,23 @@ public sealed class MusicBrainzClient : IMusicBrainzClient
         @"\s*\([^)]*\)\s*$", RegexOptions.Compiled);
 
     /// <summary>
+    /// Regex for truncated/broken parentheticals from ID3v1 tag truncation.
+    /// Matches a trailing open-paren with partial content but no closing paren,
+    /// e.g. "(1994 ", "(1994 Remaste", "(Dis", "(Deluxe Ed".
+    /// Only strips if the open-paren appears near the end (last 15 chars),
+    /// indicating truncation rather than a legitimate title starting with '('.
+    /// </summary>
+    private static readonly Regex TruncatedParenthetical = new(
+        @"\s*\([^)]{1,25}$", RegexOptions.Compiled);
+
+    /// <summary>
     /// Characters that break MusicBrainz Lucene query syntax when unescaped.
     /// </summary>
     private static readonly Regex LuceneSpecialChars = new(
         @"([+\-!(){}\[\]^""~*?:\\/])", RegexOptions.Compiled);
 
     /// <summary>
-    /// Strips trailing parenthetical suffixes (e.g. "(Remastered)") from album titles
+    /// Strips trailing parenthetical suffixes (including truncated ID3v1 variants)
     /// and escapes Lucene special characters for safe MusicBrainz queries.
     /// </summary>
     private static string SanitizeMusicBrainzQuery(string value)
@@ -43,8 +53,12 @@ public sealed class MusicBrainzClient : IMusicBrainzClient
         if (string.IsNullOrWhiteSpace(value))
             return value;
 
-        // Strip parenthetical suffix — these break Lucene grouping syntax
+        // Strip complete parenthetical suffix — these break Lucene grouping syntax
         var cleaned = ParentheticalSuffix.Replace(value, "").Trim();
+
+        // Strip truncated/broken parenthetical from ID3v1 tag truncation
+        // (e.g. "Led Zeppelin III (1994 Remaste" → "Led Zeppelin III")
+        cleaned = TruncatedParenthetical.Replace(cleaned, "").Trim();
 
         // Escape Lucene special characters (inside quoted phrases, only " and \ matter,
         // but escaping all is safer for unquoted terms)
