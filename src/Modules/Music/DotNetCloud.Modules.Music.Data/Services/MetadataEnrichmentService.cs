@@ -96,7 +96,7 @@ public sealed class MetadataEnrichmentService : IMetadataEnrichmentService
         IReadOnlyList<MusicBrainzReleaseGroupResult>? releaseGroups = null;
 
         // Priority 1: Direct MBID lookup (release group ID already known)
-        if (releaseGroups is null && canonicalAlbum.MusicBrainzReleaseGroupId is not null)
+        if (releaseGroups is null && canonicalAlbum.MusicBrainzReleaseGroupId is not null && canonicalAlbum.HasCoverArt)
         {
             var rgDetail = await _musicBrainzClient.GetReleaseGroupAsync(canonicalAlbum.MusicBrainzReleaseGroupId, cancellationToken);
             if (rgDetail is not null)
@@ -104,7 +104,7 @@ public sealed class MetadataEnrichmentService : IMetadataEnrichmentService
         }
 
         // Priority 2: Release MBID known
-        if (releaseGroups is null && canonicalAlbum.MusicBrainzReleaseId is not null)
+        if (releaseGroups is null && canonicalAlbum.MusicBrainzReleaseId is not null && canonicalAlbum.HasCoverArt)
         {
             var releaseUrl = $"release/{Uri.EscapeDataString(canonicalAlbum.MusicBrainzReleaseId)}?inc=release-groups&fmt=json";
             var releaseJson = await GetMusicBrainzJsonAsync(releaseUrl, cancellationToken);
