@@ -126,7 +126,7 @@ public sealed class MusicAlbumService : IMusicAlbumService
         if (canonicalAlbum is null)
             return null;
         if (canonicalAlbum.CoverArtHash is not null && _contentStorage.Exists(canonicalAlbum.CoverArtHash))
-            return canonicalAlbum.CoverArtHash;
+            return _contentStorage.ResolvePath(canonicalAlbum.CoverArtHash);
 
         var anyUserTrack = await _db.UserTracks
             .Include(ut => ut.CanonicalTrack)
@@ -149,7 +149,7 @@ public sealed class MusicAlbumService : IMusicAlbumService
                 canonicalAlbum.CoverArtHash = artHash;
                 canonicalAlbum.UpdatedAt = DateTime.UtcNow;
                 await _db.SaveChangesAsync(cancellationToken);
-                return artHash;
+                return _contentStorage.ResolvePath(artHash);
             }
         }
         catch (Exception ex)

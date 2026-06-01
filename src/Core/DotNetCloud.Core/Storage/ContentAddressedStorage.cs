@@ -93,6 +93,24 @@ public sealed class ContentAddressedStorage
     }
 
     /// <summary>
+    /// Resolves a content hash to the full filesystem path of the cached file.
+    /// Returns null if no file with the given hash is found.
+    /// </summary>
+    public string? ResolvePath(string contentHash)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(contentHash);
+
+        var dir = GetDirectoryPrefix(contentHash);
+        var prefixDir = Path.Combine(_basePath, "images", dir);
+
+        if (!Directory.Exists(prefixDir))
+            return null;
+
+        var files = Directory.GetFiles(prefixDir, $"{contentHash}.*");
+        return files.Length > 0 ? files[0] : null;
+    }
+
+    /// <summary>
     /// Deletes a cached item by content hash.
     /// </summary>
     public bool Delete(string contentHash)
