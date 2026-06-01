@@ -76,18 +76,18 @@ public sealed class MusicBrainzClient : IMusicBrainzClient
         // (e.g. "Led Zeppelin III (1994 Remaste" → "Led Zeppelin III")
         cleaned = TruncatedParenthetical.Replace(cleaned, "").Trim();
 
-        // Escape Lucene special characters (inside quoted phrases, only " and \ matter,
-        // but escaping all is safer for unquoted terms)
-        cleaned = LuceneSpecialChars.Replace(cleaned, @"\$1");
-
-        // Strip tagger-added Roman numeral I suffix (e.g. "Led Zeppelin I" → "Led Zeppelin")
         // Only matches solitary "I" — "II", "III", "IV" are legitimate album titles
         cleaned = TaggerRomanNumeralI.Replace(cleaned, "").Trim();
 
         // Strip trailing volume numbers (e.g. "Vol. 1", "Vol 2")
         // These break MB lookup for compilations tagged with volume suffixes
         cleaned = TrailingVolumeNumber.Replace(cleaned, "").Trim();
+        // Escape Lucene special characters LAST
+        cleaned = LuceneSpecialChars.Replace(cleaned, @"\$1");
 
+        // Escape Lucene special characters LAST — stripping must happen first so
+        // hyphens and periods in volume numbers aren't escaped before regex matching.
+        // Strip tagger-added Roman numeral I suffix (e.g. "Led Zeppelin I" → "Led Zeppelin")
         return cleaned;
     }
 
