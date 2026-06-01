@@ -24,6 +24,9 @@ public sealed class CanonicalArtist
     /// <summary>Artist image URL (from Cover Art Archive or fanart).</summary>
     public string? ImageUrl { get; set; }
 
+    /// <summary>Artist logo URL (from TheAudioDB).</summary>
+    public string? LogoUrl { get; set; }
+
     /// <summary>Wikipedia URL extracted from MusicBrainz URL relations.</summary>
     public string? WikipediaUrl { get; set; }
 

@@ -25,6 +25,9 @@ public sealed record ArtistDto
     /// <summary>Whether this artist is starred by the current user.</summary>
     public bool IsStarred { get; init; }
 
+    /// <summary>Artist logo URL from TheAudioDB.</summary>
+    public string? LogoUrl { get; init; }
+
     /// <summary>When the artist record was created (UTC).</summary>
     public required DateTime CreatedAt { get; init; }
 }
@@ -45,6 +48,9 @@ public sealed record ArtistBioDto
 
     /// <summary>Artist image URL.</summary>
     public string? ImageUrl { get; init; }
+
+    /// <summary>Artist logo URL from TheAudioDB.</summary>
+    public string? LogoUrl { get; init; }
 
     /// <summary>Wikipedia page URL.</summary>
     public string? WikipediaUrl { get; init; }

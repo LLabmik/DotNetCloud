@@ -127,6 +127,9 @@ public partial class MusicPage : IAsyncDisposable
     private Guid? _enrichingAlbumId;
     private bool _enrichingArtist;
     private Guid? _enrichingArtistId;
+    private bool _enrichingAlbumArt;
+    private bool _enrichingMetadata;
+    private bool _enrichingLogos;
     private ArtistBioDto? _artistBio;
     private string? _enrichmentToast;
 
@@ -1593,6 +1596,132 @@ public partial class MusicPage : IAsyncDisposable
     private void DismissEnrichmentToast()
     {
         _enrichmentToast = null;
+    }
+
+    private async Task EnrichArtistLogosAsync()
+    {
+        if (_caller is null)
+            return;
+        _enrichingLogos = true;
+        _settingsError = null;
+        _settingsSuccess = null;
+        StateHasChanged();
+        try
+        {
+            ScanProgress.UpdateProgress(_caller.UserId, new LibraryScanProgress
+            {
+                Phase = "Fetching artist logos from TheAudioDB…",
+                PercentComplete = 0
+            });
+
+            var count = await EnrichmentService.EnrichArtistLogosAsync(_caller.UserId);
+            _settingsSuccess = count > 0
+                ? $"Fetched {count} artist logo{(count == 1 ? "" : "s")} from TheAudioDB."
+                : "No artists need logos — all already have one or have no MusicBrainz ID.";
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error during artist logo fetch");
+            _settingsError = $"Artist logo fetch failed: {ex.Message}";
+        }
+        finally
+        {
+            _enrichingLogos = false;
+            ScanProgress.CompleteScan(_caller.UserId);
+            StateHasChanged();
+        }
+    }
+
+    private async Task EnrichAlbumsWithoutArtAsync()
+    {
+        if (_caller is null)
+            return;
+        _enrichingAlbumArt = true;
+        _settingsError = null;
+        _settingsSuccess = null;
+        StateHasChanged();
+        try
+        {
+            ScanProgress.UpdateProgress(_caller.UserId, new LibraryScanProgress
+            {
+                Phase = "Fetching album art…",
+                PercentComplete = 0
+            });
+
+            var progress = new Progress<EnrichmentProgress>(report =>
+            {
+                ScanProgress.UpdateProgress(_caller.UserId, new LibraryScanProgress
+                {
+                    Phase = report.Phase,
+                    CurrentFile = report.CurrentItem,
+                    FilesProcessed = report.Current,
+                    TotalFiles = report.Total,
+                    AlbumArtFetched = report.AlbumArtFound,
+                    AlbumArtRemaining = report.AlbumArtRemaining
+                });
+                StateHasChanged();
+            });
+
+            await EnrichmentService.EnrichAlbumsWithoutArtAsync(_caller.UserId, progress);
+            _settingsSuccess = "Album art enrichment complete.";
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error during album art enrichment");
+            _settingsError = $"Album art enrichment failed: {ex.Message}";
+        }
+        finally
+        {
+            _enrichingAlbumArt = false;
+            ScanProgress.CompleteScan(_caller.UserId);
+            StateHasChanged();
+        }
+    }
+
+    private async Task EnrichAllMetadataAsync()
+    {
+        if (_caller is null)
+            return;
+        _enrichingMetadata = true;
+        _settingsError = null;
+        _settingsSuccess = null;
+        StateHasChanged();
+        try
+        {
+            ScanProgress.UpdateProgress(_caller.UserId, new LibraryScanProgress
+            {
+                Phase = "Fetching metadata (artist bios, logos, MBIDs)…",
+                PercentComplete = 0
+            });
+
+            var progress = new Progress<EnrichmentProgress>(report =>
+            {
+                ScanProgress.UpdateProgress(_caller.UserId, new LibraryScanProgress
+                {
+                    Phase = report.Phase,
+                    CurrentFile = report.CurrentItem,
+                    FilesProcessed = report.Current,
+                    TotalFiles = report.Total,
+                    AlbumArtFetched = report.AlbumArtFound,
+                    AlbumArtRemaining = report.AlbumArtRemaining
+                });
+                StateHasChanged();
+            });
+
+            await EnrichmentService.EnrichAllAsync(_caller.UserId, progress);
+            _settingsSuccess = "Metadata enrichment complete — artist bios, logos, and MBIDs fetched.";
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error during metadata enrichment");
+            _settingsError = $"Metadata enrichment failed: {ex.Message}";
+        }
+        finally
+        {
+            _enrichingMetadata = false;
+            ScanProgress.CompleteScan(_caller.UserId);
+            StateHasChanged();
+        }
     }
 
     private async Task SaveEnrichmentSettingsAsync()

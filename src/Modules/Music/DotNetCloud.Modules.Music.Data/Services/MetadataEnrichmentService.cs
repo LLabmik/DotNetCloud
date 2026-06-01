@@ -20,6 +20,7 @@ public sealed class MetadataEnrichmentService : IMetadataEnrichmentService
     private readonly MusicDbContext _db;
     private readonly IMusicBrainzClient _musicBrainzClient;
     private readonly ICoverArtArchiveClient _coverArtClient;
+    private readonly IAudioDbClient _audioDbClient;
     private readonly AlbumArtService _albumArtService;
     private readonly ContentAddressedStorage _contentStorage;
     private readonly HttpClient _httpClient;
@@ -44,6 +45,7 @@ public sealed class MetadataEnrichmentService : IMetadataEnrichmentService
         MusicDbContext db,
         IMusicBrainzClient musicBrainzClient,
         ICoverArtArchiveClient coverArtClient,
+        IAudioDbClient audioDbClient,
         AlbumArtService albumArtService,
         ContentAddressedStorage contentStorage,
         IConfiguration configuration,
@@ -53,6 +55,7 @@ public sealed class MetadataEnrichmentService : IMetadataEnrichmentService
         _db = db;
         _musicBrainzClient = musicBrainzClient;
         _coverArtClient = coverArtClient;
+        _audioDbClient = audioDbClient;
         _albumArtService = albumArtService;
         _contentStorage = contentStorage;
         _httpClient = httpClientFactory.CreateClient("MusicBrainz");
@@ -261,7 +264,24 @@ public sealed class MetadataEnrichmentService : IMetadataEnrichmentService
         // Write enrichment data to canonical artist
         if (detail is not null)
         {
-            canonicalArtist.MusicBrainzId = detail.Id;
+            // Check if another canonical artist already has this MBID (unique index constraint)
+            if (detail.Id != canonicalArtist.MusicBrainzId)
+            {
+                var existingOwner = await _db.CanonicalArtists
+                    .AnyAsync(a => a.Id != canonicalArtist.Id && a.MusicBrainzId == detail.Id, cancellationToken);
+
+                if (existingOwner)
+                {
+                    _logger.LogWarning(
+                        "MBID '{Mbid}' already assigned to another canonical artist (different from '{ArtistId}'). Skipping MBID assignment.",
+                        detail.Id, canonicalArtist.Id);
+                }
+                else
+                {
+                    canonicalArtist.MusicBrainzId = detail.Id;
+                }
+            }
+
             canonicalArtist.Biography = detail.Annotation;
             canonicalArtist.WikipediaUrl = detail.WikipediaUrl;
             canonicalArtist.DiscogsUrl = detail.DiscogsUrl;
@@ -274,11 +294,101 @@ public sealed class MetadataEnrichmentService : IMetadataEnrichmentService
                 detail.WikipediaUrl is not null,
                 detail.DiscogsUrl is not null,
                 detail.OfficialUrl is not null);
+
+            // Fetch artist logo from TheAudioDB (only if we have an MBID)
+            if (!string.IsNullOrWhiteSpace(detail.Id))
+            {
+                try
+                {
+                    var artwork = await _audioDbClient.GetArtistArtworkAsync(detail.Id, cancellationToken);
+                    if (artwork?.LogoUrl is not null)
+                    {
+                        canonicalArtist.LogoUrl = artwork.LogoUrl;
+                        _logger.LogInformation("Fetched logo for artist '{ArtistName}'", name);
+                    }
+                    else
+                    {
+                        _logger.LogDebug("No logo available on TheAudioDB for artist '{ArtistName}'", name);
+                    }
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    _logger.LogWarning(ex, "Failed to fetch logo from TheAudioDB for artist '{ArtistName}'", name);
+                }
+            }
         }
 
         canonicalArtist.LastEnrichedAt = DateTime.UtcNow;
         canonicalArtist.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Batch-fetches artist logos from TheAudioDB for artists that have an MBID but no logo yet.
+    /// Runs requests concurrently (up to 10 at a time) since TheAudioDB allows ~20 req/s.
+    /// </summary>
+    private async Task<int> BatchFetchArtistLogosAsync(List<UserArtist> userArtists, CancellationToken cancellationToken)
+    {
+        // Collect artists that have an MBID but no logo yet
+        var candidates = userArtists
+            .Select(ua => ua.CanonicalArtist)
+            .Where(ca => ca is not null && !string.IsNullOrWhiteSpace(ca.MusicBrainzId) && string.IsNullOrWhiteSpace(ca.LogoUrl))
+            .Select(ca => (Id: ca!.Id, Mbid: ca.MusicBrainzId!, Name: ca.Name))
+            .ToList();
+
+        if (candidates.Count == 0)
+            return 0;
+
+        _logger.LogInformation("Batch fetching logos for {Count} artists from TheAudioDB", candidates.Count);
+
+        var fetchedCount = 0;
+        var semaphore = new SemaphoreSlim(10, 10);
+        var tasks = new List<Task>();
+
+        foreach (var (id, mbid, name) in candidates)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await semaphore.WaitAsync(cancellationToken);
+
+            tasks.Add(Task.Run(async () =>
+            {
+                try
+                {
+                    var artwork = await _audioDbClient.GetArtistArtworkAsync(mbid, cancellationToken);
+                    if (artwork?.LogoUrl is not null)
+                    {
+                        lock (candidates)
+                        {
+                            var artist = _db.CanonicalArtists.Local.FirstOrDefault(a => a.Id == id);
+                            if (artist is not null)
+                            {
+                                artist.LogoUrl = artwork.LogoUrl;
+                                artist.UpdatedAt = DateTime.UtcNow;
+                                Interlocked.Increment(ref fetchedCount);
+                                _logger.LogInformation("Fetched logo for artist '{ArtistName}'", name);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        _logger.LogDebug("No logo available on TheAudioDB for artist '{ArtistName}'", name);
+                    }
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    _logger.LogWarning(ex, "Failed to fetch logo from TheAudioDB for artist '{ArtistName}'", name);
+                }
+                finally
+                {
+                    semaphore.Release();
+                }
+            }, cancellationToken));
+        }
+
+        await Task.WhenAll(tasks);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        return fetchedCount;
     }
 
     /// <inheritdoc/>
@@ -393,6 +503,22 @@ public sealed class MetadataEnrichmentService : IMetadataEnrichmentService
     }
 
     /// <inheritdoc/>
+    public async Task<int> EnrichArtistLogosAsync(Guid ownerId, IProgress<EnrichmentProgress>? progress = null, CancellationToken cancellationToken = default)
+    {
+        var userArtists = await _db.UserArtists
+            .Include(ua => ua.CanonicalArtist)
+            .Where(ua => ua.OwnerId == ownerId && ua.CanonicalArtist != null
+                && ua.CanonicalArtist.MusicBrainzId != null
+                && ua.CanonicalArtist.LogoUrl == null)
+            .ToListAsync(cancellationToken);
+
+        var count = await BatchFetchArtistLogosAsync(userArtists, cancellationToken);
+
+        _logger.LogInformation("Standalone logo fetch complete: {Count} logos retrieved from TheAudioDB", count);
+        return count;
+    }
+
+    /// <inheritdoc/>
     public async Task EnrichAlbumsWithoutArtAsync(Guid ownerId, IProgress<EnrichmentProgress>? progress = null, CancellationToken cancellationToken = default)
     {
         var canonicalAlbumsWithoutArt = await _db.CanonicalAlbums
@@ -484,6 +610,14 @@ public sealed class MetadataEnrichmentService : IMetadataEnrichmentService
             {
                 biosFound++;
             }
+        }
+
+        // Phase 1b: Batch-fetch artist logos from TheAudioDB (high concurrency allowed — 20 req/s)
+        var logoCount = await BatchFetchArtistLogosAsync(userArtists, cancellationToken);
+
+        if (logoCount > 0)
+        {
+            _logger.LogInformation("Batch logo fetch complete: {LogoCount} logos retrieved from TheAudioDB", logoCount);
         }
 
         // Phase 2: Enrich albums — operate on user albums referencing canonical

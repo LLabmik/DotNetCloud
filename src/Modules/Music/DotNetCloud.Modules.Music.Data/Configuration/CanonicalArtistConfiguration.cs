@@ -20,6 +20,7 @@ public sealed class CanonicalArtistConfiguration : IEntityTypeConfiguration<Cano
         builder.Property(a => a.MusicBrainzId).HasMaxLength(36);
         builder.Property(a => a.Biography).HasMaxLength(10000);
         builder.Property(a => a.ImageUrl).HasMaxLength(2000);
+        builder.Property(a => a.LogoUrl).HasMaxLength(2000);
         builder.Property(a => a.WikipediaUrl).HasMaxLength(2000);
         builder.Property(a => a.DiscogsUrl).HasMaxLength(2000);
         builder.Property(a => a.OfficialUrl).HasMaxLength(2000);

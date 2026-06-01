@@ -17,6 +17,7 @@ public class MetadataEnrichmentServiceTests
     private MusicDbContext _db = null!;
     private Mock<IMusicBrainzClient> _mockMbClient = null!;
     private Mock<ICoverArtArchiveClient> _mockCaaClient = null!;
+    private Mock<IAudioDbClient> _mockAudioDbClient = null!;
     private CallerContext _caller = null!;
     private IConfiguration _configuration = null!;
     private string _tempArtDir = null!;
@@ -27,6 +28,7 @@ public class MetadataEnrichmentServiceTests
         _db = TestHelpers.CreateDb();
         _mockMbClient = new Mock<IMusicBrainzClient>();
         _mockCaaClient = new Mock<ICoverArtArchiveClient>();
+        _mockAudioDbClient = new Mock<IAudioDbClient>();
         _caller = TestHelpers.CreateCaller();
         _tempArtDir = Path.Combine(Path.GetTempPath(), $"dnc-test-art-{Guid.NewGuid()}");
         Directory.CreateDirectory(_tempArtDir);
@@ -60,6 +62,7 @@ public class MetadataEnrichmentServiceTests
             _db,
             _mockMbClient.Object,
             _mockCaaClient.Object,
+            _mockAudioDbClient.Object,
             albumArtService,
             contentStorage,
             _configuration,
@@ -339,6 +342,70 @@ public class MetadataEnrichmentServiceTests
         Assert.AreEqual("https://en.wikipedia.org/wiki/Pink_Floyd", updated.WikipediaUrl);
         Assert.AreEqual("https://www.discogs.com/artist/45467", updated.DiscogsUrl);
         Assert.AreEqual("https://www.pinkfloyd.com", updated.OfficialUrl);
+
+        // Verify AudioDb was queried for the artist logo using the resolved MBID
+        _mockAudioDbClient.Verify(x => x.GetArtistArtworkAsync("mb-pf", It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [TestMethod]
+    public async Task EnrichArtist_FetchesLogoFromAudioDb()
+    {
+        var artist = await TestHelpers.SeedArtistAsync(_db, "Pink Floyd", ownerId: _caller.UserId);
+
+        _mockMbClient.Setup(x => x.SearchArtistAsync("Pink Floyd", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<MusicBrainzArtistResult>
+            {
+                new() { Id = "mb-pf", Name = "Pink Floyd", Score = 100 }
+            });
+
+        _mockMbClient.Setup(x => x.GetArtistAsync("mb-pf", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MusicBrainzArtistDetail
+            {
+                Id = "mb-pf",
+                Name = "Pink Floyd",
+                Annotation = "Pink Floyd were an English rock band."
+            });
+
+        _mockAudioDbClient.Setup(x => x.GetArtistArtworkAsync("mb-pf", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AudioDbArtistArtwork
+            {
+                LogoUrl = "https://www.theaudiodb.com/images/artists/logo/112024.png"
+            });
+
+        var service = CreateService();
+        await service.EnrichArtistAsync(artist.Id, _caller);
+
+        var updated = await _db.CanonicalArtists.FindAsync(new object[] { artist.Id });
+        Assert.AreEqual("https://www.theaudiodb.com/images/artists/logo/112024.png", updated!.LogoUrl);
+    }
+
+    [TestMethod]
+    public async Task EnrichArtist_NoLogoFromAudioDb_LogoUrlStaysNull()
+    {
+        var artist = await TestHelpers.SeedArtistAsync(_db, "Radiohead", ownerId: _caller.UserId);
+
+        _mockMbClient.Setup(x => x.SearchArtistAsync("Radiohead", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<MusicBrainzArtistResult>
+            {
+                new() { Id = "mb-rh", Name = "Radiohead", Score = 100 }
+            });
+
+        _mockMbClient.Setup(x => x.GetArtistAsync("mb-rh", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MusicBrainzArtistDetail
+            {
+                Id = "mb-rh",
+                Name = "Radiohead"
+            });
+
+        // AudioDb returns null (no logo available)
+        _mockAudioDbClient.Setup(x => x.GetArtistArtworkAsync("mb-rh", It.IsAny<CancellationToken>()))
+            .ReturnsAsync((AudioDbArtistArtwork?)null);
+
+        var service = CreateService();
+        await service.EnrichArtistAsync(artist.Id, _caller);
+
+        var updated = await _db.CanonicalArtists.FindAsync(new object[] { artist.Id });
+        Assert.IsNull(updated!.LogoUrl);
     }
 
     [TestMethod]
@@ -436,6 +503,10 @@ public class MetadataEnrichmentServiceTests
         var updated = await _db.CanonicalArtists.FindAsync(new object[] { artist.Id });
         Assert.IsNull(updated!.MusicBrainzId);
         Assert.IsNull(updated.Biography);
+        Assert.IsNull(updated.LogoUrl);
+
+        // AudioDb should NOT be queried when no MusicBrainz match exists
+        _mockAudioDbClient.Verify(x => x.GetArtistArtworkAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [TestMethod]

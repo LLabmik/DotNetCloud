@@ -39,7 +39,8 @@ public sealed class ArtistService : IArtistService
             .Include(ua => ua.CanonicalArtist)
             .FirstOrDefaultAsync(ua => ua.CanonicalArtistId == artistId && ua.OwnerId == caller.UserId, cancellationToken);
 
-        if (userArtist is null) return null;
+        if (userArtist is null)
+            return null;
 
         return await MapToDtoAsync(db, userArtist, caller.UserId, cancellationToken);
     }
@@ -129,6 +130,7 @@ public sealed class ArtistService : IArtistService
             Name = ca.Name,
             Biography = ca.Biography,
             ImageUrl = ca.ImageUrl,
+            LogoUrl = ca.LogoUrl,
             WikipediaUrl = ca.WikipediaUrl,
             DiscogsUrl = ca.DiscogsUrl,
             OfficialUrl = ca.OfficialUrl,
@@ -196,6 +198,7 @@ public sealed class ArtistService : IArtistService
                 AlbumCount = albumCounts.GetValueOrDefault(artistId, 0),
                 TrackCount = trackCounts.GetValueOrDefault(artistId, 0),
                 IsStarred = starredIds.Contains(artistId),
+                LogoUrl = ca.LogoUrl,
                 CreatedAt = ua.CreatedAt
             });
         }

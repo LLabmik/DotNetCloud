@@ -52,4 +52,13 @@ public interface IMetadataEnrichmentService
     /// <param name="progress">Optional progress reporter.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     Task EnrichAllAsync(Guid ownerId, IProgress<EnrichmentProgress>? progress = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Batch-fetches artist logos from TheAudioDB for all artists with an MBID but no logo.
+    /// Uses concurrent requests (up to 10 at a time) since TheAudioDB allows ~20 req/s.
+    /// </summary>
+    /// <param name="ownerId">User whose artists to fetch logos for.</param>
+    /// <param name="progress">Optional progress reporter.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task<int> EnrichArtistLogosAsync(Guid ownerId, IProgress<EnrichmentProgress>? progress = null, CancellationToken cancellationToken = default);
 }

@@ -71,6 +71,11 @@ public static class MusicServiceRegistration
             client.BaseAddress = new Uri("https://coverartarchive.org/");
         });
 
+        services.AddHttpClient<IAudioDbClient, AudioDbClient>(client =>
+        {
+            client.BaseAddress = new Uri("https://www.theaudiodb.com/api/v1/json/123/");
+        });
+
         services.AddScoped<MetadataEnrichmentService>();
         services.AddScoped<IMetadataEnrichmentService>(sp => sp.GetRequiredService<MetadataEnrichmentService>());
         services.AddSingleton<InMemoryMusicEnrichmentBackgroundQueue>();

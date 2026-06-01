@@ -398,7 +398,16 @@
                     @foreach (var artist in _artists)
                     {
                         <div class="artist-card" @onclick="() => OpenArtistDetail(artist)">
-                            <div class="artist-avatar">@GetInitials(artist.Name)</div>
+                            @if (!string.IsNullOrWhiteSpace(artist.LogoUrl))
+                            {
+                                <div class="artist-logo">
+                                    <img src="@artist.LogoUrl" alt="@artist.Name logo" loading="lazy" />
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="artist-avatar">@GetInitials(artist.Name)</div>
+                            }
                             <span class="artist-name">@artist.Name</span>
                             <span class="artist-meta">@artist.AlbumCount albums · @artist.TrackCount tracks</span>
                         </div>
@@ -430,16 +439,24 @@
             {
                 <div class="artist-detail">
                     <div class="artist-detail-header">
-                        @if (_artistBio?.ImageUrl is not null)
-                        {
-                            <div class="artist-detail-image">
-                                <img src="@_artistBio.ImageUrl" alt="@_selectedArtist.Name" />
-                            </div>
-                        }
-                        else
-                        {
-                            <div class="artist-detail-avatar">@GetInitials(_selectedArtist.Name)</div>
-                        }
+                        <div class="artist-detail-images">
+                            @if (_artistBio?.LogoUrl is not null)
+                            {
+                                <div class="artist-detail-logo">
+                                    <img src="@_artistBio.LogoUrl" alt="@_selectedArtist.Name logo" />
+                                </div>
+                            }
+                            @if (_artistBio?.ImageUrl is not null)
+                            {
+                                <div class="artist-detail-image">
+                                    <img src="@_artistBio.ImageUrl" alt="@_selectedArtist.Name" />
+                                </div>
+                            }
+                            @if (_artistBio?.LogoUrl is null && _artistBio?.ImageUrl is null)
+                            {
+                                <div class="artist-detail-avatar">@GetInitials(_selectedArtist.Name)</div>
+                            }
+                        </div>
                         <div class="artist-detail-info">
                             <h3>@_selectedArtist.Name</h3>
                             <span>@_selectedArtist.AlbumCount albums · @_selectedArtist.TrackCount tracks</span>
@@ -1079,16 +1096,30 @@
 
                         @* ─── Enrichment Settings ─── *@
                         <div class="enrichment-settings" style="margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--color-border, rgba(255,255,255,0.08));">
-                            <h5 style="margin-bottom: 10px;">MusicBrainz Enrichment</h5>
-                            <p class="hint" style="margin-bottom: 12px;">Automatically fetch metadata and cover art from MusicBrainz and Cover Art Archive during library scans.</p>
+                            <h5 style="margin-bottom: 10px;">Metadata Enrichment</h5>
+                            <p class="hint" style="margin-bottom: 12px;">Automatically fetch metadata and cover art from MusicBrainz, Cover Art Archive, and TheAudioDB during library scans.</p>
                             <label class="toggle-label">
                                 <input type="checkbox" @bind="_autoFetchMetadata" @bind:after="SaveEnrichmentSettingsAsync" />
-                                <span>Auto-fetch metadata from MusicBrainz during scan</span>
+                                <span>Auto-fetch metadata (biographies, logos) during scan</span>
                             </label>
                             <label class="toggle-label">
                                 <input type="checkbox" @bind="_autoFetchAlbumArt" @bind:after="SaveEnrichmentSettingsAsync" />
                                 <span>Auto-fetch missing album art from Cover Art Archive</span>
                             </label>
+                            <div class="settings-actions" style="margin-top: 12px;">
+                                <button class="btn btn-outline btn-sm" @onclick="EnrichArtistLogosAsync"
+                                        disabled="@(_enrichingLogos || IsScanActive)">
+                                    @(_enrichingLogos ? "Fetching…" : "Fetch Artist Logos")
+                                </button>
+                                <button class="btn btn-outline btn-sm" @onclick="EnrichAlbumsWithoutArtAsync"
+                                        disabled="@(_enrichingAlbumArt || IsScanActive)">
+                                    @(_enrichingAlbumArt ? "Fetching…" : "Fetch All Cover Art")
+                                </button>
+                                <button class="btn btn-outline btn-sm" @onclick="EnrichAllMetadataAsync"
+                                        disabled="@(_enrichingMetadata || IsScanActive)">
+                                    @(_enrichingMetadata ? "Fetching…" : "Fetch All Metadata")
+                                </button>
+                            </div>
                         </div>
 
                         <div class="settings-danger-zone" style="margin-top: 24px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.08);">
