@@ -1245,6 +1245,20 @@ public sealed class LibraryScanService
         if (int.TryParse(value, out _))
             return true;
 
+
+        // Windows Media Player / generic tagger filler patterns
+        if (value.StartsWith("Unknown Album", StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (value.StartsWith("Unknown Artist", StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (value.StartsWith("Unknown Genre", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        // "Track N" pattern (e.g., "Track 1", "Track 12")
+        if (value.StartsWith("Track ", StringComparison.OrdinalIgnoreCase)
+            && value.Length > 6
+            && int.TryParse(value.AsSpan(6), out _))
+            return true;
         return false;
     }
 
