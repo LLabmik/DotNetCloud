@@ -1274,4 +1274,15 @@
             <button class="toast-dismiss" @onclick="DismissEnrichmentToast">✕</button>
         </div>
     }
+
+    @* ─── Fetch Art Modal ─── *@
+    @if (_showFetchArtModal)
+    {
+        <FetchArtModal AlbumId="@_fetchArtAlbumId"
+                       AlbumTitle="@_fetchArtAlbumTitle"
+                       ArtistName="@_fetchArtArtistName"
+                       Year="@_fetchArtYear"
+                       Caller="@(_caller!)"
+                       OnClose="OnFetchArtModalClosed" />
+    }
 </div>

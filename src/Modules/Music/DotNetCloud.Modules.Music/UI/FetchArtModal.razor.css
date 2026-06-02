@@ -1,0 +1,496 @@
+/* ═══════════════════════════════════════════════════════════
+   FetchArtModal — Multi-Source Album Cover Art Search
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Shared button/dialog styles (replicated for CSS isolation) ── */
+
+.btn-icon {
+  background: none;
+  border: none;
+  color: var(--color-muted, #94a3b8);
+  cursor: pointer;
+  font-size: 1rem;
+  padding: 4px;
+  line-height: 1;
+  transition: color var(--transition, 200ms ease);
+}
+
+.btn-icon:hover {
+  color: var(--color-text, #1e293b);
+}
+
+.btn-cancel {
+  padding: 8px 18px;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: var(--radius, 8px);
+  background: var(--color-surface, #ffffff);
+  color: var(--color-text-secondary, #64748b);
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all var(--transition, 200ms ease);
+}
+
+.btn-cancel:hover {
+  border-color: var(--color-text-secondary, #64748b);
+  color: var(--color-text, #1e293b);
+}
+
+.btn-primary {
+  padding: 8px 18px;
+  border: none;
+  border-radius: var(--radius, 8px);
+  background: var(--color-primary, #3b82f6);
+  color: #fff;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition, 200ms ease);
+  display: inline-flex;
+  align-items: center;
+}
+
+.btn-primary:hover {
+  background: #2563eb;
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-sm {
+  padding: 5px 12px;
+  font-size: 0.8125rem;
+}
+
+.loading-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--color-border, #e2e8f0);
+  border-top-color: var(--color-primary, #3b82f6);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.enrich-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  vertical-align: middle;
+}
+
+.dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+
+/* ── Modal panel ── */
+
+.fetch-art-modal {
+  background: var(--color-surface, #ffffff);
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 12px;
+  box-shadow: var(--shadow-lg, 0 8px 24px rgba(0, 0, 0, 0.12));
+  width: 90%;
+  max-width: 680px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.fetch-art-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--color-border, #e2e8f0);
+  background: var(--color-surface, #ffffff);
+}
+
+.fetch-art-modal-header h3 {
+  margin: 0;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  color: var(--color-text, #1e293b);
+}
+
+.fetch-art-close {
+  background: var(--color-bg, #f5f7fa);
+  border: none;
+  border-radius: 6px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-muted, #94a3b8);
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all var(--transition, 200ms ease);
+}
+
+.fetch-art-close:hover {
+  background: var(--color-border, #e2e8f0);
+  color: var(--color-text, #1e293b);
+}
+
+.fetch-art-modal-body {
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: var(--color-surface, #ffffff);
+}
+
+/* ── Form fields (Editing state) ── */
+
+.fetch-art-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.fetch-art-form-hint {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--color-text-secondary, #64748b);
+  line-height: 1.5;
+  padding: 8px 12px;
+  background: var(--color-bg, #f5f7fa);
+  border-radius: var(--radius, 8px);
+  border: 1px solid var(--color-border, #e2e8f0);
+}
+
+.fetch-art-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.fetch-art-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-text-secondary, #64748b);
+}
+
+.fetch-art-label {
+  font-weight: 600;
+  font-size: 0.8125rem;
+  color: var(--color-text, #1e293b);
+}
+
+.fetch-art-field input {
+  padding: 10px 14px;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: var(--radius, 8px);
+  font-size: 0.9375rem;
+  color: var(--color-text, #1e293b);
+  background: var(--color-bg, #f5f7fa);
+  transition: border-color var(--transition, 200ms ease);
+}
+
+.fetch-art-field input:focus {
+  outline: none;
+  border-color: var(--color-primary, #3b82f6);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+
+.fetch-art-field-sm {
+  max-width: 160px;
+}
+
+.fetch-art-query-info {
+  padding: 10px 12px;
+  background: #fef9c3;
+  border: 1px solid #fde68a;
+  border-radius: var(--radius, 8px);
+  font-size: 0.8125rem;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.query-label {
+  color: #92400e;
+  font-weight: 500;
+}
+
+.fetch-art-query-info code {
+  font-family: "SF Mono", "Cascadia Code", "Consolas", monospace;
+  font-size: 0.8125rem;
+  color: #78350f;
+  word-break: break-all;
+}
+
+/* ── Results grid ── */
+
+.fetch-art-results-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.fetch-art-single-result {
+  display: flex;
+  justify-content: center;
+}
+
+.fetch-art-single-result .fetch-art-result-card {
+  max-width: 320px;
+  width: 100%;
+}
+
+.fetch-art-result-card {
+  display: flex;
+  flex-direction: column;
+  border: 2px solid var(--color-border, #e2e8f0);
+  border-radius: var(--radius, 8px);
+  overflow: hidden;
+  cursor: pointer;
+  transition: all var(--transition, 200ms ease);
+  background: var(--color-surface, #ffffff);
+}
+
+.fetch-art-result-card:hover {
+  border-color: var(--color-primary, #3b82f6);
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.12);
+  transform: translateY(-1px);
+}
+
+.fetch-art-result-card.selected {
+  border-color: var(--color-primary, #3b82f6);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+.result-thumb {
+  width: 100%;
+  aspect-ratio: 1;
+  background: var(--color-border, #e2e8f0);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.result-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.result-thumb-placeholder {
+  font-size: 2.5rem;
+  color: var(--color-muted, #94a3b8);
+}
+
+.result-info {
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.result-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-text, #1e293b);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.result-artist {
+  font-size: 0.8125rem;
+  color: var(--color-text-secondary, #64748b);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.result-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+
+.result-year {
+  font-size: 0.75rem;
+  color: var(--color-muted, #94a3b8);
+  font-variant-numeric: tabular-nums;
+}
+
+.result-badge {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  line-height: 1.2;
+}
+
+.result-badge.source-musicbrainz {
+  background: rgba(139, 92, 246, 0.12);
+  color: #8b5cf6;
+}
+
+.result-badge.source-theaudiodb {
+  background: rgba(59, 130, 246, 0.12);
+  color: var(--color-primary, #3b82f6);
+}
+
+.result-score {
+  font-size: 0.75rem;
+  color: var(--color-muted, #94a3b8);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Empty / Error states ── */
+
+.fetch-art-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px;
+  text-align: center;
+  color: var(--color-text-secondary, #64748b);
+  gap: 8px;
+}
+
+.fetch-art-empty .loading-spinner {
+  width: 32px;
+  height: 32px;
+}
+
+.fetch-art-empty h4 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--color-text, #1e293b);
+}
+
+.fetch-art-empty p {
+  margin: 0;
+  font-size: 0.875rem;
+  max-width: 340px;
+}
+
+.fetch-art-empty-icon {
+  font-size: 2rem;
+  margin-bottom: 4px;
+}
+
+.fetch-art-error {
+  padding: 10px 14px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: var(--radius, 8px);
+  color: #ef4444;
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+
+/* ── Footer / Actions ── */
+
+.fetch-art-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 0 0;
+  border-top: 1px solid var(--color-border, #e2e8f0);
+  margin-top: auto;
+}
+
+/* ── Dark mode ── */
+
+:global(.dark-mode) .fetch-art-modal,
+:global(.dark-mode) .fetch-art-modal-header,
+:global(.dark-mode) .fetch-art-modal-body {
+  background: var(--color-surface, #1e293b);
+}
+
+:global(.dark-mode) .fetch-art-modal-header h3 {
+  color: var(--color-text, #f1f5f9);
+}
+
+:global(.dark-mode) .fetch-art-close {
+  background: #334155;
+  color: #94a3b8;
+}
+
+:global(.dark-mode) .fetch-art-close:hover {
+  background: #475569;
+  color: #f1f5f9;
+}
+
+:global(.dark-mode) .fetch-art-form-hint {
+  background: #0f172a;
+  border-color: #334155;
+  color: #94a3b8;
+}
+
+:global(.dark-mode) .fetch-art-label {
+  color: var(--color-text, #f1f5f9);
+}
+
+:global(.dark-mode) .fetch-art-field input {
+  background: #0f172a;
+  color: var(--color-text, #f1f5f9);
+  border-color: #334155;
+}
+
+:global(.dark-mode) .fetch-art-query-info {
+  background: #422006;
+  border-color: #78350f;
+}
+
+:global(.dark-mode) .query-label {
+  color: #fbbf24;
+}
+
+:global(.dark-mode) .fetch-art-query-info code {
+  color: #fde68a;
+}
+
+:global(.dark-mode) .fetch-art-result-card:hover {
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.2);
+}
+
+:global(.dark-mode) .result-thumb {
+  background: #334155;
+}
+
+:global(.dark-mode) .btn-cancel {
+  background: var(--color-surface, #1e293b);
+  color: var(--color-text-secondary, #94a3b8);
+  border-color: #334155;
+}
+
+:global(.dark-mode) .fetch-art-empty h4 {
+  color: var(--color-text, #f1f5f9);
+}

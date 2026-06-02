@@ -1,0 +1,187 @@
+@namespace DotNetCloud.Modules.Music.UI
+@using DotNetCloud.Modules.Music.Services
+
+@* ─── Fetch Art Modal — Multi-source album cover art search ─── *@
+<div class="dialog-overlay" @onclick="CancelAsync">
+    <div class="fetch-art-modal" style="background:#fff;color:#1e293b" @onclick:stopPropagation="true">
+        <div class="fetch-art-modal-header">
+            <h3>@GetTitle()</h3>
+            <button class="fetch-art-close" @onclick="CancelAsync" aria-label="Close" title="Close">✕</button>
+        </div>
+
+        <div class="fetch-art-modal-body">
+            @switch (_state)
+            {
+                case ModalState.Editing:
+                    @* ─── Editable search fields ─── *@
+                    <div class="fetch-art-form">
+                        <p class="fetch-art-form-hint">
+                            The automatic search didn't find cover art for this album.
+                            Adjust the search terms below and try again across MusicBrainz &amp; TheAudioDB.
+                        </p>
+                        <div class="fetch-art-field-group">
+                            <label class="fetch-art-field">
+                                <span class="fetch-art-label">Album Title</span>
+                                <input type="text" @bind="_editAlbumTitle" placeholder="Album title" />
+                            </label>
+                            <label class="fetch-art-field">
+                                <span class="fetch-art-label">Artist Name</span>
+                                <input type="text" @bind="_editArtistName" placeholder="Artist name" />
+                            </label>
+                            <label class="fetch-art-field fetch-art-field-sm">
+                                <span class="fetch-art-label">Year</span>
+                                <input type="number" @bind="_editYear" placeholder="e.g. 1973" />
+                            </label>
+                        </div>
+                        @if (_sanitizedTitle is not null || _sanitizedArtist is not null)
+                        {
+                            <div class="fetch-art-query-info">
+                                <span class="query-label">Original search query sent to MusicBrainz:</span>
+                                <code>release:"@_sanitizedTitle" AND artist:"@_sanitizedArtist"</code>
+                            </div>
+                        }
+                    </div>
+                    @if (!string.IsNullOrEmpty(_errorMessage))
+                    {
+                        <div class="fetch-art-error">@_errorMessage</div>
+                    }
+                    <div class="fetch-art-modal-footer">
+                        <button class="btn-cancel" @onclick="CancelAsync">Cancel</button>
+                        <button class="btn-primary" @onclick="SearchAsync" disabled="@_isSearching">
+                            @if (_isSearching)
+                            {
+                                <span class="enrich-spinner" style="margin-right:6px"></span>
+                            }
+                            Search All Sources
+                        </button>
+                    </div>
+                    break;
+
+                case ModalState.Searching:
+                    @* ─── Search in progress ─── *@
+                    <div class="fetch-art-empty">
+                        <div class="loading-spinner"></div>
+                        <p>Searching MusicBrainz &amp; TheAudioDB…</p>
+                    </div>
+                    <div class="fetch-art-modal-footer">
+                        <button class="btn-cancel" @onclick="CancelAsync">Cancel</button>
+                    </div>
+                    break;
+
+                case ModalState.NoResults:
+                    @* ─── No results found ─── *@
+                    <div class="fetch-art-empty">
+                        <span class="fetch-art-empty-icon">🔍</span>
+                        <h4>No artwork found</h4>
+                        <p>No results found for these search terms. Try different keywords and search again.</p>
+                    </div>
+                    <div class="fetch-art-modal-footer">
+                        <button class="btn-cancel" @onclick="CancelAsync">Cancel</button>
+                        <button class="btn-primary" @onclick="GoBackToEditing">Try Different Search</button>
+                    </div>
+                    break;
+
+                case ModalState.Results:
+                    @* ─── Results displayed ─── *@
+                    @if (_results.Count == 1)
+                    {
+                        <div class="fetch-art-single-result">
+                            <div class="fetch-art-result-card selected"
+                                 @onclick="() => SelectResultByIndex(0)">
+                                <div class="result-thumb">
+                                    @if (!string.IsNullOrEmpty(_results[0].ThumbnailUrl))
+                                    {
+                                        <img src="@_results[0].ThumbnailUrl" alt="@_results[0].Title"
+                                             onerror="this.parentElement.innerHTML='<span class=\'result-thumb-placeholder\'>♫</span>'" />
+                                    }
+                                    else
+                                    {
+                                        <span class="result-thumb-placeholder">♫</span>
+                                    }
+                                </div>
+                                <div class="result-info">
+                                    <span class="result-title">@_results[0].Title</span>
+                                    <span class="result-artist">@_results[0].ArtistName</span>
+                                    <div class="result-meta">
+                                        @{
+                                            var year0 = _results[0].Year;
+                                            if (year0.HasValue)
+                                            {
+                                                <span class="result-year">@year0.Value</span>
+                                            }
+                                        }
+                                        <span class="result-badge source-@(_results[0].Source.ToLowerInvariant())">@_results[0].Source</span>
+                                        <span class="result-score">@_results[0].Score%</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="fetch-art-results-grid">
+                            @for (var i = 0; i < _results.Count; i++)
+                            {
+                                var r = _results[i];
+                                var index = i;
+                                var isSelected = _selectedResultIndex == index;
+                                <div class="fetch-art-result-card @(isSelected ? "selected" : "")"
+                                     @onclick="() => SelectResultByIndex(index)">
+                                    <div class="result-thumb">
+                                        @if (!string.IsNullOrEmpty(r.ThumbnailUrl))
+                                        {
+                                            <img src="@r.ThumbnailUrl" alt="@r.Title"
+                                                 onerror="this.parentElement.innerHTML='<span class=\'result-thumb-placeholder\'>♫</span>'" />
+                                        }
+                                        else
+                                        {
+                                            <span class="result-thumb-placeholder">♫</span>
+                                        }
+                                    </div>
+                                    <div class="result-info">
+                                        <span class="result-title">@r.Title</span>
+                                        <span class="result-artist">@r.ArtistName</span>
+                                        <div class="result-meta">
+                                            @{
+                                                var y = r.Year;
+                                                if (y.HasValue)
+                                                {
+                                                    <span class="result-year">@y.Value</span>
+                                                }
+                                            }
+                                            <span class="result-badge source-@(r.Source.ToLowerInvariant())">@r.Source</span>
+                                            <span class="result-score">@r.Score%</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                    @if (!string.IsNullOrEmpty(_errorMessage))
+                    {
+                        <div class="fetch-art-error">@_errorMessage</div>
+                    }
+                    <div class="fetch-art-modal-footer">
+                        <button class="btn-cancel" @onclick="CancelAsync">Cancel</button>
+                        <button class="btn-cancel" @onclick="GoBackToEditing">Try Different Search</button>
+                        <button class="btn-primary" @onclick="ApplySelectedAsync" disabled="@(_isApplying || _selectedResultIndex < 0)">
+                            @if (_isApplying)
+                            {
+                                <span class="enrich-spinner" style="margin-right:6px"></span>
+                            }
+                            @(_results.Count == 1 ? "Use This Art" : "Use Selected")
+                        </button>
+                    </div>
+                    break;
+
+                case ModalState.Applying:
+                    @* ─── Applying selected art ─── *@
+                    <div class="fetch-art-empty">
+                        <div class="loading-spinner"></div>
+                        <p>Applying artwork…</p>
+                    </div>
+                    break;
+            }
+        </div>
+    </div>
+</div>

@@ -61,4 +61,24 @@ public interface IMetadataEnrichmentService
     /// <param name="progress">Optional progress reporter.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     Task<int> EnrichArtistLogosAsync(Guid ownerId, IProgress<EnrichmentProgress>? progress = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Searches across all configured art sources (MusicBrainz, TheAudioDB) for album cover art.
+    /// Returns merged results with thumbnails, sorted by relevance score.
+    /// </summary>
+    /// <param name="request">Search parameters (album title, artist name, etc.).</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>List of art candidates from all sources, or empty if none found.</returns>
+    Task<IReadOnlyList<FetchArtSearchResult>> SearchArtCandidatesAsync(FetchArtSearchRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Applies a selected art candidate to an album: downloads the cover art,
+    /// saves it to content-addressed storage, and persists any source-specific IDs.
+    /// </summary>
+    /// <param name="albumId">Album to apply art to.</param>
+    /// <param name="request">Which candidate to apply (source + source ID).</param>
+    /// <param name="caller">Caller context for authorization.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Result indicating success or failure.</returns>
+    Task<ApplyArtResult> ApplyArtSelectionAsync(Guid albumId, FetchArtApplyRequest request, CallerContext caller, CancellationToken cancellationToken = default);
 }

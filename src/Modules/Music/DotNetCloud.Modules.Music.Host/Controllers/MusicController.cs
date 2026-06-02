@@ -681,6 +681,58 @@ public class MusicController : MusicControllerBase
         return Ok(Envelope(new { enriched = true }));
     }
 
+    /// <summary>Searches for album cover art candidates across all configured sources (MusicBrainz, TheAudioDB).</summary>
+    [HttpPost("albums/{albumId:guid}/search-art")]
+    public async Task<IActionResult> SearchArtCandidates(Guid albumId, [FromBody] FetchArtSearchRequest request)
+    {
+        var caller = GetAuthenticatedCaller();
+        try
+        {
+            // Pre-fill from DB if the request doesn't have complete info
+            if (string.IsNullOrWhiteSpace(request.AlbumTitle) || string.IsNullOrWhiteSpace(request.ArtistName))
+            {
+                var album = await _albumService.GetAlbumAsync(albumId, caller);
+                if (album is null)
+                    return NotFound(ErrorEnvelope(ErrorCodes.MusicAlbumNotFound, "Album not found."));
+
+                request = request with
+                {
+                    AlbumTitle = request.AlbumTitle ?? album.Title,
+                    ArtistName = request.ArtistName ?? album.ArtistName,
+                    Year = request.Year ?? album.Year
+                };
+            }
+
+            var results = await _enrichmentService.SearchArtCandidatesAsync(request);
+            return Ok(Envelope(results));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to search art candidates for album {AlbumId}", albumId);
+            return StatusCode(500, ErrorEnvelope("SearchFailed", "Failed to search for art candidates."));
+        }
+    }
+
+    /// <summary>Applies a selected art candidate to an album, downloading and saving the cover art.</summary>
+    [HttpPost("albums/{albumId:guid}/apply-art")]
+    public async Task<IActionResult> ApplyArtSelection(Guid albumId, [FromBody] FetchArtApplyRequest request)
+    {
+        var caller = GetAuthenticatedCaller();
+        try
+        {
+            var result = await _enrichmentService.ApplyArtSelectionAsync(albumId, request, caller);
+            if (result.Success)
+                return Ok(Envelope(new { applied = true, albumId }));
+            else
+                return BadRequest(ErrorEnvelope("ApplyFailed", result.ErrorMessage ?? "Failed to apply art."));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to apply art for album {AlbumId}", albumId);
+            return StatusCode(500, ErrorEnvelope("ApplyFailed", "Failed to apply art."));
+        }
+    }
+
     /// <summary>Gets the artist biography and external links.</summary>
     [HttpGet("artists/{artistId:guid}/bio")]
     public async Task<IActionResult> GetArtistBio(Guid artistId)

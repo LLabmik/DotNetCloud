@@ -136,6 +136,13 @@ public partial class MusicPage : IAsyncDisposable
     private ArtistBioDto? _artistBio;
     private string? _enrichmentToast;
 
+    // Fetch Art modal state
+    private bool _showFetchArtModal;
+    private Guid _fetchArtAlbumId;
+    private string _fetchArtAlbumTitle = string.Empty;
+    private string _fetchArtArtistName = string.Empty;
+    private int? _fetchArtYear;
+
     // Settings: enrichment toggles
     private bool _autoFetchMetadata = true;
     private bool _autoFetchAlbumArt = true;
@@ -1625,7 +1632,20 @@ public partial class MusicPage : IAsyncDisposable
                 ReplaceInList(_albums, updated);
                 ReplaceInList(_recentAlbums, updated);
                 ReplaceInList(_artistAlbums, updated);
-                _enrichmentToast = updated.HasCoverArt ? "Cover art fetched from MusicBrainz!" : "No cover art found on MusicBrainz.";
+
+                if (updated.HasCoverArt)
+                {
+                    _enrichmentToast = "Cover art fetched from MusicBrainz!";
+                }
+                else
+                {
+                    // No art found — show the Fetch Art modal with editable search fields
+                    _fetchArtAlbumId = albumId;
+                    _fetchArtAlbumTitle = updated.Title;
+                    _fetchArtArtistName = updated.ArtistName;
+                    _fetchArtYear = updated.Year;
+                    _showFetchArtModal = true;
+                }
             }
         }
         catch (Exception ex)
@@ -1639,6 +1659,32 @@ public partial class MusicPage : IAsyncDisposable
             _enrichingAlbumId = null;
             StateHasChanged();
         }
+    }
+
+    private async Task OnFetchArtModalClosed(FetchArtModalResult result)
+    {
+        _showFetchArtModal = false;
+        if (result.Success)
+        {
+            _enrichmentToast = "Cover art applied!";
+            // Reload album to display new art
+            if (_selectedAlbum is not null)
+            {
+                var updated = await AlbumService.GetAlbumAsync(_selectedAlbum.Id, _caller!);
+                if (updated is not null)
+                {
+                    _selectedAlbum = updated;
+                    ReplaceInList(_albums, updated);
+                    ReplaceInList(_recentAlbums, updated);
+                    ReplaceInList(_artistAlbums, updated);
+                }
+            }
+        }
+        else
+        {
+            _enrichmentToast = "No cover art was applied.";
+        }
+        StateHasChanged();
     }
 
     private async Task EnrichArtistAsync(Guid artistId)

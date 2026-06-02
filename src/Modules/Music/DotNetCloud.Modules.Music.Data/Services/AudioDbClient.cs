@@ -25,6 +25,46 @@ public sealed class AudioDbClient : IAudioDbClient
     }
 
     /// <inheritdoc/>
+    public async Task<IReadOnlyList<AudioDbAlbumResult>?> SearchAlbumAsync(string albumTitle, string artistName, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var encodedArtist = Uri.EscapeDataString(artistName);
+            var encodedAlbum = Uri.EscapeDataString(albumTitle);
+            var response = await _httpClient.GetFromJsonAsync<AudioDbAlbumSearchResponse>(
+                $"searchalbum.php?s={encodedArtist}&a={encodedAlbum}",
+                cancellationToken);
+
+            var results = response?.Album;
+            if (results is null || results.Count == 0)
+            {
+                _logger.LogDebug("No TheAudioDB album found for '{AlbumTitle}' by '{ArtistName}'", albumTitle, artistName);
+                return [];
+            }
+
+            return results.Select(a => new AudioDbAlbumResult
+            {
+                AlbumId = a.IdAlbum ?? string.Empty,
+                AlbumTitle = a.StrAlbum ?? albumTitle,
+                ArtistName = a.StrArtist ?? artistName,
+                ThumbnailUrl = string.IsNullOrEmpty(a.StrAlbumThumb) ? null : a.StrAlbumThumb,
+                Year = int.TryParse(a.IntYearReleased, out var y) ? y : null,
+                Description = string.IsNullOrEmpty(a.StrDescriptionEN) ? null : a.StrDescriptionEN
+            }).ToList();
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogWarning(ex, "TheAudioDB album search failed for '{AlbumTitle}' by '{ArtistName}'", albumTitle, artistName);
+            return null;
+        }
+        catch (System.Text.Json.JsonException ex)
+        {
+            _logger.LogWarning(ex, "Failed to deserialize TheAudioDB album search response for '{AlbumTitle}' by '{ArtistName}'", albumTitle, artistName);
+            return null;
+        }
+    }
+
+    /// <inheritdoc/>
     public async Task<AudioDbArtistArtwork?> GetArtistArtworkAsync(string musicBrainzId, CancellationToken cancellationToken = default)
     {
         try
@@ -81,5 +121,34 @@ public sealed class AudioDbClient : IAudioDbClient
 
         [JsonPropertyName("strArtistFanart")]
         public string? StrArtistFanart { get; init; }
+    }
+
+    // ── Album search JSON response DTOs ─────────────────────────
+
+    private sealed record AudioDbAlbumSearchResponse
+    {
+        [JsonPropertyName("album")]
+        public List<AudioDbAlbumEntry>? Album { get; init; }
+    }
+
+    private sealed record AudioDbAlbumEntry
+    {
+        [JsonPropertyName("idAlbum")]
+        public string? IdAlbum { get; init; }
+
+        [JsonPropertyName("strAlbum")]
+        public string? StrAlbum { get; init; }
+
+        [JsonPropertyName("strArtist")]
+        public string? StrArtist { get; init; }
+
+        [JsonPropertyName("strAlbumThumb")]
+        public string? StrAlbumThumb { get; init; }
+
+        [JsonPropertyName("strDescriptionEN")]
+        public string? StrDescriptionEN { get; init; }
+
+        [JsonPropertyName("intYearReleased")]
+        public string? IntYearReleased { get; init; }
     }
 }

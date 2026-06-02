@@ -211,6 +211,236 @@ public sealed class MetadataEnrichmentService : IMetadataEnrichmentService
     }
 
     /// <inheritdoc/>
+    public async Task<IReadOnlyList<FetchArtSearchResult>> SearchArtCandidatesAsync(FetchArtSearchRequest request, CancellationToken cancellationToken = default)
+    {
+        var results = new List<FetchArtSearchResult>();
+
+        // ── Search MusicBrainz in parallel ──
+        var musicBrainzTask = SearchMusicBrainzAsync(request, cancellationToken);
+
+        // ── Search TheAudioDB in parallel ──
+        var audioDbTask = SearchAudioDbAsync(request, cancellationToken);
+
+        await Task.WhenAll(musicBrainzTask, audioDbTask);
+
+        if (musicBrainzTask.Result is { Count: > 0 })
+            results.AddRange(musicBrainzTask.Result);
+
+        if (audioDbTask.Result is { Count: > 0 })
+            results.AddRange(audioDbTask.Result);
+
+        // Deduplicate by title similarity within same source — keep highest score
+        results = [.. results
+            .GroupBy(r => (r.Source, r.Title.ToLowerInvariant()))
+            .Select(g => g.OrderByDescending(r => r.Score).First())
+            .OrderByDescending(r => r.Score)];
+
+        return results;
+    }
+
+    /// <summary>
+    /// Searches MusicBrainz release groups using the provided request parameters.
+    /// Uses the same search strategy as <see cref="EnrichAlbumAsync"/> but returns
+    /// all qualifying results instead of taking only the top one.
+    /// </summary>
+    private async Task<IReadOnlyList<FetchArtSearchResult>?> SearchMusicBrainzAsync(FetchArtSearchRequest request, CancellationToken cancellationToken)
+    {
+        IReadOnlyList<MusicBrainzReleaseGroupResult>? releaseGroups;
+
+        // Priority 1: Artist MBID search (most precise)
+        if (request.ArtistMbid is not null)
+            releaseGroups = await _musicBrainzClient.SearchReleaseGroupByArtistMbidAsync(request.ArtistMbid, request.AlbumTitle, cancellationToken);
+        else
+            releaseGroups = null;
+
+        // Priority 2: Text search fallback
+        releaseGroups ??= await _musicBrainzClient.SearchReleaseGroupAsync(request.AlbumTitle, request.ArtistName, cancellationToken);
+
+        if (releaseGroups is null || releaseGroups.Count == 0)
+            return [];
+
+        return releaseGroups
+            .Select(rg => new FetchArtSearchResult
+            {
+                Source = "MusicBrainz",
+                SourceId = rg.Id,
+                Title = rg.Title,
+                ArtistName = request.ArtistName,
+                PrimaryType = rg.PrimaryType,
+                Score = rg.Score,
+                ThumbnailUrl = null, // Thumbnails fetched during Apply to keep search fast
+                Year = request.Year
+            })
+            .ToList();
+    }
+
+    /// <summary>
+    /// Searches TheAudioDB for album art using the provided request parameters.
+    /// TheAudioDB returns cover art URLs directly in search results.
+    /// </summary>
+    private async Task<IReadOnlyList<FetchArtSearchResult>?> SearchAudioDbAsync(FetchArtSearchRequest request, CancellationToken cancellationToken)
+    {
+        var audioResults = await _audioDbClient.SearchAlbumAsync(request.AlbumTitle, request.ArtistName, cancellationToken);
+        if (audioResults is null || audioResults.Count == 0)
+            return [];
+
+        return audioResults
+            .Select((a, i) => new FetchArtSearchResult
+            {
+                Source = "TheAudioDB",
+                SourceId = a.AlbumId,
+                Title = a.AlbumTitle,
+                ArtistName = a.ArtistName,
+                PrimaryType = null,
+                Score = Math.Max(100 - i * 5, 50), // AudioDB doesn't provide scores — descending by position
+                ThumbnailUrl = a.ThumbnailUrl,
+                Year = a.Year
+            })
+            .ToList();
+    }
+
+    /// <inheritdoc/>
+    public async Task<ApplyArtResult> ApplyArtSelectionAsync(Guid albumId, FetchArtApplyRequest request, CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        var canonicalAlbum = await _db.CanonicalAlbums
+            .Include(a => a.AlbumArtists)
+            .ThenInclude(aa => aa.Artist)
+            .FirstOrDefaultAsync(a => a.Id == albumId, cancellationToken);
+
+        if (canonicalAlbum is null)
+        {
+            _logger.LogDebug("Album {AlbumId} not found for art application", albumId);
+            return new ApplyArtResult { Success = false, ErrorMessage = "Album not found." };
+        }
+
+        try
+        {
+            switch (request.Source)
+            {
+                case "MusicBrainz":
+                    return await ApplyMusicBrainzArtAsync(canonicalAlbum, request.SourceId, cancellationToken);
+
+                case "TheAudioDB":
+                    return await ApplyAudioDbArtAsync(canonicalAlbum, request.SourceId, request.ThumbnailUrl, cancellationToken);
+
+                default:
+                    _logger.LogWarning("Unknown art source '{Source}' for album {AlbumId}", request.Source, albumId);
+                    return new ApplyArtResult { Success = false, ErrorMessage = $"Unknown art source: {request.Source}." };
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Failed to apply art from {Source} for album {AlbumId}", request.Source, albumId);
+            return new ApplyArtResult { Success = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    /// <summary>
+    /// Applies art from a MusicBrainz release group: looks up releases, fetches cover from CAA, saves to storage.
+    /// </summary>
+    private async Task<ApplyArtResult> ApplyMusicBrainzArtAsync(Models.CanonicalAlbum canonicalAlbum, string releaseGroupId, CancellationToken cancellationToken)
+    {
+        // Get full release group details to find releases with cover art
+        var releaseGroup = await _musicBrainzClient.GetReleaseGroupAsync(releaseGroupId, cancellationToken);
+        if (releaseGroup?.Releases is not { Count: > 0 })
+        {
+            _logger.LogInformation("MusicBrainz release group {ReleaseGroupId} has no releases — can't fetch cover art", releaseGroupId);
+            return new ApplyArtResult { Success = false, ErrorMessage = "No releases found in this release group." };
+        }
+
+        var firstReleaseId = releaseGroup.Releases[0].Id;
+        canonicalAlbum.MusicBrainzReleaseGroupId = releaseGroupId;
+        canonicalAlbum.MusicBrainzReleaseId = firstReleaseId;
+
+        // Fetch cover art from Cover Art Archive
+        var coverArt = await _coverArtClient.GetFrontCoverFromReleasesAsync(releaseGroup.Releases, cancellationToken);
+        if (coverArt is null)
+        {
+            _logger.LogInformation("No cover art available on Cover Art Archive for release group {ReleaseGroupId}", releaseGroupId);
+            return new ApplyArtResult { Success = false, ErrorMessage = "No cover art found on Cover Art Archive." };
+        }
+
+        var artHash = CacheExternalArt(coverArt.Data, coverArt.MimeType);
+        if (artHash is null)
+        {
+            return new ApplyArtResult { Success = false, ErrorMessage = "Failed to cache cover art image." };
+        }
+
+        canonicalAlbum.HasCoverArt = true;
+        canonicalAlbum.CoverArtHash = artHash;
+        canonicalAlbum.MusicBrainzReleaseId = coverArt.ReleaseMbid;
+        canonicalAlbum.LastEnrichedAt = DateTime.UtcNow;
+        canonicalAlbum.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("Applied MusicBrainz cover art for album '{AlbumTitle}' from release {ReleaseMbid}",
+            canonicalAlbum.Title, coverArt.ReleaseMbid);
+
+        return new ApplyArtResult { Success = true };
+    }
+
+    /// <summary>
+    /// Applies art from TheAudioDB: downloads the image from the thumbnail URL and saves to storage.
+    /// </summary>
+    private async Task<ApplyArtResult> ApplyAudioDbArtAsync(Models.CanonicalAlbum canonicalAlbum, string albumId, string? thumbnailUrl, CancellationToken cancellationToken)
+    {
+        // Use the thumbnail URL passed from the search result. If missing, re-fetch from TheAudioDB.
+        var imageUrl = thumbnailUrl;
+        if (string.IsNullOrEmpty(imageUrl))
+        {
+            var artistName = canonicalAlbum.AlbumArtists.FirstOrDefault()?.Artist?.Name ?? "Unknown Artist";
+            var audioResults = await _audioDbClient.SearchAlbumAsync(canonicalAlbum.Title, artistName, cancellationToken);
+            var targetAlbum = audioResults?.FirstOrDefault(a => a.AlbumId == albumId);
+            imageUrl = targetAlbum?.ThumbnailUrl;
+        }
+
+        if (string.IsNullOrEmpty(imageUrl))
+        {
+            _logger.LogInformation("No thumbnail URL available on TheAudioDB for album {AlbumId}", albumId);
+            return new ApplyArtResult { Success = false, ErrorMessage = "No cover art URL available from TheAudioDB." };
+        }
+
+        // Download the image
+        byte[] imageData;
+        string mimeType;
+        using (var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(15) })
+        {
+            var response = await httpClient.GetAsync(imageUrl, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("Failed to download TheAudioDB cover art from {Url} (HTTP {StatusCode})",
+                    imageUrl, (int)response.StatusCode);
+                return new ApplyArtResult { Success = false, ErrorMessage = "Failed to download cover art image." };
+            }
+
+            imageData = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+            mimeType = response.Content.Headers.ContentType?.MediaType ?? "image/jpeg";
+        }
+
+        if (imageData.Length == 0)
+        {
+            return new ApplyArtResult { Success = false, ErrorMessage = "Downloaded image is empty." };
+        }
+
+        var artHash = CacheExternalArt(imageData, mimeType);
+        if (artHash is null)
+        {
+            return new ApplyArtResult { Success = false, ErrorMessage = "Failed to cache cover art image." };
+        }
+
+        canonicalAlbum.HasCoverArt = true;
+        canonicalAlbum.CoverArtHash = artHash;
+        canonicalAlbum.LastEnrichedAt = DateTime.UtcNow;
+        canonicalAlbum.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("Applied TheAudioDB cover art for album '{AlbumTitle}' (AudioDB ID: {AlbumId})",
+            canonicalAlbum.Title, albumId);
+
+        return new ApplyArtResult { Success = true };
+    }
+
+    /// <inheritdoc/>
     public async Task EnrichArtistAsync(Guid artistId, CallerContext caller, bool force = false, CancellationToken cancellationToken = default)
     {
         var canonicalArtist = await _db.CanonicalArtists.FindAsync([artistId], cancellationToken);
