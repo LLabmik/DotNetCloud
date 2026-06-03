@@ -12,6 +12,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
     <PackageReference Include="Moq" />
     <PackageReference Include="MSTest.TestAdapter" />
     <PackageReference Include="MSTest.TestFramework" />
@@ -25,6 +26,8 @@
     <ProjectReference Include="..\..\src\Modules\Contacts\DotNetCloud.Modules.Contacts\DotNetCloud.Modules.Contacts.csproj" />
     <ProjectReference Include="..\..\src\Modules\Calendar\DotNetCloud.Modules.Calendar\DotNetCloud.Modules.Calendar.csproj" />
     <ProjectReference Include="..\..\src\Modules\Notes\DotNetCloud.Modules.Notes\DotNetCloud.Modules.Notes.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Files\DotNetCloud.Modules.Files.Host\DotNetCloud.Modules.Files.Host.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Files\DotNetCloud.Modules.Files.Data\DotNetCloud.Modules.Files.Data.csproj" />
   </ItemGroup>
 
   <ItemGroup>

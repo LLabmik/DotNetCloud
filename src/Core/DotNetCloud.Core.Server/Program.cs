@@ -302,20 +302,15 @@ public class Program
         builder.Services.AddSingleton<IFileValidationService, FileValidationService>();
         builder.Services.AddSingleton<IModuleSchemaProvider, DbContextSchemaProvider>();
 
-        builder.Services.AddFilesServices(builder.Configuration);
-        builder.Services.AddChatServices(builder.Configuration);
-        builder.Services.AddNotesServices(builder.Configuration);
-        builder.Services.AddTracksServices(builder.Configuration);
-        builder.Services.AddPhotosServices(builder.Configuration);
-        builder.Services.AddMusicServices(builder.Configuration);
-        builder.Services.AddVideoServices(builder.Configuration);
-        builder.Services.AddAiServices(builder.Configuration);
-        builder.Services.AddSearchServices(builder.Configuration);
-        builder.Services.AddSearchFtsClient(builder.Configuration);
-        builder.Services.AddBookmarksServices(builder.Configuration);
-        builder.Services.AddEmailServices(builder.Configuration);
-        builder.Services.AddSingleton<DotNetCloud.Modules.Files.Data.Services.Background.IAdminSharedFolderReindexDispatcher>(sp =>
-            new InProcessAdminSharedFolderReindexDispatcher(sp.GetService<DotNetCloud.Modules.Search.Services.SearchReindexBackgroundService>()));
+        // NOTE: Module business services (AddXxxServices) are NO LONGER registered here.
+        // Modules now run as process-isolated gRPC services. The Core.Server communicates
+        // with them exclusively via gRPC clients defined in Grpc/Clients/.
+        // SearchFtsClient is also handled by the Search module host.
+        // builder.Services.AddSearchFtsClient(builder.Configuration); // removed — handled by Search module host
+        // TODO (Phase 6): Refactor InProcessAdminSharedFolderReindexDispatcher to use gRPC-based
+        // search indexing. The Search module is now process-isolated, so direct DI resolution
+        // of SearchReindexBackgroundService is no longer available.
+        // builder.Services.AddSingleton<IAdminSharedFolderReindexDispatcher>(sp => ...);
         // Register ISearchableModule implementations for search indexing
         builder.Services.AddScoped<DotNetCloud.Core.Capabilities.ISearchableModule, DotNetCloud.Modules.Files.Data.Services.FilesSearchableModule>();
         builder.Services.AddScoped<DotNetCloud.Core.Capabilities.ISearchableModule, DotNetCloud.Modules.Notes.Data.Services.NotesSearchableModule>();
@@ -430,20 +425,57 @@ public class Program
             cookieHandler.InnerHandler = new HttpClientHandler();
             return new HttpClient(cookieHandler) { BaseAddress = baseUri };
         });
-        // Contacts and Calendar gRPC client options (process-isolated modules)
+        // gRPC client options for all process-isolated modules
         builder.Services.Configure<DotNetCloud.Core.Server.Grpc.Clients.ContactsGrpcClientOptions>(
             builder.Configuration.GetSection(DotNetCloud.Core.Server.Grpc.Clients.ContactsGrpcClientOptions.SectionName));
         builder.Services.Configure<DotNetCloud.Core.Server.Grpc.Clients.CalendarGrpcClientOptions>(
             builder.Configuration.GetSection(DotNetCloud.Core.Server.Grpc.Clients.CalendarGrpcClientOptions.SectionName));
+        builder.Services.Configure<DotNetCloud.Core.Server.Grpc.Clients.ChatGrpcClientOptions>(
+            builder.Configuration.GetSection(DotNetCloud.Core.Server.Grpc.Clients.ChatGrpcClientOptions.SectionName));
+        builder.Services.Configure<DotNetCloud.Core.Server.Grpc.Clients.FilesGrpcClientOptions>(
+            builder.Configuration.GetSection(DotNetCloud.Core.Server.Grpc.Clients.FilesGrpcClientOptions.SectionName));
+        builder.Services.Configure<DotNetCloud.Core.Server.Grpc.Clients.NotesGrpcClientOptions>(
+            builder.Configuration.GetSection(DotNetCloud.Core.Server.Grpc.Clients.NotesGrpcClientOptions.SectionName));
+        builder.Services.Configure<DotNetCloud.Core.Server.Grpc.Clients.TracksGrpcClientOptions>(
+            builder.Configuration.GetSection(DotNetCloud.Core.Server.Grpc.Clients.TracksGrpcClientOptions.SectionName));
+        builder.Services.Configure<DotNetCloud.Core.Server.Grpc.Clients.MusicGrpcClientOptions>(
+            builder.Configuration.GetSection(DotNetCloud.Core.Server.Grpc.Clients.MusicGrpcClientOptions.SectionName));
+        builder.Services.Configure<DotNetCloud.Core.Server.Grpc.Clients.PhotosGrpcClientOptions>(
+            builder.Configuration.GetSection(DotNetCloud.Core.Server.Grpc.Clients.PhotosGrpcClientOptions.SectionName));
+        builder.Services.Configure<DotNetCloud.Core.Server.Grpc.Clients.VideoGrpcClientOptions>(
+            builder.Configuration.GetSection(DotNetCloud.Core.Server.Grpc.Clients.VideoGrpcClientOptions.SectionName));
+        builder.Services.Configure<DotNetCloud.Core.Server.Grpc.Clients.SearchGrpcClientOptions>(
+            builder.Configuration.GetSection(DotNetCloud.Core.Server.Grpc.Clients.SearchGrpcClientOptions.SectionName));
+        builder.Services.Configure<DotNetCloud.Core.Server.Grpc.Clients.BookmarksGrpcClientOptions>(
+            builder.Configuration.GetSection(DotNetCloud.Core.Server.Grpc.Clients.BookmarksGrpcClientOptions.SectionName));
+        builder.Services.Configure<DotNetCloud.Core.Server.Grpc.Clients.EmailGrpcClientOptions>(
+            builder.Configuration.GetSection(DotNetCloud.Core.Server.Grpc.Clients.EmailGrpcClientOptions.SectionName));
+        builder.Services.Configure<DotNetCloud.Core.Server.Grpc.Clients.AboutGrpcClientOptions>(
+            builder.Configuration.GetSection(DotNetCloud.Core.Server.Grpc.Clients.AboutGrpcClientOptions.SectionName));
+        builder.Services.Configure<DotNetCloud.Core.Server.Grpc.Clients.AiGrpcClientOptions>(
+            builder.Configuration.GetSection(DotNetCloud.Core.Server.Grpc.Clients.AiGrpcClientOptions.SectionName));
         builder.Services.AddSingleton<DotNetCloud.Core.Server.Grpc.Clients.ModuleEndpointProvider>();
 
+        // gRPC API client registrations (process-isolated modules)
+        // gRPC client registrations (process-isolated modules)
+        // ✅ Fully implemented gRPC clients
         builder.Services.AddScoped<DotNetCloud.Modules.Contacts.Services.IContactsApiClient, DotNetCloud.Core.Server.Grpc.Clients.ContactsGrpcApiClient>();
         builder.Services.AddScoped<DotNetCloud.Modules.Calendar.Services.ICalendarApiClient, DotNetCloud.Core.Server.Grpc.Clients.CalendarGrpcApiClient>();
-        builder.Services.AddScoped<DotNetCloud.Modules.Notes.Services.INotesApiClient, DotNetCloud.Modules.Notes.Services.NotesApiClient>();
+        builder.Services.AddScoped<DotNetCloud.Modules.Chat.Services.IChatApiClient, DotNetCloud.Core.Server.Grpc.Clients.ChatGrpcApiClient>();
+        builder.Services.AddScoped<DotNetCloud.Modules.Files.Services.IFilesApiClient, DotNetCloud.Core.Server.Grpc.Clients.FilesGrpcApiClient>();
+        builder.Services.AddScoped<DotNetCloud.Modules.Music.Services.IMusicApiClient, DotNetCloud.Core.Server.Grpc.Clients.MusicGrpcApiClient>();
+        builder.Services.AddScoped<DotNetCloud.Modules.Photos.Services.IPhotosApiClient, DotNetCloud.Core.Server.Grpc.Clients.PhotosGrpcApiClient>();
+        builder.Services.AddScoped<DotNetCloud.Modules.Video.Services.IVideoApiClient, DotNetCloud.Core.Server.Grpc.Clients.VideoGrpcApiClient>();
+        builder.Services.AddScoped<DotNetCloud.Modules.Search.Services.ISearchApiClient, DotNetCloud.Core.Server.Grpc.Clients.SearchGrpcApiClient>();
+        builder.Services.AddScoped<DotNetCloud.Modules.About.Services.IAboutApiClient, DotNetCloud.Core.Server.Grpc.Clients.AboutGrpcApiClient>();
+        builder.Services.AddScoped<DotNetCloud.Modules.AI.Services.IAiApiClient, DotNetCloud.Core.Server.Grpc.Clients.AiGrpcApiClient>();
+        // ✅ gRPC clients (newly implemented)
+        builder.Services.AddScoped<DotNetCloud.Modules.Notes.Services.INotesApiClient, DotNetCloud.Core.Server.Grpc.Clients.NotesGrpcApiClient>();
+        builder.Services.AddScoped<DotNetCloud.Modules.Bookmarks.Services.IBookmarksApiClient, DotNetCloud.Core.Server.Grpc.Clients.BookmarksGrpcApiClient>();
+        // ⚠️ Legacy in-process HTTP clients (TODO: gRPC proto expansion needed — see GRPC_MODULE_CONVERSION_PLAN.md)
         builder.Services.AddScoped<DotNetCloud.Modules.Tracks.Services.ITracksApiClient, DotNetCloud.Modules.Tracks.Services.TracksApiClient>();
-        builder.Services.AddScoped<DotNetCloud.Modules.Tracks.Services.IOnboardingStateService, DotNetCloud.Modules.Tracks.Services.OnboardingStateService>();
         builder.Services.AddScoped<DotNetCloud.Modules.Email.Services.IEmailApiClient, DotNetCloud.Modules.Email.Services.EmailApiClient>();
-        builder.Services.AddScoped<DotNetCloud.Modules.Bookmarks.Services.IBookmarksApiClient, DotNetCloud.Modules.Bookmarks.Services.BookmarksApiClient>();
+        builder.Services.AddScoped<DotNetCloud.Modules.Tracks.Services.IOnboardingStateService, DotNetCloud.Modules.Tracks.Services.OnboardingStateService>();
         builder.Services.AddScoped<DotNetCloudApiClient>();
 
         // Add OpenAPI/Swagger with DotNetCloud configuration

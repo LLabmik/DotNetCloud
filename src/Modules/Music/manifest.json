@@ -1,0 +1,18 @@
+{
+    "id": "dotnetcloud.music",
+    "name": "Music",
+    "version": "1.0.0",
+    "description": "Music library management, streaming, and playlist support.",
+    "author": "DotNetCloud",
+    "requiredCapabilities": [
+        "INotificationService",
+        "IUserDirectory",
+        "ICurrentUserContext",
+        "IAuditLogger"
+    ],
+    "publishedEvents": [
+        "TrackAddedEvent"
+    ],
+    "subscribedEvents": [],
+    "minCoreVersion": "1.0.0"
+}

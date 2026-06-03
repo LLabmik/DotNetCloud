@@ -31,11 +31,29 @@ service NotesGrpcService {
   // Lists folders for a user.
   rpc ListFolders (ListFoldersRequest) returns (ListFoldersResponse);
 
+  // Updates an existing folder.
+  rpc UpdateFolder (UpdateFolderRequest) returns (FolderResponse);
+
+  // Deletes a folder.
+  rpc DeleteFolder (DeleteFolderRequest) returns (DeleteFolderResponse);
+
+  // Renders markdown to HTML.
+  rpc RenderMarkdown (RenderMarkdownRequest) returns (RenderMarkdownResponse);
+
   // Gets version history for a note.
   rpc GetVersionHistory (GetVersionHistoryRequest) returns (VersionHistoryResponse);
 
   // Restores a note to a previous version.
   rpc RestoreVersion (RestoreVersionRequest) returns (NoteResponse);
+
+  // Lists shares for a note.
+  rpc ListShares (ListSharesRequest) returns (ListSharesResponse);
+
+  // Shares a note with a user.
+  rpc ShareNote (ShareNoteRequest) returns (ShareNoteResponse);
+
+  // Revokes a note share.
+  rpc RevokeShare (RevokeShareRequest) returns (RevokeShareResponse);
 
   // Returns all searchable documents for full reindex (streaming).
   rpc GetSearchableDocuments (GetSearchableDocumentsRequest) returns (stream SearchableDocument);
@@ -149,6 +167,80 @@ message ListFoldersResponse {
   bool success = 1;
   string error_message = 2;
   repeated FolderMessage folders = 3;
+}
+
+// --- UpdateFolder ---
+
+message UpdateFolderRequest {
+  string folder_id = 1;
+  string user_id = 2;
+  string name = 3;
+  string color = 4;
+}
+
+// --- DeleteFolder ---
+
+message DeleteFolderRequest {
+  string folder_id = 1;
+  string user_id = 2;
+}
+
+message DeleteFolderResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+// --- RenderMarkdown ---
+
+message RenderMarkdownRequest {
+  string markdown = 1;
+}
+
+message RenderMarkdownResponse {
+  string html = 1;
+}
+
+// --- Shares ---
+
+message ListSharesRequest {
+  string note_id = 1;
+  string user_id = 2;
+}
+
+message ListSharesResponse {
+  bool success = 1;
+  repeated NoteShareMessage shares = 2;
+}
+
+message NoteShareMessage {
+  string id = 1;
+  string note_id = 2;
+  string shared_with_user_id = 3;
+  string permission = 4;  // "ReadOnly", "ReadWrite"
+  string created_at = 5;
+}
+
+message ShareNoteRequest {
+  string note_id = 1;
+  string user_id = 2;
+  string target_user_id = 3;
+  string permission = 4;
+}
+
+message ShareNoteResponse {
+  bool success = 1;
+  string error_message = 2;
+  NoteShareMessage share = 3;
+}
+
+message RevokeShareRequest {
+  string share_id = 1;
+  string user_id = 2;
+}
+
+message RevokeShareResponse {
+  bool success = 1;
+  string error_message = 2;
 }
 
 // --- GetVersionHistory ---

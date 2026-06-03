@@ -2,7 +2,9 @@ using System.Globalization;
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Modules.Notes.Host.Protos;
+using DotNetCloud.Modules.Notes.Models;
 using DotNetCloud.Modules.Notes.Services;
+using DotNetCloud.UI.Shared.Services;
 using Grpc.Core;
 
 namespace DotNetCloud.Modules.Notes.Host.Services;
@@ -15,6 +17,8 @@ public sealed class NotesGrpcService : Protos.NotesGrpcService.NotesGrpcServiceB
 {
     private readonly INoteService _noteService;
     private readonly INoteFolderService _folderService;
+    private readonly INoteShareService _shareService;
+    private readonly IMarkdownRenderer _markdownRenderer;
     private readonly ILogger<NotesGrpcService> _logger;
 
     /// <summary>
@@ -23,10 +27,14 @@ public sealed class NotesGrpcService : Protos.NotesGrpcService.NotesGrpcServiceB
     public NotesGrpcService(
         INoteService noteService,
         INoteFolderService folderService,
+        INoteShareService shareService,
+        IMarkdownRenderer markdownRenderer,
         ILogger<NotesGrpcService> logger)
     {
         _noteService = noteService;
         _folderService = folderService;
+        _shareService = shareService;
+        _markdownRenderer = markdownRenderer;
         _logger = logger;
     }
 
@@ -257,6 +265,145 @@ public sealed class NotesGrpcService : Protos.NotesGrpcService.NotesGrpcServiceB
         catch (Exception ex) when (ex is Core.Errors.ValidationException)
         {
             return new NoteResponse { Success = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    /// <inheritdoc />
+    public override async Task<FolderResponse> UpdateFolder(
+        UpdateFolderRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.FolderId, out var folderId) ||
+            !Guid.TryParse(request.UserId, out var userId))
+            return new FolderResponse { Success = false, ErrorMessage = "Invalid ID format." };
+
+        try
+        {
+            var dto = new UpdateNoteFolderDto
+            {
+                Name = NullIfEmpty(request.Name),
+                Color = NullIfEmpty(request.Color)
+            };
+            var result = await _folderService.UpdateFolderAsync(
+                folderId, dto, new CallerContext(userId, ["user"], CallerType.User), context.CancellationToken);
+            return new FolderResponse { Success = true, Folder = ToFolderMessage(result) };
+        }
+        catch (Exception ex) when (ex is ArgumentException or Core.Errors.ValidationException)
+        {
+            return new FolderResponse { Success = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    /// <inheritdoc />
+    public override async Task<DeleteFolderResponse> DeleteFolder(
+        DeleteFolderRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.FolderId, out var folderId) ||
+            !Guid.TryParse(request.UserId, out var userId))
+            return new DeleteFolderResponse { Success = false, ErrorMessage = "Invalid ID format." };
+
+        try
+        {
+            await _folderService.DeleteFolderAsync(
+                folderId, new CallerContext(userId, ["user"], CallerType.User), context.CancellationToken);
+            return new DeleteFolderResponse { Success = true };
+        }
+        catch (Exception ex) when (ex is ArgumentException or Core.Errors.ValidationException)
+        {
+            return new DeleteFolderResponse { Success = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    /// <inheritdoc />
+    public override Task<RenderMarkdownResponse> RenderMarkdown(
+        RenderMarkdownRequest request, ServerCallContext context)
+    {
+        var html = _markdownRenderer.RenderToHtml(request.Markdown);
+        return Task.FromResult(new RenderMarkdownResponse { Html = html });
+    }
+
+    /// <inheritdoc />
+    public override async Task<ListSharesResponse> ListShares(
+        ListSharesRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.NoteId, out var noteId) ||
+            !Guid.TryParse(request.UserId, out var userId))
+            return new ListSharesResponse { Success = false };
+
+        try
+        {
+            var shares = await _shareService.ListSharesAsync(
+                noteId, new CallerContext(userId, ["user"], CallerType.User), context.CancellationToken);
+            var response = new ListSharesResponse { Success = true };
+            response.Shares.AddRange(shares.Select(s => new NoteShareMessage
+            {
+                Id = s.Id.ToString(),
+                NoteId = s.NoteId.ToString(),
+                SharedWithUserId = s.SharedWithUserId.ToString(),
+                Permission = s.Permission.ToString(),
+                CreatedAt = s.CreatedAt.ToString("O")
+            }));
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "ListShares gRPC handler failed");
+            return new ListSharesResponse { Success = false };
+        }
+    }
+
+    /// <inheritdoc />
+    public override async Task<ShareNoteResponse> ShareNote(
+        ShareNoteRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.NoteId, out var noteId) ||
+            !Guid.TryParse(request.UserId, out var userId) ||
+            !Guid.TryParse(request.TargetUserId, out var targetUserId))
+            return new ShareNoteResponse { Success = false, ErrorMessage = "Invalid ID format." };
+
+        var permission = Enum.TryParse<NoteSharePermission>(request.Permission, true, out var perm)
+            ? perm : NoteSharePermission.ReadOnly;
+
+        try
+        {
+            var result = await _shareService.ShareNoteAsync(
+                noteId, targetUserId, permission,
+                new CallerContext(userId, ["user"], CallerType.User), context.CancellationToken);
+            return new ShareNoteResponse
+            {
+                Success = true,
+                Share = new NoteShareMessage
+                {
+                    Id = result.Id.ToString(),
+                    NoteId = result.NoteId.ToString(),
+                    SharedWithUserId = result.SharedWithUserId.ToString(),
+                    Permission = result.Permission.ToString(),
+                    CreatedAt = result.CreatedAt.ToString("O")
+                }
+            };
+        }
+        catch (Exception ex) when (ex is ArgumentException or Core.Errors.ValidationException)
+        {
+            return new ShareNoteResponse { Success = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    /// <inheritdoc />
+    public override async Task<RevokeShareResponse> RevokeShare(
+        RevokeShareRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.ShareId, out var shareId) ||
+            !Guid.TryParse(request.UserId, out var userId))
+            return new RevokeShareResponse { Success = false, ErrorMessage = "Invalid ID format." };
+
+        try
+        {
+            await _shareService.RemoveShareAsync(
+                shareId, new CallerContext(userId, ["user"], CallerType.User), context.CancellationToken);
+            return new RevokeShareResponse { Success = true };
+        }
+        catch (Exception ex) when (ex is ArgumentException or Core.Errors.ValidationException)
+        {
+            return new RevokeShareResponse { Success = false, ErrorMessage = ex.Message };
         }
     }
 

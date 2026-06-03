@@ -1,0 +1,19 @@
+{
+    "id": "dotnetcloud.email",
+    "name": "Email",
+    "version": "1.0.0",
+    "description": "Email client with IMAP/POP3 sync, sending, rules, and Gmail OAuth support.",
+    "author": "DotNetCloud",
+    "requiredCapabilities": [
+        "INotificationService",
+        "IUserDirectory",
+        "ICurrentUserContext",
+        "IAuditLogger"
+    ],
+    "publishedEvents": [
+        "EmailReceivedEvent",
+        "EmailSentEvent"
+    ],
+    "subscribedEvents": [],
+    "minCoreVersion": "1.0.0"
+}

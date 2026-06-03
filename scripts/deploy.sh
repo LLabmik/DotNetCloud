@@ -24,7 +24,7 @@ dotnet publish "$REPO_ROOT/src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Ser
 
 # Deploy module hosts
 echo "[3/5] Publishing module hosts..."
-for module in Contacts Calendar; do
+for module in Contacts Calendar Chat Files Notes Tracks Music Photos Video Search Bookmarks Email About AI; do
     module_lower=$(echo "$module" | tr '[:upper:]' '[:lower:]')
     dotnet publish "$REPO_ROOT/src/Modules/$module/DotNetCloud.Modules.$module.Host/DotNetCloud.Modules.$module.Host.csproj" \
         -c "$CONFIG" -o "$MODULES_DIR/dotnetcloud.$module_lower" --no-self-contained \

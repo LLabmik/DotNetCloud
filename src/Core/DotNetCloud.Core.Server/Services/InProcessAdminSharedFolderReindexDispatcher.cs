@@ -5,6 +5,12 @@ namespace DotNetCloud.Core.Server.Services;
 
 /// <summary>
 /// Reindex dispatcher that triggers the in-process Search background service.
+/// ⚠️ TODO (Phase 6): Refactor to use gRPC-based search reindexing.
+/// The Search module is now process-isolated, so direct DI resolution of
+/// SearchReindexBackgroundService will not work at runtime. This class needs
+/// to be replaced with a gRPC-based implementation that calls the Search
+/// module's reindex RPC endpoint.
+/// Currently NOT registered in DI — see Program.cs TODO comment.
 /// </summary>
 internal sealed class InProcessAdminSharedFolderReindexDispatcher : IAdminSharedFolderReindexDispatcher
 {

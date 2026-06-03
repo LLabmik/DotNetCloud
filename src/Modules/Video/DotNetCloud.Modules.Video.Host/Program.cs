@@ -3,9 +3,28 @@ using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Video;
 using DotNetCloud.Modules.Video.Data;
 using DotNetCloud.Modules.Video.Host.Services;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Load shared config from DOTNETCLOUD_CONFIG_DIR
+var configDir = Environment.GetEnvironmentVariable("DOTNETCLOUD_CONFIG_DIR");
+if (!string.IsNullOrEmpty(configDir))
+{
+    var p = Path.Combine(configDir, "config.json");
+    if (File.Exists(p))
+        builder.Configuration.AddJsonFile(p, optional: true, reloadOnChange: false);
+}
+
+// Bind gRPC endpoint from DOTNETCLOUD_GRPC_ENDPOINT (set by ProcessSupervisor)
+var grpcEndpoint = Environment.GetEnvironmentVariable("DOTNETCLOUD_GRPC_ENDPOINT");
+if (!string.IsNullOrEmpty(grpcEndpoint))
+{
+    var uri = new Uri(grpcEndpoint.Replace("unix://", "http://").Replace("net.pipe://", "http://"));
+    builder.WebHost.ConfigureKestrel(o =>
+        o.Listen(System.Net.IPAddress.Loopback, uri.Port, l => l.Protocols = HttpProtocols.Http2));
+}
 
 // Register the module as singleton
 builder.Services.AddSingleton<VideoModule>();
@@ -73,6 +92,7 @@ var app = builder.Build();
 
 // Map gRPC services
 app.MapGrpcService<VideoGrpcServiceImpl>();
+app.MapGrpcService<VideoLifecycleService>();
 
 // Map REST API controllers
 app.MapControllers();

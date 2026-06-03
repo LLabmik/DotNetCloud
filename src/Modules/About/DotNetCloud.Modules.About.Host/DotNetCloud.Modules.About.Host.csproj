@@ -7,10 +7,16 @@
     <RootNamespace>DotNetCloud.Modules.About.Host</RootNamespace>
     <AssemblyName>dotnetcloud.about</AssemblyName>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <PublishWithPackageReferences>false</PublishWithPackageReferences>
+    <PublishReadyToCompile>false</PublishReadyToCompile>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Grpc.AspNetCore" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Protobuf Include="Protos\about_service.proto" GrpcServices="Server" />
   </ItemGroup>
 
   <ItemGroup>

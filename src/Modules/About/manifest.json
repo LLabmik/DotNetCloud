@@ -1,0 +1,11 @@
+{
+    "id": "dotnetcloud.about",
+    "name": "About",
+    "version": "1.0.0",
+    "description": "System information, version, and license status.",
+    "author": "DotNetCloud",
+    "requiredCapabilities": [],
+    "publishedEvents": [],
+    "subscribedEvents": [],
+    "minCoreVersion": "1.0.0"
+}

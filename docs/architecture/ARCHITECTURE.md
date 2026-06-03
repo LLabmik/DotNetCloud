@@ -108,6 +108,21 @@ dotnetcloud (core process — supervisor)
 | Windows           | Named Pipes                                     |
 | Docker/Kubernetes | TCP localhost (fallback)                        |
 
+#### ⚠️ Inter-Module Communication Policy (MANDATORY)
+
+All inter-module communication **MUST** use gRPC exclusively. This is a hard architectural requirement, not a guideline.
+
+- Modules **MUST NOT** reference each other's Host projects as `<ProjectReference>`
+- Modules **MUST NOT** resolve each other's services from the DI container
+- Modules **MUST NOT** access each other's databases directly
+- The **ONLY** allowed cross-module communication is:
+  - gRPC calls (for request/response operations)
+  - Event bus messages (for pub/sub notifications — event bus itself relays via gRPC)
+- Violation is a **HARD BLOCKER** for PR approval
+- First-party modules use the **same gRPC interface** as third-party modules (dogfooding)
+
+> ⚠️ **ENFORCEMENT:** Any module that communicates with another module via direct in-process calls, shared DI, or direct database access will be rejected in code review. The Contacts → Calendar cross-module gRPC pattern (Calendar.Host uses `ContactsGrpcClient` to call the Contacts module) is the **ONLY** acceptable pattern.
+
 ### Process Supervisor Responsibilities
 
 - Spawn module processes on startup based on enabled modules
@@ -129,7 +144,7 @@ dotnetcloud (core process — supervisor)
 | ---------- | ------------------ | --------------------------------------------- |
 | PostgreSQL | ✅ Initial release | Npgsql (PostgreSQL License)                   |
 | SQL Server | ✅ Initial release | Microsoft.EntityFrameworkCore.SqlServer (MIT) |
-|  |
+|            |
 | Oracle     | 🔜 Future          | Oracle.EntityFrameworkCore                    |
 
 ### Schema Isolation
@@ -140,7 +155,7 @@ Each module owns its own `DbContext` with its own tables. Modules never share da
 | ---------- | ----------------------------------------------------- |
 | PostgreSQL | Separate schemas (`files.*`, `chat.*`)                |
 | SQL Server | Separate schemas (`files.Documents`, `chat.Messages`) |
-|  |
+|            |
 
 A configurable table naming strategy defaults to prefixes for universal compatibility, with real schemas on Postgres/SQL Server.
 

@@ -1,0 +1,18 @@
+{
+    "id": "dotnetcloud.video",
+    "name": "Video",
+    "version": "1.0.0",
+    "description": "Video library management with collections, metadata enrichment, and streaming.",
+    "author": "DotNetCloud",
+    "requiredCapabilities": [
+        "INotificationService",
+        "IUserDirectory",
+        "ICurrentUserContext",
+        "IAuditLogger"
+    ],
+    "publishedEvents": [
+        "VideoUploadedEvent"
+    ],
+    "subscribedEvents": [],
+    "minCoreVersion": "1.0.0"
+}

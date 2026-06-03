@@ -1,0 +1,20 @@
+{
+    "id": "dotnetcloud.files",
+    "name": "Files",
+    "version": "1.0.0",
+    "description": "File storage, sharing, versioning, sync, and Collabora Office integration.",
+    "author": "DotNetCloud",
+    "requiredCapabilities": [
+        "INotificationService",
+        "IUserDirectory",
+        "ICurrentUserContext",
+        "IAuditLogger",
+        "ISearchProvider"
+    ],
+    "publishedEvents": [
+        "FileUploadedEvent",
+        "FileSharedEvent"
+    ],
+    "subscribedEvents": [],
+    "minCoreVersion": "1.0.0"
+}

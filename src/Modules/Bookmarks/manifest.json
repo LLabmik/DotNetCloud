@@ -1,0 +1,18 @@
+{
+    "id": "dotnetcloud.bookmarks",
+    "name": "Bookmarks",
+    "version": "1.0.0",
+    "description": "Bookmark management with folders, previews, import/export, and full-text search.",
+    "author": "DotNetCloud",
+    "requiredCapabilities": [
+        "INotificationService",
+        "IUserDirectory",
+        "ICurrentUserContext",
+        "IAuditLogger"
+    ],
+    "publishedEvents": [
+        "BookmarkCreatedEvent"
+    ],
+    "subscribedEvents": [],
+    "minCoreVersion": "1.0.0"
+}

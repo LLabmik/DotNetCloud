@@ -1,0 +1,19 @@
+{
+    "id": "dotnetcloud.chat",
+    "name": "Chat",
+    "version": "1.0.0",
+    "description": "Real-time messaging with channels, direct messages, reactions, and video calls.",
+    "author": "DotNetCloud",
+    "requiredCapabilities": [
+        "INotificationService",
+        "IUserDirectory",
+        "ICurrentUserContext",
+        "IAuditLogger"
+    ],
+    "publishedEvents": [
+        "MessageSentEvent",
+        "ChannelCreatedEvent"
+    ],
+    "subscribedEvents": [],
+    "minCoreVersion": "1.0.0"
+}

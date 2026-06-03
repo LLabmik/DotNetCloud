@@ -382,6 +382,20 @@ public class MyModuleDbContext : DbContext
 
 ## gRPC Communication
 
+> ⚠️ **MANDATORY: gRPC is the ONLY allowed inter-module communication mechanism.** Direct in-process calls, shared DI container references, and direct cross-module database access are FORBIDDEN. All current and future modules MUST communicate exclusively via gRPC.
+
+Every module **MUST** have:
+
+- ☐ A `.proto` file in `Host/Protos/` defining all RPCs
+- ☐ A `GrpcService` class implementing the generated base class
+- ☐ A `LifecycleService` class extending `ModuleLifecycle.ModuleLifecycleBase`
+- ☐ A `manifest.json` at the module root declaring capabilities and events
+- ☐ A gRPC API client interface (`IXxxApiClient`) in the module's main project
+- ☐ A gRPC API client implementation (`XxxGrpcApiClient`) in `Core.Server/Grpc/Clients/`
+- ☐ A `Program.cs` in the Host project that handles `DOTNETCLOUD_CONFIG_DIR` and `DOTNETCLOUD_GRPC_ENDPOINT`
+- ☐ NO direct `<ProjectReference>` from `Core.Server.csproj` to the module's Host project
+- ☐ `AssemblyName` in Host `.csproj` set to `dotnetcloud.{module-id}`
+
 Modules communicate with the core server over gRPC.
 
 ### Defining a Service

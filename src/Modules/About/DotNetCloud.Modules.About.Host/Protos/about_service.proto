@@ -1,0 +1,20 @@
+syntax = "proto3";
+option csharp_namespace = "DotNetCloud.Modules.About.Host.Protos";
+package dotnetcloud.about;
+
+service AboutService {
+  rpc GetAboutInfo (GetAboutInfoRequest) returns (AboutInfoResponse);
+}
+
+message GetAboutInfoRequest { string user_id = 1; }
+
+message AboutInfoResponse {
+  bool success = 1;
+  string error_message = 2;
+  string version = 3;
+  string environment = 4;
+  string runtime_version = 5;
+  string os_description = 6;
+  string license_status = 7;
+  string uptime = 8;
+}

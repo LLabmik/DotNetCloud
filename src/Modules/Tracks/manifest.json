@@ -1,0 +1,19 @@
+{
+    "id": "dotnetcloud.tracks",
+    "name": "Tracks",
+    "version": "1.0.0",
+    "description": "Project management with products, work items, sprints, and team collaboration.",
+    "author": "DotNetCloud",
+    "requiredCapabilities": [
+        "INotificationService",
+        "IUserDirectory",
+        "ICurrentUserContext",
+        "IAuditLogger",
+        "IOrganizationDirectory"
+    ],
+    "publishedEvents": [
+        "WorkItemCreatedEvent"
+    ],
+    "subscribedEvents": [],
+    "minCoreVersion": "1.0.0"
+}

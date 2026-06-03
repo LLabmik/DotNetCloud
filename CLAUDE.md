@@ -79,6 +79,10 @@ docs/
   IMPLEMENTATION_CHECKLIST.md       # Task checklist across all phases
 ```
 
+### gRPC Communication (MANDATORY)
+
+All current and future modules **MUST** run as process-isolated processes communicating exclusively via gRPC. Direct in-process calls between modules, shared DI container references, and direct cross-module database access are **FORBIDDEN**. This is enforced in code review.
+
 ### Core Abstractions (`DotNetCloud.Core`)
 
 - **Capability system** — Hierarchical tier model: Public → Restricted → Privileged → Forbidden. All module access is mediated through typed capability interfaces (`ICapabilityInterface`).

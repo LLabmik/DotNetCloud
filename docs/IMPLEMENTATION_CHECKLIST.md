@@ -1172,6 +1172,67 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 
 ---
 
+## Phase 0.19: gRPC Module Conversion Enforcement
+
+### Documentation Mandate
+
+- ☐ Update ARCHITECTURE.md with gRPC-only inter-module communication policy
+- ☐ Update MODULE_DEVELOPMENT.md with mandatory checklist and gRPC mandate
+- ☐ Update CLAUDE.md with gRPC architecture rule
+- ☐ Update .github/copilot-instructions.md with gRPC-only communication rule
+
+### About Module (No Database — Simplest)
+
+- ☐ Create `about_service.proto` and `AboutGrpcService`
+- ☐ Create `IAboutApiClient` interface
+- ☐ Create `AboutGrpcApiClient` in Core.Server
+- ☐ Create `manifest.json`
+- ☐ Update Program.cs with config env vars
+- ☐ Update .csproj with publish settings + Protobuf
+
+### AI Module (Database + Streaming)
+
+- ☐ Create `ai_service.proto` with streaming RPCs
+- ☐ Create `AiGrpcService` and `AiLifecycleService`
+- ☐ Create `IAiApiClient` interface
+- ☐ Create `AiGrpcApiClient` with streaming support
+- ☐ Update Program.cs with config-driven DB + env vars
+- ☐ Update .csproj with Protobuf
+
+### Music, Photos, Video, Search Modules (Missing LifecycleService)
+
+- ☐ Create `XxxLifecycleService` for each
+- ☐ Create `IXxxApiClient` interface for each
+- ☐ Create `XxxGrpcApiClient` in Core.Server for each
+- ☐ Create `manifest.json` for each
+- ☐ Update Program.cs with config env vars + config-driven DB
+- ☐ Update .csproj with publish settings
+
+### Chat, Files, Notes, Tracks, Bookmarks, Email Modules (Full Infra)
+
+- ☐ Create `IXxxApiClient` interface for missing ones
+- ☐ Create `XxxGrpcApiClient` in Core.Server for each
+- ☐ Create `manifest.json` for missing ones
+- ☐ Update Host Program.cs with config env vars
+- ☐ Update Host manifests
+
+### Core.Server Conversion
+
+- ☐ Remove all `.Host` ProjectReferences from csproj
+- ☐ Add gRPC client proto references for all 12 modules
+- ☐ Remove all `AddXxxServices()` calls from Program.cs
+- ☐ Replace in-process API clients with gRPC clients
+- ☐ Add options bindings for all gRPC clients
+- ☐ Register new gRPC API clients
+
+### Cross-Cutting Refactoring
+
+- ☐ Refactor `ISearchableModule` registrations
+- ☐ Refactor `InProcessAdminSharedFolderReindexDispatcher`
+- ☐ Update deployment scripts
+
+---
+
 ## Phase 0.18: CI/CD Pipeline Setup
 
 ### Build Pipeline

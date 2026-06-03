@@ -26,6 +26,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Protobuf Include="Protos\ai_service.proto" GrpcServices="Server" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\DotNetCloud.Modules.AI\DotNetCloud.Modules.AI.csproj" />
     <ProjectReference Include="..\DotNetCloud.Modules.AI.Data\DotNetCloud.Modules.AI.Data.csproj" />
     <ProjectReference Include="..\..\..\Core\DotNetCloud.Core.Grpc\DotNetCloud.Core.Grpc.csproj" />
