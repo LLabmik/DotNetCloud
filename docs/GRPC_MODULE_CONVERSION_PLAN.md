@@ -23,13 +23,13 @@
 
 These have proto + GrpcService + LifecycleService, but Core.Server still references their Host project and calls `AddXxxServices()` directly.
 
-| Module    | Proto                              | GrpcService                                   | LifecycleService            | gRPC Client | manifest.json |
-| --------- | ---------------------------------- | --------------------------------------------- | --------------------------- | ----------- | ------------- |
-| Chat      | `chat_service.proto` (Server)      | `ChatGrpcService : ChatServiceBase`           | `ChatLifecycleService`      | ❌          | ❌            |
-| Files     | `files_service.proto` (Both)       | `FilesGrpcService : FilesServiceBase`         | `FilesLifecycleService`     | ❌          | ❌            |
-| Notes     | `notes_service.proto` (Server)     | `NotesGrpcService : NotesGrpcServiceBase`     | `NotesLifecycleService`     | ❌          | ✓             |
-| Tracks    | `tracks_service.proto` (Server)    | `TracksGrpcService : TracksGrpcServiceBase`   | `TracksLifecycleService`    | ❌          | ❌            |
-| Bookmarks | `bookmarks_service.proto` (Server) | `BookmarksGrpcService : BookmarksServiceBase` | `BookmarksLifecycleService` | ❌          | ❌            |
+| Module    | Proto                              | GrpcService                                   | LifecycleService            | gRPC Client               | manifest.json |
+| --------- | ---------------------------------- | --------------------------------------------- | --------------------------- | ------------------------- | ------------- |
+| Chat      | `chat_service.proto` (Server)      | `ChatGrpcService : ChatServiceBase`           | `ChatLifecycleService`      | ❌                        | ❌            |
+| Files     | `files_service.proto` (Both)       | `FilesGrpcService : FilesServiceBase`         | `FilesLifecycleService`     | ❌                        | ❌            |
+| Notes     | `notes_service.proto` (Server)     | `NotesGrpcService : NotesGrpcServiceBase`     | `NotesLifecycleService`     | ❌                        | ✓             |
+| Tracks    | `tracks_service.proto` (Server)    | `TracksGrpcService : TracksGrpcServiceBase`   | `TracksLifecycleService`    | ❌                        | ❌            |
+| Bookmarks | `bookmarks_service.proto` (Server) | `BookmarksGrpcService : BookmarksServiceBase` | `BookmarksLifecycleService` | ❌                        | ❌            |
 | Email     | `email_service.proto` (Server)     | `EmailGrpcService : EmailServiceBase`         | `EmailLifecycleService`     | ✓ (full, incl. streaming) | ❌            |
 
 ### 1.3 Partial gRPC Infra — Missing LifecycleService

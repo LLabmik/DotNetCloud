@@ -309,7 +309,7 @@ public class Program
         // SearchFtsClient is also handled by the Search module host.
         // builder.Services.AddSearchFtsClient(builder.Configuration); // removed — handled by Search module host
         // ✅ Phase 6: gRPC-based reindex dispatcher — calls Search module's ReindexModule RPC
-        builder.Services.AddSingleton<IAdminSharedFolderReindexDispatcher, InProcessAdminSharedFolderReindexDispatcher>();
+        builder.Services.AddScoped<IAdminSharedFolderReindexDispatcher, InProcessAdminSharedFolderReindexDispatcher>();
         // Register ISearchableModule implementations for search indexing
         builder.Services.AddScoped<DotNetCloud.Core.Capabilities.ISearchableModule, DotNetCloud.Modules.Files.Data.Services.FilesSearchableModule>();
         builder.Services.AddScoped<DotNetCloud.Core.Capabilities.ISearchableModule, DotNetCloud.Modules.Notes.Data.Services.NotesSearchableModule>();
