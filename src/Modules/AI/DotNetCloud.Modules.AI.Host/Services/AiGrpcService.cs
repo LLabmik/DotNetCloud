@@ -166,8 +166,8 @@ public sealed class AiGrpcService : AiService.AiServiceBase
                 Model = response.Model,
                 Content = response.Message.Content,
                 Done = response.Done,
-                PromptEvalCount = response.PromptEvalCount,
-                EvalCount = response.EvalCount
+                PromptEvalCount = response.PromptEvalCount ?? 0,
+                EvalCount = response.EvalCount ?? 0
             };
         }
         catch (Exception ex)
@@ -193,7 +193,7 @@ public sealed class AiGrpcService : AiService.AiServiceBase
             {
                 Content = chunk.Content,
                 Done = chunk.Done,
-                EvalCount = chunk.EvalCount
+                EvalCount = chunk.EvalCount ?? 0
             });
         }
     }

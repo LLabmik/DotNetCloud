@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <Protobuf Include="Protos\email_service.proto" GrpcServices="Server" />
+    <Protobuf Include="..\..\Files\DotNetCloud.Modules.Files.Host\Protos\files_service.proto" GrpcServices="Client" Link="Protos\files_service.proto" />
   </ItemGroup>
 
   <ItemGroup>

@@ -534,6 +534,11 @@ public class Program
         // Register initialization services
         builder.Services.AddScoped<AdminSeeder>();
         builder.Services.AddScoped<OidcClientSeeder>();
+
+        // Push notification service (no-op in Core.Server — handled by Chat module gRPC)
+        builder.Services.AddSingleton<DotNetCloud.Modules.Chat.Services.IPushNotificationService,
+            DotNetCloud.Core.Server.Services.NoOpPushNotificationService>();
+
         builder.Services.AddHostedService<ModuleUiRegistrationHostedService>();
         builder.Services.AddHostedService<NotificationEventSubscriber>();
         builder.Services.AddHostedService<SearchEventSubscriber>();

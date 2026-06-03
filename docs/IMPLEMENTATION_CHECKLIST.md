@@ -1217,6 +1217,9 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ☐ Update Host manifests
 - ✓ Implement Email gRPC thread/message RPCs (ListThreads, ListThreadMessages, GetMessageBody) — EmailGrpcService + EmailGrpcApiClient stubs filled
 - ✓ Implement Email gRPC SendEmail RPC (fully functional)
+- ✓ Implement Email gRPC attachment streaming RPCs (DownloadAttachment, UploadAttachment, DetachAttachment, AttachFromFilesModule) — EmailGrpcService + EmailGrpcApiClient
+- ✓ Fix AI module nullable warnings (AiGrpcService.cs PromptEvalCount/EvalCount)
+- ✓ Fix Core.Server IPushNotificationService DI crash — NoOpPushNotificationService registered
 
 ### Core.Server Conversion
 

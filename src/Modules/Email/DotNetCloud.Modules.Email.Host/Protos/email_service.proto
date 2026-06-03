@@ -37,6 +37,12 @@ service EmailService {
   rpc DeleteRule (DeleteRuleRequest) returns (DeleteRuleResponse);
   rpc RunRules (RunRulesRequest) returns (RunRulesResponse);
 
+  // Attachments (streaming)
+  rpc DownloadAttachment (DownloadAttachmentRequest) returns (stream DownloadAttachmentChunk);
+  rpc UploadAttachment (stream UploadAttachmentChunk) returns (UploadAttachmentResponse);
+  rpc DetachAttachment (DetachAttachmentRequest) returns (DetachAttachmentResponse);
+  rpc AttachFromFilesModule (AttachFromFilesRequest) returns (UploadAttachmentResponse);
+
   // Search index support
   rpc GetSearchableDocuments (GetSearchableDocumentsRequest) returns (stream SearchableDocument);
 }
@@ -290,6 +296,56 @@ message RuleMessage {
   bool stop_processing = 7;
   string created_at = 8;
   string updated_at = 9;
+}
+
+// --- Attachment Download (server streaming) ---
+
+message DownloadAttachmentRequest {
+  string attachment_id = 1;
+  string user_id = 2;
+}
+
+message DownloadAttachmentChunk {
+  bytes data = 1;
+  string file_name = 2;
+  string content_type = 3;
+  int64 total_size = 4;
+}
+
+// --- Attachment Upload (client streaming) ---
+
+message UploadAttachmentChunk {
+  bytes data = 1;
+  string file_name = 2;
+  string content_type = 3;
+}
+
+message UploadAttachmentResponse {
+  bool success = 1;
+  string error_message = 2;
+  string storage_key = 3;
+  string file_name = 4;
+  string content_type = 5;
+  int64 size = 6;
+  string content_hash = 7;
+}
+
+// --- Detach / Attach-from-Files ---
+
+message DetachAttachmentRequest {
+  string attachment_id = 1;
+  string user_id = 2;
+  string target_folder_id = 3;
+}
+
+message DetachAttachmentResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+message AttachFromFilesRequest {
+  string file_node_id = 1;
+  string user_id = 2;
 }
 
 // --- Search Index ---

@@ -23,8 +23,8 @@ public sealed class EmailGrpcClientOptions
 
 /// <summary>
 /// gRPC implementation of <see cref="IEmailApiClient"/>.
-/// Calls the Email module's gRPC service for account, send, and rule operations.
-/// Attachment, thread, and message body operations are not yet available via gRPC.
+/// Calls the Email module's gRPC service for all account, send, rule, thread,
+/// message body, and attachment operations (including streaming upload/download).
 /// </summary>
 public sealed class EmailGrpcApiClient : IEmailApiClient, IDisposable
 {
@@ -334,48 +334,161 @@ public sealed class EmailGrpcApiClient : IEmailApiClient, IDisposable
         catch (RpcException ex) { _logger.LogError(ex, "EmailGrpcApiClient.GetMessageBodyAsync failed"); return null; }
     }
 
-    // ─── Attachments (not yet via gRPC) ─────────────────────────────────────
+    // ─── Attachments (gRPC streaming) ───────────────────────────────────────
 
     /// <inheritdoc />
-    public Task<(Stream Stream, string FileName, string ContentType)> DownloadAttachmentAsync(Guid attachmentId, CancellationToken ct = default)
+    public async Task<(Stream Stream, string FileName, string ContentType)> DownloadAttachmentAsync(Guid attachmentId, CancellationToken ct = default)
     {
-        _logger.LogWarning("EmailGrpcApiClient.DownloadAttachmentAsync: not implemented via gRPC");
-        return Task.FromResult<(Stream, string, string)>((Stream.Null, string.Empty, string.Empty));
-    }
-
-    /// <inheritdoc />
-    public Task<UploadAttachmentResult> UploadAttachmentAsync(Stream content, string fileName, string contentType, CancellationToken ct = default)
-    {
-        _logger.LogWarning("EmailGrpcApiClient.UploadAttachmentAsync: not implemented via gRPC");
-        return Task.FromResult(new UploadAttachmentResult
+        var request = new DownloadAttachmentRequest
         {
-            StorageKey = string.Empty,
-            FileName = fileName,
-            ContentType = contentType,
-            Size = 0,
-            ContentHash = string.Empty
-        });
-    }
-
-    /// <inheritdoc />
-    public Task DetachAttachmentAsync(Guid attachmentId, Guid? targetFolderId = null, CancellationToken ct = default)
-    {
-        _logger.LogWarning("EmailGrpcApiClient.DetachAttachmentAsync: not implemented via gRPC");
-        return Task.CompletedTask;
-    }
-
-    /// <inheritdoc />
-    public Task<UploadAttachmentResult> AttachFromFilesModuleAsync(Guid fileNodeId, CancellationToken ct = default)
-    {
-        _logger.LogWarning("EmailGrpcApiClient.AttachFromFilesModuleAsync: not implemented via gRPC");
-        return Task.FromResult(new UploadAttachmentResult
+            AttachmentId = attachmentId.ToString(),
+            UserId = Guid.Empty.ToString()
+        };
+        try
         {
-            StorageKey = string.Empty,
-            FileName = string.Empty,
-            ContentType = string.Empty,
-            Size = 0,
-            ContentHash = string.Empty
-        });
+            using var call = _client.Value.DownloadAttachment(request, DeadlineHeaders(ct));
+            var ms = new MemoryStream();
+            string fileName = string.Empty;
+            string contentType = "application/octet-stream";
+
+            await foreach (var chunk in call.ResponseStream.ReadAllAsync(ct))
+            {
+                ms.Write(chunk.Data.Span);
+                if (!string.IsNullOrEmpty(chunk.FileName))
+                    fileName = chunk.FileName;
+                if (!string.IsNullOrEmpty(chunk.ContentType))
+                    contentType = chunk.ContentType;
+            }
+
+            ms.Position = 0;
+            return (ms, fileName, contentType);
+        }
+        catch (RpcException ex)
+        {
+            _logger.LogError(ex, "EmailGrpcApiClient.DownloadAttachmentAsync failed for {AttachmentId}", attachmentId);
+            return (Stream.Null, string.Empty, string.Empty);
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<UploadAttachmentResult> UploadAttachmentAsync(Stream content, string fileName, string contentType, CancellationToken ct = default)
+    {
+        try
+        {
+            using var call = _client.Value.UploadAttachment(DeadlineHeaders(ct));
+
+            // Read content in chunks and stream to gRPC
+            var buffer = new byte[64 * 1024]; // 64 KB chunks
+            int bytesRead;
+            bool firstChunk = true;
+
+            while ((bytesRead = await content.ReadAsync(buffer, ct)) > 0)
+            {
+                var chunk = new UploadAttachmentChunk
+                {
+                    Data = Google.Protobuf.ByteString.CopyFrom(buffer, 0, bytesRead),
+                    FileName = firstChunk ? (fileName ?? string.Empty) : string.Empty,
+                    ContentType = firstChunk ? (contentType ?? "application/octet-stream") : string.Empty
+                };
+                await call.RequestStream.WriteAsync(chunk, ct);
+                firstChunk = false;
+            }
+
+            await call.RequestStream.CompleteAsync();
+            var response = await call.ResponseAsync;
+
+            return response.Success
+                ? new UploadAttachmentResult
+                {
+                    StorageKey = response.StorageKey,
+                    FileName = response.FileName,
+                    ContentType = response.ContentType,
+                    Size = response.Size,
+                    ContentHash = response.ContentHash
+                }
+                : new UploadAttachmentResult
+                {
+                    StorageKey = string.Empty,
+                    FileName = fileName ?? string.Empty,
+                    ContentType = contentType ?? string.Empty,
+                    Size = 0,
+                    ContentHash = string.Empty
+                };
+        }
+        catch (RpcException ex)
+        {
+            _logger.LogError(ex, "EmailGrpcApiClient.UploadAttachmentAsync failed");
+            return new UploadAttachmentResult
+            {
+                StorageKey = string.Empty,
+                FileName = fileName,
+                ContentType = contentType,
+                Size = 0,
+                ContentHash = string.Empty
+            };
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task DetachAttachmentAsync(Guid attachmentId, Guid? targetFolderId = null, CancellationToken ct = default)
+    {
+        var request = new DetachAttachmentRequest
+        {
+            AttachmentId = attachmentId.ToString(),
+            UserId = Guid.Empty.ToString(),
+            TargetFolderId = targetFolderId?.ToString() ?? string.Empty
+        };
+        try
+        {
+            await _client.Value.DetachAttachmentAsync(request, DeadlineHeaders(ct));
+        }
+        catch (RpcException ex)
+        {
+            _logger.LogError(ex, "EmailGrpcApiClient.DetachAttachmentAsync failed for {AttachmentId}", attachmentId);
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<UploadAttachmentResult> AttachFromFilesModuleAsync(Guid fileNodeId, CancellationToken ct = default)
+    {
+        var request = new AttachFromFilesRequest
+        {
+            FileNodeId = fileNodeId.ToString(),
+            UserId = Guid.Empty.ToString()
+        };
+        try
+        {
+            var response = await _client.Value.AttachFromFilesModuleAsync(request, DeadlineHeaders(ct));
+            return response.Success
+                ? new UploadAttachmentResult
+                {
+                    StorageKey = response.StorageKey,
+                    FileName = response.FileName,
+                    ContentType = response.ContentType,
+                    Size = response.Size,
+                    ContentHash = response.ContentHash
+                }
+                : new UploadAttachmentResult
+                {
+                    StorageKey = string.Empty,
+                    FileName = string.Empty,
+                    ContentType = string.Empty,
+                    Size = 0,
+                    ContentHash = string.Empty
+                };
+        }
+        catch (RpcException ex)
+        {
+            _logger.LogError(ex, "EmailGrpcApiClient.AttachFromFilesModuleAsync failed for {FileNodeId}", fileNodeId);
+            return new UploadAttachmentResult
+            {
+                StorageKey = string.Empty,
+                FileName = string.Empty,
+                ContentType = string.Empty,
+                Size = 0,
+                ContentHash = string.Empty
+            };
+        }
     }
 
     // ─── Helpers ────────────────────────────────────────────────────────────

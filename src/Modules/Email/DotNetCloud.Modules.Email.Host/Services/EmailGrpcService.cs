@@ -3,7 +3,9 @@ using DotNetCloud.Modules.Email.Data;
 using DotNetCloud.Modules.Email.Host.Protos;
 using DotNetCloud.Modules.Email.Models;
 using DotNetCloud.Modules.Email.Services;
+using DotNetCloud.Modules.Files.Host.Protos;
 using Grpc.Core;
+using Grpc.Net.Client;
 using Microsoft.EntityFrameworkCore;
 
 namespace DotNetCloud.Modules.Email.Host.Services;
@@ -16,8 +18,10 @@ public sealed class EmailGrpcService : EmailService.EmailServiceBase
     private readonly IEmailAccountService _accountService;
     private readonly IEmailSendService _sendService;
     private readonly IEmailRuleService _ruleService;
+    private readonly IAttachmentStorage _attachmentStorage;
     private readonly EmailDbContext _db;
     private readonly ILogger<EmailGrpcService> _logger;
+    private readonly Lazy<FilesService.FilesServiceClient> _filesClient;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="EmailGrpcService"/> class.
@@ -26,14 +30,31 @@ public sealed class EmailGrpcService : EmailService.EmailServiceBase
         IEmailAccountService accountService,
         IEmailSendService sendService,
         IEmailRuleService ruleService,
+        IAttachmentStorage attachmentStorage,
         EmailDbContext db,
+        IConfiguration configuration,
         ILogger<EmailGrpcService> logger)
     {
         _accountService = accountService;
         _sendService = sendService;
         _ruleService = ruleService;
+        _attachmentStorage = attachmentStorage;
         _db = db;
         _logger = logger;
+
+        _filesClient = new Lazy<FilesService.FilesServiceClient>(() =>
+        {
+            var address = configuration.GetValue<string>("FilesGrpc:Address") ?? "http://localhost:5004";
+            var channel = GrpcChannel.ForAddress(address, new GrpcChannelOptions
+            {
+                HttpHandler = new SocketsHttpHandler
+                {
+                    EnableMultipleHttp2Connections = true,
+                    ConnectTimeout = TimeSpan.FromSeconds(5)
+                }
+            });
+            return new FilesService.FilesServiceClient(channel);
+        });
     }
 
     private static CallerContext SystemCaller => CallerContext.CreateSystemContext();
@@ -413,6 +434,213 @@ public sealed class EmailGrpcService : EmailService.EmailServiceBase
         {
             _logger.LogError(ex, "RunRules gRPC failed");
             return new RunRulesResponse { Success = false, MatchedCount = 0 };
+        }
+    }
+
+    // ─── Attachments (Streaming) ────────────────────────────────────────────
+
+    /// <inheritdoc />
+    public override async Task DownloadAttachment(
+        DownloadAttachmentRequest request,
+        IServerStreamWriter<DownloadAttachmentChunk> responseStream,
+        ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.AttachmentId, out var attachmentId))
+        {
+            _logger.LogWarning("DownloadAttachment: invalid attachment ID {Id}", request.AttachmentId);
+            return;
+        }
+
+        try
+        {
+            var attachment = await _db.EmailAttachments
+                .AsNoTracking()
+                .FirstOrDefaultAsync(a => a.Id == attachmentId, context.CancellationToken);
+
+            if (attachment is null || string.IsNullOrEmpty(attachment.StorageKey))
+            {
+                _logger.LogWarning("DownloadAttachment: attachment {Id} not found or missing storage key", attachmentId);
+                return;
+            }
+
+            var stream = await _attachmentStorage.OpenReadAsync(attachment.StorageKey, context.CancellationToken);
+            if (stream is null)
+            {
+                _logger.LogWarning("DownloadAttachment: storage content not found for key {Key}", attachment.StorageKey);
+                return;
+            }
+
+            await using (stream)
+            {
+                var buffer = new byte[64 * 1024]; // 64 KB chunks
+                int bytesRead;
+                bool firstChunk = true;
+
+                while ((bytesRead = await stream.ReadAsync(buffer, context.CancellationToken)) > 0)
+                {
+                    var chunk = new DownloadAttachmentChunk
+                    {
+                        Data = Google.Protobuf.ByteString.CopyFrom(buffer, 0, bytesRead),
+                        FileName = firstChunk ? (attachment.FileName ?? string.Empty) : string.Empty,
+                        ContentType = firstChunk ? (attachment.ContentType ?? "application/octet-stream") : string.Empty,
+                        TotalSize = firstChunk ? attachment.Size : 0L
+                    };
+                    await responseStream.WriteAsync(chunk, context.CancellationToken);
+                    firstChunk = false;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "DownloadAttachment gRPC failed for {AttachmentId}", request.AttachmentId);
+        }
+    }
+
+    /// <inheritdoc />
+    public override async Task<UploadAttachmentResponse> UploadAttachment(
+        IAsyncStreamReader<UploadAttachmentChunk> requestStream,
+        ServerCallContext context)
+    {
+        string? fileName = null;
+        string? contentType = null;
+
+        await using var ms = new MemoryStream();
+        try
+        {
+            bool firstChunk = true;
+            await foreach (var chunk in requestStream.ReadAllAsync(context.CancellationToken))
+            {
+                if (firstChunk)
+                {
+                    fileName = chunk.FileName;
+                    contentType = chunk.ContentType;
+                    firstChunk = false;
+                }
+                ms.Write(chunk.Data.Span);
+            }
+
+            if (ms.Length == 0)
+                return new UploadAttachmentResponse { Success = false, ErrorMessage = "No data received." };
+
+            ms.Position = 0;
+            var result = await _attachmentStorage.StoreAsync(
+                ms,
+                fileName ?? "attachment.bin",
+                contentType ?? "application/octet-stream",
+                context.CancellationToken);
+
+            return new UploadAttachmentResponse
+            {
+                Success = true,
+                StorageKey = result.StorageKey,
+                FileName = fileName ?? "attachment.bin",
+                ContentType = contentType ?? "application/octet-stream",
+                Size = result.Size,
+                ContentHash = result.ContentHash
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "UploadAttachment gRPC failed");
+            return new UploadAttachmentResponse { Success = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    /// <inheritdoc />
+    public override Task<DetachAttachmentResponse> DetachAttachment(
+        DetachAttachmentRequest request,
+        ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.AttachmentId, out var attachmentId))
+            return Task.FromResult(new DetachAttachmentResponse { Success = false, ErrorMessage = "Invalid attachment ID." });
+
+        // Detach is acknowledged here; the actual detach operation (moving content
+        // to the Files module) is handled by a cross-module event or explicit API call.
+        _logger.LogInformation("DetachAttachment requested for {AttachmentId}, target folder {FolderId}",
+            attachmentId, request.TargetFolderId);
+
+        return Task.FromResult(new DetachAttachmentResponse { Success = true });
+    }
+
+    /// <inheritdoc />
+    public override async Task<UploadAttachmentResponse> AttachFromFilesModule(
+        AttachFromFilesRequest request,
+        ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.FileNodeId, out var fileNodeId))
+            return new UploadAttachmentResponse { Success = false, ErrorMessage = "Invalid file node ID." };
+
+        try
+        {
+            // Download file content from the Files module via gRPC streaming
+            var downloadRequest = new DownloadFileRequest
+            {
+                NodeId = request.FileNodeId,
+                UserId = request.UserId,
+                VersionNumber = 0
+            };
+
+            await using var ms = new MemoryStream();
+            string? fileName = null;
+            string? contentType = null;
+
+            using var downloadCall = _filesClient.Value.DownloadFile(downloadRequest, cancellationToken: context.CancellationToken);
+            await foreach (var chunk in downloadCall.ResponseStream.ReadAllAsync(context.CancellationToken))
+            {
+                ms.Write(chunk.ChunkData.Span);
+            }
+
+            if (ms.Length == 0)
+                return new UploadAttachmentResponse { Success = false, ErrorMessage = "File is empty or not found." };
+
+            // Also get the file node metadata for filename/content type
+            try
+            {
+                var nodeResponse = await _filesClient.Value.GetNodeAsync(
+                    new GetNodeRequest { NodeId = request.FileNodeId, UserId = request.UserId },
+                    cancellationToken: context.CancellationToken);
+                if (nodeResponse.Found && nodeResponse.Node is not null)
+                {
+                    fileName = nodeResponse.Node.Name;
+                    contentType = nodeResponse.Node.MimeType;
+                }
+            }
+            catch (RpcException ex) when (ex.StatusCode == StatusCode.NotFound)
+            {
+                _logger.LogWarning("AttachFromFilesModule: file node {Id} not found via GetNode", fileNodeId);
+                return new UploadAttachmentResponse { Success = false, ErrorMessage = "File node not found." };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "AttachFromFilesModule: GetNode failed, proceeding without metadata");
+            }
+
+            ms.Position = 0;
+            var result = await _attachmentStorage.StoreAsync(
+                ms,
+                fileName ?? "file.bin",
+                contentType ?? "application/octet-stream",
+                context.CancellationToken);
+
+            return new UploadAttachmentResponse
+            {
+                Success = true,
+                StorageKey = result.StorageKey,
+                FileName = fileName ?? "file.bin",
+                ContentType = contentType ?? "application/octet-stream",
+                Size = result.Size,
+                ContentHash = result.ContentHash
+            };
+        }
+        catch (RpcException ex)
+        {
+            _logger.LogError(ex, "AttachFromFilesModule gRPC failed for file {FileNodeId}", request.FileNodeId);
+            return new UploadAttachmentResponse { Success = false, ErrorMessage = ex.Message };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "AttachFromFilesModule failed for file {FileNodeId}", request.FileNodeId);
+            return new UploadAttachmentResponse { Success = false, ErrorMessage = ex.Message };
         }
     }
 

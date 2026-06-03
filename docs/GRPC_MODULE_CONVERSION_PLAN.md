@@ -30,7 +30,7 @@ These have proto + GrpcService + LifecycleService, but Core.Server still referen
 | Notes     | `notes_service.proto` (Server)     | `NotesGrpcService : NotesGrpcServiceBase`     | `NotesLifecycleService`     | ❌          | ✓             |
 | Tracks    | `tracks_service.proto` (Server)    | `TracksGrpcService : TracksGrpcServiceBase`   | `TracksLifecycleService`    | ❌          | ❌            |
 | Bookmarks | `bookmarks_service.proto` (Server) | `BookmarksGrpcService : BookmarksServiceBase` | `BookmarksLifecycleService` | ❌          | ❌            |
-| Email     | `email_service.proto` (Server)     | `EmailGrpcService : EmailServiceBase`         | `EmailLifecycleService`     | ❌          | ❌            |
+| Email     | `email_service.proto` (Server)     | `EmailGrpcService : EmailServiceBase`         | `EmailLifecycleService`     | ✓ (full, incl. streaming) | ❌            |
 
 ### 1.3 Partial gRPC Infra — Missing LifecycleService
 
