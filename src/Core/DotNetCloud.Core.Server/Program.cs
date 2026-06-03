@@ -247,7 +247,10 @@ public class Program
 
         // Configure and register supervisor + module gRPC infrastructure.
         builder.ConfigureGrpcForModules();
-        builder.Services.AddProcessSupervisor();
+        builder.Services.AddProcessSupervisor(options =>
+        {
+            options.PreferTcpTransport = true;
+        });
 
         // Add service defaults (logging, telemetry, health checks)
         builder.AddDotNetCloudServiceDefaults();
@@ -301,8 +304,6 @@ public class Program
 
         builder.Services.AddFilesServices(builder.Configuration);
         builder.Services.AddChatServices(builder.Configuration);
-        builder.Services.AddContactsServices(builder.Configuration);
-        builder.Services.AddCalendarServices(builder.Configuration);
         builder.Services.AddNotesServices(builder.Configuration);
         builder.Services.AddTracksServices(builder.Configuration);
         builder.Services.AddPhotosServices(builder.Configuration);
@@ -429,8 +430,15 @@ public class Program
             cookieHandler.InnerHandler = new HttpClientHandler();
             return new HttpClient(cookieHandler) { BaseAddress = baseUri };
         });
-        builder.Services.AddScoped<DotNetCloud.Modules.Contacts.Services.IContactsApiClient, DotNetCloud.Modules.Contacts.Services.ContactsApiClient>();
-        builder.Services.AddScoped<DotNetCloud.Modules.Calendar.Services.ICalendarApiClient, DotNetCloud.Modules.Calendar.Services.CalendarApiClient>();
+        // Contacts and Calendar gRPC client options (process-isolated modules)
+        builder.Services.Configure<DotNetCloud.Core.Server.Grpc.Clients.ContactsGrpcClientOptions>(
+            builder.Configuration.GetSection(DotNetCloud.Core.Server.Grpc.Clients.ContactsGrpcClientOptions.SectionName));
+        builder.Services.Configure<DotNetCloud.Core.Server.Grpc.Clients.CalendarGrpcClientOptions>(
+            builder.Configuration.GetSection(DotNetCloud.Core.Server.Grpc.Clients.CalendarGrpcClientOptions.SectionName));
+        builder.Services.AddSingleton<DotNetCloud.Core.Server.Grpc.Clients.ModuleEndpointProvider>();
+
+        builder.Services.AddScoped<DotNetCloud.Modules.Contacts.Services.IContactsApiClient, DotNetCloud.Core.Server.Grpc.Clients.ContactsGrpcApiClient>();
+        builder.Services.AddScoped<DotNetCloud.Modules.Calendar.Services.ICalendarApiClient, DotNetCloud.Core.Server.Grpc.Clients.CalendarGrpcApiClient>();
         builder.Services.AddScoped<DotNetCloud.Modules.Notes.Services.INotesApiClient, DotNetCloud.Modules.Notes.Services.NotesApiClient>();
         builder.Services.AddScoped<DotNetCloud.Modules.Tracks.Services.ITracksApiClient, DotNetCloud.Modules.Tracks.Services.TracksApiClient>();
         builder.Services.AddScoped<DotNetCloud.Modules.Tracks.Services.IOnboardingStateService, DotNetCloud.Modules.Tracks.Services.OnboardingStateService>();

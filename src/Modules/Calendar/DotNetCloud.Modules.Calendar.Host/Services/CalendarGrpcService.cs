@@ -2,6 +2,7 @@ using System.Globalization;
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Modules.Calendar.Host.Protos;
+using DotNetCloud.Modules.Calendar.Models;
 using DotNetCloud.Modules.Calendar.Services;
 using Grpc.Core;
 
@@ -16,6 +17,7 @@ public sealed class CalendarGrpcService : Protos.CalendarGrpcService.CalendarGrp
     private readonly ICalendarService _calendarService;
     private readonly ICalendarEventService _eventService;
     private readonly IICalendarService _icalService;
+    private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<CalendarGrpcService> _logger;
 
     /// <summary>
@@ -25,13 +27,17 @@ public sealed class CalendarGrpcService : Protos.CalendarGrpcService.CalendarGrp
         ICalendarService calendarService,
         ICalendarEventService eventService,
         IICalendarService icalService,
+        IServiceProvider serviceProvider,
         ILogger<CalendarGrpcService> logger)
     {
         _calendarService = calendarService;
         _eventService = eventService;
         _icalService = icalService;
+        _serviceProvider = serviceProvider;
         _logger = logger;
     }
+
+    private ICalendarShareService? ShareService => _serviceProvider.GetService<ICalendarShareService>();
 
     /// <inheritdoc />
     public override async Task<CalendarResponse> CreateCalendar(
@@ -52,7 +58,7 @@ public sealed class CalendarGrpcService : Protos.CalendarGrpcService.CalendarGrp
         try
         {
             var result = await _calendarService.CreateCalendarAsync(
-                dto, new CallerContext(userId, ["user"], CallerType.User), context.CancellationToken);
+                dto, CallerContext.CreateSystemContext(), context.CancellationToken);
             return new CalendarResponse { Success = true, Calendar = ToCalendarMessage(result) };
         }
         catch (Exception ex) when (ex is ArgumentException or Core.Errors.ValidationException)
@@ -70,7 +76,7 @@ public sealed class CalendarGrpcService : Protos.CalendarGrpcService.CalendarGrp
             return new CalendarResponse { Success = false, ErrorMessage = "Invalid ID format." };
 
         var result = await _calendarService.GetCalendarAsync(
-            calendarId, new CallerContext(userId, ["user"], CallerType.User), context.CancellationToken);
+            calendarId, CallerContext.CreateSystemContext(), context.CancellationToken);
 
         return result is null
             ? new CalendarResponse { Success = false, ErrorMessage = "Calendar not found." }
@@ -85,7 +91,7 @@ public sealed class CalendarGrpcService : Protos.CalendarGrpcService.CalendarGrp
             return new ListCalendarsResponse { Success = false, ErrorMessage = "Invalid user ID format." };
 
         var results = await _calendarService.ListCalendarsAsync(
-            new CallerContext(userId, ["user"], CallerType.User), context.CancellationToken);
+            CallerContext.CreateSystemContext(), context.CancellationToken);
 
         // Filter by organization if requested
         if (Guid.TryParse(request.OrganizationId, out var orgId))
@@ -140,7 +146,7 @@ public sealed class CalendarGrpcService : Protos.CalendarGrpcService.CalendarGrp
         try
         {
             var result = await _eventService.CreateEventAsync(
-                dto, new CallerContext(userId, ["user"], CallerType.User), context.CancellationToken);
+                dto, CallerContext.CreateSystemContext(), context.CancellationToken);
             return new EventResponse { Success = true, Event = ToEventMessage(result) };
         }
         catch (Exception ex) when (ex is ArgumentException or Core.Errors.ValidationException)
@@ -158,7 +164,7 @@ public sealed class CalendarGrpcService : Protos.CalendarGrpcService.CalendarGrp
             return new EventResponse { Success = false, ErrorMessage = "Invalid ID format." };
 
         var result = await _eventService.GetEventAsync(
-            eventId, new CallerContext(userId, ["user"], CallerType.User), context.CancellationToken);
+            eventId, CallerContext.CreateSystemContext(), context.CancellationToken);
 
         return result is null
             ? new EventResponse { Success = false, ErrorMessage = "Event not found." }
@@ -179,7 +185,7 @@ public sealed class CalendarGrpcService : Protos.CalendarGrpcService.CalendarGrp
 
         var results = await _eventService.ListEventsAsync(
             calendarId,
-            new CallerContext(userId, ["user"], CallerType.User),
+            CallerContext.CreateSystemContext(),
             from, to, request.Skip, take,
             context.CancellationToken);
 
@@ -213,7 +219,7 @@ public sealed class CalendarGrpcService : Protos.CalendarGrpcService.CalendarGrp
         try
         {
             var result = await _eventService.UpdateEventAsync(
-                eventId, dto, new CallerContext(userId, ["user"], CallerType.User), context.CancellationToken);
+                eventId, dto, CallerContext.CreateSystemContext(), context.CancellationToken);
             return new EventResponse { Success = true, Event = ToEventMessage(result) };
         }
         catch (Exception ex) when (ex is ArgumentException or Core.Errors.ValidationException)
@@ -233,7 +239,7 @@ public sealed class CalendarGrpcService : Protos.CalendarGrpcService.CalendarGrp
         try
         {
             await _eventService.DeleteEventAsync(
-                eventId, new CallerContext(userId, ["user"], CallerType.User), context.CancellationToken);
+                eventId, CallerContext.CreateSystemContext(), context.CancellationToken);
             return new DeleteEventResponse { Success = true };
         }
         catch (Exception ex) when (ex is ArgumentException or Core.Errors.ValidationException)
@@ -262,7 +268,7 @@ public sealed class CalendarGrpcService : Protos.CalendarGrpcService.CalendarGrp
         try
         {
             var result = await _eventService.RsvpAsync(
-                eventId, dto, new CallerContext(userId, ["user"], CallerType.User), context.CancellationToken);
+                eventId, dto, CallerContext.CreateSystemContext(), context.CancellationToken);
             return new EventResponse { Success = true, Event = ToEventMessage(result) };
         }
         catch (Exception ex) when (ex is ArgumentException or Core.Errors.ValidationException)
@@ -282,7 +288,7 @@ public sealed class CalendarGrpcService : Protos.CalendarGrpcService.CalendarGrp
         try
         {
             var ical = await _icalService.ExportEventAsync(
-                eventId, new CallerContext(userId, ["user"], CallerType.User), context.CancellationToken);
+                eventId, CallerContext.CreateSystemContext(), context.CancellationToken);
             return new ExportICalResponse { Success = true, IcalText = ical };
         }
         catch (Exception ex) when (ex is Core.Errors.ValidationException)
@@ -303,7 +309,7 @@ public sealed class CalendarGrpcService : Protos.CalendarGrpcService.CalendarGrp
         {
             var results = await _icalService.ImportEventsAsync(
                 calendarId, request.IcalText,
-                new CallerContext(userId, ["user"], CallerType.User), context.CancellationToken);
+                CallerContext.CreateSystemContext(), context.CancellationToken);
 
             var response = new ImportICalResponse { Success = true };
             response.CreatedEventIds.AddRange(results.Select(r => r.Id.ToString()));
@@ -385,7 +391,7 @@ public sealed class CalendarGrpcService : Protos.CalendarGrpcService.CalendarGrp
         if (!Guid.TryParse(request.UserId, out var userId))
             return;
 
-        var caller = new CallerContext(userId, ["user"], CallerType.User);
+        var caller = CallerContext.CreateSystemContext();
 
         var calendars = await _calendarService.ListCalendarsAsync(caller, context.CancellationToken);
 
@@ -453,5 +459,201 @@ public sealed class CalendarGrpcService : Protos.CalendarGrpcService.CalendarGrp
             doc.Metadata["CalendarName"] = calendarName;
 
         return doc;
+    }
+
+    // ─── UpdateCalendar / DeleteCalendar ─────────────────────────────────────
+
+    /// <inheritdoc />
+    public override async Task<CalendarResponse> UpdateCalendar(
+        UpdateCalendarRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.CalendarId, out var calendarId) ||
+            !Guid.TryParse(request.UserId, out var userId))
+            return new CalendarResponse { Success = false, ErrorMessage = "Invalid ID format." };
+
+        var dto = new UpdateCalendarDto
+        {
+            Name = NullIfEmpty(request.Name),
+            Description = NullIfEmpty(request.Description),
+            Color = NullIfEmpty(request.Color),
+            Timezone = NullIfEmpty(request.Timezone),
+            IsVisible = request.IsVisible
+        };
+
+        try
+        {
+            var result = await _calendarService.UpdateCalendarAsync(
+                calendarId, dto, CallerContext.CreateSystemContext(), context.CancellationToken);
+            return new CalendarResponse { Success = true, Calendar = ToCalendarMessage(result) };
+        }
+        catch (Exception ex) when (ex is ArgumentException or Core.Errors.ValidationException)
+        {
+            return new CalendarResponse { Success = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    /// <inheritdoc />
+    public override async Task<DeleteCalendarResponse> DeleteCalendar(
+        DeleteCalendarRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.CalendarId, out var calendarId) ||
+            !Guid.TryParse(request.UserId, out var userId))
+            return new DeleteCalendarResponse { Success = false, ErrorMessage = "Invalid ID format." };
+
+        try
+        {
+            await _calendarService.DeleteCalendarAsync(
+                calendarId, CallerContext.CreateSystemContext(), context.CancellationToken);
+            return new DeleteCalendarResponse { Success = true };
+        }
+        catch (Exception ex) when (ex is ArgumentException or Core.Errors.ValidationException)
+        {
+            return new DeleteCalendarResponse { Success = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    // ─── ExportCalendarICal ──────────────────────────────────────────────────
+
+    /// <inheritdoc />
+    public override async Task<ExportICalResponse> ExportCalendarICal(
+        ExportCalendarICalRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.CalendarId, out var calendarId) ||
+            !Guid.TryParse(request.UserId, out var userId))
+            return new ExportICalResponse { Success = false, ErrorMessage = "Invalid ID format." };
+
+        try
+        {
+            var ical = await _icalService.ExportCalendarAsync(
+                calendarId, CallerContext.CreateSystemContext(), context.CancellationToken);
+            return new ExportICalResponse { Success = true, IcalText = ical };
+        }
+        catch (Exception ex) when (ex is Core.Errors.ValidationException)
+        {
+            return new ExportICalResponse { Success = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    // ─── SearchEvents ────────────────────────────────────────────────────────
+
+    /// <inheritdoc />
+    public override async Task<SearchEventsResponse> SearchEvents(
+        SearchEventsRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.UserId, out var userId))
+            return new SearchEventsResponse { Success = false, ErrorMessage = "Invalid user ID format." };
+
+        DateTime? from = DateTime.TryParse(request.FromUtc, CultureInfo.InvariantCulture, out var f) ? f : null;
+        DateTime? to = DateTime.TryParse(request.ToUtc, CultureInfo.InvariantCulture, out var t) ? t : null;
+        var query = NullIfEmpty(request.Query);
+
+        var results = await _eventService.SearchEventsAsync(
+            CallerContext.CreateSystemContext(),
+            query, from, to, request.Skip, request.Take > 0 ? request.Take : 50,
+            context.CancellationToken);
+
+        var response = new SearchEventsResponse { Success = true };
+        response.Events.AddRange(results.Select(ToEventMessage));
+        return response;
+    }
+
+    // ─── Sharing ─────────────────────────────────────────────────────────────
+
+    /// <inheritdoc />
+    public override async Task<ListCalendarSharesResponse> ListCalendarShares(
+        ListCalendarSharesRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.CalendarId, out var calendarId) ||
+            !Guid.TryParse(request.UserId, out var userId))
+            return new ListCalendarSharesResponse { Success = false, ErrorMessage = "Invalid ID format." };
+
+        var svc = ShareService;
+        if (svc == null)
+            return new ListCalendarSharesResponse { Success = false, ErrorMessage = "Sharing not available" };
+
+        var shares = await svc.ListSharesAsync(
+            calendarId, CallerContext.CreateSystemContext(), context.CancellationToken);
+
+        var response = new ListCalendarSharesResponse { Success = true };
+        response.Shares.AddRange(shares.Select(s => new CalendarShareMessage
+        {
+            Id = s.Id.ToString(),
+            CalendarId = s.CalendarId.ToString(),
+            SharedByUserId = s.CreatedByUserId?.ToString() ?? string.Empty,
+            SharedWithUserId = s.SharedWithUserId?.ToString() ?? string.Empty,
+            SharedWithTeamId = s.SharedWithTeamId?.ToString() ?? string.Empty,
+            Permission = s.Permission.ToString(),
+            CreatedAt = s.CreatedAt.ToString("O")
+        }));
+        return response;
+    }
+
+    /// <inheritdoc />
+    public override async Task<ShareCalendarResponse> ShareCalendar(
+        ShareCalendarRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.CalendarId, out var calendarId) ||
+            !Guid.TryParse(request.UserId, out var userId))
+            return new ShareCalendarResponse { Success = false, ErrorMessage = "Invalid ID format." };
+
+        var targetUserId = Guid.TryParse(request.TargetUserId, out var tuid) ? tuid : (Guid?)null;
+        var teamId = Guid.TryParse(request.TeamId, out var tid) ? tid : (Guid?)null;
+
+        if (!Enum.TryParse<CalendarSharePermission>(request.Permission, true, out var permission))
+            permission = CalendarSharePermission.ReadOnly;
+
+        try
+        {
+            var svc2 = ShareService;
+            if (svc2 == null)
+                return new ShareCalendarResponse { Success = false, ErrorMessage = "Sharing not available" };
+
+            var share = await svc2.ShareCalendarAsync(
+                calendarId, targetUserId, teamId, permission,
+                CallerContext.CreateSystemContext(), context.CancellationToken);
+
+            return new ShareCalendarResponse
+            {
+                Success = true,
+                Share = new CalendarShareMessage
+                {
+                    Id = share.Id.ToString(),
+                    CalendarId = share.CalendarId.ToString(),
+                    SharedByUserId = share.CreatedByUserId?.ToString() ?? string.Empty,
+                    SharedWithUserId = share.SharedWithUserId?.ToString() ?? string.Empty,
+                    SharedWithTeamId = share.SharedWithTeamId?.ToString() ?? string.Empty,
+                    Permission = share.Permission.ToString(),
+                    CreatedAt = share.CreatedAt.ToString("O")
+                }
+            };
+        }
+        catch (Exception ex) when (ex is ArgumentException or Core.Errors.ValidationException)
+        {
+            return new ShareCalendarResponse { Success = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    /// <inheritdoc />
+    public override async Task<RevokeCalendarShareResponse> RevokeCalendarShare(
+        RevokeCalendarShareRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.ShareId, out var shareId) ||
+            !Guid.TryParse(request.UserId, out var userId))
+            return new RevokeCalendarShareResponse { Success = false, ErrorMessage = "Invalid ID format." };
+
+        try
+        {
+            var svc3 = ShareService;
+            if (svc3 == null)
+                return new RevokeCalendarShareResponse { Success = false, ErrorMessage = "Sharing not available" };
+
+            await svc3.RemoveShareAsync(
+                shareId, CallerContext.CreateSystemContext(), context.CancellationToken);
+            return new RevokeCalendarShareResponse { Success = true };
+        }
+        catch (Exception ex) when (ex is ArgumentException or Core.Errors.ValidationException)
+        {
+            return new RevokeCalendarShareResponse { Success = false, ErrorMessage = ex.Message };
+        }
     }
 }

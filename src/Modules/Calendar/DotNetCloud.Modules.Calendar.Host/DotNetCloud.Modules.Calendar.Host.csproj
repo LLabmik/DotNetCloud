@@ -26,6 +26,9 @@
 
   <ItemGroup>
     <Protobuf Include="Protos\calendar_service.proto" GrpcServices="Server" />
+    <Protobuf Include="..\..\Contacts\DotNetCloud.Modules.Contacts.Host\Protos\contacts_service.proto"
+              GrpcServices="Client"
+              Link="Protos\contacts_service.proto" />
   </ItemGroup>
 
   <ItemGroup>

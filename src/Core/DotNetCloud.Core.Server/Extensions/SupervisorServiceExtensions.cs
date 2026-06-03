@@ -93,6 +93,9 @@ internal static class SupervisorServiceExtensions
             .GetSection(ProcessSupervisorOptions.SectionName)
             .Get<ProcessSupervisorOptions>() ?? new ProcessSupervisorOptions();
 
+        // TCP transport for cross-platform compatibility (Linux + Windows)
+        options.PreferTcpTransport = true;
+
         GrpcServerConfiguration.ConfigureCoreGrpcEndpoint(builder, options);
     }
 

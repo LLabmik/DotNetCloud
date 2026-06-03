@@ -490,14 +490,49 @@
                                 <button type="button" class="btn btn-sm btn-outline-secondary"
                                         @onclick="() => _eventEditor.Attendees.Add(new AttendeeEditorModel())">+ Add</button>
                             </div>
-                            @foreach (var a in _eventEditor.Attendees)
+                            @for (int i = 0; i < _eventEditor.Attendees.Count; i++)
                             {
-                                var attendee = a;
-                                <div class="calendar-form-row" style="margin-bottom:4px;">
-                                    <input class="form-control" @bind="attendee.Email" placeholder="email"
-                                           style="max-width:200px;" />
-                                    <input class="form-control" @bind="attendee.DisplayName" placeholder="Name"
-                                           style="max-width:140px;" />
+                                var attendee = _eventEditor.Attendees[i];
+                                var index = i;
+                                <div class="calendar-form-row" style="margin-bottom:4px; flex-wrap:wrap;">
+                                    @if (attendee.ContactId.HasValue)
+                                    {
+                                        @* Selected contact display *@
+                                        <span class="badge" style="background:#e0e7ff;color:#3730a3;padding:4px 8px;margin-right:8px;display:inline-flex;align-items:center;gap:4px;">
+                                            @attendee.DisplayName (@attendee.Email)
+                                            <button type="button" class="btn btn-sm" style="padding:0 4px;font-size:12px;line-height:1;"
+                                                    @onclick="() => StartManualAttendeeEntry(attendee)" title="Change to manual entry">✕</button>
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        @* Contact search input + manual email/name *@
+                                        <div style="position:relative;max-width:200px;">
+                                            <input class="form-control" placeholder="Search contacts..."
+                                                   value="@(_contactSearchActiveIndex == index ? _contactSearchQuery : string.Empty)"
+                                                   @oninput="(ChangeEventArgs e) => { _contactSearchQuery = e.Value?.ToString() ?? string.Empty; _ = SearchContactsAsync(_contactSearchQuery, index); }"
+                                                   @onfocus="() => _contactSearchActiveIndex = index"
+                                                   style="max-width:200px;" />
+                                            @if (_contactSearchVisible && _contactSearchActiveIndex == index && _contactSearchResults.Count > 0)
+                                            {
+                                                <div class="dropdown-menu show" style="position:absolute;top:100%;left:0;z-index:1000;max-height:200px;overflow-y:auto;width:280px;">
+                                                    @foreach (var contact in _contactSearchResults)
+                                                    {
+                                                        <button type="button" class="dropdown-item"
+                                                                @onclick="() => SelectContactForAttendee(contact, attendee)"
+                                                                @onclick:stopPropagation="true">
+                                                            <div><strong>@contact.DisplayName</strong></div>
+                                                            <small class="text-muted">@string.Join(", ", contact.Emails.Select(e => e.Address))</small>
+                                                        </button>
+                                                    }
+                                                </div>
+                                            }
+                                        </div>
+                                        <input class="form-control" @bind="attendee.Email" placeholder="email"
+                                               style="max-width:200px;" />
+                                        <input class="form-control" @bind="attendee.DisplayName" placeholder="Name"
+                                               style="max-width:140px;" />
+                                    }
                                     <select class="form-select" @bind="attendee.Role" style="max-width:130px;">
                                         <option value="Required">Required</option>
                                         <option value="Optional">Optional</option>
@@ -666,6 +701,13 @@
     private string _sharePermission = "ReadOnly";
     private string _importText = string.Empty;
     private bool _sidebarCollapsed;
+
+    // ── Contact search state ──
+    private string _contactSearchQuery = string.Empty;
+    private IReadOnlyList<ContactSearchResultDto> _contactSearchResults = [];
+    private bool _contactSearchVisible;
+    private int _contactSearchActiveIndex = -1;
+    private CancellationTokenSource? _contactSearchCts;
 
     // ── Modal state ──
     private bool _showEventModal;
@@ -1142,6 +1184,60 @@
         _showEventModal = false;
     }
 
+    // ── Contact search ──
+
+    private async Task SearchContactsAsync(string query, int attendeeIndex)
+    {
+        _contactSearchCts?.Cancel();
+        _contactSearchCts = new CancellationTokenSource();
+        var ct = _contactSearchCts.Token;
+
+        if (string.IsNullOrWhiteSpace(query) || query.Length < 2)
+        {
+            _contactSearchResults = [];
+            _contactSearchVisible = false;
+            return;
+        }
+
+        try
+        {
+            await Task.Delay(300, ct);
+            if (ct.IsCancellationRequested) return;
+
+            _contactSearchResults = await ApiClient.SearchContactsAsync(query, 10, ct);
+            _contactSearchActiveIndex = attendeeIndex;
+            _contactSearchVisible = _contactSearchResults.Count > 0;
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected on debounce
+        }
+        catch
+        {
+            _contactSearchResults = [];
+            _contactSearchVisible = false;
+        }
+    }
+
+    private void SelectContactForAttendee(ContactSearchResultDto contact, AttendeeEditorModel attendee)
+    {
+        attendee.ContactId = contact.ContactId;
+        attendee.DisplayName = contact.DisplayName;
+        var primaryEmail = contact.Emails.FirstOrDefault(e => e.Label == "work" || e.Label == "home");
+        if (string.IsNullOrEmpty(primaryEmail.Address))
+            primaryEmail = contact.Emails.FirstOrDefault();
+        attendee.Email = primaryEmail.Address ?? string.Empty;
+        _contactSearchVisible = false;
+        _contactSearchQuery = string.Empty;
+        _contactSearchResults = [];
+    }
+
+    private void StartManualAttendeeEntry(AttendeeEditorModel attendee)
+    {
+        attendee.ContactId = null;
+        _contactSearchVisible = false;
+    }
+
     private void DeleteEventAsync()
     {
         // Show delete confirmation modal instead of deleting immediately
@@ -1359,6 +1455,7 @@
             RecurrenceType = ParseRecurrenceType(dto.RecurrenceRule),
             Attendees = dto.Attendees.Select(a => new AttendeeEditorModel
             {
+                ContactId = a.UserId,
                 Email = a.Email,
                 DisplayName = a.DisplayName ?? "",
                 Role = a.Role.ToString(),
@@ -1393,6 +1490,7 @@
             RecurrenceRule = BuildRrule(),
             Attendees = Attendees.Select(a => new EventAttendeeDto
             {
+                UserId = a.ContactId,
                 Email = a.Email,
                 DisplayName = string.IsNullOrWhiteSpace(a.DisplayName) ? null : a.DisplayName,
                 Role = Enum.TryParse<AttendeeRole>(a.Role, out var role) ? role : AttendeeRole.Required,
@@ -1418,6 +1516,7 @@
             RecurrenceRule = BuildRrule(),
             Attendees = Attendees.Select(a => new EventAttendeeDto
             {
+                UserId = a.ContactId,
                 Email = a.Email,
                 DisplayName = string.IsNullOrWhiteSpace(a.DisplayName) ? null : a.DisplayName,
                 Role = Enum.TryParse<AttendeeRole>(a.Role, out var role) ? role : AttendeeRole.Required,
@@ -1568,6 +1667,7 @@
 
     private sealed class AttendeeEditorModel
     {
+        public Guid? ContactId { get; set; }
         public string Email { get; set; } = string.Empty;
         public string DisplayName { get; set; } = string.Empty;
         public string Role { get; set; } = "Required";

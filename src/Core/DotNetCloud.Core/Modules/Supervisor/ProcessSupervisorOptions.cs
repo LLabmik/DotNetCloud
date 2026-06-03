@@ -119,8 +119,8 @@ public sealed class ProcessSupervisorOptions
 
     /// <summary>
     /// Whether to prefer TCP transport over Unix sockets/Named pipes.
-    /// Useful in containerized environments.
-    /// Default: false.
+    /// TCP works cross-platform (Linux, Windows, containers).
+    /// Default: true.
     /// </summary>
-    public bool PreferTcpTransport { get; set; }
+    public bool PreferTcpTransport { get; set; } = true;
 }

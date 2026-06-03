@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Modules.Calendar.Models;
@@ -16,6 +17,7 @@ public class CalendarController : CalendarControllerBase
     private readonly ICalendarEventService _eventService;
     private readonly ICalendarShareService _shareService;
     private readonly IICalendarService _icalService;
+    private readonly IContactDirectory _contactDirectory;
     private readonly ILogger<CalendarController> _logger;
 
     /// <summary>
@@ -26,12 +28,14 @@ public class CalendarController : CalendarControllerBase
         ICalendarEventService eventService,
         ICalendarShareService shareService,
         IICalendarService icalService,
+        IContactDirectory contactDirectory,
         ILogger<CalendarController> logger)
     {
         _calendarService = calendarService;
         _eventService = eventService;
         _shareService = shareService;
         _icalService = icalService;
+        _contactDirectory = contactDirectory;
         _logger = logger;
     }
 
@@ -224,6 +228,29 @@ public class CalendarController : CalendarControllerBase
         var caller = GetAuthenticatedCaller();
         var events = await _eventService.SearchEventsAsync(caller, q, from, to, skip, take);
         return Ok(Envelope(events));
+    }
+
+    // ─── Contact Search (via IContactDirectory) ───────────────────────
+
+    /// <summary>Searches contacts for attendee autocomplete (uses IContactDirectory directly).</summary>
+    [HttpGet("contacts/search")]
+    public async Task<IActionResult> SearchContactsAsync(
+        [FromQuery] string? query = null,
+        [FromQuery] int maxResults = 10)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+            return Ok(Envelope(Array.Empty<ContactSearchResultDto>()));
+
+        var caller = GetAuthenticatedCaller();
+        var results = await _contactDirectory.SearchContactsWithEmailsAsync(
+            caller.UserId, query, maxResults);
+        var dtos = results.Select(r => new ContactSearchResultDto
+        {
+            ContactId = r.ContactId,
+            DisplayName = r.DisplayName,
+            Emails = r.Emails
+        }).ToList();
+        return Ok(Envelope(dtos));
     }
 
     // ─── Sharing ──────────────────────────────────────────────────────────

@@ -3568,6 +3568,15 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Contact avatar upload and attachment metadata
 - ✓ Contact sharing model (user/team scoped permissions)
 
+#### Process Isolation (gRPC)
+
+- ✓ Contacts module runs as separate process (removed from Core.Server ProjectReferences)
+- ✓ ContactsGrpcService extended with Groups, Sharing, Related Entities RPCs
+- ✓ contacts_service.proto extended with all API surface RPCs
+- ✓ ContactsGrpcApiClient (gRPC-based IContactsApiClient) in Core.Server
+- ✓ Core.Server removes in-process AddContactsServices, uses gRPC client
+- ✓ Publish Contacts.Host to modules/ directory via publish-module-hosts.ps1
+
 ### Phase 3.3: Calendar Module
 
 #### Module Projects
@@ -3604,6 +3613,15 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ gRPC service (11 RPCs) for core ↔ module communication
 - ✓ iCalendar RFC 5545 import/export service
 
+#### Process Isolation (gRPC)
+
+- ✓ Calendar module runs as separate process (removed from Core.Server ProjectReferences)
+- ✓ CalendarGrpcService extended with UpdateCalendar, DeleteCalendar, SearchEvents, Shares RPCs
+- ✓ calendar_service.proto extended with all API surface RPCs
+- ✓ CalendarGrpcApiClient (gRPC-based ICalendarApiClient) in Core.Server
+- ✓ Core.Server removes in-process AddCalendarServices, uses gRPC client
+- ✓ Publish Calendar.Host to modules/ directory via publish-module-hosts.ps1
+
 #### Calendar Recurrence UI + Organization Support (Phases 1-5)
 
 - ✓ Recurrence picker (Daily/Weekly/Biweekly/Monthly/Yearly) with end date in event editor
@@ -3624,6 +3642,14 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ CalendarModuleManifest registers IOrganizationDirectory capability
 - ✓ Module manifest (manifest.json)
 - ✓ Attendee management UI in event editor (email, name, role, status)
+- ✓ Attendee contact search via Contacts gRPC (autocomplete dropdown in event editor)
+- ✓ Contacts added to RequiredModules for availability guarantee
+- ✓ SearchContacts gRPC RPC in contacts_service.proto
+- ✓ ContactsGrpcClient in Calendar.Host with Unix socket support
+- ✓ REST GET /api/v1/calendars/contacts/search endpoint
+- ✓ ContactSearchResultDto and SearchContactsAsync in ICalendarApiClient
+- ✓ Debounced attendee search (300ms) with contact selection and manual fallback
+- ✓ ContactId preserved as EventAttendee.UserId for cross-module link resolution
 - ✓ Reminder configuration UI in event editor (method dropdown, minutes input, add/remove)
 - ✓ Org picker dropdown in toolbar (My Calendars / Organization filter)
 - ✓ Org badge in calendar editor modal (shows org name when creating under org)

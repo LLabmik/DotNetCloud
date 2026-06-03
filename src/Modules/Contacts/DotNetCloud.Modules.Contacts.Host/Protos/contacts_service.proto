@@ -33,6 +33,39 @@ service ContactsService {
 
   // Returns a single searchable document by entity ID.
   rpc GetSearchableDocument (GetSearchableDocumentRequest) returns (SearchableDocumentResponse);
+
+  // Searches contacts by display name or email for autocomplete/lookup UIs.
+  rpc SearchContacts (SearchContactsRequest) returns (SearchContactsResponse);
+
+  // ─── Groups ───────────────────────────────────────────────────────────
+  // Lists contact groups for a user.
+  rpc ListGroups (ListGroupsRequest) returns (ListGroupsResponse);
+  // Gets a single group by ID.
+  rpc GetGroup (GetGroupRequest) returns (GroupResponse);
+  // Creates a new contact group.
+  rpc CreateGroup (CreateGroupRequest) returns (GroupResponse);
+  // Renames a contact group.
+  rpc RenameGroup (RenameGroupRequest) returns (GroupResponse);
+  // Deletes a contact group.
+  rpc DeleteGroup (DeleteGroupRequest) returns (DeleteGroupResponse);
+  // Adds a contact to a group.
+  rpc AddContactToGroup (AddContactToGroupRequest) returns (AddContactToGroupResponse);
+  // Removes a contact from a group.
+  rpc RemoveContactFromGroup (RemoveContactFromGroupRequest) returns (RemoveContactFromGroupResponse);
+  // Lists contacts that are members of a group.
+  rpc ListGroupMembers (ListGroupMembersRequest) returns (ListGroupMembersResponse);
+
+  // ─── Related Entities ──────────────────────────────────────────────────
+  // Gets related events and notes for a contact.
+  rpc GetContactRelated (GetContactRelatedRequest) returns (ContactRelatedResponse);
+
+  // ─── Sharing ──────────────────────────────────────────────────────────
+  // Lists shares for a contact.
+  rpc ListContactShares (ListContactSharesRequest) returns (ListContactSharesResponse);
+  // Shares a contact with a user or team.
+  rpc ShareContact (ShareContactRequest) returns (ShareContactResponse);
+  // Revokes a contact share.
+  rpc RevokeContactShare (RevokeContactShareRequest) returns (RevokeContactShareResponse);
 }
 
 // --- CreateContact ---
@@ -224,4 +257,180 @@ message SearchableDocument {
   string created_at = 9;
   string updated_at = 10;
   map<string, string> metadata = 11;
+}
+
+// --- SearchContacts ---
+
+message SearchContactsRequest {
+  string user_id = 1;       // GUID of the user whose contacts to search
+  string query = 2;         // Search text (matched against display name and emails)
+  int32 max_results = 3;    // Max results to return (default 10)
+}
+
+message SearchContactsResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated ContactSearchResultMessage results = 3;
+}
+
+message ContactSearchResultMessage {
+  string contact_id = 1;                     // GUID of the contact
+  string display_name = 2;                   // Contact display name
+  repeated ContactEmailMessage emails = 3;    // Reuses existing ContactEmailMessage (address, label, is_primary)
+}
+
+// ─── Groups ───────────────────────────────────────────────────────────────
+
+message ListGroupsRequest {
+  string user_id = 1;
+}
+
+message ListGroupsResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated GroupMessage groups = 3;
+}
+
+message GetGroupRequest {
+  string group_id = 1;
+  string user_id = 2;
+}
+
+message GroupResponse {
+  bool success = 1;
+  string error_message = 2;
+  GroupMessage group = 3;
+}
+
+message CreateGroupRequest {
+  string user_id = 1;
+  string name = 2;
+}
+
+message RenameGroupRequest {
+  string group_id = 1;
+  string user_id = 2;
+  string new_name = 3;
+}
+
+message DeleteGroupRequest {
+  string group_id = 1;
+  string user_id = 2;
+}
+
+message DeleteGroupResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+message GroupMessage {
+  string id = 1;
+  string owner_id = 2;
+  string name = 3;
+  int32 member_count = 4;
+  string created_at = 5;
+}
+
+// ─── Group Members ─────────────────────────────────────────────────────────
+
+message AddContactToGroupRequest {
+  string group_id = 1;
+  string contact_id = 2;
+  string user_id = 3;
+}
+
+message AddContactToGroupResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+message RemoveContactFromGroupRequest {
+  string group_id = 1;
+  string contact_id = 2;
+  string user_id = 3;
+}
+
+message RemoveContactFromGroupResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+message ListGroupMembersRequest {
+  string group_id = 1;
+  string user_id = 2;
+}
+
+message ListGroupMembersResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated ContactMessage members = 3;
+}
+
+// ─── Related Entities ──────────────────────────────────────────────────────
+
+message GetContactRelatedRequest {
+  string contact_id = 1;
+  string user_id = 2;
+}
+
+message ContactRelatedResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated ContactRelatedItem related_items = 3;
+}
+
+message ContactRelatedItem {
+  string id = 1;
+  string entity_type = 2;     // "CalendarEvent", "Note", "File", etc.
+  string title = 3;
+  string description = 4;
+  string url = 5;
+  string created_at = 6;
+}
+
+// ─── Sharing ───────────────────────────────────────────────────────────────
+
+message ListContactSharesRequest {
+  string contact_id = 1;
+  string user_id = 2;
+}
+
+message ListContactSharesResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated ContactShareMessage shares = 3;
+}
+
+message ShareContactRequest {
+  string contact_id = 1;
+  string user_id = 2;          // caller
+  string target_user_id = 3;   // optional GUID
+  string team_id = 4;          // optional GUID
+  string permission = 5;       // "ReadOnly", "ReadWrite", "Admin"
+}
+
+message ShareContactResponse {
+  bool success = 1;
+  string error_message = 2;
+  ContactShareMessage share = 3;
+}
+
+message RevokeContactShareRequest {
+  string share_id = 1;
+  string user_id = 2;
+}
+
+message RevokeContactShareResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+message ContactShareMessage {
+  string id = 1;
+  string contact_id = 2;
+  string shared_by_user_id = 3;
+  string shared_with_user_id = 4;
+  string shared_with_team_id = 5;
+  string permission = 6;
+  string created_at = 7;
 }

@@ -31,6 +31,24 @@ public interface ICalendarApiClient
     // Import/Export
     Task<string> ExportCalendarICalAsync(Guid calendarId, CancellationToken cancellationToken = default);
     Task ImportICalAsync(Guid calendarId, string iCalText, CancellationToken cancellationToken = default);
+
+    // Contact search (delegates to Contacts module)
+    Task<IReadOnlyList<ContactSearchResultDto>> SearchContactsAsync(string query, int maxResults = 10, CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// Represents a contact search result for attendee autocomplete in the Calendar event editor.
+/// </summary>
+public sealed record ContactSearchResultDto
+{
+    /// <summary>The unique identifier of the contact.</summary>
+    public required Guid ContactId { get; init; }
+
+    /// <summary>The display name of the contact.</summary>
+    public required string DisplayName { get; init; }
+
+    /// <summary>Email addresses associated with this contact. Each entry is (Address, Label).</summary>
+    public required IReadOnlyList<(string Address, string Label)> Emails { get; init; }
 }
 
 /// <summary>

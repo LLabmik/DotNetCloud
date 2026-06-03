@@ -150,6 +150,12 @@ public sealed class CalendarApiClient : ICalendarApiClient
         response.EnsureSuccessStatusCode();
     }
 
+    public async Task<IReadOnlyList<ContactSearchResultDto>> SearchContactsAsync(string query, int maxResults = 10, CancellationToken cancellationToken = default)
+    {
+        var url = $"api/v1/calendars/contacts/search?query={Uri.EscapeDataString(query)}&maxResults={maxResults}";
+        return await ReadDataAsync<IReadOnlyList<ContactSearchResultDto>>(url, cancellationToken) ?? [];
+    }
+
     private async Task<T?> ReadDataAsync<T>(string url, CancellationToken cancellationToken)
     {
         var response = await _httpClient.GetAsync(url, cancellationToken);

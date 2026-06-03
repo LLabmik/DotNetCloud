@@ -392,6 +392,7 @@ public sealed class CalendarEventService : ICalendarEventService
             .Include(e => e.Calendar)
             .Include(e => e.Attendees)
             .Include(e => e.Reminders)
+            .AsSplitQuery()
             .AsNoTracking();
     }
 

@@ -1,6 +1,8 @@
 using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Modules.Contacts.Host.Protos;
+using DotNetCloud.Modules.Contacts.Models;
 using DotNetCloud.Modules.Contacts.Services;
 using Grpc.Core;
 
@@ -14,6 +16,10 @@ public sealed class ContactsGrpcService : ContactsService.ContactsServiceBase
 {
     private readonly IContactService _contactService;
     private readonly IVCardService _vcardService;
+    private readonly IContactDirectory _contactDirectory;
+    private readonly IContactGroupService _groupService;
+    private readonly IContactShareService _shareService;
+    private readonly IContactRelatedEntitiesService _relatedService;
     private readonly ILogger<ContactsGrpcService> _logger;
 
     /// <summary>
@@ -22,10 +28,18 @@ public sealed class ContactsGrpcService : ContactsService.ContactsServiceBase
     public ContactsGrpcService(
         IContactService contactService,
         IVCardService vcardService,
+        IContactDirectory contactDirectory,
+        IContactGroupService groupService,
+        IContactShareService shareService,
+        IContactRelatedEntitiesService relatedService,
         ILogger<ContactsGrpcService> logger)
     {
         _contactService = contactService;
         _vcardService = vcardService;
+        _contactDirectory = contactDirectory;
+        _groupService = groupService;
+        _shareService = shareService;
+        _relatedService = relatedService;
         _logger = logger;
     }
 
@@ -86,7 +100,7 @@ public sealed class ContactsGrpcService : ContactsService.ContactsServiceBase
         try
         {
             var result = await _contactService.CreateContactAsync(
-                dto, new CallerContext(userId, ["user"], CallerType.User), context.CancellationToken);
+                dto, CallerContext.CreateSystemContext(), context.CancellationToken);
 
             return new ContactResponse { Success = true, Contact = ToContactMessage(result) };
         }
@@ -107,7 +121,7 @@ public sealed class ContactsGrpcService : ContactsService.ContactsServiceBase
         }
 
         var result = await _contactService.GetContactAsync(
-            contactId, new CallerContext(userId, ["user"], CallerType.User), context.CancellationToken);
+            contactId, CallerContext.CreateSystemContext(), context.CancellationToken);
 
         if (result is null)
         {
@@ -121,23 +135,31 @@ public sealed class ContactsGrpcService : ContactsService.ContactsServiceBase
     public override async Task<ListContactsResponse> ListContacts(
         ListContactsRequest request, ServerCallContext context)
     {
-        if (!Guid.TryParse(request.UserId, out var userId))
+        try
         {
-            return new ListContactsResponse { Success = false, ErrorMessage = "Invalid user ID format." };
+            if (!Guid.TryParse(request.UserId, out var userId))
+            {
+                return new ListContactsResponse { Success = false, ErrorMessage = "Invalid user ID format." };
+            }
+
+            var take = request.Take > 0 ? request.Take : 50;
+
+            var results = await _contactService.ListContactsAsync(
+                CallerContext.CreateSystemContext(),
+                NullIfEmpty(request.Search),
+                request.Skip,
+                take,
+                context.CancellationToken);
+
+            var response = new ListContactsResponse { Success = true };
+            response.Contacts.AddRange(results.Select(ToContactMessage));
+            return response;
         }
-
-        var take = request.Take > 0 ? request.Take : 50;
-
-        var results = await _contactService.ListContactsAsync(
-            new CallerContext(userId, ["user"], CallerType.User),
-            NullIfEmpty(request.Search),
-            request.Skip,
-            take,
-            context.CancellationToken);
-
-        var response = new ListContactsResponse { Success = true };
-        response.Contacts.AddRange(results.Select(ToContactMessage));
-        return response;
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "ListContacts gRPC handler failed");
+            return new ListContactsResponse { Success = false, ErrorMessage = ex.Message };
+        }
     }
 
     /// <inheritdoc />
@@ -169,7 +191,7 @@ public sealed class ContactsGrpcService : ContactsService.ContactsServiceBase
         try
         {
             var result = await _contactService.UpdateContactAsync(
-                contactId, dto, new CallerContext(userId, ["user"], CallerType.User), context.CancellationToken);
+                contactId, dto, CallerContext.CreateSystemContext(), context.CancellationToken);
 
             return new ContactResponse { Success = true, Contact = ToContactMessage(result) };
         }
@@ -192,7 +214,7 @@ public sealed class ContactsGrpcService : ContactsService.ContactsServiceBase
         try
         {
             await _contactService.DeleteContactAsync(
-                contactId, new CallerContext(userId, ["user"], CallerType.User), context.CancellationToken);
+                contactId, CallerContext.CreateSystemContext(), context.CancellationToken);
 
             return new DeleteContactResponse { Success = true };
         }
@@ -215,7 +237,7 @@ public sealed class ContactsGrpcService : ContactsService.ContactsServiceBase
         try
         {
             var vcard = await _vcardService.ExportVCardAsync(
-                contactId, new CallerContext(userId, ["user"], CallerType.User), context.CancellationToken);
+                contactId, CallerContext.CreateSystemContext(), context.CancellationToken);
 
             return new ExportVCardResponse { Success = true, VcardText = vcard };
         }
@@ -237,7 +259,7 @@ public sealed class ContactsGrpcService : ContactsService.ContactsServiceBase
         try
         {
             var ids = await _vcardService.ImportVCardsAsync(
-                request.VcardText, new CallerContext(userId, ["user"], CallerType.User), context.CancellationToken);
+                request.VcardText, CallerContext.CreateSystemContext(), context.CancellationToken);
 
             var response = new ImportVCardsResponse { Success = true };
             response.CreatedContactIds.AddRange(ids.Select(id => id.ToString()));
@@ -246,6 +268,51 @@ public sealed class ContactsGrpcService : ContactsService.ContactsServiceBase
         catch (Exception ex) when (ex is ArgumentException or Core.Errors.ValidationException)
         {
             return new ImportVCardsResponse { Success = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    /// <inheritdoc />
+    public override async Task<SearchContactsResponse> SearchContacts(
+        SearchContactsRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.UserId, out var userId))
+        {
+            return new SearchContactsResponse { Success = false, ErrorMessage = "Invalid user ID format." };
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Query))
+        {
+            return new SearchContactsResponse { Success = true };
+        }
+
+        var maxResults = request.MaxResults > 0 ? request.MaxResults : 10;
+
+        try
+        {
+            var results = await _contactDirectory.SearchContactsWithEmailsAsync(
+                userId, request.Query, maxResults, context.CancellationToken);
+
+            var response = new SearchContactsResponse { Success = true };
+            response.Results.AddRange(results.Select(r => new ContactSearchResultMessage
+            {
+                ContactId = r.ContactId.ToString(),
+                DisplayName = r.DisplayName,
+                Emails =
+                {
+                    r.Emails.Select(e => new ContactEmailMessage
+                    {
+                        Address = e.Address,
+                        Label = e.Label,
+                        IsPrimary = false
+                    })
+                }
+            }));
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error searching contacts for user {UserId} with query '{Query}'", userId, request.Query);
+            return new SearchContactsResponse { Success = false, ErrorMessage = "An error occurred while searching contacts." };
         }
     }
 
@@ -325,7 +392,7 @@ public sealed class ContactsGrpcService : ContactsService.ContactsServiceBase
             return;
 
         var contacts = await _contactService.ListContactsAsync(
-            new CallerContext(userId, ["user"], CallerType.User),
+            CallerContext.CreateSystemContext(),
             search: null, skip: 0, take: int.MaxValue,
             context.CancellationToken);
 
@@ -394,5 +461,330 @@ public sealed class ContactsGrpcService : ContactsService.ContactsServiceBase
         doc.Metadata["ContactType"] = dto.ContactType.ToString();
 
         return doc;
+    }
+
+    // ─── Groups ─────────────────────────────────────────────────────────────
+
+    /// <inheritdoc />
+    public override async Task<ListGroupsResponse> ListGroups(
+        ListGroupsRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.UserId, out var userId))
+            return new ListGroupsResponse { Success = false, ErrorMessage = "Invalid user ID format." };
+
+        var groups = await _groupService.ListGroupsAsync(
+            CallerContext.CreateSystemContext(), context.CancellationToken);
+
+        var response = new ListGroupsResponse { Success = true };
+        response.Groups.AddRange(groups.Select(g => new GroupMessage
+        {
+            Id = g.Id.ToString(),
+            OwnerId = g.OwnerId.ToString(),
+            Name = g.Name,
+            MemberCount = g.MemberCount,
+            CreatedAt = g.CreatedAt.ToString("O")
+        }));
+        return response;
+    }
+
+    /// <inheritdoc />
+    public override async Task<GroupResponse> GetGroup(
+        GetGroupRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.GroupId, out var groupId) ||
+            !Guid.TryParse(request.UserId, out var userId))
+            return new GroupResponse { Success = false, ErrorMessage = "Invalid ID format." };
+
+        var group = await _groupService.GetGroupAsync(
+            groupId, CallerContext.CreateSystemContext(), context.CancellationToken);
+
+        return group is null
+            ? new GroupResponse { Success = false, ErrorMessage = "Group not found." }
+            : new GroupResponse
+            {
+                Success = true,
+                Group = new GroupMessage
+                {
+                    Id = group.Id.ToString(),
+                    OwnerId = group.OwnerId.ToString(),
+                    Name = group.Name,
+                    MemberCount = group.MemberCount,
+                    CreatedAt = group.CreatedAt.ToString("O")
+                }
+            };
+    }
+
+    /// <inheritdoc />
+    public override async Task<GroupResponse> CreateGroup(
+        CreateGroupRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.UserId, out var userId))
+            return new GroupResponse { Success = false, ErrorMessage = "Invalid user ID format." };
+
+        try
+        {
+            var group = await _groupService.CreateGroupAsync(
+                request.Name, CallerContext.CreateSystemContext(), context.CancellationToken);
+
+            return new GroupResponse
+            {
+                Success = true,
+                Group = new GroupMessage
+                {
+                    Id = group.Id.ToString(),
+                    OwnerId = group.OwnerId.ToString(),
+                    Name = group.Name,
+                    MemberCount = group.MemberCount,
+                    CreatedAt = group.CreatedAt.ToString("O")
+                }
+            };
+        }
+        catch (Exception ex) when (ex is ArgumentException or Core.Errors.ValidationException)
+        {
+            return new GroupResponse { Success = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    /// <inheritdoc />
+    public override async Task<GroupResponse> RenameGroup(
+        RenameGroupRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.GroupId, out var groupId) ||
+            !Guid.TryParse(request.UserId, out var userId))
+            return new GroupResponse { Success = false, ErrorMessage = "Invalid ID format." };
+
+        try
+        {
+            var group = await _groupService.RenameGroupAsync(
+                groupId, request.NewName, CallerContext.CreateSystemContext(), context.CancellationToken);
+
+            return new GroupResponse
+            {
+                Success = true,
+                Group = new GroupMessage
+                {
+                    Id = group.Id.ToString(),
+                    OwnerId = group.OwnerId.ToString(),
+                    Name = group.Name,
+                    MemberCount = group.MemberCount,
+                    CreatedAt = group.CreatedAt.ToString("O")
+                }
+            };
+        }
+        catch (Exception ex) when (ex is ArgumentException or Core.Errors.ValidationException)
+        {
+            return new GroupResponse { Success = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    /// <inheritdoc />
+    public override async Task<DeleteGroupResponse> DeleteGroup(
+        DeleteGroupRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.GroupId, out var groupId) ||
+            !Guid.TryParse(request.UserId, out var userId))
+            return new DeleteGroupResponse { Success = false, ErrorMessage = "Invalid ID format." };
+
+        try
+        {
+            await _groupService.DeleteGroupAsync(
+                groupId, CallerContext.CreateSystemContext(), context.CancellationToken);
+            return new DeleteGroupResponse { Success = true };
+        }
+        catch (Exception ex) when (ex is ArgumentException or Core.Errors.ValidationException)
+        {
+            return new DeleteGroupResponse { Success = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    // ─── Group Members ───────────────────────────────────────────────────────
+
+    /// <inheritdoc />
+    public override async Task<AddContactToGroupResponse> AddContactToGroup(
+        AddContactToGroupRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.GroupId, out var groupId) ||
+            !Guid.TryParse(request.ContactId, out var contactId) ||
+            !Guid.TryParse(request.UserId, out var userId))
+            return new AddContactToGroupResponse { Success = false, ErrorMessage = "Invalid ID format." };
+
+        try
+        {
+            await _groupService.AddContactToGroupAsync(
+                groupId, contactId, CallerContext.CreateSystemContext(), context.CancellationToken);
+            return new AddContactToGroupResponse { Success = true };
+        }
+        catch (Exception ex) when (ex is ArgumentException or Core.Errors.ValidationException)
+        {
+            return new AddContactToGroupResponse { Success = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    /// <inheritdoc />
+    public override async Task<RemoveContactFromGroupResponse> RemoveContactFromGroup(
+        RemoveContactFromGroupRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.GroupId, out var groupId) ||
+            !Guid.TryParse(request.ContactId, out var contactId) ||
+            !Guid.TryParse(request.UserId, out var userId))
+            return new RemoveContactFromGroupResponse { Success = false, ErrorMessage = "Invalid ID format." };
+
+        try
+        {
+            await _groupService.RemoveContactFromGroupAsync(
+                groupId, contactId, CallerContext.CreateSystemContext(), context.CancellationToken);
+            return new RemoveContactFromGroupResponse { Success = true };
+        }
+        catch (Exception ex) when (ex is ArgumentException or Core.Errors.ValidationException)
+        {
+            return new RemoveContactFromGroupResponse { Success = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    /// <inheritdoc />
+    public override async Task<ListGroupMembersResponse> ListGroupMembers(
+        ListGroupMembersRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.GroupId, out var groupId) ||
+            !Guid.TryParse(request.UserId, out var userId))
+            return new ListGroupMembersResponse { Success = false, ErrorMessage = "Invalid ID format." };
+
+        var members = await _groupService.ListGroupMembersAsync(
+            groupId, CallerContext.CreateSystemContext(), context.CancellationToken);
+
+        var response = new ListGroupMembersResponse { Success = true };
+        response.Members.AddRange(members.Select(ToContactMessage));
+        return response;
+    }
+
+    // ─── Related Entities ────────────────────────────────────────────────────
+
+    /// <inheritdoc />
+    public override async Task<ContactRelatedResponse> GetContactRelated(
+        GetContactRelatedRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.ContactId, out var contactId) ||
+            !Guid.TryParse(request.UserId, out var userId))
+            return new ContactRelatedResponse { Success = false, ErrorMessage = "Invalid ID format." };
+
+        var related = await _relatedService.GetRelatedAsync(contactId, userId, context.CancellationToken);
+
+        var response = new ContactRelatedResponse { Success = true };
+
+        foreach (var evt in related.Events)
+        {
+            response.RelatedItems.Add(new ContactRelatedItem
+            {
+                Id = evt.Id.ToString(),
+                EntityType = "CalendarEvent",
+                Title = evt.Title,
+                Description = string.Empty,
+                Url = string.Empty,
+                CreatedAt = evt.StartUtc.ToString("O")
+            });
+        }
+
+        foreach (var note in related.Notes)
+        {
+            response.RelatedItems.Add(new ContactRelatedItem
+            {
+                Id = note.Id.ToString(),
+                EntityType = "Note",
+                Title = note.Title,
+                Description = string.Empty,
+                Url = string.Empty,
+                CreatedAt = note.UpdatedAt.ToString("O")
+            });
+        }
+
+        return response;
+    }
+
+    // ─── Sharing ─────────────────────────────────────────────────────────────
+
+    /// <inheritdoc />
+    public override async Task<ListContactSharesResponse> ListContactShares(
+        ListContactSharesRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.ContactId, out var contactId) ||
+            !Guid.TryParse(request.UserId, out var userId))
+            return new ListContactSharesResponse { Success = false, ErrorMessage = "Invalid ID format." };
+
+        var shares = await _shareService.ListSharesAsync(
+            contactId, CallerContext.CreateSystemContext(), context.CancellationToken);
+
+        var response = new ListContactSharesResponse { Success = true };
+        response.Shares.AddRange(shares.Select(s => new ContactShareMessage
+        {
+            Id = s.Id.ToString(),
+            ContactId = s.ContactId.ToString(),
+            SharedByUserId = s.SharedByUserId.ToString(),
+            SharedWithUserId = s.SharedWithUserId?.ToString() ?? string.Empty,
+            SharedWithTeamId = s.SharedWithTeamId?.ToString() ?? string.Empty,
+            Permission = s.Permission.ToString(),
+            CreatedAt = s.CreatedAt.ToString("O")
+        }));
+        return response;
+    }
+
+    /// <inheritdoc />
+    public override async Task<ShareContactResponse> ShareContact(
+        ShareContactRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.ContactId, out var contactId) ||
+            !Guid.TryParse(request.UserId, out var userId))
+            return new ShareContactResponse { Success = false, ErrorMessage = "Invalid ID format." };
+
+        var targetUserId = Guid.TryParse(request.TargetUserId, out var tuid) ? tuid : (Guid?)null;
+        var teamId = Guid.TryParse(request.TeamId, out var tid) ? tid : (Guid?)null;
+
+        if (!Enum.TryParse<ContactSharePermission>(request.Permission, true, out var permission))
+            permission = ContactSharePermission.ReadOnly;
+
+        try
+        {
+            var share = await _shareService.ShareContactAsync(
+                contactId, targetUserId, teamId, permission,
+                CallerContext.CreateSystemContext(), context.CancellationToken);
+
+            return new ShareContactResponse
+            {
+                Success = true,
+                Share = new ContactShareMessage
+                {
+                    Id = share.Id.ToString(),
+                    ContactId = share.ContactId.ToString(),
+                    SharedByUserId = share.SharedByUserId.ToString(),
+                    SharedWithUserId = share.SharedWithUserId?.ToString() ?? string.Empty,
+                    SharedWithTeamId = share.SharedWithTeamId?.ToString() ?? string.Empty,
+                    Permission = share.Permission.ToString(),
+                    CreatedAt = share.CreatedAt.ToString("O")
+                }
+            };
+        }
+        catch (Exception ex) when (ex is ArgumentException or Core.Errors.ValidationException)
+        {
+            return new ShareContactResponse { Success = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    /// <inheritdoc />
+    public override async Task<RevokeContactShareResponse> RevokeContactShare(
+        RevokeContactShareRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.ShareId, out var shareId) ||
+            !Guid.TryParse(request.UserId, out var userId))
+            return new RevokeContactShareResponse { Success = false, ErrorMessage = "Invalid ID format." };
+
+        try
+        {
+            await _shareService.RemoveShareAsync(
+                shareId, CallerContext.CreateSystemContext(), context.CancellationToken);
+            return new RevokeContactShareResponse { Success = true };
+        }
+        catch (Exception ex) when (ex is ArgumentException or Core.Errors.ValidationException)
+        {
+            return new RevokeContactShareResponse { Success = false, ErrorMessage = ex.Message };
+        }
     }
 }

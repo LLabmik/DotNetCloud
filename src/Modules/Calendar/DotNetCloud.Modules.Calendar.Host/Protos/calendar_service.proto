@@ -16,6 +16,12 @@ service CalendarGrpcService {
   // Lists calendars for a user.
   rpc ListCalendars (ListCalendarsRequest) returns (ListCalendarsResponse);
 
+  // Updates a calendar.
+  rpc UpdateCalendar (UpdateCalendarRequest) returns (CalendarResponse);
+
+  // Deletes a calendar (soft-delete).
+  rpc DeleteCalendar (DeleteCalendarRequest) returns (DeleteCalendarResponse);
+
   // Creates a new calendar event.
   rpc CreateEvent (CreateEventRequest) returns (EventResponse);
 
@@ -39,6 +45,20 @@ service CalendarGrpcService {
 
   // Imports events from iCalendar text.
   rpc ImportICal (ImportICalRequest) returns (ImportICalResponse);
+
+  // Exports all events in a calendar as iCalendar text.
+  rpc ExportCalendarICal (ExportCalendarICalRequest) returns (ExportICalResponse);
+
+  // Searches events across a user's calendars.
+  rpc SearchEvents (SearchEventsRequest) returns (SearchEventsResponse);
+
+  // ─── Sharing ──────────────────────────────────────────────────────────
+  // Lists shares for a calendar.
+  rpc ListCalendarShares (ListCalendarSharesRequest) returns (ListCalendarSharesResponse);
+  // Shares a calendar with a user or team.
+  rpc ShareCalendar (ShareCalendarRequest) returns (ShareCalendarResponse);
+  // Revokes a calendar share.
+  rpc RevokeCalendarShare (RevokeCalendarShareRequest) returns (RevokeCalendarShareResponse);
 
   // Returns all searchable documents for full reindex (streaming).
   rpc GetSearchableDocuments (GetSearchableDocumentsRequest) returns (stream SearchableDocument);
@@ -279,4 +299,97 @@ message SearchableDocument {
   string created_at = 9;
   string updated_at = 10;
   map<string, string> metadata = 11;
+}
+
+// ─── UpdateCalendar / DeleteCalendar ───────────────────────────────────────
+
+message UpdateCalendarRequest {
+  string calendar_id = 1;
+  string user_id = 2;
+  string name = 3;
+  string description = 4;
+  string color = 5;
+  string timezone = 6;
+  bool is_visible = 7;
+}
+
+message DeleteCalendarRequest {
+  string calendar_id = 1;
+  string user_id = 2;
+}
+
+message DeleteCalendarResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+// ─── ExportCalendarICal ────────────────────────────────────────────────────
+
+message ExportCalendarICalRequest {
+  string calendar_id = 1;
+  string user_id = 2;
+}
+
+// ─── SearchEvents ──────────────────────────────────────────────────────────
+
+message SearchEventsRequest {
+  string user_id = 1;
+  string query = 2;
+  string from_utc = 3;
+  string to_utc = 4;
+  int32 skip = 5;
+  int32 take = 6;
+}
+
+message SearchEventsResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated EventMessage events = 3;
+}
+
+// ─── Sharing ───────────────────────────────────────────────────────────────
+
+message ListCalendarSharesRequest {
+  string calendar_id = 1;
+  string user_id = 2;
+}
+
+message ListCalendarSharesResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated CalendarShareMessage shares = 3;
+}
+
+message ShareCalendarRequest {
+  string calendar_id = 1;
+  string user_id = 2;          // caller
+  string target_user_id = 3;   // optional GUID
+  string team_id = 4;          // optional GUID
+  string permission = 5;       // "ReadOnly", "ReadWrite", "Admin"
+}
+
+message ShareCalendarResponse {
+  bool success = 1;
+  string error_message = 2;
+  CalendarShareMessage share = 3;
+}
+
+message RevokeCalendarShareRequest {
+  string share_id = 1;
+  string user_id = 2;
+}
+
+message RevokeCalendarShareResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+message CalendarShareMessage {
+  string id = 1;
+  string calendar_id = 2;
+  string shared_by_user_id = 3;
+  string shared_with_user_id = 4;
+  string shared_with_team_id = 5;
+  string permission = 6;
+  string created_at = 7;
 }
