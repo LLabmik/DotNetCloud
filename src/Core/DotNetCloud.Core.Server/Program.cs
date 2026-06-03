@@ -474,7 +474,7 @@ public class Program
         builder.Services.AddScoped<DotNetCloud.Modules.Bookmarks.Services.IBookmarksApiClient, DotNetCloud.Core.Server.Grpc.Clients.BookmarksGrpcApiClient>();
         // ⚠️ Legacy in-process HTTP clients (TODO: gRPC proto expansion needed — see GRPC_MODULE_CONVERSION_PLAN.md)
         builder.Services.AddScoped<DotNetCloud.Modules.Tracks.Services.ITracksApiClient, DotNetCloud.Modules.Tracks.Services.TracksApiClient>();
-        builder.Services.AddScoped<DotNetCloud.Modules.Email.Services.IEmailApiClient, DotNetCloud.Modules.Email.Services.EmailApiClient>();
+        builder.Services.AddScoped<DotNetCloud.Modules.Email.Services.IEmailApiClient, DotNetCloud.Core.Server.Grpc.Clients.EmailGrpcApiClient>();
         builder.Services.AddScoped<DotNetCloud.Modules.Tracks.Services.IOnboardingStateService, DotNetCloud.Modules.Tracks.Services.OnboardingStateService>();
         builder.Services.AddScoped<DotNetCloudApiClient>();
 

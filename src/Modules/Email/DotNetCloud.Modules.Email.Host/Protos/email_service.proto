@@ -2,7 +2,310 @@ syntax = "proto3";
 
 package dotnetcloud.email;
 
-option csharp_namespace = "DotNetCloud.Modules.Email.Host.Services";
+option csharp_namespace = "DotNetCloud.Modules.Email.Host.Protos";
 
+// EmailService: gRPC service for the Email module.
 service EmailService {
+  // Account CRUD
+  rpc ListAccounts (ListAccountsRequest) returns (ListAccountsResponse);
+  rpc GetAccount (GetAccountRequest) returns (AccountResponse);
+  rpc CreateAccount (CreateAccountRequest) returns (AccountResponse);
+  rpc UpdateAccount (UpdateAccountRequest) returns (AccountResponse);
+  rpc DeleteAccount (DeleteAccountRequest) returns (DeleteAccountResponse);
+
+  // Mailboxes
+  rpc ListMailboxes (ListMailboxesRequest) returns (ListMailboxesResponse);
+
+  // Threads
+  rpc ListThreads (ListThreadsRequest) returns (ListThreadsResponse);
+  rpc ListThreadMessages (ListThreadMessagesRequest) returns (ListMessagesResponse);
+
+  // Messages
+  rpc GetMessageBody (GetMessageBodyRequest) returns (MessageBodyResponse);
+
+  // Send
+  rpc SendEmail (SendEmailRequest) returns (SendEmailResponse);
+
+  // Sync
+  rpc TriggerSync (TriggerSyncRequest) returns (TriggerSyncResponse);
+
+  // Rules
+  rpc ListRules (ListRulesRequest) returns (ListRulesResponse);
+  rpc GetRule (GetRuleRequest) returns (RuleResponse);
+  rpc CreateRule (CreateRuleRequest) returns (RuleResponse);
+  rpc UpdateRule (UpdateRuleRequest) returns (RuleResponse);
+  rpc DeleteRule (DeleteRuleRequest) returns (DeleteRuleResponse);
+  rpc RunRules (RunRulesRequest) returns (RunRulesResponse);
+
+  // Search index support
+  rpc GetSearchableDocuments (GetSearchableDocumentsRequest) returns (stream SearchableDocument);
+}
+
+// --- Account Messages ---
+
+message ListAccountsRequest {
+  string user_id = 1;
+}
+
+message ListAccountsResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated AccountMessage accounts = 3;
+}
+
+message GetAccountRequest {
+  string account_id = 1;
+  string user_id = 2;
+}
+
+message AccountResponse {
+  bool success = 1;
+  string error_message = 2;
+  AccountMessage account = 3;
+}
+
+message CreateAccountRequest {
+  string user_id = 1;
+  string provider_type = 2;   // "ImapSmtp" or "Gmail"
+  string display_name = 3;
+  string email_address = 4;
+  string credentials_json = 5;
+}
+
+message UpdateAccountRequest {
+  string account_id = 1;
+  string user_id = 2;
+  string display_name = 3;
+  bool is_enabled = 4;
+}
+
+message DeleteAccountRequest {
+  string account_id = 1;
+  string user_id = 2;
+}
+
+message DeleteAccountResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+message AccountMessage {
+  string id = 1;
+  string owner_id = 2;
+  string provider_type = 3;
+  string display_name = 4;
+  string email_address = 5;
+  bool is_enabled = 6;
+  string created_at = 7;
+  string updated_at = 8;
+}
+
+// --- Mailbox Messages ---
+
+message ListMailboxesRequest {
+  string account_id = 1;
+  string user_id = 2;
+}
+
+message ListMailboxesResponse {
+  bool success = 1;
+  repeated MailboxMessage mailboxes = 2;
+}
+
+message MailboxMessage {
+  string id = 1;
+  string account_id = 2;
+  string name = 3;
+  string full_name = 4;
+  int32 message_count = 5;
+  int32 unseen_count = 6;
+  string last_synced_at = 7;
+}
+
+// --- Thread Messages ---
+
+message ListThreadsRequest {
+  string account_id = 1;
+  string mailbox_id = 2;
+  string user_id = 3;
+  int32 skip = 4;
+  int32 take = 5;
+}
+
+message ListThreadsResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated ThreadMessage threads = 3;
+}
+
+message ThreadMessage {
+  string id = 1;
+  string account_id = 2;
+  string subject = 3;
+  string snippet = 4;
+  int32 message_count = 5;
+  bool is_unread = 6;
+  bool is_starred = 7;
+  string last_message_at = 8;
+  repeated string participant_emails = 9;
+}
+
+message ListThreadMessagesRequest {
+  string thread_id = 1;
+  string user_id = 2;
+}
+
+message ListMessagesResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated EmailMessageItem messages = 3;
+}
+
+message EmailMessageItem {
+  string id = 1;
+  string thread_id = 2;
+  string from_address = 3;
+  repeated string to_addresses = 4;
+  string subject = 5;
+  string snippet = 6;
+  bool is_read = 7;
+  bool has_attachments = 8;
+  string received_at = 9;
+}
+
+// --- Message Body ---
+
+message GetMessageBodyRequest {
+  string message_id = 1;
+  string user_id = 2;
+}
+
+message MessageBodyResponse {
+  bool success = 1;
+  string body_html = 2;
+  string body_text = 3;
+}
+
+// --- Send ---
+
+message SendEmailRequest {
+  string account_id = 1;
+  string user_id = 2;
+  repeated string to = 3;
+  repeated string cc = 4;
+  repeated string bcc = 5;
+  string subject = 6;
+  string body_html = 7;
+  string body_text = 8;
+  repeated string attachment_storage_keys = 9;
+}
+
+message SendEmailResponse {
+  bool success = 1;
+  string error_message = 2;
+  string message_id = 3;
+}
+
+// --- Sync ---
+
+message TriggerSyncRequest {
+  string account_id = 1;
+  string user_id = 2;
+}
+
+message TriggerSyncResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+// --- Rule Messages ---
+
+message ListRulesRequest {
+  string user_id = 1;
+  string account_id = 2;
+}
+
+message ListRulesResponse {
+  bool success = 1;
+  repeated RuleMessage rules = 2;
+}
+
+message GetRuleRequest {
+  string rule_id = 1;
+  string user_id = 2;
+}
+
+message RuleResponse {
+  bool success = 1;
+  string error_message = 2;
+  RuleMessage rule = 3;
+}
+
+message CreateRuleRequest {
+  string user_id = 1;
+  string name = 2;
+  string account_id = 3;
+  bool is_enabled = 4;
+  int32 priority = 5;
+  bool stop_processing = 6;
+}
+
+message UpdateRuleRequest {
+  string rule_id = 1;
+  string user_id = 2;
+  string name = 3;
+  bool is_enabled = 4;
+  int32 priority = 5;
+  bool stop_processing = 6;
+}
+
+message DeleteRuleRequest {
+  string rule_id = 1;
+  string user_id = 2;
+}
+
+message DeleteRuleResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+message RunRulesRequest {
+  string user_id = 1;
+  string account_id = 2;
+  string mailbox_id = 3;
+}
+
+message RunRulesResponse {
+  bool success = 1;
+  int32 matched_count = 2;
+}
+
+message RuleMessage {
+  string id = 1;
+  string owner_id = 2;
+  string account_id = 3;
+  string name = 4;
+  bool is_enabled = 5;
+  int32 priority = 6;
+  bool stop_processing = 7;
+  string created_at = 8;
+  string updated_at = 9;
+}
+
+// --- Search Index ---
+
+message GetSearchableDocumentsRequest {
+  string user_id = 1;
+}
+
+message SearchableDocument {
+  string module_id = 1;
+  string entity_id = 2;
+  string entity_type = 3;
+  string title = 4;
+  string content = 5;
+  string summary = 6;
+  string owner_id = 7;
+  string created_at = 8;
+  string updated_at = 9;
 }

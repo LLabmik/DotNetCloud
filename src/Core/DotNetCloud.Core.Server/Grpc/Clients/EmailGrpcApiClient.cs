@@ -1,3 +1,6 @@
+using DotNetCloud.Modules.Email.Host.Protos;
+using DotNetCloud.Modules.Email.Models;
+using DotNetCloud.Modules.Email.Services;
 using Grpc.Core;
 using Grpc.Net.Client;
 using Microsoft.Extensions.Logging;
@@ -19,16 +22,17 @@ public sealed class EmailGrpcClientOptions
 }
 
 /// <summary>
-/// gRPC client for the Email module.
-/// NOTE: Implements IDisposable only — interface methods not yet implemented.
-/// Actual RPC calls will be added when proto methods are defined.
+/// gRPC implementation of <see cref="IEmailApiClient"/>.
+/// Calls the Email module's gRPC service for account, send, and rule operations.
+/// Attachment, thread, and message body operations are not yet available via gRPC.
 /// </summary>
-public sealed class EmailGrpcApiClient : IDisposable
+public sealed class EmailGrpcApiClient : IEmailApiClient, IDisposable
 {
     private readonly EmailGrpcClientOptions _options;
     private readonly ModuleEndpointProvider _endpointProvider;
     private readonly ILogger<EmailGrpcApiClient> _logger;
     private readonly Lazy<GrpcChannel> _channel;
+    private readonly Lazy<EmailService.EmailServiceClient> _client;
     private bool _disposed;
 
     /// <summary>Initializes a new instance of the <see cref="EmailGrpcApiClient"/> class.</summary>
@@ -41,6 +45,8 @@ public sealed class EmailGrpcApiClient : IDisposable
         _endpointProvider = endpointProvider;
         _logger = logger;
         _channel = new Lazy<GrpcChannel>(CreateChannel);
+        _client = new Lazy<EmailService.EmailServiceClient>(
+            () => new EmailService.EmailServiceClient(_channel.Value));
     }
 
     private GrpcChannel CreateChannel()
@@ -55,6 +61,356 @@ public sealed class EmailGrpcApiClient : IDisposable
                 ConnectTimeout = TimeSpan.FromSeconds(5)
             }
         });
+    }
+
+    // ─── Accounts ───────────────────────────────────────────────────────────
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<EmailAccount>> ListAccountsAsync(CancellationToken ct = default)
+    {
+        var request = new ListAccountsRequest { UserId = Guid.Empty.ToString() };
+        try
+        {
+            var response = await _client.Value.ListAccountsAsync(request, DeadlineHeaders(ct)).ResponseAsync;
+            return !response.Success ? [] : response.Accounts.Select(ToAccount).Where(a => a is not null).Select(a => a!).ToList();
+        }
+        catch (RpcException ex) { _logger.LogError(ex, "EmailGrpcApiClient.ListAccountsAsync failed"); return []; }
+    }
+
+    /// <inheritdoc />
+    public async Task<EmailAccount?> GetAccountAsync(Guid id, CancellationToken ct = default)
+    {
+        var request = new GetAccountRequest { AccountId = id.ToString(), UserId = Guid.Empty.ToString() };
+        try
+        {
+            var response = await _client.Value.GetAccountAsync(request, DeadlineHeaders(ct)).ResponseAsync;
+            return response.Success ? ToAccount(response.Account) : null;
+        }
+        catch (RpcException ex) { _logger.LogError(ex, "EmailGrpcApiClient.GetAccountAsync failed"); return null; }
+    }
+
+    /// <inheritdoc />
+    public async Task<EmailAccount?> CreateAccountAsync(CreateEmailAccountRequest req, CancellationToken ct = default)
+    {
+        var request = new CreateAccountRequest
+        {
+            UserId = Guid.Empty.ToString(),
+            ProviderType = req.ProviderType.ToString(),
+            DisplayName = req.DisplayName,
+            EmailAddress = req.EmailAddress,
+            CredentialsJson = req.CredentialsJson ?? string.Empty
+        };
+        try
+        {
+            var response = await _client.Value.CreateAccountAsync(request, DeadlineHeaders(ct)).ResponseAsync;
+            return response.Success ? ToAccount(response.Account) : null;
+        }
+        catch (RpcException ex) { _logger.LogError(ex, "EmailGrpcApiClient.CreateAccountAsync failed"); return null; }
+    }
+
+    /// <inheritdoc />
+    public async Task<EmailAccount?> UpdateAccountAsync(Guid id, UpdateEmailAccountRequest req, CancellationToken ct = default)
+    {
+        var request = new UpdateAccountRequest
+        {
+            AccountId = id.ToString(),
+            UserId = Guid.Empty.ToString(),
+            DisplayName = req.DisplayName ?? string.Empty,
+            IsEnabled = req.IsEnabled ?? true
+        };
+        try
+        {
+            var response = await _client.Value.UpdateAccountAsync(request, DeadlineHeaders(ct)).ResponseAsync;
+            return response.Success ? ToAccount(response.Account) : null;
+        }
+        catch (RpcException ex) { _logger.LogError(ex, "EmailGrpcApiClient.UpdateAccountAsync failed"); return null; }
+    }
+
+    /// <inheritdoc />
+    public async Task DeleteAccountAsync(Guid id, CancellationToken ct = default)
+    {
+        var request = new DeleteAccountRequest { AccountId = id.ToString(), UserId = Guid.Empty.ToString() };
+        try
+        { await _client.Value.DeleteAccountAsync(request, DeadlineHeaders(ct)).ResponseAsync; }
+        catch (RpcException ex) { _logger.LogError(ex, "EmailGrpcApiClient.DeleteAccountAsync failed"); }
+    }
+
+    // ─── Mailboxes ──────────────────────────────────────────────────────────
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<EmailMailbox>> ListMailboxesAsync(Guid accountId, CancellationToken ct = default)
+    {
+        var request = new ListMailboxesRequest { AccountId = accountId.ToString(), UserId = Guid.Empty.ToString() };
+        try
+        {
+            var response = await _client.Value.ListMailboxesAsync(request, DeadlineHeaders(ct)).ResponseAsync;
+            return !response.Success ? [] : response.Mailboxes.Select(ToMailbox).Where(m => m is not null).Select(m => m!).ToList();
+        }
+        catch (RpcException ex) { _logger.LogError(ex, "EmailGrpcApiClient.ListMailboxesAsync failed"); return []; }
+    }
+
+    // ─── Send ───────────────────────────────────────────────────────────────
+
+    /// <inheritdoc />
+    public async Task SendAsync(Guid accountId, EmailSendRequest req, CancellationToken ct = default)
+    {
+        var request = new SendEmailRequest
+        {
+            AccountId = accountId.ToString(),
+            UserId = Guid.Empty.ToString(),
+            Subject = req.Subject ?? string.Empty,
+            BodyHtml = req.BodyHtml ?? string.Empty,
+            BodyText = req.BodyPlainText ?? string.Empty
+        };
+        request.To.AddRange(req.To?.Select(a => a.Email) ?? []);
+        request.Cc.AddRange(req.Cc?.Select(a => a.Email) ?? []);
+        request.Bcc.AddRange(req.Bcc?.Select(a => a.Email) ?? []);
+        request.AttachmentStorageKeys.AddRange(req.Attachments?.Select(a => a.StorageKey) ?? []);
+        try
+        { await _client.Value.SendEmailAsync(request, DeadlineHeaders(ct)).ResponseAsync; }
+        catch (RpcException ex) { _logger.LogError(ex, "EmailGrpcApiClient.SendAsync failed"); }
+    }
+
+    // ─── Rules ──────────────────────────────────────────────────────────────
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<EmailRule>> ListRulesAsync(Guid? accountId = null, CancellationToken ct = default)
+    {
+        var request = new ListRulesRequest
+        {
+            UserId = Guid.Empty.ToString(),
+            AccountId = accountId?.ToString() ?? string.Empty
+        };
+        try
+        {
+            var response = await _client.Value.ListRulesAsync(request, DeadlineHeaders(ct)).ResponseAsync;
+            return !response.Success ? [] : response.Rules.Select(ToRule).Where(r => r is not null).Select(r => r!).ToList();
+        }
+        catch (RpcException ex) { _logger.LogError(ex, "EmailGrpcApiClient.ListRulesAsync failed"); return []; }
+    }
+
+    /// <inheritdoc />
+    public async Task<EmailRule?> GetRuleAsync(Guid id, CancellationToken ct = default)
+    {
+        var request = new GetRuleRequest { RuleId = id.ToString(), UserId = Guid.Empty.ToString() };
+        try
+        {
+            var response = await _client.Value.GetRuleAsync(request, DeadlineHeaders(ct)).ResponseAsync;
+            return response.Success ? ToRule(response.Rule) : null;
+        }
+        catch (RpcException ex) { _logger.LogError(ex, "EmailGrpcApiClient.GetRuleAsync failed"); return null; }
+    }
+
+    /// <inheritdoc />
+    public async Task<EmailRule?> CreateRuleAsync(CreateEmailRuleRequest req, CancellationToken ct = default)
+    {
+        var request = new CreateRuleRequest
+        {
+            UserId = Guid.Empty.ToString(),
+            Name = req.Name,
+            AccountId = req.AccountId?.ToString() ?? string.Empty,
+            IsEnabled = req.IsEnabled,
+            Priority = req.Priority,
+            StopProcessing = req.StopProcessing
+        };
+        try
+        {
+            var response = await _client.Value.CreateRuleAsync(request, DeadlineHeaders(ct)).ResponseAsync;
+            return response.Success ? ToRule(response.Rule) : null;
+        }
+        catch (RpcException ex) { _logger.LogError(ex, "EmailGrpcApiClient.CreateRuleAsync failed"); return null; }
+    }
+
+    /// <inheritdoc />
+    public async Task<EmailRule?> UpdateRuleAsync(Guid id, UpdateEmailRuleRequest req, CancellationToken ct = default)
+    {
+        var request = new UpdateRuleRequest
+        {
+            RuleId = id.ToString(),
+            UserId = Guid.Empty.ToString(),
+            Name = req.Name ?? string.Empty,
+            IsEnabled = req.IsEnabled ?? true,
+            Priority = req.Priority ?? 0,
+            StopProcessing = req.StopProcessing ?? false
+        };
+        try
+        {
+            var response = await _client.Value.UpdateRuleAsync(request, DeadlineHeaders(ct)).ResponseAsync;
+            return response.Success ? ToRule(response.Rule) : null;
+        }
+        catch (RpcException ex) { _logger.LogError(ex, "EmailGrpcApiClient.UpdateRuleAsync failed"); return null; }
+    }
+
+    /// <inheritdoc />
+    public async Task DeleteRuleAsync(Guid id, CancellationToken ct = default)
+    {
+        var request = new DeleteRuleRequest { RuleId = id.ToString(), UserId = Guid.Empty.ToString() };
+        try
+        { await _client.Value.DeleteRuleAsync(request, DeadlineHeaders(ct)).ResponseAsync; }
+        catch (RpcException ex) { _logger.LogError(ex, "EmailGrpcApiClient.DeleteRuleAsync failed"); }
+    }
+
+    /// <inheritdoc />
+    public async Task<int> RunRulesAsync(Guid? accountId = null, Guid? mailboxId = null, CancellationToken ct = default)
+    {
+        var request = new RunRulesRequest
+        {
+            UserId = Guid.Empty.ToString(),
+            AccountId = accountId?.ToString() ?? string.Empty,
+            MailboxId = mailboxId?.ToString() ?? string.Empty
+        };
+        try
+        {
+            var response = await _client.Value.RunRulesAsync(request, DeadlineHeaders(ct)).ResponseAsync;
+            return response.Success ? response.MatchedCount : 0;
+        }
+        catch (RpcException ex) { _logger.LogError(ex, "EmailGrpcApiClient.RunRulesAsync failed"); return 0; }
+    }
+
+    // ─── Sync ───────────────────────────────────────────────────────────────
+
+    /// <inheritdoc />
+    public async Task TriggerSyncAsync(Guid accountId, CancellationToken ct = default)
+    {
+        var request = new TriggerSyncRequest { AccountId = accountId.ToString(), UserId = Guid.Empty.ToString() };
+        try
+        { await _client.Value.TriggerSyncAsync(request, DeadlineHeaders(ct)).ResponseAsync; }
+        catch (RpcException ex) { _logger.LogError(ex, "EmailGrpcApiClient.TriggerSyncAsync failed"); }
+    }
+
+    // ─── Gmail OAuth ────────────────────────────────────────────────────────
+
+    /// <inheritdoc />
+    public Task<bool> CheckGmailOAuthConfiguredAsync(CancellationToken ct = default)
+    {
+        // OAuth configuration check is a UI concern, not a gRPC operation
+        return Task.FromResult(false);
+    }
+
+    // ─── Threads & Messages (not yet via gRPC) ──────────────────────────────
+
+    /// <inheritdoc />
+    public Task<IReadOnlyList<EmailThread>> ListThreadsAsync(Guid accountId, Guid mailboxId, CancellationToken ct = default)
+    {
+        _logger.LogWarning("EmailGrpcApiClient.ListThreadsAsync: not implemented via gRPC");
+        return Task.FromResult<IReadOnlyList<EmailThread>>([]);
+    }
+
+    /// <inheritdoc />
+    public Task<IReadOnlyList<EmailMessage>> ListThreadMessagesAsync(Guid threadId, CancellationToken ct = default)
+    {
+        _logger.LogWarning("EmailGrpcApiClient.ListThreadMessagesAsync: not implemented via gRPC");
+        return Task.FromResult<IReadOnlyList<EmailMessage>>([]);
+    }
+
+    /// <inheritdoc />
+    public Task<string?> GetMessageBodyAsync(Guid messageId, CancellationToken ct = default)
+    {
+        _logger.LogWarning("EmailGrpcApiClient.GetMessageBodyAsync: not implemented via gRPC");
+        return Task.FromResult<string?>(null);
+    }
+
+    // ─── Attachments (not yet via gRPC) ─────────────────────────────────────
+
+    /// <inheritdoc />
+    public Task<(Stream Stream, string FileName, string ContentType)> DownloadAttachmentAsync(Guid attachmentId, CancellationToken ct = default)
+    {
+        _logger.LogWarning("EmailGrpcApiClient.DownloadAttachmentAsync: not implemented via gRPC");
+        return Task.FromResult<(Stream, string, string)>((Stream.Null, string.Empty, string.Empty));
+    }
+
+    /// <inheritdoc />
+    public Task<UploadAttachmentResult> UploadAttachmentAsync(Stream content, string fileName, string contentType, CancellationToken ct = default)
+    {
+        _logger.LogWarning("EmailGrpcApiClient.UploadAttachmentAsync: not implemented via gRPC");
+        return Task.FromResult(new UploadAttachmentResult
+        {
+            StorageKey = string.Empty,
+            FileName = fileName,
+            ContentType = contentType,
+            Size = 0,
+            ContentHash = string.Empty
+        });
+    }
+
+    /// <inheritdoc />
+    public Task DetachAttachmentAsync(Guid attachmentId, Guid? targetFolderId = null, CancellationToken ct = default)
+    {
+        _logger.LogWarning("EmailGrpcApiClient.DetachAttachmentAsync: not implemented via gRPC");
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    public Task<UploadAttachmentResult> AttachFromFilesModuleAsync(Guid fileNodeId, CancellationToken ct = default)
+    {
+        _logger.LogWarning("EmailGrpcApiClient.AttachFromFilesModuleAsync: not implemented via gRPC");
+        return Task.FromResult(new UploadAttachmentResult
+        {
+            StorageKey = string.Empty,
+            FileName = string.Empty,
+            ContentType = string.Empty,
+            Size = 0,
+            ContentHash = string.Empty
+        });
+    }
+
+    // ─── Helpers ────────────────────────────────────────────────────────────
+
+    private Metadata DeadlineHeaders(CancellationToken ct)
+    {
+        var headers = new Metadata();
+        if (_options.Timeout > TimeSpan.Zero)
+            headers.Add("deadline", DateTime.UtcNow.Add(_options.Timeout).ToString("O"));
+        return headers;
+    }
+
+    private static EmailAccount? ToAccount(AccountMessage? m)
+    {
+        if (m is null || string.IsNullOrEmpty(m.Id))
+            return null;
+        return new EmailAccount
+        {
+            Id = Guid.Parse(m.Id),
+            OwnerId = Guid.Parse(m.OwnerId),
+            ProviderType = Enum.TryParse<EmailProviderType>(m.ProviderType, out var pt) ? pt : EmailProviderType.ImapSmtp,
+            DisplayName = m.DisplayName,
+            EmailAddress = m.EmailAddress,
+            IsEnabled = m.IsEnabled,
+            CreatedAt = DateTime.TryParse(m.CreatedAt, out var ca) ? ca : DateTime.MinValue,
+            UpdatedAt = DateTime.TryParse(m.UpdatedAt, out var ua) ? ua : DateTime.MinValue
+        };
+    }
+
+    private static EmailMailbox? ToMailbox(MailboxMessage? m)
+    {
+        if (m is null || string.IsNullOrEmpty(m.Id))
+            return null;
+        return new EmailMailbox
+        {
+            Id = Guid.Parse(m.Id),
+            AccountId = Guid.Parse(m.AccountId),
+            DisplayName = m.Name,
+            ProviderId = m.FullName,
+            LastSyncedAt = DateTime.TryParse(m.LastSyncedAt, out var ls) ? ls : null
+        };
+    }
+
+    private static EmailRule? ToRule(RuleMessage? m)
+    {
+        if (m is null || string.IsNullOrEmpty(m.Id))
+            return null;
+        return new EmailRule
+        {
+            Id = Guid.Parse(m.Id),
+            OwnerId = Guid.Parse(m.OwnerId),
+            AccountId = string.IsNullOrEmpty(m.AccountId) ? null : Guid.Parse(m.AccountId),
+            Name = m.Name,
+            IsEnabled = m.IsEnabled,
+            Priority = m.Priority,
+            StopProcessing = m.StopProcessing,
+            CreatedAt = DateTime.TryParse(m.CreatedAt, out var ca) ? ca : DateTime.MinValue,
+            UpdatedAt = DateTime.TryParse(m.UpdatedAt, out var ua) ? ua : DateTime.MinValue
+        };
     }
 
     /// <inheritdoc />

@@ -112,8 +112,10 @@
     <Protobuf Include="..\..\Modules\Video\DotNetCloud.Modules.Video.Host\Protos\video_service.proto"
               GrpcServices="Client"
               Link="Protos\video_service.proto" />
-    <!-- Search proto excluded due to type conflict with Search.Client (transitive via Files.Data).
-         Add back when ISearchApiClient methods are implemented. -->
+    <!-- Search proto intentionally NOT included here.
+         Search.Client (referenced transitively via Files.Data) already generates
+         the gRPC client code from the same proto file. Adding it here would
+         cause duplicate type definitions in DotNetCloud.Modules.Search.Host.Protos. -->
     <!-- <Protobuf Include="..\..\Modules\Search\DotNetCloud.Modules.Search.Host\Protos\search_service.proto"
               GrpcServices="Client"
               Link="Protos\search_service.proto" />-->
