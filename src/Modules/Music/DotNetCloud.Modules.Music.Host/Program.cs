@@ -13,9 +13,9 @@ builder.Services.AddSingleton<MusicModule>();
 
 // Register EF Core with in-memory database (dev only)
 builder.Services.AddSingleton<ITableNamingStrategy>(new PostgreSqlNamingStrategy());
-builder.Services.AddDbContext<MusicDbContext>(options =>
-    options.UseInMemoryDatabase("MusicModule"));
 builder.Services.AddDbContextFactory<MusicDbContext>(options =>
+    options.UseInMemoryDatabase("MusicModule"));
+builder.Services.AddDbContext<MusicDbContext>(options =>
     options.UseInMemoryDatabase("MusicModule"));
 
 // In-process event bus for standalone operation
