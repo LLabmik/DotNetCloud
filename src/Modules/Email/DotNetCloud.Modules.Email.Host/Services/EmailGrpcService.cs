@@ -1,8 +1,10 @@
 using DotNetCloud.Core.Authorization;
+using DotNetCloud.Modules.Email.Data;
 using DotNetCloud.Modules.Email.Host.Protos;
 using DotNetCloud.Modules.Email.Models;
 using DotNetCloud.Modules.Email.Services;
 using Grpc.Core;
+using Microsoft.EntityFrameworkCore;
 
 namespace DotNetCloud.Modules.Email.Host.Services;
 
@@ -14,6 +16,7 @@ public sealed class EmailGrpcService : EmailService.EmailServiceBase
     private readonly IEmailAccountService _accountService;
     private readonly IEmailSendService _sendService;
     private readonly IEmailRuleService _ruleService;
+    private readonly EmailDbContext _db;
     private readonly ILogger<EmailGrpcService> _logger;
 
     /// <summary>
@@ -23,11 +26,13 @@ public sealed class EmailGrpcService : EmailService.EmailServiceBase
         IEmailAccountService accountService,
         IEmailSendService sendService,
         IEmailRuleService ruleService,
+        EmailDbContext db,
         ILogger<EmailGrpcService> logger)
     {
         _accountService = accountService;
         _sendService = sendService;
         _ruleService = ruleService;
+        _db = db;
         _logger = logger;
     }
 
@@ -151,27 +156,100 @@ public sealed class EmailGrpcService : EmailService.EmailServiceBase
 
     // ─── Threads & Messages ─────────────────────────────────────────────────
 
-    public override Task<ListThreadsResponse> ListThreads(
+    public override async Task<ListThreadsResponse> ListThreads(
         ListThreadsRequest request, ServerCallContext context)
     {
-        // Thread listing via gRPC: currently delegates to account service for mailbox listing.
-        // Full thread listing requires an email provider, which is not exposed via gRPC yet.
-        _logger.LogWarning("ListThreads gRPC: not fully implemented — requires email provider access");
-        return Task.FromResult(new ListThreadsResponse { Success = false, ErrorMessage = "Thread listing via gRPC not yet implemented. Use REST API." });
+        if (!Guid.TryParse(request.AccountId, out var accountId) ||
+            !Guid.TryParse(request.MailboxId, out var mailboxId))
+            return new ListThreadsResponse { Success = false, ErrorMessage = "Invalid ID format." };
+
+        try
+        {
+            var skip = request.Skip;
+            var take = request.Take > 0 && request.Take <= 100 ? request.Take : 50;
+
+            // Find thread IDs that have at least one message in this mailbox
+            var threadIdsInMailbox = await _db.EmailMessages
+                .AsNoTracking()
+                .Where(m => m.MailboxId == mailboxId && m.AccountId == accountId)
+                .Select(m => m.ThreadId)
+                .Distinct()
+                .ToListAsync(context.CancellationToken);
+
+            if (threadIdsInMailbox.Count == 0)
+                return new ListThreadsResponse { Success = true };
+
+            var threads = await _db.EmailThreads
+                .AsNoTracking()
+                .Where(t => threadIdsInMailbox.Contains(t.Id))
+                .OrderByDescending(t => t.LastMessageAt)
+                .Skip(skip)
+                .Take(take)
+                .ToListAsync(context.CancellationToken);
+
+            var response = new ListThreadsResponse { Success = true };
+            response.Threads.AddRange(threads.Select(ToThreadMessage));
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "ListThreads gRPC failed");
+            return new ListThreadsResponse { Success = false, ErrorMessage = ex.Message };
+        }
     }
 
-    public override Task<ListMessagesResponse> ListThreadMessages(
+    public override async Task<ListMessagesResponse> ListThreadMessages(
         ListThreadMessagesRequest request, ServerCallContext context)
     {
-        _logger.LogWarning("ListThreadMessages gRPC: not fully implemented — requires email provider access");
-        return Task.FromResult(new ListMessagesResponse { Success = false, ErrorMessage = "Message listing via gRPC not yet implemented. Use REST API." });
+        if (!Guid.TryParse(request.ThreadId, out var threadId))
+            return new ListMessagesResponse { Success = false, ErrorMessage = "Invalid thread ID." };
+
+        try
+        {
+            var messages = await _db.EmailMessages
+                .AsNoTracking()
+                .Include(m => m.Attachments)
+                .Where(m => m.ThreadId == threadId)
+                .OrderBy(m => m.DateReceived)
+                .ToListAsync(context.CancellationToken);
+
+            var response = new ListMessagesResponse { Success = true };
+            response.Messages.AddRange(messages.Select(ToEmailMessageItem));
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "ListThreadMessages gRPC failed");
+            return new ListMessagesResponse { Success = false, ErrorMessage = ex.Message };
+        }
     }
 
-    public override Task<MessageBodyResponse> GetMessageBody(
+    public override async Task<MessageBodyResponse> GetMessageBody(
         GetMessageBodyRequest request, ServerCallContext context)
     {
-        _logger.LogWarning("GetMessageBody gRPC: not fully implemented — requires email provider access");
-        return Task.FromResult(new MessageBodyResponse { Success = false });
+        if (!Guid.TryParse(request.MessageId, out var messageId))
+            return new MessageBodyResponse { Success = false };
+
+        try
+        {
+            var message = await _db.EmailMessages
+                .AsNoTracking()
+                .FirstOrDefaultAsync(m => m.Id == messageId, context.CancellationToken);
+
+            return message is null
+                ? new MessageBodyResponse { Success = false }
+                : new MessageBodyResponse
+                {
+                    Success = true,
+                    BodyHtml = message.BodyHtml ?? string.Empty,
+                    BodyText = message.BodyPreview ?? string.Empty
+                };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "GetMessageBody gRPC failed");
+            return new MessageBodyResponse { Success = false };
+        }
     }
 
     // ─── Send ───────────────────────────────────────────────────────────────
@@ -375,4 +453,77 @@ public sealed class EmailGrpcService : EmailService.EmailServiceBase
         CreatedAt = r.CreatedAt.ToString("O"),
         UpdatedAt = r.UpdatedAt.ToString("O")
     };
+
+    private static ThreadMessage ToThreadMessage(EmailThread t) => new()
+    {
+        Id = t.Id.ToString(),
+        AccountId = t.AccountId.ToString(),
+        Subject = t.Subject,
+        Snippet = t.Snippet ?? string.Empty,
+        MessageCount = t.MessageCount,
+        IsUnread = t.MessageCount > 0,
+        IsStarred = false,
+        LastMessageAt = t.LastMessageAt?.ToString("O") ?? string.Empty,
+        ParticipantEmails = { ExtractEmailAddresses(t.ParticipantsJson) }
+    };
+
+    private static EmailMessageItem ToEmailMessageItem(EmailMessage m) => new()
+    {
+        Id = m.Id.ToString(),
+        ThreadId = m.ThreadId.ToString(),
+        FromAddress = ExtractFirstEmailAddress(m.FromJson),
+        Subject = m.Subject,
+        Snippet = m.BodyPreview ?? string.Empty,
+        IsRead = m.IsRead,
+        HasAttachments = m.Attachments?.Count > 0,
+        ReceivedAt = m.DateReceived?.ToString("O") ?? m.CreatedAt.ToString("O"),
+        ToAddresses = { ExtractEmailAddresses(m.ToJson) }
+    };
+
+    private static string ExtractFirstEmailAddress(string json)
+    {
+        if (string.IsNullOrEmpty(json) || json == "[]")
+            return string.Empty;
+
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            if (root.ValueKind == System.Text.Json.JsonValueKind.Array && root.GetArrayLength() > 0)
+            {
+                var first = root[0];
+                if (first.TryGetProperty("email", out var email))
+                    return email.GetString() ?? string.Empty;
+                if (first.TryGetProperty("address", out var addr))
+                    return addr.GetString() ?? string.Empty;
+            }
+        }
+        catch { /* best effort */ }
+        return string.Empty;
+    }
+
+    private static List<string> ExtractEmailAddresses(string json)
+    {
+        var result = new List<string>();
+        if (string.IsNullOrEmpty(json) || json == "[]")
+            return result;
+
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            if (root.ValueKind == System.Text.Json.JsonValueKind.Array)
+            {
+                foreach (var item in root.EnumerateArray())
+                {
+                    if (item.TryGetProperty("email", out var email))
+                        result.Add(email.GetString() ?? string.Empty);
+                    else if (item.TryGetProperty("address", out var addr))
+                        result.Add(addr.GetString() ?? string.Empty);
+                }
+            }
+        }
+        catch { /* best effort */ }
+        return result;
+    }
 }

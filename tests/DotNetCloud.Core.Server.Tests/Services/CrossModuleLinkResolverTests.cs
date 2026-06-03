@@ -1,6 +1,9 @@
 using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Server.Services;
+using DotNetCloud.Modules.Calendar.Services;
+using DotNetCloud.Modules.Contacts.Services;
+using DotNetCloud.Modules.Notes.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
@@ -9,31 +12,63 @@ namespace DotNetCloud.Core.Server.Tests.Services;
 [TestClass]
 public class CrossModuleLinkResolverTests
 {
-    private Mock<IContactDirectory> _contactDirectory = null!;
-    private Mock<ICalendarDirectory> _calendarDirectory = null!;
-    private Mock<INoteDirectory> _noteDirectory = null!;
+    private Mock<IContactsApiClient> _contactsClient = null!;
+    private Mock<ICalendarApiClient> _calendarClient = null!;
+    private Mock<INotesApiClient> _notesClient = null!;
     private CrossModuleLinkResolver _resolver = null!;
 
     [TestInitialize]
     public void Setup()
     {
-        _contactDirectory = new Mock<IContactDirectory>();
-        _calendarDirectory = new Mock<ICalendarDirectory>();
-        _noteDirectory = new Mock<INoteDirectory>();
+        _contactsClient = new Mock<IContactsApiClient>();
+        _calendarClient = new Mock<ICalendarApiClient>();
+        _notesClient = new Mock<INotesApiClient>();
 
         _resolver = new CrossModuleLinkResolver(
             NullLogger<CrossModuleLinkResolver>.Instance,
-            _contactDirectory.Object,
-            _calendarDirectory.Object,
-            _noteDirectory.Object);
+            _contactsClient.Object,
+            _calendarClient.Object,
+            _notesClient.Object);
     }
+
+    // Helper factories to create DTOs with required properties filled in
+    private static ContactDto CreateContact(Guid id, string displayName) => new()
+    {
+        Id = id,
+        OwnerId = Guid.NewGuid(),
+        ContactType = ContactType.Person,
+        DisplayName = displayName,
+        CreatedAt = DateTime.UtcNow,
+        UpdatedAt = DateTime.UtcNow
+    };
+
+    private static CalendarEventDto CreateEvent(Guid id, string title) => new()
+    {
+        Id = id,
+        CalendarId = Guid.NewGuid(),
+        CreatedByUserId = Guid.NewGuid(),
+        Title = title,
+        StartUtc = DateTime.UtcNow,
+        EndUtc = DateTime.UtcNow.AddHours(1),
+        CreatedAt = DateTime.UtcNow,
+        UpdatedAt = DateTime.UtcNow
+    };
+
+    private static NoteDto CreateNote(Guid id, string title) => new()
+    {
+        Id = id,
+        OwnerId = Guid.NewGuid(),
+        Title = title,
+        CreatedAt = DateTime.UtcNow,
+        UpdatedAt = DateTime.UtcNow
+    };
 
     [TestMethod]
     public async Task ResolveAsync_Contact_ReturnsResolvedLink()
     {
         var contactId = Guid.NewGuid();
-        _contactDirectory.Setup(c => c.GetContactDisplayNameAsync(contactId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync("Jane Doe");
+        _contactsClient.Setup(c => c.GetContactAsync(contactId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateContact(contactId, "Jane Doe"));
 
         var result = await _resolver.ResolveAsync(CrossModuleLinkType.Contact, contactId);
 
@@ -48,8 +83,8 @@ public class CrossModuleLinkResolverTests
     public async Task ResolveAsync_Contact_NotFound_ReturnsUnresolved()
     {
         var contactId = Guid.NewGuid();
-        _contactDirectory.Setup(c => c.GetContactDisplayNameAsync(contactId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync((string?)null);
+        _contactsClient.Setup(c => c.GetContactAsync(contactId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((ContactDto?)null);
 
         var result = await _resolver.ResolveAsync(CrossModuleLinkType.Contact, contactId);
 
@@ -61,14 +96,8 @@ public class CrossModuleLinkResolverTests
     public async Task ResolveAsync_CalendarEvent_ReturnsResolvedLink()
     {
         var eventId = Guid.NewGuid();
-        _calendarDirectory.Setup(c => c.GetEventSummaryAsync(eventId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new CalendarEventSummary
-            {
-                Id = eventId,
-                Title = "Team Standup",
-                StartUtc = DateTime.UtcNow,
-                EndUtc = DateTime.UtcNow.AddHours(1)
-            });
+        _calendarClient.Setup(c => c.GetEventAsync(eventId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateEvent(eventId, "Team Standup"));
 
         var result = await _resolver.ResolveAsync(CrossModuleLinkType.CalendarEvent, eventId);
 
@@ -81,8 +110,8 @@ public class CrossModuleLinkResolverTests
     public async Task ResolveAsync_CalendarEvent_NotFound_ReturnsUnresolved()
     {
         var eventId = Guid.NewGuid();
-        _calendarDirectory.Setup(c => c.GetEventSummaryAsync(eventId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync((CalendarEventSummary?)null);
+        _calendarClient.Setup(c => c.GetEventAsync(eventId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((CalendarEventDto?)null);
 
         var result = await _resolver.ResolveAsync(CrossModuleLinkType.CalendarEvent, eventId);
 
@@ -94,8 +123,8 @@ public class CrossModuleLinkResolverTests
     public async Task ResolveAsync_Note_ReturnsResolvedLink()
     {
         var noteId = Guid.NewGuid();
-        _noteDirectory.Setup(n => n.GetNoteTitleAsync(noteId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync("Meeting Notes");
+        _notesClient.Setup(n => n.GetNoteAsync(noteId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateNote(noteId, "Meeting Notes"));
 
         var result = await _resolver.ResolveAsync(CrossModuleLinkType.Note, noteId);
 
@@ -108,8 +137,8 @@ public class CrossModuleLinkResolverTests
     public async Task ResolveAsync_Note_NotFound_ReturnsUnresolved()
     {
         var noteId = Guid.NewGuid();
-        _noteDirectory.Setup(n => n.GetNoteTitleAsync(noteId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync((string?)null);
+        _notesClient.Setup(n => n.GetNoteAsync(noteId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((NoteDto?)null);
 
         var result = await _resolver.ResolveAsync(CrossModuleLinkType.Note, noteId);
 
@@ -130,10 +159,10 @@ public class CrossModuleLinkResolverTests
     }
 
     [TestMethod]
-    public async Task ResolveAsync_DirectoryThrows_ReturnsUnresolved()
+    public async Task ResolveAsync_ClientThrows_ReturnsUnresolved()
     {
         var contactId = Guid.NewGuid();
-        _contactDirectory.Setup(c => c.GetContactDisplayNameAsync(contactId, It.IsAny<CancellationToken>()))
+        _contactsClient.Setup(c => c.GetContactAsync(contactId, It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("Service unavailable"));
 
         var result = await _resolver.ResolveAsync(CrossModuleLinkType.Contact, contactId);
@@ -143,39 +172,20 @@ public class CrossModuleLinkResolverTests
     }
 
     [TestMethod]
-    public async Task ResolveAsync_NullDirectory_ReturnsUnresolved()
-    {
-        var resolver = new CrossModuleLinkResolver(
-            NullLogger<CrossModuleLinkResolver>.Instance);
-
-        var result = await resolver.ResolveAsync(CrossModuleLinkType.Contact, Guid.NewGuid());
-
-        Assert.IsFalse(result.IsResolved);
-    }
-
-    [TestMethod]
     public async Task ResolveBatchAsync_MixedTypes_ResolvesAll()
     {
         var contactId = Guid.NewGuid();
         var eventId = Guid.NewGuid();
         var noteId = Guid.NewGuid();
 
-        _contactDirectory.Setup(c => c.GetContactDisplayNamesAsync(
-                It.IsAny<IEnumerable<Guid>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new Dictionary<Guid, string> { [contactId] = "Alice" });
+        _contactsClient.Setup(c => c.GetContactAsync(contactId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateContact(contactId, "Alice"));
 
-        _calendarDirectory.Setup(c => c.GetEventSummaryAsync(eventId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new CalendarEventSummary
-            {
-                Id = eventId,
-                Title = "Sprint Review",
-                StartUtc = DateTime.UtcNow,
-                EndUtc = DateTime.UtcNow.AddHours(1)
-            });
+        _calendarClient.Setup(c => c.GetEventAsync(eventId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateEvent(eventId, "Sprint Review"));
 
-        _noteDirectory.Setup(n => n.GetNoteTitlesAsync(
-                It.IsAny<IEnumerable<Guid>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new Dictionary<Guid, string> { [noteId] = "Architecture Decision" });
+        _notesClient.Setup(n => n.GetNoteAsync(noteId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateNote(noteId, "Architecture Decision"));
 
         var requests = new List<CrossModuleLinkRequest>
         {
@@ -201,9 +211,10 @@ public class CrossModuleLinkResolverTests
         var foundId = Guid.NewGuid();
         var missingId = Guid.NewGuid();
 
-        _contactDirectory.Setup(c => c.GetContactDisplayNamesAsync(
-                It.IsAny<IEnumerable<Guid>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new Dictionary<Guid, string> { [foundId] = "Bob" });
+        _contactsClient.Setup(c => c.GetContactAsync(foundId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateContact(foundId, "Bob"));
+        _contactsClient.Setup(c => c.GetContactAsync(missingId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((ContactDto?)null);
 
         var requests = new List<CrossModuleLinkRequest>
         {
@@ -228,12 +239,11 @@ public class CrossModuleLinkResolverTests
     }
 
     [TestMethod]
-    public async Task ResolveBatchAsync_BatchDirectoryThrows_AllUnresolved()
+    public async Task ResolveBatchAsync_ClientThrows_AllUnresolved()
     {
         var contactId = Guid.NewGuid();
 
-        _contactDirectory.Setup(c => c.GetContactDisplayNamesAsync(
-                It.IsAny<IEnumerable<Guid>>(), It.IsAny<CancellationToken>()))
+        _contactsClient.Setup(c => c.GetContactAsync(contactId, It.IsAny<CancellationToken>()))
             .ThrowsAsync(new Exception("Network error"));
 
         var requests = new List<CrossModuleLinkRequest>

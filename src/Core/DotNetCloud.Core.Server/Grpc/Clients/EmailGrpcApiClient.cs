@@ -287,27 +287,51 @@ public sealed class EmailGrpcApiClient : IEmailApiClient, IDisposable
         return Task.FromResult(false);
     }
 
-    // ─── Threads & Messages (not yet via gRPC) ──────────────────────────────
+    // ─── Threads & Messages (gRPC) ──────────────────────────────────────────
 
     /// <inheritdoc />
-    public Task<IReadOnlyList<EmailThread>> ListThreadsAsync(Guid accountId, Guid mailboxId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<EmailThread>> ListThreadsAsync(Guid accountId, Guid mailboxId, CancellationToken ct = default)
     {
-        _logger.LogWarning("EmailGrpcApiClient.ListThreadsAsync: not implemented via gRPC");
-        return Task.FromResult<IReadOnlyList<EmailThread>>([]);
+        var request = new ListThreadsRequest
+        {
+            AccountId = accountId.ToString(),
+            MailboxId = mailboxId.ToString(),
+            UserId = Guid.Empty.ToString(),
+            Skip = 0,
+            Take = 100
+        };
+        try
+        {
+            var response = await _client.Value.ListThreadsAsync(request, DeadlineHeaders(ct)).ResponseAsync;
+            return !response.Success ? [] : response.Threads.Select(ToThread).Where(t => t is not null).Select(t => t!).ToList();
+        }
+        catch (RpcException ex) { _logger.LogError(ex, "EmailGrpcApiClient.ListThreadsAsync failed"); return []; }
     }
 
     /// <inheritdoc />
-    public Task<IReadOnlyList<EmailMessage>> ListThreadMessagesAsync(Guid threadId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<EmailMessage>> ListThreadMessagesAsync(Guid threadId, CancellationToken ct = default)
     {
-        _logger.LogWarning("EmailGrpcApiClient.ListThreadMessagesAsync: not implemented via gRPC");
-        return Task.FromResult<IReadOnlyList<EmailMessage>>([]);
+        var request = new ListThreadMessagesRequest { ThreadId = threadId.ToString(), UserId = Guid.Empty.ToString() };
+        try
+        {
+            var response = await _client.Value.ListThreadMessagesAsync(request, DeadlineHeaders(ct)).ResponseAsync;
+            return !response.Success ? [] : response.Messages.Select(ToMessage).Where(m => m is not null).Select(m => m!).ToList();
+        }
+        catch (RpcException ex) { _logger.LogError(ex, "EmailGrpcApiClient.ListThreadMessagesAsync failed"); return []; }
     }
 
+    // ─── Messages ───────────────────────────────────────────────────────────
+
     /// <inheritdoc />
-    public Task<string?> GetMessageBodyAsync(Guid messageId, CancellationToken ct = default)
+    public async Task<string?> GetMessageBodyAsync(Guid messageId, CancellationToken ct = default)
     {
-        _logger.LogWarning("EmailGrpcApiClient.GetMessageBodyAsync: not implemented via gRPC");
-        return Task.FromResult<string?>(null);
+        var request = new GetMessageBodyRequest { MessageId = messageId.ToString(), UserId = Guid.Empty.ToString() };
+        try
+        {
+            var response = await _client.Value.GetMessageBodyAsync(request, DeadlineHeaders(ct)).ResponseAsync;
+            return response.Success ? (string.IsNullOrEmpty(response.BodyHtml) ? null : response.BodyHtml) : null;
+        }
+        catch (RpcException ex) { _logger.LogError(ex, "EmailGrpcApiClient.GetMessageBodyAsync failed"); return null; }
     }
 
     // ─── Attachments (not yet via gRPC) ─────────────────────────────────────
@@ -410,6 +434,39 @@ public sealed class EmailGrpcApiClient : IEmailApiClient, IDisposable
             StopProcessing = m.StopProcessing,
             CreatedAt = DateTime.TryParse(m.CreatedAt, out var ca) ? ca : DateTime.MinValue,
             UpdatedAt = DateTime.TryParse(m.UpdatedAt, out var ua) ? ua : DateTime.MinValue
+        };
+    }
+
+    private static EmailThread? ToThread(ThreadMessage? m)
+    {
+        if (m is null || string.IsNullOrEmpty(m.Id))
+            return null;
+        return new EmailThread
+        {
+            Id = Guid.Parse(m.Id),
+            AccountId = Guid.Parse(m.AccountId),
+            Subject = m.Subject,
+            Snippet = m.Snippet,
+            ParticipantsJson = System.Text.Json.JsonSerializer.Serialize(m.ParticipantEmails),
+            MessageCount = m.MessageCount,
+            LastMessageAt = DateTime.TryParse(m.LastMessageAt, out var lma) ? lma : null,
+            CreatedAt = DateTime.MinValue,
+            UpdatedAt = DateTime.MinValue
+        };
+    }
+
+    private static EmailMessage? ToMessage(EmailMessageItem? m)
+    {
+        if (m is null || string.IsNullOrEmpty(m.Id))
+            return null;
+        return new EmailMessage
+        {
+            Id = Guid.Parse(m.Id),
+            ThreadId = Guid.Parse(m.ThreadId),
+            Subject = m.Subject,
+            BodyPreview = m.Snippet,
+            IsRead = m.IsRead,
+            DateReceived = DateTime.TryParse(m.ReceivedAt, out var dr) ? dr : null
         };
     }
 

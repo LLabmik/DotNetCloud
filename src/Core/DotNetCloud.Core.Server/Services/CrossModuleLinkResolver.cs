@@ -1,29 +1,32 @@
 using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs;
+using DotNetCloud.Modules.Calendar.Services;
+using DotNetCloud.Modules.Contacts.Services;
+using DotNetCloud.Modules.Notes.Services;
 using Microsoft.Extensions.Logging;
 
 namespace DotNetCloud.Core.Server.Services;
 
 /// <summary>
-/// Resolves cross-module links by delegating to the appropriate module directory capability.
+/// Resolves cross-module links by delegating to gRPC module API clients.
 /// </summary>
 internal sealed class CrossModuleLinkResolver : ICrossModuleLinkResolver
 {
-    private readonly IContactDirectory? _contactDirectory;
-    private readonly ICalendarDirectory? _calendarDirectory;
-    private readonly INoteDirectory? _noteDirectory;
+    private readonly IContactsApiClient _contactsClient;
+    private readonly ICalendarApiClient _calendarClient;
+    private readonly INotesApiClient _notesClient;
     private readonly ILogger<CrossModuleLinkResolver> _logger;
 
     public CrossModuleLinkResolver(
         ILogger<CrossModuleLinkResolver> logger,
-        IContactDirectory? contactDirectory = null,
-        ICalendarDirectory? calendarDirectory = null,
-        INoteDirectory? noteDirectory = null)
+        IContactsApiClient contactsClient,
+        ICalendarApiClient calendarClient,
+        INotesApiClient notesClient)
     {
         _logger = logger;
-        _contactDirectory = contactDirectory;
-        _calendarDirectory = calendarDirectory;
-        _noteDirectory = noteDirectory;
+        _contactsClient = contactsClient;
+        _calendarClient = calendarClient;
+        _notesClient = notesClient;
     }
 
     /// <inheritdoc />
@@ -83,21 +86,20 @@ internal sealed class CrossModuleLinkResolver : ICrossModuleLinkResolver
             }
         }
 
-        // Batch resolve contacts
-        if (contactIds.Count > 0 && _contactDirectory is not null)
+        // Batch resolve contacts — call GetContactAsync for each ID via gRPC
+        if (contactIds.Count > 0)
         {
             try
             {
-                var names = await _contactDirectory.GetContactDisplayNamesAsync(
-                    contactIds.Select(c => c.Id), cancellationToken);
                 foreach (var (index, id) in contactIds)
                 {
-                    resolved[index] = names.TryGetValue(id, out var name)
+                    var contact = await _contactsClient.GetContactAsync(id, cancellationToken);
+                    resolved[index] = contact is not null
                         ? new CrossModuleLinkDto
                         {
                             LinkType = CrossModuleLinkType.Contact,
                             TargetId = id,
-                            DisplayLabel = name,
+                            DisplayLabel = contact.DisplayName,
                             Href = $"/apps/contacts/{id}",
                             IsResolved = true
                         }
@@ -106,7 +108,7 @@ internal sealed class CrossModuleLinkResolver : ICrossModuleLinkResolver
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Batch contact resolution failed");
+                _logger.LogWarning(ex, "Batch contact resolution failed via gRPC");
                 foreach (var (index, id) in contactIds)
                     resolved[index] = CreateUnresolvedLink(CrossModuleLinkType.Contact, id, "Contact");
             }
@@ -117,21 +119,20 @@ internal sealed class CrossModuleLinkResolver : ICrossModuleLinkResolver
                 resolved[index] = CreateUnresolvedLink(CrossModuleLinkType.Contact, id, "Contact");
         }
 
-        // Batch resolve notes
-        if (noteIds.Count > 0 && _noteDirectory is not null)
+        // Batch resolve notes — call GetNoteAsync for each ID via gRPC
+        if (noteIds.Count > 0)
         {
             try
             {
-                var titles = await _noteDirectory.GetNoteTitlesAsync(
-                    noteIds.Select(n => n.Id), cancellationToken);
                 foreach (var (index, id) in noteIds)
                 {
-                    resolved[index] = titles.TryGetValue(id, out var title)
+                    var note = await _notesClient.GetNoteAsync(id, cancellationToken);
+                    resolved[index] = note is not null
                         ? new CrossModuleLinkDto
                         {
                             LinkType = CrossModuleLinkType.Note,
                             TargetId = id,
-                            DisplayLabel = title,
+                            DisplayLabel = note.Title,
                             Href = $"/apps/notes/{id}",
                             IsResolved = true
                         }
@@ -140,7 +141,7 @@ internal sealed class CrossModuleLinkResolver : ICrossModuleLinkResolver
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Batch note resolution failed");
+                _logger.LogWarning(ex, "Batch note resolution failed via gRPC");
                 foreach (var (index, id) in noteIds)
                     resolved[index] = CreateUnresolvedLink(CrossModuleLinkType.Note, id, "Note");
             }
@@ -151,7 +152,7 @@ internal sealed class CrossModuleLinkResolver : ICrossModuleLinkResolver
                 resolved[index] = CreateUnresolvedLink(CrossModuleLinkType.Note, id, "Note");
         }
 
-        // Resolve calendar events individually (no batch API on ICalendarDirectory)
+        // Resolve calendar events individually via gRPC
         foreach (var (index, id) in calendarIds)
         {
             resolved[index] = await ResolveCalendarEventAsync(id, cancellationToken);
@@ -162,56 +163,71 @@ internal sealed class CrossModuleLinkResolver : ICrossModuleLinkResolver
 
     private async Task<CrossModuleLinkDto> ResolveContactAsync(Guid contactId, CancellationToken cancellationToken)
     {
-        if (_contactDirectory is null)
+        try
+        {
+            var contact = await _contactsClient.GetContactAsync(contactId, cancellationToken);
+            return contact is not null
+                ? new CrossModuleLinkDto
+                {
+                    LinkType = CrossModuleLinkType.Contact,
+                    TargetId = contactId,
+                    DisplayLabel = contact.DisplayName,
+                    Href = $"/apps/contacts/{contactId}",
+                    IsResolved = true
+                }
+                : CreateUnresolvedLink(CrossModuleLinkType.Contact, contactId, "Contact");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "gRPC contact resolution failed for {ContactId}", contactId);
             return CreateUnresolvedLink(CrossModuleLinkType.Contact, contactId, "Contact");
-
-        var name = await _contactDirectory.GetContactDisplayNameAsync(contactId, cancellationToken);
-        return name is not null
-            ? new CrossModuleLinkDto
-            {
-                LinkType = CrossModuleLinkType.Contact,
-                TargetId = contactId,
-                DisplayLabel = name,
-                Href = $"/apps/contacts/{contactId}",
-                IsResolved = true
-            }
-            : CreateUnresolvedLink(CrossModuleLinkType.Contact, contactId, "Contact");
+        }
     }
 
     private async Task<CrossModuleLinkDto> ResolveCalendarEventAsync(Guid eventId, CancellationToken cancellationToken)
     {
-        if (_calendarDirectory is null)
+        try
+        {
+            var evt = await _calendarClient.GetEventAsync(eventId, cancellationToken);
+            return evt is not null
+                ? new CrossModuleLinkDto
+                {
+                    LinkType = CrossModuleLinkType.CalendarEvent,
+                    TargetId = eventId,
+                    DisplayLabel = evt.Title,
+                    Href = $"/apps/calendar/event/{eventId}",
+                    IsResolved = true
+                }
+                : CreateUnresolvedLink(CrossModuleLinkType.CalendarEvent, eventId, "Event");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "gRPC calendar event resolution failed for {EventId}", eventId);
             return CreateUnresolvedLink(CrossModuleLinkType.CalendarEvent, eventId, "Event");
-
-        var summary = await _calendarDirectory.GetEventSummaryAsync(eventId, cancellationToken);
-        return summary is not null
-            ? new CrossModuleLinkDto
-            {
-                LinkType = CrossModuleLinkType.CalendarEvent,
-                TargetId = eventId,
-                DisplayLabel = summary.Title,
-                Href = $"/apps/calendar/event/{eventId}",
-                IsResolved = true
-            }
-            : CreateUnresolvedLink(CrossModuleLinkType.CalendarEvent, eventId, "Event");
+        }
     }
 
     private async Task<CrossModuleLinkDto> ResolveNoteAsync(Guid noteId, CancellationToken cancellationToken)
     {
-        if (_noteDirectory is null)
+        try
+        {
+            var note = await _notesClient.GetNoteAsync(noteId, cancellationToken);
+            return note is not null
+                ? new CrossModuleLinkDto
+                {
+                    LinkType = CrossModuleLinkType.Note,
+                    TargetId = noteId,
+                    DisplayLabel = note.Title,
+                    Href = $"/apps/notes/{noteId}",
+                    IsResolved = true
+                }
+                : CreateUnresolvedLink(CrossModuleLinkType.Note, noteId, "Note");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "gRPC note resolution failed for {NoteId}", noteId);
             return CreateUnresolvedLink(CrossModuleLinkType.Note, noteId, "Note");
-
-        var title = await _noteDirectory.GetNoteTitleAsync(noteId, cancellationToken);
-        return title is not null
-            ? new CrossModuleLinkDto
-            {
-                LinkType = CrossModuleLinkType.Note,
-                TargetId = noteId,
-                DisplayLabel = title,
-                Href = $"/apps/notes/{noteId}",
-                IsResolved = true
-            }
-            : CreateUnresolvedLink(CrossModuleLinkType.Note, noteId, "Note");
+        }
     }
 
     private static CrossModuleLinkDto CreateUnresolvedLink(CrossModuleLinkType linkType, Guid targetId, string fallbackLabel)

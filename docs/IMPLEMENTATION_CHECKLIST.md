@@ -1211,10 +1211,12 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 ### Chat, Files, Notes, Tracks, Bookmarks, Email Modules (Full Infra)
 
 - ☐ Create `IXxxApiClient` interface for missing ones
-- ☐ Create `XxxGrpcApiClient` in Core.Server for each
+- ✓ Create `XxxGrpcApiClient` in Core.Server for each (all modules have gRPC clients)
 - ☐ Create `manifest.json` for missing ones
 - ☐ Update Host Program.cs with config env vars
 - ☐ Update Host manifests
+- ✓ Implement Email gRPC thread/message RPCs (ListThreads, ListThreadMessages, GetMessageBody) — EmailGrpcService + EmailGrpcApiClient stubs filled
+- ✓ Implement Email gRPC SendEmail RPC (fully functional)
 
 ### Core.Server Conversion
 
@@ -1229,6 +1231,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 
 - ☐ Refactor `ISearchableModule` registrations
 - ✓ Refactor `InProcessAdminSharedFolderReindexDispatcher` (now gRPC-based via ISearchApiClient.ReindexModuleAsync)
+- ✓ Refactor `CrossModuleLinkResolver` to use gRPC clients (ContactsGrpcApiClient, CalendarGrpcApiClient, NotesGrpcApiClient) instead of in-process capability interfaces (IContactDirectory, ICalendarDirectory, INoteDirectory)
 - ☐ Update deployment scripts
 
 ---
