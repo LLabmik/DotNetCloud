@@ -7,81 +7,232 @@ package dotnetcloud.tracks;
 // TracksGrpcService: gRPC service for the Tracks module.
 // The core server calls these RPCs to interact with the Tracks module.
 service TracksGrpcService {
-  // Creates a new product.
+  // ─── Products ───
   rpc CreateProduct (CreateProductRequest) returns (ProductResponse);
-
-  // Gets a product by ID.
   rpc GetProduct (GetProductRequest) returns (ProductResponse);
-
-  // Lists products for a user.
   rpc ListProducts (ListProductsRequest) returns (ListProductsResponse);
+  rpc UpdateProduct (UpdateProductRequest) returns (ProductResponse);
+  rpc DeleteProduct (DeleteProductRequest) returns (GenericResponse);
+  rpc ListDeletedProducts (ListDeletedProductsRequest) returns (ListProductsResponse);
+  rpc RestoreProduct (RestoreProductRequest) returns (ProductResponse);
+  rpc PermanentDeleteProduct (PermanentDeleteProductRequest) returns (GenericResponse);
 
-  // Creates a new swimlane in a product.
+  // ─── Product Members ───
+  rpc ListProductMembers (ListProductMembersRequest) returns (ListProductMembersResponse);
+  rpc AddProductMember (AddProductMemberRequest) returns (ProductMemberResponse);
+  rpc RemoveProductMember (RemoveProductMemberRequest) returns (GenericResponse);
+  rpc UpdateProductMemberRole (UpdateProductMemberRoleRequest) returns (ProductMemberResponse);
+
+  // ─── Labels ───
+  rpc ListLabels (ListLabelsRequest) returns (ListLabelsResponse);
+  rpc CreateLabel (CreateLabelRequest) returns (LabelResponse);
+  rpc UpdateLabel (UpdateLabelRequest) returns (LabelResponse);
+  rpc DeleteLabel (DeleteLabelRequest) returns (GenericResponse);
+
+  // ─── Swimlanes ───
   rpc CreateSwimlane (CreateSwimlaneRequest) returns (SwimlaneResponse);
+  rpc ListProductSwimlanes (ListProductSwimlanesRequest) returns (ListSwimlanesResponse);
+  rpc ListWorkItemSwimlanes (ListWorkItemSwimlanesRequest) returns (ListSwimlanesResponse);
+  rpc CreateWorkItemSwimlane (CreateWorkItemSwimlaneRequest) returns (SwimlaneResponse);
+  rpc UpdateSwimlane (UpdateSwimlaneRequest) returns (SwimlaneResponse);
+  rpc DeleteSwimlane (DeleteSwimlaneRequest) returns (GenericResponse);
+  rpc ReorderSwimlanes (ReorderSwimlanesRequest) returns (GenericResponse);
 
-  // Creates a new work item in a swimlane.
+  // ─── Swimlane Transition Rules ───
+  rpc GetSwimlaneTransitionMatrix (GetSwimlaneTransitionMatrixRequest) returns (GetSwimlaneTransitionMatrixResponse);
+  rpc SetSwimlaneTransitionMatrix (SetSwimlaneTransitionMatrixRequest) returns (SetSwimlaneTransitionMatrixResponse);
+
+  // ─── Work Items ───
   rpc CreateWorkItem (CreateWorkItemRequest) returns (WorkItemResponse);
-
-  // Gets a work item by ID.
   rpc GetWorkItem (GetWorkItemRequest) returns (WorkItemResponse);
-
-  // Moves a work item to a different swimlane or position.
+  rpc ListWorkItems (ListWorkItemsRequest) returns (ListWorkItemsResponse);
+  rpc GetWorkItemByNumber (GetWorkItemByNumberRequest) returns (WorkItemResponse);
+  rpc CreateEpic (CreateEpicRequest) returns (WorkItemResponse);
+  rpc CreateFeature (CreateFeatureRequest) returns (WorkItemResponse);
+  rpc CreateItem (CreateItemRequest) returns (WorkItemResponse);
+  rpc CreateSubItem (CreateSubItemRequest) returns (WorkItemResponse);
+  rpc UpdateWorkItem (UpdateWorkItemRequest) returns (WorkItemResponse);
+  rpc DeleteWorkItem (DeleteWorkItemRequest) returns (GenericResponse);
   rpc MoveWorkItem (MoveWorkItemRequest) returns (WorkItemResponse);
+  rpc GetChildWorkItems (GetChildWorkItemsRequest) returns (ListWorkItemsResponse);
+  rpc ListDeletedWorkItems (ListDeletedWorkItemsRequest) returns (ListWorkItemsResponse);
+  rpc RestoreWorkItem (RestoreWorkItemRequest) returns (WorkItemResponse);
+  rpc PermanentDeleteWorkItem (PermanentDeleteWorkItemRequest) returns (GenericResponse);
+  rpc EmptyWorkItemTrash (EmptyWorkItemTrashRequest) returns (EmptyWorkItemTrashResponse);
 
-  // Starts a planning poker session for a work item.
-  rpc StartPokerSession (StartPokerSessionRequest) returns (PokerSessionResponse);
+  // ─── Export ───
+  rpc ExportWorkItemsCsv (ExportWorkItemsCsvRequest) returns (ExportWorkItemsCsvResponse);
 
-  // Submits a vote in a poker session.
-  rpc SubmitPokerVote (SubmitPokerVoteRequest) returns (PokerSessionResponse);
+  // ─── Watchers ───
+  rpc GetWatchers (GetWatchersRequest) returns (GetWatchersResponse);
+  rpc WatchWorkItem (WatchWorkItemRequest) returns (WatchCountResponse);
+  rpc UnwatchWorkItem (UnwatchWorkItemRequest) returns (WatchCountResponse);
 
-  // Reveals all votes in a poker session.
-  rpc RevealPokerSession (RevealPokerSessionRequest) returns (PokerSessionResponse);
+  // ─── Assignments ───
+  rpc AssignUser (AssignUserRequest) returns (GenericResponse);
+  rpc UnassignUser (UnassignUserRequest) returns (GenericResponse);
 
-  // Accepts an estimate and completes a poker session.
-  rpc AcceptPokerEstimate (AcceptPokerEstimateRequest) returns (PokerSessionResponse);
+  // ─── Work Item Labels ───
+  rpc AddLabelToWorkItem (AddLabelToWorkItemRequest) returns (GenericResponse);
+  rpc RemoveLabelFromWorkItem (RemoveLabelFromWorkItemRequest) returns (GenericResponse);
 
-  // Creates a sprint plan for a product.
+  // ─── Comments ───
+  rpc ListComments (ListCommentsRequest) returns (ListCommentsResponse);
+  rpc CreateComment (CreateCommentRequest) returns (CommentResponse);
+  rpc UpdateComment (UpdateCommentRequest) returns (CommentResponse);
+  rpc DeleteComment (DeleteCommentRequest) returns (GenericResponse);
+  rpc ListDeletedComments (ListDeletedCommentsRequest) returns (ListCommentsResponse);
+  rpc RestoreComment (RestoreCommentRequest) returns (GenericResponse);
+  rpc PermanentDeleteComment (PermanentDeleteCommentRequest) returns (GenericResponse);
+
+  // ─── Checklists ───
+  rpc ListChecklists (ListChecklistsRequest) returns (ListChecklistsResponse);
+  rpc CreateChecklist (CreateChecklistRequest) returns (ChecklistResponse);
+  rpc DeleteChecklist (DeleteChecklistRequest) returns (GenericResponse);
+  rpc AddChecklistItem (AddChecklistItemRequest) returns (ChecklistItemResponse);
+  rpc ToggleChecklistItem (ToggleChecklistItemRequest) returns (ChecklistItemResponse);
+  rpc DeleteChecklistItem (DeleteChecklistItemRequest) returns (GenericResponse);
+
+  // ─── Attachments ───
+  rpc ListAttachments (ListAttachmentsRequest) returns (ListAttachmentsResponse);
+  rpc AddAttachment (AddAttachmentRequest) returns (AttachmentResponse);
+  rpc RemoveAttachment (RemoveAttachmentRequest) returns (GenericResponse);
+
+  // ─── Dependencies ───
+  rpc ListDependencies (ListDependenciesRequest) returns (ListDependenciesResponse);
+  rpc AddDependency (AddDependencyRequest) returns (DependencyResponse);
+  rpc RemoveDependency (RemoveDependencyRequest) returns (GenericResponse);
+
+  // ─── Sprints ───
+  rpc ListSprints (ListSprintsRequest) returns (ListSprintsResponse);
+  rpc GetSprint (GetSprintRequest) returns (SprintResponse);
+  rpc CreateSprint (CreateSprintRequest) returns (SprintResponse);
+  rpc UpdateSprint (UpdateSprintRequest) returns (SprintResponse);
+  rpc DeleteSprint (DeleteSprintRequest) returns (GenericResponse);
+  rpc StartSprint (StartSprintRequest) returns (SprintResponse);
+  rpc CompleteSprint (CompleteSprintRequest) returns (SprintResponse);
+  rpc AddItemToSprint (AddItemToSprintRequest) returns (GenericResponse);
+  rpc RemoveItemFromSprint (RemoveItemFromSprintRequest) returns (GenericResponse);
+  rpc GetBacklogItems (GetBacklogItemsRequest) returns (ListWorkItemsResponse);
+
+  // ─── Sprint Planning ───
   rpc CreateSprintPlan (CreateSprintPlanRequest) returns (SprintPlanResponse);
-
-  // Gets the sprint plan overview for a product.
   rpc GetSprintPlan (GetSprintPlanRequest) returns (SprintPlanResponse);
-
-  // Adjusts a sprint's duration and cascades date changes.
   rpc AdjustSprint (AdjustSprintRequest) returns (SprintPlanResponse);
 
-  // Starts a review session on a product.
+  // ─── Time Entries ───
+  rpc ListTimeEntries (ListTimeEntriesRequest) returns (ListTimeEntriesResponse);
+  rpc CreateTimeEntry (CreateTimeEntryRequest) returns (TimeEntryResponse);
+  rpc DeleteTimeEntry (DeleteTimeEntryRequest) returns (GenericResponse);
+  rpc StartTimer (StartTimerRequest) returns (TimeEntryResponse);
+  rpc StopTimer (StopTimerRequest) returns (TimeEntryResponse);
+
+  // ─── Activity ───
+  rpc GetProductActivity (GetProductActivityRequest) returns (ListActivityResponse);
+  rpc GetWorkItemActivity (GetWorkItemActivityRequest) returns (ListActivityResponse);
+
+  // ─── Analytics ───
+  rpc GetProductAnalytics (GetProductAnalyticsRequest) returns (ProductAnalyticsResponse);
+  rpc GetVelocityData (GetVelocityDataRequest) returns (GetVelocityDataResponse);
+  rpc GetSprintReport (GetSprintReportRequest) returns (SprintReportResponse);
+  rpc GetBurndownData (GetBurndownDataRequest) returns (BurndownDataResponse);
+  rpc GetProductDashboard (GetProductDashboardRequest) returns (ProductDashboardResponse);
+
+  // ─── Bulk Actions ───
+  rpc BulkWorkItemAction (BulkWorkItemActionRequest) returns (BulkWorkItemActionResponse);
+  rpc ListProductWorkItems (ListProductWorkItemsRequest) returns (ListWorkItemsResponse);
+
+  // ─── Teams ───
+  rpc ListTeams (ListTeamsRequest) returns (ListTeamsResponse);
+  rpc GetTeam (GetTeamRequest) returns (TeamResponse);
+  rpc CreateTeam (CreateTeamRequest) returns (TeamResponse);
+  rpc UpdateTeam (UpdateTeamRequest) returns (TeamResponse);
+  rpc DeleteTeam (DeleteTeamRequest) returns (GenericResponse);
+  rpc ListTeamMembers (ListTeamMembersRequest) returns (ListTeamMembersResponse);
+  rpc AddTeamMember (AddTeamMemberRequest) returns (TeamMemberResponse);
+  rpc RemoveTeamMember (RemoveTeamMemberRequest) returns (GenericResponse);
+  rpc UpdateTeamMemberRole (UpdateTeamMemberRoleRequest) returns (TeamMemberResponse);
+
+  // ─── Review Sessions ───
   rpc StartReviewSession (StartReviewSessionRequest) returns (ReviewSessionResponse);
-
-  // Gets a review session by ID.
   rpc GetReviewSession (GetReviewSessionRequest) returns (ReviewSessionResponse);
-
-  // Joins an existing review session.
   rpc JoinReviewSession (JoinReviewSessionRequest) returns (ReviewSessionResponse);
-
-  // Sets the current work item in a review session.
+  rpc LeaveReviewSession (LeaveReviewSessionRequest) returns (GenericResponse);
   rpc SetReviewCurrentItem (SetReviewCurrentItemRequest) returns (ReviewSessionResponse);
-
-  // Ends a review session.
   rpc EndReviewSession (EndReviewSessionRequest) returns (ReviewSessionResponse);
 
-  // Gets poker vote status (voted/not-voted per participant).
+  // ─── Planning Poker ───
+  rpc StartPokerSession (StartPokerSessionRequest) returns (PokerSessionResponse);
+  rpc GetPokerSession (GetPokerSessionRequest) returns (PokerSessionResponse);
+  rpc GetActivePokerSessionByReviewSession (GetActivePokerSessionByReviewSessionRequest) returns (PokerSessionResponse);
+  rpc SubmitPokerVote (SubmitPokerVoteRequest) returns (PokerSessionResponse);
+  rpc RevealPokerSession (RevealPokerSessionRequest) returns (PokerSessionResponse);
+  rpc AcceptPokerEstimate (AcceptPokerEstimateRequest) returns (PokerSessionResponse);
   rpc GetPokerVoteStatus (GetPokerVoteStatusRequest) returns (PokerVoteStatusResponse);
 
-  // Returns all searchable documents for full reindex (streaming).
-  rpc GetSearchableDocuments (GetSearchableDocumentsRequest) returns (stream SearchableDocument);
+  // ─── User Search ───
+  rpc SearchUsers (SearchUsersRequest) returns (SearchUsersResponse);
 
-  // Returns a single searchable document by entity ID.
+  // ─── Custom Views ───
+  rpc ListCustomViews (ListCustomViewsRequest) returns (ListCustomViewsResponse);
+  rpc CreateCustomView (CreateCustomViewRequest) returns (CustomViewResponse);
+  rpc UpdateCustomView (UpdateCustomViewRequest) returns (CustomViewResponse);
+  rpc DeleteCustomView (DeleteCustomViewRequest) returns (GenericResponse);
+
+  // ─── Webhooks ───
+  rpc ListProductWebhooks (ListProductWebhooksRequest) returns (ListProductWebhooksResponse);
+  rpc CreateProductWebhook (CreateProductWebhookRequest) returns (WebhookSubscriptionResponse);
+  rpc UpdateProductWebhook (UpdateProductWebhookRequest) returns (WebhookSubscriptionResponse);
+  rpc DeleteProductWebhook (DeleteProductWebhookRequest) returns (GenericResponse);
+  rpc TestProductWebhook (TestProductWebhookRequest) returns (TestProductWebhookResponse);
+
+  // ─── Roadmap ───
+  rpc GetRoadmapData (GetRoadmapDataRequest) returns (RoadmapDataResponse);
+
+  // ─── Automation Rules ───
+  rpc ListAutomationRules (ListAutomationRulesRequest) returns (ListAutomationRulesResponse);
+  rpc CreateAutomationRule (CreateAutomationRuleRequest) returns (AutomationRuleResponse);
+  rpc UpdateAutomationRule (UpdateAutomationRuleRequest) returns (AutomationRuleResponse);
+  rpc DeleteAutomationRule (DeleteAutomationRuleRequest) returns (GenericResponse);
+
+  // ─── Goals / OKRs ───
+  rpc ListGoals (ListGoalsRequest) returns (ListGoalsResponse);
+  rpc GetGoal (GetGoalRequest) returns (GoalResponse);
+  rpc CreateGoal (CreateGoalRequest) returns (GoalResponse);
+  rpc UpdateGoal (UpdateGoalRequest) returns (GoalResponse);
+  rpc DeleteGoal (DeleteGoalRequest) returns (GenericResponse);
+  rpc LinkGoalWorkItem (LinkGoalWorkItemRequest) returns (GenericResponse);
+  rpc UnlinkGoalWorkItem (UnlinkGoalWorkItemRequest) returns (GenericResponse);
+
+  // ─── Capacity ───
+  rpc GetProductCapacity (GetProductCapacityRequest) returns (ProductCapacityResponse);
+  rpc GetSprintCapacity (GetSprintCapacityRequest) returns (SprintCapacityResponse);
+
+  // ─── Search Integration ───
+  rpc GetSearchableDocuments (GetSearchableDocumentsRequest) returns (stream SearchableDocument);
   rpc GetSearchableDocument (GetSearchableDocumentRequest) returns (SearchableDocumentResponse);
 }
 
-// --- CreateProduct ---
+// ═══════════════════════════════════════════════════════════════════════════════
+// GENERIC / SHARED MESSAGES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+message GenericResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PRODUCTS
+// ═══════════════════════════════════════════════════════════════════════════════
 
 message CreateProductRequest {
   string user_id = 1;
-  string title = 2;
-  string description = 3;
-  string color = 4;
-  string mode = 5;             // Personal or Team
+  string organization_id = 2;
+  string name = 3;
+  string description = 4;
+  string color = 5;
+  bool sub_items_enabled = 6;
 }
 
 message ProductResponse {
@@ -90,20 +241,17 @@ message ProductResponse {
   ProductMessage product = 3;
 }
 
-// --- GetProduct ---
-
 message GetProductRequest {
   string product_id = 1;
   string user_id = 2;
 }
 
-// --- ListProducts ---
-
 message ListProductsRequest {
-  string user_id = 1;
-  int32 skip = 2;
-  int32 take = 3;
-  bool include_archived = 4;
+  string organization_id = 1;
+  string user_id = 2;
+  int32 skip = 3;
+  int32 take = 4;
+  bool include_archived = 5;
 }
 
 message ListProductsResponse {
@@ -112,13 +260,166 @@ message ListProductsResponse {
   repeated ProductMessage products = 3;
 }
 
-// --- CreateSwimlane ---
+message UpdateProductRequest {
+  string product_id = 1;
+  string user_id = 2;
+  string name = 3;
+  string description = 4;
+  string color = 5;
+  bool sub_items_enabled = 6;
+  string etag = 7;
+}
+
+message DeleteProductRequest {
+  string product_id = 1;
+  string user_id = 2;
+}
+
+message ListDeletedProductsRequest {
+  string organization_id = 1;
+  string user_id = 2;
+}
+
+message RestoreProductRequest {
+  string product_id = 1;
+  string user_id = 2;
+}
+
+message PermanentDeleteProductRequest {
+  string product_id = 1;
+  string user_id = 2;
+}
+
+message ProductMessage {
+  string id = 1;
+  string organization_id = 2;
+  string owner_id = 3;
+  string name = 4;
+  string description = 5;
+  string color = 6;
+  bool sub_items_enabled = 7;
+  bool is_archived = 8;
+  int32 swimlane_count = 9;
+  int32 epic_count = 10;
+  int32 member_count = 11;
+  int32 label_count = 12;
+  string etag = 13;
+  string created_at = 14;
+  string updated_at = 15;
+  string deleted_at = 16;
+  string deleted_by_user_id = 17;
+  string deleted_by_display_name = 18;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PRODUCT MEMBERS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+message ListProductMembersRequest {
+  string product_id = 1;
+  string user_id = 2;
+}
+
+message ListProductMembersResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated ProductMemberMessage members = 3;
+}
+
+message AddProductMemberRequest {
+  string product_id = 1;
+  string user_id = 2;
+  string member_user_id = 3;
+  string role = 4; // Viewer, Member, Admin, Owner
+}
+
+message ProductMemberResponse {
+  bool success = 1;
+  string error_message = 2;
+  ProductMemberMessage member = 3;
+}
+
+message RemoveProductMemberRequest {
+  string product_id = 1;
+  string user_id = 2;
+  string member_user_id = 3;
+}
+
+message UpdateProductMemberRoleRequest {
+  string product_id = 1;
+  string user_id = 2;
+  string member_user_id = 3;
+  string role = 4; // Viewer, Member, Admin, Owner
+}
+
+message ProductMemberMessage {
+  string user_id = 1;
+  string display_name = 2;
+  string role = 3;
+  string joined_at = 4;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// LABELS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+message ListLabelsRequest {
+  string product_id = 1;
+  string user_id = 2;
+}
+
+message ListLabelsResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated LabelMessage labels = 3;
+}
+
+message CreateLabelRequest {
+  string product_id = 1;
+  string user_id = 2;
+  string title = 3;
+  string color = 4;
+}
+
+message LabelResponse {
+  bool success = 1;
+  string error_message = 2;
+  LabelMessage label = 3;
+}
+
+message UpdateLabelRequest {
+  string product_id = 1;
+  string label_id = 2;
+  string user_id = 3;
+  string title = 4;
+  string color = 5;
+}
+
+message DeleteLabelRequest {
+  string product_id = 1;
+  string label_id = 2;
+  string user_id = 3;
+}
+
+message LabelMessage {
+  string id = 1;
+  string product_id = 2;
+  string title = 3;
+  string color = 4;
+  string created_at = 5;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SWIMLANES
+// ═══════════════════════════════════════════════════════════════════════════════
 
 message CreateSwimlaneRequest {
   string product_id = 1;
   string user_id = 2;
   string title = 3;
   string color = 4;
+  bool is_done = 5;
+  int32 card_limit = 6;
 }
 
 message SwimlaneResponse {
@@ -127,16 +428,122 @@ message SwimlaneResponse {
   SwimlaneMessage swimlane = 3;
 }
 
-// --- CreateWorkItem ---
+message ListProductSwimlanesRequest {
+  string product_id = 1;
+  string user_id = 2;
+}
+
+message ListWorkItemSwimlanesRequest {
+  string work_item_id = 1;
+  string user_id = 2;
+}
+
+message ListSwimlanesResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated SwimlaneMessage swimlanes = 3;
+}
+
+message CreateWorkItemSwimlaneRequest {
+  string work_item_id = 1;
+  string user_id = 2;
+  string title = 3;
+  string color = 4;
+  bool is_done = 5;
+  int32 card_limit = 6;
+}
+
+message UpdateSwimlaneRequest {
+  string swimlane_id = 1;
+  string user_id = 2;
+  string title = 3;
+  string color = 4;
+  bool is_done = 5;
+  int32 card_limit = 6;
+}
+
+message DeleteSwimlaneRequest {
+  string swimlane_id = 1;
+  string user_id = 2;
+}
+
+message ReorderSwimlanesRequest {
+  string user_id = 1;
+  repeated string ordered_ids = 2;
+}
+
+message SwimlaneMessage {
+  string id = 1;
+  string container_type = 2;   // Product or WorkItem
+  string container_id = 3;
+  string title = 4;
+  string color = 5;
+  double position = 6;
+  int32 card_limit = 7;        // 0 = no limit
+  bool is_done = 8;
+  bool is_archived = 9;
+  int32 card_count = 10;
+  string created_at = 11;
+  string updated_at = 12;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SWIMLANE TRANSITION RULES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+message GetSwimlaneTransitionMatrixRequest {
+  string product_id = 1;
+  string user_id = 2;
+}
+
+message GetSwimlaneTransitionMatrixResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated SwimlaneTransitionRuleMessage rules = 3;
+}
+
+message SetSwimlaneTransitionMatrixRequest {
+  string product_id = 1;
+  string user_id = 2;
+  repeated SetTransitionRuleMessage rules = 3;
+}
+
+message SetSwimlaneTransitionMatrixResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated SwimlaneTransitionRuleMessage rules = 3;
+}
+
+message SwimlaneTransitionRuleMessage {
+  string id = 1;
+  string product_id = 2;
+  string from_swimlane_id = 3;
+  string to_swimlane_id = 4;
+  bool is_allowed = 5;
+  string created_at = 6;
+}
+
+message SetTransitionRuleMessage {
+  string from_swimlane_id = 1;
+  string to_swimlane_id = 2;
+  bool is_allowed = 3;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// WORK ITEMS
+// ═══════════════════════════════════════════════════════════════════════════════
 
 message CreateWorkItemRequest {
   string swimlane_id = 1;
   string user_id = 2;
   string title = 3;
   string description = 4;
-  string priority = 5;        // None, Low, Medium, High, Critical
-  string due_date = 6;        // ISO 8601 timestamp or empty
-  int32 story_points = 7;
+  string priority = 5;         // None, Low, Medium, High, Urgent
+  string start_date = 6;       // ISO 8601 timestamp or empty
+  string due_date = 7;         // ISO 8601 timestamp or empty
+  int32 story_points = 8;
+  repeated string assignee_ids = 9;
+  repeated string label_ids = 10;
 }
 
 message WorkItemResponse {
@@ -145,82 +552,1100 @@ message WorkItemResponse {
   WorkItemMessage work_item = 3;
 }
 
-// --- GetWorkItem ---
-
 message GetWorkItemRequest {
   string work_item_id = 1;
   string user_id = 2;
 }
 
-// --- MoveWorkItem ---
+message ListWorkItemsRequest {
+  string swimlane_id = 1;
+  string user_id = 2;
+}
+
+message ListWorkItemsResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated WorkItemMessage work_items = 3;
+}
+
+message GetWorkItemByNumberRequest {
+  string product_id = 1;
+  int32 item_number = 2;
+  string user_id = 3;
+}
+
+message CreateEpicRequest {
+  string swimlane_id = 1;
+  string user_id = 2;
+  string title = 3;
+  string description = 4;
+  string priority = 5;
+  string start_date = 6;
+  string due_date = 7;
+  int32 story_points = 8;
+  repeated string assignee_ids = 9;
+  repeated string label_ids = 10;
+}
+
+message CreateFeatureRequest {
+  string swimlane_id = 1;
+  string user_id = 2;
+  string title = 3;
+  string description = 4;
+  string priority = 5;
+  string start_date = 6;
+  string due_date = 7;
+  int32 story_points = 8;
+  repeated string assignee_ids = 9;
+  repeated string label_ids = 10;
+}
+
+message CreateItemRequest {
+  string swimlane_id = 1;
+  string user_id = 2;
+  string title = 3;
+  string description = 4;
+  string priority = 5;
+  string start_date = 6;
+  string due_date = 7;
+  int32 story_points = 8;
+  repeated string assignee_ids = 9;
+  repeated string label_ids = 10;
+}
+
+message CreateSubItemRequest {
+  string parent_item_id = 1;
+  string user_id = 2;
+  string title = 3;
+  string description = 4;
+  string priority = 5;
+  string start_date = 6;
+  string due_date = 7;
+  int32 story_points = 8;
+  repeated string assignee_ids = 9;
+  repeated string label_ids = 10;
+}
+
+message UpdateWorkItemRequest {
+  string work_item_id = 1;
+  string user_id = 2;
+  string title = 3;
+  string description = 4;
+  string priority = 5;
+  string start_date = 6;
+  string due_date = 7;
+  int32 story_points = 8;
+  bool is_archived = 9;
+  string milestone_id = 10;
+  string etag = 11;
+}
+
+message DeleteWorkItemRequest {
+  string work_item_id = 1;
+  string user_id = 2;
+}
 
 message MoveWorkItemRequest {
   string work_item_id = 1;
   string user_id = 2;
   string target_swimlane_id = 3;
   double position = 4;
+  bool enforce_wip_limit = 5;
 }
 
-// --- Shared Messages ---
-
-message ProductMessage {
-  string id = 1;
-  string owner_id = 2;
-  string title = 3;
-  string description = 4;
-  string color = 5;
-  bool is_archived = 6;
-  string etag = 7;
-  string created_at = 8;      // ISO 8601 timestamp
-  string updated_at = 9;
-  int32 swimlane_count = 10;
-  int32 item_count = 11;
-  int32 member_count = 12;
-  string mode = 13;            // Personal or Team
+message GetChildWorkItemsRequest {
+  string parent_work_item_id = 1;
+  string user_id = 2;
 }
 
-message SwimlaneMessage {
-  string id = 1;
-  string product_id = 2;
-  string title = 3;
-  double position = 4;
-  string color = 5;
-  int32 item_limit = 6;       // 0 = no limit
-  bool is_archived = 7;
-  string created_at = 8;
-  string updated_at = 9;
-  int32 item_count = 10;
+message ListDeletedWorkItemsRequest {
+  string product_id = 1;
+  string user_id = 2;
+}
+
+message RestoreWorkItemRequest {
+  string work_item_id = 1;
+  string user_id = 2;
+}
+
+message PermanentDeleteWorkItemRequest {
+  string work_item_id = 1;
+  string user_id = 2;
+}
+
+message EmptyWorkItemTrashRequest {
+  string product_id = 1;
+  string user_id = 2;
+}
+
+message EmptyWorkItemTrashResponse {
+  bool success = 1;
+  string error_message = 2;
+  int32 deleted_count = 3;
 }
 
 message WorkItemMessage {
   string id = 1;
-  string swimlane_id = 2;
-  string title = 3;
-  string description = 4;
-  double position = 5;
-  string due_date = 6;
-  string priority = 7;
-  int32 story_points = 8;
-  bool is_archived = 9;
-  string created_by_user_id = 10;
-  string etag = 11;
-  string created_at = 12;
-  string updated_at = 13;
-  int32 comment_count = 14;
-  int32 attachment_count = 15;
-  int32 checklist_item_count = 16;
-  int32 checklist_completed_count = 17;
-  repeated string assignee_ids = 18;
-  repeated string label_ids = 19;
+  string product_id = 2;
+  string parent_work_item_id = 3;
+  string type = 4;             // Epic, Feature, Item, SubItem
+  string swimlane_id = 5;
+  string swimlane_title = 6;
+  int32 item_number = 7;
+  string title = 8;
+  string description = 9;
+  double position = 10;
+  string priority = 11;
+  string start_date = 12;
+  string due_date = 13;
+  int32 story_points = 14;
+  bool is_archived = 15;
+  int32 comment_count = 16;
+  int32 attachment_count = 17;
+  string sprint_id = 18;
+  string sprint_title = 19;
+  int32 total_tracked_minutes = 20;
+  string milestone_id = 21;
+  string milestone_title = 22;
+  string etag = 23;
+  string created_by_user_id = 24;
+  string created_at = 25;
+  string updated_at = 26;
+  string deleted_at = 27;
+  string deleted_by_user_id = 28;
+  string deleted_by_display_name = 29;
+  repeated WorkItemAssignmentMessage assignments = 30;
+  repeated LabelMessage labels = 31;
+  repeated WorkItemMessage child_work_items = 32;
+  repeated ChecklistMessage checklists = 33;
+  repeated WorkItemFieldValueMessage custom_fields = 34;
 }
 
-// --- Planning Poker ---
+message WorkItemAssignmentMessage {
+  string user_id = 1;
+  string display_name = 2;
+  string assigned_at = 3;
+}
 
-message StartPokerSessionRequest {
+message WorkItemFieldValueMessage {
+  string id = 1;
+  string work_item_id = 2;
+  string custom_field_id = 3;
+  string custom_field_name = 4;
+  string field_type = 5;       // Text, Number, Date, SingleSelect, MultiSelect, User
+  string value = 6;
+  string updated_at = 7;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EXPORT
+// ═══════════════════════════════════════════════════════════════════════════════
+
+message ExportWorkItemsCsvRequest {
+  string product_id = 1;
+  string user_id = 2;
+  string swimlane_id = 3;      // optional
+  string label_id = 4;         // optional
+  string priority = 5;         // optional filter
+}
+
+message ExportWorkItemsCsvResponse {
+  bool success = 1;
+  string error_message = 2;
+  bytes csv_data = 3;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// WATCHERS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+message GetWatchersRequest {
   string work_item_id = 1;
   string user_id = 2;
-  string scale = 3;            // Fibonacci, TShirt, PowersOfTwo, Custom
-  string custom_scale_values = 4;  // JSON array, only when scale=Custom
+}
+
+message GetWatchersResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated string watcher_user_ids = 3;
+}
+
+message WatchWorkItemRequest {
+  string work_item_id = 1;
+  string user_id = 2;
+}
+
+message UnwatchWorkItemRequest {
+  string work_item_id = 1;
+  string user_id = 2;
+}
+
+message WatchCountResponse {
+  bool success = 1;
+  string error_message = 2;
+  int32 count = 3;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ASSIGNMENTS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+message AssignUserRequest {
+  string work_item_id = 1;
+  string user_id = 2;
+  string assignee_user_id = 3;
+}
+
+message UnassignUserRequest {
+  string work_item_id = 1;
+  string user_id = 2;
+  string assignee_user_id = 3;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// WORK ITEM LABELS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+message AddLabelToWorkItemRequest {
+  string work_item_id = 1;
+  string user_id = 2;
+  string label_id = 3;
+}
+
+message RemoveLabelFromWorkItemRequest {
+  string work_item_id = 1;
+  string user_id = 2;
+  string label_id = 3;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// COMMENTS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+message ListCommentsRequest {
+  string work_item_id = 1;
+  string user_id = 2;
+  int32 skip = 3;
+  int32 take = 4;
+}
+
+message ListCommentsResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated WorkItemCommentMessage comments = 3;
+}
+
+message CreateCommentRequest {
+  string work_item_id = 1;
+  string user_id = 2;
+  string content = 3;
+}
+
+message CommentResponse {
+  bool success = 1;
+  string error_message = 2;
+  WorkItemCommentMessage comment = 3;
+}
+
+message UpdateCommentRequest {
+  string work_item_id = 1;
+  string comment_id = 2;
+  string user_id = 3;
+  string content = 4;
+}
+
+message DeleteCommentRequest {
+  string work_item_id = 1;
+  string comment_id = 2;
+  string user_id = 3;
+}
+
+message ListDeletedCommentsRequest {
+  string work_item_id = 1;
+  string user_id = 2;
+}
+
+message RestoreCommentRequest {
+  string work_item_id = 1;
+  string comment_id = 2;
+  string user_id = 3;
+}
+
+message PermanentDeleteCommentRequest {
+  string work_item_id = 1;
+  string comment_id = 2;
+  string user_id = 3;
+}
+
+message WorkItemCommentMessage {
+  string id = 1;
+  string work_item_id = 2;
+  string user_id = 3;
+  string display_name = 4;
+  string content = 5;
+  bool is_edited = 6;
+  bool is_deleted = 7;
+  string deleted_at = 8;
+  string created_at = 9;
+  string updated_at = 10;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CHECKLISTS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+message ListChecklistsRequest {
+  string item_id = 1;
+  string user_id = 2;
+}
+
+message ListChecklistsResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated ChecklistMessage checklists = 3;
+}
+
+message CreateChecklistRequest {
+  string item_id = 1;
+  string user_id = 2;
+  string title = 3;
+}
+
+message ChecklistResponse {
+  bool success = 1;
+  string error_message = 2;
+  ChecklistMessage checklist = 3;
+}
+
+message DeleteChecklistRequest {
+  string item_id = 1;
+  string checklist_id = 2;
+  string user_id = 3;
+}
+
+message AddChecklistItemRequest {
+  string item_id = 1;
+  string checklist_id = 2;
+  string user_id = 3;
+  string title = 4;
+  string assigned_to_user_id = 5;
+}
+
+message ChecklistItemResponse {
+  bool success = 1;
+  string error_message = 2;
+  ChecklistItemMessage checklist_item = 3;
+}
+
+message ToggleChecklistItemRequest {
+  string item_id = 1;
+  string checklist_id = 2;
+  string checklist_item_id = 3;
+  string user_id = 4;
+}
+
+message DeleteChecklistItemRequest {
+  string item_id = 1;
+  string checklist_id = 2;
+  string checklist_item_id = 3;
+  string user_id = 4;
+}
+
+message ChecklistMessage {
+  string id = 1;
+  string item_id = 2;
+  string title = 3;
+  double position = 4;
+  repeated ChecklistItemMessage items = 5;
+  string created_at = 6;
+}
+
+message ChecklistItemMessage {
+  string id = 1;
+  string checklist_id = 2;
+  string title = 3;
+  bool is_completed = 4;
+  double position = 5;
+  string assigned_to_user_id = 6;
+  string created_at = 7;
+  string updated_at = 8;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ATTACHMENTS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+message ListAttachmentsRequest {
+  string work_item_id = 1;
+  string user_id = 2;
+}
+
+message ListAttachmentsResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated WorkItemAttachmentMessage attachments = 3;
+}
+
+message AddAttachmentRequest {
+  string work_item_id = 1;
+  string user_id = 2;
+  string file_name = 3;
+  string url = 4;
+  string file_node_id = 5;
+}
+
+message AttachmentResponse {
+  bool success = 1;
+  string error_message = 2;
+  WorkItemAttachmentMessage attachment = 3;
+}
+
+message RemoveAttachmentRequest {
+  string work_item_id = 1;
+  string attachment_id = 2;
+  string user_id = 3;
+}
+
+message WorkItemAttachmentMessage {
+  string id = 1;
+  string work_item_id = 2;
+  string file_node_id = 3;
+  string url = 4;
+  string file_name = 5;
+  int64 file_size = 6;
+  string mime_type = 7;
+  string uploaded_by_user_id = 8;
+  string created_at = 9;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DEPENDENCIES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+message ListDependenciesRequest {
+  string work_item_id = 1;
+  string user_id = 2;
+}
+
+message ListDependenciesResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated WorkItemDependencyMessage dependencies = 3;
+}
+
+message AddDependencyRequest {
+  string work_item_id = 1;
+  string user_id = 2;
+  string depends_on_work_item_id = 3;
+  string type = 4;             // BlockedBy, RelatesTo
+}
+
+message DependencyResponse {
+  bool success = 1;
+  string error_message = 2;
+  WorkItemDependencyMessage dependency = 3;
+}
+
+message RemoveDependencyRequest {
+  string work_item_id = 1;
+  string dependency_id = 2;
+  string user_id = 3;
+}
+
+message WorkItemDependencyMessage {
+  string id = 1;
+  string work_item_id = 2;
+  string depends_on_work_item_id = 3;
+  string depends_on_title = 4;
+  string type = 5;             // BlockedBy, RelatesTo
+  string created_at = 6;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SPRINTS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+message ListSprintsRequest {
+  string epic_id = 1;
+  string user_id = 2;
+}
+
+message ListSprintsResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated SprintMessage sprints = 3;
+}
+
+message GetSprintRequest {
+  string sprint_id = 1;
+  string user_id = 2;
+}
+
+message SprintResponse {
+  bool success = 1;
+  string error_message = 2;
+  SprintMessage sprint = 3;
+}
+
+message CreateSprintRequest {
+  string epic_id = 1;
+  string user_id = 2;
+  string title = 3;
+  string goal = 4;
+  string start_date = 5;
+  string end_date = 6;
+  int32 target_story_points = 7;
+  int32 duration_weeks = 8;
+}
+
+message UpdateSprintRequest {
+  string sprint_id = 1;
+  string user_id = 2;
+  string title = 3;
+  string goal = 4;
+  string start_date = 5;
+  string end_date = 6;
+  int32 target_story_points = 7;
+}
+
+message DeleteSprintRequest {
+  string sprint_id = 1;
+  string user_id = 2;
+}
+
+message StartSprintRequest {
+  string sprint_id = 1;
+  string user_id = 2;
+}
+
+message CompleteSprintRequest {
+  string sprint_id = 1;
+  string user_id = 2;
+}
+
+message AddItemToSprintRequest {
+  string sprint_id = 1;
+  string item_id = 2;
+  string user_id = 3;
+}
+
+message RemoveItemFromSprintRequest {
+  string sprint_id = 1;
+  string item_id = 2;
+  string user_id = 3;
+}
+
+message GetBacklogItemsRequest {
+  string epic_id = 1;
+  string user_id = 2;
+}
+
+message SprintMessage {
+  string id = 1;
+  string epic_id = 2;
+  string title = 3;
+  string goal = 4;
+  string start_date = 5;
+  string end_date = 6;
+  string status = 7;           // Planning, Active, Completed
+  int32 target_story_points = 8;
+  int32 duration_weeks = 9;
+  int32 planned_order = 10;
+  int32 item_count = 11;
+  int32 total_story_points = 12;
+  int32 completed_story_points = 13;
+  string created_at = 14;
+  string updated_at = 15;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SPRINT PLANNING
+// ═══════════════════════════════════════════════════════════════════════════════
+
+message CreateSprintPlanRequest {
+  string epic_id = 1;
+  string user_id = 2;
+  int32 number_of_sprints = 3;
+  int32 sprint_duration_weeks = 4;
+  string start_date = 5;
+}
+
+message GetSprintPlanRequest {
+  string epic_id = 1;
+  string user_id = 2;
+}
+
+message AdjustSprintRequest {
+  string sprint_id = 1;
+  string user_id = 2;
+  int32 duration_weeks = 3;
+  string start_date = 4;
+  string end_date = 5;
+}
+
+message SprintPlanResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated SprintMessage sprints = 3;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TIME ENTRIES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+message ListTimeEntriesRequest {
+  string work_item_id = 1;
+  string user_id = 2;
+}
+
+message ListTimeEntriesResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated TimeEntryMessage time_entries = 3;
+}
+
+message CreateTimeEntryRequest {
+  string work_item_id = 1;
+  string user_id = 2;
+  int32 duration_minutes = 3;
+  string description = 4;
+  string start_time = 5;       // ISO 8601
+}
+
+message TimeEntryResponse {
+  bool success = 1;
+  string error_message = 2;
+  TimeEntryMessage time_entry = 3;
+}
+
+message DeleteTimeEntryRequest {
+  string work_item_id = 1;
+  string entry_id = 2;
+  string user_id = 3;
+}
+
+message StartTimerRequest {
+  string work_item_id = 1;
+  string user_id = 2;
+}
+
+message StopTimerRequest {
+  string work_item_id = 1;
+  string user_id = 2;
+}
+
+message TimeEntryMessage {
+  string id = 1;
+  string work_item_id = 2;
+  string user_id = 3;
+  string start_time = 4;
+  string end_time = 5;
+  int32 duration_minutes = 6;
+  string description = 7;
+  string created_at = 8;
+  string updated_at = 9;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ACTIVITY
+// ═══════════════════════════════════════════════════════════════════════════════
+
+message GetProductActivityRequest {
+  string product_id = 1;
+  string user_id = 2;
+  int32 skip = 3;
+  int32 take = 4;
+}
+
+message GetWorkItemActivityRequest {
+  string work_item_id = 1;
+  string user_id = 2;
+  int32 skip = 3;
+  int32 take = 4;
+}
+
+message ListActivityResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated ActivityMessage activities = 3;
+}
+
+message ActivityMessage {
+  string id = 1;
+  string product_id = 2;
+  string user_id = 3;
+  string display_name = 4;
+  string action = 5;
+  string entity_type = 6;
+  string entity_id = 7;
+  string details = 8;
+  string created_at = 9;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ANALYTICS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+message GetProductAnalyticsRequest {
+  string product_id = 1;
+  string user_id = 2;
+}
+
+message ProductAnalyticsResponse {
+  bool success = 1;
+  string error_message = 2;
+  ProductAnalyticsMessage analytics = 3;
+}
+
+message ProductAnalyticsMessage {
+  int32 total_items = 1;
+  int32 total_epics = 2;
+  int32 total_features = 3;
+  int32 items_completed_this_week = 4;
+  int32 active_sprints = 5;
+  double avg_cycle_time_days = 6;
+  repeated DailyCompletionMessage daily_completions = 7;
+}
+
+message DailyCompletionMessage {
+  string date = 1;             // ISO 8601 date
+  int32 completed_count = 2;
+}
+
+message GetVelocityDataRequest {
+  string product_id = 1;
+  string user_id = 2;
+}
+
+message GetVelocityDataResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated SprintVelocityMessage velocities = 3;
+}
+
+message SprintVelocityMessage {
+  string sprint_id = 1;
+  string sprint_title = 2;
+  int32 completed_story_points = 3;
+  int32 total_story_points = 4;
+}
+
+message GetSprintReportRequest {
+  string sprint_id = 1;
+  string user_id = 2;
+}
+
+message SprintReportResponse {
+  bool success = 1;
+  string error_message = 2;
+  SprintReportMessage report = 3;
+}
+
+message SprintReportMessage {
+  SprintMessage sprint = 1;
+  int32 completed_items = 2;
+  int32 incomplete_items = 3;
+  int32 completed_story_points = 4;
+  int32 total_story_points = 5;
+}
+
+message GetBurndownDataRequest {
+  string sprint_id = 1;
+  string user_id = 2;
+}
+
+message BurndownDataResponse {
+  bool success = 1;
+  string error_message = 2;
+  BurndownMessage burndown = 3;
+}
+
+message BurndownMessage {
+  int32 total_story_points = 1;
+  repeated BurndownPointMessage points = 2;
+}
+
+message BurndownPointMessage {
+  string date = 1;             // ISO 8601 date
+  int32 remaining_story_points = 2;
+}
+
+message GetProductDashboardRequest {
+  string product_id = 1;
+  string user_id = 2;
+}
+
+message ProductDashboardResponse {
+  bool success = 1;
+  string error_message = 2;
+  ProductDashboardMessage dashboard = 3;
+}
+
+message ProductDashboardMessage {
+  string product_id = 1;
+  string product_name = 2;
+  int32 total_items = 3;
+  int32 total_epics = 4;
+  int32 total_features = 5;
+  int32 active_sprints = 6;
+  double avg_cycle_time_days = 7;
+  int32 items_completed_this_week = 8;
+  int32 unassigned_items = 9;
+  repeated StatusBreakdownMessage status_breakdown = 10;
+  repeated PriorityBreakdownMessage priority_breakdown = 11;
+  repeated WorkloadMessage workload = 12;
+  repeated RecentlyUpdatedItemMessage recently_updated = 13;
+  repeated UpcomingDueDateMessage upcoming_due_dates = 14;
+}
+
+message StatusBreakdownMessage {
+  string swimlane_id = 1;
+  string swimlane_title = 2;
+  string color = 3;
+  int32 count = 4;
+}
+
+message PriorityBreakdownMessage {
+  string priority = 1;
+  int32 count = 2;
+}
+
+message WorkloadMessage {
+  string user_id = 1;
+  string display_name = 2;
+  int32 assigned_items = 3;
+  int32 total_story_points = 4;
+}
+
+message RecentlyUpdatedItemMessage {
+  string id = 1;
+  int32 item_number = 2;
+  string title = 3;
+  string type = 4;
+  string priority = 5;
+  string swimlane_title = 6;
+  string sprint_id = 7;
+  string sprint_title = 8;
+  string updated_at = 9;
+}
+
+message UpcomingDueDateMessage {
+  string id = 1;
+  int32 item_number = 2;
+  string title = 3;
+  string type = 4;
+  string priority = 5;
+  string swimlane_title = 6;
+  string due_date = 7;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// BULK ACTIONS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+message BulkWorkItemActionRequest {
+  string product_id = 1;
+  string user_id = 2;
+  repeated string work_item_ids = 3;
+  string action = 4;           // "archive", "delete", "move", "add-label", "assign", "set-priority", "assign-to-sprint"
+  string target_swimlane_id = 5;
+  string label_id = 6;
+  string assignee_user_id = 7;
+  string priority = 8;
+  string sprint_id = 9;
+}
+
+message BulkWorkItemActionResponse {
+  bool success = 1;
+  string error_message = 2;
+  int32 affected_count = 3;
+}
+
+message ListProductWorkItemsRequest {
+  string product_id = 1;
+  string user_id = 2;
+  string swimlane_id = 3;      // optional filter
+  string label_id = 4;         // optional filter
+  string priority = 5;         // optional filter
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TEAMS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+message ListTeamsRequest {
+  string user_id = 1;
+}
+
+message ListTeamsResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated TracksTeamMessage teams = 3;
+}
+
+message GetTeamRequest {
+  string team_id = 1;
+  string user_id = 2;
+}
+
+message TeamResponse {
+  bool success = 1;
+  string error_message = 2;
+  TracksTeamMessage team = 3;
+}
+
+message CreateTeamRequest {
+  string user_id = 1;
+  string name = 2;
+  string description = 3;
+}
+
+message UpdateTeamRequest {
+  string team_id = 1;
+  string user_id = 2;
+  string name = 3;
+  string description = 4;
+}
+
+message DeleteTeamRequest {
+  string team_id = 1;
+  string user_id = 2;
+}
+
+message ListTeamMembersRequest {
+  string team_id = 1;
+  string user_id = 2;
+}
+
+message ListTeamMembersResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated TracksTeamMemberMessage members = 3;
+}
+
+message AddTeamMemberRequest {
+  string team_id = 1;
+  string user_id = 2;
+  string member_user_id = 3;
+  string role = 4;             // Member, Manager, Owner
+}
+
+message TeamMemberResponse {
+  bool success = 1;
+  string error_message = 2;
+  TracksTeamMemberMessage member = 3;
+}
+
+message RemoveTeamMemberRequest {
+  string team_id = 1;
+  string user_id = 2;
+  string member_user_id = 3;
+}
+
+message UpdateTeamMemberRoleRequest {
+  string team_id = 1;
+  string user_id = 2;
+  string member_user_id = 3;
+  string role = 4;             // Member, Manager, Owner
+}
+
+message TracksTeamMessage {
+  string id = 1;
+  string team_id = 2;
+  string name = 3;
+  string description = 4;
+  int32 member_count = 5;
+  string created_at = 6;
+}
+
+message TracksTeamMemberMessage {
+  string user_id = 1;
+  string display_name = 2;
+  string role = 3;
+  string assigned_at = 4;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// REVIEW SESSIONS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+message StartReviewSessionRequest {
+  string epic_id = 1;
+  string user_id = 2;
+}
+
+message GetReviewSessionRequest {
+  string session_id = 1;
+  string user_id = 2;
+}
+
+message JoinReviewSessionRequest {
+  string session_id = 1;
+  string user_id = 2;
+}
+
+message LeaveReviewSessionRequest {
+  string session_id = 1;
+  string user_id = 2;
+}
+
+message SetReviewCurrentItemRequest {
+  string session_id = 1;
+  string user_id = 2;
+  string item_id = 3;
+}
+
+message EndReviewSessionRequest {
+  string session_id = 1;
+  string user_id = 2;
+}
+
+message ReviewSessionResponse {
+  bool success = 1;
+  string error_message = 2;
+  ReviewSessionMessage session = 3;
+}
+
+message ReviewSessionMessage {
+  string id = 1;
+  string epic_id = 2;
+  string host_user_id = 3;
+  string current_item_id = 4;
+  string status = 5;           // Active, Paused, Ended
+  int32 participant_count = 6;
+  string created_at = 7;
+  string ended_at = 8;
+  repeated ReviewParticipantMessage participants = 9;
+  PokerSessionMessage active_poker_session = 10;
+}
+
+message ReviewParticipantMessage {
+  string user_id = 1;
+  string display_name = 2;
+  bool is_connected = 3;
+  string joined_at = 4;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PLANNING POKER
+// ═══════════════════════════════════════════════════════════════════════════════
+
+message StartPokerSessionRequest {
+  string epic_id = 1;
+  string user_id = 2;
+  string item_id = 3;
+  string scale = 4;            // Fibonacci, TShirt, PowersOfTwo, Custom
+  string custom_scale_values = 5;
+}
+
+message GetPokerSessionRequest {
+  string session_id = 1;
+  string user_id = 2;
+}
+
+message GetActivePokerSessionByReviewSessionRequest {
+  string review_session_id = 1;
+  string user_id = 2;
 }
 
 message SubmitPokerVoteRequest {
@@ -238,7 +1663,6 @@ message AcceptPokerEstimateRequest {
   string session_id = 1;
   string user_id = 2;
   string accepted_estimate = 3;
-  int32 story_points = 4;     // 0 = not set
 }
 
 message PokerSessionResponse {
@@ -249,125 +1673,28 @@ message PokerSessionResponse {
 
 message PokerSessionMessage {
   string id = 1;
-  string work_item_id = 2;
-  string product_id = 3;
+  string epic_id = 2;
+  string item_id = 3;
   string created_by_user_id = 4;
   string scale = 5;
   string custom_scale_values = 6;
   string status = 7;
   string accepted_estimate = 8;
   int32 round = 9;
-  string created_at = 10;
-  string updated_at = 11;
-  repeated PokerVoteMessage votes = 12;
+  string review_session_id = 10;
+  string created_at = 11;
+  string updated_at = 12;
+  repeated PokerVoteMessage votes = 13;
 }
 
 message PokerVoteMessage {
-  string user_id = 1;
-  string estimate = 2;        // Empty until revealed
-  int32 round = 3;
-  string voted_at = 4;
-}
-
-// --- Sprint Plan ---
-
-message CreateSprintPlanRequest {
-  string product_id = 1;
-  string user_id = 2;
-  string start_date = 3;       // ISO 8601 date
-  int32 sprint_count = 4;
-  int32 default_duration_weeks = 5;
-}
-
-message GetSprintPlanRequest {
-  string product_id = 1;
-  string user_id = 2;
-}
-
-message AdjustSprintRequest {
-  string sprint_id = 1;
-  string user_id = 2;
-  int32 duration_weeks = 3;
-  string start_date = 4;       // Optional, ISO 8601
-}
-
-message SprintPlanResponse {
-  bool success = 1;
-  string error_message = 2;
-  SprintPlanOverviewMessage overview = 3;
-}
-
-message SprintPlanOverviewMessage {
-  string product_id = 1;
-  repeated SprintPlanItemMessage sprints = 2;
-  int32 total_weeks = 3;
-  string plan_start_date = 4;
-  string plan_end_date = 5;
-}
-
-message SprintPlanItemMessage {
   string id = 1;
-  string title = 2;
-  string start_date = 3;
-  string end_date = 4;
-  string status = 5;
-  int32 duration_weeks = 6;
-  int32 planned_order = 7;
-  int32 item_count = 8;
-  int32 total_story_points = 9;
-}
-
-// --- Review Session ---
-
-message StartReviewSessionRequest {
-  string product_id = 1;
-  string user_id = 2;
-}
-
-message GetReviewSessionRequest {
-  string session_id = 1;
-  string user_id = 2;
-}
-
-message JoinReviewSessionRequest {
-  string session_id = 1;
-  string user_id = 2;
-}
-
-message SetReviewCurrentItemRequest {
-  string session_id = 1;
-  string user_id = 2;
-  string work_item_id = 3;
-}
-
-message EndReviewSessionRequest {
-  string session_id = 1;
-  string user_id = 2;
-}
-
-message ReviewSessionResponse {
-  bool success = 1;
-  string error_message = 2;
-  ReviewSessionMessage session = 3;
-}
-
-message ReviewSessionMessage {
-  string id = 1;
-  string product_id = 2;
-  string host_user_id = 3;
-  string current_work_item_id = 4;
-  string status = 5;
-  string created_at = 6;
-  string ended_at = 7;
-  repeated ReviewParticipantMessage participants = 8;
-  PokerSessionMessage active_poker_session = 9;
-}
-
-message ReviewParticipantMessage {
-  string id = 1;
-  string user_id = 2;
-  string joined_at = 3;
-  bool is_connected = 4;
+  string session_id = 2;
+  string user_id = 3;
+  string display_name = 4;
+  string estimate = 5;         // Empty until revealed
+  int32 round = 6;
+  string voted_at = 7;
 }
 
 // --- Poker Vote Status ---
@@ -386,9 +1713,420 @@ message PokerVoteStatusResponse {
 message PokerVoteStatusItem {
   string user_id = 1;
   bool has_voted = 2;
+  string estimate = 3;
 }
 
-// --- Search Integration ---
+// ═══════════════════════════════════════════════════════════════════════════════
+// USER SEARCH
+// ═══════════════════════════════════════════════════════════════════════════════
+
+message SearchUsersRequest {
+  string search_term = 1;
+  int32 max_results = 2;
+  string user_id = 3;
+}
+
+message SearchUsersResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated UserSearchResultMessage results = 3;
+}
+
+message UserSearchResultMessage {
+  string id = 1;
+  string display_name = 2;
+  string email = 3;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CUSTOM VIEWS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+message ListCustomViewsRequest {
+  string product_id = 1;
+  string user_id = 2;
+}
+
+message ListCustomViewsResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated CustomViewMessage views = 3;
+}
+
+message CreateCustomViewRequest {
+  string product_id = 1;
+  string user_id = 2;
+  string name = 3;
+  string filter_json = 4;
+  string sort_json = 5;
+  string group_by = 6;
+  string layout = 7;           // Kanban, Backlog, List, Calendar, Timeline
+  bool is_shared = 8;
+}
+
+message CustomViewResponse {
+  bool success = 1;
+  string error_message = 2;
+  CustomViewMessage view = 3;
+}
+
+message UpdateCustomViewRequest {
+  string product_id = 1;
+  string view_id = 2;
+  string user_id = 3;
+  string name = 4;
+  string filter_json = 5;
+  string sort_json = 6;
+  string group_by = 7;
+  string layout = 8;
+  bool is_shared = 9;
+}
+
+message DeleteCustomViewRequest {
+  string product_id = 1;
+  string view_id = 2;
+  string user_id = 3;
+}
+
+message CustomViewMessage {
+  string id = 1;
+  string product_id = 2;
+  string user_id = 3;
+  string name = 4;
+  string filter_json = 5;
+  string sort_json = 6;
+  string group_by = 7;
+  string layout = 8;
+  bool is_shared = 9;
+  string created_at = 10;
+  string updated_at = 11;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// WEBHOOKS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+message ListProductWebhooksRequest {
+  string product_id = 1;
+  string user_id = 2;
+}
+
+message ListProductWebhooksResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated WebhookSubscriptionMessage subscriptions = 3;
+}
+
+message CreateProductWebhookRequest {
+  string product_id = 1;
+  string user_id = 2;
+  string url = 3;
+  repeated string event_types = 4;
+}
+
+message WebhookSubscriptionResponse {
+  bool success = 1;
+  string error_message = 2;
+  WebhookSubscriptionMessage subscription = 3;
+}
+
+message UpdateProductWebhookRequest {
+  string product_id = 1;
+  string subscription_id = 2;
+  string user_id = 3;
+  string url = 4;
+  repeated string event_types = 5;
+  bool is_active = 6;
+}
+
+message DeleteProductWebhookRequest {
+  string product_id = 1;
+  string subscription_id = 2;
+  string user_id = 3;
+}
+
+message TestProductWebhookRequest {
+  string product_id = 1;
+  string subscription_id = 2;
+  string user_id = 3;
+}
+
+message TestProductWebhookResponse {
+  bool success = 1;
+  string error_message = 2;
+  bool delivery_success = 3;
+  int32 status_code = 4;
+  int64 duration_ms = 5;
+  string error = 6;
+}
+
+message WebhookSubscriptionMessage {
+  string id = 1;
+  string product_id = 2;
+  string url = 3;
+  string events_json = 4;     // JSON array of event type strings
+  bool is_active = 5;
+  string created_by_user_id = 6;
+  string last_delivery_at = 7;
+  int32 failed_delivery_count = 8;
+  string created_at = 9;
+  string updated_at = 10;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ROADMAP
+// ═══════════════════════════════════════════════════════════════════════════════
+
+message GetRoadmapDataRequest {
+  string product_id = 1;
+  string user_id = 2;
+}
+
+message RoadmapDataResponse {
+  bool success = 1;
+  string error_message = 2;
+  RoadmapDataMessage roadmap = 3;
+}
+
+message RoadmapDataMessage {
+  string product_id = 1;
+  string product_name = 2;
+  repeated RoadmapItemMessage items = 3;
+  repeated MilestoneMessage milestones = 4;
+}
+
+message RoadmapItemMessage {
+  string id = 1;
+  int32 item_number = 2;
+  string title = 3;
+  string type = 4;
+  string priority = 5;
+  string swimlane_title = 6;
+  string swimlane_color = 7;
+  string start_date = 8;
+  string due_date = 9;
+  string milestone_id = 10;
+  string milestone_title = 11;
+  repeated string dependency_ids = 12;
+  string assignee_user_id = 13;
+  string assignee_display_name = 14;
+}
+
+message MilestoneMessage {
+  string id = 1;
+  string product_id = 2;
+  string title = 3;
+  string description = 4;
+  string due_date = 5;
+  string status = 6;           // Upcoming, Active, Completed
+  string color = 7;
+  int32 work_item_count = 8;
+  int32 completed_work_item_count = 9;
+  string created_at = 10;
+  string updated_at = 11;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// AUTOMATION RULES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+message ListAutomationRulesRequest {
+  string product_id = 1;
+  string user_id = 2;
+}
+
+message ListAutomationRulesResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated AutomationRuleMessage rules = 3;
+}
+
+message CreateAutomationRuleRequest {
+  string product_id = 1;
+  string user_id = 2;
+  string name = 3;
+  string trigger = 4;          // work_item_created, work_item_moved, status_changed, due_date_approaching, assigned
+  string conditions_json = 5;  // JSON array of condition objects
+  string actions_json = 6;     // JSON array of action objects
+  bool is_active = 7;
+}
+
+message AutomationRuleResponse {
+  bool success = 1;
+  string error_message = 2;
+  AutomationRuleMessage rule = 3;
+}
+
+message UpdateAutomationRuleRequest {
+  string rule_id = 1;
+  string user_id = 2;
+  string name = 3;
+  string trigger = 4;
+  string conditions_json = 5;
+  string actions_json = 6;
+  bool is_active = 7;
+}
+
+message DeleteAutomationRuleRequest {
+  string rule_id = 1;
+  string user_id = 2;
+}
+
+message AutomationRuleMessage {
+  string id = 1;
+  string product_id = 2;
+  string name = 3;
+  string trigger = 4;
+  string conditions_json = 5;
+  string actions_json = 6;
+  bool is_active = 7;
+  string created_by_user_id = 8;
+  string last_triggered_at = 9;
+  string created_at = 10;
+  string updated_at = 11;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// GOALS / OKRs
+// ═══════════════════════════════════════════════════════════════════════════════
+
+message ListGoalsRequest {
+  string product_id = 1;
+  string user_id = 2;
+}
+
+message ListGoalsResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated GoalMessage goals = 3;
+}
+
+message GetGoalRequest {
+  string goal_id = 1;
+  string user_id = 2;
+}
+
+message GoalResponse {
+  bool success = 1;
+  string error_message = 2;
+  GoalMessage goal = 3;
+}
+
+message CreateGoalRequest {
+  string product_id = 1;
+  string user_id = 2;
+  string title = 3;
+  string description = 4;
+  string type = 5;             // "objective" or "key_result"
+  string parent_goal_id = 6;
+  double target_value = 7;
+  string progress_type = 8;    // "manual" or "automatic"
+  string due_date = 9;
+}
+
+message UpdateGoalRequest {
+  string goal_id = 1;
+  string user_id = 2;
+  string title = 3;
+  string description = 4;
+  double target_value = 5;
+  double current_value = 6;
+  string progress_type = 7;
+  string status = 8;           // NotStarted, OnTrack, AtRisk, Behind, Completed
+  string due_date = 9;
+}
+
+message DeleteGoalRequest {
+  string goal_id = 1;
+  string user_id = 2;
+}
+
+message LinkGoalWorkItemRequest {
+  string goal_id = 1;
+  string user_id = 2;
+  string work_item_id = 3;
+}
+
+message UnlinkGoalWorkItemRequest {
+  string goal_id = 1;
+  string user_id = 2;
+  string work_item_id = 3;
+}
+
+message GoalMessage {
+  string id = 1;
+  string product_id = 2;
+  string title = 3;
+  string description = 4;
+  string type = 5;
+  string parent_goal_id = 6;
+  double target_value = 7;
+  double current_value = 8;
+  string progress_type = 9;
+  string status = 10;
+  string due_date = 11;
+  string created_by_user_id = 12;
+  int32 linked_work_item_count = 13;
+  int32 completed_linked_work_item_count = 14;
+  double progress_percent = 15;
+  string created_at = 16;
+  string updated_at = 17;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CAPACITY
+// ═══════════════════════════════════════════════════════════════════════════════
+
+message GetProductCapacityRequest {
+  string product_id = 1;
+  string user_id = 2;
+}
+
+message ProductCapacityResponse {
+  bool success = 1;
+  string error_message = 2;
+  ProductCapacityMessage capacity = 3;
+}
+
+message ProductCapacityMessage {
+  string product_id = 1;
+  repeated MemberCapacityMessage members = 2;
+  int32 total_assigned_story_points = 3;
+  int32 total_members = 4;
+  int32 overloaded_members = 5;
+}
+
+message MemberCapacityMessage {
+  string user_id = 1;
+  string display_name = 2;
+  int32 assigned_story_points = 3;
+  int32 assigned_item_count = 4;
+  double capacity_percent = 5;  // -1 = no target set, 0-200 = percentage
+  repeated string sprint_titles = 6;
+}
+
+message GetSprintCapacityRequest {
+  string sprint_id = 1;
+  string user_id = 2;
+}
+
+message SprintCapacityResponse {
+  bool success = 1;
+  string error_message = 2;
+  SprintCapacityMessage capacity = 3;
+}
+
+message SprintCapacityMessage {
+  string sprint_id = 1;
+  string sprint_title = 2;
+  int32 total_story_points = 3;
+  int32 target_story_points = 4;
+  int32 completed_story_points = 5;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SEARCH INTEGRATION
+// ═══════════════════════════════════════════════════════════════════════════════
 
 message GetSearchableDocumentsRequest {
   string user_id = 1;

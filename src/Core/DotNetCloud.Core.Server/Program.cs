@@ -22,6 +22,7 @@ using DotNetCloud.Modules.Calendar.Data;
 using DotNetCloud.Modules.Chat.Data;
 using DotNetCloud.Modules.Contacts.Data;
 using DotNetCloud.Modules.Files.Data;
+using DotNetCloud.Modules.Files.Data.Services.Background;
 using DotNetCloud.Modules.Music.Data;
 using DotNetCloud.Modules.Notes.Data;
 using DotNetCloud.Modules.Photos.Data;
@@ -307,10 +308,8 @@ public class Program
         // with them exclusively via gRPC clients defined in Grpc/Clients/.
         // SearchFtsClient is also handled by the Search module host.
         // builder.Services.AddSearchFtsClient(builder.Configuration); // removed — handled by Search module host
-        // TODO (Phase 6): Refactor InProcessAdminSharedFolderReindexDispatcher to use gRPC-based
-        // search indexing. The Search module is now process-isolated, so direct DI resolution
-        // of SearchReindexBackgroundService is no longer available.
-        // builder.Services.AddSingleton<IAdminSharedFolderReindexDispatcher>(sp => ...);
+        // ✅ Phase 6: gRPC-based reindex dispatcher — calls Search module's ReindexModule RPC
+        builder.Services.AddSingleton<IAdminSharedFolderReindexDispatcher, InProcessAdminSharedFolderReindexDispatcher>();
         // Register ISearchableModule implementations for search indexing
         builder.Services.AddScoped<DotNetCloud.Core.Capabilities.ISearchableModule, DotNetCloud.Modules.Files.Data.Services.FilesSearchableModule>();
         builder.Services.AddScoped<DotNetCloud.Core.Capabilities.ISearchableModule, DotNetCloud.Modules.Notes.Data.Services.NotesSearchableModule>();
@@ -473,7 +472,7 @@ public class Program
         builder.Services.AddScoped<DotNetCloud.Modules.Notes.Services.INotesApiClient, DotNetCloud.Core.Server.Grpc.Clients.NotesGrpcApiClient>();
         builder.Services.AddScoped<DotNetCloud.Modules.Bookmarks.Services.IBookmarksApiClient, DotNetCloud.Core.Server.Grpc.Clients.BookmarksGrpcApiClient>();
         // ⚠️ Legacy in-process HTTP clients (TODO: gRPC proto expansion needed — see GRPC_MODULE_CONVERSION_PLAN.md)
-        builder.Services.AddScoped<DotNetCloud.Modules.Tracks.Services.ITracksApiClient, DotNetCloud.Modules.Tracks.Services.TracksApiClient>();
+        builder.Services.AddScoped<DotNetCloud.Modules.Tracks.Services.ITracksApiClient, DotNetCloud.Core.Server.Grpc.Clients.TracksGrpcApiClient>();
         builder.Services.AddScoped<DotNetCloud.Modules.Email.Services.IEmailApiClient, DotNetCloud.Core.Server.Grpc.Clients.EmailGrpcApiClient>();
         builder.Services.AddScoped<DotNetCloud.Modules.Tracks.Services.IOnboardingStateService, DotNetCloud.Modules.Tracks.Services.OnboardingStateService>();
         builder.Services.AddScoped<DotNetCloudApiClient>();

@@ -1219,16 +1219,16 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 ### Core.Server Conversion
 
 - ☐ Remove all `.Host` ProjectReferences from csproj
-- ☐ Add gRPC client proto references for all 12 modules
+- ✓ Add gRPC client proto references for all 12 modules
 - ☐ Remove all `AddXxxServices()` calls from Program.cs
-- ☐ Replace in-process API clients with gRPC clients
-- ☐ Add options bindings for all gRPC clients
-- ☐ Register new gRPC API clients
+- ✓ Replace in-process API clients with gRPC clients (Notes, Bookmarks, Email, Tracks done; remaining modules already gRPC)
+- ✓ Add options bindings for all gRPC clients
+- ✓ Register new gRPC API clients
 
 ### Cross-Cutting Refactoring
 
 - ☐ Refactor `ISearchableModule` registrations
-- ☐ Refactor `InProcessAdminSharedFolderReindexDispatcher`
+- ✓ Refactor `InProcessAdminSharedFolderReindexDispatcher` (now gRPC-based via ISearchApiClient.ReindexModuleAsync)
 - ☐ Update deployment scripts
 
 ---

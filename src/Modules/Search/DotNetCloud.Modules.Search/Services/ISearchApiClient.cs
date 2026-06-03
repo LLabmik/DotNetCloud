@@ -5,5 +5,11 @@ namespace DotNetCloud.Modules.Search.Services;
 /// </summary>
 public interface ISearchApiClient
 {
-    // Search module API surface — extend as needed for search queries, indexing, reindex, etc.
+    /// <summary>
+    /// Triggers a full reindex of the specified module.
+    /// </summary>
+    /// <param name="moduleId">The module ID to reindex (e.g., "files", "tracks").</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>True if the reindex was successfully triggered.</returns>
+    Task<bool> ReindexModuleAsync(string moduleId, CancellationToken ct = default);
 }

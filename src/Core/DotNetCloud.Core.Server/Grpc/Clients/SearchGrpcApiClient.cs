@@ -1,3 +1,4 @@
+using DotNetCloud.Modules.Search.Host.Protos;
 using DotNetCloud.Modules.Search.Services;
 using Grpc.Core;
 using Grpc.Net.Client;
@@ -28,6 +29,7 @@ public sealed class SearchGrpcApiClient : ISearchApiClient, IDisposable
     private readonly ModuleEndpointProvider _endpointProvider;
     private readonly ILogger<SearchGrpcApiClient> _logger;
     private readonly Lazy<GrpcChannel> _channel;
+    private readonly Lazy<SearchService.SearchServiceClient> _client;
     private bool _disposed;
 
     /// <summary>Initializes a new instance of the <see cref="SearchGrpcApiClient"/> class.</summary>
@@ -40,6 +42,8 @@ public sealed class SearchGrpcApiClient : ISearchApiClient, IDisposable
         _endpointProvider = endpointProvider;
         _logger = logger;
         _channel = new Lazy<GrpcChannel>(CreateChannel);
+        _client = new Lazy<SearchService.SearchServiceClient>(
+            () => new SearchService.SearchServiceClient(_channel.Value));
     }
 
     private GrpcChannel CreateChannel()
@@ -54,6 +58,30 @@ public sealed class SearchGrpcApiClient : ISearchApiClient, IDisposable
                 ConnectTimeout = TimeSpan.FromSeconds(5)
             }
         });
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> ReindexModuleAsync(string moduleId, CancellationToken ct = default)
+    {
+        var request = new ReindexModuleRequest { ModuleId = moduleId };
+        try
+        {
+            var response = await _client.Value.ReindexModuleAsync(request, DeadlineHeaders(ct)).ResponseAsync;
+            return response.Success;
+        }
+        catch (RpcException ex)
+        {
+            _logger.LogError(ex, "SearchGrpcApiClient.ReindexModuleAsync({ModuleId}) failed", moduleId);
+            return false;
+        }
+    }
+
+    private Metadata DeadlineHeaders(CancellationToken ct)
+    {
+        var headers = new Metadata();
+        if (_options.Timeout > TimeSpan.Zero)
+            headers.Add("grpc-timeout", $"{(long)_options.Timeout.TotalMilliseconds}m");
+        return headers;
     }
 
     /// <inheritdoc />

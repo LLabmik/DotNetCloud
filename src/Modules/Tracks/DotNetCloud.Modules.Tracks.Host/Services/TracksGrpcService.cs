@@ -49,7 +49,7 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
             var ownerId = Guid.Parse(request.UserId);
             var dto = new CreateProductDto
             {
-                Name = request.Title,
+                Name = request.Name,
                 Description = string.IsNullOrEmpty(request.Description) ? null : request.Description,
                 Color = string.IsNullOrEmpty(request.Color) ? null : request.Color,
                 SubItemsEnabled = false
@@ -198,13 +198,13 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
     /// <inheritdoc />
     public override async Task<PokerSessionResponse> StartPokerSession(StartPokerSessionRequest request, ServerCallContext context)
     {
-        _logger.LogInformation("StartPokerSession called for item {ItemId} by user {UserId}", request.WorkItemId, request.UserId);
+        _logger.LogInformation("StartPokerSession called for item {ItemId} by user {UserId}", request.ItemId, request.UserId);
         try
         {
             var userId = Guid.Parse(request.UserId);
             var dto = new CreatePokerSessionDto
             {
-                ItemId = Guid.Parse(request.WorkItemId),
+                ItemId = Guid.Parse(request.ItemId),
                 Scale = Enum.TryParse<PokerScale>(request.Scale, true, out var scale) ? scale : PokerScale.Fibonacci,
                 CustomScaleValues = string.IsNullOrEmpty(request.CustomScaleValues) ? null : request.CustomScaleValues
             };
@@ -279,12 +279,14 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
             var dto = new CreateSprintPlanDto
             {
                 StartDate = DateTime.Parse(request.StartDate),
-                NumberOfSprints = request.SprintCount,
-                SprintDurationWeeks = request.DefaultDurationWeeks
+                NumberOfSprints = request.NumberOfSprints,
+                SprintDurationWeeks = request.SprintDurationWeeks
             };
             var sprints = await _sprintPlanningService.CreateSprintPlanAsync(
-                Guid.Parse(request.ProductId), dto, context.CancellationToken);
-            return new SprintPlanResponse { Success = true, Overview = MapSprintPlanOverview(sprints, Guid.Parse(request.ProductId)) };
+                Guid.Parse(request.EpicId), dto, context.CancellationToken);
+            var response = new SprintPlanResponse { Success = true };
+            response.Sprints.AddRange(MapSprints(sprints));
+            return response;
         }
         catch (Exception ex)
         {
@@ -298,9 +300,11 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
     {
         try
         {
-            var epicId = Guid.Parse(request.ProductId);
+            var epicId = Guid.Parse(request.EpicId);
             var sprints = await _sprintPlanningService.GetSprintPlanAsync(epicId, context.CancellationToken);
-            return new SprintPlanResponse { Success = true, Overview = MapSprintPlanOverview(sprints, epicId) };
+            var response = new SprintPlanResponse { Success = true };
+            response.Sprints.AddRange(MapSprints(sprints));
+            return response;
         }
         catch (Exception ex)
         {
@@ -323,7 +327,9 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
                 Guid.Parse(request.SprintId), dto, context.CancellationToken);
             var sprints = await _sprintPlanningService.GetSprintPlanAsync(
                 sprint.EpicId, context.CancellationToken);
-            return new SprintPlanResponse { Success = true, Overview = MapSprintPlanOverview(sprints, sprint.EpicId) };
+            var response = new SprintPlanResponse { Success = true };
+            response.Sprints.AddRange(MapSprints(sprints));
+            return response;
         }
         catch (Exception ex)
         {
@@ -341,7 +347,7 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
         {
             var hostUserId = Guid.Parse(request.UserId);
             var session = await _reviewSessionService.StartReviewSessionAsync(
-                Guid.Parse(request.ProductId), hostUserId, context.CancellationToken);
+                Guid.Parse(request.EpicId), hostUserId, context.CancellationToken);
             return new ReviewSessionResponse { Success = true, Session = MapReviewSession(session) };
         }
         catch (Exception ex)
@@ -395,7 +401,7 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
         try
         {
             var session = await _reviewSessionService.SetCurrentItemAsync(
-                Guid.Parse(request.SessionId), Guid.Parse(request.WorkItemId), context.CancellationToken);
+                Guid.Parse(request.SessionId), Guid.Parse(request.ItemId), context.CancellationToken);
             return new ReviewSessionResponse { Success = true, Session = MapReviewSession(session) };
         }
         catch (Exception ex)
@@ -447,8 +453,8 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
         var msg = new PokerSessionMessage
         {
             Id = dto.Id.ToString(),
-            WorkItemId = dto.ItemId.ToString(),
-            ProductId = dto.EpicId.ToString(),
+            ItemId = dto.ItemId.ToString(),
+            EpicId = dto.EpicId.ToString(),
             CreatedByUserId = dto.CreatedByUserId.ToString(),
             Scale = dto.Scale.ToString(),
             CustomScaleValues = dto.CustomScaleValues ?? "",
@@ -467,7 +473,7 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
         {
             Id = dto.Id.ToString(),
             OwnerId = dto.OwnerId.ToString(),
-            Title = dto.Name,
+            Name = dto.Name,
             Description = dto.Description ?? "",
             Color = dto.Color ?? "",
             IsArchived = dto.IsArchived,
@@ -475,9 +481,8 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
             CreatedAt = dto.CreatedAt.ToString("O"),
             UpdatedAt = dto.UpdatedAt.ToString("O"),
             SwimlaneCount = dto.SwimlaneCount,
-            ItemCount = dto.EpicCount,
-            MemberCount = dto.MemberCount,
-            Mode = ""
+            EpicCount = dto.EpicCount,
+            MemberCount = dto.MemberCount
         };
     }
 
@@ -486,14 +491,14 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
         return new SwimlaneMessage
         {
             Id = dto.Id.ToString(),
-            ProductId = dto.ContainerId.ToString(),
+            ContainerId = dto.ContainerId.ToString(),
             Title = dto.Title,
             Position = dto.Position,
             Color = dto.Color ?? "",
-            ItemLimit = dto.CardLimit ?? 0,
+            CardLimit = dto.CardLimit ?? 0,
             CreatedAt = dto.CreatedAt.ToString("O"),
             UpdatedAt = dto.UpdatedAt.ToString("O"),
-            ItemCount = dto.CardCount
+            CardCount = dto.CardCount
         };
     }
 
@@ -518,37 +523,44 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
             AttachmentCount = dto.AttachmentCount
         };
         foreach (var a in dto.Assignments)
-            msg.AssigneeIds.Add(a.UserId.ToString());
+            msg.Assignments.Add(new WorkItemAssignmentMessage
+            {
+                UserId = a.UserId.ToString(),
+                DisplayName = a.DisplayName ?? "",
+                AssignedAt = a.AssignedAt.ToString("O")
+            });
         foreach (var l in dto.Labels)
-            msg.LabelIds.Add(l.Id.ToString());
+            msg.Labels.Add(new LabelMessage
+            {
+                Id = l.Id.ToString(),
+                ProductId = l.ProductId.ToString(),
+                Title = l.Title,
+                Color = l.Color,
+                CreatedAt = l.CreatedAt.ToString("O")
+            });
         return msg;
     }
 
-    private static SprintPlanOverviewMessage MapSprintPlanOverview(List<SprintDto> sprints, Guid epicId)
+    private static IEnumerable<SprintMessage> MapSprints(List<SprintDto> sprints)
     {
-        var msg = new SprintPlanOverviewMessage
+        return sprints.Select(s => new SprintMessage
         {
-            ProductId = epicId.ToString(),
-            TotalWeeks = sprints.Sum(s => s.DurationWeeks ?? 0),
-            PlanStartDate = sprints.FirstOrDefault()?.StartDate?.ToString("O") ?? "",
-            PlanEndDate = sprints.LastOrDefault()?.EndDate?.ToString("O") ?? ""
-        };
-        foreach (var s in sprints)
-        {
-            msg.Sprints.Add(new SprintPlanItemMessage
-            {
-                Id = s.Id.ToString(),
-                Title = s.Title,
-                StartDate = s.StartDate?.ToString("O") ?? "",
-                EndDate = s.EndDate?.ToString("O") ?? "",
-                Status = s.Status.ToString(),
-                DurationWeeks = s.DurationWeeks ?? 0,
-                PlannedOrder = s.PlannedOrder ?? 0,
-                ItemCount = s.ItemCount,
-                TotalStoryPoints = s.TargetStoryPoints ?? 0
-            });
-        }
-        return msg;
+            Id = s.Id.ToString(),
+            EpicId = s.EpicId.ToString(),
+            Title = s.Title,
+            Goal = s.Goal ?? "",
+            StartDate = s.StartDate?.ToString("O") ?? "",
+            EndDate = s.EndDate?.ToString("O") ?? "",
+            Status = s.Status.ToString(),
+            TargetStoryPoints = s.TargetStoryPoints ?? 0,
+            DurationWeeks = s.DurationWeeks ?? 0,
+            PlannedOrder = s.PlannedOrder ?? 0,
+            ItemCount = s.ItemCount,
+            TotalStoryPoints = s.TotalStoryPoints,
+            CompletedStoryPoints = s.CompletedStoryPoints,
+            CreatedAt = s.CreatedAt.ToString("O"),
+            UpdatedAt = s.UpdatedAt.ToString("O")
+        });
     }
 
     private static ReviewSessionMessage MapReviewSession(ReviewSessionDto dto)
@@ -556,9 +568,9 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
         var msg = new ReviewSessionMessage
         {
             Id = dto.Id.ToString(),
-            ProductId = dto.EpicId.ToString(),
+            EpicId = dto.EpicId.ToString(),
             HostUserId = dto.HostUserId.ToString(),
-            CurrentWorkItemId = dto.CurrentItemId?.ToString() ?? "",
+            CurrentItemId = dto.CurrentItemId?.ToString() ?? "",
             Status = dto.Status.ToString(),
             CreatedAt = dto.CreatedAt.ToString("O"),
             EndedAt = dto.EndedAt?.ToString("O") ?? ""

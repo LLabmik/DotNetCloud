@@ -4,36 +4,26 @@ using DotNetCloud.Modules.Search.Services;
 namespace DotNetCloud.Core.Server.Services;
 
 /// <summary>
-/// Reindex dispatcher that triggers the in-process Search background service.
-/// ⚠️ TODO (Phase 6): Refactor to use gRPC-based search reindexing.
-/// The Search module is now process-isolated, so direct DI resolution of
-/// SearchReindexBackgroundService will not work at runtime. This class needs
-/// to be replaced with a gRPC-based implementation that calls the Search
-/// module's reindex RPC endpoint.
-/// Currently NOT registered in DI — see Program.cs TODO comment.
+/// Reindex dispatcher that triggers the Search module's reindex endpoint via gRPC.
+/// The Search module is process-isolated, so reindex requests are sent over gRPC
+/// using <see cref="ISearchApiClient"/>.
 /// </summary>
 internal sealed class InProcessAdminSharedFolderReindexDispatcher : IAdminSharedFolderReindexDispatcher
 {
     private const string FilesModuleId = "files";
-    private readonly SearchReindexBackgroundService? _reindexService;
+    private readonly ISearchApiClient _searchApiClient;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="InProcessAdminSharedFolderReindexDispatcher"/> class.
     /// </summary>
-    public InProcessAdminSharedFolderReindexDispatcher(SearchReindexBackgroundService? reindexService)
+    public InProcessAdminSharedFolderReindexDispatcher(ISearchApiClient searchApiClient)
     {
-        _reindexService = reindexService;
+        _searchApiClient = searchApiClient;
     }
 
     /// <inheritdoc />
-    public Task<bool> RequestFilesReindexAsync(CancellationToken cancellationToken = default)
+    public async Task<bool> RequestFilesReindexAsync(CancellationToken cancellationToken = default)
     {
-        if (_reindexService is null)
-        {
-            return Task.FromResult(false);
-        }
-
-        _reindexService.TriggerModuleReindex(FilesModuleId);
-        return Task.FromResult(true);
+        return await _searchApiClient.ReindexModuleAsync(FilesModuleId, cancellationToken);
     }
 }
