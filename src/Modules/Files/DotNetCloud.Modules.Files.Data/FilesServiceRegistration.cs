@@ -138,4 +138,81 @@ public static class FilesServiceRegistration
 
         return services;
     }
+
+    /// <summary>
+    /// Adds only the Files services needed by Blazor UI components rendered in Core.Server.
+    /// Excludes background services, event handlers, and health checks that should only
+    /// run in the module host process.
+    /// </summary>
+    public static IServiceCollection AddFilesUiServices(this IServiceCollection services, IConfiguration? configuration = null)
+    {
+        services.TryAddSingleton<IBackgroundServiceTracker, BackgroundServiceTracker>();
+
+        // Bind options
+        if (configuration is not null)
+        {
+            services.Configure<VersionRetentionOptions>(configuration.GetSection(VersionRetentionOptions.SectionName));
+            services.Configure<TrashRetentionOptions>(configuration.GetSection(TrashRetentionOptions.SectionName));
+            services.Configure<QuotaOptions>(configuration.GetSection(QuotaOptions.SectionName));
+            services.Configure<CollaboraOptions>(configuration.GetSection(CollaboraOptions.SectionName));
+            services.Configure<FileUploadOptions>(configuration.GetSection(FileUploadOptions.SectionName));
+            services.Configure<FileSystemOptions>(configuration.GetSection(FileSystemOptions.SectionName));
+            services.Configure<AdminSharedFolderOptions>(configuration.GetSection(AdminSharedFolderOptions.SectionName));
+        }
+
+        // File scanner
+        services.AddSingleton<IFileScanner, NoOpFileScanner>();
+
+        // Database-backed services (Scoped)
+        services.AddScoped<IShareAccessMembershipResolver, CapabilityShareAccessMembershipResolver>();
+        services.AddScoped<IAdminSharedFolderPathValidator, AdminSharedFolderPathValidator>();
+        services.AddScoped<IAdminSharedFolderService, AdminSharedFolderService>();
+        services.AddScoped<IPermissionService, PermissionService>();
+        services.AddScoped<IFileService, FileService>();
+        services.AddScoped<IChunkedUploadService, ChunkedUploadService>();
+        services.AddScoped<IDownloadService, DownloadService>();
+        services.AddScoped<IFileDirectory, FileDirectoryService>();
+        services.AddScoped<IVersionService, VersionService>();
+        services.AddScoped<IShareService, ShareService>();
+        services.AddScoped<ITrashService, TrashService>();
+        services.AddScoped<IQuotaService, QuotaService>();
+        services.AddScoped<ITagService, TagService>();
+        services.AddScoped<ICommentService, CommentService>();
+        services.AddScoped<ISyncService, SyncService>();
+        services.AddScoped<ISyncDeviceResolver, SyncDeviceResolver>();
+        services.AddScoped<IDeviceContext, DeviceContext>();
+        services.AddSingleton<ISyncChangeNotifier, SyncChangeNotifier>();
+        services.AddScoped<IStorageMetricsService, StorageMetricsService>();
+        services.AddSingleton<IVideoFrameExtractor, FfmpegVideoFrameExtractor>();
+        services.AddSingleton<IPdfPageRenderer, PdftoppmPdfPageRenderer>();
+        services.AddSingleton<IThumbnailService, ThumbnailService>();
+
+        // WOPI / Collabora services
+        services.AddScoped<IWopiService, WopiService>();
+        services.AddScoped<IWopiTokenService, WopiTokenService>();
+        services.AddScoped<IWopiProofKeyValidator, WopiProofKeyValidator>();
+        services.AddSingleton<ICollaboraDiscoveryService, CollaboraDiscoveryService>();
+        services.AddSingleton<IWopiSessionTracker, WopiSessionTracker>();
+
+        // HTTP client for Collabora discovery
+        services.AddHttpClient("Collabora")
+            .ConfigurePrimaryHttpMessageHandler(sp =>
+            {
+                var options = sp.GetRequiredService<IOptions<CollaboraOptions>>().Value;
+                var handler = new HttpClientHandler();
+                if (options.AllowInsecureTls)
+                    handler.ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
+                return handler;
+            });
+
+        // NOTE: Background services (UploadSessionCleanupService, TrashCleanupService,
+        // QuotaRecalculationService, VersionCleanupService, TempFileCleanupService,
+        // ShareExpiryNotificationService, ExpiredShareCleanupService,
+        // CollaboraProcessManager, AdminSharedFolderMaintenanceService),
+        // event handlers (FileUploadedThumbnailHandler, UserDeletedEventSubscriber),
+        // health checks, and admin reindex dispatchers are NOT registered here —
+        // they run only in the module host process.
+
+        return services;
+    }
 }

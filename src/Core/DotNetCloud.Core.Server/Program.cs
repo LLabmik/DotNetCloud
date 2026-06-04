@@ -394,34 +394,41 @@ public class Program
         builder.Services.AddScoped<DotNetCloud.UI.Shared.Services.BrowserTimeProvider>();
         builder.Services.AddScoped<ToastService>();
         builder.Services.AddTransient<DotNetCloud.Core.Server.Middleware.CookieForwardingHandler>();
+
+        // Scoped HttpClient with BaseAddress for Blazor components. During SSR,
+        // NavigationManager.BaseUri may not be available; fall back to the
+        // configured Kestrel HTTP port.
+        var httpPort = builder.Configuration.GetValue("Kestrel:HttpPort", 5080);
         builder.Services.AddScoped(sp =>
         {
-            var nav = sp.GetRequiredService<NavigationManager>();
+            Uri baseUri;
+            try
+            {
+                var nav = sp.GetRequiredService<NavigationManager>();
+                baseUri = new Uri(nav.BaseUri);
+            }
+            catch
+            {
+                baseUri = new Uri($"http://localhost:{httpPort}");
+            }
+
+            var cookieHandler = sp.GetRequiredService<DotNetCloud.Core.Server.Middleware.CookieForwardingHandler>();
             var configuration = sp.GetRequiredService<IConfiguration>();
-            var baseUri = new Uri(nav.BaseUri);
             var allowInsecureTls = configuration.GetValue<bool>("Files:Collabora:AllowInsecureTls");
 
-            // Cookie forwarding handler: during SSR, forwards browser auth cookies
-            // to the outgoing HttpClient so API calls are authenticated.
-            var cookieHandler = sp.GetRequiredService<DotNetCloud.Core.Server.Middleware.CookieForwardingHandler>();
-
-            // In self-hosted installs with self-signed HTTPS certs, server-side
-            // Blazor API calls to the same origin would otherwise fail TLS validation.
-            // Accept self-signed certs for loopback, private/LAN hostnames, or when
-            // AllowInsecureTls is explicitly enabled.
             if (baseUri.Scheme == Uri.UriSchemeHttps &&
                 (baseUri.IsLoopback || allowInsecureTls || IsPrivateOrLocalHost(baseUri.Host)))
             {
-                var sslHandler = new HttpClientHandler
+                cookieHandler.InnerHandler = new HttpClientHandler
                 {
                     ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
                 };
-                cookieHandler.InnerHandler = sslHandler;
-
-                return new HttpClient(cookieHandler) { BaseAddress = baseUri };
+            }
+            else
+            {
+                cookieHandler.InnerHandler = new HttpClientHandler();
             }
 
-            cookieHandler.InnerHandler = new HttpClientHandler();
             return new HttpClient(cookieHandler) { BaseAddress = baseUri };
         });
         // gRPC client options for all process-isolated modules
@@ -457,22 +464,23 @@ public class Program
 
         // gRPC API client registrations (process-isolated modules)
         // gRPC client registrations (process-isolated modules)
+        // Module UI services (Blazor components render in Core.Server process;
+        // these register only the interfaces components inject — no hosted services).
+        builder.Services.AddNotesUiServices(builder.Configuration);
+        builder.Services.AddTracksUiServices(builder.Configuration);
+        builder.Services.AddMusicUiServices(builder.Configuration);
+        builder.Services.AddPhotosUiServices(builder.Configuration);
+        builder.Services.AddVideoUiServices(builder.Configuration);
+        builder.Services.AddFilesUiServices(builder.Configuration);
+        builder.Services.AddAiUiServices(builder.Configuration);
+
+        // gRPC API client registrations (process-isolated modules)
         // ✅ Fully implemented gRPC clients
         builder.Services.AddScoped<DotNetCloud.Modules.Contacts.Services.IContactsApiClient, DotNetCloud.Core.Server.Grpc.Clients.ContactsGrpcApiClient>();
         builder.Services.AddScoped<DotNetCloud.Modules.Calendar.Services.ICalendarApiClient, DotNetCloud.Core.Server.Grpc.Clients.CalendarGrpcApiClient>();
         builder.Services.AddScoped<DotNetCloud.Modules.Chat.Services.IChatApiClient, DotNetCloud.Core.Server.Grpc.Clients.ChatGrpcApiClient>();
         builder.Services.AddScoped<DotNetCloud.Modules.Files.Services.IFilesApiClient, DotNetCloud.Core.Server.Grpc.Clients.FilesGrpcApiClient>();
         builder.Services.AddScoped<DotNetCloud.Modules.Music.Services.IMusicApiClient, DotNetCloud.Core.Server.Grpc.Clients.MusicGrpcApiClient>();
-
-        // Music playback state (UI-level scoped service for the global playbar in MainLayout).
-        // Depends on in-process data services (PlaybackService, EqPresetService, PlaylistService)
-        // that use MusicDbContext — registered above via AddModuleDbContexts.
-        builder.Services.AddScoped<DotNetCloud.Modules.Music.UI.MusicPlaybackState>();
-        builder.Services.AddScoped<DotNetCloud.Modules.Music.UI.ActivePlaylistContext>();
-        builder.Services.AddScoped<DotNetCloud.Modules.Music.Services.IPlaybackService, DotNetCloud.Modules.Music.Data.Services.PlaybackService>();
-        builder.Services.AddScoped<DotNetCloud.Modules.Music.Services.IEqPresetService, DotNetCloud.Modules.Music.Data.Services.EqPresetService>();
-        builder.Services.AddScoped<DotNetCloud.Modules.Music.Services.IPlaylistService, DotNetCloud.Modules.Music.Data.Services.PlaylistService>();
-
         builder.Services.AddScoped<DotNetCloud.Modules.Photos.Services.IPhotosApiClient, DotNetCloud.Core.Server.Grpc.Clients.PhotosGrpcApiClient>();
         builder.Services.AddScoped<DotNetCloud.Modules.Video.Services.IVideoApiClient, DotNetCloud.Core.Server.Grpc.Clients.VideoGrpcApiClient>();
         builder.Services.AddScoped<DotNetCloud.Modules.Search.Services.ISearchApiClient, DotNetCloud.Core.Server.Grpc.Clients.SearchGrpcApiClient>();
@@ -489,7 +497,6 @@ public class Program
         // Typed HttpClient for server prerendering of client components (NotificationBell, etc.).
         // During static SSR, HttpClient from the .Client project has no BaseAddress.
         // Uses the server's own HTTP endpoint (no TLS needed for loopback) — works on any hostname.
-        var httpPort = builder.Configuration.GetValue("Kestrel:HttpPort", 5080);
         builder.Services.AddHttpClient<DotNetCloudApiClient>(client =>
             client.BaseAddress = new Uri($"http://localhost:{httpPort}"));
 

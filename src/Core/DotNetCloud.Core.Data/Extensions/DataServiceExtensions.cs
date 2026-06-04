@@ -34,11 +34,12 @@ public static class DataServiceExtensions
         // Register DbContext factory
         services.AddSingleton<IDbContextFactory>(sp => new DefaultDbContextFactory(connectionString, provider));
 
-        // Register DbContext
+        // Blazor Server uses Transient to prevent concurrent component render
+        // errors ("second operation started on this context instance").
         services.AddDbContext<CoreDbContext>((sp, options) =>
         {
             ConfigureDbContext(options, provider, connectionString);
-        });
+        }, ServiceLifetime.Transient);
 
         // Register DbInitializer
         services.AddScoped<DbInitializer>();

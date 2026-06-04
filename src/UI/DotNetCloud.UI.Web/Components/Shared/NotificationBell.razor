@@ -57,9 +57,13 @@
     private int _unreadCount;
     private readonly List<NotificationDto> _notifications = [];
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        await RefreshUnreadCountAsync();
+        if (firstRender)
+        {
+            try { await RefreshUnreadCountAsync(); }
+            catch { /* silent — notification API not yet implemented */ }
+        }
     }
 
     private async Task ToggleDropdown()
@@ -83,7 +87,8 @@
 
     private async Task RefreshUnreadCountAsync()
     {
-        _unreadCount = await ApiClient.GetUnreadNotificationCountAsync();
+        try { _unreadCount = await ApiClient.GetUnreadNotificationCountAsync(); }
+        catch { /* silent — notification API not yet implemented */ }
     }
 
     private async Task OpenNotificationAsync(NotificationDto notification)

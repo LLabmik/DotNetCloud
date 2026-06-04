@@ -107,15 +107,15 @@ public sealed class ProcessSupervisorOptions
 
     /// <summary>
     /// TCP port range start for fallback transport (Docker/Kubernetes).
-    /// Default: 50100.
+    /// Default: 50100 (reserved for core gRPC server).
     /// </summary>
     public int TcpPortRangeStart { get; set; } = 50100;
 
     /// <summary>
     /// TCP port range end for fallback transport (Docker/Kubernetes).
-    /// Default: 50200.
+    /// Default: 50500 (400 ports for module hosts).
     /// </summary>
-    public int TcpPortRangeEnd { get; set; } = 50200;
+    public int TcpPortRangeEnd { get; set; } = 50500;
 
     /// <summary>
     /// Whether to prefer TCP transport over Unix sockets/Named pipes.

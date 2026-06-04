@@ -91,4 +91,79 @@ public static class MusicServiceRegistration
 
         return services;
     }
+
+    /// <summary>
+    /// Adds only the Music services needed by Blazor UI components rendered in Core.Server.
+    /// Excludes background services and event handlers that should only run in the module host.
+    /// </summary>
+    public static IServiceCollection AddMusicUiServices(this IServiceCollection services, IConfiguration configuration)
+    {
+        // Business services
+        services.AddScoped<ArtistService>();
+        services.AddScoped<IArtistService>(sp => sp.GetRequiredService<ArtistService>());
+        services.AddScoped<MusicAlbumService>();
+        services.AddScoped<IMusicAlbumService>(sp => sp.GetRequiredService<MusicAlbumService>());
+        services.AddScoped<TrackService>();
+        services.AddScoped<ITrackService>(sp => sp.GetRequiredService<TrackService>());
+        services.AddScoped<PlaylistService>();
+        services.AddScoped<Music.Services.IPlaylistService>(sp => sp.GetRequiredService<PlaylistService>());
+        services.AddScoped<PlaybackService>();
+        services.AddScoped<IPlaybackService>(sp => sp.GetRequiredService<PlaybackService>());
+        services.AddScoped<RecommendationService>();
+        services.AddScoped<IRecommendationService>(sp => sp.GetRequiredService<RecommendationService>());
+        services.AddScoped<EqPresetService>();
+        services.AddScoped<IEqPresetService>(sp => sp.GetRequiredService<EqPresetService>());
+
+        // Content-addressed storage for binary assets (album art)
+        var storageRoot = configuration["Files:Storage:RootPath"] ?? Path.GetTempPath();
+        var mediaCachePath = configuration["Files:Storage:MediaCachePath"] ?? Path.Combine(storageRoot, ".media-cache");
+        services.AddSingleton(new ContentAddressedStorage(mediaCachePath));
+
+        services.AddScoped<LibraryScanService>();
+        services.AddScoped<MusicMetadataService>();
+        services.AddScoped<AlbumArtService>();
+        services.AddScoped<MusicStreamingService>();
+        services.AddScoped<IMusicStreamingService>(sp => sp.GetRequiredService<MusicStreamingService>());
+
+        // Shared playback state (survives page navigations within a circuit)
+        services.AddScoped<MusicPlaybackState>();
+        services.AddScoped<ActivePlaylistContext>();
+
+        // Shared per-user scan and enrichment progress state
+        services.AddSingleton<ScanProgressState>();
+
+        // MusicBrainz + Cover Art Archive enrichment services
+        var rateLimitMs = configuration.GetValue("Music:Enrichment:RateLimitMs", 1100);
+        services.AddSingleton(new MusicBrainzRateLimiter(rateLimitMs));
+
+        services.AddHttpClient<IMusicBrainzClient, MusicBrainzClient>(client =>
+        {
+            client.BaseAddress = new Uri("https://musicbrainz.org/ws/2/");
+            client.DefaultRequestHeaders.Add("Accept", "application/json");
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("DotNetCloud/0.2.0 (https://github.com/LLabmik/DotNetCloud)");
+        });
+
+        services.AddHttpClient<ICoverArtArchiveClient, CoverArtArchiveClient>(client =>
+        {
+            client.BaseAddress = new Uri("https://coverartarchive.org/");
+        });
+
+        services.AddHttpClient<IAudioDbClient, AudioDbClient>(client =>
+        {
+            client.BaseAddress = new Uri("https://www.theaudiodb.com/api/v1/json/123/");
+        });
+
+        services.AddScoped<MetadataEnrichmentService>();
+        services.AddScoped<IMetadataEnrichmentService>(sp => sp.GetRequiredService<MetadataEnrichmentService>());
+        services.AddSingleton<InMemoryMusicEnrichmentBackgroundQueue>();
+        services.AddSingleton<IMusicEnrichmentBackgroundQueue>(sp => sp.GetRequiredService<InMemoryMusicEnrichmentBackgroundQueue>());
+
+        // Indexing callback
+        services.AddScoped<IMusicIndexingCallback, MusicIndexingCallback>();
+
+        // NOTE: MusicEnrichmentBackgroundService (hosted) and event handlers
+        // are NOT registered here — they run only in the module host process.
+
+        return services;
+    }
 }

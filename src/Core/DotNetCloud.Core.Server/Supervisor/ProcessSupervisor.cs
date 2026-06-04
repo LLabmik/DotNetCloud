@@ -710,9 +710,38 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
 
     private int AllocateTcpPort(string moduleId)
     {
-        var hash = Math.Abs(moduleId.GetHashCode());
-        var range = _options.TcpPortRangeEnd - _options.TcpPortRangeStart;
-        return _options.TcpPortRangeStart + (hash % Math.Max(1, range));
+        // Reserve TcpPortRangeStart for the core gRPC server.
+        // Module ports use the module name's hash to pick a semi-stable offset,
+        // but with probe avoidance: we check the allocated set and shift forward
+        // linearly to skip collisions (same hash means same port every restart).
+        var range = Math.Max(1, _options.TcpPortRangeEnd - _options.TcpPortRangeStart - 1);
+        var basePort = _options.TcpPortRangeStart + 1 + (Math.Abs(moduleId.GetHashCode()) % range);
+        var port = basePort;
+
+        var allocated = new HashSet<int>(_modules.Values
+            .Where(m => m.GrpcEndpoint is not null)
+            .Select(m =>
+            {
+                var ep = m.GrpcEndpoint!;
+                var colon = ep.LastIndexOf(':');
+                return colon >= 0 && int.TryParse(ep.AsSpan(colon + 1), out var p) ? p : 0;
+            })
+            .Where(p => p > 0));
+
+        // Linear probe forward until we find an unclaimed port.
+        var end = _options.TcpPortRangeEnd;
+        while (port <= end && allocated.Contains(port))
+            port++;
+
+        // If we exhausted the range, wrap around and try again from the start.
+        if (port > end)
+        {
+            port = _options.TcpPortRangeStart + 1;
+            while (port < basePort && allocated.Contains(port))
+                port++;
+        }
+
+        return port;
     }
 
     private static async Task<bool> WaitForProcessExitAsync(

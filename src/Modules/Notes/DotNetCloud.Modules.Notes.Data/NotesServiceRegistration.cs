@@ -24,4 +24,13 @@ public static class NotesServiceRegistration
         services.AddScoped<IImportProvider, NotesImportProvider>();
         return services;
     }
+
+    /// <summary>
+    /// Adds only the Notes services needed by Blazor UI components rendered in Core.Server.
+    /// (Notes has no hosted services, so this currently delegates to <see cref="AddNotesServices"/>.)
+    /// </summary>
+    public static IServiceCollection AddNotesUiServices(this IServiceCollection services, IConfiguration configuration)
+    {
+        return services.AddNotesServices(configuration);
+    }
 }

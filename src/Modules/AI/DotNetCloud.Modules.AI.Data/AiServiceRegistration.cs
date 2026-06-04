@@ -32,4 +32,13 @@ public static class AiServiceRegistration
 
         return services;
     }
+
+    /// <summary>
+    /// Adds only the AI services needed by Blazor UI components rendered in Core.Server.
+    /// AI has no hosted services, so this delegates to <see cref="AddAiServices"/>.
+    /// </summary>
+    public static IServiceCollection AddAiUiServices(this IServiceCollection services, IConfiguration configuration)
+    {
+        return services.AddAiServices(configuration);
+    }
 }

@@ -4,9 +4,19 @@ using DotNetCloud.Modules.Email;
 using DotNetCloud.Modules.Email.Data;
 using DotNetCloud.Modules.Email.Host.Services;
 using DotNetCloud.Modules.Search.Client;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Bind gRPC endpoint from DOTNETCLOUD_GRPC_ENDPOINT (set by ProcessSupervisor)
+var grpcEndpoint = Environment.GetEnvironmentVariable("DOTNETCLOUD_GRPC_ENDPOINT");
+if (!string.IsNullOrEmpty(grpcEndpoint))
+{
+    var uri = new Uri(grpcEndpoint.Replace("unix://", "http://").Replace("net.pipe://", "http://"));
+    builder.WebHost.ConfigureKestrel(o =>
+        o.Listen(System.Net.IPAddress.Loopback, uri.Port, l => l.Protocols = HttpProtocols.Http2));
+}
 
 // Register the module as singleton
 builder.Services.AddSingleton<EmailModule>();

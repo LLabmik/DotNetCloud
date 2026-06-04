@@ -51,34 +51,37 @@ internal static class ModuleServiceRegistrationExtensions
         const string TracksMigrationsAssembly = "DotNetCloud.Modules.Tracks.Data.SqlServer";
         const string VideoMigrationsAssembly = "DotNetCloud.Modules.Video.Data.SqlServer";
 
+        // Blazor Server uses Transient lifetime for DbContexts to prevent
+        // "second operation started" errors from concurrent component renders
+        // sharing the same scoped context (scope = circuit in Blazor Server).
         services.AddDbContext<AiDbContext>(options =>
-            ConfigureModuleDbContext(options, provider, connectionString, AiMigrationsAssembly));
+            ConfigureModuleDbContext(options, provider, connectionString, AiMigrationsAssembly), ServiceLifetime.Transient);
         services.AddDbContext<BookmarksDbContext>(options =>
-            ConfigureModuleDbContext(options, provider, connectionString, BookmarksMigrationsAssembly));
+            ConfigureModuleDbContext(options, provider, connectionString, BookmarksMigrationsAssembly), ServiceLifetime.Transient);
         services.AddDbContext<CalendarDbContext>(options =>
-            ConfigureModuleDbContext(options, provider, connectionString, CalendarMigrationsAssembly));
+            ConfigureModuleDbContext(options, provider, connectionString, CalendarMigrationsAssembly), ServiceLifetime.Transient);
         services.AddDbContext<ChatDbContext>(options =>
-            ConfigureModuleDbContext(options, provider, connectionString, ChatMigrationsAssembly));
+            ConfigureModuleDbContext(options, provider, connectionString, ChatMigrationsAssembly), ServiceLifetime.Transient);
         services.AddDbContext<ContactsDbContext>(options =>
-            ConfigureModuleDbContext(options, provider, connectionString, ContactsMigrationsAssembly));
+            ConfigureModuleDbContext(options, provider, connectionString, ContactsMigrationsAssembly), ServiceLifetime.Transient);
         services.AddDbContext<EmailDbContext>(options =>
-            ConfigureModuleDbContext(options, provider, connectionString, EmailMigrationsAssembly));
+            ConfigureModuleDbContext(options, provider, connectionString, EmailMigrationsAssembly), ServiceLifetime.Transient);
         services.AddDbContext<FilesDbContext>(options =>
-            ConfigureModuleDbContext(options, provider, connectionString, FilesMigrationsAssembly));
+            ConfigureModuleDbContext(options, provider, connectionString, FilesMigrationsAssembly), ServiceLifetime.Transient);
         services.AddDbContextFactory<MusicDbContext>(options =>
             ConfigureModuleDbContext(options, provider, connectionString, MusicMigrationsAssembly));
         services.AddDbContext<MusicDbContext>(options =>
-            ConfigureModuleDbContext(options, provider, connectionString, MusicMigrationsAssembly));
+            ConfigureModuleDbContext(options, provider, connectionString, MusicMigrationsAssembly), ServiceLifetime.Transient);
         services.AddDbContext<NotesDbContext>(options =>
-            ConfigureModuleDbContext(options, provider, connectionString, NotesMigrationsAssembly));
+            ConfigureModuleDbContext(options, provider, connectionString, NotesMigrationsAssembly), ServiceLifetime.Transient);
         services.AddDbContext<PhotosDbContext>(options =>
-            ConfigureModuleDbContext(options, provider, connectionString, PhotosMigrationsAssembly));
+            ConfigureModuleDbContext(options, provider, connectionString, PhotosMigrationsAssembly), ServiceLifetime.Transient);
         services.AddDbContext<SearchDbContext>(options =>
-            ConfigureModuleDbContext(options, provider, connectionString, SearchMigrationsAssembly));
+            ConfigureModuleDbContext(options, provider, connectionString, SearchMigrationsAssembly), ServiceLifetime.Transient);
         services.AddDbContext<TracksDbContext>(options =>
-            ConfigureModuleDbContext(options, provider, connectionString, TracksMigrationsAssembly));
+            ConfigureModuleDbContext(options, provider, connectionString, TracksMigrationsAssembly), ServiceLifetime.Transient);
         services.AddDbContext<VideoDbContext>(options =>
-            ConfigureModuleDbContext(options, provider, connectionString, VideoMigrationsAssembly));
+            ConfigureModuleDbContext(options, provider, connectionString, VideoMigrationsAssembly), ServiceLifetime.Transient);
 
         return services;
     }

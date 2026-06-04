@@ -47,8 +47,10 @@ public sealed class ModuleEndpointProvider
 
     private int AllocateTcpPort(string moduleId)
     {
+        // Reserve TcpPortRangeStart for the core gRPC server.
+        // Module ports start at TcpPortRangeStart + 1.
         var hash = Math.Abs(moduleId.GetHashCode());
-        var range = Math.Max(1, _options.TcpPortRangeEnd - _options.TcpPortRangeStart);
-        return _options.TcpPortRangeStart + (hash % range);
+        var range = Math.Max(1, _options.TcpPortRangeEnd - _options.TcpPortRangeStart - 1);
+        return _options.TcpPortRangeStart + 1 + (hash % range);
     }
 }
