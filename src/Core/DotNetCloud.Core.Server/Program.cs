@@ -486,13 +486,12 @@ public class Program
         builder.Services.AddScoped<DotNetCloud.Modules.Email.Services.IEmailApiClient, DotNetCloud.Core.Server.Grpc.Clients.EmailGrpcApiClient>();
         builder.Services.AddScoped<DotNetCloud.Modules.Tracks.Services.IOnboardingStateService, DotNetCloud.Modules.Tracks.Services.OnboardingStateService>();
 
-        // API client for server-side Blazor components (NotificationBell, etc.).
-        // Must have BaseAddress set — relative URIs like "api/v1/..." need it.
-        var httpsPort = builder.Configuration.GetValue("Kestrel:HttpsPort", 5443);
+        // Typed HttpClient for server prerendering of client components (NotificationBell, etc.).
+        // During static SSR, HttpClient from the .Client project has no BaseAddress.
+        // Uses the server's own HTTP endpoint (no TLS needed for loopback) — works on any hostname.
+        var httpPort = builder.Configuration.GetValue("Kestrel:HttpPort", 5080);
         builder.Services.AddHttpClient<DotNetCloudApiClient>(client =>
-        {
-            client.BaseAddress = new Uri($"https://localhost:{httpsPort}");
-        });
+            client.BaseAddress = new Uri($"http://localhost:{httpPort}"));
 
         // Add OpenAPI/Swagger with DotNetCloud configuration
         builder.Services.AddDotNetCloudOpenApi(builder.Configuration);
