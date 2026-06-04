@@ -12,7 +12,7 @@ namespace DotNetCloud.Modules.Files.Host.Controllers;
 /// Provides helper methods for caller context creation, envelope responses, and exception handling.
 /// </summary>
 [ApiController]
-[Authorize(AuthenticationSchemes = "Identity.Application,OpenIddict.Validation.AspNetCore")]
+[Authorize(AuthenticationSchemes = "Identity.Application")]
 public abstract class FilesControllerBase : ControllerBase
 {
     /// <summary>

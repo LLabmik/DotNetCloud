@@ -5,7 +5,6 @@ using DotNetCloud.Modules.Contacts.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Routing;
-using OpenIddict.Validation.AspNetCore;
 using System.Security.Claims;
 
 namespace DotNetCloud.Modules.Contacts.Host.Controllers;
@@ -46,7 +45,7 @@ internal sealed class WebDavMethodAttribute : Attribute, IActionHttpMethodProvid
 /// </summary>
 [Route("carddav")]
 [ApiController]
-[Authorize(AuthenticationSchemes = "Identity.Application,OpenIddict.Validation.AspNetCore")]
+[Authorize(AuthenticationSchemes = "Identity.Application")]
 public class CardDavController : ControllerBase
 {
     private readonly IContactService _contactService;

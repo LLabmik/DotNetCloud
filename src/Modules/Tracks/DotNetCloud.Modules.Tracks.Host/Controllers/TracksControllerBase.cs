@@ -10,7 +10,7 @@ namespace DotNetCloud.Modules.Tracks.Host.Controllers;
 /// Base controller for Tracks module endpoints. Provides authentication helpers and response envelope methods.
 /// </summary>
 [ApiController]
-[Authorize(AuthenticationSchemes = "Identity.Application,OpenIddict.Validation.AspNetCore")]
+[Authorize(AuthenticationSchemes = "Identity.Application")]
 public abstract class TracksControllerBase : ControllerBase
 {
     /// <summary>

@@ -208,7 +208,7 @@ public class SyncController : FilesControllerBase
     /// Admin-only endpoint for monitoring per-device sync lag.
     /// </summary>
     [HttpGet("admin/device-status")]
-    [Authorize(Policy = "RequireAdmin", AuthenticationSchemes = "Identity.Application,OpenIddict.Validation.AspNetCore")]
+    [Authorize(Policy = "RequireAdmin", AuthenticationSchemes = "Identity.Application")]
     public Task<IActionResult> GetAllDeviceSyncStatusAsync() => ExecuteAsync(async () =>
     {
         var statuses = await _syncService.GetAllDeviceSyncStatusAsync(HttpContext.RequestAborted);
@@ -220,7 +220,7 @@ public class SyncController : FilesControllerBase
     /// during device resolution and cannot sync.
     /// </summary>
     [HttpPut("admin/device/{deviceId:guid}/active")]
-    [Authorize(Policy = "RequireAdmin", AuthenticationSchemes = "Identity.Application,OpenIddict.Validation.AspNetCore")]
+    [Authorize(Policy = "RequireAdmin", AuthenticationSchemes = "Identity.Application")]
     public Task<IActionResult> SetDeviceActiveAsync(
         Guid deviceId,
         [FromBody] SetDeviceActiveDto request) => ExecuteAsync(async () =>

@@ -4,7 +4,6 @@ using DotNetCloud.Modules.Calendar.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Routing;
-using OpenIddict.Validation.AspNetCore;
 using System.Security.Claims;
 using System.Text;
 
@@ -15,7 +14,7 @@ namespace DotNetCloud.Modules.Calendar.Host.Controllers;
 /// Implements a subset of RFC 4791 (CalDAV) and RFC 6764 (CalDAV discovery).
 /// </summary>
 [ApiController]
-[Authorize(AuthenticationSchemes = "Identity.Application,OpenIddict.Validation.AspNetCore")]
+[Authorize(AuthenticationSchemes = "Identity.Application")]
 public class CalDavController : ControllerBase
 {
     private readonly ICalendarService _calendarService;

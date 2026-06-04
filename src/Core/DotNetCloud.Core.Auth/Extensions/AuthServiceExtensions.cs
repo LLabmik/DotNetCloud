@@ -94,9 +94,7 @@ public static class AuthServiceExtensions
             options.SlidingExpiration = true;
 
             // Cookie security hardening
-            // Use __Host- prefix: requires Secure + Path=/ + no Domain attribute,
-            // preventing subdomain cookie overwrite attacks.
-            options.Cookie.Name = "__Host-.AspNetCore.Identity.Application";
+            options.Cookie.Name = ".AspNetCore.Identity.Application";
             options.Cookie.HttpOnly = true;
             options.Cookie.SameSite = SameSiteMode.Lax;
             options.Cookie.SecurePolicy = CookieSecurePolicy.Always;

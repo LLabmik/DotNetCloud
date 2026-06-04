@@ -6,6 +6,7 @@ using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Data.Initialization;
 using DotNetCloud.Core.Localization;
 using DotNetCloud.Core.Modules;
+using DotNetCloud.Core.Modules.Supervisor;
 using DotNetCloud.Core.Security;
 using DotNetCloud.Core.Schema.Services;
 using DotNetCloud.Core.Server.Configuration;
@@ -752,6 +753,9 @@ public class Program
         // Proxy Collabora through the main DotNetCloud origin so clients only need one public port.
         MapCollaboraReverseProxy(app);
 
+        // Proxy module REST API calls (music, video, notes, wopi) to running module hosts.
+        MapModuleApiProxies(app);
+
         // Map API controllers
         app.MapControllers();
 
@@ -901,6 +905,103 @@ public class Program
         logger.LogInformation(
             "Collabora reverse proxy enabled: {Destination} for /hosting, /browser, /cool, /lool",
             destinationPrefix);
+    }
+
+    /// <summary>
+    /// Proxies module REST API paths (e.g. /api/v1/music/*) to the running module host process
+    /// via YARP. Module endpoints are resolved from <see cref="IProcessSupervisor"/>.
+    /// </summary>
+    private static void MapModuleApiProxies(WebApplication app)
+    {
+        var supervisor = app.Services.GetRequiredService<IProcessSupervisor>();
+        var logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("ModuleApiProxy");
+        var forwarder = app.Services.GetRequiredService<IHttpForwarder>();
+
+        // Module API prefix → supervisor module ID
+        var moduleMappings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["api/v1/music"] = "dotnetcloud.music",
+            ["api/v1/videos"] = "dotnetcloud.video",
+            ["api/v1/series"] = "dotnetcloud.video",
+            ["api/v1/notes"] = "dotnetcloud.notes",
+            ["api/v1/wopi"] = "dotnetcloud.files",
+        };
+
+        var handler = new SocketsHttpHandler
+        {
+            UseProxy = false,
+            AllowAutoRedirect = false,
+            UseCookies = false,
+            EnableMultipleHttp2Connections = true,
+        };
+        // Module hosts are configured for HTTP/2 (gRPC). Force HTTP/2 for REST proxy.
+        handler.SslOptions.RemoteCertificateValidationCallback = static (_, _, _, _) => true;
+        var httpClient = new HttpMessageInvoker(handler);
+        app.Lifetime.ApplicationStopping.Register(httpClient.Dispose);
+
+        foreach (var (prefix, moduleId) in moduleMappings)
+        {
+            var pattern = $"/{prefix}/{{**catch-all}}";
+            var capturedPrefix = prefix;
+
+            app.Map(pattern, async httpContext =>
+            {
+                var moduleInfo = supervisor.GetModuleInfo(moduleId);
+                if (moduleInfo?.GrpcEndpoint is null || moduleInfo.Status != ModuleProcessStatus.Running)
+                {
+                    if (!httpContext.Response.HasStarted)
+                        httpContext.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+                    return;
+                }
+
+                // GrpcEndpoint is like "http://localhost:50105" — use it directly as destination.
+                var destinationPrefix = moduleInfo.GrpcEndpoint;
+                if (!destinationPrefix.EndsWith('/'))
+                    destinationPrefix += "/";
+
+                var error = await forwarder.SendAsync(
+                    httpContext,
+                    destinationPrefix,
+                    httpClient,
+                    new ForwarderRequestConfig
+                    {
+                        ActivityTimeout = TimeSpan.FromMinutes(5),
+                        Version = System.Net.HttpVersion.Version20,
+                        VersionPolicy = System.Net.Http.HttpVersionPolicy.RequestVersionOrHigher,
+                    },
+                    ModuleApiProxyTransformer.Instance);
+
+                if (error != ForwarderError.None && !httpContext.Response.HasStarted)
+                {
+                    logger.LogWarning(
+                        "Module API proxy failure for {Path} → {Module} ({Destination}): {Error}",
+                        httpContext.Request.Path, moduleId, destinationPrefix, error);
+                    httpContext.Response.StatusCode = StatusCodes.Status502BadGateway;
+                }
+            });
+        }
+
+        logger.LogInformation("Module API proxies mapped for {Count} prefixes: {Prefixes}",
+            moduleMappings.Count, string.Join(", ", moduleMappings.Keys));
+    }
+
+    /// <summary>
+    /// Sets X-Forwarded-Proto: https so module hosts know the original request
+    /// was HTTPS. Required for __Host- cookie prefix validation.
+    /// </summary>
+    private sealed class ModuleApiProxyTransformer : HttpTransformer
+    {
+        public static readonly ModuleApiProxyTransformer Instance = new();
+
+        public override async ValueTask TransformRequestAsync(
+            HttpContext httpContext,
+            HttpRequestMessage proxyRequest,
+            string destinationPrefix,
+            CancellationToken cancellationToken)
+        {
+            await base.TransformRequestAsync(httpContext, proxyRequest, destinationPrefix, cancellationToken);
+            proxyRequest.Headers.TryAddWithoutValidation("X-Forwarded-Proto", "https");
+        }
     }
 
     private static void NormalizeCollaboraFrameHeaders(IHeaderDictionary headers)

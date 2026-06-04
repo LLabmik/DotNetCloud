@@ -48,7 +48,7 @@ public class GmailOAuthController : EmailControllerBase
     /// Checks if Gmail OAuth is configured.
     /// </summary>
     [HttpGet("status")]
-    [Authorize(AuthenticationSchemes = "Identity.Application,OpenIddict.Validation.AspNetCore")]
+    [Authorize(AuthenticationSchemes = "Identity.Application")]
     public IActionResult Status()
     {
         var configured = IsConfigured();
@@ -59,7 +59,7 @@ public class GmailOAuthController : EmailControllerBase
     /// Starts the Gmail OAuth flow by redirecting the user's browser to Google.
     /// </summary>
     [HttpGet("start")]
-    [Authorize(AuthenticationSchemes = "Identity.Application,OpenIddict.Validation.AspNetCore")]
+    [Authorize(AuthenticationSchemes = "Identity.Application")]
     public IActionResult Start()
     {
         if (!IsConfigured(out var clientId, out var redirectUri))

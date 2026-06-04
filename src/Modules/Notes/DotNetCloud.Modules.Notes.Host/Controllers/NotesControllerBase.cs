@@ -11,7 +11,7 @@ namespace DotNetCloud.Modules.Notes.Host.Controllers;
 /// Base controller for Notes module endpoints. Provides authentication helpers and response envelope methods.
 /// </summary>
 [ApiController]
-[Authorize(AuthenticationSchemes = "Identity.Application,OpenIddict.Validation.AspNetCore")]
+[Authorize(AuthenticationSchemes = "Identity.Application")]
 public abstract class NotesControllerBase : ControllerBase
 {
     /// <summary>

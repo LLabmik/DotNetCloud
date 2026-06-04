@@ -28,6 +28,9 @@ public partial class DocumentEditor : ComponentBase
     /// <summary>Injected HttpClient for calling the WOPI token endpoint.</summary>
     [Inject] private HttpClient Http { get; set; } = default!;
 
+    /// <summary>Injected for building absolute API URLs.</summary>
+    [Inject] private NavigationManager Navigation { get; set; } = default!;
+
     /// <summary>The editor iframe URL (set after successful token generation).</summary>
     protected string? EditorUrl { get; set; }
 
@@ -175,12 +178,14 @@ public partial class DocumentEditor : ComponentBase
 
     private string BuildApiEndpoint(string relativePath)
     {
-        // ApiBaseUrl may arrive as an app route (e.g., /apps/files). When that happens,
-        // force API calls to the host root to avoid false 404s.
+        // Prefer an explicit absolute ApiBaseUrl; otherwise use NavigationManager.BaseUri.
         if (Uri.TryCreate(ApiBaseUrl, UriKind.Absolute, out var absolute))
             return $"{absolute.Scheme}://{absolute.Authority}{relativePath}";
 
-        return relativePath;
+        // Fall back to the server's own base URI so relative API calls work
+        // even when ApiBaseUrl is a Blazor route (e.g., "/apps/files").
+        var baseUri = Navigation.BaseUri.TrimEnd('/');
+        return $"{baseUri}{relativePath}";
     }
 
     private static async Task<string?> TryReadApiErrorMessageAsync(HttpResponseMessage response)

@@ -36,7 +36,7 @@ public class QuotaController : FilesControllerBase
     /// Returns quota records for all users (admin).
     /// </summary>
     [HttpGet("all")]
-    [Authorize(Policy = "RequireAdmin", AuthenticationSchemes = "Identity.Application,OpenIddict.Validation.AspNetCore")]
+    [Authorize(Policy = "RequireAdmin", AuthenticationSchemes = "Identity.Application")]
     public Task<IActionResult> GetAllAsync() => ExecuteAsync(async () =>
     {
         var caller = GetAuthenticatedCaller();
@@ -48,7 +48,7 @@ public class QuotaController : FilesControllerBase
     /// Gets a specific user's storage quota (admin).
     /// </summary>
     [HttpGet("{targetUserId:guid}")]
-    [Authorize(Policy = "RequireAdmin", AuthenticationSchemes = "Identity.Application,OpenIddict.Validation.AspNetCore")]
+    [Authorize(Policy = "RequireAdmin", AuthenticationSchemes = "Identity.Application")]
     public Task<IActionResult> GetAsync(Guid targetUserId) => ExecuteAsync(async () =>
     {
         var caller = GetAuthenticatedCaller();
@@ -60,7 +60,7 @@ public class QuotaController : FilesControllerBase
     /// Sets a user's storage quota (admin).
     /// </summary>
     [HttpPut("{targetUserId:guid}")]
-    [Authorize(Policy = "RequireAdmin", AuthenticationSchemes = "Identity.Application,OpenIddict.Validation.AspNetCore")]
+    [Authorize(Policy = "RequireAdmin", AuthenticationSchemes = "Identity.Application")]
     public Task<IActionResult> SetAsync(Guid targetUserId, [FromBody] SetQuotaDto dto) => ExecuteAsync(async () =>
     {
         var caller = GetAuthenticatedCaller();
@@ -72,7 +72,7 @@ public class QuotaController : FilesControllerBase
     /// Forces recalculation of a user's used storage (admin).
     /// </summary>
     [HttpPost("{targetUserId:guid}/recalculate")]
-    [Authorize(Policy = "RequireAdmin", AuthenticationSchemes = "Identity.Application,OpenIddict.Validation.AspNetCore")]
+    [Authorize(Policy = "RequireAdmin", AuthenticationSchemes = "Identity.Application")]
     public Task<IActionResult> RecalculateAsync(Guid targetUserId) => ExecuteAsync(async () =>
     {
         var caller = GetAuthenticatedCaller();

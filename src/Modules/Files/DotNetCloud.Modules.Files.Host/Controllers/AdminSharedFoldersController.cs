@@ -9,7 +9,7 @@ namespace DotNetCloud.Modules.Files.Host.Controllers;
 /// Admin API for managing Files admin shared-folder definitions and scan controls.
 /// </summary>
 [Route("api/v1/files/admin/shared-folders")]
-[Authorize(Policy = "RequireAdmin", AuthenticationSchemes = "Identity.Application,OpenIddict.Validation.AspNetCore")]
+[Authorize(Policy = "RequireAdmin", AuthenticationSchemes = "Identity.Application")]
 public sealed class AdminSharedFoldersController : FilesControllerBase
 {
     private readonly IAdminSharedFolderService _adminSharedFolderService;

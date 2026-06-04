@@ -11,7 +11,7 @@ namespace DotNetCloud.Modules.Email.Host.Controllers;
 /// Base controller for Email module endpoints. Provides authentication helpers and response envelope methods.
 /// </summary>
 [ApiController]
-[Authorize(AuthenticationSchemes = "Identity.Application,OpenIddict.Validation.AspNetCore")]
+[Authorize(AuthenticationSchemes = "Identity.Application")]
 public abstract class EmailControllerBase : ControllerBase
 {
     /// <summary>
