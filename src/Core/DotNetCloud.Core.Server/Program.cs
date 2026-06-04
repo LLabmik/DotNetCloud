@@ -485,7 +485,14 @@ public class Program
         builder.Services.AddScoped<DotNetCloud.Modules.Tracks.Services.ITracksApiClient, DotNetCloud.Core.Server.Grpc.Clients.TracksGrpcApiClient>();
         builder.Services.AddScoped<DotNetCloud.Modules.Email.Services.IEmailApiClient, DotNetCloud.Core.Server.Grpc.Clients.EmailGrpcApiClient>();
         builder.Services.AddScoped<DotNetCloud.Modules.Tracks.Services.IOnboardingStateService, DotNetCloud.Modules.Tracks.Services.OnboardingStateService>();
-        builder.Services.AddScoped<DotNetCloudApiClient>();
+
+        // API client for server-side Blazor components (NotificationBell, etc.).
+        // Must have BaseAddress set — relative URIs like "api/v1/..." need it.
+        var httpsPort = builder.Configuration.GetValue("Kestrel:HttpsPort", 5443);
+        builder.Services.AddHttpClient<DotNetCloudApiClient>(client =>
+        {
+            client.BaseAddress = new Uri($"https://localhost:{httpsPort}");
+        });
 
         // Add OpenAPI/Swagger with DotNetCloud configuration
         builder.Services.AddDotNetCloudOpenApi(builder.Configuration);
