@@ -47,6 +47,7 @@ public sealed class SignalRHubIntegrationTests
             {
                 opts.HttpMessageHandlerFactory = (_) => handler;
                 opts.Headers.Add("x-test-user-id", userId.ToString());
+                opts.Transports = Microsoft.AspNetCore.Http.Connections.HttpTransportType.LongPolling;
             })
             .WithAutomaticReconnect()
             .Build();
@@ -72,6 +73,7 @@ public sealed class SignalRHubIntegrationTests
             {
                 opts.HttpMessageHandlerFactory = (_) => handler;
                 opts.Headers.Add("x-test-user-id", userId.ToString());
+                opts.Transports = Microsoft.AspNetCore.Http.Connections.HttpTransportType.LongPolling;
             })
             .WithAutomaticReconnect()
             .Build();

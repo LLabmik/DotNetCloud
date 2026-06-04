@@ -536,6 +536,32 @@ public class Program
         builder.Services.AddScoped<OidcClientSeeder>();
 
         // Push notification service (no-op in Core.Server — handled by Chat module gRPC)
+        // NOTE: Registered AFTER AddChatServices below to override its IPushNotificationService.
+        // (We don't call AddChatServices due to hosted service conflicts; see ChatHub DI section.)
+
+        // Chat services required by ChatHub (SignalR hub in Core.Server).
+        // ChatHub depends on Chat module services that are internal; we register them
+        // by resolving from ChatServiceRegistration's internal service collection.
+        var chatServices = new ServiceCollection();
+        DotNetCloud.Modules.Chat.Data.ChatServiceRegistration.AddChatServices(chatServices, builder.Configuration);
+        foreach (var descriptor in chatServices)
+        {
+            // Skip hosted services and transport-level registrations that conflict with Core.Server
+            if (descriptor.ServiceType == typeof(Microsoft.Extensions.Hosting.IHostedService))
+                continue;
+            if (descriptor.ServiceType.FullName?.Contains("Transport") == true)
+                continue;
+            if (descriptor.ServiceType.FullName?.Contains("Fcm") == true)
+                continue;
+            if (descriptor.ServiceType.FullName?.Contains("UnifiedPush") == true)
+                continue;
+            if (descriptor.ServiceType.FullName?.Contains("StunServer") == true)
+                continue;
+            if (descriptor.ServiceType == typeof(DotNetCloud.Modules.Chat.Services.IPushNotificationService))
+                continue; // our NoOpPushNotificationService takes priority
+            builder.Services.Add(descriptor);
+        }
+
         builder.Services.AddSingleton<DotNetCloud.Modules.Chat.Services.IPushNotificationService,
             DotNetCloud.Core.Server.Services.NoOpPushNotificationService>();
 
