@@ -463,6 +463,16 @@ public class Program
         builder.Services.AddScoped<DotNetCloud.Modules.Chat.Services.IChatApiClient, DotNetCloud.Core.Server.Grpc.Clients.ChatGrpcApiClient>();
         builder.Services.AddScoped<DotNetCloud.Modules.Files.Services.IFilesApiClient, DotNetCloud.Core.Server.Grpc.Clients.FilesGrpcApiClient>();
         builder.Services.AddScoped<DotNetCloud.Modules.Music.Services.IMusicApiClient, DotNetCloud.Core.Server.Grpc.Clients.MusicGrpcApiClient>();
+
+        // Music playback state (UI-level scoped service for the global playbar in MainLayout).
+        // Depends on in-process data services (PlaybackService, EqPresetService, PlaylistService)
+        // that use MusicDbContext — registered above via AddModuleDbContexts.
+        builder.Services.AddScoped<DotNetCloud.Modules.Music.UI.MusicPlaybackState>();
+        builder.Services.AddScoped<DotNetCloud.Modules.Music.UI.ActivePlaylistContext>();
+        builder.Services.AddScoped<DotNetCloud.Modules.Music.Services.IPlaybackService, DotNetCloud.Modules.Music.Data.Services.PlaybackService>();
+        builder.Services.AddScoped<DotNetCloud.Modules.Music.Services.IEqPresetService, DotNetCloud.Modules.Music.Data.Services.EqPresetService>();
+        builder.Services.AddScoped<DotNetCloud.Modules.Music.Services.IPlaylistService, DotNetCloud.Modules.Music.Data.Services.PlaylistService>();
+
         builder.Services.AddScoped<DotNetCloud.Modules.Photos.Services.IPhotosApiClient, DotNetCloud.Core.Server.Grpc.Clients.PhotosGrpcApiClient>();
         builder.Services.AddScoped<DotNetCloud.Modules.Video.Services.IVideoApiClient, DotNetCloud.Core.Server.Grpc.Clients.VideoGrpcApiClient>();
         builder.Services.AddScoped<DotNetCloud.Modules.Search.Services.ISearchApiClient, DotNetCloud.Core.Server.Grpc.Clients.SearchGrpcApiClient>();
