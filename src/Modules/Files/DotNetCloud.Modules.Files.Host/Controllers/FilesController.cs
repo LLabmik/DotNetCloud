@@ -15,6 +15,7 @@ namespace DotNetCloud.Modules.Files.Host.Controllers;
 /// Provides CRUD, tree browsing, move, copy, upload, download, and favorites.
 /// </summary>
 [Route("api/v1/files")]
+[Authorize(AuthenticationSchemes = "Identity.Application")]
 public class FilesController : FilesControllerBase
 {
     private readonly IFileService _fileService;

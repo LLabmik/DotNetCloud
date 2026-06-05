@@ -28,6 +28,7 @@
   <ItemGroup>
     <ProjectReference Include="..\DotNetCloud.Modules.Video\DotNetCloud.Modules.Video.csproj" />
     <ProjectReference Include="..\..\..\Core\DotNetCloud.Core.Data\DotNetCloud.Core.Data.csproj" />
+    <ProjectReference Include="..\..\Files\DotNetCloud.Modules.Files.Data\DotNetCloud.Modules.Files.Data.csproj" />
   </ItemGroup>
 
 </Project>

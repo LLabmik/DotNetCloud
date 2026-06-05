@@ -1,5 +1,6 @@
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Storage;
+using DotNetCloud.Modules.Files.Data;
 using DotNetCloud.Modules.Files.Events;
 using DotNetCloud.Modules.Music.Data.Services;
 using DotNetCloud.Modules.Music.Events;
@@ -20,6 +21,9 @@ public static class MusicServiceRegistration
     /// </summary>
     public static IServiceCollection AddMusicServices(this IServiceCollection services, IConfiguration configuration)
     {
+        // Register Files data services (provides IDownloadService needed by MusicAlbumService)
+        services.AddFilesServices(configuration);
+
         // Business services (forward-registered for concrete + interface injection)
         services.AddScoped<ArtistService>();
         services.AddScoped<IArtistService>(sp => sp.GetRequiredService<ArtistService>());

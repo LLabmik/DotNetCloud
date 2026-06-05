@@ -13,6 +13,7 @@ namespace DotNetCloud.Modules.Files.Host.Controllers;
 /// REST API controller for file sync operations (desktop/mobile clients).
 /// </summary>
 [Route("api/v1/files/sync")]
+[Authorize(AuthenticationSchemes = "Identity.Application")]
 public class SyncController : FilesControllerBase
 {
     private readonly ISyncService _syncService;

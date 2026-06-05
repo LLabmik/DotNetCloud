@@ -394,6 +394,8 @@ public class Program
         builder.Services.AddSingleton<ModuleUiRegistry>();
         builder.Services.AddScoped<DotNetCloud.UI.Shared.Services.BrowserTimeProvider>();
         builder.Services.AddScoped<ToastService>();
+        builder.Services.AddScoped<DotNetCloud.Core.Server.Middleware.CookieCaptureStore>();
+        builder.Services.AddScoped<Microsoft.AspNetCore.Components.Server.Circuits.CircuitHandler, DotNetCloud.Core.Server.Middleware.CookieCaptureCircuitHandler>();
         builder.Services.AddTransient<DotNetCloud.Core.Server.Middleware.CookieForwardingHandler>();
 
         // Scoped HttpClient with BaseAddress for Blazor components. During SSR,
@@ -497,9 +499,14 @@ public class Program
 
         // Typed HttpClient for server prerendering of client components (NotificationBell, etc.).
         // During static SSR, HttpClient from the .Client project has no BaseAddress.
-        // Uses the server's own HTTP endpoint (no TLS needed for loopback) — works on any hostname.
+        // Uses HTTPS loopback with cert-validation bypass (cert is for cloud.dotnetcloud.net, not localhost).
+        var httpsPort = builder.Configuration.GetValue("httpsPort", 5443);
         builder.Services.AddHttpClient<DotNetCloudApiClient>(client =>
-            client.BaseAddress = new Uri($"http://localhost:{httpPort}"));
+            client.BaseAddress = new Uri($"https://localhost:{httpsPort}"))
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+            {
+                ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+            });
 
         // Add OpenAPI/Swagger with DotNetCloud configuration
         builder.Services.AddDotNetCloudOpenApi(builder.Configuration);
@@ -729,6 +736,10 @@ public class Program
         app.UseCors(CorsConfiguration.PolicyName);
 
         app.UseHttpsRedirection();
+
+        // Capture the auth cookie from the initial HTTP request into a scoped store
+        // so Blazor Server components can forward it to module API calls later.
+        app.UseMiddleware<DotNetCloud.Core.Server.Middleware.CookieCaptureMiddleware>();
 
         app.UseAuthentication();
         app.UseAuthorization();
@@ -986,8 +997,8 @@ public class Program
     }
 
     /// <summary>
-    /// Sets X-Forwarded-Proto: https so module hosts know the original request
-    /// was HTTPS. Required for __Host- cookie prefix validation.
+    /// Copies request headers (including auth cookies) and sets X-Forwarded-Proto: https
+    /// so module hosts can authenticate the original user.
     /// </summary>
     private sealed class ModuleApiProxyTransformer : HttpTransformer
     {
@@ -1000,7 +1011,21 @@ public class Program
             CancellationToken cancellationToken)
         {
             await base.TransformRequestAsync(httpContext, proxyRequest, destinationPrefix, cancellationToken);
+
+            // Copy all request headers so the module host receives auth cookies, etc.
+            var hasCookie = false;
+            foreach (var header in httpContext.Request.Headers)
+            {
+                if (string.Equals(header.Key, "Host", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                if (string.Equals(header.Key, "Cookie", StringComparison.OrdinalIgnoreCase))
+                    hasCookie = true;
+                proxyRequest.Headers.TryAddWithoutValidation(header.Key, header.Value.ToArray());
+            }
+
             proxyRequest.Headers.TryAddWithoutValidation("X-Forwarded-Proto", "https");
+            Console.Error.WriteLine($"[YARP-PROXY] Forwarding {httpContext.Request.Path} → {destinationPrefix}. HasCookie={hasCookie}, HeaderCount={httpContext.Request.Headers.Count}");
+            Console.Error.Flush();
         }
     }
 

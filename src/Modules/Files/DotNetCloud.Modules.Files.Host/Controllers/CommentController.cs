@@ -1,5 +1,6 @@
 using DotNetCloud.Modules.Files.DTOs;
 using DotNetCloud.Modules.Files.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DotNetCloud.Modules.Files.Host.Controllers;
@@ -8,6 +9,7 @@ namespace DotNetCloud.Modules.Files.Host.Controllers;
 /// REST API controller for file/folder comment operations.
 /// </summary>
 [Route("api/v1/files")]
+[Authorize(AuthenticationSchemes = "Identity.Application")]
 public class CommentController : FilesControllerBase
 {
     private readonly ICommentService _commentService;

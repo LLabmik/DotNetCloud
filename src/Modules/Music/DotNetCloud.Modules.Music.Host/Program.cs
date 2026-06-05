@@ -1,5 +1,7 @@
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Data.Naming;
+using DotNetCloud.Modules.Files.Data;
+using DotNetCloud.Modules.Files.Services;
 using DotNetCloud.Modules.Music;
 using DotNetCloud.Modules.Music.Data;
 using DotNetCloud.Modules.Music.Data.Services;
@@ -61,10 +63,14 @@ builder.Services.AddAuthentication("Identity.Application")
 
         // Skip Identity user-store lookup — the cookie was already validated
         // by Core.Server. Just accept the decrypted principal as-is.
-        options.Events.OnValidatePrincipal = static context =>
+        options.Events.OnValidatePrincipal = context =>
         {
+            Console.Error.WriteLine($"[MUSIC] OnValidatePrincipal: Principal is null={context.Principal == null}, Identity is null={context.Principal?.Identity == null}, IsAuthenticated={context.Principal?.Identity?.IsAuthenticated}, Name={context.Principal?.Identity?.Name}, AuthType={context.Principal?.Identity?.AuthenticationType}");
+            Console.Error.Flush();
             if (context.Principal?.Identity?.IsAuthenticated == true)
                 return Task.CompletedTask;
+            Console.Error.WriteLine("[MUSIC] OnValidatePrincipal: REJECTING principal");
+            Console.Error.Flush();
             context.RejectPrincipal();
             return Task.CompletedTask;
         };
@@ -110,6 +116,14 @@ if (!string.IsNullOrEmpty(connectionString) && !string.IsNullOrEmpty(dbProvider)
 
     builder.Services.AddDbContextFactory<MusicDbContext>(ConfigureDb);
     builder.Services.AddDbContext<MusicDbContext>(ConfigureDb);
+
+    // Register Files DbContext and storage engine so IDownloadService can be resolved.
+    builder.Services.AddDbContextFactory<FilesDbContext>(ConfigureDb);
+    builder.Services.AddDbContext<FilesDbContext>(ConfigureDb);
+    builder.Services.AddSingleton<IFileStorageEngine>(
+        sp => new LocalFileStorageEngine(
+            builder.Configuration["Files:Storage:RootPath"] ?? "/var/lib/dotnetcloud/storage",
+            sp.GetRequiredService<ILogger<LocalFileStorageEngine>>()));
 }
 else
 {

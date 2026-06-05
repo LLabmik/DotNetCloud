@@ -32,6 +32,7 @@
     <ProjectReference Include="..\DotNetCloud.Modules.Video\DotNetCloud.Modules.Video.csproj" />
     <ProjectReference Include="..\DotNetCloud.Modules.Video.Data\DotNetCloud.Modules.Video.Data.csproj" />
     <ProjectReference Include="..\..\..\Core\DotNetCloud.Core.Grpc\DotNetCloud.Core.Grpc.csproj" />
+    <ProjectReference Include="..\..\Files\DotNetCloud.Modules.Files.Data\DotNetCloud.Modules.Files.Data.csproj" />
   </ItemGroup>
 
 </Project>

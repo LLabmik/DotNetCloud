@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using DotNetCloud.Modules.Files.Services;
 using Microsoft.AspNetCore.Mvc;
 
@@ -7,6 +8,7 @@ namespace DotNetCloud.Modules.Files.Host.Controllers;
 /// Exposes shares that have been granted to the calling user.
 /// </summary>
 [Route("api/v1/me/shares")]
+[Authorize(AuthenticationSchemes = "Identity.Application")]
 public class MySharesController : FilesControllerBase
 {
     private readonly IShareService _shareService;

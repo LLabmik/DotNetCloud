@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Events;
+using DotNetCloud.Modules.Files.Data;
 using DotNetCloud.Modules.Files.Events;
 using DotNetCloud.Modules.Video.Data.Services;
 using DotNetCloud.Modules.Video.Events;
@@ -19,6 +20,9 @@ public static class VideoServiceRegistration
     /// </summary>
     public static IServiceCollection AddVideoServices(this IServiceCollection services, IConfiguration configuration)
     {
+        // Register Files data services (provides IDownloadService needed by VideoThumbnailService)
+        services.AddFilesServices(configuration);
+
         // Business services (forward-registered for concrete + interface injection)
         services.AddScoped<VideoService>();
         services.AddScoped<IVideoService>(sp => sp.GetRequiredService<VideoService>());

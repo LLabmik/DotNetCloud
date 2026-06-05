@@ -1,5 +1,7 @@
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Events;
+using DotNetCloud.Modules.Files.Data;
+using DotNetCloud.Modules.Files.Services;
 using DotNetCloud.Modules.Video;
 using DotNetCloud.Modules.Video.Data;
 using DotNetCloud.Modules.Video.Host.Services;
@@ -128,6 +130,33 @@ builder.Services.AddDbContext<VideoDbContext>(options =>
         warnings.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning);
     });
 });
+
+// Register Files DbContext and storage engine so IDownloadService can be resolved.
+builder.Services.AddDbContext<FilesDbContext>(options =>
+{
+    const string filesMigrationsAssembly = "DotNetCloud.Modules.Files.Data.SqlServer";
+
+    switch (provider)
+    {
+        case DatabaseProvider.PostgreSQL:
+            options.UseNpgsql(connectionString);
+            break;
+        case DatabaseProvider.SqlServer:
+            options.UseSqlServer(connectionString, sqlServerOptions =>
+            {
+                sqlServerOptions.MigrationsAssembly(filesMigrationsAssembly);
+            });
+            break;
+    }
+    options.ConfigureWarnings(warnings =>
+    {
+        warnings.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning);
+    });
+});
+builder.Services.AddSingleton<IFileStorageEngine>(
+    sp => new LocalFileStorageEngine(
+        builder.Configuration["Files:Storage:RootPath"] ?? "/var/lib/dotnetcloud/storage",
+        sp.GetRequiredService<ILogger<LocalFileStorageEngine>>()));
 
 // In-process event bus for standalone operation
 builder.Services.AddSingleton<IEventBus, InProcessEventBus>();

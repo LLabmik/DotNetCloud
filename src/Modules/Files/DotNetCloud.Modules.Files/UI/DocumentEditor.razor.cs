@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Http;
 
 namespace DotNetCloud.Modules.Files.UI;
 
@@ -31,6 +32,12 @@ public partial class DocumentEditor : ComponentBase
     /// <summary>Injected for building absolute API URLs.</summary>
     [Inject] private NavigationManager Navigation { get; set; } = default!;
 
+    /// <summary>Accessor for capturing auth cookie during initialization.</summary>
+    [Inject] private IHttpContextAccessor HttpContextAccessor { get; set; } = default!;
+
+    /// <summary>Captured auth cookie from the initial HTTP request.</summary>
+    private string? _capturedCookie;
+
     /// <summary>The editor iframe URL (set after successful token generation).</summary>
     protected string? EditorUrl { get; set; }
 
@@ -42,6 +49,12 @@ public partial class DocumentEditor : ComponentBase
 
     /// <summary>List of other users currently co-editing this document.</summary>
     protected List<string> CoEditingUsers { get; set; } = [];
+
+    /// <inheritdoc />
+    protected override void OnInitialized()
+    {
+        _capturedCookie = HttpContextAccessor.HttpContext?.Request.Headers.Cookie.ToString();
+    }
 
     /// <inheritdoc />
     protected override async Task OnParametersSetAsync()
@@ -65,7 +78,12 @@ public partial class DocumentEditor : ComponentBase
         try
         {
             var tokenEndpoint = BuildApiEndpoint($"/api/v1/wopi/token/{FileId}");
-            var response = await Http.PostAsync(tokenEndpoint, content: null);
+            var request = new HttpRequestMessage(HttpMethod.Post, tokenEndpoint);
+            if (!string.IsNullOrEmpty(_capturedCookie))
+            {
+                request.Headers.TryAddWithoutValidation("Cookie", _capturedCookie);
+            }
+            var response = await Http.SendAsync(request);
 
             if (!response.IsSuccessStatusCode)
             {
