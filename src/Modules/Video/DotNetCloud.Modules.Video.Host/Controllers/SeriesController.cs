@@ -325,21 +325,6 @@ public class SeriesController : VideoControllerBase
         }
     }
 
-    // ─── Thumbnail ──────────────────────────────────────────────────
-
-    /// <summary>Gets the poster thumbnail for a series.</summary>
-    [HttpGet("{seriesId:guid}/thumbnail")]
-    public async Task<IActionResult> GetSeriesThumbnail(Guid seriesId)
-    {
-        var caller = GetAuthenticatedCaller();
-        var bytes = await _seriesService.GetSeriesThumbnailAsync(seriesId, caller);
-        if (bytes is null || bytes.Length == 0)
-            return NotFound();
-
-        Response.Headers.CacheControl = "private, max-age=3600";
-        return File(bytes, "image/jpeg");
-    }
-
     // ─── Auto-Detection ──────────────────────────────────────────────
 
     /// <summary>

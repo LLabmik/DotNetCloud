@@ -75,18 +75,6 @@ public class VideoController : VideoControllerBase
             : Ok(Envelope(video));
     }
 
-    /// <summary>Gets a poster thumbnail for a video.</summary>
-    [HttpGet("{videoId:guid}/thumbnail")]
-    public async Task<IActionResult> GetThumbnail(Guid videoId)
-    {
-        var (stream, contentType) = await _thumbnailService.GetThumbnailAsync(videoId);
-        if (stream is null)
-            return NotFound();
-
-        Response.Headers.CacheControl = "private, max-age=3600";
-        return File(stream, contentType ?? "image/jpeg");
-    }
-
     /// <summary>Triggers TMDB enrichment for a video.</summary>
     [HttpPost("{videoId:guid}/enrich")]
     public async Task<IActionResult> EnrichVideo(Guid videoId, [FromQuery] bool force = false)

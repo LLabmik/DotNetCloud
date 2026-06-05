@@ -18,18 +18,18 @@ systemctl stop dotnetcloud 2>/dev/null || true
 
 # Deploy Core.Server
 echo "[2/5] Publishing Core.Server..."
-dotnet publish "$REPO_ROOT/src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj" \
-    -c "$CONFIG" -o "$DEPLOY_DIR" --no-self-contained \
-    /p:DebugType=None /p:DebugSymbols=false
+dotnet publish "$REPO_ROOT/src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj" -c "$CONFIG" -o "$DEPLOY_DIR" --no-self-contained -p:DebugType=None -p:DebugSymbols=false
 
-# Deploy module hosts
-echo "[3/5] Publishing module hosts..."
+# Deploy module hosts in parallel
+echo "[3/5] Publishing module hosts (parallel)..."
 for module in Contacts Calendar Chat Files Notes Tracks Music Photos Video Search Bookmarks Email About AI; do
     module_lower=$(echo "$module" | tr '[:upper:]' '[:lower:]')
-    dotnet publish "$REPO_ROOT/src/Modules/$module/DotNetCloud.Modules.$module.Host/DotNetCloud.Modules.$module.Host.csproj" \
-        -c "$CONFIG" -o "$MODULES_DIR/dotnetcloud.$module_lower" --no-self-contained \
-        /p:DebugType=None /p:DebugSymbols=false
+    (
+        dotnet publish "$REPO_ROOT/src/Modules/$module/DotNetCloud.Modules.$module.Host/DotNetCloud.Modules.$module.Host.csproj" -c "$CONFIG" -o "$MODULES_DIR/dotnetcloud.$module_lower" --no-self-contained -p:DebugType=None -p:DebugSymbols=false 2>&1 | sed "s/^/[$module] /"
+    ) &
 done
+wait
+echo "[3/5] All module hosts published."
 
 # Fix ownership
 echo "[4/5] Fixing permissions..."

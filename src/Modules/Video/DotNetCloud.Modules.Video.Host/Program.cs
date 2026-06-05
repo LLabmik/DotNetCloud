@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Files.Data;
@@ -5,6 +6,7 @@ using DotNetCloud.Modules.Files.Services;
 using DotNetCloud.Modules.Video;
 using DotNetCloud.Modules.Video.Data;
 using DotNetCloud.Modules.Video.Host.Services;
+using DotNetCloud.Modules.Video.Services;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -95,6 +97,11 @@ if (string.IsNullOrEmpty(connectionString))
         "Connection string not found. Set 'ConnectionStrings:DefaultConnection' in appsettings.json " +
         "or 'connectionString' in config.json.");
 }
+
+// Register naming strategy for module DbContext based on configured provider
+builder.Services.AddSingleton<ITableNamingStrategy>(provider == DatabaseProvider.SqlServer
+    ? new SqlServerNamingStrategy()
+    : new PostgreSqlNamingStrategy());
 
 // Register EF Core with the configured database provider
 builder.Services.AddDbContext<VideoDbContext>(options =>
@@ -188,6 +195,40 @@ app.UseForwardedHeaders(new ForwardedHeadersOptions
 });
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Thumbnail endpoints — served as minimal APIs BEFORE MapControllers
+// to avoid pulling in the full controller DI chain for simple image serving.
+app.MapGet("/api/v1/videos/{videoId:guid}/thumbnail", async (Guid videoId, IVideoThumbnailService thumbnailService) =>
+{
+    var (stream, contentType) = await thumbnailService.GetThumbnailAsync(videoId);
+    if (stream is null)
+        return Results.NotFound();
+    return Results.File(stream, contentType ?? "image/jpeg");
+});
+
+app.MapGet("/api/v1/series/{seriesId:guid}/thumbnail", async (Guid seriesId, VideoDbContext db, IConfiguration config) =>
+{
+    var storageRoot = config["Files:Storage:RootPath"] ?? "/var/lib/dotnetcloud/storage";
+    // Try canonical series poster hash
+    var canonicalPosterHash = await db.CanonicalVideoSeries
+        .Where(s => s.Id == seriesId)
+        .Select(s => s.PosterHash)
+        .FirstOrDefaultAsync();
+
+    if (!string.IsNullOrEmpty(canonicalPosterHash))
+    {
+        var prefix = canonicalPosterHash.Length >= 2 ? canonicalPosterHash[..2] : canonicalPosterHash;
+        var dir = Path.Combine(storageRoot, "images", prefix);
+        if (Directory.Exists(dir))
+        {
+            var files = Directory.GetFiles(dir, $"{canonicalPosterHash}.*");
+            if (files.Length > 0)
+                return Results.File(await File.ReadAllBytesAsync(files[0]), "image/jpeg");
+        }
+    }
+    return Results.NotFound();
+});
+
 app.MapControllers();
 
 // Health check endpoint
