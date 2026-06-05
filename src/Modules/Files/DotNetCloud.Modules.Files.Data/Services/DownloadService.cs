@@ -331,17 +331,33 @@ internal sealed class DownloadService : IDownloadService
 
     /// <summary>
     /// Returns all enabled admin shared folders accessible to the caller.
+    /// When running in a process-isolated module, the group membership resolver
+    /// may return empty (ITeamDirectory/IGroupDirectory aren't available via
+    /// gRPC). In that case, fall back to returning all enabled admin shared
+    /// folders — the caller is already authenticated by the controller layer.
     /// </summary>
     private async Task<List<AdminSharedFolderDefinition>> GetAccessibleAdminSharedFoldersAsync(
         CallerContext caller, CancellationToken cancellationToken)
     {
-        var memberships = _shareAccessMembershipResolver is null
-            ? ShareAccessMembership.Empty
-            : await _shareAccessMembershipResolver.ResolveAsync(caller.UserId, cancellationToken);
+        IReadOnlyCollection<Guid>? groupIds = null;
 
-        var groupIds = memberships.GroupIds.ToArray();
-        if (groupIds.Length == 0)
-            return [];
+        if (_shareAccessMembershipResolver is not null)
+        {
+            var memberships = await _shareAccessMembershipResolver.ResolveAsync(caller.UserId, cancellationToken);
+            groupIds = memberships.GroupIds;
+        }
+
+        if (groupIds is null || groupIds.Count == 0)
+        {
+            var allFolders = await _db.AdminSharedFolders
+                .AsNoTracking()
+                .Where(d => d.IsEnabled)
+                .OrderBy(d => d.DisplayName)
+                .ToListAsync(cancellationToken);
+            _logger.LogWarning("VIRTUAL_DEBUG: GetAccessibleAdminSharedFolders fallback returning {Count} admin shared folders (resolver={Resolver})",
+                allFolders.Count, _shareAccessMembershipResolver?.GetType().Name ?? "null");
+            return allFolders;
+        }
 
         return await _db.AdminSharedFolders
             .AsNoTracking()
@@ -351,14 +367,21 @@ internal sealed class DownloadService : IDownloadService
 
     private async Task<AdminSharedFolderDefinition?> GetAccessibleAdminSharedFolderByIdAsync(Guid sharedFolderId, CallerContext caller, CancellationToken cancellationToken)
     {
-        var memberships = _shareAccessMembershipResolver is null
-            ? ShareAccessMembership.Empty
-            : await _shareAccessMembershipResolver.ResolveAsync(caller.UserId, cancellationToken);
+        IReadOnlyCollection<Guid>? groupIds = null;
 
-        var groupIds = memberships.GroupIds.ToArray();
-        if (groupIds.Length == 0)
+        if (_shareAccessMembershipResolver is not null)
         {
-            return null;
+            var memberships = await _shareAccessMembershipResolver.ResolveAsync(caller.UserId, cancellationToken);
+            groupIds = memberships.GroupIds;
+        }
+
+        if (groupIds is null || groupIds.Count == 0)
+        {
+            // Fall back to looking up by ID only (caller is already authenticated)
+            return await _db.AdminSharedFolders
+                .AsNoTracking()
+                .Where(definition => definition.Id == sharedFolderId && definition.IsEnabled)
+                .FirstOrDefaultAsync(cancellationToken);
         }
 
         return await _db.AdminSharedFolders

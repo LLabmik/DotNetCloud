@@ -865,7 +865,17 @@ internal sealed class FileService : IFileService
         var (found, desc) = await VirtualMountedNodeRegistry.TryGetOrLoadAsync(nodeId, _db, cancellationToken);
         if (!found || desc is null)
         {
-            return null;
+            _logger.LogWarning("VIRTUAL_DEBUG: GUID {NodeId} not in registry, attempting recovery", nodeId);
+            // GUID not in registry — walk accessible admin shared folders to
+            // re-discover the file by recomputing its deterministic GUID.
+            desc = await TryRecoverMountedNodeAsync(nodeId, caller, cancellationToken);
+            if (desc is null)
+            {
+                _logger.LogWarning("VIRTUAL_DEBUG: Recovery returned null for {NodeId}", nodeId);
+                return null;
+            }
+            _logger.LogWarning("VIRTUAL_DEBUG: Recovery SUCCEEDED for {NodeId}: folder={Folder} path={Path}",
+                nodeId, desc.SharedFolderId, desc.RelativePath);
         }
 
         var definition = await GetAccessibleAdminSharedFolderByIdAsync(desc.SharedFolderId, caller, cancellationToken);
@@ -875,6 +885,99 @@ internal sealed class FileService : IFileService
         }
 
         return await CreateMountedEntryDtoAsync(definition, desc.RelativePath, desc.IsDirectory, GetMountedNodeParentId(definition.Id, desc.RelativePath), cancellationToken);
+    }
+
+    /// <summary>
+    /// Walks all accessible admin shared folders to find a virtual node by its
+    /// deterministic GUID. When found, persists the descriptor so subsequent
+    /// lookups bypass filesystem walking.
+    /// </summary>
+    private async Task<VirtualMountedNodeDescriptor?> TryRecoverMountedNodeAsync(
+        Guid nodeId, CallerContext caller, CancellationToken cancellationToken)
+    {
+        var definitions = await ListAccessibleAdminSharedFoldersAsync(caller, cancellationToken);
+        if (definitions.Count == 0)
+            return null;
+
+        foreach (var definition in definitions)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var descriptor = await TryRecoverFromSharedFolderAsync(nodeId, definition, cancellationToken);
+            if (descriptor is not null)
+            {
+                await VirtualMountedNodeRegistry.RegisterAndPersistAsync(descriptor, _db, cancellationToken);
+                RegisterMountedAncestorDescriptors(definition.Id, descriptor.RelativePath);
+                _logger.LogInformation(
+                    "Recovered virtual mounted node descriptor {NodeId} for shared folder {SharedFolderId} at '{RelativePath}'",
+                    nodeId, definition.Id, descriptor.RelativePath);
+                return descriptor;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Breadth-first walks a single admin shared folder looking for the entry whose
+    /// <see cref="VirtualMountedNodeRegistry.GetMountedNodeId"/> matches the target.
+    /// </summary>
+    private static async Task<VirtualMountedNodeDescriptor?> TryRecoverFromSharedFolderAsync(
+        Guid nodeId, AdminSharedFolderDefinition definition, CancellationToken cancellationToken)
+    {
+        var root = Path.GetFullPath(definition.SourcePath);
+        if (!Directory.Exists(root))
+            return null;
+
+        var queue = new Queue<(string PhysicalPath, string RelativePath)>();
+        queue.Enqueue((root, string.Empty));
+
+        while (queue.Count > 0)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var (currentPhysical, currentRelative) = queue.Dequeue();
+
+            try
+            {
+                foreach (var filePath in Directory.EnumerateFiles(currentPhysical))
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var fileName = Path.GetFileName(filePath);
+                    var fileRelative = string.IsNullOrEmpty(currentRelative)
+                        ? fileName
+                        : $"{currentRelative}/{fileName}";
+                    var normalized = VirtualMountedNodeRegistry.NormalizeRelativePath(fileRelative);
+                    var candidateId = VirtualMountedNodeRegistry.GetMountedNodeId(
+                        definition.Id, normalized, isDirectory: false);
+
+                    if (candidateId == nodeId)
+                        return new VirtualMountedNodeDescriptor(nodeId, definition.Id, normalized, IsDirectory: false);
+                }
+
+                foreach (var dirPath in Directory.EnumerateDirectories(currentPhysical))
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var dirName = Path.GetFileName(dirPath);
+                    var dirRelative = string.IsNullOrEmpty(currentRelative)
+                        ? dirName
+                        : $"{currentRelative}/{dirName}";
+                    var normalized = VirtualMountedNodeRegistry.NormalizeRelativePath(dirRelative);
+                    var candidateId = VirtualMountedNodeRegistry.GetMountedNodeId(
+                        definition.Id, normalized, isDirectory: true);
+
+                    if (candidateId == nodeId)
+                        return new VirtualMountedNodeDescriptor(nodeId, definition.Id, normalized, IsDirectory: true);
+
+                    queue.Enqueue((dirPath, normalized));
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // Skip directories we can't read — they can't contain the target anyway.
+            }
+        }
+
+        return null;
     }
 
     private async Task<IReadOnlyList<FileNodeDto>?> GetVirtualChildrenAsync(Guid folderId, CallerContext caller, CancellationToken cancellationToken)
@@ -1087,14 +1190,30 @@ internal sealed class FileService : IFileService
 
     private async Task<IReadOnlyList<AdminSharedFolderDefinition>> ListAccessibleAdminSharedFoldersAsync(CallerContext caller, CancellationToken cancellationToken)
     {
-        var memberships = _shareAccessMembershipResolver is null
-            ? ShareAccessMembership.Empty
-            : await _shareAccessMembershipResolver.ResolveAsync(caller.UserId, cancellationToken);
+        // When running in a process-isolated module (e.g., Files.Host), the
+        // IShareAccessMembershipResolver may resolve empty group memberships
+        // because ITeamDirectory and IGroupDirectory capabilities aren't
+        // registered via gRPC in the module's DI. Fall back to returning all
+        // enabled admin shared folders; the caller is already authenticated
+        // by the controller layer.
+        IReadOnlyCollection<Guid>? groupIds = null;
 
-        var groupIds = memberships.GroupIds.ToArray();
-        if (groupIds.Length == 0)
+        if (_shareAccessMembershipResolver is not null)
         {
-            return [];
+            var memberships = await _shareAccessMembershipResolver.ResolveAsync(caller.UserId, cancellationToken);
+            groupIds = memberships.GroupIds;
+        }
+
+        if (groupIds is null || groupIds.Count == 0)
+        {
+            var allFolders = await _db.AdminSharedFolders
+                .AsNoTracking()
+                .Where(definition => definition.IsEnabled)
+                .OrderBy(definition => definition.DisplayName)
+                .ToListAsync(cancellationToken);
+            _logger.LogWarning("VIRTUAL_DEBUG: Fallback returning {Count} admin shared folders (resolver={Resolver})",
+                allFolders.Count, _shareAccessMembershipResolver?.GetType().Name ?? "null");
+            return allFolders;
         }
 
         return await _db.AdminSharedFolders

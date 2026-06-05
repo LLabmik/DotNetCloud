@@ -932,6 +932,7 @@ public class Program
         // Module API prefix → supervisor module ID
         var moduleMappings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
+            ["api/v1/files"] = "dotnetcloud.files",
             ["api/v1/music"] = "dotnetcloud.music",
             ["api/v1/videos"] = "dotnetcloud.video",
             ["api/v1/series"] = "dotnetcloud.video",
