@@ -722,6 +722,8 @@ public class Program
         // WOPI file protocol endpoints must remain unwrapped for Collabora compatibility.
         // Video/music stream endpoints return raw binary data that must not be buffered
         // into a MemoryStream (which overflows at 2 GB for large files).
+        // /api/v1/files/ serves raw file content (audio, video, images, etc.) and must
+        // also be excluded to avoid MemoryStream overflow on large video files.
         app.UseResponseEnvelope(options =>
         {
             options.ExcludePaths =
@@ -730,6 +732,7 @@ public class Program
                 "/api/v1/wopi/files/",
                 "/api/v1/videos/",
                 "/api/v1/music/",
+                "/api/v1/files/",
             ];
         });
 
