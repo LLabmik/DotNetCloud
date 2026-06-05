@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Modules.Tracks.Host.Protos;
@@ -5,6 +6,7 @@ using DotNetCloud.Modules.Tracks.Models;
 using DotNetCloud.Modules.Tracks.Services;
 using Grpc.Core;
 using Grpc.Net.Client;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -31,6 +33,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
 {
     private readonly TracksGrpcClientOptions _options;
     private readonly ModuleEndpointProvider _endpointProvider;
+    private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ILogger<TracksGrpcApiClient> _logger;
     private readonly Lazy<GrpcChannel> _channel;
     private readonly Lazy<TracksGrpcService.TracksGrpcServiceClient> _client;
@@ -40,14 +43,22 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     public TracksGrpcApiClient(
         IOptions<TracksGrpcClientOptions> options,
         ModuleEndpointProvider endpointProvider,
+        IHttpContextAccessor httpContextAccessor,
         ILogger<TracksGrpcApiClient> logger)
     {
         _options = options.Value;
         _endpointProvider = endpointProvider;
+        _httpContextAccessor = httpContextAccessor;
         _logger = logger;
         _channel = new Lazy<GrpcChannel>(CreateChannel);
         _client = new Lazy<TracksGrpcService.TracksGrpcServiceClient>(
             () => new TracksGrpcService.TracksGrpcServiceClient(_channel.Value));
+    }
+
+    private string GetUserId()
+    {
+        var userId = _httpContextAccessor.HttpContext?.User?.FindFirstValue(ClaimTypes.NameIdentifier);
+        return !string.IsNullOrEmpty(userId) ? userId : Guid.Empty.ToString();
     }
 
     private GrpcChannel CreateChannel()
@@ -72,7 +83,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         var request = new ListProductsRequest
         {
             OrganizationId = organizationId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             Skip = 0,
             Take = 100,
             IncludeArchived = false
@@ -92,7 +103,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<ProductDto?> GetProductAsync(Guid productId, CancellationToken ct = default)
     {
-        var request = new GetProductRequest { ProductId = productId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new GetProductRequest { ProductId = productId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.GetProductAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -110,7 +121,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     {
         var request = new CreateProductRequest
         {
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             OrganizationId = organizationId.ToString(),
             Name = dto.Name ?? string.Empty,
             Description = dto.Description ?? string.Empty,
@@ -135,7 +146,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         var request = new UpdateProductRequest
         {
             ProductId = productId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             Name = dto.Name ?? string.Empty,
             Description = dto.Description ?? string.Empty,
             Color = dto.Color ?? string.Empty,
@@ -157,7 +168,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task DeleteProductAsync(Guid productId, CancellationToken ct = default)
     {
-        var request = new DeleteProductRequest { ProductId = productId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new DeleteProductRequest { ProductId = productId.ToString(), UserId = GetUserId() };
         try
         {
             await _client.Value.DeleteProductAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -171,7 +182,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<IReadOnlyList<ProductDto>> ListDeletedProductsAsync(Guid organizationId, CancellationToken ct = default)
     {
-        var request = new ListDeletedProductsRequest { OrganizationId = organizationId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new ListDeletedProductsRequest { OrganizationId = organizationId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.ListDeletedProductsAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -187,7 +198,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<ProductDto?> RestoreProductAsync(Guid productId, CancellationToken ct = default)
     {
-        var request = new RestoreProductRequest { ProductId = productId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new RestoreProductRequest { ProductId = productId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.RestoreProductAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -203,7 +214,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task PermanentDeleteProductAsync(Guid productId, CancellationToken ct = default)
     {
-        var request = new PermanentDeleteProductRequest { ProductId = productId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new PermanentDeleteProductRequest { ProductId = productId.ToString(), UserId = GetUserId() };
         try
         {
             await _client.Value.PermanentDeleteProductAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -219,7 +230,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<IReadOnlyList<ProductMemberDto>> ListProductMembersAsync(Guid productId, CancellationToken ct = default)
     {
-        var request = new ListProductMembersRequest { ProductId = productId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new ListProductMembersRequest { ProductId = productId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.ListProductMembersAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -238,7 +249,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         var request = new AddProductMemberRequest
         {
             ProductId = productId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             MemberUserId = dto.UserId.ToString(),
             Role = dto.Role.ToString()
         };
@@ -258,7 +269,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         var request = new RemoveProductMemberRequest
         {
             ProductId = productId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             MemberUserId = userId.ToString()
         };
         try
@@ -277,7 +288,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         var request = new UpdateProductMemberRoleRequest
         {
             ProductId = productId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             MemberUserId = userId.ToString(),
             Role = role.ToString()
         };
@@ -296,7 +307,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<IReadOnlyList<LabelDto>> ListLabelsAsync(Guid productId, CancellationToken ct = default)
     {
-        var request = new ListLabelsRequest { ProductId = productId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new ListLabelsRequest { ProductId = productId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.ListLabelsAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -315,7 +326,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         var request = new CreateLabelRequest
         {
             ProductId = productId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             Title = dto.Title ?? string.Empty,
             Color = dto.Color ?? string.Empty
         };
@@ -338,7 +349,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         {
             ProductId = productId.ToString(),
             LabelId = labelId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             Title = dto.Title ?? string.Empty,
             Color = dto.Color ?? string.Empty
         };
@@ -361,7 +372,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         {
             ProductId = productId.ToString(),
             LabelId = labelId.ToString(),
-            UserId = Guid.Empty.ToString()
+            UserId = GetUserId()
         };
         try
         {
@@ -378,7 +389,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<IReadOnlyList<SwimlaneDto>> ListProductSwimlanesAsync(Guid productId, CancellationToken ct = default)
     {
-        var request = new ListProductSwimlanesRequest { ProductId = productId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new ListProductSwimlanesRequest { ProductId = productId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.ListProductSwimlanesAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -397,7 +408,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         var request = new CreateSwimlaneRequest
         {
             ProductId = productId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             Title = dto.Title ?? string.Empty,
             Color = dto.Color ?? string.Empty,
             IsDone = dto.IsDone,
@@ -418,7 +429,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<IReadOnlyList<SwimlaneDto>> ListWorkItemSwimlanesAsync(Guid workItemId, CancellationToken ct = default)
     {
-        var request = new ListWorkItemSwimlanesRequest { WorkItemId = workItemId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new ListWorkItemSwimlanesRequest { WorkItemId = workItemId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.ListWorkItemSwimlanesAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -437,7 +448,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         var request = new CreateWorkItemSwimlaneRequest
         {
             WorkItemId = workItemId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             Title = dto.Title ?? string.Empty,
             Color = dto.Color ?? string.Empty,
             IsDone = dto.IsDone,
@@ -461,7 +472,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         var request = new UpdateSwimlaneRequest
         {
             SwimlaneId = swimlaneId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             Title = dto.Title ?? string.Empty,
             Color = dto.Color ?? string.Empty,
             IsDone = dto.IsDone ?? false,
@@ -482,7 +493,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task DeleteSwimlaneAsync(Guid swimlaneId, CancellationToken ct = default)
     {
-        var request = new DeleteSwimlaneRequest { SwimlaneId = swimlaneId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new DeleteSwimlaneRequest { SwimlaneId = swimlaneId.ToString(), UserId = GetUserId() };
         try
         {
             await _client.Value.DeleteSwimlaneAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -498,7 +509,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     {
         var request = new ReorderSwimlanesRequest
         {
-            UserId = Guid.Empty.ToString()
+            UserId = GetUserId()
         };
         request.OrderedIds.AddRange(swimlaneIds.Select(id => id.ToString()));
         try
@@ -516,7 +527,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<IReadOnlyList<SwimlaneTransitionRuleDto>> GetSwimlaneTransitionMatrixAsync(Guid productId, CancellationToken ct = default)
     {
-        var request = new GetSwimlaneTransitionMatrixRequest { ProductId = productId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new GetSwimlaneTransitionMatrixRequest { ProductId = productId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.GetSwimlaneTransitionMatrixAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -535,7 +546,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         var request = new SetSwimlaneTransitionMatrixRequest
         {
             ProductId = productId.ToString(),
-            UserId = Guid.Empty.ToString()
+            UserId = GetUserId()
         };
         request.Rules.AddRange(rules.Select(r => new SetTransitionRuleMessage
         {
@@ -560,7 +571,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<IReadOnlyList<WorkItemDto>> ListWorkItemsAsync(Guid swimlaneId, CancellationToken ct = default)
     {
-        var request = new ListWorkItemsRequest { SwimlaneId = swimlaneId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new ListWorkItemsRequest { SwimlaneId = swimlaneId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.ListWorkItemsAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -576,7 +587,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<WorkItemDto?> GetWorkItemAsync(Guid workItemId, CancellationToken ct = default)
     {
-        var request = new GetWorkItemRequest { WorkItemId = workItemId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new GetWorkItemRequest { WorkItemId = workItemId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.GetWorkItemAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -596,7 +607,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         {
             ProductId = productId.ToString(),
             ItemNumber = itemNumber,
-            UserId = Guid.Empty.ToString()
+            UserId = GetUserId()
         };
         try
         {
@@ -616,7 +627,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         var request = new CreateEpicRequest
         {
             SwimlaneId = swimlaneId.ToString(),
-            UserId = Guid.Empty.ToString()
+            UserId = GetUserId()
         };
         PopulateCreateWorkItemRequest(dto, request);
         return await CreateWorkItemInternalAsync(
@@ -629,7 +640,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         var request = new CreateFeatureRequest
         {
             SwimlaneId = swimlaneId.ToString(),
-            UserId = Guid.Empty.ToString()
+            UserId = GetUserId()
         };
         PopulateCreateWorkItemRequest(dto, request);
         return await CreateWorkItemInternalAsync(
@@ -642,7 +653,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         var request = new CreateItemRequest
         {
             SwimlaneId = swimlaneId.ToString(),
-            UserId = Guid.Empty.ToString()
+            UserId = GetUserId()
         };
         PopulateCreateWorkItemRequest(dto, request);
         return await CreateWorkItemInternalAsync(
@@ -655,7 +666,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         var request = new CreateSubItemRequest
         {
             ParentItemId = parentItemId.ToString(),
-            UserId = Guid.Empty.ToString()
+            UserId = GetUserId()
         };
         PopulateCreateWorkItemRequest(dto, request);
         return await CreateWorkItemInternalAsync(
@@ -668,7 +679,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         var request = new UpdateWorkItemRequest
         {
             WorkItemId = workItemId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             Title = dto.Title ?? string.Empty,
             Description = dto.Description ?? string.Empty,
             Priority = dto.Priority?.ToString() ?? string.Empty,
@@ -694,7 +705,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task DeleteWorkItemAsync(Guid workItemId, CancellationToken ct = default)
     {
-        var request = new DeleteWorkItemRequest { WorkItemId = workItemId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new DeleteWorkItemRequest { WorkItemId = workItemId.ToString(), UserId = GetUserId() };
         try
         {
             await _client.Value.DeleteWorkItemAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -711,7 +722,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         var request = new MoveWorkItemRequest
         {
             WorkItemId = workItemId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             TargetSwimlaneId = dto.TargetSwimlaneId.ToString(),
             Position = dto.Position ?? 0,
             EnforceWipLimit = dto.EnforceWipLimit ?? false
@@ -731,7 +742,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<IReadOnlyList<WorkItemDto>> GetChildWorkItemsAsync(Guid parentWorkItemId, CancellationToken ct = default)
     {
-        var request = new GetChildWorkItemsRequest { ParentWorkItemId = parentWorkItemId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new GetChildWorkItemsRequest { ParentWorkItemId = parentWorkItemId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.GetChildWorkItemsAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -747,7 +758,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<IReadOnlyList<WorkItemDto>> ListDeletedWorkItemsAsync(Guid productId, CancellationToken ct = default)
     {
-        var request = new ListDeletedWorkItemsRequest { ProductId = productId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new ListDeletedWorkItemsRequest { ProductId = productId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.ListDeletedWorkItemsAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -763,7 +774,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<WorkItemDto?> RestoreWorkItemAsync(Guid workItemId, CancellationToken ct = default)
     {
-        var request = new RestoreWorkItemRequest { WorkItemId = workItemId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new RestoreWorkItemRequest { WorkItemId = workItemId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.RestoreWorkItemAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -779,7 +790,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task PermanentDeleteWorkItemAsync(Guid workItemId, CancellationToken ct = default)
     {
-        var request = new PermanentDeleteWorkItemRequest { WorkItemId = workItemId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new PermanentDeleteWorkItemRequest { WorkItemId = workItemId.ToString(), UserId = GetUserId() };
         try
         {
             await _client.Value.PermanentDeleteWorkItemAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -793,7 +804,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<int> EmptyWorkItemTrashAsync(Guid productId, CancellationToken ct = default)
     {
-        var request = new EmptyWorkItemTrashRequest { ProductId = productId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new EmptyWorkItemTrashRequest { ProductId = productId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.EmptyWorkItemTrashAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -814,7 +825,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         var request = new ExportWorkItemsCsvRequest
         {
             ProductId = productId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             SwimlaneId = swimlaneId?.ToString() ?? string.Empty,
             LabelId = labelId?.ToString() ?? string.Empty,
             Priority = priority?.ToString() ?? string.Empty
@@ -836,7 +847,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<IReadOnlyList<Guid>> GetWatchersAsync(Guid workItemId, CancellationToken ct = default)
     {
-        var request = new GetWatchersRequest { WorkItemId = workItemId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new GetWatchersRequest { WorkItemId = workItemId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.GetWatchersAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -852,7 +863,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<int> WatchWorkItemAsync(Guid workItemId, CancellationToken ct = default)
     {
-        var request = new WatchWorkItemRequest { WorkItemId = workItemId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new WatchWorkItemRequest { WorkItemId = workItemId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.WatchWorkItemAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -868,7 +879,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<int> UnwatchWorkItemAsync(Guid workItemId, CancellationToken ct = default)
     {
-        var request = new UnwatchWorkItemRequest { WorkItemId = workItemId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new UnwatchWorkItemRequest { WorkItemId = workItemId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.UnwatchWorkItemAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -889,7 +900,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         var request = new AssignUserRequest
         {
             WorkItemId = workItemId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             AssigneeUserId = userId.ToString()
         };
         try
@@ -908,7 +919,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         var request = new UnassignUserRequest
         {
             WorkItemId = workItemId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             AssigneeUserId = userId.ToString()
         };
         try
@@ -929,7 +940,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         var request = new AddLabelToWorkItemRequest
         {
             WorkItemId = workItemId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             LabelId = labelId.ToString()
         };
         try
@@ -948,7 +959,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         var request = new RemoveLabelFromWorkItemRequest
         {
             WorkItemId = workItemId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             LabelId = labelId.ToString()
         };
         try
@@ -969,7 +980,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         var request = new ListCommentsRequest
         {
             WorkItemId = workItemId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             Skip = skip,
             Take = take
         };
@@ -991,7 +1002,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         var request = new CreateCommentRequest
         {
             WorkItemId = workItemId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             Content = content ?? string.Empty
         };
         try
@@ -1013,7 +1024,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         {
             WorkItemId = workItemId.ToString(),
             CommentId = commentId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             Content = content ?? string.Empty
         };
         try
@@ -1035,7 +1046,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         {
             WorkItemId = workItemId.ToString(),
             CommentId = commentId.ToString(),
-            UserId = Guid.Empty.ToString()
+            UserId = GetUserId()
         };
         try
         {
@@ -1050,7 +1061,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<IReadOnlyList<WorkItemCommentDto>> ListDeletedCommentsAsync(Guid workItemId, CancellationToken ct = default)
     {
-        var request = new ListDeletedCommentsRequest { WorkItemId = workItemId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new ListDeletedCommentsRequest { WorkItemId = workItemId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.ListDeletedCommentsAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -1070,7 +1081,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         {
             WorkItemId = workItemId.ToString(),
             CommentId = commentId.ToString(),
-            UserId = Guid.Empty.ToString()
+            UserId = GetUserId()
         };
         try
         {
@@ -1089,7 +1100,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         {
             WorkItemId = workItemId.ToString(),
             CommentId = commentId.ToString(),
-            UserId = Guid.Empty.ToString()
+            UserId = GetUserId()
         };
         try
         {
@@ -1106,7 +1117,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<IReadOnlyList<ChecklistDto>> ListChecklistsAsync(Guid itemId, CancellationToken ct = default)
     {
-        var request = new ListChecklistsRequest { ItemId = itemId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new ListChecklistsRequest { ItemId = itemId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.ListChecklistsAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -1125,7 +1136,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         var request = new CreateChecklistRequest
         {
             ItemId = itemId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             Title = title ?? string.Empty
         };
         try
@@ -1147,7 +1158,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         {
             ItemId = itemId.ToString(),
             ChecklistId = checklistId.ToString(),
-            UserId = Guid.Empty.ToString()
+            UserId = GetUserId()
         };
         try
         {
@@ -1166,7 +1177,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         {
             ItemId = itemId.ToString(),
             ChecklistId = checklistId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             Title = title ?? string.Empty
         };
         try
@@ -1189,7 +1200,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
             ItemId = itemId.ToString(),
             ChecklistId = checklistId.ToString(),
             ChecklistItemId = checklistItemId.ToString(),
-            UserId = Guid.Empty.ToString()
+            UserId = GetUserId()
         };
         try
         {
@@ -1211,7 +1222,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
             ItemId = itemId.ToString(),
             ChecklistId = checklistId.ToString(),
             ChecklistItemId = checklistItemId.ToString(),
-            UserId = Guid.Empty.ToString()
+            UserId = GetUserId()
         };
         try
         {
@@ -1228,7 +1239,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<IReadOnlyList<WorkItemAttachmentDto>> ListAttachmentsAsync(Guid workItemId, CancellationToken ct = default)
     {
-        var request = new ListAttachmentsRequest { WorkItemId = workItemId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new ListAttachmentsRequest { WorkItemId = workItemId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.ListAttachmentsAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -1247,7 +1258,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         var request = new AddAttachmentRequest
         {
             WorkItemId = workItemId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             FileName = fileName ?? string.Empty,
             Url = url ?? string.Empty,
             FileNodeId = fileNodeId?.ToString() ?? string.Empty
@@ -1271,7 +1282,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         {
             WorkItemId = workItemId.ToString(),
             AttachmentId = attachmentId.ToString(),
-            UserId = Guid.Empty.ToString()
+            UserId = GetUserId()
         };
         try
         {
@@ -1288,7 +1299,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<IReadOnlyList<WorkItemDependencyDto>> ListDependenciesAsync(Guid workItemId, CancellationToken ct = default)
     {
-        var request = new ListDependenciesRequest { WorkItemId = workItemId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new ListDependenciesRequest { WorkItemId = workItemId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.ListDependenciesAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -1307,7 +1318,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         var request = new AddDependencyRequest
         {
             WorkItemId = workItemId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             DependsOnWorkItemId = dto.DependsOnWorkItemId.ToString(),
             Type = dto.Type.ToString()
         };
@@ -1330,7 +1341,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         {
             WorkItemId = workItemId.ToString(),
             DependencyId = dependencyId.ToString(),
-            UserId = Guid.Empty.ToString()
+            UserId = GetUserId()
         };
         try
         {
@@ -1347,7 +1358,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<IReadOnlyList<SprintDto>> ListSprintsAsync(Guid epicId, CancellationToken ct = default)
     {
-        var request = new ListSprintsRequest { EpicId = epicId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new ListSprintsRequest { EpicId = epicId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.ListSprintsAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -1363,7 +1374,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<SprintDto?> GetSprintAsync(Guid sprintId, CancellationToken ct = default)
     {
-        var request = new GetSprintRequest { SprintId = sprintId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new GetSprintRequest { SprintId = sprintId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.GetSprintAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -1382,7 +1393,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         var request = new CreateSprintRequest
         {
             EpicId = epicId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             Title = dto.Title ?? string.Empty,
             Goal = dto.Goal ?? string.Empty,
             StartDate = FormatDateTime(dto.StartDate),
@@ -1408,7 +1419,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         var request = new UpdateSprintRequest
         {
             SprintId = sprintId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             Title = dto.Title ?? string.Empty,
             Goal = dto.Goal ?? string.Empty,
             StartDate = FormatDateTime(dto.StartDate),
@@ -1430,7 +1441,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task DeleteSprintAsync(Guid sprintId, CancellationToken ct = default)
     {
-        var request = new DeleteSprintRequest { SprintId = sprintId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new DeleteSprintRequest { SprintId = sprintId.ToString(), UserId = GetUserId() };
         try
         {
             await _client.Value.DeleteSprintAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -1444,7 +1455,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<SprintDto?> StartSprintAsync(Guid sprintId, CancellationToken ct = default)
     {
-        var request = new StartSprintRequest { SprintId = sprintId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new StartSprintRequest { SprintId = sprintId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.StartSprintAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -1460,7 +1471,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<SprintDto?> CompleteSprintAsync(Guid sprintId, CancellationToken ct = default)
     {
-        var request = new CompleteSprintRequest { SprintId = sprintId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new CompleteSprintRequest { SprintId = sprintId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.CompleteSprintAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -1480,7 +1491,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         {
             SprintId = sprintId.ToString(),
             ItemId = itemId.ToString(),
-            UserId = Guid.Empty.ToString()
+            UserId = GetUserId()
         };
         try
         {
@@ -1499,7 +1510,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         {
             SprintId = sprintId.ToString(),
             ItemId = itemId.ToString(),
-            UserId = Guid.Empty.ToString()
+            UserId = GetUserId()
         };
         try
         {
@@ -1514,7 +1525,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<IReadOnlyList<WorkItemDto>> GetBacklogItemsAsync(Guid epicId, CancellationToken ct = default)
     {
-        var request = new GetBacklogItemsRequest { EpicId = epicId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new GetBacklogItemsRequest { EpicId = epicId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.GetBacklogItemsAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -1535,7 +1546,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         var request = new CreateSprintPlanRequest
         {
             EpicId = epicId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             NumberOfSprints = dto.NumberOfSprints,
             SprintDurationWeeks = dto.SprintDurationWeeks,
             StartDate = FormatDateTime(dto.StartDate)
@@ -1555,7 +1566,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<IReadOnlyList<SprintDto>> GetSprintPlanAsync(Guid epicId, CancellationToken ct = default)
     {
-        var request = new GetSprintPlanRequest { EpicId = epicId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new GetSprintPlanRequest { EpicId = epicId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.GetSprintPlanAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -1574,7 +1585,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         var request = new AdjustSprintRequest
         {
             SprintId = sprintId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             DurationWeeks = dto.DurationWeeks ?? 0,
             StartDate = FormatDateTime(dto.StartDate),
             EndDate = FormatDateTime(dto.EndDate)
@@ -1596,7 +1607,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<IReadOnlyList<TimeEntryDto>> ListTimeEntriesAsync(Guid workItemId, CancellationToken ct = default)
     {
-        var request = new ListTimeEntriesRequest { WorkItemId = workItemId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new ListTimeEntriesRequest { WorkItemId = workItemId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.ListTimeEntriesAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -1615,7 +1626,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         var request = new CreateTimeEntryRequest
         {
             WorkItemId = workItemId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             DurationMinutes = dto.DurationMinutes,
             Description = dto.Description ?? string.Empty,
             StartTime = FormatDateTime(dto.StartTime)
@@ -1639,7 +1650,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         {
             WorkItemId = workItemId.ToString(),
             EntryId = entryId.ToString(),
-            UserId = Guid.Empty.ToString()
+            UserId = GetUserId()
         };
         try
         {
@@ -1654,7 +1665,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<TimeEntryDto?> StartTimerAsync(Guid workItemId, CancellationToken ct = default)
     {
-        var request = new StartTimerRequest { WorkItemId = workItemId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new StartTimerRequest { WorkItemId = workItemId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.StartTimerAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -1670,7 +1681,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<TimeEntryDto?> StopTimerAsync(Guid workItemId, CancellationToken ct = default)
     {
-        var request = new StopTimerRequest { WorkItemId = workItemId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new StopTimerRequest { WorkItemId = workItemId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.StopTimerAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -1691,7 +1702,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         var request = new GetProductActivityRequest
         {
             ProductId = productId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             Skip = skip,
             Take = take
         };
@@ -1713,7 +1724,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         var request = new GetWorkItemActivityRequest
         {
             WorkItemId = workItemId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             Skip = skip,
             Take = take
         };
@@ -1734,7 +1745,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<ProductAnalyticsDto?> GetProductAnalyticsAsync(Guid productId, CancellationToken ct = default)
     {
-        var request = new GetProductAnalyticsRequest { ProductId = productId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new GetProductAnalyticsRequest { ProductId = productId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.GetProductAnalyticsAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -1750,7 +1761,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<IReadOnlyList<SprintVelocityDto>> GetVelocityDataAsync(Guid productId, CancellationToken ct = default)
     {
-        var request = new GetVelocityDataRequest { ProductId = productId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new GetVelocityDataRequest { ProductId = productId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.GetVelocityDataAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -1766,7 +1777,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<SprintReportDto?> GetSprintReportAsync(Guid sprintId, CancellationToken ct = default)
     {
-        var request = new GetSprintReportRequest { SprintId = sprintId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new GetSprintReportRequest { SprintId = sprintId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.GetSprintReportAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -1782,7 +1793,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<SprintBurndownDto?> GetBurndownDataAsync(Guid sprintId, CancellationToken ct = default)
     {
-        var request = new GetBurndownDataRequest { SprintId = sprintId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new GetBurndownDataRequest { SprintId = sprintId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.GetBurndownDataAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -1798,7 +1809,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<ProductDashboardDto?> GetProductDashboardAsync(Guid productId, CancellationToken ct = default)
     {
-        var request = new GetProductDashboardRequest { ProductId = productId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new GetProductDashboardRequest { ProductId = productId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.GetProductDashboardAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -1819,7 +1830,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         var request = new BulkWorkItemActionRequest
         {
             ProductId = productId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             Action = dto.Action ?? string.Empty,
             TargetSwimlaneId = dto.TargetSwimlaneId?.ToString() ?? string.Empty,
             LabelId = dto.LabelId?.ToString() ?? string.Empty,
@@ -1846,7 +1857,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         var request = new ListProductWorkItemsRequest
         {
             ProductId = productId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             SwimlaneId = swimlaneId?.ToString() ?? string.Empty,
             LabelId = labelId?.ToString() ?? string.Empty,
             Priority = priority?.ToString() ?? string.Empty
@@ -1868,7 +1879,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<IReadOnlyList<TracksTeamDto>> ListTeamsAsync(CancellationToken ct = default)
     {
-        var request = new ListTeamsRequest { UserId = Guid.Empty.ToString() };
+        var request = new ListTeamsRequest { UserId = GetUserId() };
         try
         {
             var response = await _client.Value.ListTeamsAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -1884,7 +1895,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<TracksTeamDto?> GetTeamAsync(Guid teamId, CancellationToken ct = default)
     {
-        var request = new GetTeamRequest { TeamId = teamId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new GetTeamRequest { TeamId = teamId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.GetTeamAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -1902,7 +1913,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     {
         var request = new CreateTeamRequest
         {
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             Name = dto.Name ?? string.Empty,
             Description = dto.Description ?? string.Empty
         };
@@ -1924,7 +1935,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         var request = new UpdateTeamRequest
         {
             TeamId = teamId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             Name = dto.Name ?? string.Empty,
             Description = dto.Description ?? string.Empty
         };
@@ -1943,7 +1954,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task DeleteTeamAsync(Guid teamId, CancellationToken ct = default)
     {
-        var request = new DeleteTeamRequest { TeamId = teamId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new DeleteTeamRequest { TeamId = teamId.ToString(), UserId = GetUserId() };
         try
         {
             await _client.Value.DeleteTeamAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -1957,7 +1968,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<IReadOnlyList<TracksTeamMemberDto>> ListTeamMembersAsync(Guid teamId, CancellationToken ct = default)
     {
-        var request = new ListTeamMembersRequest { TeamId = teamId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new ListTeamMembersRequest { TeamId = teamId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.ListTeamMembersAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -1976,7 +1987,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         var request = new AddTeamMemberRequest
         {
             TeamId = teamId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             MemberUserId = dto.UserId.ToString(),
             Role = dto.Role.ToString()
         };
@@ -1996,7 +2007,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         var request = new RemoveTeamMemberRequest
         {
             TeamId = teamId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             MemberUserId = userId.ToString()
         };
         try
@@ -2015,7 +2026,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         var request = new UpdateTeamMemberRoleRequest
         {
             TeamId = teamId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             MemberUserId = userId.ToString(),
             Role = role.ToString()
         };
@@ -2034,7 +2045,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<ReviewSessionDto?> StartReviewSessionAsync(Guid epicId, CancellationToken ct = default)
     {
-        var request = new StartReviewSessionRequest { EpicId = epicId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new StartReviewSessionRequest { EpicId = epicId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.StartReviewSessionAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -2050,7 +2061,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<ReviewSessionDto?> GetReviewSessionAsync(Guid sessionId, CancellationToken ct = default)
     {
-        var request = new GetReviewSessionRequest { SessionId = sessionId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new GetReviewSessionRequest { SessionId = sessionId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.GetReviewSessionAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -2066,7 +2077,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<ReviewSessionDto?> JoinReviewSessionAsync(Guid sessionId, CancellationToken ct = default)
     {
-        var request = new JoinReviewSessionRequest { SessionId = sessionId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new JoinReviewSessionRequest { SessionId = sessionId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.JoinReviewSessionAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -2082,7 +2093,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task LeaveReviewSessionAsync(Guid sessionId, CancellationToken ct = default)
     {
-        var request = new LeaveReviewSessionRequest { SessionId = sessionId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new LeaveReviewSessionRequest { SessionId = sessionId.ToString(), UserId = GetUserId() };
         try
         {
             await _client.Value.LeaveReviewSessionAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -2099,7 +2110,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         var request = new SetReviewCurrentItemRequest
         {
             SessionId = sessionId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             ItemId = itemId.ToString()
         };
         try
@@ -2117,7 +2128,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task EndReviewSessionAsync(Guid sessionId, CancellationToken ct = default)
     {
-        var request = new EndReviewSessionRequest { SessionId = sessionId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new EndReviewSessionRequest { SessionId = sessionId.ToString(), UserId = GetUserId() };
         try
         {
             await _client.Value.EndReviewSessionAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -2136,7 +2147,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         var request = new StartPokerSessionRequest
         {
             EpicId = epicId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             ItemId = dto.ItemId.ToString(),
             Scale = dto.Scale.ToString(),
             CustomScaleValues = dto.CustomScaleValues ?? string.Empty
@@ -2156,7 +2167,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<PokerSessionDto?> GetPokerSessionAsync(Guid sessionId, CancellationToken ct = default)
     {
-        var request = new GetPokerSessionRequest { SessionId = sessionId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new GetPokerSessionRequest { SessionId = sessionId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.GetPokerSessionAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -2175,7 +2186,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         var request = new GetActivePokerSessionByReviewSessionRequest
         {
             ReviewSessionId = reviewSessionId.ToString(),
-            UserId = Guid.Empty.ToString()
+            UserId = GetUserId()
         };
         try
         {
@@ -2195,7 +2206,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         var request = new SubmitPokerVoteRequest
         {
             SessionId = sessionId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             Estimate = dto.Estimate ?? string.Empty
         };
         try
@@ -2213,7 +2224,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<PokerSessionDto?> RevealPokerSessionAsync(Guid sessionId, CancellationToken ct = default)
     {
-        var request = new RevealPokerSessionRequest { SessionId = sessionId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new RevealPokerSessionRequest { SessionId = sessionId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.RevealPokerSessionAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -2232,7 +2243,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         var request = new AcceptPokerEstimateRequest
         {
             SessionId = sessionId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             AcceptedEstimate = estimate ?? string.Empty
         };
         try
@@ -2250,7 +2261,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<IReadOnlyList<PokerVoteStatusDto>> GetPokerVoteStatusAsync(Guid sessionId, CancellationToken ct = default)
     {
-        var request = new GetPokerVoteStatusRequest { SessionId = sessionId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new GetPokerVoteStatusRequest { SessionId = sessionId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.GetPokerVoteStatusAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -2276,7 +2287,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         {
             SearchTerm = searchTerm ?? string.Empty,
             MaxResults = maxResults,
-            UserId = Guid.Empty.ToString()
+            UserId = GetUserId()
         };
         try
         {
@@ -2299,7 +2310,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<IReadOnlyList<CustomViewDto>> ListCustomViewsAsync(Guid productId, CancellationToken ct = default)
     {
-        var request = new ListCustomViewsRequest { ProductId = productId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new ListCustomViewsRequest { ProductId = productId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.ListCustomViewsAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -2318,7 +2329,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         var request = new CreateCustomViewRequest
         {
             ProductId = productId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             Name = name ?? string.Empty,
             FilterJson = filterJson ?? string.Empty,
             SortJson = sortJson ?? string.Empty,
@@ -2345,7 +2356,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         {
             ProductId = productId.ToString(),
             ViewId = viewId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             Name = name ?? string.Empty,
             FilterJson = filterJson ?? string.Empty,
             SortJson = sortJson ?? string.Empty,
@@ -2372,7 +2383,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         {
             ProductId = productId.ToString(),
             ViewId = viewId.ToString(),
-            UserId = Guid.Empty.ToString()
+            UserId = GetUserId()
         };
         try
         {
@@ -2389,7 +2400,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<IReadOnlyList<WebhookSubscription>> ListProductWebhooksAsync(Guid productId, CancellationToken ct = default)
     {
-        var request = new ListProductWebhooksRequest { ProductId = productId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new ListProductWebhooksRequest { ProductId = productId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.ListProductWebhooksAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -2408,7 +2419,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         var request = new CreateProductWebhookRequest
         {
             ProductId = productId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             Url = url ?? string.Empty
         };
         request.EventTypes.AddRange(eventTypes ?? []);
@@ -2431,7 +2442,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         {
             ProductId = productId.ToString(),
             SubscriptionId = subscriptionId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             Url = url ?? string.Empty,
             IsActive = isActive
         };
@@ -2455,7 +2466,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         {
             ProductId = productId.ToString(),
             SubscriptionId = subscriptionId.ToString(),
-            UserId = Guid.Empty.ToString()
+            UserId = GetUserId()
         };
         try
         {
@@ -2474,7 +2485,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         {
             ProductId = productId.ToString(),
             SubscriptionId = subscriptionId.ToString(),
-            UserId = Guid.Empty.ToString()
+            UserId = GetUserId()
         };
         try
         {
@@ -2498,7 +2509,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<RoadmapDataDto?> GetRoadmapDataAsync(Guid productId, CancellationToken ct = default)
     {
-        var request = new GetRoadmapDataRequest { ProductId = productId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new GetRoadmapDataRequest { ProductId = productId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.GetRoadmapDataAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -2516,7 +2527,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<List<AutomationRuleDto>> ListAutomationRulesAsync(Guid productId, CancellationToken ct = default)
     {
-        var request = new ListAutomationRulesRequest { ProductId = productId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new ListAutomationRulesRequest { ProductId = productId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.ListAutomationRulesAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -2535,7 +2546,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         var request = new CreateAutomationRuleRequest
         {
             ProductId = productId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             Name = dto.Name ?? string.Empty,
             Trigger = dto.Trigger ?? string.Empty,
             ConditionsJson = dto.ConditionsJson ?? string.Empty,
@@ -2560,7 +2571,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         var request = new UpdateAutomationRuleRequest
         {
             RuleId = ruleId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             Name = dto.Name ?? string.Empty,
             Trigger = dto.Trigger ?? string.Empty,
             ConditionsJson = dto.ConditionsJson ?? string.Empty,
@@ -2582,7 +2593,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task DeleteAutomationRuleAsync(Guid ruleId, CancellationToken ct = default)
     {
-        var request = new DeleteAutomationRuleRequest { RuleId = ruleId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new DeleteAutomationRuleRequest { RuleId = ruleId.ToString(), UserId = GetUserId() };
         try
         {
             await _client.Value.DeleteAutomationRuleAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -2598,7 +2609,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<List<GoalDto>> ListGoalsAsync(Guid productId, CancellationToken ct = default)
     {
-        var request = new ListGoalsRequest { ProductId = productId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new ListGoalsRequest { ProductId = productId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.ListGoalsAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -2614,7 +2625,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<GoalDto?> GetGoalAsync(Guid goalId, CancellationToken ct = default)
     {
-        var request = new GetGoalRequest { GoalId = goalId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new GetGoalRequest { GoalId = goalId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.GetGoalAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -2633,7 +2644,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         var request = new CreateGoalRequest
         {
             ProductId = productId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             Title = dto.Title ?? string.Empty,
             Description = dto.Description ?? string.Empty,
             Type = dto.Type ?? string.Empty,
@@ -2660,7 +2671,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         var request = new UpdateGoalRequest
         {
             GoalId = goalId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             Title = dto.Title ?? string.Empty,
             Description = dto.Description ?? string.Empty,
             TargetValue = dto.TargetValue ?? 0,
@@ -2684,7 +2695,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task DeleteGoalAsync(Guid goalId, CancellationToken ct = default)
     {
-        var request = new DeleteGoalRequest { GoalId = goalId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new DeleteGoalRequest { GoalId = goalId.ToString(), UserId = GetUserId() };
         try
         {
             await _client.Value.DeleteGoalAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -2701,7 +2712,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         var request = new LinkGoalWorkItemRequest
         {
             GoalId = goalId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             WorkItemId = dto.WorkItemId.ToString()
         };
         try
@@ -2720,7 +2731,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         var request = new UnlinkGoalWorkItemRequest
         {
             GoalId = goalId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             WorkItemId = workItemId.ToString()
         };
         try
@@ -2738,7 +2749,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<ProductCapacityDto?> GetProductCapacityAsync(Guid productId, CancellationToken ct = default)
     {
-        var request = new GetProductCapacityRequest { ProductId = productId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new GetProductCapacityRequest { ProductId = productId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.GetProductCapacityAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -2754,7 +2765,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<SprintCapacityDto?> GetSprintCapacityAsync(Guid sprintId, CancellationToken ct = default)
     {
-        var request = new GetSprintCapacityRequest { SprintId = sprintId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new GetSprintCapacityRequest { SprintId = sprintId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.GetSprintCapacityAsync(request, DeadlineHeaders(ct)).ResponseAsync;

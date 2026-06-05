@@ -1,8 +1,10 @@
+using System.Security.Claims;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Modules.Contacts.Host.Protos;
 using DotNetCloud.Modules.Contacts.Services;
 using Grpc.Core;
 using Grpc.Net.Client;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -34,6 +36,7 @@ public sealed class ContactsGrpcApiClient : IContactsApiClient, IDisposable
 {
     private readonly ContactsGrpcClientOptions _options;
     private readonly ModuleEndpointProvider _endpointProvider;
+    private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ILogger<ContactsGrpcApiClient> _logger;
     private readonly Lazy<GrpcChannel> _channel;
     private readonly Lazy<ContactsService.ContactsServiceClient> _client;
@@ -43,14 +46,22 @@ public sealed class ContactsGrpcApiClient : IContactsApiClient, IDisposable
     public ContactsGrpcApiClient(
         IOptions<ContactsGrpcClientOptions> options,
         ModuleEndpointProvider endpointProvider,
+        IHttpContextAccessor httpContextAccessor,
         ILogger<ContactsGrpcApiClient> logger)
     {
         _options = options.Value;
         _endpointProvider = endpointProvider;
+        _httpContextAccessor = httpContextAccessor;
         _logger = logger;
         _channel = new Lazy<GrpcChannel>(CreateChannel);
         _client = new Lazy<ContactsService.ContactsServiceClient>(
             () => new ContactsService.ContactsServiceClient(_channel.Value));
+    }
+
+    private string GetUserId()
+    {
+        var userId = _httpContextAccessor.HttpContext?.User?.FindFirstValue(ClaimTypes.NameIdentifier);
+        return !string.IsNullOrEmpty(userId) ? userId : Guid.Empty.ToString();
     }
 
     // ─── Contact CRUD ────────────────────────────────────────────────────────
@@ -62,7 +73,7 @@ public sealed class ContactsGrpcApiClient : IContactsApiClient, IDisposable
         {
             var request = new ListContactsRequest
             {
-                UserId = Guid.Empty.ToString(),
+                UserId = GetUserId(),
                 Search = search ?? string.Empty,
                 Skip = skip,
                 Take = take
@@ -75,7 +86,7 @@ public sealed class ContactsGrpcApiClient : IContactsApiClient, IDisposable
     public async Task<ContactDto?> GetContactAsync(Guid contactId, CancellationToken cancellationToken = default)
         => await SafeCallAsync(async () =>
         {
-            var request = new GetContactRequest { ContactId = contactId.ToString(), UserId = Guid.Empty.ToString() };
+            var request = new GetContactRequest { ContactId = contactId.ToString(), UserId = GetUserId() };
             var response = await _client.Value.GetContactAsync(request, DeadlineHeaders(cancellationToken)).ResponseAsync;
             return response.Success ? ToContactDto(response.Contact) : null;
         }, "GetContact");
@@ -102,7 +113,7 @@ public sealed class ContactsGrpcApiClient : IContactsApiClient, IDisposable
     public async Task DeleteContactAsync(Guid contactId, CancellationToken cancellationToken = default)
         => await SafeCallAsync(async () =>
         {
-            var request = new DeleteContactRequest { ContactId = contactId.ToString(), UserId = Guid.Empty.ToString() };
+            var request = new DeleteContactRequest { ContactId = contactId.ToString(), UserId = GetUserId() };
             await _client.Value.DeleteContactAsync(request, DeadlineHeaders(cancellationToken)).ResponseAsync;
         }, "DeleteContact");
 
@@ -112,7 +123,7 @@ public sealed class ContactsGrpcApiClient : IContactsApiClient, IDisposable
     public async Task<IReadOnlyList<ContactGroupDto>> ListGroupsAsync(CancellationToken cancellationToken = default)
         => (await SafeCallListAsync(async () =>
         {
-            var request = new ListGroupsRequest { UserId = Guid.Empty.ToString() };
+            var request = new ListGroupsRequest { UserId = GetUserId() };
             var response = await _client.Value.ListGroupsAsync(request, DeadlineHeaders(cancellationToken)).ResponseAsync;
             return !response.Success ? (IReadOnlyList<ContactGroupDto>)[] : response.Groups.Select(g => new ContactGroupDto
             {
@@ -129,7 +140,7 @@ public sealed class ContactsGrpcApiClient : IContactsApiClient, IDisposable
     public async Task<ContactRelatedEntitiesDto> GetRelatedAsync(Guid contactId, CancellationToken cancellationToken = default)
         => (await SafeCallAsync(async () =>
         {
-            var request = new GetContactRelatedRequest { ContactId = contactId.ToString(), UserId = Guid.Empty.ToString() };
+            var request = new GetContactRelatedRequest { ContactId = contactId.ToString(), UserId = GetUserId() };
             var response = await _client.Value.GetContactRelatedAsync(request, DeadlineHeaders(cancellationToken)).ResponseAsync;
             if (!response.Success)
                 return new ContactRelatedEntitiesDto();
@@ -148,7 +159,7 @@ public sealed class ContactsGrpcApiClient : IContactsApiClient, IDisposable
     public async Task<IReadOnlyList<ContactShareResponse>> ListSharesAsync(Guid contactId, CancellationToken cancellationToken = default)
         => (await SafeCallListAsync(async () =>
         {
-            var request = new ListContactSharesRequest { ContactId = contactId.ToString(), UserId = Guid.Empty.ToString() };
+            var request = new ListContactSharesRequest { ContactId = contactId.ToString(), UserId = GetUserId() };
             var response = await _client.Value.ListContactSharesAsync(request, DeadlineHeaders(cancellationToken)).ResponseAsync;
             return !response.Success ? (IReadOnlyList<ContactShareResponse>)[] : response.Shares.Select(s => new ContactShareResponse
             {
@@ -169,7 +180,7 @@ public sealed class ContactsGrpcApiClient : IContactsApiClient, IDisposable
             var request = new ShareContactRequest
             {
                 ContactId = contactId.ToString(),
-                UserId = Guid.Empty.ToString(),
+                UserId = GetUserId(),
                 TargetUserId = userId?.ToString() ?? string.Empty,
                 TeamId = teamId?.ToString() ?? string.Empty,
                 Permission = permission
@@ -194,7 +205,7 @@ public sealed class ContactsGrpcApiClient : IContactsApiClient, IDisposable
     public async Task RevokeShareAsync(Guid shareId, CancellationToken cancellationToken = default)
         => await SafeCallAsync(async () =>
         {
-            var request = new RevokeContactShareRequest { ShareId = shareId.ToString(), UserId = Guid.Empty.ToString() };
+            var request = new RevokeContactShareRequest { ShareId = shareId.ToString(), UserId = GetUserId() };
             await _client.Value.RevokeContactShareAsync(request, DeadlineHeaders(cancellationToken)).ResponseAsync;
         }, "RevokeShare");
 
@@ -269,9 +280,9 @@ public sealed class ContactsGrpcApiClient : IContactsApiClient, IDisposable
         });
     }
 
-    private static CreateContactRequest ToCreateRequest(CreateContactDto dto) => new()
+    private CreateContactRequest ToCreateRequest(CreateContactDto dto) => new()
     {
-        UserId = Guid.Empty.ToString(),
+        UserId = GetUserId(),
         ContactType = dto.ContactType.ToString(),
         DisplayName = dto.DisplayName,
         FirstName = dto.FirstName ?? string.Empty,
@@ -290,10 +301,10 @@ public sealed class ContactsGrpcApiClient : IContactsApiClient, IDisposable
         Addresses = { dto.Addresses.Select(a => new ContactAddressMessage { Label = a.Label, Street = a.Street ?? string.Empty, City = a.City ?? string.Empty, Region = a.Region ?? string.Empty, PostalCode = a.PostalCode ?? string.Empty, Country = a.Country ?? string.Empty, IsPrimary = a.IsPrimary }) }
     };
 
-    private static UpdateContactRequest ToUpdateRequest(Guid contactId, UpdateContactDto dto) => new()
+    private UpdateContactRequest ToUpdateRequest(Guid contactId, UpdateContactDto dto) => new()
     {
         ContactId = contactId.ToString(),
-        UserId = Guid.Empty.ToString(),
+        UserId = GetUserId(),
         DisplayName = dto.DisplayName ?? string.Empty,
         FirstName = dto.FirstName ?? string.Empty,
         LastName = dto.LastName ?? string.Empty,

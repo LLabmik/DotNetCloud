@@ -1,8 +1,10 @@
+using System.Security.Claims;
 using DotNetCloud.Modules.Email.Host.Protos;
 using DotNetCloud.Modules.Email.Models;
 using DotNetCloud.Modules.Email.Services;
 using Grpc.Core;
 using Grpc.Net.Client;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -30,6 +32,7 @@ public sealed class EmailGrpcApiClient : IEmailApiClient, IDisposable
 {
     private readonly EmailGrpcClientOptions _options;
     private readonly ModuleEndpointProvider _endpointProvider;
+    private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ILogger<EmailGrpcApiClient> _logger;
     private readonly Lazy<GrpcChannel> _channel;
     private readonly Lazy<EmailService.EmailServiceClient> _client;
@@ -39,14 +42,22 @@ public sealed class EmailGrpcApiClient : IEmailApiClient, IDisposable
     public EmailGrpcApiClient(
         IOptions<EmailGrpcClientOptions> options,
         ModuleEndpointProvider endpointProvider,
+        IHttpContextAccessor httpContextAccessor,
         ILogger<EmailGrpcApiClient> logger)
     {
         _options = options.Value;
         _endpointProvider = endpointProvider;
+        _httpContextAccessor = httpContextAccessor;
         _logger = logger;
         _channel = new Lazy<GrpcChannel>(CreateChannel);
         _client = new Lazy<EmailService.EmailServiceClient>(
             () => new EmailService.EmailServiceClient(_channel.Value));
+    }
+
+    private string GetUserId()
+    {
+        var userId = _httpContextAccessor.HttpContext?.User?.FindFirstValue(ClaimTypes.NameIdentifier);
+        return !string.IsNullOrEmpty(userId) ? userId : Guid.Empty.ToString();
     }
 
     private GrpcChannel CreateChannel()
@@ -68,7 +79,7 @@ public sealed class EmailGrpcApiClient : IEmailApiClient, IDisposable
     /// <inheritdoc />
     public async Task<IReadOnlyList<EmailAccount>> ListAccountsAsync(CancellationToken ct = default)
     {
-        var request = new ListAccountsRequest { UserId = Guid.Empty.ToString() };
+        var request = new ListAccountsRequest { UserId = GetUserId() };
         try
         {
             var response = await _client.Value.ListAccountsAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -80,7 +91,7 @@ public sealed class EmailGrpcApiClient : IEmailApiClient, IDisposable
     /// <inheritdoc />
     public async Task<EmailAccount?> GetAccountAsync(Guid id, CancellationToken ct = default)
     {
-        var request = new GetAccountRequest { AccountId = id.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new GetAccountRequest { AccountId = id.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.GetAccountAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -94,7 +105,7 @@ public sealed class EmailGrpcApiClient : IEmailApiClient, IDisposable
     {
         var request = new CreateAccountRequest
         {
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             ProviderType = req.ProviderType.ToString(),
             DisplayName = req.DisplayName,
             EmailAddress = req.EmailAddress,
@@ -114,7 +125,7 @@ public sealed class EmailGrpcApiClient : IEmailApiClient, IDisposable
         var request = new UpdateAccountRequest
         {
             AccountId = id.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             DisplayName = req.DisplayName ?? string.Empty,
             IsEnabled = req.IsEnabled ?? true
         };
@@ -129,7 +140,7 @@ public sealed class EmailGrpcApiClient : IEmailApiClient, IDisposable
     /// <inheritdoc />
     public async Task DeleteAccountAsync(Guid id, CancellationToken ct = default)
     {
-        var request = new DeleteAccountRequest { AccountId = id.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new DeleteAccountRequest { AccountId = id.ToString(), UserId = GetUserId() };
         try
         { await _client.Value.DeleteAccountAsync(request, DeadlineHeaders(ct)).ResponseAsync; }
         catch (RpcException ex) { _logger.LogError(ex, "EmailGrpcApiClient.DeleteAccountAsync failed"); }
@@ -140,7 +151,7 @@ public sealed class EmailGrpcApiClient : IEmailApiClient, IDisposable
     /// <inheritdoc />
     public async Task<IReadOnlyList<EmailMailbox>> ListMailboxesAsync(Guid accountId, CancellationToken ct = default)
     {
-        var request = new ListMailboxesRequest { AccountId = accountId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new ListMailboxesRequest { AccountId = accountId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.ListMailboxesAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -157,7 +168,7 @@ public sealed class EmailGrpcApiClient : IEmailApiClient, IDisposable
         var request = new SendEmailRequest
         {
             AccountId = accountId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             Subject = req.Subject ?? string.Empty,
             BodyHtml = req.BodyHtml ?? string.Empty,
             BodyText = req.BodyPlainText ?? string.Empty
@@ -178,7 +189,7 @@ public sealed class EmailGrpcApiClient : IEmailApiClient, IDisposable
     {
         var request = new ListRulesRequest
         {
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             AccountId = accountId?.ToString() ?? string.Empty
         };
         try
@@ -192,7 +203,7 @@ public sealed class EmailGrpcApiClient : IEmailApiClient, IDisposable
     /// <inheritdoc />
     public async Task<EmailRule?> GetRuleAsync(Guid id, CancellationToken ct = default)
     {
-        var request = new GetRuleRequest { RuleId = id.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new GetRuleRequest { RuleId = id.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.GetRuleAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -206,7 +217,7 @@ public sealed class EmailGrpcApiClient : IEmailApiClient, IDisposable
     {
         var request = new CreateRuleRequest
         {
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             Name = req.Name,
             AccountId = req.AccountId?.ToString() ?? string.Empty,
             IsEnabled = req.IsEnabled,
@@ -227,7 +238,7 @@ public sealed class EmailGrpcApiClient : IEmailApiClient, IDisposable
         var request = new UpdateRuleRequest
         {
             RuleId = id.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             Name = req.Name ?? string.Empty,
             IsEnabled = req.IsEnabled ?? true,
             Priority = req.Priority ?? 0,
@@ -244,7 +255,7 @@ public sealed class EmailGrpcApiClient : IEmailApiClient, IDisposable
     /// <inheritdoc />
     public async Task DeleteRuleAsync(Guid id, CancellationToken ct = default)
     {
-        var request = new DeleteRuleRequest { RuleId = id.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new DeleteRuleRequest { RuleId = id.ToString(), UserId = GetUserId() };
         try
         { await _client.Value.DeleteRuleAsync(request, DeadlineHeaders(ct)).ResponseAsync; }
         catch (RpcException ex) { _logger.LogError(ex, "EmailGrpcApiClient.DeleteRuleAsync failed"); }
@@ -255,7 +266,7 @@ public sealed class EmailGrpcApiClient : IEmailApiClient, IDisposable
     {
         var request = new RunRulesRequest
         {
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             AccountId = accountId?.ToString() ?? string.Empty,
             MailboxId = mailboxId?.ToString() ?? string.Empty
         };
@@ -272,7 +283,7 @@ public sealed class EmailGrpcApiClient : IEmailApiClient, IDisposable
     /// <inheritdoc />
     public async Task TriggerSyncAsync(Guid accountId, CancellationToken ct = default)
     {
-        var request = new TriggerSyncRequest { AccountId = accountId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new TriggerSyncRequest { AccountId = accountId.ToString(), UserId = GetUserId() };
         try
         { await _client.Value.TriggerSyncAsync(request, DeadlineHeaders(ct)).ResponseAsync; }
         catch (RpcException ex) { _logger.LogError(ex, "EmailGrpcApiClient.TriggerSyncAsync failed"); }
@@ -296,7 +307,7 @@ public sealed class EmailGrpcApiClient : IEmailApiClient, IDisposable
         {
             AccountId = accountId.ToString(),
             MailboxId = mailboxId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             Skip = 0,
             Take = 100
         };
@@ -311,7 +322,7 @@ public sealed class EmailGrpcApiClient : IEmailApiClient, IDisposable
     /// <inheritdoc />
     public async Task<IReadOnlyList<EmailMessage>> ListThreadMessagesAsync(Guid threadId, CancellationToken ct = default)
     {
-        var request = new ListThreadMessagesRequest { ThreadId = threadId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new ListThreadMessagesRequest { ThreadId = threadId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.ListThreadMessagesAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -325,7 +336,7 @@ public sealed class EmailGrpcApiClient : IEmailApiClient, IDisposable
     /// <inheritdoc />
     public async Task<string?> GetMessageBodyAsync(Guid messageId, CancellationToken ct = default)
     {
-        var request = new GetMessageBodyRequest { MessageId = messageId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new GetMessageBodyRequest { MessageId = messageId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.GetMessageBodyAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -342,7 +353,7 @@ public sealed class EmailGrpcApiClient : IEmailApiClient, IDisposable
         var request = new DownloadAttachmentRequest
         {
             AttachmentId = attachmentId.ToString(),
-            UserId = Guid.Empty.ToString()
+            UserId = GetUserId()
         };
         try
         {
@@ -435,7 +446,7 @@ public sealed class EmailGrpcApiClient : IEmailApiClient, IDisposable
         var request = new DetachAttachmentRequest
         {
             AttachmentId = attachmentId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             TargetFolderId = targetFolderId?.ToString() ?? string.Empty
         };
         try
@@ -454,7 +465,7 @@ public sealed class EmailGrpcApiClient : IEmailApiClient, IDisposable
         var request = new AttachFromFilesRequest
         {
             FileNodeId = fileNodeId.ToString(),
-            UserId = Guid.Empty.ToString()
+            UserId = GetUserId()
         };
         try
         {

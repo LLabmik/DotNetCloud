@@ -1,9 +1,11 @@
+using System.Security.Claims;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Modules.Notes.Host.Protos;
 using DotNetCloud.Modules.Notes.Models;
 using DotNetCloud.Modules.Notes.Services;
 using Grpc.Core;
 using Grpc.Net.Client;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -30,6 +32,7 @@ public sealed class NotesGrpcApiClient : INotesApiClient, IDisposable
 {
     private readonly NotesGrpcClientOptions _options;
     private readonly ModuleEndpointProvider _endpointProvider;
+    private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ILogger<NotesGrpcApiClient> _logger;
     private readonly Lazy<GrpcChannel> _channel;
     private readonly Lazy<NotesGrpcService.NotesGrpcServiceClient> _client;
@@ -39,14 +42,22 @@ public sealed class NotesGrpcApiClient : INotesApiClient, IDisposable
     public NotesGrpcApiClient(
         IOptions<NotesGrpcClientOptions> options,
         ModuleEndpointProvider endpointProvider,
+        IHttpContextAccessor httpContextAccessor,
         ILogger<NotesGrpcApiClient> logger)
     {
         _options = options.Value;
         _endpointProvider = endpointProvider;
+        _httpContextAccessor = httpContextAccessor;
         _logger = logger;
         _channel = new Lazy<GrpcChannel>(CreateChannel);
         _client = new Lazy<NotesGrpcService.NotesGrpcServiceClient>(
             () => new NotesGrpcService.NotesGrpcServiceClient(_channel.Value));
+    }
+
+    private string GetUserId()
+    {
+        var userId = _httpContextAccessor.HttpContext?.User?.FindFirstValue(ClaimTypes.NameIdentifier);
+        return !string.IsNullOrEmpty(userId) ? userId : Guid.Empty.ToString();
     }
 
     private GrpcChannel CreateChannel()
@@ -70,7 +81,7 @@ public sealed class NotesGrpcApiClient : INotesApiClient, IDisposable
     {
         var request = new ListNotesRequest
         {
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             FolderId = folderId?.ToString() ?? string.Empty,
             Skip = 0,
             Take = 50
@@ -90,7 +101,7 @@ public sealed class NotesGrpcApiClient : INotesApiClient, IDisposable
     /// <inheritdoc />
     public async Task<NoteDto?> GetNoteAsync(Guid noteId, CancellationToken cancellationToken = default)
     {
-        var request = new GetNoteRequest { NoteId = noteId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new GetNoteRequest { NoteId = noteId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.GetNoteAsync(request, DeadlineHeaders(cancellationToken)).ResponseAsync;
@@ -108,7 +119,7 @@ public sealed class NotesGrpcApiClient : INotesApiClient, IDisposable
     {
         var request = new CreateNoteRequest
         {
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             FolderId = dto.FolderId?.ToString() ?? string.Empty,
             Title = dto.Title ?? string.Empty,
             Content = dto.Content ?? string.Empty,
@@ -133,7 +144,7 @@ public sealed class NotesGrpcApiClient : INotesApiClient, IDisposable
         var request = new UpdateNoteRequest
         {
             NoteId = noteId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             Title = dto.Title ?? string.Empty,
             Content = dto.Content ?? string.Empty,
             Format = dto.Format?.ToString() ?? string.Empty,
@@ -158,7 +169,7 @@ public sealed class NotesGrpcApiClient : INotesApiClient, IDisposable
     /// <inheritdoc />
     public async Task DeleteNoteAsync(Guid noteId, CancellationToken cancellationToken = default)
     {
-        var request = new DeleteNoteRequest { NoteId = noteId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new DeleteNoteRequest { NoteId = noteId.ToString(), UserId = GetUserId() };
         try
         {
             await _client.Value.DeleteNoteAsync(request, DeadlineHeaders(cancellationToken)).ResponseAsync;
@@ -176,7 +187,7 @@ public sealed class NotesGrpcApiClient : INotesApiClient, IDisposable
     {
         var request = new SearchNotesRequest
         {
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             Query = query ?? string.Empty,
             Skip = skip,
             Take = take
@@ -198,7 +209,7 @@ public sealed class NotesGrpcApiClient : INotesApiClient, IDisposable
     /// <inheritdoc />
     public async Task<IReadOnlyList<NoteFolderDto>> ListFoldersAsync(CancellationToken cancellationToken = default)
     {
-        var request = new ListFoldersRequest { UserId = Guid.Empty.ToString() };
+        var request = new ListFoldersRequest { UserId = GetUserId() };
         try
         {
             var response = await _client.Value.ListFoldersAsync(request, DeadlineHeaders(cancellationToken)).ResponseAsync;
@@ -216,7 +227,7 @@ public sealed class NotesGrpcApiClient : INotesApiClient, IDisposable
     {
         var request = new CreateFolderRequest
         {
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             ParentId = dto.ParentId?.ToString() ?? string.Empty,
             Name = dto.Name ?? string.Empty,
             Color = dto.Color ?? string.Empty
@@ -239,7 +250,7 @@ public sealed class NotesGrpcApiClient : INotesApiClient, IDisposable
         var request = new UpdateFolderRequest
         {
             FolderId = folderId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             Name = dto.Name ?? string.Empty,
             Color = dto.Color ?? string.Empty
         };
@@ -258,7 +269,7 @@ public sealed class NotesGrpcApiClient : INotesApiClient, IDisposable
     /// <inheritdoc />
     public async Task DeleteFolderAsync(Guid folderId, CancellationToken cancellationToken = default)
     {
-        var request = new DeleteFolderRequest { FolderId = folderId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new DeleteFolderRequest { FolderId = folderId.ToString(), UserId = GetUserId() };
         try
         {
             await _client.Value.DeleteFolderAsync(request, DeadlineHeaders(cancellationToken)).ResponseAsync;
@@ -292,7 +303,7 @@ public sealed class NotesGrpcApiClient : INotesApiClient, IDisposable
     /// <inheritdoc />
     public async Task<IReadOnlyList<NoteShareDto>> ListSharesAsync(Guid noteId, CancellationToken cancellationToken = default)
     {
-        var request = new ListSharesRequest { NoteId = noteId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new ListSharesRequest { NoteId = noteId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.ListSharesAsync(request, DeadlineHeaders(cancellationToken)).ResponseAsync;
@@ -318,7 +329,7 @@ public sealed class NotesGrpcApiClient : INotesApiClient, IDisposable
         var request = new ShareNoteRequest
         {
             NoteId = noteId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             TargetUserId = userId.ToString(),
             Permission = permission.ToString()
         };
@@ -347,7 +358,7 @@ public sealed class NotesGrpcApiClient : INotesApiClient, IDisposable
     /// <inheritdoc />
     public async Task RevokeShareAsync(Guid shareId, CancellationToken cancellationToken = default)
     {
-        var request = new RevokeShareRequest { ShareId = shareId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new RevokeShareRequest { ShareId = shareId.ToString(), UserId = GetUserId() };
         try
         {
             await _client.Value.RevokeShareAsync(request, DeadlineHeaders(cancellationToken)).ResponseAsync;
@@ -363,7 +374,7 @@ public sealed class NotesGrpcApiClient : INotesApiClient, IDisposable
     /// <inheritdoc />
     public async Task<IReadOnlyList<NoteVersionDto>> GetVersionHistoryAsync(Guid noteId, CancellationToken cancellationToken = default)
     {
-        var request = new GetVersionHistoryRequest { NoteId = noteId.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new GetVersionHistoryRequest { NoteId = noteId.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.GetVersionHistoryAsync(request, DeadlineHeaders(cancellationToken)).ResponseAsync;
@@ -392,7 +403,7 @@ public sealed class NotesGrpcApiClient : INotesApiClient, IDisposable
         {
             NoteId = noteId.ToString(),
             VersionId = versionId.ToString(),
-            UserId = Guid.Empty.ToString()
+            UserId = GetUserId()
         };
         try
         {

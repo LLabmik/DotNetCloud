@@ -391,6 +391,7 @@ public class Program
         builder.Services.AddCascadingAuthenticationState();
 
         // Blazor UI services (server-side prerendering needs these too)
+        builder.Services.AddHttpContextAccessor();
         builder.Services.AddSingleton<ModuleUiRegistry>();
         builder.Services.AddScoped<DotNetCloud.UI.Shared.Services.BrowserTimeProvider>();
         builder.Services.AddScoped<ToastService>();

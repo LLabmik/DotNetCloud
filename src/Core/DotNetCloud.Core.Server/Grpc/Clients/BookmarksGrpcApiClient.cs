@@ -1,7 +1,9 @@
+using System.Security.Claims;
 using DotNetCloud.Modules.Bookmarks.Models;
 using DotNetCloud.Modules.Bookmarks.Services;
 using Grpc.Core;
 using Grpc.Net.Client;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Proto = DotNetCloud.Modules.Bookmarks.Host.Protos;
@@ -29,6 +31,7 @@ public sealed class BookmarksGrpcApiClient : IBookmarksApiClient, IDisposable
 {
     private readonly BookmarksGrpcClientOptions _options;
     private readonly ModuleEndpointProvider _endpointProvider;
+    private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ILogger<BookmarksGrpcApiClient> _logger;
     private readonly Lazy<GrpcChannel> _channel;
     private readonly Lazy<Proto.BookmarksService.BookmarksServiceClient> _client;
@@ -38,14 +41,22 @@ public sealed class BookmarksGrpcApiClient : IBookmarksApiClient, IDisposable
     public BookmarksGrpcApiClient(
         IOptions<BookmarksGrpcClientOptions> options,
         ModuleEndpointProvider endpointProvider,
+        IHttpContextAccessor httpContextAccessor,
         ILogger<BookmarksGrpcApiClient> logger)
     {
         _options = options.Value;
         _endpointProvider = endpointProvider;
+        _httpContextAccessor = httpContextAccessor;
         _logger = logger;
         _channel = new Lazy<GrpcChannel>(CreateChannel);
         _client = new Lazy<Proto.BookmarksService.BookmarksServiceClient>(
             () => new Proto.BookmarksService.BookmarksServiceClient(_channel.Value));
+    }
+
+    private string GetUserId()
+    {
+        var userId = _httpContextAccessor.HttpContext?.User?.FindFirstValue(ClaimTypes.NameIdentifier);
+        return !string.IsNullOrEmpty(userId) ? userId : Guid.Empty.ToString();
     }
 
     private GrpcChannel CreateChannel()
@@ -69,7 +80,7 @@ public sealed class BookmarksGrpcApiClient : IBookmarksApiClient, IDisposable
     {
         var request = new Proto.ListBookmarksRequest
         {
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             FolderId = folderId?.ToString() ?? string.Empty,
             Skip = skip,
             Take = take
@@ -89,7 +100,7 @@ public sealed class BookmarksGrpcApiClient : IBookmarksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<BookmarkItem?> GetAsync(Guid id, CancellationToken ct = default)
     {
-        var request = new Proto.GetBookmarkRequest { BookmarkId = id.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new Proto.GetBookmarkRequest { BookmarkId = id.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.GetBookmarkAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -107,7 +118,7 @@ public sealed class BookmarksGrpcApiClient : IBookmarksApiClient, IDisposable
     {
         var request = new Proto.CreateBookmarkRequest
         {
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             Url = req.Url,
             Title = req.Title ?? string.Empty,
             Description = req.Description ?? string.Empty,
@@ -134,7 +145,7 @@ public sealed class BookmarksGrpcApiClient : IBookmarksApiClient, IDisposable
         var request = new Proto.UpdateBookmarkRequest
         {
             BookmarkId = id.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             Url = req.Url ?? string.Empty,
             Title = req.Title ?? string.Empty,
             Description = req.Description ?? string.Empty,
@@ -158,7 +169,7 @@ public sealed class BookmarksGrpcApiClient : IBookmarksApiClient, IDisposable
     /// <inheritdoc />
     public async Task DeleteAsync(Guid id, CancellationToken ct = default)
     {
-        var request = new Proto.DeleteBookmarkRequest { BookmarkId = id.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new Proto.DeleteBookmarkRequest { BookmarkId = id.ToString(), UserId = GetUserId() };
         try
         {
             await _client.Value.DeleteBookmarkAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -174,7 +185,7 @@ public sealed class BookmarksGrpcApiClient : IBookmarksApiClient, IDisposable
     {
         var request = new Proto.SearchBookmarksRequest
         {
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             Query = query,
             Skip = skip,
             Take = take
@@ -198,7 +209,7 @@ public sealed class BookmarksGrpcApiClient : IBookmarksApiClient, IDisposable
     {
         var request = new Proto.ListBookmarkFoldersRequest
         {
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             ParentId = parentId?.ToString() ?? string.Empty
         };
         try
@@ -216,7 +227,7 @@ public sealed class BookmarksGrpcApiClient : IBookmarksApiClient, IDisposable
     /// <inheritdoc />
     public async Task<BookmarkFolder?> GetFolderAsync(Guid id, CancellationToken ct = default)
     {
-        var request = new Proto.GetBookmarkFolderRequest { FolderId = id.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new Proto.GetBookmarkFolderRequest { FolderId = id.ToString(), UserId = GetUserId() };
         try
         {
             var response = await _client.Value.GetFolderAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -234,7 +245,7 @@ public sealed class BookmarksGrpcApiClient : IBookmarksApiClient, IDisposable
     {
         var request = new Proto.CreateBookmarkFolderRequest
         {
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             Name = req.Name,
             ParentId = req.ParentId?.ToString() ?? string.Empty,
             Color = req.Color ?? string.Empty
@@ -257,7 +268,7 @@ public sealed class BookmarksGrpcApiClient : IBookmarksApiClient, IDisposable
         var request = new Proto.UpdateBookmarkFolderRequest
         {
             FolderId = id.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = GetUserId(),
             Name = req.Name ?? string.Empty,
             Color = req.Color ?? string.Empty
         };
@@ -276,7 +287,7 @@ public sealed class BookmarksGrpcApiClient : IBookmarksApiClient, IDisposable
     /// <inheritdoc />
     public async Task DeleteFolderAsync(Guid id, CancellationToken ct = default)
     {
-        var request = new Proto.DeleteBookmarkFolderRequest { FolderId = id.ToString(), UserId = Guid.Empty.ToString() };
+        var request = new Proto.DeleteBookmarkFolderRequest { FolderId = id.ToString(), UserId = GetUserId() };
         try
         {
             await _client.Value.DeleteFolderAsync(request, DeadlineHeaders(ct)).ResponseAsync;

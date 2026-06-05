@@ -1,10 +1,12 @@
 using System.Globalization;
+using System.Security.Claims;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Modules.Calendar.Host.Protos;
 using DotNetCloud.Modules.Calendar.Services;
 using DotNetCloud.Modules.Contacts.Host.Protos;
 using Grpc.Core;
 using Grpc.Net.Client;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -36,6 +38,7 @@ public sealed class CalendarGrpcApiClient : ICalendarApiClient, IDisposable
 {
     private readonly CalendarGrpcClientOptions _options;
     private readonly ModuleEndpointProvider _endpointProvider;
+    private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ILogger<CalendarGrpcApiClient> _logger;
     private readonly Lazy<GrpcChannel> _channel;
     private readonly Lazy<CalendarGrpcService.CalendarGrpcServiceClient> _client;
@@ -47,10 +50,12 @@ public sealed class CalendarGrpcApiClient : ICalendarApiClient, IDisposable
     public CalendarGrpcApiClient(
         IOptions<CalendarGrpcClientOptions> options,
         ModuleEndpointProvider endpointProvider,
+        IHttpContextAccessor httpContextAccessor,
         ILogger<CalendarGrpcApiClient> logger)
     {
         _options = options.Value;
         _endpointProvider = endpointProvider;
+        _httpContextAccessor = httpContextAccessor;
         _logger = logger;
         _channel = new Lazy<GrpcChannel>(() => CreateChannel());
         _client = new Lazy<CalendarGrpcService.CalendarGrpcServiceClient>(
@@ -60,13 +65,19 @@ public sealed class CalendarGrpcApiClient : ICalendarApiClient, IDisposable
             () => new ContactsService.ContactsServiceClient(_contactsChannel.Value));
     }
 
+    private string GetUserId()
+    {
+        var userId = _httpContextAccessor.HttpContext?.User?.FindFirstValue(ClaimTypes.NameIdentifier);
+        return !string.IsNullOrEmpty(userId) ? userId : Guid.Empty.ToString();
+    }
+
     // ─── Calendar CRUD ──────────────────────────────────────────────────────
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<CalendarDto>> ListCalendarsAsync(CancellationToken cancellationToken = default)
         => (await SafeCallListAsync(async () =>
         {
-            var request = new ListCalendarsRequest { UserId = Guid.Empty.ToString() };
+            var request = new ListCalendarsRequest { UserId = GetUserId() };
             var response = await _client.Value.ListCalendarsAsync(request, DeadlineHeaders(cancellationToken)).ResponseAsync;
             return !response.Success ? (IReadOnlyList<CalendarDto>)[] : response.Calendars.Select(c => ToCalendarDto(c)!).Where(c => c is not null).Select(c => c!).ToList();
         }, "ListCalendars", Array.Empty<CalendarDto>()))!;
@@ -77,7 +88,7 @@ public sealed class CalendarGrpcApiClient : ICalendarApiClient, IDisposable
         {
             var request = new CreateCalendarRequest
             {
-                UserId = Guid.Empty.ToString(),
+                UserId = GetUserId(),
                 Name = dto.Name,
                 Description = dto.Description ?? string.Empty,
                 Color = dto.Color ?? string.Empty,
@@ -95,7 +106,7 @@ public sealed class CalendarGrpcApiClient : ICalendarApiClient, IDisposable
             var request = new UpdateCalendarRequest
             {
                 CalendarId = calendarId.ToString(),
-                UserId = Guid.Empty.ToString(),
+                UserId = GetUserId(),
                 Name = dto.Name ?? string.Empty,
                 Description = dto.Description ?? string.Empty,
                 Color = dto.Color ?? string.Empty,
@@ -110,7 +121,7 @@ public sealed class CalendarGrpcApiClient : ICalendarApiClient, IDisposable
     public async Task DeleteCalendarAsync(Guid calendarId, CancellationToken cancellationToken = default)
         => await SafeCallAsync(async () =>
         {
-            var request = new DeleteCalendarRequest { CalendarId = calendarId.ToString(), UserId = Guid.Empty.ToString() };
+            var request = new DeleteCalendarRequest { CalendarId = calendarId.ToString(), UserId = GetUserId() };
             await _client.Value.DeleteCalendarAsync(request, DeadlineHeaders(cancellationToken)).ResponseAsync;
         }, "DeleteCalendar");
 
@@ -123,7 +134,7 @@ public sealed class CalendarGrpcApiClient : ICalendarApiClient, IDisposable
             var request = new ListEventsRequest
             {
                 CalendarId = calendarId.ToString(),
-                UserId = Guid.Empty.ToString(),
+                UserId = GetUserId(),
                 FromUtc = startUtc?.ToString("O") ?? string.Empty,
                 ToUtc = endUtc?.ToString("O") ?? string.Empty,
                 Skip = 0,
@@ -155,7 +166,7 @@ public sealed class CalendarGrpcApiClient : ICalendarApiClient, IDisposable
     public async Task<CalendarEventDto?> GetEventAsync(Guid eventId, CancellationToken cancellationToken = default)
         => await SafeCallAsync(async () =>
         {
-            var request = new GetEventRequest { EventId = eventId.ToString(), UserId = Guid.Empty.ToString() };
+            var request = new GetEventRequest { EventId = eventId.ToString(), UserId = GetUserId() };
             var response = await _client.Value.GetEventAsync(request, DeadlineHeaders(cancellationToken)).ResponseAsync;
             return response.Success ? ToEventDto(response.Event) : null;
         }, "GetEvent");
@@ -164,7 +175,7 @@ public sealed class CalendarGrpcApiClient : ICalendarApiClient, IDisposable
     public async Task DeleteEventAsync(Guid eventId, CancellationToken cancellationToken = default)
         => await SafeCallAsync(async () =>
         {
-            var request = new DeleteEventRequest { EventId = eventId.ToString(), UserId = Guid.Empty.ToString() };
+            var request = new DeleteEventRequest { EventId = eventId.ToString(), UserId = GetUserId() };
             await _client.Value.DeleteEventAsync(request, DeadlineHeaders(cancellationToken)).ResponseAsync;
         }, "DeleteEvent");
 
@@ -174,7 +185,7 @@ public sealed class CalendarGrpcApiClient : ICalendarApiClient, IDisposable
     public async Task<CalendarEventDto?> RsvpAsync(Guid eventId, EventRsvpDto rsvp, CancellationToken cancellationToken = default)
         => await SafeCallAsync(async () =>
         {
-            var request = new RsvpRequest { EventId = eventId.ToString(), UserId = Guid.Empty.ToString(), Status = rsvp.Status.ToString(), Comment = rsvp.Comment ?? string.Empty };
+            var request = new RsvpRequest { EventId = eventId.ToString(), UserId = GetUserId(), Status = rsvp.Status.ToString(), Comment = rsvp.Comment ?? string.Empty };
             var response = await _client.Value.RsvpAsync(request, DeadlineHeaders(cancellationToken)).ResponseAsync;
             return response.Success ? ToEventDto(response.Event) : null;
         }, "Rsvp");
@@ -187,7 +198,7 @@ public sealed class CalendarGrpcApiClient : ICalendarApiClient, IDisposable
         {
             var request = new SearchEventsRequest
             {
-                UserId = Guid.Empty.ToString(),
+                UserId = GetUserId(),
                 Query = query ?? string.Empty,
                 FromUtc = from?.ToString("O") ?? string.Empty,
                 ToUtc = to?.ToString("O") ?? string.Empty,
@@ -204,7 +215,7 @@ public sealed class CalendarGrpcApiClient : ICalendarApiClient, IDisposable
     public async Task<IReadOnlyList<CalendarShareResponse>> ListSharesAsync(Guid calendarId, CancellationToken cancellationToken = default)
         => (await SafeCallListAsync(async () =>
         {
-            var request = new ListCalendarSharesRequest { CalendarId = calendarId.ToString(), UserId = Guid.Empty.ToString() };
+            var request = new ListCalendarSharesRequest { CalendarId = calendarId.ToString(), UserId = GetUserId() };
             var response = await _client.Value.ListCalendarSharesAsync(request, DeadlineHeaders(cancellationToken)).ResponseAsync;
             return !response.Success ? (IReadOnlyList<CalendarShareResponse>)[] : response.Shares.Select(s => new CalendarShareResponse
             {
@@ -225,7 +236,7 @@ public sealed class CalendarGrpcApiClient : ICalendarApiClient, IDisposable
             var request = new ShareCalendarRequest
             {
                 CalendarId = calendarId.ToString(),
-                UserId = Guid.Empty.ToString(),
+                UserId = GetUserId(),
                 TargetUserId = userId?.ToString() ?? string.Empty,
                 TeamId = teamId?.ToString() ?? string.Empty,
                 Permission = permission
@@ -250,7 +261,7 @@ public sealed class CalendarGrpcApiClient : ICalendarApiClient, IDisposable
     public async Task RevokeShareAsync(Guid shareId, CancellationToken cancellationToken = default)
         => await SafeCallAsync(async () =>
         {
-            var request = new RevokeCalendarShareRequest { ShareId = shareId.ToString(), UserId = Guid.Empty.ToString() };
+            var request = new RevokeCalendarShareRequest { ShareId = shareId.ToString(), UserId = GetUserId() };
             await _client.Value.RevokeCalendarShareAsync(request, DeadlineHeaders(cancellationToken)).ResponseAsync;
         }, "RevokeShare");
 
@@ -260,7 +271,7 @@ public sealed class CalendarGrpcApiClient : ICalendarApiClient, IDisposable
     public async Task<string> ExportCalendarICalAsync(Guid calendarId, CancellationToken cancellationToken = default)
         => (await SafeCallAsync(async () =>
         {
-            var request = new ExportCalendarICalRequest { CalendarId = calendarId.ToString(), UserId = Guid.Empty.ToString() };
+            var request = new ExportCalendarICalRequest { CalendarId = calendarId.ToString(), UserId = GetUserId() };
             var response = await _client.Value.ExportCalendarICalAsync(request, DeadlineHeaders(cancellationToken)).ResponseAsync;
             return response.Success ? response.IcalText : string.Empty;
         }, "ExportCalendarICal", string.Empty))!;
@@ -269,7 +280,7 @@ public sealed class CalendarGrpcApiClient : ICalendarApiClient, IDisposable
     public async Task ImportICalAsync(Guid calendarId, string iCalText, CancellationToken cancellationToken = default)
         => await SafeCallAsync(async () =>
         {
-            var request = new ImportICalRequest { UserId = Guid.Empty.ToString(), CalendarId = calendarId.ToString(), IcalText = iCalText };
+            var request = new ImportICalRequest { UserId = GetUserId(), CalendarId = calendarId.ToString(), IcalText = iCalText };
             await _client.Value.ImportICalAsync(request, DeadlineHeaders(cancellationToken)).ResponseAsync;
         }, "ImportICal");
 
@@ -285,7 +296,7 @@ public sealed class CalendarGrpcApiClient : ICalendarApiClient, IDisposable
         {
             var request = new SearchContactsRequest
             {
-                UserId = Guid.Empty.ToString(),
+                UserId = GetUserId(),
                 Query = query.Trim(),
                 MaxResults = maxResults
             };
@@ -373,9 +384,9 @@ public sealed class CalendarGrpcApiClient : ICalendarApiClient, IDisposable
         });
     }
 
-    private static CreateEventRequest ToCreateEventRequest(CreateCalendarEventDto dto) => new()
+    private CreateEventRequest ToCreateEventRequest(CreateCalendarEventDto dto) => new()
     {
-        UserId = Guid.Empty.ToString(),
+        UserId = GetUserId(),
         CalendarId = dto.CalendarId.ToString(),
         Title = dto.Title,
         Description = dto.Description ?? string.Empty,
@@ -390,10 +401,10 @@ public sealed class CalendarGrpcApiClient : ICalendarApiClient, IDisposable
         Reminders = { dto.Reminders.Select(r => new ReminderMessage { Method = r.Method.ToString(), MinutesBefore = r.MinutesBefore }) }
     };
 
-    private static UpdateEventRequest ToUpdateEventRequest(Guid eventId, UpdateCalendarEventDto dto) => new()
+    private UpdateEventRequest ToUpdateEventRequest(Guid eventId, UpdateCalendarEventDto dto) => new()
     {
         EventId = eventId.ToString(),
-        UserId = Guid.Empty.ToString(),
+        UserId = GetUserId(),
         Title = dto.Title ?? string.Empty,
         Description = dto.Description ?? string.Empty,
         Location = dto.Location ?? string.Empty,

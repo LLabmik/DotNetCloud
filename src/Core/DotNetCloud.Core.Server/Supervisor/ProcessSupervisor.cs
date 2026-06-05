@@ -386,6 +386,12 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
             startInfo.Environment["DOTNETCLOUD_MODULE_ID"] = discovered.ModuleId;
             startInfo.Environment["DOTNETCLOUD_GRPC_ENDPOINT"] = grpcEndpoint;
             startInfo.Environment["DOTNETCLOUD_CORE_ENDPOINT"] = BuildCoreEndpoint();
+
+            // Forward shared config and data directory env vars so modules can
+            // load config.json and find DataProtection keys / file storage.
+            ForwardEnvVar(startInfo, "DOTNETCLOUD_CONFIG_DIR");
+            ForwardEnvVar(startInfo, "DOTNETCLOUD_DATA_DIR");
+
             startInfo.WorkingDirectory = fullModuleDir;
 
             var process = Process.Start(startInfo);
@@ -416,6 +422,15 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
             _logger.LogError(ex, "Failed to spawn process for module {ModuleId}", discovered.ModuleId);
             return null;
         }
+    }
+
+    /// <summary>Copies an environment variable from the current process to the child
+    /// process if it is set.</summary>
+    private static void ForwardEnvVar(ProcessStartInfo startInfo, string name)
+    {
+        var value = Environment.GetEnvironmentVariable(name);
+        if (!string.IsNullOrEmpty(value))
+            startInfo.Environment[name] = value;
     }
 
     // ---- Health Monitoring ----
