@@ -9,7 +9,6 @@
 @inject IVideoCollectionService CollectionService
 @inject ISubtitleService SubtitleService
 @inject IWatchProgressService WatchProgressService
-@inject IVideoStreamingService StreamingService
 @inject IVideoMetadataService MetadataService
 @inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthenticationStateProvider
 @inject DotNetCloud.Core.Services.IUserSettingsService UserSettingsService
@@ -1256,7 +1255,7 @@
                     <div id="player-container" class="player-container">
                         <video id="video-player"
                                class="video-player"
-                               src="@GetStreamUrl(_playerVideo.Id)"
+                               src="@GetStreamUrl(_playerVideo.FileNodeId)"
                                controls
                                autoplay
                                preload="auto">

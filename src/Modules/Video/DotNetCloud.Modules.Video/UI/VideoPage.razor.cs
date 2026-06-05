@@ -84,7 +84,6 @@ public partial class VideoPage : IAsyncDisposable
     private VideoDto? _playerVideo;
     private VideoMetadataDto? _playerMetadata;
     private List<SubtitleDto> _playerSubtitles = [];
-    private string? _streamToken;
     private string? _codecErrorMessage;
     private string? _codecErrorGuidance;
     private bool _noAudioDetected;
@@ -673,7 +672,6 @@ public partial class VideoPage : IAsyncDisposable
             _playerSubtitles = (await SubtitleService.GetSubtitlesAsync(video.Id, caller)).ToList();
             _playerMetadata = await MetadataService.GetMetadataAsync(video.Id);
 
-            _streamToken = StreamingService.GenerateStreamToken(video.Id, caller.UserId);
             _codecErrorMessage = null;
             _codecErrorGuidance = null;
             _noAudioDetected = false;
@@ -716,7 +714,6 @@ public partial class VideoPage : IAsyncDisposable
         _playerVideo = null;
         _playerMetadata = null;
         _playerSubtitles.Clear();
-        _streamToken = null;
         _codecErrorMessage = null;
         _codecErrorGuidance = null;
         _noAudioDetected = false;
@@ -1119,10 +1116,8 @@ public partial class VideoPage : IAsyncDisposable
         };
     }
 
-    private string GetStreamUrl(Guid videoId) =>
-        _streamToken is not null
-            ? $"/api/v1/videos/{videoId}/stream?token={Uri.EscapeDataString(_streamToken)}"
-            : $"/api/v1/videos/{videoId}/stream";
+    private static string GetStreamUrl(Guid fileNodeId) =>
+        $"/api/v1/files/{fileNodeId}/content";
 
     private static string GetSubtitleUrl(Guid subtitleId) => $"/api/v1/videos/subtitles/{subtitleId}";
 
