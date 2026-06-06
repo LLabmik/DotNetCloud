@@ -553,7 +553,15 @@ public class Program
                     linuxDataDir,
                     sp.GetRequiredService<ILogger<LinuxResourceHealthCheck>>()),
                 failureStatus: null,
-                tags: ["ready"]));
+                tags: ["ready"]))
+            .Add(new Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckRegistration(
+                "modules-aggregate",
+                sp => new ModulesAggregateHealthCheck(
+                    sp.GetRequiredService<IProcessSupervisor>(),
+                    sp.GetRequiredService<Supervisor.GrpcChannelManager>(),
+                    sp.GetRequiredService<ILogger<ModulesAggregateHealthCheck>>()),
+                failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy,
+                tags: ["module"]));
         builder.Services.AddSingleton(sp =>
             new LinuxResourceMonitorService(
                 linuxDataDir,

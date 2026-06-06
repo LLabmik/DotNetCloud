@@ -451,7 +451,7 @@ public sealed class DotNetCloudApiClient
     /// </summary>
     public async Task<HealthReportDto?> GetHealthAsync(CancellationToken ct = default)
     {
-        var envelope = await _http.GetFromJsonAsync<ApiEnvelope<HealthReportDto>>("api/v1/core/admin/health", ct);
+        var envelope = await _http.GetFromJsonAsync<ApiEnvelope<HealthReportDto>>("api/v1/core/admin/health", JsonOptions, ct);
         return envelope?.Data;
     }
 
@@ -461,7 +461,7 @@ public sealed class DotNetCloudApiClient
     public async Task<IReadOnlyList<BackgroundServiceStatusDto>> GetBackgroundServicesAsync(CancellationToken ct = default)
     {
         var envelope = await _http.GetFromJsonAsync<ApiEnvelope<IReadOnlyList<BackgroundServiceStatusDto>>>(
-            "api/v1/core/admin/background-services", ct);
+            "api/v1/core/admin/background-services", JsonOptions, ct);
         return envelope?.Data ?? [];
     }
 
