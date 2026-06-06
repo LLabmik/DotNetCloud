@@ -58,7 +58,7 @@ public sealed class CalendarGrpcService : Protos.CalendarGrpcService.CalendarGrp
         try
         {
             var result = await _calendarService.CreateCalendarAsync(
-                dto, CallerContext.CreateSystemContext(), context.CancellationToken);
+                dto, new CallerContext(userId, Array.Empty<string>(), CallerType.User), context.CancellationToken);
             return new CalendarResponse { Success = true, Calendar = ToCalendarMessage(result) };
         }
         catch (Exception ex) when (ex is ArgumentException or Core.Errors.ValidationException)
@@ -76,7 +76,7 @@ public sealed class CalendarGrpcService : Protos.CalendarGrpcService.CalendarGrp
             return new CalendarResponse { Success = false, ErrorMessage = "Invalid ID format." };
 
         var result = await _calendarService.GetCalendarAsync(
-            calendarId, CallerContext.CreateSystemContext(), context.CancellationToken);
+            calendarId, new CallerContext(userId, Array.Empty<string>(), CallerType.User), context.CancellationToken);
 
         return result is null
             ? new CalendarResponse { Success = false, ErrorMessage = "Calendar not found." }
@@ -91,7 +91,7 @@ public sealed class CalendarGrpcService : Protos.CalendarGrpcService.CalendarGrp
             return new ListCalendarsResponse { Success = false, ErrorMessage = "Invalid user ID format." };
 
         var results = await _calendarService.ListCalendarsAsync(
-            CallerContext.CreateSystemContext(), context.CancellationToken);
+            new CallerContext(userId, Array.Empty<string>(), CallerType.User), context.CancellationToken);
 
         // Filter by organization if requested
         if (Guid.TryParse(request.OrganizationId, out var orgId))
@@ -146,7 +146,7 @@ public sealed class CalendarGrpcService : Protos.CalendarGrpcService.CalendarGrp
         try
         {
             var result = await _eventService.CreateEventAsync(
-                dto, CallerContext.CreateSystemContext(), context.CancellationToken);
+                dto, new CallerContext(userId, Array.Empty<string>(), CallerType.User), context.CancellationToken);
             return new EventResponse { Success = true, Event = ToEventMessage(result) };
         }
         catch (Exception ex) when (ex is ArgumentException or Core.Errors.ValidationException)
@@ -164,7 +164,7 @@ public sealed class CalendarGrpcService : Protos.CalendarGrpcService.CalendarGrp
             return new EventResponse { Success = false, ErrorMessage = "Invalid ID format." };
 
         var result = await _eventService.GetEventAsync(
-            eventId, CallerContext.CreateSystemContext(), context.CancellationToken);
+            eventId, new CallerContext(userId, Array.Empty<string>(), CallerType.User), context.CancellationToken);
 
         return result is null
             ? new EventResponse { Success = false, ErrorMessage = "Event not found." }
@@ -185,7 +185,7 @@ public sealed class CalendarGrpcService : Protos.CalendarGrpcService.CalendarGrp
 
         var results = await _eventService.ListEventsAsync(
             calendarId,
-            CallerContext.CreateSystemContext(),
+            new CallerContext(userId, Array.Empty<string>(), CallerType.User),
             from, to, request.Skip, take,
             context.CancellationToken);
 
@@ -219,7 +219,7 @@ public sealed class CalendarGrpcService : Protos.CalendarGrpcService.CalendarGrp
         try
         {
             var result = await _eventService.UpdateEventAsync(
-                eventId, dto, CallerContext.CreateSystemContext(), context.CancellationToken);
+                eventId, dto, new CallerContext(userId, Array.Empty<string>(), CallerType.User), context.CancellationToken);
             return new EventResponse { Success = true, Event = ToEventMessage(result) };
         }
         catch (Exception ex) when (ex is ArgumentException or Core.Errors.ValidationException)
@@ -239,7 +239,7 @@ public sealed class CalendarGrpcService : Protos.CalendarGrpcService.CalendarGrp
         try
         {
             await _eventService.DeleteEventAsync(
-                eventId, CallerContext.CreateSystemContext(), context.CancellationToken);
+                eventId, new CallerContext(userId, Array.Empty<string>(), CallerType.User), context.CancellationToken);
             return new DeleteEventResponse { Success = true };
         }
         catch (Exception ex) when (ex is ArgumentException or Core.Errors.ValidationException)
@@ -268,7 +268,7 @@ public sealed class CalendarGrpcService : Protos.CalendarGrpcService.CalendarGrp
         try
         {
             var result = await _eventService.RsvpAsync(
-                eventId, dto, CallerContext.CreateSystemContext(), context.CancellationToken);
+                eventId, dto, new CallerContext(userId, Array.Empty<string>(), CallerType.User), context.CancellationToken);
             return new EventResponse { Success = true, Event = ToEventMessage(result) };
         }
         catch (Exception ex) when (ex is ArgumentException or Core.Errors.ValidationException)
@@ -288,7 +288,7 @@ public sealed class CalendarGrpcService : Protos.CalendarGrpcService.CalendarGrp
         try
         {
             var ical = await _icalService.ExportEventAsync(
-                eventId, CallerContext.CreateSystemContext(), context.CancellationToken);
+                eventId, new CallerContext(userId, Array.Empty<string>(), CallerType.User), context.CancellationToken);
             return new ExportICalResponse { Success = true, IcalText = ical };
         }
         catch (Exception ex) when (ex is Core.Errors.ValidationException)
@@ -309,7 +309,7 @@ public sealed class CalendarGrpcService : Protos.CalendarGrpcService.CalendarGrp
         {
             var results = await _icalService.ImportEventsAsync(
                 calendarId, request.IcalText,
-                CallerContext.CreateSystemContext(), context.CancellationToken);
+                new CallerContext(userId, Array.Empty<string>(), CallerType.User), context.CancellationToken);
 
             var response = new ImportICalResponse { Success = true };
             response.CreatedEventIds.AddRange(results.Select(r => r.Id.ToString()));
@@ -483,7 +483,7 @@ public sealed class CalendarGrpcService : Protos.CalendarGrpcService.CalendarGrp
         try
         {
             var result = await _calendarService.UpdateCalendarAsync(
-                calendarId, dto, CallerContext.CreateSystemContext(), context.CancellationToken);
+                calendarId, dto, new CallerContext(userId, Array.Empty<string>(), CallerType.User), context.CancellationToken);
             return new CalendarResponse { Success = true, Calendar = ToCalendarMessage(result) };
         }
         catch (Exception ex) when (ex is ArgumentException or Core.Errors.ValidationException)
@@ -503,7 +503,7 @@ public sealed class CalendarGrpcService : Protos.CalendarGrpcService.CalendarGrp
         try
         {
             await _calendarService.DeleteCalendarAsync(
-                calendarId, CallerContext.CreateSystemContext(), context.CancellationToken);
+                calendarId, new CallerContext(userId, Array.Empty<string>(), CallerType.User), context.CancellationToken);
             return new DeleteCalendarResponse { Success = true };
         }
         catch (Exception ex) when (ex is ArgumentException or Core.Errors.ValidationException)
@@ -525,7 +525,7 @@ public sealed class CalendarGrpcService : Protos.CalendarGrpcService.CalendarGrp
         try
         {
             var ical = await _icalService.ExportCalendarAsync(
-                calendarId, CallerContext.CreateSystemContext(), context.CancellationToken);
+                calendarId, new CallerContext(userId, Array.Empty<string>(), CallerType.User), context.CancellationToken);
             return new ExportICalResponse { Success = true, IcalText = ical };
         }
         catch (Exception ex) when (ex is Core.Errors.ValidationException)
@@ -548,7 +548,7 @@ public sealed class CalendarGrpcService : Protos.CalendarGrpcService.CalendarGrp
         var query = NullIfEmpty(request.Query);
 
         var results = await _eventService.SearchEventsAsync(
-            CallerContext.CreateSystemContext(),
+            new CallerContext(userId, Array.Empty<string>(), CallerType.User),
             query, from, to, request.Skip, request.Take > 0 ? request.Take : 50,
             context.CancellationToken);
 
@@ -572,7 +572,7 @@ public sealed class CalendarGrpcService : Protos.CalendarGrpcService.CalendarGrp
             return new ListCalendarSharesResponse { Success = false, ErrorMessage = "Sharing not available" };
 
         var shares = await svc.ListSharesAsync(
-            calendarId, CallerContext.CreateSystemContext(), context.CancellationToken);
+            calendarId, new CallerContext(userId, Array.Empty<string>(), CallerType.User), context.CancellationToken);
 
         var response = new ListCalendarSharesResponse { Success = true };
         response.Shares.AddRange(shares.Select(s => new CalendarShareMessage
@@ -610,7 +610,7 @@ public sealed class CalendarGrpcService : Protos.CalendarGrpcService.CalendarGrp
 
             var share = await svc2.ShareCalendarAsync(
                 calendarId, targetUserId, teamId, permission,
-                CallerContext.CreateSystemContext(), context.CancellationToken);
+                new CallerContext(userId, Array.Empty<string>(), CallerType.User), context.CancellationToken);
 
             return new ShareCalendarResponse
             {
@@ -648,7 +648,7 @@ public sealed class CalendarGrpcService : Protos.CalendarGrpcService.CalendarGrp
                 return new RevokeCalendarShareResponse { Success = false, ErrorMessage = "Sharing not available" };
 
             await svc3.RemoveShareAsync(
-                shareId, CallerContext.CreateSystemContext(), context.CancellationToken);
+                shareId, new CallerContext(userId, Array.Empty<string>(), CallerType.User), context.CancellationToken);
             return new RevokeCalendarShareResponse { Success = true };
         }
         catch (Exception ex) when (ex is ArgumentException or Core.Errors.ValidationException)

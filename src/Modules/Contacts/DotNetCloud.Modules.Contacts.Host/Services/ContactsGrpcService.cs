@@ -100,7 +100,7 @@ public sealed class ContactsGrpcService : ContactsService.ContactsServiceBase
         try
         {
             var result = await _contactService.CreateContactAsync(
-                dto, CallerContext.CreateSystemContext(), context.CancellationToken);
+                dto, new CallerContext(userId, Array.Empty<string>(), CallerType.User), context.CancellationToken);
 
             return new ContactResponse { Success = true, Contact = ToContactMessage(result) };
         }
@@ -121,7 +121,7 @@ public sealed class ContactsGrpcService : ContactsService.ContactsServiceBase
         }
 
         var result = await _contactService.GetContactAsync(
-            contactId, CallerContext.CreateSystemContext(), context.CancellationToken);
+            contactId, new CallerContext(userId, Array.Empty<string>(), CallerType.User), context.CancellationToken);
 
         if (result is null)
         {
@@ -145,7 +145,7 @@ public sealed class ContactsGrpcService : ContactsService.ContactsServiceBase
             var take = request.Take > 0 ? request.Take : 50;
 
             var results = await _contactService.ListContactsAsync(
-                CallerContext.CreateSystemContext(),
+                new CallerContext(userId, Array.Empty<string>(), CallerType.User),
                 NullIfEmpty(request.Search),
                 request.Skip,
                 take,
@@ -191,7 +191,7 @@ public sealed class ContactsGrpcService : ContactsService.ContactsServiceBase
         try
         {
             var result = await _contactService.UpdateContactAsync(
-                contactId, dto, CallerContext.CreateSystemContext(), context.CancellationToken);
+                contactId, dto, new CallerContext(userId, Array.Empty<string>(), CallerType.User), context.CancellationToken);
 
             return new ContactResponse { Success = true, Contact = ToContactMessage(result) };
         }
@@ -214,7 +214,7 @@ public sealed class ContactsGrpcService : ContactsService.ContactsServiceBase
         try
         {
             await _contactService.DeleteContactAsync(
-                contactId, CallerContext.CreateSystemContext(), context.CancellationToken);
+                contactId, new CallerContext(userId, Array.Empty<string>(), CallerType.User), context.CancellationToken);
 
             return new DeleteContactResponse { Success = true };
         }
@@ -237,7 +237,7 @@ public sealed class ContactsGrpcService : ContactsService.ContactsServiceBase
         try
         {
             var vcard = await _vcardService.ExportVCardAsync(
-                contactId, CallerContext.CreateSystemContext(), context.CancellationToken);
+                contactId, new CallerContext(userId, Array.Empty<string>(), CallerType.User), context.CancellationToken);
 
             return new ExportVCardResponse { Success = true, VcardText = vcard };
         }
@@ -259,7 +259,7 @@ public sealed class ContactsGrpcService : ContactsService.ContactsServiceBase
         try
         {
             var ids = await _vcardService.ImportVCardsAsync(
-                request.VcardText, CallerContext.CreateSystemContext(), context.CancellationToken);
+                request.VcardText, new CallerContext(userId, Array.Empty<string>(), CallerType.User), context.CancellationToken);
 
             var response = new ImportVCardsResponse { Success = true };
             response.CreatedContactIds.AddRange(ids.Select(id => id.ToString()));
@@ -473,7 +473,7 @@ public sealed class ContactsGrpcService : ContactsService.ContactsServiceBase
             return new ListGroupsResponse { Success = false, ErrorMessage = "Invalid user ID format." };
 
         var groups = await _groupService.ListGroupsAsync(
-            CallerContext.CreateSystemContext(), context.CancellationToken);
+            new CallerContext(userId, Array.Empty<string>(), CallerType.User), context.CancellationToken);
 
         var response = new ListGroupsResponse { Success = true };
         response.Groups.AddRange(groups.Select(g => new GroupMessage
@@ -496,7 +496,7 @@ public sealed class ContactsGrpcService : ContactsService.ContactsServiceBase
             return new GroupResponse { Success = false, ErrorMessage = "Invalid ID format." };
 
         var group = await _groupService.GetGroupAsync(
-            groupId, CallerContext.CreateSystemContext(), context.CancellationToken);
+            groupId, new CallerContext(userId, Array.Empty<string>(), CallerType.User), context.CancellationToken);
 
         return group is null
             ? new GroupResponse { Success = false, ErrorMessage = "Group not found." }
@@ -524,7 +524,7 @@ public sealed class ContactsGrpcService : ContactsService.ContactsServiceBase
         try
         {
             var group = await _groupService.CreateGroupAsync(
-                request.Name, CallerContext.CreateSystemContext(), context.CancellationToken);
+                request.Name, new CallerContext(userId, Array.Empty<string>(), CallerType.User), context.CancellationToken);
 
             return new GroupResponse
             {
@@ -556,7 +556,7 @@ public sealed class ContactsGrpcService : ContactsService.ContactsServiceBase
         try
         {
             var group = await _groupService.RenameGroupAsync(
-                groupId, request.NewName, CallerContext.CreateSystemContext(), context.CancellationToken);
+                groupId, request.NewName, new CallerContext(userId, Array.Empty<string>(), CallerType.User), context.CancellationToken);
 
             return new GroupResponse
             {
@@ -588,7 +588,7 @@ public sealed class ContactsGrpcService : ContactsService.ContactsServiceBase
         try
         {
             await _groupService.DeleteGroupAsync(
-                groupId, CallerContext.CreateSystemContext(), context.CancellationToken);
+                groupId, new CallerContext(userId, Array.Empty<string>(), CallerType.User), context.CancellationToken);
             return new DeleteGroupResponse { Success = true };
         }
         catch (Exception ex) when (ex is ArgumentException or Core.Errors.ValidationException)
@@ -611,7 +611,7 @@ public sealed class ContactsGrpcService : ContactsService.ContactsServiceBase
         try
         {
             await _groupService.AddContactToGroupAsync(
-                groupId, contactId, CallerContext.CreateSystemContext(), context.CancellationToken);
+                groupId, contactId, new CallerContext(userId, Array.Empty<string>(), CallerType.User), context.CancellationToken);
             return new AddContactToGroupResponse { Success = true };
         }
         catch (Exception ex) when (ex is ArgumentException or Core.Errors.ValidationException)
@@ -632,7 +632,7 @@ public sealed class ContactsGrpcService : ContactsService.ContactsServiceBase
         try
         {
             await _groupService.RemoveContactFromGroupAsync(
-                groupId, contactId, CallerContext.CreateSystemContext(), context.CancellationToken);
+                groupId, contactId, new CallerContext(userId, Array.Empty<string>(), CallerType.User), context.CancellationToken);
             return new RemoveContactFromGroupResponse { Success = true };
         }
         catch (Exception ex) when (ex is ArgumentException or Core.Errors.ValidationException)
@@ -650,7 +650,7 @@ public sealed class ContactsGrpcService : ContactsService.ContactsServiceBase
             return new ListGroupMembersResponse { Success = false, ErrorMessage = "Invalid ID format." };
 
         var members = await _groupService.ListGroupMembersAsync(
-            groupId, CallerContext.CreateSystemContext(), context.CancellationToken);
+            groupId, new CallerContext(userId, Array.Empty<string>(), CallerType.User), context.CancellationToken);
 
         var response = new ListGroupMembersResponse { Success = true };
         response.Members.AddRange(members.Select(ToContactMessage));
@@ -711,7 +711,7 @@ public sealed class ContactsGrpcService : ContactsService.ContactsServiceBase
             return new ListContactSharesResponse { Success = false, ErrorMessage = "Invalid ID format." };
 
         var shares = await _shareService.ListSharesAsync(
-            contactId, CallerContext.CreateSystemContext(), context.CancellationToken);
+            contactId, new CallerContext(userId, Array.Empty<string>(), CallerType.User), context.CancellationToken);
 
         var response = new ListContactSharesResponse { Success = true };
         response.Shares.AddRange(shares.Select(s => new ContactShareMessage
@@ -745,7 +745,7 @@ public sealed class ContactsGrpcService : ContactsService.ContactsServiceBase
         {
             var share = await _shareService.ShareContactAsync(
                 contactId, targetUserId, teamId, permission,
-                CallerContext.CreateSystemContext(), context.CancellationToken);
+                new CallerContext(userId, Array.Empty<string>(), CallerType.User), context.CancellationToken);
 
             return new ShareContactResponse
             {
@@ -779,7 +779,7 @@ public sealed class ContactsGrpcService : ContactsService.ContactsServiceBase
         try
         {
             await _shareService.RemoveShareAsync(
-                shareId, CallerContext.CreateSystemContext(), context.CancellationToken);
+                shareId, new CallerContext(userId, Array.Empty<string>(), CallerType.User), context.CancellationToken);
             return new RevokeContactShareResponse { Success = true };
         }
         catch (Exception ex) when (ex is ArgumentException or Core.Errors.ValidationException)
