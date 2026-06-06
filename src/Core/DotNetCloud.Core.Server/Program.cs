@@ -952,6 +952,7 @@ public class Program
             ["api/v1/series"] = "dotnetcloud.video",
             ["api/v1/notes"] = "dotnetcloud.notes",
             ["api/v1/wopi"] = "dotnetcloud.files",
+            ["api/v1/search"] = "dotnetcloud.search",
         };
 
         var handler = new SocketsHttpHandler
