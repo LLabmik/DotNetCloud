@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Auth.Authorization;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Files;
 using DotNetCloud.Modules.Files.Data;
@@ -79,7 +80,8 @@ builder.Services.AddAuthentication("Identity.Application")
         };
     });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options => AuthorizationPolicies.Configure(options));
+builder.Services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();
 
 // --- Services ---
 
