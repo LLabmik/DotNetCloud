@@ -501,13 +501,16 @@ public class Program
         // Typed HttpClient for server prerendering of client components (NotificationBell, etc.).
         // During static SSR, HttpClient from the .Client project has no BaseAddress.
         // Uses HTTPS loopback with cert-validation bypass (cert is for cloud.dotnetcloud.net, not localhost).
+        // CookieForwardingHandler forwards the user's auth cookie so admin-protected
+        // endpoints (e.g. /api/v1/core/admin/health) don't return 401 on loopback calls.
         var httpsPort = builder.Configuration.GetValue("httpsPort", 5443);
         builder.Services.AddHttpClient<DotNetCloudApiClient>(client =>
             client.BaseAddress = new Uri($"https://localhost:{httpsPort}"))
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
             {
                 ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
-            });
+            })
+            .AddHttpMessageHandler<DotNetCloud.Core.Server.Middleware.CookieForwardingHandler>();
 
         // Add OpenAPI/Swagger with DotNetCloud configuration
         builder.Services.AddDotNetCloudOpenApi(builder.Configuration);

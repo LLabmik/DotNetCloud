@@ -1,6 +1,11 @@
 using DotNetCloud.Core.Auth.Authorization;
 using DotNetCloud.Core.DTOs;
+using DotNetCloud.Core.Grpc.Lifecycle;
+using HealthStatusGrpc = DotNetCloud.Core.Grpc.Lifecycle.HealthStatus;
+using HealthStatusCore = Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus;
+using DotNetCloud.Core.Modules.Supervisor;
 using DotNetCloud.Core.Services;
+using Grpc.Net.Client;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -21,6 +26,7 @@ public class AdminController : ControllerBase
     private readonly HealthCheckService _healthCheckService;
     private readonly IBackgroundServiceTracker _backgroundServiceTracker;
     private readonly IBackupService _backupService;
+    private readonly IProcessSupervisor _supervisor;
     private readonly ILogger<AdminController> _logger;
 
     /// <summary>
@@ -32,6 +38,7 @@ public class AdminController : ControllerBase
         HealthCheckService healthCheckService,
         IBackgroundServiceTracker backgroundServiceTracker,
         IBackupService backupService,
+        IProcessSupervisor supervisor,
         ILogger<AdminController> logger)
     {
         _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
@@ -39,6 +46,7 @@ public class AdminController : ControllerBase
         _healthCheckService = healthCheckService ?? throw new ArgumentNullException(nameof(healthCheckService));
         _backgroundServiceTracker = backgroundServiceTracker ?? throw new ArgumentNullException(nameof(backgroundServiceTracker));
         _backupService = backupService ?? throw new ArgumentNullException(nameof(backupService));
+        _supervisor = supervisor ?? throw new ArgumentNullException(nameof(supervisor));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -361,7 +369,8 @@ public class AdminController : ControllerBase
     // ---------------------------------------------------------------------------
 
     /// <summary>
-    /// Get detailed system health status including all health checks.
+    /// Get detailed system health status including all health checks and per-module status.
+    /// Each process-isolated module appears as a separate entry with its gRPC health status.
     /// </summary>
     /// <returns>System health report with individual check results.</returns>
     [HttpGet("health")]
@@ -369,27 +378,193 @@ public class AdminController : ControllerBase
     {
         var report = await _healthCheckService.CheckHealthAsync();
 
-        var entries = report.Entries.ToDictionary(
-            entry => entry.Key,
-            entry => new
+        // Start with standard health check entries, stored as object so
+        // we can mix them with per-module ModuleEntry values.
+        var entries = new Dictionary<string, object>();
+        foreach (var (key, entry) in report.Entries)
+        {
+            entries[key] = new
             {
-                status = entry.Value.Status.ToString(),
-                description = entry.Value.Description,
-                duration = entry.Value.Duration.TotalMilliseconds,
-                exception = entry.Value.Exception?.Message,
-                data = ConvertHealthData(entry.Value.Data),
-            });
+                status = entry.Status.ToString(),
+                description = entry.Description,
+                duration = entry.Duration.TotalMilliseconds,
+                exception = entry.Exception?.Message,
+                data = ConvertHealthData(entry.Data),
+            };
+        }
+
+        // Compute overall status starting from the health check service report.
+        var overallStatus = report.Status;
+
+        // Query each process-isolated module via gRPC and add per-module entries,
+        // tracking the worst status across all modules.
+        var moduleEntries = await GetModuleHealthEntriesAsync();
+        foreach (var moduleEntry in moduleEntries)
+        {
+            entries[moduleEntry.Key] = moduleEntry.Value;
+
+            if (moduleEntry.Value.moduleStatus == HealthStatusCore.Unhealthy)
+            {
+                overallStatus = HealthStatusCore.Unhealthy;
+            }
+            else if (moduleEntry.Value.moduleStatus == HealthStatusCore.Degraded && overallStatus != HealthStatusCore.Unhealthy)
+            {
+                overallStatus = HealthStatusCore.Degraded;
+            }
+        }
 
         return Ok(new
         {
             success = true,
             data = new
             {
-                status = report.Status.ToString(),
-                totalDuration = report.TotalDuration.TotalMilliseconds,
+                status = overallStatus.ToString(),
                 entries,
             },
         });
+    }
+
+    /// <summary>
+    /// Queries each process-isolated module via gRPC <c>ModuleLifecycle.HealthCheck()</c>
+    /// and returns per-module health entries.
+    /// </summary>
+    private async Task<Dictionary<string, ModuleEntry>> GetModuleHealthEntriesAsync()
+    {
+        var modules = _supervisor.GetAllModuleInfo();
+        if (modules.Count == 0)
+            return [];
+
+        var tasks = modules.Select(m => CheckSingleModuleHealthAsync(m));
+        var results = await Task.WhenAll(tasks);
+
+        return results.ToDictionary(r => $"module:{r.ModuleId}", r => new ModuleEntry
+        {
+            moduleStatus = r.Status,
+            status = r.Status.ToString(),
+            description = r.Description,
+            duration = r.DurationMs,
+            exception = null,
+            data = r.Data,
+        });
+    }
+
+    private async Task<ModuleHealthResult> CheckSingleModuleHealthAsync(ModuleProcessInfo moduleInfo)
+    {
+        var moduleId = moduleInfo.ModuleId;
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+
+        // If the process isn't running, report unhealthy immediately.
+        if (moduleInfo.Status != ModuleProcessStatus.Running &&
+            moduleInfo.Status != ModuleProcessStatus.Degraded)
+        {
+            sw.Stop();
+            return new ModuleHealthResult
+            {
+                ModuleId = moduleId,
+                Status = HealthStatusCore.Unhealthy,
+                Description = $"Process status is '{moduleInfo.Status}'",
+                DurationMs = sw.Elapsed.TotalMilliseconds,
+            };
+        }
+
+        var endpoint = moduleInfo.GrpcEndpoint;
+        if (string.IsNullOrEmpty(endpoint))
+        {
+            sw.Stop();
+            return new ModuleHealthResult
+            {
+                ModuleId = moduleId,
+                Status = HealthStatusCore.Unhealthy,
+                Description = "No gRPC endpoint available",
+                DurationMs = sw.Elapsed.TotalMilliseconds,
+            };
+        }
+
+        try
+        {
+            using var channel = CreateGrpcChannel(endpoint);
+            var client = new ModuleLifecycle.ModuleLifecycleClient(channel);
+            var callOptions = new global::Grpc.Core.CallOptions(
+                deadline: DateTime.UtcNow.AddSeconds(5));
+
+            var response = await client.HealthCheckAsync(new HealthCheckRequest(), callOptions);
+            sw.Stop();
+
+            var status = response.Status switch
+            {
+                HealthStatusGrpc.Healthy => HealthStatusCore.Healthy,
+                HealthStatusGrpc.Degraded => HealthStatusCore.Degraded,
+                _ => HealthStatusCore.Unhealthy
+            };
+
+            var data = new Dictionary<string, object?>
+            {
+                ["module_id"] = moduleId,
+                ["module_name"] = moduleInfo.ModuleName,
+                ["version"] = moduleInfo.Version,
+                ["process_status"] = moduleInfo.Status.ToString(),
+            };
+
+            return new ModuleHealthResult
+            {
+                ModuleId = moduleId,
+                Status = status,
+                Description = string.IsNullOrEmpty(response.Description)
+                    ? $"gRPC health check returned {response.Status}"
+                    : response.Description,
+                DurationMs = sw.Elapsed.TotalMilliseconds,
+                Data = data,
+            };
+        }
+        catch (Exception ex)
+        {
+            sw.Stop();
+            return new ModuleHealthResult
+            {
+                ModuleId = moduleId,
+                Status = HealthStatusCore.Unhealthy,
+                Description = $"gRPC health check failed: {ex.Message}",
+                DurationMs = sw.Elapsed.TotalMilliseconds,
+            };
+        }
+    }
+
+    private static GrpcChannel CreateGrpcChannel(string endpoint)
+    {
+        var handler = new SocketsHttpHandler
+        {
+            EnableMultipleHttp2Connections = true,
+            ConnectTimeout = TimeSpan.FromSeconds(5)
+        };
+
+        return GrpcChannel.ForAddress(endpoint, new GrpcChannelOptions
+        {
+            HttpHandler = handler,
+            MaxReceiveMessageSize = 16 * 1024 * 1024,
+            MaxSendMessageSize = 16 * 1024 * 1024,
+        });
+    }
+
+    /// <summary>
+    /// Describes a single module health entry for the admin health response.
+    /// </summary>
+    private sealed class ModuleEntry
+    {
+        public required HealthStatusCore moduleStatus { get; init; }
+        public required string status { get; init; }
+        public required string description { get; init; }
+        public required double duration { get; init; }
+        public required string? exception { get; init; }
+        public required IReadOnlyDictionary<string, object?>? data { get; init; }
+    }
+
+    private sealed class ModuleHealthResult
+    {
+        public required string ModuleId { get; init; }
+        public required HealthStatusCore Status { get; init; }
+        public required string Description { get; init; }
+        public required double DurationMs { get; init; }
+        public IReadOnlyDictionary<string, object?>? Data { get; init; }
     }
 
     // ---------------------------------------------------------------------------
