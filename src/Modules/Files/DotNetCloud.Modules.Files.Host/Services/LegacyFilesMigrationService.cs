@@ -4,12 +4,12 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.Logging;
 
-namespace DotNetCloud.Core.Server.Services;
+namespace DotNetCloud.Modules.Files.Host.Services;
 
 /// <summary>
 /// Handles legacy Files module EF Core migration baselining for schemas
 /// that were created without a proper __EFMigrationsHistory table.
-/// Extracted from <c>Program.cs</c> for better maintainability.
+/// Runs inside the Files module host process where <see cref="FilesDbContext"/> is available.
 /// </summary>
 public sealed class LegacyFilesMigrationService
 {

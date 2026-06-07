@@ -1,3 +1,4 @@
+using DotNetCloud.Core.DTOs.Media;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Files.Data;
 using DotNetCloud.Modules.Files.Events;
@@ -1384,4 +1385,235 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
             _ => $"{bytes / (1024.0 * 1024 * 1024):F1} GB"
         };
     }
+
+    /// <inheritdoc />
+    public override async Task<ScanMediaFoldersResponse> ScanMediaFolders(
+        ScanMediaFoldersRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.UserId, out var userId))
+        {
+            return new ScanMediaFoldersResponse { Success = false, ErrorMessage = "Invalid user ID format." };
+        }
+
+        if (!ValidateAuthenticatedCaller(userId, context, out var callerError))
+        {
+            return new ScanMediaFoldersResponse { Success = false, ErrorMessage = callerError };
+        }
+
+        var mediaType = request.MediaType?.ToLowerInvariant() ?? "all";
+        var extensions = GetExtensionsForMediaType(mediaType);
+
+        // Deserialize sources from JSON
+        IReadOnlyList<MediaLibrarySource> sources;
+        try
+        {
+            sources = System.Text.Json.JsonSerializer.Deserialize<List<MediaLibrarySource>>(request.SourcesJson) ?? [];
+        }
+        catch (System.Text.Json.JsonException ex)
+        {
+            _logger.LogWarning(ex, "Failed to deserialize media library sources");
+            return new ScanMediaFoldersResponse { Success = false, ErrorMessage = "Invalid sources JSON." };
+        }
+
+        var normalizedSources = MediaLibrarySourceSettings.Normalize(sources.ToList());
+        var enabledSources = normalizedSources.Where(source => source.Enabled).ToList();
+
+        var candidates = new List<MediaFileCandidateMessage>();
+        var visitedFolders = new HashSet<Guid>();
+
+        foreach (var source in enabledSources)
+        {
+            var roots = await ResolveScanSourceRootsAsync(source, userId, context.CancellationToken);
+            if (roots.Count == 0)
+            {
+                if (source.SourceKind == MediaLibrarySourceKind.SharedMount)
+                {
+                    _logger.LogWarning("Shared mount source unavailable: {DisplayPath}", source.DisplayPath);
+                }
+                continue;
+            }
+
+            var collectionName = string.IsNullOrWhiteSpace(source.DisplayName) ? null : source.DisplayName.TrimEnd();
+
+            foreach (var root in roots)
+            {
+                await CollectMatchingFileNodesAsync(
+                    root.Id, userId, extensions, candidates, visitedFolders,
+                    collectionName, null, context.CancellationToken);
+            }
+        }
+
+        var response = new ScanMediaFoldersResponse
+        {
+            Success = true,
+            TotalFound = candidates.Count,
+        };
+        response.Candidates.AddRange(candidates);
+        return response;
+    }
+
+    private async Task<List<FileNode>> ResolveScanSourceRootsAsync(
+        MediaLibrarySource source, Guid userId, CancellationToken cancellationToken)
+    {
+        switch (source.SourceKind)
+        {
+            case MediaLibrarySourceKind.OwnedFileNode when source.FolderId.HasValue:
+            {
+                var node = await _db.FileNodes
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(n => n.Id == source.FolderId.Value
+                                              && n.OwnerId == userId
+                                              && !n.IsDeleted,
+                        cancellationToken);
+                return node is null || node.NodeType != FileNodeType.Folder ? [] : [node];
+            }
+
+            case MediaLibrarySourceKind.OwnedFileNode:
+            {
+                var rootNodes = await _db.FileNodes
+                    .AsNoTracking()
+                    .Where(n => n.OwnerId == userId && n.ParentId == null && !n.IsDeleted)
+                    .ToListAsync(cancellationToken);
+                return rootNodes.Where(n => n.NodeType == FileNodeType.Folder).ToList();
+            }
+
+            case MediaLibrarySourceKind.SharedMount when source.SharedFolderId.HasValue:
+            {
+                // Resolve shared folder mount via the virtual mounted node registry
+                var mounts = await _db.MountedNodeEntries
+                    .AsNoTracking()
+                    .Where(m => m.SharedFolderId == source.SharedFolderId.Value
+                                && (m.UserId == userId || m.TargetUserId == userId))
+                    .ToListAsync(cancellationToken);
+
+                if (mounts.Count == 0)
+                    return [];
+
+                // Use the first matching mount to get the root folder
+                var mount = mounts[0];
+                var rootFolderId = mount.MountedFileNodeId ?? mount.SharedFolderId;
+                var rootNode = await _db.FileNodes
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(n => n.Id == rootFolderId && !n.IsDeleted, cancellationToken);
+
+                if (rootNode is null)
+                    return [];
+
+                // If relative path is specified, navigate down the tree
+                if (!string.IsNullOrEmpty(source.RelativePath))
+                {
+                    var segments = source.RelativePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+                    var currentId = rootNode.Id;
+                    foreach (var segment in segments)
+                    {
+                        var child = await _db.FileNodes
+                            .AsNoTracking()
+                            .FirstOrDefaultAsync(n => n.ParentId == currentId
+                                                      && n.Name == segment
+                                                      && n.NodeType == FileNodeType.Folder
+                                                      && !n.IsDeleted,
+                                cancellationToken);
+                        if (child is null)
+                            return [];
+                        currentId = child.Id;
+                    }
+
+                    var resolvedNode = await _db.FileNodes
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(n => n.Id == currentId && !n.IsDeleted, cancellationToken);
+                    return resolvedNode is null ? [] : [resolvedNode];
+                }
+
+                return [rootNode];
+            }
+
+            default:
+                return [];
+        }
+    }
+
+    private async Task CollectMatchingFileNodesAsync(
+        Guid parentId, Guid userId, HashSet<string> extensions,
+        List<MediaFileCandidateMessage> candidates, HashSet<Guid> visitedFolders,
+        string? sourceName, string? currentRelativePath,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (!visitedFolders.Add(parentId))
+            return;
+
+        List<FileNode> children;
+        try
+        {
+            children = await _db.FileNodes
+                .AsNoTracking()
+                .Where(n => n.ParentId == parentId && !n.IsDeleted)
+                .ToListAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to enumerate folder {FolderId}", parentId);
+            return;
+        }
+
+        foreach (var child in children)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (child.NodeType == FileNodeType.Folder)
+            {
+                var childRelativePath = string.IsNullOrEmpty(currentRelativePath)
+                    ? child.Name
+                    : $"{currentRelativePath}/{child.Name}";
+                await CollectMatchingFileNodesAsync(
+                    child.Id, userId, extensions, candidates, visitedFolders,
+                    sourceName, childRelativePath, cancellationToken);
+            }
+            else if (child.NodeType == FileNodeType.File)
+            {
+                var extension = Path.GetExtension(child.Name).ToLowerInvariant();
+                if (!extensions.Contains(extension))
+                    continue;
+
+                candidates.Add(new MediaFileCandidateMessage
+                {
+                    Id = child.Id.ToString(),
+                    Name = child.Name,
+                    Size = child.Size,
+                    MimeType = child.MimeType ?? string.Empty,
+                    IsVirtual = false,
+                    SourceName = sourceName ?? string.Empty,
+                    SubFolderPath = currentRelativePath ?? string.Empty,
+                });
+            }
+        }
+    }
+
+    private static HashSet<string> GetExtensionsForMediaType(string mediaType) => mediaType switch
+    {
+        "photos" => PhotoExtensions,
+        "music" => MusicExtensions,
+        "video" => VideoExtensions,
+        "all" => [.. PhotoExtensions, .. MusicExtensions, .. VideoExtensions],
+        _ => throw new ArgumentOutOfRangeException(nameof(mediaType), $"Unknown media type: {mediaType}")
+    };
+
+    private static readonly HashSet<string> PhotoExtensions =
+    [
+        ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".tiff", ".tif",
+        ".svg", ".heic", ".heif", ".raw", ".cr2", ".nef", ".arw"
+    ];
+
+    private static readonly HashSet<string> MusicExtensions =
+    [
+        ".mp3", ".flac", ".ogg", ".oga", ".opus", ".aac", ".m4a",
+        ".wav", ".wma", ".aiff", ".aif", ".wv", ".ape"
+    ];
+
+    private static readonly HashSet<string> VideoExtensions =
+    [
+        ".mp4", ".m4v", ".mkv", ".avi", ".mov", ".wmv", ".flv",
+        ".webm", ".3gp", ".mpg", ".mpeg", ".ts"
+    ];
 }

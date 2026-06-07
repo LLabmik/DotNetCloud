@@ -50,8 +50,9 @@
     <ProjectReference Include="..\..\Modules\Chat\DotNetCloud.Modules.Chat.Data.SqlServer\DotNetCloud.Modules.Chat.Data.SqlServer.csproj" />
     <ProjectReference Include="..\..\Modules\Contacts\DotNetCloud.Modules.Contacts.Data\DotNetCloud.Modules.Contacts.Data.csproj" />
     <ProjectReference Include="..\..\Modules\Contacts\DotNetCloud.Modules.Contacts.Data.SqlServer\DotNetCloud.Modules.Contacts.Data.SqlServer.csproj" />
-    <ProjectReference Include="..\..\Modules\Files\DotNetCloud.Modules.Files.Data\DotNetCloud.Modules.Files.Data.csproj" />
-    <ProjectReference Include="..\..\Modules\Files\DotNetCloud.Modules.Files.Data.SqlServer\DotNetCloud.Modules.Files.Data.SqlServer.csproj" />
+    <!-- Files.Data references removed — MediaFolderImportService uses IFilesApiClient (gRPC) instead of direct FilesDbContext/IFileService -->
+    <!-- Files main RCL retained for Blazor UI component registration (Option A per gRPC conversion plan) -->
+    <ProjectReference Include="..\..\Modules\Files\DotNetCloud.Modules.Files\DotNetCloud.Modules.Files.csproj" />
     <ProjectReference Include="..\..\Modules\Notes\DotNetCloud.Modules.Notes.Data\DotNetCloud.Modules.Notes.Data.csproj" />
     <ProjectReference Include="..\..\Modules\Notes\DotNetCloud.Modules.Notes.Data.SqlServer\DotNetCloud.Modules.Notes.Data.SqlServer.csproj" />
     <ProjectReference Include="..\..\Modules\Tracks\DotNetCloud.Modules.Tracks\DotNetCloud.Modules.Tracks.csproj" />

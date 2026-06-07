@@ -5,7 +5,7 @@ using DotNetCloud.Modules.Calendar.Data;
 using DotNetCloud.Modules.Chat.Data;
 using DotNetCloud.Modules.Contacts.Data;
 using DotNetCloud.Modules.Email.Data;
-using DotNetCloud.Modules.Files.Data;
+// Files.Data reference removed — managed by the Files module host process
 using DotNetCloud.Modules.Music.Data;
 using DotNetCloud.Modules.Notes.Data;
 using DotNetCloud.Modules.Photos.Data;
@@ -42,7 +42,7 @@ internal static class ModuleServiceRegistrationExtensions
         const string ChatMigrationsAssembly = "DotNetCloud.Modules.Chat.Data.SqlServer";
         const string ContactsMigrationsAssembly = "DotNetCloud.Modules.Contacts.Data.SqlServer";
         const string EmailMigrationsAssembly = "DotNetCloud.Modules.Email.Data.SqlServer";
-        const string FilesMigrationsAssembly = "DotNetCloud.Modules.Files.Data.SqlServer";
+        // Files.Data reference removed — FilesDbContext is now managed by the Files module host process
         const string MusicMigrationsAssembly = "DotNetCloud.Modules.Music.Data.SqlServer";
         const string NotesMigrationsAssembly = "DotNetCloud.Modules.Notes.Data.SqlServer";
         const string PhotosMigrationsAssembly = "DotNetCloud.Modules.Photos.Data.SqlServer";
@@ -64,8 +64,7 @@ internal static class ModuleServiceRegistrationExtensions
             ConfigureModuleDbContext(options, provider, connectionString, ContactsMigrationsAssembly), ServiceLifetime.Transient);
         services.AddDbContext<EmailDbContext>(options =>
             ConfigureModuleDbContext(options, provider, connectionString, EmailMigrationsAssembly), ServiceLifetime.Transient);
-        services.AddDbContext<FilesDbContext>(options =>
-            ConfigureModuleDbContext(options, provider, connectionString, FilesMigrationsAssembly), ServiceLifetime.Transient);
+        // FilesDbContext removed — managed by the Files module host process
         services.AddDbContextFactory<MusicDbContext>(options =>
             ConfigureModuleDbContext(options, provider, connectionString, MusicMigrationsAssembly));
         services.AddDbContext<MusicDbContext>(options =>

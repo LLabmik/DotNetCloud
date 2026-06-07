@@ -1,4 +1,4 @@
-namespace DotNetCloud.Modules.Files.Data.Services.Background;
+namespace DotNetCloud.Core.Services;
 
 /// <summary>
 /// Dispatches a Files-module reindex request for admin shared-folder maintenance.

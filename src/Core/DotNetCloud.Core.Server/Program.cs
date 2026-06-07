@@ -22,8 +22,9 @@ using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Calendar.Data;
 // Chat.Data reference removed — ChatHub now uses IChatApiClient (gRPC)
 using DotNetCloud.Modules.Contacts.Data;
-using DotNetCloud.Modules.Files.Data;
-using DotNetCloud.Modules.Files.Data.Services.Background;
+using DotNetCloud.Core.Services;
+// Files.Data reference removed — MediaFolderImportService now uses IFilesApiClient (gRPC)
+// LegacyFilesMigrationService moved to DotNetCloud.Modules.Files.Host
 using DotNetCloud.Modules.Music.Data;
 using DotNetCloud.Modules.Notes.Data;
 using DotNetCloud.Modules.Photos.Data;
@@ -257,7 +258,7 @@ public class Program
         builder.AddDotNetCloudServiceDefaults();
 
         // Add authentication and authorization
-        builder.Services.AddDotNetCloudAuth(builder.Configuration);
+        builder.Services.AddDotNetCloudAuth(builder.Configuration!);
 
         // Persist DataProtection keys so auth/antiforgery tokens survive restarts.
         var dataRootDir = Environment.GetEnvironmentVariable("DOTNETCLOUD_DATA_DIR");
@@ -317,7 +318,7 @@ public class Program
         builder.Services.AddSingleton<IModuleSearchDocumentClient, BookmarksModuleSearchClient>();
         builder.Services.AddSingleton<IModuleSearchDocumentClient, EmailModuleSearchClient>();
         builder.Services.AddSingleton<IEventBus, InProcessEventBus>();
-        builder.Services.AddSingleton<LegacyFilesMigrationService>();
+        // LegacyFilesMigrationService moved to Files.Host (runs in that process)
         builder.Services.AddScoped<DotNetCloud.Core.Capabilities.ICrossModuleLinkResolver, CrossModuleLinkResolver>();
         builder.Services.AddSingleton<DotNetCloud.Core.Services.IBackgroundServiceTracker, DotNetCloud.Core.Services.BackgroundServiceTracker>();
 
@@ -469,13 +470,32 @@ public class Program
         // gRPC client registrations (process-isolated modules)
         // Module UI services (Blazor components render in Core.Server process;
         // these register only the interfaces components inject — no hosted services).
-        builder.Services.AddNotesUiServices(builder.Configuration);
-        builder.Services.AddTracksUiServices(builder.Configuration);
-        builder.Services.AddMusicUiServices(builder.Configuration);
-        builder.Services.AddPhotosUiServices(builder.Configuration);
-        builder.Services.AddVideoUiServices(builder.Configuration);
-        builder.Services.AddFilesUiServices(builder.Configuration);
-        builder.Services.AddAiUiServices(builder.Configuration);
+        builder.Services.AddNotesUiServices(builder.Configuration!);
+        builder.Services.AddTracksUiServices(builder.Configuration!);
+        builder.Services.AddMusicUiServices(builder.Configuration!);
+        builder.Services.AddPhotosUiServices(builder.Configuration!);
+        builder.Services.AddVideoUiServices(builder.Configuration!);
+        // Files.Data reference removed — AddFilesUiServices is no longer available.
+        // UI component services (IFileService, etc.) will be migrated to use gRPC clients
+        // in a future phase. For now, register only the options bindings:
+        if (builder.Configuration is not null)
+        {
+            builder.Services.Configure<DotNetCloud.Modules.Files.Options.VersionRetentionOptions>(
+                builder.Configuration.GetSection(DotNetCloud.Modules.Files.Options.VersionRetentionOptions.SectionName));
+            builder.Services.Configure<DotNetCloud.Modules.Files.Options.TrashRetentionOptions>(
+                builder.Configuration.GetSection(DotNetCloud.Modules.Files.Options.TrashRetentionOptions.SectionName));
+            builder.Services.Configure<DotNetCloud.Modules.Files.Options.QuotaOptions>(
+                builder.Configuration.GetSection(DotNetCloud.Modules.Files.Options.QuotaOptions.SectionName));
+            builder.Services.Configure<DotNetCloud.Modules.Files.Options.CollaboraOptions>(
+                builder.Configuration.GetSection(DotNetCloud.Modules.Files.Options.CollaboraOptions.SectionName));
+            builder.Services.Configure<DotNetCloud.Modules.Files.Options.FileUploadOptions>(
+                builder.Configuration.GetSection(DotNetCloud.Modules.Files.Options.FileUploadOptions.SectionName));
+            builder.Services.Configure<DotNetCloud.Modules.Files.Options.FileSystemOptions>(
+                builder.Configuration.GetSection(DotNetCloud.Modules.Files.Options.FileSystemOptions.SectionName));
+            builder.Services.Configure<DotNetCloud.Modules.Files.Options.AdminSharedFolderOptions>(
+                builder.Configuration.GetSection(DotNetCloud.Modules.Files.Options.AdminSharedFolderOptions.SectionName));
+        }
+        builder.Services.AddAiUiServices(builder.Configuration!);
 
         // gRPC API client registrations (process-isolated modules)
         // ✅ Fully implemented gRPC clients
@@ -502,7 +522,7 @@ public class Program
         // Uses HTTPS loopback with cert-validation bypass (cert is for cloud.dotnetcloud.net, not localhost).
         // CookieForwardingHandler forwards the user's auth cookie so admin-protected
         // endpoints (e.g. /api/v1/core/admin/health) don't return 401 on loopback calls.
-        var httpsPort = builder.Configuration.GetValue("httpsPort", 5443);
+        var httpsPort = builder.Configuration!.GetValue<int>("httpsPort", 5443);
         builder.Services.AddHttpClient<DotNetCloudApiClient>(client =>
             client.BaseAddress = new Uri($"https://localhost:{httpsPort}"))
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
@@ -512,13 +532,13 @@ public class Program
             .AddHttpMessageHandler<DotNetCloud.Core.Server.Middleware.CookieForwardingHandler>();
 
         // Add OpenAPI/Swagger with DotNetCloud configuration
-        builder.Services.AddDotNetCloudOpenApi(builder.Configuration);
+        builder.Services.AddDotNetCloudOpenApi(builder.Configuration!);
 
         // Add API versioning
-        builder.Services.AddDotNetCloudApiVersioning(builder.Configuration);
+        builder.Services.AddDotNetCloudApiVersioning(builder.Configuration!);
 
         // Add CORS with enhanced configuration
-        builder.Services.AddDotNetCloudCors(builder.Configuration);
+        builder.Services.AddDotNetCloudCors(builder.Configuration!);
 
         // Add response compression (Brotli preferred, Gzip fallback; applies to chunk/file downloads)
         builder.Services.AddResponseCompression(options =>
@@ -542,7 +562,7 @@ public class Program
         builder.Services.AddRequestDecompression();
 
         // Add rate limiting
-        builder.Services.AddDotNetCloudRateLimiting(builder.Configuration);
+        builder.Services.AddDotNetCloudRateLimiting(builder.Configuration!);
 
         // Linux resource health check (inotify watch limit + inode availability).
         // Runs silently on non-Linux platforms.
@@ -571,7 +591,7 @@ public class Program
         builder.Services.AddHostedService(sp => sp.GetRequiredService<LinuxResourceMonitorService>());
 
         // Add SignalR real-time communication
-        builder.Services.AddDotNetCloudSignalR(builder.Configuration);
+        builder.Services.AddDotNetCloudSignalR(builder.Configuration!);
 
         // Register initialization services
         builder.Services.AddScoped<AdminSeeder>();

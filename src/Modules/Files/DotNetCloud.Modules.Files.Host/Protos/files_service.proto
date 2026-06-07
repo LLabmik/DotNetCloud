@@ -78,6 +78,40 @@ service FilesService {
 
   // Returns a single searchable document by entity ID.
   rpc GetSearchableDocument (GetSearchableDocumentRequest) returns (SearchableDocumentResponse);
+
+  // Scans virtual file nodes for media files matching the given media type.
+  // Returns discovered file candidates without performing indexing.
+  rpc ScanMediaFolders (ScanMediaFoldersRequest) returns (ScanMediaFoldersResponse);
+}
+
+// --- Scan Media Folders ---
+
+message ScanMediaFoldersRequest {
+  // JSON-serialized list of MediaLibrarySource objects.
+  string sources_json = 1;
+  string user_id = 2;
+  string media_type = 3;  // "Photos", "Music", "Video", or "All"
+}
+
+message ScanMediaFoldersResponse {
+  bool success = 1;
+  string error_message = 2;
+  int32 total_found = 3;
+
+  // Discovered file candidates (each entry contains node id, name, size, mime type).
+  repeated MediaFileCandidateMessage candidates = 4;
+}
+
+message MediaFileCandidateMessage {
+  string id = 1;
+  string name = 2;
+  int64 size = 3;
+  string mime_type = 4;
+  bool is_virtual = 5;
+  // Optional collection/album/source name for grouping (e.g. "Summer Vacation").
+  string source_name = 6;
+  // Optional relative sub-folder path within the source root.
+  string sub_folder_path = 7;
 }
 
 // --- CreateFolder ---
