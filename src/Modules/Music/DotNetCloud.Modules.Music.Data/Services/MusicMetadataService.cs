@@ -125,19 +125,28 @@ public sealed class MusicMetadataService
         }
     }
 
-    private static AudioMetadata BuildMetadata(TagLib.File tagFile, string fileNameOrPath)
+    private AudioMetadata BuildMetadata(TagLib.File tagFile, string fileNameOrPath)
     {
         var tag = tagFile.Tag;
         var properties = tagFile.Properties;
 
-        return new AudioMetadata
+        var trackNum = TryGetTrackNumber(tag, tagFile) ?? TryExtractTrackNumberFromFileName(fileNameOrPath);
+        var discNum = TryGetDiscNumber(tag, tagFile);
+
+        if (trackNum is null)
+        {
+            _logger.LogWarning("TrackNumber extraction returned NULL: tag.Track={TagTrack}, TagTypes={TagTypes}, file={File}",
+                tag.Track, tag.TagTypes, Path.GetFileName(fileNameOrPath));
+        }
+
+        var result = new AudioMetadata
         {
             Title = string.IsNullOrWhiteSpace(tag.Title) ? Path.GetFileNameWithoutExtension(fileNameOrPath) : tag.Title,
             Artist = tag.FirstPerformer ?? tag.FirstAlbumArtist ?? "Unknown Artist",
             AlbumArtist = tag.FirstAlbumArtist,
             Album = tag.Album ?? "Unknown Album",
-            TrackNumber = tag.Track > 0 ? (int)tag.Track : null,
-            DiscNumber = tag.Disc > 0 ? (int)tag.Disc : null,
+            TrackNumber = TryGetTrackNumber(tag, tagFile) ?? TryExtractTrackNumberFromFileName(fileNameOrPath),
+            DiscNumber = TryGetDiscNumber(tag, tagFile),
             Year = tag.Year > 0 ? (int)tag.Year : null,
             Genre = tag.FirstGenre,
             DurationTicks = properties.Duration.Ticks,
@@ -155,6 +164,8 @@ public sealed class MusicMetadataService
             Bpm = tag.BeatsPerMinute > 0 ? (int)tag.BeatsPerMinute : null,
             Composers = string.Join("; ", tag.Composers ?? [])
         };
+
+        return result;
     }
 
     private static string? GetMusicBrainzId(TagLib.File tagFile, string fieldName)
@@ -205,6 +216,143 @@ public sealed class MusicMetadataService
             return null;
 
         return (picture.Data.Data, picture.MimeType ?? "image/jpeg");
+    }
+
+    /// <summary>
+    /// Tries to get the track number from the tag, falling back to raw ID3v2 TRCK frame
+    /// when <see cref="TagLib.Tag.Track"/> returns 0 (which happens for many MP3 files).
+    /// </summary>
+    private int? TryGetTrackNumber(TagLib.Tag tag, TagLib.File tagFile)
+    {
+        if (tag.Track > 0)
+            return (int)tag.Track;
+
+        try
+        {
+            return TryParseRawTagFrame(tagFile, "TRCK");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "TryParseRawTagFrame(TRCK) threw for {File}", Path.GetFileName(tagFile.Name));
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Tries to get the disc number from the tag, falling back to raw ID3v2 TPOS frame.
+    /// </summary>
+    private int? TryGetDiscNumber(TagLib.Tag tag, TagLib.File tagFile)
+    {
+        if (tag.Disc > 0)
+            return (int)tag.Disc;
+
+        try
+        {
+            return TryParseRawTagFrame(tagFile, "TPOS");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "TryParseRawTagFrame(TPOS) threw for {File}", Path.GetFileName(tagFile.Name));
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Parses a numeric prefix from raw ID3/APE/Xiph tag frames (e.g., "1/9" → 1, "01" → 1).
+    /// Tries ID3v1 first (most reliable for track numbers), then ID3v2, APE, and Xiph.
+    /// </summary>
+    private static int? TryParseRawTagFrame(TagLib.File tagFile, string frameId)
+    {
+        try
+        {
+            // ── 1. ID3v1 (most reliable for Track/Disc numbers) ──
+            if (tagFile.Tag.TagTypes.HasFlag(TagLib.TagTypes.Id3v1))
+            {
+                var id3v1 = (TagLib.Id3v1.Tag)tagFile.GetTag(TagLib.TagTypes.Id3v1);
+                var val = frameId == "TRCK" ? id3v1.Track : 0U;
+                if (val > 0)
+                    return (int)val;
+            }
+
+            // ── 2. ID3v2 TextInformationFrame ──
+            if (tagFile.Tag.TagTypes.HasFlag(TagLib.TagTypes.Id3v2))
+            {
+                var id3v2 = (TagLib.Id3v2.Tag)tagFile.GetTag(TagLib.TagTypes.Id3v2);
+                var frame = id3v2.GetFrames<TagLib.Id3v2.TextInformationFrame>()
+                    .FirstOrDefault(f => f.FrameId == frameId);
+                if (frame?.Text?.Length > 0)
+                {
+                    var text = frame.Text[0];
+                    var slashIdx = text.IndexOf('/');
+                    var numPart = slashIdx > 0 ? text[..slashIdx] : text;
+                    if (int.TryParse(numPart, out var num) && num > 0)
+                        return num;
+                }
+            }
+
+            // ── 3. APE tags ──
+            if (tagFile.Tag.TagTypes.HasFlag(TagLib.TagTypes.Ape))
+            {
+                var ape = (TagLib.Ape.Tag)tagFile.GetTag(TagLib.TagTypes.Ape);
+                var item = ape.GetItem(frameId == "TRCK" ? "Track" : "Disc");
+                if (item is not null && !item.IsEmpty)
+                {
+                    var text = item.ToString();
+                    var slashIdx = text.IndexOf('/');
+                    var numPart = slashIdx > 0 ? text[..slashIdx] : text;
+                    if (int.TryParse(numPart, out var num) && num > 0)
+                        return num;
+                }
+            }
+
+            // ── 4. Xiph comments (FLAC, Vorbis) ──
+            if (tagFile.Tag.TagTypes.HasFlag(TagLib.TagTypes.Xiph))
+            {
+                var xiph = (TagLib.Ogg.XiphComment)tagFile.GetTag(TagLib.TagTypes.Xiph);
+                var fieldName = frameId == "TRCK" ? "TRACKNUMBER" : "DISCNUMBER";
+                var fields = xiph.GetField(fieldName);
+                if (fields is { Length: > 0 })
+                {
+                    var text = fields[0];
+                    var slashIdx = text.IndexOf('/');
+                    var numPart = slashIdx > 0 ? text[..slashIdx] : text;
+                    if (int.TryParse(numPart, out var num) && num > 0)
+                        return num;
+                }
+            }
+        }
+        catch
+        {
+            // Ignore — fall through to filename extraction
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Extracts a numeric track number from the beginning of a filename.
+    /// Handles patterns like "01 Title.mp3", "01 - Title.mp3", "1. Title.mp3".
+    /// Returns null if no leading digits are found.
+    /// </summary>
+    private static int? TryExtractTrackNumberFromFileName(string fileNameOrPath)
+    {
+        var name = Path.GetFileNameWithoutExtension(fileNameOrPath);
+        if (string.IsNullOrEmpty(name))
+            return null;
+
+        int i = 0;
+        while (i < name.Length && !char.IsDigit(name[i]))
+            i++;
+
+        if (i >= name.Length)
+            return null;
+
+        int start = i;
+        while (i < name.Length && char.IsDigit(name[i]))
+            i++;
+
+        var span = name.AsSpan(start, i - start);
+        return int.TryParse(span, out var num) && num > 0 ? num : null;
     }
 
     /// <summary>

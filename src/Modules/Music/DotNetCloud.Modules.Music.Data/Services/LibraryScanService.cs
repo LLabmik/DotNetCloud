@@ -93,6 +93,48 @@ public sealed class LibraryScanService
         {
             if (!existing.IsDeleted)
             {
+                // ── Backfill: if the canonical track was created via GUID fallback (no ContentHash),
+                //     it will have NULL TrackNumber/DiscNumber/etc. Re-extract metadata from the
+                //     actual audio file and update the canonical track with real values. ──
+                var canonical = await _db.CanonicalTracks
+                    .FirstOrDefaultAsync(ct => ct.ContentHash == existing.CanonicalTrackHash, cancellationToken);
+
+                if (canonical is not null && canonical.TrackNumber is null && canonical.DiscNumber is null
+                    && canonical.ContentHash.Length == 36) // GUID length, not SHA-256 (64)
+                {
+                    _logger.LogInformation("Backfilling metadata for canonical track {Hash} (FileNode {FileNodeId})",
+                        existing.CanonicalTrackHash, fileNodeId);
+
+                    AudioMetadata? backfillMetadata = null;
+                    var backfillPath = audioStream is FileStream backfillFs ? backfillFs.Name : metadataFilePath ?? fileName;
+
+                    if (backfillPath is not null && File.Exists(backfillPath))
+                    {
+                        backfillMetadata = _metadataService.ExtractMetadata(backfillPath);
+                    }
+                    else if (audioStream is not null)
+                    {
+                        backfillMetadata = _metadataService.ExtractMetadata(audioStream, mimeType, fileName);
+                    }
+
+                    if (backfillMetadata is not null)
+                    {
+                        canonical.Title = !IsGarbageValue(backfillMetadata.Title)
+                            ? backfillMetadata.Title
+                            : canonical.Title;
+                        canonical.TrackNumber = backfillMetadata.TrackNumber;
+                        canonical.DiscNumber = backfillMetadata.DiscNumber;
+                        canonical.Year = backfillMetadata.Year;
+                        canonical.Bitrate = backfillMetadata.Bitrate;
+                        canonical.SampleRate = backfillMetadata.SampleRate;
+                        canonical.Channels = backfillMetadata.Channels;
+                        canonical.UpdatedAt = DateTime.UtcNow;
+                        await _db.SaveChangesAsync(cancellationToken);
+                        _logger.LogInformation("Backfilled metadata for canonical track {Hash}: Track#={TrackNum}, Disc#={DiscNum}, Year={Year}",
+                            existing.CanonicalTrackHash, backfillMetadata.TrackNumber, backfillMetadata.DiscNumber, backfillMetadata.Year);
+                    }
+                }
+
                 _logger.LogDebug("File {FileNodeId} already indexed as user track {TrackId}", fileNodeId, existing.Id);
                 return existing;
             }
@@ -279,7 +321,8 @@ public sealed class LibraryScanService
                 Title = Path.GetFileNameWithoutExtension(fileName),
                 Artist = "Unknown Artist",
                 Album = "Unknown Album",
-                DurationTicks = 0
+                DurationTicks = 0,
+                TrackNumber = TryExtractTrackNumberFromFileName(fileName)
             };
         }
 
@@ -358,8 +401,18 @@ public sealed class LibraryScanService
             {
                 ContentHash = fallbackHash,
                 Title = metadata.Title,
+                TrackNumber = metadata.TrackNumber,
+                DiscNumber = metadata.DiscNumber,
                 DurationTicks = metadata.DurationTicks,
-                MimeType = mimeType
+                Bitrate = metadata.Bitrate,
+                SampleRate = metadata.SampleRate,
+                Channels = metadata.Channels,
+                MimeType = mimeType,
+                Year = metadata.Year,
+                MusicBrainzRecordingId = metadata.MusicBrainzTrackId,
+                Bpm = metadata.Bpm,
+                Composers = TruncateComposers(metadata.Composers),
+                Isrc = ValidateIsrc(metadata.Isrc)
             };
             _db.CanonicalTracks.Add(canonicalTrackForDualWrite);
         }
@@ -1260,6 +1313,66 @@ public sealed class LibraryScanService
             && int.TryParse(value.AsSpan(6), out _))
             return true;
         return false;
+    }
+
+    /// <summary>
+    /// Extracts a numeric track number from the beginning of a filename.
+    /// Handles patterns like "01 Title.mp3", "01 - Title.mp3", "1. Title.mp3".
+    /// Returns null if no leading digits are found.
+    /// </summary>
+    private static int? TryExtractTrackNumberFromFileName(string fileName)
+    {
+        var name = Path.GetFileNameWithoutExtension(fileName);
+        if (string.IsNullOrEmpty(name))
+            return null;
+
+        int i = 0;
+        while (i < name.Length && !char.IsDigit(name[i]))
+            i++;
+
+        if (i >= name.Length)
+            return null;
+
+        int start = i;
+        while (i < name.Length && char.IsDigit(name[i]))
+            i++;
+
+        var span = name.AsSpan(start, i - start);
+        return int.TryParse(span, out var num) && num > 0 ? num : null;
+    }
+
+    /// <summary>
+    /// ISRC codes are always exactly 12 characters (e.g., USRC17607839).
+    /// Reject anything that doesn't match this format — some audio files
+    /// have garbage data (URLs, etc.) in the ISRC field.
+    /// </summary>
+    private static string? ValidateIsrc(string? isrc)
+    {
+        if (string.IsNullOrWhiteSpace(isrc))
+            return null;
+
+        // ISRC format: CC-XXX-YY-NNNNN (12 chars, alphanumeric)
+        // Validate length and basic format
+        var trimmed = isrc.Trim();
+        if (trimmed.Length < 5 || trimmed.Length > 20)
+            return null;
+
+        // Must be mostly alphanumeric (allow hyphens)
+        if (trimmed.Any(c => !char.IsLetterOrDigit(c) && c != '-'))
+            return null;
+
+        return trimmed;
+    }
+
+    /// <summary>
+    /// Truncates composers string to fit the database column (nvarchar(512)).
+    /// </summary>
+    private static string? TruncateComposers(string? composers)
+    {
+        if (string.IsNullOrWhiteSpace(composers))
+            return null;
+
+        return composers.Length <= 500 ? composers : composers[..500];
     }
 
     /// <summary>

@@ -72,15 +72,12 @@ public sealed class TrackService : ITrackService
     {
         var userTracks = await BaseTrackQuery()
             .Where(ut => ut.CanonicalAlbumId == albumId && ut.OwnerId == caller.UserId)
+            .OrderBy(ut => ut.CanonicalTrack!.DiscNumber ?? int.MaxValue)
+            .ThenBy(ut => ut.CanonicalTrack!.TrackNumber ?? int.MaxValue)
+            .ThenBy(ut => ut.CanonicalTrack!.Title)
             .ToListAsync(cancellationToken);
 
-        var sorted = userTracks
-            .OrderBy(ut => ut.CanonicalTrack!.DiscNumber ?? int.MaxValue)
-            .ThenBy(ut => ut.CanonicalTrack!.TrackNumber ?? ExtractTrackNumberFromFileName(""))
-            .Select(ut => MapToDto(ut, caller.UserId))
-            .ToList();
-
-        return sorted;
+        return userTracks.Select(ut => MapToDto(ut, caller.UserId)).ToList();
     }
 
     /// <summary>
