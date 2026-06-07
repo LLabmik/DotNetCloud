@@ -13,30 +13,34 @@ CONFIG="${1:-Release}"
 echo "=== Deploying DotNetCloud ($CONFIG) ==="
 
 # Stop the service first so files aren't locked
-echo "[1/5] Stopping service..."
+echo "[1/6] Stopping service..."
 systemctl stop dotnetcloud 2>/dev/null || true
 
-# Deploy Core.Server
-echo "[2/5] Publishing Core.Server..."
-dotnet publish "$REPO_ROOT/src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj" -c "$CONFIG" -o "$DEPLOY_DIR" --no-self-contained -p:DebugType=None -p:DebugSymbols=false
+# Build everything once — handles dependency ordering correctly, no file contention
+echo "[2/6] Building solution..."
+dotnet build "$REPO_ROOT/DotNetCloud.CI.slnf" -c "$CONFIG" -p:DebugType=None -p:DebugSymbols=false
 
-# Deploy module hosts in parallel
-echo "[3/5] Publishing module hosts (parallel)..."
+# Publish Core.Server (no-build since already compiled)
+echo "[3/6] Publishing Core.Server..."
+dotnet publish "$REPO_ROOT/src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj" -c "$CONFIG" -o "$DEPLOY_DIR" --no-self-contained --no-build -p:DebugType=None -p:DebugSymbols=false
+
+# Publish module hosts in parallel (no-build — safe to parallelize, no file contention)
+echo "[4/6] Publishing module hosts (parallel, no-build)..."
 for module in Contacts Calendar Chat Files Notes Tracks Music Photos Video Search Bookmarks Email About AI; do
     module_lower=$(echo "$module" | tr '[:upper:]' '[:lower:]')
     (
-        dotnet publish "$REPO_ROOT/src/Modules/$module/DotNetCloud.Modules.$module.Host/DotNetCloud.Modules.$module.Host.csproj" -c "$CONFIG" -o "$MODULES_DIR/dotnetcloud.$module_lower" --no-self-contained -p:DebugType=None -p:DebugSymbols=false 2>&1 | sed "s/^/[$module] /"
+        dotnet publish "$REPO_ROOT/src/Modules/$module/DotNetCloud.Modules.$module.Host/DotNetCloud.Modules.$module.Host.csproj" -c "$CONFIG" -o "$MODULES_DIR/dotnetcloud.$module_lower" --no-self-contained --no-build -p:DebugType=None -p:DebugSymbols=false 2>&1 | sed "s/^/[$module] /"
     ) &
 done
 wait
-echo "[3/5] All module hosts published."
+echo "[4/6] All module hosts published."
 
 # Fix ownership
-echo "[4/5] Fixing permissions..."
+echo "[5/6] Fixing permissions..."
 chown -R "$SERVICE_USER:$SERVICE_USER" "$DEPLOY_DIR"
 
 # Start the service
-echo "[5/5] Starting service..."
+echo "[6/6] Starting service..."
 systemctl start dotnetcloud
 
 echo "=== Deploy complete ==="
