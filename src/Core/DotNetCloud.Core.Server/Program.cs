@@ -311,12 +311,12 @@ public class Program
         // builder.Services.AddSearchFtsClient(builder.Configuration); // removed — handled by Search module host
         // ✅ Phase 6: gRPC-based reindex dispatcher — calls Search module's ReindexModule RPC
         builder.Services.AddScoped<IAdminSharedFolderReindexDispatcher, InProcessAdminSharedFolderReindexDispatcher>();
-        // Register ISearchableModule implementations for search indexing
-        builder.Services.AddScoped<DotNetCloud.Core.Capabilities.ISearchableModule, DotNetCloud.Modules.Files.Data.Services.FilesSearchableModule>();
-        builder.Services.AddScoped<DotNetCloud.Core.Capabilities.ISearchableModule, DotNetCloud.Modules.Notes.Data.Services.NotesSearchableModule>();
-        builder.Services.AddScoped<DotNetCloud.Core.Capabilities.ISearchableModule, DotNetCloud.Modules.Calendar.Data.Services.CalendarSearchableModule>();
-        builder.Services.AddScoped<DotNetCloud.Core.Capabilities.ISearchableModule, DotNetCloud.Modules.Bookmarks.Data.Services.BookmarksSearchableModule>();
-        builder.Services.AddScoped<DotNetCloud.Core.Capabilities.ISearchableModule, DotNetCloud.Modules.Email.Data.Services.EmailSearchableModule>();
+        // Register gRPC-based module search document clients (replaces old ISearchableModule registrations)
+        builder.Services.AddSingleton<IModuleSearchDocumentClient, FilesModuleSearchClient>();
+        builder.Services.AddSingleton<IModuleSearchDocumentClient, NotesModuleSearchClient>();
+        builder.Services.AddSingleton<IModuleSearchDocumentClient, CalendarModuleSearchClient>();
+        builder.Services.AddSingleton<IModuleSearchDocumentClient, BookmarksModuleSearchClient>();
+        builder.Services.AddSingleton<IModuleSearchDocumentClient, EmailModuleSearchClient>();
         builder.Services.AddSingleton<IEventBus, InProcessEventBus>();
         builder.Services.AddSingleton<LegacyFilesMigrationService>();
         builder.Services.AddScoped<DotNetCloud.Core.Capabilities.ICrossModuleLinkResolver, CrossModuleLinkResolver>();

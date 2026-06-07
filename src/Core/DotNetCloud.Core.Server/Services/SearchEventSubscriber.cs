@@ -1,6 +1,5 @@
-using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.Events.Search;
-using Microsoft.Extensions.DependencyInjection;
+using DotNetCloud.Core.Services.ModuleApis;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using IEventBus = DotNetCloud.Core.Events.IEventBus;
@@ -10,33 +9,37 @@ namespace DotNetCloud.Core.Server.Services;
 /// <summary>
 /// Subscribes a search index event handler to the event bus on startup
 /// and performs an initial search index build for existing data.
-/// Real-time indexing uses the event handler to index/remove documents directly via <see cref="ISearchProvider"/>.
+/// Document retrieval from each module and indexing both use gRPC calls
+/// — no in-process ISearchableModule or ISearchProvider registrations needed.
 /// </summary>
 internal sealed class SearchEventSubscriber : IHostedService
 {
     private readonly IEventBus _eventBus;
-    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly ISearchApiClient _searchClient;
+    private readonly IEnumerable<IModuleSearchDocumentClient> _documentClients;
     private readonly ILogger<SearchEventSubscriber> _logger;
-    private ScopedSearchIndexHandler? _handler;
+    private SearchIndexEventHandler? _handler;
 
     /// <summary>Initializes a new instance of the <see cref="SearchEventSubscriber"/> class.</summary>
     public SearchEventSubscriber(
         IEventBus eventBus,
-        IServiceScopeFactory scopeFactory,
+        ISearchApiClient searchClient,
+        IEnumerable<IModuleSearchDocumentClient> documentClients,
         ILogger<SearchEventSubscriber> logger)
     {
         _eventBus = eventBus;
-        _scopeFactory = scopeFactory;
+        _searchClient = searchClient;
+        _documentClients = documentClients;
         _logger = logger;
     }
 
     /// <inheritdoc />
     public async Task StartAsync(CancellationToken cancellationToken)
     {
-        _handler = new ScopedSearchIndexHandler(_scopeFactory);
+        _handler = new SearchIndexEventHandler(_searchClient, _documentClients, _logger);
         await _eventBus.SubscribeAsync<SearchIndexRequestEvent>(_handler, cancellationToken);
 
-        _logger.LogInformation("Search event subscriber started");
+        _logger.LogInformation("Search event subscriber started — gRPC document clients + gRPC search indexing");
 
         // Perform initial index build in the background so startup isn't blocked
         _ = Task.Run(() => PerformInitialIndexAsync(CancellationToken.None), CancellationToken.None);
@@ -64,12 +67,8 @@ internal sealed class SearchEventSubscriber : IHostedService
     {
         try
         {
-            using var scope = _scopeFactory.CreateScope();
-            var searchProvider = scope.ServiceProvider.GetRequiredService<ISearchProvider>();
-            var searchableModules = scope.ServiceProvider.GetServices<ISearchableModule>();
-
             // Check if the index already has data — skip if so
-            var stats = await searchProvider.GetIndexStatsAsync(cancellationToken);
+            var stats = await _searchClient.GetIndexStatsAsync(cancellationToken);
             if (stats.TotalDocuments > 0)
             {
                 _logger.LogInformation("Search index already contains {Count} documents, skipping initial index build",
@@ -77,30 +76,30 @@ internal sealed class SearchEventSubscriber : IHostedService
                 return;
             }
 
-            var moduleList = searchableModules.ToList();
-            _logger.LogInformation("Performing initial search index build for {Count} modules", moduleList.Count);
+            var clientList = _documentClients.ToList();
+            _logger.LogInformation("Performing initial search index build for {Count} modules via gRPC", clientList.Count);
 
-            foreach (var module in moduleList)
+            foreach (var client in clientList)
             {
                 try
                 {
-                    var docs = await module.GetAllSearchableDocumentsAsync(cancellationToken);
-                    _logger.LogInformation("Indexing {Count} documents from module {ModuleId}",
-                        docs.Count, module.ModuleId);
+                    var docs = await client.GetAllSearchableDocumentsAsync(cancellationToken);
+                    _logger.LogInformation("Indexing {Count} documents from module {ModuleId} via gRPC",
+                        docs.Count, client.ModuleId);
 
                     foreach (var doc in docs)
                     {
-                        await searchProvider.IndexDocumentAsync(doc, cancellationToken);
+                        await _searchClient.IndexDocumentAsync(doc, cancellationToken);
                     }
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "Failed to index module {ModuleId} during initial build", module.ModuleId);
+                    _logger.LogWarning(ex, "Failed to index module {ModuleId} during initial build via gRPC", client.ModuleId);
                 }
             }
 
-            var finalStats = await searchProvider.GetIndexStatsAsync(cancellationToken);
-            _logger.LogInformation("Initial search index build complete — {Count} documents indexed",
+            var finalStats = await _searchClient.GetIndexStatsAsync(cancellationToken);
+            _logger.LogInformation("Initial search index build complete — {Count} documents indexed via gRPC",
                 finalStats.TotalDocuments);
         }
         catch (Exception ex)
@@ -108,46 +107,53 @@ internal sealed class SearchEventSubscriber : IHostedService
             _logger.LogError(ex, "Error during initial search index build");
         }
     }
+}
 
-    /// <summary>
-    /// Event handler that creates a DI scope per event to resolve scoped services (ISearchProvider, ISearchableModule).
-    /// This ensures proper DbContext lifecycle management.
-    /// </summary>
-    private sealed class ScopedSearchIndexHandler : DotNetCloud.Core.Events.IEventHandler<SearchIndexRequestEvent>
+/// <summary>
+/// Event handler that resolves the right module's gRPC client to get a searchable document,
+/// then indexes or removes it via the Search module's gRPC service.
+/// No longer depends on ISearchableModule or ISearchProvider DI registrations.
+/// </summary>
+internal sealed class SearchIndexEventHandler : DotNetCloud.Core.Events.IEventHandler<SearchIndexRequestEvent>
+{
+    private readonly ISearchApiClient _searchClient;
+    private readonly IEnumerable<IModuleSearchDocumentClient> _documentClients;
+    private readonly ILogger _logger;
+
+    public SearchIndexEventHandler(
+        ISearchApiClient searchClient,
+        IEnumerable<IModuleSearchDocumentClient> documentClients,
+        ILogger logger)
     {
-        private readonly IServiceScopeFactory _scopeFactory;
+        _searchClient = searchClient;
+        _documentClients = documentClients;
+        _logger = logger;
+    }
 
-        public ScopedSearchIndexHandler(IServiceScopeFactory scopeFactory)
+    public async Task HandleAsync(SearchIndexRequestEvent @event, CancellationToken cancellationToken = default)
+    {
+        if (@event.Action == SearchIndexAction.Remove)
         {
-            _scopeFactory = scopeFactory;
+            await _searchClient.RemoveDocumentAsync(@event.ModuleId, @event.EntityId, cancellationToken);
+            return;
         }
 
-        public async Task HandleAsync(SearchIndexRequestEvent @event, CancellationToken cancellationToken = default)
+        // Find the right module's gRPC client by module ID
+        var client = _documentClients.FirstOrDefault(c => c.ModuleId == @event.ModuleId);
+        if (client is null)
         {
-            using var scope = _scopeFactory.CreateScope();
-            var searchProvider = scope.ServiceProvider.GetRequiredService<ISearchProvider>();
-
-            if (@event.Action == SearchIndexAction.Remove)
-            {
-                await searchProvider.RemoveDocumentAsync(@event.ModuleId, @event.EntityId, cancellationToken);
-                return;
-            }
-
-            // For index actions, find the module and pull the document
-            var searchableModules = scope.ServiceProvider.GetServices<ISearchableModule>();
-            var module = searchableModules.FirstOrDefault(m => m.ModuleId == @event.ModuleId);
-            if (module is null)
-                return;
-
-            var document = await module.GetSearchableDocumentAsync(@event.EntityId, cancellationToken);
-            if (document is null)
-            {
-                // Entity was deleted — remove from index
-                await searchProvider.RemoveDocumentAsync(@event.ModuleId, @event.EntityId, cancellationToken);
-                return;
-            }
-
-            await searchProvider.IndexDocumentAsync(document, cancellationToken);
+            _logger.LogWarning("No gRPC document client found for module {ModuleId}", @event.ModuleId);
+            return;
         }
+
+        var document = await client.GetSearchableDocumentAsync(@event.EntityId, cancellationToken);
+        if (document is null)
+        {
+            // Entity was deleted — remove from index
+            await _searchClient.RemoveDocumentAsync(@event.ModuleId, @event.EntityId, cancellationToken);
+            return;
+        }
+
+        await _searchClient.IndexDocumentAsync(document, cancellationToken);
     }
 }
