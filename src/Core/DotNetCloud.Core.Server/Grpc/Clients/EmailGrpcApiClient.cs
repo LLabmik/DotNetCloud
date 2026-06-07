@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using DotNetCloud.Modules.Email.Host.Protos;
+using DotNetCloud.Modules.Email.Models;
 using DotNetCloud.Core.Services.ModuleApis;
 using Grpc.Core;
 using Grpc.Net.Client;
@@ -519,7 +520,7 @@ public sealed class EmailGrpcApiClient : IEmailApiClient, IDisposable
         {
             Id = Guid.Parse(m.Id),
             OwnerId = Guid.Parse(m.OwnerId),
-            ProviderType = Enum.TryParse<EmailProviderType>(m.ProviderType, out var pt) ? pt : EmailProviderType.ImapSmtp,
+            ProviderType = Enum.TryParse<EmailProviderType>(m.ProviderType, out var pt) ? pt.ToString() : nameof(EmailProviderType.ImapSmtp),
             DisplayName = m.DisplayName,
             EmailAddress = m.EmailAddress,
             IsEnabled = m.IsEnabled,

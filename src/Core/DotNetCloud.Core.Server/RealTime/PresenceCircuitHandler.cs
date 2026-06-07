@@ -1,4 +1,3 @@
-using DotNetCloud.Modules.Chat.Services;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Server.Circuits;
 using Microsoft.Extensions.Logging;
@@ -16,7 +15,6 @@ internal sealed class PresenceCircuitHandler : CircuitHandler
     private readonly UserConnectionTracker _connectionTracker;
     private readonly PresenceService _presenceService;
     private readonly AuthenticationStateProvider _authStateProvider;
-    private readonly IChatMessageNotifier? _chatMessageNotifier;
     private readonly ILogger<PresenceCircuitHandler> _logger;
 
     private string? _connectionId;
@@ -26,13 +24,11 @@ internal sealed class PresenceCircuitHandler : CircuitHandler
         UserConnectionTracker connectionTracker,
         PresenceService presenceService,
         AuthenticationStateProvider authStateProvider,
-        ILogger<PresenceCircuitHandler> logger,
-        IChatMessageNotifier? chatMessageNotifier = null)
+        ILogger<PresenceCircuitHandler> logger)
     {
         _connectionTracker = connectionTracker;
         _presenceService = presenceService;
         _authStateProvider = authStateProvider;
-        _chatMessageNotifier = chatMessageNotifier;
         _logger = logger;
     }
 
@@ -61,8 +57,6 @@ internal sealed class PresenceCircuitHandler : CircuitHandler
                 if (isFirstConnection)
                 {
                     await _presenceService.UserConnectedAsync(userId, _connectionId);
-                    _chatMessageNotifier?.NotifyUserPresenceChanged(
-                        new UserPresenceChangedNotification(userId, IsOnline: true));
                 }
             }
         }
@@ -92,8 +86,6 @@ internal sealed class PresenceCircuitHandler : CircuitHandler
                 if (isLastConnection)
                 {
                     await _presenceService.UserDisconnectedAsync(userId, _connectionId);
-                    _chatMessageNotifier?.NotifyUserPresenceChanged(
-                        new UserPresenceChangedNotification(userId, IsOnline: false));
                 }
             }
         }

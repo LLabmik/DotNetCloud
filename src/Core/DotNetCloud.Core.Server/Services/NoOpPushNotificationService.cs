@@ -1,4 +1,4 @@
-using DotNetCloud.Modules.Chat.Services;
+using DotNetCloud.Core.Server.PushNotifications;
 using Microsoft.Extensions.Logging;
 
 namespace DotNetCloud.Core.Server.Services;
@@ -20,25 +20,6 @@ internal sealed class NoOpPushNotificationService : IPushNotificationService
     public Task SendAsync(Guid userId, PushNotification notification, CancellationToken cancellationToken = default)
     {
         _logger.LogDebug("Push notification to user {UserId}: {Title}", userId, notification.Title);
-        return Task.CompletedTask;
-    }
-
-    /// <inheritdoc />
-    public Task SendToMultipleAsync(IEnumerable<Guid> userIds, PushNotification notification, CancellationToken cancellationToken = default)
-    {
-        _logger.LogDebug("Push notification to {Count} users: {Title}", userIds.Count(), notification.Title);
-        return Task.CompletedTask;
-    }
-
-    /// <inheritdoc />
-    public Task RegisterDeviceAsync(Guid userId, DeviceRegistration registration, CancellationToken cancellationToken = default)
-    {
-        return Task.CompletedTask;
-    }
-
-    /// <inheritdoc />
-    public Task UnregisterDeviceAsync(Guid userId, string deviceToken, CancellationToken cancellationToken = default)
-    {
         return Task.CompletedTask;
     }
 }

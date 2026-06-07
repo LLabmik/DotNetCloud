@@ -152,6 +152,9 @@ public sealed record EmailThreadDto
     /// <summary>Latest snippet.</summary>
     public string Snippet { get; init; } = "";
 
+    /// <summary>JSON-serialized list of participant email addresses.</summary>
+    public string ParticipantsJson { get; init; } = "";
+
     /// <summary>Number of messages in the thread.</summary>
     public int MessageCount { get; init; }
 

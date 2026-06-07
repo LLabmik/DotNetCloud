@@ -1,5 +1,5 @@
 using DotNetCloud.Core.Events;
-using DotNetCloud.Modules.Chat.Services;
+using DotNetCloud.Core.Server.PushNotifications;
 using Microsoft.Extensions.Logging;
 
 namespace DotNetCloud.Core.Server.Services;
