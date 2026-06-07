@@ -1,6 +1,5 @@
 using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Chat.Services;
-using DotNetCloud.Modules.Files.Events;
 using Microsoft.Extensions.Logging;
 
 namespace DotNetCloud.Core.Server.Services;

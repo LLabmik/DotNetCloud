@@ -8,9 +8,7 @@ using DotNetCloud.Modules.Files.DTOs;
 using DotNetCloud.Modules.Files.Events;
 using DotNetCloud.Modules.Files.Models;
 using DotNetCloud.Modules.Files.Services;
-using DotNetCloud.Modules.Photos.Events;
-using DotNetCloud.Modules.Music.Events;
-using DotNetCloud.Modules.Video.Events;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;

@@ -1,6 +1,6 @@
 using DotNetCloud.Core.Events;
 
-namespace DotNetCloud.Modules.Files.Events;
+namespace DotNetCloud.Core.Events;
 
 /// <summary>
 /// Published when a public link is accessed for the first time (download count transitions from 0 to 1).

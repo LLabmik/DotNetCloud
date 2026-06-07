@@ -1,6 +1,5 @@
 using System.Security.Claims;
-using DotNetCloud.Modules.Bookmarks.Models;
-using DotNetCloud.Modules.Bookmarks.Services;
+using DotNetCloud.Core.Services.ModuleApis;
 using Grpc.Core;
 using Grpc.Net.Client;
 using Microsoft.AspNetCore.Http;
@@ -76,7 +75,7 @@ public sealed class BookmarksGrpcApiClient : IBookmarksApiClient, IDisposable
     // ─── Bookmarks ──────────────────────────────────────────────────────────
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<BookmarkItem>> ListAsync(Guid? folderId = null, int skip = 0, int take = 50, CancellationToken ct = default)
+    public async Task<IReadOnlyList<BookmarkItemDto>> ListAsync(Guid? folderId = null, int skip = 0, int take = 50, CancellationToken ct = default)
     {
         var request = new Proto.ListBookmarksRequest
         {
@@ -98,7 +97,7 @@ public sealed class BookmarksGrpcApiClient : IBookmarksApiClient, IDisposable
     }
 
     /// <inheritdoc />
-    public async Task<BookmarkItem?> GetAsync(Guid id, CancellationToken ct = default)
+    public async Task<BookmarkItemDto?> GetAsync(Guid id, CancellationToken ct = default)
     {
         var request = new Proto.GetBookmarkRequest { BookmarkId = id.ToString(), UserId = GetUserId() };
         try
@@ -114,7 +113,7 @@ public sealed class BookmarksGrpcApiClient : IBookmarksApiClient, IDisposable
     }
 
     /// <inheritdoc />
-    public async Task<BookmarkItem?> CreateAsync(DotNetCloud.Modules.Bookmarks.Services.CreateBookmarkRequest req, CancellationToken ct = default)
+    public async Task<BookmarkItemDto?> CreateAsync(CreateBookmarkRequest req, CancellationToken ct = default)
     {
         var request = new Proto.CreateBookmarkRequest
         {
@@ -140,7 +139,7 @@ public sealed class BookmarksGrpcApiClient : IBookmarksApiClient, IDisposable
     }
 
     /// <inheritdoc />
-    public async Task<BookmarkItem?> UpdateAsync(Guid id, DotNetCloud.Modules.Bookmarks.Services.UpdateBookmarkRequest req, CancellationToken ct = default)
+    public async Task<BookmarkItemDto?> UpdateAsync(Guid id, UpdateBookmarkRequest req, CancellationToken ct = default)
     {
         var request = new Proto.UpdateBookmarkRequest
         {
@@ -181,7 +180,7 @@ public sealed class BookmarksGrpcApiClient : IBookmarksApiClient, IDisposable
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<BookmarkItem>> SearchAsync(string query, int skip = 0, int take = 50, CancellationToken ct = default)
+    public async Task<IReadOnlyList<BookmarkItemDto>> SearchAsync(string query, int skip = 0, int take = 50, CancellationToken ct = default)
     {
         var request = new Proto.SearchBookmarksRequest
         {
@@ -205,7 +204,7 @@ public sealed class BookmarksGrpcApiClient : IBookmarksApiClient, IDisposable
     // ─── Folders ────────────────────────────────────────────────────────────
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<BookmarkFolder>> ListFoldersAsync(Guid? parentId = null, CancellationToken ct = default)
+    public async Task<IReadOnlyList<BookmarkFolderDto>> ListFoldersAsync(Guid? parentId = null, CancellationToken ct = default)
     {
         var request = new Proto.ListBookmarkFoldersRequest
         {
@@ -225,7 +224,7 @@ public sealed class BookmarksGrpcApiClient : IBookmarksApiClient, IDisposable
     }
 
     /// <inheritdoc />
-    public async Task<BookmarkFolder?> GetFolderAsync(Guid id, CancellationToken ct = default)
+    public async Task<BookmarkFolderDto?> GetFolderAsync(Guid id, CancellationToken ct = default)
     {
         var request = new Proto.GetBookmarkFolderRequest { FolderId = id.ToString(), UserId = GetUserId() };
         try
@@ -241,7 +240,7 @@ public sealed class BookmarksGrpcApiClient : IBookmarksApiClient, IDisposable
     }
 
     /// <inheritdoc />
-    public async Task<BookmarkFolder?> CreateFolderAsync(DotNetCloud.Modules.Bookmarks.Services.CreateBookmarkFolderRequest req, CancellationToken ct = default)
+    public async Task<BookmarkFolderDto?> CreateFolderAsync(CreateBookmarkFolderRequest req, CancellationToken ct = default)
     {
         var request = new Proto.CreateBookmarkFolderRequest
         {
@@ -263,7 +262,7 @@ public sealed class BookmarksGrpcApiClient : IBookmarksApiClient, IDisposable
     }
 
     /// <inheritdoc />
-    public async Task<BookmarkFolder?> UpdateFolderAsync(Guid id, DotNetCloud.Modules.Bookmarks.Services.UpdateBookmarkFolderRequest req, CancellationToken ct = default)
+    public async Task<BookmarkFolderDto?> UpdateFolderAsync(Guid id, UpdateBookmarkFolderRequest req, CancellationToken ct = default)
     {
         var request = new Proto.UpdateBookmarkFolderRequest
         {
@@ -301,7 +300,7 @@ public sealed class BookmarksGrpcApiClient : IBookmarksApiClient, IDisposable
     // ─── Previews ───────────────────────────────────────────────────────────
 
     /// <inheritdoc />
-    public async Task<BookmarkPreview?> FetchPreviewAsync(Guid bookmarkId, CancellationToken ct = default)
+    public async Task<BookmarkPreviewDto?> FetchPreviewAsync(Guid bookmarkId, CancellationToken ct = default)
     {
         var request = new Proto.FetchPreviewRequest { BookmarkId = bookmarkId.ToString() };
         try
@@ -317,7 +316,7 @@ public sealed class BookmarksGrpcApiClient : IBookmarksApiClient, IDisposable
     }
 
     /// <inheritdoc />
-    public async Task<BookmarkPreview?> GetPreviewAsync(Guid bookmarkId, CancellationToken ct = default)
+    public async Task<BookmarkPreviewDto?> GetPreviewAsync(Guid bookmarkId, CancellationToken ct = default)
     {
         var request = new Proto.GetPreviewRequest { BookmarkId = bookmarkId.ToString() };
         try
@@ -368,11 +367,11 @@ public sealed class BookmarksGrpcApiClient : IBookmarksApiClient, IDisposable
         return headers;
     }
 
-    private static BookmarkItem? ToItem(Proto.BookmarkMessage? m)
+    private static BookmarkItemDto? ToItem(Proto.BookmarkMessage? m)
     {
         if (m is null || string.IsNullOrEmpty(m.Id))
             return null;
-        return new BookmarkItem
+        return new BookmarkItemDto
         {
             Id = Guid.Parse(m.Id),
             OwnerId = Guid.Parse(m.OwnerId),
@@ -386,11 +385,11 @@ public sealed class BookmarksGrpcApiClient : IBookmarksApiClient, IDisposable
         };
     }
 
-    private static BookmarkFolder? ToFolder(Proto.BookmarkFolderMessage? m)
+    private static BookmarkFolderDto? ToFolder(Proto.BookmarkFolderMessage? m)
     {
         if (m is null || string.IsNullOrEmpty(m.Id))
             return null;
-        return new BookmarkFolder
+        return new BookmarkFolderDto
         {
             Id = Guid.Parse(m.Id),
             OwnerId = Guid.Parse(m.OwnerId),
@@ -403,11 +402,11 @@ public sealed class BookmarksGrpcApiClient : IBookmarksApiClient, IDisposable
         };
     }
 
-    private static BookmarkPreview? ToPreview(Proto.BookmarkPreviewMessage? m)
+    private static BookmarkPreviewDto? ToPreview(Proto.BookmarkPreviewMessage? m)
     {
         if (m is null || string.IsNullOrEmpty(m.Id))
             return null;
-        return new BookmarkPreview
+        return new BookmarkPreviewDto
         {
             Id = Guid.Parse(m.Id),
             BookmarkId = Guid.Parse(m.BookmarkId),

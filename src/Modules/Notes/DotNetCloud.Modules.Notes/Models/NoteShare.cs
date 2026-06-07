@@ -1,3 +1,5 @@
+using DotNetCloud.Core.DTOs;
+
 namespace DotNetCloud.Modules.Notes.Models;
 
 /// <summary>
@@ -28,16 +30,4 @@ public sealed class NoteShare
 
     /// <summary>Navigation: the note.</summary>
     public Note? Note { get; set; }
-}
-
-/// <summary>
-/// Permission level for a note share.
-/// </summary>
-public enum NoteSharePermission
-{
-    /// <summary>Can view but not edit.</summary>
-    ReadOnly = 0,
-
-    /// <summary>Can view and edit.</summary>
-    ReadWrite = 1
 }

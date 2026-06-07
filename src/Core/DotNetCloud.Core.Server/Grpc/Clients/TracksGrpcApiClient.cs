@@ -2,8 +2,7 @@ using System.Security.Claims;
 using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Modules.Tracks.Host.Protos;
-using DotNetCloud.Modules.Tracks.Models;
-using DotNetCloud.Modules.Tracks.Services;
+using DotNetCloud.Core.Services.ModuleApis;
 using Grpc.Core;
 using Grpc.Net.Client;
 using Microsoft.AspNetCore.Http;
@@ -2398,7 +2397,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     // ─── Webhooks ──────────────────────────────────────────────────────────
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<WebhookSubscription>> ListProductWebhooksAsync(Guid productId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<WebhookSubscriptionDto>> ListProductWebhooksAsync(Guid productId, CancellationToken ct = default)
     {
         var request = new ListProductWebhooksRequest { ProductId = productId.ToString(), UserId = GetUserId() };
         try
@@ -2414,7 +2413,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     }
 
     /// <inheritdoc />
-    public async Task<WebhookSubscription?> CreateProductWebhookAsync(Guid productId, string url, List<string> eventTypes, CancellationToken ct = default)
+    public async Task<WebhookSubscriptionDto?> CreateProductWebhookAsync(Guid productId, string url, List<string> eventTypes, CancellationToken ct = default)
     {
         var request = new CreateProductWebhookRequest
         {
@@ -2436,7 +2435,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     }
 
     /// <inheritdoc />
-    public async Task<WebhookSubscription?> UpdateProductWebhookAsync(Guid productId, Guid subscriptionId, string url, List<string> eventTypes, bool isActive, CancellationToken ct = default)
+    public async Task<WebhookSubscriptionDto?> UpdateProductWebhookAsync(Guid productId, Guid subscriptionId, string url, List<string> eventTypes, bool isActive, CancellationToken ct = default)
     {
         var request = new UpdateProductWebhookRequest
         {
@@ -3290,17 +3289,15 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         };
     }
 
-    private static WebhookSubscription? ToWebhookSubscription(WebhookSubscriptionMessage? m)
+    private static WebhookSubscriptionDto? ToWebhookSubscription(WebhookSubscriptionMessage? m)
     {
         if (m is null || string.IsNullOrEmpty(m.Id))
             return null;
-        return new WebhookSubscription
+        return new WebhookSubscriptionDto
         {
             Id = Guid.Parse(m.Id),
             ProductId = Guid.Parse(m.ProductId),
             Url = m.Url,
-            Secret = string.Empty, // Secret is never returned from gRPC
-            EventsJson = m.EventsJson,
             IsActive = m.IsActive,
             CreatedByUserId = Guid.Parse(m.CreatedByUserId),
             LastDeliveryAt = string.IsNullOrEmpty(m.LastDeliveryAt) ? null : ParseDateTime(m.LastDeliveryAt),

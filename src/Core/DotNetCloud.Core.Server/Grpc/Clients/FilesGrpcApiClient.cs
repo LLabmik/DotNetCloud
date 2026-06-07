@@ -1,4 +1,4 @@
-using DotNetCloud.Modules.Files.Services;
+using DotNetCloud.Core.Services.ModuleApis;
 using Grpc.Core;
 using Grpc.Net.Client;
 using Microsoft.Extensions.Logging;

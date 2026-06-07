@@ -1,5 +1,5 @@
 using DotNetCloud.Modules.Search.Host.Protos;
-using DotNetCloud.Modules.Search.Services;
+using DotNetCloud.Core.Services.ModuleApis;
 using Grpc.Core;
 using Grpc.Net.Client;
 using Microsoft.Extensions.Logging;

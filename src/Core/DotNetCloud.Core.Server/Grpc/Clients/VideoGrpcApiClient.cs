@@ -1,4 +1,4 @@
-using DotNetCloud.Modules.Video.Services;
+using DotNetCloud.Core.Services.ModuleApis;
 using Grpc.Core;
 using Grpc.Net.Client;
 using Microsoft.Extensions.Logging;

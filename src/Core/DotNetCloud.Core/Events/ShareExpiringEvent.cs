@@ -1,6 +1,6 @@
 using DotNetCloud.Core.Events;
 
-namespace DotNetCloud.Modules.Files.Events;
+namespace DotNetCloud.Core.Events;
 
 /// <summary>
 /// Published when a share is about to expire (within the configured notification window).

@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Security.Claims;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Modules.Calendar.Host.Protos;
-using DotNetCloud.Modules.Calendar.Services;
+using DotNetCloud.Core.Services.ModuleApis;
 using DotNetCloud.Modules.Contacts.Host.Protos;
 using Grpc.Core;
 using Grpc.Net.Client;

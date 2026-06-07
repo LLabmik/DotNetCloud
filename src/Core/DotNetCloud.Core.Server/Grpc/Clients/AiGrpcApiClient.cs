@@ -1,6 +1,6 @@
 using System.Runtime.CompilerServices;
 using DotNetCloud.Modules.AI.Host.Protos;
-using DotNetCloud.Modules.AI.Services;
+using DotNetCloud.Core.Services.ModuleApis;
 using Grpc.Core;
 using Grpc.Net.Client;
 using Microsoft.Extensions.Logging;
