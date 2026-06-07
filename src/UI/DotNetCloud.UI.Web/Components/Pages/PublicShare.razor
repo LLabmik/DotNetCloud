@@ -71,7 +71,7 @@
                     <span class="meta-item">@_node.MimeType</span>
                 }
             </div>
-            <a href="/api/v1/public/shares/@Token/download@(_resolvedWithPassword ? $"?password={Uri.EscapeDataString(_password)}" : "")"
+            <a href="/api/v1/files/public/shares/@Token/download@(_resolvedWithPassword ? $"?password={Uri.EscapeDataString(_password)}" : "")"
                class="btn btn-primary public-share-download"
                download="@_node.Name">
                 Download

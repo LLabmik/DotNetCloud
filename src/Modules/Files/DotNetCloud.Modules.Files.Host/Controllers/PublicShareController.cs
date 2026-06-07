@@ -9,7 +9,7 @@ namespace DotNetCloud.Modules.Files.Host.Controllers;
 /// Handles anonymous access to public link shares.
 /// </summary>
 [AllowAnonymous]
-[Route("api/v1/public/shares")]
+[Route("api/v1/files/public/shares")]
 public class PublicShareController : FilesControllerBase
 {
     private readonly IShareService _shareService;

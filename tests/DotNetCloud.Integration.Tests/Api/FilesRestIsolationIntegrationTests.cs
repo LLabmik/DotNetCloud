@@ -584,13 +584,13 @@ public class FilesRestIsolationIntegrationTests
         Assert.IsFalse(string.IsNullOrWhiteSpace(linkToken));
         var publicLinkToken = linkToken!;
 
-        var resolveMissingPassword = await client.GetAsync($"/api/v1/public/shares/{publicLinkToken}");
+        var resolveMissingPassword = await client.GetAsync($"/api/v1/files/public/shares/{publicLinkToken}");
         await ApiAssert.ErrorAsync(resolveMissingPassword, HttpStatusCode.NotFound);
 
-        var resolveWrongPassword = await client.GetAsync($"/api/v1/public/shares/{publicLinkToken}?password=wrong");
+        var resolveWrongPassword = await client.GetAsync($"/api/v1/files/public/shares/{publicLinkToken}?password=wrong");
         await ApiAssert.ErrorAsync(resolveWrongPassword, HttpStatusCode.NotFound);
 
-        var resolveCorrectPassword = await client.GetAsync($"/api/v1/public/shares/{publicLinkToken}?password={Uri.EscapeDataString("P@ssw0rd!")}");
+        var resolveCorrectPassword = await client.GetAsync($"/api/v1/files/public/shares/{publicLinkToken}?password={Uri.EscapeDataString("P@ssw0rd!")}");
         var resolveRoot = await ApiAssert.SuccessAsync(resolveCorrectPassword, HttpStatusCode.OK);
         Assert.AreEqual(publicLinkToken, DataOrRoot(resolveRoot).GetProperty("linkToken").GetString());
     }

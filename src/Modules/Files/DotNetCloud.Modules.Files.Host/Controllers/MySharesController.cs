@@ -7,7 +7,7 @@ namespace DotNetCloud.Modules.Files.Host.Controllers;
 /// <summary>
 /// Exposes shares that have been granted to the calling user.
 /// </summary>
-[Route("api/v1/me/shares")]
+[Route("api/v1/files/me/shares")]
 [Authorize(AuthenticationSchemes = "Identity.Application")]
 public class MySharesController : FilesControllerBase
 {
