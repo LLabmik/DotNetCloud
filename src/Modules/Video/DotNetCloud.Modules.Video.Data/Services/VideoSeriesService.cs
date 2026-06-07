@@ -32,7 +32,9 @@ public sealed class VideoSeriesService : IVideoSeriesService
         _tmdbClient = tmdbClient;
         _logger = logger;
         _storageRoot = configuration["Files:Storage:RootPath"] ?? Path.GetTempPath();
-        _contentStorage = new ContentAddressedStorage(_storageRoot);
+        var mediaCachePath = configuration["Files:Storage:MediaCachePath"]
+            ?? Path.Combine(_storageRoot, ".media-cache");
+        _contentStorage = new ContentAddressedStorage(mediaCachePath);
     }
 
     // ─── Series CRUD ─────────────────────────────────────────────────

@@ -209,7 +209,9 @@ app.MapGet("/api/v1/videos/{videoId:guid}/thumbnail", async (Guid videoId, IVide
 app.MapGet("/api/v1/series/{seriesId:guid}/thumbnail", async (Guid seriesId, VideoDbContext db, IConfiguration config) =>
 {
     var storageRoot = config["Files:Storage:RootPath"] ?? "/var/lib/dotnetcloud/storage";
-    // Try canonical series poster hash
+    var mediaCachePath = config["Files:Storage:MediaCachePath"]
+        ?? Path.Combine(storageRoot, ".media-cache");
+    // Try canonical series poster hash in content-addressed storage
     var canonicalPosterHash = await db.CanonicalVideoSeries
         .Where(s => s.Id == seriesId)
         .Select(s => s.PosterHash)
@@ -218,7 +220,7 @@ app.MapGet("/api/v1/series/{seriesId:guid}/thumbnail", async (Guid seriesId, Vid
     if (!string.IsNullOrEmpty(canonicalPosterHash))
     {
         var prefix = canonicalPosterHash.Length >= 2 ? canonicalPosterHash[..2] : canonicalPosterHash;
-        var dir = Path.Combine(storageRoot, "images", prefix);
+        var dir = Path.Combine(mediaCachePath, "images", prefix);
         if (Directory.Exists(dir))
         {
             var files = Directory.GetFiles(dir, $"{canonicalPosterHash}.*");

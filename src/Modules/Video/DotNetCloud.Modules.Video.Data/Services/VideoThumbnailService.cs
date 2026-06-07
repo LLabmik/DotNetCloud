@@ -44,8 +44,10 @@ public sealed class VideoThumbnailService : IVideoThumbnailService
         _logger = logger;
 
         var storageRoot = configuration["Files:Storage:RootPath"] ?? Path.GetTempPath();
+        var mediaCachePath = configuration["Files:Storage:MediaCachePath"]
+            ?? Path.Combine(storageRoot, ".media-cache");
         _screenshotCacheDir = Path.Combine(storageRoot, ".video-screenshots");
-        _contentStorage = new ContentAddressedStorage(storageRoot);
+        _contentStorage = new ContentAddressedStorage(mediaCachePath);
     }
 
     /// <inheritdoc />

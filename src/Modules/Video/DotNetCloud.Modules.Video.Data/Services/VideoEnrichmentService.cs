@@ -19,22 +19,32 @@ public sealed partial class VideoEnrichmentService : IVideoEnrichmentService
     private readonly ITmdbClient _tmdbClient;
     private readonly ContentAddressedStorage _contentStorage;
     private readonly ILogger<VideoEnrichmentService> _logger;
+    private readonly IVideoSettingsProvider _settingsProvider;
 
-    public VideoEnrichmentService(VideoDbContext db, ITmdbClient tmdbClient, IConfiguration configuration, ILogger<VideoEnrichmentService> logger)
+    public VideoEnrichmentService(VideoDbContext db, ITmdbClient tmdbClient, IVideoSettingsProvider settingsProvider, IConfiguration configuration, ILogger<VideoEnrichmentService> logger)
     {
         _db = db;
         _tmdbClient = tmdbClient;
+        _settingsProvider = settingsProvider;
         _logger = logger;
 
-        // Check file config as a startup fallback — runtime DB check happens in enrichment methods
-        IsTmdbAvailable = !string.IsNullOrWhiteSpace(configuration["Video:Enrichment:TmdbApiKey"]);
-
         var storageRoot = configuration["Files:Storage:RootPath"] ?? Path.GetTempPath();
-        _contentStorage = new ContentAddressedStorage(storageRoot);
+        var mediaCachePath = configuration["Files:Storage:MediaCachePath"]
+            ?? Path.Combine(storageRoot, ".media-cache");
+        _contentStorage = new ContentAddressedStorage(mediaCachePath);
     }
 
     /// <inheritdoc />
-    public bool IsTmdbAvailable { get; }
+    public bool IsTmdbAvailable { get; private set; }
+
+    /// <summary>
+    /// Initializes runtime TMDB availability from the database settings (set via admin pages).
+    /// Must be called once during app startup after the DI container is ready.
+    /// </summary>
+    public async Task InitializeAsync(CancellationToken cancellationToken = default)
+    {
+        IsTmdbAvailable = await _settingsProvider.IsTmdbAvailableAsync(cancellationToken);
+    }
 
     /// <inheritdoc />
     public async Task EnrichVideoAsync(Guid videoId, CallerContext caller, bool force = false, CancellationToken cancellationToken = default)
@@ -98,7 +108,27 @@ public sealed partial class VideoEnrichmentService : IVideoEnrichmentService
             }
         }
 
-        // Priority 3: Search by title + year
+        // Priority 3: Stored TmdbId from previous enrichment or manual correction
+        // Check before title search so that corrected TmdbIds (e.g. fixed in admin) are respected.
+        if (searchResult is null && canonicalVideo.TmdbId is not null)
+        {
+            detail = await _tmdbClient.GetMovieAsync(canonicalVideo.TmdbId.Value, cancellationToken);
+            if (detail is not null)
+            {
+                _logger.LogDebug("Used stored TmdbId lookup: {TmdbId}", canonicalVideo.TmdbId);
+                searchResult = new TmdbMovieSearchResult
+                {
+                    Id = detail.Id,
+                    Title = detail.Title,
+                    Overview = detail.Overview,
+                    PosterPath = detail.PosterPath,
+                    ReleaseDate = detail.ReleaseDate,
+                    VoteAverage = detail.VoteAverage
+                };
+            }
+        }
+
+        // Priority 4: Search by title + year
         if (searchResult is null && !string.IsNullOrWhiteSpace(videoTitle))
         {
             searchResult = await TryMovieSearchAsync(videoTitle, year, videoId, cancellationToken);
@@ -106,7 +136,7 @@ public sealed partial class VideoEnrichmentService : IVideoEnrichmentService
                 detail = await _tmdbClient.GetMovieAsync(searchResult.Id, cancellationToken);
         }
 
-        // Priority 4: If year-filtered search returned 0, retry WITHOUT year
+        // Priority 5: If year-filtered search returned 0, retry WITHOUT year
         // (the extracted year may be wrong — e.g. from a TV series air date or encoding noise)
         if (searchResult is null && !string.IsNullOrWhiteSpace(videoTitle) && year.HasValue)
         {
@@ -116,7 +146,7 @@ public sealed partial class VideoEnrichmentService : IVideoEnrichmentService
                 detail = await _tmdbClient.GetMovieAsync(searchResult.Id, cancellationToken);
         }
 
-        // Priority 5: Try TV series search — either from series membership or as a fallback
+        // Priority 6: Try TV series search — either from series membership or as a fallback
         if (searchResult is null && !string.IsNullOrWhiteSpace(videoTitle))
         {
             // Check if this video belongs to a known series (movie franchise or TV series)
@@ -208,13 +238,17 @@ public sealed partial class VideoEnrichmentService : IVideoEnrichmentService
         // ── Mark the canonical video as TMDB-enriched ──
         // This flag is checked by the enrichment background queue to skip future runs,
         // and by the thumbnail/poster service to prefer the TMDB poster over screenshots.
-        canonicalVideo.HasExternalPoster = true;
         canonicalVideo.TmdbId = best.Id;
         canonicalVideo.ThumbnailPosterHash = null;
         // Propagate the poster hash from CanonicalTmdbData to CanonicalVideo so that
         // GetThumbnailAsync (Priority 2) can serve the poster via content-addressed storage.
+        // Only set HasExternalPoster when poster file was actually downloaded — prevents
+        // phantom "poster available" DTOs when the download itself failed or returned null.
         if (canonicalTmdb.ExternalPosterHash is not null)
+        {
             canonicalVideo.ExternalPosterHash = canonicalTmdb.ExternalPosterHash;
+            canonicalVideo.HasExternalPoster = true;
+        }
         canonicalVideo.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(cancellationToken);

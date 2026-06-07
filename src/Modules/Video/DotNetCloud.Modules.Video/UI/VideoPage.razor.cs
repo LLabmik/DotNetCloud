@@ -337,6 +337,8 @@ public partial class VideoPage : IAsyncDisposable
 
             ScanProgress.OnProgressChanged += OnScanProgressChanged;
 
+            // Initialize TMDB availability from database settings (set via admin pages)
+            await EnrichmentService.InitializeAsync();
             _tmdbAvailable = EnrichmentService.IsTmdbAvailable;
 
             // Deep-link: auto-open from Files module if fileId parameter was supplied on first load

@@ -1256,6 +1256,7 @@
                         <video id="video-player"
                                class="video-player"
                                src="@GetStreamUrl(_playerVideo.FileNodeId)"
+                               poster="@(_playerVideo.HasExternalPoster ? GetThumbnailUrl(_playerVideo.Id) : null)"
                                controls
                                autoplay
                                preload="auto">
