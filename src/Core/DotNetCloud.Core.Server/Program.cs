@@ -32,7 +32,6 @@ using DotNetCloud.Modules.Video.Data;
 using DotNetCloud.Modules.Bookmarks.Data;
 using DotNetCloud.Modules.Email.Data;
 using DotNetCloud.Modules.AI.Data;
-using DotNetCloud.Modules.Search;
 using DotNetCloud.Modules.Search.Client;
 using DotNetCloud.Modules.Files.Services;
 using DotNetCloud.UI.Web.Client.Services;

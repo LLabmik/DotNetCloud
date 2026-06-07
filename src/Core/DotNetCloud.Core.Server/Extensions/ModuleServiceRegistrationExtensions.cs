@@ -9,7 +9,6 @@ using DotNetCloud.Modules.Files.Data;
 using DotNetCloud.Modules.Music.Data;
 using DotNetCloud.Modules.Notes.Data;
 using DotNetCloud.Modules.Photos.Data;
-using DotNetCloud.Modules.Search.Data;
 using DotNetCloud.Modules.Tracks.Data;
 using DotNetCloud.Modules.Video.Data;
 using Microsoft.EntityFrameworkCore;
@@ -47,7 +46,6 @@ internal static class ModuleServiceRegistrationExtensions
         const string MusicMigrationsAssembly = "DotNetCloud.Modules.Music.Data.SqlServer";
         const string NotesMigrationsAssembly = "DotNetCloud.Modules.Notes.Data.SqlServer";
         const string PhotosMigrationsAssembly = "DotNetCloud.Modules.Photos.Data.SqlServer";
-        const string SearchMigrationsAssembly = "DotNetCloud.Modules.Search.Data.SqlServer";
         const string TracksMigrationsAssembly = "DotNetCloud.Modules.Tracks.Data.SqlServer";
         const string VideoMigrationsAssembly = "DotNetCloud.Modules.Video.Data.SqlServer";
 
@@ -76,8 +74,6 @@ internal static class ModuleServiceRegistrationExtensions
             ConfigureModuleDbContext(options, provider, connectionString, NotesMigrationsAssembly), ServiceLifetime.Transient);
         services.AddDbContext<PhotosDbContext>(options =>
             ConfigureModuleDbContext(options, provider, connectionString, PhotosMigrationsAssembly), ServiceLifetime.Transient);
-        services.AddDbContext<SearchDbContext>(options =>
-            ConfigureModuleDbContext(options, provider, connectionString, SearchMigrationsAssembly), ServiceLifetime.Transient);
         services.AddDbContext<TracksDbContext>(options =>
             ConfigureModuleDbContext(options, provider, connectionString, TracksMigrationsAssembly), ServiceLifetime.Transient);
         services.AddDbContext<VideoDbContext>(options =>
