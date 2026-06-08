@@ -22,7 +22,6 @@ public class SearchControllerTests
 {
     private Mock<ISearchProvider> _searchProviderMock = null!;
     private SearchQueryService _queryService = null!;
-    private Mock<SearchReindexBackgroundService> _reindexServiceMock = null!;
     private SearchController _controller = null!;
     private SearchDbContext _db = null!;
 

@@ -34,6 +34,8 @@
   <ItemGroup>
     <ProjectReference Include="..\DotNetCloud.Modules.Calendar\DotNetCloud.Modules.Calendar.csproj" />
     <ProjectReference Include="..\DotNetCloud.Modules.Calendar.Data\DotNetCloud.Modules.Calendar.Data.csproj" />
+    <ProjectReference Include="..\..\Contacts\DotNetCloud.Modules.Contacts.Data\DotNetCloud.Modules.Contacts.Data.csproj" />
+    <ProjectReference Include="..\..\..\Core\DotNetCloud.Core.Auth\DotNetCloud.Core.Auth.csproj" />
     <ProjectReference Include="..\..\..\Core\DotNetCloud.Core.Grpc\DotNetCloud.Core.Grpc.csproj" />
   </ItemGroup>
 

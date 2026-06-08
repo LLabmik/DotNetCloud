@@ -1,5 +1,6 @@
 using DotNetCloud.Core.DTOs.Media;
 using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Files.Data;
 using DotNetCloud.Modules.Files.Events;
 using DotNetCloud.Modules.Files.Host.Protos;
@@ -1482,8 +1483,7 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
                 // Resolve shared folder mount via the virtual mounted node registry
                 var mounts = await _db.MountedNodeEntries
                     .AsNoTracking()
-                    .Where(m => m.SharedFolderId == source.SharedFolderId.Value
-                                && (m.UserId == userId || m.TargetUserId == userId))
+                    .Where(m => m.SharedFolderId == source.SharedFolderId.Value)
                     .ToListAsync(cancellationToken);
 
                 if (mounts.Count == 0)
@@ -1491,7 +1491,7 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
 
                 // Use the first matching mount to get the root folder
                 var mount = mounts[0];
-                var rootFolderId = mount.MountedFileNodeId ?? mount.SharedFolderId;
+                var rootFolderId = mount.Id;
                 var rootNode = await _db.FileNodes
                     .AsNoTracking()
                     .FirstOrDefaultAsync(n => n.Id == rootFolderId && !n.IsDeleted, cancellationToken);

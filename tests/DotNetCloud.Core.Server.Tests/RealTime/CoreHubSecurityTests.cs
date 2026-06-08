@@ -1,9 +1,7 @@
 using System.Security.Claims;
-using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.Server.RealTime;
-using DotNetCloud.Modules.Chat.DTOs;
-using DotNetCloud.Modules.Chat.Services;
-using Microsoft.AspNetCore.Http.Features;
+using DotNetCloud.Core.Services.ModuleApis;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
@@ -85,14 +83,19 @@ public class CoreHubSecurityTests
     }
 
     [TestMethod]
-    public async Task JoinGroupAsync_NullChannelMemberService_SkipsCheckAndAddsToGroup()
+    public async Task JoinGroupAsync_IsChannelMember_AddsToGroup()
     {
-        // When chat module isn't loaded, channelMemberService is null.
-        // The hub should still add the connection to the group (backwards compat).
+        // When the gRPC IsChannelMemberAsync returns true, user is added to the group.
         var groups = new StubGroupManager();
+        var chatApiClientMock = new Mock<IChatApiClient>();
+        chatApiClientMock
+            .Setup(s => s.IsChannelMemberAsync(
+                It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
         var hub = CreateHub(
             userId: Guid.NewGuid(),
-            channelMemberService: null,
+            chatApiClientMock: chatApiClientMock,
             groups: groups);
         var channelId = Guid.NewGuid().ToString();
 
@@ -109,43 +112,20 @@ public class CoreHubSecurityTests
         StubGroupManager? groups = null)
     {
         var userId = Guid.NewGuid();
-        var channelMemberService = new Mock<IChannelMemberService>();
-        channelMemberService
-            .Setup(s => s.IsMemberAsync(
+        var chatApiClientMock = new Mock<IChatApiClient>();
+        chatApiClientMock
+            .Setup(s => s.IsChannelMemberAsync(
                 It.IsAny<Guid>(),
-                It.IsAny<DotNetCloud.Core.Authorization.CallerContext>(),
+                It.IsAny<Guid>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(isMember);
 
-        return CreateHub(userId, channelMemberService.Object, groups);
-    }
-
-    private static CoreHub CreateHubWithAllChatServices(
-        Mock<IMessageService>? messageService = null)
-    {
-        var userId = Guid.NewGuid();
-        var ms = messageService?.Object ?? new Mock<IMessageService>().Object;
-        var cms = new Mock<IChannelMemberService>().Object;
-        var rs = new Mock<IReactionService>().Object;
-        var tis = new Mock<ITypingIndicatorService>().Object;
-        var crs = new Mock<IChatRealtimeService>().Object;
-
-        var tracker = new UserConnectionTracker();
-        var presence = new PresenceService(tracker, NullLogger<PresenceService>.Instance);
-
-        var hub = new CoreHub(
-            tracker,
-            presence,
-            NullLogger<CoreHub>.Instance);
-
-        hub.Clients = new Mock<IHubCallerClients>().Object;
-        hub.Groups = new StubGroupManager();
-        return hub;
+        return CreateHub(userId, chatApiClientMock, groups);
     }
 
     private static CoreHub CreateHub(
         Guid userId,
-        IChannelMemberService? channelMemberService,
+        Mock<IChatApiClient>? chatApiClientMock = null,
         StubGroupManager? groups = null)
     {
         var tracker = new UserConnectionTracker();
@@ -154,8 +134,9 @@ public class CoreHubSecurityTests
         var hub = new CoreHub(
             tracker,
             presence,
-            NullLogger<CoreHub>.Instance,
-            channelMemberService: channelMemberService);
+            chatApiClientMock?.Object ?? Mock.Of<IChatApiClient>(),
+            Mock.Of<IRealtimeBroadcaster>(),
+            NullLogger<CoreHub>.Instance);
         hub.Context = new TestHubCallerContext(userId, "conn-security-test");
         hub.Groups = groups ?? new StubGroupManager();
         return hub;

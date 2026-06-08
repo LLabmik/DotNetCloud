@@ -159,7 +159,13 @@ public sealed class CalendarApiClient : ICalendarApiClient
     private async Task<T?> ReadDataAsync<T>(string url, CancellationToken cancellationToken)
     {
         var response = await _httpClient.GetAsync(url, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        if (!response.IsSuccessStatusCode)
+        {
+            var body = await response.Content.ReadAsStringAsync(cancellationToken);
+            throw new HttpRequestException(
+                $"Calendar API {url} returned {(int)response.StatusCode}: {body}",
+                null, response.StatusCode);
+        }
         return await ReadDataAsync<T>(response, cancellationToken);
     }
 

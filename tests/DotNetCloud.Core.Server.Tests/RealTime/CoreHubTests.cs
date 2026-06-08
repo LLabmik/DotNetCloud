@@ -1,9 +1,10 @@
 using System.Security.Claims;
+using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Server.RealTime;
+using DotNetCloud.Core.Services.ModuleApis;
 using DotNetCloud.Modules.Chat.DTOs;
 using DotNetCloud.Modules.Chat.Events;
-using DotNetCloud.Modules.Chat.Services;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -26,6 +27,8 @@ public class CoreHubTests
         var hub = new CoreHub(
             tracker,
             presence,
+            Mock.Of<DotNetCloud.Core.Services.ModuleApis.IChatApiClient>(),
+            Mock.Of<IRealtimeBroadcaster>(),
             NullLogger<CoreHub>.Instance);
 
         var othersProxy = new Mock<IClientProxy>();

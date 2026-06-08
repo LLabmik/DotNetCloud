@@ -1223,9 +1223,11 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 
 ### Core.Server Conversion
 
-- ☐ Remove all `.Host` ProjectReferences from csproj
+- ✓ Remove all `.Host` ProjectReferences from csproj
 - ✓ Add gRPC client proto references for all 12 modules
-- ☐ Remove all `AddXxxServices()` calls from Program.cs
+- ✓ Remove all `AddXxxServices()` calls from Program.cs
+- ✓ Remove all `.Data.SqlServer` migration assembly ProjectReferences from Core.Server.csproj (handled by DbContextSchemaProvider in Core.Schema)
+- ✓ Remove `ModuleServiceRegistrationExtensions.cs` — module DbContext registrations moved into each module's own Add\*UiServices method via `ModuleDbContextConfiguration` helper in Core.Data
 - ✓ Replace in-process API clients with gRPC clients (Notes, Bookmarks, Email, Tracks done; remaining modules already gRPC)
 - ✓ Add options bindings for all gRPC clients
 - ✓ Register new gRPC API clients

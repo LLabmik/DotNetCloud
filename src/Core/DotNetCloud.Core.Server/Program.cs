@@ -19,22 +19,18 @@ using DotNetCloud.Core.ServiceDefaults.Extensions;
 using DotNetCloud.Core.ServiceDefaults.HealthChecks;
 using DotNetCloud.Core.ServiceDefaults.Telemetry;
 using DotNetCloud.Core.Events;
-using DotNetCloud.Modules.Calendar.Data;
-// Chat.Data reference removed — ChatHub now uses IChatApiClient (gRPC)
-using DotNetCloud.Modules.Contacts.Data;
 using DotNetCloud.Core.Services;
-// Files.Data reference removed — MediaFolderImportService now uses IFilesApiClient (gRPC)
-// LegacyFilesMigrationService moved to DotNetCloud.Modules.Files.Host
-using DotNetCloud.Modules.Music.Data;
-using DotNetCloud.Modules.Notes.Data;
-using DotNetCloud.Modules.Photos.Data;
-using DotNetCloud.Modules.Tracks.Data;
-using DotNetCloud.Modules.Video.Data;
-using DotNetCloud.Modules.Bookmarks.Data;
-using DotNetCloud.Modules.Email.Data;
-using DotNetCloud.Modules.AI.Data;
-using DotNetCloud.Modules.Search.Client;
 using DotNetCloud.Modules.Files.Services;
+using DotNetCloud.Modules.Notes.Data;
+using DotNetCloud.Modules.Tracks.Data;
+using DotNetCloud.Modules.Music.Data;
+using DotNetCloud.Modules.Photos.Data;
+using DotNetCloud.Modules.Video.Data;
+using DotNetCloud.Modules.AI.Data;
+using DotNetCloud.Modules.Chat.Data;
+using DotNetCloud.Modules.Chat.Services;
+using DotNetCloud.Modules.Calendar.Data;
+using DotNetCloud.Modules.Files.Data;
 using DotNetCloud.UI.Web.Client.Services;
 using DotNetCloud.UI.Web.Services;
 using Microsoft.AspNetCore.Components;
@@ -290,19 +286,51 @@ public class Program
         }
         builder.Services.AddDotNetCloudDbContext(connectionString, provider);
 
-        // Register naming strategy for all module DbContexts based on configured provider
-        builder.Services.AddSingleton<ITableNamingStrategy>(provider == DatabaseProvider.SqlServer
-            ? new SqlServerNamingStrategy()
-            : new PostgreSqlNamingStrategy());
-
-        // Register in-process module data services for interactive module UI actions,
-        // using the same provider as the configured core database.
-        builder.Services.AddModuleDbContexts(provider, connectionString);
-
         // Register schema services for lazy module schema creation.
         // SelfManagedSchemaProvider and ModuleSchemaService are registered by AddDotNetCloudDbContext.
         builder.Services.AddSingleton<IFileValidationService, FileValidationService>();
         builder.Services.AddSingleton<IModuleSchemaProvider, DbContextSchemaProvider>();
+
+        // Register in-process module data services for interactive Blazor UI components.
+        // Each module's .Data project owns its Add*UiServices registration, including
+        // the DbContext configuration.
+        builder.Services.AddNotesUiServices(builder.Configuration!, provider, connectionString);
+        builder.Services.AddTracksUiServices(builder.Configuration!, provider, connectionString);
+        builder.Services.AddMusicUiServices(builder.Configuration!, provider, connectionString);
+        builder.Services.AddPhotosUiServices(builder.Configuration!, provider, connectionString);
+        builder.Services.AddVideoUiServices(builder.Configuration!, provider, connectionString);
+        builder.Services.AddAiUiServices(builder.Configuration!, provider, connectionString);
+
+        // Files module UI services (FileBrowser and related Blazor components).
+        // Registers FilesDbContext and the scoped services needed for in-process rendering.
+        builder.Services.AddDbContext<FilesDbContext>(options =>
+            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Files.Data.SqlServer"),
+            ServiceLifetime.Transient);
+        builder.Services.AddFilesUiServices(builder.Configuration!);
+
+        // Chat module UI services (ChatPageLayout and related Blazor components).
+        builder.Services.AddDbContext<ChatDbContext>(options =>
+            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Chat.Data.SqlServer"),
+            ServiceLifetime.Transient);
+        builder.Services.AddChatServices(builder.Configuration!);
+
+        // Calendar DbContext for schema creation by DbContextSchemaProvider.
+        // The Calendar module is process-isolated, but the schema must exist before
+        // the module host starts. Only the DbContext is registered — full services
+        // live in the module host process.
+        builder.Services.AddSingleton<ITableNamingStrategy>(provider == DatabaseProvider.SqlServer
+            ? new SqlServerNamingStrategy()
+            : new PostgreSqlNamingStrategy());
+        builder.Services.AddDbContext<CalendarDbContext>(options =>
+            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Calendar.Data"),
+            ServiceLifetime.Transient);
+
+        // Override Chat services with no-op/stub implementations for the global UI.
+        // The Chat module is process-isolated, but the shared layout needs in-process
+        // notification state and a no-op video call service so the global overlay renders.
+        builder.Services.AddSingleton<IChatMessageNotifier, InProcessChatMessageNotifier>();
+        builder.Services.AddScoped<GlobalChatNotificationState>();
+        builder.Services.AddScoped<IVideoCallService, NoOpVideoCallService>();
 
         // NOTE: Module business services (AddXxxServices) are NO LONGER registered here.
         // Modules now run as process-isolated gRPC services. The Core.Server communicates
@@ -468,16 +496,8 @@ public class Program
 
         // gRPC API client registrations (process-isolated modules)
         // gRPC client registrations (process-isolated modules)
-        // Module UI services (Blazor components render in Core.Server process;
-        // these register only the interfaces components inject — no hosted services).
-        builder.Services.AddNotesUiServices(builder.Configuration!);
-        builder.Services.AddTracksUiServices(builder.Configuration!);
-        builder.Services.AddMusicUiServices(builder.Configuration!);
-        builder.Services.AddPhotosUiServices(builder.Configuration!);
-        builder.Services.AddVideoUiServices(builder.Configuration!);
-        // Files.Data reference removed — AddFilesUiServices is no longer available.
-        // UI component services (IFileService, etc.) will be migrated to use gRPC clients
-        // in a future phase. For now, register only the options bindings:
+        // Module UI services (Blazor components) — now registered earlier in this method
+        // alongside their DbContext configuration. Files options bindings only:
         if (builder.Configuration is not null)
         {
             builder.Services.Configure<DotNetCloud.Modules.Files.Options.VersionRetentionOptions>(
@@ -495,7 +515,6 @@ public class Program
             builder.Services.Configure<DotNetCloud.Modules.Files.Options.AdminSharedFolderOptions>(
                 builder.Configuration.GetSection(DotNetCloud.Modules.Files.Options.AdminSharedFolderOptions.SectionName));
         }
-        builder.Services.AddAiUiServices(builder.Configuration!);
 
         // gRPC API client registrations (process-isolated modules)
         // ✅ Fully implemented gRPC clients
@@ -524,6 +543,44 @@ public class Program
         // endpoints (e.g. /api/v1/core/admin/health) don't return 401 on loopback calls.
         var httpsPort = builder.Configuration!.GetValue<int>("httpsPort", 5443);
         builder.Services.AddHttpClient<DotNetCloudApiClient>(client =>
+            client.BaseAddress = new Uri($"https://localhost:{httpsPort}"))
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+            {
+                ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+            })
+            .AddHttpMessageHandler<DotNetCloud.Core.Server.Middleware.CookieForwardingHandler>();
+
+        // Contacts module HTTP client for the Blazor ContactsPage component.
+        // The Contacts module is process-isolated, but the UI page renders in-process
+        // and needs an HTTP client to call the module's REST API (proxied by Core.Server).
+        builder.Services.AddHttpClient<DotNetCloud.Modules.Contacts.Services.IContactsApiClient, DotNetCloud.Modules.Contacts.Services.ContactsApiClient>(client =>
+            client.BaseAddress = new Uri($"https://localhost:{httpsPort}"))
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+            {
+                ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+            })
+            .AddHttpMessageHandler<DotNetCloud.Core.Server.Middleware.CookieForwardingHandler>();
+
+        // Calendar API client for the Blazor CalendarPage component.
+        builder.Services.AddHttpClient<DotNetCloud.Modules.Calendar.Services.ICalendarApiClient, DotNetCloud.Modules.Calendar.Services.CalendarApiClient>(client =>
+            client.BaseAddress = new Uri($"https://localhost:{httpsPort}"))
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+            {
+                ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+            })
+            .AddHttpMessageHandler<DotNetCloud.Core.Server.Middleware.CookieForwardingHandler>();
+
+        // Bookmarks API client for the Blazor BookmarksPage component.
+        builder.Services.AddHttpClient<DotNetCloud.Modules.Bookmarks.Services.IBookmarksApiClient, DotNetCloud.Modules.Bookmarks.Services.BookmarksApiClient>(client =>
+            client.BaseAddress = new Uri($"https://localhost:{httpsPort}"))
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+            {
+                ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+            })
+            .AddHttpMessageHandler<DotNetCloud.Core.Server.Middleware.CookieForwardingHandler>();
+
+        // Email API client for the Blazor EmailPage component.
+        builder.Services.AddHttpClient<DotNetCloud.Modules.Email.Services.IEmailApiClient, DotNetCloud.Modules.Email.Services.EmailApiClient>(client =>
             client.BaseAddress = new Uri($"https://localhost:{httpsPort}"))
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
             {
@@ -946,6 +1003,11 @@ public class Program
             ["api/v1/notes"] = "dotnetcloud.notes",
             ["api/v1/wopi"] = "dotnetcloud.files",
             ["api/v1/search"] = "dotnetcloud.search",
+            ["api/v1/contacts"] = "dotnetcloud.contacts",
+            ["api/v1/calendars"] = "dotnetcloud.calendar",
+            ["api/v1/bookmarks"] = "dotnetcloud.bookmarks",
+            ["api/v1/email"] = "dotnetcloud.email",
+            ["api/v1/chat"] = "dotnetcloud.chat",
         };
 
         var handler = new SocketsHttpHandler

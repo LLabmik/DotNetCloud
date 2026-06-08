@@ -8,9 +8,11 @@ using FilesHost::DotNetCloud.Modules.Files.Host;
 using FilesHost::DotNetCloud.Modules.Files.Host.Protos;
 using Grpc.Net.Client;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -42,15 +44,26 @@ internal sealed class FilesHostWebApplicationFactory : WebApplicationFactory<Fil
 
             // Register test auth handler for the auth schemes
             // required by FilesControllerBase [Authorize(AuthenticationSchemes = "Identity.Application,OpenIddict...")].
-            // The standalone Files.Host process has no OpenIddict or Identity, so we register
-            // the test handler directly for both schemes.
+            // The host's Program.cs already registers Identity.Application via AddCookie,
+            // so we forward it instead of re-registering (which would throw "Scheme already exists").
             services.AddAuthentication()
                 .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(
-                    TestAuthHandler.SchemeName, _ => { })
-                .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(
-                    "Identity.Application", _ => { })
-                .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(
-                    "OpenIddict.Validation.AspNetCore", _ => { });
+                    TestAuthHandler.SchemeName, _ => { });
+
+            services.PostConfigure<AuthenticationSchemeOptions>(
+                "OpenIddict.Validation.AspNetCore", opts =>
+                {
+                    opts.ForwardDefault = TestAuthHandler.SchemeName;
+                });
+
+            services.PostConfigure<CookieAuthenticationOptions>(
+                IdentityConstants.ApplicationScheme, opts =>
+                {
+                    opts.ForwardDefaultSelector = context =>
+                        context.Request.Headers.ContainsKey("x-test-user-id")
+                            ? TestAuthHandler.SchemeName
+                            : null;
+                });
 
             // Register authorization policies and handler used by admin-only endpoints.
             services.AddAuthorizationBuilder()

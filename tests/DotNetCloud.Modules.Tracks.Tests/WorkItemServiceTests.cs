@@ -1,8 +1,11 @@
+using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs;
+using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Tracks.Data;
 using DotNetCloud.Modules.Tracks.Data.Services;
 using DotNetCloud.Modules.Tracks.Models;
 using Microsoft.EntityFrameworkCore;
+using Moq;
 
 namespace DotNetCloud.Modules.Tracks.Tests;
 
@@ -12,13 +15,21 @@ public class WorkItemServiceTests
     private TracksDbContext _db = null!;
     private WorkItemService _service = null!;
     private SwimlaneTransitionService _transitionService = null!;
+    private Mock<DotNetCloud.Core.Events.IEventBus> _eventBusMock = null!;
+    private ActivityService _activityService = null!;
 
     [TestInitialize]
     public void Setup()
     {
         _db = TestHelpers.CreateDb();
         _transitionService = new SwimlaneTransitionService(_db);
-        _service = new WorkItemService(_db, _transitionService);
+        _eventBusMock = new Mock<DotNetCloud.Core.Events.IEventBus>();
+        var userDirMock = new Mock<IUserDirectory>();
+        userDirMock
+            .Setup(x => x.GetDisplayNamesAsync(It.IsAny<IEnumerable<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<Guid, string>());
+        _activityService = new ActivityService(_db, userDirMock.Object);
+        _service = new WorkItemService(_db, _transitionService, _eventBusMock.Object, _activityService);
     }
 
     [TestCleanup]
@@ -99,7 +110,7 @@ public class WorkItemServiceTests
         var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
         var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
 
-        await _service.DeleteWorkItemAsync(item.Id, CancellationToken.None);
+        await _service.DeleteWorkItemAsync(item.Id, Guid.NewGuid(), CancellationToken.None);
 
         var deleted = await _db.WorkItems.IgnoreQueryFilters().FirstOrDefaultAsync(wi => wi.Id == item.Id);
         Assert.IsNotNull(deleted);

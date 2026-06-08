@@ -32,7 +32,6 @@ public class AboutHealthCheckTests
         var result = await healthCheck.CheckHealthAsync(context);
 
         Assert.IsNotNull(result.Data);
-        Assert.IsTrue(result.Data.ContainsKey("module_id"));
         Assert.AreEqual("dotnetcloud.about", result.Data["module_id"]);
     }
 

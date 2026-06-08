@@ -52,6 +52,14 @@ public sealed class ProcessSupervisorOptions
     public TimeSpan StartupTimeout { get; set; } = TimeSpan.FromSeconds(60);
 
     /// <summary>
+    /// Grace period after a module process starts during which health check failures
+    /// are suppressed. This prevents false unhealthy reports while the module's gRPC
+    /// endpoint is still initializing.
+    /// Default: 10 seconds.
+    /// </summary>
+    public TimeSpan StartupGracePeriod { get; set; } = TimeSpan.FromSeconds(10);
+
+    /// <summary>
     /// Default restart policy for modules that don't specify one.
     /// Default: <see cref="RestartPolicy.ExponentialBackoff"/>.
     /// </summary>

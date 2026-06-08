@@ -1,11 +1,15 @@
+using DotNetCloud.Core.Data.Extensions;
+using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Storage;
 using DotNetCloud.Modules.Files.Data;
 using DotNetCloud.Modules.Files.Events;
+using DotNetCloud.Modules.Music.Data;
 using DotNetCloud.Modules.Music.Data.Services;
 using DotNetCloud.Modules.Music.Events;
 using DotNetCloud.Modules.Music.Services;
 using DotNetCloud.Modules.Music.UI;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -100,8 +104,19 @@ public static class MusicServiceRegistration
     /// Adds only the Music services needed by Blazor UI components rendered in Core.Server.
     /// Excludes background services and event handlers that should only run in the module host.
     /// </summary>
-    public static IServiceCollection AddMusicUiServices(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection AddMusicUiServices(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        DatabaseProvider provider,
+        string connectionString)
     {
+        // Register MusicDbContext for Blazor Server interactive rendering
+        services.AddDbContextFactory<MusicDbContext>(options =>
+            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Music.Data.SqlServer"));
+        services.AddDbContext<MusicDbContext>(options =>
+            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Music.Data.SqlServer"),
+            ServiceLifetime.Transient);
+
         // Business services
         services.AddScoped<ArtistService>();
         services.AddScoped<IArtistService>(sp => sp.GetRequiredService<ArtistService>());

@@ -1,7 +1,10 @@
+using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs;
+using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Tracks.Data;
 using DotNetCloud.Modules.Tracks.Data.Services;
 using DotNetCloud.Modules.Tracks.Models;
+using Moq;
 
 namespace DotNetCloud.Modules.Tracks.Tests;
 
@@ -10,12 +13,20 @@ public class CommentServiceTests
 {
     private TracksDbContext _db = null!;
     private CommentService _service = null!;
+    private Mock<DotNetCloud.Core.Events.IEventBus> _eventBusMock = null!;
+    private ActivityService _activityService = null!;
 
     [TestInitialize]
     public void Setup()
     {
         _db = TestHelpers.CreateDb();
-        _service = new CommentService(_db);
+        _eventBusMock = new Mock<DotNetCloud.Core.Events.IEventBus>();
+        var userDirMock = new Mock<IUserDirectory>();
+        userDirMock
+            .Setup(x => x.GetDisplayNamesAsync(It.IsAny<IEnumerable<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<Guid, string>());
+        _activityService = new ActivityService(_db, userDirMock.Object);
+        _service = new CommentService(_db, _eventBusMock.Object, _activityService);
     }
 
     [TestCleanup]

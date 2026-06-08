@@ -1,7 +1,9 @@
+using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Modules.Tracks.Data;
 using DotNetCloud.Modules.Tracks.Data.Services;
 using DotNetCloud.Modules.Tracks.Models;
+using Moq;
 
 namespace DotNetCloud.Modules.Tracks.Tests;
 
@@ -10,12 +12,17 @@ public class ActivityServiceTests
 {
     private TracksDbContext _db = null!;
     private ActivityService _service = null!;
+    private Mock<IUserDirectory> _userDirectoryMock = null!;
 
     [TestInitialize]
     public void Setup()
     {
         _db = TestHelpers.CreateDb();
-        _service = new ActivityService(_db);
+        _userDirectoryMock = new Mock<IUserDirectory>();
+        _userDirectoryMock
+            .Setup(x => x.GetDisplayNamesAsync(It.IsAny<IEnumerable<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<Guid, string>());
+        _service = new ActivityService(_db, _userDirectoryMock.Object);
     }
 
     [TestCleanup]
