@@ -579,8 +579,26 @@ public class Program
             })
             .AddHttpMessageHandler<DotNetCloud.Core.Server.Middleware.CookieForwardingHandler>();
 
+        // Tracks API client for the Blazor TracksPage component.
+        builder.Services.AddHttpClient<DotNetCloud.Modules.Tracks.Services.ITracksApiClient, DotNetCloud.Modules.Tracks.Services.TracksApiClient>(client =>
+            client.BaseAddress = new Uri($"https://localhost:{httpsPort}"))
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+            {
+                ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+            })
+            .AddHttpMessageHandler<DotNetCloud.Core.Server.Middleware.CookieForwardingHandler>();
+
         // Email API client for the Blazor EmailPage component.
         builder.Services.AddHttpClient<DotNetCloud.Modules.Email.Services.IEmailApiClient, DotNetCloud.Modules.Email.Services.EmailApiClient>(client =>
+            client.BaseAddress = new Uri($"https://localhost:{httpsPort}"))
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+            {
+                ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+            })
+            .AddHttpMessageHandler<DotNetCloud.Core.Server.Middleware.CookieForwardingHandler>();
+
+        // Notes API client for the Blazor NotesPage component.
+        builder.Services.AddHttpClient<DotNetCloud.Modules.Notes.Services.INotesApiClient, DotNetCloud.Modules.Notes.Services.NotesApiClient>(client =>
             client.BaseAddress = new Uri($"https://localhost:{httpsPort}"))
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
             {
@@ -1008,6 +1026,16 @@ public class Program
             ["api/v1/bookmarks"] = "dotnetcloud.bookmarks",
             ["api/v1/email"] = "dotnetcloud.email",
             ["api/v1/chat"] = "dotnetcloud.chat",
+            ["api/v1/tracks"] = "dotnetcloud.tracks",
+            ["api/v1/organizations"] = "dotnetcloud.tracks",
+            ["api/v1/products"] = "dotnetcloud.tracks",
+            ["api/v1/swimlanes"] = "dotnetcloud.tracks",
+            ["api/v1/workitems"] = "dotnetcloud.tracks",
+            ["api/v1/sprints"] = "dotnetcloud.tracks",
+            ["api/v1/teams"] = "dotnetcloud.tracks",
+            ["api/v1/reviews"] = "dotnetcloud.tracks",
+            ["api/v1/review-sessions"] = "dotnetcloud.tracks",
+            ["api/v1/poker"] = "dotnetcloud.tracks",
         };
 
         var handler = new SocketsHttpHandler
