@@ -72,16 +72,19 @@ public sealed class MediaLibraryEndpointIntegrationTests
         var userId = Guid.NewGuid();
         var sharedFolderId = Guid.NewGuid();
         var stalePhotoId = Guid.NewGuid();
-        var fileServiceMock = new Mock<IFileService>();
+        var filesApiClientMock = new Mock<DotNetCloud.Core.Services.ModuleApis.IFilesApiClient>();
         var photoCallbackMock = new Mock<IPhotoIndexingCallback>();
 
-        fileServiceMock
-            .Setup(service => service.ResolveMountedNodeAsync(
-                sharedFolderId,
-                It.Is<string?>(path => string.IsNullOrEmpty(path)),
-                It.IsAny<CallerContext>(),
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync((FileNodeDto?)null);
+        filesApiClientMock
+            .Setup(client => client.ScanMediaFoldersAsync(
+                It.IsAny<IReadOnlyCollection<MediaLibrarySource>>(),
+                userId, "Photos", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MediaScanCandidatesResult
+            {
+                Success = true,
+                TotalFound = 0,
+                Candidates = [],
+            });
 
         photoCallbackMock
             .Setup(callback => callback.GetIndexedFileNodeIdsAsync(userId, It.IsAny<CancellationToken>()))
@@ -98,9 +101,9 @@ public sealed class MediaLibraryEndpointIntegrationTests
         {
             builder.ConfigureServices(services =>
             {
-                services.RemoveAll<IFileService>();
+                services.RemoveAll<DotNetCloud.Core.Services.ModuleApis.IFilesApiClient>();
                 services.RemoveAll<IPhotoIndexingCallback>();
-                services.AddScoped(_ => fileServiceMock.Object);
+                services.AddScoped(_ => filesApiClientMock.Object);
                 services.AddScoped(_ => photoCallbackMock.Object);
             });
         });
@@ -139,14 +142,18 @@ public sealed class MediaLibraryEndpointIntegrationTests
         Assert.AreEqual(0, data.GetProperty("totalFound").GetInt32());
         Assert.AreEqual(0, data.GetProperty("imported").GetInt32());
         Assert.AreEqual(1, data.GetProperty("removed").GetInt32());
-        Assert.AreEqual(1, data.GetProperty("errors").GetArrayLength());
-        StringAssert.Contains(data.GetProperty("errors")[0].GetString() ?? string.Empty, "/_DotNetCloud/Archive");
+        Assert.AreEqual(0, data.GetProperty("errors").GetArrayLength());
 
-        fileServiceMock.Verify(
-            service => service.ResolveMountedNodeAsync(
-                sharedFolderId,
-                It.Is<string?>(path => string.IsNullOrEmpty(path)),
-                It.IsAny<CallerContext>(),
+        filesApiClientMock.Verify(
+            client => client.ScanMediaFoldersAsync(
+                It.IsAny<IReadOnlyCollection<MediaLibrarySource>>(),
+                userId, "Photos", It.IsAny<CancellationToken>()),
+            Times.Once);
+
+        photoCallbackMock.Verify(
+            callback => callback.RemoveDeletedPhotosAsync(
+                It.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(stalePhotoId)),
+                userId,
                 It.IsAny<CancellationToken>()),
             Times.Once);
         photoCallbackMock.Verify(

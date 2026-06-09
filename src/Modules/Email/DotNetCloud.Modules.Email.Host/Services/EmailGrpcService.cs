@@ -644,6 +644,71 @@ public sealed class EmailGrpcService : EmailService.EmailServiceBase
         }
     }
 
+    // ─── Search Index ───────────────────────────────────────────────────────
+
+    /// <inheritdoc />
+    public override async Task GetSearchableDocuments(
+        global::DotNetCloud.Modules.Email.Host.Protos.GetSearchableDocumentsRequest request,
+        Grpc.Core.IServerStreamWriter<global::DotNetCloud.Modules.Email.Host.Protos.SearchableDocument> responseStream,
+        ServerCallContext context)
+    {
+        var threads = await _db.EmailThreads
+            .AsNoTracking()
+            .Where(t => t.MessageCount > 0)
+            .ToListAsync(context.CancellationToken);
+
+        foreach (var thread in threads)
+        {
+            var doc = MapToSearchableDocument(thread);
+            await responseStream.WriteAsync(doc, context.CancellationToken);
+        }
+    }
+
+    /// <inheritdoc />
+    public override async Task<global::DotNetCloud.Modules.Email.Host.Protos.SearchableDocumentResponse> GetSearchableDocument(
+        global::DotNetCloud.Modules.Email.Host.Protos.GetSearchableDocumentRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.EntityId, out var id))
+        {
+            return new global::DotNetCloud.Modules.Email.Host.Protos.SearchableDocumentResponse { Found = false };
+        }
+
+        var thread = await _db.EmailThreads
+            .AsNoTracking()
+            .FirstOrDefaultAsync(t => t.Id == id && t.MessageCount > 0, context.CancellationToken);
+
+        if (thread is null)
+        {
+            return new global::DotNetCloud.Modules.Email.Host.Protos.SearchableDocumentResponse { Found = false };
+        }
+
+        return new global::DotNetCloud.Modules.Email.Host.Protos.SearchableDocumentResponse
+        {
+            Found = true,
+            Document = MapToSearchableDocument(thread)
+        };
+    }
+
+    private static global::DotNetCloud.Modules.Email.Host.Protos.SearchableDocument MapToSearchableDocument(EmailThread thread)
+    {
+        var content = thread.Subject;
+        if (!string.IsNullOrEmpty(thread.Snippet))
+            content += " " + thread.Snippet;
+
+        return new global::DotNetCloud.Modules.Email.Host.Protos.SearchableDocument
+        {
+            ModuleId = "email",
+            EntityId = thread.Id.ToString(),
+            EntityType = "EmailThread",
+            Title = thread.Subject,
+            Content = content.Trim(),
+            Summary = thread.Snippet ?? string.Empty,
+            OwnerId = Guid.Empty.ToString(), // Email threads tied to accounts; ownership via account association
+            CreatedAt = thread.CreatedAt.ToString("O"),
+            UpdatedAt = thread.UpdatedAt.ToString("O")
+        };
+    }
+
     // ─── Helpers ────────────────────────────────────────────────────────────
 
     private static AccountMessage ToAccountMessage(EmailAccount a) => new()

@@ -43,38 +43,47 @@ public class CalendarController : CalendarControllerBase
 
     /// <summary>Lists calendars for the authenticated user. Optionally filter by organization.</summary>
     [HttpGet]
-    public async Task<IActionResult> ListCalendarsAsync([FromQuery] Guid? organizationId = null)
+    public Task<IActionResult> ListCalendarsAsync([FromQuery] Guid? organizationId = null)
     {
-        var caller = GetAuthenticatedCaller();
-        var calendars = await _calendarService.ListCalendarsAsync(caller);
-
-        // Filter by organization if requested
-        if (organizationId.HasValue)
+        return ExecuteAsync(async () =>
         {
-            calendars = calendars.Where(c => c.OrganizationId == organizationId.Value).ToList();
-        }
+            var caller = GetAuthenticatedCaller();
+            var calendars = await _calendarService.ListCalendarsAsync(caller);
 
-        return Ok(Envelope(calendars));
+            // Filter by organization if requested
+            if (organizationId.HasValue)
+            {
+                calendars = calendars.Where(c => c.OrganizationId == organizationId.Value).ToList();
+            }
+
+            return Ok(Envelope(calendars));
+        });
     }
 
     /// <summary>Gets a calendar by ID.</summary>
     [HttpGet("{calendarId:guid}")]
-    public async Task<IActionResult> GetCalendarAsync(Guid calendarId)
+    public Task<IActionResult> GetCalendarAsync(Guid calendarId)
     {
-        var caller = GetAuthenticatedCaller();
-        var calendar = await _calendarService.GetCalendarAsync(calendarId, caller);
-        return calendar is null
-            ? NotFound(ErrorEnvelope(ErrorCodes.CalendarNotFound, "Calendar not found."))
-            : Ok(Envelope(calendar));
+        return ExecuteAsync(async () =>
+        {
+            var caller = GetAuthenticatedCaller();
+            var calendar = await _calendarService.GetCalendarAsync(calendarId, caller);
+            return calendar is null
+                ? NotFound(ErrorEnvelope(ErrorCodes.CalendarNotFound, "Calendar not found."))
+                : Ok(Envelope(calendar));
+        });
     }
 
     /// <summary>Creates a new calendar.</summary>
     [HttpPost]
-    public async Task<IActionResult> CreateCalendarAsync([FromBody] CreateCalendarDto dto)
+    public Task<IActionResult> CreateCalendarAsync([FromBody] CreateCalendarDto dto)
     {
-        var caller = GetAuthenticatedCaller();
-        var calendar = await _calendarService.CreateCalendarAsync(dto, caller);
-        return Created($"/api/v1/calendars/{calendar.Id}", Envelope(calendar));
+        return ExecuteAsync(async () =>
+        {
+            var caller = GetAuthenticatedCaller();
+            var calendar = await _calendarService.CreateCalendarAsync(dto, caller);
+            return Created($"/api/v1/calendars/{calendar.Id}", Envelope(calendar));
+        });
     }
 
     /// <summary>Updates an existing calendar.</summary>

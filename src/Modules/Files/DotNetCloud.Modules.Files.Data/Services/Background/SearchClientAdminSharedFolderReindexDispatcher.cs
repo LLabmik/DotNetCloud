@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Search.Client;
 
 namespace DotNetCloud.Modules.Files.Data.Services.Background;

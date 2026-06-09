@@ -1,5 +1,5 @@
-using DotNetCloud.Modules.Files.Data.Services.Background;
-using DotNetCloud.Modules.Search.Services;
+using DotNetCloud.Core.Services;
+using DotNetCloud.Core.Services.ModuleApis;
 
 namespace DotNetCloud.Core.Server.Services;
 

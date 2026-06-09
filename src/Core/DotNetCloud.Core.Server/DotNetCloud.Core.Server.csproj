@@ -44,19 +44,26 @@
     <ProjectReference Include="..\DotNetCloud.Core.Grpc\DotNetCloud.Core.Grpc.csproj" />
     <ProjectReference Include="..\DotNetCloud.Core.Schema\DotNetCloud.Core.Schema.csproj" />
     <ProjectReference Include="..\DotNetCloud.Core.ServiceDefaults\DotNetCloud.Core.ServiceDefaults.csproj" />
+    <!-- Module main (RCL) projects retained for Blazor UI component registration.
+         Module .Data.SqlServer migration assemblies included so Assembly.Load()
+         resolution works at runtime for EF Core GetPendingMigrationsAsync(). -->
+    <ProjectReference Include="..\..\Modules\Calendar\DotNetCloud.Modules.Calendar\DotNetCloud.Modules.Calendar.csproj" />
     <ProjectReference Include="..\..\Modules\Calendar\DotNetCloud.Modules.Calendar.Data\DotNetCloud.Modules.Calendar.Data.csproj" />
     <ProjectReference Include="..\..\Modules\Calendar\DotNetCloud.Modules.Calendar.Data.SqlServer\DotNetCloud.Modules.Calendar.Data.SqlServer.csproj" />
+    <ProjectReference Include="..\..\Modules\Chat\DotNetCloud.Modules.Chat\DotNetCloud.Modules.Chat.csproj" />
     <ProjectReference Include="..\..\Modules\Chat\DotNetCloud.Modules.Chat.Data\DotNetCloud.Modules.Chat.Data.csproj" />
     <ProjectReference Include="..\..\Modules\Chat\DotNetCloud.Modules.Chat.Data.SqlServer\DotNetCloud.Modules.Chat.Data.SqlServer.csproj" />
+    <ProjectReference Include="..\..\Modules\Contacts\DotNetCloud.Modules.Contacts\DotNetCloud.Modules.Contacts.csproj" />
     <ProjectReference Include="..\..\Modules\Contacts\DotNetCloud.Modules.Contacts.Data\DotNetCloud.Modules.Contacts.Data.csproj" />
     <ProjectReference Include="..\..\Modules\Contacts\DotNetCloud.Modules.Contacts.Data.SqlServer\DotNetCloud.Modules.Contacts.Data.SqlServer.csproj" />
-    <ProjectReference Include="..\..\Modules\Files\DotNetCloud.Modules.Files.Data\DotNetCloud.Modules.Files.Data.csproj" />
+    <ProjectReference Include="..\..\Modules\Files\DotNetCloud.Modules.Files\DotNetCloud.Modules.Files.csproj" />
     <ProjectReference Include="..\..\Modules\Files\DotNetCloud.Modules.Files.Data.SqlServer\DotNetCloud.Modules.Files.Data.SqlServer.csproj" />
+    <ProjectReference Include="..\..\Modules\Notes\DotNetCloud.Modules.Notes\DotNetCloud.Modules.Notes.csproj" />
     <ProjectReference Include="..\..\Modules\Notes\DotNetCloud.Modules.Notes.Data\DotNetCloud.Modules.Notes.Data.csproj" />
     <ProjectReference Include="..\..\Modules\Notes\DotNetCloud.Modules.Notes.Data.SqlServer\DotNetCloud.Modules.Notes.Data.SqlServer.csproj" />
     <ProjectReference Include="..\..\Modules\Tracks\DotNetCloud.Modules.Tracks\DotNetCloud.Modules.Tracks.csproj" />
-    <ProjectReference Include="..\..\Modules\Tracks\DotNetCloud.Modules.Tracks.Data.SqlServer\DotNetCloud.Modules.Tracks.Data.SqlServer.csproj" />
     <ProjectReference Include="..\..\Modules\Tracks\DotNetCloud.Modules.Tracks.Data\DotNetCloud.Modules.Tracks.Data.csproj" />
+    <ProjectReference Include="..\..\Modules\Tracks\DotNetCloud.Modules.Tracks.Data.SqlServer\DotNetCloud.Modules.Tracks.Data.SqlServer.csproj" />
     <ProjectReference Include="..\..\Modules\Photos\DotNetCloud.Modules.Photos\DotNetCloud.Modules.Photos.csproj" />
     <ProjectReference Include="..\..\Modules\Photos\DotNetCloud.Modules.Photos.Data\DotNetCloud.Modules.Photos.Data.csproj" />
     <ProjectReference Include="..\..\Modules\Photos\DotNetCloud.Modules.Photos.Data.SqlServer\DotNetCloud.Modules.Photos.Data.SqlServer.csproj" />
@@ -76,10 +83,7 @@
     <ProjectReference Include="..\..\Modules\Email\DotNetCloud.Modules.Email.Data\DotNetCloud.Modules.Email.Data.csproj" />
     <ProjectReference Include="..\..\Modules\Email\DotNetCloud.Modules.Email.Data.SqlServer\DotNetCloud.Modules.Email.Data.SqlServer.csproj" />
     <ProjectReference Include="..\..\Modules\About\DotNetCloud.Modules.About\DotNetCloud.Modules.About.csproj" />
-    <ProjectReference Include="..\..\Modules\Search\DotNetCloud.Modules.Search\DotNetCloud.Modules.Search.csproj" />
-    <ProjectReference Include="..\..\Modules\Search\DotNetCloud.Modules.Search.Data\DotNetCloud.Modules.Search.Data.csproj" />
     <ProjectReference Include="..\..\Modules\Search\DotNetCloud.Modules.Search.Data.SqlServer\DotNetCloud.Modules.Search.Data.SqlServer.csproj" />
-    <ProjectReference Include="..\..\Modules\Search\DotNetCloud.Modules.Search.Client\DotNetCloud.Modules.Search.Client.csproj" />
     <ProjectReference Include="..\..\UI\DotNetCloud.UI.Web\DotNetCloud.UI.Web.csproj" />
     <ProjectReference Include="..\..\UI\DotNetCloud.UI.Web.Client\DotNetCloud.UI.Web.Client.csproj" />
   </ItemGroup>
@@ -113,13 +117,8 @@
     <Protobuf Include="..\..\Modules\Video\DotNetCloud.Modules.Video.Host\Protos\video_service.proto"
               GrpcServices="Client"
               Link="Protos\video_service.proto" />
-    <!-- Search proto intentionally NOT included here.
-         Search.Client (referenced transitively via Files.Data) already generates
-         the gRPC client code from the same proto file. Adding it here would
-         cause duplicate type definitions in DotNetCloud.Modules.Search.Host.Protos. -->
-    <!-- <Protobuf Include="..\..\Modules\Search\DotNetCloud.Modules.Search.Host\Protos\search_service.proto"
-              GrpcServices="Client"
-              Link="Protos\search_service.proto" />-->
+    <!-- Search proto NOT included directly here. Search.Client is referenced
+         transitively via Files.Data (which provides the generated SearchService types). -->
     <Protobuf Include="..\..\Modules\Bookmarks\DotNetCloud.Modules.Bookmarks.Host\Protos\bookmarks_service.proto"
               GrpcServices="Client"
               Link="Protos\bookmarks_service.proto" />

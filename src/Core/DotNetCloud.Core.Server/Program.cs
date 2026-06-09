@@ -19,22 +19,18 @@ using DotNetCloud.Core.ServiceDefaults.Extensions;
 using DotNetCloud.Core.ServiceDefaults.HealthChecks;
 using DotNetCloud.Core.ServiceDefaults.Telemetry;
 using DotNetCloud.Core.Events;
-using DotNetCloud.Modules.Calendar.Data;
-using DotNetCloud.Modules.Chat.Data;
-using DotNetCloud.Modules.Contacts.Data;
-using DotNetCloud.Modules.Files.Data;
-using DotNetCloud.Modules.Files.Data.Services.Background;
-using DotNetCloud.Modules.Music.Data;
-using DotNetCloud.Modules.Notes.Data;
-using DotNetCloud.Modules.Photos.Data;
-using DotNetCloud.Modules.Tracks.Data;
-using DotNetCloud.Modules.Video.Data;
-using DotNetCloud.Modules.Bookmarks.Data;
-using DotNetCloud.Modules.Email.Data;
-using DotNetCloud.Modules.AI.Data;
-using DotNetCloud.Modules.Search;
-using DotNetCloud.Modules.Search.Client;
+using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Files.Services;
+using DotNetCloud.Modules.Notes.Data;
+using DotNetCloud.Modules.Tracks.Data;
+using DotNetCloud.Modules.Music.Data;
+using DotNetCloud.Modules.Photos.Data;
+using DotNetCloud.Modules.Video.Data;
+using DotNetCloud.Modules.AI.Data;
+using DotNetCloud.Modules.Chat.Data;
+using DotNetCloud.Modules.Chat.Services;
+using DotNetCloud.Modules.Calendar.Data;
+using DotNetCloud.Modules.Files.Data;
 using DotNetCloud.UI.Web.Client.Services;
 using DotNetCloud.UI.Web.Services;
 using Microsoft.AspNetCore.Components;
@@ -258,7 +254,7 @@ public class Program
         builder.AddDotNetCloudServiceDefaults();
 
         // Add authentication and authorization
-        builder.Services.AddDotNetCloudAuth(builder.Configuration);
+        builder.Services.AddDotNetCloudAuth(builder.Configuration!);
 
         // Persist DataProtection keys so auth/antiforgery tokens survive restarts.
         var dataRootDir = Environment.GetEnvironmentVariable("DOTNETCLOUD_DATA_DIR");
@@ -290,19 +286,51 @@ public class Program
         }
         builder.Services.AddDotNetCloudDbContext(connectionString, provider);
 
-        // Register naming strategy for all module DbContexts based on configured provider
-        builder.Services.AddSingleton<ITableNamingStrategy>(provider == DatabaseProvider.SqlServer
-            ? new SqlServerNamingStrategy()
-            : new PostgreSqlNamingStrategy());
-
-        // Register in-process module data services for interactive module UI actions,
-        // using the same provider as the configured core database.
-        builder.Services.AddModuleDbContexts(provider, connectionString);
-
         // Register schema services for lazy module schema creation.
         // SelfManagedSchemaProvider and ModuleSchemaService are registered by AddDotNetCloudDbContext.
         builder.Services.AddSingleton<IFileValidationService, FileValidationService>();
         builder.Services.AddSingleton<IModuleSchemaProvider, DbContextSchemaProvider>();
+
+        // Register in-process module data services for interactive Blazor UI components.
+        // Each module's .Data project owns its Add*UiServices registration, including
+        // the DbContext configuration.
+        builder.Services.AddNotesUiServices(builder.Configuration!, provider, connectionString);
+        builder.Services.AddTracksUiServices(builder.Configuration!, provider, connectionString);
+        builder.Services.AddMusicUiServices(builder.Configuration!, provider, connectionString);
+        builder.Services.AddPhotosUiServices(builder.Configuration!, provider, connectionString);
+        builder.Services.AddVideoUiServices(builder.Configuration!, provider, connectionString);
+        builder.Services.AddAiUiServices(builder.Configuration!, provider, connectionString);
+
+        // Files module UI services (FileBrowser and related Blazor components).
+        // Registers FilesDbContext and the scoped services needed for in-process rendering.
+        builder.Services.AddDbContext<FilesDbContext>(options =>
+            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Files.Data.SqlServer"),
+            ServiceLifetime.Transient);
+        builder.Services.AddFilesUiServices(builder.Configuration!);
+
+        // Chat module UI services (ChatPageLayout and related Blazor components).
+        builder.Services.AddDbContext<ChatDbContext>(options =>
+            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Chat.Data.SqlServer"),
+            ServiceLifetime.Transient);
+        builder.Services.AddChatServices(builder.Configuration!);
+
+        // Calendar DbContext for schema creation by DbContextSchemaProvider.
+        // The Calendar module is process-isolated, but the schema must exist before
+        // the module host starts. Only the DbContext is registered — full services
+        // live in the module host process.
+        builder.Services.AddSingleton<ITableNamingStrategy>(provider == DatabaseProvider.SqlServer
+            ? new SqlServerNamingStrategy()
+            : new PostgreSqlNamingStrategy());
+        builder.Services.AddDbContext<CalendarDbContext>(options =>
+            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Calendar.Data"),
+            ServiceLifetime.Transient);
+
+        // Override Chat services with no-op/stub implementations for the global UI.
+        // The Chat module is process-isolated, but the shared layout needs in-process
+        // notification state and a no-op video call service so the global overlay renders.
+        builder.Services.AddSingleton<IChatMessageNotifier, InProcessChatMessageNotifier>();
+        builder.Services.AddScoped<GlobalChatNotificationState>();
+        builder.Services.AddScoped<IVideoCallService, NoOpVideoCallService>();
 
         // NOTE: Module business services (AddXxxServices) are NO LONGER registered here.
         // Modules now run as process-isolated gRPC services. The Core.Server communicates
@@ -311,14 +339,14 @@ public class Program
         // builder.Services.AddSearchFtsClient(builder.Configuration); // removed — handled by Search module host
         // ✅ Phase 6: gRPC-based reindex dispatcher — calls Search module's ReindexModule RPC
         builder.Services.AddScoped<IAdminSharedFolderReindexDispatcher, InProcessAdminSharedFolderReindexDispatcher>();
-        // Register ISearchableModule implementations for search indexing
-        builder.Services.AddScoped<DotNetCloud.Core.Capabilities.ISearchableModule, DotNetCloud.Modules.Files.Data.Services.FilesSearchableModule>();
-        builder.Services.AddScoped<DotNetCloud.Core.Capabilities.ISearchableModule, DotNetCloud.Modules.Notes.Data.Services.NotesSearchableModule>();
-        builder.Services.AddScoped<DotNetCloud.Core.Capabilities.ISearchableModule, DotNetCloud.Modules.Calendar.Data.Services.CalendarSearchableModule>();
-        builder.Services.AddScoped<DotNetCloud.Core.Capabilities.ISearchableModule, DotNetCloud.Modules.Bookmarks.Data.Services.BookmarksSearchableModule>();
-        builder.Services.AddScoped<DotNetCloud.Core.Capabilities.ISearchableModule, DotNetCloud.Modules.Email.Data.Services.EmailSearchableModule>();
+        // Register gRPC-based module search document clients (replaces old ISearchableModule registrations)
+        builder.Services.AddSingleton<IModuleSearchDocumentClient, FilesModuleSearchClient>();
+        builder.Services.AddSingleton<IModuleSearchDocumentClient, NotesModuleSearchClient>();
+        builder.Services.AddSingleton<IModuleSearchDocumentClient, CalendarModuleSearchClient>();
+        builder.Services.AddSingleton<IModuleSearchDocumentClient, BookmarksModuleSearchClient>();
+        builder.Services.AddSingleton<IModuleSearchDocumentClient, EmailModuleSearchClient>();
         builder.Services.AddSingleton<IEventBus, InProcessEventBus>();
-        builder.Services.AddSingleton<LegacyFilesMigrationService>();
+        // LegacyFilesMigrationService moved to Files.Host (runs in that process)
         builder.Services.AddScoped<DotNetCloud.Core.Capabilities.ICrossModuleLinkResolver, CrossModuleLinkResolver>();
         builder.Services.AddSingleton<DotNetCloud.Core.Services.IBackgroundServiceTracker, DotNetCloud.Core.Services.BackgroundServiceTracker>();
 
@@ -468,34 +496,44 @@ public class Program
 
         // gRPC API client registrations (process-isolated modules)
         // gRPC client registrations (process-isolated modules)
-        // Module UI services (Blazor components render in Core.Server process;
-        // these register only the interfaces components inject — no hosted services).
-        builder.Services.AddNotesUiServices(builder.Configuration);
-        builder.Services.AddTracksUiServices(builder.Configuration);
-        builder.Services.AddMusicUiServices(builder.Configuration);
-        builder.Services.AddPhotosUiServices(builder.Configuration);
-        builder.Services.AddVideoUiServices(builder.Configuration);
-        builder.Services.AddFilesUiServices(builder.Configuration);
-        builder.Services.AddAiUiServices(builder.Configuration);
+        // Module UI services (Blazor components) — now registered earlier in this method
+        // alongside their DbContext configuration. Files options bindings only:
+        if (builder.Configuration is not null)
+        {
+            builder.Services.Configure<DotNetCloud.Modules.Files.Options.VersionRetentionOptions>(
+                builder.Configuration.GetSection(DotNetCloud.Modules.Files.Options.VersionRetentionOptions.SectionName));
+            builder.Services.Configure<DotNetCloud.Modules.Files.Options.TrashRetentionOptions>(
+                builder.Configuration.GetSection(DotNetCloud.Modules.Files.Options.TrashRetentionOptions.SectionName));
+            builder.Services.Configure<DotNetCloud.Modules.Files.Options.QuotaOptions>(
+                builder.Configuration.GetSection(DotNetCloud.Modules.Files.Options.QuotaOptions.SectionName));
+            builder.Services.Configure<DotNetCloud.Modules.Files.Options.CollaboraOptions>(
+                builder.Configuration.GetSection(DotNetCloud.Modules.Files.Options.CollaboraOptions.SectionName));
+            builder.Services.Configure<DotNetCloud.Modules.Files.Options.FileUploadOptions>(
+                builder.Configuration.GetSection(DotNetCloud.Modules.Files.Options.FileUploadOptions.SectionName));
+            builder.Services.Configure<DotNetCloud.Modules.Files.Options.FileSystemOptions>(
+                builder.Configuration.GetSection(DotNetCloud.Modules.Files.Options.FileSystemOptions.SectionName));
+            builder.Services.Configure<DotNetCloud.Modules.Files.Options.AdminSharedFolderOptions>(
+                builder.Configuration.GetSection(DotNetCloud.Modules.Files.Options.AdminSharedFolderOptions.SectionName));
+        }
 
         // gRPC API client registrations (process-isolated modules)
         // ✅ Fully implemented gRPC clients
-        builder.Services.AddScoped<DotNetCloud.Modules.Contacts.Services.IContactsApiClient, DotNetCloud.Core.Server.Grpc.Clients.ContactsGrpcApiClient>();
-        builder.Services.AddScoped<DotNetCloud.Modules.Calendar.Services.ICalendarApiClient, DotNetCloud.Core.Server.Grpc.Clients.CalendarGrpcApiClient>();
-        builder.Services.AddScoped<DotNetCloud.Modules.Chat.Services.IChatApiClient, DotNetCloud.Core.Server.Grpc.Clients.ChatGrpcApiClient>();
-        builder.Services.AddScoped<DotNetCloud.Modules.Files.Services.IFilesApiClient, DotNetCloud.Core.Server.Grpc.Clients.FilesGrpcApiClient>();
-        builder.Services.AddScoped<DotNetCloud.Modules.Music.Services.IMusicApiClient, DotNetCloud.Core.Server.Grpc.Clients.MusicGrpcApiClient>();
-        builder.Services.AddScoped<DotNetCloud.Modules.Photos.Services.IPhotosApiClient, DotNetCloud.Core.Server.Grpc.Clients.PhotosGrpcApiClient>();
-        builder.Services.AddScoped<DotNetCloud.Modules.Video.Services.IVideoApiClient, DotNetCloud.Core.Server.Grpc.Clients.VideoGrpcApiClient>();
-        builder.Services.AddScoped<DotNetCloud.Modules.Search.Services.ISearchApiClient, DotNetCloud.Core.Server.Grpc.Clients.SearchGrpcApiClient>();
-        builder.Services.AddScoped<DotNetCloud.Modules.About.Services.IAboutApiClient, DotNetCloud.Core.Server.Grpc.Clients.AboutGrpcApiClient>();
-        builder.Services.AddScoped<DotNetCloud.Modules.AI.Services.IAiApiClient, DotNetCloud.Core.Server.Grpc.Clients.AiGrpcApiClient>();
+        builder.Services.AddScoped<DotNetCloud.Core.Services.ModuleApis.IContactsApiClient, DotNetCloud.Core.Server.Grpc.Clients.ContactsGrpcApiClient>();
+        builder.Services.AddScoped<DotNetCloud.Core.Services.ModuleApis.ICalendarApiClient, DotNetCloud.Core.Server.Grpc.Clients.CalendarGrpcApiClient>();
+        builder.Services.AddScoped<DotNetCloud.Core.Services.ModuleApis.IChatApiClient, DotNetCloud.Core.Server.Grpc.Clients.ChatGrpcApiClient>();
+        builder.Services.AddScoped<DotNetCloud.Core.Services.ModuleApis.IFilesApiClient, DotNetCloud.Core.Server.Grpc.Clients.FilesGrpcApiClient>();
+        builder.Services.AddScoped<DotNetCloud.Core.Services.ModuleApis.IMusicApiClient, DotNetCloud.Core.Server.Grpc.Clients.MusicGrpcApiClient>();
+        builder.Services.AddScoped<DotNetCloud.Core.Services.ModuleApis.IPhotosApiClient, DotNetCloud.Core.Server.Grpc.Clients.PhotosGrpcApiClient>();
+        builder.Services.AddScoped<DotNetCloud.Core.Services.ModuleApis.IVideoApiClient, DotNetCloud.Core.Server.Grpc.Clients.VideoGrpcApiClient>();
+        builder.Services.AddScoped<DotNetCloud.Core.Services.ModuleApis.ISearchApiClient, DotNetCloud.Core.Server.Grpc.Clients.SearchGrpcApiClient>();
+        builder.Services.AddScoped<DotNetCloud.Core.Services.ModuleApis.IAboutApiClient, DotNetCloud.Core.Server.Grpc.Clients.AboutGrpcApiClient>();
+        builder.Services.AddScoped<DotNetCloud.Core.Services.ModuleApis.IAiApiClient, DotNetCloud.Core.Server.Grpc.Clients.AiGrpcApiClient>();
         // ✅ gRPC clients (newly implemented)
-        builder.Services.AddScoped<DotNetCloud.Modules.Notes.Services.INotesApiClient, DotNetCloud.Core.Server.Grpc.Clients.NotesGrpcApiClient>();
-        builder.Services.AddScoped<DotNetCloud.Modules.Bookmarks.Services.IBookmarksApiClient, DotNetCloud.Core.Server.Grpc.Clients.BookmarksGrpcApiClient>();
+        builder.Services.AddScoped<DotNetCloud.Core.Services.ModuleApis.INotesApiClient, DotNetCloud.Core.Server.Grpc.Clients.NotesGrpcApiClient>();
+        builder.Services.AddScoped<DotNetCloud.Core.Services.ModuleApis.IBookmarksApiClient, DotNetCloud.Core.Server.Grpc.Clients.BookmarksGrpcApiClient>();
         // ⚠️ Legacy in-process HTTP clients (TODO: gRPC proto expansion needed — see GRPC_MODULE_CONVERSION_PLAN.md)
-        builder.Services.AddScoped<DotNetCloud.Modules.Tracks.Services.ITracksApiClient, DotNetCloud.Core.Server.Grpc.Clients.TracksGrpcApiClient>();
-        builder.Services.AddScoped<DotNetCloud.Modules.Email.Services.IEmailApiClient, DotNetCloud.Core.Server.Grpc.Clients.EmailGrpcApiClient>();
+        builder.Services.AddScoped<DotNetCloud.Core.Services.ModuleApis.ITracksApiClient, DotNetCloud.Core.Server.Grpc.Clients.TracksGrpcApiClient>();
+        builder.Services.AddScoped<DotNetCloud.Core.Services.ModuleApis.IEmailApiClient, DotNetCloud.Core.Server.Grpc.Clients.EmailGrpcApiClient>();
         builder.Services.AddScoped<DotNetCloud.Modules.Tracks.Services.IOnboardingStateService, DotNetCloud.Modules.Tracks.Services.OnboardingStateService>();
 
         // Typed HttpClient for server prerendering of client components (NotificationBell, etc.).
@@ -503,7 +541,7 @@ public class Program
         // Uses HTTPS loopback with cert-validation bypass (cert is for cloud.dotnetcloud.net, not localhost).
         // CookieForwardingHandler forwards the user's auth cookie so admin-protected
         // endpoints (e.g. /api/v1/core/admin/health) don't return 401 on loopback calls.
-        var httpsPort = builder.Configuration.GetValue("httpsPort", 5443);
+        var httpsPort = builder.Configuration!.GetValue<int>("httpsPort", 5443);
         builder.Services.AddHttpClient<DotNetCloudApiClient>(client =>
             client.BaseAddress = new Uri($"https://localhost:{httpsPort}"))
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
@@ -512,14 +550,70 @@ public class Program
             })
             .AddHttpMessageHandler<DotNetCloud.Core.Server.Middleware.CookieForwardingHandler>();
 
+        // Contacts module HTTP client for the Blazor ContactsPage component.
+        // The Contacts module is process-isolated, but the UI page renders in-process
+        // and needs an HTTP client to call the module's REST API (proxied by Core.Server).
+        builder.Services.AddHttpClient<DotNetCloud.Modules.Contacts.Services.IContactsApiClient, DotNetCloud.Modules.Contacts.Services.ContactsApiClient>(client =>
+            client.BaseAddress = new Uri($"https://localhost:{httpsPort}"))
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+            {
+                ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+            })
+            .AddHttpMessageHandler<DotNetCloud.Core.Server.Middleware.CookieForwardingHandler>();
+
+        // Calendar API client for the Blazor CalendarPage component.
+        builder.Services.AddHttpClient<DotNetCloud.Modules.Calendar.Services.ICalendarApiClient, DotNetCloud.Modules.Calendar.Services.CalendarApiClient>(client =>
+            client.BaseAddress = new Uri($"https://localhost:{httpsPort}"))
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+            {
+                ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+            })
+            .AddHttpMessageHandler<DotNetCloud.Core.Server.Middleware.CookieForwardingHandler>();
+
+        // Bookmarks API client for the Blazor BookmarksPage component.
+        builder.Services.AddHttpClient<DotNetCloud.Modules.Bookmarks.Services.IBookmarksApiClient, DotNetCloud.Modules.Bookmarks.Services.BookmarksApiClient>(client =>
+            client.BaseAddress = new Uri($"https://localhost:{httpsPort}"))
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+            {
+                ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+            })
+            .AddHttpMessageHandler<DotNetCloud.Core.Server.Middleware.CookieForwardingHandler>();
+
+        // Tracks API client for the Blazor TracksPage component.
+        builder.Services.AddHttpClient<DotNetCloud.Modules.Tracks.Services.ITracksApiClient, DotNetCloud.Modules.Tracks.Services.TracksApiClient>(client =>
+            client.BaseAddress = new Uri($"https://localhost:{httpsPort}"))
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+            {
+                ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+            })
+            .AddHttpMessageHandler<DotNetCloud.Core.Server.Middleware.CookieForwardingHandler>();
+
+        // Email API client for the Blazor EmailPage component.
+        builder.Services.AddHttpClient<DotNetCloud.Modules.Email.Services.IEmailApiClient, DotNetCloud.Modules.Email.Services.EmailApiClient>(client =>
+            client.BaseAddress = new Uri($"https://localhost:{httpsPort}"))
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+            {
+                ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+            })
+            .AddHttpMessageHandler<DotNetCloud.Core.Server.Middleware.CookieForwardingHandler>();
+
+        // Notes API client for the Blazor NotesPage component.
+        builder.Services.AddHttpClient<DotNetCloud.Modules.Notes.Services.INotesApiClient, DotNetCloud.Modules.Notes.Services.NotesApiClient>(client =>
+            client.BaseAddress = new Uri($"https://localhost:{httpsPort}"))
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+            {
+                ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+            })
+            .AddHttpMessageHandler<DotNetCloud.Core.Server.Middleware.CookieForwardingHandler>();
+
         // Add OpenAPI/Swagger with DotNetCloud configuration
-        builder.Services.AddDotNetCloudOpenApi(builder.Configuration);
+        builder.Services.AddDotNetCloudOpenApi(builder.Configuration!);
 
         // Add API versioning
-        builder.Services.AddDotNetCloudApiVersioning(builder.Configuration);
+        builder.Services.AddDotNetCloudApiVersioning(builder.Configuration!);
 
         // Add CORS with enhanced configuration
-        builder.Services.AddDotNetCloudCors(builder.Configuration);
+        builder.Services.AddDotNetCloudCors(builder.Configuration!);
 
         // Add response compression (Brotli preferred, Gzip fallback; applies to chunk/file downloads)
         builder.Services.AddResponseCompression(options =>
@@ -543,7 +637,7 @@ public class Program
         builder.Services.AddRequestDecompression();
 
         // Add rate limiting
-        builder.Services.AddDotNetCloudRateLimiting(builder.Configuration);
+        builder.Services.AddDotNetCloudRateLimiting(builder.Configuration!);
 
         // Linux resource health check (inotify watch limit + inode availability).
         // Runs silently on non-Linux platforms.
@@ -572,40 +666,14 @@ public class Program
         builder.Services.AddHostedService(sp => sp.GetRequiredService<LinuxResourceMonitorService>());
 
         // Add SignalR real-time communication
-        builder.Services.AddDotNetCloudSignalR(builder.Configuration);
+        builder.Services.AddDotNetCloudSignalR(builder.Configuration!);
 
         // Register initialization services
         builder.Services.AddScoped<AdminSeeder>();
         builder.Services.AddScoped<OidcClientSeeder>();
 
         // Push notification service (no-op in Core.Server — handled by Chat module gRPC)
-        // NOTE: Registered AFTER AddChatServices below to override its IPushNotificationService.
-        // (We don't call AddChatServices due to hosted service conflicts; see ChatHub DI section.)
-
-        // Chat services required by ChatHub (SignalR hub in Core.Server).
-        // ChatHub depends on Chat module services that are internal; we register them
-        // by resolving from ChatServiceRegistration's internal service collection.
-        var chatServices = new ServiceCollection();
-        DotNetCloud.Modules.Chat.Data.ChatServiceRegistration.AddChatServices(chatServices, builder.Configuration);
-        foreach (var descriptor in chatServices)
-        {
-            // Skip hosted services and transport-level registrations that conflict with Core.Server
-            if (descriptor.ServiceType == typeof(Microsoft.Extensions.Hosting.IHostedService))
-                continue;
-            if (descriptor.ServiceType.FullName?.Contains("Transport") == true)
-                continue;
-            if (descriptor.ServiceType.FullName?.Contains("Fcm") == true)
-                continue;
-            if (descriptor.ServiceType.FullName?.Contains("UnifiedPush") == true)
-                continue;
-            if (descriptor.ServiceType.FullName?.Contains("StunServer") == true)
-                continue;
-            if (descriptor.ServiceType == typeof(DotNetCloud.Modules.Chat.Services.IPushNotificationService))
-                continue; // our NoOpPushNotificationService takes priority
-            builder.Services.Add(descriptor);
-        }
-
-        builder.Services.AddSingleton<DotNetCloud.Modules.Chat.Services.IPushNotificationService,
+        builder.Services.AddSingleton<DotNetCloud.Core.Server.PushNotifications.IPushNotificationService,
             DotNetCloud.Core.Server.Services.NoOpPushNotificationService>();
 
         builder.Services.AddHostedService<ModuleUiRegistrationHostedService>();
@@ -953,6 +1021,21 @@ public class Program
             ["api/v1/notes"] = "dotnetcloud.notes",
             ["api/v1/wopi"] = "dotnetcloud.files",
             ["api/v1/search"] = "dotnetcloud.search",
+            ["api/v1/contacts"] = "dotnetcloud.contacts",
+            ["api/v1/calendars"] = "dotnetcloud.calendar",
+            ["api/v1/bookmarks"] = "dotnetcloud.bookmarks",
+            ["api/v1/email"] = "dotnetcloud.email",
+            ["api/v1/chat"] = "dotnetcloud.chat",
+            ["api/v1/tracks"] = "dotnetcloud.tracks",
+            ["api/v1/organizations"] = "dotnetcloud.tracks",
+            ["api/v1/products"] = "dotnetcloud.tracks",
+            ["api/v1/swimlanes"] = "dotnetcloud.tracks",
+            ["api/v1/workitems"] = "dotnetcloud.tracks",
+            ["api/v1/sprints"] = "dotnetcloud.tracks",
+            ["api/v1/teams"] = "dotnetcloud.tracks",
+            ["api/v1/reviews"] = "dotnetcloud.tracks",
+            ["api/v1/review-sessions"] = "dotnetcloud.tracks",
+            ["api/v1/poker"] = "dotnetcloud.tracks",
         };
 
         var handler = new SocketsHttpHandler

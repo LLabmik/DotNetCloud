@@ -1,6 +1,6 @@
 using DotNetCloud.Core.Events;
 
-namespace DotNetCloud.Modules.Files.Events;
+namespace DotNetCloud.Core.Events;
 
 /// <summary>
 /// Published when a file or folder is shared with a user, team, or via public link.

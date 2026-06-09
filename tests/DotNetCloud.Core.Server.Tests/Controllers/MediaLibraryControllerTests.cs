@@ -5,14 +5,12 @@ using DotNetCloud.Core.DTOs.Media;
 using DotNetCloud.Core.Server.Controllers;
 using DotNetCloud.Core.Server.Services;
 using DotNetCloud.Core.Services;
+using DotNetCloud.Core.Services.ModuleApis;
 using DotNetCloud.Modules.Files.Data;
-using DotNetCloud.Modules.Files.DTOs;
-using DotNetCloud.Modules.Files.Services;
 using DotNetCloud.Modules.Photos.Events;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
@@ -43,7 +41,7 @@ public sealed class MediaLibraryControllerTests
         SetupNoSources(settingsMock, userId, "music");
         SetupNoSources(settingsMock, userId, "video");
 
-        using var provider = CreateServiceProvider(Guid.NewGuid().ToString(), Mock.Of<IFileService>(), Mock.Of<IPhotoIndexingCallback>());
+        using var provider = CreateServiceProvider(Guid.NewGuid().ToString(), new Mock<IFilesApiClient>(), Mock.Of<IPhotoIndexingCallback>());
         var controller = CreateController(settingsMock.Object, CreateImportService(provider));
         SetCurrentUser(controller, userId);
 
@@ -81,14 +79,19 @@ public sealed class MediaLibraryControllerTests
             }
         ]);
 
-        var fileServiceMock = new Mock<IFileService>();
-        fileServiceMock
-            .Setup(service => service.ResolveMountedNodeAsync(
-                sharedFolderId,
-                It.Is<string?>(path => string.IsNullOrEmpty(path)),
-                It.IsAny<DotNetCloud.Core.Authorization.CallerContext>(),
+        var filesApiClientMock = new Mock<IFilesApiClient>();
+        filesApiClientMock
+            .Setup(client => client.ScanMediaFoldersAsync(
+                It.IsAny<IReadOnlyCollection<MediaLibrarySource>>(),
+                userId,
+                "Photos",
                 It.IsAny<CancellationToken>()))
-            .ReturnsAsync((FileNodeDto?)null);
+            .ReturnsAsync(new MediaScanCandidatesResult
+            {
+                Success = true,
+                TotalFound = 0,
+                Candidates = [],
+            });
 
         var photoCallbackMock = new Mock<IPhotoIndexingCallback>();
         photoCallbackMock
@@ -101,7 +104,7 @@ public sealed class MediaLibraryControllerTests
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(1);
 
-        using var provider = CreateServiceProvider(Guid.NewGuid().ToString(), fileServiceMock.Object, photoCallbackMock.Object);
+        using var provider = CreateServiceProvider(Guid.NewGuid().ToString(), filesApiClientMock, photoCallbackMock.Object);
         var controller = CreateController(settingsMock.Object, CreateImportService(provider));
         SetCurrentUser(controller, userId);
 
@@ -115,16 +118,7 @@ public sealed class MediaLibraryControllerTests
         Assert.AreEqual(0, data.GetProperty("TotalFound").GetInt32());
         Assert.AreEqual(0, data.GetProperty("Imported").GetInt32());
         Assert.AreEqual(1, data.GetProperty("Removed").GetInt32());
-        Assert.AreEqual(1, data.GetProperty("Errors").GetArrayLength());
-        StringAssert.Contains(data.GetProperty("Errors")[0].GetString() ?? string.Empty, "/_DotNetCloud/Archive");
-
-        fileServiceMock.Verify(
-            service => service.ResolveMountedNodeAsync(
-                sharedFolderId,
-                It.Is<string?>(path => string.IsNullOrEmpty(path)),
-                It.IsAny<DotNetCloud.Core.Authorization.CallerContext>(),
-                It.IsAny<CancellationToken>()),
-            Times.Once);
+        Assert.AreEqual(0, data.GetProperty("Errors").GetArrayLength());
     }
 
     private static void SetupSources(Mock<IUserSettingsService> settingsMock, Guid userId, string mediaType, IReadOnlyList<MediaLibrarySource> sources)
@@ -153,29 +147,20 @@ public sealed class MediaLibraryControllerTests
             .ReturnsAsync((UserSettingDto?)null);
     }
 
-    private static ServiceProvider CreateServiceProvider(string dbName, IFileService fileService, IPhotoIndexingCallback photoCallback)
+    private static ServiceProvider CreateServiceProvider(string dbName, Mock<IFilesApiClient> filesApiClientMock, IPhotoIndexingCallback photoCallback)
     {
         var services = new ServiceCollection();
         services.AddDbContext<FilesDbContext>(options => options.UseInMemoryDatabase(dbName));
-        services.AddScoped(_ => fileService);
+        services.AddScoped(_ => filesApiClientMock.Object);
         services.AddScoped(_ => photoCallback);
         return services.BuildServiceProvider();
     }
 
     private static MediaFolderImportService CreateImportService(ServiceProvider provider)
     {
-        var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["Files:Storage:RootPath"] = Path.GetTempPath(),
-            })
-            .Build();
-
         return new MediaFolderImportService(
             provider.GetRequiredService<IServiceScopeFactory>(),
-            Mock.Of<IFileStorageEngine>(),
-            Mock.Of<DotNetCloud.Core.Events.IEventBus>(),
-            configuration,
+            provider.GetRequiredService<IFilesApiClient>(),
             NullLogger<MediaFolderImportService>.Instance);
     }
 

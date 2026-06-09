@@ -1,6 +1,6 @@
 using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Server.PushNotifications;
 using DotNetCloud.Core.Server.Services;
-using DotNetCloud.Modules.Chat.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 

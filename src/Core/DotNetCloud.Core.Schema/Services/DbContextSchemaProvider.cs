@@ -64,7 +64,14 @@ public class DbContextSchemaProvider : IModuleSchemaProvider
             return;
 
         using var scope = _scopeFactory.CreateScope();
-        var context = (DbContext)scope.ServiceProvider.GetRequiredService(contextType);
+        var context = (DbContext?)scope.ServiceProvider.GetService(contextType);
+        if (context is null)
+        {
+            // Module DbContext not registered in this process (e.g., process-isolated
+            // module whose schema is handled by its own host). Skip gracefully.
+            _logger.LogDebug("Module {ModuleId} DbContext not registered in this process; skipping schema creation", moduleId);
+            return;
+        }
         var creator = context.GetService<IRelationalDatabaseCreator>();
 
         if (await creator.ExistsAsync(cancellationToken))

@@ -18,14 +18,40 @@ internal sealed partial class ResourceLimiter : IDisposable
     private bool _disposed;
 
     /// <summary>
-    /// Base path for cgroup v2 filesystem.
+    /// Fallback base path for cgroup v2 filesystem when detection fails.
     /// </summary>
     private const string DefaultCgroupBase = "/sys/fs/cgroup/dotnetcloud";
 
     public ResourceLimiter(ILogger<ResourceLimiter> logger)
     {
         _logger = logger;
-        _cgroupBasePath = DefaultCgroupBase;
+        _cgroupBasePath = ResolveCgroupBasePath();
+    }
+
+    /// <summary>
+    /// Resolves the cgroup base path for this process by reading /proc/self/cgroup.
+    /// With systemd cgroup delegation, the service's cgroup subtree is writable.
+    /// Falls back to <see cref="DefaultCgroupBase"/> if detection fails.
+    /// </summary>
+    private static string ResolveCgroupBasePath()
+    {
+        try
+        {
+            // /proc/self/cgroup format with cgroups v2: "0::/system.slice/dotnetcloud.service\n"
+            var cgroupLine = File.ReadAllText("/proc/self/cgroup").Trim();
+            // cgroups v2: single line, colon-separated: "0::/path"
+            var parts = cgroupLine.Split(':', 3);
+            if (parts.Length == 3 && !string.IsNullOrEmpty(parts[2]))
+            {
+                var controllerPath = parts[2].TrimEnd('\n', '\r');
+                return "/sys/fs/cgroup" + controllerPath;
+            }
+        }
+        catch (Exception)
+        {
+            // Detection failed — fall back to default
+        }
+        return DefaultCgroupBase;
     }
 
     /// <summary>
@@ -89,9 +115,13 @@ internal sealed partial class ResourceLimiter : IDisposable
     private bool ApplyLinuxCgroupLimits(string moduleId, Process process, long? memoryLimitBytes, int? cpuPercent)
     {
         var cgroupPath = GetCgroupPath(moduleId);
+        var parentPath = Path.GetDirectoryName(cgroupPath)!;
 
         try
         {
+            // Enable controllers in the parent's subtree_control so child cgroups get cpu.max / memory.max
+            EnableSubtreeControllers(parentPath);
+
             // Create cgroup directory for this module
             if (!Directory.Exists(cgroupPath))
             {
@@ -147,17 +177,18 @@ internal sealed partial class ResourceLimiter : IDisposable
         }
         catch (UnauthorizedAccessException ex)
         {
-            _logger.LogError(ex,
-                "Insufficient permissions to manage cgroups for module {ModuleId}. " +
-                "Run as root or configure cgroup delegation. Path: {CgroupPath}",
+            _logger.LogWarning(ex,
+                "Cannot apply cgroup limits for module {ModuleId} — " +
+                "controller files not available (cgroup.subtree_control may be busy). " +
+                "Limits will not be enforced for this module. Path: {CgroupPath}",
                 moduleId, cgroupPath);
             return false;
         }
         catch (IOException ex)
         {
-            _logger.LogError(ex,
-                "Failed to write cgroup limits for module {ModuleId}. " +
-                "Verify cgroups v2 is available and mounted at /sys/fs/cgroup. Path: {CgroupPath}",
+            _logger.LogWarning(ex,
+                "Cannot apply cgroup limits for module {ModuleId} — " +
+                "I/O error accessing cgroup filesystem. Path: {CgroupPath}",
                 moduleId, cgroupPath);
             return false;
         }
@@ -188,6 +219,54 @@ internal sealed partial class ResourceLimiter : IDisposable
         // Sanitize module ID for use in filesystem path
         var safeName = moduleId.Replace('.', '-');
         return Path.Combine(_cgroupBasePath, safeName);
+    }
+
+    /// <summary>
+    /// Enables cpu and memory controllers in the cgroup subtree_control chain
+    /// from the service root down to the immediate parent of the module cgroup.
+    /// Without this, child cgroups won't have cpu.max / memory.max files.
+    /// </summary>
+    private static void EnableSubtreeControllers(string moduleParentPath)
+    {
+        try
+        {
+            // Collect all ancestor cgroup directories that need subtree_control enabled.
+            // Walk from the module parent up to (but not including) /sys/fs/cgroup.
+            var ancestors = new List<string>();
+            var current = moduleParentPath;
+            var cgroupRoot = "/sys/fs/cgroup".TrimEnd('/');
+
+            while (!string.IsNullOrEmpty(current) && current != cgroupRoot && current != "/")
+            {
+                var subtreePath = Path.Combine(current, "cgroup.subtree_control");
+                if (File.Exists(subtreePath))
+                    ancestors.Add(current);
+                current = Path.GetDirectoryName(current) ?? "";
+            }
+
+            // Enable controllers from root to leaf (top-down)
+            ancestors.Reverse();
+            foreach (var ancestor in ancestors)
+            {
+                var subtreePath = Path.Combine(ancestor, "cgroup.subtree_control");
+                var enabled = File.ReadAllText(subtreePath).Trim();
+                var toAdd = new List<string>(2);
+
+                if (!enabled.Contains("cpu"))
+                    toAdd.Add("cpu");
+                if (!enabled.Contains("memory"))
+                    toAdd.Add("memory");
+
+                if (toAdd.Count > 0)
+                {
+                    File.WriteAllText(subtreePath, $"+{string.Join(" +", toAdd)}");
+                }
+            }
+        }
+        catch (Exception)
+        {
+            // Controller enablement is best-effort; limits will fail gracefully later
+        }
     }
 
     // ──────────────────── Windows Job Objects ────────────────────

@@ -1,7 +1,9 @@
 using DotNetCloud.Core.Authorization;
+using DotNetCloud.Modules.Bookmarks.Data;
 using DotNetCloud.Modules.Bookmarks.Host.Protos;
 using DotNetCloud.Modules.Bookmarks.Models;
 using Grpc.Core;
+using Microsoft.EntityFrameworkCore;
 
 namespace DotNetCloud.Modules.Bookmarks.Host.Services;
 
@@ -13,6 +15,7 @@ public sealed class BookmarksGrpcService : BookmarksService.BookmarksServiceBase
     private readonly DotNetCloud.Modules.Bookmarks.Services.IBookmarkService _bookmarkService;
     private readonly DotNetCloud.Modules.Bookmarks.Services.IBookmarkFolderService _folderService;
     private readonly DotNetCloud.Modules.Bookmarks.Services.IBookmarkPreviewService _previewService;
+    private readonly BookmarksDbContext _db;
     private readonly ILogger<BookmarksGrpcService> _logger;
 
     /// <summary>
@@ -22,11 +25,13 @@ public sealed class BookmarksGrpcService : BookmarksService.BookmarksServiceBase
         DotNetCloud.Modules.Bookmarks.Services.IBookmarkService bookmarkService,
         DotNetCloud.Modules.Bookmarks.Services.IBookmarkFolderService folderService,
         DotNetCloud.Modules.Bookmarks.Services.IBookmarkPreviewService previewService,
+        BookmarksDbContext db,
         ILogger<BookmarksGrpcService> logger)
     {
         _bookmarkService = bookmarkService;
         _folderService = folderService;
         _previewService = previewService;
+        _db = db;
         _logger = logger;
     }
 
@@ -329,6 +334,68 @@ public sealed class BookmarksGrpcService : BookmarksService.BookmarksServiceBase
             _logger.LogError(ex, "GetPreview gRPC failed");
             return new PreviewResponse { Success = false };
         }
+    }
+
+    // ─── Search Index ───────────────────────────────────────────────────────
+
+    /// <inheritdoc />
+    public override async Task GetSearchableDocuments(
+        GetSearchableDocumentsRequest request,
+        IServerStreamWriter<SearchableDocument> responseStream,
+        ServerCallContext context)
+    {
+        var bookmarks = await _db.Bookmarks
+            .AsNoTracking()
+            .Where(b => !b.IsDeleted)
+            .ToListAsync(context.CancellationToken);
+
+        foreach (var bookmark in bookmarks)
+        {
+            var doc = MapToSearchableDocument(bookmark);
+            await responseStream.WriteAsync(doc, context.CancellationToken);
+        }
+    }
+
+    /// <inheritdoc />
+    public override async Task<SearchableDocumentResponse> GetSearchableDocument(
+        GetSearchableDocumentRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.EntityId, out var id))
+        {
+            return new SearchableDocumentResponse { Found = false };
+        }
+
+        var bookmark = await _db.Bookmarks
+            .AsNoTracking()
+            .FirstOrDefaultAsync(b => b.Id == id && !b.IsDeleted, context.CancellationToken);
+
+        if (bookmark is null)
+        {
+            return new SearchableDocumentResponse { Found = false };
+        }
+
+        return new SearchableDocumentResponse
+        {
+            Found = true,
+            Document = MapToSearchableDocument(bookmark)
+        };
+    }
+
+    private static SearchableDocument MapToSearchableDocument(BookmarkItem bookmark)
+    {
+        var doc = new SearchableDocument
+        {
+            ModuleId = "bookmarks",
+            EntityId = bookmark.Id.ToString(),
+            EntityType = "Bookmark",
+            Title = bookmark.Title,
+            Content = $"{bookmark.Url} {bookmark.Description ?? ""} {bookmark.Notes ?? ""}".Trim(),
+            Summary = bookmark.Description ?? bookmark.Url,
+            OwnerId = bookmark.OwnerId.ToString(),
+            CreatedAt = bookmark.CreatedAt.ToString("O"),
+            UpdatedAt = bookmark.UpdatedAt.ToString("O")
+        };
+        return doc;
     }
 
     // ─── Helpers ────────────────────────────────────────────────────────────

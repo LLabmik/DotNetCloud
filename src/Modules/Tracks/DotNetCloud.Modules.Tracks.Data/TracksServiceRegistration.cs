@@ -1,5 +1,9 @@
+using DotNetCloud.Core.Data.Extensions;
+using DotNetCloud.Core.Data.Naming;
+using DotNetCloud.Modules.Tracks.Data;
 using DotNetCloud.Modules.Tracks.Data.Services;
 using DotNetCloud.Modules.Tracks.Services;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -69,9 +73,19 @@ public static class TracksServiceRegistration
     /// <summary>
     /// Adds only the Tracks services needed by Blazor UI components rendered in Core.Server.
     /// Excludes background services that should only run in the module host process.
+    /// Includes TracksDbContext registration for Blazor Server interactive rendering.
     /// </summary>
-    public static IServiceCollection AddTracksUiServices(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection AddTracksUiServices(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        DatabaseProvider provider,
+        string connectionString)
     {
+        // Register TracksDbContext for Blazor Server interactive rendering
+        services.AddDbContext<TracksDbContext>(options =>
+            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Tracks.Data.SqlServer"),
+            ServiceLifetime.Transient);
+
         // Real-time services (singletons)
         services.AddSingleton<TracksInProcessSignalRService>();
         services.AddSingleton<ITracksSignalRService>(sp => sp.GetRequiredService<TracksInProcessSignalRService>());

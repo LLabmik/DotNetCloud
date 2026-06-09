@@ -1,5 +1,6 @@
+using DotNetCloud.Core.DTOs.Search;
 using DotNetCloud.Modules.Search.Host.Protos;
-using DotNetCloud.Modules.Search.Services;
+using DotNetCloud.Core.Services.ModuleApis;
 using Grpc.Core;
 using Grpc.Net.Client;
 using Microsoft.Extensions.Logging;
@@ -82,6 +83,74 @@ public sealed class SearchGrpcApiClient : ISearchApiClient, IDisposable
         if (_options.Timeout > TimeSpan.Zero)
             headers.Add("grpc-timeout", $"{(long)_options.Timeout.TotalMilliseconds}m");
         return headers;
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> IndexDocumentAsync(SearchDocument document, CancellationToken ct = default)
+    {
+        var request = new IndexDocumentRequest
+        {
+            ModuleId = document.ModuleId,
+            EntityId = document.EntityId,
+            EntityType = document.EntityType,
+            Title = document.Title,
+            Content = document.Content,
+            Summary = document.Summary ?? string.Empty,
+            OwnerId = document.OwnerId.ToString(),
+            OrganizationId = document.OrganizationId?.ToString() ?? string.Empty,
+            CreatedAt = document.CreatedAt.ToString("O"),
+            UpdatedAt = document.UpdatedAt.ToString("O")
+        };
+        if (document.Metadata is { Count: > 0 })
+        {
+            foreach (var kv in document.Metadata)
+                request.Metadata[kv.Key] = kv.Value;
+        }
+
+        try
+        {
+            var response = await _client.Value.IndexDocumentAsync(request, DeadlineHeaders(ct)).ResponseAsync;
+            return response.Success;
+        }
+        catch (RpcException ex)
+        {
+            _logger.LogError(ex, "SearchGrpcApiClient.IndexDocumentAsync({ModuleId}/{EntityId}) failed",
+                document.ModuleId, document.EntityId);
+            return false;
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> RemoveDocumentAsync(string moduleId, string entityId, CancellationToken ct = default)
+    {
+        var request = new RemoveDocumentRequest { ModuleId = moduleId, EntityId = entityId };
+        try
+        {
+            var response = await _client.Value.RemoveDocumentAsync(request, DeadlineHeaders(ct)).ResponseAsync;
+            return response.Success;
+        }
+        catch (RpcException ex)
+        {
+            _logger.LogError(ex, "SearchGrpcApiClient.RemoveDocumentAsync({ModuleId}/{EntityId}) failed",
+                moduleId, entityId);
+            return false;
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<IndexStats> GetIndexStatsAsync(CancellationToken ct = default)
+    {
+        var request = new GetIndexStatsRequest();
+        try
+        {
+            var response = await _client.Value.GetIndexStatsAsync(request, DeadlineHeaders(ct)).ResponseAsync;
+            return new IndexStats(response.TotalDocuments, response.DocumentsPerModule.Count);
+        }
+        catch (RpcException ex)
+        {
+            _logger.LogError(ex, "SearchGrpcApiClient.GetIndexStatsAsync failed");
+            return new IndexStats(0, 0);
+        }
     }
 
     /// <inheritdoc />

@@ -380,7 +380,7 @@ public class ShareServiceTests
         await service.IncrementDownloadCountAsync(share.Id);
 
         eventBusMock.Verify(e => e.PublishAsync(
-            It.Is<Files.Events.PublicLinkAccessedEvent>(evt =>
+            It.Is<PublicLinkAccessedEvent>(evt =>
                 evt.ShareId == share.Id &&
                 evt.FileNodeId == node.Id &&
                 evt.CreatedByUserId == userId),
@@ -412,7 +412,7 @@ public class ShareServiceTests
         await service.IncrementDownloadCountAsync(share.Id);
 
         eventBusMock.Verify(e => e.PublishAsync(
-            It.IsAny<Files.Events.PublicLinkAccessedEvent>(),
+            It.IsAny<PublicLinkAccessedEvent>(),
             It.IsAny<CallerContext>(),
             It.IsAny<CancellationToken>()), Times.Never);
     }

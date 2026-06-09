@@ -1,6 +1,5 @@
 using DotNetCloud.Core.Events;
-using DotNetCloud.Modules.Chat.Services;
-using DotNetCloud.Modules.Files.Events;
+using DotNetCloud.Core.Server.PushNotifications;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;

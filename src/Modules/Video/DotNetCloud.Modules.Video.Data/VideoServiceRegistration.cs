@@ -1,9 +1,13 @@
+using DotNetCloud.Core.Data.Extensions;
+using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Files.Data;
 using DotNetCloud.Modules.Files.Events;
+using DotNetCloud.Modules.Video.Data;
 using DotNetCloud.Modules.Video.Data.Services;
 using DotNetCloud.Modules.Video.Events;
 using DotNetCloud.Modules.Video.Services;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -81,8 +85,17 @@ public static class VideoServiceRegistration
     /// Adds only the Video services needed by Blazor UI components rendered in Core.Server.
     /// Excludes background services and event handlers that should only run in the module host.
     /// </summary>
-    public static IServiceCollection AddVideoUiServices(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection AddVideoUiServices(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        DatabaseProvider provider,
+        string connectionString)
     {
+        // Register VideoDbContext for Blazor Server interactive rendering
+        services.AddDbContext<VideoDbContext>(options =>
+            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Video.Data.SqlServer"),
+            ServiceLifetime.Transient);
+
         // Business services
         services.AddScoped<VideoService>();
         services.AddScoped<IVideoService>(sp => sp.GetRequiredService<VideoService>());

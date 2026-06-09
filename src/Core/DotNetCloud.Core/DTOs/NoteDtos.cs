@@ -368,3 +368,36 @@ public sealed record UpdateNoteFolderDto
     /// </summary>
     public int? SortOrder { get; init; }
 }
+
+/// <summary>
+/// Permission level for a note share.
+/// </summary>
+public enum NoteSharePermission
+{
+    /// <summary>Can view but not edit.</summary>
+    ReadOnly = 0,
+
+    /// <summary>Can view and edit.</summary>
+    ReadWrite = 1
+}
+
+/// <summary>
+/// Read-only DTO for a note share.
+/// </summary>
+public sealed record NoteShareDto
+{
+    /// <summary>Share ID.</summary>
+    public required Guid Id { get; init; }
+
+    /// <summary>Note ID.</summary>
+    public required Guid NoteId { get; init; }
+
+    /// <summary>User the note is shared with.</summary>
+    public required Guid SharedWithUserId { get; init; }
+
+    /// <summary>Permission level.</summary>
+    public required NoteSharePermission Permission { get; init; }
+
+    /// <summary>When the share was created.</summary>
+    public required DateTime CreatedAt { get; init; }
+}

@@ -1,4 +1,7 @@
-using DotNetCloud.Modules.Files.Services;
+using System.Text.Json;
+using DotNetCloud.Core.DTOs.Media;
+using DotNetCloud.Core.Services.ModuleApis;
+using DotNetCloud.Modules.Files.Host.Protos;
 using Grpc.Core;
 using Grpc.Net.Client;
 using Microsoft.Extensions.Logging;
@@ -54,6 +57,87 @@ public sealed class FilesGrpcApiClient : IFilesApiClient, IDisposable
                 ConnectTimeout = TimeSpan.FromSeconds(5)
             }
         });
+    }
+
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
+        Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
+    };
+
+    /// <inheritdoc />
+    public async Task<MediaScanCandidatesResult> ScanMediaFoldersAsync(
+        IReadOnlyCollection<MediaLibrarySource> sources,
+        Guid ownerId,
+        string mediaType,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var client = new FilesService.FilesServiceClient(_channel.Value);
+            var sourcesJson = JsonSerializer.Serialize(sources, JsonOptions);
+
+            var request = new ScanMediaFoldersRequest
+            {
+                SourcesJson = sourcesJson,
+                UserId = ownerId.ToString(),
+                MediaType = mediaType,
+            };
+
+            var response = await client.ScanMediaFoldersAsync(request,
+                deadline: DateTime.UtcNow.Add(_options.Timeout),
+                cancellationToken: cancellationToken);
+
+            if (!response.Success)
+            {
+                _logger.LogWarning("Media folder scan failed: {Error}", response.ErrorMessage);
+                return new MediaScanCandidatesResult
+                {
+                    Success = false,
+                    ErrorMessage = response.ErrorMessage,
+                };
+            }
+
+            var candidates = response.Candidates
+                .Select(c => new MediaFileCandidateDto
+                {
+                    Id = Guid.TryParse(c.Id, out var id) ? id : Guid.Empty,
+                    Name = c.Name,
+                    Size = c.Size,
+                    MimeType = c.MimeType,
+                    IsVirtual = c.IsVirtual,
+                    SourceName = string.IsNullOrEmpty(c.SourceName) ? null : c.SourceName,
+                    SubFolderPath = string.IsNullOrEmpty(c.SubFolderPath) ? null : c.SubFolderPath,
+                })
+                .Where(c => c.Id != Guid.Empty)
+                .ToList();
+
+            return new MediaScanCandidatesResult
+            {
+                Success = true,
+                TotalFound = response.TotalFound,
+                Candidates = candidates,
+            };
+        }
+        catch (RpcException ex) when (ex.StatusCode == StatusCode.Unavailable)
+        {
+            _logger.LogWarning(ex, "Files module is not available for media scan");
+            return new MediaScanCandidatesResult
+            {
+                Success = false,
+                ErrorMessage = "Files module is not available.",
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to scan media folders via gRPC");
+            return new MediaScanCandidatesResult
+            {
+                Success = false,
+                ErrorMessage = ex.Message,
+            };
+        }
     }
 
     /// <inheritdoc />

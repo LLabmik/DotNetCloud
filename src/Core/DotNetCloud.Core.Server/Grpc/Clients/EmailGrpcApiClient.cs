@@ -1,7 +1,7 @@
 using System.Security.Claims;
 using DotNetCloud.Modules.Email.Host.Protos;
 using DotNetCloud.Modules.Email.Models;
-using DotNetCloud.Modules.Email.Services;
+using DotNetCloud.Core.Services.ModuleApis;
 using Grpc.Core;
 using Grpc.Net.Client;
 using Microsoft.AspNetCore.Http;
@@ -77,7 +77,7 @@ public sealed class EmailGrpcApiClient : IEmailApiClient, IDisposable
     // ─── Accounts ───────────────────────────────────────────────────────────
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<EmailAccount>> ListAccountsAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<EmailAccountDto>> ListAccountsAsync(CancellationToken ct = default)
     {
         var request = new ListAccountsRequest { UserId = GetUserId() };
         try
@@ -89,7 +89,7 @@ public sealed class EmailGrpcApiClient : IEmailApiClient, IDisposable
     }
 
     /// <inheritdoc />
-    public async Task<EmailAccount?> GetAccountAsync(Guid id, CancellationToken ct = default)
+    public async Task<EmailAccountDto?> GetAccountAsync(Guid id, CancellationToken ct = default)
     {
         var request = new GetAccountRequest { AccountId = id.ToString(), UserId = GetUserId() };
         try
@@ -101,7 +101,7 @@ public sealed class EmailGrpcApiClient : IEmailApiClient, IDisposable
     }
 
     /// <inheritdoc />
-    public async Task<EmailAccount?> CreateAccountAsync(CreateEmailAccountRequest req, CancellationToken ct = default)
+    public async Task<EmailAccountDto?> CreateAccountAsync(CreateEmailAccountRequest req, CancellationToken ct = default)
     {
         var request = new CreateAccountRequest
         {
@@ -120,7 +120,7 @@ public sealed class EmailGrpcApiClient : IEmailApiClient, IDisposable
     }
 
     /// <inheritdoc />
-    public async Task<EmailAccount?> UpdateAccountAsync(Guid id, UpdateEmailAccountRequest req, CancellationToken ct = default)
+    public async Task<EmailAccountDto?> UpdateAccountAsync(Guid id, UpdateEmailAccountRequest req, CancellationToken ct = default)
     {
         var request = new UpdateAccountRequest
         {
@@ -149,7 +149,7 @@ public sealed class EmailGrpcApiClient : IEmailApiClient, IDisposable
     // ─── Mailboxes ──────────────────────────────────────────────────────────
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<EmailMailbox>> ListMailboxesAsync(Guid accountId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<EmailMailboxDto>> ListMailboxesAsync(Guid accountId, CancellationToken ct = default)
     {
         var request = new ListMailboxesRequest { AccountId = accountId.ToString(), UserId = GetUserId() };
         try
@@ -185,7 +185,7 @@ public sealed class EmailGrpcApiClient : IEmailApiClient, IDisposable
     // ─── Rules ──────────────────────────────────────────────────────────────
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<EmailRule>> ListRulesAsync(Guid? accountId = null, CancellationToken ct = default)
+    public async Task<IReadOnlyList<EmailRuleDto>> ListRulesAsync(Guid? accountId = null, CancellationToken ct = default)
     {
         var request = new ListRulesRequest
         {
@@ -201,7 +201,7 @@ public sealed class EmailGrpcApiClient : IEmailApiClient, IDisposable
     }
 
     /// <inheritdoc />
-    public async Task<EmailRule?> GetRuleAsync(Guid id, CancellationToken ct = default)
+    public async Task<EmailRuleDto?> GetRuleAsync(Guid id, CancellationToken ct = default)
     {
         var request = new GetRuleRequest { RuleId = id.ToString(), UserId = GetUserId() };
         try
@@ -213,7 +213,7 @@ public sealed class EmailGrpcApiClient : IEmailApiClient, IDisposable
     }
 
     /// <inheritdoc />
-    public async Task<EmailRule?> CreateRuleAsync(CreateEmailRuleRequest req, CancellationToken ct = default)
+    public async Task<EmailRuleDto?> CreateRuleAsync(CreateEmailRuleRequest req, CancellationToken ct = default)
     {
         var request = new CreateRuleRequest
         {
@@ -233,7 +233,7 @@ public sealed class EmailGrpcApiClient : IEmailApiClient, IDisposable
     }
 
     /// <inheritdoc />
-    public async Task<EmailRule?> UpdateRuleAsync(Guid id, UpdateEmailRuleRequest req, CancellationToken ct = default)
+    public async Task<EmailRuleDto?> UpdateRuleAsync(Guid id, UpdateEmailRuleRequest req, CancellationToken ct = default)
     {
         var request = new UpdateRuleRequest
         {
@@ -301,7 +301,7 @@ public sealed class EmailGrpcApiClient : IEmailApiClient, IDisposable
     // ─── Threads & Messages (gRPC) ──────────────────────────────────────────
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<EmailThread>> ListThreadsAsync(Guid accountId, Guid mailboxId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<EmailThreadDto>> ListThreadsAsync(Guid accountId, Guid mailboxId, CancellationToken ct = default)
     {
         var request = new ListThreadsRequest
         {
@@ -320,7 +320,7 @@ public sealed class EmailGrpcApiClient : IEmailApiClient, IDisposable
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<EmailMessage>> ListThreadMessagesAsync(Guid threadId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<EmailMessageDto>> ListThreadMessagesAsync(Guid threadId, CancellationToken ct = default)
     {
         var request = new ListThreadMessagesRequest { ThreadId = threadId.ToString(), UserId = GetUserId() };
         try
@@ -512,15 +512,15 @@ public sealed class EmailGrpcApiClient : IEmailApiClient, IDisposable
         return headers;
     }
 
-    private static EmailAccount? ToAccount(AccountMessage? m)
+    private static EmailAccountDto? ToAccount(AccountMessage? m)
     {
         if (m is null || string.IsNullOrEmpty(m.Id))
             return null;
-        return new EmailAccount
+        return new EmailAccountDto
         {
             Id = Guid.Parse(m.Id),
             OwnerId = Guid.Parse(m.OwnerId),
-            ProviderType = Enum.TryParse<EmailProviderType>(m.ProviderType, out var pt) ? pt : EmailProviderType.ImapSmtp,
+            ProviderType = Enum.TryParse<EmailProviderType>(m.ProviderType, out var pt) ? pt.ToString() : nameof(EmailProviderType.ImapSmtp),
             DisplayName = m.DisplayName,
             EmailAddress = m.EmailAddress,
             IsEnabled = m.IsEnabled,
@@ -529,11 +529,11 @@ public sealed class EmailGrpcApiClient : IEmailApiClient, IDisposable
         };
     }
 
-    private static EmailMailbox? ToMailbox(MailboxMessage? m)
+    private static EmailMailboxDto? ToMailbox(MailboxMessage? m)
     {
         if (m is null || string.IsNullOrEmpty(m.Id))
             return null;
-        return new EmailMailbox
+        return new EmailMailboxDto
         {
             Id = Guid.Parse(m.Id),
             AccountId = Guid.Parse(m.AccountId),
@@ -543,11 +543,11 @@ public sealed class EmailGrpcApiClient : IEmailApiClient, IDisposable
         };
     }
 
-    private static EmailRule? ToRule(RuleMessage? m)
+    private static EmailRuleDto? ToRule(RuleMessage? m)
     {
         if (m is null || string.IsNullOrEmpty(m.Id))
             return null;
-        return new EmailRule
+        return new EmailRuleDto
         {
             Id = Guid.Parse(m.Id),
             OwnerId = Guid.Parse(m.OwnerId),
@@ -561,11 +561,11 @@ public sealed class EmailGrpcApiClient : IEmailApiClient, IDisposable
         };
     }
 
-    private static EmailThread? ToThread(ThreadMessage? m)
+    private static EmailThreadDto? ToThread(ThreadMessage? m)
     {
         if (m is null || string.IsNullOrEmpty(m.Id))
             return null;
-        return new EmailThread
+        return new EmailThreadDto
         {
             Id = Guid.Parse(m.Id),
             AccountId = Guid.Parse(m.AccountId),
@@ -579,11 +579,11 @@ public sealed class EmailGrpcApiClient : IEmailApiClient, IDisposable
         };
     }
 
-    private static EmailMessage? ToMessage(EmailMessageItem? m)
+    private static EmailMessageDto? ToMessage(EmailMessageItem? m)
     {
         if (m is null || string.IsNullOrEmpty(m.Id))
             return null;
-        return new EmailMessage
+        return new EmailMessageDto
         {
             Id = Guid.Parse(m.Id),
             ThreadId = Guid.Parse(m.ThreadId),

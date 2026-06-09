@@ -28,7 +28,6 @@ public class EmailController : EmailControllerBase
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly EmailDbContext _db;
     private readonly ILogger<EmailController> _logger;
-    private readonly DotNetCloud.Core.Capabilities.IFileDirectory? _fileDirectory;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="EmailController"/> class.
@@ -44,8 +43,7 @@ public class EmailController : EmailControllerBase
         IEventBus eventBus,
         IHttpClientFactory httpClientFactory,
         EmailDbContext db,
-        ILogger<EmailController> logger,
-        DotNetCloud.Core.Capabilities.IFileDirectory? fileDirectory = null)
+        ILogger<EmailController> logger)
     {
         _accountService = accountService;
         _ruleService = ruleService;
@@ -58,7 +56,6 @@ public class EmailController : EmailControllerBase
         _httpClientFactory = httpClientFactory;
         _db = db;
         _logger = logger;
-        _fileDirectory = fileDirectory;
     }
 
     // ── Accounts ───────────────────────────────────────────
@@ -594,17 +591,18 @@ public class EmailController : EmailControllerBase
     {
         try
         {
-            if (_fileDirectory is null)
+            var fileDirectory = HttpContext.RequestServices.GetService<DotNetCloud.Core.Capabilities.IFileDirectory>();
+            if (fileDirectory is null)
                 return BadRequest(ErrorEnvelope("files_module_unavailable", "The Files module is not available."));
 
             var caller = GetAuthenticatedCaller();
 
-            var stream = await _fileDirectory.OpenReadAsync(caller.UserId, fileNodeId, HttpContext.RequestAborted);
+            var stream = await fileDirectory.OpenReadAsync(caller.UserId, fileNodeId, HttpContext.RequestAborted);
             if (stream is null)
                 return NotFound(ErrorEnvelope("file_not_found", "File not found or inaccessible."));
 
             // Resolve file metadata from the Files module
-            var fileInfo = await _fileDirectory.GetFileInfoAsync(caller.UserId, fileNodeId, HttpContext.RequestAborted);
+            var fileInfo = await fileDirectory.GetFileInfoAsync(caller.UserId, fileNodeId, HttpContext.RequestAborted);
             var fileName = fileInfo?.Name ?? "attachment";
             var contentType = fileInfo?.MimeType ?? "application/octet-stream";
 

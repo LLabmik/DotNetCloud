@@ -1,12 +1,14 @@
 using System.Security.Claims;
 using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Server.Configuration;
-using DotNetCloud.Modules.Chat.Services;
+using DotNetCloud.Core.Services.ModuleApis;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
+using EventBus = DotNetCloud.Core.Events.IEventBus;
 
 namespace DotNetCloud.Core.Server.RealTime;
 
@@ -21,29 +23,23 @@ internal sealed class CoreHub : Hub
 {
     private readonly UserConnectionTracker _connectionTracker;
     private readonly PresenceService _presenceService;
-    private readonly IChannelMemberService? _channelMemberService;
-    private readonly ICallSignalingService? _callSignalingService;
-    private readonly IVideoCallService? _videoCallService;
-    private readonly IChatRealtimeService? _chatRealtimeService;
-    private readonly IEventBus? _eventBus;
+    private readonly IChatApiClient _chatApiClient;
+    private readonly IRealtimeBroadcaster _broadcaster;
+    private readonly EventBus? _eventBus;
     private readonly ILogger<CoreHub> _logger;
 
     public CoreHub(
         UserConnectionTracker connectionTracker,
         PresenceService presenceService,
+        IChatApiClient chatApiClient,
+        IRealtimeBroadcaster broadcaster,
         ILogger<CoreHub> logger,
-        IChannelMemberService? channelMemberService = null,
-        IChatRealtimeService? chatRealtimeService = null,
-        ICallSignalingService? callSignalingService = null,
-        IVideoCallService? videoCallService = null,
-        IEventBus? eventBus = null)
+        EventBus? eventBus = null)
     {
         _connectionTracker = connectionTracker ?? throw new ArgumentNullException(nameof(connectionTracker));
         _presenceService = presenceService ?? throw new ArgumentNullException(nameof(presenceService));
-        _channelMemberService = channelMemberService;
-        _chatRealtimeService = chatRealtimeService;
-        _callSignalingService = callSignalingService;
-        _videoCallService = videoCallService;
+        _chatApiClient = chatApiClient ?? throw new ArgumentNullException(nameof(chatApiClient));
+        _broadcaster = broadcaster ?? throw new ArgumentNullException(nameof(broadcaster));
         _eventBus = eventBus;
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -130,19 +126,16 @@ internal sealed class CoreHub : Hub
         }
 
         // Verify the user is a member of this channel before allowing group join
-        if (_channelMemberService is not null)
-        {
-            var caller = CreateUserCaller();
-            var isMember = await _channelMemberService.IsMemberAsync(
-                parsedChannelId, caller, Context.ConnectionAborted);
+        var userId = GetUserId();
+        var isMember = await _chatApiClient.IsChannelMemberAsync(
+            parsedChannelId, userId, Context.ConnectionAborted);
 
-            if (!isMember)
-            {
-                _logger.LogWarning(
-                    "User {UserId} denied group join for channel {ChannelId} — not a member",
-                    GetUserId(), channelId);
-                throw new HubException("You are not a member of this channel.");
-            }
+        if (!isMember)
+        {
+            _logger.LogWarning(
+                "User {UserId} denied group join for channel {ChannelId} — not a member",
+                userId, channelId);
+            throw new HubException("You are not a member of this channel.");
         }
 
         await Groups.AddToGroupAsync(Context.ConnectionId, channelId);
@@ -239,10 +232,8 @@ internal sealed class CoreHub : Hub
             var caller = CreateUserCaller();
             var presence = await _presenceService.SetPresenceAsync(caller.UserId, status, statusMessage);
 
-            if (_chatRealtimeService is not null)
-            {
-                await _chatRealtimeService.BroadcastPresenceChangedAsync(presence, Context.ConnectionAborted);
-            }
+            await _broadcaster.BroadcastAsync(
+                "chat-presence", "PresenceChanged", presence, Context.ConnectionAborted);
 
             if (_eventBus is not null)
             {
@@ -275,13 +266,11 @@ internal sealed class CoreHub : Hub
     /// <param name="sdpOffer">The SDP offer payload.</param>
     public async Task SendCallOfferAsync(Guid callId, Guid targetUserId, string sdpOffer)
     {
-        EnsureCallSignalingAvailable();
-
         try
         {
-            var caller = CreateUserCaller();
-            await _callSignalingService!.SendOfferAsync(
-                callId, targetUserId, sdpOffer, caller, Context.ConnectionAborted);
+            var userId = GetUserId();
+            await _chatApiClient.SendCallOfferAsync(
+                callId, targetUserId, sdpOffer, userId, Context.ConnectionAborted);
         }
         catch (Exception ex) when (TryConvertToHubException(ex, out var hubException))
         {
@@ -297,13 +286,11 @@ internal sealed class CoreHub : Hub
     /// <param name="sdpAnswer">The SDP answer payload.</param>
     public async Task SendCallAnswerAsync(Guid callId, Guid targetUserId, string sdpAnswer)
     {
-        EnsureCallSignalingAvailable();
-
         try
         {
-            var caller = CreateUserCaller();
-            await _callSignalingService!.SendAnswerAsync(
-                callId, targetUserId, sdpAnswer, caller, Context.ConnectionAborted);
+            var userId = GetUserId();
+            await _chatApiClient.SendCallAnswerAsync(
+                callId, targetUserId, sdpAnswer, userId, Context.ConnectionAborted);
         }
         catch (Exception ex) when (TryConvertToHubException(ex, out var hubException))
         {
@@ -319,13 +306,11 @@ internal sealed class CoreHub : Hub
     /// <param name="candidate">The ICE candidate payload.</param>
     public async Task SendIceCandidateAsync(Guid callId, Guid targetUserId, string candidate)
     {
-        EnsureCallSignalingAvailable();
-
         try
         {
-            var caller = CreateUserCaller();
-            await _callSignalingService!.SendIceCandidateAsync(
-                callId, targetUserId, candidate, caller, Context.ConnectionAborted);
+            var userId = GetUserId();
+            await _chatApiClient.SendIceCandidateAsync(
+                callId, targetUserId, candidate, userId, Context.ConnectionAborted);
         }
         catch (Exception ex) when (TryConvertToHubException(ex, out var hubException))
         {
@@ -341,13 +326,11 @@ internal sealed class CoreHub : Hub
     /// <param name="enabled">Whether the media is now enabled.</param>
     public async Task SendMediaStateChangeAsync(Guid callId, string mediaType, bool enabled)
     {
-        EnsureCallSignalingAvailable();
-
         try
         {
-            var caller = CreateUserCaller();
-            await _callSignalingService!.SendMediaStateChangeAsync(
-                callId, mediaType, enabled, caller, Context.ConnectionAborted);
+            var userId = GetUserId();
+            await _chatApiClient.SendMediaStateChangeAsync(
+                callId, mediaType, enabled, userId, Context.ConnectionAborted);
         }
         catch (Exception ex) when (TryConvertToHubException(ex, out var hubException))
         {
@@ -389,22 +372,19 @@ internal sealed class CoreHub : Hub
 
     /// <summary>
     /// Invites a user to join an active call. Only the call Host may invite participants.
-    /// Relays to <see cref="IVideoCallService.InviteToCallAsync"/>.
     /// </summary>
     /// <param name="callId">The active call to invite the user to.</param>
     /// <param name="targetUserId">The user to invite.</param>
     public async Task InviteToCallAsync(Guid callId, Guid targetUserId)
     {
-        EnsureVideoCallServiceAvailable();
-
         try
         {
-            var caller = CreateUserCaller();
-            await _videoCallService!.InviteToCallAsync(callId, targetUserId, caller, Context.ConnectionAborted);
+            var userId = GetUserId();
+            await _chatApiClient.InviteToCallAsync(callId, targetUserId, userId, Context.ConnectionAborted);
 
             _logger.LogInformation(
                 "User {UserId} invited {TargetUserId} to call {CallId}",
-                caller.UserId, targetUserId, callId);
+                userId, targetUserId, callId);
         }
         catch (Exception ex) when (TryConvertToHubException(ex, out var hubException))
         {
@@ -414,22 +394,20 @@ internal sealed class CoreHub : Hub
 
     /// <summary>
     /// Transfers the host role of an active call to another participant.
-    /// Only the current host may transfer. Relays to <see cref="IVideoCallService.TransferHostAsync"/>.
+    /// Only the current host may transfer.
     /// </summary>
     /// <param name="callId">The active call.</param>
     /// <param name="newHostUserId">The participant to become the new host.</param>
     public async Task TransferHostAsync(Guid callId, Guid newHostUserId)
     {
-        EnsureVideoCallServiceAvailable();
-
         try
         {
-            var caller = CreateUserCaller();
-            await _videoCallService!.TransferHostAsync(callId, newHostUserId, caller, Context.ConnectionAborted);
+            var userId = GetUserId();
+            await _chatApiClient.TransferCallHostAsync(callId, newHostUserId, userId, Context.ConnectionAborted);
 
             _logger.LogInformation(
                 "User {UserId} transferred host of call {CallId} to {NewHostUserId}",
-                caller.UserId, callId, newHostUserId);
+                userId, callId, newHostUserId);
         }
         catch (Exception ex) when (TryConvertToHubException(ex, out var hubException))
         {
@@ -477,21 +455,5 @@ internal sealed class CoreHub : Hub
 
         hubException = null!;
         return false;
-    }
-
-    private void EnsureCallSignalingAvailable()
-    {
-        if (_callSignalingService is null)
-        {
-            throw new HubException("Call signaling services are not available.");
-        }
-    }
-
-    private void EnsureVideoCallServiceAvailable()
-    {
-        if (_videoCallService is null)
-        {
-            throw new HubException("Video call services are not available.");
-        }
     }
 }

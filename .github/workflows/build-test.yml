@@ -176,6 +176,7 @@ jobs:
         database: [postgresql, sqlserver]
         include:
           - database: postgresql
+            test_project: DotNetCloud.Integration.Tests.PostgreSQL
             db_image: postgres:16
             db_port: 5432
             db_env: |
@@ -184,6 +185,7 @@ jobs:
               POSTGRES_DB=dotnetcloud_integration
             connection_string: "Host=localhost;Port=5432;Database=dotnetcloud_integration;Username=dotnetcloud_test;Password=TestPassword123!"
           - database: sqlserver
+            test_project: DotNetCloud.Integration.Tests.SqlServer
             db_image: mcr.microsoft.com/mssql/server:2022-latest
             db_port: 1433
             db_env: |
@@ -231,7 +233,7 @@ jobs:
           ConnectionStrings__DefaultConnection: ${{ matrix.connection_string }}
           Database__Provider: ${{ matrix.database }}
         run: |
-          dotnet test tests/DotNetCloud.Integration.Tests/DotNetCloud.Integration.Tests.csproj \
+          dotnet test tests/${{ matrix.test_project }}/${{ matrix.test_project }}.csproj \
             --no-restore \
             --configuration Release \
             --logger "trx;LogFileName=integration-${{ matrix.database }}.trx" \

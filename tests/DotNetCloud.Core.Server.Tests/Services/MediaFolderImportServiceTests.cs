@@ -1,13 +1,9 @@
-using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs.Media;
-using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Server.Services;
+using DotNetCloud.Core.Services.ModuleApis;
 using DotNetCloud.Modules.Files.Data;
-using DotNetCloud.Modules.Files.DTOs;
-using DotNetCloud.Modules.Files.Services;
 using DotNetCloud.Modules.Photos.Events;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
@@ -22,27 +18,40 @@ public sealed class MediaFolderImportServiceTests
     {
         var sharedFolderId = Guid.NewGuid();
         var ownerId = Guid.NewGuid();
-        var rootFolderId = Guid.NewGuid();
-        var nestedFolderId = Guid.NewGuid();
         var firstPhotoId = Guid.NewGuid();
         var secondPhotoId = Guid.NewGuid();
 
-        var rootFolder = CreateFolder(rootFolderId, "Gallery");
-        var nestedFolder = CreateFolder(nestedFolderId, "Events", rootFolderId);
-        var firstPhoto = CreateFile(firstPhotoId, "cover.jpg", "image/jpeg", 128, rootFolderId);
-        var secondPhoto = CreateFile(secondPhotoId, "team.png", "image/png", 256, nestedFolderId);
-        var note = CreateFile(Guid.NewGuid(), "notes.txt", "text/plain", 64, rootFolderId);
-
-        var fileServiceMock = new Mock<IFileService>();
-        fileServiceMock
-            .Setup(service => service.ResolveMountedNodeAsync(sharedFolderId, "Gallery", It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(rootFolder);
-        fileServiceMock
-            .Setup(service => service.ListChildrenAsync(rootFolderId, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync([firstPhoto, note, nestedFolder]);
-        fileServiceMock
-            .Setup(service => service.ListChildrenAsync(nestedFolderId, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync([secondPhoto]);
+        var filesApiClientMock = new Mock<IFilesApiClient>();
+        filesApiClientMock
+            .Setup(client => client.ScanMediaFoldersAsync(
+                It.IsAny<IReadOnlyCollection<MediaLibrarySource>>(),
+                ownerId,
+                "Photos",
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MediaScanCandidatesResult
+            {
+                Success = true,
+                TotalFound = 2,
+                Candidates =
+                [
+                    new MediaFileCandidateDto
+                    {
+                        Id = firstPhotoId,
+                        Name = "cover.jpg",
+                        Size = 128,
+                        MimeType = "image/jpeg",
+                        IsVirtual = true,
+                    },
+                    new MediaFileCandidateDto
+                    {
+                        Id = secondPhotoId,
+                        Name = "team.png",
+                        Size = 256,
+                        MimeType = "image/png",
+                        IsVirtual = true,
+                    },
+                ],
+            });
 
         var photoCallbackMock = new Mock<IPhotoIndexingCallback>();
         photoCallbackMock
@@ -52,7 +61,7 @@ public sealed class MediaFolderImportServiceTests
             .Setup(callback => callback.IndexPhotoAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<long>(), It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        using var provider = CreateServiceProvider(Guid.NewGuid().ToString(), fileServiceMock.Object, photoCallbackMock.Object);
+        using var provider = CreateServiceProvider(Guid.NewGuid().ToString(), filesApiClientMock, photoCallbackMock.Object);
         var service = CreateService(provider);
 
         var result = await service.ScanSourcesAsync(
@@ -86,10 +95,6 @@ public sealed class MediaFolderImportServiceTests
         photoCallbackMock.Verify(
             callback => callback.RemoveDeletedPhotosAsync(It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
             Times.Never);
-
-        fileServiceMock.Verify(
-            service => service.GetStoragePathAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
-            Times.Never);
     }
 
     [TestMethod]
@@ -99,10 +104,19 @@ public sealed class MediaFolderImportServiceTests
         var ownerId = Guid.NewGuid();
         var stalePhotoId = Guid.NewGuid();
 
-        var fileServiceMock = new Mock<IFileService>();
-        fileServiceMock
-            .Setup(service => service.ResolveMountedNodeAsync(sharedFolderId, null, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((FileNodeDto?)null);
+        var filesApiClientMock = new Mock<IFilesApiClient>();
+        filesApiClientMock
+            .Setup(client => client.ScanMediaFoldersAsync(
+                It.IsAny<IReadOnlyCollection<MediaLibrarySource>>(),
+                ownerId,
+                "Photos",
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MediaScanCandidatesResult
+            {
+                Success = true,
+                TotalFound = 0,
+                Candidates = [],
+            });
 
         var photoCallbackMock = new Mock<IPhotoIndexingCallback>();
         photoCallbackMock
@@ -115,7 +129,7 @@ public sealed class MediaFolderImportServiceTests
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(1);
 
-        using var provider = CreateServiceProvider(Guid.NewGuid().ToString(), fileServiceMock.Object, photoCallbackMock.Object);
+        using var provider = CreateServiceProvider(Guid.NewGuid().ToString(), filesApiClientMock, photoCallbackMock.Object);
         var service = CreateService(provider);
 
         var result = await service.ScanSourcesAsync(
@@ -137,8 +151,7 @@ public sealed class MediaFolderImportServiceTests
         Assert.AreEqual(0, result.Skipped);
         Assert.AreEqual(0, result.Failed);
         Assert.AreEqual(1, result.Removed);
-        Assert.AreEqual(1, result.Errors.Count);
-        StringAssert.Contains(result.Errors[0], "/_DotNetCloud/Archive");
+        Assert.AreEqual(0, result.Errors.Count);
 
         photoCallbackMock.Verify(
             callback => callback.RemoveDeletedPhotosAsync(
@@ -151,60 +164,21 @@ public sealed class MediaFolderImportServiceTests
             Times.Never);
     }
 
-    private static ServiceProvider CreateServiceProvider(string dbName, IFileService fileService, IPhotoIndexingCallback photoCallback)
+    private static ServiceProvider CreateServiceProvider(string dbName, Mock<IFilesApiClient> filesApiClientMock, IPhotoIndexingCallback photoCallback)
     {
         var services = new ServiceCollection();
         services.AddDbContext<FilesDbContext>(options => options.UseInMemoryDatabase(dbName));
-        services.AddScoped(_ => fileService);
+        services.AddScoped(_ => filesApiClientMock.Object);
         services.AddScoped(_ => photoCallback);
         return services.BuildServiceProvider();
     }
 
     private static MediaFolderImportService CreateService(ServiceProvider provider)
     {
-        var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(
-                new Dictionary<string, string?>
-                {
-                    ["Files:Storage:RootPath"] = Path.GetTempPath(),
-                })
-            .Build();
-
         return new MediaFolderImportService(
             provider.GetRequiredService<IServiceScopeFactory>(),
-            Mock.Of<IFileStorageEngine>(),
-            Mock.Of<IEventBus>(),
-            configuration,
+            provider.GetRequiredService<IFilesApiClient>(),
             NullLogger<MediaFolderImportService>.Instance);
     }
 
-    private static FileNodeDto CreateFolder(Guid id, string name, Guid? parentId = null)
-        => new()
-        {
-            Id = id,
-            Name = name,
-            NodeType = "Folder",
-            ParentId = parentId,
-            OwnerId = Guid.NewGuid(),
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow,
-            IsVirtual = true,
-            IsReadOnly = true,
-        };
-
-    private static FileNodeDto CreateFile(Guid id, string name, string mimeType, long size, Guid? parentId)
-        => new()
-        {
-            Id = id,
-            Name = name,
-            NodeType = "File",
-            MimeType = mimeType,
-            Size = size,
-            ParentId = parentId,
-            OwnerId = Guid.NewGuid(),
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow,
-            IsVirtual = true,
-            IsReadOnly = true,
-        };
 }

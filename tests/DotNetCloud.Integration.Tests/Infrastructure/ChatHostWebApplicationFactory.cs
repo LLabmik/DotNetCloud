@@ -5,8 +5,10 @@ using System.Text.Encodings.Web;
 using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Modules.Chat.Data;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -30,9 +32,15 @@ internal sealed class ChatHostWebApplicationFactory : WebApplicationFactory<Chat
         builder.ConfigureServices(services =>
         {
             // Replace ChatDbContext with an in-memory database scoped to this test run.
+            // Use manual registration (not AddDbContext) to avoid registering a second
+            // database provider in the DI container — EF Core rejects dual providers.
             services.RemoveAll<DbContextOptions<ChatDbContext>>();
-            services.AddDbContext<ChatDbContext>(options =>
-                options.UseInMemoryDatabase(_databaseName));
+            services.RemoveAll<ChatDbContext>();
+            services.AddSingleton<DbContextOptions<ChatDbContext>>(_ =>
+                new DbContextOptionsBuilder<ChatDbContext>()
+                    .UseInMemoryDatabase(_databaseName)
+                    .Options);
+            services.AddScoped<ChatDbContext>();
 
             // Provide a no-op IRealtimeBroadcaster since the chat host runs
             // independently and doesn't own Signal R hub infrastructure.
@@ -44,13 +52,26 @@ internal sealed class ChatHostWebApplicationFactory : WebApplicationFactory<Chat
 
             // Register test auth handler for the auth schemes
             // required by ChatControllerBase [Authorize(AuthenticationSchemes = "Identity.Application,OpenIddict...")].
+            // The host's Program.cs already registers Identity.Application via AddCookie,
+            // so we forward it instead of re-registering (which would throw "Scheme already exists").
             services.AddAuthentication()
                 .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(
-                    TestAuthHandler.SchemeName, _ => { })
-                .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(
-                    "Identity.Application", _ => { })
-                .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(
-                    "OpenIddict.Validation.AspNetCore", _ => { });
+                    TestAuthHandler.SchemeName, _ => { });
+
+            services.PostConfigure<AuthenticationSchemeOptions>(
+                "OpenIddict.Validation.AspNetCore", opts =>
+                {
+                    opts.ForwardDefault = TestAuthHandler.SchemeName;
+                });
+
+            services.PostConfigure<CookieAuthenticationOptions>(
+                IdentityConstants.ApplicationScheme, opts =>
+                {
+                    opts.ForwardDefaultSelector = context =>
+                        context.Request.Headers.ContainsKey("x-test-user-id")
+                            ? TestAuthHandler.SchemeName
+                            : null;
+                });
         });
     }
 

@@ -3,7 +3,6 @@ using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Files.DTOs;
-using DotNetCloud.Modules.Files.Events;
 using DotNetCloud.Modules.Files.Models;
 using DotNetCloud.Modules.Files.Services;
 using Microsoft.AspNetCore.Identity;

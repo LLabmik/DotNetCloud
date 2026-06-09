@@ -1,7 +1,14 @@
+using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Calendar;
 using DotNetCloud.Modules.Calendar.Data;
 using DotNetCloud.Modules.Calendar.Host.Services;
+using DotNetCloud.Modules.Contacts.Data;
+using DotNetCloud.Modules.Contacts.Data.Services;
+using IContactDirectory = DotNetCloud.Core.Capabilities.IContactDirectory;
+using IOrganizationDirectory = DotNetCloud.Core.Capabilities.IOrganizationDirectory;
+using DotNetCloud.Core.Auth.Capabilities;
+using DotNetCloud.Core.Data.Context;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -97,6 +104,14 @@ var dbProvider = builder.Configuration["databaseProvider"]
 
 if (!string.IsNullOrEmpty(connStr) && !string.IsNullOrEmpty(dbProvider))
 {
+    // Register the naming strategy so CalendarDbContext uses the correct
+    // table/column naming for the active provider (snake_case for PostgreSQL,
+    // PascalCase for SQL Server).
+    if (string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
+        builder.Services.AddSingleton<ITableNamingStrategy, PostgreSqlNamingStrategy>();
+    else
+        builder.Services.AddSingleton<ITableNamingStrategy, SqlServerNamingStrategy>();
+
     builder.Services.AddDbContext<CalendarDbContext>(o =>
     {
         if (string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
@@ -113,9 +128,26 @@ else
 // In-process event bus for standalone operation
 builder.Services.AddSingleton<IEventBus, InProcessEventBus>();
 
-// Stub IOrganizationDirectory (module doesn't have full auth — Core.Server handles that)
-builder.Services.AddSingleton<DotNetCloud.Core.Capabilities.IOrganizationDirectory>(
-    new StubOrganizationDirectory());
+// Contact directory — real implementation from Contacts module for attendee search.
+builder.Services.AddDbContext<ContactsDbContext>(o =>
+{
+    if (string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
+        o.UseNpgsql(connStr);
+    else
+        o.UseSqlServer(connStr);
+}, ServiceLifetime.Transient);
+builder.Services.AddScoped<IContactDirectory, ContactDirectoryService>();
+
+// Organization directory — real implementation from Core.Auth for calendar sharing checks.
+// CoreDbContext must be registered for OrganizationDirectoryService.
+builder.Services.AddDbContext<CoreDbContext>(o =>
+{
+    if (string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
+        o.UseNpgsql(connStr);
+    else
+        o.UseSqlServer(connStr);
+}, ServiceLifetime.Transient);
+builder.Services.AddScoped<IOrganizationDirectory, OrganizationDirectoryService>();
 
 // Register all calendar business-logic services (Calendar, Event, Share, ICal)
 builder.Services.AddCalendarServices(builder.Configuration);
@@ -135,6 +167,31 @@ builder.Services.AddHealthChecks()
     .AddCheck<CalendarHealthCheck>("calendar_module");
 
 var app = builder.Build();
+
+// Ensure database schema exists.
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<CalendarDbContext>();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    try
+    {
+        await db.Database.MigrateAsync();
+        logger.LogInformation("Calendar database migrated successfully");
+    }
+    catch (Exception ex)
+    {
+        logger.LogWarning(ex, "Calendar MigrateAsync failed, falling back to EnsureCreated");
+        try
+        {
+            var created = await db.Database.EnsureCreatedAsync();
+            logger.LogInformation("Calendar EnsureCreated result: {Created}", created);
+        }
+        catch (Exception ex2)
+        {
+            logger.LogError(ex2, "Calendar EnsureCreated also failed");
+        }
+    }
+}
 
 // Show full exception details for debugging; remove in production.
 app.UseDeveloperExceptionPage();
@@ -171,14 +228,3 @@ app.Run();
 
 /// <summary>Entry point marker for WebApplicationFactory in integration tests.</summary>
 public partial class Program;
-
-/// <summary>No-op stub for IOrganizationDirectory when auth isn't available.</summary>
-internal sealed class StubOrganizationDirectory : DotNetCloud.Core.Capabilities.IOrganizationDirectory
-{
-    public Task<bool> IsOrganizationMemberAsync(Guid orgId, Guid userId, CancellationToken ct = default) => Task.FromResult(false);
-    public Task<DotNetCloud.Core.DTOs.OrganizationMemberInfo?> GetMemberAsync(Guid orgId, Guid userId, CancellationToken ct = default) => Task.FromResult<DotNetCloud.Core.DTOs.OrganizationMemberInfo?>(null);
-    public Task<IReadOnlyList<DotNetCloud.Core.DTOs.OrganizationDto>> GetUserOrganizationsAsync(Guid userId, CancellationToken ct = default) => Task.FromResult<IReadOnlyList<DotNetCloud.Core.DTOs.OrganizationDto>>(Array.Empty<DotNetCloud.Core.DTOs.OrganizationDto>());
-    public Task<bool> HasOrgRoleAsync(Guid orgId, Guid userId, Guid roleId, CancellationToken ct = default) => Task.FromResult(false);
-    public Task<bool> HasManagerOrAboveRoleAsync(Guid orgId, Guid userId, CancellationToken ct = default) => Task.FromResult(false);
-    public Task<IReadOnlyList<Guid>> GetUserRoleIdsAsync(Guid orgId, Guid userId, CancellationToken ct = default) => Task.FromResult<IReadOnlyList<Guid>>(Array.Empty<Guid>());
-}

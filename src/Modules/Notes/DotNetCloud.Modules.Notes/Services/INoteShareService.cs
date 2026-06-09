@@ -18,24 +18,3 @@ public interface INoteShareService
     /// <summary>Removes a note share.</summary>
     Task RemoveShareAsync(Guid shareId, CallerContext caller, CancellationToken cancellationToken = default);
 }
-
-/// <summary>
-/// Read-only DTO for a note share.
-/// </summary>
-public sealed record NoteShareDto
-{
-    /// <summary>Share ID.</summary>
-    public required Guid Id { get; init; }
-
-    /// <summary>Note ID.</summary>
-    public required Guid NoteId { get; init; }
-
-    /// <summary>User the note is shared with.</summary>
-    public required Guid SharedWithUserId { get; init; }
-
-    /// <summary>Permission level.</summary>
-    public required NoteSharePermission Permission { get; init; }
-
-    /// <summary>When the share was created.</summary>
-    public required DateTime CreatedAt { get; init; }
-}

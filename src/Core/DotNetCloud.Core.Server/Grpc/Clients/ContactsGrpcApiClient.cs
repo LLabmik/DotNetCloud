@@ -1,7 +1,7 @@
 using System.Security.Claims;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Modules.Contacts.Host.Protos;
-using DotNetCloud.Modules.Contacts.Services;
+using DotNetCloud.Core.Services.ModuleApis;
 using Grpc.Core;
 using Grpc.Net.Client;
 using Microsoft.AspNetCore.Http;

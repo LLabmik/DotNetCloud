@@ -3,10 +3,13 @@ using System.Text.Encodings.Web;
 using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Core.Data.Initialization;
 using DotNetCloud.Core.Data.Naming;
+using DotNetCloud.Core.DTOs.Chat;
 using DotNetCloud.Core.Modules.Supervisor;
 using DotNetCloud.Core.Server;
+using DotNetCloud.Core.Services.ModuleApis;
 using DotNetCloud.Modules.Chat.Data;
 using DotNetCloud.Modules.Files.Data;
+using DotNetCloud.Modules.Files.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Builder;
@@ -113,10 +116,12 @@ internal sealed class DotNetCloudWebApplicationFactory : WebApplicationFactory<D
                     .Options);
 
             services.RemoveAll<DbContextOptions<ChatDbContext>>();
+            services.RemoveAll<ChatDbContext>();
             services.AddSingleton<DbContextOptions<ChatDbContext>>(_ =>
                 new DbContextOptionsBuilder<ChatDbContext>()
                     .UseInMemoryDatabase($"{_databaseName}_chat")
                     .Options);
+            services.AddScoped<ChatDbContext>();
 
             // ---------------------------------------------------------------
             // Stub out ProcessSupervisor so no real child processes spawn
@@ -136,6 +141,80 @@ internal sealed class DotNetCloudWebApplicationFactory : WebApplicationFactory<D
             {
                 services.Remove(descriptor);
             }
+
+            // ---------------------------------------------------------------
+            // Stub out module services that the DI validator can't resolve.
+            // These are replaced in tests that exercise the specific features.
+            // ---------------------------------------------------------------
+            services.RemoveAll<IDownloadService>();
+            services.AddSingleton<IDownloadService>(_ => Mock.Of<IDownloadService>());
+
+            services.RemoveAll<DotNetCloud.Modules.Contacts.Services.IContactsApiClient>();
+            services.AddSingleton<DotNetCloud.Modules.Contacts.Services.IContactsApiClient>(
+                _ => Mock.Of<DotNetCloud.Modules.Contacts.Services.IContactsApiClient>());
+            services.RemoveAll<DotNetCloud.Modules.Calendar.Services.ICalendarApiClient>();
+            services.AddSingleton<DotNetCloud.Modules.Calendar.Services.ICalendarApiClient>(
+                _ => Mock.Of<DotNetCloud.Modules.Calendar.Services.ICalendarApiClient>());
+            services.RemoveAll<DotNetCloud.Modules.Notes.Services.INotesApiClient>();
+            services.AddSingleton<DotNetCloud.Modules.Notes.Services.INotesApiClient>(
+                _ => Mock.Of<DotNetCloud.Modules.Notes.Services.INotesApiClient>());
+
+            // ISearchApiClient is consumed by singleton SearchEventSubscriber, so must be singleton.
+            services.RemoveAll<DotNetCloud.Core.Services.ModuleApis.ISearchApiClient>();
+            services.AddSingleton<DotNetCloud.Core.Services.ModuleApis.ISearchApiClient>(
+                _ => Mock.Of<DotNetCloud.Core.Services.ModuleApis.ISearchApiClient>());
+
+            // Stub IChatApiClient so SignalR hub operations don't try gRPC to non-existent Chat host.
+            services.RemoveAll<DotNetCloud.Core.Services.ModuleApis.IChatApiClient>();
+            var chatApiMock = new Mock<DotNetCloud.Core.Services.ModuleApis.IChatApiClient>();
+            chatApiMock
+                .Setup(c => c.IsChannelMemberAsync(
+                    It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(true);
+            chatApiMock
+                .Setup(c => c.SendMessageAsync(
+                    It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<string>(),
+                    It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((Guid channelId, Guid userId, string content, Guid? replyTo, CancellationToken _) =>
+                    new DotNetCloud.Core.DTOs.Chat.ChatMessageDto
+                    {
+                        Id = Guid.NewGuid(),
+                        ChannelId = channelId,
+                        Content = content,
+                        Type = "Text",
+                    });
+            chatApiMock
+                .Setup(c => c.NotifyTypingAsync(
+                    It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(true);
+            chatApiMock
+                .Setup(c => c.AddReactionAsync(
+                    It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(true);
+            chatApiMock
+                .Setup(c => c.RemoveReactionAsync(
+                    It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(true);
+            chatApiMock
+                .Setup(c => c.MarkChannelAsReadAsync(
+                    It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(true);
+            chatApiMock
+                .Setup(c => c.GetUnreadCountsAsync(
+                    It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Array.Empty<ChatUnreadCountDto>());
+            chatApiMock
+                .Setup(c => c.EditMessageAsync(
+                    It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((Guid messageId, Guid userId, string content, CancellationToken _) =>
+                    new DotNetCloud.Core.DTOs.Chat.ChatMessageDto
+                    {
+                        Id = messageId,
+                        ChannelId = Guid.NewGuid(),
+                        Content = content,
+                        Type = "Text",
+                    });
+            services.AddSingleton<DotNetCloud.Core.Services.ModuleApis.IChatApiClient>(chatApiMock.Object);
 
             // ---------------------------------------------------------------
             // Replace DbInitializer to seed test data

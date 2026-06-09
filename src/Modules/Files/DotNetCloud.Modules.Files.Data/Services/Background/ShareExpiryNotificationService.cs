@@ -2,7 +2,6 @@ using System.Diagnostics;
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Services;
-using DotNetCloud.Modules.Files.Events;
 using DotNetCloud.Modules.Files.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;

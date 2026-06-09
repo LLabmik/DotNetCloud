@@ -5,7 +5,7 @@ using DotNetCloud.Core.Server.Services;
 using DotNetCloud.Core.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using ServerMediaType = DotNetCloud.Core.Server.Services.MediaType;
+using ServerMediaType = DotNetCloud.Core.Services.MediaScanType;
 
 namespace DotNetCloud.Core.Server.Controllers;
 

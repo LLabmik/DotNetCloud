@@ -478,6 +478,19 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
             return;
         }
 
+        // Suppress health checks during the startup grace period to avoid
+        // false unhealthy reports while the gRPC endpoint is still initializing.
+        if (handle.StartedAt.HasValue &&
+            DateTime.UtcNow - handle.StartedAt.Value < _options.StartupGracePeriod)
+        {
+            _logger.LogDebug(
+                "Module {ModuleId} within startup grace period ({Elapsed}s / {Grace}s); skipping health check",
+                moduleId,
+                (DateTime.UtcNow - handle.StartedAt.Value).TotalSeconds.ToString("F1"),
+                _options.StartupGracePeriod.TotalSeconds);
+            return;
+        }
+
         var healthy = await ProbeHealthAsync(moduleId, handle.GrpcEndpoint, cancellationToken);
         if (healthy)
         {

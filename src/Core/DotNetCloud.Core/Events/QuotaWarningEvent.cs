@@ -1,11 +1,11 @@
 using DotNetCloud.Core.Events;
 
-namespace DotNetCloud.Modules.Files.Events;
+namespace DotNetCloud.Core.Events;
 
 /// <summary>
-/// Published when a user's storage usage crosses the critical threshold (default 95%).
+/// Published when a user's storage usage crosses the warning threshold (default 80%).
 /// </summary>
-public sealed record QuotaCriticalEvent : IEvent
+public sealed record QuotaWarningEvent : IEvent
 {
     /// <inheritdoc />
     public required Guid EventId { get; init; }
@@ -13,7 +13,7 @@ public sealed record QuotaCriticalEvent : IEvent
     /// <inheritdoc />
     public required DateTime CreatedAt { get; init; }
 
-    /// <summary>The user whose quota crossed the critical threshold.</summary>
+    /// <summary>The user whose quota crossed the warning threshold.</summary>
     public required Guid UserId { get; init; }
 
     /// <summary>Current used storage in bytes.</summary>

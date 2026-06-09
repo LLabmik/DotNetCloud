@@ -1,8 +1,12 @@
+using DotNetCloud.Core.Data.Extensions;
+using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Files.Events;
+using DotNetCloud.Modules.Photos.Data;
 using DotNetCloud.Modules.Photos.Data.Services;
 using DotNetCloud.Modules.Photos.Events;
 using DotNetCloud.Modules.Photos.Services;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -53,8 +57,17 @@ public static class PhotosServiceRegistration
     /// Adds only the Photos services needed by Blazor UI components rendered in Core.Server.
     /// Excludes background services and event handlers that should only run in the module host.
     /// </summary>
-    public static IServiceCollection AddPhotosUiServices(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection AddPhotosUiServices(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        DatabaseProvider provider,
+        string connectionString)
     {
+        // Register PhotosDbContext for Blazor Server interactive rendering
+        services.AddDbContext<PhotosDbContext>(options =>
+            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Photos.Data.SqlServer"),
+            ServiceLifetime.Transient);
+
         // Business services
         services.AddScoped<PhotoService>();
         services.AddScoped<IPhotoService>(sp => sp.GetRequiredService<PhotoService>());

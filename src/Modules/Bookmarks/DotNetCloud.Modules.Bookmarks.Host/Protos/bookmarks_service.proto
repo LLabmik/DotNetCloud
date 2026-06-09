@@ -27,6 +27,7 @@ service BookmarksService {
 
   // Search index support
   rpc GetSearchableDocuments (GetSearchableDocumentsRequest) returns (stream SearchableDocument);
+  rpc GetSearchableDocument (GetSearchableDocumentRequest) returns (SearchableDocumentResponse);
 }
 
 // --- Bookmark Messages ---
@@ -207,4 +208,14 @@ message SearchableDocument {
   string owner_id = 7;
   string created_at = 8;
   string updated_at = 9;
+}
+
+message GetSearchableDocumentRequest {
+  string entity_id = 1;
+  string user_id = 2;
+}
+
+message SearchableDocumentResponse {
+  bool found = 1;
+  SearchableDocument document = 2;
 }

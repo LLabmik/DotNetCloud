@@ -15,10 +15,13 @@ public class CalendarDbContext : DbContext
 
     /// <summary>
     /// Initializes a new instance of the <see cref="CalendarDbContext"/> class.
+    /// The naming strategy is selected based on the configured database provider.
     /// </summary>
     public CalendarDbContext(DbContextOptions<CalendarDbContext> options)
-        : this(options, new PostgreSqlNamingStrategy())
+        : base(options)
     {
+        var ext = options.Extensions.FirstOrDefault(e => e is Microsoft.EntityFrameworkCore.SqlServer.Infrastructure.Internal.SqlServerOptionsExtension);
+        _namingStrategy = ext is not null ? new SqlServerNamingStrategy() : new PostgreSqlNamingStrategy();
     }
 
     /// <summary>
