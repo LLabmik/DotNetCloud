@@ -78,6 +78,8 @@
       "tests\\DotNetCloud.Core.Server.Tests\\DotNetCloud.Core.Server.Tests.csproj",
       "tests\\DotNetCloud.Core.Tests\\DotNetCloud.Core.Tests.csproj",
       "tests\\DotNetCloud.Integration.Tests\\DotNetCloud.Integration.Tests.csproj",
+      "tests\\DotNetCloud.Integration.Tests.PostgreSQL\\DotNetCloud.Integration.Tests.PostgreSQL.csproj",
+      "tests\\DotNetCloud.Integration.Tests.SqlServer\\DotNetCloud.Integration.Tests.SqlServer.csproj",
       "tests\\DotNetCloud.Modules.Chat.Tests\\DotNetCloud.Modules.Chat.Tests.csproj",
       "tests\\DotNetCloud.Modules.Contacts.Tests\\DotNetCloud.Modules.Contacts.Tests.csproj",
       "tests\\DotNetCloud.Modules.Example.Tests\\DotNetCloud.Modules.Example.Tests.csproj",

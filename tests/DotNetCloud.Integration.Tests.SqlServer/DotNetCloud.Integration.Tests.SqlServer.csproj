@@ -1,0 +1,74 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <NoWarn>$(NoWarn);CS8618</NoWarn>
+  </PropertyGroup>
+
+  <!--
+    Link all source files from the common integration test project.
+    Exclude files that are provider-specific or only relevant for local dev:
+      - DockerDatabaseIntegrationTests.cs     → replaced by this project's own SQL Server-only version
+      - TracksSchemaMigrationIntegrationTests.cs → requires real PostgreSQL instance, not suitable for CI
+  -->
+  <ItemGroup>
+    <Compile Include="..\DotNetCloud.Integration.Tests\**\*.cs"
+             Exclude="..\DotNetCloud.Integration.Tests\Database\DockerDatabaseIntegrationTests.cs;
+                      ..\DotNetCloud.Integration.Tests\Database\TracksSchemaMigrationIntegrationTests.cs;
+                      ..\DotNetCloud.Integration.Tests\MSTestSettings.cs;
+                      ..\DotNetCloud.Integration.Tests\bin\**\*.cs;
+                      ..\DotNetCloud.Integration.Tests\obj\**\*.cs" />
+    <Compile Include="MSTestSettings.cs" />
+    <Compile Include="Database\DockerDatabaseIntegrationTests.cs" />
+  </ItemGroup>
+
+  <!-- ASP.NET Core framework reference (needed for WebApplicationFactory, Identity, etc.) -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="Moq" />
+    <PackageReference Include="MSTest.TestAdapter" />
+    <PackageReference Include="MSTest.TestFramework" />
+    <PackageReference Include="Grpc.Net.Client" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Core\DotNetCloud.Core.Server\DotNetCloud.Core.Server.csproj" />
+    <ProjectReference Include="..\..\src\Core\DotNetCloud.Core\DotNetCloud.Core.csproj" />
+    <ProjectReference Include="..\..\src\Core\DotNetCloud.Core.Auth\DotNetCloud.Core.Auth.csproj" />
+    <ProjectReference Include="..\..\src\Core\DotNetCloud.Core.Data\DotNetCloud.Core.Data.csproj" />
+    <ProjectReference Include="..\..\src\Core\DotNetCloud.Core.Data.SqlServer\DotNetCloud.Core.Data.SqlServer.csproj" />
+    <ProjectReference Include="..\..\src\Core\DotNetCloud.Core.Grpc\DotNetCloud.Core.Grpc.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Files\DotNetCloud.Modules.Files.Host\DotNetCloud.Modules.Files.Host.csproj">
+      <Aliases>FilesHost</Aliases>
+    </ProjectReference>
+    <ProjectReference Include="..\..\src\Modules\Chat\DotNetCloud.Modules.Chat.Host\DotNetCloud.Modules.Chat.Host.csproj">
+      <Aliases>ChatHost</Aliases>
+    </ProjectReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Update="coverlet.collector">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+</Project>
