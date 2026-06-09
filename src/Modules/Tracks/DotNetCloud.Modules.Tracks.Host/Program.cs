@@ -43,14 +43,14 @@ builder.Services.AddDataProtection()
     .PersistKeysToFileSystem(new DirectoryInfo(dpKeysPath));
 
 // Cookie auth — same cookie name as Core.Server. SecurePolicy=None because
-// the YARP proxy forwards over HTTP (localhost).
+// the YARP proxy forwards over HTTP (localhost) with X-Forwarded-Proto set by proxy.
 builder.Services.AddAuthentication("Identity.Application")
     .AddCookie("Identity.Application", options =>
     {
         options.Cookie.Name = ".AspNetCore.Identity.Application";
         options.Cookie.HttpOnly = true;
         options.Cookie.SameSite = SameSiteMode.Lax;
-        options.Cookie.SecurePolicy = CookieSecurePolicy.None;
+        options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
         options.Cookie.IsEssential = true;
         options.ExpireTimeSpan = TimeSpan.FromHours(24);
         options.SlidingExpiration = true;

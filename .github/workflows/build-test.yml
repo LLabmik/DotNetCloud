@@ -170,6 +170,9 @@ jobs:
     needs: build
     timeout-minutes: 20
 
+    env:
+      TEST_DB_PASSWORD: ${{ secrets.TEST_DB_PASSWORD || 'TestPassword123!' }}
+
     strategy:
       fail-fast: false
       matrix:
@@ -179,31 +182,24 @@ jobs:
             test_project: DotNetCloud.Integration.Tests.PostgreSQL
             db_image: postgres:16
             db_port: 5432
-            db_env: |
-              POSTGRES_USER=dotnetcloud_test
-              POSTGRES_PASSWORD=TestPassword123!
-              POSTGRES_DB=dotnetcloud_integration
-            connection_string: "Host=localhost;Port=5432;Database=dotnetcloud_integration;Username=dotnetcloud_test;Password=TestPassword123!"
+            pg_user: dotnetcloud_test
+            pg_db: dotnetcloud_integration
           - database: sqlserver
             test_project: DotNetCloud.Integration.Tests.SqlServer
             db_image: mcr.microsoft.com/mssql/server:2022-latest
             db_port: 1433
-            db_env: |
-              ACCEPT_EULA=Y
-              MSSQL_SA_PASSWORD=TestPassword123!
-            connection_string: "Server=localhost,1433;Database=dotnetcloud_integration;User Id=sa;Password=TestPassword123!;TrustServerCertificate=true;MultipleActiveResultSets=true"
 
     services:
       database:
         image: ${{ matrix.db_image }}
         env:
-          ${{ matrix.database == 'postgresql' && 'POSTGRES_USER' || 'ACCEPT_EULA' }}: ${{ matrix.database == 'postgresql' && 'dotnetcloud_test' || 'Y' }}
-          ${{ matrix.database == 'postgresql' && 'POSTGRES_PASSWORD' || 'MSSQL_SA_PASSWORD' }}: TestPassword123!
-          ${{ matrix.database == 'postgresql' && 'POSTGRES_DB' || 'MSSQL_PID' }}: ${{ matrix.database == 'postgresql' && 'dotnetcloud_integration' || 'Developer' }}
+          ${{ matrix.database == 'postgresql' && 'POSTGRES_USER' || 'ACCEPT_EULA' }}: ${{ matrix.database == 'postgresql' && matrix.pg_user || 'Y' }}
+          ${{ matrix.database == 'postgresql' && 'POSTGRES_PASSWORD' || 'MSSQL_SA_PASSWORD' }}: ${{ env.TEST_DB_PASSWORD }}
+          ${{ matrix.database == 'postgresql' && 'POSTGRES_DB' || 'MSSQL_PID' }}: ${{ matrix.database == 'postgresql' && matrix.pg_db || 'Developer' }}
         ports:
           - ${{ matrix.db_port }}:${{ matrix.db_port }}
         options: >-
-          --health-cmd "${{ matrix.database == 'postgresql' && 'pg_isready -U dotnetcloud_test' || '/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P TestPassword123! -C -Q \"SELECT 1\"' }}"
+          --health-cmd "${{ matrix.database == 'postgresql' && format('pg_isready -U {0}', matrix.pg_user) || format('/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P {0} -C -Q \"SELECT 1\"', env.TEST_DB_PASSWORD) }}"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 10
@@ -230,7 +226,7 @@ jobs:
 
       - name: Run integration tests
         env:
-          ConnectionStrings__DefaultConnection: ${{ matrix.connection_string }}
+          ConnectionStrings__DefaultConnection: ${{ matrix.database == 'postgresql' && format('Host=localhost;Port={0};Database={1};Username={2};Password={3}', matrix.db_port, matrix.pg_db, matrix.pg_user, env.TEST_DB_PASSWORD) || format('Server=localhost,{0};Database=dotnetcloud_integration;User Id=sa;Password={1};TrustServerCertificate=true;MultipleActiveResultSets=true', matrix.db_port, env.TEST_DB_PASSWORD) }}
           Database__Provider: ${{ matrix.database }}
         run: |
           dotnet test tests/${{ matrix.test_project }}/${{ matrix.test_project }}.csproj \

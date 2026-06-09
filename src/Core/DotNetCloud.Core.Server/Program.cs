@@ -453,7 +453,7 @@ public class Program
             {
                 cookieHandler.InnerHandler = new HttpClientHandler
                 {
-                    ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+                    ServerCertificateCustomValidationCallback = AcceptLoopbackCertificate
                 };
             }
             else
@@ -546,7 +546,7 @@ public class Program
             client.BaseAddress = new Uri($"https://localhost:{httpsPort}"))
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
             {
-                ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+                ServerCertificateCustomValidationCallback = AcceptLoopbackCertificate
             })
             .AddHttpMessageHandler<DotNetCloud.Core.Server.Middleware.CookieForwardingHandler>();
 
@@ -557,7 +557,7 @@ public class Program
             client.BaseAddress = new Uri($"https://localhost:{httpsPort}"))
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
             {
-                ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+                ServerCertificateCustomValidationCallback = AcceptLoopbackCertificate
             })
             .AddHttpMessageHandler<DotNetCloud.Core.Server.Middleware.CookieForwardingHandler>();
 
@@ -566,7 +566,7 @@ public class Program
             client.BaseAddress = new Uri($"https://localhost:{httpsPort}"))
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
             {
-                ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+                ServerCertificateCustomValidationCallback = AcceptLoopbackCertificate
             })
             .AddHttpMessageHandler<DotNetCloud.Core.Server.Middleware.CookieForwardingHandler>();
 
@@ -575,7 +575,7 @@ public class Program
             client.BaseAddress = new Uri($"https://localhost:{httpsPort}"))
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
             {
-                ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+                ServerCertificateCustomValidationCallback = AcceptLoopbackCertificate
             })
             .AddHttpMessageHandler<DotNetCloud.Core.Server.Middleware.CookieForwardingHandler>();
 
@@ -584,7 +584,7 @@ public class Program
             client.BaseAddress = new Uri($"https://localhost:{httpsPort}"))
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
             {
-                ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+                ServerCertificateCustomValidationCallback = AcceptLoopbackCertificate
             })
             .AddHttpMessageHandler<DotNetCloud.Core.Server.Middleware.CookieForwardingHandler>();
 
@@ -593,7 +593,7 @@ public class Program
             client.BaseAddress = new Uri($"https://localhost:{httpsPort}"))
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
             {
-                ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+                ServerCertificateCustomValidationCallback = AcceptLoopbackCertificate
             })
             .AddHttpMessageHandler<DotNetCloud.Core.Server.Middleware.CookieForwardingHandler>();
 
@@ -602,7 +602,7 @@ public class Program
             client.BaseAddress = new Uri($"https://localhost:{httpsPort}"))
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
             {
-                ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+                ServerCertificateCustomValidationCallback = AcceptLoopbackCertificate
             })
             .AddHttpMessageHandler<DotNetCloud.Core.Server.Middleware.CookieForwardingHandler>();
 
@@ -1189,6 +1189,19 @@ public class Program
                     httpContext.Request.Host.Port.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
             }
         }
+    }
+
+    /// <summary>
+    /// Callback that accepts TLS certificate errors only when the sole issue is a
+    /// hostname mismatch (e.g. connecting to localhost with a cert for cloud.dotnetcloud.net).
+    /// The certificate chain, expiry, and root trust are still fully validated.
+    /// </summary>
+    private static bool AcceptLoopbackCertificate(object sender, System.Security.Cryptography.X509Certificates.X509Certificate? certificate, System.Security.Cryptography.X509Certificates.X509Chain? chain, System.Net.Security.SslPolicyErrors sslPolicyErrors)
+    {
+        // Accept if no errors, or if the only error is a name mismatch (loopback hostname
+        // doesn't match the SAN on the production cert).
+        return sslPolicyErrors == System.Net.Security.SslPolicyErrors.None
+            || sslPolicyErrors == System.Net.Security.SslPolicyErrors.RemoteCertificateNameMismatch;
     }
 
     /// <summary>

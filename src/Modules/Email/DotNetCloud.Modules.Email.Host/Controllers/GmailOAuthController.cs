@@ -257,7 +257,8 @@ public class GmailOAuthController : EmailControllerBase
     private string GetClientId()
     {
         return _configuration["Email:Gmail:ClientId"]
-            ?? ""; // TODO: Replace with DotNetCloud project's registered Google OAuth client ID
+            ?? throw new System.InvalidOperationException(
+                "Gmail OAuth client ID is not configured. Set Email:Gmail:ClientId in appsettings.json or environment variables.");
     }
 
     /// <summary>
@@ -266,7 +267,8 @@ public class GmailOAuthController : EmailControllerBase
     private string GetClientSecret()
     {
         return _configuration["Email:Gmail:ClientSecret"]
-            ?? ""; // TODO: Replace with DotNetCloud project's registered Google OAuth client secret
+            ?? throw new System.InvalidOperationException(
+                "Gmail OAuth client secret is not configured. Set Email:Gmail:ClientSecret in appsettings.json or environment variables.");
     }
 
     /// <summary>
