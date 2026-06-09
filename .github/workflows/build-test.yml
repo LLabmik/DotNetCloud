@@ -199,7 +199,7 @@ jobs:
         ports:
           - ${{ matrix.db_port }}:${{ matrix.db_port }}
         options: >-
-          --health-cmd "${{ matrix.database == 'postgresql' && format('pg_isready -U {0}', matrix.pg_user) || format('/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P {0} -C -Q \"SELECT 1\"', env.TEST_DB_PASSWORD) }}"
+          --health-cmd "${{ matrix.database == 'postgresql' && format('pg_isready -U {0}', matrix.pg_user) || format('/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P {0} -C -Q \"SELECT 1\"', 'TestPassword123!') }}"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 10
