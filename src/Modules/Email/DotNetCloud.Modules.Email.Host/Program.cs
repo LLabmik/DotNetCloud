@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Security;
 using DotNetCloud.Modules.Email;
@@ -13,6 +14,15 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Diagnostics;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Load shared config from DOTNETCLOUD_CONFIG_DIR
+var configDir = Environment.GetEnvironmentVariable("DOTNETCLOUD_CONFIG_DIR");
+if (!string.IsNullOrEmpty(configDir))
+{
+    var p = Path.Combine(configDir, "config.json");
+    if (File.Exists(p))
+        builder.Configuration.AddJsonFile(p, optional: true, reloadOnChange: false);
+}
 
 // Bind gRPC endpoint from DOTNETCLOUD_GRPC_ENDPOINT (set by ProcessSupervisor)
 var grpcEndpoint = Environment.GetEnvironmentVariable("DOTNETCLOUD_GRPC_ENDPOINT");
@@ -77,9 +87,34 @@ builder.Services.AddSingleton<EmailModule>();
 // File validation service for upload security
 builder.Services.AddSingleton<IFileValidationService, FileValidationService>();
 
-// Register EF Core with in-memory database (dev only)
-builder.Services.AddDbContext<EmailDbContext>(options =>
-    options.UseInMemoryDatabase("EmailModule"));
+// Register EF Core with config-driven database, falling back to in-memory
+var connectionString = builder.Configuration["connectionString"]
+    ?? builder.Configuration.GetConnectionString("DefaultConnection");
+var dbProvider = builder.Configuration["databaseProvider"]
+    ?? builder.Configuration["database:provider"];
+
+if (!string.IsNullOrEmpty(connectionString) && !string.IsNullOrEmpty(dbProvider))
+{
+    // Register naming strategy so EmailDbContext uses correct table/column names
+    // (snake_case for PostgreSQL, PascalCase for SQL Server).
+    if (string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
+        builder.Services.AddSingleton<ITableNamingStrategy, PostgreSqlNamingStrategy>();
+    else
+        builder.Services.AddSingleton<ITableNamingStrategy, SqlServerNamingStrategy>();
+
+    builder.Services.AddDbContext<EmailDbContext>(options =>
+    {
+        if (string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
+            options.UseNpgsql(connectionString);
+        else
+            options.UseSqlServer(connectionString);
+    });
+}
+else
+{
+    builder.Services.AddDbContext<EmailDbContext>(options =>
+        options.UseInMemoryDatabase("EmailModule"));
+}
 
 // In-process event bus for standalone operation
 builder.Services.AddSingleton<IEventBus, InProcessEventBus>();
