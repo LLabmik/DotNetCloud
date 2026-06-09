@@ -35,9 +35,16 @@ internal sealed class FilesHostWebApplicationFactory : WebApplicationFactory<Fil
 
         builder.ConfigureServices(services =>
         {
+            // Replace FilesDbContext with an in-memory database scoped to this test run.
+            // Use manual registration (not AddDbContext) to avoid registering a second
+            // database provider in the DI container — EF Core rejects dual providers.
             services.RemoveAll<DbContextOptions<FilesDbContext>>();
-            services.AddDbContext<FilesDbContext>(options =>
-                options.UseInMemoryDatabase(_databaseName));
+            services.RemoveAll<FilesDbContext>();
+            services.AddSingleton<DbContextOptions<FilesDbContext>>(_ =>
+                new DbContextOptionsBuilder<FilesDbContext>()
+                    .UseInMemoryDatabase(_databaseName)
+                    .Options);
+            services.AddScoped<FilesDbContext>();
 
             // Inject a deterministic test identity from request header for auth-bound gRPC checks.
             services.AddSingleton<IStartupFilter, TestUserStartupFilter>();

@@ -32,9 +32,15 @@ internal sealed class ChatHostWebApplicationFactory : WebApplicationFactory<Chat
         builder.ConfigureServices(services =>
         {
             // Replace ChatDbContext with an in-memory database scoped to this test run.
+            // Use manual registration (not AddDbContext) to avoid registering a second
+            // database provider in the DI container — EF Core rejects dual providers.
             services.RemoveAll<DbContextOptions<ChatDbContext>>();
-            services.AddDbContext<ChatDbContext>(options =>
-                options.UseInMemoryDatabase(_databaseName));
+            services.RemoveAll<ChatDbContext>();
+            services.AddSingleton<DbContextOptions<ChatDbContext>>(_ =>
+                new DbContextOptionsBuilder<ChatDbContext>()
+                    .UseInMemoryDatabase(_databaseName)
+                    .Options);
+            services.AddScoped<ChatDbContext>();
 
             // Provide a no-op IRealtimeBroadcaster since the chat host runs
             // independently and doesn't own Signal R hub infrastructure.
