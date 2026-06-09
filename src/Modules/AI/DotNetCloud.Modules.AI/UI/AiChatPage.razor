@@ -146,7 +146,13 @@
                         <div class="ai-message assistant">
                             <div class="ai-message-avatar">🤖</div>
                             <div class="ai-message-content">
-                                <div class="ai-message-role">Assistant</div>
+                                <div class="ai-message-role">
+                                    Assistant
+                                    @if (_isStreaming && !_isModelLoading && string.IsNullOrEmpty(_streamingContent))
+                                    {
+                                        <span class="ai-thinking">* Thinking *</span>
+                                    }
+                                </div>
                                 @if (_isModelLoading && string.IsNullOrEmpty(_streamingContent))
                                 {
                                     <div class="ai-model-loading">
