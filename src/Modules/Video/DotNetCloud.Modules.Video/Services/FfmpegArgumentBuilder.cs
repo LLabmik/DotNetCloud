@@ -239,6 +239,9 @@ public sealed class FfmpegArgumentBuilder
         // --- HLS output format ---
         sb.Append("-f hls ");
 
+        // --- Atomic segment writes: write to .tmp, rename when complete ---
+        sb.Append("-hls_flags temp_file ");
+
         // --- HLS segment duration (6 seconds) ---
         sb.Append("-hls_time 6 ");
 
