@@ -630,7 +630,8 @@ public class VideoController : VideoControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "StreamVideo failed for video {VideoId}", videoId);
-            return StatusCode(500, ErrorEnvelope("TRANSCODE_ERROR", "Video streaming failed. Try again later."));
+            return StatusCode(500, ErrorEnvelope("TRANSCODE_ERROR",
+                $"Video streaming failed: {ex.GetType().Name} — {ex.Message}"));
         }
         finally
         {
@@ -753,6 +754,26 @@ public class VideoController : VideoControllerBase
     {
         _transcodingService.CancelTranscode(jobId);
         return Ok(Envelope(new { cancelled = true }));
+    }
+
+    /// <summary>Fallback route for HLS segments requested at the video level
+    /// (e.g., /api/v1/videos/{id}/segment_00000.ts). This happens because .m3u8 relative
+    /// paths resolve against the playlist URL's directory, which is the video path.</summary>
+    [AllowAnonymous]
+    [HttpGet("{videoId:guid}/{*filename}")]
+    public IActionResult GetHlsSegmentFallback(
+        Guid videoId,
+        string filename,
+        [FromQuery] string? token)
+    {
+        // Only handle .ts and .m3u8 files; let other routes (subtitles, progress, etc.) pass through
+        if (!filename.EndsWith(".ts", StringComparison.OrdinalIgnoreCase) &&
+            !filename.EndsWith(".m3u8", StringComparison.OrdinalIgnoreCase))
+        {
+            return NotFound();
+        }
+
+        return GetHlsSegment(videoId, filename, token);
     }
 
     // ─── Private Helpers ─────────────────────────────────────────────

@@ -82,7 +82,6 @@ public sealed class FfmpegProcessManager : IDisposable
             };
 
             using var process = new Process { StartInfo = processStartInfo, EnableRaisingEvents = true };
-            job.ProcessId = process.Id;
 
             // Set up progress parsing from stderr
             process.ErrorDataReceived += (sender, e) =>
@@ -98,6 +97,7 @@ public sealed class FfmpegProcessManager : IDisposable
                 _options.FfmpegPath, arguments);
 
             process.Start();
+            job.ProcessId = process.Id;
             process.BeginErrorReadLine();
 
             // Read stdout to prevent buffer deadlock (ffmpeg may write to stdout)

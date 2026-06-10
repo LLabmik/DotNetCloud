@@ -1,194 +1,261 @@
 /**
- * Attaches an error listener to the <video> element and calls back to .NET
- * when the browser cannot play the media.
- * Also detects missing audio (e.g. Firefox + Dolby Digital Plus) and notifies .NET.
+ * DotNetCloud Video Player — plain script (not ES module).
+ * All functions are attached to window.DotNetCloudVideo.
  *
- * @param {string} elementId - The DOM id of the <video> element.
- * @param {object} dotNetRef - A DotNetObjectReference for calling OnVideoError / OnNoAudio.
+ * Load order: 1) hls.min.js  2) video-player.js
  */
-export function attachVideoErrorListener(elementId, dotNetRef) {
-    const video = document.getElementById(elementId);
+(function () {
+  "use strict";
+
+  var videoPlayer = window.DotNetCloudVideo || {};
+  window.DotNetCloudVideo = videoPlayer;
+
+  /** @type {Object} Stored idle auto-hide handles keyed by containerId. */
+  var idleHandles = {};
+
+  /** @type {Object} Stored keyboard shortcut handles keyed by elementId. */
+  var kbHandles = {};
+
+  /**
+   * Attaches an error listener to the <video> element and calls back to .NET
+   * when the browser cannot play the media.
+   */
+  videoPlayer.attachVideoErrorListener = function (elementId, dotNetRef) {
+    var video = document.getElementById(elementId);
     if (!video) return;
 
-    video.addEventListener('error', async function () {
-        const err = video.error;
+    video.addEventListener(
+      "error",
+      function () {
+        var err = video.error;
         if (!err) return;
 
-        // Probe the stream URL to capture the HTTP status — a 4xx/5xx
-        // response means the server rejected the request rather than the
-        // browser failing to decode the media.
-        let httpStatus = null;
-        let httpStatusText = '';
+        var httpStatus = null;
+        var httpStatusText = "";
         try {
-            const resp = await fetch(video.src, { method: 'GET' });
-            httpStatus = resp.status;
-            httpStatusText = resp.statusText || '';
-        } catch (fetchErr) {
-            httpStatus = 0;
-            httpStatusText = fetchErr.message || 'fetch failed';
+          fetch(video.src, { method: "GET" })
+            .then(function (resp) {
+              httpStatus = resp.status;
+              // Try to read the response body for server error details
+              return resp
+                .text()
+                .then(function (body) {
+                  httpStatusText = body || resp.statusText || "";
+                  // Truncate long bodies
+                  if (httpStatusText.length > 500)
+                    httpStatusText = httpStatusText.substring(0, 500) + "...";
+                  dotNetRef.invokeMethodAsync(
+                    "OnVideoError",
+                    err.code,
+                    err.message || "",
+                    httpStatus,
+                    httpStatusText,
+                  );
+                })
+                .catch(function () {
+                  httpStatusText = resp.statusText || "";
+                  dotNetRef.invokeMethodAsync(
+                    "OnVideoError",
+                    err.code,
+                    err.message || "",
+                    httpStatus,
+                    httpStatusText,
+                  );
+                });
+            })
+            .catch(function (fetchErr) {
+              dotNetRef.invokeMethodAsync(
+                "OnVideoError",
+                err.code,
+                err.message || "",
+                0,
+                fetchErr.message || "fetch failed",
+              );
+            });
+          return;
+        } catch (e) {
+          /* ignore */
         }
+        dotNetRef.invokeMethodAsync(
+          "OnVideoError",
+          err.code,
+          err.message || "",
+          null,
+          null,
+        );
+      },
+      { once: true },
+    );
 
-        dotNetRef.invokeMethodAsync('OnVideoError',
-            err.code, err.message || '',
-            httpStatus, httpStatusText);
-    }, { once: true });
-
-    // Detect missing audio after the video starts playing.
-    // Firefox exposes mozHasAudio; other browsers may report via audioTracks.
-    video.addEventListener('playing', function () {
-        let hasAudio = true;
-
-        if (typeof video.mozHasAudio === 'boolean') {
-            // Firefox-specific property
-            hasAudio = video.mozHasAudio;
+    // Detect missing audio after playback starts
+    video.addEventListener(
+      "playing",
+      function () {
+        var hasAudio = true;
+        if (typeof video.mozHasAudio === "boolean") {
+          hasAudio = video.mozHasAudio;
         } else if (video.audioTracks && video.audioTracks.length === 0) {
-            hasAudio = false;
+          hasAudio = false;
         }
-
         if (!hasAudio) {
-            dotNetRef.invokeMethodAsync('OnNoAudio');
+          dotNetRef.invokeMethodAsync("OnNoAudio");
         }
-    }, { once: true });
-}
+      },
+      { once: true },
+    );
+  };
 
-/**
- * Auto-hides the cursor (and encourages browser to hide native controls)
- * after a period of mouse inactivity over the video player container.
- *
- * @param {string} containerId - The DOM id of the player container element.
- * @param {number} [idleMs=3000] - Milliseconds of inactivity before hiding.
- * @returns {{ dispose: function }} A handle to call dispose() for cleanup.
- */
-export function attachIdleAutoHide(containerId, idleMs) {
-    const container = document.getElementById(containerId);
-    if (!container) return { dispose() {} };
+  /**
+   * Auto-hides cursor after mouse inactivity.
+   */
+  videoPlayer.attachIdleAutoHide = function (containerId, idleMs) {
+    var container = document.getElementById(containerId);
+    if (!container) return;
 
     idleMs = idleMs || 3000;
-    let timer = null;
+    var timer = null;
 
     function showCursor() {
-        container.classList.remove('idle-hide');
-        clearTimeout(timer);
-        timer = setTimeout(hideCursor, idleMs);
+      container.classList.remove("idle-hide");
+      clearTimeout(timer);
+      timer = setTimeout(hideCursor, idleMs);
     }
-
     function hideCursor() {
-        container.classList.add('idle-hide');
+      container.classList.add("idle-hide");
     }
 
-    container.addEventListener('mousemove', showCursor);
-    container.addEventListener('mousedown', showCursor);
-    // Start the idle timer immediately
+    container.addEventListener("mousemove", showCursor);
+    container.addEventListener("mousedown", showCursor);
     timer = setTimeout(hideCursor, idleMs);
 
-    return {
-        dispose() {
-            clearTimeout(timer);
-            container.removeEventListener('mousemove', showCursor);
-            container.removeEventListener('mousedown', showCursor);
-            container.classList.remove('idle-hide');
-        }
+    idleHandles[containerId] = {
+      dispose: function () {
+        clearTimeout(timer);
+        container.removeEventListener("mousemove", showCursor);
+        container.removeEventListener("mousedown", showCursor);
+        container.classList.remove("idle-hide");
+      },
     };
-}
+  };
 
-/**
- * Attaches a global keydown listener so that pressing Space toggles
- * play/pause on the video element (preventing page scroll).
- *
- * @param {string} elementId - The DOM id of the <video> element.
- * @returns {{ dispose: function }} A handle to call dispose() for cleanup.
- */
-export function attachKeyboardShortcuts(elementId) {
-    const video = document.getElementById(elementId);
-    if (!video) return { dispose() {} };
+  videoPlayer.disposeIdleAutoHide = function (containerId) {
+    var h = idleHandles[containerId];
+    if (h) {
+      h.dispose();
+      delete idleHandles[containerId];
+    }
+  };
+
+  /**
+   * Global keydown: Space = play/pause toggle.
+   */
+  videoPlayer.attachKeyboardShortcuts = function (elementId) {
+    var video = document.getElementById(elementId);
+    if (!video) return;
 
     function onKeyDown(e) {
-        // Only handle Space; ignore if user is typing in an input/textarea
-        if (e.code !== 'Space') return;
-        const tag = (e.target.tagName || '').toLowerCase();
-        if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable) return;
-
-        e.preventDefault();
-        if (video.paused) {
-            video.play();
-        } else {
-            video.pause();
-        }
-    }
-
-/**
- * Attaches an HLS.js player to the video element for HLS (.m3u8) streams.
- * On Safari (which natively supports HLS), sets the src directly.
- * On other browsers, uses hls.js for playback.
- *
- * @param {string} elementId - The DOM id of the <video> element.
- * @param {string} streamUrl - The URL of the HLS .m3u8 playlist.
- */
-export function attachHlsPlayer(elementId, streamUrl) {
-    const video = document.getElementById(elementId);
-    if (!video) return;
-
-    // Safari and other browsers with native HLS support — set src directly
-    if (video.canPlayType('application/vnd.apple.mpegurl')) {
-        video.src = streamUrl;
-        video.play().catch(() => { /* autoplay may be blocked */ });
+      if (e.code !== "Space") return;
+      var tag = (e.target.tagName || "").toLowerCase();
+      if (
+        tag === "input" ||
+        tag === "textarea" ||
+        tag === "select" ||
+        e.target.isContentEditable
+      )
         return;
+      e.preventDefault();
+      if (video.paused) {
+        video.play();
+      } else {
+        video.pause();
+      }
     }
 
-    // Use hls.js for all other browsers (Chrome, Firefox, Edge)
-    if (typeof Hls !== 'undefined' && Hls.isSupported()) {
-        const hls = new Hls({
-            enableWorker: true,
-            lowLatencyMode: false
-        });
-        hls.loadSource(streamUrl);
-        hls.attachMedia(video);
+    document.addEventListener("keydown", onKeyDown);
+    kbHandles[elementId] = {
+      dispose: function () {
+        document.removeEventListener("keydown", onKeyDown);
+      },
+    };
+  };
 
-        hls.on(Hls.Events.MANIFEST_PARSED, function () {
-            video.play().catch(() => { /* autoplay may be blocked */ });
-        });
-
-        hls.on(Hls.Events.ERROR, function (event, data) {
-            if (data.fatal) {
-                switch (data.type) {
-                    case Hls.ErrorTypes.NETWORK_ERROR:
-                        console.error('HLS: Fatal network error', data);
-                        hls.startLoad();
-                        break;
-                    case Hls.ErrorTypes.MEDIA_ERROR:
-                        console.error('HLS: Fatal media error', data);
-                        hls.recoverMediaError();
-                        break;
-                    default:
-                        console.error('HLS: Fatal error', data);
-                        hls.destroy();
-                        break;
-                }
-            }
-        });
-
-        // Store reference for cleanup
-        video._hls = hls;
-    } else {
-        // No HLS support available — set src as fallback
-        console.warn('HLS.js not available, setting src directly');
-        video.src = streamUrl;
-        video.play().catch(() => { /* autoplay may be blocked */ });
+  videoPlayer.disposeKeyboardShortcuts = function (elementId) {
+    var h = kbHandles[elementId];
+    if (h) {
+      h.dispose();
+      delete kbHandles[elementId];
     }
-}
+  };
 
-/**
- * Destroys the HLS.js instance attached to a video element, if any.
- *
- * @param {string} elementId - The DOM id of the <video> element.
- */
-export function destroyHlsPlayer(elementId) {
-    const video = document.getElementById(elementId);
+  /**
+   * Attaches HLS playback to a video element.
+   * Safari (native HLS): sets src directly.
+   * Other browsers: uses hls.js.
+   */
+  videoPlayer.attachHlsPlayer = function (elementId, streamUrl) {
+    var video = document.getElementById(elementId);
     if (!video) return;
 
-    if (video._hls) {
-        video._hls.destroy();
-        delete video._hls;
+    // Native HLS (Safari)
+    if (
+      video.canPlayType &&
+      video.canPlayType("application/vnd.apple.mpegurl")
+    ) {
+      video.src = streamUrl;
+      video.play().catch(function () {});
+      return;
     }
-}
 
+    // hls.js for Chrome/Firefox/Edge
+    if (typeof Hls !== "undefined" && Hls.isSupported()) {
+      var hls = new Hls({ enableWorker: true, lowLatencyMode: false });
+      hls.loadSource(streamUrl);
+      hls.attachMedia(video);
+
+      hls.on(Hls.Events.MANIFEST_PARSED, function () {
+        video.play().catch(function () {});
+      });
+
+      hls.on(Hls.Events.ERROR, function (event, data) {
+        if (data.fatal) {
+          switch (data.type) {
+            case Hls.ErrorTypes.NETWORK_ERROR:
+              console.error("HLS: Fatal network error", data);
+              hls.startLoad();
+              break;
+            case Hls.ErrorTypes.MEDIA_ERROR:
+              console.error("HLS: Fatal media error", data);
+              hls.recoverMediaError();
+              break;
+            default:
+              console.error("HLS: Fatal error", data);
+              hls.destroy();
+              break;
+          }
+        }
+      });
+
+      video._hls = hls;
+      videoPlayer._hls = hls;
+    } else {
+      console.warn("HLS.js not available, setting src directly");
+      video.src = streamUrl;
+      video.play().catch(function () {});
+    }
+  };
+
+  /**
+   * Destroys the HLS instance on a video element.
+   */
+  videoPlayer.destroyHlsPlayer = function (elementId) {
+    var video = document.getElementById(elementId);
+    if (!video) return;
+    if (video._hls) {
+      video._hls.destroy();
+      delete video._hls;
+    }
+    if (videoPlayer._hls) {
+      delete videoPlayer._hls;
+    }
+  };
+})();

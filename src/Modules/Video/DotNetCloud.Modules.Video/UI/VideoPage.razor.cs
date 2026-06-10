@@ -87,13 +87,10 @@ public partial class VideoPage : IAsyncDisposable
     private string? _codecErrorMessage;
     private string? _codecErrorGuidance;
     private bool _noAudioDetected;
-    private IJSObjectReference? _jsModule;
-    private IJSObjectReference? _idleAutoHideHandle;
-    private IJSObjectReference? _keyboardShortcutsHandle;
     private DotNetObjectReference<VideoPage>? _dotNetRef;
     private bool _videoErrorListenerAttached;
+    private bool _scriptsLoaded;
 
-    // ── Page-load semaphore (serializes DbContext access to prevent concurrency on rapid clicks) ──
     private readonly SemaphoreSlim _pageLoadSemaphore = new(1, 1);
 
     // ── Library paging spinner ──
@@ -183,31 +180,28 @@ public partial class VideoPage : IAsyncDisposable
             _videoErrorListenerAttached = true;
             try
             {
-                // Ensure hls.js is loaded (inject script tag if not already present)
-                await Js.InvokeVoidAsync("eval",
-                    "if(!document.querySelector('script[data-hls]')){" +
-                    "var s=document.createElement('script');" +
-                    "s.src='/_content/DotNetCloud.Modules.Video/hls.min.js';" +
-                    "s.setAttribute('data-hls','1');" +
-                    "s.onload=function(){window.dispatchEvent(new Event('hlsjs-loaded'));};" +
-                    "document.head.appendChild(s);" +
-                    "}");
-
-                _jsModule ??= await Js.InvokeAsync<IJSObjectReference>(
-                    "import", "./_content/DotNetCloud.Modules.Video/video-player.js");
                 _dotNetRef ??= DotNetObjectReference.Create(this);
 
-                // Initialize HLS player with the stream URL
-                var streamUrl = GetStreamUrl(_playerVideo!.Id);
-                await _jsModule.InvokeVoidAsync("attachHlsPlayer", "video-player", streamUrl);
+                // Load scripts via JS interop (script tags in Blazor components don't execute).
+                // Dynamic script tags load in parallel, so chain hls.js → video-player.js via onload.
+                if (!_scriptsLoaded)
+                {
+                    await Js.InvokeVoidAsync("eval",
+                        "(function(){if(document.getElementById('dnc-hls'))return;var s=document.createElement('script');s.src='/_content/DotNetCloud.Modules.Video/hls.min.js';s.id='dnc-hls';s.onload=function(){var s2=document.createElement('script');s2.src='/_content/DotNetCloud.Modules.Video/video-player.js';s2.id='dnc-vp';document.head.appendChild(s2);};document.head.appendChild(s);})();");
+                    await Task.Delay(500);
+                    _scriptsLoaded = true;
+                }
 
-                await _jsModule.InvokeVoidAsync("attachVideoErrorListener", "video-player", _dotNetRef);
-                _idleAutoHideHandle = await _jsModule.InvokeAsync<IJSObjectReference>("attachIdleAutoHide", "player-container", 3000);
-                _keyboardShortcutsHandle = await _jsModule.InvokeAsync<IJSObjectReference>("attachKeyboardShortcuts", "video-player");
+                // Use dotted-path JS interop (no eval, no string escaping issues)
+                var streamUrl = GetStreamUrl(_playerVideo!.Id);
+                await Js.InvokeVoidAsync("DotNetCloudVideo.attachHlsPlayer", "video-player", streamUrl);
+                await Js.InvokeVoidAsync("DotNetCloudVideo.attachVideoErrorListener", "video-player", _dotNetRef);
+                await Js.InvokeVoidAsync("DotNetCloudVideo.attachIdleAutoHide", "player-container", 3000);
+                await Js.InvokeVoidAsync("DotNetCloudVideo.attachKeyboardShortcuts", "video-player");
             }
             catch (Exception ex)
             {
-                Logger.LogWarning(ex, "Failed to attach video error listener");
+                Logger.LogWarning(ex, "Failed to initialize video player");
             }
         }
     }
@@ -737,17 +731,16 @@ public partial class VideoPage : IAsyncDisposable
         _videoErrorListenerAttached = false;
         _playerSeriesContext = null;
 
-        // Tear down HLS player
-        if (_jsModule is not null)
+        // Tear down HLS player and UI handlers
+        try
         {
-            try
-            {
-                await _jsModule.InvokeVoidAsync("destroyHlsPlayer", "video-player");
-            }
-            catch (Exception ex)
-            {
-                Logger.LogDebug(ex, "Error destroying HLS player");
-            }
+            await Js.InvokeVoidAsync("DotNetCloudVideo.destroyHlsPlayer", "video-player");
+            await Js.InvokeVoidAsync("DotNetCloudVideo.disposeIdleAutoHide", "player-container");
+            await Js.InvokeVoidAsync("DotNetCloudVideo.disposeKeyboardShortcuts", "video-player");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogDebug(ex, "Error tearing down video player JS");
         }
 
         _breadcrumb.Clear();
@@ -1761,27 +1754,14 @@ public partial class VideoPage : IAsyncDisposable
         StopProgressTimer();
         ScanProgress.OnProgressChanged -= OnScanProgressChanged;
         _dotNetRef?.Dispose();
-        if (_idleAutoHideHandle is not null)
+
+        try
         {
-            try
-            { await _idleAutoHideHandle.InvokeVoidAsync("dispose"); await _idleAutoHideHandle.DisposeAsync(); }
-            catch { /* circuit may be gone */ }
+            await Js.InvokeVoidAsync("DotNetCloudVideo.destroyHlsPlayer", "video-player");
+            await Js.InvokeVoidAsync("DotNetCloudVideo.disposeIdleAutoHide", "player-container");
+            await Js.InvokeVoidAsync("DotNetCloudVideo.disposeKeyboardShortcuts", "video-player");
         }
-        if (_keyboardShortcutsHandle is not null)
-        {
-            try
-            { await _keyboardShortcutsHandle.InvokeVoidAsync("dispose"); await _keyboardShortcutsHandle.DisposeAsync(); }
-            catch { /* circuit may be gone */ }
-        }
-        if (_jsModule is not null)
-        {
-            try
-            { await _jsModule.InvokeVoidAsync("destroyHlsPlayer", "video-player"); }
-            catch { /* circuit may be gone */ }
-            try
-            { await _jsModule.DisposeAsync(); }
-            catch { /* circuit may be gone */ }
-        }
+        catch { /* circuit may be gone */ }
 
         _pageLoadSemaphore.Dispose();
     }
