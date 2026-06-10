@@ -78,6 +78,15 @@ public static class VideoServiceRegistration
         services.AddScoped<IEventHandler<FileUploadedEvent>, FileUploadedVideoHandler>();
         services.AddScoped<IEventHandler<ResourceSharedEvent>, VideoSharedNotificationHandler>();
 
+        // Transcoding configuration — bound from "Video:Transcoding" config section
+        services.AddSingleton(sp =>
+        {
+            var config = sp.GetRequiredService<IConfiguration>();
+            var options = new VideoTranscodingOptions();
+            config.GetSection("Video:Transcoding").Bind(options);
+            return options;
+        });
+
         return services;
     }
 

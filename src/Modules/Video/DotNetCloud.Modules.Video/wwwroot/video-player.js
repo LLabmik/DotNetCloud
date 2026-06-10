@@ -116,11 +116,79 @@ export function attachKeyboardShortcuts(elementId) {
         }
     }
 
-    document.addEventListener('keydown', onKeyDown);
+/**
+ * Attaches an HLS.js player to the video element for HLS (.m3u8) streams.
+ * On Safari (which natively supports HLS), sets the src directly.
+ * On other browsers, uses hls.js for playback.
+ *
+ * @param {string} elementId - The DOM id of the <video> element.
+ * @param {string} streamUrl - The URL of the HLS .m3u8 playlist.
+ */
+export function attachHlsPlayer(elementId, streamUrl) {
+    const video = document.getElementById(elementId);
+    if (!video) return;
 
-    return {
-        dispose() {
-            document.removeEventListener('keydown', onKeyDown);
-        }
-    };
+    // Safari and other browsers with native HLS support — set src directly
+    if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        video.src = streamUrl;
+        video.play().catch(() => { /* autoplay may be blocked */ });
+        return;
+    }
+
+    // Use hls.js for all other browsers (Chrome, Firefox, Edge)
+    if (typeof Hls !== 'undefined' && Hls.isSupported()) {
+        const hls = new Hls({
+            enableWorker: true,
+            lowLatencyMode: false
+        });
+        hls.loadSource(streamUrl);
+        hls.attachMedia(video);
+
+        hls.on(Hls.Events.MANIFEST_PARSED, function () {
+            video.play().catch(() => { /* autoplay may be blocked */ });
+        });
+
+        hls.on(Hls.Events.ERROR, function (event, data) {
+            if (data.fatal) {
+                switch (data.type) {
+                    case Hls.ErrorTypes.NETWORK_ERROR:
+                        console.error('HLS: Fatal network error', data);
+                        hls.startLoad();
+                        break;
+                    case Hls.ErrorTypes.MEDIA_ERROR:
+                        console.error('HLS: Fatal media error', data);
+                        hls.recoverMediaError();
+                        break;
+                    default:
+                        console.error('HLS: Fatal error', data);
+                        hls.destroy();
+                        break;
+                }
+            }
+        });
+
+        // Store reference for cleanup
+        video._hls = hls;
+    } else {
+        // No HLS support available — set src as fallback
+        console.warn('HLS.js not available, setting src directly');
+        video.src = streamUrl;
+        video.play().catch(() => { /* autoplay may be blocked */ });
+    }
 }
+
+/**
+ * Destroys the HLS.js instance attached to a video element, if any.
+ *
+ * @param {string} elementId - The DOM id of the <video> element.
+ */
+export function destroyHlsPlayer(elementId) {
+    const video = document.getElementById(elementId);
+    if (!video) return;
+
+    if (video._hls) {
+        video._hls.destroy();
+        delete video._hls;
+    }
+}
+

@@ -171,6 +171,13 @@ builder.Services.AddSingleton<IEventBus, InProcessEventBus>();
 // Register all business-logic services
 builder.Services.AddVideoServices(builder.Configuration);
 
+// ─── Transcoding services (Host-specific) ─────────────────────
+builder.Services.AddSingleton<FfmpegArgumentBuilder>();
+builder.Services.AddSingleton<FfmpegProcessManager>();
+builder.Services.AddSingleton<TranscodeCacheService>();
+builder.Services.AddSingleton<TranscodingJobTracker>();
+builder.Services.AddScoped<IVideoTranscodingService, VideoTranscodingService>();
+
 // gRPC
 builder.Services.AddGrpc();
 builder.Services.AddControllers();

@@ -3,6 +3,7 @@ using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Modules.Files.Services;
 using DotNetCloud.Modules.Video.Data.Services;
+using DotNetCloud.Modules.Video.Host.Services;
 using DotNetCloud.Modules.Video.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -24,6 +25,7 @@ public class VideoController : VideoControllerBase
     private readonly IDownloadService _downloadService;
     private readonly IVideoThumbnailService _thumbnailService;
     private readonly IVideoEnrichmentService _enrichmentService;
+    private readonly IVideoTranscodingService _transcodingService;
     private readonly ILogger<VideoController> _logger;
 
     /// <summary>
@@ -39,6 +41,7 @@ public class VideoController : VideoControllerBase
         IDownloadService downloadService,
         IVideoThumbnailService thumbnailService,
         IVideoEnrichmentService enrichmentService,
+        IVideoTranscodingService transcodingService,
         ILogger<VideoController> logger)
     {
         _videoService = videoService;
@@ -50,6 +53,7 @@ public class VideoController : VideoControllerBase
         _downloadService = downloadService;
         _thumbnailService = thumbnailService;
         _enrichmentService = enrichmentService;
+        _transcodingService = transcodingService;
         _logger = logger;
     }
 
@@ -425,32 +429,92 @@ public class VideoController : VideoControllerBase
         return Ok(Envelope(new { activeStreams = count, maxStreams = _streamingService.MaxConcurrentStreams }));
     }
 
-    /// <summary>Streams a video file with full HTTP range-request support for seeking.</summary>
-    [AllowAnonymous]
-    [HttpGet("{videoId:guid}/stream")]
-    public async Task<IActionResult> StreamVideo(Guid videoId, [FromQuery] string? token)
+    /// <summary>Probes a video to determine if it can be direct-played or needs transcoding.</summary>
+    [HttpGet("{videoId:guid}/stream-probe")]
+    public async Task<IActionResult> ProbeStream(Guid videoId)
     {
-        // Validate token
-        if (string.IsNullOrWhiteSpace(token))
-            return Unauthorized(ErrorEnvelope("invalid_token", "Stream token is required."));
-
-        var streamToken = _streamingService.ValidateStreamToken(token);
-        if (streamToken is null)
-            return Unauthorized(ErrorEnvelope("invalid_token", "Stream token is invalid or expired."));
-
-        if (streamToken.VideoId != videoId)
-            return Forbid();
-
-        // Look up the video
-        var video = await _streamingService.GetVideoForStreamingAsync(videoId, streamToken.UserId);
+        var caller = GetAuthenticatedCaller();
+        var video = await _videoService.GetVideoAsync(videoId, caller);
         if (video is null)
             return NotFound(ErrorEnvelope(ErrorCodes.VideoNotFound, "Video not found."));
 
-        // Build caller context from the validated token for the download service
-        var caller = new CallerContext(streamToken.UserId, Array.Empty<string>(), CallerType.User);
+        // We need the actual file path — reconstruct the video to a temp file for probing
+        var (filePath, _) = await SaveVideoToTempFile(video, caller);
+        if (filePath is null)
+            return NotFound(ErrorEnvelope("file_not_found", "Video file not found in storage."));
+
+        try
+        {
+            var canDirectPlay = await _transcodingService.CanDirectPlayAsync(filePath, video.MimeType);
+            var token = _streamingService.GenerateStreamToken(videoId, caller.UserId);
+
+            return Ok(Envelope(new
+            {
+                videoId = video.Id,
+                canDirectPlay,
+                mimeType = video.MimeType,
+                streamUrl = $"/api/v1/videos/{videoId}/stream?token={Uri.EscapeDataString(token)}" +
+                            (canDirectPlay ? "" : "&forceTranscode=true")
+            }));
+        }
+        finally
+        {
+            TryDeleteTempFile(filePath);
+        }
+    }
+
+    /// <summary>Streams a video file.
+    /// Automatically probes the file and transcodes to H.264/AAC/MP4 when direct playback
+    /// is not possible (e.g. AVI, MKV, MPEG2, unsupported codecs).
+    /// Use forceTranscode=true to skip the probe and always transcode.
+    ///
+    /// Authentication: accepts either a stream token (query param) or the session cookie.
+    /// Cookie auth is used by the Blazor UI when the user is already logged in.</summary>
+    [AllowAnonymous]
+    [HttpGet("{videoId:guid}/stream")]
+    public async Task<IActionResult> StreamVideo(
+        Guid videoId,
+        [FromQuery] string? token,
+        [FromQuery] bool forceTranscode = false)
+    {
+        Guid userId;
+
+        if (!string.IsNullOrWhiteSpace(token))
+        {
+            // Token-based auth (used by external players, mobile clients)
+            var streamToken = _streamingService.ValidateStreamToken(token);
+            if (streamToken is null)
+                return Unauthorized(ErrorEnvelope("invalid_token", "Stream token is invalid or expired."));
+
+            if (streamToken.VideoId != videoId)
+                return Forbid();
+
+            userId = streamToken.UserId;
+        }
+        else
+        {
+            // Cookie-based auth (used by Blazor UI — already logged in)
+            try
+            {
+                var authCaller = GetAuthenticatedCaller();
+                userId = authCaller.UserId;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Unauthorized(ErrorEnvelope("auth_required",
+                    "Authentication is required. Provide a stream token or log in."));
+            }
+        }
+
+        // Look up the video
+        var video = await _streamingService.GetVideoForStreamingAsync(videoId, userId);
+        if (video is null)
+            return NotFound(ErrorEnvelope(ErrorCodes.VideoNotFound, "Video not found."));
+
+        // Build caller context from the validated identity for the download service
+        var caller = new CallerContext(userId, Array.Empty<string>(), CallerType.User);
 
         // Reconstruct file from chunks via the Files download service.
-        // Returns a FileStream opened with DeleteOnClose on a temp file.
         Stream fileStream;
         try
         {
@@ -462,40 +526,258 @@ public class VideoController : VideoControllerBase
             return NotFound(ErrorEnvelope("file_not_found", "Video file not found in storage."));
         }
 
-        var contentType = VideoStreamingService.GetContentType(video.CanonicalVideo?.MimeType ?? "application/octet-stream");
+        // Save to a persistent temp path so ffprobe and ffmpeg can access it
+        var tempSourceDir = Path.Combine(Path.GetTempPath(), "dotnetcloud-stream-source");
+        Directory.CreateDirectory(tempSourceDir);
+        var sourcePath = Path.Combine(tempSourceDir, $"source-{videoId:N}");
 
-        // Remove X-Content-Type-Options: nosniff for this endpoint.
-        // The global security middleware sets it on every response, but nosniff
-        // prevents browsers (especially Edge) from probing the actual codec inside
-        // the container. If the Content-Type doesn't perfectly match the codec the
-        // browser expects, playback fails. Video streaming needs the browser to
-        // inspect the media, not blindly trust the Content-Type header.
-        HttpContext.Response.OnStarting(() =>
+        try
         {
-            HttpContext.Response.Headers.Remove("X-Content-Type-Options");
-            return Task.CompletedTask;
-        });
-
-        // Serve via PhysicalFile which uses Kestrel's sendfile() syscall:
-        // - Zero-copy: kernel sends file data directly to the socket
-        // - Bypasses response.Body entirely (no MemoryStream, no compression wrapping)
-        // - No 2 GB limit
-        // - Built-in HTTP range-request support (206 Partial Content) for video seeking
-        if (fileStream is FileStream fs)
-        {
-            var filePath = fs.Name;
-
-            // Keep the FileStream alive until the response completes so the
-            // DeleteOnClose temp file isn't removed before Kestrel finishes reading it.
-            HttpContext.Response.OnCompleted(async () =>
+            // Write the temp file from the download stream (unless it already is a FileStream)
+            if (fileStream is FileStream existingFs)
             {
-                await fs.DisposeAsync();
-            });
+                sourcePath = existingFs.Name;
+            }
+            else
+            {
+                await using var sourceStream = new FileStream(
+                    sourcePath, FileMode.Create, FileAccess.Write,
+                    FileShare.Read, 65536, FileOptions.Asynchronous | FileOptions.DeleteOnClose);
+                await fileStream.CopyToAsync(sourceStream);
+            }
 
-            return PhysicalFile(filePath, contentType, enableRangeProcessing: true);
+            // Determine MIME type for context
+            var mimeType = video.CanonicalVideo?.MimeType ?? "application/octet-stream";
+            _logger.LogInformation("StreamVideo: videoId={VideoId}, mimeType={MimeType}, forceTranscode={Force}",
+                videoId, mimeType, forceTranscode);
+
+            // Check if direct play is possible (skip check when forceTranscode)
+            bool needsTranscode = forceTranscode;
+            if (!needsTranscode)
+            {
+                needsTranscode = !await _transcodingService.CanDirectPlayAsync(sourcePath, mimeType, HttpContext.RequestAborted);
+                _logger.LogInformation("StreamVideo: CanDirectPlay={Result}, needsTranscode={Needs}",
+                    !needsTranscode, needsTranscode);
+            }
+
+            if (!needsTranscode)
+            {
+                _logger.LogInformation("StreamVideo: Serving direct for video {VideoId}", videoId);
+                // Serve directly with full HTTP range support
+                var contentType = VideoStreamingService.GetContentType(mimeType);
+
+                HttpContext.Response.OnStarting(() =>
+                {
+                    HttpContext.Response.Headers.Remove("X-Content-Type-Options");
+                    return Task.CompletedTask;
+                });
+
+                HttpContext.Response.OnCompleted(async () =>
+                {
+                    if (fileStream is FileStream fs)
+                        await fs.DisposeAsync();
+                });
+
+                return PhysicalFile(sourcePath, contentType, enableRangeProcessing: true);
+            }
+
+            // ── Transcode needed (HLS) ──────────────────────────────
+            _logger.LogInformation("StreamVideo: Starting HLS transcode for video {VideoId}", videoId);
+            var (jobId, outputDir, playlistPath) = await _transcodingService.TranscodeHlsAsync(
+                videoId, userId, sourcePath, mimeType,
+                ct: HttpContext.RequestAborted);
+
+            _logger.LogInformation("StreamVideo: HLS transcode job {JobId} started, playlist={PlaylistPath}",
+                jobId, playlistPath);
+
+            // Wait for the playlist file to be written by ffmpeg.
+            // ffmpeg writes the playlist after the first segment is complete (~6 seconds).
+            var waitStart = DateTime.UtcNow;
+            while (!System.IO.File.Exists(playlistPath))
+            {
+                if (HttpContext.RequestAborted.IsCancellationRequested)
+                {
+                    _transcodingService.CancelTranscode(jobId);
+                    return StatusCode(499, ErrorEnvelope("cancelled", "Client disconnected."));
+                }
+
+                // Check if the job has already failed
+                var checkJob = _transcodingService.GetProgress(jobId);
+                if (checkJob?.Status == TranscodingJobStatus.Failed)
+                {
+                    _logger.LogError("HLS transcode job {JobId} failed: {Error}", jobId, checkJob.ErrorMessage);
+                    return StatusCode(500, ErrorEnvelope("TRANSCODE_FAILED",
+                        checkJob.ErrorMessage ?? "HLS transcoding failed."));
+                }
+
+                if ((DateTime.UtcNow - waitStart).TotalSeconds > 30)
+                {
+                    _transcodingService.CancelTranscode(jobId);
+                    _logger.LogError("HLS transcode job {JobId} timed out waiting for playlist", jobId);
+                    return StatusCode(504, ErrorEnvelope("TRANSCODE_TIMEOUT",
+                        "HLS transcode did not produce a playlist within 30 seconds."));
+                }
+
+                await Task.Delay(200, HttpContext.RequestAborted);
+            }
+
+            _logger.LogInformation("StreamVideo: HLS playlist ready for {VideoId}, serving {PlaylistPath}",
+                videoId, playlistPath);
+
+            // Serve the .m3u8 playlist — browser/HLS player will request segments
+            return PhysicalFile(playlistPath, "application/vnd.apple.mpegurl");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "StreamVideo failed for video {VideoId}", videoId);
+            return StatusCode(500, ErrorEnvelope("TRANSCODE_ERROR", "Video streaming failed. Try again later."));
+        }
+        finally
+        {
+            // Only clean up the temp copy if it wasn't the original FileStream temp
+            if (fileStream is not FileStream && System.IO.File.Exists(sourcePath))
+            {
+                TryDeleteTempFile(sourcePath);
+            }
+        }
+    }
+
+    /// <summary>Serves HLS segment (.ts) files for an active HLS transcode stream.
+    /// These are requested by the browser/HLS player after receiving the .m3u8 playlist.
+    /// Authentication: accepts either a stream token (query param) or the session cookie.</summary>
+    [AllowAnonymous]
+    [HttpGet("{videoId:guid}/stream/{*filename}")]
+    public IActionResult GetHlsSegment(
+        Guid videoId,
+        string filename,
+        [FromQuery] string? token)
+    {
+        Guid userId;
+
+        if (!string.IsNullOrWhiteSpace(token))
+        {
+            // Token-based auth
+            var streamToken = _streamingService.ValidateStreamToken(token);
+            if (streamToken is null)
+                return Unauthorized(ErrorEnvelope("invalid_token", "Stream token is invalid or expired."));
+
+            if (streamToken.VideoId != videoId)
+                return Forbid();
+
+            userId = streamToken.UserId;
+        }
+        else
+        {
+            // Cookie-based auth
+            try
+            {
+                var authCaller = GetAuthenticatedCaller();
+                userId = authCaller.UserId;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Unauthorized(ErrorEnvelope("auth_required",
+                    "Authentication is required. Provide a stream token or log in."));
+            }
         }
 
-        // Fallback for non-FileStream (shouldn't happen with current download service)
-        return File(fileStream, contentType, enableRangeProcessing: true);
+        // Only serve .ts segment files (and optionally .m3u8 as a fallback)
+        if (!filename.EndsWith(".ts", StringComparison.OrdinalIgnoreCase) &&
+            !filename.EndsWith(".m3u8", StringComparison.OrdinalIgnoreCase))
+        {
+            return BadRequest(ErrorEnvelope("invalid_segment", "Only .ts and .m3u8 segment files are supported."));
+        }
+
+        // Find the active HLS job for this video
+        var job = _transcodingService.GetActiveHlsJob(videoId);
+        if (job is null || string.IsNullOrEmpty(job.OutputPath))
+        {
+            _logger.LogWarning("HLS segment requested but no active HLS job for video {VideoId}", videoId);
+            return NotFound(ErrorEnvelope("no_active_stream", "No active HLS stream for this video."));
+        }
+
+        // Derive the output directory from the playlist path
+        var outputDir = Path.GetDirectoryName(job.OutputPath);
+        if (string.IsNullOrEmpty(outputDir))
+        {
+            return StatusCode(500, ErrorEnvelope("internal_error", "Invalid HLS job output path."));
+        }
+
+        var segmentPath = Path.Combine(outputDir, filename);
+
+        // Normalize to prevent directory traversal
+        var fullSegmentPath = Path.GetFullPath(segmentPath);
+        var fullOutputDir = Path.GetFullPath(outputDir);
+        if (!fullSegmentPath.StartsWith(fullOutputDir + Path.DirectorySeparatorChar) &&
+            fullSegmentPath != fullOutputDir)
+        {
+            _logger.LogWarning("HLS segment path traversal attempt: {Path}", segmentPath);
+            return BadRequest(ErrorEnvelope("invalid_segment", "Invalid segment filename."));
+        }
+
+        if (!System.IO.File.Exists(fullSegmentPath))
+        {
+            _logger.LogDebug("HLS segment not yet available: {Path}", fullSegmentPath);
+            return NotFound(ErrorEnvelope("segment_not_found", "Segment not yet available."));
+        }
+
+        var contentType = filename.EndsWith(".m3u8", StringComparison.OrdinalIgnoreCase)
+            ? "application/vnd.apple.mpegurl"
+            : "video/mp2t";
+
+        return PhysicalFile(fullSegmentPath, contentType);
+    }
+
+    /// <summary>Gets the progress of a transcode job.</summary>
+    [HttpGet("transcodes/{jobId}/progress")]
+    public IActionResult GetTranscodeProgress(string jobId)
+    {
+        var job = _transcodingService.GetProgress(jobId);
+        if (job is null)
+            return NotFound(ErrorEnvelope("JobNotFound", "Transcode job not found."));
+
+        return Ok(Envelope(new
+        {
+            jobId = job.Id,
+            status = job.Status.ToString(),
+            progressPercent = job.ProgressPercent,
+            currentTime = job.CurrentTime.ToString(@"hh\:mm\:ss"),
+            speed = job.Speed,
+            errorMessage = job.ErrorMessage
+        }));
+    }
+
+    /// <summary>Cancels a running transcode job.</summary>
+    [HttpDelete("transcodes/{jobId}")]
+    public IActionResult CancelTranscode(string jobId)
+    {
+        _transcodingService.CancelTranscode(jobId);
+        return Ok(Envelope(new { cancelled = true }));
+    }
+
+    // ─── Private Helpers ─────────────────────────────────────────────
+
+    private async Task<(string? FilePath, Stream? Stream)> SaveVideoToTempFile(VideoDto video, CallerContext caller)
+    {
+        try
+        {
+            var fs = await _downloadService.DownloadCurrentAsync(video.FileNodeId, caller);
+            if (fs is FileStream fileStream)
+                return (fileStream.Name, fileStream);
+            return (null, fs);
+        }
+        catch
+        {
+            return (null, null);
+        }
+    }
+
+    private static void TryDeleteTempFile(string? path)
+    {
+        if (string.IsNullOrEmpty(path))
+            return;
+        try
+        { if (System.IO.File.Exists(path)) System.IO.File.Delete(path); }
+        catch { /* best effort */ }
     }
 }

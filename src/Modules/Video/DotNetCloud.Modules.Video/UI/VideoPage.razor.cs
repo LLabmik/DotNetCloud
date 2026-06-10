@@ -183,9 +183,24 @@ public partial class VideoPage : IAsyncDisposable
             _videoErrorListenerAttached = true;
             try
             {
+                // Ensure hls.js is loaded (inject script tag if not already present)
+                await Js.InvokeVoidAsync("eval",
+                    "if(!document.querySelector('script[data-hls]')){" +
+                    "var s=document.createElement('script');" +
+                    "s.src='/_content/DotNetCloud.Modules.Video/hls.min.js';" +
+                    "s.setAttribute('data-hls','1');" +
+                    "s.onload=function(){window.dispatchEvent(new Event('hlsjs-loaded'));};" +
+                    "document.head.appendChild(s);" +
+                    "}");
+
                 _jsModule ??= await Js.InvokeAsync<IJSObjectReference>(
                     "import", "./_content/DotNetCloud.Modules.Video/video-player.js");
                 _dotNetRef ??= DotNetObjectReference.Create(this);
+
+                // Initialize HLS player with the stream URL
+                var streamUrl = GetStreamUrl(_playerVideo!.Id);
+                await _jsModule.InvokeVoidAsync("attachHlsPlayer", "video-player", streamUrl);
+
                 await _jsModule.InvokeVoidAsync("attachVideoErrorListener", "video-player", _dotNetRef);
                 _idleAutoHideHandle = await _jsModule.InvokeAsync<IJSObjectReference>("attachIdleAutoHide", "player-container", 3000);
                 _keyboardShortcutsHandle = await _jsModule.InvokeAsync<IJSObjectReference>("attachKeyboardShortcuts", "video-player");
@@ -710,7 +725,7 @@ public partial class VideoPage : IAsyncDisposable
         }
     }
 
-    private void ClosePlayer()
+    private async void ClosePlayer()
     {
         _playerOpen = false;
         _playerVideo = null;
@@ -721,6 +736,20 @@ public partial class VideoPage : IAsyncDisposable
         _noAudioDetected = false;
         _videoErrorListenerAttached = false;
         _playerSeriesContext = null;
+
+        // Tear down HLS player
+        if (_jsModule is not null)
+        {
+            try
+            {
+                await _jsModule.InvokeVoidAsync("destroyHlsPlayer", "video-player");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogDebug(ex, "Error destroying HLS player");
+            }
+        }
+
         _breadcrumb.Clear();
         StopProgressTimer();
     }
@@ -1118,8 +1147,8 @@ public partial class VideoPage : IAsyncDisposable
         };
     }
 
-    private static string GetStreamUrl(Guid fileNodeId) =>
-        $"/api/v1/files/{fileNodeId}/content";
+    private static string GetStreamUrl(Guid videoId) =>
+        $"/api/v1/videos/{videoId}/stream?forceTranscode=true";
 
     private static string GetSubtitleUrl(Guid subtitleId) => $"/api/v1/videos/subtitles/{subtitleId}";
 
@@ -1746,6 +1775,9 @@ public partial class VideoPage : IAsyncDisposable
         }
         if (_jsModule is not null)
         {
+            try
+            { await _jsModule.InvokeVoidAsync("destroyHlsPlayer", "video-player"); }
+            catch { /* circuit may be gone */ }
             try
             { await _jsModule.DisposeAsync(); }
             catch { /* circuit may be gone */ }
