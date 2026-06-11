@@ -633,14 +633,8 @@ public class VideoController : VideoControllerBase
             return StatusCode(500, ErrorEnvelope("TRANSCODE_ERROR",
                 $"Video streaming failed: {ex.GetType().Name} — {ex.Message}"));
         }
-        finally
-        {
-            // Only clean up the temp copy if it wasn't the original FileStream temp
-            if (fileStream is not FileStream && System.IO.File.Exists(sourcePath))
-            {
-                TryDeleteTempFile(sourcePath);
-            }
-        }
+        // NOTE: Do NOT delete sourcePath here — ffmpeg is still reading from it.
+        // The transcode service cleans up the HLS directory when done.
     }
 
     /// <summary>Serves HLS segment (.ts) files for an active HLS transcode stream.
@@ -682,11 +676,14 @@ public class VideoController : VideoControllerBase
             }
         }
 
-        // Only serve .ts segment files (and optionally .m3u8 as a fallback)
-        if (!filename.EndsWith(".ts", StringComparison.OrdinalIgnoreCase) &&
-            !filename.EndsWith(".m3u8", StringComparison.OrdinalIgnoreCase))
+        // Only serve .ts/.m4s segment files and .m3u8 playlists
+        var isTs = filename.EndsWith(".ts", StringComparison.OrdinalIgnoreCase);
+        var isM4s = filename.EndsWith(".m4s", StringComparison.OrdinalIgnoreCase);
+        var isMp4 = filename.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase);
+        var isM3u8 = filename.EndsWith(".m3u8", StringComparison.OrdinalIgnoreCase);
+        if (!isTs && !isM4s && !isMp4 && !isM3u8)
         {
-            return BadRequest(ErrorEnvelope("invalid_segment", "Only .ts and .m3u8 segment files are supported."));
+            return BadRequest(ErrorEnvelope("invalid_segment", "Only .ts, .m4s, .mp4, and .m3u8 files are supported."));
         }
 
         // Find the active HLS job for this video
@@ -722,9 +719,10 @@ public class VideoController : VideoControllerBase
             return NotFound(ErrorEnvelope("segment_not_found", "Segment not yet available."));
         }
 
-        var contentType = filename.EndsWith(".m3u8", StringComparison.OrdinalIgnoreCase)
+        var contentType = isM3u8
             ? "application/vnd.apple.mpegurl"
-            : "video/mp2t";
+            : isTs ? "video/mp2t"
+            : "video/mp4";
 
         return PhysicalFile(fullSegmentPath, contentType);
     }
@@ -766,8 +764,10 @@ public class VideoController : VideoControllerBase
         string filename,
         [FromQuery] string? token)
     {
-        // Only handle .ts and .m3u8 files; let other routes (subtitles, progress, etc.) pass through
+        // Only handle .ts/.m4s/.mp4/.m3u8 files; let other routes pass through
         if (!filename.EndsWith(".ts", StringComparison.OrdinalIgnoreCase) &&
+            !filename.EndsWith(".m4s", StringComparison.OrdinalIgnoreCase) &&
+            !filename.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase) &&
             !filename.EndsWith(".m3u8", StringComparison.OrdinalIgnoreCase))
         {
             return NotFound();

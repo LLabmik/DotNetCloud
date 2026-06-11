@@ -188,77 +188,60 @@ public sealed class FfmpegArgumentBuilder
             sb.AppendFormat(CultureInfo.InvariantCulture, "-t {0} ", seekDuration.Value.TotalSeconds.ToString("F3", CultureInfo.InvariantCulture));
         }
 
-        // --- Map all streams we want ---
+        // --- Map streams ---
         sb.Append("-map 0:v:0? -map 0:a:0? ");
 
-        // --- Video codec ---
-        sb.AppendFormat(CultureInfo.InvariantCulture, "-c:v {0} ", options.VideoCodec);
+        // --- Jellyfin-style timestamp handling: preserve source timestamps ---
+        sb.Append("-copyts -avoid_negative_ts disabled ");
 
-        // --- Video preset ---
+        // --- Video codec + preset + quality (Jellyfin-style: no forced profile) ---
+        sb.AppendFormat(CultureInfo.InvariantCulture, "-c:v:0 {0} ", options.VideoCodec);
         if (!string.IsNullOrEmpty(options.EncoderPreset))
-        {
             sb.AppendFormat(CultureInfo.InvariantCulture, "-preset {0} ", options.EncoderPreset);
-        }
-
-        // --- Video CRF (quality) ---
         sb.AppendFormat(CultureInfo.InvariantCulture, "-crf {0} ", options.VideoCrf);
-
-        // --- Pixel format (ensure browser compatibility) ---
         sb.Append("-pix_fmt yuv420p ");
+        sb.Append("-sc_threshold:v:0 0 ");
 
         // --- Resolution scaling ---
         if (options.MaxWidth > 0 && options.MaxHeight > 0)
-        {
-            sb.AppendFormat(
-                CultureInfo.InvariantCulture,
+            sb.AppendFormat(CultureInfo.InvariantCulture,
                 "-vf \"scale='min({0},iw)':'min({1},ih)':force_original_aspect_ratio=decrease,pad='ceil(iw/2)*2':'ceil(ih/2)*2'\" ",
-                options.MaxWidth,
-                options.MaxHeight);
-        }
+                options.MaxWidth, options.MaxHeight);
         else
-        {
-            // Just ensure even dimensions (some codecs require it)
             sb.Append("-vf \"pad='ceil(iw/2)*2':'ceil(ih/2)*2'\" ");
-        }
 
-        // --- Audio codec ---
-        sb.AppendFormat(CultureInfo.InvariantCulture, "-c:a {0} ", options.AudioCodec);
+        // --- Keyframe alignment for HLS segments (Jellyfin-style) ---
+        sb.Append("-g:v:0 150 -keyint_min:v:0 150 ");
+        sb.Append("-force_key_frames:0 \"expr:gte(t,n_forced*6)\" ");
 
-        // --- Audio bitrate ---
+        // --- Audio codec + settings ---
+        sb.AppendFormat(CultureInfo.InvariantCulture, "-c:a:0 {0} ", options.AudioCodec);
         sb.AppendFormat(CultureInfo.InvariantCulture, "-b:a {0}k ", options.AudioBitrateKbps);
-
-        // --- Audio channels (stereo) ---
         sb.Append("-ac 2 ");
 
-        // --- Remove metadata from source ---
-        sb.Append("-map_metadata -1 ");
+        // --- AAC compatibility: enable experimental features for browser support ---
+        sb.Append("-strict -2 ");
 
-        // --- Force keyframes every 2 seconds (ensures clean segment boundaries) ---
-        sb.Append("-force_key_frames \"expr:gte(t,n_forced*2)\" ");
+        // --- Remove metadata ---
+        sb.Append("-map_metadata -1 -map_chapters -1 ");
 
-        // --- HLS output format ---
+        // --- HLS output (Jellyfin-style: mpegts, vod, no global_header) ---
         sb.Append("-f hls ");
-
-        // --- Atomic segment writes: write to .tmp, rename when complete ---
-        sb.Append("-hls_flags temp_file ");
-
-        // --- HLS segment duration (6 seconds) ---
+        sb.Append("-max_delay 5000000 ");
+        sb.Append("-hls_playlist_type event ");
         sb.Append("-hls_time 6 ");
-
-        // --- Keep all segments in the playlist (don't limit playlist length) ---
         sb.Append("-hls_list_size 0 ");
-
-        // --- Start playlist numbering at 0 ---
         sb.Append("-start_number 0 ");
+        sb.Append("-hls_segment_type mpegts ");
 
-        // --- Segment filename pattern ---
+        // --- Segment filenames (absolute path, safer than relative) ---
         var escapedDir = EscapePath(outputDir);
         sb.AppendFormat(CultureInfo.InvariantCulture, "-hls_segment_filename \"{0}/segment_%05d.ts\" ", escapedDir);
 
-        // --- Overwrite output ---
+        // --- Overwrite ---
         sb.Append("-y ");
 
-        // --- Playlist output file ---
+        // --- Playlist output file (absolute path) ---
         sb.AppendFormat(CultureInfo.InvariantCulture, "\"{0}/playlist.m3u8\"", escapedDir);
 
         return sb.ToString();

@@ -206,9 +206,18 @@
       return;
     }
 
-    // hls.js for Chrome/Firefox/Edge
+    // hls.js for Chrome/Firefox/Edge — Jellyfin-style configuration
     if (typeof Hls !== "undefined" && Hls.isSupported()) {
-      var hls = new Hls({ enableWorker: true, lowLatencyMode: false });
+      // Jellyfin's default config for reliable VOD playback
+      if (!Hls.DefaultConfig._dncConfigured) {
+        Hls.DefaultConfig.lowLatencyMode = false;
+        Hls.DefaultConfig.backBufferLength = Infinity;
+        Hls.DefaultConfig._dncConfigured = true;
+      }
+
+      var hls = new Hls({
+        manifestLoadingTimeOut: 20000,
+      });
       hls.loadSource(streamUrl);
       hls.attachMedia(video);
 

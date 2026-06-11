@@ -146,9 +146,9 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
             catch (FfmpegException ex)
             {
                 job.Status = TranscodingJobStatus.Failed;
-                job.ErrorMessage = ex.Message;
+                job.ErrorMessage = ex.FfmpegError ?? ex.Message;
                 job.CompletedAt = DateTime.UtcNow;
-                _logger.LogError(ex, "Transcode job {JobId} failed: {Error}", job.Id, ex.Message);
+                _logger.LogError(ex, "Transcode job {JobId} failed (exit={ExitCode}): {FfmpegError}", job.Id, ex.ExitCode, ex.FfmpegError ?? ex.Message);
             }
             catch (OperationCanceledException)
             {
@@ -188,36 +188,132 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
         string mimeType,
         CancellationToken ct = default)
     {
-        // Check for existing active HLS job (deduplication)
-        var existingJob = _jobTracker.GetActiveHlsJob(videoId);
-        if (existingJob is not null)
+        // Acquire per-video lock to prevent duplicate ffmpeg processes
+        var hlsLock = await _jobTracker.AcquireHlsLockAsync(videoId);
+        if (hlsLock is null)
         {
-            _logger.LogDebug("Reusing existing HLS transcode job {JobId} for video {VideoId}", existingJob.Id, videoId);
-            var existingDir = Path.GetDirectoryName(existingJob.OutputPath)
-                              ?? Path.Combine(GetHlsRootDir(), $"hls-{videoId:N}");
-            var existingPlaylist = Path.Combine(existingDir, "playlist.m3u8");
-            return (existingJob.Id, existingDir, existingPlaylist);
+            // Another request beat us to creating the job — use theirs
+            var existingJob = _jobTracker.GetActiveHlsJob(videoId);
+            if (existingJob is not null)
+            {
+                _logger.LogDebug("Reusing HLS transcode job {JobId} created by concurrent request for video {VideoId}", existingJob.Id, videoId);
+                var existingDir = Path.GetDirectoryName(existingJob.OutputPath)
+                                  ?? Path.Combine(GetHlsRootDir(), $"hls-{videoId:N}");
+                var existingPlaylist = Path.Combine(existingDir, "playlist.m3u8");
+                return (existingJob.Id, existingDir, existingPlaylist);
+            }
+
+            // Lock timed out (30s) — extremely rare, fall back to lock-free creation
+            _logger.LogWarning("HLS lock acquire timed out for video {VideoId}; proceeding without lock", videoId);
+            return await CreateHlsJobUnlocked(videoId, userId, sourceFilePath, mimeType, ct);
         }
 
-        // Create HLS output directory
-        var outputDir = Path.Combine(GetHlsRootDir(), $"hls-{videoId:N}-{userId:N}");
-        Directory.CreateDirectory(outputDir);
-        var playlistPath = Path.Combine(outputDir, "playlist.m3u8");
+        // Variables captured outside the lock for return
+        string actualOutputDir;
+        string actualPlaylistPath;
 
-        // Create job (no cache for HLS — segments are transient)
+        using (hlsLock)
+        {
+            // Double-check inside the lock
+            var existingJob = _jobTracker.GetActiveHlsJob(videoId);
+            if (existingJob is not null)
+            {
+                _logger.LogDebug("Reusing existing HLS transcode job {JobId} for video {VideoId}", existingJob.Id, videoId);
+                var existingDir = Path.GetDirectoryName(existingJob.OutputPath)
+                                  ?? Path.Combine(GetHlsRootDir(), $"hls-{videoId:N}");
+                var existingPlaylist = Path.Combine(existingDir, "playlist.m3u8");
+                return (existingJob.Id, existingDir, existingPlaylist);
+            }
+
+            // Create fresh HLS output directory (delete stale files from previous transcode)
+            actualOutputDir = Path.Combine(GetHlsRootDir(), $"hls-{videoId:N}-{userId:N}");
+            if (Directory.Exists(actualOutputDir))
+            {
+                _logger.LogDebug("Cleaning stale HLS output directory: {Dir}", actualOutputDir);
+                try
+                { Directory.Delete(actualOutputDir, recursive: true); }
+                catch (Exception ex) { _logger.LogWarning(ex, "Failed to clean stale HLS dir"); }
+            }
+            Directory.CreateDirectory(actualOutputDir);
+            actualPlaylistPath = Path.Combine(actualOutputDir, "playlist.m3u8");
+
+            // Create job (no cache for HLS — segments are transient)
+            var job = _jobTracker.CreateJob(videoId, userId, $"hls-{videoId:N}");
+            job.OutputPath = actualPlaylistPath;
+            job.IsHls = true;
+
+            // Lock released here — job is now visible to concurrent requests via GetActiveHlsJob.
+            // ffmpeg launch below is outside the lock (fire-and-forget).
+        }
+
+        // Re-read job to get the one we just created
+        var activeJob = _jobTracker.GetActiveHlsJob(videoId);
+        if (activeJob is null)
+        {
+            throw new InvalidOperationException($"HLS job was created but not found for video {videoId}");
+        }
+
+        // Launch ffmpeg (outside lock, fire-and-forget)
+        await LaunchFfmpegAsync(activeJob, sourceFilePath, actualOutputDir, actualPlaylistPath, ct);
+
+        return (activeJob.Id, actualOutputDir, actualPlaylistPath);
+    }
+
+    /// <inheritdoc />
+    public TranscodingJob? GetActiveHlsJob(Guid videoId)
+    {
+        return _jobTracker.GetActiveHlsJob(videoId);
+    }
+
+    /// <summary>
+    /// Creates an HLS transcode job WITHOUT acquiring the per-video lock.
+    /// Only used as a fallback when lock acquisition times out (extremely rare).
+    /// </summary>
+    private async Task<(string JobId, string OutputDir, string PlaylistPath)> CreateHlsJobUnlocked(
+        Guid videoId,
+        Guid userId,
+        string sourceFilePath,
+        string mimeType,
+        CancellationToken ct)
+    {
+        // Create fresh HLS output directory
+        var actualOutputDir = Path.Combine(GetHlsRootDir(), $"hls-{videoId:N}-{userId:N}");
+        if (Directory.Exists(actualOutputDir))
+        {
+            try
+            { Directory.Delete(actualOutputDir, recursive: true); }
+            catch (Exception ex) { _logger.LogWarning(ex, "Failed to clean stale HLS dir"); }
+        }
+        Directory.CreateDirectory(actualOutputDir);
+        var actualPlaylistPath = Path.Combine(actualOutputDir, "playlist.m3u8");
+
+        // Create job
         var job = _jobTracker.CreateJob(videoId, userId, $"hls-{videoId:N}");
-        job.OutputPath = playlistPath;
+        job.OutputPath = actualPlaylistPath;
         job.IsHls = true;
 
-        // Get video duration for progress tracking
+        // Launch ffmpeg
+        await LaunchFfmpegAsync(job, sourceFilePath, actualOutputDir, actualPlaylistPath, ct);
+
+        return (job.Id, actualOutputDir, actualPlaylistPath);
+    }
+
+    /// <summary>
+    /// Launches ffmpeg as a background task for HLS transcoding.
+    /// </summary>
+    private async Task LaunchFfmpegAsync(
+        TranscodingJob job,
+        string sourceFilePath,
+        string outputDir,
+        string playlistPath,
+        CancellationToken ct)
+    {
         var duration = await GetVideoDurationAsync(sourceFilePath, ct);
         _logger.LogInformation("HLS transcode starting: job={JobId}, source={Source}, outputDir={OutputDir}, duration={Duration}",
             job.Id, sourceFilePath, outputDir, duration);
 
-        // Build ffmpeg HLS arguments
         var args = _argBuilder.BuildHlsArgs(sourceFilePath, outputDir, _options);
 
-        // Run ffmpeg in background
         _ = Task.Run(async () =>
         {
             try
@@ -226,23 +322,37 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
                 job.Status = TranscodingJobStatus.Completed;
                 job.ProgressPercent = 100.0;
                 job.CompletedAt = DateTime.UtcNow;
+
+                // Append #EXT-X-ENDLIST to signal HLS playlist completion.
+                // With -hls_playlist_type event, ffmpeg writes segments progressively
+                // but doesn't add the ENDLIST tag. hls.js needs it to stop polling.
+                try
+                {
+                    await File.AppendAllTextAsync(playlistPath, "#EXT-X-ENDLIST\n");
+                    _logger.LogDebug("HLS transcode job {JobId}: appended #EXT-X-ENDLIST to playlist", job.Id);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "HLS transcode job {JobId}: failed to append #EXT-X-ENDLIST", job.Id);
+                }
+
                 _logger.LogInformation("HLS transcode job {JobId} completed", job.Id);
 
-                // Schedule segment cleanup after a short delay (let any in-flight
-                // segment requests finish)
                 _ = Task.Run(async () =>
                 {
-                    await Task.Delay(TimeSpan.FromMinutes(2));
+                    await Task.Delay(TimeSpan.FromHours(24));
                     CleanupHlsDirectory(outputDir, job.Id);
+                    TryDeleteFile(sourceFilePath);
                 });
             }
             catch (FfmpegException ex)
             {
                 job.Status = TranscodingJobStatus.Failed;
-                job.ErrorMessage = ex.Message;
+                job.ErrorMessage = ex.FfmpegError ?? ex.Message;
                 job.CompletedAt = DateTime.UtcNow;
-                _logger.LogError(ex, "HLS transcode job {JobId} failed: {Error}", job.Id, ex.Message);
+                _logger.LogError(ex, "HLS transcode job {JobId} failed (exit={ExitCode}): {FfmpegError}", job.Id, ex.ExitCode, ex.FfmpegError ?? ex.Message);
                 CleanupHlsDirectory(outputDir, job.Id);
+                TryDeleteFile(sourceFilePath);
             }
             catch (OperationCanceledException)
             {
@@ -250,6 +360,7 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
                 job.CompletedAt = DateTime.UtcNow;
                 _logger.LogInformation("HLS transcode job {JobId} cancelled", job.Id);
                 CleanupHlsDirectory(outputDir, job.Id);
+                TryDeleteFile(sourceFilePath);
             }
             catch (Exception ex)
             {
@@ -258,16 +369,9 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
                 job.CompletedAt = DateTime.UtcNow;
                 _logger.LogError(ex, "HLS transcode job {JobId} unexpected error", job.Id);
                 CleanupHlsDirectory(outputDir, job.Id);
+                TryDeleteFile(sourceFilePath);
             }
         }, ct);
-
-        return (job.Id, outputDir, playlistPath);
-    }
-
-    /// <inheritdoc />
-    public TranscodingJob? GetActiveHlsJob(Guid videoId)
-    {
-        return _jobTracker.GetActiveHlsJob(videoId);
     }
 
     // ─── Private Helpers ────────────────────────────────────────────────
@@ -408,5 +512,14 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
         {
             _logger.LogWarning(ex, "Failed to clean up HLS directory for job {JobId}: {Dir}", jobId, dir);
         }
+    }
+
+    private static void TryDeleteFile(string? path)
+    {
+        if (string.IsNullOrEmpty(path))
+            return;
+        try
+        { if (System.IO.File.Exists(path)) System.IO.File.Delete(path); }
+        catch { /* best effort */ }
     }
 }

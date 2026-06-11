@@ -83,12 +83,16 @@ public sealed class FfmpegProcessManager : IDisposable
 
             using var process = new Process { StartInfo = processStartInfo, EnableRaisingEvents = true };
 
+            // Capture stderr for error reporting (can't mix BeginErrorReadLine + ReadToEndAsync)
+            var stderrCapture = new System.Text.StringBuilder();
+
             // Set up progress parsing from stderr
             process.ErrorDataReceived += (sender, e) =>
             {
                 if (e.Data is null)
                     return;
-                _logger.LogTrace("ffmpeg stderr: {Line}", e.Data);
+                stderrCapture.AppendLine(e.Data);
+                _logger.LogDebug("ffmpeg: {Line}", e.Data);
                 ParseProgress(e.Data, job, totalDuration);
             };
 
@@ -137,10 +141,11 @@ public sealed class FfmpegProcessManager : IDisposable
 
             if (process.ExitCode != 0)
             {
-                var error = await process.StandardError.ReadToEndAsync();
+                var error = stderrCapture.ToString();
                 _logger.LogError(
-                    "ffmpeg exited with code {ExitCode} for job {JobId}. Error: {Error}",
+                    "ffmpeg exited with code {ExitCode} for job {JobId}. Stderr:\n{Stderr}",
                     process.ExitCode, job.Id, error);
+                Console.Error.WriteLine($"[VIDEO] ffmpeg exit={process.ExitCode}: {error}");
                 throw new FfmpegException(
                     $"ffmpeg exited with code {process.ExitCode}",
                     process.ExitCode,
