@@ -404,17 +404,17 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
             process.OutputDataReceived += (_, args) =>
             {
                 if (args.Data is not null)
-                    _logger.LogInformation($"[{discovered.ModuleId}] {args.Data}");
+                    _logger.LogInformation("[{ModuleId}] {Line}", SanitizeForLog(discovered.ModuleId), SanitizeForLog(args.Data));
             };
             process.ErrorDataReceived += (_, args) =>
             {
                 if (args.Data is not null)
-                    _logger.LogError($"[{discovered.ModuleId}] STDERR: {args.Data}");
+                    _logger.LogError("[{ModuleId}] STDERR: {Line}", SanitizeForLog(discovered.ModuleId), SanitizeForLog(args.Data));
             };
             process.ErrorDataReceived += (_, args) =>
             {
                 if (args.Data is not null)
-                    _logger.LogError("[{ModuleId}] STDERR: {Line}", discovered.ModuleId, args.Data);
+                    _logger.LogError("[{ModuleId}] STDERR: {Line}", SanitizeForLog(discovered.ModuleId), SanitizeForLog(args.Data));
             };
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
@@ -427,6 +427,13 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
             _logger.LogError(ex, "Failed to spawn process for module {ModuleId}", discovered.ModuleId);
             return null;
         }
+    }
+
+    private static string SanitizeForLog(string value)
+    {
+        return value
+            .Replace("\r", "\\r", StringComparison.Ordinal)
+            .Replace("\n", "\\n", StringComparison.Ordinal);
     }
 
     /// <summary>Copies an environment variable from the current process to the child
