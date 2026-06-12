@@ -74,7 +74,8 @@ internal sealed class AdminModuleService : IAdminModuleService
         module.Status = "Enabled";
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        _logger.LogInformation("Module {ModuleId} started", moduleId);
+        var sanitizedModuleId = SanitizeForLog(moduleId);
+        _logger.LogInformation("Module {ModuleId} started", sanitizedModuleId);
         return true;
     }
 
@@ -102,8 +103,20 @@ internal sealed class AdminModuleService : IAdminModuleService
         module.Status = "Disabled";
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        _logger.LogInformation("Module {ModuleId} stopped", moduleId);
+        var sanitizedModuleId = SanitizeForLog(moduleId);
+        _logger.LogInformation("Module {ModuleId} stopped", sanitizedModuleId);
         return true;
+    }
+
+    private static string SanitizeForLog(string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return string.Empty;
+        }
+
+        return value.Replace("\r", "\\r", StringComparison.Ordinal)
+            .Replace("\n", "\\n", StringComparison.Ordinal);
     }
 
     /// <inheritdoc/>
