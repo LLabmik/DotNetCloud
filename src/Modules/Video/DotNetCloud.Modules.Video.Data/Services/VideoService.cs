@@ -120,7 +120,7 @@ public sealed class VideoService : IVideoService
 
         await _eventBus.PublishAsync(new VideoAddedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             VideoId = userVideo.Id,
             FileNodeId = fileNodeId,
@@ -130,7 +130,7 @@ public sealed class VideoService : IVideoService
 
         await _eventBus.PublishAsync(new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ModuleId = "video",
             EntityId = userVideo.Id.ToString(),
@@ -359,7 +359,7 @@ public sealed class VideoService : IVideoService
 
         await _eventBus.PublishAsync(new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ModuleId = "video",
             EntityId = videoId.ToString(),

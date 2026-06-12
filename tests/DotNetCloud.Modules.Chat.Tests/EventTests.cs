@@ -13,7 +13,7 @@ namespace DotNetCloud.Modules.Chat.Tests;
 [TestClass]
 public class EventTests
 {
-    private static readonly Guid TestEventId = Guid.NewGuid();
+    private static readonly Guid TestEventId = Guid.CreateVersion7();
     private static readonly DateTime TestTime = DateTime.UtcNow;
 
     [TestMethod]
@@ -23,9 +23,9 @@ public class EventTests
         {
             EventId = TestEventId,
             CreatedAt = TestTime,
-            MessageId = Guid.NewGuid(),
-            ChannelId = Guid.NewGuid(),
-            SenderUserId = Guid.NewGuid(),
+            MessageId = Guid.CreateVersion7(),
+            ChannelId = Guid.CreateVersion7(),
+            SenderUserId = Guid.CreateVersion7(),
             Content = "Hello",
             MessageType = "Text"
         };
@@ -42,9 +42,9 @@ public class EventTests
         {
             EventId = TestEventId,
             CreatedAt = TestTime,
-            MessageId = Guid.NewGuid(),
-            ChannelId = Guid.NewGuid(),
-            EditedByUserId = Guid.NewGuid(),
+            MessageId = Guid.CreateVersion7(),
+            ChannelId = Guid.CreateVersion7(),
+            EditedByUserId = Guid.CreateVersion7(),
             NewContent = "Updated"
         };
 
@@ -58,9 +58,9 @@ public class EventTests
         {
             EventId = TestEventId,
             CreatedAt = TestTime,
-            MessageId = Guid.NewGuid(),
-            ChannelId = Guid.NewGuid(),
-            DeletedByUserId = Guid.NewGuid()
+            MessageId = Guid.CreateVersion7(),
+            ChannelId = Guid.CreateVersion7(),
+            DeletedByUserId = Guid.CreateVersion7()
         };
 
         Assert.IsInstanceOfType<IEvent>(evt);
@@ -73,10 +73,10 @@ public class EventTests
         {
             EventId = TestEventId,
             CreatedAt = TestTime,
-            ChannelId = Guid.NewGuid(),
+            ChannelId = Guid.CreateVersion7(),
             ChannelName = "general",
             ChannelType = "Public",
-            CreatedByUserId = Guid.NewGuid()
+            CreatedByUserId = Guid.CreateVersion7()
         };
 
         Assert.IsInstanceOfType<IEvent>(evt);
@@ -89,9 +89,9 @@ public class EventTests
         {
             EventId = TestEventId,
             CreatedAt = TestTime,
-            ChannelId = Guid.NewGuid(),
+            ChannelId = Guid.CreateVersion7(),
             ChannelName = "old-channel",
-            DeletedByUserId = Guid.NewGuid()
+            DeletedByUserId = Guid.CreateVersion7()
         };
 
         Assert.IsInstanceOfType<IEvent>(evt);
@@ -104,9 +104,9 @@ public class EventTests
         {
             EventId = TestEventId,
             CreatedAt = TestTime,
-            ChannelId = Guid.NewGuid(),
+            ChannelId = Guid.CreateVersion7(),
             ChannelName = "archived-channel",
-            ArchivedByUserId = Guid.NewGuid()
+            ArchivedByUserId = Guid.CreateVersion7()
         };
 
         Assert.IsInstanceOfType<IEvent>(evt);
@@ -119,9 +119,9 @@ public class EventTests
         {
             EventId = TestEventId,
             CreatedAt = TestTime,
-            ChannelId = Guid.NewGuid(),
-            UserId = Guid.NewGuid(),
-            AddedByUserId = Guid.NewGuid()
+            ChannelId = Guid.CreateVersion7(),
+            UserId = Guid.CreateVersion7(),
+            AddedByUserId = Guid.CreateVersion7()
         };
 
         Assert.IsInstanceOfType<IEvent>(evt);
@@ -134,9 +134,9 @@ public class EventTests
         {
             EventId = TestEventId,
             CreatedAt = TestTime,
-            ChannelId = Guid.NewGuid(),
-            UserId = Guid.NewGuid(),
-            RemovedByUserId = Guid.NewGuid()
+            ChannelId = Guid.CreateVersion7(),
+            UserId = Guid.CreateVersion7(),
+            RemovedByUserId = Guid.CreateVersion7()
         };
 
         Assert.IsInstanceOfType<IEvent>(evt);
@@ -149,9 +149,9 @@ public class EventTests
         {
             EventId = TestEventId,
             CreatedAt = TestTime,
-            MessageId = Guid.NewGuid(),
-            ChannelId = Guid.NewGuid(),
-            UserId = Guid.NewGuid(),
+            MessageId = Guid.CreateVersion7(),
+            ChannelId = Guid.CreateVersion7(),
+            UserId = Guid.CreateVersion7(),
             Emoji = "👍"
         };
 
@@ -165,9 +165,9 @@ public class EventTests
         {
             EventId = TestEventId,
             CreatedAt = TestTime,
-            MessageId = Guid.NewGuid(),
-            ChannelId = Guid.NewGuid(),
-            UserId = Guid.NewGuid(),
+            MessageId = Guid.CreateVersion7(),
+            ChannelId = Guid.CreateVersion7(),
+            UserId = Guid.CreateVersion7(),
             Emoji = "👍"
         };
 
@@ -194,11 +194,11 @@ public class EventHandlerTests
         var handler = new MessageSentEventHandler(NullLogger<MessageSentEventHandler>.Instance);
         var evt = new MessageSentEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            MessageId = Guid.NewGuid(),
-            ChannelId = Guid.NewGuid(),
-            SenderUserId = Guid.NewGuid(),
+            MessageId = Guid.CreateVersion7(),
+            ChannelId = Guid.CreateVersion7(),
+            SenderUserId = Guid.CreateVersion7(),
             Content = "test message",
             MessageType = "Text"
         };
@@ -219,12 +219,12 @@ public class EventHandlerTests
         var handler = new ChannelCreatedEventHandler(new Mock<IChatMessageNotifier>().Object, NullLogger<ChannelCreatedEventHandler>.Instance);
         var evt = new ChannelCreatedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            ChannelId = Guid.NewGuid(),
+            ChannelId = Guid.CreateVersion7(),
             ChannelName = "test-channel",
             ChannelType = "Public",
-            CreatedByUserId = Guid.NewGuid()
+            CreatedByUserId = Guid.CreateVersion7()
         };
 
         await handler.HandleAsync(evt);
@@ -237,11 +237,11 @@ public class EventHandlerTests
         using var cts = new CancellationTokenSource();
         var evt = new MessageSentEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            MessageId = Guid.NewGuid(),
-            ChannelId = Guid.NewGuid(),
-            SenderUserId = Guid.NewGuid(),
+            MessageId = Guid.CreateVersion7(),
+            ChannelId = Guid.CreateVersion7(),
+            SenderUserId = Guid.CreateVersion7(),
             Content = "test",
             MessageType = "Text"
         };
@@ -256,12 +256,12 @@ public class EventHandlerTests
         using var cts = new CancellationTokenSource();
         var evt = new ChannelCreatedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            ChannelId = Guid.NewGuid(),
+            ChannelId = Guid.CreateVersion7(),
             ChannelName = "test",
             ChannelType = "Public",
-            CreatedByUserId = Guid.NewGuid()
+            CreatedByUserId = Guid.CreateVersion7()
         };
 
         await handler.HandleAsync(evt, cts.Token);

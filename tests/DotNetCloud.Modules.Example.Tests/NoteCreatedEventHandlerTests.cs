@@ -28,11 +28,11 @@ public class NoteCreatedEventHandlerTests
 
         var @event = new NoteCreatedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            NoteId = Guid.NewGuid(),
+            NoteId = Guid.CreateVersion7(),
             Title = "Test Note",
-            CreatedByUserId = Guid.NewGuid()
+            CreatedByUserId = Guid.CreateVersion7()
         };
 
         // Should not throw
@@ -47,11 +47,11 @@ public class NoteCreatedEventHandlerTests
 
         var @event = new NoteCreatedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            NoteId = Guid.NewGuid(),
+            NoteId = Guid.CreateVersion7(),
             Title = "Logged Note",
-            CreatedByUserId = Guid.NewGuid()
+            CreatedByUserId = Guid.CreateVersion7()
         };
 
         await handler.HandleAsync(@event);
@@ -73,11 +73,11 @@ public class NoteCreatedEventHandlerTests
 
         var @event = new NoteCreatedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            NoteId = Guid.NewGuid(),
+            NoteId = Guid.CreateVersion7(),
             Title = "Test",
-            CreatedByUserId = Guid.NewGuid()
+            CreatedByUserId = Guid.CreateVersion7()
         };
 
         using var cts = new CancellationTokenSource();

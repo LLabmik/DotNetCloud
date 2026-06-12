@@ -65,7 +65,7 @@ public sealed class LocalChatImageStore : IChatImageStore
             throw new ArgumentException($"Unsupported image type: {contentType}", nameof(contentType));
 
         var ext = MimeToExtension.GetValueOrDefault(normalizedMime, ".png");
-        var storedName = $"{Guid.NewGuid():N}{ext}";
+        var storedName = $"{Guid.CreateVersion7():N}{ext}";
         var fullPath = Path.Combine(_uploadDir, storedName);
 
         await File.WriteAllBytesAsync(fullPath, data, cancellationToken);

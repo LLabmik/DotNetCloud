@@ -8,7 +8,7 @@ namespace DotNetCloud.Modules.Calendar.Models;
 public sealed class EventAttendee
 {
     /// <summary>Unique identifier for this attendee record.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>The event this attendee belongs to.</summary>
     public Guid EventId { get; set; }

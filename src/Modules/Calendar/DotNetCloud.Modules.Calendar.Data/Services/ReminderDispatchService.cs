@@ -231,7 +231,7 @@ public sealed class ReminderDispatchService : BackgroundService
             // Publish calendar-specific reminder event
             await eventBus.PublishAsync(new CalendarReminderTriggeredEvent
             {
-                EventId = Guid.NewGuid(),
+                EventId = Guid.CreateVersion7(),
                 CreatedAt = DateTime.UtcNow,
                 CalendarEventId = evt.Id,
                 UserId = ownerId,
@@ -242,7 +242,7 @@ public sealed class ReminderDispatchService : BackgroundService
             // Publish cross-module reminder event (core handler sends push notification)
             await eventBus.PublishAsync(new ReminderTriggeredEvent
             {
-                EventId = Guid.NewGuid(),
+                EventId = Guid.CreateVersion7(),
                 CreatedAt = DateTime.UtcNow,
                 UserId = ownerId,
                 SourceModuleId = "dotnetcloud.calendar",

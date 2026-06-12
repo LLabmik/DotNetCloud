@@ -170,7 +170,7 @@ public class ModuleInterfaceTests
     {
         // Arrange
         var moduleId = "test.module";
-        var systemCallerId = Guid.NewGuid();
+        var systemCallerId = Guid.CreateVersion7();
         var systemCaller = new DotNetCloud.Core.Authorization.CallerContext(
             systemCallerId,
             Array.Empty<string>(),
@@ -194,7 +194,7 @@ public class ModuleInterfaceTests
     {
         // Arrange
         var mockServices = new Mock<IServiceProvider>();
-        var systemCallerId = Guid.NewGuid();
+        var systemCallerId = Guid.CreateVersion7();
         var systemCaller = new DotNetCloud.Core.Authorization.CallerContext(
             systemCallerId,
             Array.Empty<string>(),
@@ -218,7 +218,7 @@ public class ModuleInterfaceTests
     {
         // Arrange
         var config = new Dictionary<string, object> { { "key", "value" } };
-        var systemCallerId = Guid.NewGuid();
+        var systemCallerId = Guid.CreateVersion7();
         var systemCaller = new DotNetCloud.Core.Authorization.CallerContext(
             systemCallerId,
             Array.Empty<string>(),

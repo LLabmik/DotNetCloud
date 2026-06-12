@@ -33,7 +33,7 @@ public class HostTransferServiceTests
     public void Setup()
     {
         var options = new DbContextOptionsBuilder<ChatDbContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(databaseName: Guid.CreateVersion7().ToString())
             .Options;
 
         _db = new ChatDbContext(options);
@@ -54,8 +54,8 @@ public class HostTransferServiceTests
             _messageNotifierMock.Object,
             channelMemberService: _channelMemberMock.Object);
 
-        _hostCaller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
-        _channelId = Guid.NewGuid();
+        _hostCaller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
+        _channelId = Guid.CreateVersion7();
 
         // Seed a channel with the host as owner
         _db.Channels.Add(new Channel
@@ -76,7 +76,7 @@ public class HostTransferServiceTests
     }
 
     private CallerContext CreateCaller(Guid? userId = null) =>
-        new(userId ?? Guid.NewGuid(), ["user"], CallerType.User);
+        new(userId ?? Guid.CreateVersion7(), ["user"], CallerType.User);
 
     private void SeedChannelMember(Guid channelId, Guid userId)
     {
@@ -87,7 +87,7 @@ public class HostTransferServiceTests
     /// <summary>Creates a call with host + one joiner, both active. Returns (callDto, joinerCaller).</summary>
     private async Task<(VideoCallDto Call, CallerContext Joiner)> CreateActiveCallWithTwoParticipantsAsync()
     {
-        SeedChannelMember(_channelId, Guid.NewGuid()); // need >= 2 members for non-group
+        SeedChannelMember(_channelId, Guid.CreateVersion7()); // need >= 2 members for non-group
         var call = await _service.InitiateCallAsync(_channelId, new StartCallRequest { MediaType = "Video" }, _hostCaller);
         var joiner = CreateCaller();
         SeedChannelMember(_channelId, joiner.UserId);
@@ -98,8 +98,8 @@ public class HostTransferServiceTests
     /// <summary>Creates a call with host + two joiners, all active. Returns (callDto, joiner1, joiner2).</summary>
     private async Task<(VideoCallDto Call, CallerContext Joiner1, CallerContext Joiner2)> CreateActiveCallWithThreeParticipantsAsync()
     {
-        SeedChannelMember(_channelId, Guid.NewGuid());
-        SeedChannelMember(_channelId, Guid.NewGuid());
+        SeedChannelMember(_channelId, Guid.CreateVersion7());
+        SeedChannelMember(_channelId, Guid.CreateVersion7());
         var call = await _service.InitiateCallAsync(_channelId, new StartCallRequest { MediaType = "Video" }, _hostCaller);
         var joiner1 = CreateCaller();
         SeedChannelMember(_channelId, joiner1.UserId);
@@ -299,14 +299,14 @@ public class HostTransferServiceTests
     public async Task TransferHostAsync_NonexistentCall_ThrowsInvalidOperationException()
     {
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
-            _service.TransferHostAsync(Guid.NewGuid(), Guid.NewGuid(), _hostCaller));
+            _service.TransferHostAsync(Guid.CreateVersion7(), Guid.CreateVersion7(), _hostCaller));
     }
 
     [TestMethod]
     public async Task TransferHostAsync_NullCaller_ThrowsArgumentNullException()
     {
         await Assert.ThrowsExactlyAsync<ArgumentNullException>(() =>
-            _service.TransferHostAsync(Guid.NewGuid(), Guid.NewGuid(), null!));
+            _service.TransferHostAsync(Guid.CreateVersion7(), Guid.CreateVersion7(), null!));
     }
 
     [TestMethod]
@@ -315,7 +315,7 @@ public class HostTransferServiceTests
         var (call, _) = await CreateActiveCallWithTwoParticipantsAsync();
 
         // Add an invited-but-not-joined participant directly
-        var invitedUser = Guid.NewGuid();
+        var invitedUser = Guid.CreateVersion7();
         _db.CallParticipants.Add(new CallParticipant
         {
             VideoCallId = call.Id,
@@ -613,12 +613,12 @@ public class HostTransferServiceTests
     {
         var evt = new CallHostTransferredEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            CallId = Guid.NewGuid(),
-            ChannelId = Guid.NewGuid(),
-            PreviousHostUserId = Guid.NewGuid(),
-            NewHostUserId = Guid.NewGuid()
+            CallId = Guid.CreateVersion7(),
+            ChannelId = Guid.CreateVersion7(),
+            PreviousHostUserId = Guid.CreateVersion7(),
+            NewHostUserId = Guid.CreateVersion7()
         };
 
         Assert.AreNotEqual(Guid.Empty, evt.EventId);
@@ -634,12 +634,12 @@ public class HostTransferServiceTests
     {
         var evt = new CallHostTransferredEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            CallId = Guid.NewGuid(),
-            ChannelId = Guid.NewGuid(),
-            PreviousHostUserId = Guid.NewGuid(),
-            NewHostUserId = Guid.NewGuid()
+            CallId = Guid.CreateVersion7(),
+            ChannelId = Guid.CreateVersion7(),
+            PreviousHostUserId = Guid.CreateVersion7(),
+            NewHostUserId = Guid.CreateVersion7()
         };
 
         Assert.IsInstanceOfType<IEvent>(evt);
@@ -652,10 +652,10 @@ public class HostTransferServiceTests
     [TestMethod]
     public void CallHostTransferredNotification_StoresCorrectValues()
     {
-        var callId = Guid.NewGuid();
-        var channelId = Guid.NewGuid();
-        var prev = Guid.NewGuid();
-        var next = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
+        var channelId = Guid.CreateVersion7();
+        var prev = Guid.CreateVersion7();
+        var next = Guid.CreateVersion7();
 
         var notification = new CallHostTransferredNotification(callId, channelId, prev, next);
 
@@ -672,7 +672,7 @@ public class HostTransferServiceTests
     [TestMethod]
     public void TransferHostRequest_StoresUserId()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var request = new TransferHostRequest { UserId = userId };
         Assert.AreEqual(userId, request.UserId);
     }
@@ -685,7 +685,7 @@ public class HostTransferServiceTests
     public async Task FullLifecycle_InitiateJoinTransferLeaveEnd()
     {
         // 1. Host initiates call
-        SeedChannelMember(_channelId, Guid.NewGuid());
+        SeedChannelMember(_channelId, Guid.CreateVersion7());
         var call = await _service.InitiateCallAsync(_channelId, new StartCallRequest { MediaType = "Video" }, _hostCaller);
         Assert.AreEqual(_hostCaller.UserId, call.HostUserId);
 
@@ -779,9 +779,9 @@ public class HostTransferServiceTests
             .ReturnsAsync("test-room");
 
         // 4 participants: host, j1, j2, j3
-        SeedChannelMember(_channelId, Guid.NewGuid());
-        SeedChannelMember(_channelId, Guid.NewGuid());
-        SeedChannelMember(_channelId, Guid.NewGuid());
+        SeedChannelMember(_channelId, Guid.CreateVersion7());
+        SeedChannelMember(_channelId, Guid.CreateVersion7());
+        SeedChannelMember(_channelId, Guid.CreateVersion7());
 
         var call = await _service.InitiateCallAsync(_channelId, new StartCallRequest { MediaType = "Video" }, _hostCaller);
 

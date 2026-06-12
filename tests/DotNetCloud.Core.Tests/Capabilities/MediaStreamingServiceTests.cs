@@ -23,7 +23,7 @@ public class MediaStreamingServiceTests
     {
         // Arrange
         var mock = new Mock<IMediaStreamingService>();
-        var fileNodeId = Guid.NewGuid();
+        var fileNodeId = Guid.CreateVersion7();
         var stream = new MemoryStream(new byte[100]);
 
         mock.Setup(x => x.OpenStreamAsync(fileNodeId, 0, 99, It.IsAny<CancellationToken>()))

@@ -6,7 +6,7 @@ namespace DotNetCloud.Modules.Video.Models;
 public sealed class WatchHistory
 {
     /// <summary>Unique identifier.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>The user who watched the video.</summary>
     public Guid UserId { get; set; }

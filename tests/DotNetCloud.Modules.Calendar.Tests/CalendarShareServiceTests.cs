@@ -27,14 +27,14 @@ public class CalendarShareServiceTests
     public void Setup()
     {
         var options = new DbContextOptionsBuilder<CalendarDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options;
         _db = new CalendarDbContext(options);
         _eventBusMock = new Mock<IEventBus>();
         _calendarService = new CalendarService(_db, _eventBusMock.Object, Mock.Of<DotNetCloud.Core.Capabilities.IOrganizationDirectory>(), NullLogger<CalendarService>.Instance);
         _shareService = new CalendarShareService(_db, _eventBusMock.Object, NullLogger<CalendarShareService>.Instance);
-        _owner = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
-        _otherUser = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        _owner = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
+        _otherUser = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
     }
 
     [TestCleanup]
@@ -61,7 +61,7 @@ public class CalendarShareServiceTests
     {
         var calendar = await _calendarService.CreateCalendarAsync(
             new CreateCalendarDto { Name = "Team Calendar" }, _owner);
-        var teamId = Guid.NewGuid();
+        var teamId = Guid.CreateVersion7();
 
         var share = await _shareService.ShareCalendarAsync(
             calendar.Id, null, teamId, CalendarSharePermission.ReadWrite, _owner);
@@ -77,7 +77,7 @@ public class CalendarShareServiceTests
     {
         await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
             () => _shareService.ShareCalendarAsync(
-                Guid.NewGuid(), _otherUser.UserId, null, CalendarSharePermission.ReadOnly, _owner));
+                Guid.CreateVersion7(), _otherUser.UserId, null, CalendarSharePermission.ReadOnly, _owner));
     }
 
     [TestMethod]
@@ -88,7 +88,7 @@ public class CalendarShareServiceTests
 
         await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
             () => _shareService.ShareCalendarAsync(
-                calendar.Id, Guid.NewGuid(), null, CalendarSharePermission.ReadOnly, _otherUser));
+                calendar.Id, Guid.CreateVersion7(), null, CalendarSharePermission.ReadOnly, _otherUser));
     }
 
     [TestMethod]
@@ -125,7 +125,7 @@ public class CalendarShareServiceTests
         await _shareService.ShareCalendarAsync(
             calendar.Id, _otherUser.UserId, null, CalendarSharePermission.ReadOnly, _owner);
         await _shareService.ShareCalendarAsync(
-            calendar.Id, null, Guid.NewGuid(), CalendarSharePermission.ReadWrite, _owner);
+            calendar.Id, null, Guid.CreateVersion7(), CalendarSharePermission.ReadWrite, _owner);
 
         var shares = await _shareService.ListSharesAsync(calendar.Id, _owner);
 

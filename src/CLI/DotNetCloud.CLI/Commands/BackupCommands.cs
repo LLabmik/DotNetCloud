@@ -328,7 +328,7 @@ internal static class BackupCommands
             if (hasDbDump && ConsoleOutput.PromptConfirm("A database dump was found in this backup. Restore database now?"))
             {
                 var dumpEntry = archive.GetEntry("database.sql")!;
-                var tempDumpPath = Path.Combine(Path.GetTempPath(), $"dotnetcloud-restore-{Guid.NewGuid():N}.sql");
+                var tempDumpPath = Path.Combine(Path.GetTempPath(), $"dotnetcloud-restore-{Guid.CreateVersion7():N}.sql");
 
                 try
                 {

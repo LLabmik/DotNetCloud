@@ -32,12 +32,12 @@ public class IndexingPipelineIntegrationTests
     public void Setup()
     {
         var options = new DbContextOptionsBuilder<SearchDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options;
         _db = new SearchDbContext(options);
 
         _provider = new SqlServerSearchProvider(_db, NullLogger<SqlServerSearchProvider>.Instance);
-        _userId = Guid.NewGuid();
+        _userId = Guid.CreateVersion7();
 
         _filesModuleMock = new Mock<ISearchableModule>();
         _filesModuleMock.Setup(m => m.ModuleId).Returns("files");
@@ -65,7 +65,7 @@ public class IndexingPipelineIntegrationTests
             });
 
         var services = new ServiceCollection();
-        services.AddDbContext<SearchDbContext>(o => o.UseInMemoryDatabase(Guid.NewGuid().ToString()));
+        services.AddDbContext<SearchDbContext>(o => o.UseInMemoryDatabase(Guid.CreateVersion7().ToString()));
         services.AddScoped<ISearchProvider>(_ => _provider);
         services.AddScoped<ISearchableModule>(_ => _filesModuleMock.Object);
         services.AddScoped<ISearchableModule>(_ => _notesModuleMock.Object);
@@ -112,7 +112,7 @@ public class IndexingPipelineIntegrationTests
 
         await _eventHandler.HandleAsync(new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ModuleId = "files",
             EntityId = "new-file",
@@ -162,7 +162,7 @@ public class IndexingPipelineIntegrationTests
         // 3. Fire Remove event
         await _eventHandler.HandleAsync(new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ModuleId = "files",
             EntityId = "to-delete",
@@ -199,7 +199,7 @@ public class IndexingPipelineIntegrationTests
         // Index from files module
         await _eventHandler.HandleAsync(new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ModuleId = "files",
             EntityId = "f1",
@@ -209,7 +209,7 @@ public class IndexingPipelineIntegrationTests
         // Index from notes module
         await _eventHandler.HandleAsync(new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ModuleId = "notes",
             EntityId = "n1",
@@ -247,7 +247,7 @@ public class IndexingPipelineIntegrationTests
         _indexingService.Start();
         await _eventHandler.HandleAsync(new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ModuleId = "notes",
             EntityId = "n1",
@@ -263,7 +263,7 @@ public class IndexingPipelineIntegrationTests
 
         await _eventHandler.HandleAsync(new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ModuleId = "notes",
             EntityId = "n1",
@@ -314,7 +314,7 @@ public class IndexingPipelineIntegrationTests
         // Send Index event for deleted entity
         await _eventHandler.HandleAsync(new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ModuleId = "files",
             EntityId = "deleted",
@@ -387,7 +387,7 @@ public class IndexingPipelineIntegrationTests
         // Three successful operations
         await _eventHandler.HandleAsync(new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ModuleId = "files",
             EntityId = "f1",

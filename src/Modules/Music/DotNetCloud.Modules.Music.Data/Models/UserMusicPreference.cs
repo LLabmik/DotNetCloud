@@ -6,7 +6,7 @@ namespace DotNetCloud.Modules.Music.Models;
 public sealed class UserMusicPreference
 {
     /// <summary>Unique identifier.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>The user ID.</summary>
     public Guid UserId { get; set; }

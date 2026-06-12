@@ -62,7 +62,7 @@ public class ClosedSystemIntegrationTests
         string password = "TestP@ssw0rd!",
         bool passwordChangeRequired = false)
     {
-        var email = $"{emailPrefix}-{Guid.NewGuid():N}@test.local";
+        var email = $"{emailPrefix}-{Guid.CreateVersion7():N}@test.local";
         using var scope = _factory.Services.CreateScope();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
         var user = new ApplicationUserBuilder()
@@ -83,7 +83,7 @@ public class ClosedSystemIntegrationTests
     {
         // Arrange
         var request = new RegisterRequestBuilder()
-            .WithEmail($"selfreg-{Guid.NewGuid():N}@test.local")
+            .WithEmail($"selfreg-{Guid.CreateVersion7():N}@test.local")
             .WithPassword("TestP@ssw0rd!")
             .WithDisplayName("Self Registrant")
             .Build();
@@ -198,7 +198,7 @@ public class ClosedSystemIntegrationTests
         }
 
         var request = new RegisterRequestBuilder()
-            .WithEmail($"normalreg-{Guid.NewGuid():N}@test.local")
+            .WithEmail($"normalreg-{Guid.CreateVersion7():N}@test.local")
             .WithPassword("TestP@ssw0rd!")
             .WithDisplayName("Normal Registrant")
             .Build();

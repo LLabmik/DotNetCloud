@@ -6,7 +6,7 @@ namespace DotNetCloud.Modules.Video.Models;
 public sealed class VideoSeries
 {
     /// <summary>Unique identifier for this series.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>The user who owns this series.</summary>
     public Guid OwnerId { get; set; }

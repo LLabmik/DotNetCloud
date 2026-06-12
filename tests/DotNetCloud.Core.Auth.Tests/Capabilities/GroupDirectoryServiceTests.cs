@@ -25,7 +25,7 @@ public class GroupDirectoryServiceTests
     public async Task SetupAsync()
     {
         var options = new DbContextOptionsBuilder<CoreDbContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(databaseName: Guid.CreateVersion7().ToString())
             .Options;
 
         _dbContext = new CoreDbContext(options, new PostgreSqlNamingStrategy());
@@ -33,14 +33,14 @@ public class GroupDirectoryServiceTests
 
         _organization = new Organization
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             Name = "Acme",
             CreatedAt = DateTime.UtcNow
         };
 
         _alice = new ApplicationUser
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             UserName = "alice",
             Email = "alice@example.com",
             DisplayName = "Alice",
@@ -49,7 +49,7 @@ public class GroupDirectoryServiceTests
 
         _bob = new ApplicationUser
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             UserName = "bob",
             Email = "bob@example.com",
             DisplayName = "Bob",
@@ -58,7 +58,7 @@ public class GroupDirectoryServiceTests
 
         _editorsGroup = new Group
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             OrganizationId = _organization.Id,
             Name = "Editors",
             Description = "Editorial permissions",
@@ -67,7 +67,7 @@ public class GroupDirectoryServiceTests
 
         _allUsersGroup = new Group
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             OrganizationId = _organization.Id,
             Name = Group.AllUsersGroupName,
             Description = "Built-in group containing all active organization members.",
@@ -77,7 +77,7 @@ public class GroupDirectoryServiceTests
 
         var reviewersGroup = new Group
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             OrganizationId = _organization.Id,
             Name = "Reviewers",
             CreatedAt = DateTime.UtcNow.AddMinutes(1)
@@ -156,7 +156,7 @@ public class GroupDirectoryServiceTests
     [TestMethod]
     public async Task GetGroupAsync_WhenGroupMissing_ReturnsNull()
     {
-        var result = await _service.GetGroupAsync(Guid.NewGuid());
+        var result = await _service.GetGroupAsync(Guid.CreateVersion7());
 
         Assert.IsNull(result);
     }

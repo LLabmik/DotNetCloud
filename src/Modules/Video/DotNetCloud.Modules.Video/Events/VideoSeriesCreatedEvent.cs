@@ -8,7 +8,7 @@ namespace DotNetCloud.Modules.Video.Events;
 public sealed record VideoSeriesCreatedEvent : IEvent
 {
     /// <inheritdoc />
-    public Guid EventId { get; init; } = Guid.NewGuid();
+    public Guid EventId { get; init; } = Guid.CreateVersion7();
 
     /// <inheritdoc />
     public DateTime CreatedAt { get; init; } = DateTime.UtcNow;

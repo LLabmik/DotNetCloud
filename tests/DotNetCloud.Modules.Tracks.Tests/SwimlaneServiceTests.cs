@@ -24,7 +24,7 @@ public class SwimlaneServiceTests
     [TestMethod]
     public async Task CreateSwimlaneAsync_CreatesSwimlaneOnProduct()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
         var dto = new CreateSwimlaneDto { Title = "To Do" };
 
         var result = await _service.CreateSwimlaneAsync(SwimlaneContainerType.Product, product.Id, dto, CancellationToken.None);
@@ -37,7 +37,7 @@ public class SwimlaneServiceTests
     [TestMethod]
     public async Task GetSwimlanesAsync_ReturnsSwimlanesForContainer()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
         await _service.CreateSwimlaneAsync(SwimlaneContainerType.Product, product.Id, new CreateSwimlaneDto { Title = "A" }, CancellationToken.None);
         await _service.CreateSwimlaneAsync(SwimlaneContainerType.Product, product.Id, new CreateSwimlaneDto { Title = "B" }, CancellationToken.None);
 
@@ -49,7 +49,7 @@ public class SwimlaneServiceTests
     [TestMethod]
     public async Task UpdateSwimlaneAsync_UpdatesTitle()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
         var created = await _service.CreateSwimlaneAsync(SwimlaneContainerType.Product, product.Id, new CreateSwimlaneDto { Title = "Old" }, CancellationToken.None);
         var dto = new UpdateSwimlaneDto { Title = "New" };
 
@@ -61,7 +61,7 @@ public class SwimlaneServiceTests
     [TestMethod]
     public async Task DeleteSwimlaneAsync_DeletesSwimlane()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
         var created = await _service.CreateSwimlaneAsync(SwimlaneContainerType.Product, product.Id, new CreateSwimlaneDto { Title = "To Delete" }, CancellationToken.None);
 
         await _service.DeleteSwimlaneAsync(created.Id, CancellationToken.None);
@@ -73,7 +73,7 @@ public class SwimlaneServiceTests
     [TestMethod]
     public async Task ReorderSwimlanesAsync_UpdatesPositions()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
         var a = await _service.CreateSwimlaneAsync(SwimlaneContainerType.Product, product.Id, new CreateSwimlaneDto { Title = "A" }, CancellationToken.None);
         var b = await _service.CreateSwimlaneAsync(SwimlaneContainerType.Product, product.Id, new CreateSwimlaneDto { Title = "B" }, CancellationToken.None);
 

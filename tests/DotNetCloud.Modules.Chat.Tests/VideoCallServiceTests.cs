@@ -33,7 +33,7 @@ public class VideoCallServiceTests
     public void Setup()
     {
         var options = new DbContextOptionsBuilder<ChatDbContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(databaseName: Guid.CreateVersion7().ToString())
             .Options;
 
         _db = new ChatDbContext(options);
@@ -52,8 +52,8 @@ public class VideoCallServiceTests
             _realtimeMock.Object,
             _messageNotifierMock.Object);
 
-        _caller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
-        _channelId = Guid.NewGuid();
+        _caller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
+        _channelId = Guid.CreateVersion7();
 
         // Seed a channel with two members
         _db.Channels.Add(new Channel
@@ -64,7 +64,7 @@ public class VideoCallServiceTests
             CreatedByUserId = _caller.UserId
         });
         _db.ChannelMembers.Add(new ChannelMember { ChannelId = _channelId, UserId = _caller.UserId, Role = ChannelMemberRole.Owner });
-        _db.ChannelMembers.Add(new ChannelMember { ChannelId = _channelId, UserId = Guid.NewGuid(), Role = ChannelMemberRole.Member });
+        _db.ChannelMembers.Add(new ChannelMember { ChannelId = _channelId, UserId = Guid.CreateVersion7(), Role = ChannelMemberRole.Member });
         _db.SaveChanges();
     }
 
@@ -75,7 +75,7 @@ public class VideoCallServiceTests
     }
 
     private CallerContext CreateCaller() =>
-        new(Guid.NewGuid(), ["user"], CallerType.User);
+        new(Guid.CreateVersion7(), ["user"], CallerType.User);
 
     private void SeedGroupChannel(Guid channelId, params Guid[] memberIds)
     {
@@ -155,8 +155,8 @@ public class VideoCallServiceTests
     [TestMethod]
     public async Task InitiateCallAsync_ThreeOrMoreMembers_IsGroupCallTrue()
     {
-        var groupChannelId = Guid.NewGuid();
-        SeedGroupChannel(groupChannelId, _caller.UserId, Guid.NewGuid(), Guid.NewGuid());
+        var groupChannelId = Guid.CreateVersion7();
+        SeedGroupChannel(groupChannelId, _caller.UserId, Guid.CreateVersion7(), Guid.CreateVersion7());
 
         var result = await _service.InitiateCallAsync(groupChannelId, new StartCallRequest { MediaType = "Video" }, _caller);
         Assert.IsTrue(result.IsGroupCall);
@@ -328,7 +328,7 @@ public class VideoCallServiceTests
     [TestMethod]
     public async Task JoinCallAsync_SecondJoiner_DoesNotPublishAnsweredEventAgain()
     {
-        var groupChannelId = Guid.NewGuid();
+        var groupChannelId = Guid.CreateVersion7();
         var user1 = _caller;
         var user2 = CreateCaller();
         var user3 = CreateCaller();
@@ -349,7 +349,7 @@ public class VideoCallServiceTests
     [TestMethod]
     public async Task JoinCallAsync_UpdatesMaxParticipants()
     {
-        var groupChannelId = Guid.NewGuid();
+        var groupChannelId = Guid.CreateVersion7();
         var user1 = _caller;
         var user2 = CreateCaller();
         var user3 = CreateCaller();
@@ -392,7 +392,7 @@ public class VideoCallServiceTests
     {
         var joiner = CreateCaller();
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
-            _service.JoinCallAsync(Guid.NewGuid(), new JoinCallRequest(), joiner));
+            _service.JoinCallAsync(Guid.CreateVersion7(), new JoinCallRequest(), joiner));
     }
 
     [TestMethod]
@@ -464,7 +464,7 @@ public class VideoCallServiceTests
     [TestMethod]
     public async Task LeaveCallAsync_NotLastParticipant_CallRemainsActive()
     {
-        var groupChannelId = Guid.NewGuid();
+        var groupChannelId = Guid.CreateVersion7();
         var user1 = _caller;
         var user2 = CreateCaller();
         var user3 = CreateCaller();
@@ -494,7 +494,7 @@ public class VideoCallServiceTests
     public async Task LeaveCallAsync_NonexistentCall_ThrowsInvalidOperationException()
     {
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
-            _service.LeaveCallAsync(Guid.NewGuid(), _caller));
+            _service.LeaveCallAsync(Guid.CreateVersion7(), _caller));
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -575,7 +575,7 @@ public class VideoCallServiceTests
     public async Task EndCallAsync_NonexistentCall_ThrowsInvalidOperationException()
     {
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
-            _service.EndCallAsync(Guid.NewGuid(), _caller));
+            _service.EndCallAsync(Guid.CreateVersion7(), _caller));
     }
 
     [TestMethod]
@@ -647,7 +647,7 @@ public class VideoCallServiceTests
     [TestMethod]
     public async Task RejectCallAsync_GroupCall_DoesNotEndCall()
     {
-        var groupChannelId = Guid.NewGuid();
+        var groupChannelId = Guid.CreateVersion7();
         var user1 = _caller;
         var user2 = CreateCaller();
         var user3 = CreateCaller();
@@ -677,7 +677,7 @@ public class VideoCallServiceTests
     public async Task RejectCallAsync_NonexistentCall_ThrowsInvalidOperationException()
     {
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
-            _service.RejectCallAsync(Guid.NewGuid(), _caller));
+            _service.RejectCallAsync(Guid.CreateVersion7(), _caller));
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -730,7 +730,7 @@ public class VideoCallServiceTests
     [TestMethod]
     public async Task GetCallHistoryAsync_EmptyChannel_ReturnsEmptyList()
     {
-        var history = await _service.GetCallHistoryAsync(Guid.NewGuid(), 0, 10, _caller);
+        var history = await _service.GetCallHistoryAsync(Guid.CreateVersion7(), 0, 10, _caller);
         Assert.AreEqual(0, history.Count);
     }
 
@@ -965,10 +965,10 @@ public class VideoCallServiceTests
     {
         for (int i = 0; i < 3; i++)
         {
-            var initiatorId = Guid.NewGuid();
+            var initiatorId = Guid.CreateVersion7();
             _db.VideoCalls.Add(new VideoCall
             {
-                ChannelId = Guid.NewGuid(),
+                ChannelId = Guid.CreateVersion7(),
                 InitiatorUserId = initiatorId,
                 HostUserId = initiatorId,
                 State = VideoCallState.Ringing,
@@ -1057,7 +1057,7 @@ public class VideoCallServiceTests
     [TestMethod]
     public async Task FullCallLifecycle_GroupCall_ThreeParticipants()
     {
-        var groupChannelId = Guid.NewGuid();
+        var groupChannelId = Guid.CreateVersion7();
         var user1 = _caller;
         var user2 = CreateCaller();
         var user3 = CreateCaller();
@@ -1083,10 +1083,10 @@ public class VideoCallServiceTests
     [TestMethod]
     public async Task ConcurrentCallsInDifferentChannels_Allowed()
     {
-        var channel2Id = Guid.NewGuid();
+        var channel2Id = Guid.CreateVersion7();
         _db.Channels.Add(new Channel { Id = channel2Id, Name = "Channel 2", Type = ChannelType.Public, CreatedByUserId = _caller.UserId });
         _db.ChannelMembers.Add(new ChannelMember { ChannelId = channel2Id, UserId = _caller.UserId });
-        _db.ChannelMembers.Add(new ChannelMember { ChannelId = channel2Id, UserId = Guid.NewGuid() });
+        _db.ChannelMembers.Add(new ChannelMember { ChannelId = channel2Id, UserId = Guid.CreateVersion7() });
         await _db.SaveChangesAsync();
 
         var call1 = await _service.InitiateCallAsync(_channelId, new StartCallRequest { MediaType = "Video" }, _caller);
@@ -1123,10 +1123,10 @@ public class VideoCallServiceTests
     public async Task JoinCallAsync_ThirdParticipant_NoEscalation_NullLiveKitRoom()
     {
         // P2P limit = 3, so joining as 3rd participant should NOT escalate
-        var groupChannelId = Guid.NewGuid();
+        var groupChannelId = Guid.CreateVersion7();
         var caller2 = CreateCaller();
         var caller3 = CreateCaller();
-        SeedGroupChannel(groupChannelId, _caller.UserId, caller2.UserId, caller3.UserId, Guid.NewGuid());
+        SeedGroupChannel(groupChannelId, _caller.UserId, caller2.UserId, caller3.UserId, Guid.CreateVersion7());
 
         var call = await _service.InitiateCallAsync(groupChannelId, new StartCallRequest { MediaType = "Video" }, _caller);
         await _service.JoinCallAsync(call.Id, new JoinCallRequest { WithAudio = true }, caller2);
@@ -1140,11 +1140,11 @@ public class VideoCallServiceTests
     public async Task JoinCallAsync_FourthParticipant_LiveKitNotAvailable_ThrowsInvalidOperation()
     {
         // P2P limit = 3, LiveKit NOT available → 4th should fail
-        var groupChannelId = Guid.NewGuid();
+        var groupChannelId = Guid.CreateVersion7();
         var caller2 = CreateCaller();
         var caller3 = CreateCaller();
         var caller4 = CreateCaller();
-        SeedGroupChannel(groupChannelId, _caller.UserId, caller2.UserId, caller3.UserId, caller4.UserId, Guid.NewGuid());
+        SeedGroupChannel(groupChannelId, _caller.UserId, caller2.UserId, caller3.UserId, caller4.UserId, Guid.CreateVersion7());
 
         var call = await _service.InitiateCallAsync(groupChannelId, new StartCallRequest { MediaType = "Video" }, _caller);
         await _service.JoinCallAsync(call.Id, new JoinCallRequest { WithAudio = true }, caller2);
@@ -1165,11 +1165,11 @@ public class VideoCallServiceTests
         _liveKitMock.Setup(x => x.CreateRoomAsync(It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((Guid callId, int _, CancellationToken _) => $"call-{callId}");
 
-        var groupChannelId = Guid.NewGuid();
+        var groupChannelId = Guid.CreateVersion7();
         var caller2 = CreateCaller();
         var caller3 = CreateCaller();
         var caller4 = CreateCaller();
-        SeedGroupChannel(groupChannelId, _caller.UserId, caller2.UserId, caller3.UserId, caller4.UserId, Guid.NewGuid());
+        SeedGroupChannel(groupChannelId, _caller.UserId, caller2.UserId, caller3.UserId, caller4.UserId, Guid.CreateVersion7());
 
         var call = await _service.InitiateCallAsync(groupChannelId, new StartCallRequest { MediaType = "Video" }, _caller);
         await _service.JoinCallAsync(call.Id, new JoinCallRequest { WithAudio = true }, caller2);
@@ -1188,12 +1188,12 @@ public class VideoCallServiceTests
         _liveKitMock.Setup(x => x.CreateRoomAsync(It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((Guid callId, int _, CancellationToken _) => $"call-{callId}");
 
-        var groupChannelId = Guid.NewGuid();
+        var groupChannelId = Guid.CreateVersion7();
         var caller2 = CreateCaller();
         var caller3 = CreateCaller();
         var caller4 = CreateCaller();
         var caller5 = CreateCaller();
-        SeedGroupChannel(groupChannelId, _caller.UserId, caller2.UserId, caller3.UserId, caller4.UserId, caller5.UserId, Guid.NewGuid());
+        SeedGroupChannel(groupChannelId, _caller.UserId, caller2.UserId, caller3.UserId, caller4.UserId, caller5.UserId, Guid.CreateVersion7());
 
         var call = await _service.InitiateCallAsync(groupChannelId, new StartCallRequest { MediaType = "Video" }, _caller);
         await _service.JoinCallAsync(call.Id, new JoinCallRequest { WithAudio = true }, caller2);
@@ -1216,11 +1216,11 @@ public class VideoCallServiceTests
         _liveKitMock.Setup(x => x.DeleteRoomAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        var groupChannelId = Guid.NewGuid();
+        var groupChannelId = Guid.CreateVersion7();
         var caller2 = CreateCaller();
         var caller3 = CreateCaller();
         var caller4 = CreateCaller();
-        SeedGroupChannel(groupChannelId, _caller.UserId, caller2.UserId, caller3.UserId, caller4.UserId, Guid.NewGuid());
+        SeedGroupChannel(groupChannelId, _caller.UserId, caller2.UserId, caller3.UserId, caller4.UserId, Guid.CreateVersion7());
 
         var call = await _service.InitiateCallAsync(groupChannelId, new StartCallRequest { MediaType = "Video" }, _caller);
         await _service.JoinCallAsync(call.Id, new JoinCallRequest { WithAudio = true }, caller2);
@@ -1261,11 +1261,11 @@ public class VideoCallServiceTests
         _liveKitMock.Setup(x => x.DeleteRoomAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        var groupChannelId = Guid.NewGuid();
+        var groupChannelId = Guid.CreateVersion7();
         var caller2 = CreateCaller();
         var caller3 = CreateCaller();
         var caller4 = CreateCaller();
-        SeedGroupChannel(groupChannelId, _caller.UserId, caller2.UserId, caller3.UserId, caller4.UserId, Guid.NewGuid());
+        SeedGroupChannel(groupChannelId, _caller.UserId, caller2.UserId, caller3.UserId, caller4.UserId, Guid.CreateVersion7());
 
         var call = await _service.InitiateCallAsync(groupChannelId, new StartCallRequest { MediaType = "Video" }, _caller);
         await _service.JoinCallAsync(call.Id, new JoinCallRequest { WithAudio = true }, caller2);
@@ -1293,11 +1293,11 @@ public class VideoCallServiceTests
         _liveKitMock.Setup(x => x.DeleteRoomAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new HttpRequestException("LiveKit server unreachable"));
 
-        var groupChannelId = Guid.NewGuid();
+        var groupChannelId = Guid.CreateVersion7();
         var caller2 = CreateCaller();
         var caller3 = CreateCaller();
         var caller4 = CreateCaller();
-        SeedGroupChannel(groupChannelId, _caller.UserId, caller2.UserId, caller3.UserId, caller4.UserId, Guid.NewGuid());
+        SeedGroupChannel(groupChannelId, _caller.UserId, caller2.UserId, caller3.UserId, caller4.UserId, Guid.CreateVersion7());
 
         var call = await _service.InitiateCallAsync(groupChannelId, new StartCallRequest { MediaType = "Video" }, _caller);
         await _service.JoinCallAsync(call.Id, new JoinCallRequest { WithAudio = true }, caller2);

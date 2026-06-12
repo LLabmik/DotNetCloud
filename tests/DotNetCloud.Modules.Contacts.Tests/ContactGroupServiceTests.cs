@@ -27,13 +27,13 @@ public class ContactGroupServiceTests
     public void Setup()
     {
         var options = new DbContextOptionsBuilder<ContactsDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options;
         _db = new ContactsDbContext(options);
         _eventBusMock = new Mock<IEventBus>();
         _groupService = new ContactGroupService(_db, NullLogger<ContactGroupService>.Instance);
         _contactService = new ContactService(_db, _eventBusMock.Object, NullLogger<ContactService>.Instance);
-        _caller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        _caller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
     }
 
     [TestCleanup]
@@ -73,7 +73,7 @@ public class ContactGroupServiceTests
     [TestMethod]
     public async Task ListGroups_ReturnsOwnGroups()
     {
-        var otherCaller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        var otherCaller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
         await _groupService.CreateGroupAsync("Mine", _caller);
         await _groupService.CreateGroupAsync("Theirs", otherCaller);
 

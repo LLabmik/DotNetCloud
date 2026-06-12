@@ -15,8 +15,8 @@ public class CalendarDtosTests
         // Arrange & Act
         var calendar = new CalendarDto
         {
-            Id = Guid.NewGuid(),
-            OwnerId = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
+            OwnerId = Guid.CreateVersion7(),
             Name = "Work Calendar",
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -40,9 +40,9 @@ public class CalendarDtosTests
         // Act
         var calEvent = new CalendarEventDto
         {
-            Id = Guid.NewGuid(),
-            CalendarId = Guid.NewGuid(),
-            CreatedByUserId = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
+            CalendarId = Guid.CreateVersion7(),
+            CreatedByUserId = Guid.CreateVersion7(),
             Title = "Team Standup",
             StartUtc = start,
             EndUtc = end,
@@ -105,7 +105,7 @@ public class CalendarDtosTests
         // Arrange & Act
         var attendee = new EventAttendeeDto
         {
-            UserId = Guid.NewGuid(),
+            UserId = Guid.CreateVersion7(),
             Email = "attendee@example.com",
             DisplayName = "Test User"
         };
@@ -149,7 +149,7 @@ public class CalendarDtosTests
         // Act
         var dto = new CreateCalendarEventDto
         {
-            CalendarId = Guid.NewGuid(),
+            CalendarId = Guid.CreateVersion7(),
             Title = "Meeting",
             StartUtc = start,
             EndUtc = end
@@ -199,9 +199,9 @@ public class CalendarDtosTests
         // Arrange & Act
         var calEvent = new CalendarEventDto
         {
-            Id = Guid.NewGuid(),
-            CalendarId = Guid.NewGuid(),
-            CreatedByUserId = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
+            CalendarId = Guid.CreateVersion7(),
+            CreatedByUserId = Guid.CreateVersion7(),
             Title = "Weekly Sync",
             StartUtc = DateTime.UtcNow,
             EndUtc = DateTime.UtcNow.AddHours(1),
@@ -222,9 +222,9 @@ public class CalendarDtosTests
         // Arrange
         var calEvent = new CalendarEventDto
         {
-            Id = Guid.NewGuid(),
-            CalendarId = Guid.NewGuid(),
-            CreatedByUserId = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
+            CalendarId = Guid.CreateVersion7(),
+            CreatedByUserId = Guid.CreateVersion7(),
             Title = "Original",
             StartUtc = DateTime.UtcNow,
             EndUtc = DateTime.UtcNow.AddHours(1),

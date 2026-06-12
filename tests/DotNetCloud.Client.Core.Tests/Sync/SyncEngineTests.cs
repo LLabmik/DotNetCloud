@@ -31,9 +31,9 @@ public class SyncEngineTests
 
         _context = new SyncContext
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             ServerBaseUrl = "https://cloud.example.com",
-            UserId = Guid.NewGuid(),
+            UserId = Guid.CreateVersion7(),
             LocalFolderPath = _tempDir,
             StateDatabasePath = Path.Combine(_tempDir, "state.db"),
             AccountKey = "test-account",
@@ -69,7 +69,7 @@ public class SyncEngineTests
         _apiMock.Setup(a => a.GetChangesSinceAsync(It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new PagedSyncChangesResponse { Changes = [], NextCursor = null, HasMore = false });
         _apiMock.Setup(a => a.GetNodeAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new FileNodeResponse { Id = Guid.NewGuid(), Name = "file", NodeType = "File" });
+            .ReturnsAsync(new FileNodeResponse { Id = Guid.CreateVersion7(), Name = "file", NodeType = "File" });
         _apiMock.Setup(a => a.GetFolderTreeAsync(It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new SyncTreeNodeResponse { NodeId = Guid.Empty, Name = "/", NodeType = "Folder" });
 
@@ -232,8 +232,8 @@ public class SyncEngineTests
     [TestMethod]
     public async Task SyncAsync_SelfOriginatedRemoteChangeWithDifferentHashFormat_DoesNotQueueDownload()
     {
-        var deviceId = Guid.NewGuid();
-        var nodeId = Guid.NewGuid();
+        var deviceId = Guid.CreateVersion7();
+        var nodeId = Guid.CreateVersion7();
         var localPath = Path.Combine(_tempDir, "echo-self-originated.txt");
         File.WriteAllText(localPath, "self-originated content");
 
@@ -346,7 +346,7 @@ public class SyncEngineTests
         File.WriteAllText(filePath, "hello world");
 
         var transferMock = new Mock<IChunkedTransferClient>();
-        var expectedNodeId = Guid.NewGuid();
+        var expectedNodeId = Guid.CreateVersion7();
         transferMock
             .Setup(t => t.UploadAsync(
                 It.IsAny<Guid?>(), filePath, It.IsAny<Stream>(), It.IsAny<IProgress<TransferProgress>?>(),
@@ -407,7 +407,7 @@ public class SyncEngineTests
         File.WriteAllBytes(filePath, fileContent);
 
         var transferMock = new Mock<IChunkedTransferClient>();
-        var expectedNodeId = Guid.NewGuid();
+        var expectedNodeId = Guid.CreateVersion7();
         transferMock
             .Setup(t => t.UploadAsync(
                 It.IsAny<Guid?>(), filePath, It.IsAny<Stream>(), It.IsAny<IProgress<TransferProgress>?>(),
@@ -608,7 +608,7 @@ public class SyncEngineTests
         File.WriteAllText(filePath, "stable content");
 
         var transferMock = new Mock<IChunkedTransferClient>();
-        var expectedNodeId = Guid.NewGuid();
+        var expectedNodeId = Guid.CreateVersion7();
         transferMock
             .Setup(t => t.UploadAsync(
                 It.IsAny<Guid?>(), filePath, It.IsAny<Stream>(),
@@ -658,7 +658,7 @@ public class SyncEngineTests
         File.WriteAllText(filePath, "progress test content");
 
         var transferMock = new Mock<IChunkedTransferClient>();
-        var expectedNodeId = Guid.NewGuid();
+        var expectedNodeId = Guid.CreateVersion7();
         transferMock
             .Setup(t => t.UploadAsync(
                 It.IsAny<Guid?>(), filePath, It.IsAny<Stream>(),
@@ -736,7 +736,7 @@ public class SyncEngineTests
             .Setup(t => t.UploadAsync(
                 It.IsAny<Guid?>(), filePath, It.IsAny<Stream>(), It.IsAny<IProgress<TransferProgress>?>(),
                 It.IsAny<CancellationToken>(), It.IsAny<string?>(), It.IsAny<int?>(), It.IsAny<string?>()))
-            .ReturnsAsync(new UploadResult(Guid.NewGuid(), null));
+            .ReturnsAsync(new UploadResult(Guid.CreateVersion7(), null));
 
         _stateDbMock.Setup(db => db.RemoveOperationAsync(
                 It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
@@ -780,7 +780,7 @@ public class SyncEngineTests
     {
         // Arrange: server returns two pages — page 1 (hasMore=true, cursor="page2"),
         // page 2 (hasMore=false, no cursor).
-        var nodeId = Guid.NewGuid();
+        var nodeId = Guid.CreateVersion7();
         var page1 = new PagedSyncChangesResponse
         {
             Changes = [new SyncChangeResponse { NodeId = nodeId, Name = "file.txt", NodeType = "File", UpdatedAt = DateTime.UtcNow }],
@@ -789,7 +789,7 @@ public class SyncEngineTests
         };
         var page2 = new PagedSyncChangesResponse
         {
-            Changes = [new SyncChangeResponse { NodeId = Guid.NewGuid(), Name = "file2.txt", NodeType = "File", UpdatedAt = DateTime.UtcNow }],
+            Changes = [new SyncChangeResponse { NodeId = Guid.CreateVersion7(), Name = "file2.txt", NodeType = "File", UpdatedAt = DateTime.UtcNow }],
             NextCursor = "finalcursor",
             HasMore = false,
         };
@@ -842,7 +842,7 @@ public class SyncEngineTests
         // record for the same node pointing at a non-existent path.
         // With the reconciliation fix, the engine should NOT remove the record and
         // NOT queue a download — it defers to ScanLocalDirectoryAsync to queue a PendingDelete.
-        var nodeId = Guid.NewGuid();
+        var nodeId = Guid.CreateVersion7();
         var missingPath = Path.Combine(_tempDir, "missing", "remote.txt");
 
         _apiMock.Setup(a => a.GetFolderTreeAsync(It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
@@ -911,8 +911,8 @@ public class SyncEngineTests
     [TestMethod]
     public async Task SyncAsync_RemoteChangeMissingNodeMap_UsesParentPathForDownload()
     {
-        var parentId = Guid.NewGuid();
-        var childId = Guid.NewGuid();
+        var parentId = Guid.CreateVersion7();
+        var childId = Guid.CreateVersion7();
         var expectedPath = Path.Combine(_tempDir, "Docs", "notes.txt");
 
         // Tree snapshot contains only the parent folder. The changed file is absent from the map,
@@ -991,7 +991,7 @@ public class SyncEngineTests
         var hash = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(content));
         var fileMtime = new FileInfo(filePath).LastWriteTimeUtc;
 
-        var existingNodeId = Guid.NewGuid();
+        var existingNodeId = Guid.CreateVersion7();
         _apiMock.Setup(a => a.GetNodeAsync(existingNodeId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new FileNodeResponse { Id = existingNodeId, Name = "idempotent.txt", NodeType = "File", ContentHash = hash });
 
@@ -1042,11 +1042,11 @@ public class SyncEngineTests
         var filePath = Path.Combine(_tempDir, "changed.txt");
         await File.WriteAllTextAsync(filePath, "new content");
 
-        var existingNodeId = Guid.NewGuid();
+        var existingNodeId = Guid.CreateVersion7();
         _apiMock.Setup(a => a.GetNodeAsync(existingNodeId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new FileNodeResponse { Id = existingNodeId, Name = "changed.txt", NodeType = "File", ContentHash = "oldhashhex" });
 
-        var uploadedNodeId = Guid.NewGuid();
+        var uploadedNodeId = Guid.CreateVersion7();
         var transferMock = new Mock<IChunkedTransferClient>();
         transferMock.Setup(t => t.UploadAsync(
                 It.IsAny<Guid?>(), filePath, It.IsAny<Stream>(), It.IsAny<IProgress<TransferProgress>?>(),
@@ -1085,7 +1085,7 @@ public class SyncEngineTests
         transferMock.Setup(t => t.UploadAsync(
                 null, filePath, It.IsAny<Stream>(), It.IsAny<IProgress<TransferProgress>?>(),
                 It.IsAny<CancellationToken>(), It.IsAny<string?>(), It.IsAny<int?>(), It.IsAny<string?>()))
-            .ReturnsAsync(new UploadResult(Guid.NewGuid(), null));
+            .ReturnsAsync(new UploadResult(Guid.CreateVersion7(), null));
 
         _stateDbMock.Setup(db => db.RemoveOperationAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
@@ -1185,7 +1185,7 @@ public class SyncEngineTests
     public async Task SyncAsync_PendingDownloadNotFound_MovesToFailedWithoutRetry()
     {
         var localPath = Path.Combine(_tempDir, "missing-remote-file.txt");
-        var nodeId = Guid.NewGuid();
+        var nodeId = Guid.CreateVersion7();
         var pendingOp = new PendingDownload { Id = 7, LocalPath = localPath, NodeId = nodeId, RetryCount = 0 };
 
         var transferMock = new Mock<IChunkedTransferClient>();
@@ -1219,7 +1219,7 @@ public class SyncEngineTests
     public async Task SyncAsync_PendingDownloadNotFoundWithoutStatusCode_MovesToFailedWithoutRetry()
     {
         var localPath = Path.Combine(_tempDir, "missing-remote-file-no-status.txt");
-        var nodeId = Guid.NewGuid();
+        var nodeId = Guid.CreateVersion7();
         var pendingOp = new PendingDownload { Id = 8, LocalPath = localPath, NodeId = nodeId, RetryCount = 0 };
 
         var transferMock = new Mock<IChunkedTransferClient>();
@@ -1258,7 +1258,7 @@ public class SyncEngineTests
             return;
 
         var localPath = Path.Combine(_tempDir, "posix-file.txt");
-        var nodeId = Guid.NewGuid();
+        var nodeId = Guid.CreateVersion7();
 
         var transferMock = new Mock<IChunkedTransferClient>();
         transferMock
@@ -1289,7 +1289,7 @@ public class SyncEngineTests
             return;
 
         var localPath = Path.Combine(_tempDir, "default-mode-file.txt");
-        var nodeId = Guid.NewGuid();
+        var nodeId = Guid.CreateVersion7();
 
         var transferMock = new Mock<IChunkedTransferClient>();
         transferMock
@@ -1319,7 +1319,7 @@ public class SyncEngineTests
     public async Task SyncAsync_PendingSymlinkDownload_TargetEscapesSyncFolder_BlocksMaterialization()
     {
         var symlinkPath = Path.Combine(_tempDir, "links", "blocked-link");
-        var nodeId = Guid.NewGuid();
+        var nodeId = Guid.CreateVersion7();
 
         _stateDbMock.Setup(db => db.GetPendingOperationsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([new PendingDownload
@@ -1355,7 +1355,7 @@ public class SyncEngineTests
                 [
                     new SyncChangeResponse
                     {
-                        NodeId = Guid.NewGuid(),
+                        NodeId = Guid.CreateVersion7(),
                         Name = "../../outside.txt",
                         NodeType = "File",
                         UpdatedAt = DateTime.UtcNow,
@@ -1482,7 +1482,7 @@ public class SyncEngineTests
         // Regression: stream.Length on an HTTP response stream (non-seekable) throws
         // NotSupportedException. FileTransferComplete should use FileInfo.Length instead.
         var localPath = Path.Combine(_tempDir, "non-seekable.txt");
-        var nodeId = Guid.NewGuid();
+        var nodeId = Guid.CreateVersion7();
         var content = "hello world"u8.ToArray();
 
         // Wrap content in a non-seekable stream to reproduce the HTTP response stream behaviour.
@@ -1550,7 +1550,7 @@ public class SyncEngineTests
         var filePath = Path.Combine(_tempDir, "modified-file.txt");
         File.WriteAllText(filePath, "updated content");
 
-        var nodeId = Guid.NewGuid();
+        var nodeId = Guid.CreateVersion7();
         var record = new LocalFileRecord
         {
             LocalPath = filePath,
@@ -1604,7 +1604,7 @@ public class SyncEngineTests
         var record = new LocalFileRecord
         {
             LocalPath = filePath,
-            NodeId = Guid.NewGuid(),
+            NodeId = Guid.CreateVersion7(),
             ContentHash = "samehash",
             LastSyncedAt = DateTime.UtcNow.AddHours(-1), // newer than file mtime
             LocalModifiedAt = DateTime.UtcNow.AddHours(-2),
@@ -1662,7 +1662,7 @@ public class SyncEngineTests
     {
         // Arrange: a file that was previously synced (tracked) but has since been deleted from disk.
         var deletedFilePath = Path.Combine(_tempDir, "deleted-file.txt");
-        var nodeId = Guid.NewGuid();
+        var nodeId = Guid.CreateVersion7();
 
         // File does NOT exist on disk (user deleted it).
         // But we have a tracking record for it in the state DB.
@@ -1703,7 +1703,7 @@ public class SyncEngineTests
     {
         // Arrange: a PendingDelete in the queue; verify it calls _api.DeleteAsync + removes the record.
         var deletedFilePath = Path.Combine(_tempDir, "gone-file.txt");
-        var nodeId = Guid.NewGuid();
+        var nodeId = Guid.CreateVersion7();
 
         var pendingOp = new PendingDelete { Id = 99, LocalPath = deletedFilePath, NodeId = nodeId };
         _stateDbMock
@@ -1741,7 +1741,7 @@ public class SyncEngineTests
     {
         // Arrange: server tree has a file that is missing locally,
         // but it has a pending delete queued — should NOT re-download.
-        var nodeId = Guid.NewGuid();
+        var nodeId = Guid.CreateVersion7();
         var serverTree = new SyncTreeNodeResponse
         {
             NodeId = Guid.Empty,
@@ -1784,7 +1784,7 @@ public class SyncEngineTests
         // Arrange: a file that exists on the server and is tracked in state DB,
         // but was deleted from disk. Reconciliation should NOT re-download it —
         // ScanLocalDirectoryAsync should detect it and queue a PendingDelete.
-        var nodeId = Guid.NewGuid();
+        var nodeId = Guid.CreateVersion7();
         var deletedFilePath = Path.Combine(_tempDir, "user-deleted.txt");
 
         var serverTree = new SyncTreeNodeResponse
@@ -1851,9 +1851,9 @@ public class SyncEngineTests
     public async Task SyncAsync_DeletedDirectory_QueuesFolderLevelDelete()
     {
         // Arrange: a directory with tracked files was entirely deleted.
-        var folderNodeId = Guid.NewGuid();
-        var fileNodeId1 = Guid.NewGuid();
-        var fileNodeId2 = Guid.NewGuid();
+        var folderNodeId = Guid.CreateVersion7();
+        var fileNodeId1 = Guid.CreateVersion7();
+        var fileNodeId2 = Guid.CreateVersion7();
         var folderPath = Path.Combine(_tempDir, "photos");
         var filePath1 = Path.Combine(folderPath, "a.jpg");
         var filePath2 = Path.Combine(folderPath, "b.jpg");
@@ -1923,7 +1923,7 @@ public class SyncEngineTests
         // Arrange: a PendingDelete that gets 404 (node already deleted, e.g. cascade).
         // Should be treated as success, not failure.
         var deletedFilePath = Path.Combine(_tempDir, "cascade-deleted.txt");
-        var nodeId = Guid.NewGuid();
+        var nodeId = Guid.CreateVersion7();
 
         var pendingOp = new PendingDelete { Id = 77, LocalPath = deletedFilePath, NodeId = nodeId };
         _stateDbMock
@@ -1961,9 +1961,9 @@ public class SyncEngineTests
     {
         // Arrange: a folder "Music/Tool" exists locally with a tracked file inside it.
         // The change feed reports IsDeleted for the folder node.
-        var musicFolderNodeId = Guid.NewGuid();
-        var folderNodeId = Guid.NewGuid();
-        var fileNodeId = Guid.NewGuid();
+        var musicFolderNodeId = Guid.CreateVersion7();
+        var folderNodeId = Guid.CreateVersion7();
+        var fileNodeId = Guid.CreateVersion7();
         var folderPath = Path.Combine(_tempDir, "Music", "Tool");
         var filePath = Path.Combine(folderPath, "track.mp3");
         Directory.CreateDirectory(folderPath);
@@ -2042,7 +2042,7 @@ public class SyncEngineTests
     {
         // Arrange: a tracked file exists locally but its NodeId is NOT in the server tree.
         // The change feed returns no changes (cursor already past deletion).
-        var nodeId = Guid.NewGuid();
+        var nodeId = Guid.CreateVersion7();
         var filePath = Path.Combine(_tempDir, "old-file.txt");
         File.WriteAllText(filePath, "some content");
 
@@ -2092,7 +2092,7 @@ public class SyncEngineTests
     {
         // Arrange: a tracked file exists locally but its NodeId is NOT in the server tree.
         // However, the local file was modified since last sync — conflict resolution keeps local.
-        var nodeId = Guid.NewGuid();
+        var nodeId = Guid.CreateVersion7();
         var filePath = Path.Combine(_tempDir, "modified-file.txt");
         File.WriteAllText(filePath, "original content");
 
@@ -2155,7 +2155,7 @@ public class SyncEngineTests
         // Arrange: "Music/Tool" exists locally with untracked files (no state.db records).
         // The folder does NOT exist on the server tree. A checkpoint exists.
         // These files should be uploaded as new files — never deleted based on timestamps.
-        var musicNodeId = Guid.NewGuid();
+        var musicNodeId = Guid.CreateVersion7();
         var toolDir = Path.Combine(_tempDir, "Music", "Tool");
         Directory.CreateDirectory(toolDir);
         var file1 = Path.Combine(toolDir, "track1.mp3");

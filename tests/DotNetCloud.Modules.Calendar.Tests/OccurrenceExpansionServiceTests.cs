@@ -27,10 +27,10 @@ public class OccurrenceExpansionServiceTests
     public void Setup()
     {
         var options = new DbContextOptionsBuilder<CalendarDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options;
         _db = new CalendarDbContext(options);
-        _userId = Guid.NewGuid();
+        _userId = Guid.CreateVersion7();
         _caller = new CallerContext(_userId, ["user"], CallerType.User);
 
         var engine = new RecurrenceEngine(NullLogger<RecurrenceEngine>.Instance);
@@ -185,7 +185,7 @@ public class OccurrenceExpansionServiceTests
     [TestMethod]
     public async Task ListExpanded_NoAccessToCalendar_ReturnsEmpty()
     {
-        var otherUser = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        var otherUser = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
         _db.CalendarEvents.Add(new CalendarEvent
         {
             CalendarId = _calendar.Id,

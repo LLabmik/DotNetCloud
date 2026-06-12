@@ -24,7 +24,7 @@ public class PhotosControllerSaveEditsTests
     public void Setup()
     {
         _db = TestHelpers.CreateDb();
-        _userId = Guid.NewGuid();
+        _userId = Guid.CreateVersion7();
         var eventBus = Mock.Of<IEventBus>();
 
         var photoService = new PhotoService(_db, eventBus, NullLogger<PhotoService>.Instance);
@@ -73,7 +73,7 @@ public class PhotosControllerSaveEditsTests
     [TestMethod]
     public async Task SaveEditsAsync_PhotoNotFound_ReturnsNotFound()
     {
-        var result = await _controller.SaveEditsAsync(Guid.NewGuid());
+        var result = await _controller.SaveEditsAsync(Guid.CreateVersion7());
 
         Assert.IsInstanceOfType<NotFoundObjectResult>(result);
     }
@@ -81,7 +81,7 @@ public class PhotosControllerSaveEditsTests
     [TestMethod]
     public async Task SaveEditsAsync_PhotoNotFound_DoesNotCallThumbnailService()
     {
-        await _controller.SaveEditsAsync(Guid.NewGuid());
+        await _controller.SaveEditsAsync(Guid.CreateVersion7());
 
         _thumbnailServiceMock.Verify(
             t => t.SaveEditsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
@@ -93,7 +93,7 @@ public class PhotosControllerSaveEditsTests
     [TestMethod]
     public async Task SaveEditsAsync_PhotoBelongsToOtherUser_ReturnsNotFound()
     {
-        var otherUserId = Guid.NewGuid();
+        var otherUserId = Guid.CreateVersion7();
         var photo = await TestHelpers.SeedPhotoAsync(_db, otherUserId);
 
         var result = await _controller.SaveEditsAsync(photo.Id);

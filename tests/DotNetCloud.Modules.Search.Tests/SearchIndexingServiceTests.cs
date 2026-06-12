@@ -51,7 +51,7 @@ public class SearchIndexingServiceTests
     {
         var request = new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ModuleId = "files",
             EntityId = "e1",
@@ -70,7 +70,7 @@ public class SearchIndexingServiceTests
 
         var request = new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ModuleId = "files",
             EntityId = "e1",
@@ -98,7 +98,7 @@ public class SearchIndexingServiceTests
             EntityType = "FileNode",
             Title = "Test File",
             Content = "test content",
-            OwnerId = Guid.NewGuid(),
+            OwnerId = Guid.CreateVersion7(),
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow
         };
@@ -111,7 +111,7 @@ public class SearchIndexingServiceTests
 
         var request = new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ModuleId = "files",
             EntityId = "e1",
@@ -136,7 +136,7 @@ public class SearchIndexingServiceTests
 
         var request = new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ModuleId = "unknown-module",
             EntityId = "e1",
@@ -165,7 +165,7 @@ public class SearchIndexingServiceTests
 
         var request = new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ModuleId = "files",
             EntityId = "e1",

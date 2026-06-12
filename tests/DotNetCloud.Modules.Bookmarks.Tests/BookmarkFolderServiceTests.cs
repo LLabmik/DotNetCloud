@@ -16,13 +16,13 @@ public class BookmarkFolderServiceTests
     private BookmarksDbContext _db;
     private BookmarkFolderService _service;
     private CallerContext _caller;
-    private static readonly Guid UserId = Guid.NewGuid();
+    private static readonly Guid UserId = Guid.CreateVersion7();
 
     [TestInitialize]
     public void Setup()
     {
         var options = new DbContextOptionsBuilder<BookmarksDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options;
         _db = new BookmarksDbContext(options);
         _service = new BookmarkFolderService(_db, NullLogger<BookmarkFolderService>.Instance);
@@ -98,7 +98,7 @@ public class BookmarkFolderServiceTests
     [TestMethod]
     public async Task GetAsync_NonExistentFolder_ReturnsNull()
     {
-        var result = await _service.GetAsync(Guid.NewGuid(), _caller);
+        var result = await _service.GetAsync(Guid.CreateVersion7(), _caller);
 
         Assert.IsNull(result);
     }
@@ -131,7 +131,7 @@ public class BookmarkFolderServiceTests
     public async Task ListAsync_OtherUsersFolders_NotReturned()
     {
         await _service.CreateAsync(new CreateBookmarkFolderRequest { Name = "Mine" }, _caller);
-        var otherCaller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        var otherCaller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
         await _service.CreateAsync(new CreateBookmarkFolderRequest { Name = "Yours" }, otherCaller);
 
         var mine = await _service.ListAsync(_caller, null);

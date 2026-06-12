@@ -20,7 +20,7 @@ public class ModuleManifestLoaderTests
     public void LoadAndValidateWhenFileNotFoundThenFailure()
     {
         var result = _loader.LoadAndValidate(
-            Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString(), "manifest.json"),
+            Path.Combine(Path.GetTempPath(), Guid.CreateVersion7().ToString(), "manifest.json"),
             "test.module");
 
         Assert.IsFalse(result.IsValid);
@@ -45,7 +45,7 @@ public class ModuleManifestLoaderTests
     [TestMethod]
     public void LoadAndValidateWhenInvalidJsonThenFailure()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.CreateVersion7().ToString());
         Directory.CreateDirectory(tempDir);
         var manifestPath = Path.Combine(tempDir, "manifest.json");
         File.WriteAllText(manifestPath, "{ invalid json }}}");
@@ -59,7 +59,7 @@ public class ModuleManifestLoaderTests
     [TestMethod]
     public void LoadAndValidateWhenValidManifestThenSuccess()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.CreateVersion7().ToString());
         Directory.CreateDirectory(tempDir);
         var manifestPath = Path.Combine(tempDir, "manifest.json");
         File.WriteAllText(manifestPath, """

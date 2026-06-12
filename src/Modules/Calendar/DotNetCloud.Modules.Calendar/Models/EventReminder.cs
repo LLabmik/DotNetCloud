@@ -8,7 +8,7 @@ namespace DotNetCloud.Modules.Calendar.Models;
 public sealed class EventReminder
 {
     /// <summary>Unique identifier for this reminder.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>The event this reminder belongs to.</summary>
     public Guid EventId { get; set; }

@@ -7,7 +7,7 @@ namespace DotNetCloud.Modules.Tracks.Models;
 /// </summary>
 public sealed class Swimlane
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
     public SwimlaneContainerType ContainerType { get; set; }
     public Guid ContainerId { get; set; }
     public required string Title { get; set; }

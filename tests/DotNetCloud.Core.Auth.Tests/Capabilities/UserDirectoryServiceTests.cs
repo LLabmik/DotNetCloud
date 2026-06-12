@@ -26,7 +26,7 @@ public class UserDirectoryServiceTests
             storeMock.Object, null!, null!, null!, null!, null!, null!, null!, null!);
 
         var options = new DbContextOptionsBuilder<CoreDbContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(databaseName: Guid.CreateVersion7().ToString())
             .Options;
         _dbContext = new CoreDbContext(options, new PostgreSqlNamingStrategy());
 
@@ -47,7 +47,7 @@ public class UserDirectoryServiceTests
     public async Task FindUserIdByUsernameAsync_WhenUserExists_ReturnsUserId()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var user = new ApplicationUser { Id = userId, UserName = "alice", DisplayName = "Alice" };
         _userManagerMock.Setup(x => x.FindByNameAsync("alice"))
             .ReturnsAsync(user);
@@ -101,8 +101,8 @@ public class UserDirectoryServiceTests
     public async Task GetDisplayNamesAsync_WhenUsersExist_ReturnsDictionary()
     {
         // Arrange
-        var user1 = new ApplicationUser { Id = Guid.NewGuid(), UserName = "alice", DisplayName = "Alice Smith" };
-        var user2 = new ApplicationUser { Id = Guid.NewGuid(), UserName = "bob", DisplayName = "Bob Jones" };
+        var user1 = new ApplicationUser { Id = Guid.CreateVersion7(), UserName = "alice", DisplayName = "Alice Smith" };
+        var user2 = new ApplicationUser { Id = Guid.CreateVersion7(), UserName = "bob", DisplayName = "Bob Jones" };
         _dbContext.Users.AddRange(user1, user2);
         await _dbContext.SaveChangesAsync();
 
@@ -129,11 +129,11 @@ public class UserDirectoryServiceTests
     public async Task GetDisplayNamesAsync_WhenSomeIdsNotFound_ReturnsOnlyExistingUsers()
     {
         // Arrange
-        var user1 = new ApplicationUser { Id = Guid.NewGuid(), UserName = "alice", DisplayName = "Alice" };
+        var user1 = new ApplicationUser { Id = Guid.CreateVersion7(), UserName = "alice", DisplayName = "Alice" };
         _dbContext.Users.Add(user1);
         await _dbContext.SaveChangesAsync();
 
-        var unknownId = Guid.NewGuid();
+        var unknownId = Guid.CreateVersion7();
 
         // Act
         var result = await _service.GetDisplayNamesAsync([user1.Id, unknownId]);
@@ -148,7 +148,7 @@ public class UserDirectoryServiceTests
     public async Task GetDisplayNamesAsync_WhenDuplicateIds_DeduplicatesInput()
     {
         // Arrange
-        var user1 = new ApplicationUser { Id = Guid.NewGuid(), UserName = "alice", DisplayName = "Alice" };
+        var user1 = new ApplicationUser { Id = Guid.CreateVersion7(), UserName = "alice", DisplayName = "Alice" };
         _dbContext.Users.Add(user1);
         await _dbContext.SaveChangesAsync();
 
@@ -176,8 +176,8 @@ public class UserDirectoryServiceTests
     public async Task SearchUsersAsync_WhenMatchingByDisplayName_ReturnsResults()
     {
         // Arrange
-        _dbContext.Users.Add(new ApplicationUser { Id = Guid.NewGuid(), UserName = "alice", DisplayName = "Alice Smith", Email = "alice@example.com", IsActive = true });
-        _dbContext.Users.Add(new ApplicationUser { Id = Guid.NewGuid(), UserName = "bob", DisplayName = "Bob Jones", Email = "bob@example.com", IsActive = true });
+        _dbContext.Users.Add(new ApplicationUser { Id = Guid.CreateVersion7(), UserName = "alice", DisplayName = "Alice Smith", Email = "alice@example.com", IsActive = true });
+        _dbContext.Users.Add(new ApplicationUser { Id = Guid.CreateVersion7(), UserName = "bob", DisplayName = "Bob Jones", Email = "bob@example.com", IsActive = true });
         await _dbContext.SaveChangesAsync();
 
         // Act
@@ -192,7 +192,7 @@ public class UserDirectoryServiceTests
     public async Task SearchUsersAsync_WhenMatchingByEmail_ReturnsResults()
     {
         // Arrange
-        _dbContext.Users.Add(new ApplicationUser { Id = Guid.NewGuid(), UserName = "alice", DisplayName = "Alice Smith", Email = "alice@example.com", IsActive = true });
+        _dbContext.Users.Add(new ApplicationUser { Id = Guid.CreateVersion7(), UserName = "alice", DisplayName = "Alice Smith", Email = "alice@example.com", IsActive = true });
         await _dbContext.SaveChangesAsync();
 
         // Act
@@ -207,7 +207,7 @@ public class UserDirectoryServiceTests
     public async Task SearchUsersAsync_WhenNoMatch_ReturnsEmpty()
     {
         // Arrange
-        _dbContext.Users.Add(new ApplicationUser { Id = Guid.NewGuid(), UserName = "alice", DisplayName = "Alice Smith", Email = "alice@example.com", IsActive = true });
+        _dbContext.Users.Add(new ApplicationUser { Id = Guid.CreateVersion7(), UserName = "alice", DisplayName = "Alice Smith", Email = "alice@example.com", IsActive = true });
         await _dbContext.SaveChangesAsync();
 
         // Act
@@ -241,8 +241,8 @@ public class UserDirectoryServiceTests
     public async Task SearchUsersAsync_FiltersInactiveUsers()
     {
         // Arrange
-        _dbContext.Users.Add(new ApplicationUser { Id = Guid.NewGuid(), UserName = "active", DisplayName = "Active User", Email = "active@example.com", IsActive = true });
-        _dbContext.Users.Add(new ApplicationUser { Id = Guid.NewGuid(), UserName = "inactive", DisplayName = "Inactive User", Email = "inactive@example.com", IsActive = false });
+        _dbContext.Users.Add(new ApplicationUser { Id = Guid.CreateVersion7(), UserName = "active", DisplayName = "Active User", Email = "active@example.com", IsActive = true });
+        _dbContext.Users.Add(new ApplicationUser { Id = Guid.CreateVersion7(), UserName = "inactive", DisplayName = "Inactive User", Email = "inactive@example.com", IsActive = false });
         await _dbContext.SaveChangesAsync();
 
         // Act
@@ -259,7 +259,7 @@ public class UserDirectoryServiceTests
         // Arrange
         for (var i = 0; i < 5; i++)
         {
-            _dbContext.Users.Add(new ApplicationUser { Id = Guid.NewGuid(), UserName = $"user{i}", DisplayName = $"Test User {i}", Email = $"user{i}@example.com", IsActive = true });
+            _dbContext.Users.Add(new ApplicationUser { Id = Guid.CreateVersion7(), UserName = $"user{i}", DisplayName = $"Test User {i}", Email = $"user{i}@example.com", IsActive = true });
         }
         await _dbContext.SaveChangesAsync();
 
@@ -274,7 +274,7 @@ public class UserDirectoryServiceTests
     public async Task SearchUsersAsync_IsCaseInsensitive()
     {
         // Arrange
-        _dbContext.Users.Add(new ApplicationUser { Id = Guid.NewGuid(), UserName = "alice", DisplayName = "Alice Smith", Email = "alice@example.com", IsActive = true });
+        _dbContext.Users.Add(new ApplicationUser { Id = Guid.CreateVersion7(), UserName = "alice", DisplayName = "Alice Smith", Email = "alice@example.com", IsActive = true });
         await _dbContext.SaveChangesAsync();
 
         // Act
@@ -289,9 +289,9 @@ public class UserDirectoryServiceTests
     public async Task SearchUsersAsync_OrdersByDisplayName()
     {
         // Arrange
-        _dbContext.Users.Add(new ApplicationUser { Id = Guid.NewGuid(), UserName = "charlie", DisplayName = "Charlie", Email = "c@example.com", IsActive = true });
-        _dbContext.Users.Add(new ApplicationUser { Id = Guid.NewGuid(), UserName = "alice", DisplayName = "Alice", Email = "a@example.com", IsActive = true });
-        _dbContext.Users.Add(new ApplicationUser { Id = Guid.NewGuid(), UserName = "bob", DisplayName = "Bob", Email = "b@example.com", IsActive = true });
+        _dbContext.Users.Add(new ApplicationUser { Id = Guid.CreateVersion7(), UserName = "charlie", DisplayName = "Charlie", Email = "c@example.com", IsActive = true });
+        _dbContext.Users.Add(new ApplicationUser { Id = Guid.CreateVersion7(), UserName = "alice", DisplayName = "Alice", Email = "a@example.com", IsActive = true });
+        _dbContext.Users.Add(new ApplicationUser { Id = Guid.CreateVersion7(), UserName = "bob", DisplayName = "Bob", Email = "b@example.com", IsActive = true });
         await _dbContext.SaveChangesAsync();
 
         // Act — all match since they share no common term, but all have @example.com

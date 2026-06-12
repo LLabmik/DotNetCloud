@@ -29,8 +29,8 @@ public class GroupTests
     public void Group_SetProperties_StoresValuesCorrectly()
     {
         // Arrange
-        var id = Guid.NewGuid();
-        var organizationId = Guid.NewGuid();
+        var id = Guid.CreateVersion7();
+        var organizationId = Guid.CreateVersion7();
         var name = "Administrators";
         var description = "Organization administrators with full access";
         var createdAt = DateTime.UtcNow;
@@ -59,8 +59,8 @@ public class GroupTests
         // Arrange
         var group = new Group
         {
-            Id = Guid.NewGuid(),
-            OrganizationId = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
+            OrganizationId = Guid.CreateVersion7(),
             Name = "Test Group",
             CreatedAt = DateTime.UtcNow
         };
@@ -81,15 +81,15 @@ public class GroupTests
         // Arrange
         var group = new Group
         {
-            Id = Guid.NewGuid(),
-            OrganizationId = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
+            OrganizationId = Guid.CreateVersion7(),
             Name = "Test Group"
         };
 
         // Act
         group.Members = new List<GroupMember>
         {
-            new GroupMember { GroupId = group.Id, UserId = Guid.NewGuid() }
+            new GroupMember { GroupId = group.Id, UserId = Guid.CreateVersion7() }
         };
 
         // Assert
@@ -100,7 +100,7 @@ public class GroupTests
     public void Group_OrganizationId_RequiredForeignKey()
     {
         // Arrange
-        var organizationId = Guid.NewGuid();
+        var organizationId = Guid.CreateVersion7();
 
         // Act
         var group = new Group
@@ -134,7 +134,7 @@ public class GroupTests
         var group = new Group
         {
             Name = "Test Group",
-            OrganizationId = Guid.NewGuid()
+            OrganizationId = Guid.CreateVersion7()
         };
 
         // Act
@@ -148,18 +148,18 @@ public class GroupTests
     public void Group_MultipleMembers_CanBeAdded()
     {
         // Arrange
-        var groupId = Guid.NewGuid();
+        var groupId = Guid.CreateVersion7();
         var group = new Group
         {
             Id = groupId,
-            OrganizationId = Guid.NewGuid(),
+            OrganizationId = Guid.CreateVersion7(),
             Name = "Large Group"
         };
 
         // Act
-        group.Members.Add(new GroupMember { GroupId = groupId, UserId = Guid.NewGuid() });
-        group.Members.Add(new GroupMember { GroupId = groupId, UserId = Guid.NewGuid() });
-        group.Members.Add(new GroupMember { GroupId = groupId, UserId = Guid.NewGuid() });
+        group.Members.Add(new GroupMember { GroupId = groupId, UserId = Guid.CreateVersion7() });
+        group.Members.Add(new GroupMember { GroupId = groupId, UserId = Guid.CreateVersion7() });
+        group.Members.Add(new GroupMember { GroupId = groupId, UserId = Guid.CreateVersion7() });
 
         // Assert
         Assert.AreEqual(3, group.Members.Count);
@@ -181,13 +181,13 @@ public class GroupTests
         // Arrange
         var organization = new Organization
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             Name = "Test Org"
         };
 
         var group = new Group
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             OrganizationId = organization.Id,
             Name = "Test Group"
         };
@@ -206,17 +206,17 @@ public class GroupTests
         // Arrange
         var group = new Group
         {
-            Id = Guid.NewGuid(),
-            OrganizationId = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
+            OrganizationId = Guid.CreateVersion7(),
             Name = "AllDevelopers",
             Description = "All developers across multiple teams"
         };
 
         // Act
         // Add members from different teams
-        group.Members.Add(new GroupMember { GroupId = group.Id, UserId = Guid.NewGuid() }); // From Team A
-        group.Members.Add(new GroupMember { GroupId = group.Id, UserId = Guid.NewGuid() }); // From Team B
-        group.Members.Add(new GroupMember { GroupId = group.Id, UserId = Guid.NewGuid() }); // From Team C
+        group.Members.Add(new GroupMember { GroupId = group.Id, UserId = Guid.CreateVersion7() }); // From Team A
+        group.Members.Add(new GroupMember { GroupId = group.Id, UserId = Guid.CreateVersion7() }); // From Team B
+        group.Members.Add(new GroupMember { GroupId = group.Id, UserId = Guid.CreateVersion7() }); // From Team C
 
         // Assert
         Assert.AreEqual(3, group.Members.Count);

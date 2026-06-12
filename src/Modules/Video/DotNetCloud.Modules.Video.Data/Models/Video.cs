@@ -6,7 +6,7 @@ namespace DotNetCloud.Modules.Video.Models;
 public sealed class Video
 {
     /// <summary>Unique identifier for this video.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>The FileNode ID this video references (from Files module).</summary>
     public Guid FileNodeId { get; set; }

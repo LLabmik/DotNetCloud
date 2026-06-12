@@ -176,7 +176,7 @@ public sealed class EmailRuleService : IEmailRuleService
 
                 triggered.Add(new EmailRuleTriggeredEvent
                 {
-                    EventId = Guid.NewGuid(),
+                    EventId = Guid.CreateVersion7(),
                     CreatedAt = DateTime.UtcNow,
                     RuleId = rule.Id,
                     MessageId = message.Id,

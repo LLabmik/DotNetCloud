@@ -31,7 +31,7 @@ public class OrganizationTests
     public void Organization_SetProperties_StoresValuesCorrectly()
     {
         // Arrange
-        var id = Guid.NewGuid();
+        var id = Guid.CreateVersion7();
         var name = "Acme Corporation";
         var description = "Leading provider of widgets";
         var createdAt = DateTime.UtcNow;
@@ -58,7 +58,7 @@ public class OrganizationTests
         // Arrange
         var organization = new Organization
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             Name = "Test Org",
             CreatedAt = DateTime.UtcNow
         };
@@ -79,7 +79,7 @@ public class OrganizationTests
         // Arrange
         var organization = new Organization
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             Name = "Test Org"
         };
 
@@ -129,7 +129,7 @@ public class OrganizationTests
         // Arrange
         var organization = new Organization
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             Name = "Multi-Team Org"
         };
 
@@ -148,7 +148,7 @@ public class OrganizationTests
         // Arrange
         var organization = new Organization
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             Name = "Multi-Group Org"
         };
 

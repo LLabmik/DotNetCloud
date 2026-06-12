@@ -6,7 +6,7 @@ namespace DotNetCloud.Modules.Calendar.Models;
 public sealed class Calendar
 {
     /// <summary>Unique identifier for this calendar.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>User who owns this calendar.</summary>
     public Guid OwnerId { get; set; }
@@ -36,7 +36,7 @@ public sealed class Calendar
     public bool IsVisible { get; set; } = true;
 
     /// <summary>CalDAV sync-token for change tracking.</summary>
-    public string SyncToken { get; set; } = Guid.NewGuid().ToString("N");
+    public string SyncToken { get; set; } = Guid.CreateVersion7().ToString("N");
 
     /// <summary>Whether this calendar has been soft-deleted.</summary>
     public bool IsDeleted { get; set; }

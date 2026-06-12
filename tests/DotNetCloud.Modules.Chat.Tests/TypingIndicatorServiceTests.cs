@@ -11,13 +11,13 @@ public class TypingIndicatorServiceTests
 {
     private TypingIndicatorService _service = null!;
     private CallerContext _caller = null!;
-    private readonly Guid _channelId = Guid.NewGuid();
+    private readonly Guid _channelId = Guid.CreateVersion7();
 
     [TestInitialize]
     public void Setup()
     {
         _service = new TypingIndicatorService();
-        _caller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        _caller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
     }
 
     [TestMethod]
@@ -42,7 +42,7 @@ public class TypingIndicatorServiceTests
     [TestMethod]
     public async Task WhenMultipleUsersTypeThenAllAppear()
     {
-        var caller2 = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        var caller2 = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
 
         await _service.NotifyTypingAsync(_channelId, _caller);
         await _service.NotifyTypingAsync(_channelId, caller2);
@@ -55,7 +55,7 @@ public class TypingIndicatorServiceTests
     [TestMethod]
     public async Task WhenDifferentChannelsThenTypingIsSeparate()
     {
-        var otherChannel = Guid.NewGuid();
+        var otherChannel = Guid.CreateVersion7();
 
         await _service.NotifyTypingAsync(_channelId, _caller);
 

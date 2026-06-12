@@ -17,7 +17,7 @@ public class LocalChatImageStoreTests
     [TestInitialize]
     public void Setup()
     {
-        _tempDir = Path.Combine(Path.GetTempPath(), "chat-image-store-tests", Guid.NewGuid().ToString("N"));
+        _tempDir = Path.Combine(Path.GetTempPath(), "chat-image-store-tests", Guid.CreateVersion7().ToString("N"));
         Directory.CreateDirectory(_tempDir);
 
         var config = new ConfigurationBuilder()

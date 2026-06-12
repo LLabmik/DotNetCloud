@@ -90,7 +90,7 @@ namespace DotNetCloud.Core.Authorization;
 ///         // Create document with caller context
 ///         var doc = new Document
 ///         {
-///             Id = Guid.NewGuid(),
+///             Id = Guid.CreateVersion7(),
 ///             OwnerId = caller.UserId,
 ///             Title = dto.Title,
 ///             CreatedAt = DateTime.UtcNow

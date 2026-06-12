@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Data.Configuration.Extensions;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Modules.Music.Data.Configuration;
 using DotNetCloud.Modules.Music.Models;
@@ -104,5 +105,7 @@ public class MusicDbContext : DbContext
         modelBuilder.ApplyConfiguration(new UserTrackConfiguration());
         modelBuilder.ApplyConfiguration(new UserArtistConfiguration());
         modelBuilder.ApplyConfiguration(new UserAlbumConfiguration());
+
+        SequentialGuidConfigurationExtensions.ApplySequentialGuidDefaults(modelBuilder, _namingStrategy.Provider);
     }
 }

@@ -17,9 +17,9 @@ public sealed class GroupsEndpointIntegrationTests
     [TestMethod]
     public async Task GroupCrudAndMembershipFlow_WorksOverCoreHost()
     {
-        var adminUserId = Guid.NewGuid();
-        var memberUserId = Guid.NewGuid();
-        var organizationId = Guid.NewGuid();
+        var adminUserId = Guid.CreateVersion7();
+        var memberUserId = Guid.CreateVersion7();
+        var organizationId = Guid.CreateVersion7();
 
         using var factory = new DotNetCloudWebApplicationFactory();
         using (var scope = factory.Services.CreateScope())

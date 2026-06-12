@@ -424,6 +424,40 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 
 ---
 
+## Phase 0.3.1: UUIDv7 Time-Ordered GUIDs
+
+### Infrastructure (`DotNetCloud.Core`)
+
+- ✓ Create `GuidGenerator` utility class with `NewSequentialGuid()` → `Guid.CreateVersion7()`
+- ✓ Create `SequentialGuidValueGenerator` (EF Core `ValueGenerator<Guid>`)
+- ✓ Create `ApplySequentialGuidDefaults` model builder helper
+
+### DbContext Updates
+
+- ✓ Update `CoreDbContext.OnModelCreating` to apply sequential GUID defaults
+- ✓ Update all 14 module DbContexts (AI, Bookmarks, Calendar, Chat, Contacts, Email, Example, Files, Music, Notes, Photos, Search, Tracks, Video)
+
+### Code Migration
+
+- ✓ Replace ALL `Guid.NewGuid()` → `Guid.CreateVersion7()` across 573 files (3,890 occurrences)
+
+### Database Migrations (SQL Server)
+
+- ✓ Core SQL Server migration (`NEWSEQUENTIALID()` on all Guid PK columns)
+- ✓ 13 module SQL Server migrations (one per module with SqlServer data project)
+
+### Database Status (PostgreSQL)
+
+- ☐ No migration needed — UUIDv7 generated client-side via `ValueGenerator`, no schema changes
+
+### Verification
+
+- ✓ Build succeeds (`dotnet build DotNetCloud.CI.slnf -c Release`)
+- ☐ Test suite passes (`dotnet test`)
+- ☐ Deploy to staging for smoke test
+
+---
+
 ## Phase 0.4: Authentication & Authorization
 
 ### OpenIddict Setup

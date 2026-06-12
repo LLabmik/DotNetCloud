@@ -15,8 +15,8 @@ public class NoteDtosTests
         // Arrange & Act
         var note = new NoteDto
         {
-            Id = Guid.NewGuid(),
-            OwnerId = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
+            OwnerId = Guid.CreateVersion7(),
             Title = "My First Note",
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -38,8 +38,8 @@ public class NoteDtosTests
         // Arrange & Act
         var note = new NoteDto
         {
-            Id = Guid.NewGuid(),
-            OwnerId = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
+            OwnerId = Guid.CreateVersion7(),
             Title = "Test",
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -77,7 +77,7 @@ public class NoteDtosTests
         var link = new NoteLinkDto
         {
             LinkType = NoteLinkType.CalendarEvent,
-            TargetId = Guid.NewGuid(),
+            TargetId = Guid.CreateVersion7(),
             DisplayLabel = "Team Meeting"
         };
 
@@ -93,8 +93,8 @@ public class NoteDtosTests
         // Arrange & Act
         var folder = new NoteFolderDto
         {
-            Id = Guid.NewGuid(),
-            OwnerId = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
+            OwnerId = Guid.CreateVersion7(),
             Name = "Work Notes",
             NoteCount = 12,
             CreatedAt = DateTime.UtcNow,
@@ -114,12 +114,12 @@ public class NoteDtosTests
         // Arrange & Act
         var version = new NoteVersionDto
         {
-            Id = Guid.NewGuid(),
-            NoteId = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
+            NoteId = Guid.CreateVersion7(),
             VersionNumber = 3,
             Title = "Updated Title",
             Content = "# Updated Content",
-            EditedByUserId = Guid.NewGuid(),
+            EditedByUserId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow
         };
 
@@ -196,8 +196,8 @@ public class NoteDtosTests
         // Arrange
         var note = new NoteDto
         {
-            Id = Guid.NewGuid(),
-            OwnerId = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
+            OwnerId = Guid.CreateVersion7(),
             Title = "Original",
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow

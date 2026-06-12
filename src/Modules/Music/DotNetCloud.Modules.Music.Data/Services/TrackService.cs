@@ -128,7 +128,7 @@ public sealed class TrackService : ITrackService
         }
 
         var userTracks = await query
-            .OrderBy(_ => Guid.NewGuid())
+            .OrderBy(_ => Guid.CreateVersion7())
             .Take(count)
             .ToListAsync(cancellationToken);
 
@@ -173,7 +173,7 @@ public sealed class TrackService : ITrackService
 
         await _eventBus.PublishAsync(new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ModuleId = "music",
             EntityId = trackId.ToString(),

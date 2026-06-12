@@ -18,7 +18,7 @@ public enum CalendarSharePermission
 public sealed class CalendarShare
 {
     /// <summary>Unique identifier for this share.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>The calendar being shared.</summary>
     public Guid CalendarId { get; set; }

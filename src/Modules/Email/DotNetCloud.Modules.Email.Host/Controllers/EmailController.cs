@@ -763,7 +763,7 @@ public class EmailController : EmailControllerBase
                 // Publish audit event (fire-and-forget; no handler required)
                 await _eventBus.PublishAsync(new EmailAttachmentDetachedEvent
                 {
-                    EventId = Guid.NewGuid(),
+                    EventId = Guid.CreateVersion7(),
                     CreatedAt = DateTime.UtcNow,
                     AttachmentId = attachmentId,
                     StorageKey = attachment.StorageKey,

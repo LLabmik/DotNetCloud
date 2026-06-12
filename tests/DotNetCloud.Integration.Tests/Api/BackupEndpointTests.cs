@@ -17,7 +17,7 @@ public class BackupEndpointTests
     private static HttpClient _adminClient = null!;
     private static HttpClient _anonClient = null!;
 
-    private static readonly Guid AdminUserId = Guid.NewGuid();
+    private static readonly Guid AdminUserId = Guid.CreateVersion7();
 
     [ClassInitialize]
     public static void ClassInit(TestContext _)
@@ -99,7 +99,7 @@ public class BackupEndpointTests
             Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
             ".config", "dotnetcloud", "backups");
         Directory.CreateDirectory(backupDir);
-        var outputPath = Path.Combine(backupDir, $"custom-backup-{Guid.NewGuid():N}.zip");
+        var outputPath = Path.Combine(backupDir, $"custom-backup-{Guid.CreateVersion7():N}.zip");
 
         try
         {
@@ -140,7 +140,7 @@ public class BackupEndpointTests
     public async Task RunBackup_AsRegularUser_ReturnsForbidden()
     {
         // Arrange
-        var userClient = _factory.CreateAuthenticatedApiClient(Guid.NewGuid());
+        var userClient = _factory.CreateAuthenticatedApiClient(Guid.CreateVersion7());
 
         // Act
         var response = await userClient.PostAsync("/api/v1/core/admin/backup/run", null);

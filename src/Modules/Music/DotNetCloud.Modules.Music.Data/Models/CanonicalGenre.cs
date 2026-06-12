@@ -7,7 +7,7 @@ namespace DotNetCloud.Modules.Music.Models;
 public sealed class CanonicalGenre
 {
     /// <summary>Unique identifier for this genre.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>Genre name (e.g. "Rock", "Jazz", "Classical").</summary>
     public required string Name { get; set; }

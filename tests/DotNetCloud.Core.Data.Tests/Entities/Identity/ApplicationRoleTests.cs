@@ -26,7 +26,7 @@ public class ApplicationRoleTests
     public void ApplicationRole_PrimaryKey_IsGuid()
     {
         // Arrange
-        var roleId = Guid.NewGuid();
+        var roleId = Guid.CreateVersion7();
         var role = new ApplicationRole
         {
             Id = roleId,
@@ -101,7 +101,7 @@ public class ApplicationRoleTests
     public void ApplicationRole_AllProperties_CanBeRoundTripped()
     {
         // Arrange
-        var roleId = Guid.NewGuid();
+        var roleId = Guid.CreateVersion7();
         var name = "ContentEditor";
         var description = "Can create and edit content";
         var isSystemRole = false;
@@ -168,9 +168,9 @@ public class ApplicationRoleTests
     public void ApplicationRole_Multiple_HaveUniqueIds()
     {
         // Arrange & Act
-        var role1 = new ApplicationRole { Name = "Role1", Id = Guid.NewGuid() };
-        var role2 = new ApplicationRole { Name = "Role2", Id = Guid.NewGuid() };
-        var role3 = new ApplicationRole { Name = "Role3", Id = Guid.NewGuid() };
+        var role1 = new ApplicationRole { Name = "Role1", Id = Guid.CreateVersion7() };
+        var role2 = new ApplicationRole { Name = "Role2", Id = Guid.CreateVersion7() };
+        var role3 = new ApplicationRole { Name = "Role3", Id = Guid.CreateVersion7() };
 
         // Assert
         Assert.AreNotEqual(role1.Id, role2.Id, "Role1 and Role2 should have different IDs");

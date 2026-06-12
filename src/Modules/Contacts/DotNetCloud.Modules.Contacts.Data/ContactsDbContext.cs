@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Data.Configuration.Extensions;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Modules.Contacts.Data.Configuration;
 using DotNetCloud.Modules.Contacts.Models;
@@ -72,5 +73,7 @@ public class ContactsDbContext : DbContext
         modelBuilder.ApplyConfiguration(new ContactGroupMemberConfiguration());
         modelBuilder.ApplyConfiguration(new ContactShareConfiguration());
         modelBuilder.ApplyConfiguration(new ContactAttachmentConfiguration());
+
+        SequentialGuidConfigurationExtensions.ApplySequentialGuidDefaults(modelBuilder, _namingStrategy.Provider);
     }
 }

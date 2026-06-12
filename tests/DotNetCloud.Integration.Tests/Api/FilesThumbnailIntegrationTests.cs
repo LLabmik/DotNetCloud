@@ -34,7 +34,7 @@ public class FilesThumbnailIntegrationTests
     [TestMethod]
     public async Task GetThumbnail_WhenGenerated_ReturnsJpegContent()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         using var client = _factory.CreateAuthenticatedApiClient(userId);
 
         var chunkHash = DotNetCloud.Modules.Files.Services.ContentHasher.ComputeHash(TinyGifBytes);
@@ -64,7 +64,7 @@ public class FilesThumbnailIntegrationTests
         using (var scope = _factory.Services.CreateScope())
         {
             var thumbnailService = scope.ServiceProvider.GetRequiredService<IThumbnailService>();
-            var sourcePath = Path.Combine(Path.GetTempPath(), $"thumb-source-{Guid.NewGuid():N}.gif");
+            var sourcePath = Path.Combine(Path.GetTempPath(), $"thumb-source-{Guid.CreateVersion7():N}.gif");
 
             try
             {
@@ -89,10 +89,10 @@ public class FilesThumbnailIntegrationTests
     [TestMethod]
     public async Task GetThumbnail_WithInvalidSize_ReturnsBadRequest()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         using var client = _factory.CreateAuthenticatedApiClient(userId);
 
-        var response = await client.GetAsync($"/api/v1/files/{Guid.NewGuid()}/thumbnail?size=huge");
+        var response = await client.GetAsync($"/api/v1/files/{Guid.CreateVersion7()}/thumbnail?size=huge");
         await ApiAssert.ErrorAsync(response, HttpStatusCode.BadRequest);
     }
 

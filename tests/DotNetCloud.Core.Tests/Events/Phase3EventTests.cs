@@ -16,11 +16,11 @@ public class Phase3EventTests
     {
         var e = new ContactCreatedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            ContactId = Guid.NewGuid(),
+            ContactId = Guid.CreateVersion7(),
             DisplayName = "Jane Doe",
-            OwnerId = Guid.NewGuid()
+            OwnerId = Guid.CreateVersion7()
         };
 
         Assert.IsInstanceOfType(e, typeof(IEvent));
@@ -33,10 +33,10 @@ public class Phase3EventTests
     {
         var e = new ContactUpdatedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            ContactId = Guid.NewGuid(),
-            UpdatedByUserId = Guid.NewGuid()
+            ContactId = Guid.CreateVersion7(),
+            UpdatedByUserId = Guid.CreateVersion7()
         };
 
         Assert.IsInstanceOfType(e, typeof(IEvent));
@@ -47,10 +47,10 @@ public class Phase3EventTests
     {
         var e = new ContactDeletedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            ContactId = Guid.NewGuid(),
-            DeletedByUserId = Guid.NewGuid(),
+            ContactId = Guid.CreateVersion7(),
+            DeletedByUserId = Guid.CreateVersion7(),
             IsPermanent = true
         };
 
@@ -65,12 +65,12 @@ public class Phase3EventTests
     {
         var e = new CalendarEventCreatedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            CalendarEventId = Guid.NewGuid(),
-            CalendarId = Guid.NewGuid(),
+            CalendarEventId = Guid.CreateVersion7(),
+            CalendarId = Guid.CreateVersion7(),
             Title = "Standup",
-            CreatedByUserId = Guid.NewGuid(),
+            CreatedByUserId = Guid.CreateVersion7(),
             StartUtc = DateTime.UtcNow,
             EndUtc = DateTime.UtcNow.AddHours(1),
             IsRecurring = true
@@ -86,11 +86,11 @@ public class Phase3EventTests
     {
         var e = new CalendarEventUpdatedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            CalendarEventId = Guid.NewGuid(),
-            CalendarId = Guid.NewGuid(),
-            UpdatedByUserId = Guid.NewGuid()
+            CalendarEventId = Guid.CreateVersion7(),
+            CalendarId = Guid.CreateVersion7(),
+            UpdatedByUserId = Guid.CreateVersion7()
         };
 
         Assert.IsInstanceOfType(e, typeof(IEvent));
@@ -101,11 +101,11 @@ public class Phase3EventTests
     {
         var e = new CalendarEventDeletedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            CalendarEventId = Guid.NewGuid(),
-            CalendarId = Guid.NewGuid(),
-            DeletedByUserId = Guid.NewGuid(),
+            CalendarEventId = Guid.CreateVersion7(),
+            CalendarId = Guid.CreateVersion7(),
+            DeletedByUserId = Guid.CreateVersion7(),
             IsPermanent = false
         };
 
@@ -118,10 +118,10 @@ public class Phase3EventTests
     {
         var e = new CalendarEventRsvpEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            CalendarEventId = Guid.NewGuid(),
-            AttendeeUserId = Guid.NewGuid(),
+            CalendarEventId = Guid.CreateVersion7(),
+            AttendeeUserId = Guid.CreateVersion7(),
             Status = "Accepted"
         };
 
@@ -134,10 +134,10 @@ public class Phase3EventTests
     {
         var e = new CalendarReminderTriggeredEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            CalendarEventId = Guid.NewGuid(),
-            UserId = Guid.NewGuid(),
+            CalendarEventId = Guid.CreateVersion7(),
+            UserId = Guid.CreateVersion7(),
             EventTitle = "Team Sync",
             EventStartUtc = DateTime.UtcNow.AddMinutes(15)
         };
@@ -153,12 +153,12 @@ public class Phase3EventTests
     {
         var e = new NoteCreatedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            NoteId = Guid.NewGuid(),
+            NoteId = Guid.CreateVersion7(),
             Title = "Meeting Notes",
-            OwnerId = Guid.NewGuid(),
-            FolderId = Guid.NewGuid()
+            OwnerId = Guid.CreateVersion7(),
+            FolderId = Guid.CreateVersion7()
         };
 
         Assert.IsInstanceOfType(e, typeof(IEvent));
@@ -171,10 +171,10 @@ public class Phase3EventTests
     {
         var e = new NoteUpdatedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            NoteId = Guid.NewGuid(),
-            UpdatedByUserId = Guid.NewGuid(),
+            NoteId = Guid.CreateVersion7(),
+            UpdatedByUserId = Guid.CreateVersion7(),
             NewVersion = 4
         };
 
@@ -187,10 +187,10 @@ public class Phase3EventTests
     {
         var e = new NoteDeletedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            NoteId = Guid.NewGuid(),
-            DeletedByUserId = Guid.NewGuid(),
+            NoteId = Guid.CreateVersion7(),
+            DeletedByUserId = Guid.CreateVersion7(),
             IsPermanent = true
         };
 

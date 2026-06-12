@@ -159,7 +159,7 @@ public class DockerDatabaseIntegrationTests
 
         var permission = new Permission
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             Code = "docker.pg.read",
             DisplayName = "Docker PG Read",
             Description = "Docker PostgreSQL test permission",

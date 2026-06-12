@@ -33,7 +33,7 @@ public class MediaThumbnailDtoTests
     public void MediaThumbnailDto_RequiredProperties_AreSet()
     {
         // Arrange & Act
-        var id = Guid.NewGuid();
+        var id = Guid.CreateVersion7();
         var dto = new MediaThumbnailDto
         {
             FileNodeId = id,
@@ -58,7 +58,7 @@ public class MediaThumbnailDtoTests
         // Arrange & Act
         var dto = new MediaThumbnailDto
         {
-            FileNodeId = Guid.NewGuid(),
+            FileNodeId = Guid.CreateVersion7(),
             Size = MediaThumbnailSize.Small,
             ContentType = "image/jpeg",
             Url = "/api/media/thumbnails/abc123/small"
@@ -72,7 +72,7 @@ public class MediaThumbnailDtoTests
     public void MediaThumbnailDto_Equality_SameValues()
     {
         // Arrange
-        var id = Guid.NewGuid();
+        var id = Guid.CreateVersion7();
 
         var dto1 = new MediaThumbnailDto
         {

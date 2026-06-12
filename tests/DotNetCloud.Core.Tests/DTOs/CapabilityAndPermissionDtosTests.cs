@@ -13,7 +13,7 @@ public class PermissionDtosTests
     public void PermissionDto_CanBeCreated()
     {
         // Arrange
-        var permissionId = Guid.NewGuid();
+        var permissionId = Guid.CreateVersion7();
 
         // Act
         var permission = new PermissionDto
@@ -36,7 +36,7 @@ public class PermissionDtosTests
         // Arrange & Act
         var permission = new PermissionDto
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             Code = "files.delete",
             DisplayName = "Delete Files",
             Description = "Allows deleting user files",
@@ -76,7 +76,7 @@ public class RoleDtosTests
     public void RoleDto_CanBeCreated()
     {
         // Arrange
-        var roleId = Guid.NewGuid();
+        var roleId = Guid.CreateVersion7();
 
         // Act
         var role = new RoleDto
@@ -96,7 +96,7 @@ public class RoleDtosTests
         // Arrange & Act
         var role = new RoleDto
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             Name = "Moderator",
             Description = "Content moderator role",
             IsSystemRole = false
@@ -114,14 +114,14 @@ public class RoleDtosTests
         // Arrange
         var permissions = new List<PermissionDto>
         {
-            new PermissionDto { Id = Guid.NewGuid(), Code = "read", DisplayName = "Read", Module = "core" },
-            new PermissionDto { Id = Guid.NewGuid(), Code = "write", DisplayName = "Write", Module = "core" }
+            new PermissionDto { Id = Guid.CreateVersion7(), Code = "read", DisplayName = "Read", Module = "core" },
+            new PermissionDto { Id = Guid.CreateVersion7(), Code = "write", DisplayName = "Write", Module = "core" }
         };
 
         // Act
         var role = new RoleDto
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             Name = "Editor",
             Permissions = permissions
         };

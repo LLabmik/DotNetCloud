@@ -5,7 +5,7 @@ namespace DotNetCloud.Modules.Tracks.Models;
 /// </summary>
 public sealed class TimeEntry
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
     public Guid WorkItemId { get; set; }
     public Guid UserId { get; set; }
     public DateTime? StartTime { get; set; }

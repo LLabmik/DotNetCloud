@@ -40,7 +40,7 @@ internal sealed class TracksNotificationService : ITracksNotificationService
 
         var notification = new NotificationDto
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             UserId = assignedUserId,
             SourceModuleId = ModuleId,
             Type = NotificationType.Update,
@@ -81,7 +81,7 @@ internal sealed class TracksNotificationService : ITracksNotificationService
 
                 var notification = new NotificationDto
                 {
-                    Id = Guid.NewGuid(),
+                    Id = Guid.CreateVersion7(),
                     UserId = userId.Value,
                     SourceModuleId = ModuleId,
                     Type = NotificationType.Mention,
@@ -113,7 +113,7 @@ internal sealed class TracksNotificationService : ITracksNotificationService
 
         var notification = new NotificationDto
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             UserId = Guid.Empty, // Overridden per-user by SendToManyAsync
             SourceModuleId = ModuleId,
             Type = NotificationType.Update,
@@ -146,7 +146,7 @@ internal sealed class TracksNotificationService : ITracksNotificationService
 
         var notification = new NotificationDto
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             UserId = Guid.Empty,
             SourceModuleId = ModuleId,
             Type = NotificationType.Update,
@@ -177,7 +177,7 @@ internal sealed class TracksNotificationService : ITracksNotificationService
 
         var notification = new NotificationDto
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             UserId = addedUserId,
             SourceModuleId = ModuleId,
             Type = NotificationType.Update,
@@ -206,7 +206,7 @@ internal sealed class TracksNotificationService : ITracksNotificationService
 
         var notification = new NotificationDto
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             UserId = removedUserId,
             SourceModuleId = ModuleId,
             Type = NotificationType.Update,
@@ -239,7 +239,7 @@ internal sealed class TracksNotificationService : ITracksNotificationService
 
         var notification = new NotificationDto
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             UserId = Guid.Empty,
             SourceModuleId = ModuleId,
             Type = NotificationType.Update,
@@ -271,7 +271,7 @@ internal sealed class TracksNotificationService : ITracksNotificationService
 
         var notification = new NotificationDto
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             UserId = assigneeUserId,
             SourceModuleId = ModuleId,
             Type = NotificationType.Reminder,

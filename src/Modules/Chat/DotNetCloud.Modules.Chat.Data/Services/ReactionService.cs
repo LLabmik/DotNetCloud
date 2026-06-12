@@ -56,7 +56,7 @@ internal sealed class ReactionService : IReactionService
 
         await _eventBus.PublishAsync(new ReactionAddedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             MessageId = messageId,
             ChannelId = message.ChannelId,
@@ -97,7 +97,7 @@ internal sealed class ReactionService : IReactionService
 
         await _eventBus.PublishAsync(new ReactionRemovedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             MessageId = messageId,
             ChannelId = message.ChannelId,

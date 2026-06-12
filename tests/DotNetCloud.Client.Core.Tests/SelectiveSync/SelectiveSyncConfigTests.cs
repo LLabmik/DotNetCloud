@@ -7,7 +7,7 @@ namespace DotNetCloud.Client.Core.Tests.SelectiveSync;
 public class SelectiveSyncConfigTests
 {
     private SelectiveSyncConfig _config = null!;
-    private readonly Guid _contextId = Guid.NewGuid();
+    private readonly Guid _contextId = Guid.CreateVersion7();
 
     [TestInitialize]
     public void Initialize()
@@ -103,7 +103,7 @@ public class SelectiveSyncConfigTests
     [TestMethod]
     public void Rules_IsolatedPerContext()
     {
-        var ctx2 = Guid.NewGuid();
+        var ctx2 = Guid.CreateVersion7();
         _config.Exclude(_contextId, "/private");
 
         Assert.IsFalse(_config.IsIncluded(_contextId, "/private/doc.txt"));

@@ -79,7 +79,7 @@ public sealed class RecommendationService : IRecommendationService
             .Where(ut => ut.Id != trackId && ut.OwnerId == caller.UserId &&
                 (ut.CanonicalTrack!.TrackGenres.Any(ctg => genreIds.Contains(ctg.GenreId)) ||
                  ut.CanonicalTrack.TrackArtists.Any(cta => artistIds.Contains(cta.ArtistId))))
-            .OrderBy(_ => Guid.NewGuid())
+            .OrderBy(_ => Guid.CreateVersion7())
             .Take(count)
             .ToListAsync(cancellationToken);
 

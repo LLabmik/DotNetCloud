@@ -15,13 +15,13 @@ public class EmailAccountServiceTests
     private EmailDbContext _db;
     private EmailAccountService _service;
     private CallerContext _caller;
-    private static readonly Guid UserId = Guid.NewGuid();
+    private static readonly Guid UserId = Guid.CreateVersion7();
 
     [TestInitialize]
     public void Setup()
     {
         var options = new DbContextOptionsBuilder<EmailDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options;
         _db = new EmailDbContext(options);
         var protectionProvider = DataProtectionProvider.Create("DotNetCloud.Test");
@@ -106,7 +106,7 @@ public class EmailAccountServiceTests
     [TestMethod]
     public async Task GetAsync_NonExistentAccount_ReturnsNull()
     {
-        var result = await _service.GetAsync(Guid.NewGuid(), _caller);
+        var result = await _service.GetAsync(Guid.CreateVersion7(), _caller);
 
         Assert.IsNull(result);
     }

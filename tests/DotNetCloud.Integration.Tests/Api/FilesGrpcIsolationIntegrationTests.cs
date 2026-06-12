@@ -30,8 +30,8 @@ public class FilesGrpcIsolationIntegrationTests
     [TestMethod]
     public async Task GetNode_OtherUserCannotReadNode_ReturnsNotFound()
     {
-        var ownerId = Guid.NewGuid();
-        var otherUserId = Guid.NewGuid();
+        var ownerId = Guid.CreateVersion7();
+        var otherUserId = Guid.CreateVersion7();
 
         var ownerClient = _factory.CreateFilesClient(ownerId);
         var createResponse = await ownerClient.CreateFolderAsync(new CreateFolderRequest
@@ -55,8 +55,8 @@ public class FilesGrpcIsolationIntegrationTests
     [TestMethod]
     public async Task GetNode_RequestUserSpoofing_IsRejected()
     {
-        var ownerId = Guid.NewGuid();
-        var attackerId = Guid.NewGuid();
+        var ownerId = Guid.CreateVersion7();
+        var attackerId = Guid.CreateVersion7();
 
         var ownerClient = _factory.CreateFilesClient(ownerId);
         var createResponse = await ownerClient.CreateFolderAsync(new CreateFolderRequest
@@ -80,8 +80,8 @@ public class FilesGrpcIsolationIntegrationTests
     [TestMethod]
     public async Task UploadChunk_DifferentAuthenticatedUser_FailsIdentityValidation()
     {
-        var ownerId = Guid.NewGuid();
-        var attackerId = Guid.NewGuid();
+        var ownerId = Guid.CreateVersion7();
+        var attackerId = Guid.CreateVersion7();
         var chunkData = new byte[] { 1, 2, 3 };
         var chunkHash = Convert.ToHexStringLower(SHA256.HashData(chunkData));
 

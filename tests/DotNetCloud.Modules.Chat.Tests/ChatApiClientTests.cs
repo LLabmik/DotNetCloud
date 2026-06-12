@@ -16,7 +16,7 @@ public class ChatApiClientTests
     [TestMethod]
     public async Task RegisterDeviceAsync_WhenCalled_ThenPostsExpectedPayloadAndReturnsTrue()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         HttpRequestMessage? capturedRequest = null;
         var handler = new StubHttpMessageHandler(request =>
         {
@@ -47,7 +47,7 @@ public class ChatApiClientTests
     [TestMethod]
     public async Task UnregisterDeviceAsync_WhenCalled_ThenDeletesEncodedTokenRouteAndReturnsTrue()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         HttpRequestMessage? capturedRequest = null;
         var handler = new StubHttpMessageHandler(request =>
         {
@@ -71,7 +71,7 @@ public class ChatApiClientTests
     [TestMethod]
     public async Task GetNotificationPreferencesAsync_WhenCalled_ThenReturnsPreferencesFromEnvelope()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         HttpRequestMessage? capturedRequest = null;
         const string responseJson = """
             {
@@ -107,7 +107,7 @@ public class ChatApiClientTests
     [TestMethod]
     public async Task UpdateNotificationPreferencesAsync_WhenCalled_ThenPutsPayloadAndReturnsTrue()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         HttpRequestMessage? capturedRequest = null;
         var handler = new StubHttpMessageHandler(request =>
         {
@@ -120,7 +120,7 @@ public class ChatApiClientTests
         {
             PushEnabled = false,
             DoNotDisturb = true,
-            MutedChannelIds = [Guid.NewGuid(), Guid.NewGuid()]
+            MutedChannelIds = [Guid.CreateVersion7(), Guid.CreateVersion7()]
         };
 
         var result = await client.UpdateNotificationPreferencesAsync(userId, dto);

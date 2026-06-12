@@ -8,7 +8,7 @@ namespace DotNetCloud.Modules.Notes.Models;
 public sealed class NoteLink
 {
     /// <summary>Unique identifier.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>The note this link belongs to.</summary>
     public Guid NoteId { get; set; }

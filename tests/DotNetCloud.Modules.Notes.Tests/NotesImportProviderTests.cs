@@ -23,13 +23,13 @@ public class NotesImportProviderTests
     public void Setup()
     {
         var options = new DbContextOptionsBuilder<NotesDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options;
         _db = new NotesDbContext(options);
         _eventBusMock = new Mock<IEventBus>();
         _noteService = new NoteService(_db, _eventBusMock.Object, NullLogger<NoteService>.Instance);
         _provider = new NotesImportProvider(_noteService, NullLogger<NotesImportProvider>.Instance);
-        _caller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        _caller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
     }
 
     [TestCleanup]
@@ -221,7 +221,7 @@ public class NotesImportProviderTests
         // Create a folder first
         var folder = new Models.NoteFolder
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             OwnerId = _caller.UserId,
             Name = "Imported",
             CreatedAt = DateTime.UtcNow,

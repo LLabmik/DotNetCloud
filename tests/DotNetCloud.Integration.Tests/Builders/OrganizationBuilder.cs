@@ -7,7 +7,7 @@ namespace DotNetCloud.Integration.Tests.Builders;
 /// </summary>
 internal sealed class OrganizationBuilder
 {
-    private Guid _id = Guid.NewGuid();
+    private Guid _id = Guid.CreateVersion7();
     private string _name = "Test Organization";
     private string? _description = "An organization created for integration tests.";
     private DateTime _createdAt = DateTime.UtcNow;

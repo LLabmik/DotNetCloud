@@ -19,7 +19,7 @@ public class ShareServiceTests
     private static FilesDbContext CreateContext(string? name = null)
     {
         var options = new DbContextOptionsBuilder<FilesDbContext>()
-            .UseInMemoryDatabase(name ?? Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(name ?? Guid.CreateVersion7().ToString())
             .Options;
         return new FilesDbContext(options);
     }
@@ -47,8 +47,8 @@ public class ShareServiceTests
     public async Task CreateShareAsync_UserShare_CreatesSuccessfully()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
-        var targetUserId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var targetUserId = Guid.CreateVersion7();
         var node = CreateFileNode(userId);
         db.FileNodes.Add(node);
         await db.SaveChangesAsync();
@@ -70,8 +70,8 @@ public class ShareServiceTests
     public async Task CreateShareAsync_GroupShare_ReturnsGroupTarget()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
-        var targetGroupId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var targetGroupId = Guid.CreateVersion7();
         var node = CreateFileNode(userId);
         db.FileNodes.Add(node);
         await db.SaveChangesAsync();
@@ -92,7 +92,7 @@ public class ShareServiceTests
     public async Task CreateShareAsync_PublicLink_GeneratesToken()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = CreateFileNode(userId);
         db.FileNodes.Add(node);
         await db.SaveChangesAsync();
@@ -113,7 +113,7 @@ public class ShareServiceTests
     public async Task CreateShareAsync_PublicLinkWithPassword_HashesPassword()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = CreateFileNode(userId);
         db.FileNodes.Add(node);
         await db.SaveChangesAsync();
@@ -134,27 +134,27 @@ public class ShareServiceTests
     public async Task CreateShareAsync_NonOwner_ThrowsForbiddenException()
     {
         using var db = CreateContext();
-        var node = CreateFileNode(Guid.NewGuid());
+        var node = CreateFileNode(Guid.CreateVersion7());
         db.FileNodes.Add(node);
         await db.SaveChangesAsync();
 
         var service = CreateService(db);
 
         await Assert.ThrowsExactlyAsync<ForbiddenException>(
-            () => service.CreateShareAsync(node.Id, new CreateShareDto { ShareType = "User" }, UserCaller(Guid.NewGuid())));
+            () => service.CreateShareAsync(node.Id, new CreateShareDto { ShareType = "User" }, UserCaller(Guid.CreateVersion7())));
     }
 
     [TestMethod]
     public async Task CreateShareAsync_MountedAdminSharedFile_ThrowsInvalidOperationException()
     {
         using var db = CreateContext();
-        var sharedFolderId = Guid.NewGuid();
+        var sharedFolderId = Guid.CreateVersion7();
         db.AdminSharedFolders.Add(new AdminSharedFolderDefinition
         {
             Id = sharedFolderId,
             DisplayName = "Mounted",
             SourcePath = Path.GetTempPath(),
-            CreatedByUserId = Guid.NewGuid(),
+            CreatedByUserId = Guid.CreateVersion7(),
         });
         await db.SaveChangesAsync();
 
@@ -162,14 +162,14 @@ public class ShareServiceTests
         var mountedFileId = RegisterMountedFile(sharedFolderId);
 
         await Assert.ThrowsExactlyAsync<Core.Errors.InvalidOperationException>(
-            () => service.CreateShareAsync(mountedFileId, new CreateShareDto { ShareType = "User" }, UserCaller(Guid.NewGuid())));
+            () => service.CreateShareAsync(mountedFileId, new CreateShareDto { ShareType = "User" }, UserCaller(Guid.CreateVersion7())));
     }
 
     [TestMethod]
     public async Task UpdateShareAsync_ValidUpdate_UpdatesFields()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = CreateFileNode(userId);
         db.FileNodes.Add(node);
         var share = new FileShare
@@ -197,10 +197,10 @@ public class ShareServiceTests
     public async Task DeleteShareAsync_Owner_DeletesSuccessfully()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var share = new FileShare
         {
-            FileNodeId = Guid.NewGuid(),
+            FileNodeId = Guid.CreateVersion7(),
             ShareType = ShareType.User,
             CreatedByUserId = userId
         };
@@ -217,7 +217,7 @@ public class ShareServiceTests
     public async Task GetSharesAsync_ReturnsAllSharesOnNode()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = CreateFileNode(userId);
         db.FileNodes.Add(node);
         db.FileShares.Add(new FileShare { FileNodeId = node.Id, ShareType = ShareType.User, CreatedByUserId = userId });
@@ -234,8 +234,8 @@ public class ShareServiceTests
     public async Task GetSharedWithMeAsync_ReturnsUserShares()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
-        var targetUserId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var targetUserId = Guid.CreateVersion7();
         var node = CreateFileNode(userId);
         db.FileNodes.Add(node);
         db.FileShares.Add(new FileShare { FileNodeId = node.Id, ShareType = ShareType.User, SharedWithUserId = targetUserId, CreatedByUserId = userId });
@@ -251,8 +251,8 @@ public class ShareServiceTests
     public async Task GetSharedWithMeAsync_ExcludesNonUserShareTypes()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
-        var targetUserId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var targetUserId = Guid.CreateVersion7();
         var node = CreateFileNode(userId);
         db.FileNodes.Add(node);
         db.FileShares.Add(new FileShare
@@ -267,7 +267,7 @@ public class ShareServiceTests
             FileNodeId = node.Id,
             ShareType = ShareType.Team,
             SharedWithUserId = targetUserId,
-            SharedWithTeamId = Guid.NewGuid(),
+            SharedWithTeamId = Guid.CreateVersion7(),
             CreatedByUserId = userId,
         });
         db.FileShares.Add(new FileShare
@@ -275,7 +275,7 @@ public class ShareServiceTests
             FileNodeId = node.Id,
             ShareType = ShareType.Group,
             SharedWithUserId = targetUserId,
-            SharedWithGroupId = Guid.NewGuid(),
+            SharedWithGroupId = Guid.CreateVersion7(),
             CreatedByUserId = userId,
         });
         await db.SaveChangesAsync();
@@ -291,7 +291,7 @@ public class ShareServiceTests
     public async Task ResolvePublicLinkAsync_ValidToken_ReturnsShare()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = CreateFileNode(userId);
         db.FileNodes.Add(node);
         db.FileShares.Add(new FileShare
@@ -317,11 +317,11 @@ public class ShareServiceTests
         using var db = CreateContext();
         db.FileShares.Add(new FileShare
         {
-            FileNodeId = Guid.NewGuid(),
+            FileNodeId = Guid.CreateVersion7(),
             ShareType = ShareType.PublicLink,
             LinkToken = "expired_token",
             ExpiresAt = DateTime.UtcNow.AddDays(-1),
-            CreatedByUserId = Guid.NewGuid()
+            CreatedByUserId = Guid.CreateVersion7()
         });
         await db.SaveChangesAsync();
 
@@ -335,7 +335,7 @@ public class ShareServiceTests
     public async Task IncrementDownloadCountAsync_IncrementsCount()
     {
         using var db = CreateContext();
-        var node = CreateFileNode(Guid.NewGuid());
+        var node = CreateFileNode(Guid.CreateVersion7());
         db.FileNodes.Add(node);
         var share = new FileShare
         {
@@ -343,7 +343,7 @@ public class ShareServiceTests
             ShareType = ShareType.PublicLink,
             LinkToken = "dl_token",
             DownloadCount = 5,
-            CreatedByUserId = Guid.NewGuid()
+            CreatedByUserId = Guid.CreateVersion7()
         };
         db.FileShares.Add(share);
         await db.SaveChangesAsync();
@@ -359,7 +359,7 @@ public class ShareServiceTests
     public async Task IncrementDownloadCountAsync_FirstAccess_PublishesPublicLinkAccessedEvent()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = CreateFileNode(userId);
         db.FileNodes.Add(node);
         var share = new FileShare
@@ -392,7 +392,7 @@ public class ShareServiceTests
     public async Task IncrementDownloadCountAsync_SubsequentAccess_DoesNotPublishEvent()
     {
         using var db = CreateContext();
-        var node = CreateFileNode(Guid.NewGuid());
+        var node = CreateFileNode(Guid.CreateVersion7());
         db.FileNodes.Add(node);
         var share = new FileShare
         {
@@ -400,7 +400,7 @@ public class ShareServiceTests
             ShareType = ShareType.PublicLink,
             LinkToken = "second_access_token",
             DownloadCount = 1,
-            CreatedByUserId = Guid.NewGuid()
+            CreatedByUserId = Guid.CreateVersion7()
         };
         db.FileShares.Add(share);
         await db.SaveChangesAsync();

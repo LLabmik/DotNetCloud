@@ -32,7 +32,7 @@ public class ChannelMemberServiceTests
     public async Task Setup()
     {
         var options = new DbContextOptionsBuilder<ChatDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options;
 
         _db = new ChatDbContext(options);
@@ -40,10 +40,10 @@ public class ChannelMemberServiceTests
         _realtimeMock = new Mock<IChatRealtimeService>();
         _service = new ChannelMemberService(_db, _eventBusMock.Object, NullLogger<ChannelMemberService>.Instance, _realtimeMock.Object);
 
-        _ownerCaller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
-        _adminCaller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
-        _memberCaller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
-        _outsiderCaller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        _ownerCaller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
+        _adminCaller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
+        _memberCaller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
+        _outsiderCaller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
 
         var channel = new Channel
         {
@@ -71,7 +71,7 @@ public class ChannelMemberServiceTests
     [TestMethod]
     public async Task WhenOwnerAddsMemberThenMembershipIsCreated()
     {
-        var newUserId = Guid.NewGuid();
+        var newUserId = Guid.CreateVersion7();
 
         await _service.AddMemberAsync(_channelId, newUserId, _ownerCaller);
 
@@ -90,7 +90,7 @@ public class ChannelMemberServiceTests
     public async Task WhenNonAdminAddsMemberThenUnauthorizedAccessExceptionIsThrown()
     {
         await Assert.ThrowsAsync<UnauthorizedAccessException>(
-            () => _service.AddMemberAsync(_channelId, Guid.NewGuid(), _memberCaller));
+            () => _service.AddMemberAsync(_channelId, Guid.CreateVersion7(), _memberCaller));
     }
 
     [TestMethod]
@@ -111,7 +111,7 @@ public class ChannelMemberServiceTests
     public async Task WhenCallerMarksReadWithInvalidMessageThenInvalidOperationExceptionIsThrown()
     {
         await Assert.ThrowsAsync<InvalidOperationException>(
-            () => _service.MarkAsReadAsync(_channelId, Guid.NewGuid(), _memberCaller));
+            () => _service.MarkAsReadAsync(_channelId, Guid.CreateVersion7(), _memberCaller));
     }
 
     [TestMethod]
@@ -205,7 +205,7 @@ public class DmToGroupConversionTests
     public async Task Setup()
     {
         var options = new DbContextOptionsBuilder<ChatDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options;
 
         _db = new ChatDbContext(options);
@@ -213,8 +213,8 @@ public class DmToGroupConversionTests
         _realtimeMock = new Mock<IChatRealtimeService>();
         _service = new ChannelMemberService(_db, _eventBusMock.Object, NullLogger<ChannelMemberService>.Instance, _realtimeMock.Object);
 
-        _ownerCaller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
-        _member2Caller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        _ownerCaller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
+        _member2Caller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
 
         // Seed a 2-person DM channel (owner + one member)
         var channel = new Channel
@@ -244,7 +244,7 @@ public class DmToGroupConversionTests
     [TestMethod]
     public async Task AddMember_ThirdPersonToDm_ChangesTypeToGroup()
     {
-        var thirdUser = Guid.NewGuid();
+        var thirdUser = Guid.CreateVersion7();
 
         await _service.AddMemberAsync(_dmChannelId, thirdUser, _ownerCaller);
 
@@ -255,7 +255,7 @@ public class DmToGroupConversionTests
     [TestMethod]
     public async Task AddMember_ThirdPersonToDm_ThirdMemberIsInChannel()
     {
-        var thirdUser = Guid.NewGuid();
+        var thirdUser = Guid.CreateVersion7();
 
         await _service.AddMemberAsync(_dmChannelId, thirdUser, _ownerCaller);
 
@@ -269,7 +269,7 @@ public class DmToGroupConversionTests
     [TestMethod]
     public async Task AddMember_ThirdPersonToDm_ExistingMembersRetained()
     {
-        var thirdUser = Guid.NewGuid();
+        var thirdUser = Guid.CreateVersion7();
 
         await _service.AddMemberAsync(_dmChannelId, thirdUser, _ownerCaller);
 
@@ -282,7 +282,7 @@ public class DmToGroupConversionTests
     [TestMethod]
     public async Task AddMember_ThirdPersonToDm_OwnerRolePreserved()
     {
-        var thirdUser = Guid.NewGuid();
+        var thirdUser = Guid.CreateVersion7();
 
         await _service.AddMemberAsync(_dmChannelId, thirdUser, _ownerCaller);
 
@@ -295,7 +295,7 @@ public class DmToGroupConversionTests
     [TestMethod]
     public async Task AddMember_ThirdPersonToDm_SecondMemberRolePreserved()
     {
-        var thirdUser = Guid.NewGuid();
+        var thirdUser = Guid.CreateVersion7();
 
         await _service.AddMemberAsync(_dmChannelId, thirdUser, _ownerCaller);
 
@@ -311,7 +311,7 @@ public class DmToGroupConversionTests
     public async Task AddMember_ThirdPersonToPublicChannel_TypeRemainsPublic()
     {
         // Create a public channel with 2 members
-        var publicOwner = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        var publicOwner = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
         var publicChannel = new Channel
         {
             Name = "Public",
@@ -321,10 +321,10 @@ public class DmToGroupConversionTests
         _db.Channels.Add(publicChannel);
         _db.ChannelMembers.AddRange(
             new ChannelMember { ChannelId = publicChannel.Id, UserId = publicOwner.UserId, Role = ChannelMemberRole.Owner },
-            new ChannelMember { ChannelId = publicChannel.Id, UserId = Guid.NewGuid(), Role = ChannelMemberRole.Member });
+            new ChannelMember { ChannelId = publicChannel.Id, UserId = Guid.CreateVersion7(), Role = ChannelMemberRole.Member });
         await _db.SaveChangesAsync();
 
-        await _service.AddMemberAsync(publicChannel.Id, Guid.NewGuid(), publicOwner);
+        await _service.AddMemberAsync(publicChannel.Id, Guid.CreateVersion7(), publicOwner);
 
         var channel = await _db.Channels.FindAsync(publicChannel.Id);
         Assert.AreEqual(ChannelType.Public, channel!.Type);
@@ -334,7 +334,7 @@ public class DmToGroupConversionTests
     public async Task AddMember_ThirdPersonToGroupChannel_TypeRemainsGroup()
     {
         // Create a Group channel (already converted) with 2 members
-        var groupOwner = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        var groupOwner = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
         var groupChannel = new Channel
         {
             Name = "Group",
@@ -344,10 +344,10 @@ public class DmToGroupConversionTests
         _db.Channels.Add(groupChannel);
         _db.ChannelMembers.AddRange(
             new ChannelMember { ChannelId = groupChannel.Id, UserId = groupOwner.UserId, Role = ChannelMemberRole.Owner },
-            new ChannelMember { ChannelId = groupChannel.Id, UserId = Guid.NewGuid(), Role = ChannelMemberRole.Member });
+            new ChannelMember { ChannelId = groupChannel.Id, UserId = Guid.CreateVersion7(), Role = ChannelMemberRole.Member });
         await _db.SaveChangesAsync();
 
-        await _service.AddMemberAsync(groupChannel.Id, Guid.NewGuid(), groupOwner);
+        await _service.AddMemberAsync(groupChannel.Id, Guid.CreateVersion7(), groupOwner);
 
         var channel = await _db.Channels.FindAsync(groupChannel.Id);
         Assert.AreEqual(ChannelType.Group, channel!.Type);
@@ -359,7 +359,7 @@ public class DmToGroupConversionTests
     public async Task AddMember_SecondPersonToDm_TypeRemainsDm()
     {
         // Create a DM channel with only one member
-        var soloOwner = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        var soloOwner = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
         var soloChannel = new Channel
         {
             Name = "Solo DM",
@@ -375,7 +375,7 @@ public class DmToGroupConversionTests
         });
         await _db.SaveChangesAsync();
 
-        await _service.AddMemberAsync(soloChannel.Id, Guid.NewGuid(), soloOwner);
+        await _service.AddMemberAsync(soloChannel.Id, Guid.CreateVersion7(), soloOwner);
 
         var channel = await _db.Channels.FindAsync(soloChannel.Id);
         Assert.AreEqual(ChannelType.DirectMessage, channel!.Type);
@@ -386,13 +386,13 @@ public class DmToGroupConversionTests
     [TestMethod]
     public async Task AddMember_DuplicateAdd_DoesNotConvertTwice()
     {
-        var thirdUser = Guid.NewGuid();
+        var thirdUser = Guid.CreateVersion7();
 
         // First add triggers conversion
         await _service.AddMemberAsync(_dmChannelId, thirdUser, _ownerCaller);
 
         // Add a 4th member — channel is now Group, should remain Group
-        await _service.AddMemberAsync(_dmChannelId, Guid.NewGuid(), _ownerCaller);
+        await _service.AddMemberAsync(_dmChannelId, Guid.CreateVersion7(), _ownerCaller);
 
         var channel = await _db.Channels.FindAsync(_dmChannelId);
         Assert.AreEqual(ChannelType.Group, channel!.Type);

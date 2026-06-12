@@ -81,7 +81,7 @@ public class SearchResultMetadataTests
         var item = CreateItem("notes", metadata: new()
         {
             ["Format"] = "Markdown",
-            ["FolderId"] = Guid.NewGuid().ToString()
+            ["FolderId"] = Guid.CreateVersion7().ToString()
         });
 
         Assert.IsTrue(item.Metadata.TryGetValue("Format", out var format));
@@ -356,7 +356,7 @@ public class SearchResultMetadataTests
         return new SearchResultItem
         {
             ModuleId = moduleId,
-            EntityId = Guid.NewGuid().ToString(),
+            EntityId = Guid.CreateVersion7().ToString(),
             EntityType = "TestEntity",
             Title = "Test Item",
             UpdatedAt = DateTimeOffset.UtcNow,

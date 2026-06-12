@@ -21,13 +21,13 @@ public class CalendarImportProviderTests
     public void Setup()
     {
         var options = new DbContextOptionsBuilder<CalendarDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options;
         _db = new CalendarDbContext(options);
         _eventServiceMock = new Mock<ICalendarEventService>();
         _provider = new CalendarImportProvider(
             _eventServiceMock.Object, NullLogger<CalendarImportProvider>.Instance);
-        _caller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        _caller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
     }
 
     [TestCleanup]
@@ -50,7 +50,7 @@ public class CalendarImportProviderTests
             DataType = ImportDataType.CalendarEvents,
             Data = TwoEventICalendar,
             DryRun = true,
-            TargetContainerId = Guid.NewGuid()
+            TargetContainerId = Guid.CreateVersion7()
         };
 
         var report = await _provider.PreviewAsync(request, _caller);
@@ -69,7 +69,7 @@ public class CalendarImportProviderTests
             DataType = ImportDataType.CalendarEvents,
             Data = TwoEventICalendar,
             DryRun = true,
-            TargetContainerId = Guid.NewGuid()
+            TargetContainerId = Guid.CreateVersion7()
         };
 
         await _provider.PreviewAsync(request, _caller);
@@ -82,11 +82,11 @@ public class CalendarImportProviderTests
     [TestMethod]
     public async Task ExecuteAsync_ValidICalendar_CreatesEvents()
     {
-        var calendarId = Guid.NewGuid();
+        var calendarId = Guid.CreateVersion7();
         _eventServiceMock.Setup(s => s.CreateEventAsync(It.IsAny<CreateCalendarEventDto>(), It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((CreateCalendarEventDto dto, CallerContext _, CancellationToken _) => new CalendarEventDto
             {
-                Id = Guid.NewGuid(),
+                Id = Guid.CreateVersion7(),
                 CalendarId = dto.CalendarId,
                 CreatedByUserId = _caller.UserId,
                 Title = dto.Title,
@@ -121,7 +121,7 @@ public class CalendarImportProviderTests
             DataType = ImportDataType.CalendarEvents,
             Data = TwoEventICalendar,
             DryRun = true,
-            TargetContainerId = Guid.NewGuid()
+            TargetContainerId = Guid.CreateVersion7()
         };
 
         var report = await _provider.ExecuteAsync(request, _caller);
@@ -139,7 +139,7 @@ public class CalendarImportProviderTests
         {
             DataType = ImportDataType.CalendarEvents,
             Data = "",
-            TargetContainerId = Guid.NewGuid()
+            TargetContainerId = Guid.CreateVersion7()
         };
 
         var report = await _provider.PreviewAsync(request, _caller);
@@ -155,7 +155,7 @@ public class CalendarImportProviderTests
             DataType = ImportDataType.CalendarEvents,
             Data = "BEGIN:VCALENDAR\nBEGIN:VEVENT\nDTSTART:20260301T100000Z\nDTEND:20260301T110000Z\nEND:VEVENT\nEND:VCALENDAR",
             DryRun = true,
-            TargetContainerId = Guid.NewGuid()
+            TargetContainerId = Guid.CreateVersion7()
         };
 
         var report = await _provider.PreviewAsync(request, _caller);
@@ -229,7 +229,7 @@ public class CalendarImportProviderTests
         {
             DataType = ImportDataType.CalendarEvents,
             Data = "",
-            TargetContainerId = Guid.NewGuid()
+            TargetContainerId = Guid.CreateVersion7()
         };
 
         var report = await _provider.ExecuteAsync(request, _caller);

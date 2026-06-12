@@ -24,8 +24,8 @@ public class SprintServiceTests
 
     private async Task<WorkItem> SeedTestEpic()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
-        return await TestHelpers.SeedEpicAsync(_db, product.Id, Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
+        return await TestHelpers.SeedEpicAsync(_db, product.Id, Guid.CreateVersion7());
     }
 
     [TestMethod]
@@ -117,7 +117,7 @@ public class SprintServiceTests
         var epic = await SeedTestEpic();
         var sprint = await _service.CreateSprintAsync(epic.Id, new CreateSprintDto { Title = "Sprint 1" }, CancellationToken.None);
         var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, epic.ProductId);
-        var item = await TestHelpers.SeedWorkItemAsync(_db, epic.ProductId, swimlane.Id, Guid.NewGuid());
+        var item = await TestHelpers.SeedWorkItemAsync(_db, epic.ProductId, swimlane.Id, Guid.CreateVersion7());
 
         await _service.AddItemToSprintAsync(sprint.Id, item.Id, CancellationToken.None);
 
@@ -132,7 +132,7 @@ public class SprintServiceTests
         var epic = await SeedTestEpic();
         var sprint = await _service.CreateSprintAsync(epic.Id, new CreateSprintDto { Title = "Sprint 1" }, CancellationToken.None);
         var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, epic.ProductId);
-        var item = await TestHelpers.SeedWorkItemAsync(_db, epic.ProductId, swimlane.Id, Guid.NewGuid());
+        var item = await TestHelpers.SeedWorkItemAsync(_db, epic.ProductId, swimlane.Id, Guid.CreateVersion7());
         await _service.AddItemToSprintAsync(sprint.Id, item.Id, CancellationToken.None);
 
         await _service.RemoveItemFromSprintAsync(sprint.Id, item.Id, CancellationToken.None);
@@ -145,11 +145,11 @@ public class SprintServiceTests
     public async Task GetBacklogItemsAsync_ReturnsItemsNotInSprint()
     {
         var epic = await SeedTestEpic();
-        var feature = await TestHelpers.SeedWorkItemAsync(_db, epic.ProductId, null, Guid.NewGuid(), "Feature", WorkItemType.Feature);
+        var feature = await TestHelpers.SeedWorkItemAsync(_db, epic.ProductId, null, Guid.CreateVersion7(), "Feature", WorkItemType.Feature);
         feature.ParentWorkItemId = epic.Id;
         await _db.SaveChangesAsync();
         var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, feature.Id, SwimlaneContainerType.WorkItem);
-        var item = await TestHelpers.SeedWorkItemAsync(_db, epic.ProductId, swimlane.Id, Guid.NewGuid(), "Child Item", WorkItemType.Item);
+        var item = await TestHelpers.SeedWorkItemAsync(_db, epic.ProductId, swimlane.Id, Guid.CreateVersion7(), "Child Item", WorkItemType.Item);
         item.ParentWorkItemId = feature.Id;
         await _db.SaveChangesAsync();
 

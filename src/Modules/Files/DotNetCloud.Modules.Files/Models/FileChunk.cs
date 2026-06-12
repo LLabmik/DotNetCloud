@@ -8,7 +8,7 @@ namespace DotNetCloud.Modules.Files.Models;
 public sealed class FileChunk
 {
     /// <summary>Unique identifier for this chunk record.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>SHA-256 hash of the chunk content. Used for deduplication.</summary>
     public required string ChunkHash { get; set; }

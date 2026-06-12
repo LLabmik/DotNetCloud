@@ -24,10 +24,10 @@ public class DependencyServiceTests
     [TestMethod]
     public async Task AddDependencyAsync_CreatesDependency()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
         var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
-        var itemA = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid(), "Item A");
-        var itemB = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid(), "Item B");
+        var itemA = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.CreateVersion7(), "Item A");
+        var itemB = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.CreateVersion7(), "Item B");
         var dto = new AddWorkItemDependencyDto { DependsOnWorkItemId = itemA.Id, Type = DependencyType.BlockedBy };
 
         var result = await _service.AddDependencyAsync(itemB.Id, dto, CancellationToken.None);
@@ -40,10 +40,10 @@ public class DependencyServiceTests
     [TestMethod]
     public async Task GetDependenciesByWorkItemAsync_ReturnsDependencies()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
         var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
-        var itemA = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid(), "Item A");
-        var itemB = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid(), "Item B");
+        var itemA = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.CreateVersion7(), "Item A");
+        var itemB = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.CreateVersion7(), "Item B");
         await _service.AddDependencyAsync(itemB.Id, new AddWorkItemDependencyDto { DependsOnWorkItemId = itemA.Id }, CancellationToken.None);
 
         // Get what itemA depends on (itemA → nothing)
@@ -59,10 +59,10 @@ public class DependencyServiceTests
     [TestMethod]
     public async Task GetDependentsByWorkItemAsync_ReturnsDependents()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
         var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
-        var itemA = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid(), "Item A");
-        var itemB = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid(), "Item B");
+        var itemA = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.CreateVersion7(), "Item A");
+        var itemB = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.CreateVersion7(), "Item B");
         await _service.AddDependencyAsync(itemB.Id, new AddWorkItemDependencyDto { DependsOnWorkItemId = itemA.Id }, CancellationToken.None);
 
         var result = await _service.GetDependentsByWorkItemAsync(itemA.Id, CancellationToken.None);
@@ -74,10 +74,10 @@ public class DependencyServiceTests
     [TestMethod]
     public async Task RemoveDependencyAsync_DeletesDependency()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
         var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
-        var itemA = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid(), "Item A");
-        var itemB = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid(), "Item B");
+        var itemA = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.CreateVersion7(), "Item A");
+        var itemB = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.CreateVersion7(), "Item B");
         var dep = await _service.AddDependencyAsync(itemB.Id, new AddWorkItemDependencyDto { DependsOnWorkItemId = itemA.Id }, CancellationToken.None);
 
         await _service.RemoveDependencyAsync(dep.Id, CancellationToken.None);
@@ -89,9 +89,9 @@ public class DependencyServiceTests
     [TestMethod]
     public async Task GetDependenciesByWorkItemAsync_NoDependencies_ReturnsEmptyList()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
         var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
-        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.CreateVersion7());
 
         var result = await _service.GetDependenciesByWorkItemAsync(item.Id, CancellationToken.None);
 

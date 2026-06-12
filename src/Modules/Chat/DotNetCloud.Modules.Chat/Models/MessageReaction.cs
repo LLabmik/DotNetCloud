@@ -6,7 +6,7 @@ namespace DotNetCloud.Modules.Chat.Models;
 public sealed class MessageReaction
 {
     /// <summary>Unique identifier.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>Message this reaction is on.</summary>
     public Guid MessageId { get; set; }

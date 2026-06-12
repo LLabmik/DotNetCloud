@@ -18,7 +18,7 @@ public class RelationshipTests
     public void Setup()
     {
         var options = new DbContextOptionsBuilder<CoreDbContext>()
-            .UseInMemoryDatabase(databaseName: $"RelationshipTestDb_{Guid.NewGuid()}")
+            .UseInMemoryDatabase(databaseName: $"RelationshipTestDb_{Guid.CreateVersion7()}")
             .Options;
 
         var namingStrategy = new PostgreSqlNamingStrategy();
@@ -84,7 +84,7 @@ public class RelationshipTests
         var team = new Team { Organization = org, Name = "Test Team" };
         var user = new ApplicationUser
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             UserName = "testuser",
             DisplayName = "Test User"
         };
@@ -93,7 +93,7 @@ public class RelationshipTests
             Team = team,
             User = user,
             JoinedAt = DateTime.UtcNow,
-            RoleIds = new List<Guid> { Guid.NewGuid(), Guid.NewGuid() }
+            RoleIds = new List<Guid> { Guid.CreateVersion7(), Guid.CreateVersion7() }
         };
 
         _context.Organizations.Add(org);
@@ -124,13 +124,13 @@ public class RelationshipTests
         var group = new Group { Organization = org, Name = "Test Group" };
         var member = new ApplicationUser
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             UserName = "member",
             DisplayName = "Member User"
         };
         var addedByUser = new ApplicationUser
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             UserName = "admin",
             DisplayName = "Admin User"
         };
@@ -167,13 +167,13 @@ public class RelationshipTests
         var org = new Organization { Name = "Test Org" };
         var invitedUser = new ApplicationUser
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             UserName = "invited",
             DisplayName = "Invited User"
         };
         var inviterUser = new ApplicationUser
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             UserName = "inviter",
             DisplayName = "Inviter User"
         };
@@ -184,7 +184,7 @@ public class RelationshipTests
             User = invitedUser,
             InvitedByUser = inviterUser,
             JoinedAt = DateTime.UtcNow,
-            RoleIds = new List<Guid> { Guid.NewGuid() },
+            RoleIds = new List<Guid> { Guid.CreateVersion7() },
             IsActive = true
         };
 
@@ -234,7 +234,7 @@ public class RelationshipTests
         var org2 = new Organization { Name = "Org 2" };
         var user = new ApplicationUser
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             UserName = "multi-org-user",
             DisplayName = "Multi-Org User"
         };
@@ -244,7 +244,7 @@ public class RelationshipTests
             Organization = org1,
             User = user,
             JoinedAt = DateTime.UtcNow,
-            RoleIds = new List<Guid> { Guid.NewGuid() },
+            RoleIds = new List<Guid> { Guid.CreateVersion7() },
             IsActive = true
         };
         var member2 = new OrganizationMember
@@ -252,7 +252,7 @@ public class RelationshipTests
             Organization = org2,
             User = user,
             JoinedAt = DateTime.UtcNow,
-            RoleIds = new List<Guid> { Guid.NewGuid() },
+            RoleIds = new List<Guid> { Guid.CreateVersion7() },
             IsActive = true
         };
 
@@ -301,7 +301,7 @@ public class RelationshipTests
         var team = new Team { Organization = org, Name = "Test Team" };
         var user = new ApplicationUser
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             UserName = "testuser",
             DisplayName = "Test User"
         };

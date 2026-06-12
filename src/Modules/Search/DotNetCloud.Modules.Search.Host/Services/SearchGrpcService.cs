@@ -160,7 +160,7 @@ public sealed class SearchGrpcService : Protos.SearchService.SearchServiceBase
         try
         {
             await _queryService.ReindexModuleAsync(request.ModuleId, context.CancellationToken);
-            return new ReindexModuleResponse { Success = true, JobId = Guid.NewGuid().ToString() };
+            return new ReindexModuleResponse { Success = true, JobId = Guid.CreateVersion7().ToString() };
         }
         catch (Exception ex)
         {

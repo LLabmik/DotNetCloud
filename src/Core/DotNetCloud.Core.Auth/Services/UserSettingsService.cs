@@ -61,7 +61,7 @@ public sealed class UserSettingsService : IUserSettingsService
         {
             existing = new UserSetting
             {
-                Id = Guid.NewGuid(),
+                Id = Guid.CreateVersion7(),
                 UserId = userId,
                 Module = module,
                 Key = key,

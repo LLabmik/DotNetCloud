@@ -78,7 +78,7 @@ internal sealed class ShareService : IShareService
 
         await _eventBus.PublishAsync(new FileSharedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             FileNodeId = fileNodeId,
             FileName = node.Name,
@@ -322,7 +322,7 @@ internal sealed class ShareService : IShareService
         {
             await _eventBus.PublishAsync(new PublicLinkAccessedEvent
             {
-                EventId = Guid.NewGuid(),
+                EventId = Guid.CreateVersion7(),
                 CreatedAt = DateTime.UtcNow,
                 FileNodeId = share.FileNodeId,
                 FileName = share.FileNode.Name,

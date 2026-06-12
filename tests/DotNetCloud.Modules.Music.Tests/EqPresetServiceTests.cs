@@ -51,7 +51,7 @@ public class EqPresetServiceTests
     [TestMethod]
     public async Task ListPresets_ExcludesOtherUserCustom()
     {
-        var otherUser = Guid.NewGuid();
+        var otherUser = Guid.CreateVersion7();
         await TestHelpers.SeedEqPresetAsync(_db, otherUser, "Other's Preset");
         await TestHelpers.SeedEqPresetAsync(_db, _caller.UserId, "My Preset");
 
@@ -77,7 +77,7 @@ public class EqPresetServiceTests
     [TestMethod]
     public async Task GetPreset_NonExistent_ReturnsNull()
     {
-        var result = await _service.GetPresetAsync(Guid.NewGuid(), _caller);
+        var result = await _service.GetPresetAsync(Guid.CreateVersion7(), _caller);
         Assert.IsNull(result);
     }
 
@@ -167,7 +167,7 @@ public class EqPresetServiceTests
         };
 
         await Assert.ThrowsExactlyAsync<DotNetCloud.Core.Errors.BusinessRuleException>(
-            () => _service.UpdatePresetAsync(Guid.NewGuid(), dto, _caller));
+            () => _service.UpdatePresetAsync(Guid.CreateVersion7(), dto, _caller));
     }
 
     // ─── DeletePreset ─────────────────────────────────────────────────
@@ -196,7 +196,7 @@ public class EqPresetServiceTests
     public async Task DeletePreset_NonExistent_Throws()
     {
         await Assert.ThrowsExactlyAsync<DotNetCloud.Core.Errors.BusinessRuleException>(
-            () => _service.DeletePresetAsync(Guid.NewGuid(), _caller));
+            () => _service.DeletePresetAsync(Guid.CreateVersion7(), _caller));
     }
 
     // ─── SetActivePreset ──────────────────────────────────────────────

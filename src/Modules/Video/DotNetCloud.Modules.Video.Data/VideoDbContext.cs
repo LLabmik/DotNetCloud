@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Data.Configuration.Extensions;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Modules.Video.Data.Configuration;
 using DotNetCloud.Modules.Video.Models;
@@ -126,5 +127,7 @@ public class VideoDbContext : DbContext
         modelBuilder.ApplyConfiguration(new UserVideoConfiguration());
         modelBuilder.ApplyConfiguration(new UserVideoCollectionConfiguration());
         modelBuilder.ApplyConfiguration(new UserVideoCollectionItemConfiguration());
+
+        SequentialGuidConfigurationExtensions.ApplySequentialGuidDefaults(modelBuilder, _namingStrategy.Provider);
     }
 }

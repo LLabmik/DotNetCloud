@@ -51,7 +51,7 @@ public sealed class AlbumService : Photos.Services.IAlbumService
 
         await _eventBus.PublishAsync(new AlbumCreatedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             AlbumId = album.Id,
             Title = album.Title,

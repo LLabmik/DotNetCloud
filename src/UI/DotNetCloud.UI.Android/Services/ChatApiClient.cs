@@ -48,7 +48,7 @@ internal sealed class ChatApiClient : IChatApiClient
     {
         return Task.FromResult(new MessageDto
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             ChannelId = channelId,
             SenderUserId = Guid.Empty,
             Content = dto.Content,

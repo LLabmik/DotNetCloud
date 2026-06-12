@@ -27,7 +27,7 @@ namespace DotNetCloud.Integration.Tests.Infrastructure;
 /// </summary>
 internal sealed class FilesHostWebApplicationFactory : WebApplicationFactory<FilesHost::Program>
 {
-    private readonly string _databaseName = $"FilesHostInt_{Guid.NewGuid():N}";
+    private readonly string _databaseName = $"FilesHostInt_{Guid.CreateVersion7():N}";
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {

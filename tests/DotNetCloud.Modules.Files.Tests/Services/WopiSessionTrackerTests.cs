@@ -22,8 +22,8 @@ public class WopiSessionTrackerTests
     public void TryBeginSession_UnderLimit_ReturnsTrue()
     {
         var tracker = CreateTracker(maxSessions: 5);
-        var fileId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
+        var fileId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
 
         var result = tracker.TryBeginSession(fileId, userId);
 
@@ -36,10 +36,10 @@ public class WopiSessionTrackerTests
     {
         var tracker = CreateTracker(maxSessions: 2);
 
-        tracker.TryBeginSession(Guid.NewGuid(), Guid.NewGuid());
-        tracker.TryBeginSession(Guid.NewGuid(), Guid.NewGuid());
+        tracker.TryBeginSession(Guid.CreateVersion7(), Guid.CreateVersion7());
+        tracker.TryBeginSession(Guid.CreateVersion7(), Guid.CreateVersion7());
 
-        var result = tracker.TryBeginSession(Guid.NewGuid(), Guid.NewGuid());
+        var result = tracker.TryBeginSession(Guid.CreateVersion7(), Guid.CreateVersion7());
 
         Assert.IsFalse(result);
         Assert.AreEqual(2, tracker.GetActiveSessionCount());
@@ -49,8 +49,8 @@ public class WopiSessionTrackerTests
     public void TryBeginSession_SameUserSameFile_RefreshesAndReturnsTrueWithoutConsuming()
     {
         var tracker = CreateTracker(maxSessions: 1);
-        var fileId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
+        var fileId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
 
         tracker.TryBeginSession(fileId, userId);
 
@@ -67,7 +67,7 @@ public class WopiSessionTrackerTests
         var tracker = CreateTracker(maxSessions: 0);
 
         for (var i = 0; i < 100; i++)
-            Assert.IsTrue(tracker.TryBeginSession(Guid.NewGuid(), Guid.NewGuid()));
+            Assert.IsTrue(tracker.TryBeginSession(Guid.CreateVersion7(), Guid.CreateVersion7()));
 
         Assert.AreEqual(100, tracker.GetActiveSessionCount());
     }
@@ -76,8 +76,8 @@ public class WopiSessionTrackerTests
     public void EndSession_ExistingSession_DecreasesCount()
     {
         var tracker = CreateTracker();
-        var fileId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
+        var fileId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
 
         tracker.TryBeginSession(fileId, userId);
         Assert.AreEqual(1, tracker.GetActiveSessionCount());
@@ -92,7 +92,7 @@ public class WopiSessionTrackerTests
         var tracker = CreateTracker();
 
         // Should not throw
-        tracker.EndSession(Guid.NewGuid(), Guid.NewGuid());
+        tracker.EndSession(Guid.CreateVersion7(), Guid.CreateVersion7());
         Assert.AreEqual(0, tracker.GetActiveSessionCount());
     }
 
@@ -100,8 +100,8 @@ public class WopiSessionTrackerTests
     public void HeartbeatSession_ExistingSession_DoesNotThrow()
     {
         var tracker = CreateTracker();
-        var fileId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
+        var fileId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
 
         tracker.TryBeginSession(fileId, userId);
         tracker.HeartbeatSession(fileId, userId); // Should update last-activity without throwing
@@ -113,7 +113,7 @@ public class WopiSessionTrackerTests
     public void HeartbeatSession_NonExistentSession_DoesNotThrow()
     {
         var tracker = CreateTracker();
-        tracker.HeartbeatSession(Guid.NewGuid(), Guid.NewGuid()); // no-op
+        tracker.HeartbeatSession(Guid.CreateVersion7(), Guid.CreateVersion7()); // no-op
     }
 
     [TestMethod]
@@ -121,9 +121,9 @@ public class WopiSessionTrackerTests
     {
         var tracker = CreateTracker(maxSessions: 10);
 
-        var id1 = (Guid.NewGuid(), Guid.NewGuid());
-        var id2 = (Guid.NewGuid(), Guid.NewGuid());
-        var id3 = (Guid.NewGuid(), Guid.NewGuid());
+        var id1 = (Guid.CreateVersion7(), Guid.CreateVersion7());
+        var id2 = (Guid.CreateVersion7(), Guid.CreateVersion7());
+        var id3 = (Guid.CreateVersion7(), Guid.CreateVersion7());
 
         tracker.TryBeginSession(id1.Item1, id1.Item2);
         tracker.TryBeginSession(id2.Item1, id2.Item2);
@@ -137,14 +137,14 @@ public class WopiSessionTrackerTests
     public void TryBeginSession_AfterEndSession_CanAddNewSession()
     {
         var tracker = CreateTracker(maxSessions: 1);
-        var fileId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
+        var fileId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
 
         tracker.TryBeginSession(fileId, userId);
         tracker.EndSession(fileId, userId);
 
         // Should now have a free slot
-        var result = tracker.TryBeginSession(Guid.NewGuid(), Guid.NewGuid());
+        var result = tracker.TryBeginSession(Guid.CreateVersion7(), Guid.CreateVersion7());
 
         Assert.IsTrue(result);
     }

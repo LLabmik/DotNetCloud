@@ -168,7 +168,7 @@ internal sealed class AdminModuleService : IAdminModuleService
 
         var grant = new ModuleCapabilityGrant
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             ModuleId = moduleId,
             CapabilityName = capabilityName,
             GrantedAt = DateTime.UtcNow,

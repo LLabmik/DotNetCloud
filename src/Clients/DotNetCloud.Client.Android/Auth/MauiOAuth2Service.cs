@@ -25,7 +25,7 @@ internal sealed class MauiOAuth2Service : IOAuth2Service
         // Build PKCE challenge
         var codeVerifier = GenerateCodeVerifier();
         var codeChallenge = GenerateCodeChallenge(codeVerifier);
-        var state = Guid.NewGuid().ToString("N");
+        var state = Guid.CreateVersion7().ToString("N");
 
         var authUrl = BuildAuthUrl(serverBaseUrl, codeChallenge, state);
 

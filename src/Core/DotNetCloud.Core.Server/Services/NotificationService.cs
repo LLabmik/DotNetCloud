@@ -54,7 +54,7 @@ internal sealed class NotificationService : INotificationService
             .Distinct()
             .Select(userId => new Notification
             {
-                Id = Guid.NewGuid(),
+                Id = Guid.CreateVersion7(),
                 UserId = userId,
                 SourceModuleId = notification.SourceModuleId,
                 Type = notification.Type,

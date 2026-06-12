@@ -7,7 +7,7 @@ namespace DotNetCloud.Modules.Music.Models;
 public sealed class UserAlbum
 {
     /// <summary>Unique identifier for this user album record.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>The user who owns this album record.</summary>
     public Guid OwnerId { get; set; }

@@ -64,7 +64,7 @@ public class PhotoMetadataServiceTests
     [TestMethod]
     public async Task GetMetadata_NonExistentPhoto_ReturnsNull()
     {
-        var result = await _service.GetMetadataAsync(Guid.NewGuid());
+        var result = await _service.GetMetadataAsync(Guid.CreateVersion7());
 
         Assert.IsNull(result);
     }

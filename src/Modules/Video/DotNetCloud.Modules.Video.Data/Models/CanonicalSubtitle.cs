@@ -7,7 +7,7 @@ namespace DotNetCloud.Modules.Video.Models;
 public sealed class CanonicalSubtitle
 {
     /// <summary>Unique identifier for this subtitle.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>The canonical video content hash this subtitle belongs to.</summary>
     public required string VideoContentHash { get; set; }

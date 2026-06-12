@@ -29,7 +29,7 @@ public class LibraryScanProgressTests
         _mockEventBus = new Mock<IEventBus>();
         _mockEnrichment = new Mock<IMetadataEnrichmentService>();
         _caller = TestHelpers.CreateCaller();
-        _tempDir = Path.Combine(Path.GetTempPath(), $"dnc-scan-test-{Guid.NewGuid()}");
+        _tempDir = Path.Combine(Path.GetTempPath(), $"dnc-scan-test-{Guid.CreateVersion7()}");
         Directory.CreateDirectory(_tempDir);
 
         _configuration = new ConfigurationBuilder()
@@ -76,7 +76,7 @@ public class LibraryScanProgressTests
         var files = new List<(Guid, string, string, long)>();
         for (var i = 0; i < count; i++)
         {
-            files.Add((Guid.NewGuid(), $"/fake/path/track{i + 1}.mp3", "audio/mpeg", 5_000_000));
+            files.Add((Guid.CreateVersion7(), $"/fake/path/track{i + 1}.mp3", "audio/mpeg", 5_000_000));
         }
         return files;
     }

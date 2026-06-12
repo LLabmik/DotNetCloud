@@ -9,7 +9,7 @@ namespace DotNetCloud.Client.SyncTray.Tests.ViewModels;
 [TestClass]
 public sealed class FolderBrowserViewModelTests
 {
-    private readonly Guid _contextId = Guid.NewGuid();
+    private readonly Guid _contextId = Guid.CreateVersion7();
 
     [TestMethod]
     public async Task Load_BuildsTreeFromApiResponse()
@@ -73,20 +73,20 @@ public sealed class FolderBrowserViewModelTests
         // Arrange: build a tree with two leaf folders (no sub-children = no placeholders).
         var tree = new SyncTreeNodeResponse
         {
-            NodeId = Guid.NewGuid(),
+            NodeId = Guid.CreateVersion7(),
             Name = "root",
             NodeType = "Folder",
             Children =
             [
                 new SyncTreeNodeResponse
                 {
-                    NodeId = Guid.NewGuid(),
+                    NodeId = Guid.CreateVersion7(),
                     Name = "Documents",
                     NodeType = "Folder",
                 },
                 new SyncTreeNodeResponse
                 {
-                    NodeId = Guid.NewGuid(),
+                    NodeId = Guid.CreateVersion7(),
                     Name = "Trash",
                     NodeType = "Folder",
                 },
@@ -126,20 +126,20 @@ public sealed class FolderBrowserViewModelTests
         // Arrange: a simple two-folder tree.
         var tree = new SyncTreeNodeResponse
         {
-            NodeId = Guid.NewGuid(),
+            NodeId = Guid.CreateVersion7(),
             Name = "root",
             NodeType = "Folder",
             Children =
             [
                 new SyncTreeNodeResponse
                 {
-                    NodeId = Guid.NewGuid(),
+                    NodeId = Guid.CreateVersion7(),
                     Name = "Keep",
                     NodeType = "Folder",
                 },
                 new SyncTreeNodeResponse
                 {
-                    NodeId = Guid.NewGuid(),
+                    NodeId = Guid.CreateVersion7(),
                     Name = "Remove",
                     NodeType = "Folder",
                 },
@@ -152,7 +152,7 @@ public sealed class FolderBrowserViewModelTests
 
         var selectiveSync = new SelectiveSyncConfig();
         var tempConfigFile = Path.GetTempFileName();
-        var tempSyncRoot = Path.Combine(Path.GetTempPath(), $"sync-test-{Guid.NewGuid():N}");
+        var tempSyncRoot = Path.Combine(Path.GetTempPath(), $"sync-test-{Guid.CreateVersion7():N}");
         var removeDir = Path.Combine(tempSyncRoot, "Remove");
 
         try
@@ -190,14 +190,14 @@ public sealed class FolderBrowserViewModelTests
         // Arrange
         var tree = new SyncTreeNodeResponse
         {
-            NodeId = Guid.NewGuid(),
+            NodeId = Guid.CreateVersion7(),
             Name = "root",
             NodeType = "Folder",
             Children =
             [
                 new SyncTreeNodeResponse
                 {
-                    NodeId = Guid.NewGuid(),
+                    NodeId = Guid.CreateVersion7(),
                     Name = "Protected",
                     NodeType = "Folder",
                 },
@@ -210,7 +210,7 @@ public sealed class FolderBrowserViewModelTests
 
         var selectiveSync = new SelectiveSyncConfig();
         var tempConfigFile = Path.GetTempFileName();
-        var tempSyncRoot = Path.Combine(Path.GetTempPath(), $"sync-test-{Guid.NewGuid():N}");
+        var tempSyncRoot = Path.Combine(Path.GetTempPath(), $"sync-test-{Guid.CreateVersion7():N}");
         var protectedDir = Path.Combine(tempSyncRoot, "Protected");
 
         try
@@ -245,14 +245,14 @@ public sealed class FolderBrowserViewModelTests
     {
         var tree = new SyncTreeNodeResponse
         {
-            NodeId = Guid.NewGuid(),
+            NodeId = Guid.CreateVersion7(),
             Name = "root",
             NodeType = "Folder",
             Children =
             [
                 new SyncTreeNodeResponse
                 {
-                    NodeId = Guid.NewGuid(),
+                    NodeId = Guid.CreateVersion7(),
                     Name = "Projects",
                     NodeType = "Directory",
                 },
@@ -278,21 +278,21 @@ public sealed class FolderBrowserViewModelTests
     {
         var tree = new SyncTreeNodeResponse
         {
-            NodeId = Guid.NewGuid(),
+            NodeId = Guid.CreateVersion7(),
             Name = "root",
             NodeType = "Folder",
             Children =
             [
                 new SyncTreeNodeResponse
                 {
-                    NodeId = Guid.NewGuid(),
+                    NodeId = Guid.CreateVersion7(),
                     Name = "_DotNetCloud",
                     NodeType = "Folder",
                     Children =
                     [
                         new SyncTreeNodeResponse
                         {
-                            NodeId = Guid.NewGuid(),
+                            NodeId = Guid.CreateVersion7(),
                             Name = "Shared Team",
                             NodeType = "Folder",
                         },
@@ -326,21 +326,21 @@ public sealed class FolderBrowserViewModelTests
     {
         return new SyncTreeNodeResponse
         {
-            NodeId = Guid.NewGuid(),
+            NodeId = Guid.CreateVersion7(),
             Name = "root",
             NodeType = "Folder",
             Children =
             [
                 new SyncTreeNodeResponse
                 {
-                    NodeId = Guid.NewGuid(),
+                    NodeId = Guid.CreateVersion7(),
                     Name = "Documents",
                     NodeType = "Folder",
                     Children =
                     [
                         new SyncTreeNodeResponse
                         {
-                            NodeId = Guid.NewGuid(),
+                            NodeId = Guid.CreateVersion7(),
                             Name = "Projects",
                             NodeType = "Folder",
                         },
@@ -348,13 +348,13 @@ public sealed class FolderBrowserViewModelTests
                 },
                 new SyncTreeNodeResponse
                 {
-                    NodeId = Guid.NewGuid(),
+                    NodeId = Guid.CreateVersion7(),
                     Name = "Photos",
                     NodeType = "Folder",
                 },
                 new SyncTreeNodeResponse
                 {
-                    NodeId = Guid.NewGuid(),
+                    NodeId = Guid.CreateVersion7(),
                     Name = "readme.txt",
                     NodeType = "File",
                 },
@@ -370,9 +370,9 @@ public sealed class FolderBrowserItemViewModelTests
     public void CheckParent_PropagatesChildren()
     {
         // Arrange
-        var parent = new FolderBrowserItemViewModel(Guid.NewGuid(), "Root", "Root");
-        var child1 = new FolderBrowserItemViewModel(Guid.NewGuid(), "A", "Root/A") { Parent = parent };
-        var child2 = new FolderBrowserItemViewModel(Guid.NewGuid(), "B", "Root/B") { Parent = parent };
+        var parent = new FolderBrowserItemViewModel(Guid.CreateVersion7(), "Root", "Root");
+        var child1 = new FolderBrowserItemViewModel(Guid.CreateVersion7(), "A", "Root/A") { Parent = parent };
+        var child2 = new FolderBrowserItemViewModel(Guid.CreateVersion7(), "B", "Root/B") { Parent = parent };
         parent.Children.Add(child1);
         parent.Children.Add(child2);
 
@@ -395,9 +395,9 @@ public sealed class FolderBrowserItemViewModelTests
     public void MixedChildren_ParentIndeterminate()
     {
         // Arrange
-        var parent = new FolderBrowserItemViewModel(Guid.NewGuid(), "Root", "Root");
-        var child1 = new FolderBrowserItemViewModel(Guid.NewGuid(), "A", "Root/A") { Parent = parent };
-        var child2 = new FolderBrowserItemViewModel(Guid.NewGuid(), "B", "Root/B") { Parent = parent };
+        var parent = new FolderBrowserItemViewModel(Guid.CreateVersion7(), "Root", "Root");
+        var child1 = new FolderBrowserItemViewModel(Guid.CreateVersion7(), "A", "Root/A") { Parent = parent };
+        var child2 = new FolderBrowserItemViewModel(Guid.CreateVersion7(), "B", "Root/B") { Parent = parent };
         parent.Children.Add(child1);
         parent.Children.Add(child2);
 
@@ -412,7 +412,7 @@ public sealed class FolderBrowserItemViewModelTests
     [TestMethod]
     public void LockedSelection_CannotBeReenabled()
     {
-        var item = new FolderBrowserItemViewModel(Guid.NewGuid(), "_DotNetCloud", "_DotNetCloud")
+        var item = new FolderBrowserItemViewModel(Guid.CreateVersion7(), "_DotNetCloud", "_DotNetCloud")
         {
             IsSelectionLocked = true,
             IsChecked = false,

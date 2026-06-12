@@ -34,7 +34,7 @@ public class UserSettingsControllerTests
     public async Task GetSettingAsync_WithAuthenticatedUserAndExistingSetting_ReturnsOk()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         SetUserClaim("sub", userId.ToString());
 
         _settingsServiceMock
@@ -61,7 +61,7 @@ public class UserSettingsControllerTests
     public async Task GetSettingAsync_WithAuthenticatedUserAndMissingSetting_ReturnsNotFound()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         SetUserClaim("sub", userId.ToString());
 
         _settingsServiceMock
@@ -95,7 +95,7 @@ public class UserSettingsControllerTests
     public async Task UpsertSettingAsync_WithAuthenticatedUser_ReturnsOk()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         SetUserClaim("sub", userId.ToString());
 
         var dto = new UpsertUserSettingDto
@@ -147,7 +147,7 @@ public class UserSettingsControllerTests
     public async Task GetSettingAsync_WithUserIdClaim_UsesFallbackClaimType()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         SetUserClaim("sub", userId.ToString());
 
         _settingsServiceMock
@@ -174,7 +174,7 @@ public class UserSettingsControllerTests
     public async Task UpsertSettingAsync_WithNameIdentifierClaim_UsesFallbackClaimType()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         SetUserClaim(System.Security.Claims.ClaimTypes.NameIdentifier, userId.ToString());
 
         var dto = new UpsertUserSettingDto

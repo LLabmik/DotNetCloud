@@ -32,7 +32,7 @@ public class SearchModuleTests
         services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
         services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
         services.AddDbContext<SearchDbContext>(options =>
-            options.UseInMemoryDatabase(Guid.NewGuid().ToString()));
+            options.UseInMemoryDatabase(Guid.CreateVersion7().ToString()));
 
         _serviceProvider = services.BuildServiceProvider();
     }

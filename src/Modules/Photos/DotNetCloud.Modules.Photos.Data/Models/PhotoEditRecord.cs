@@ -7,7 +7,7 @@ namespace DotNetCloud.Modules.Photos.Models;
 public sealed class PhotoEditRecord
 {
     /// <summary>Unique identifier.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>The photo this edit applies to.</summary>
     public Guid PhotoId { get; set; }

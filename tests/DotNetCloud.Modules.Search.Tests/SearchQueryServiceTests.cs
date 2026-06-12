@@ -30,7 +30,7 @@ public class SearchQueryServiceTests
         var query = new SearchQuery
         {
             QueryText = "   ",
-            UserId = Guid.NewGuid(),
+            UserId = Guid.CreateVersion7(),
             Page = 1,
             PageSize = 20
         };
@@ -48,7 +48,7 @@ public class SearchQueryServiceTests
         var query = new SearchQuery
         {
             QueryText = "test search",
-            UserId = Guid.NewGuid(),
+            UserId = Guid.CreateVersion7(),
             Page = 1,
             PageSize = 20
         };

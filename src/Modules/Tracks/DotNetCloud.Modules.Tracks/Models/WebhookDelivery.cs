@@ -6,7 +6,7 @@ namespace DotNetCloud.Modules.Tracks.Models;
 /// </summary>
 public sealed class WebhookDelivery
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
     public Guid SubscriptionId { get; set; }
     public required string EventType { get; set; }
     /// <summary>JSON payload sent to the webhook URL.</summary>

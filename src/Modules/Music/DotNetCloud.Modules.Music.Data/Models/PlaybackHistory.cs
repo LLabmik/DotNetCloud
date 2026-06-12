@@ -8,7 +8,7 @@ namespace DotNetCloud.Modules.Music.Models;
 public sealed class PlaybackHistory
 {
     /// <summary>Unique identifier for this record.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>The user who played the track.</summary>
     public Guid UserId { get; set; }

@@ -42,7 +42,7 @@ public sealed class GroupManagerService : IGroupManager
 
         var group = new Group
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             OrganizationId = organizationId,
             Name = normalizedName,
             Description = NormalizeDescription(description),

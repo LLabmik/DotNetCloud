@@ -30,7 +30,7 @@ public class MetadataEnrichmentServiceTests
         _mockCaaClient = new Mock<ICoverArtArchiveClient>();
         _mockAudioDbClient = new Mock<IAudioDbClient>();
         _caller = TestHelpers.CreateCaller();
-        _tempArtDir = Path.Combine(Path.GetTempPath(), $"dnc-test-art-{Guid.NewGuid()}");
+        _tempArtDir = Path.Combine(Path.GetTempPath(), $"dnc-test-art-{Guid.CreateVersion7()}");
         Directory.CreateDirectory(_tempArtDir);
 
         _configuration = new ConfigurationBuilder()
@@ -112,7 +112,7 @@ public class MetadataEnrichmentServiceTests
         var album = await TestHelpers.SeedAlbumAsync(_db, artist.Id, "The Wall", ownerId: _caller.UserId);
 
         // Create a real temp file so File.Exists returns true in the service
-        var tempCoverPath = Path.Combine(Path.GetTempPath(), $"test-cover-{Guid.NewGuid()}.jpg");
+        var tempCoverPath = Path.Combine(Path.GetTempPath(), $"test-cover-{Guid.CreateVersion7()}.jpg");
         await File.WriteAllBytesAsync(tempCoverPath, [0xFF, 0xD8]);
         try
         {
@@ -322,7 +322,7 @@ public class MetadataEnrichmentServiceTests
     public async Task EnrichAlbum_NonExistentAlbum_ReturnsGracefully()
     {
         var service = CreateService();
-        await service.EnrichAlbumAsync(Guid.NewGuid(), _caller);
+        await service.EnrichAlbumAsync(Guid.CreateVersion7(), _caller);
 
         _mockMbClient.Verify(
             x => x.SearchReleaseGroupAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
@@ -612,7 +612,7 @@ public class MetadataEnrichmentServiceTests
     public async Task EnrichArtist_NonExistent_ReturnsGracefully()
     {
         var service = CreateService();
-        await service.EnrichArtistAsync(Guid.NewGuid(), _caller);
+        await service.EnrichArtistAsync(Guid.CreateVersion7(), _caller);
 
         _mockMbClient.Verify(
             x => x.SearchArtistAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()),

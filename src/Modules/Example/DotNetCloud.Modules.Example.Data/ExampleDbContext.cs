@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Data.Configuration.Extensions;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Modules.Example.Data.Configuration;
 using DotNetCloud.Modules.Example.Models;
@@ -41,5 +42,7 @@ public class ExampleDbContext : DbContext
         modelBuilder.HasDefaultSchema(_namingStrategy.GetSchemaForModule("example"));
         base.OnModelCreating(modelBuilder);
         modelBuilder.ApplyConfiguration(new ExampleNoteConfiguration());
+
+        SequentialGuidConfigurationExtensions.ApplySequentialGuidDefaults(modelBuilder, _namingStrategy.Provider);
     }
 }

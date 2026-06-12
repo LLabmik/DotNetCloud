@@ -26,10 +26,10 @@ public class GroupMemberTests
     public void GroupMember_SetProperties_StoresValuesCorrectly()
     {
         // Arrange
-        var groupId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
+        var groupId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
         var addedAt = DateTime.UtcNow;
-        var addedByUserId = Guid.NewGuid();
+        var addedByUserId = Guid.CreateVersion7();
 
         // Act
         var groupMember = new GroupMember
@@ -51,8 +51,8 @@ public class GroupMemberTests
     public void GroupMember_CompositeKey_GroupIdAndUserId()
     {
         // Arrange
-        var groupId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
+        var groupId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
 
         // Act
         var groupMember = new GroupMember
@@ -72,8 +72,8 @@ public class GroupMemberTests
         // Arrange
         var groupMember = new GroupMember
         {
-            GroupId = Guid.NewGuid(),
-            UserId = Guid.NewGuid(),
+            GroupId = Guid.CreateVersion7(),
+            UserId = Guid.CreateVersion7(),
             AddedAt = DateTime.UtcNow
         };
 
@@ -90,15 +90,15 @@ public class GroupMemberTests
         // Arrange
         var group = new Group
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             Name = "Administrators",
-            OrganizationId = Guid.NewGuid()
+            OrganizationId = Guid.CreateVersion7()
         };
 
         var groupMember = new GroupMember
         {
             GroupId = group.Id,
-            UserId = Guid.NewGuid()
+            UserId = Guid.CreateVersion7()
         };
 
         // Act
@@ -115,7 +115,7 @@ public class GroupMemberTests
         // Arrange
         var user = new ApplicationUser
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             UserName = "testuser",
             Email = "test@example.com",
             DisplayName = "Test User"
@@ -123,7 +123,7 @@ public class GroupMemberTests
 
         var groupMember = new GroupMember
         {
-            GroupId = Guid.NewGuid(),
+            GroupId = Guid.CreateVersion7(),
             UserId = user.Id
         };
 
@@ -141,7 +141,7 @@ public class GroupMemberTests
         // Arrange
         var admin = new ApplicationUser
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             UserName = "admin",
             Email = "admin@example.com",
             DisplayName = "Admin User"
@@ -149,8 +149,8 @@ public class GroupMemberTests
 
         var groupMember = new GroupMember
         {
-            GroupId = Guid.NewGuid(),
-            UserId = Guid.NewGuid(),
+            GroupId = Guid.CreateVersion7(),
+            UserId = Guid.CreateVersion7(),
             AddedByUserId = admin.Id
         };
 
@@ -171,8 +171,8 @@ public class GroupMemberTests
         // Act
         var groupMember = new GroupMember
         {
-            GroupId = Guid.NewGuid(),
-            UserId = Guid.NewGuid(),
+            GroupId = Guid.CreateVersion7(),
+            UserId = Guid.CreateVersion7(),
             AddedAt = now
         };
 
@@ -184,19 +184,19 @@ public class GroupMemberTests
     public void GroupMember_DifferentUsersInSameGroup()
     {
         // Arrange
-        var groupId = Guid.NewGuid();
+        var groupId = Guid.CreateVersion7();
 
         // Act
         var member1 = new GroupMember
         {
             GroupId = groupId,
-            UserId = Guid.NewGuid()
+            UserId = Guid.CreateVersion7()
         };
 
         var member2 = new GroupMember
         {
             GroupId = groupId,
-            UserId = Guid.NewGuid()
+            UserId = Guid.CreateVersion7()
         };
 
         // Assert
@@ -209,14 +209,14 @@ public class GroupMemberTests
     public void GroupMember_AuditTracking_WithAddedBy()
     {
         // Arrange
-        var adminId = Guid.NewGuid();
+        var adminId = Guid.CreateVersion7();
         var addedAt = DateTime.UtcNow;
 
         // Act
         var groupMember = new GroupMember
         {
-            GroupId = Guid.NewGuid(),
-            UserId = Guid.NewGuid(),
+            GroupId = Guid.CreateVersion7(),
+            UserId = Guid.CreateVersion7(),
             AddedAt = addedAt,
             AddedByUserId = adminId
         };
@@ -232,8 +232,8 @@ public class GroupMemberTests
         // Arrange & Act
         var groupMember = new GroupMember
         {
-            GroupId = Guid.NewGuid(),
-            UserId = Guid.NewGuid(),
+            GroupId = Guid.CreateVersion7(),
+            UserId = Guid.CreateVersion7(),
             AddedAt = DateTime.UtcNow,
             AddedByUserId = null // System added
         };

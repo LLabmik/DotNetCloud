@@ -60,7 +60,7 @@ public sealed class CalendarShareService : ICalendarShareService
         {
             await _eventBus.PublishAsync(new ResourceSharedEvent
             {
-                EventId = Guid.NewGuid(),
+                EventId = Guid.CreateVersion7(),
                 CreatedAt = DateTime.UtcNow,
                 SharedByUserId = caller.UserId,
                 SharedWithUserId = userId.Value,

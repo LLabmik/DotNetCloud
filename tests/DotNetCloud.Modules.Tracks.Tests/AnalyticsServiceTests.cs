@@ -24,9 +24,9 @@ public class AnalyticsServiceTests
     [TestMethod]
     public async Task GetProductAnalyticsAsync_ReturnsAnalyticsForProduct()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
         var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
-        await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid(), "Task 1");
+        await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.CreateVersion7(), "Task 1");
 
         var result = await _service.GetProductAnalyticsAsync(product.Id, CancellationToken.None);
 
@@ -37,7 +37,7 @@ public class AnalyticsServiceTests
     [TestMethod]
     public async Task GetProductAnalyticsAsync_EmptyProduct_ReturnsZeros()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
 
         var result = await _service.GetProductAnalyticsAsync(product.Id, CancellationToken.None);
 
@@ -47,7 +47,7 @@ public class AnalyticsServiceTests
     [TestMethod]
     public async Task GetVelocityDataAsync_ReturnsVelocityList()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
 
         var result = await _service.GetVelocityDataAsync(product.Id, CancellationToken.None);
 
@@ -57,7 +57,7 @@ public class AnalyticsServiceTests
     [TestMethod]
     public async Task GetProductDashboardAsync_ReturnsDashboard()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
 
         var result = await _service.GetProductDashboardAsync(product.Id, CancellationToken.None);
 
@@ -67,7 +67,7 @@ public class AnalyticsServiceTests
     [TestMethod]
     public async Task GetRoadmapDataAsync_ReturnsRoadmap()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
 
         var result = await _service.GetRoadmapDataAsync(product.Id, CancellationToken.None);
 
@@ -77,8 +77,8 @@ public class AnalyticsServiceTests
     [TestMethod]
     public async Task GetSprintCapacityAsync_ReturnsCapacity()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
-        var epic = await TestHelpers.SeedEpicAsync(_db, product.Id, Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
+        var epic = await TestHelpers.SeedEpicAsync(_db, product.Id, Guid.CreateVersion7());
         var sprint = new Sprint
         {
             EpicId = epic.Id,
@@ -100,7 +100,7 @@ public class AnalyticsServiceTests
     [TestMethod]
     public async Task GetMemberCapacityAsync_ReturnsMemberCapacities()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
 
         var result = await _service.GetMemberCapacityAsync(product.Id, CancellationToken.None);
 
@@ -110,7 +110,7 @@ public class AnalyticsServiceTests
     [TestMethod]
     public async Task GetProductCapacityAsync_ReturnsProductCapacity()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
 
         var result = await _service.GetProductCapacityAsync(product.Id, CancellationToken.None);
 

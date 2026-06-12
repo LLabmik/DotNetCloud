@@ -70,7 +70,7 @@ public sealed class BookmarkService : IBookmarkService
 
         await _eventBus.PublishAsync(new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ModuleId = "bookmarks",
             EntityId = bookmark.Id.ToString(),
@@ -111,7 +111,7 @@ public sealed class BookmarkService : IBookmarkService
 
         await _eventBus.PublishAsync(new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ModuleId = "bookmarks",
             EntityId = bookmark.Id.ToString(),
@@ -136,7 +136,7 @@ public sealed class BookmarkService : IBookmarkService
 
         await _eventBus.PublishAsync(new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ModuleId = "bookmarks",
             EntityId = id.ToString(),

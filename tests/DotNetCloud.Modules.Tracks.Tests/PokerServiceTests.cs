@@ -24,13 +24,13 @@ public class PokerServiceTests
     /// <summary>Creates a product, an epic, a feature under the epic, and an item under the feature.</summary>
     private async Task<(WorkItem Epic, WorkItem Item)> SeedEpicWithItemAsync()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
-        var epic = await TestHelpers.SeedEpicAsync(_db, product.Id, Guid.NewGuid());
-        var feature = await TestHelpers.SeedWorkItemAsync(_db, product.Id, null, Guid.NewGuid(), "Feature", WorkItemType.Feature);
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
+        var epic = await TestHelpers.SeedEpicAsync(_db, product.Id, Guid.CreateVersion7());
+        var feature = await TestHelpers.SeedWorkItemAsync(_db, product.Id, null, Guid.CreateVersion7(), "Feature", WorkItemType.Feature);
         feature.ParentWorkItemId = epic.Id;
         await _db.SaveChangesAsync();
         var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, feature.Id, SwimlaneContainerType.WorkItem);
-        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid(), "Poker Item", WorkItemType.Item);
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.CreateVersion7(), "Poker Item", WorkItemType.Item);
         item.ParentWorkItemId = feature.Id;
         await _db.SaveChangesAsync();
         return (epic, item);
@@ -40,7 +40,7 @@ public class PokerServiceTests
     public async Task StartSessionAsync_CreatesPokerSession()
     {
         var (epic, item) = await SeedEpicWithItemAsync();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var dto = new CreatePokerSessionDto { ItemId = item.Id, Scale = PokerScale.Fibonacci };
 
         var result = await _service.StartSessionAsync(epic.Id, userId, dto, CancellationToken.None);
@@ -53,7 +53,7 @@ public class PokerServiceTests
     public async Task GetSessionAsync_ReturnsSession()
     {
         var (epic, item) = await SeedEpicWithItemAsync();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var created = await _service.StartSessionAsync(epic.Id, userId, new CreatePokerSessionDto { ItemId = item.Id, Scale = PokerScale.Fibonacci }, CancellationToken.None);
 
         var result = await _service.GetSessionAsync(created.Id, CancellationToken.None);
@@ -66,8 +66,8 @@ public class PokerServiceTests
     public async Task SubmitVoteAsync_RecordsVote()
     {
         var (epic, item) = await SeedEpicWithItemAsync();
-        var hostId = Guid.NewGuid();
-        var voterId = Guid.NewGuid();
+        var hostId = Guid.CreateVersion7();
+        var voterId = Guid.CreateVersion7();
         var session = await _service.StartSessionAsync(epic.Id, hostId, new CreatePokerSessionDto { ItemId = item.Id, Scale = PokerScale.Fibonacci }, CancellationToken.None);
 
         var result = await _service.SubmitVoteAsync(session.Id, voterId,
@@ -80,8 +80,8 @@ public class PokerServiceTests
     public async Task RevealVotesAsync_RevealsAllVotes()
     {
         var (epic, item) = await SeedEpicWithItemAsync();
-        var hostId = Guid.NewGuid();
-        var voterId = Guid.NewGuid();
+        var hostId = Guid.CreateVersion7();
+        var voterId = Guid.CreateVersion7();
         var session = await _service.StartSessionAsync(epic.Id, hostId, new CreatePokerSessionDto { ItemId = item.Id, Scale = PokerScale.Fibonacci }, CancellationToken.None);
         await _service.SubmitVoteAsync(session.Id, voterId, new SubmitPokerVoteDto { Estimate = "5" }, CancellationToken.None);
 
@@ -94,8 +94,8 @@ public class PokerServiceTests
     public async Task AcceptEstimateAsync_CompletesSession()
     {
         var (epic, item) = await SeedEpicWithItemAsync();
-        var hostId = Guid.NewGuid();
-        var voterId = Guid.NewGuid();
+        var hostId = Guid.CreateVersion7();
+        var voterId = Guid.CreateVersion7();
         var session = await _service.StartSessionAsync(epic.Id, hostId, new CreatePokerSessionDto { ItemId = item.Id, Scale = PokerScale.Fibonacci }, CancellationToken.None);
         await _service.SubmitVoteAsync(session.Id, voterId, new SubmitPokerVoteDto { Estimate = "5" }, CancellationToken.None);
         await _service.RevealVotesAsync(session.Id, CancellationToken.None);
@@ -109,8 +109,8 @@ public class PokerServiceTests
     public async Task NewRoundAsync_ResetsVotes()
     {
         var (epic, item) = await SeedEpicWithItemAsync();
-        var hostId = Guid.NewGuid();
-        var voterId = Guid.NewGuid();
+        var hostId = Guid.CreateVersion7();
+        var voterId = Guid.CreateVersion7();
         var session = await _service.StartSessionAsync(epic.Id, hostId, new CreatePokerSessionDto { ItemId = item.Id, Scale = PokerScale.Fibonacci }, CancellationToken.None);
         await _service.SubmitVoteAsync(session.Id, voterId, new SubmitPokerVoteDto { Estimate = "5" }, CancellationToken.None);
         await _service.RevealVotesAsync(session.Id, CancellationToken.None);
@@ -124,8 +124,8 @@ public class PokerServiceTests
     public async Task GetVoteStatusAsync_ReturnsVoterStatus()
     {
         var (epic, item) = await SeedEpicWithItemAsync();
-        var hostId = Guid.NewGuid();
-        var voterId = Guid.NewGuid();
+        var hostId = Guid.CreateVersion7();
+        var voterId = Guid.CreateVersion7();
         var session = await _service.StartSessionAsync(epic.Id, hostId, new CreatePokerSessionDto { ItemId = item.Id, Scale = PokerScale.Fibonacci }, CancellationToken.None);
         await _service.SubmitVoteAsync(session.Id, voterId, new SubmitPokerVoteDto { Estimate = "5" }, CancellationToken.None);
 

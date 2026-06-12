@@ -73,15 +73,15 @@ public class ChannelListTests
 
     private static TestableChannelList CreateChannelList()
     {
-        var firstPinnedId = Guid.NewGuid();
-        var secondPinnedId = Guid.NewGuid();
+        var firstPinnedId = Guid.CreateVersion7();
+        var secondPinnedId = Guid.CreateVersion7();
 
         var list = new TestableChannelList();
         list.SetChannels(
         [
             new ChannelViewModel { Id = firstPinnedId, Name = "alpha", Type = "Public", IsPinned = true },
             new ChannelViewModel { Id = secondPinnedId, Name = "beta", Type = "Public", IsPinned = true },
-            new ChannelViewModel { Id = Guid.NewGuid(), Name = "general", Type = "Public", IsPinned = false }
+            new ChannelViewModel { Id = Guid.CreateVersion7(), Name = "general", Type = "Public", IsPinned = false }
         ]);
 
         return list;

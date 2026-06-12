@@ -38,7 +38,7 @@ public sealed class AiChatService : IAiChatService
     {
         var conversation = new Conversation
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             OwnerId = caller.UserId,
             Title = title ?? "New Conversation",
             Model = model,
@@ -139,7 +139,7 @@ public sealed class AiChatService : IAiChatService
         // Persist the user message
         var userMsg = new ConversationMessage
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             ConversationId = conversationId,
             Role = "user",
             Content = userMessage,
@@ -156,7 +156,7 @@ public sealed class AiChatService : IAiChatService
         // Persist the assistant response
         var assistantMsg = new ConversationMessage
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             ConversationId = conversationId,
             Role = "assistant",
             Content = response.Message.Content,
@@ -193,7 +193,7 @@ public sealed class AiChatService : IAiChatService
         // Persist the user message
         var userMsg = new ConversationMessage
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             ConversationId = conversationId,
             Role = "user",
             Content = userMessage,
@@ -224,7 +224,7 @@ public sealed class AiChatService : IAiChatService
         // Persist the complete assistant response
         var assistantMsg = new ConversationMessage
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             ConversationId = conversationId,
             Role = "assistant",
             Content = fullContent.ToString(),

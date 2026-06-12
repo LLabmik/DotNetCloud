@@ -7,7 +7,7 @@ namespace DotNetCloud.Modules.Files.Models;
 public sealed class FileVersion
 {
     /// <summary>Unique identifier for this version.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>The file node this version belongs to.</summary>
     public Guid FileNodeId { get; set; }

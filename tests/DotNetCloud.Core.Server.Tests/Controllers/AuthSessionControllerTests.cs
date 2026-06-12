@@ -151,7 +151,7 @@ public sealed class AuthSessionControllerTests
     [TestMethod]
     public async Task MfaVerifyAsync_Success_AdminPathWithNonAdmin_RedirectsToRoot()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var user = new ApplicationUser { Id = userId, UserName = "user@test.com", DisplayName = "Test User" };
 
         _signInManagerMock
@@ -174,7 +174,7 @@ public sealed class AuthSessionControllerTests
     [TestMethod]
     public async Task MfaVerifyAsync_Success_AdminPathWithAdmin_RedirectsToAdmin()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var user = new ApplicationUser { Id = userId, UserName = "admin@test.com", DisplayName = "Admin User" };
 
         _signInManagerMock

@@ -20,8 +20,8 @@ public sealed class AdminSharedFoldersEndpointTests
     [TestMethod]
     public async Task CreateListAndGet_SharedFolderDefinition_Works()
     {
-        var adminUserId = Guid.NewGuid();
-        var sharedRoot = Path.Combine(Path.GetTempPath(), $"dnc-shared-root-{Guid.NewGuid():N}");
+        var adminUserId = Guid.CreateVersion7();
+        var sharedRoot = Path.Combine(Path.GetTempPath(), $"dnc-shared-root-{Guid.CreateVersion7():N}");
         var sourceDirectory = Path.Combine(sharedRoot, "design-assets");
         Directory.CreateDirectory(sourceDirectory);
 
@@ -97,8 +97,8 @@ public sealed class AdminSharedFoldersEndpointTests
     [TestMethod]
     public async Task BrowseDirectories_ReturnsImmediateSubdirectoriesWithinConfiguredRoot()
     {
-        var adminUserId = Guid.NewGuid();
-        var sharedRoot = Path.Combine(Path.GetTempPath(), $"dnc-shared-browse-{Guid.NewGuid():N}");
+        var adminUserId = Guid.CreateVersion7();
+        var sharedRoot = Path.Combine(Path.GetTempPath(), $"dnc-shared-browse-{Guid.CreateVersion7():N}");
         var designAssets = Directory.CreateDirectory(Path.Combine(sharedRoot, "design-assets")).FullName;
         var photos = Directory.CreateDirectory(Path.Combine(sharedRoot, "photos")).FullName;
         var raw = Directory.CreateDirectory(Path.Combine(photos, "raw")).FullName;
@@ -170,10 +170,10 @@ public sealed class AdminSharedFoldersEndpointTests
     [TestMethod]
     public async Task ListMountedSharedFolderAndRejectWrites_Works()
     {
-        var adminUserId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
-        var groupId = Guid.NewGuid();
-        var sharedRoot = Path.Combine(Path.GetTempPath(), $"dnc-mounted-root-{Guid.NewGuid():N}");
+        var adminUserId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
+        var groupId = Guid.CreateVersion7();
+        var sharedRoot = Path.Combine(Path.GetTempPath(), $"dnc-mounted-root-{Guid.CreateVersion7():N}");
         var sourceDirectory = Path.Combine(sharedRoot, "team-handbook");
         var nestedDirectory = Path.Combine(sourceDirectory, "Policies");
         Directory.CreateDirectory(nestedDirectory);

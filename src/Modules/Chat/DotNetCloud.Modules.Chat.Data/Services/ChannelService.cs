@@ -97,7 +97,7 @@ internal sealed class ChannelService : IChannelService
 
         await _eventBus.PublishAsync(new ChannelCreatedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ChannelId = channel.Id,
             ChannelName = channel.Name,
@@ -283,7 +283,7 @@ internal sealed class ChannelService : IChannelService
 
         await _eventBus.PublishAsync(new ChannelDeletedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ChannelId = channel.Id,
             ChannelName = channel.Name,
@@ -307,7 +307,7 @@ internal sealed class ChannelService : IChannelService
 
         await _eventBus.PublishAsync(new ChannelArchivedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ChannelId = channel.Id,
             ChannelName = channel.Name,
@@ -355,7 +355,7 @@ internal sealed class ChannelService : IChannelService
 
         await _eventBus.PublishAsync(new ChannelCreatedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ChannelId = channel.Id,
             ChannelName = channel.Name,

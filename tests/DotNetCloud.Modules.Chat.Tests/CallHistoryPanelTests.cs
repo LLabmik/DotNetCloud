@@ -266,9 +266,9 @@ public class CallHistoryPanelTests
     {
         return new CallHistoryDto
         {
-            Id = Guid.NewGuid(),
-            ChannelId = Guid.NewGuid(),
-            InitiatorUserId = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
+            ChannelId = Guid.CreateVersion7(),
+            InitiatorUserId = Guid.CreateVersion7(),
             InitiatorDisplayName = "Test User",
             State = state,
             MediaType = mediaType,

@@ -29,7 +29,7 @@ public class AuthServiceTests
     private Mock<ILogger<AuthService>> _loggerMock = null!;
     private AuthService _service = null!;
     private static readonly CallerContext SystemCaller =
-        CallerContext.CreateModuleContext(Guid.NewGuid());
+        CallerContext.CreateModuleContext(Guid.CreateVersion7());
 
     [TestInitialize]
     public void Setup()
@@ -86,7 +86,7 @@ public class AuthServiceTests
         _userManagerMock
             .Setup(m => m.CreateAsync(It.IsAny<ApplicationUser>(), request.Password))
             .ReturnsAsync(IdentityResult.Success)
-            .Callback<ApplicationUser, string>((u, _) => { u.Id = Guid.NewGuid(); });
+            .Callback<ApplicationUser, string>((u, _) => { u.Id = Guid.CreateVersion7(); });
         // Options.SignIn.RequireConfirmedEmail defaults to false in IdentityOptions, so no mock needed
 
         // Act
@@ -207,12 +207,12 @@ public class AuthServiceTests
             .ReturnsAsync(IdentityResult.Success)
             .Callback<ApplicationUser, string>((u, _) =>
             {
-                u.Id = Guid.NewGuid();
+                u.Id = Guid.CreateVersion7();
                 createdUser = u;
             });
 
         var adminCaller = new CallerContext(
-            Guid.NewGuid(),
+            Guid.CreateVersion7(),
             new[] { "Administrator" },
             DotNetCloud.Core.Authorization.CallerType.User);
 
@@ -250,7 +250,7 @@ public class AuthServiceTests
         _userManagerMock
             .Setup(m => m.CreateAsync(It.IsAny<ApplicationUser>(), request.Password))
             .ReturnsAsync(IdentityResult.Success)
-            .Callback<ApplicationUser, string>((u, _) => { u.Id = Guid.NewGuid(); });
+            .Callback<ApplicationUser, string>((u, _) => { u.Id = Guid.CreateVersion7(); });
 
         // Act
         var response = await _service.RegisterAsync(request, SystemCaller);
@@ -268,7 +268,7 @@ public class AuthServiceTests
     public async Task LoginAsync_ValidCredentials_ReturnsLoginResponse()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var user = new ApplicationUser
         {
             Id = userId,
@@ -320,7 +320,7 @@ public class AuthServiceTests
         // Arrange
         var user = new ApplicationUser
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             DisplayName = "Test User",
             Email = "user@example.com",
             IsActive = true,
@@ -350,7 +350,7 @@ public class AuthServiceTests
         // Arrange
         var user = new ApplicationUser
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             DisplayName = "Locked User",
             Email = "locked@example.com",
             IsActive = true,
@@ -378,7 +378,7 @@ public class AuthServiceTests
         // Arrange
         var user = new ApplicationUser
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             DisplayName = "Inactive User",
             Email = "inactive@example.com",
             IsActive = false,
@@ -403,7 +403,7 @@ public class AuthServiceTests
     public async Task LoginAsync_MfaEnabledNoTotpCode_ThrowsMfaRequired()
     {
         // Arrange
-        var user = new ApplicationUser { Id = Guid.NewGuid(), DisplayName = "MFA User", Email = "mfa@example.com", IsActive = true };
+        var user = new ApplicationUser { Id = Guid.CreateVersion7(), DisplayName = "MFA User", Email = "mfa@example.com", IsActive = true };
         var request = new LoginRequest { Email = "mfa@example.com", Password = "P@ssw0rd!" };
 
         _userManagerMock.Setup(m => m.FindByEmailAsync(request.Email)).ReturnsAsync(user);
@@ -423,7 +423,7 @@ public class AuthServiceTests
     {
         try
         {
-            var user = new ApplicationUser { Id = Guid.NewGuid(), DisplayName = "MFA User", Email = "mfa@example.com", IsActive = true };
+            var user = new ApplicationUser { Id = Guid.CreateVersion7(), DisplayName = "MFA User", Email = "mfa@example.com", IsActive = true };
             var request = new LoginRequest { Email = "mfa@example.com", Password = "P@ssw0rd!" };
 
             _userManagerMock.Setup(m => m.FindByEmailAsync(request.Email)).ReturnsAsync(user);
@@ -450,7 +450,7 @@ public class AuthServiceTests
     public async Task LoginAsync_PasswordChangeRequired_ThrowsInvalidOperationException()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var user = new ApplicationUser
         {
             Id = userId,
@@ -485,7 +485,7 @@ public class AuthServiceTests
     public async Task LoginAsync_PasswordChangeNotRequired_ReturnsLoginResponse()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var user = new ApplicationUser
         {
             Id = userId,
@@ -521,7 +521,7 @@ public class AuthServiceTests
     public async Task LogoutAsync_NoRefreshToken_RevokesAllTokensForSubject()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var tokenMock = new Mock<object>();
 
         _tokenManagerMock
@@ -561,7 +561,7 @@ public class AuthServiceTests
     public async Task WhenUserFoundAndCurrentPasswordValidThenChangePasswordReturnsTrue()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var user = new ApplicationUser
         {
             Id = userId,
@@ -590,7 +590,7 @@ public class AuthServiceTests
     public async Task WhenCurrentPasswordIncorrectThenChangePasswordReturnsFalse()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var user = new ApplicationUser
         {
             Id = userId,
@@ -623,7 +623,7 @@ public class AuthServiceTests
     public async Task WhenUserNotFoundThenChangePasswordReturnsFalse()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var request = new ChangePasswordRequest
         {
             CurrentPassword = "OldP@ss1!",
@@ -645,7 +645,7 @@ public class AuthServiceTests
         // Act & Assert
         try
         {
-            await _service.ChangePasswordAsync(Guid.NewGuid(), null!);
+            await _service.ChangePasswordAsync(Guid.CreateVersion7(), null!);
             Assert.Fail("Expected ArgumentNullException");
         }
         catch (ArgumentNullException)
@@ -662,7 +662,7 @@ public class AuthServiceTests
     public async Task WhenUserExistsThenGetUserProfileReturnsProfile()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var user = new ApplicationUser
         {
             Id = userId,
@@ -700,7 +700,7 @@ public class AuthServiceTests
     public async Task WhenUserNotFoundThenGetUserProfileReturnsNull()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         _userManagerMock.Setup(m => m.FindByIdAsync(userId.ToString())).ReturnsAsync((ApplicationUser?)null);
 
         // Act

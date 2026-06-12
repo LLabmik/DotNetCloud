@@ -56,7 +56,7 @@ public class AuthEndpointTests
     public async Task Register_DuplicateEmail_ReturnsBadRequest()
     {
         // Arrange — register a user first
-        var email = $"duplicate-{Guid.NewGuid():N}@test.local";
+        var email = $"duplicate-{Guid.CreateVersion7():N}@test.local";
         var request = new RegisterRequestBuilder()
             .WithEmail(email)
             .WithPassword("TestP@ssw0rd!")
@@ -82,7 +82,7 @@ public class AuthEndpointTests
     {
         // Arrange
         var request = new RegisterRequestBuilder()
-            .WithEmail($"weakpw-{Guid.NewGuid():N}@test.local")
+            .WithEmail($"weakpw-{Guid.CreateVersion7():N}@test.local")
             .WithPassword("123")
             .Build();
 
@@ -102,7 +102,7 @@ public class AuthEndpointTests
     public async Task Login_ValidCredentials_ReturnsOk()
     {
         // Arrange — register first
-        var email = $"login-{Guid.NewGuid():N}@test.local";
+        var email = $"login-{Guid.CreateVersion7():N}@test.local";
         var password = "TestP@ssw0rd!";
 
         var registerRequest = new RegisterRequestBuilder()
@@ -171,7 +171,7 @@ public class AuthEndpointTests
     public async Task ForgotPassword_ValidEmail_ReturnsOk()
     {
         // Arrange — register a user
-        var email = $"forgot-{Guid.NewGuid():N}@test.local";
+        var email = $"forgot-{Guid.CreateVersion7():N}@test.local";
         var registerRequest = new RegisterRequestBuilder()
             .WithEmail(email)
             .WithPassword("TestP@ssw0rd!")

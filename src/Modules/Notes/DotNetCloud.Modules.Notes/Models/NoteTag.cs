@@ -6,7 +6,7 @@ namespace DotNetCloud.Modules.Notes.Models;
 public sealed class NoteTag
 {
     /// <summary>Unique identifier.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>The note this tag is applied to.</summary>
     public Guid NoteId { get; set; }

@@ -26,9 +26,9 @@ public sealed class VirtualFileSyncEngineTests
 
         _context = new SyncContext
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             ServerBaseUrl = "https://cloud.example.com",
-            UserId = Guid.NewGuid(),
+            UserId = Guid.CreateVersion7(),
             LocalFolderPath = Path.Combine(Path.GetTempPath(), "vfs-test"),
             StateDatabasePath = Path.Combine(Path.GetTempPath(), "vfs-test", "state.db"),
             AccountKey = "test-account",

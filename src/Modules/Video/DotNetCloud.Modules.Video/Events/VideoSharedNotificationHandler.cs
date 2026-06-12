@@ -45,7 +45,7 @@ public sealed class VideoSharedNotificationHandler : IEventHandler<ResourceShare
         {
             var notification = new NotificationDto
             {
-                Id = Guid.NewGuid(),
+                Id = Guid.CreateVersion7(),
                 UserId = @event.SharedWithUserId,
                 SourceModuleId = "dotnetcloud.video",
                 Type = NotificationType.Share,

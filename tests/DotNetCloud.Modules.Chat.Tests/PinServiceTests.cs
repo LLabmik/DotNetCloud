@@ -24,11 +24,11 @@ public class PinServiceTests
     public async Task Setup()
     {
         var options = new DbContextOptionsBuilder<ChatDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options;
         _db = new ChatDbContext(options);
         _service = new PinService(_db, NullLogger<PinService>.Instance);
-        _caller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        _caller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
 
         var channel = new Channel { Name = "test", CreatedByUserId = _caller.UserId };
         _db.Channels.Add(channel);
@@ -95,7 +95,7 @@ public class PinServiceTests
     [TestMethod]
     public async Task WhenPinMessageAsNonMemberThenThrowsUnauthorizedAccessException()
     {
-        var nonMember = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        var nonMember = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(
             () => _service.PinMessageAsync(_channelId, _messageId, nonMember));

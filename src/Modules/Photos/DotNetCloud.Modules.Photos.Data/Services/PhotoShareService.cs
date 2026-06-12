@@ -76,7 +76,7 @@ public sealed class PhotoShareService : IPhotoShareService
 
         await _eventBus.PublishAsync(new AlbumSharedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             AlbumId = albumId,
             SharedByUserId = caller.UserId,

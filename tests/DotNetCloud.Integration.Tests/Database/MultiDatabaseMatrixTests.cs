@@ -183,7 +183,7 @@ public class MultiDatabaseMatrixTests
         using var context = CreateContext(strategy);
         var permission = new Permission
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             Code = $"test.{providerName}.read",
             DisplayName = $"Test {providerName} Read",
             Description = "Integration test permission",
@@ -227,7 +227,7 @@ public class MultiDatabaseMatrixTests
     private static CoreDbContext CreateContext(ITableNamingStrategy strategy)
     {
         var options = new DbContextOptionsBuilder<CoreDbContext>()
-            .UseInMemoryDatabase($"MultiDbTest_{Guid.NewGuid():N}")
+            .UseInMemoryDatabase($"MultiDbTest_{Guid.CreateVersion7():N}")
             .Options;
         return new CoreDbContext(options, strategy);
     }

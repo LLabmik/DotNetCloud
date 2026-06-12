@@ -65,7 +65,7 @@ public sealed class PhotoService : IPhotoService
 
         await _eventBus.PublishAsync(new PhotoUploadedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             PhotoId = photo.Id,
             FileNodeId = fileNodeId,
@@ -75,7 +75,7 @@ public sealed class PhotoService : IPhotoService
 
         await _eventBus.PublishAsync(new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ModuleId = "photos",
             EntityId = photo.Id.ToString(),
@@ -180,7 +180,7 @@ public sealed class PhotoService : IPhotoService
 
         await _eventBus.PublishAsync(new PhotoDeletedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             PhotoId = photoId,
             DeletedByUserId = caller.UserId,
@@ -189,7 +189,7 @@ public sealed class PhotoService : IPhotoService
 
         await _eventBus.PublishAsync(new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ModuleId = "photos",
             EntityId = photoId.ToString(),

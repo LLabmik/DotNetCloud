@@ -15,14 +15,14 @@ internal static class TestHelpers
     public static PhotosDbContext CreateDb()
     {
         var options = new DbContextOptionsBuilder<PhotosDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options;
         return new PhotosDbContext(options);
     }
 
     /// <summary>Creates a CallerContext for a user.</summary>
     public static CallerContext CreateCaller(Guid? userId = null)
-        => new(userId ?? Guid.NewGuid(), ["user"], CallerType.User);
+        => new(userId ?? Guid.CreateVersion7(), ["user"], CallerType.User);
 
     /// <summary>Seeds a photo in the database.</summary>
     public static async Task<Photo> SeedPhotoAsync(
@@ -34,7 +34,7 @@ internal static class TestHelpers
     {
         var photo = new Photo
         {
-            FileNodeId = Guid.NewGuid(),
+            FileNodeId = Guid.CreateVersion7(),
             OwnerId = ownerId,
             FileName = fileName,
             MimeType = mimeType,

@@ -148,7 +148,7 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
         AddAccountRequest request,
         CancellationToken cancellationToken = default)
     {
-        var contextId = Guid.NewGuid();
+        var contextId = Guid.CreateVersion7();
         var dataDirectory = Path.Combine(_dataRoot, contextId.ToString("N"));
         Directory.CreateDirectory(dataDirectory);
 
@@ -783,7 +783,7 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
         {
             Directory.CreateDirectory(path);
 
-            var probePath = Path.Combine(path, $".write-test-{Guid.NewGuid():N}");
+            var probePath = Path.Combine(path, $".write-test-{Guid.CreateVersion7():N}");
             using (File.Create(probePath))
             {
             }

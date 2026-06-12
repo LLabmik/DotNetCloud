@@ -24,7 +24,7 @@ public class ExifMetadataExtractorTests
     {
         var logger = new Mock<ILogger<ExifMetadataExtractor>>();
         _extractor = new ExifMetadataExtractor(logger.Object);
-        _tempDir = Path.Combine(Path.GetTempPath(), "dotnetcloud-test-" + Guid.NewGuid().ToString("N")[..8]);
+        _tempDir = Path.Combine(Path.GetTempPath(), "dotnetcloud-test-" + Guid.CreateVersion7().ToString("N")[..8]);
         Directory.CreateDirectory(_tempDir);
     }
 

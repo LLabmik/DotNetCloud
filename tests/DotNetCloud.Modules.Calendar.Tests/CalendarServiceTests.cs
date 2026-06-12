@@ -26,12 +26,12 @@ public class CalendarServiceTests
     public void Setup()
     {
         var options = new DbContextOptionsBuilder<CalendarDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options;
         _db = new CalendarDbContext(options);
         _eventBusMock = new Mock<IEventBus>();
         _service = new CalendarService(_db, _eventBusMock.Object, Mock.Of<DotNetCloud.Core.Capabilities.IOrganizationDirectory>(), NullLogger<CalendarService>.Instance);
-        _caller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        _caller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
     }
 
     [TestCleanup]
@@ -88,7 +88,7 @@ public class CalendarServiceTests
     [TestMethod]
     public async Task GetCalendar_NotFound_ReturnsNull()
     {
-        var result = await _service.GetCalendarAsync(Guid.NewGuid(), _caller);
+        var result = await _service.GetCalendarAsync(Guid.CreateVersion7(), _caller);
 
         Assert.IsNull(result);
     }
@@ -99,7 +99,7 @@ public class CalendarServiceTests
         var created = await _service.CreateCalendarAsync(
             new CreateCalendarDto { Name = "Private" }, _caller);
 
-        var otherCaller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        var otherCaller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
         var result = await _service.GetCalendarAsync(created.Id, otherCaller);
 
         Assert.IsNull(result);
@@ -108,7 +108,7 @@ public class CalendarServiceTests
     [TestMethod]
     public async Task ListCalendars_ReturnsOwnCalendars()
     {
-        var otherCaller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        var otherCaller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
 
         await _service.CreateCalendarAsync(new CreateCalendarDto { Name = "Mine" }, _caller);
         await _service.CreateCalendarAsync(new CreateCalendarDto { Name = "Theirs" }, otherCaller);
@@ -135,7 +135,7 @@ public class CalendarServiceTests
     public async Task UpdateCalendar_NotFound_ThrowsValidation()
     {
         await Assert.ThrowsExactlyAsync<ValidationException>(
-            () => _service.UpdateCalendarAsync(Guid.NewGuid(), new UpdateCalendarDto { Name = "X" }, _caller));
+            () => _service.UpdateCalendarAsync(Guid.CreateVersion7(), new UpdateCalendarDto { Name = "X" }, _caller));
     }
 
     [TestMethod]
@@ -154,7 +154,7 @@ public class CalendarServiceTests
     public async Task DeleteCalendar_NotFound_ThrowsValidation()
     {
         await Assert.ThrowsExactlyAsync<ValidationException>(
-            () => _service.DeleteCalendarAsync(Guid.NewGuid(), _caller));
+            () => _service.DeleteCalendarAsync(Guid.CreateVersion7(), _caller));
     }
 
     [TestMethod]

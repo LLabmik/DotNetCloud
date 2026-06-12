@@ -26,12 +26,12 @@ public class ContactServiceSearchIndexTests
     public void Setup()
     {
         var options = new DbContextOptionsBuilder<ContactsDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options;
         _db = new ContactsDbContext(options);
         _eventBusMock = new Mock<IEventBus>();
         _service = new ContactService(_db, _eventBusMock.Object, NullLogger<ContactService>.Instance);
-        _caller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        _caller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
     }
 
     [TestCleanup]

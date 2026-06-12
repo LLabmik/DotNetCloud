@@ -280,7 +280,7 @@ public class WebRtcInteropServiceTests
     [TestMethod]
     public void ValidatePeerId_ValidGuid_Succeeds()
     {
-        WebRtcInteropService.ValidatePeerId(Guid.NewGuid().ToString());
+        WebRtcInteropService.ValidatePeerId(Guid.CreateVersion7().ToString());
     }
 
     [TestMethod]
@@ -462,7 +462,7 @@ public class WebRtcInteropServiceTests
     [TestMethod]
     public void ValidateStreamType_ValidGuid_Succeeds()
     {
-        WebRtcInteropService.ValidateStreamType(Guid.NewGuid().ToString());
+        WebRtcInteropService.ValidateStreamType(Guid.CreateVersion7().ToString());
     }
 
     [TestMethod]
@@ -500,7 +500,7 @@ public class WebRtcInteropServiceTests
     [TestMethod]
     public async Task CreateOfferAsync_ValidPeerId_InvokesJsCreateOffer()
     {
-        var peerId = Guid.NewGuid().ToString();
+        var peerId = Guid.CreateVersion7().ToString();
         var expectedSdp = "{\"type\":\"offer\",\"sdp\":\"v=0\"}";
 
         _jsMock.Setup(js => js.InvokeAsync<string?>("dotnetcloudVideoCall.createOffer", It.IsAny<object?[]>()))
@@ -758,7 +758,7 @@ public class WebRtcInteropServiceTests
     [TestMethod]
     public async Task AttachStreamToElementAsync_PeerGuid_InvokesJs()
     {
-        var peerId = Guid.NewGuid().ToString();
+        var peerId = Guid.CreateVersion7().ToString();
         _jsMock.Setup(js => js.InvokeAsync<bool>("dotnetcloudVideoCall.attachStreamToElement", It.IsAny<object?[]>()))
             .ReturnsAsync(true);
 

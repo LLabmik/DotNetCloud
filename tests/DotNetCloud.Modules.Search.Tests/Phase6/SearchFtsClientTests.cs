@@ -119,7 +119,7 @@ public class SearchFtsClientTests
 
         using var client = new SearchFtsClient(options, NullLogger<SearchFtsClient>.Instance);
 
-        var result = await client.SearchAsync("test query", userId: Guid.NewGuid());
+        var result = await client.SearchAsync("test query", userId: Guid.CreateVersion7());
 
         // Should return null gracefully, not throw
         Assert.IsNull(result);
@@ -140,7 +140,7 @@ public class SearchFtsClientTests
             "budget report",
             moduleFilter: "notes",
             entityTypeFilter: "Note",
-            userId: Guid.NewGuid(),
+            userId: Guid.CreateVersion7(),
             page: 1,
             pageSize: 20,
             sortOrder: SearchSortOrder.Relevance);

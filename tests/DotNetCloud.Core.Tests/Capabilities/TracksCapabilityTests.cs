@@ -43,9 +43,9 @@ public class TracksCapabilityTests
         // Arrange & Act
         var summary = new WorkItemSummary
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             Title = "Fix the bug",
-            ProductId = Guid.NewGuid(),
+            ProductId = Guid.CreateVersion7(),
             ProductTitle = "Dev Product",
             Priority = Priority.High,
             DueDate = DateTime.UtcNow.AddDays(3)
@@ -64,9 +64,9 @@ public class TracksCapabilityTests
         // Arrange & Act
         var summary = new WorkItemSummary
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             Title = "Test",
-            ProductId = Guid.NewGuid(),
+            ProductId = Guid.CreateVersion7(),
             ProductTitle = "Product"
         };
 

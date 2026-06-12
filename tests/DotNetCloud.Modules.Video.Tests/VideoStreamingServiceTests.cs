@@ -25,7 +25,7 @@ public class VideoStreamingServiceTests
     [TestMethod]
     public async Task GetVideoForStreamingAsync_ReturnsVideo_WhenOwned()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var video = await TestHelpers.SeedVideoAsync(_db, "Stream Video", ownerId: userId);
 
         var result = await _service.GetVideoForStreamingAsync(video.Id, userId);
@@ -38,7 +38,7 @@ public class VideoStreamingServiceTests
     {
         var video = await TestHelpers.SeedVideoAsync(_db, "Not Mine");
 
-        var result = await _service.GetVideoForStreamingAsync(video.Id, Guid.NewGuid());
+        var result = await _service.GetVideoForStreamingAsync(video.Id, Guid.CreateVersion7());
 
         Assert.IsNull(result);
     }
@@ -46,7 +46,7 @@ public class VideoStreamingServiceTests
     [TestMethod]
     public void GenerateStreamToken_ReturnsNonEmptyToken()
     {
-        var token = _service.GenerateStreamToken(Guid.NewGuid(), Guid.NewGuid());
+        var token = _service.GenerateStreamToken(Guid.CreateVersion7(), Guid.CreateVersion7());
 
         Assert.IsFalse(string.IsNullOrEmpty(token));
     }
@@ -54,8 +54,8 @@ public class VideoStreamingServiceTests
     [TestMethod]
     public void ValidateStreamToken_ReturnsTokenInfo_WhenValid()
     {
-        var videoId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
+        var videoId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
         var token = _service.GenerateStreamToken(videoId, userId);
 
         var result = _service.ValidateStreamToken(token);
@@ -77,7 +77,7 @@ public class VideoStreamingServiceTests
     public void ValidateStreamToken_ReturnsNull_ForExpiredToken()
     {
         _service.StreamTokenLifetime = TimeSpan.FromMilliseconds(1);
-        var token = _service.GenerateStreamToken(Guid.NewGuid(), Guid.NewGuid());
+        var token = _service.GenerateStreamToken(Guid.CreateVersion7(), Guid.CreateVersion7());
 
         Thread.Sleep(10); // Let it expire
 
@@ -89,7 +89,7 @@ public class VideoStreamingServiceTests
     [TestMethod]
     public void AcquireStreamSlot_Succeeds_WhenUnderLimit()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         _service.AcquireStreamSlot(userId);
 
@@ -99,7 +99,7 @@ public class VideoStreamingServiceTests
     [TestMethod]
     public void AcquireStreamSlot_ThrowsWhenLimitExceeded()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         _service.MaxConcurrentStreams = 2;
         _service.AcquireStreamSlot(userId);
         _service.AcquireStreamSlot(userId);
@@ -113,7 +113,7 @@ public class VideoStreamingServiceTests
     [TestMethod]
     public void ReleaseStreamSlot_DecrementsCount()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         _service.AcquireStreamSlot(userId);
         _service.AcquireStreamSlot(userId);
 
@@ -125,7 +125,7 @@ public class VideoStreamingServiceTests
     [TestMethod]
     public void ReleaseStreamSlot_DoesNotGoNegative()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         _service.ReleaseStreamSlot(userId);
 
@@ -135,7 +135,7 @@ public class VideoStreamingServiceTests
     [TestMethod]
     public void GetActiveStreamCount_ReturnsZero_WhenNoActiveStreams()
     {
-        Assert.AreEqual(0, _service.GetActiveStreamCount(Guid.NewGuid()));
+        Assert.AreEqual(0, _service.GetActiveStreamCount(Guid.CreateVersion7()));
     }
 
     // ─── ParseRangeHeader Tests ─────────────────────────────────────

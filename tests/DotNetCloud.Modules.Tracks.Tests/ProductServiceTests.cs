@@ -24,8 +24,8 @@ public class ProductServiceTests
     [TestMethod]
     public async Task CreateProductAsync_ValidInput_ReturnsProductDto()
     {
-        var orgId = Guid.NewGuid();
-        var ownerId = Guid.NewGuid();
+        var orgId = Guid.CreateVersion7();
+        var ownerId = Guid.CreateVersion7();
         var dto = new CreateProductDto { Name = "My Project" };
 
         var result = await _service.CreateProductAsync(orgId, ownerId, dto, CancellationToken.None);
@@ -39,7 +39,7 @@ public class ProductServiceTests
     [TestMethod]
     public async Task GetProductAsync_ExistingProduct_ReturnsProduct()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
 
         var result = await _service.GetProductAsync(product.Id, CancellationToken.None);
 
@@ -50,7 +50,7 @@ public class ProductServiceTests
     [TestMethod]
     public async Task UpdateProductAsync_UpdatesName()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
         var dto = new UpdateProductDto { Name = "Updated Name" };
 
         var result = await _service.UpdateProductAsync(product.Id, dto, CancellationToken.None);
@@ -64,9 +64,9 @@ public class ProductServiceTests
     [TestMethod]
     public async Task ListProductsByOrganizationAsync_ReturnsProducts()
     {
-        var orgId = Guid.NewGuid();
-        await TestHelpers.SeedProductAsync(_db, orgId, Guid.NewGuid(), "A");
-        await TestHelpers.SeedProductAsync(_db, orgId, Guid.NewGuid(), "B");
+        var orgId = Guid.CreateVersion7();
+        await TestHelpers.SeedProductAsync(_db, orgId, Guid.CreateVersion7(), "A");
+        await TestHelpers.SeedProductAsync(_db, orgId, Guid.CreateVersion7(), "B");
 
         var result = await _service.ListProductsByOrganizationAsync(orgId, CancellationToken.None);
 
@@ -76,8 +76,8 @@ public class ProductServiceTests
     [TestMethod]
     public async Task AddMemberAsync_AddsUserToProduct()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
-        var dto = new AddProductMemberDto { UserId = Guid.NewGuid(), Role = ProductMemberRole.Member };
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
+        var dto = new AddProductMemberDto { UserId = Guid.CreateVersion7(), Role = ProductMemberRole.Member };
 
         var result = await _service.AddMemberAsync(product.Id, dto, CancellationToken.None);
 
@@ -88,8 +88,8 @@ public class ProductServiceTests
     [TestMethod]
     public async Task GetUserProductRoleAsync_ReturnsMemberRole()
     {
-        var ownerId = Guid.NewGuid();
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), ownerId);
+        var ownerId = Guid.CreateVersion7();
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), ownerId);
 
         var role = await _service.GetUserProductRoleAsync(product.Id, ownerId, CancellationToken.None);
 
@@ -99,9 +99,9 @@ public class ProductServiceTests
     [TestMethod]
     public async Task RemoveMemberAsync_RemovesUserFromProduct()
     {
-        var ownerId = Guid.NewGuid();
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), ownerId);
-        var memberId = Guid.NewGuid();
+        var ownerId = Guid.CreateVersion7();
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), ownerId);
+        var memberId = Guid.CreateVersion7();
         await TestHelpers.AddMemberAsync(_db, product.Id, memberId, ProductMemberRole.Member);
 
         await _service.RemoveMemberAsync(product.Id, memberId, CancellationToken.None);
@@ -113,7 +113,7 @@ public class ProductServiceTests
     [TestMethod]
     public async Task CreateLabelAsync_CreatesLabel()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
         var dto = new CreateLabelDto { Title = "Bug", Color = "#ff0000" };
 
         var result = await _service.CreateLabelAsync(product.Id, dto, CancellationToken.None);
@@ -126,7 +126,7 @@ public class ProductServiceTests
     [TestMethod]
     public async Task DeleteLabelAsync_RemovesLabel()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
         var label = await _service.CreateLabelAsync(product.Id, new CreateLabelDto { Title = "Temp", Color = "#ccc" }, CancellationToken.None);
 
         await _service.DeleteLabelAsync(product.Id, label.Id, CancellationToken.None);

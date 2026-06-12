@@ -6,7 +6,7 @@ namespace DotNetCloud.Modules.Email.Models;
 public sealed class EmailMailbox
 {
     /// <summary>Unique identifier.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>The parent account.</summary>
     public Guid AccountId { get; set; }

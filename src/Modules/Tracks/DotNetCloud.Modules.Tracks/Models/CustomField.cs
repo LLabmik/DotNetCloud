@@ -8,7 +8,7 @@ namespace DotNetCloud.Modules.Tracks.Models;
 /// </summary>
 public sealed class CustomField
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
     public Guid ProductId { get; set; }
     public required string Name { get; set; }
     public CustomFieldType Type { get; set; } = CustomFieldType.Text;

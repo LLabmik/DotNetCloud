@@ -22,7 +22,7 @@ public class IndexManagementPhase4Tests
     public void Setup()
     {
         var options = new DbContextOptionsBuilder<SearchDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options;
         _db = new SearchDbContext(options);
     }
@@ -164,7 +164,7 @@ public class IndexManagementPhase4Tests
             EntityId = "e1",
             EntityType = "FileNode",
             Title = "Test",
-            OwnerId = Guid.NewGuid(),
+            OwnerId = Guid.CreateVersion7(),
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow,
             Metadata = new Dictionary<string, string>
@@ -241,7 +241,7 @@ public class IndexManagementPhase4Tests
     public async Task Search_ByTitle_FindsMatches()
     {
         var provider = new SqlServerSearchProvider(_db, NullLogger<SqlServerSearchProvider>.Instance);
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         await provider.IndexDocumentAsync(CreateDocument("files", "f1", "FileNode", "Quarterly Report", "content", userId));
         await provider.IndexDocumentAsync(CreateDocument("files", "f2", "FileNode", "Annual Budget", "content", userId));
@@ -264,8 +264,8 @@ public class IndexManagementPhase4Tests
     public async Task Search_PermissionScoped_OnlyOwnDocuments()
     {
         var provider = new SqlServerSearchProvider(_db, NullLogger<SqlServerSearchProvider>.Instance);
-        var user1 = Guid.NewGuid();
-        var user2 = Guid.NewGuid();
+        var user1 = Guid.CreateVersion7();
+        var user2 = Guid.CreateVersion7();
 
         await provider.IndexDocumentAsync(CreateDocument("files", "f1", "FileNode", "Shared Report", "content", user1));
         await provider.IndexDocumentAsync(CreateDocument("files", "f2", "FileNode", "Shared Report", "content", user2));
@@ -288,7 +288,7 @@ public class IndexManagementPhase4Tests
     public async Task Search_WithModuleFilter_RestrictsResults()
     {
         var provider = new SqlServerSearchProvider(_db, NullLogger<SqlServerSearchProvider>.Instance);
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         await provider.IndexDocumentAsync(CreateDocument("files", "f1", "FileNode", "Test", "content", userId));
         await provider.IndexDocumentAsync(CreateDocument("notes", "n1", "Note", "Test", "content", userId));
@@ -312,7 +312,7 @@ public class IndexManagementPhase4Tests
     public async Task Search_WithEntityTypeFilter_RestrictsResults()
     {
         var provider = new SqlServerSearchProvider(_db, NullLogger<SqlServerSearchProvider>.Instance);
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         await provider.IndexDocumentAsync(CreateDocument("files", "f1", "FileNode", "Test", "content", userId));
         await provider.IndexDocumentAsync(CreateDocument("files", "f2", "Folder", "Test", "content", userId));
@@ -336,7 +336,7 @@ public class IndexManagementPhase4Tests
     public async Task Search_Pagination_ReturnsCorrectPage()
     {
         var provider = new SqlServerSearchProvider(_db, NullLogger<SqlServerSearchProvider>.Instance);
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         for (int i = 1; i <= 15; i++)
         {
@@ -362,7 +362,7 @@ public class IndexManagementPhase4Tests
     public async Task Search_FacetCounts_ReturnsPerModuleCounts()
     {
         var provider = new SqlServerSearchProvider(_db, NullLogger<SqlServerSearchProvider>.Instance);
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         await provider.IndexDocumentAsync(CreateDocument("files", "f1", "FileNode", "Test", "keyword", userId));
         await provider.IndexDocumentAsync(CreateDocument("files", "f2", "FileNode", "Test", "keyword", userId));
@@ -382,7 +382,7 @@ public class IndexManagementPhase4Tests
     public async Task Search_SortByDateDesc_OrdersCorrectly()
     {
         var provider = new SqlServerSearchProvider(_db, NullLogger<SqlServerSearchProvider>.Instance);
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         await provider.IndexDocumentAsync(new SearchDocument
         {
@@ -428,7 +428,7 @@ public class IndexManagementPhase4Tests
     public async Task Search_SortByDateAsc_OrdersCorrectly()
     {
         var provider = new SqlServerSearchProvider(_db, NullLogger<SqlServerSearchProvider>.Instance);
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         await provider.IndexDocumentAsync(new SearchDocument
         {
@@ -474,7 +474,7 @@ public class IndexManagementPhase4Tests
     public async Task Search_SnippetGeneration_ContainsQueryText()
     {
         var provider = new SqlServerSearchProvider(_db, NullLogger<SqlServerSearchProvider>.Instance);
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         await provider.IndexDocumentAsync(CreateDocument(
             "files", "f1", "FileNode", "Report",
@@ -494,7 +494,7 @@ public class IndexManagementPhase4Tests
     public async Task SqlServerProvider_IndexAndSearch_Works()
     {
         var provider = new SqlServerSearchProvider(_db, NullLogger<SqlServerSearchProvider>.Instance);
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         await provider.IndexDocumentAsync(CreateDocument("files", "f1", "FileNode", "Test Document", "content here", userId));
 
@@ -544,7 +544,7 @@ public class IndexManagementPhase4Tests
         EntityType = "Test",
         Title = $"Test {entityId}",
         Content = "content",
-        OwnerId = Guid.NewGuid(),
+        OwnerId = Guid.CreateVersion7(),
         CreatedAt = DateTimeOffset.UtcNow,
         UpdatedAt = DateTimeOffset.UtcNow,
         IndexedAt = indexedAt
@@ -559,7 +559,7 @@ public class IndexManagementPhase4Tests
             EntityType = entityType,
             Title = title,
             Content = content,
-            OwnerId = ownerId ?? Guid.NewGuid(),
+            OwnerId = ownerId ?? Guid.CreateVersion7(),
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow
         };

@@ -31,8 +31,8 @@ public class ControllerSecurityAuditTests
         // The critical fix: EndSession previously accepted a userId query param,
         // allowing any authenticated user to terminate another user's editing session.
         // Now it derives the userId from the bearer token via GetAuthenticatedCaller().
-        var authenticatedUserId = Guid.NewGuid();
-        var fileId = Guid.NewGuid();
+        var authenticatedUserId = Guid.CreateVersion7();
+        var fileId = Guid.CreateVersion7();
         var sessionTrackerMock = new Mock<IWopiSessionTracker>();
         var controller = CreateWopiController(sessionTrackerMock: sessionTrackerMock);
         SetAuthenticatedUser(controller, authenticatedUserId);
@@ -54,7 +54,7 @@ public class ControllerSecurityAuditTests
         SetUnauthenticatedUser(controller);
 
         Assert.ThrowsExactly<DotNetCloud.Core.Errors.ForbiddenException>(
-            () => controller.EndSessionAsync(Guid.NewGuid()));
+            () => controller.EndSessionAsync(Guid.CreateVersion7()));
     }
 
     #endregion
@@ -64,7 +64,7 @@ public class ControllerSecurityAuditTests
     [TestMethod]
     public async Task TrashList_UsesAuthenticatedCaller()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var trashMock = new Mock<ITrashService>();
         trashMock.Setup(t => t.ListTrashAsync(
             It.Is<DotNetCloud.Core.Authorization.CallerContext>(c => c.UserId == userId),
@@ -98,7 +98,7 @@ public class ControllerSecurityAuditTests
     [TestMethod]
     public async Task TrashGetSize_UsesAuthenticatedCaller()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var trashMock = new Mock<ITrashService>();
         trashMock.Setup(t => t.GetTrashSizeAsync(
             It.Is<DotNetCloud.Core.Authorization.CallerContext>(c => c.UserId == userId),
@@ -120,8 +120,8 @@ public class ControllerSecurityAuditTests
     [TestMethod]
     public async Task TrashRestore_UsesAuthenticatedCaller()
     {
-        var userId = Guid.NewGuid();
-        var nodeId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var nodeId = Guid.CreateVersion7();
         var trashMock = new Mock<ITrashService>();
         trashMock.Setup(t => t.RestoreAsync(
             nodeId,
@@ -150,8 +150,8 @@ public class ControllerSecurityAuditTests
     [TestMethod]
     public async Task TrashPurge_UsesAuthenticatedCaller()
     {
-        var userId = Guid.NewGuid();
-        var nodeId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var nodeId = Guid.CreateVersion7();
         var trashMock = new Mock<ITrashService>();
 
         var controller = CreateTrashController(trashMock);
@@ -170,7 +170,7 @@ public class ControllerSecurityAuditTests
     [TestMethod]
     public async Task TrashEmpty_UsesAuthenticatedCaller()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var trashMock = new Mock<ITrashService>();
 
         var controller = CreateTrashController(trashMock);
@@ -195,7 +195,7 @@ public class ControllerSecurityAuditTests
         var controller = CreateShareController();
         SetUnauthenticatedUser(controller);
 
-        var result = await controller.ListAsync(Guid.NewGuid()) as ObjectResult;
+        var result = await controller.ListAsync(Guid.CreateVersion7()) as ObjectResult;
 
         Assert.IsNotNull(result);
         Assert.AreEqual(403, result.StatusCode);
@@ -220,7 +220,7 @@ public class ControllerSecurityAuditTests
     [TestMethod]
     public async Task FilesMountedAccess_UsesAuthenticatedCaller()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var fileMock = new Mock<IFileService>();
         fileMock.Setup(service => service.ListMountedAccessAsync(
                 It.Is<DotNetCloud.Core.Authorization.CallerContext>(caller => caller.UserId == userId),
@@ -253,7 +253,7 @@ public class ControllerSecurityAuditTests
     [TestMethod]
     public async Task AdminSharedFoldersList_UsesAuthenticatedCaller()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var serviceMock = new Mock<IAdminSharedFolderService>();
         serviceMock.Setup(service => service.GetSharedFoldersAsync(
                 It.Is<DotNetCloud.Core.Authorization.CallerContext>(caller => caller.UserId == userId),
@@ -286,7 +286,7 @@ public class ControllerSecurityAuditTests
     [TestMethod]
     public async Task AdminSharedFoldersBrowse_UsesAuthenticatedCaller()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var serviceMock = new Mock<IAdminSharedFolderService>();
         serviceMock.Setup(service => service.BrowseDirectoriesAsync(
                 It.Is<string?>(path => path == "design-assets"),

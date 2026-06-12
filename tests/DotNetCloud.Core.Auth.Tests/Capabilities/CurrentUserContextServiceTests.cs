@@ -53,7 +53,7 @@ public class CurrentUserContextServiceTests
     public void GetCurrentCaller_WhenAuthenticatedWithNameIdentifier_ReturnsCallerContext()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var claims = new[]
         {
             new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
@@ -82,7 +82,7 @@ public class CurrentUserContextServiceTests
     public void GetCurrentCaller_WhenAuthenticatedWithSubClaim_ReturnsCallerContext()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var claims = new[]
         {
             new Claim("sub", userId.ToString()),
@@ -129,7 +129,7 @@ public class CurrentUserContextServiceTests
     public void GetCurrentCaller_WhenNoRoles_ReturnsCallerWithEmptyRoles()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var claims = new[]
         {
             new Claim(ClaimTypes.NameIdentifier, userId.ToString())
@@ -153,7 +153,7 @@ public class CurrentUserContextServiceTests
     public void GetCurrentCaller_WhenNameIdentifierMissing_FallsBackToSubClaim()
     {
         // Arrange — no NameIdentifier, only "sub"
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var claims = new[]
         {
             new Claim("sub", userId.ToString())

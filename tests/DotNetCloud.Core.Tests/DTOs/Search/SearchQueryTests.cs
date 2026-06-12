@@ -12,7 +12,7 @@ public class SearchQueryTests
     public void SearchQuery_CanBeCreated_WithDefaults()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         // Act
         var query = new SearchQuery
@@ -35,7 +35,7 @@ public class SearchQueryTests
     public void SearchQuery_CanBeCreated_WithAllFilters()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         // Act
         var query = new SearchQuery

@@ -103,7 +103,7 @@ public sealed class ContactService : IContactService
 
         await _eventBus.PublishAsync(new ContactCreatedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ContactId = contact.Id,
             DisplayName = contact.DisplayName,
@@ -112,7 +112,7 @@ public sealed class ContactService : IContactService
 
         await _eventBus.PublishAsync(new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ModuleId = "contacts",
             EntityId = contact.Id.ToString(),
@@ -227,7 +227,7 @@ public sealed class ContactService : IContactService
             }
         }
 
-        contact.ETag = Guid.NewGuid().ToString("N");
+        contact.ETag = Guid.CreateVersion7().ToString("N");
         contact.UpdatedAt = DateTime.UtcNow;
         contact.UpdatedByUserId = caller.UserId;
 
@@ -237,7 +237,7 @@ public sealed class ContactService : IContactService
 
         await _eventBus.PublishAsync(new ContactUpdatedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ContactId = contactId,
             UpdatedByUserId = caller.UserId
@@ -245,7 +245,7 @@ public sealed class ContactService : IContactService
 
         await _eventBus.PublishAsync(new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ModuleId = "contacts",
             EntityId = contactId.ToString(),
@@ -265,7 +265,7 @@ public sealed class ContactService : IContactService
         contact.IsDeleted = true;
         contact.DeletedAt = DateTime.UtcNow;
         contact.UpdatedAt = DateTime.UtcNow;
-        contact.ETag = Guid.NewGuid().ToString("N");
+        contact.ETag = Guid.CreateVersion7().ToString("N");
 
         await _db.SaveChangesAsync(cancellationToken);
 
@@ -273,7 +273,7 @@ public sealed class ContactService : IContactService
 
         await _eventBus.PublishAsync(new ContactDeletedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ContactId = contactId,
             DeletedByUserId = caller.UserId,
@@ -282,7 +282,7 @@ public sealed class ContactService : IContactService
 
         await _eventBus.PublishAsync(new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ModuleId = "contacts",
             EntityId = contactId.ToString(),

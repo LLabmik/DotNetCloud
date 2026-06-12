@@ -75,7 +75,7 @@ public sealed class ContactAvatarService : IContactAvatarService
 
         // Update the contact's AvatarUrl to point to the API endpoint
         contact.AvatarUrl = $"/api/v1/contacts/{contactId}/avatar";
-        contact.ETag = Guid.NewGuid().ToString("N");
+        contact.ETag = Guid.CreateVersion7().ToString("N");
         contact.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(cancellationToken);
@@ -145,7 +145,7 @@ public sealed class ContactAvatarService : IContactAvatarService
         }
 
         contact.AvatarUrl = null;
-        contact.ETag = Guid.NewGuid().ToString("N");
+        contact.ETag = Guid.CreateVersion7().ToString("N");
         contact.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(cancellationToken);
@@ -191,7 +191,7 @@ public sealed class ContactAvatarService : IContactAvatarService
         _db.ContactAttachments.Add(attachment);
 
         contact.AvatarUrl = $"/api/v1/contacts/{contactId}/avatar";
-        contact.ETag = Guid.NewGuid().ToString("N");
+        contact.ETag = Guid.CreateVersion7().ToString("N");
         contact.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(cancellationToken);
@@ -268,7 +268,7 @@ public sealed class ContactAvatarService : IContactAvatarService
         if (attachment.IsAvatar && attachment.Contact is not null)
         {
             attachment.Contact.AvatarUrl = null;
-            attachment.Contact.ETag = Guid.NewGuid().ToString("N");
+            attachment.Contact.ETag = Guid.CreateVersion7().ToString("N");
             attachment.Contact.UpdatedAt = DateTime.UtcNow;
         }
 
@@ -315,7 +315,7 @@ public sealed class ContactAvatarService : IContactAvatarService
     {
         var sanitized = SanitizeFileName(fileName);
         var extension = Path.GetExtension(sanitized);
-        var uniqueId = Guid.NewGuid().ToString("N")[..8];
+        var uniqueId = Guid.CreateVersion7().ToString("N")[..8];
         var subFolder = isAvatar ? "avatars" : "attachments";
 
         // contacts/{contactId}/avatars/{uniqueId}{ext}  or

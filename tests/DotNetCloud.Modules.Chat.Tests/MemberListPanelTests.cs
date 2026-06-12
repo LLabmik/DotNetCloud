@@ -92,7 +92,7 @@ public class MemberListPanelTests
     {
         return new MemberViewModel
         {
-            UserId = Guid.NewGuid(),
+            UserId = Guid.CreateVersion7(),
             DisplayName = "Member One",
             Role = "Member",
             Status = "Online"

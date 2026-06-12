@@ -190,7 +190,7 @@ internal sealed class WopiService : IWopiService
         // Publish event
         await _eventBus.PublishAsync(new FileUploadedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             FileNodeId = fileId,
             FileName = node.Name,
@@ -203,7 +203,7 @@ internal sealed class WopiService : IWopiService
 
         await _eventBus.PublishAsync(new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ModuleId = "files",
             EntityId = fileId.ToString(),

@@ -14,8 +14,8 @@ public class MediaItemDtoTests
     {
         // Arrange
         var now = DateTime.UtcNow;
-        var fileNodeId = Guid.NewGuid();
-        var ownerId = Guid.NewGuid();
+        var fileNodeId = Guid.CreateVersion7();
+        var ownerId = Guid.CreateVersion7();
 
         // Act
         var dto = new MediaItemDto
@@ -56,11 +56,11 @@ public class MediaItemDtoTests
         // Act
         var dto = new MediaItemDto
         {
-            FileNodeId = Guid.NewGuid(),
+            FileNodeId = Guid.CreateVersion7(),
             MediaType = MediaType.Audio,
             FileName = "song.mp3",
             MimeType = "audio/mpeg",
-            OwnerId = Guid.NewGuid(),
+            OwnerId = Guid.CreateVersion7(),
             CreatedAtUtc = DateTime.UtcNow,
             Metadata = metadata
         };
@@ -82,11 +82,11 @@ public class MediaItemDtoTests
         // Act
         var dto = new MediaItemDto
         {
-            FileNodeId = Guid.NewGuid(),
+            FileNodeId = Guid.CreateVersion7(),
             MediaType = MediaType.Video,
             FileName = "clip.mp4",
             MimeType = "video/mp4",
-            OwnerId = Guid.NewGuid(),
+            OwnerId = Guid.CreateVersion7(),
             CreatedAtUtc = created,
             ModifiedAtUtc = modified
         };
@@ -100,8 +100,8 @@ public class MediaItemDtoTests
     public void MediaItemDto_Equality_SameValues()
     {
         // Arrange
-        var id = Guid.NewGuid();
-        var ownerId = Guid.NewGuid();
+        var id = Guid.CreateVersion7();
+        var ownerId = Guid.CreateVersion7();
         var now = DateTime.UtcNow;
 
         var dto1 = new MediaItemDto
@@ -132,12 +132,12 @@ public class MediaItemDtoTests
     public void MediaItemDto_NotEqual_DifferentFileNodeId()
     {
         // Arrange
-        var ownerId = Guid.NewGuid();
+        var ownerId = Guid.CreateVersion7();
         var now = DateTime.UtcNow;
 
         var dto1 = new MediaItemDto
         {
-            FileNodeId = Guid.NewGuid(),
+            FileNodeId = Guid.CreateVersion7(),
             MediaType = MediaType.Photo,
             FileName = "photo.jpg",
             MimeType = "image/jpeg",
@@ -147,7 +147,7 @@ public class MediaItemDtoTests
 
         var dto2 = new MediaItemDto
         {
-            FileNodeId = Guid.NewGuid(),
+            FileNodeId = Guid.CreateVersion7(),
             MediaType = MediaType.Photo,
             FileName = "photo.jpg",
             MimeType = "image/jpeg",
@@ -165,12 +165,12 @@ public class MediaItemDtoTests
         // Arrange & Act
         var dto = new MediaItemDto
         {
-            FileNodeId = Guid.NewGuid(),
+            FileNodeId = Guid.CreateVersion7(),
             MediaType = MediaType.Photo,
             FileName = "empty.jpg",
             MimeType = "image/jpeg",
             SizeBytes = 0,
-            OwnerId = Guid.NewGuid(),
+            OwnerId = Guid.CreateVersion7(),
             CreatedAtUtc = DateTime.UtcNow
         };
 

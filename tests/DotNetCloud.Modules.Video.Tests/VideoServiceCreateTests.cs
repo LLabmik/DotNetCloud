@@ -32,8 +32,8 @@ public class VideoServiceCreateTests
     [TestMethod]
     public async Task CreateVideoAsync_NewFile_CreatesVideoRecord()
     {
-        var fileNodeId = Guid.NewGuid();
-        var ownerId = Guid.NewGuid();
+        var fileNodeId = Guid.CreateVersion7();
+        var ownerId = Guid.CreateVersion7();
         var caller = CallerContext.CreateSystemContext();
 
         var result = await _service.CreateVideoAsync(
@@ -47,8 +47,8 @@ public class VideoServiceCreateTests
     [TestMethod]
     public async Task CreateVideoAsync_NewFile_SetsCorrectProperties()
     {
-        var fileNodeId = Guid.NewGuid();
-        var ownerId = Guid.NewGuid();
+        var fileNodeId = Guid.CreateVersion7();
+        var ownerId = Guid.CreateVersion7();
         var caller = CallerContext.CreateSystemContext();
 
         var result = await _service.CreateVideoAsync(
@@ -63,8 +63,8 @@ public class VideoServiceCreateTests
     [TestMethod]
     public async Task CreateVideoAsync_NewFile_PublishesVideoAddedEvent()
     {
-        var fileNodeId = Guid.NewGuid();
-        var ownerId = Guid.NewGuid();
+        var fileNodeId = Guid.CreateVersion7();
+        var ownerId = Guid.CreateVersion7();
         var caller = CallerContext.CreateSystemContext();
 
         await _service.CreateVideoAsync(
@@ -82,8 +82,8 @@ public class VideoServiceCreateTests
     [TestMethod]
     public async Task CreateVideoAsync_DuplicateFileNodeId_ReturnsExistingVideo()
     {
-        var fileNodeId = Guid.NewGuid();
-        var ownerId = Guid.NewGuid();
+        var fileNodeId = Guid.CreateVersion7();
+        var ownerId = Guid.CreateVersion7();
         var caller = CallerContext.CreateSystemContext();
 
         var first = await _service.CreateVideoAsync(
@@ -99,8 +99,8 @@ public class VideoServiceCreateTests
     [TestMethod]
     public async Task CreateVideoAsync_DuplicateFileNodeId_DoesNotPublishSecondEvent()
     {
-        var fileNodeId = Guid.NewGuid();
-        var ownerId = Guid.NewGuid();
+        var fileNodeId = Guid.CreateVersion7();
+        var ownerId = Guid.CreateVersion7();
         var caller = CallerContext.CreateSystemContext();
 
         await _service.CreateVideoAsync(
@@ -120,7 +120,7 @@ public class VideoServiceCreateTests
         var caller = CallerContext.CreateSystemContext();
 
         var result = await _service.CreateVideoAsync(
-            Guid.NewGuid(), "family-vacation-2025.mp4", "video/mp4", 1024, Guid.NewGuid(), caller);
+            Guid.CreateVersion7(), "family-vacation-2025.mp4", "video/mp4", 1024, Guid.CreateVersion7(), caller);
 
         Assert.AreEqual("family-vacation-2025", result.Title);
     }
@@ -131,7 +131,7 @@ public class VideoServiceCreateTests
         var caller = CallerContext.CreateSystemContext();
 
         var result = await _service.CreateVideoAsync(
-            Guid.NewGuid(), "noextension", "video/mp4", 1024, Guid.NewGuid(), caller);
+            Guid.CreateVersion7(), "noextension", "video/mp4", 1024, Guid.CreateVersion7(), caller);
 
         Assert.AreEqual("noextension", result.Title);
     }
@@ -139,11 +139,11 @@ public class VideoServiceCreateTests
     [TestMethod]
     public async Task CreateVideoAsync_PersistsToDatabase()
     {
-        var fileNodeId = Guid.NewGuid();
+        var fileNodeId = Guid.CreateVersion7();
         var caller = CallerContext.CreateSystemContext();
 
         await _service.CreateVideoAsync(
-            fileNodeId, "test.mp4", "video/mp4", 1024, Guid.NewGuid(), caller);
+            fileNodeId, "test.mp4", "video/mp4", 1024, Guid.CreateVersion7(), caller);
 
         var count = _db.UserVideos.Count(v => v.FileNodeId == fileNodeId);
         Assert.AreEqual(1, count);
@@ -153,11 +153,11 @@ public class VideoServiceCreateTests
     public async Task CreateVideoAsync_MultipleUniqueFiles_CreatesMultipleRecords()
     {
         var caller = CallerContext.CreateSystemContext();
-        var ownerId = Guid.NewGuid();
+        var ownerId = Guid.CreateVersion7();
 
-        await _service.CreateVideoAsync(Guid.NewGuid(), "vid1.mp4", "video/mp4", 1024, ownerId, caller);
-        await _service.CreateVideoAsync(Guid.NewGuid(), "vid2.mkv", "video/x-matroska", 2048, ownerId, caller);
-        await _service.CreateVideoAsync(Guid.NewGuid(), "vid3.webm", "video/webm", 512, ownerId, caller);
+        await _service.CreateVideoAsync(Guid.CreateVersion7(), "vid1.mp4", "video/mp4", 1024, ownerId, caller);
+        await _service.CreateVideoAsync(Guid.CreateVersion7(), "vid2.mkv", "video/x-matroska", 2048, ownerId, caller);
+        await _service.CreateVideoAsync(Guid.CreateVersion7(), "vid3.webm", "video/webm", 512, ownerId, caller);
 
         Assert.AreEqual(3, _db.UserVideos.Count());
     }

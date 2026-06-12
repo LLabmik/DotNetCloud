@@ -128,13 +128,13 @@ public class PlaylistSharedNotificationHandlerTests
             Mock.Of<ILogger<PlaylistSharedNotificationHandler>>(),
             notifMock.Object);
 
-        var entityId = Guid.NewGuid();
+        var entityId = Guid.CreateVersion7();
         var evt = new ResourceSharedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            SharedByUserId = Guid.NewGuid(),
-            SharedWithUserId = Guid.NewGuid(),
+            SharedByUserId = Guid.CreateVersion7(),
+            SharedWithUserId = Guid.CreateVersion7(),
             SourceModuleId = "dotnetcloud.music",
             EntityType = "Playlist",
             EntityId = entityId,
@@ -160,13 +160,13 @@ public class PlaylistSharedNotificationHandlerTests
 
         var evt = new ResourceSharedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            SharedByUserId = Guid.NewGuid(),
-            SharedWithUserId = Guid.NewGuid(),
+            SharedByUserId = Guid.CreateVersion7(),
+            SharedWithUserId = Guid.CreateVersion7(),
             SourceModuleId = "dotnetcloud.music",
             EntityType = "Playlist",
-            EntityId = Guid.NewGuid(),
+            EntityId = Guid.CreateVersion7(),
             EntityDisplayName = "Road Trip Mix",
             Permission = "ReadWrite"
         };
@@ -181,13 +181,13 @@ public class PlaylistSharedNotificationHandlerTests
 
     private static ResourceSharedEvent CreateEvent(string moduleId, string entityType) => new()
     {
-        EventId = Guid.NewGuid(),
+        EventId = Guid.CreateVersion7(),
         CreatedAt = DateTime.UtcNow,
-        SharedByUserId = Guid.NewGuid(),
-        SharedWithUserId = Guid.NewGuid(),
+        SharedByUserId = Guid.CreateVersion7(),
+        SharedWithUserId = Guid.CreateVersion7(),
         SourceModuleId = moduleId,
         EntityType = entityType,
-        EntityId = Guid.NewGuid(),
+        EntityId = Guid.CreateVersion7(),
         EntityDisplayName = "Test Entity",
         Permission = "ReadOnly"
     };

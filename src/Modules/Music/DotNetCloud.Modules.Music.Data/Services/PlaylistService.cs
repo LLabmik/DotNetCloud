@@ -41,7 +41,7 @@ public sealed class PlaylistService : Music.Services.IPlaylistService
         _logger.LogInformation("Playlist {PlaylistId} '{Name}' created by user {UserId}", playlist.Id, SanitizeForLog(playlist.Name), caller.UserId);
         await _eventBus.PublishAsync(new PlaylistCreatedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             PlaylistId = playlist.Id,
             Name = playlist.Name,

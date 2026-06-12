@@ -7,7 +7,7 @@ namespace DotNetCloud.Modules.Contacts.Models;
 public sealed class ContactAttachment
 {
     /// <summary>Unique identifier for this attachment.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>The contact this attachment belongs to.</summary>
     public Guid ContactId { get; set; }

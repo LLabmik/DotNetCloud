@@ -43,8 +43,8 @@ public class FilesRestIsolationIntegrationTests
     [TestMethod]
     public async Task FileCrud_OtherUserCannotAccessNode()
     {
-        var ownerId = Guid.NewGuid();
-        var otherUserId = Guid.NewGuid();
+        var ownerId = Guid.CreateVersion7();
+        var otherUserId = Guid.CreateVersion7();
 
         using var ownerClient = _factory.CreateAuthenticatedApiClient(ownerId);
         var createResponse = await ownerClient.PostAsJsonAsync(
@@ -70,8 +70,8 @@ public class FilesRestIsolationIntegrationTests
     [TestMethod]
     public async Task UploadWorkflow_AndCrossUserSessionIsolation_Works()
     {
-        var ownerId = Guid.NewGuid();
-        var otherUserId = Guid.NewGuid();
+        var ownerId = Guid.CreateVersion7();
+        var otherUserId = Guid.CreateVersion7();
         var payload = new byte[] { 10, 20, 30, 40 };
         var chunkHash = DotNetCloud.Modules.Files.Services.ContentHasher.ComputeHash(payload);
 
@@ -116,8 +116,8 @@ public class FilesRestIsolationIntegrationTests
     [TestMethod]
     public async Task ShareAndTrashFlows_AreOwnerScoped()
     {
-        var ownerId = Guid.NewGuid();
-        var otherUserId = Guid.NewGuid();
+        var ownerId = Guid.CreateVersion7();
+        var otherUserId = Guid.CreateVersion7();
 
         using var ownerClient = _factory.CreateAuthenticatedApiClient(ownerId);
         var createResponse = await ownerClient.PostAsJsonAsync(
@@ -159,7 +159,7 @@ public class FilesRestIsolationIntegrationTests
     [TestMethod]
     public async Task QuotaExceeded_BlocksUploadInitiation()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         using var adminClient = _factory.CreateAdminApiClient(userId);
         using var client = _factory.CreateAuthenticatedApiClient(userId);
 
@@ -184,7 +184,7 @@ public class FilesRestIsolationIntegrationTests
     [TestMethod]
     public async Task FileListSearchFavoritesAndRecent_WorkForOwner()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         using var client = _factory.CreateAuthenticatedApiClient(userId);
 
         var createAlpha = await client.PostAsJsonAsync(
@@ -231,7 +231,7 @@ public class FilesRestIsolationIntegrationTests
     [TestMethod]
     public async Task SyncEndpoints_TreeChangesAndReconcile_ReturnSuccess()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         using var client = _factory.CreateAuthenticatedApiClient(userId);
 
         var createFolderResponse = await client.PostAsJsonAsync(
@@ -264,7 +264,7 @@ public class FilesRestIsolationIntegrationTests
     [TestMethod]
     public async Task WopiDiscoveryEndpoints_ReturnExpectedShape()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         using var client = _factory.CreateAuthenticatedApiClient(userId);
 
         var discoveryResponse = await client.GetAsync("/api/v1/wopi/discovery");
@@ -284,7 +284,7 @@ public class FilesRestIsolationIntegrationTests
     [TestMethod]
     public async Task UploadInitiation_ReportsExistingChunks_ForDedup()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         using var client = _factory.CreateAuthenticatedApiClient(userId);
 
         var payload = new byte[] { 1, 2, 3, 4, 5, 6 };
@@ -333,7 +333,7 @@ public class FilesRestIsolationIntegrationTests
     [TestMethod]
     public async Task ShareLifecycle_CreateUpdateRevoke_WorksForOwner()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         using var client = _factory.CreateAuthenticatedApiClient(userId);
 
         var createFolderResponse = await client.PostAsJsonAsync(
@@ -382,7 +382,7 @@ public class FilesRestIsolationIntegrationTests
     [TestMethod]
     public async Task VersionEndpoints_ListGetAndLabel_WorkForUploadedFile()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         using var client = _factory.CreateAuthenticatedApiClient(userId);
 
         var payload = new byte[] { 21, 22, 23, 24 };
@@ -430,7 +430,7 @@ public class FilesRestIsolationIntegrationTests
     [TestMethod]
     public async Task TrashLifecycle_ListSizeAndPurge_WorksForOwner()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         using var client = _factory.CreateAuthenticatedApiClient(userId);
 
         var createResponse = await client.PostAsJsonAsync(
@@ -464,7 +464,7 @@ public class FilesRestIsolationIntegrationTests
     [TestMethod]
     public async Task WopiFileEndpoints_CheckGetPut_WorkWithGeneratedToken()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         using var client = _factory.CreateAuthenticatedApiClient(userId);
 
         var originalBytes = Encoding.UTF8.GetBytes("wopi-original");
@@ -512,7 +512,7 @@ public class FilesRestIsolationIntegrationTests
     [TestMethod]
     public async Task VersionRestore_RestoresPreviousContent()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         using var client = _factory.CreateAuthenticatedApiClient(userId);
 
         var initialBytes = Encoding.UTF8.GetBytes("version-one");
@@ -536,7 +536,7 @@ public class FilesRestIsolationIntegrationTests
     [TestMethod]
     public async Task TrashRestore_WorkflowRestoresNodeVisibility()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         using var client = _factory.CreateAuthenticatedApiClient(userId);
 
         var createResponse = await client.PostAsJsonAsync(
@@ -562,7 +562,7 @@ public class FilesRestIsolationIntegrationTests
     [TestMethod]
     public async Task PublicShare_WithPassword_RequiresPasswordAndResolvesWithCorrectPassword()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         using var client = _factory.CreateAuthenticatedApiClient(userId);
 
         var createResponse = await client.PostAsJsonAsync(
@@ -598,7 +598,7 @@ public class FilesRestIsolationIntegrationTests
     [TestMethod]
     public async Task BulkOperations_MoveCopyDeleteAndPermanentDelete_ReturnExpectedCounts()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         using var client = _factory.CreateAuthenticatedApiClient(userId);
 
         var sourceRootId = await CreateFolderAsync(client, "bulk-source");

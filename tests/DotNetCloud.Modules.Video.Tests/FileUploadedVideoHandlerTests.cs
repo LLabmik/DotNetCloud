@@ -173,8 +173,8 @@ public class FileUploadedVideoHandlerTests
     [TestMethod]
     public async Task HandleAsync_PassesCorrectParametersToCallback()
     {
-        var fileNodeId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
+        var fileNodeId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
         var callbackMock = new Mock<IVideoIndexingCallback>();
         var handler = new FileUploadedVideoHandler(
             Mock.Of<ILogger<FileUploadedVideoHandler>>(),
@@ -182,7 +182,7 @@ public class FileUploadedVideoHandlerTests
 
         var evt = new FileUploadedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             FileNodeId = fileNodeId,
             UploadedByUserId = userId,
@@ -200,10 +200,10 @@ public class FileUploadedVideoHandlerTests
 
     private static FileUploadedEvent CreateEvent(string fileName, string? mimeType) => new()
     {
-        EventId = Guid.NewGuid(),
+        EventId = Guid.CreateVersion7(),
         CreatedAt = DateTime.UtcNow,
-        FileNodeId = Guid.NewGuid(),
-        UploadedByUserId = Guid.NewGuid(),
+        FileNodeId = Guid.CreateVersion7(),
+        UploadedByUserId = Guid.CreateVersion7(),
         FileName = fileName,
         MimeType = mimeType,
         Size = 1024

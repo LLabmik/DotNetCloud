@@ -27,7 +27,7 @@ public class VideoCallGrpcServiceTests
     public void Setup()
     {
         var options = new DbContextOptionsBuilder<ChatDbContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(databaseName: Guid.CreateVersion7().ToString())
             .Options;
         _db = new ChatDbContext(options);
         _channelService = new Mock<IChannelService>();
@@ -52,9 +52,9 @@ public class VideoCallGrpcServiceTests
     {
         return new VideoCallDto
         {
-            Id = callId ?? Guid.NewGuid(),
-            ChannelId = channelId ?? Guid.NewGuid(),
-            InitiatorUserId = Guid.NewGuid(),
+            Id = callId ?? Guid.CreateVersion7(),
+            ChannelId = channelId ?? Guid.CreateVersion7(),
+            InitiatorUserId = Guid.CreateVersion7(),
             State = "Ringing",
             MediaType = "Video",
             IsGroupCall = false,
@@ -64,8 +64,8 @@ public class VideoCallGrpcServiceTests
             [
                 new CallParticipantDto
                 {
-                    Id = Guid.NewGuid(),
-                    UserId = Guid.NewGuid(),
+                    Id = Guid.CreateVersion7(),
+                    UserId = Guid.CreateVersion7(),
                     Role = "Host",
                     JoinedAtUtc = DateTime.UtcNow,
                     HasAudio = true,
@@ -81,8 +81,8 @@ public class VideoCallGrpcServiceTests
     [TestMethod]
     public async Task InitiateVideoCall_ValidRequest_ReturnsSuccess()
     {
-        var channelId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
+        var channelId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
         var callDto = CreateTestCallDto(channelId: channelId);
 
         _videoCallService
@@ -114,7 +114,7 @@ public class VideoCallGrpcServiceTests
         var request = new InitiateVideoCallRequest
         {
             ChannelId = "not-a-guid",
-            UserId = Guid.NewGuid().ToString(),
+            UserId = Guid.CreateVersion7().ToString(),
             MediaType = "Video"
         };
 
@@ -129,7 +129,7 @@ public class VideoCallGrpcServiceTests
     {
         var request = new InitiateVideoCallRequest
         {
-            ChannelId = Guid.NewGuid().ToString(),
+            ChannelId = Guid.CreateVersion7().ToString(),
             UserId = "bad-user-id",
             MediaType = "Video"
         };
@@ -143,8 +143,8 @@ public class VideoCallGrpcServiceTests
     [TestMethod]
     public async Task InitiateVideoCall_ServiceThrowsArgument_ReturnsError()
     {
-        var channelId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
+        var channelId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
 
         _videoCallService
             .Setup(s => s.InitiateCallAsync(channelId, It.IsAny<StartCallRequest>(), It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
@@ -166,8 +166,8 @@ public class VideoCallGrpcServiceTests
     [TestMethod]
     public async Task InitiateVideoCall_ServiceThrowsInvalidOperation_ReturnsError()
     {
-        var channelId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
+        var channelId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
 
         _videoCallService
             .Setup(s => s.InitiateCallAsync(channelId, It.IsAny<StartCallRequest>(), It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
@@ -189,8 +189,8 @@ public class VideoCallGrpcServiceTests
     [TestMethod]
     public async Task InitiateVideoCall_PassesMediaTypeToService()
     {
-        var channelId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
+        var channelId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
         var callDto = CreateTestCallDto(channelId: channelId);
 
         _videoCallService
@@ -218,8 +218,8 @@ public class VideoCallGrpcServiceTests
     [TestMethod]
     public async Task JoinVideoCall_ValidRequest_ReturnsSuccess()
     {
-        var callId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
         var callDto = CreateTestCallDto(callId: callId);
 
         _videoCallService
@@ -246,7 +246,7 @@ public class VideoCallGrpcServiceTests
         var request = new JoinVideoCallRequest
         {
             CallId = "bad-id",
-            UserId = Guid.NewGuid().ToString(),
+            UserId = Guid.CreateVersion7().ToString(),
             WithAudio = true
         };
 
@@ -259,8 +259,8 @@ public class VideoCallGrpcServiceTests
     [TestMethod]
     public async Task JoinVideoCall_PassesMediaFlagsToService()
     {
-        var callId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
         var callDto = CreateTestCallDto(callId: callId);
 
         _videoCallService
@@ -287,8 +287,8 @@ public class VideoCallGrpcServiceTests
     [TestMethod]
     public async Task JoinVideoCall_ServiceThrows_ReturnsError()
     {
-        var callId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
 
         _videoCallService
             .Setup(s => s.JoinCallAsync(callId, It.IsAny<JoinCallRequest>(), It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
@@ -310,8 +310,8 @@ public class VideoCallGrpcServiceTests
     [TestMethod]
     public async Task LeaveVideoCall_ValidRequest_ReturnsSuccess()
     {
-        var callId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
 
         _videoCallService
             .Setup(s => s.LeaveCallAsync(callId, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
@@ -345,8 +345,8 @@ public class VideoCallGrpcServiceTests
     [TestMethod]
     public async Task LeaveVideoCall_ServiceThrows_ReturnsError()
     {
-        var callId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
 
         _videoCallService
             .Setup(s => s.LeaveCallAsync(callId, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
@@ -368,8 +368,8 @@ public class VideoCallGrpcServiceTests
     [TestMethod]
     public async Task EndVideoCall_ValidRequest_ReturnsSuccess()
     {
-        var callId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
 
         _videoCallService
             .Setup(s => s.EndCallAsync(callId, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
@@ -392,7 +392,7 @@ public class VideoCallGrpcServiceTests
         var request = new EndVideoCallRequest
         {
             CallId = "bad",
-            UserId = Guid.NewGuid().ToString()
+            UserId = Guid.CreateVersion7().ToString()
         };
 
         var result = await _service.EndVideoCall(request, _context);
@@ -403,8 +403,8 @@ public class VideoCallGrpcServiceTests
     [TestMethod]
     public async Task EndVideoCall_ServiceThrowsUnauthorized_ReturnsError()
     {
-        var callId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
 
         _videoCallService
             .Setup(s => s.EndCallAsync(callId, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
@@ -427,8 +427,8 @@ public class VideoCallGrpcServiceTests
     [TestMethod]
     public async Task RejectVideoCall_ValidRequest_ReturnsSuccess()
     {
-        var callId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
 
         _videoCallService
             .Setup(s => s.RejectCallAsync(callId, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
@@ -462,8 +462,8 @@ public class VideoCallGrpcServiceTests
     [TestMethod]
     public async Task RejectVideoCall_ServiceThrows_ReturnsError()
     {
-        var callId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
 
         _videoCallService
             .Setup(s => s.RejectCallAsync(callId, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
@@ -485,15 +485,15 @@ public class VideoCallGrpcServiceTests
     [TestMethod]
     public async Task GetCallHistory_ValidRequest_ReturnsHistory()
     {
-        var channelId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
+        var channelId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
         var history = new List<CallHistoryDto>
         {
             new()
             {
-                Id = Guid.NewGuid(),
+                Id = Guid.CreateVersion7(),
                 ChannelId = channelId,
-                InitiatorUserId = Guid.NewGuid(),
+                InitiatorUserId = Guid.CreateVersion7(),
                 State = "Ended",
                 MediaType = "Video",
                 EndReason = "Normal",
@@ -503,9 +503,9 @@ public class VideoCallGrpcServiceTests
             },
             new()
             {
-                Id = Guid.NewGuid(),
+                Id = Guid.CreateVersion7(),
                 ChannelId = channelId,
-                InitiatorUserId = Guid.NewGuid(),
+                InitiatorUserId = Guid.CreateVersion7(),
                 State = "Missed",
                 MediaType = "Audio",
                 EndReason = "Missed",
@@ -542,7 +542,7 @@ public class VideoCallGrpcServiceTests
         var request = new GetCallHistoryRequest
         {
             ChannelId = "invalid",
-            UserId = Guid.NewGuid().ToString(),
+            UserId = Guid.CreateVersion7().ToString(),
             Skip = 0,
             Take = 20
         };
@@ -557,7 +557,7 @@ public class VideoCallGrpcServiceTests
     {
         var request = new GetCallHistoryRequest
         {
-            ChannelId = Guid.NewGuid().ToString(),
+            ChannelId = Guid.CreateVersion7().ToString(),
             UserId = "bad-user",
             Skip = 0,
             Take = 20
@@ -573,8 +573,8 @@ public class VideoCallGrpcServiceTests
     [TestMethod]
     public async Task GetActiveCall_HasActiveCall_ReturnsCallData()
     {
-        var channelId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
+        var channelId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
         var callDto = CreateTestCallDto(channelId: channelId) with { State = "Active" };
 
         _videoCallService
@@ -597,8 +597,8 @@ public class VideoCallGrpcServiceTests
     [TestMethod]
     public async Task GetActiveCall_NoActiveCall_ReturnsSuccessWithNullCall()
     {
-        var channelId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
+        var channelId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
 
         _videoCallService
             .Setup(s => s.GetActiveCallAsync(channelId, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
@@ -635,15 +635,15 @@ public class VideoCallGrpcServiceTests
     [TestMethod]
     public async Task InitiateVideoCall_MapsParticipantsCorrectly()
     {
-        var channelId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
-        var participantId = Guid.NewGuid();
-        var participantUserId = Guid.NewGuid();
+        var channelId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
+        var participantId = Guid.CreateVersion7();
+        var participantUserId = Guid.CreateVersion7();
         var joinedAt = DateTime.UtcNow;
 
         var callDto = new VideoCallDto
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             ChannelId = channelId,
             InitiatorUserId = userId,
             State = "Ringing",
@@ -696,10 +696,10 @@ public class VideoCallGrpcServiceTests
     [TestMethod]
     public async Task GetCallHistory_MapsHistoryFieldsCorrectly()
     {
-        var channelId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
-        var callId = Guid.NewGuid();
-        var initiatorId = Guid.NewGuid();
+        var channelId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
+        var callId = Guid.CreateVersion7();
+        var initiatorId = Guid.CreateVersion7();
         var createdAt = DateTime.UtcNow;
 
         var history = new List<CallHistoryDto>
@@ -747,9 +747,9 @@ public class VideoCallGrpcServiceTests
     [TestMethod]
     public async Task InitiateVideoCall_MapsCallFieldsCorrectly()
     {
-        var channelId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
-        var callId = Guid.NewGuid();
+        var channelId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
+        var callId = Guid.CreateVersion7();
         var startedAt = DateTime.UtcNow;
 
         var callDto = new VideoCallDto

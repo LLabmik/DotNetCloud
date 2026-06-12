@@ -64,14 +64,14 @@ public class AlbumSharedNotificationHandlerTests
             Mock.Of<ILogger<AlbumSharedNotificationHandler>>(),
             notifMock.Object);
 
-        var albumId = Guid.NewGuid();
+        var albumId = Guid.CreateVersion7();
         var evt = new AlbumSharedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             AlbumId = albumId,
-            SharedByUserId = Guid.NewGuid(),
-            SharedWithUserId = Guid.NewGuid(),
+            SharedByUserId = Guid.CreateVersion7(),
+            SharedWithUserId = Guid.CreateVersion7(),
             Permission = "ReadOnly"
         };
 
@@ -93,11 +93,11 @@ public class AlbumSharedNotificationHandlerTests
 
         var evt = new AlbumSharedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            AlbumId = Guid.NewGuid(),
-            SharedByUserId = Guid.NewGuid(),
-            SharedWithUserId = Guid.NewGuid(),
+            AlbumId = Guid.CreateVersion7(),
+            SharedByUserId = Guid.CreateVersion7(),
+            SharedWithUserId = Guid.CreateVersion7(),
             Permission = "ReadWrite"
         };
 
@@ -117,13 +117,13 @@ public class AlbumSharedNotificationHandlerTests
             Mock.Of<ILogger<AlbumSharedNotificationHandler>>(),
             notifMock.Object);
 
-        var recipientId = Guid.NewGuid();
+        var recipientId = Guid.CreateVersion7();
         var evt = new AlbumSharedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            AlbumId = Guid.NewGuid(),
-            SharedByUserId = Guid.NewGuid(),
+            AlbumId = Guid.CreateVersion7(),
+            SharedByUserId = Guid.CreateVersion7(),
             SharedWithUserId = recipientId,
             Permission = "ReadOnly"
         };
@@ -138,11 +138,11 @@ public class AlbumSharedNotificationHandlerTests
 
     private static AlbumSharedEvent CreateEvent() => new()
     {
-        EventId = Guid.NewGuid(),
+        EventId = Guid.CreateVersion7(),
         CreatedAt = DateTime.UtcNow,
-        AlbumId = Guid.NewGuid(),
-        SharedByUserId = Guid.NewGuid(),
-        SharedWithUserId = Guid.NewGuid(),
+        AlbumId = Guid.CreateVersion7(),
+        SharedByUserId = Guid.CreateVersion7(),
+        SharedWithUserId = Guid.CreateVersion7(),
         Permission = "ReadOnly"
     };
 }

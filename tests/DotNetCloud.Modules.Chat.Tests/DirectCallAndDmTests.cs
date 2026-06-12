@@ -44,7 +44,7 @@ public class DirectCallServiceTests
     public void Setup()
     {
         var options = new DbContextOptionsBuilder<ChatDbContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(databaseName: Guid.CreateVersion7().ToString())
             .Options;
 
         _db = new ChatDbContext(options);
@@ -67,7 +67,7 @@ public class DirectCallServiceTests
             _userDirectoryMock.Object,
             _channelServiceMock.Object);
 
-        _caller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        _caller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
     }
 
     [TestCleanup]
@@ -77,11 +77,11 @@ public class DirectCallServiceTests
     }
 
     private CallerContext CreateCaller() =>
-        new(Guid.NewGuid(), ["user"], CallerType.User);
+        new(Guid.CreateVersion7(), ["user"], CallerType.User);
 
     private Guid SeedDmChannel(Guid user1Id, Guid user2Id)
     {
-        var channelId = Guid.NewGuid();
+        var channelId = Guid.CreateVersion7();
         _db.Channels.Add(new Channel
         {
             Id = channelId,
@@ -104,7 +104,7 @@ public class DirectCallServiceTests
                 Id = channelId,
                 Name = "DM",
                 Type = "DirectMessage",
-                CreatedByUserId = Guid.NewGuid(),
+                CreatedByUserId = Guid.CreateVersion7(),
                 CreatedAt = DateTime.UtcNow,
                 MemberCount = 2
             });
@@ -117,7 +117,7 @@ public class DirectCallServiceTests
     [TestMethod]
     public async Task InitiateDirectCallAsync_ValidRequest_CreatesCallInRingingState()
     {
-        var targetUserId = Guid.NewGuid();
+        var targetUserId = Guid.CreateVersion7();
         var channelId = SeedDmChannel(_caller.UserId, targetUserId);
         SetupChannelServiceForDm(targetUserId, channelId);
 
@@ -135,7 +135,7 @@ public class DirectCallServiceTests
     [TestMethod]
     public async Task InitiateDirectCallAsync_AudioCall_SetsMediaTypeToAudio()
     {
-        var targetUserId = Guid.NewGuid();
+        var targetUserId = Guid.CreateVersion7();
         var channelId = SeedDmChannel(_caller.UserId, targetUserId);
         SetupChannelServiceForDm(targetUserId, channelId);
 
@@ -150,7 +150,7 @@ public class DirectCallServiceTests
     [TestMethod]
     public async Task InitiateDirectCallAsync_AddsCallerAsHostParticipant()
     {
-        var targetUserId = Guid.NewGuid();
+        var targetUserId = Guid.CreateVersion7();
         var channelId = SeedDmChannel(_caller.UserId, targetUserId);
         SetupChannelServiceForDm(targetUserId, channelId);
 
@@ -168,7 +168,7 @@ public class DirectCallServiceTests
     [TestMethod]
     public async Task InitiateDirectCallAsync_SetsHostUserIdToCaller()
     {
-        var targetUserId = Guid.NewGuid();
+        var targetUserId = Guid.CreateVersion7();
         var channelId = SeedDmChannel(_caller.UserId, targetUserId);
         SetupChannelServiceForDm(targetUserId, channelId);
 
@@ -183,7 +183,7 @@ public class DirectCallServiceTests
     [TestMethod]
     public async Task InitiateDirectCallAsync_PersistsCallToDatabase()
     {
-        var targetUserId = Guid.NewGuid();
+        var targetUserId = Guid.CreateVersion7();
         var channelId = SeedDmChannel(_caller.UserId, targetUserId);
         SetupChannelServiceForDm(targetUserId, channelId);
 
@@ -201,7 +201,7 @@ public class DirectCallServiceTests
     [TestMethod]
     public async Task InitiateDirectCallAsync_PublishesVideoCallInitiatedEvent()
     {
-        var targetUserId = Guid.NewGuid();
+        var targetUserId = Guid.CreateVersion7();
         var channelId = SeedDmChannel(_caller.UserId, targetUserId);
         SetupChannelServiceForDm(targetUserId, channelId);
 
@@ -224,7 +224,7 @@ public class DirectCallServiceTests
     [TestMethod]
     public async Task InitiateDirectCallAsync_NotifiesCallRinging()
     {
-        var targetUserId = Guid.NewGuid();
+        var targetUserId = Guid.CreateVersion7();
         var channelId = SeedDmChannel(_caller.UserId, targetUserId);
         SetupChannelServiceForDm(targetUserId, channelId);
 
@@ -245,7 +245,7 @@ public class DirectCallServiceTests
     [TestMethod]
     public async Task InitiateDirectCallAsync_DmChannelHasTwoMembers_IsNotGroupCall()
     {
-        var targetUserId = Guid.NewGuid();
+        var targetUserId = Guid.CreateVersion7();
         var channelId = SeedDmChannel(_caller.UserId, targetUserId);
         SetupChannelServiceForDm(targetUserId, channelId);
 
@@ -260,7 +260,7 @@ public class DirectCallServiceTests
     [TestMethod]
     public async Task InitiateDirectCallAsync_CallsGetOrCreateDirectMessageAsync()
     {
-        var targetUserId = Guid.NewGuid();
+        var targetUserId = Guid.CreateVersion7();
         var channelId = SeedDmChannel(_caller.UserId, targetUserId);
         SetupChannelServiceForDm(targetUserId, channelId);
 
@@ -281,7 +281,7 @@ public class DirectCallServiceTests
     [TestMethod]
     public async Task InitiateDirectCallAsync_ReusesDmChannelWhenExists()
     {
-        var targetUserId = Guid.NewGuid();
+        var targetUserId = Guid.CreateVersion7();
         var existingChannelId = SeedDmChannel(_caller.UserId, targetUserId);
         SetupChannelServiceForDm(targetUserId, existingChannelId);
 
@@ -296,8 +296,8 @@ public class DirectCallServiceTests
     [TestMethod]
     public async Task InitiateDirectCallAsync_TwoCallsToDifferentUsers_CreatesSeparateCalls()
     {
-        var target1 = Guid.NewGuid();
-        var target2 = Guid.NewGuid();
+        var target1 = Guid.CreateVersion7();
+        var target2 = Guid.CreateVersion7();
         var channel1 = SeedDmChannel(_caller.UserId, target1);
         var channel2 = SeedDmChannel(_caller.UserId, target2);
         SetupChannelServiceForDm(target1, channel1);
@@ -334,7 +334,7 @@ public class DirectCallServiceTests
     {
         await Assert.ThrowsExactlyAsync<ArgumentNullException>(
             () => _service.InitiateDirectCallAsync(
-                Guid.NewGuid(),
+                Guid.CreateVersion7(),
                 null!,
                 _caller));
     }
@@ -344,7 +344,7 @@ public class DirectCallServiceTests
     {
         await Assert.ThrowsExactlyAsync<ArgumentNullException>(
             () => _service.InitiateDirectCallAsync(
-                Guid.NewGuid(),
+                Guid.CreateVersion7(),
                 new StartCallRequest { MediaType = "Video" },
                 null!));
     }
@@ -352,7 +352,7 @@ public class DirectCallServiceTests
     [TestMethod]
     public async Task InitiateDirectCallAsync_InvalidMediaType_ThrowsArgumentException()
     {
-        var targetUserId = Guid.NewGuid();
+        var targetUserId = Guid.CreateVersion7();
         var channelId = SeedDmChannel(_caller.UserId, targetUserId);
         SetupChannelServiceForDm(targetUserId, channelId);
 
@@ -366,7 +366,7 @@ public class DirectCallServiceTests
     [TestMethod]
     public async Task InitiateDirectCallAsync_ActiveCallExistsOnDm_ThrowsInvalidOperationException()
     {
-        var targetUserId = Guid.NewGuid();
+        var targetUserId = Guid.CreateVersion7();
         var channelId = SeedDmChannel(_caller.UserId, targetUserId);
         SetupChannelServiceForDm(targetUserId, channelId);
 
@@ -398,7 +398,7 @@ public class DirectCallServiceTests
 
         var ex = await Assert.ThrowsExactlyAsync<InvalidOperationException>(
             () => serviceWithoutChannelService.InitiateDirectCallAsync(
-                Guid.NewGuid(),
+                Guid.CreateVersion7(),
                 new StartCallRequest { MediaType = "Video" },
                 _caller));
 
@@ -412,7 +412,7 @@ public class DirectCallServiceTests
     [TestMethod]
     public async Task InitiateDirectCallAsync_VideoCall_ParticipantHasVideo()
     {
-        var targetUserId = Guid.NewGuid();
+        var targetUserId = Guid.CreateVersion7();
         var channelId = SeedDmChannel(_caller.UserId, targetUserId);
         SetupChannelServiceForDm(targetUserId, channelId);
 
@@ -429,7 +429,7 @@ public class DirectCallServiceTests
     [TestMethod]
     public async Task InitiateDirectCallAsync_AudioCall_ParticipantHasNoVideo()
     {
-        var targetUserId = Guid.NewGuid();
+        var targetUserId = Guid.CreateVersion7();
         var channelId = SeedDmChannel(_caller.UserId, targetUserId);
         SetupChannelServiceForDm(targetUserId, channelId);
 
@@ -450,7 +450,7 @@ public class DirectCallServiceTests
     [TestMethod]
     public async Task InitiateDirectCallAsync_BroadcastsChannelUpdate()
     {
-        var targetUserId = Guid.NewGuid();
+        var targetUserId = Guid.CreateVersion7();
         var channelId = SeedDmChannel(_caller.UserId, targetUserId);
         SetupChannelServiceForDm(targetUserId, channelId);
 
@@ -478,7 +478,7 @@ public class DirectCallServiceTests
             messageNotifier: null,
             channelService: _channelServiceMock.Object);
 
-        var targetUserId = Guid.NewGuid();
+        var targetUserId = Guid.CreateVersion7();
         var channelId = SeedDmChannel(_caller.UserId, targetUserId);
         SetupChannelServiceForDm(targetUserId, channelId);
 
@@ -498,7 +498,7 @@ public class DirectCallServiceTests
     [TestMethod]
     public async Task DirectCallLifecycle_Initiate_ThenTargetJoins_CallBecomesActive()
     {
-        var targetUserId = Guid.NewGuid();
+        var targetUserId = Guid.CreateVersion7();
         var targetCaller = new CallerContext(targetUserId, ["user"], CallerType.User);
         var channelId = SeedDmChannel(_caller.UserId, targetUserId);
         SetupChannelServiceForDm(targetUserId, channelId);
@@ -525,7 +525,7 @@ public class DirectCallServiceTests
     [TestMethod]
     public async Task DirectCallLifecycle_Initiate_ThenReject_CallEndsMissed()
     {
-        var targetUserId = Guid.NewGuid();
+        var targetUserId = Guid.CreateVersion7();
         var targetCaller = new CallerContext(targetUserId, ["user"], CallerType.User);
         var channelId = SeedDmChannel(_caller.UserId, targetUserId);
         SetupChannelServiceForDm(targetUserId, channelId);
@@ -546,7 +546,7 @@ public class DirectCallServiceTests
     [TestMethod]
     public async Task DirectCallLifecycle_Initiate_ThenEndByHost_CallEnds()
     {
-        var targetUserId = Guid.NewGuid();
+        var targetUserId = Guid.CreateVersion7();
         var channelId = SeedDmChannel(_caller.UserId, targetUserId);
         SetupChannelServiceForDm(targetUserId, channelId);
 
@@ -565,7 +565,7 @@ public class DirectCallServiceTests
     [TestMethod]
     public async Task DirectCallLifecycle_Initiate_Join_Leave_CallEndsWhenLastParticipantLeaves()
     {
-        var targetUserId = Guid.NewGuid();
+        var targetUserId = Guid.CreateVersion7();
         var targetCaller = new CallerContext(targetUserId, ["user"], CallerType.User);
         var channelId = SeedDmChannel(_caller.UserId, targetUserId);
         SetupChannelServiceForDm(targetUserId, channelId);
@@ -595,7 +595,7 @@ public class DirectCallServiceTests
     [TestMethod]
     public async Task ExistingInitiateCallAsync_StillWorksAfterNewMethod()
     {
-        var channelId = SeedDmChannel(_caller.UserId, Guid.NewGuid());
+        var channelId = SeedDmChannel(_caller.UserId, Guid.CreateVersion7());
 
         var result = await _service.InitiateCallAsync(
             channelId,
@@ -635,7 +635,7 @@ public class DirectCallControllerTests
     [TestInitialize]
     public void Setup()
     {
-        _userId = Guid.NewGuid();
+        _userId = Guid.CreateVersion7();
         _channelService = new Mock<IChannelService>();
         _memberService = new Mock<IChannelMemberService>();
         _messageService = new Mock<IMessageService>();
@@ -698,10 +698,10 @@ public class DirectCallControllerTests
     {
         return new VideoCallDto
         {
-            Id = callId ?? Guid.NewGuid(),
-            ChannelId = channelId ?? Guid.NewGuid(),
-            InitiatorUserId = Guid.NewGuid(),
-            HostUserId = Guid.NewGuid(),
+            Id = callId ?? Guid.CreateVersion7(),
+            ChannelId = channelId ?? Guid.CreateVersion7(),
+            InitiatorUserId = Guid.CreateVersion7(),
+            HostUserId = Guid.CreateVersion7(),
             State = "Ringing",
             MediaType = "Video",
             IsGroupCall = false,
@@ -716,7 +716,7 @@ public class DirectCallControllerTests
     [TestMethod]
     public async Task InitiateDirectCallAsync_Success_ReturnsCreatedAtAction()
     {
-        var targetUserId = Guid.NewGuid();
+        var targetUserId = Guid.CreateVersion7();
         var request = new StartCallRequest { MediaType = "Video" };
         var callDto = CreateTestCallDto();
 
@@ -734,7 +734,7 @@ public class DirectCallControllerTests
     [TestMethod]
     public async Task InitiateDirectCallAsync_Success_ReturnsCallInEnvelope()
     {
-        var targetUserId = Guid.NewGuid();
+        var targetUserId = Guid.CreateVersion7();
         var request = new StartCallRequest { MediaType = "Video" };
         var callDto = CreateTestCallDto();
 
@@ -765,7 +765,7 @@ public class DirectCallControllerTests
     [TestMethod]
     public async Task InitiateDirectCallAsync_InvalidMediaType_ReturnsBadRequest()
     {
-        var targetUserId = Guid.NewGuid();
+        var targetUserId = Guid.CreateVersion7();
         var request = new StartCallRequest { MediaType = "InvalidType" };
 
         _videoCallService
@@ -780,7 +780,7 @@ public class DirectCallControllerTests
     [TestMethod]
     public async Task InitiateDirectCallAsync_ActiveCallExists_ReturnsConflict()
     {
-        var targetUserId = Guid.NewGuid();
+        var targetUserId = Guid.CreateVersion7();
         var request = new StartCallRequest { MediaType = "Video" };
 
         _videoCallService
@@ -795,7 +795,7 @@ public class DirectCallControllerTests
     [TestMethod]
     public async Task InitiateDirectCallAsync_Unauthorized_ReturnsForbid()
     {
-        var targetUserId = Guid.NewGuid();
+        var targetUserId = Guid.CreateVersion7();
         var request = new StartCallRequest { MediaType = "Video" };
 
         _videoCallService
@@ -810,7 +810,7 @@ public class DirectCallControllerTests
     [TestMethod]
     public async Task InitiateDirectCallAsync_ChannelServiceUnavailable_ReturnsConflict()
     {
-        var targetUserId = Guid.NewGuid();
+        var targetUserId = Guid.CreateVersion7();
         var request = new StartCallRequest { MediaType = "Video" };
 
         _videoCallService
@@ -825,7 +825,7 @@ public class DirectCallControllerTests
     [TestMethod]
     public async Task InitiateDirectCallAsync_PassesCallerContextToService()
     {
-        var targetUserId = Guid.NewGuid();
+        var targetUserId = Guid.CreateVersion7();
         var request = new StartCallRequest { MediaType = "Video" };
         var callDto = CreateTestCallDto();
 
@@ -849,7 +849,7 @@ public class DirectCallControllerTests
     [TestMethod]
     public async Task InitiateDirectCallAsync_AudioCall_PassesCorrectMediaType()
     {
-        var targetUserId = Guid.NewGuid();
+        var targetUserId = Guid.CreateVersion7();
         var request = new StartCallRequest { MediaType = "Audio" };
         var callDto = CreateTestCallDto();
 
@@ -870,7 +870,7 @@ public class DirectCallControllerTests
     [TestMethod]
     public async Task InitiateCallAsync_Endpoint_StillWorks()
     {
-        var channelId = Guid.NewGuid();
+        var channelId = Guid.CreateVersion7();
         var request = new StartCallRequest { MediaType = "Video" };
         var callDto = CreateTestCallDto(channelId: channelId);
 
@@ -903,7 +903,7 @@ public class UserSearchResultViewModelTests
     [TestMethod]
     public void ViewModel_SetsProperties()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var vm = new DotNetCloud.Modules.Chat.UI.UserSearchResultViewModel
         {
             UserId = userId,

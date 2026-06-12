@@ -21,7 +21,7 @@ public class DbContextConfigurationTests
     {
         // Arrange
         var options = new DbContextOptionsBuilder<CoreDbContext>()
-            .UseInMemoryDatabase(databaseName: $"ConfigTest_{Guid.NewGuid()}")
+            .UseInMemoryDatabase(databaseName: $"ConfigTest_{Guid.CreateVersion7()}")
             .Options;
 
         // Act
@@ -37,7 +37,7 @@ public class DbContextConfigurationTests
     {
         // Arrange
         var options = new DbContextOptionsBuilder<CoreDbContext>()
-            .UseInMemoryDatabase($"DbSetsTest_{Guid.NewGuid()}")
+            .UseInMemoryDatabase($"DbSetsTest_{Guid.CreateVersion7()}")
             .Options;
 
         using var context = new CoreDbContext(options, new PostgreSqlNamingStrategy());
@@ -83,7 +83,7 @@ public class DbContextConfigurationTests
     {
         // Arrange
         var options = new DbContextOptionsBuilder<CoreDbContext>()
-            .UseInMemoryDatabase($"EntityTypesTest_{Guid.NewGuid()}")
+            .UseInMemoryDatabase($"EntityTypesTest_{Guid.CreateVersion7()}")
             .Options;
 
         using var context = new CoreDbContext(options, new PostgreSqlNamingStrategy());
@@ -127,7 +127,7 @@ public class DbContextConfigurationTests
     {
         // Arrange
         var options = new DbContextOptionsBuilder<CoreDbContext>()
-            .UseInMemoryDatabase($"RelationshipTest_{Guid.NewGuid()}")
+            .UseInMemoryDatabase($"RelationshipTest_{Guid.CreateVersion7()}")
             .Options;
 
         using var context = new CoreDbContext(options, new PostgreSqlNamingStrategy());
@@ -153,7 +153,7 @@ public class DbContextConfigurationTests
     {
         // Arrange
         var options = new DbContextOptionsBuilder<CoreDbContext>()
-            .UseInMemoryDatabase($"IndexTest_{Guid.NewGuid()}")
+            .UseInMemoryDatabase($"IndexTest_{Guid.CreateVersion7()}")
             .Options;
 
         using var context = new CoreDbContext(options, new PostgreSqlNamingStrategy());
@@ -177,7 +177,7 @@ public class DbContextConfigurationTests
     {
         // Arrange
         var options = new DbContextOptionsBuilder<CoreDbContext>()
-            .UseInMemoryDatabase($"UniqueTest_{Guid.NewGuid()}")
+            .UseInMemoryDatabase($"UniqueTest_{Guid.CreateVersion7()}")
             .Options;
 
         using var context = new CoreDbContext(options, new PostgreSqlNamingStrategy());
@@ -196,7 +196,7 @@ public class DbContextConfigurationTests
     {
         // Arrange
         var options = new DbContextOptionsBuilder<CoreDbContext>()
-            .UseInMemoryDatabase($"ForeignKeyTest_{Guid.NewGuid()}")
+            .UseInMemoryDatabase($"ForeignKeyTest_{Guid.CreateVersion7()}")
             .Options;
 
         using var context = new CoreDbContext(options, new PostgreSqlNamingStrategy());
@@ -227,7 +227,7 @@ public class DbContextConfigurationTests
         foreach (var strategy in strategies)
         {
             var options = new DbContextOptionsBuilder<CoreDbContext>()
-                .UseInMemoryDatabase($"ModelTest_{strategy.GetType().Name}_{Guid.NewGuid()}")
+                .UseInMemoryDatabase($"ModelTest_{strategy.GetType().Name}_{Guid.CreateVersion7()}")
                 .Options;
 
             using var context = new CoreDbContext(options, strategy);
@@ -244,7 +244,7 @@ public class DbContextConfigurationTests
     {
         // Arrange
         var options = new DbContextOptionsBuilder<CoreDbContext>()
-            .UseInMemoryDatabase($"IdentityTest_{Guid.NewGuid()}")
+            .UseInMemoryDatabase($"IdentityTest_{Guid.CreateVersion7()}")
             .Options;
 
         using var context = new CoreDbContext(options, new PostgreSqlNamingStrategy());
@@ -259,7 +259,7 @@ public class DbContextConfigurationTests
     {
         // Arrange
         var options = new DbContextOptionsBuilder<CoreDbContext>()
-            .UseInMemoryDatabase($"FilterTest_{Guid.NewGuid()}")
+            .UseInMemoryDatabase($"FilterTest_{Guid.CreateVersion7()}")
             .Options;
 
         using var context = new CoreDbContext(options, new PostgreSqlNamingStrategy());
@@ -281,7 +281,7 @@ public class DbContextConfigurationTests
     {
         // Arrange
         var options = new DbContextOptionsBuilder<CoreDbContext>()
-            .UseInMemoryDatabase($"PropertyTest_{Guid.NewGuid()}")
+            .UseInMemoryDatabase($"PropertyTest_{Guid.CreateVersion7()}")
             .Options;
 
         using var context = new CoreDbContext(options, new PostgreSqlNamingStrategy());
@@ -299,7 +299,7 @@ public class DbContextConfigurationTests
     {
         // Arrange
         var options = new DbContextOptionsBuilder<CoreDbContext>()
-            .UseInMemoryDatabase($"ConcurrencyTest_{Guid.NewGuid()}")
+            .UseInMemoryDatabase($"ConcurrencyTest_{Guid.CreateVersion7()}")
             .Options;
 
         using var context = new CoreDbContext(options, new PostgreSqlNamingStrategy());
@@ -319,7 +319,7 @@ public class DbContextConfigurationTests
     {
         // Arrange
         var options = new DbContextOptionsBuilder<CoreDbContext>()
-            .UseInMemoryDatabase($"DefaultTest_{Guid.NewGuid()}")
+            .UseInMemoryDatabase($"DefaultTest_{Guid.CreateVersion7()}")
             .Options;
 
         using var context = new CoreDbContext(options, new PostgreSqlNamingStrategy());

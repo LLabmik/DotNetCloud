@@ -8,7 +8,7 @@ namespace DotNetCloud.Modules.Music.Models;
 public sealed class StarredItem
 {
     /// <summary>Unique identifier for this star.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>The user who starred the item.</summary>
     public Guid UserId { get; set; }

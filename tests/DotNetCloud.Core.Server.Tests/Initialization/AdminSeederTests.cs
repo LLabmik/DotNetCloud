@@ -214,7 +214,7 @@ public class AdminSeederTests
     public async Task WhenSeedFileExists_ThenReadsPasswordFromFileAsync()
     {
         // Arrange — write a temp seed file
-        var tempDir = Path.Combine(Path.GetTempPath(), $"dotnetcloud-test-{Guid.NewGuid():N}");
+        var tempDir = Path.Combine(Path.GetTempPath(), $"dotnetcloud-test-{Guid.CreateVersion7():N}");
         Directory.CreateDirectory(tempDir);
         var seedFile = Path.Combine(tempDir, ".admin-seed");
         File.WriteAllText(seedFile, "FileP@ss99!x");

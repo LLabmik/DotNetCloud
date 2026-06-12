@@ -13,7 +13,7 @@ public class FileDtoTests
     [TestMethod]
     public void WhenFileNodeDtoCreatedThenRequiredPropertiesAreSet()
     {
-        var id = Guid.NewGuid();
+        var id = Guid.CreateVersion7();
         var dto = new FileNodeDto
         {
             Id = id,
@@ -29,7 +29,7 @@ public class FileDtoTests
     [TestMethod]
     public void WhenFileNodeDtoCreatedThenDefaultsAreCorrect()
     {
-        var dto = new FileNodeDto { Id = Guid.NewGuid(), Name = "test", NodeType = "File" };
+        var dto = new FileNodeDto { Id = Guid.CreateVersion7(), Name = "test", NodeType = "File" };
 
         Assert.AreEqual(0, dto.Size);
         Assert.AreEqual(0, dto.CurrentVersion);
@@ -46,12 +46,12 @@ public class FileDtoTests
     {
         var dto = new FileNodeDto
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             Name = "test",
             NodeType = "File",
             Tags = [
-                new FileTagDto { Id = Guid.NewGuid(), Name = "Important" },
-                new FileTagDto { Id = Guid.NewGuid(), Name = "Work" }
+                new FileTagDto { Id = Guid.CreateVersion7(), Name = "Important" },
+                new FileTagDto { Id = Guid.CreateVersion7(), Name = "Work" }
             ]
         };
 
@@ -62,7 +62,7 @@ public class FileDtoTests
     [TestMethod]
     public void WhenTwoFileNodeDtosWithSameValuesComparedThenAreEqual()
     {
-        var id = Guid.NewGuid();
+        var id = Guid.CreateVersion7();
         var dto1 = new FileNodeDto { Id = id, Name = "test", NodeType = "File" };
         var dto2 = new FileNodeDto { Id = id, Name = "test", NodeType = "File" };
 
@@ -83,7 +83,7 @@ public class FileDtoTests
     [TestMethod]
     public void WhenCreateFolderDtoCreatedWithParentThenStoresValue()
     {
-        var parentId = Guid.NewGuid();
+        var parentId = Guid.CreateVersion7();
         var dto = new CreateFolderDto { Name = "Sub", ParentId = parentId };
 
         Assert.AreEqual(parentId, dto.ParentId);
@@ -104,7 +104,7 @@ public class FileDtoTests
     [TestMethod]
     public void WhenMoveNodeDtoCreatedThenStoresTargetParent()
     {
-        var targetId = Guid.NewGuid();
+        var targetId = Guid.CreateVersion7();
         var dto = new MoveNodeDto { TargetParentId = targetId };
 
         Assert.AreEqual(targetId, dto.TargetParentId);
@@ -147,7 +147,7 @@ public class FileDtoTests
     [TestMethod]
     public void WhenUploadSessionDtoCreatedThenDefaultListsAreEmpty()
     {
-        var dto = new UploadSessionDto { SessionId = Guid.NewGuid() };
+        var dto = new UploadSessionDto { SessionId = Guid.CreateVersion7() };
 
         Assert.AreEqual(0, dto.ExistingChunks.Count);
         Assert.AreEqual(0, dto.MissingChunks.Count);
@@ -158,7 +158,7 @@ public class FileDtoTests
     {
         var dto = new UploadSessionDto
         {
-            SessionId = Guid.NewGuid(),
+            SessionId = Guid.CreateVersion7(),
             ExistingChunks = ["a", "b"],
             MissingChunks = ["c"]
         };
@@ -172,7 +172,7 @@ public class FileDtoTests
     [TestMethod]
     public void WhenFileVersionDtoCreatedThenStoresValues()
     {
-        var id = Guid.NewGuid();
+        var id = Guid.CreateVersion7();
         var dto = new FileVersionDto
         {
             Id = id,
@@ -196,12 +196,12 @@ public class FileDtoTests
     [TestMethod]
     public void WhenFileShareDtoCreatedThenStoresValues()
     {
-        var id = Guid.NewGuid();
+        var id = Guid.CreateVersion7();
         var dto = new FileShareDto
         {
             Id = id,
             ShareType = "PublicLink",
-            SharedWithGroupId = Guid.NewGuid(),
+            SharedWithGroupId = Guid.CreateVersion7(),
             Permission = "Read",
             LinkToken = "token123",
             MaxDownloads = 50,
@@ -248,7 +248,7 @@ public class FileDtoTests
     {
         var dto = new QuotaDto
         {
-            UserId = Guid.NewGuid(),
+            UserId = Guid.CreateVersion7(),
             MaxBytes = 10737418240,
             UsedBytes = 5368709120,
             RemainingBytes = 5368709120,
@@ -264,7 +264,7 @@ public class FileDtoTests
     [TestMethod]
     public void WhenTrashItemDtoCreatedThenStoresValues()
     {
-        var id = Guid.NewGuid();
+        var id = Guid.CreateVersion7();
         var deletedAt = DateTime.UtcNow;
         var dto = new TrashItemDto
         {
@@ -288,7 +288,7 @@ public class FileDtoTests
     [TestMethod]
     public void WhenTrashItemDtoCreatedThenOptionalFieldsAreNull()
     {
-        var dto = new TrashItemDto { Id = Guid.NewGuid(), Name = "test", NodeType = "File" };
+        var dto = new TrashItemDto { Id = Guid.CreateVersion7(), Name = "test", NodeType = "File" };
 
         Assert.IsNull(dto.MimeType);
         Assert.IsNull(dto.DeletedAt);
@@ -303,7 +303,7 @@ public class FileDtoTests
     {
         var dto = new FileNodeDto
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             Name = "link-to-docs",
             NodeType = "SymbolicLink",
             LinkTarget = "Documents/notes.md"
@@ -316,7 +316,7 @@ public class FileDtoTests
     [TestMethod]
     public void WhenFileNodeDtoCreatedWithoutLinkTargetThenIsNull()
     {
-        var dto = new FileNodeDto { Id = Guid.NewGuid(), Name = "file.txt", NodeType = "File" };
+        var dto = new FileNodeDto { Id = Guid.CreateVersion7(), Name = "file.txt", NodeType = "File" };
 
         Assert.IsNull(dto.LinkTarget);
     }
@@ -326,7 +326,7 @@ public class FileDtoTests
     {
         var dto = new SyncChangeDto
         {
-            NodeId = Guid.NewGuid(),
+            NodeId = Guid.CreateVersion7(),
             Name = "my-link",
             NodeType = "SymbolicLink",
             LinkTarget = "Photos/img.jpg"
@@ -341,7 +341,7 @@ public class FileDtoTests
     {
         var dto = new SyncTreeNodeDto
         {
-            NodeId = Guid.NewGuid(),
+            NodeId = Guid.CreateVersion7(),
             Name = "link-node",
             NodeType = "SymbolicLink",
             LinkTarget = "Videos/movie.mp4"

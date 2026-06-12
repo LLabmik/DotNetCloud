@@ -18,11 +18,11 @@ public class ChatHubTests
     [TestMethod]
     public async Task WhenSendMessageCalledThenBroadcastsNewMessage()
     {
-        var userId = Guid.NewGuid();
-        var channelId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var channelId = Guid.CreateVersion7();
         var message = new ChatMessageDto
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             ChannelId = channelId,
             SenderUserId = userId,
             Content = "hello",
@@ -50,9 +50,9 @@ public class ChatHubTests
     [TestMethod]
     public async Task WhenMarkReadCalledThenBroadcastsUnreadCountForCaller()
     {
-        var userId = Guid.NewGuid();
-        var channelId = Guid.NewGuid();
-        var messageId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var channelId = Guid.CreateVersion7();
+        var messageId = Guid.CreateVersion7();
 
         var unreadCounts = new List<ChatUnreadCountDto>
         {
@@ -80,9 +80,9 @@ public class ChatHubTests
     [TestMethod]
     public async Task WhenAddReactionCalledThenBroadcastsUpdatedReactions()
     {
-        var userId = Guid.NewGuid();
-        var channelId = Guid.NewGuid();
-        var messageId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var channelId = Guid.CreateVersion7();
+        var messageId = Guid.CreateVersion7();
 
         // Pre-populate the hub's static message→channel map
         TrackMessageInHub(messageId, channelId);
@@ -108,8 +108,8 @@ public class ChatHubTests
     [TestMethod]
     public async Task WhenStartTypingCalledThenBroadcastsTypingIndicator()
     {
-        var userId = Guid.NewGuid();
-        var channelId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var channelId = Guid.CreateVersion7();
 
         var chatApiMock = new Mock<IChatApiClient>();
         chatApiMock
@@ -132,8 +132,8 @@ public class ChatHubTests
     [TestMethod]
     public async Task WhenStopTypingCalledThenBroadcastsTypingStopped()
     {
-        var userId = Guid.NewGuid();
-        var channelId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var channelId = Guid.CreateVersion7();
 
         var chatApiMock = new Mock<IChatApiClient>();
         var broadcasterMock = new Mock<IRealtimeBroadcaster>();
@@ -151,9 +151,9 @@ public class ChatHubTests
     [TestMethod]
     public async Task WhenRemoveReactionCalledThenBroadcastsUpdatedReactions()
     {
-        var userId = Guid.NewGuid();
-        var channelId = Guid.NewGuid();
-        var messageId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var channelId = Guid.CreateVersion7();
+        var messageId = Guid.CreateVersion7();
 
         // Pre-populate the hub's static message→channel map
         TrackMessageInHub(messageId, channelId);
@@ -179,9 +179,9 @@ public class ChatHubTests
     [TestMethod]
     public async Task WhenEditMessageCalledThenBroadcastsEditedMessage()
     {
-        var userId = Guid.NewGuid();
-        var channelId = Guid.NewGuid();
-        var messageId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var channelId = Guid.CreateVersion7();
+        var messageId = Guid.CreateVersion7();
         var newContent = "updated content";
         var message = new ChatMessageDto
         {
@@ -213,9 +213,9 @@ public class ChatHubTests
     [TestMethod]
     public async Task WhenDeleteMessageCalledThenBroadcastsDeletion()
     {
-        var userId = Guid.NewGuid();
-        var channelId = Guid.NewGuid();
-        var messageId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var channelId = Guid.CreateVersion7();
+        var messageId = Guid.CreateVersion7();
 
         // Pre-populate the hub's static message→channel map
         TrackMessageInHub(messageId, channelId);

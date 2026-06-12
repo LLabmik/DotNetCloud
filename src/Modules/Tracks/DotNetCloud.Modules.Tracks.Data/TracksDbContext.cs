@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Data.Configuration.Extensions;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Modules.Tracks.Models;
 using Microsoft.EntityFrameworkCore;
@@ -69,5 +70,7 @@ public class TracksDbContext : DbContext
         modelBuilder.HasDefaultSchema(_namingStrategy.GetSchemaForModule("tracks"));
         base.OnModelCreating(modelBuilder);
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(TracksDbContext).Assembly);
+
+        SequentialGuidConfigurationExtensions.ApplySequentialGuidDefaults(modelBuilder, _namingStrategy.Provider);
     }
 }

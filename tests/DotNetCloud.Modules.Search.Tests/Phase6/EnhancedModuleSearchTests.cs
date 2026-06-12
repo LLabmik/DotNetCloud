@@ -320,7 +320,7 @@ public class EnhancedModuleSearchTests
     [TestMethod]
     public async Task PermissionScoping_UserIdPassedToFts()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var mockClient = new Mock<ISearchFtsClient>();
         mockClient.Setup(c => c.IsAvailable).Returns(true);
         mockClient.Setup(c => c.SearchAsync(
@@ -388,7 +388,7 @@ public class EnhancedModuleSearchTests
             .Select(i => new SearchResultItem
             {
                 ModuleId = moduleId,
-                EntityId = Guid.NewGuid().ToString(),
+                EntityId = Guid.CreateVersion7().ToString(),
                 EntityType = entityType,
                 Title = $"{title} {i}",
                 Snippet = $"...<mark>{title}</mark> {i}...",

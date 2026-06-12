@@ -15,8 +15,8 @@ public class ContactDtosTests
         // Arrange & Act
         var contact = new ContactDto
         {
-            Id = Guid.NewGuid(),
-            OwnerId = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
+            OwnerId = Guid.CreateVersion7(),
             ContactType = ContactType.Person,
             DisplayName = "Jane Doe",
             CreatedAt = DateTime.UtcNow,
@@ -36,8 +36,8 @@ public class ContactDtosTests
         // Arrange & Act
         var contact = new ContactDto
         {
-            Id = Guid.NewGuid(),
-            OwnerId = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
+            OwnerId = Guid.CreateVersion7(),
             ContactType = ContactType.Person,
             DisplayName = "Test",
             CreatedAt = DateTime.UtcNow,
@@ -60,8 +60,8 @@ public class ContactDtosTests
         // Arrange & Act
         var contact = new ContactDto
         {
-            Id = Guid.NewGuid(),
-            OwnerId = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
+            OwnerId = Guid.CreateVersion7(),
             ContactType = ContactType.Person,
             DisplayName = "Test",
             CreatedAt = DateTime.UtcNow,
@@ -157,8 +157,8 @@ public class ContactDtosTests
         // Arrange & Act
         var group = new ContactGroupDto
         {
-            Id = Guid.NewGuid(),
-            OwnerId = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
+            OwnerId = Guid.CreateVersion7(),
             Name = "Family",
             MemberCount = 5,
             CreatedAt = DateTime.UtcNow,
@@ -208,8 +208,8 @@ public class ContactDtosTests
         // Arrange
         var contact = new ContactDto
         {
-            Id = Guid.NewGuid(),
-            OwnerId = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
+            OwnerId = Guid.CreateVersion7(),
             ContactType = ContactType.Person,
             DisplayName = "Original",
             CreatedAt = DateTime.UtcNow,

@@ -6,7 +6,7 @@ namespace DotNetCloud.Modules.Chat.Models;
 public sealed class ChannelInvite
 {
     /// <summary>Unique identifier.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>Channel the user is invited to.</summary>
     public Guid ChannelId { get; set; }

@@ -23,7 +23,7 @@ public class UserSettingsServiceTests
     public void Setup()
     {
         var options = new DbContextOptionsBuilder<CoreDbContext>()
-            .UseInMemoryDatabase($"UserSettingsTests_{Guid.NewGuid()}")
+            .UseInMemoryDatabase($"UserSettingsTests_{Guid.CreateVersion7()}")
             .Options;
         _dbContext = new CoreDbContext(options, new PostgreSqlNamingStrategy());
 
@@ -42,7 +42,7 @@ public class UserSettingsServiceTests
     public async Task WhenSettingExistsForUserThenGetSettingReturnsDto()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         _dbContext.UserSettings.Add(
             new UserSetting
             {
@@ -70,7 +70,7 @@ public class UserSettingsServiceTests
     public async Task WhenSettingDoesNotExistForUserThenGetSettingReturnsNull()
     {
         // Act
-        var result = await _service.GetSettingAsync(Guid.NewGuid(), "dotnetcloud.ui", "navbar.collapsed");
+        var result = await _service.GetSettingAsync(Guid.CreateVersion7(), "dotnetcloud.ui", "navbar.collapsed");
 
         // Assert
         Assert.IsNull(result);
@@ -80,7 +80,7 @@ public class UserSettingsServiceTests
     public async Task WhenSettingDoesNotExistThenUpsertCreatesNewSetting()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var dto = new UpsertUserSettingDto
         {
             Value = "true",
@@ -105,7 +105,7 @@ public class UserSettingsServiceTests
     public async Task WhenSettingExistsThenUpsertUpdatesExistingSetting()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         _dbContext.UserSettings.Add(
             new UserSetting
             {

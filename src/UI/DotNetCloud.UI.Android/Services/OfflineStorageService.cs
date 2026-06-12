@@ -39,7 +39,7 @@ public interface IOfflineStorageService
 public sealed record PendingMessage
 {
     /// <summary>Local ID for tracking.</summary>
-    public Guid Id { get; init; } = Guid.NewGuid();
+    public Guid Id { get; init; } = Guid.CreateVersion7();
 
     /// <summary>Target channel.</summary>
     public Guid ChannelId { get; init; }

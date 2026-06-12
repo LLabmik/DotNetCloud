@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Data.Configuration.Extensions;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Modules.Chat.Data.Configuration;
 using DotNetCloud.Modules.Chat.Models;
@@ -99,5 +100,7 @@ public class ChatDbContext : DbContext
         modelBuilder.ApplyConfiguration(new VideoCallConfiguration());
         modelBuilder.ApplyConfiguration(new CallParticipantConfiguration());
         modelBuilder.ApplyConfiguration(new BlockedUserConfiguration());
+
+        SequentialGuidConfigurationExtensions.ApplySequentialGuidDefaults(modelBuilder, _namingStrategy.Provider);
     }
 }

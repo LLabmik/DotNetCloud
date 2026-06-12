@@ -195,7 +195,7 @@ public class VideoSeriesServiceTests
     public async Task GetSeasonEpisodesAsync_NonExistentSeason_ReturnsEmpty()
     {
         // Act
-        var episodes = await _service.GetSeasonEpisodesAsync(Guid.NewGuid(), _caller);
+        var episodes = await _service.GetSeasonEpisodesAsync(Guid.CreateVersion7(), _caller);
 
         // Assert
         Assert.AreEqual(0, episodes.Count);
@@ -247,7 +247,7 @@ public class VideoSeriesServiceTests
     public async Task GetSeriesThumbnailAsync_NonExistentSeries_ReturnsNull()
     {
         // Act
-        var result = await _service.GetSeriesThumbnailAsync(Guid.NewGuid(), _caller);
+        var result = await _service.GetSeriesThumbnailAsync(Guid.CreateVersion7(), _caller);
 
         // Assert
         Assert.IsNull(result);

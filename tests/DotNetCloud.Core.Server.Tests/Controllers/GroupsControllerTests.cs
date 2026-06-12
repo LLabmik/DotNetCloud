@@ -30,7 +30,7 @@ public sealed class GroupsControllerTests
     public void Setup()
     {
         var options = new DbContextOptionsBuilder<CoreDbContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(databaseName: Guid.CreateVersion7().ToString())
             .Options;
 
         _dbContext = new CoreDbContext(options, new PostgreSqlNamingStrategy());
@@ -60,7 +60,7 @@ public sealed class GroupsControllerTests
     [TestMethod]
     public async Task ListAsync_WhenGroupsExist_ReturnsOkWithMappedData()
     {
-        var organizationId = Guid.NewGuid();
+        var organizationId = Guid.CreateVersion7();
         _groupDirectoryMock
             .Setup(service => service.GetGroupsForOrganizationAsync(organizationId, It.IsAny<CancellationToken>()))
             .ReturnsAsync([
@@ -84,7 +84,7 @@ public sealed class GroupsControllerTests
             .Setup(service => service.GetGroupAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((GroupInfo?)null);
 
-        var result = await _controller.GetAsync(Guid.NewGuid(), CancellationToken.None);
+        var result = await _controller.GetAsync(Guid.CreateVersion7(), CancellationToken.None);
 
         Assert.IsInstanceOfType<NotFoundObjectResult>(result);
     }
@@ -103,7 +103,7 @@ public sealed class GroupsControllerTests
     [TestMethod]
     public async Task CreateAsync_WhenSuccessful_ReturnsCreated()
     {
-        var organizationId = Guid.NewGuid();
+        var organizationId = Guid.CreateVersion7();
         var group = CreateGroupInfo(organizationId, name: GroupName("Editors"), memberCount: 0);
 
         _groupManagerMock
@@ -127,11 +127,11 @@ public sealed class GroupsControllerTests
     [TestMethod]
     public async Task ListMembersAsync_WhenGroupExists_ReturnsUserDetails()
     {
-        var groupId = Guid.NewGuid();
-        var organizationId = Guid.NewGuid();
+        var groupId = Guid.CreateVersion7();
+        var organizationId = Guid.CreateVersion7();
         var alice = new ApplicationUser
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             UserName = "alice",
             Email = "alice@example.com",
             DisplayName = "Alice",
@@ -139,7 +139,7 @@ public sealed class GroupsControllerTests
         };
         var bob = new ApplicationUser
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             UserName = "bob",
             Email = "bob@example.com",
             DisplayName = "Bob",
@@ -171,11 +171,11 @@ public sealed class GroupsControllerTests
     [TestMethod]
     public async Task AddMemberAsync_WhenAlreadyMember_ReturnsConflict()
     {
-        var groupId = Guid.NewGuid();
-        var organizationId = Guid.NewGuid();
+        var groupId = Guid.CreateVersion7();
+        var organizationId = Guid.CreateVersion7();
         var user = new ApplicationUser
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             UserName = "alice",
             Email = "alice@example.com",
             DisplayName = "Alice",
@@ -200,12 +200,12 @@ public sealed class GroupsControllerTests
     [TestMethod]
     public async Task AddMemberAsync_WhenSuccessful_UsesCurrentUserIdAsAdder()
     {
-        var groupId = Guid.NewGuid();
-        var organizationId = Guid.NewGuid();
-        var currentUserId = Guid.NewGuid();
+        var groupId = Guid.CreateVersion7();
+        var organizationId = Guid.CreateVersion7();
+        var currentUserId = Guid.CreateVersion7();
         var user = new ApplicationUser
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             UserName = "alice",
             Email = "alice@example.com",
             DisplayName = "Alice",
@@ -246,9 +246,9 @@ public sealed class GroupsControllerTests
     [TestMethod]
     public async Task RemoveMemberAsync_WhenUserNotMember_ReturnsNotFound()
     {
-        var groupId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
-        var organizationId = Guid.NewGuid();
+        var groupId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
+        var organizationId = Guid.CreateVersion7();
 
         _groupDirectoryMock
             .Setup(service => service.GetGroupAsync(groupId, It.IsAny<CancellationToken>()))
@@ -273,7 +273,7 @@ public sealed class GroupsControllerTests
     {
         return new GroupInfo
         {
-            Id = groupId ?? Guid.NewGuid(),
+            Id = groupId ?? Guid.CreateVersion7(),
             OrganizationId = organizationId,
             Name = name ?? GroupName("Editors"),
             Description = "Example group",

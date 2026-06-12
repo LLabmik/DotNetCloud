@@ -26,12 +26,12 @@ public class ContactServiceTests
     public void Setup()
     {
         var options = new DbContextOptionsBuilder<ContactsDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options;
         _db = new ContactsDbContext(options);
         _eventBusMock = new Mock<IEventBus>();
         _service = new ContactService(_db, _eventBusMock.Object, NullLogger<ContactService>.Instance);
-        _caller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        _caller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
     }
 
     [TestCleanup]
@@ -134,7 +134,7 @@ public class ContactServiceTests
     [TestMethod]
     public async Task GetContact_NotFound_ReturnsNull()
     {
-        var result = await _service.GetContactAsync(Guid.NewGuid(), _caller);
+        var result = await _service.GetContactAsync(Guid.CreateVersion7(), _caller);
 
         Assert.IsNull(result);
     }
@@ -175,7 +175,7 @@ public class ContactServiceTests
     [TestMethod]
     public async Task ListContacts_ReturnsOwnContacts()
     {
-        var otherCaller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        var otherCaller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
 
         await _service.CreateContactAsync(
             new CreateContactDto { ContactType = ContactType.Person, DisplayName = "Mine" }, _caller);

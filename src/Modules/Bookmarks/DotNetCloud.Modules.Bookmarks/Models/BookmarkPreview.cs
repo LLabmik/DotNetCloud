@@ -6,7 +6,7 @@ namespace DotNetCloud.Modules.Bookmarks.Models;
 public sealed class BookmarkPreview
 {
     /// <summary>Unique identifier.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>Foreign key to the parent bookmark.</summary>
     public Guid BookmarkId { get; set; }

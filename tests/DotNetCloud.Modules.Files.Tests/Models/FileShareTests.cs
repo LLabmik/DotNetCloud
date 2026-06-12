@@ -70,8 +70,8 @@ public class FileShareTests
     [TestMethod]
     public void WhenPublicLinkConfiguredThenStoresValues()
     {
-        var nodeId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
+        var nodeId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
         var expires = DateTime.UtcNow.AddDays(7);
 
         var share = new FileShare
@@ -100,7 +100,7 @@ public class FileShareTests
     [TestMethod]
     public void WhenUserShareConfiguredThenStoresTargetUser()
     {
-        var targetUser = Guid.NewGuid();
+        var targetUser = Guid.CreateVersion7();
 
         var share = new FileShare
         {

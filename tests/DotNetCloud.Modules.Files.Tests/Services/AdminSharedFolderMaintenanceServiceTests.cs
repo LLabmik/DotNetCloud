@@ -14,7 +14,7 @@ public class AdminSharedFolderMaintenanceServiceTests
 {
     private static FilesDbContext CreateContext()
         => new(new DbContextOptionsBuilder<FilesDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options);
 
     private static AdminSharedFolderMaintenanceService CreateService(
@@ -56,7 +56,7 @@ public class AdminSharedFolderMaintenanceServiceTests
                 SourcePath = rootPath,
                 CrawlMode = AdminSharedFolderCrawlMode.Scheduled,
                 NextScheduledScanAt = DateTime.UtcNow.AddMinutes(-5),
-                CreatedByUserId = Guid.NewGuid(),
+                CreatedByUserId = Guid.CreateVersion7(),
             };
             db.AdminSharedFolders.Add(folder);
             await db.SaveChangesAsync();
@@ -97,7 +97,7 @@ public class AdminSharedFolderMaintenanceServiceTests
                 SourcePath = rootPath,
                 CrawlMode = AdminSharedFolderCrawlMode.Manual,
                 ReindexState = AdminSharedFolderReindexState.Requested,
-                CreatedByUserId = Guid.NewGuid(),
+                CreatedByUserId = Guid.CreateVersion7(),
             };
             db.AdminSharedFolders.Add(folder);
             await db.SaveChangesAsync();
@@ -135,7 +135,7 @@ public class AdminSharedFolderMaintenanceServiceTests
                 SourcePath = rootPath,
                 CrawlMode = AdminSharedFolderCrawlMode.Manual,
                 ReindexState = AdminSharedFolderReindexState.Requested,
-                CreatedByUserId = Guid.NewGuid(),
+                CreatedByUserId = Guid.CreateVersion7(),
             };
             db.AdminSharedFolders.Add(folder);
             await db.SaveChangesAsync();
@@ -158,7 +158,7 @@ public class AdminSharedFolderMaintenanceServiceTests
 
     private static string CreateTempDirectory()
     {
-        var path = Path.Combine(Path.GetTempPath(), $"dotnetcloud-admin-maintenance-{Guid.NewGuid():N}");
+        var path = Path.Combine(Path.GetTempPath(), $"dotnetcloud-admin-maintenance-{Guid.CreateVersion7():N}");
         Directory.CreateDirectory(path);
         return path;
     }

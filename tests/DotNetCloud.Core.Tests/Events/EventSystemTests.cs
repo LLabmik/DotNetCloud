@@ -21,7 +21,7 @@ public class EventSystemTests
 
         public TestEvent()
         {
-            EventId = Guid.NewGuid();
+            EventId = Guid.CreateVersion7();
             CreatedAt = DateTime.UtcNow;
         }
     }
@@ -102,7 +102,7 @@ public class EventSystemTests
     {
         // Arrange
         var handler = new TestEventHandler();
-        var eventId = Guid.NewGuid();
+        var eventId = Guid.CreateVersion7();
         var @event = new TestEvent { EventId = eventId };
 
         // Act
@@ -147,7 +147,7 @@ public class EventSystemTests
             .Returns(Task.CompletedTask);
 
         var @event = new TestEvent();
-        var systemCallerId = Guid.NewGuid();
+        var systemCallerId = Guid.CreateVersion7();
         var context = new DotNetCloud.Core.Authorization.CallerContext(
             systemCallerId,
             Array.Empty<string>(),

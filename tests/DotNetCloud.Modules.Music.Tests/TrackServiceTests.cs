@@ -42,7 +42,7 @@ public class TrackServiceTests
     [TestMethod]
     public async Task GetTrack_NonExistent_ReturnsNull()
     {
-        var result = await _service.GetTrackAsync(Guid.NewGuid(), _caller);
+        var result = await _service.GetTrackAsync(Guid.CreateVersion7(), _caller);
         Assert.IsNull(result);
     }
 
@@ -238,6 +238,6 @@ public class TrackServiceTests
     public async Task DeleteTrack_NonExistent_Throws()
     {
         await Assert.ThrowsExactlyAsync<DotNetCloud.Core.Errors.BusinessRuleException>(
-            () => _service.DeleteTrackAsync(Guid.NewGuid(), _caller));
+            () => _service.DeleteTrackAsync(Guid.CreateVersion7(), _caller));
     }
 }

@@ -31,9 +31,9 @@ public class ActivityServiceTests
     [TestMethod]
     public async Task WriteActivityAsync_CreatesActivityEntry()
     {
-        var productId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
-        var entityId = Guid.NewGuid();
+        var productId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
+        var entityId = Guid.CreateVersion7();
 
         await _service.WriteActivityAsync(productId, userId, "workitem.created", "WorkItem", entityId, "{\"title\":\"Test\"}", CancellationToken.None);
 
@@ -48,12 +48,12 @@ public class ActivityServiceTests
     [TestMethod]
     public async Task GetActivitiesByProductAsync_ReturnsNewestFirst()
     {
-        var productId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
+        var productId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
 
-        await _service.WriteActivityAsync(productId, userId, "first", "WorkItem", Guid.NewGuid(), null, CancellationToken.None);
+        await _service.WriteActivityAsync(productId, userId, "first", "WorkItem", Guid.CreateVersion7(), null, CancellationToken.None);
         await Task.Delay(10);
-        await _service.WriteActivityAsync(productId, userId, "second", "WorkItem", Guid.NewGuid(), null, CancellationToken.None);
+        await _service.WriteActivityAsync(productId, userId, "second", "WorkItem", Guid.CreateVersion7(), null, CancellationToken.None);
 
         var activities = await _service.GetActivitiesByProductAsync(productId, 0, 50, CancellationToken.None);
 
@@ -64,11 +64,11 @@ public class ActivityServiceTests
     [TestMethod]
     public async Task GetActivitiesByProductAsync_Pagination_Works()
     {
-        var productId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
+        var productId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
 
         for (var i = 0; i < 5; i++)
-            await _service.WriteActivityAsync(productId, userId, $"action{i}", "WorkItem", Guid.NewGuid(), null, CancellationToken.None);
+            await _service.WriteActivityAsync(productId, userId, $"action{i}", "WorkItem", Guid.CreateVersion7(), null, CancellationToken.None);
 
         var page1 = await _service.GetActivitiesByProductAsync(productId, 0, 2, CancellationToken.None);
         var page2 = await _service.GetActivitiesByProductAsync(productId, 2, 2, CancellationToken.None);
@@ -80,10 +80,10 @@ public class ActivityServiceTests
     [TestMethod]
     public async Task GetActivitiesByWorkItemAsync_FiltersByWorkItemId()
     {
-        var productId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
-        var workItemId = Guid.NewGuid();
-        var otherItemId = Guid.NewGuid();
+        var productId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
+        var workItemId = Guid.CreateVersion7();
+        var otherItemId = Guid.CreateVersion7();
 
         await _service.WriteActivityAsync(productId, userId, "item.created", "WorkItem", workItemId, null, CancellationToken.None);
         await _service.WriteActivityAsync(productId, userId, "item.created", "WorkItem", otherItemId, null, CancellationToken.None);

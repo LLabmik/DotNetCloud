@@ -26,7 +26,7 @@ public class BulkOperationTests
     private static FilesDbContext CreateContext(string? name = null)
     {
         var options = new DbContextOptionsBuilder<FilesDbContext>()
-            .UseInMemoryDatabase(name ?? Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(name ?? Guid.CreateVersion7().ToString())
             .Options;
         return new FilesDbContext(options);
     }
@@ -72,7 +72,7 @@ public class BulkOperationTests
     public async Task BulkMove_AllItemsExist_AllSucceed()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         var target = new FileNode { Name = "Target", NodeType = FileNodeType.Folder, OwnerId = userId, Depth = 0 };
         target.MaterializedPath = $"/{target.Id}";
@@ -105,7 +105,7 @@ public class BulkOperationTests
     public async Task BulkMove_SomeItemsNonExistent_PartialSuccess()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         var target = new FileNode { Name = "Target", NodeType = FileNodeType.Folder, OwnerId = userId, Depth = 0 };
         target.MaterializedPath = $"/{target.Id}";
@@ -118,7 +118,7 @@ public class BulkOperationTests
 
         var service = CreateFileService(db);
         var caller = UserCaller(userId);
-        var nonExistentId = Guid.NewGuid();
+        var nonExistentId = Guid.CreateVersion7();
         var nodeIds = new List<Guid> { file1.Id, nonExistentId };
 
         var results = await ExecuteBulkAsync(nodeIds, id =>
@@ -134,7 +134,7 @@ public class BulkOperationTests
     public async Task BulkMove_FailureDoesNotPreventSubsequentItems()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         var target = new FileNode { Name = "Target", NodeType = FileNodeType.Folder, OwnerId = userId, Depth = 0 };
         target.MaterializedPath = $"/{target.Id}";
@@ -149,7 +149,7 @@ public class BulkOperationTests
 
         var service = CreateFileService(db);
         var caller = UserCaller(userId);
-        var nonExistentId = Guid.NewGuid();
+        var nonExistentId = Guid.CreateVersion7();
 
         // Order: valid, invalid, valid — the third item should still succeed
         var nodeIds = new List<Guid> { file1.Id, nonExistentId, file2.Id };
@@ -167,8 +167,8 @@ public class BulkOperationTests
     public async Task BulkMove_WrongOwner_FailsWithForbidden()
     {
         using var db = CreateContext();
-        var ownerId = Guid.NewGuid();
-        var attackerId = Guid.NewGuid();
+        var ownerId = Guid.CreateVersion7();
+        var attackerId = Guid.CreateVersion7();
 
         var target = new FileNode { Name = "Target", NodeType = FileNodeType.Folder, OwnerId = attackerId, Depth = 0 };
         target.MaterializedPath = $"/{target.Id}";
@@ -197,7 +197,7 @@ public class BulkOperationTests
     public async Task BulkCopy_AllItemsExist_AllSucceed()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         var target = new FileNode { Name = "Target", NodeType = FileNodeType.Folder, OwnerId = userId, Depth = 0 };
         target.MaterializedPath = $"/{target.Id}";
@@ -235,7 +235,7 @@ public class BulkOperationTests
     public async Task BulkCopy_InsufficientQuota_FailsPerItem()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         var target = new FileNode { Name = "Target", NodeType = FileNodeType.Folder, OwnerId = userId, Depth = 0 };
         target.MaterializedPath = $"/{target.Id}";
@@ -275,7 +275,7 @@ public class BulkOperationTests
     public async Task BulkCopy_PartialFailure_CountsCorrectly()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         var target = new FileNode { Name = "Target", NodeType = FileNodeType.Folder, OwnerId = userId, Depth = 0 };
         target.MaterializedPath = $"/{target.Id}";
@@ -294,7 +294,7 @@ public class BulkOperationTests
 
         var service = CreateFileService(db, quotaMock.Object);
         var caller = UserCaller(userId);
-        var nodeIds = new List<Guid> { file.Id, Guid.NewGuid(), Guid.NewGuid() };
+        var nodeIds = new List<Guid> { file.Id, Guid.CreateVersion7(), Guid.CreateVersion7() };
 
         var results = await ExecuteBulkAsync(nodeIds, id =>
             service.CopyAsync(id, target.Id, caller));
@@ -315,7 +315,7 @@ public class BulkOperationTests
     public async Task BulkDelete_AllItemsExist_AllSoftDeleted()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         var file1 = new FileNode { Name = "a.txt", NodeType = FileNodeType.File, OwnerId = userId };
         file1.MaterializedPath = $"/{file1.Id}";
@@ -347,7 +347,7 @@ public class BulkOperationTests
     public async Task BulkDelete_SomeNonExistent_PartialSuccess()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         var file = new FileNode { Name = "exists.txt", NodeType = FileNodeType.File, OwnerId = userId };
         file.MaterializedPath = $"/{file.Id}";
@@ -356,7 +356,7 @@ public class BulkOperationTests
 
         var service = CreateFileService(db);
         var caller = UserCaller(userId);
-        var nodeIds = new List<Guid> { file.Id, Guid.NewGuid() };
+        var nodeIds = new List<Guid> { file.Id, Guid.CreateVersion7() };
 
         var results = await ExecuteBulkAsync(nodeIds, id =>
             service.DeleteAsync(id, caller));
@@ -370,7 +370,7 @@ public class BulkOperationTests
     public async Task BulkDelete_FolderWithChildren_CascadesSoftDelete()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         var folder = new FileNode { Name = "Folder", NodeType = FileNodeType.Folder, OwnerId = userId, Depth = 0 };
         folder.MaterializedPath = $"/{folder.Id}";
@@ -410,7 +410,7 @@ public class BulkOperationTests
     public async Task BulkPermanentDelete_TrashedItems_AllPermanentlyDeleted()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         var file1 = new FileNode
         {
@@ -454,7 +454,7 @@ public class BulkOperationTests
     public async Task BulkPermanentDelete_MixedExistAndNonExist_PartialSuccess()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         var file = new FileNode
         {
@@ -471,7 +471,7 @@ public class BulkOperationTests
 
         var trashService = CreateTrashService(db);
         var caller = UserCaller(userId);
-        var nodeIds = new List<Guid> { file.Id, Guid.NewGuid() };
+        var nodeIds = new List<Guid> { file.Id, Guid.CreateVersion7() };
 
         var results = await ExecuteBulkAsync(nodeIds, id =>
             trashService.PermanentDeleteAsync(id, caller));
@@ -490,9 +490,9 @@ public class BulkOperationTests
     {
         var results = new List<BulkItemResultDto>
         {
-            new() { NodeId = Guid.NewGuid(), Success = true },
-            new() { NodeId = Guid.NewGuid(), Success = false, Error = "Not found" },
-            new() { NodeId = Guid.NewGuid(), Success = true },
+            new() { NodeId = Guid.CreateVersion7(), Success = true },
+            new() { NodeId = Guid.CreateVersion7(), Success = false, Error = "Not found" },
+            new() { NodeId = Guid.CreateVersion7(), Success = true },
         };
 
         var dto = new BulkResultDto
@@ -512,7 +512,7 @@ public class BulkOperationTests
     [TestMethod]
     public void BulkItemResultDto_SuccessHasNoError()
     {
-        var item = new BulkItemResultDto { NodeId = Guid.NewGuid(), Success = true };
+        var item = new BulkItemResultDto { NodeId = Guid.CreateVersion7(), Success = true };
 
         Assert.IsTrue(item.Success);
         Assert.IsNull(item.Error);
@@ -521,7 +521,7 @@ public class BulkOperationTests
     [TestMethod]
     public void BulkItemResultDto_FailureHasError()
     {
-        var item = new BulkItemResultDto { NodeId = Guid.NewGuid(), Success = false, Error = "Forbidden" };
+        var item = new BulkItemResultDto { NodeId = Guid.CreateVersion7(), Success = false, Error = "Forbidden" };
 
         Assert.IsFalse(item.Success);
         Assert.AreEqual("Forbidden", item.Error);
@@ -530,8 +530,8 @@ public class BulkOperationTests
     [TestMethod]
     public void BulkOperationDto_StoresNodeIdsAndTarget()
     {
-        var ids = new List<Guid> { Guid.NewGuid(), Guid.NewGuid() };
-        var targetId = Guid.NewGuid();
+        var ids = new List<Guid> { Guid.CreateVersion7(), Guid.CreateVersion7() };
+        var targetId = Guid.CreateVersion7();
 
         var dto = new BulkOperationDto { NodeIds = ids, TargetParentId = targetId };
 
@@ -542,7 +542,7 @@ public class BulkOperationTests
     [TestMethod]
     public void BulkOperationDto_TargetParentIdIsOptional()
     {
-        var dto = new BulkOperationDto { NodeIds = [Guid.NewGuid()] };
+        var dto = new BulkOperationDto { NodeIds = [Guid.CreateVersion7()] };
 
         Assert.IsNull(dto.TargetParentId);
     }
@@ -556,8 +556,8 @@ public class BulkOperationTests
     {
         using var db = CreateContext();
         var service = CreateFileService(db);
-        var caller = UserCaller(Guid.NewGuid());
-        var target = Guid.NewGuid();
+        var caller = UserCaller(Guid.CreateVersion7());
+        var target = Guid.CreateVersion7();
 
         var results = await ExecuteBulkAsync([], id =>
             service.MoveAsync(id, new MoveNodeDto { TargetParentId = target }, caller));
@@ -570,7 +570,7 @@ public class BulkOperationTests
     {
         using var db = CreateContext();
         var service = CreateFileService(db);
-        var caller = UserCaller(Guid.NewGuid());
+        var caller = UserCaller(Guid.CreateVersion7());
 
         var results = await ExecuteBulkAsync([], id =>
             service.DeleteAsync(id, caller));
@@ -583,8 +583,8 @@ public class BulkOperationTests
     {
         using var db = CreateContext();
         var service = CreateFileService(db);
-        var caller = UserCaller(Guid.NewGuid());
-        var nodeIds = new List<Guid> { Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid() };
+        var caller = UserCaller(Guid.CreateVersion7());
+        var nodeIds = new List<Guid> { Guid.CreateVersion7(), Guid.CreateVersion7(), Guid.CreateVersion7() };
 
         var results = await ExecuteBulkAsync(nodeIds, id =>
             service.DeleteAsync(id, caller));

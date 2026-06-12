@@ -93,7 +93,7 @@ public sealed class SwimlaneService
         foreach (var item in items)
         {
             item.SwimlaneId = null;
-            item.ETag = Guid.NewGuid().ToString("N");
+            item.ETag = Guid.CreateVersion7().ToString("N");
             item.UpdatedAt = DateTime.UtcNow;
         }
 

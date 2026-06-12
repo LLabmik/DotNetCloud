@@ -13,7 +13,7 @@ public class DotNetCloudExceptionsTests
     [TestMethod]
     public void CapabilityNotGrantedException_CanBeThrown()
     {
-        var context = new CallerContext(Guid.NewGuid(), Array.Empty<string>(), CallerType.User);
+        var context = new CallerContext(Guid.CreateVersion7(), Array.Empty<string>(), CallerType.User);
         try
         {
             throw new CapabilityNotGrantedException("TestCapability", context);
@@ -28,7 +28,7 @@ public class DotNetCloudExceptionsTests
     public void CapabilityNotGrantedException_StoresCapabilityName()
     {
         // Arrange
-        var context = new CallerContext(Guid.NewGuid(), Array.Empty<string>(), CallerType.User);
+        var context = new CallerContext(Guid.CreateVersion7(), Array.Empty<string>(), CallerType.User);
         var capabilityName = "TestCapability";
 
         // Act
@@ -42,7 +42,7 @@ public class DotNetCloudExceptionsTests
     public void CapabilityNotGrantedException_StoresCallerContext()
     {
         // Arrange
-        var context = new CallerContext(Guid.NewGuid(), Array.Empty<string>(), CallerType.User);
+        var context = new CallerContext(Guid.CreateVersion7(), Array.Empty<string>(), CallerType.User);
 
         // Act
         var exception = new CapabilityNotGrantedException("TestCapability", context);
@@ -55,7 +55,7 @@ public class DotNetCloudExceptionsTests
     public void CapabilityNotGrantedException_HasCorrectErrorCode()
     {
         // Arrange
-        var context = new CallerContext(Guid.NewGuid(), Array.Empty<string>(), CallerType.User);
+        var context = new CallerContext(Guid.CreateVersion7(), Array.Empty<string>(), CallerType.User);
 
         // Act
         var exception = new CapabilityNotGrantedException("TestCapability", context);
@@ -68,7 +68,7 @@ public class DotNetCloudExceptionsTests
     public void CapabilityNotGrantedException_HasCorrectMessage()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var context = new CallerContext(userId, Array.Empty<string>(), CallerType.User);
 
         // Act
@@ -154,7 +154,7 @@ public class DotNetCloudExceptionsTests
     public void DotNetCloudException_Subclasses_InheritBaseProperties()
     {
         // Arrange
-        var context = new CallerContext(Guid.NewGuid(), Array.Empty<string>(), CallerType.User);
+        var context = new CallerContext(Guid.CreateVersion7(), Array.Empty<string>(), CallerType.User);
         var exception = new CapabilityNotGrantedException("TestCapability", context);
 
         // Act & Assert
@@ -201,7 +201,7 @@ public class DotNetCloudExceptionsTests
     public void CapabilityNotGrantedException_WithInnerException()
     {
         // Arrange
-        var context = new CallerContext(Guid.NewGuid(), Array.Empty<string>(), CallerType.User);
+        var context = new CallerContext(Guid.CreateVersion7(), Array.Empty<string>(), CallerType.User);
 
         // Act
         var exception = new CapabilityNotGrantedException("TestCapability", context);

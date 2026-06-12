@@ -5,7 +5,7 @@ namespace DotNetCloud.Modules.Tracks.Models;
 /// </summary>
 public sealed class WorkItemAssignment
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
     public Guid WorkItemId { get; set; }
     public Guid UserId { get; set; }
     public DateTime AssignedAt { get; set; } = DateTime.UtcNow;

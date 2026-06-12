@@ -29,7 +29,7 @@ public class SearchIndexRequestEventHandlerTests
     {
         var @event = new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ModuleId = "files",
             EntityId = "entity-1",
@@ -48,7 +48,7 @@ public class SearchIndexRequestEventHandlerTests
     {
         var @event = new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ModuleId = "files",
             EntityId = "entity-1",
@@ -71,7 +71,7 @@ public class SearchIndexRequestEventHandlerTests
 
         var @event = new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ModuleId = "files",
             EntityId = "entity-1",

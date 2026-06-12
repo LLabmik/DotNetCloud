@@ -24,16 +24,16 @@ public class NotificationHandlerTests
             _pushService.Object,
             NullLogger<ResourceSharedNotificationHandler>.Instance);
 
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var @event = new ResourceSharedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            SharedByUserId = Guid.NewGuid(),
+            SharedByUserId = Guid.CreateVersion7(),
             SharedWithUserId = userId,
             SourceModuleId = "dotnetcloud.notes",
             EntityType = "Note",
-            EntityId = Guid.NewGuid(),
+            EntityId = Guid.CreateVersion7(),
             EntityDisplayName = "My Important Note",
             Permission = "ReadWrite"
         };
@@ -56,16 +56,16 @@ public class NotificationHandlerTests
             _pushService.Object,
             NullLogger<UserMentionedNotificationHandler>.Instance);
 
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var @event = new UserMentionedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             MentionedUserId = userId,
-            MentionedByUserId = Guid.NewGuid(),
+            MentionedByUserId = Guid.CreateVersion7(),
             SourceModuleId = "dotnetcloud.notes",
             ContentType = "Note",
-            ContentId = Guid.NewGuid(),
+            ContentId = Guid.CreateVersion7(),
             ContentTitle = "Sprint Planning"
         };
 
@@ -87,15 +87,15 @@ public class NotificationHandlerTests
             _pushService.Object,
             NullLogger<ReminderNotificationHandler>.Instance);
 
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var @event = new ReminderTriggeredEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             UserId = userId,
             SourceModuleId = "dotnetcloud.calendar",
             EntityType = "CalendarEvent",
-            EntityId = Guid.NewGuid(),
+            EntityId = Guid.CreateVersion7(),
             Title = "Team Meeting in 15 minutes",
             DueAtUtc = DateTime.UtcNow.AddMinutes(15)
         };
@@ -121,12 +121,12 @@ public class NotificationHandlerTests
 
         var @event = new ReminderTriggeredEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            UserId = Guid.NewGuid(),
+            UserId = Guid.CreateVersion7(),
             SourceModuleId = "dotnetcloud.calendar",
             EntityType = "CalendarEvent",
-            EntityId = Guid.NewGuid(),
+            EntityId = Guid.CreateVersion7(),
             Title = "Overdue Task"
         };
 

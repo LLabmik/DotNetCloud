@@ -104,7 +104,7 @@ public sealed class MfaService : IMfaService
 
             _dbContext.UserBackupCodes.Add(new UserBackupCode
             {
-                Id = Guid.NewGuid(),
+                Id = Guid.CreateVersion7(),
                 UserId = userId,
                 CodeHash = HashCode(code),
                 IsUsed = false,

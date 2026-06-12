@@ -14,11 +14,11 @@ public class EventTests
     {
         var evt = new FileUploadedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            FileNodeId = Guid.NewGuid(),
+            FileNodeId = Guid.CreateVersion7(),
             FileName = "test.txt",
-            UploadedByUserId = Guid.NewGuid()
+            UploadedByUserId = Guid.CreateVersion7()
         };
 
         Assert.IsInstanceOfType<IEvent>(evt);
@@ -29,11 +29,11 @@ public class EventTests
     {
         var evt = new FileDeletedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            FileNodeId = Guid.NewGuid(),
+            FileNodeId = Guid.CreateVersion7(),
             FileName = "test.txt",
-            DeletedByUserId = Guid.NewGuid()
+            DeletedByUserId = Guid.CreateVersion7()
         };
 
         Assert.IsInstanceOfType<IEvent>(evt);
@@ -44,11 +44,11 @@ public class EventTests
     {
         var evt = new FileMovedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            FileNodeId = Guid.NewGuid(),
+            FileNodeId = Guid.CreateVersion7(),
             FileName = "test.txt",
-            MovedByUserId = Guid.NewGuid()
+            MovedByUserId = Guid.CreateVersion7()
         };
 
         Assert.IsInstanceOfType<IEvent>(evt);
@@ -59,13 +59,13 @@ public class EventTests
     {
         var evt = new FileSharedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            FileNodeId = Guid.NewGuid(),
+            FileNodeId = Guid.CreateVersion7(),
             FileName = "test.txt",
-            ShareId = Guid.NewGuid(),
+            ShareId = Guid.CreateVersion7(),
             ShareType = "User",
-            SharedByUserId = Guid.NewGuid()
+            SharedByUserId = Guid.CreateVersion7()
         };
 
         Assert.IsInstanceOfType<IEvent>(evt);
@@ -76,11 +76,11 @@ public class EventTests
     {
         var evt = new FileRestoredEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            FileNodeId = Guid.NewGuid(),
+            FileNodeId = Guid.CreateVersion7(),
             FileName = "test.txt",
-            RestoredByUserId = Guid.NewGuid()
+            RestoredByUserId = Guid.CreateVersion7()
         };
 
         Assert.IsInstanceOfType<IEvent>(evt);
@@ -91,14 +91,14 @@ public class EventTests
     {
         var evt = new FileVersionRestoredEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            FileNodeId = Guid.NewGuid(),
+            FileNodeId = Guid.CreateVersion7(),
             FileName = "report.pdf",
-            SourceVersionId = Guid.NewGuid(),
+            SourceVersionId = Guid.CreateVersion7(),
             SourceVersionNumber = 2,
             NewVersionNumber = 3,
-            RestoredByUserId = Guid.NewGuid()
+            RestoredByUserId = Guid.CreateVersion7()
         };
 
         Assert.IsInstanceOfType<IEvent>(evt);
@@ -107,18 +107,18 @@ public class EventTests
     [TestMethod]
     public void WhenFileVersionRestoredEventCreatedThenVersionNumbersAreTracked()
     {
-        var sourceId = Guid.NewGuid();
+        var sourceId = Guid.CreateVersion7();
 
         var evt = new FileVersionRestoredEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            FileNodeId = Guid.NewGuid(),
+            FileNodeId = Guid.CreateVersion7(),
             FileName = "doc.txt",
             SourceVersionId = sourceId,
             SourceVersionNumber = 5,
             NewVersionNumber = 6,
-            RestoredByUserId = Guid.NewGuid()
+            RestoredByUserId = Guid.CreateVersion7()
         };
 
         Assert.AreEqual(sourceId, evt.SourceVersionId);
@@ -129,10 +129,10 @@ public class EventTests
     [TestMethod]
     public void WhenFileUploadedEventCreatedThenPropertiesAreSet()
     {
-        var eventId = Guid.NewGuid();
-        var nodeId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
-        var parentId = Guid.NewGuid();
+        var eventId = Guid.CreateVersion7();
+        var nodeId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
+        var parentId = Guid.CreateVersion7();
         var now = DateTime.UtcNow;
 
         var evt = new FileUploadedEvent
@@ -162,11 +162,11 @@ public class EventTests
     {
         var evt = new FileDeletedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            FileNodeId = Guid.NewGuid(),
+            FileNodeId = Guid.CreateVersion7(),
             FileName = "test.txt",
-            DeletedByUserId = Guid.NewGuid()
+            DeletedByUserId = Guid.CreateVersion7()
         };
 
         Assert.IsFalse(evt.IsPermanent);
@@ -175,9 +175,9 @@ public class EventTests
     [TestMethod]
     public void WhenFileUploadedEventsWithSameValuesCreatedThenAreEqual()
     {
-        var eventId = Guid.NewGuid();
-        var nodeId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
+        var eventId = Guid.CreateVersion7();
+        var nodeId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
         var now = DateTime.UtcNow;
 
         var evt1 = new FileUploadedEvent
@@ -203,18 +203,18 @@ public class EventTests
     [TestMethod]
     public void WhenFileMovedEventCreatedThenPreviousAndNewParentAreTracked()
     {
-        var prevParent = Guid.NewGuid();
-        var newParent = Guid.NewGuid();
+        var prevParent = Guid.CreateVersion7();
+        var newParent = Guid.CreateVersion7();
 
         var evt = new FileMovedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            FileNodeId = Guid.NewGuid(),
+            FileNodeId = Guid.CreateVersion7(),
             FileName = "doc.txt",
             PreviousParentId = prevParent,
             NewParentId = newParent,
-            MovedByUserId = Guid.NewGuid()
+            MovedByUserId = Guid.CreateVersion7()
         };
 
         Assert.AreEqual(prevParent, evt.PreviousParentId);
@@ -224,19 +224,19 @@ public class EventTests
     [TestMethod]
     public void WhenFileSharedEventCreatedThenShareDetailsAreTracked()
     {
-        var shareId = Guid.NewGuid();
-        var targetUserId = Guid.NewGuid();
+        var shareId = Guid.CreateVersion7();
+        var targetUserId = Guid.CreateVersion7();
 
         var evt = new FileSharedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            FileNodeId = Guid.NewGuid(),
+            FileNodeId = Guid.CreateVersion7(),
             FileName = "shared.txt",
             ShareId = shareId,
             ShareType = "PublicLink",
             SharedWithUserId = targetUserId,
-            SharedByUserId = Guid.NewGuid()
+            SharedByUserId = Guid.CreateVersion7()
         };
 
         Assert.AreEqual(shareId, evt.ShareId);

@@ -41,7 +41,7 @@ public sealed class CustomViewService
     {
         var view = new CustomView
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             ProductId = productId,
             UserId = userId,
             Name = name,

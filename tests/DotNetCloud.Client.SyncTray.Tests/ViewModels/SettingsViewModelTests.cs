@@ -63,7 +63,7 @@ public sealed class SettingsViewModelTests
 
         var tokenInfo = new TokenInfo
         {
-            AccessToken = BuildFakeJwt(Guid.NewGuid()),
+            AccessToken = BuildFakeJwt(Guid.CreateVersion7()),
             RefreshToken = "refresh",
             ExpiresAt = DateTimeOffset.UtcNow.AddHours(1),
         };
@@ -80,9 +80,9 @@ public sealed class SettingsViewModelTests
             .Setup(i => i.AddContextAsync(It.IsAny<AddAccountRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new SyncContextRegistration
             {
-                Id = Guid.NewGuid(),
+                Id = Guid.CreateVersion7(),
                 ServerBaseUrl = "https://cloud.example.com",
-                UserId = Guid.NewGuid(),
+                UserId = Guid.CreateVersion7(),
                 LocalFolderPath = "/tmp/sync",
                 DisplayName = "test",
                 AccountKey = "test-key",
@@ -108,7 +108,7 @@ public sealed class SettingsViewModelTests
     {
         var (vm, syncMock, oauth2Mock, _) = BuildVm();
 
-        var existingContextId = Guid.NewGuid();
+        var existingContextId = Guid.CreateVersion7();
         syncMock
             .Setup(i => i.GetContextsAsync())
             .ReturnsAsync([
@@ -118,7 +118,7 @@ public sealed class SettingsViewModelTests
                     DisplayName = "test@example.com @ cloud.example.com",
                     ServerBaseUrl = "https://cloud.example.com",
                     LocalFolderPath = "/tmp/existing-sync",
-                    UserId = Guid.NewGuid(),
+                    UserId = Guid.CreateVersion7(),
                     AccountKey = "existing-key",
                     OsUserName = "testuser",
                     DataDirectory = "/tmp/data",
@@ -183,7 +183,7 @@ public sealed class SettingsViewModelTests
     public async Task RemoveAccountAsync_DelegatesToTrayViewModel()
     {
         var (vm, syncMock, _, _) = BuildVm();
-        var contextId = Guid.NewGuid();
+        var contextId = Guid.CreateVersion7();
 
         syncMock
             .Setup(i => i.RemoveContextAsync(contextId, It.IsAny<CancellationToken>()))
@@ -197,7 +197,7 @@ public sealed class SettingsViewModelTests
     [TestMethod]
     public async Task IsMuteChatNotifications_PersistsAndLoadsFromLocalSettingsJson()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), $"dotnetcloud-sync-tray-tests-{Guid.NewGuid():N}");
+        var tempDir = Path.Combine(Path.GetTempPath(), $"dotnetcloud-sync-tray-tests-{Guid.CreateVersion7():N}");
         Directory.CreateDirectory(tempDir);
         var settingsPath = Path.Combine(tempDir, "sync-tray-settings.json");
 
@@ -254,7 +254,7 @@ public sealed class SettingsViewModelTests
     [TestMethod]
     public async Task StartOnLogin_PersistsAndCreatesLinuxAutostartEntry()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), $"dotnetcloud-sync-startup-tests-{Guid.NewGuid():N}");
+        var tempDir = Path.Combine(Path.GetTempPath(), $"dotnetcloud-sync-startup-tests-{Guid.CreateVersion7():N}");
         var settingsPath = Path.Combine(tempDir, "sync-tray-settings.json");
         var autostartDir = Path.Combine(tempDir, "autostart");
         var trayExecutablePath = Path.Combine(tempDir, "dotnetcloud-sync-tray");
@@ -324,7 +324,7 @@ public sealed class SettingsViewModelTests
     [TestMethod]
     public async Task StartOnLogin_DisablingRemovesLinuxAutostartEntry()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), $"dotnetcloud-sync-startup-tests-{Guid.NewGuid():N}");
+        var tempDir = Path.Combine(Path.GetTempPath(), $"dotnetcloud-sync-startup-tests-{Guid.CreateVersion7():N}");
         var settingsPath = Path.Combine(tempDir, "sync-tray-settings.json");
         var autostartDir = Path.Combine(tempDir, "autostart");
         var trayExecutablePath = Path.Combine(tempDir, "dotnetcloud-sync-tray");
@@ -395,7 +395,7 @@ public sealed class SettingsViewModelTests
     [TestMethod]
     public async Task StartupManager_EnsuresLinuxApplicationLauncherEntry()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), $"dotnetcloud-sync-launcher-tests-{Guid.NewGuid():N}");
+        var tempDir = Path.Combine(Path.GetTempPath(), $"dotnetcloud-sync-launcher-tests-{Guid.CreateVersion7():N}");
         var trayExecutablePath = Path.Combine(tempDir, "dotnetcloud-sync-tray");
         var applicationsDir = Path.Combine(tempDir, "applications");
 

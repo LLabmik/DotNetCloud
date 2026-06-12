@@ -396,7 +396,7 @@ public sealed class LibraryScanService
             // Generate a deterministic content hash from the file path when the Files module
             // hasn't computed one (e.g., shared mount). This ensures UserTrack.CanonicalTrackHash
             // has a matching CanonicalTrack row for the FK constraint.
-            var fallbackHash = Guid.NewGuid().ToString();
+            var fallbackHash = Guid.CreateVersion7().ToString();
             canonicalTrackForDualWrite = new CanonicalTrack
             {
                 ContentHash = fallbackHash,
@@ -569,7 +569,7 @@ public sealed class LibraryScanService
         }
         else
         {
-            var fallbackHash = Guid.NewGuid().ToString();
+            var fallbackHash = Guid.CreateVersion7().ToString();
             canonicalForDualWrite = new CanonicalTrack
             {
                 ContentHash = fallbackHash,
@@ -947,7 +947,7 @@ public sealed class LibraryScanService
 
         await _eventBus.PublishAsync(new LibraryScanCompletedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             UserId = ownerId,
             TracksAdded = added,

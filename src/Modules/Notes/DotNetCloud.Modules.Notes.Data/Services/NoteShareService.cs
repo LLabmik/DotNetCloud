@@ -70,7 +70,7 @@ public sealed class NoteShareService : INoteShareService
 
         await _eventBus.PublishAsync(new ResourceSharedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             SharedByUserId = caller.UserId,
             SharedWithUserId = targetUserId,

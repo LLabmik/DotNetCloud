@@ -23,7 +23,7 @@ public class ChunkedUploadServiceTests
     private static FilesDbContext CreateContext(string? name = null)
     {
         var options = new DbContextOptionsBuilder<FilesDbContext>()
-            .UseInMemoryDatabase(name ?? Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(name ?? Guid.CreateVersion7().ToString())
             .Options;
         return new FilesDbContext(options);
     }
@@ -63,7 +63,7 @@ public class ChunkedUploadServiceTests
     public async Task InitiateUploadAsync_WithDedup_IdentifiesExistingChunks()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         // Pre-existing chunk
         db.FileChunks.Add(new FileChunk { ChunkHash = "hash1", StoragePath = "chunks/ha/sh/hash1", Size = 100 });
@@ -102,20 +102,20 @@ public class ChunkedUploadServiceTests
                 FileName = "big.bin",
                 TotalSize = 999999999,
                 ChunkHashes = ["hash1"]
-            }, UserCaller(Guid.NewGuid())));
+            }, UserCaller(Guid.CreateVersion7())));
     }
 
     [TestMethod]
     public async Task InitiateUploadAsync_MountedAdminSharedFolderParent_ThrowsInvalidOperationException()
     {
         using var db = CreateContext();
-        var sharedFolderId = Guid.NewGuid();
+        var sharedFolderId = Guid.CreateVersion7();
         db.AdminSharedFolders.Add(new AdminSharedFolderDefinition
         {
             Id = sharedFolderId,
             DisplayName = "Mounted",
             SourcePath = Path.GetTempPath(),
-            CreatedByUserId = Guid.NewGuid(),
+            CreatedByUserId = Guid.CreateVersion7(),
         });
         await db.SaveChangesAsync();
 
@@ -128,14 +128,14 @@ public class ChunkedUploadServiceTests
                 TotalSize = 10,
                 ParentId = RegisterMountedFolder(sharedFolderId),
                 ChunkHashes = ["hash1"]
-            }, UserCaller(Guid.NewGuid())));
+            }, UserCaller(Guid.CreateVersion7())));
     }
 
     [TestMethod]
     public async Task UploadChunkAsync_CorrectHash_StoresChunk()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var data = Encoding.UTF8.GetBytes("hello world");
         var hash = ContentHasher.ComputeHash(data);
 
@@ -164,7 +164,7 @@ public class ChunkedUploadServiceTests
     public async Task UploadChunkAsync_HashMismatch_ThrowsValidationException()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var session = new ChunkedUploadSession
         {
             FileName = "test.txt",
@@ -187,7 +187,7 @@ public class ChunkedUploadServiceTests
     public async Task CompleteUploadAsync_AllChunksPresent_CreatesFileAndVersion()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var chunkHash = "abc123def456";
 
         // Create parent folder
@@ -242,7 +242,7 @@ public class ChunkedUploadServiceTests
     public async Task CancelUploadAsync_ActiveSession_CancelsSuccessfully()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var session = new ChunkedUploadSession
         {
             FileName = "cancel-me.txt",
@@ -265,7 +265,7 @@ public class ChunkedUploadServiceTests
     public async Task CompleteUploadAsync_ZeroByteManifest_CreatesEmptyFile()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         var session = new ChunkedUploadSession
         {
@@ -305,14 +305,14 @@ public class ChunkedUploadServiceTests
             FileName = "private.txt",
             TotalChunks = 1,
             ChunkManifest = "[]",
-            UserId = Guid.NewGuid(),
+            UserId = Guid.CreateVersion7(),
             Status = UploadSessionStatus.InProgress
         };
         db.UploadSessions.Add(session);
         await db.SaveChangesAsync();
 
         var service = CreateService(db);
-        var result = await service.GetSessionAsync(session.Id, UserCaller(Guid.NewGuid()));
+        var result = await service.GetSessionAsync(session.Id, UserCaller(Guid.CreateVersion7()));
 
         Assert.IsNull(result);
     }
@@ -321,7 +321,7 @@ public class ChunkedUploadServiceTests
     public async Task CompleteUploadAsync_WithCdcChunkSizes_StoresOffsetAndSizeOnVersionChunks()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         const int chunk1Size = 524288; // 512 KB
         const int chunk2Size = 786432; // 768 KB
@@ -367,7 +367,7 @@ public class ChunkedUploadServiceTests
     public async Task InitiateUploadAsync_WithCdcChunkSizes_StoresSizesManifestOnSession()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         db.FileQuotas.Add(new FileQuota { UserId = userId, MaxBytes = 10_000_000, UsedBytes = 0 });
         await db.SaveChangesAsync();
 
@@ -391,7 +391,7 @@ public class ChunkedUploadServiceTests
     public async Task InitiateUploadAsync_WithoutCdcChunkSizes_LeavesManifestNull()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         db.FileQuotas.Add(new FileQuota { UserId = userId, MaxBytes = 10_000_000, UsedBytes = 0 });
         await db.SaveChangesAsync();
 
@@ -411,7 +411,7 @@ public class ChunkedUploadServiceTests
     public async Task CompleteUploadAsync_NewFile_CaseInsensitiveSiblingExists_ThrowsNameConflictException()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var chunkHash = "aabbccdd1122";
 
         // Existing sibling with different casing
@@ -459,7 +459,7 @@ public class ChunkedUploadServiceTests
     public async Task CompleteUploadAsync_NewRootFile_ExactNameExists_CreatesNewVersion()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var chunkHash = "rootdupe001";
 
         var existingNode = new FileNode
@@ -499,7 +499,7 @@ public class ChunkedUploadServiceTests
     public async Task CompleteUploadAsync_NewChildFile_ExactNameExists_CreatesNewVersion()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var chunkHash = "childdupe001";
 
         var parent = new FileNode
@@ -550,7 +550,7 @@ public class ChunkedUploadServiceTests
     public async Task InitiateUploadAsync_WithPosixMode_StoresPosixModeOnSession()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         db.FileQuotas.Add(new FileQuota { UserId = userId, MaxBytes = 10_000_000, UsedBytes = 0 });
         await db.SaveChangesAsync();
 
@@ -573,7 +573,7 @@ public class ChunkedUploadServiceTests
     public async Task CompleteUploadAsync_NewFile_WithPosixMode_StoresPosixModeOnNodeAndVersion()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var chunkHash = "posixhash001";
 
         db.FileChunks.Add(new FileChunk { ChunkHash = chunkHash, StoragePath = $"chunks/po/si/{chunkHash}", Size = 256 });
@@ -614,7 +614,7 @@ public class ChunkedUploadServiceTests
     {
         // Windows client re-uploads a file originally uploaded by Linux — PosixMode must survive.
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var chunkHash = "posixhash002";
 
         var existingNode = new FileNode
@@ -663,7 +663,7 @@ public class ChunkedUploadServiceTests
     {
         // Linux client re-uploads with changed permissions — server must update the stored PosixMode.
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var chunkHash = "posixhash003";
 
         var existingNode = new FileNode
@@ -716,7 +716,7 @@ public class ChunkedUploadServiceTests
         // from the database (e.g. deleted by GC between verify and iteration), the service
         // must throw a clear ValidationException instead of an unhandled InvalidOperationException.
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var chunkHash = "abc123def456";
 
         var parent = new FileNode

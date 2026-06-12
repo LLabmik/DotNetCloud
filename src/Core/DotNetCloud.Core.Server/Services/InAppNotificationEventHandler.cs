@@ -26,7 +26,7 @@ internal sealed class InAppNotificationEventHandler :
     {
         var notification = new NotificationDto
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             UserId = @event.SharedWithUserId,
             SourceModuleId = @event.SourceModuleId,
             Type = NotificationType.Share,
@@ -48,7 +48,7 @@ internal sealed class InAppNotificationEventHandler :
     {
         var notification = new NotificationDto
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             UserId = @event.MentionedUserId,
             SourceModuleId = @event.SourceModuleId,
             Type = NotificationType.Mention,
@@ -70,7 +70,7 @@ internal sealed class InAppNotificationEventHandler :
     {
         var notification = new NotificationDto
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             UserId = @event.UserId,
             SourceModuleId = @event.SourceModuleId,
             Type = NotificationType.Reminder,

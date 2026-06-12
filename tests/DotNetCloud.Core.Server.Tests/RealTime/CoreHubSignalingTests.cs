@@ -26,7 +26,7 @@ public class CoreHubSignalingTests
     {
         _chatApiClientMock = new Mock<IChatApiClient>();
         _groups = new StubGroupManager();
-        _userId = Guid.NewGuid();
+        _userId = Guid.CreateVersion7();
     }
 
     // ── SendCallOfferAsync ───────────────────────────────────────
@@ -35,8 +35,8 @@ public class CoreHubSignalingTests
     public async Task SendCallOfferAsync_DelegatesToChatApiClient()
     {
         var hub = CreateHub();
-        var callId = Guid.NewGuid();
-        var targetUserId = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
+        var targetUserId = Guid.CreateVersion7();
 
         await hub.SendCallOfferAsync(callId, targetUserId, "v=0\r\nsdp-offer\r\n");
 
@@ -57,7 +57,7 @@ public class CoreHubSignalingTests
         var hub = CreateHub();
 
         var ex = await Assert.ThrowsExactlyAsync<HubException>(
-            () => hub.SendCallOfferAsync(Guid.NewGuid(), Guid.NewGuid(), "sdp"));
+            () => hub.SendCallOfferAsync(Guid.CreateVersion7(), Guid.CreateVersion7(), "sdp"));
 
         Assert.AreEqual("Access denied.", ex.Message);
     }
@@ -74,7 +74,7 @@ public class CoreHubSignalingTests
         var hub = CreateHub();
 
         var ex = await Assert.ThrowsExactlyAsync<HubException>(
-            () => hub.SendCallOfferAsync(Guid.NewGuid(), Guid.NewGuid(), "sdp"));
+            () => hub.SendCallOfferAsync(Guid.CreateVersion7(), Guid.CreateVersion7(), "sdp"));
 
         Assert.AreEqual("The requested operation could not be completed.", ex.Message);
     }
@@ -91,7 +91,7 @@ public class CoreHubSignalingTests
         var hub = CreateHub();
 
         var ex = await Assert.ThrowsExactlyAsync<HubException>(
-            () => hub.SendCallOfferAsync(Guid.NewGuid(), Guid.NewGuid(), "sdp"));
+            () => hub.SendCallOfferAsync(Guid.CreateVersion7(), Guid.CreateVersion7(), "sdp"));
 
         Assert.AreEqual("Invalid request parameters.", ex.Message);
     }
@@ -102,8 +102,8 @@ public class CoreHubSignalingTests
     public async Task SendCallAnswerAsync_DelegatesToChatApiClient()
     {
         var hub = CreateHub();
-        var callId = Guid.NewGuid();
-        var targetUserId = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
+        var targetUserId = Guid.CreateVersion7();
 
         await hub.SendCallAnswerAsync(callId, targetUserId, "v=0\r\nsdp-answer\r\n");
 
@@ -124,7 +124,7 @@ public class CoreHubSignalingTests
         var hub = CreateHub();
 
         var ex = await Assert.ThrowsExactlyAsync<HubException>(
-            () => hub.SendCallAnswerAsync(Guid.NewGuid(), Guid.NewGuid(), "answer"));
+            () => hub.SendCallAnswerAsync(Guid.CreateVersion7(), Guid.CreateVersion7(), "answer"));
 
         Assert.AreEqual("Access denied.", ex.Message);
     }
@@ -141,7 +141,7 @@ public class CoreHubSignalingTests
         var hub = CreateHub();
 
         var ex = await Assert.ThrowsExactlyAsync<HubException>(
-            () => hub.SendCallAnswerAsync(Guid.NewGuid(), Guid.NewGuid(), "answer"));
+            () => hub.SendCallAnswerAsync(Guid.CreateVersion7(), Guid.CreateVersion7(), "answer"));
 
         Assert.AreEqual("The requested operation could not be completed.", ex.Message);
     }
@@ -152,8 +152,8 @@ public class CoreHubSignalingTests
     public async Task SendIceCandidateAsync_DelegatesToChatApiClient()
     {
         var hub = CreateHub();
-        var callId = Guid.NewGuid();
-        var targetUserId = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
+        var targetUserId = Guid.CreateVersion7();
         var candidate = "{\"candidate\":\"a]]\"}";
 
         await hub.SendIceCandidateAsync(callId, targetUserId, candidate);
@@ -175,7 +175,7 @@ public class CoreHubSignalingTests
         var hub = CreateHub();
 
         var ex = await Assert.ThrowsExactlyAsync<HubException>(
-            () => hub.SendIceCandidateAsync(Guid.NewGuid(), Guid.NewGuid(), "{}"));
+            () => hub.SendIceCandidateAsync(Guid.CreateVersion7(), Guid.CreateVersion7(), "{}"));
 
         Assert.AreEqual("Access denied.", ex.Message);
     }
@@ -192,7 +192,7 @@ public class CoreHubSignalingTests
         var hub = CreateHub();
 
         var ex = await Assert.ThrowsExactlyAsync<HubException>(
-            () => hub.SendIceCandidateAsync(Guid.NewGuid(), Guid.NewGuid(), "{}"));
+            () => hub.SendIceCandidateAsync(Guid.CreateVersion7(), Guid.CreateVersion7(), "{}"));
 
         Assert.AreEqual("Invalid request parameters.", ex.Message);
     }
@@ -203,7 +203,7 @@ public class CoreHubSignalingTests
     public async Task SendMediaStateChangeAsync_DelegatesToChatApiClient()
     {
         var hub = CreateHub();
-        var callId = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
 
         await hub.SendMediaStateChangeAsync(callId, "Audio", false);
 
@@ -216,7 +216,7 @@ public class CoreHubSignalingTests
     public async Task SendMediaStateChangeAsync_Video_DelegatesToChatApiClient()
     {
         var hub = CreateHub();
-        var callId = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
 
         await hub.SendMediaStateChangeAsync(callId, "Video", true);
 
@@ -229,7 +229,7 @@ public class CoreHubSignalingTests
     public async Task SendMediaStateChangeAsync_ScreenShare_DelegatesToChatApiClient()
     {
         var hub = CreateHub();
-        var callId = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
 
         await hub.SendMediaStateChangeAsync(callId, "ScreenShare", true);
 
@@ -250,7 +250,7 @@ public class CoreHubSignalingTests
         var hub = CreateHub();
 
         var ex = await Assert.ThrowsExactlyAsync<HubException>(
-            () => hub.SendMediaStateChangeAsync(Guid.NewGuid(), "Audio", true));
+            () => hub.SendMediaStateChangeAsync(Guid.CreateVersion7(), "Audio", true));
 
         Assert.AreEqual("The requested operation could not be completed.", ex.Message);
     }
@@ -267,7 +267,7 @@ public class CoreHubSignalingTests
         var hub = CreateHub();
 
         var ex = await Assert.ThrowsExactlyAsync<HubException>(
-            () => hub.SendMediaStateChangeAsync(Guid.NewGuid(), "InvalidType", true));
+            () => hub.SendMediaStateChangeAsync(Guid.CreateVersion7(), "InvalidType", true));
 
         Assert.AreEqual("Invalid request parameters.", ex.Message);
     }
@@ -278,7 +278,7 @@ public class CoreHubSignalingTests
     public async Task JoinCallGroupAsync_AddsConnectionToCallGroup()
     {
         var hub = CreateHub();
-        var callId = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
 
         await hub.JoinCallGroupAsync(callId);
 
@@ -293,7 +293,7 @@ public class CoreHubSignalingTests
     {
         var tracker = new UserConnectionTracker();
         var hub = CreateHub(tracker: tracker);
-        var callId = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
 
         await hub.JoinCallGroupAsync(callId);
 
@@ -307,7 +307,7 @@ public class CoreHubSignalingTests
     public async Task LeaveCallGroupAsync_RemovesConnectionFromCallGroup()
     {
         var hub = CreateHub();
-        var callId = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
 
         await hub.LeaveCallGroupAsync(callId);
 
@@ -322,7 +322,7 @@ public class CoreHubSignalingTests
     {
         var tracker = new UserConnectionTracker();
         var hub = CreateHub(tracker: tracker);
-        var callId = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
 
         // First join, then leave
         await hub.JoinCallGroupAsync(callId);

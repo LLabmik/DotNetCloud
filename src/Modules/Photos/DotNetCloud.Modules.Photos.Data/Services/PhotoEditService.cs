@@ -64,7 +64,7 @@ public sealed class PhotoEditService : IPhotoEditService
 
         await _eventBus.PublishAsync(new PhotoEditedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             PhotoId = photoId,
             EditedByUserId = caller.UserId,

@@ -19,7 +19,7 @@ public sealed class FilesControllerTests
     [TestMethod]
     public async Task ListAsync_WithoutParentId_CallsListRootAndReturnsOk()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var deps = CreateDeps();
         deps.FileService
             .Setup(s => s.ListRootAsync(It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
@@ -36,8 +36,8 @@ public sealed class FilesControllerTests
     [TestMethod]
     public async Task ListAsync_WithParentId_CallsListChildrenAndReturnsOk()
     {
-        var userId = Guid.NewGuid();
-        var parentId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var parentId = Guid.CreateVersion7();
         var deps = CreateDeps();
         deps.FileService
             .Setup(s => s.ListChildrenAsync(parentId, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
@@ -54,8 +54,8 @@ public sealed class FilesControllerTests
     [TestMethod]
     public async Task GetAsync_WhenNodeMissing_ReturnsNotFound()
     {
-        var userId = Guid.NewGuid();
-        var nodeId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var nodeId = Guid.CreateVersion7();
         var deps = CreateDeps();
         deps.FileService
             .Setup(s => s.GetNodeAsync(nodeId, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
@@ -70,7 +70,7 @@ public sealed class FilesControllerTests
     [TestMethod]
     public async Task CreateFolderAsync_ReturnsCreatedWithResourceLocation()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var created = CreateFileNode(userId, "New Folder", "Folder");
         var dto = new CreateFolderDto { Name = "New Folder", ParentId = null };
         var deps = CreateDeps();
@@ -89,8 +89,8 @@ public sealed class FilesControllerTests
     [TestMethod]
     public async Task RenameAsync_ReturnsOk()
     {
-        var userId = Guid.NewGuid();
-        var nodeId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var nodeId = Guid.CreateVersion7();
         var renamed = CreateFileNode(userId, "renamed.txt");
         var dto = new RenameNodeDto { Name = "renamed.txt" };
         var deps = CreateDeps();
@@ -107,9 +107,9 @@ public sealed class FilesControllerTests
     [TestMethod]
     public async Task MoveAsync_ReturnsOk()
     {
-        var userId = Guid.NewGuid();
-        var nodeId = Guid.NewGuid();
-        var dto = new MoveNodeDto { TargetParentId = Guid.NewGuid() };
+        var userId = Guid.CreateVersion7();
+        var nodeId = Guid.CreateVersion7();
+        var dto = new MoveNodeDto { TargetParentId = Guid.CreateVersion7() };
         var moved = CreateFileNode(userId, "moved.txt");
         var deps = CreateDeps();
         deps.FileService
@@ -125,9 +125,9 @@ public sealed class FilesControllerTests
     [TestMethod]
     public async Task CopyAsync_ReturnsCreated()
     {
-        var userId = Guid.NewGuid();
-        var nodeId = Guid.NewGuid();
-        var dto = new MoveNodeDto { TargetParentId = Guid.NewGuid() };
+        var userId = Guid.CreateVersion7();
+        var nodeId = Guid.CreateVersion7();
+        var dto = new MoveNodeDto { TargetParentId = Guid.CreateVersion7() };
         var copied = CreateFileNode(userId, "copy.txt");
         var deps = CreateDeps();
         deps.FileService
@@ -143,8 +143,8 @@ public sealed class FilesControllerTests
     [TestMethod]
     public async Task DeleteAsync_ReturnsOk()
     {
-        var userId = Guid.NewGuid();
-        var nodeId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var nodeId = Guid.CreateVersion7();
         var deps = CreateDeps();
         deps.FileService
             .Setup(s => s.DeleteAsync(nodeId, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
@@ -159,8 +159,8 @@ public sealed class FilesControllerTests
     [TestMethod]
     public async Task ToggleFavoriteAsync_ReturnsOk()
     {
-        var userId = Guid.NewGuid();
-        var nodeId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var nodeId = Guid.CreateVersion7();
         var node = CreateFileNode(userId) with { IsFavorite = true };
         var deps = CreateDeps();
         deps.FileService
@@ -176,7 +176,7 @@ public sealed class FilesControllerTests
     [TestMethod]
     public async Task ListFavoritesAsync_ReturnsOk()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var deps = CreateDeps();
         deps.FileService
             .Setup(s => s.ListFavoritesAsync(It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
@@ -191,7 +191,7 @@ public sealed class FilesControllerTests
     [TestMethod]
     public async Task ListRecentAsync_ReturnsOk()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var deps = CreateDeps();
         deps.FileService
             .Setup(s => s.ListRecentAsync(5, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
@@ -206,7 +206,7 @@ public sealed class FilesControllerTests
     [TestMethod]
     public async Task SearchAsync_ReturnsOk()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var deps = CreateDeps();
         deps.FileService
             .Setup(s => s.SearchAsync("sync", 2, 10, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
@@ -227,7 +227,7 @@ public sealed class FilesControllerTests
     [TestMethod]
     public async Task InitiateUploadAsync_ReturnsCreated()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var dto = new InitiateUploadDto
         {
             FileName = "upload.bin",
@@ -242,7 +242,7 @@ public sealed class FilesControllerTests
             .Setup(s => s.InitiateUploadAsync(dto, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new UploadSessionDto
             {
-                SessionId = Guid.NewGuid(),
+                SessionId = Guid.CreateVersion7(),
                 ExistingChunks = [],
                 MissingChunks = ["hash1"],
                 ExpiresAt = DateTime.UtcNow.AddHours(1)
@@ -257,7 +257,7 @@ public sealed class FilesControllerTests
     [TestMethod]
     public async Task InitiateUploadAsync_LongFileName_SetsPathWarningHeader()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var longName = new string('a', 260); // exceeds default threshold of 250
         var dto = new InitiateUploadDto
         {
@@ -271,7 +271,7 @@ public sealed class FilesControllerTests
             .Setup(s => s.InitiateUploadAsync(dto, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new UploadSessionDto
             {
-                SessionId = Guid.NewGuid(),
+                SessionId = Guid.CreateVersion7(),
                 ExistingChunks = [],
                 MissingChunks = ["h1"],
                 ExpiresAt = DateTime.UtcNow.AddHours(1)
@@ -287,7 +287,7 @@ public sealed class FilesControllerTests
     [TestMethod]
     public async Task InitiateUploadAsync_ShortFileName_NoPathWarningHeader()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var dto = new InitiateUploadDto
         {
             FileName = "short.txt",
@@ -300,7 +300,7 @@ public sealed class FilesControllerTests
             .Setup(s => s.InitiateUploadAsync(dto, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new UploadSessionDto
             {
-                SessionId = Guid.NewGuid(),
+                SessionId = Guid.CreateVersion7(),
                 ExistingChunks = [],
                 MissingChunks = ["h1"],
                 ExpiresAt = DateTime.UtcNow.AddHours(1)
@@ -315,8 +315,8 @@ public sealed class FilesControllerTests
     [TestMethod]
     public async Task UploadChunkAsync_ReadsBodyAndPassesBytesToService()
     {
-        var userId = Guid.NewGuid();
-        var sessionId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var sessionId = Guid.CreateVersion7();
         var bytes = new byte[] { 0xAA, 0xBB, 0xCC };
         var deps = CreateDeps();
         deps.UploadService
@@ -340,8 +340,8 @@ public sealed class FilesControllerTests
     [TestMethod]
     public async Task CompleteUploadAsync_ReturnsOk()
     {
-        var userId = Guid.NewGuid();
-        var sessionId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var sessionId = Guid.CreateVersion7();
         var deps = CreateDeps();
         deps.UploadService
             .Setup(s => s.CompleteUploadAsync(sessionId, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
@@ -356,8 +356,8 @@ public sealed class FilesControllerTests
     [TestMethod]
     public async Task CancelUploadAsync_ReturnsOk()
     {
-        var userId = Guid.NewGuid();
-        var sessionId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var sessionId = Guid.CreateVersion7();
         var deps = CreateDeps();
         deps.UploadService
             .Setup(s => s.CancelUploadAsync(sessionId, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
@@ -372,8 +372,8 @@ public sealed class FilesControllerTests
     [TestMethod]
     public async Task GetUploadSessionAsync_WhenMissing_ReturnsNotFound()
     {
-        var userId = Guid.NewGuid();
-        var sessionId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var sessionId = Guid.CreateVersion7();
         var deps = CreateDeps();
         deps.UploadService
             .Setup(s => s.GetSessionAsync(sessionId, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
@@ -388,8 +388,8 @@ public sealed class FilesControllerTests
     [TestMethod]
     public async Task DownloadAsync_CurrentFileWithEmptyMimeType_UsesOctetStreamFallback()
     {
-        var userId = Guid.NewGuid();
-        var nodeId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var nodeId = Guid.CreateVersion7();
         var deps = CreateDeps();
 
         deps.FileService
@@ -418,8 +418,8 @@ public sealed class FilesControllerTests
     [TestMethod]
     public async Task DownloadAsync_WhenNodeMissing_ReturnsNotFound()
     {
-        var userId = Guid.NewGuid();
-        var nodeId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var nodeId = Guid.CreateVersion7();
         var deps = CreateDeps();
         deps.FileService
             .Setup(s => s.GetNodeAsync(nodeId, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
@@ -434,8 +434,8 @@ public sealed class FilesControllerTests
     [TestMethod]
     public async Task DownloadAsync_WhenVersionMissing_ReturnsNotFound()
     {
-        var userId = Guid.NewGuid();
-        var nodeId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var nodeId = Guid.CreateVersion7();
         var deps = CreateDeps();
         deps.VersionService
             .Setup(s => s.GetVersionByNumberAsync(nodeId, 3, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
@@ -450,9 +450,9 @@ public sealed class FilesControllerTests
     [TestMethod]
     public async Task DownloadAsync_VersionWithWhitespaceMimeType_UsesOctetStreamFallback()
     {
-        var userId = Guid.NewGuid();
-        var nodeId = Guid.NewGuid();
-        var versionId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var nodeId = Guid.CreateVersion7();
+        var versionId = Guid.CreateVersion7();
         var deps = CreateDeps();
 
         deps.VersionService
@@ -479,9 +479,9 @@ public sealed class FilesControllerTests
     [TestMethod]
     public async Task DownloadAsync_VersionedDownload_IncludesContentDispositionFilename()
     {
-        var userId = Guid.NewGuid();
-        var nodeId = Guid.NewGuid();
-        var versionId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var nodeId = Guid.CreateVersion7();
+        var versionId = Guid.CreateVersion7();
         var deps = CreateDeps();
 
         deps.VersionService
@@ -520,8 +520,8 @@ public sealed class FilesControllerTests
     [TestMethod]
     public async Task GetChunkManifestAsync_ReturnsOk()
     {
-        var userId = Guid.NewGuid();
-        var nodeId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var nodeId = Guid.CreateVersion7();
         var deps = CreateDeps();
         deps.DownloadService
             .Setup(s => s.GetChunkManifestAsync(nodeId, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
@@ -536,7 +536,7 @@ public sealed class FilesControllerTests
     [TestMethod]
     public async Task DownloadChunkByHashAsync_WhenMissing_ReturnsNotFound()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var deps = CreateDeps();
         deps.DownloadService
             .Setup(s => s.DownloadChunkByHashAsync("hash-missing", It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
@@ -551,7 +551,7 @@ public sealed class FilesControllerTests
     [TestMethod]
     public async Task DownloadChunkByHashAsync_WhenFound_ReturnsFileStreamResult()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var deps = CreateDeps();
         deps.DownloadService
             .Setup(s => s.DownloadChunkByHashAsync("hash-ok", It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
@@ -568,7 +568,7 @@ public sealed class FilesControllerTests
     [TestMethod]
     public async Task GetSharedWithMeAsync_ReturnsOk()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var deps = CreateDeps();
         deps.ShareService
             .Setup(s => s.GetSharedWithMeAsync(It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
@@ -630,7 +630,7 @@ public sealed class FilesControllerTests
     {
         return new FileNodeDto
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             Name = name,
             NodeType = nodeType,
             OwnerId = ownerId,
@@ -642,7 +642,7 @@ public sealed class FilesControllerTests
     {
         return new FileShareDto
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             ShareType = "PublicLink",
             Permission = "Read",
             LinkToken = "token"

@@ -40,7 +40,7 @@ public class VideoCallControllerTests
     [TestInitialize]
     public void Setup()
     {
-        _userId = Guid.NewGuid();
+        _userId = Guid.CreateVersion7();
         _channelService = new Mock<IChannelService>();
         _memberService = new Mock<IChannelMemberService>();
         _messageService = new Mock<IMessageService>();
@@ -103,9 +103,9 @@ public class VideoCallControllerTests
     {
         return new VideoCallDto
         {
-            Id = callId ?? Guid.NewGuid(),
-            ChannelId = channelId ?? Guid.NewGuid(),
-            InitiatorUserId = Guid.NewGuid(),
+            Id = callId ?? Guid.CreateVersion7(),
+            ChannelId = channelId ?? Guid.CreateVersion7(),
+            InitiatorUserId = Guid.CreateVersion7(),
             State = "Ringing",
             MediaType = "Video",
             IsGroupCall = false,
@@ -120,7 +120,7 @@ public class VideoCallControllerTests
     [TestMethod]
     public async Task InitiateCallAsync_Success_ReturnsCreatedAtAction()
     {
-        var channelId = Guid.NewGuid();
+        var channelId = Guid.CreateVersion7();
         var request = new StartCallRequest { MediaType = "Video" };
         var callDto = CreateTestCallDto(channelId: channelId);
 
@@ -138,7 +138,7 @@ public class VideoCallControllerTests
     [TestMethod]
     public async Task InitiateCallAsync_InvalidMediaType_ReturnsBadRequest()
     {
-        var channelId = Guid.NewGuid();
+        var channelId = Guid.CreateVersion7();
         var request = new StartCallRequest { MediaType = "InvalidType" };
 
         _videoCallService
@@ -153,7 +153,7 @@ public class VideoCallControllerTests
     [TestMethod]
     public async Task InitiateCallAsync_ActiveCallExists_ReturnsConflict()
     {
-        var channelId = Guid.NewGuid();
+        var channelId = Guid.CreateVersion7();
         var request = new StartCallRequest { MediaType = "Video" };
 
         _videoCallService
@@ -168,7 +168,7 @@ public class VideoCallControllerTests
     [TestMethod]
     public async Task InitiateCallAsync_Unauthorized_ReturnsForbid()
     {
-        var channelId = Guid.NewGuid();
+        var channelId = Guid.CreateVersion7();
         var request = new StartCallRequest { MediaType = "Video" };
 
         _videoCallService
@@ -183,7 +183,7 @@ public class VideoCallControllerTests
     [TestMethod]
     public async Task InitiateCallAsync_PassesCallerContextToService()
     {
-        var channelId = Guid.NewGuid();
+        var channelId = Guid.CreateVersion7();
         var request = new StartCallRequest { MediaType = "Audio" };
         var callDto = CreateTestCallDto(channelId: channelId);
 
@@ -205,7 +205,7 @@ public class VideoCallControllerTests
     [TestMethod]
     public async Task JoinCallAsync_Success_ReturnsOkWithCall()
     {
-        var callId = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
         var request = new JoinCallRequest { WithAudio = true, WithVideo = true };
         var callDto = CreateTestCallDto(callId: callId);
 
@@ -221,7 +221,7 @@ public class VideoCallControllerTests
     [TestMethod]
     public async Task JoinCallAsync_InvalidRequest_ReturnsBadRequest()
     {
-        var callId = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
         var request = new JoinCallRequest();
 
         _videoCallService
@@ -236,7 +236,7 @@ public class VideoCallControllerTests
     [TestMethod]
     public async Task JoinCallAsync_CallNotFound_ReturnsNotFound()
     {
-        var callId = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
         var request = new JoinCallRequest();
 
         _videoCallService
@@ -251,7 +251,7 @@ public class VideoCallControllerTests
     [TestMethod]
     public async Task JoinCallAsync_Unauthorized_ReturnsForbid()
     {
-        var callId = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
         var request = new JoinCallRequest();
 
         _videoCallService
@@ -268,7 +268,7 @@ public class VideoCallControllerTests
     [TestMethod]
     public async Task LeaveCallAsync_Success_ReturnsOk()
     {
-        var callId = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
 
         _videoCallService
             .Setup(s => s.LeaveCallAsync(callId, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
@@ -282,7 +282,7 @@ public class VideoCallControllerTests
     [TestMethod]
     public async Task LeaveCallAsync_CallNotFound_ReturnsNotFound()
     {
-        var callId = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
 
         _videoCallService
             .Setup(s => s.LeaveCallAsync(callId, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
@@ -296,7 +296,7 @@ public class VideoCallControllerTests
     [TestMethod]
     public async Task LeaveCallAsync_Unauthorized_ReturnsForbid()
     {
-        var callId = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
 
         _videoCallService
             .Setup(s => s.LeaveCallAsync(callId, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
@@ -312,7 +312,7 @@ public class VideoCallControllerTests
     [TestMethod]
     public async Task EndCallAsync_Success_ReturnsOk()
     {
-        var callId = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
 
         _videoCallService
             .Setup(s => s.EndCallAsync(callId, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
@@ -326,7 +326,7 @@ public class VideoCallControllerTests
     [TestMethod]
     public async Task EndCallAsync_CallNotFound_ReturnsNotFound()
     {
-        var callId = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
 
         _videoCallService
             .Setup(s => s.EndCallAsync(callId, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
@@ -340,7 +340,7 @@ public class VideoCallControllerTests
     [TestMethod]
     public async Task EndCallAsync_Unauthorized_ReturnsForbid()
     {
-        var callId = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
 
         _videoCallService
             .Setup(s => s.EndCallAsync(callId, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
@@ -356,7 +356,7 @@ public class VideoCallControllerTests
     [TestMethod]
     public async Task RejectCallAsync_Success_ReturnsOk()
     {
-        var callId = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
 
         _videoCallService
             .Setup(s => s.RejectCallAsync(callId, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
@@ -370,7 +370,7 @@ public class VideoCallControllerTests
     [TestMethod]
     public async Task RejectCallAsync_CallNotFound_ReturnsNotFound()
     {
-        var callId = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
 
         _videoCallService
             .Setup(s => s.RejectCallAsync(callId, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
@@ -384,7 +384,7 @@ public class VideoCallControllerTests
     [TestMethod]
     public async Task RejectCallAsync_Unauthorized_ReturnsForbid()
     {
-        var callId = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
 
         _videoCallService
             .Setup(s => s.RejectCallAsync(callId, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
@@ -400,14 +400,14 @@ public class VideoCallControllerTests
     [TestMethod]
     public async Task GetCallHistoryAsync_Success_ReturnsOkWithHistory()
     {
-        var channelId = Guid.NewGuid();
+        var channelId = Guid.CreateVersion7();
         var history = new List<CallHistoryDto>
         {
             new()
             {
-                Id = Guid.NewGuid(),
+                Id = Guid.CreateVersion7(),
                 ChannelId = channelId,
-                InitiatorUserId = Guid.NewGuid(),
+                InitiatorUserId = Guid.CreateVersion7(),
                 State = "Ended",
                 MediaType = "Video",
                 EndReason = "Normal",
@@ -429,7 +429,7 @@ public class VideoCallControllerTests
     [TestMethod]
     public async Task GetCallHistoryAsync_WithPagination_ClampsTakeValue()
     {
-        var channelId = Guid.NewGuid();
+        var channelId = Guid.CreateVersion7();
 
         _videoCallService
             .Setup(s => s.GetCallHistoryAsync(channelId, 10, 100, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
@@ -446,7 +446,7 @@ public class VideoCallControllerTests
     [TestMethod]
     public async Task GetCallHistoryAsync_NegativeSkip_ClampsToZero()
     {
-        var channelId = Guid.NewGuid();
+        var channelId = Guid.CreateVersion7();
 
         _videoCallService
             .Setup(s => s.GetCallHistoryAsync(channelId, 0, 20, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
@@ -462,7 +462,7 @@ public class VideoCallControllerTests
     [TestMethod]
     public async Task GetCallHistoryAsync_TakeBelowMinimum_ClampsToOne()
     {
-        var channelId = Guid.NewGuid();
+        var channelId = Guid.CreateVersion7();
 
         _videoCallService
             .Setup(s => s.GetCallHistoryAsync(channelId, 0, 1, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
@@ -478,7 +478,7 @@ public class VideoCallControllerTests
     [TestMethod]
     public async Task GetCallHistoryAsync_Unauthorized_ReturnsForbid()
     {
-        var channelId = Guid.NewGuid();
+        var channelId = Guid.CreateVersion7();
 
         _videoCallService
             .Setup(s => s.GetCallHistoryAsync(channelId, 0, 20, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
@@ -494,7 +494,7 @@ public class VideoCallControllerTests
     [TestMethod]
     public async Task GetCallAsync_Success_ReturnsOkWithCall()
     {
-        var callId = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
         var callDto = CreateTestCallDto(callId: callId);
 
         _videoCallService
@@ -509,7 +509,7 @@ public class VideoCallControllerTests
     [TestMethod]
     public async Task GetCallAsync_NotFound_ReturnsNotFound()
     {
-        var callId = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
 
         _videoCallService
             .Setup(s => s.GetCallByIdAsync(callId, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
@@ -523,7 +523,7 @@ public class VideoCallControllerTests
     [TestMethod]
     public async Task GetCallAsync_Unauthorized_ReturnsForbid()
     {
-        var callId = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
 
         _videoCallService
             .Setup(s => s.GetCallByIdAsync(callId, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
@@ -539,7 +539,7 @@ public class VideoCallControllerTests
     [TestMethod]
     public async Task GetActiveCallAsync_HasActiveCall_ReturnsOkWithCall()
     {
-        var channelId = Guid.NewGuid();
+        var channelId = Guid.CreateVersion7();
         var callDto = CreateTestCallDto(channelId: channelId);
         callDto = callDto with { State = "Active" };
 
@@ -555,7 +555,7 @@ public class VideoCallControllerTests
     [TestMethod]
     public async Task GetActiveCallAsync_NoActiveCall_ReturnsOkWithNullData()
     {
-        var channelId = Guid.NewGuid();
+        var channelId = Guid.CreateVersion7();
 
         _videoCallService
             .Setup(s => s.GetActiveCallAsync(channelId, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
@@ -569,7 +569,7 @@ public class VideoCallControllerTests
     [TestMethod]
     public async Task GetActiveCallAsync_Unauthorized_ReturnsForbid()
     {
-        var channelId = Guid.NewGuid();
+        var channelId = Guid.CreateVersion7();
 
         _videoCallService
             .Setup(s => s.GetActiveCallAsync(channelId, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
@@ -585,7 +585,7 @@ public class VideoCallControllerTests
     [TestMethod]
     public async Task InitiateCallAsync_AudioCall_Success()
     {
-        var channelId = Guid.NewGuid();
+        var channelId = Guid.CreateVersion7();
         var request = new StartCallRequest { MediaType = "Audio" };
         var callDto = CreateTestCallDto(channelId: channelId) with { MediaType = "Audio" };
 
@@ -603,7 +603,7 @@ public class VideoCallControllerTests
     [TestMethod]
     public async Task LeaveCallAsync_InvokesServiceWithCorrectCallerId()
     {
-        var callId = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
 
         _videoCallService
             .Setup(s => s.LeaveCallAsync(callId, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
@@ -620,7 +620,7 @@ public class VideoCallControllerTests
     [TestMethod]
     public async Task EndCallAsync_InvokesServiceWithCorrectCallerId()
     {
-        var callId = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
 
         _videoCallService
             .Setup(s => s.EndCallAsync(callId, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
@@ -637,7 +637,7 @@ public class VideoCallControllerTests
     [TestMethod]
     public async Task RejectCallAsync_InvokesServiceWithCorrectCallerId()
     {
-        var callId = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
 
         _videoCallService
             .Setup(s => s.RejectCallAsync(callId, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
@@ -654,7 +654,7 @@ public class VideoCallControllerTests
     [TestMethod]
     public async Task JoinCallAsync_PassesRequestParametersCorrectly()
     {
-        var callId = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
         var request = new JoinCallRequest { WithAudio = false, WithVideo = true };
         var callDto = CreateTestCallDto(callId: callId);
 

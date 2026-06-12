@@ -15,7 +15,7 @@ public class PermissionServiceTests
 {
     private static FilesDbContext CreateContext() =>
         new(new DbContextOptionsBuilder<FilesDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options);
 
     private static PermissionService CreateService(
@@ -45,7 +45,7 @@ public class PermissionServiceTests
     public async Task GetEffectivePermissionAsync_Owner_ReturnsFullPermission()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = CreateNode(userId);
         db.FileNodes.Add(node);
         await db.SaveChangesAsync();
@@ -59,7 +59,7 @@ public class PermissionServiceTests
     public async Task GetEffectivePermissionAsync_SystemCaller_ReturnsFullPermission()
     {
         using var db = CreateContext();
-        var node = CreateNode(Guid.NewGuid());
+        var node = CreateNode(Guid.CreateVersion7());
         db.FileNodes.Add(node);
         await db.SaveChangesAsync();
 
@@ -73,12 +73,12 @@ public class PermissionServiceTests
     public async Task GetEffectivePermissionAsync_NonOwnerNoShare_ReturnsNull()
     {
         using var db = CreateContext();
-        var node = CreateNode(Guid.NewGuid());
+        var node = CreateNode(Guid.CreateVersion7());
         db.FileNodes.Add(node);
         await db.SaveChangesAsync();
 
         var result = await CreateService(db)
-            .GetEffectivePermissionAsync(node.Id, UserCaller(Guid.NewGuid()));
+            .GetEffectivePermissionAsync(node.Id, UserCaller(Guid.CreateVersion7()));
 
         Assert.IsNull(result);
     }
@@ -89,7 +89,7 @@ public class PermissionServiceTests
         using var db = CreateContext();
 
         var result = await CreateService(db)
-            .GetEffectivePermissionAsync(Guid.NewGuid(), UserCaller(Guid.NewGuid()));
+            .GetEffectivePermissionAsync(Guid.CreateVersion7(), UserCaller(Guid.CreateVersion7()));
 
         Assert.IsNull(result);
     }
@@ -100,8 +100,8 @@ public class PermissionServiceTests
     public async Task GetEffectivePermissionAsync_ActiveUserShare_ReturnsGrantedPermission()
     {
         using var db = CreateContext();
-        var ownerId = Guid.NewGuid();
-        var targetUserId = Guid.NewGuid();
+        var ownerId = Guid.CreateVersion7();
+        var targetUserId = Guid.CreateVersion7();
         var node = CreateNode(ownerId);
         db.FileNodes.Add(node);
         db.FileShares.Add(new FileShare
@@ -124,8 +124,8 @@ public class PermissionServiceTests
     public async Task GetEffectivePermissionAsync_ExpiredShare_ReturnsNull()
     {
         using var db = CreateContext();
-        var ownerId = Guid.NewGuid();
-        var targetUserId = Guid.NewGuid();
+        var ownerId = Guid.CreateVersion7();
+        var targetUserId = Guid.CreateVersion7();
         var node = CreateNode(ownerId);
         db.FileNodes.Add(node);
         db.FileShares.Add(new FileShare
@@ -150,8 +150,8 @@ public class PermissionServiceTests
     {
         // Public link shares should not grant user-based permission checks.
         using var db = CreateContext();
-        var ownerId = Guid.NewGuid();
-        var targetUserId = Guid.NewGuid();
+        var ownerId = Guid.CreateVersion7();
+        var targetUserId = Guid.CreateVersion7();
         var node = CreateNode(ownerId);
         db.FileNodes.Add(node);
         db.FileShares.Add(new FileShare
@@ -175,8 +175,8 @@ public class PermissionServiceTests
     public async Task GetEffectivePermissionAsync_MultipleShares_ReturnsMostPermissive()
     {
         using var db = CreateContext();
-        var ownerId = Guid.NewGuid();
-        var targetUserId = Guid.NewGuid();
+        var ownerId = Guid.CreateVersion7();
+        var targetUserId = Guid.CreateVersion7();
         var node = CreateNode(ownerId);
         db.FileNodes.Add(node);
         db.FileShares.Add(new FileShare
@@ -207,9 +207,9 @@ public class PermissionServiceTests
     public async Task GetEffectivePermissionAsync_ActiveTeamShare_ReturnsGrantedPermission()
     {
         using var db = CreateContext();
-        var ownerId = Guid.NewGuid();
-        var targetUserId = Guid.NewGuid();
-        var teamId = Guid.NewGuid();
+        var ownerId = Guid.CreateVersion7();
+        var targetUserId = Guid.CreateVersion7();
+        var teamId = Guid.CreateVersion7();
         var node = CreateNode(ownerId);
         db.FileNodes.Add(node);
         db.FileShares.Add(new FileShare
@@ -240,9 +240,9 @@ public class PermissionServiceTests
     public async Task GetEffectivePermissionAsync_ActiveGroupShare_ReturnsGrantedPermission()
     {
         using var db = CreateContext();
-        var ownerId = Guid.NewGuid();
-        var targetUserId = Guid.NewGuid();
-        var groupId = Guid.NewGuid();
+        var ownerId = Guid.CreateVersion7();
+        var targetUserId = Guid.CreateVersion7();
+        var groupId = Guid.CreateVersion7();
         var node = CreateNode(ownerId);
         db.FileNodes.Add(node);
         db.FileShares.Add(new FileShare
@@ -275,8 +275,8 @@ public class PermissionServiceTests
     public async Task GetEffectivePermissionAsync_ParentFolderShared_ChildInheritsPermission()
     {
         using var db = CreateContext();
-        var ownerId = Guid.NewGuid();
-        var targetUserId = Guid.NewGuid();
+        var ownerId = Guid.CreateVersion7();
+        var targetUserId = Guid.CreateVersion7();
 
         // Parent folder
         var parent = CreateNode(ownerId, FileNodeType.Folder);
@@ -284,7 +284,7 @@ public class PermissionServiceTests
 
         // Child file under parent
         var child = CreateNode(ownerId, FileNodeType.File, parentId: parent.Id,
-            materializedPath: $"{parent.MaterializedPath}/{Guid.NewGuid()}");
+            materializedPath: $"{parent.MaterializedPath}/{Guid.CreateVersion7()}");
         db.FileNodes.Add(child);
 
         // Share is on the parent, not the child.
@@ -308,8 +308,8 @@ public class PermissionServiceTests
     public async Task GetEffectivePermissionAsync_GrandparentShared_DeepChildInherits()
     {
         using var db = CreateContext();
-        var ownerId = Guid.NewGuid();
-        var targetUserId = Guid.NewGuid();
+        var ownerId = Guid.CreateVersion7();
+        var targetUserId = Guid.CreateVersion7();
 
         var grandparent = CreateNode(ownerId, FileNodeType.Folder);
         grandparent.MaterializedPath = $"/{grandparent.Id}";
@@ -343,15 +343,15 @@ public class PermissionServiceTests
     public async Task GetEffectivePermissionAsync_ParentFolderGroupShare_ChildInheritsPermission()
     {
         using var db = CreateContext();
-        var ownerId = Guid.NewGuid();
-        var targetUserId = Guid.NewGuid();
-        var groupId = Guid.NewGuid();
+        var ownerId = Guid.CreateVersion7();
+        var targetUserId = Guid.CreateVersion7();
+        var groupId = Guid.CreateVersion7();
 
         var parent = CreateNode(ownerId, FileNodeType.Folder);
         db.FileNodes.Add(parent);
 
         var child = CreateNode(ownerId, FileNodeType.File, parentId: parent.Id,
-            materializedPath: $"{parent.MaterializedPath}/{Guid.NewGuid()}");
+            materializedPath: $"{parent.MaterializedPath}/{Guid.CreateVersion7()}");
         db.FileNodes.Add(child);
 
         db.FileShares.Add(new FileShare
@@ -384,8 +384,8 @@ public class PermissionServiceTests
     public async Task HasPermissionAsync_ReadSatisfiesRead_ReturnsTrue()
     {
         using var db = CreateContext();
-        var ownerId = Guid.NewGuid();
-        var targetUserId = Guid.NewGuid();
+        var ownerId = Guid.CreateVersion7();
+        var targetUserId = Guid.CreateVersion7();
         var node = CreateNode(ownerId);
         db.FileNodes.Add(node);
         db.FileShares.Add(new FileShare
@@ -408,8 +408,8 @@ public class PermissionServiceTests
     public async Task HasPermissionAsync_ReadDoesNotSatisfyReadWrite_ReturnsFalse()
     {
         using var db = CreateContext();
-        var ownerId = Guid.NewGuid();
-        var targetUserId = Guid.NewGuid();
+        var ownerId = Guid.CreateVersion7();
+        var targetUserId = Guid.CreateVersion7();
         var node = CreateNode(ownerId);
         db.FileNodes.Add(node);
         db.FileShares.Add(new FileShare
@@ -432,19 +432,19 @@ public class PermissionServiceTests
     public async Task RequirePermissionAsync_InsufficientPermission_ThrowsForbiddenException()
     {
         using var db = CreateContext();
-        var node = CreateNode(Guid.NewGuid());
+        var node = CreateNode(Guid.CreateVersion7());
         db.FileNodes.Add(node);
         await db.SaveChangesAsync();
 
         await Assert.ThrowsExactlyAsync<ForbiddenException>(
-            () => CreateService(db).RequirePermissionAsync(node.Id, UserCaller(Guid.NewGuid()), SharePermission.Read));
+            () => CreateService(db).RequirePermissionAsync(node.Id, UserCaller(Guid.CreateVersion7()), SharePermission.Read));
     }
 
     [TestMethod]
     public async Task RequirePermissionAsync_SufficientPermission_DoesNotThrow()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = CreateNode(userId);
         db.FileNodes.Add(node);
         await db.SaveChangesAsync();

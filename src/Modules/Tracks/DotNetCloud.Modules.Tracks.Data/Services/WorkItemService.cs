@@ -339,7 +339,7 @@ public sealed class WorkItemService
         if (dto.StoryPoints.HasValue)
             workItem.StoryPoints = dto.StoryPoints.Value;
 
-        workItem.ETag = Guid.NewGuid().ToString("N");
+        workItem.ETag = Guid.CreateVersion7().ToString("N");
         workItem.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(ct);
@@ -356,7 +356,7 @@ public sealed class WorkItemService
         workItem.IsDeleted = true;
         workItem.DeletedAt = DateTime.UtcNow;
         workItem.DeletedByUserId = deletedByUserId;
-        workItem.ETag = Guid.NewGuid().ToString("N");
+        workItem.ETag = Guid.CreateVersion7().ToString("N");
         workItem.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(ct);
@@ -368,7 +368,7 @@ public sealed class WorkItemService
         var caller = new CallerContext(deletedByUserId, Array.Empty<string>(), CallerType.User);
         await _eventBus.PublishAsync(new WorkItemDeletedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             WorkItemId = workItemId,
             Type = workItem.Type
@@ -526,7 +526,7 @@ public sealed class WorkItemService
         workItem.IsDeleted = false;
         workItem.DeletedAt = null;
         workItem.DeletedByUserId = null;
-        workItem.ETag = Guid.NewGuid().ToString("N");
+        workItem.ETag = Guid.CreateVersion7().ToString("N");
         workItem.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(ct);
@@ -538,7 +538,7 @@ public sealed class WorkItemService
         var caller = new CallerContext(restoredByUserId, Array.Empty<string>(), CallerType.User);
         await _eventBus.PublishAsync(new WorkItemUpdatedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             WorkItemId = workItemId,
             Type = workItem.Type
@@ -621,7 +621,7 @@ public sealed class WorkItemService
             workItem.Position = maxPosition > 0 ? maxPosition + 1024 : 1000;
         }
 
-        workItem.ETag = Guid.NewGuid().ToString("N");
+        workItem.ETag = Guid.CreateVersion7().ToString("N");
         workItem.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(ct);

@@ -22,7 +22,7 @@ public class FileServiceTests
     private static FilesDbContext CreateContext(string? name = null)
     {
         var options = new DbContextOptionsBuilder<FilesDbContext>()
-            .UseInMemoryDatabase(name ?? Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(name ?? Guid.CreateVersion7().ToString())
             .Options;
         return new FilesDbContext(options);
     }
@@ -40,8 +40,8 @@ public class FileServiceTests
         Guid callerUserId,
         string tempPath)
     {
-        var ownerId = Guid.NewGuid();
-        var groupId = Guid.NewGuid();
+        var ownerId = Guid.CreateVersion7();
+        var groupId = Guid.CreateVersion7();
 
         Directory.CreateDirectory(tempPath);
         await File.WriteAllTextAsync(Path.Combine(tempPath, "readme.txt"), "mounted-content");
@@ -72,7 +72,7 @@ public class FileServiceTests
     public async Task CreateFolderAsync_AtRoot_CreatesSuccessfully()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var service = CreateService(db);
 
         var result = await service.CreateFolderAsync(
@@ -89,7 +89,7 @@ public class FileServiceTests
     public async Task CreateFolderAsync_UnderParent_SetsPathAndDepth()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var parent = new FileNode
         {
             Name = "Parent",
@@ -115,8 +115,8 @@ public class FileServiceTests
     public async Task ResolveMountedNodeAsync_ReconstructsMountedFileAfterRegistryColdStart()
     {
         using var db = CreateContext();
-        var callerUserId = Guid.NewGuid();
-        var tempPath = Path.Combine(Path.GetTempPath(), $"dnc-mounted-resolve-{Guid.NewGuid():N}");
+        var callerUserId = Guid.CreateVersion7();
+        var tempPath = Path.Combine(Path.GetTempPath(), $"dnc-mounted-resolve-{Guid.CreateVersion7():N}");
 
         try
         {
@@ -143,7 +143,7 @@ public class FileServiceTests
     public async Task CreateFolderAsync_DuplicateName_ThrowsValidationException()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         db.FileNodes.Add(new FileNode { Name = "Existing", NodeType = FileNodeType.Folder, OwnerId = userId });
         await db.SaveChangesAsync();
 
@@ -159,7 +159,7 @@ public class FileServiceTests
     public async Task GetNodeAsync_ExistingNode_ReturnsDto()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = new FileNode { Name = "file.txt", NodeType = FileNodeType.File, OwnerId = userId };
         db.FileNodes.Add(node);
         await db.SaveChangesAsync();
@@ -177,7 +177,7 @@ public class FileServiceTests
         using var db = CreateContext();
         var service = CreateService(db);
 
-        var result = await service.GetNodeAsync(Guid.NewGuid(), UserCaller(Guid.NewGuid()));
+        var result = await service.GetNodeAsync(Guid.CreateVersion7(), UserCaller(Guid.CreateVersion7()));
         Assert.IsNull(result);
     }
 
@@ -185,7 +185,7 @@ public class FileServiceTests
     public async Task ListChildrenAsync_ReturnsChildrenSorted()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var parent = new FileNode { Name = "Root", NodeType = FileNodeType.Folder, OwnerId = userId };
         db.FileNodes.Add(parent);
         db.FileNodes.Add(new FileNode { Name = "b.txt", NodeType = FileNodeType.File, OwnerId = userId, ParentId = parent.Id });
@@ -207,7 +207,7 @@ public class FileServiceTests
     public async Task ListChildrenAsync_NodeWithMultipleTags_ReturnsUniqueNode()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var parent = new FileNode { Name = "Root", NodeType = FileNodeType.Folder, OwnerId = userId };
         var child = new FileNode { Name = "report.pdf", NodeType = FileNodeType.File, OwnerId = userId, ParentId = parent.Id };
 
@@ -229,7 +229,7 @@ public class FileServiceTests
     public async Task ListRootAsync_NodeWithMultipleTags_ReturnsUniqueNode()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = new FileNode { Name = "report.pdf", NodeType = FileNodeType.File, OwnerId = userId };
 
         db.FileNodes.Add(node);
@@ -251,11 +251,11 @@ public class FileServiceTests
     public async Task ListMountedAccessAsync_ReturnsDistinctTeamAndGroupSharedNodes()
     {
         using var db = CreateContext();
-        var callerUserId = Guid.NewGuid();
-        var ownerId = Guid.NewGuid();
-        var teamId = Guid.NewGuid();
-        var groupId = Guid.NewGuid();
-        var otherTeamId = Guid.NewGuid();
+        var callerUserId = Guid.CreateVersion7();
+        var ownerId = Guid.CreateVersion7();
+        var teamId = Guid.CreateVersion7();
+        var groupId = Guid.CreateVersion7();
+        var otherTeamId = Guid.CreateVersion7();
         var accessibleFolder = new FileNode { Name = "Team Folder", NodeType = FileNodeType.Folder, OwnerId = ownerId };
         var accessibleFile = new FileNode { Name = "Group File.txt", NodeType = FileNodeType.File, OwnerId = ownerId };
         var duplicateNode = new FileNode { Name = "Shared Twice.txt", NodeType = FileNodeType.File, OwnerId = ownerId };
@@ -298,7 +298,7 @@ public class FileServiceTests
     public async Task ListRootAsync_IncludesDotNetCloudVirtualFolder()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         db.FileNodes.Add(new FileNode { Name = "Documents", NodeType = FileNodeType.Folder, OwnerId = userId });
         await db.SaveChangesAsync();
 
@@ -315,10 +315,10 @@ public class FileServiceTests
     public async Task ListChildrenAsync_DotNetCloudRoot_ReturnsSharedWithMeAndAccessibleAdminFolders()
     {
         using var db = CreateContext();
-        var callerUserId = Guid.NewGuid();
-        var ownerId = Guid.NewGuid();
-        var groupId = Guid.NewGuid();
-        var tempPath = Path.Combine(Path.GetTempPath(), $"dnc-shared-{Guid.NewGuid():N}");
+        var callerUserId = Guid.CreateVersion7();
+        var ownerId = Guid.CreateVersion7();
+        var groupId = Guid.CreateVersion7();
+        var tempPath = Path.Combine(Path.GetTempPath(), $"dnc-shared-{Guid.CreateVersion7():N}");
         Directory.CreateDirectory(tempPath);
 
         try
@@ -366,10 +366,10 @@ public class FileServiceTests
     public async Task ListChildrenAsync_AdminSharedFolderVirtualNode_PreservesNestedFilesystemHierarchy()
     {
         using var db = CreateContext();
-        var callerUserId = Guid.NewGuid();
-        var ownerId = Guid.NewGuid();
-        var groupId = Guid.NewGuid();
-        var tempPath = Path.Combine(Path.GetTempPath(), $"dnc-shared-{Guid.NewGuid():N}");
+        var callerUserId = Guid.CreateVersion7();
+        var ownerId = Guid.CreateVersion7();
+        var groupId = Guid.CreateVersion7();
+        var tempPath = Path.Combine(Path.GetTempPath(), $"dnc-shared-{Guid.CreateVersion7():N}");
         var nestedFolderPath = Path.Combine(tempPath, "Albums");
 
         Directory.CreateDirectory(nestedFolderPath);
@@ -422,8 +422,8 @@ public class FileServiceTests
     public async Task CreateFolderAsync_MountedAdminSharedFolderParent_ThrowsInvalidOperationException()
     {
         using var db = CreateContext();
-        var callerUserId = Guid.NewGuid();
-        var tempPath = Path.Combine(Path.GetTempPath(), $"dnc-mounted-create-{Guid.NewGuid():N}");
+        var callerUserId = Guid.CreateVersion7();
+        var tempPath = Path.Combine(Path.GetTempPath(), $"dnc-mounted-create-{Guid.CreateVersion7():N}");
 
         try
         {
@@ -442,8 +442,8 @@ public class FileServiceTests
     public async Task RenameAsync_MountedAdminSharedFile_ThrowsInvalidOperationException()
     {
         using var db = CreateContext();
-        var callerUserId = Guid.NewGuid();
-        var tempPath = Path.Combine(Path.GetTempPath(), $"dnc-mounted-rename-{Guid.NewGuid():N}");
+        var callerUserId = Guid.CreateVersion7();
+        var tempPath = Path.Combine(Path.GetTempPath(), $"dnc-mounted-rename-{Guid.CreateVersion7():N}");
 
         try
         {
@@ -462,8 +462,8 @@ public class FileServiceTests
     public async Task MoveAsync_TargetMountedAdminSharedFolder_ThrowsInvalidOperationException()
     {
         using var db = CreateContext();
-        var callerUserId = Guid.NewGuid();
-        var tempPath = Path.Combine(Path.GetTempPath(), $"dnc-mounted-move-{Guid.NewGuid():N}");
+        var callerUserId = Guid.CreateVersion7();
+        var tempPath = Path.Combine(Path.GetTempPath(), $"dnc-mounted-move-{Guid.CreateVersion7():N}");
 
         try
         {
@@ -486,8 +486,8 @@ public class FileServiceTests
     public async Task DeleteAsync_MountedAdminSharedFile_ThrowsInvalidOperationException()
     {
         using var db = CreateContext();
-        var callerUserId = Guid.NewGuid();
-        var tempPath = Path.Combine(Path.GetTempPath(), $"dnc-mounted-delete-{Guid.NewGuid():N}");
+        var callerUserId = Guid.CreateVersion7();
+        var tempPath = Path.Combine(Path.GetTempPath(), $"dnc-mounted-delete-{Guid.CreateVersion7():N}");
 
         try
         {
@@ -506,7 +506,7 @@ public class FileServiceTests
     public async Task RenameAsync_ValidInput_UpdatesName()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = new FileNode { Name = "old.txt", NodeType = FileNodeType.File, OwnerId = userId };
         db.FileNodes.Add(node);
         await db.SaveChangesAsync();
@@ -521,7 +521,7 @@ public class FileServiceTests
     public async Task RenameAsync_NonOwner_ThrowsForbiddenException()
     {
         using var db = CreateContext();
-        var ownerId = Guid.NewGuid();
+        var ownerId = Guid.CreateVersion7();
         var node = new FileNode { Name = "file.txt", NodeType = FileNodeType.File, OwnerId = ownerId };
         db.FileNodes.Add(node);
         await db.SaveChangesAsync();
@@ -529,14 +529,14 @@ public class FileServiceTests
         var service = CreateService(db);
 
         await Assert.ThrowsExactlyAsync<ForbiddenException>(
-            () => service.RenameAsync(node.Id, new RenameNodeDto { Name = "hacked.txt" }, UserCaller(Guid.NewGuid())));
+            () => service.RenameAsync(node.Id, new RenameNodeDto { Name = "hacked.txt" }, UserCaller(Guid.CreateVersion7())));
     }
 
     [TestMethod]
     public async Task MoveAsync_ValidMove_UpdatesParent()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var source = new FileNode
         {
             Name = "file.txt",
@@ -566,7 +566,7 @@ public class FileServiceTests
     public async Task MoveAsync_IntoSelf_ThrowsValidationException()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var folder = new FileNode { Name = "Folder", NodeType = FileNodeType.Folder, OwnerId = userId };
         folder.MaterializedPath = $"/{folder.Id}";
         db.FileNodes.Add(folder);
@@ -582,7 +582,7 @@ public class FileServiceTests
     public async Task DeleteAsync_SoftDeletesNode()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = new FileNode { Name = "file.txt", NodeType = FileNodeType.File, OwnerId = userId };
         node.MaterializedPath = $"/{node.Id}";
         db.FileNodes.Add(node);
@@ -604,7 +604,7 @@ public class FileServiceTests
     public async Task DeleteAsync_RemovesSharesWhenTrashing()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = new FileNode { Name = "shared.txt", NodeType = FileNodeType.File, OwnerId = userId };
         node.MaterializedPath = $"/{node.Id}";
         db.FileNodes.Add(node);
@@ -616,7 +616,7 @@ public class FileServiceTests
             ShareType = ShareType.User,
             Permission = SharePermission.Read,
             CreatedByUserId = userId,
-            SharedWithUserId = Guid.NewGuid()
+            SharedWithUserId = Guid.CreateVersion7()
         });
         await db.SaveChangesAsync();
 
@@ -631,7 +631,7 @@ public class FileServiceTests
     public async Task DeleteAsync_FolderWithSharedDescendants_RemovesAllShares()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         var folder = new FileNode { Name = "Folder", NodeType = FileNodeType.Folder, OwnerId = userId, Depth = 0 };
         folder.MaterializedPath = $"/{folder.Id}";
@@ -647,7 +647,7 @@ public class FileServiceTests
             ShareType = ShareType.User,
             Permission = SharePermission.Read,
             CreatedByUserId = userId,
-            SharedWithUserId = Guid.NewGuid()
+            SharedWithUserId = Guid.CreateVersion7()
         });
         db.FileShares.Add(new FilesFileShare
         {
@@ -655,7 +655,7 @@ public class FileServiceTests
             ShareType = ShareType.User,
             Permission = SharePermission.Read,
             CreatedByUserId = userId,
-            SharedWithUserId = Guid.NewGuid()
+            SharedWithUserId = Guid.CreateVersion7()
         });
         await db.SaveChangesAsync();
 
@@ -670,7 +670,7 @@ public class FileServiceTests
     public async Task ToggleFavoriteAsync_TogglesState()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = new FileNode { Name = "file.txt", NodeType = FileNodeType.File, OwnerId = userId };
         db.FileNodes.Add(node);
         await db.SaveChangesAsync();
@@ -688,7 +688,7 @@ public class FileServiceTests
     public async Task SearchAsync_ByName_ReturnsMatches()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         db.FileNodes.Add(new FileNode { Name = "report.pdf", NodeType = FileNodeType.File, OwnerId = userId });
         db.FileNodes.Add(new FileNode { Name = "report-final.pdf", NodeType = FileNodeType.File, OwnerId = userId });
         db.FileNodes.Add(new FileNode { Name = "notes.txt", NodeType = FileNodeType.File, OwnerId = userId });
@@ -705,7 +705,7 @@ public class FileServiceTests
     public async Task CopyAsync_File_CreatesCopy()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var source = new FileNode
         {
             Name = "file.txt",
@@ -738,7 +738,7 @@ public class FileServiceTests
     public async Task CopyAsync_InsufficientQuota_ThrowsValidationException()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var source = new FileNode { Name = "big.dat", NodeType = FileNodeType.File, OwnerId = userId, Size = 5000 };
         source.MaterializedPath = $"/{source.Id}";
         var target = new FileNode { Name = "Target", NodeType = FileNodeType.Folder, OwnerId = userId, Depth = 0 };
@@ -759,7 +759,7 @@ public class FileServiceTests
     public async Task ListRecentAsync_ReturnsRecentFilesOnly()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         db.FileNodes.Add(new FileNode { Name = "old.txt", NodeType = FileNodeType.File, OwnerId = userId, UpdatedAt = DateTime.UtcNow.AddDays(-10) });
         db.FileNodes.Add(new FileNode { Name = "new.txt", NodeType = FileNodeType.File, OwnerId = userId, UpdatedAt = DateTime.UtcNow });
         db.FileNodes.Add(new FileNode { Name = "Folder", NodeType = FileNodeType.Folder, OwnerId = userId, UpdatedAt = DateTime.UtcNow });
@@ -776,7 +776,7 @@ public class FileServiceTests
     public async Task ListRecentAsync_RespectsCountLimit()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         for (int i = 0; i < 5; i++)
         {
             db.FileNodes.Add(new FileNode
@@ -799,8 +799,8 @@ public class FileServiceTests
     public async Task ListRecentAsync_OtherUsersFiles_NotIncluded()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
-        var otherId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var otherId = Guid.CreateVersion7();
         db.FileNodes.Add(new FileNode { Name = "mine.txt", NodeType = FileNodeType.File, OwnerId = userId });
         db.FileNodes.Add(new FileNode { Name = "theirs.txt", NodeType = FileNodeType.File, OwnerId = otherId });
         await db.SaveChangesAsync();
@@ -816,7 +816,7 @@ public class FileServiceTests
     public async Task CreateFolderAsync_CaseInsensitiveDuplicate_ThrowsNameConflictException()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         db.FileNodes.Add(new FileNode { Name = "Documents", NodeType = FileNodeType.Folder, OwnerId = userId });
         await db.SaveChangesAsync();
 
@@ -832,7 +832,7 @@ public class FileServiceTests
     public async Task CreateFolderAsync_CaseInsensitiveDuplicate_Disabled_Succeeds()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         db.FileNodes.Add(new FileNode { Name = "Documents", NodeType = FileNodeType.Folder, OwnerId = userId });
         await db.SaveChangesAsync();
 
@@ -848,7 +848,7 @@ public class FileServiceTests
     public async Task RenameAsync_CaseInsensitiveDuplicate_ThrowsNameConflictException()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         db.FileNodes.Add(new FileNode { Name = "Report.txt", NodeType = FileNodeType.File, OwnerId = userId });
         var target = new FileNode { Name = "notes.txt", NodeType = FileNodeType.File, OwnerId = userId };
         db.FileNodes.Add(target);
@@ -865,7 +865,7 @@ public class FileServiceTests
     {
         // Renaming "file.txt" to "File.txt" — the only case-variant is itself (excluded by ID), should not throw.
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = new FileNode { Name = "file.txt", NodeType = FileNodeType.File, OwnerId = userId };
         db.FileNodes.Add(node);
         await db.SaveChangesAsync();
@@ -928,7 +928,7 @@ public class FileServiceTests
     public async Task CreateFolderAsync_WindowsIllegalName_ThrowsValidationException()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var service = CreateService(db, fileSystemOptions: new FileSystemOptions
         {
             EnforceWindowsFilenameCompatibility = true
@@ -942,7 +942,7 @@ public class FileServiceTests
     public async Task RenameAsync_WindowsReservedName_ThrowsValidationException()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = new FileNode { Name = "notes.txt", NodeType = FileNodeType.File, OwnerId = userId };
         db.FileNodes.Add(node);
         await db.SaveChangesAsync();

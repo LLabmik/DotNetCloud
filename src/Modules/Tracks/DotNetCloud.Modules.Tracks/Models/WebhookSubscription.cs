@@ -6,7 +6,7 @@ namespace DotNetCloud.Modules.Tracks.Models;
 /// </summary>
 public sealed class WebhookSubscription
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
     public Guid ProductId { get; set; }
     public required string Url { get; set; }
     /// <summary>HMAC secret used to sign outgoing webhook payloads.</summary>

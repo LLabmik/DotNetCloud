@@ -28,7 +28,7 @@ public class OrganizationCalendarAuthorizationTests
     private CallerContext _orgManager = null!;
     private CallerContext _nonMember = null!;
     private CallerContext _regularUser = null!;
-    private readonly Guid _orgId = Guid.NewGuid();
+    private readonly Guid _orgId = Guid.CreateVersion7();
 
     // Well-known role GUIDs from OrgRoleIds
     private static readonly Guid ManagerRoleId = OrgRoleIds.OrgManager;
@@ -38,7 +38,7 @@ public class OrganizationCalendarAuthorizationTests
     public void Setup()
     {
         var options = new DbContextOptionsBuilder<CalendarDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options;
         _db = new CalendarDbContext(options);
         _eventBusMock = new Mock<IEventBus>();
@@ -48,10 +48,10 @@ public class OrganizationCalendarAuthorizationTests
         _eventService = new CalendarEventService(_db, _eventBusMock.Object, _orgDirMock.Object, NullLogger<CalendarEventService>.Instance);
         _shareService = new CalendarShareService(_db, _eventBusMock.Object, NullLogger<CalendarShareService>.Instance);
 
-        var memberId = Guid.NewGuid();
-        var managerId = Guid.NewGuid();
-        var nonMemberId = Guid.NewGuid();
-        var regularUserId = Guid.NewGuid();
+        var memberId = Guid.CreateVersion7();
+        var managerId = Guid.CreateVersion7();
+        var nonMemberId = Guid.CreateVersion7();
+        var regularUserId = Guid.CreateVersion7();
 
         _orgMember = new CallerContext(memberId, ["user"], CallerType.User);
         _orgManager = new CallerContext(managerId, ["user"], CallerType.User);
@@ -219,7 +219,7 @@ public class OrganizationCalendarAuthorizationTests
             new CreateCalendarDto { Name = "Org Cal", OrganizationId = _orgId }, _orgManager);
 
         await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
-            () => _shareService.ShareCalendarAsync(cal.Id, Guid.NewGuid(), null, CalendarSharePermission.ReadOnly, _orgManager));
+            () => _shareService.ShareCalendarAsync(cal.Id, Guid.CreateVersion7(), null, CalendarSharePermission.ReadOnly, _orgManager));
     }
 
     [TestMethod]
@@ -228,7 +228,7 @@ public class OrganizationCalendarAuthorizationTests
         var cal = await _calendarService.CreateCalendarAsync(
             new CreateCalendarDto { Name = "Personal" }, _regularUser);
 
-        var share = await _shareService.ShareCalendarAsync(cal.Id, Guid.NewGuid(), null, CalendarSharePermission.ReadOnly, _regularUser);
+        var share = await _shareService.ShareCalendarAsync(cal.Id, Guid.CreateVersion7(), null, CalendarSharePermission.ReadOnly, _regularUser);
 
         Assert.IsNotNull(share);
     }

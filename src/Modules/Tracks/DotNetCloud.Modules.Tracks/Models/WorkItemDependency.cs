@@ -7,7 +7,7 @@ namespace DotNetCloud.Modules.Tracks.Models;
 /// </summary>
 public sealed class WorkItemDependency
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
     public Guid WorkItemId { get; set; }
     public Guid DependsOnWorkItemId { get; set; }
     public DependencyType Type { get; set; } = DependencyType.BlockedBy;

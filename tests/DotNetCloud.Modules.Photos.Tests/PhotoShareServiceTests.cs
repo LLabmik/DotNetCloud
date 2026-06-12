@@ -37,7 +37,7 @@ public class PhotoShareServiceTests
     public async Task SharePhoto_Valid_CreatesShare()
     {
         var photo = await TestHelpers.SeedPhotoAsync(_db, _caller.UserId);
-        var targetUserId = Guid.NewGuid();
+        var targetUserId = Guid.CreateVersion7();
 
         var share = await _service.SharePhotoAsync(photo.Id, targetUserId, PhotoSharePermission.ReadOnly, _caller);
 
@@ -51,14 +51,14 @@ public class PhotoShareServiceTests
     public async Task SharePhoto_NonExistentPhoto_ThrowsBusinessRuleException()
     {
         await Assert.ThrowsExactlyAsync<BusinessRuleException>(
-            () => _service.SharePhotoAsync(Guid.NewGuid(), Guid.NewGuid(), PhotoSharePermission.ReadOnly, _caller));
+            () => _service.SharePhotoAsync(Guid.CreateVersion7(), Guid.CreateVersion7(), PhotoSharePermission.ReadOnly, _caller));
     }
 
     [TestMethod]
     public async Task SharePhoto_DownloadPermission_AllowsDownload()
     {
         var photo = await TestHelpers.SeedPhotoAsync(_db, _caller.UserId);
-        var targetUserId = Guid.NewGuid();
+        var targetUserId = Guid.CreateVersion7();
 
         var share = await _service.SharePhotoAsync(photo.Id, targetUserId, PhotoSharePermission.Download, _caller);
 
@@ -71,7 +71,7 @@ public class PhotoShareServiceTests
     public async Task ShareAlbum_Valid_CreatesShareAndPublishesEvent()
     {
         var album = await TestHelpers.SeedAlbumAsync(_db, _caller.UserId);
-        var targetUserId = Guid.NewGuid();
+        var targetUserId = Guid.CreateVersion7();
 
         var share = await _service.ShareAlbumAsync(album.Id, targetUserId, PhotoSharePermission.Contribute, _caller);
 
@@ -90,7 +90,7 @@ public class PhotoShareServiceTests
     public async Task ShareAlbum_NonExistentAlbum_ThrowsBusinessRuleException()
     {
         await Assert.ThrowsExactlyAsync<BusinessRuleException>(
-            () => _service.ShareAlbumAsync(Guid.NewGuid(), Guid.NewGuid(), PhotoSharePermission.ReadOnly, _caller));
+            () => _service.ShareAlbumAsync(Guid.CreateVersion7(), Guid.CreateVersion7(), PhotoSharePermission.ReadOnly, _caller));
     }
 
     // ─── RemoveShare ──────────────────────────────────────────────────
@@ -99,7 +99,7 @@ public class PhotoShareServiceTests
     public async Task RemoveShare_Valid_RemovesShare()
     {
         var photo = await TestHelpers.SeedPhotoAsync(_db, _caller.UserId);
-        var share = await TestHelpers.SeedPhotoShareAsync(_db, photo.Id, _caller.UserId, Guid.NewGuid());
+        var share = await TestHelpers.SeedPhotoShareAsync(_db, photo.Id, _caller.UserId, Guid.CreateVersion7());
 
         await _service.RemoveShareAsync(share.Id, _caller);
 
@@ -110,7 +110,7 @@ public class PhotoShareServiceTests
     public async Task RemoveShare_NonExistent_ThrowsBusinessRuleException()
     {
         await Assert.ThrowsExactlyAsync<BusinessRuleException>(
-            () => _service.RemoveShareAsync(Guid.NewGuid(), _caller));
+            () => _service.RemoveShareAsync(Guid.CreateVersion7(), _caller));
     }
 
     // ─── GetPhotoShares ───────────────────────────────────────────────
@@ -119,8 +119,8 @@ public class PhotoShareServiceTests
     public async Task GetPhotoShares_ReturnsSharesForPhoto()
     {
         var photo = await TestHelpers.SeedPhotoAsync(_db, _caller.UserId);
-        await TestHelpers.SeedPhotoShareAsync(_db, photo.Id, _caller.UserId, Guid.NewGuid());
-        await TestHelpers.SeedPhotoShareAsync(_db, photo.Id, _caller.UserId, Guid.NewGuid());
+        await TestHelpers.SeedPhotoShareAsync(_db, photo.Id, _caller.UserId, Guid.CreateVersion7());
+        await TestHelpers.SeedPhotoShareAsync(_db, photo.Id, _caller.UserId, Guid.CreateVersion7());
 
         var shares = await _service.GetPhotoSharesAsync(photo.Id, _caller);
 
@@ -142,7 +142,7 @@ public class PhotoShareServiceTests
     [TestMethod]
     public async Task GetSharedWithMe_ReturnsSharesTargetingCaller()
     {
-        var ownerId = Guid.NewGuid();
+        var ownerId = Guid.CreateVersion7();
         var photo = await TestHelpers.SeedPhotoAsync(_db, ownerId);
         await TestHelpers.SeedPhotoShareAsync(_db, photo.Id, ownerId, _caller.UserId);
 
@@ -168,7 +168,7 @@ public class PhotoShareServiceTests
         {
             AlbumId = album.Id,
             SharedByUserId = _caller.UserId,
-            SharedWithUserId = Guid.NewGuid(),
+            SharedWithUserId = Guid.CreateVersion7(),
             Permission = PhotoSharePermissionLevel.ReadOnly
         };
         _db.PhotoShares.Add(share);

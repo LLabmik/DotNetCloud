@@ -6,7 +6,7 @@ namespace DotNetCloud.Modules.Tracks.Models;
 /// </summary>
 public sealed class Goal
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
     public Guid ProductId { get; set; }
     public required string Title { get; set; }
     public string? Description { get; set; }
@@ -43,7 +43,7 @@ public sealed class Goal
 /// </summary>
 public sealed class GoalWorkItem
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
     public Guid GoalId { get; set; }
     public Guid WorkItemId { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

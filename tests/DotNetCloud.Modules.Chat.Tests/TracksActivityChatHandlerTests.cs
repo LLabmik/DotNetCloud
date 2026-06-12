@@ -45,10 +45,10 @@ public class TracksActivityChatHandlerTests
     {
         var evt = new WorkItemCreatedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            WorkItemId = Guid.NewGuid(),
-            ProductId = Guid.NewGuid(),
+            WorkItemId = Guid.CreateVersion7(),
+            ProductId = Guid.CreateVersion7(),
             Type = WorkItemType.Item
         };
 
@@ -64,12 +64,12 @@ public class TracksActivityChatHandlerTests
     [TestMethod]
     public async Task HandleCardCreatedEvent_BroadcastsToProductGroup()
     {
-        var productId = Guid.NewGuid();
+        var productId = Guid.CreateVersion7();
         var evt = new WorkItemCreatedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            WorkItemId = Guid.NewGuid(),
+            WorkItemId = Guid.CreateVersion7(),
             ProductId = productId,
             Type = WorkItemType.Item
         };
@@ -88,12 +88,12 @@ public class TracksActivityChatHandlerTests
     {
         var evt = new WorkItemMovedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            WorkItemId = Guid.NewGuid(),
+            WorkItemId = Guid.CreateVersion7(),
             Type = WorkItemType.Item,
-            FromSwimlaneId = Guid.NewGuid(),
-            ToSwimlaneId = Guid.NewGuid()
+            FromSwimlaneId = Guid.CreateVersion7(),
+            ToSwimlaneId = Guid.CreateVersion7()
         };
 
         await _handler.HandleAsync(evt);
@@ -108,12 +108,12 @@ public class TracksActivityChatHandlerTests
     [TestMethod]
     public async Task HandleCardAssignedEvent_SendsDirectNotificationToAssignee()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var evt = new WorkItemAssignedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            WorkItemId = Guid.NewGuid(),
+            WorkItemId = Guid.CreateVersion7(),
             UserId = userId
         };
 
@@ -131,10 +131,10 @@ public class TracksActivityChatHandlerTests
     {
         var evt = new WorkItemAssignedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            WorkItemId = Guid.NewGuid(),
-            UserId = Guid.NewGuid()
+            WorkItemId = Guid.CreateVersion7(),
+            UserId = Guid.CreateVersion7()
         };
 
         await _handler.HandleAsync(evt);
@@ -151,10 +151,10 @@ public class TracksActivityChatHandlerTests
     {
         var evt = new SprintStartedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            SprintId = Guid.NewGuid(),
-            EpicId = Guid.NewGuid()
+            SprintId = Guid.CreateVersion7(),
+            EpicId = Guid.CreateVersion7()
         };
 
         await _handler.HandleAsync(evt);
@@ -171,10 +171,10 @@ public class TracksActivityChatHandlerTests
     {
         var evt = new SprintCompletedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            SprintId = Guid.NewGuid(),
-            EpicId = Guid.NewGuid()
+            SprintId = Guid.CreateVersion7(),
+            EpicId = Guid.CreateVersion7()
         };
 
         await _handler.HandleAsync(evt);
@@ -191,9 +191,9 @@ public class TracksActivityChatHandlerTests
     {
         var evt = new WorkItemUpdatedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            WorkItemId = Guid.NewGuid(),
+            WorkItemId = Guid.CreateVersion7(),
             Type = WorkItemType.Item
         };
 
@@ -211,9 +211,9 @@ public class TracksActivityChatHandlerTests
     {
         var evt = new WorkItemDeletedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            WorkItemId = Guid.NewGuid(),
+            WorkItemId = Guid.CreateVersion7(),
             Type = WorkItemType.Item
         };
 
@@ -231,11 +231,11 @@ public class TracksActivityChatHandlerTests
     {
         var evt = new WorkItemCommentAddedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            CommentId = Guid.NewGuid(),
-            WorkItemId = Guid.NewGuid(),
-            UserId = Guid.NewGuid()
+            CommentId = Guid.CreateVersion7(),
+            WorkItemId = Guid.CreateVersion7(),
+            UserId = Guid.CreateVersion7()
         };
 
         await _handler.HandleAsync(evt);
@@ -252,11 +252,11 @@ public class TracksActivityChatHandlerTests
     {
         var evt = new ProductCreatedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            ProductId = Guid.NewGuid(),
-            OrganizationId = Guid.NewGuid(),
-            OwnerId = Guid.NewGuid()
+            ProductId = Guid.CreateVersion7(),
+            OrganizationId = Guid.CreateVersion7(),
+            OwnerId = Guid.CreateVersion7()
         };
 
         await _handler.HandleAsync(evt);
@@ -273,9 +273,9 @@ public class TracksActivityChatHandlerTests
     {
         var evt = new ProductDeletedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            ProductId = Guid.NewGuid()
+            ProductId = Guid.CreateVersion7()
         };
 
         await _handler.HandleAsync(evt);
@@ -296,10 +296,10 @@ public class TracksActivityChatHandlerTests
 
         var evt = new WorkItemCreatedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            WorkItemId = Guid.NewGuid(),
-            ProductId = Guid.NewGuid(),
+            WorkItemId = Guid.CreateVersion7(),
+            ProductId = Guid.CreateVersion7(),
             Type = WorkItemType.Item
         };
 
@@ -313,10 +313,10 @@ public class TracksActivityChatHandlerTests
         using var cts = new CancellationTokenSource();
         var evt = new WorkItemCreatedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            WorkItemId = Guid.NewGuid(),
-            ProductId = Guid.NewGuid(),
+            WorkItemId = Guid.CreateVersion7(),
+            ProductId = Guid.CreateVersion7(),
             Type = WorkItemType.Item
         };
 

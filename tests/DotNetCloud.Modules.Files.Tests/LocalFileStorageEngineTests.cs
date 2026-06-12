@@ -15,7 +15,7 @@ public class LocalFileStorageEngineTests
     [TestInitialize]
     public void Setup()
     {
-        _testBasePath = Path.Combine(Path.GetTempPath(), $"dotnetcloud-test-{Guid.NewGuid():N}");
+        _testBasePath = Path.Combine(Path.GetTempPath(), $"dotnetcloud-test-{Guid.CreateVersion7():N}");
         Directory.CreateDirectory(_testBasePath);
         _engine = new LocalFileStorageEngine(_testBasePath,
             NullLogger<LocalFileStorageEngine>.Instance);
@@ -118,7 +118,7 @@ public class LocalFileStorageEngineTests
     [TestMethod]
     public async Task WhenGetTotalSizeCalledWithNoFilesThenReturnsZero()
     {
-        var emptyPath = Path.Combine(Path.GetTempPath(), $"dotnetcloud-empty-{Guid.NewGuid():N}");
+        var emptyPath = Path.Combine(Path.GetTempPath(), $"dotnetcloud-empty-{Guid.CreateVersion7():N}");
         var emptyEngine = new LocalFileStorageEngine(emptyPath,
             NullLogger<LocalFileStorageEngine>.Instance);
 

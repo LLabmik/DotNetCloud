@@ -17,7 +17,7 @@ public class SyncHardeningP2Tests
     public async Task NotifyAsync_NoSubscribers_CompletesWithoutError()
     {
         var notifier = new SyncChangeNotifier(NullLoggerFactory.Instance.CreateLogger<SyncChangeNotifier>());
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         // Should not throw when no one is listening
         await notifier.NotifyAsync(userId, 42);
@@ -27,7 +27,7 @@ public class SyncHardeningP2Tests
     public async Task SubscribeAsync_ReceivesNotification()
     {
         var notifier = new SyncChangeNotifier(NullLoggerFactory.Instance.CreateLogger<SyncChangeNotifier>());
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var cts = new CancellationTokenSource();
 
         SyncChangeNotification? received = null;
@@ -59,7 +59,7 @@ public class SyncHardeningP2Tests
     public async Task SubscribeAsync_MultipleSubscribers_AllReceive()
     {
         var notifier = new SyncChangeNotifier(NullLoggerFactory.Instance.CreateLogger<SyncChangeNotifier>());
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var cts = new CancellationTokenSource();
 
         var receivedCounts = new int[3];
@@ -88,8 +88,8 @@ public class SyncHardeningP2Tests
     public async Task SubscribeAsync_DifferentUsers_IsolatedNotifications()
     {
         var notifier = new SyncChangeNotifier(NullLoggerFactory.Instance.CreateLogger<SyncChangeNotifier>());
-        var userA = Guid.NewGuid();
-        var userB = Guid.NewGuid();
+        var userA = Guid.CreateVersion7();
+        var userB = Guid.CreateVersion7();
         var cts = new CancellationTokenSource();
 
         int receivedA = 0, receivedB = 0;
@@ -134,14 +134,14 @@ public class SyncHardeningP2Tests
     public void GetConnectionCount_NoSubscribers_ReturnsZero()
     {
         var notifier = new SyncChangeNotifier(NullLoggerFactory.Instance.CreateLogger<SyncChangeNotifier>());
-        Assert.AreEqual(0, notifier.GetConnectionCount(Guid.NewGuid()));
+        Assert.AreEqual(0, notifier.GetConnectionCount(Guid.CreateVersion7()));
     }
 
     [TestMethod]
     public async Task GetConnectionCount_TracksActiveSubscribers()
     {
         var notifier = new SyncChangeNotifier(NullLoggerFactory.Instance.CreateLogger<SyncChangeNotifier>());
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var cts = new CancellationTokenSource();
 
         // Start 3 subscribers
@@ -170,7 +170,7 @@ public class SyncHardeningP2Tests
     public async Task SubscribeAsync_ExceedsMaxConnections_RejectsNewSubscription()
     {
         var notifier = new SyncChangeNotifier(NullLoggerFactory.Instance.CreateLogger<SyncChangeNotifier>());
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var cts = new CancellationTokenSource();
 
         // Fill up to MaxConnectionsPerUser (25)
@@ -204,7 +204,7 @@ public class SyncHardeningP2Tests
     public async Task SubscribeAsync_CancellationCleansUp()
     {
         var notifier = new SyncChangeNotifier(NullLoggerFactory.Instance.CreateLogger<SyncChangeNotifier>());
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var cts = new CancellationTokenSource();
 
         var listener = Task.Run(async () =>

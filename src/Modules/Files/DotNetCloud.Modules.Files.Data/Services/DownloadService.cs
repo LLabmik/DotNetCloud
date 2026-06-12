@@ -425,7 +425,7 @@ internal sealed class DownloadService : IDownloadService
         if (nodeIds.Count > 500)
             throw new Core.Errors.InvalidOperationException("Cannot download more than 500 items at once.");
 
-        var tempPath = Path.Combine(_tmpPath, $"dotnetcloud-zip-{Guid.NewGuid():N}.zip");
+        var tempPath = Path.Combine(_tmpPath, $"dotnetcloud-zip-{Guid.CreateVersion7():N}.zip");
 
         try
         {
@@ -621,7 +621,7 @@ internal sealed class DownloadService : IDownloadService
         if (versionChunks.All(vc => vc.FileChunk!.Size == 0))
             return Stream.Null;
 
-        var tempPath = Path.Combine(_tmpPath, $"dotnetcloud-download-{versionId:N}-{Guid.NewGuid():N}.bin");
+        var tempPath = Path.Combine(_tmpPath, $"dotnetcloud-download-{versionId:N}-{Guid.CreateVersion7():N}.bin");
 
         try
         {

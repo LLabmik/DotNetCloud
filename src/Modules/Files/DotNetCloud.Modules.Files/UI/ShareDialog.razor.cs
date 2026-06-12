@@ -227,7 +227,7 @@ public partial class ShareDialog : ComponentBase
         // Add to local list for immediate UI feedback
         _existingShares.Add(new ShareViewModel
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             ShareType = args.ShareType,
             RecipientName = args.TargetName,
             Permission = args.Permission,
@@ -279,11 +279,11 @@ public partial class ShareDialog : ComponentBase
             // Create a public link placeholder — the parent will create the actual share
             _publicLinkShare = new ShareViewModel
             {
-                Id = Guid.NewGuid(),
+                Id = Guid.CreateVersion7(),
                 ShareType = "PublicLink",
                 RecipientName = "Public Link",
                 Permission = "Read",
-                LinkUrl = $"{Navigation.BaseUri.TrimEnd('/')}/s/{Guid.NewGuid():N}",
+                LinkUrl = $"{Navigation.BaseUri.TrimEnd('/')}/s/{Guid.CreateVersion7():N}",
                 CreatedAt = DateTime.UtcNow
             };
             _existingShares.Add(_publicLinkShare);

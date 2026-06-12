@@ -131,7 +131,7 @@ public sealed class ProductTemplateService
             throw new InvalidOperationException($"ProductTemplate with ID {templateId} not found.");
 
         var now = DateTime.UtcNow;
-        var etag = Guid.NewGuid().ToString("N");
+        var etag = Guid.CreateVersion7().ToString("N");
 
         var product = new Product
         {

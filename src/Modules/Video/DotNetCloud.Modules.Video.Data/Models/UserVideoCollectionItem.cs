@@ -6,7 +6,7 @@ namespace DotNetCloud.Modules.Video.Models;
 public sealed class UserVideoCollectionItem
 {
     /// <summary>Unique identifier.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>The collection this item belongs to.</summary>
     public Guid CollectionId { get; set; }

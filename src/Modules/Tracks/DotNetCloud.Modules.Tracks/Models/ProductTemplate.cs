@@ -5,7 +5,7 @@ namespace DotNetCloud.Modules.Tracks.Models;
 /// </summary>
 public sealed class ProductTemplate
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
     public required string Name { get; set; }
     public string? Description { get; set; }
     public string? Category { get; set; }

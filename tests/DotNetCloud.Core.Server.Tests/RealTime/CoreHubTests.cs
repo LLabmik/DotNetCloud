@@ -18,7 +18,7 @@ public class CoreHubTests
     [TestMethod]
     public async Task WhenUserHasTrackedGroupsThenOnConnectedAddsConnectionToEachGroup()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var tracker = new UserConnectionTracker();
         tracker.AddGroupMembership(userId, "chat:channel-a");
         tracker.AddGroupMembership(userId, "chat:channel-b");

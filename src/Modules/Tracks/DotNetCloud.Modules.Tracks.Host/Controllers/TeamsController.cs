@@ -91,7 +91,7 @@ public class TeamsController : TracksControllerBase
             return BadRequest(ErrorEnvelope(ErrorCodes.ValidationError, "Team name is required."));
         }
 
-        var teamId = Guid.NewGuid();
+        var teamId = Guid.CreateVersion7();
         var now = DateTime.UtcNow;
 
         var team = new Team

@@ -11,7 +11,7 @@ public partial class MessageComposer : ComponentBase, IAsyncDisposable
 {
     private const int MaxMentionSuggestions = 6;
 
-    private readonly string _editorElementId = $"wysiwyg-editor-{Guid.NewGuid():N}";
+    private readonly string _editorElementId = $"wysiwyg-editor-{Guid.CreateVersion7():N}";
 
     private string _plainText = string.Empty;
     private bool _isEmpty = true;

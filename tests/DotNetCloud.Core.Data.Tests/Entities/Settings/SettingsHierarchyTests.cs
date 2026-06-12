@@ -19,7 +19,7 @@ public class SettingsHierarchyTests
     public void Setup()
     {
         var options = new DbContextOptionsBuilder<CoreDbContext>()
-            .UseInMemoryDatabase(databaseName: $"SettingsTestDb_{Guid.NewGuid()}")
+            .UseInMemoryDatabase(databaseName: $"SettingsTestDb_{Guid.CreateVersion7()}")
             .Options;
 
         var namingStrategy = new PostgreSqlNamingStrategy();
@@ -124,7 +124,7 @@ public class SettingsHierarchyTests
 
         var user = new ApplicationUser
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             UserName = "testuser",
             DisplayName = "Test User"
         };
@@ -186,7 +186,7 @@ public class SettingsHierarchyTests
         // Arrange
         var user = new ApplicationUser
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             UserName = "testuser",
             DisplayName = "Test User"
         };
@@ -301,7 +301,7 @@ public class SettingsHierarchyTests
         // Arrange
         var user = new ApplicationUser
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             UserName = "deletetest",
             DisplayName = "Delete Test"
         };
@@ -336,7 +336,7 @@ public class SettingsHierarchyTests
         // Arrange
         var user = new ApplicationUser
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             UserName = "multimodule",
             DisplayName = "Multi Module"
         };

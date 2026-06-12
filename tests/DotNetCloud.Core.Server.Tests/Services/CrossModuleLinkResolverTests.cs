@@ -35,7 +35,7 @@ public class CrossModuleLinkResolverTests
     private static ContactDto CreateContact(Guid id, string displayName) => new()
     {
         Id = id,
-        OwnerId = Guid.NewGuid(),
+        OwnerId = Guid.CreateVersion7(),
         ContactType = ContactType.Person,
         DisplayName = displayName,
         CreatedAt = DateTime.UtcNow,
@@ -45,8 +45,8 @@ public class CrossModuleLinkResolverTests
     private static CalendarEventDto CreateEvent(Guid id, string title) => new()
     {
         Id = id,
-        CalendarId = Guid.NewGuid(),
-        CreatedByUserId = Guid.NewGuid(),
+        CalendarId = Guid.CreateVersion7(),
+        CreatedByUserId = Guid.CreateVersion7(),
         Title = title,
         StartUtc = DateTime.UtcNow,
         EndUtc = DateTime.UtcNow.AddHours(1),
@@ -57,7 +57,7 @@ public class CrossModuleLinkResolverTests
     private static NoteDto CreateNote(Guid id, string title) => new()
     {
         Id = id,
-        OwnerId = Guid.NewGuid(),
+        OwnerId = Guid.CreateVersion7(),
         Title = title,
         CreatedAt = DateTime.UtcNow,
         UpdatedAt = DateTime.UtcNow
@@ -66,7 +66,7 @@ public class CrossModuleLinkResolverTests
     [TestMethod]
     public async Task ResolveAsync_Contact_ReturnsResolvedLink()
     {
-        var contactId = Guid.NewGuid();
+        var contactId = Guid.CreateVersion7();
         _contactsClient.Setup(c => c.GetContactAsync(contactId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(CreateContact(contactId, "Jane Doe"));
 
@@ -82,7 +82,7 @@ public class CrossModuleLinkResolverTests
     [TestMethod]
     public async Task ResolveAsync_Contact_NotFound_ReturnsUnresolved()
     {
-        var contactId = Guid.NewGuid();
+        var contactId = Guid.CreateVersion7();
         _contactsClient.Setup(c => c.GetContactAsync(contactId, It.IsAny<CancellationToken>()))
             .ReturnsAsync((ContactDto?)null);
 
@@ -95,7 +95,7 @@ public class CrossModuleLinkResolverTests
     [TestMethod]
     public async Task ResolveAsync_CalendarEvent_ReturnsResolvedLink()
     {
-        var eventId = Guid.NewGuid();
+        var eventId = Guid.CreateVersion7();
         _calendarClient.Setup(c => c.GetEventAsync(eventId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(CreateEvent(eventId, "Team Standup"));
 
@@ -109,7 +109,7 @@ public class CrossModuleLinkResolverTests
     [TestMethod]
     public async Task ResolveAsync_CalendarEvent_NotFound_ReturnsUnresolved()
     {
-        var eventId = Guid.NewGuid();
+        var eventId = Guid.CreateVersion7();
         _calendarClient.Setup(c => c.GetEventAsync(eventId, It.IsAny<CancellationToken>()))
             .ReturnsAsync((CalendarEventDto?)null);
 
@@ -122,7 +122,7 @@ public class CrossModuleLinkResolverTests
     [TestMethod]
     public async Task ResolveAsync_Note_ReturnsResolvedLink()
     {
-        var noteId = Guid.NewGuid();
+        var noteId = Guid.CreateVersion7();
         _notesClient.Setup(n => n.GetNoteAsync(noteId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(CreateNote(noteId, "Meeting Notes"));
 
@@ -136,7 +136,7 @@ public class CrossModuleLinkResolverTests
     [TestMethod]
     public async Task ResolveAsync_Note_NotFound_ReturnsUnresolved()
     {
-        var noteId = Guid.NewGuid();
+        var noteId = Guid.CreateVersion7();
         _notesClient.Setup(n => n.GetNoteAsync(noteId, It.IsAny<CancellationToken>()))
             .ReturnsAsync((NoteDto?)null);
 
@@ -150,7 +150,7 @@ public class CrossModuleLinkResolverTests
     public async Task ResolveAsync_File_ReturnsUnresolved()
     {
         // File resolution not implemented yet — should return unresolved gracefully
-        var fileId = Guid.NewGuid();
+        var fileId = Guid.CreateVersion7();
 
         var result = await _resolver.ResolveAsync(CrossModuleLinkType.File, fileId);
 
@@ -161,7 +161,7 @@ public class CrossModuleLinkResolverTests
     [TestMethod]
     public async Task ResolveAsync_ClientThrows_ReturnsUnresolved()
     {
-        var contactId = Guid.NewGuid();
+        var contactId = Guid.CreateVersion7();
         _contactsClient.Setup(c => c.GetContactAsync(contactId, It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("Service unavailable"));
 
@@ -174,9 +174,9 @@ public class CrossModuleLinkResolverTests
     [TestMethod]
     public async Task ResolveBatchAsync_MixedTypes_ResolvesAll()
     {
-        var contactId = Guid.NewGuid();
-        var eventId = Guid.NewGuid();
-        var noteId = Guid.NewGuid();
+        var contactId = Guid.CreateVersion7();
+        var eventId = Guid.CreateVersion7();
+        var noteId = Guid.CreateVersion7();
 
         _contactsClient.Setup(c => c.GetContactAsync(contactId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(CreateContact(contactId, "Alice"));
@@ -208,8 +208,8 @@ public class CrossModuleLinkResolverTests
     [TestMethod]
     public async Task ResolveBatchAsync_SomeNotFound_MixedResults()
     {
-        var foundId = Guid.NewGuid();
-        var missingId = Guid.NewGuid();
+        var foundId = Guid.CreateVersion7();
+        var missingId = Guid.CreateVersion7();
 
         _contactsClient.Setup(c => c.GetContactAsync(foundId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(CreateContact(foundId, "Bob"));
@@ -241,7 +241,7 @@ public class CrossModuleLinkResolverTests
     [TestMethod]
     public async Task ResolveBatchAsync_ClientThrows_AllUnresolved()
     {
-        var contactId = Guid.NewGuid();
+        var contactId = Guid.CreateVersion7();
 
         _contactsClient.Setup(c => c.GetContactAsync(contactId, It.IsAny<CancellationToken>()))
             .ThrowsAsync(new Exception("Network error"));

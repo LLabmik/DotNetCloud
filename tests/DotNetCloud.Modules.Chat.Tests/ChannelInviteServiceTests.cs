@@ -34,7 +34,7 @@ public class ChannelInviteServiceTests
     public async Task Setup()
     {
         var options = new DbContextOptionsBuilder<ChatDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options;
 
         _db = new ChatDbContext(options);
@@ -49,10 +49,10 @@ public class ChannelInviteServiceTests
             NullLogger<ChannelInviteService>.Instance,
             _realtimeMock.Object);
 
-        _ownerCaller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
-        _adminCaller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
-        _outsiderCaller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
-        _inviteeCaller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        _ownerCaller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
+        _adminCaller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
+        _outsiderCaller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
+        _inviteeCaller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
 
         var channel = new Channel
         {
@@ -112,7 +112,7 @@ public class ChannelInviteServiceTests
     [TestMethod]
     public async Task CreateInvite_NonAdminCannotInvite_ThrowsUnauthorized()
     {
-        var memberCaller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        var memberCaller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
         _db.ChannelMembers.Add(new ChannelMember
         {
             ChannelId = _privateChannelId,
@@ -193,7 +193,7 @@ public class ChannelInviteServiceTests
         var dto = new CreateChannelInviteDto { UserId = _inviteeCaller.UserId };
 
         await Assert.ThrowsAsync<InvalidOperationException>(
-            () => _service.CreateInviteAsync(Guid.NewGuid(), dto, _ownerCaller));
+            () => _service.CreateInviteAsync(Guid.CreateVersion7(), dto, _ownerCaller));
     }
 
     // ── AcceptInviteAsync ──────────────────────────────────────────
@@ -301,7 +301,7 @@ public class ChannelInviteServiceTests
     [TestMethod]
     public async Task ListMyInvites_ReturnsOnlyPendingForCaller()
     {
-        var otherUser = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        var otherUser = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
 
         await _service.CreateInviteAsync(_privateChannelId, new CreateChannelInviteDto { UserId = _inviteeCaller.UserId }, _ownerCaller);
         await _service.CreateInviteAsync(_privateChannelId, new CreateChannelInviteDto { UserId = otherUser.UserId }, _ownerCaller);

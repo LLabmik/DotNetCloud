@@ -151,7 +151,7 @@ public class CliConfigTests
     [TestMethod]
     public void CliConfig_SaveAndLoad_Roundtrip()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), $"dotnetcloud-test-{Guid.NewGuid():N}");
+        var tempDir = Path.Combine(Path.GetTempPath(), $"dotnetcloud-test-{Guid.CreateVersion7():N}");
         var configFile = Path.Combine(tempDir, "config.json");
 
         try

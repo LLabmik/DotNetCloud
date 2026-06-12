@@ -22,7 +22,7 @@ public class FilesControllerChunkDownloadTests
     private static (FilesController controller, Mock<IDownloadService> downloadMock) CreateController(
         string? ifNoneMatchHeader = null)
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         var downloadMock = new Mock<IDownloadService>();
 

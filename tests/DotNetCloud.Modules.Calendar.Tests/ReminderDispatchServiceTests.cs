@@ -28,21 +28,21 @@ public class ReminderDispatchServiceTests
     public void Setup()
     {
         var options = new DbContextOptionsBuilder<CalendarDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options;
 
         _db = new CalendarDbContext(options);
         _eventBusMock = new Mock<IEventBus>();
-        _userId = Guid.NewGuid();
+        _userId = Guid.CreateVersion7();
 
         // Build a real service provider for the scoped factory
         var services = new ServiceCollection();
-        services.AddDbContext<CalendarDbContext>(o => o.UseInMemoryDatabase(_db.Database.GetConnectionString() ?? Guid.NewGuid().ToString()));
+        services.AddDbContext<CalendarDbContext>(o => o.UseInMemoryDatabase(_db.Database.GetConnectionString() ?? Guid.CreateVersion7().ToString()));
         services.AddSingleton<IEventBus>(_eventBusMock.Object);
         services.AddSingleton<IRecurrenceEngine>(new RecurrenceEngine(NullLogger<RecurrenceEngine>.Instance));
 
         // We need a shared DB, so let's use the same in-memory name
-        var dbName = Guid.NewGuid().ToString();
+        var dbName = Guid.CreateVersion7().ToString();
         var serviceCollection = new ServiceCollection();
         serviceCollection.AddDbContext<CalendarDbContext>(o => o.UseInMemoryDatabase(dbName));
         serviceCollection.AddSingleton<IEventBus>(_eventBusMock.Object);

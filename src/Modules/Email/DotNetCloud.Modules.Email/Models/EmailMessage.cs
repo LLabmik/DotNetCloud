@@ -6,7 +6,7 @@ namespace DotNetCloud.Modules.Email.Models;
 public sealed class EmailMessage
 {
     /// <summary>Unique identifier.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>The parent thread.</summary>
     public Guid ThreadId { get; set; }

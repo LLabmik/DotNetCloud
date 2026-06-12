@@ -6,7 +6,7 @@ namespace DotNetCloud.Modules.Bookmarks.Models;
 public sealed class BookmarkItem
 {
     /// <summary>Unique identifier.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>The user who owns this bookmark.</summary>
     public Guid OwnerId { get; set; }

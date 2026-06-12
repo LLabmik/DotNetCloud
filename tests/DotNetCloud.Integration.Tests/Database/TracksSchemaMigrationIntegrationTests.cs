@@ -26,7 +26,7 @@ public sealed class TracksSchemaMigrationIntegrationTests
         var adminConnectionString = Environment.GetEnvironmentVariable("DOTNETCLOUD_TEST_POSTGRES_CONNECTION")
             ?? DefaultAdminConnectionString;
 
-        var databaseName = $"{MigrationDatabasePrefix}{Guid.NewGuid():N}";
+        var databaseName = $"{MigrationDatabasePrefix}{Guid.CreateVersion7():N}";
         var testConnectionString = BuildDatabaseConnectionString(adminConnectionString, databaseName);
 
         try
@@ -46,9 +46,9 @@ public sealed class TracksSchemaMigrationIntegrationTests
 
                 await AssertSchemaStateAsync(migrationContext);
 
-                var productId = Guid.NewGuid();
-                var swimlaneId = Guid.NewGuid();
-                var ownerId = Guid.NewGuid();
+                var productId = Guid.CreateVersion7();
+                var swimlaneId = Guid.CreateVersion7();
+                var ownerId = Guid.CreateVersion7();
 
                 var product = new Product
                 {

@@ -25,11 +25,11 @@ public class SearchQueryEngineIntegrationTests
     public void Setup()
     {
         var options = new DbContextOptionsBuilder<SearchDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options;
         _db = new SearchDbContext(options);
-        _userId = Guid.NewGuid();
-        _otherUserId = Guid.NewGuid();
+        _userId = Guid.CreateVersion7();
+        _otherUserId = Guid.CreateVersion7();
 
         SeedTestData();
     }
@@ -397,7 +397,7 @@ public class SearchQueryEngineIntegrationTests
     public async Task BothProviders_UnknownUser_ReturnsNoResults()
     {
         var providers = GetTestableProviders();
-        var unknownUser = Guid.NewGuid();
+        var unknownUser = Guid.CreateVersion7();
 
         foreach (var provider in providers)
         {

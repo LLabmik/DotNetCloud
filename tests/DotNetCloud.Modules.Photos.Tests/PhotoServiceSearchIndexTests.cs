@@ -36,7 +36,7 @@ public class PhotoServiceSearchIndexTests
     [TestMethod]
     public async Task CreatePhoto_PublishesSearchIndexRequestEvent_WithIndexAction()
     {
-        var fileNodeId = Guid.NewGuid();
+        var fileNodeId = Guid.CreateVersion7();
         var result = await _service.CreatePhotoAsync(
             fileNodeId, "photo.jpg", "image/jpeg", 1024, _caller.UserId, _caller);
 
@@ -54,7 +54,7 @@ public class PhotoServiceSearchIndexTests
     [TestMethod]
     public async Task DeletePhoto_PublishesSearchIndexRequestEvent_WithRemoveAction()
     {
-        var fileNodeId = Guid.NewGuid();
+        var fileNodeId = Guid.CreateVersion7();
         var created = await _service.CreatePhotoAsync(
             fileNodeId, "photo.jpg", "image/jpeg", 1024, _caller.UserId, _caller);
         _eventBusMock.Invocations.Clear();

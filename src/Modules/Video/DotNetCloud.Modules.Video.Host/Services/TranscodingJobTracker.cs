@@ -24,7 +24,7 @@ public sealed class TranscodingJobTracker
     {
         var job = new TranscodingJob
         {
-            Id = Guid.NewGuid().ToString("N"),
+            Id = Guid.CreateVersion7().ToString("N"),
             VideoId = videoId,
             UserId = userId,
             CacheKey = cacheKey

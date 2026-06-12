@@ -16,7 +16,7 @@ public class ChunkedTransferClientTests
 
     [TestInitialize]
     public void TestSetup() =>
-        _testCacheDir = Path.Combine(Path.GetTempPath(), $"dnc-test-cache-{Guid.NewGuid():N}");
+        _testCacheDir = Path.Combine(Path.GetTempPath(), $"dnc-test-cache-{Guid.CreateVersion7():N}");
 
     [TestCleanup]
     public void TestTeardown()
@@ -34,8 +34,8 @@ public class ChunkedTransferClientTests
     [TestMethod]
     public async Task UploadAsync_SmallFile_UploadsAsOneChunk()
     {
-        var nodeId = Guid.NewGuid();
-        var sessionId = Guid.NewGuid();
+        var nodeId = Guid.CreateVersion7();
+        var sessionId = Guid.CreateVersion7();
         var apiMock = new Mock<IDotNetCloudApiClient>();
         apiMock.SetupProperty(a => a.AccessToken);
 
@@ -64,7 +64,7 @@ public class ChunkedTransferClientTests
     [TestMethod]
     public async Task UploadAsync_ServerHasChunk_SkipsUpload()
     {
-        var sessionId = Guid.NewGuid();
+        var sessionId = Guid.CreateVersion7();
         var chunkHash = string.Empty;
 
         // Capture the chunk hash from InitiateUpload
@@ -85,7 +85,7 @@ public class ChunkedTransferClientTests
         apiMock.Setup(a => a.CompleteUploadAsync(sessionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new CompleteUploadResponse
             {
-                Node = new FileNodeResponse { Id = Guid.NewGuid(), Name = "dedup.txt", NodeType = "File" },
+                Node = new FileNodeResponse { Id = Guid.CreateVersion7(), Name = "dedup.txt", NodeType = "File" },
             });
 
         var client = CreateClient(apiMock.Object);
@@ -101,8 +101,8 @@ public class ChunkedTransferClientTests
     [TestMethod]
     public async Task UploadAsync_NetworkErrorOnFirstAttempt_RetriesAndSucceeds()
     {
-        var nodeId = Guid.NewGuid();
-        var sessionId = Guid.NewGuid();
+        var nodeId = Guid.CreateVersion7();
+        var sessionId = Guid.CreateVersion7();
         var callCount = 0;
 
         var apiMock = new Mock<IDotNetCloudApiClient>();
@@ -142,7 +142,7 @@ public class ChunkedTransferClientTests
     [TestMethod]
     public async Task UploadAsync_NetworkErrorExhaustsRetries_Throws()
     {
-        var sessionId = Guid.NewGuid();
+        var sessionId = Guid.CreateVersion7();
 
         var apiMock = new Mock<IDotNetCloudApiClient>();
         apiMock.SetupProperty(a => a.AccessToken);
@@ -172,7 +172,7 @@ public class ChunkedTransferClientTests
     [TestMethod]
     public async Task UploadAsync_ClientError_DoesNotRetry()
     {
-        var sessionId = Guid.NewGuid();
+        var sessionId = Guid.CreateVersion7();
 
         var apiMock = new Mock<IDotNetCloudApiClient>();
         apiMock.SetupProperty(a => a.AccessToken);
@@ -204,7 +204,7 @@ public class ChunkedTransferClientTests
     [TestMethod]
     public async Task DownloadAsync_EmptyManifest_FallsBackToDirectDownload()
     {
-        var nodeId = Guid.NewGuid();
+        var nodeId = Guid.CreateVersion7();
         var apiMock = new Mock<IDotNetCloudApiClient>();
         apiMock.SetupProperty(a => a.AccessToken);
         apiMock.Setup(a => a.GetChunkManifestAsync(nodeId, It.IsAny<CancellationToken>()))
@@ -224,7 +224,7 @@ public class ChunkedTransferClientTests
     [TestMethod]
     public async Task DownloadAsync_WithManifest_DownloadsChunks()
     {
-        var nodeId = Guid.NewGuid();
+        var nodeId = Guid.CreateVersion7();
         var chunkData = new byte[512];
         var chunkHash = Convert.ToHexStringLower(SHA256.HashData(chunkData));
 
@@ -252,7 +252,7 @@ public class ChunkedTransferClientTests
     [TestMethod]
     public async Task DownloadAsync_ChunkHashMismatch_RetriesAndSucceeds()
     {
-        var nodeId = Guid.NewGuid();
+        var nodeId = Guid.CreateVersion7();
         var chunkData = new byte[512];
         var chunkHash = Convert.ToHexStringLower(SHA256.HashData(chunkData));
         var corruptData = new byte[512];
@@ -288,7 +288,7 @@ public class ChunkedTransferClientTests
     [TestMethod]
     public async Task DownloadAsync_ChunkHashAlwaysMismatch_ThrowsChunkIntegrityException()
     {
-        var nodeId = Guid.NewGuid();
+        var nodeId = Guid.CreateVersion7();
         var chunkHash = "0000000000000000000000000000000000000000000000000000000000000000";
         var corruptData = new byte[512]; // SHA-256 of this does NOT equal chunkHash
 
@@ -322,8 +322,8 @@ public class ChunkedTransferClientTests
     [TestMethod]
     public async Task UploadAsync_CdcChunking_SendsChunkSizesWithHashes()
     {
-        var nodeId = Guid.NewGuid();
-        var sessionId = Guid.NewGuid();
+        var nodeId = Guid.CreateVersion7();
+        var sessionId = Guid.CreateVersion7();
         IReadOnlyList<int>? capturedSizes = null;
         IReadOnlyList<string>? capturedHashes = null;
 
@@ -379,7 +379,7 @@ public class ChunkedTransferClientTests
                 It.IsAny<IReadOnlyList<int>?>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .Callback<string, Guid?, long, string?, IReadOnlyList<string>, IReadOnlyList<int>?, int?, string?, string?, CancellationToken>(
                 (_, _, _, _, hashes, _, _, _, _, _) => captureTarget.AddRange(hashes))
-            .ReturnsAsync(new UploadSessionResponse { SessionId = Guid.NewGuid() });
+            .ReturnsAsync(new UploadSessionResponse { SessionId = Guid.CreateVersion7() });
 
         apiMock.Setup(a => a.UploadChunkAsync(It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>(), It.IsAny<string?>()))
             .Returns(Task.CompletedTask);
@@ -387,7 +387,7 @@ public class ChunkedTransferClientTests
         apiMock.Setup(a => a.CompleteUploadAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new CompleteUploadResponse
             {
-                Node = new FileNodeResponse { Id = Guid.NewGuid(), Name = "f.bin", NodeType = "File" },
+                Node = new FileNodeResponse { Id = Guid.CreateVersion7(), Name = "f.bin", NodeType = "File" },
             });
 
         var client = CreateClient(apiMock.Object);
@@ -407,8 +407,8 @@ public class ChunkedTransferClientTests
     public async Task UploadAsync_StreamingPipeline_BoundedMemoryUsage()
     {
         // Verifies that the channel-based pipeline correctly uploads all missing chunks.
-        var nodeId = Guid.NewGuid();
-        var sessionId = Guid.NewGuid();
+        var nodeId = Guid.CreateVersion7();
+        var sessionId = Guid.CreateVersion7();
         var uploadCallCount = 0;
         IReadOnlyList<string>? capturedHashes = null;
 
@@ -452,7 +452,7 @@ public class ChunkedTransferClientTests
     public async Task DownloadAsync_StreamingToTempFiles_AssemblesCorrectly()
     {
         // Verifies that temp-file-based download reassembles all chunks in correct order.
-        var nodeId = Guid.NewGuid();
+        var nodeId = Guid.CreateVersion7();
 
         var chunk0 = new byte[512];
         var chunk1 = new byte[512];
@@ -504,8 +504,8 @@ public class ChunkedTransferClientTests
     public async Task UploadAsync_PersistsAndDeletesSessionRecord_OnSuccess()
     {
         // Verifies that a session record is saved after InitiateUpload and deleted after Complete.
-        var nodeId = Guid.NewGuid();
-        var sessionId = Guid.NewGuid();
+        var nodeId = Guid.CreateVersion7();
+        var sessionId = Guid.CreateVersion7();
 
         var apiMock = new Mock<IDotNetCloudApiClient>();
         apiMock.SetupProperty(a => a.AccessToken);
@@ -542,8 +542,8 @@ public class ChunkedTransferClientTests
     {
         // Verifies that when an existing session has chunk hashes recorded,
         // those chunks are not re-uploaded (treated as already present).
-        var nodeId = Guid.NewGuid();
-        var sessionId = Guid.NewGuid();
+        var nodeId = Guid.CreateVersion7();
+        var sessionId = Guid.CreateVersion7();
         var fileData = new byte[1024];
         new Random(42).NextBytes(fileData);
         // Single chunk (< CdcMinSize) — hash = SHA256 of entire file.
@@ -607,9 +607,9 @@ public class ChunkedTransferClientTests
     public async Task UploadAsync_StaleSession_DeletesRecordAndStartsFresh()
     {
         // Verifies that a session > 48 h old is discarded and a fresh upload is initiated.
-        var oldSessionId = Guid.NewGuid();
-        var newSessionId = Guid.NewGuid();
-        var nodeId = Guid.NewGuid();
+        var oldSessionId = Guid.CreateVersion7();
+        var newSessionId = Guid.CreateVersion7();
+        var nodeId = Guid.CreateVersion7();
 
         var existingSession = new ActiveUploadSessionRecord
         {
@@ -660,9 +660,9 @@ public class ChunkedTransferClientTests
     {
         // Verifies that if the file size differs from the session record, the old session
         // is discarded and a new upload is initiated.
-        var oldSessionId = Guid.NewGuid();
-        var newSessionId = Guid.NewGuid();
-        var nodeId = Guid.NewGuid();
+        var oldSessionId = Guid.CreateVersion7();
+        var newSessionId = Guid.CreateVersion7();
+        var nodeId = Guid.CreateVersion7();
 
         var existingSession = new ActiveUploadSessionRecord
         {
@@ -713,7 +713,7 @@ public class ChunkedTransferClientTests
     [TestMethod]
     public async Task DownloadAsync_CacheMiss_DownloadsAndCachesChunk()
     {
-        var nodeId = Guid.NewGuid();
+        var nodeId = Guid.CreateVersion7();
         var chunkData = new byte[512];
         new Random(42).NextBytes(chunkData);
         var chunkHash = Convert.ToHexStringLower(SHA256.HashData(chunkData));
@@ -744,7 +744,7 @@ public class ChunkedTransferClientTests
     [TestMethod]
     public async Task DownloadAsync_CacheHit_SkipsApiCall()
     {
-        var nodeId = Guid.NewGuid();
+        var nodeId = Guid.CreateVersion7();
         var chunkData = new byte[512];
         new Random(99).NextBytes(chunkData);
         var chunkHash = Convert.ToHexStringLower(SHA256.HashData(chunkData));
@@ -779,8 +779,8 @@ public class ChunkedTransferClientTests
     {
         int? capturedPosixMode = -1;
         string? capturedOwnerHint = "unset";
-        var sessionId = Guid.NewGuid();
-        var nodeId = Guid.NewGuid();
+        var sessionId = Guid.CreateVersion7();
+        var nodeId = Guid.CreateVersion7();
 
         var apiMock = new Mock<IDotNetCloudApiClient>();
         apiMock.SetupProperty(a => a.AccessToken);
@@ -813,8 +813,8 @@ public class ChunkedTransferClientTests
     [TestMethod]
     public async Task UploadAsync_TimeoutOnFirstAttempt_RetriesAndSucceeds()
     {
-        var nodeId = Guid.NewGuid();
-        var sessionId = Guid.NewGuid();
+        var nodeId = Guid.CreateVersion7();
+        var sessionId = Guid.CreateVersion7();
         var callCount = 0;
 
         var apiMock = new Mock<IDotNetCloudApiClient>();
@@ -854,7 +854,7 @@ public class ChunkedTransferClientTests
     [TestMethod]
     public async Task DownloadAsync_TimeoutOnFirstAttempt_RetriesAndSucceeds()
     {
-        var nodeId = Guid.NewGuid();
+        var nodeId = Guid.CreateVersion7();
         var chunkData = new byte[512];
         var chunkHash = Convert.ToHexStringLower(SHA256.HashData(chunkData));
         var callCount = 0;
@@ -893,8 +893,8 @@ public class ChunkedTransferClientTests
     public async Task UploadAsync_SessionAt20Hours_StillResumes()
     {
         // Session is 20h old — used to be discarded at 18h, now should resume at 48h window.
-        var sessionId = Guid.NewGuid();
-        var nodeId = Guid.NewGuid();
+        var sessionId = Guid.CreateVersion7();
+        var nodeId = Guid.CreateVersion7();
         var fileData = new byte[1024];
         new Random(42).NextBytes(fileData);
         var chunkHash = Convert.ToHexStringLower(SHA256.HashData(fileData));

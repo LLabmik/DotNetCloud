@@ -18,7 +18,7 @@ public class FileServiceGetStoragePathTests
     private static FilesDbContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<FilesDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options;
         return new FilesDbContext(options);
     }
@@ -32,7 +32,7 @@ public class FileServiceGetStoragePathTests
 
     private static FileNode CreateFileNode(Guid ownerId, string storagePath = "ab/cd/abcdef1234567890")
     {
-        var id = Guid.NewGuid();
+        var id = Guid.CreateVersion7();
         return new FileNode
         {
             Id = id,
@@ -54,7 +54,7 @@ public class FileServiceGetStoragePathTests
     public async Task GetStoragePathAsync_FileNodeExists_ReturnsStoragePath()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = CreateFileNode(userId, "ab/cd/abcdef1234567890");
         db.FileNodes.Add(node);
         await db.SaveChangesAsync();
@@ -73,7 +73,7 @@ public class FileServiceGetStoragePathTests
         using var db = CreateContext();
         var service = CreateService(db);
 
-        var result = await service.GetStoragePathAsync(Guid.NewGuid());
+        var result = await service.GetStoragePathAsync(Guid.CreateVersion7());
 
         Assert.IsNull(result);
     }
@@ -84,8 +84,8 @@ public class FileServiceGetStoragePathTests
     public async Task GetStoragePathAsync_FolderNode_ReturnsNull()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
-        var folderId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var folderId = Guid.CreateVersion7();
         var folder = new FileNode
         {
             Id = folderId,
@@ -111,8 +111,8 @@ public class FileServiceGetStoragePathTests
     public async Task GetStoragePathAsync_SymbolicLinkNode_ReturnsNull()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
-        var linkId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var linkId = Guid.CreateVersion7();
         var link = new FileNode
         {
             Id = linkId,
@@ -138,7 +138,7 @@ public class FileServiceGetStoragePathTests
     public async Task GetStoragePathAsync_SoftDeletedFile_StillReturnsPath()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = CreateFileNode(userId, "ab/cd/deleted-file-hash");
         node.IsDeleted = true;
         db.FileNodes.Add(node);
@@ -156,8 +156,8 @@ public class FileServiceGetStoragePathTests
     public async Task GetStoragePathAsync_FileWithNullStoragePath_ReturnsNull()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
-        var nodeId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var nodeId = Guid.CreateVersion7();
         var node = new FileNode
         {
             Id = nodeId,
@@ -183,7 +183,7 @@ public class FileServiceGetStoragePathTests
     public async Task GetStoragePathAsync_CancellationRequested_ThrowsOrReturns()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = CreateFileNode(userId);
         db.FileNodes.Add(node);
         await db.SaveChangesAsync();
@@ -210,7 +210,7 @@ public class FileServiceGetStoragePathTests
     public async Task GetStoragePathAsync_MultipleFiles_ReturnsCorrectPathForEach()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node1 = CreateFileNode(userId, "aa/bb/hash1");
         var node2 = CreateFileNode(userId, "cc/dd/hash2");
         db.FileNodes.AddRange(node1, node2);

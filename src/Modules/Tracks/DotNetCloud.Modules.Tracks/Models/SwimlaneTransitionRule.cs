@@ -6,7 +6,7 @@ namespace DotNetCloud.Modules.Tracks.Models;
 /// </summary>
 public sealed class SwimlaneTransitionRule
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
     public Guid ProductId { get; set; }
     public Guid FromSwimlaneId { get; set; }
     public Guid ToSwimlaneId { get; set; }

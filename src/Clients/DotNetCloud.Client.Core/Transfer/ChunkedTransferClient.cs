@@ -435,8 +435,8 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
         CancellationToken cancellationToken)
     {
         var chunkCount = manifest.Chunks.Count;
-        var tempDir = Path.Combine(Path.GetTempPath(), "dnc-chunks", Guid.NewGuid().ToString("N"));
-        var assembledPath = Path.Combine(Path.GetTempPath(), $"dnc-{Guid.NewGuid():N}.tmp");
+        var tempDir = Path.Combine(Path.GetTempPath(), "dnc-chunks", Guid.CreateVersion7().ToString("N"));
+        var assembledPath = Path.Combine(Path.GetTempPath(), $"dnc-{Guid.CreateVersion7():N}.tmp");
         Directory.CreateDirectory(tempDir);
 
         try

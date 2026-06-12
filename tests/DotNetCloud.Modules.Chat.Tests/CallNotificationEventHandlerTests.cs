@@ -31,7 +31,7 @@ public class CallNotificationEventHandlerTests
     public void Setup()
     {
         var options = new DbContextOptionsBuilder<ChatDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options;
         _db = new ChatDbContext(options);
 
@@ -50,9 +50,9 @@ public class CallNotificationEventHandlerTests
             NullLogger<CallNotificationEventHandler>.Instance,
             _userDirectoryMock.Object);
 
-        _initiatorUserId = Guid.NewGuid();
-        _member1UserId = Guid.NewGuid();
-        _member2UserId = Guid.NewGuid();
+        _initiatorUserId = Guid.CreateVersion7();
+        _member1UserId = Guid.CreateVersion7();
+        _member2UserId = Guid.CreateVersion7();
         _channelId = SeedChannel("test-channel", _initiatorUserId, _member1UserId, _member2UserId);
     }
 
@@ -102,9 +102,9 @@ public class CallNotificationEventHandlerTests
     {
         return new VideoCallInitiatedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            CallId = Guid.NewGuid(),
+            CallId = Guid.CreateVersion7(),
             ChannelId = channelId,
             InitiatorUserId = initiatorUserId,
             MediaType = mediaType,
@@ -116,9 +116,9 @@ public class CallNotificationEventHandlerTests
     {
         return new VideoCallMissedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            CallId = Guid.NewGuid(),
+            CallId = Guid.CreateVersion7(),
             ChannelId = channelId,
             InitiatorUserId = initiatorUserId
         };
@@ -129,7 +129,7 @@ public class CallNotificationEventHandlerTests
     {
         return new VideoCallEndedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             CallId = callId,
             ChannelId = channelId,
@@ -436,7 +436,7 @@ public class CallNotificationEventHandlerTests
     [TestMethod]
     public async Task HandleEnded_WithDisconnectedParticipants_SendsCallEndedNotification()
     {
-        var callId = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
         _db.CallParticipants.Add(new CallParticipant
         {
             VideoCallId = callId,
@@ -472,7 +472,7 @@ public class CallNotificationEventHandlerTests
     [TestMethod]
     public async Task HandleEnded_NoDisconnectedParticipants_DoesNotSendPush()
     {
-        var callId = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
         // Participant still in call (LeftAtUtc is null)
         _db.CallParticipants.Add(new CallParticipant
         {
@@ -498,7 +498,7 @@ public class CallNotificationEventHandlerTests
     [TestMethod]
     public async Task HandleEnded_WithDuration_BodyContainsFormattedDuration()
     {
-        var callId = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
         _db.CallParticipants.Add(new CallParticipant
         {
             VideoCallId = callId,
@@ -526,7 +526,7 @@ public class CallNotificationEventHandlerTests
     [TestMethod]
     public async Task HandleEnded_WithoutDuration_BodyDoesNotContainDuration()
     {
-        var callId = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
         _db.CallParticipants.Add(new CallParticipant
         {
             VideoCallId = callId,
@@ -554,7 +554,7 @@ public class CallNotificationEventHandlerTests
     [TestMethod]
     public async Task HandleEnded_DataPayloadContainsEndReason()
     {
-        var callId = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
         _db.CallParticipants.Add(new CallParticipant
         {
             VideoCallId = callId,
@@ -584,7 +584,7 @@ public class CallNotificationEventHandlerTests
     [TestMethod]
     public async Task HandleEnded_DuplicateParticipantUserIds_DeduplicatedInRecipientList()
     {
-        var callId = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
         // Same user left twice (rejoined and left again)
         _db.CallParticipants.Add(new CallParticipant
         {
@@ -618,7 +618,7 @@ public class CallNotificationEventHandlerTests
     [TestMethod]
     public async Task HandleEnded_CategoryIsCallEnded()
     {
-        var callId = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
         _db.CallParticipants.Add(new CallParticipant
         {
             VideoCallId = callId,
@@ -671,7 +671,7 @@ public class CallNotificationEventHandlerTests
     [TestMethod]
     public async Task NotificationRouter_IncomingCall_NotSuppressedWhenUserOnline()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var fcmProvider = new TestPushProvider(PushProvider.FCM);
         var queue = new TestNotificationDeliveryQueue();
         var presence = new Mock<IPresenceTracker>();
@@ -700,7 +700,7 @@ public class CallNotificationEventHandlerTests
     [TestMethod]
     public async Task NotificationRouter_MissedCall_SuppressedWhenUserOnline()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var fcmProvider = new TestPushProvider(PushProvider.FCM);
         var queue = new TestNotificationDeliveryQueue();
         var presence = new Mock<IPresenceTracker>();
@@ -729,7 +729,7 @@ public class CallNotificationEventHandlerTests
     [TestMethod]
     public async Task NotificationRouter_IncomingCall_StillRespectsDND()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var fcmProvider = new TestPushProvider(PushProvider.FCM);
         var queue = new TestNotificationDeliveryQueue();
         var prefs = new InMemoryNotificationPreferenceStore();
@@ -757,8 +757,8 @@ public class CallNotificationEventHandlerTests
     [TestMethod]
     public async Task NotificationRouter_IncomingCall_NotAffectedByChannelMute()
     {
-        var userId = Guid.NewGuid();
-        var channelId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var channelId = Guid.CreateVersion7();
         var fcmProvider = new TestPushProvider(PushProvider.FCM);
         var queue = new TestNotificationDeliveryQueue();
         var prefs = new InMemoryNotificationPreferenceStore();

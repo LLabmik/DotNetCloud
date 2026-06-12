@@ -92,7 +92,7 @@ public sealed class CalendarEventService : ICalendarEventService
         _db.CalendarEvents.Add(calendarEvent);
 
         // Update calendar sync token
-        calendar.SyncToken = Guid.NewGuid().ToString("N");
+        calendar.SyncToken = Guid.CreateVersion7().ToString("N");
         calendar.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(cancellationToken);
@@ -102,7 +102,7 @@ public sealed class CalendarEventService : ICalendarEventService
 
         await _eventBus.PublishAsync(new CalendarEventCreatedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             CalendarEventId = calendarEvent.Id,
             CalendarId = dto.CalendarId,
@@ -115,7 +115,7 @@ public sealed class CalendarEventService : ICalendarEventService
 
         await _eventBus.PublishAsync(new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ModuleId = "calendar",
             EntityId = calendarEvent.Id.ToString(),
@@ -236,12 +236,12 @@ public sealed class CalendarEventService : ICalendarEventService
             }
         }
 
-        calendarEvent.ETag = Guid.NewGuid().ToString("N");
+        calendarEvent.ETag = Guid.CreateVersion7().ToString("N");
         calendarEvent.UpdatedAt = DateTime.UtcNow;
         calendarEvent.UpdatedByUserId = caller.UserId;
         if (calendarEvent.Calendar is not null)
         {
-            calendarEvent.Calendar.SyncToken = Guid.NewGuid().ToString("N");
+            calendarEvent.Calendar.SyncToken = Guid.CreateVersion7().ToString("N");
             calendarEvent.Calendar.UpdatedAt = DateTime.UtcNow;
         }
 
@@ -251,7 +251,7 @@ public sealed class CalendarEventService : ICalendarEventService
 
         await _eventBus.PublishAsync(new CalendarEventUpdatedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             CalendarEventId = eventId,
             CalendarId = calendarEvent.CalendarId,
@@ -260,7 +260,7 @@ public sealed class CalendarEventService : ICalendarEventService
 
         await _eventBus.PublishAsync(new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ModuleId = "calendar",
             EntityId = eventId.ToString(),
@@ -284,12 +284,12 @@ public sealed class CalendarEventService : ICalendarEventService
         calendarEvent.IsDeleted = true;
         calendarEvent.DeletedAt = DateTime.UtcNow;
         calendarEvent.UpdatedAt = DateTime.UtcNow;
-        calendarEvent.ETag = Guid.NewGuid().ToString("N");
+        calendarEvent.ETag = Guid.CreateVersion7().ToString("N");
 
         // Update calendar sync token
         if (calendarEvent.Calendar is not null)
         {
-            calendarEvent.Calendar.SyncToken = Guid.NewGuid().ToString("N");
+            calendarEvent.Calendar.SyncToken = Guid.CreateVersion7().ToString("N");
             calendarEvent.Calendar.UpdatedAt = DateTime.UtcNow;
         }
 
@@ -299,7 +299,7 @@ public sealed class CalendarEventService : ICalendarEventService
 
         await _eventBus.PublishAsync(new CalendarEventDeletedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             CalendarEventId = eventId,
             CalendarId = calendarEvent.CalendarId,
@@ -309,7 +309,7 @@ public sealed class CalendarEventService : ICalendarEventService
 
         await _eventBus.PublishAsync(new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ModuleId = "calendar",
             EntityId = eventId.ToString(),
@@ -336,7 +336,7 @@ public sealed class CalendarEventService : ICalendarEventService
         attendee.Comment = dto.Comment;
         attendee.RespondedAt = DateTime.UtcNow;
 
-        calendarEvent.ETag = Guid.NewGuid().ToString("N");
+        calendarEvent.ETag = Guid.CreateVersion7().ToString("N");
         calendarEvent.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(cancellationToken);
@@ -345,7 +345,7 @@ public sealed class CalendarEventService : ICalendarEventService
 
         await _eventBus.PublishAsync(new CalendarEventRsvpEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             CalendarEventId = eventId,
             AttendeeUserId = caller.UserId,

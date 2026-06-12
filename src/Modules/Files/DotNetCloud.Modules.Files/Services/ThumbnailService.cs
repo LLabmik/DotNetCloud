@@ -140,7 +140,7 @@ public sealed class ThumbnailService : IThumbnailService
 
     private async Task GenerateFromVideoAsync(Guid fileNodeId, string storagePath, CancellationToken cancellationToken)
     {
-        var tempFramePath = Path.Combine(Path.GetTempPath(), $"dnc-thumb-{Guid.NewGuid():N}.jpg");
+        var tempFramePath = Path.Combine(Path.GetTempPath(), $"dnc-thumb-{Guid.CreateVersion7():N}.jpg");
 
         try
         {
@@ -176,7 +176,7 @@ public sealed class ThumbnailService : IThumbnailService
 
     private async Task GenerateFromPdfAsync(Guid fileNodeId, string storagePath, CancellationToken cancellationToken)
     {
-        var tempPageImagePath = Path.Combine(Path.GetTempPath(), $"dnc-thumb-pdf-{Guid.NewGuid():N}.jpg");
+        var tempPageImagePath = Path.Combine(Path.GetTempPath(), $"dnc-thumb-pdf-{Guid.CreateVersion7():N}.jpg");
 
         try
         {

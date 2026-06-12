@@ -6,7 +6,7 @@ namespace DotNetCloud.Modules.Tracks.Models;
 /// </summary>
 public sealed class GuestPermission
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
     public Guid GuestUserId { get; set; }
     public Guid WorkItemId { get; set; }
 

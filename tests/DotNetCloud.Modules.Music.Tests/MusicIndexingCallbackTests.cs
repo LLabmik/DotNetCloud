@@ -45,8 +45,8 @@ public class MusicIndexingCallbackTests
     [TestMethod]
     public async Task IndexAudioAsync_CreatesTrackInDatabase()
     {
-        var fileNodeId = Guid.NewGuid();
-        var ownerId = Guid.NewGuid();
+        var fileNodeId = Guid.CreateVersion7();
+        var ownerId = Guid.CreateVersion7();
 
         await _callback.IndexAudioAsync(fileNodeId, "song.mp3", "audio/mpeg", 5_000_000, ownerId);
 
@@ -59,8 +59,8 @@ public class MusicIndexingCallbackTests
     [TestMethod]
     public async Task IndexAudioAsync_SetsCorrectOwner()
     {
-        var fileNodeId = Guid.NewGuid();
-        var ownerId = Guid.NewGuid();
+        var fileNodeId = Guid.CreateVersion7();
+        var ownerId = Guid.CreateVersion7();
 
         await _callback.IndexAudioAsync(fileNodeId, "track.flac", "audio/flac", 30_000_000, ownerId);
 
@@ -72,8 +72,8 @@ public class MusicIndexingCallbackTests
     [TestMethod]
     public async Task IndexAudioAsync_DuplicateFileNode_DoesNotCreateSecond()
     {
-        var fileNodeId = Guid.NewGuid();
-        var ownerId = Guid.NewGuid();
+        var fileNodeId = Guid.CreateVersion7();
+        var ownerId = Guid.CreateVersion7();
 
         await _callback.IndexAudioAsync(fileNodeId, "song.mp3", "audio/mpeg", 1024, ownerId);
         await _callback.IndexAudioAsync(fileNodeId, "song.mp3", "audio/mpeg", 1024, ownerId);
@@ -85,11 +85,11 @@ public class MusicIndexingCallbackTests
     [TestMethod]
     public async Task IndexAudioAsync_MultipleUniqueFiles_CreatesAll()
     {
-        var ownerId = Guid.NewGuid();
+        var ownerId = Guid.CreateVersion7();
 
-        await _callback.IndexAudioAsync(Guid.NewGuid(), "song1.mp3", "audio/mpeg", 1024, ownerId);
-        await _callback.IndexAudioAsync(Guid.NewGuid(), "song2.flac", "audio/flac", 2048, ownerId);
-        await _callback.IndexAudioAsync(Guid.NewGuid(), "song3.ogg", "audio/ogg", 512, ownerId);
+        await _callback.IndexAudioAsync(Guid.CreateVersion7(), "song1.mp3", "audio/mpeg", 1024, ownerId);
+        await _callback.IndexAudioAsync(Guid.CreateVersion7(), "song2.flac", "audio/flac", 2048, ownerId);
+        await _callback.IndexAudioAsync(Guid.CreateVersion7(), "song3.ogg", "audio/ogg", 512, ownerId);
 
         Assert.AreEqual(3, _db.UserTracks.Count());
     }
@@ -100,9 +100,9 @@ public class MusicIndexingCallbackTests
     public async Task IndexFileAsync_CrossOwner_SameFileNodeId_ClonesTrack()
     {
         // Arrange: User A has already indexed a file
-        var fileNodeId = Guid.NewGuid();
-        var userA = Guid.NewGuid();
-        var userB = Guid.NewGuid();
+        var fileNodeId = Guid.CreateVersion7();
+        var userA = Guid.CreateVersion7();
+        var userB = Guid.CreateVersion7();
 
         var sourceArtist = await TestHelpers.SeedArtistAsync(_db, "Infected Mushroom", null, userA);
         var sourceAlbum = await TestHelpers.SeedAlbumAsync(_db, sourceArtist.Id, "IM The Supervisor", 2004, userA);
@@ -127,9 +127,9 @@ public class MusicIndexingCallbackTests
     public async Task IndexFileAsync_CrossOwner_SourceTrackNotModified()
     {
         // Arrange: User A has already indexed a file
-        var fileNodeId = Guid.NewGuid();
-        var userA = Guid.NewGuid();
-        var userB = Guid.NewGuid();
+        var fileNodeId = Guid.CreateVersion7();
+        var userA = Guid.CreateVersion7();
+        var userB = Guid.CreateVersion7();
 
         var sourceArtist = await TestHelpers.SeedArtistAsync(_db, "Infected Mushroom", null, userA);
         var sourceAlbum = await TestHelpers.SeedAlbumAsync(_db, sourceArtist.Id, "IM The Supervisor", 2004, userA);
@@ -153,9 +153,9 @@ public class MusicIndexingCallbackTests
     public async Task IndexFileAsync_CrossOwner_BothUsersHaveIndependentTracks()
     {
         // Arrange
-        var fileNodeId = Guid.NewGuid();
-        var userA = Guid.NewGuid();
-        var userB = Guid.NewGuid();
+        var fileNodeId = Guid.CreateVersion7();
+        var userA = Guid.CreateVersion7();
+        var userB = Guid.CreateVersion7();
 
         var sourceArtist = await TestHelpers.SeedArtistAsync(_db, "Test Artist", null, userA);
         var sourceAlbum = await TestHelpers.SeedAlbumAsync(_db, sourceArtist.Id, "Test Album", null, userA);
@@ -177,8 +177,8 @@ public class MusicIndexingCallbackTests
     public async Task IndexFileAsync_SameOwner_DuplicateNotCreated()
     {
         // Arrange
-        var fileNodeId = Guid.NewGuid();
-        var ownerId = Guid.NewGuid();
+        var fileNodeId = Guid.CreateVersion7();
+        var ownerId = Guid.CreateVersion7();
 
         await _callback.IndexAudioAsync(fileNodeId, "song.mp3", "audio/mpeg", 1024, ownerId);
 
@@ -194,9 +194,9 @@ public class MusicIndexingCallbackTests
     public async Task IndexFileAsync_CrossOwner_SourceWithoutAlbum_StillClonesTrack()
     {
         // Arrange: User A has a track with no album
-        var fileNodeId = Guid.NewGuid();
-        var userA = Guid.NewGuid();
-        var userB = Guid.NewGuid();
+        var fileNodeId = Guid.CreateVersion7();
+        var userA = Guid.CreateVersion7();
+        var userB = Guid.CreateVersion7();
 
         var sourceArtist = await TestHelpers.SeedArtistAsync(_db, "Solo Artist", null, userA);
         var sourceTrack = await TestHelpers.SeedTrackAsync(_db, null, "Standalone Track", ownerId: userA);
@@ -217,9 +217,9 @@ public class MusicIndexingCallbackTests
     public async Task IndexFileAsync_CrossOwner_SoftDeletedSourceIgnored()
     {
         // Arrange: User A has a soft-deleted track
-        var fileNodeId = Guid.NewGuid();
-        var userA = Guid.NewGuid();
-        var userB = Guid.NewGuid();
+        var fileNodeId = Guid.CreateVersion7();
+        var userA = Guid.CreateVersion7();
+        var userB = Guid.CreateVersion7();
 
         var sourceTrack = await TestHelpers.SeedTrackAsync(_db, null, "Deleted Song", ownerId: userA);
         sourceTrack.FileNodeId = fileNodeId;
@@ -242,8 +242,8 @@ public class MusicIndexingCallbackTests
     public async Task ResetCollectionAsync_OnlyDeletesTargetOwner()
     {
         // Arrange: Two users, each with tracks
-        var userA = Guid.NewGuid();
-        var userB = Guid.NewGuid();
+        var userA = Guid.CreateVersion7();
+        var userB = Guid.CreateVersion7();
 
         var artistA = await TestHelpers.SeedArtistAsync(_db, "Artist A", null, userA);
         var albumA = await TestHelpers.SeedAlbumAsync(_db, artistA.Id, "Album A", null, userA);
@@ -268,8 +268,8 @@ public class MusicIndexingCallbackTests
     public async Task ResetCollectionAsync_OtherOwnerAlbumsAndArtistsSurvive()
     {
         // Arrange
-        var userA = Guid.NewGuid();
-        var userB = Guid.NewGuid();
+        var userA = Guid.CreateVersion7();
+        var userB = Guid.CreateVersion7();
 
         var artistB = await TestHelpers.SeedArtistAsync(_db, "Surviving Artist", null, userB);
         var albumB = await TestHelpers.SeedAlbumAsync(_db, artistB.Id, "Surviving Album", null, userB);
@@ -291,7 +291,7 @@ public class MusicIndexingCallbackTests
     public async Task ResetCollectionAsync_TracksWithPlayHistory_CleanedUp()
     {
         // Arrange: User has tracks with playback history
-        var userA = Guid.NewGuid();
+        var userA = Guid.CreateVersion7();
         var artist = await TestHelpers.SeedArtistAsync(_db, "Artist", null, userA);
         var album = await TestHelpers.SeedAlbumAsync(_db, artist.Id, "Album", null, userA);
         var track = await TestHelpers.SeedTrackAsync(_db, album.Id, "Track", ownerId: userA);

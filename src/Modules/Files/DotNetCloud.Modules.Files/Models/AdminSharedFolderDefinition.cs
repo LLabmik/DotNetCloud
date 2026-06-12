@@ -6,7 +6,7 @@ namespace DotNetCloud.Modules.Files.Models;
 public sealed class AdminSharedFolderDefinition
 {
     /// <summary>Unique identifier for the shared-folder definition.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>Organization that owns this definition, or <see langword="null"/> for the default/global organization.</summary>
     public Guid? OrganizationId { get; set; }

@@ -36,7 +36,7 @@ namespace DotNetCloud.Integration.Tests.Infrastructure;
 /// </summary>
 internal sealed class DotNetCloudWebApplicationFactory : WebApplicationFactory<DotNetCloud.Core.Server.Program>
 {
-    private readonly string _databaseName = $"IntTest_{Guid.NewGuid():N}";
+    private readonly string _databaseName = $"IntTest_{Guid.CreateVersion7():N}";
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -178,7 +178,7 @@ internal sealed class DotNetCloudWebApplicationFactory : WebApplicationFactory<D
                 .ReturnsAsync((Guid channelId, Guid userId, string content, Guid? replyTo, CancellationToken _) =>
                     new DotNetCloud.Core.DTOs.Chat.ChatMessageDto
                     {
-                        Id = Guid.NewGuid(),
+                        Id = Guid.CreateVersion7(),
                         ChannelId = channelId,
                         Content = content,
                         Type = "Text",
@@ -210,7 +210,7 @@ internal sealed class DotNetCloudWebApplicationFactory : WebApplicationFactory<D
                     new DotNetCloud.Core.DTOs.Chat.ChatMessageDto
                     {
                         Id = messageId,
-                        ChannelId = Guid.NewGuid(),
+                        ChannelId = Guid.CreateVersion7(),
                         Content = content,
                         Type = "Text",
                     });

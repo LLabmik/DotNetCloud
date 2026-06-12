@@ -14,7 +14,7 @@ public class MusicEnrichmentBackgroundQueueTests
     public async Task EnqueueAsync_DuplicateUserJob_ReturnsFalse()
     {
         var queue = new InMemoryMusicEnrichmentBackgroundQueue();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         var first = await queue.EnqueueAsync(new MusicEnrichmentJob
         {
@@ -45,7 +45,7 @@ public class MusicEnrichmentBackgroundQueueTests
     {
         var queue = new InMemoryMusicEnrichmentBackgroundQueue();
         var progressState = new ScanProgressState();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         var progressReports = new List<LibraryScanProgress?>();
         progressState.OnProgressChanged += () =>

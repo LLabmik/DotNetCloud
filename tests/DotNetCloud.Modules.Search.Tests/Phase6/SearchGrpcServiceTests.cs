@@ -312,7 +312,7 @@ public class SearchGrpcServiceTests
     [TestMethod]
     public async Task IndexDocument_WithOptionalOrganizationId_SetsIdCorrectly()
     {
-        var orgId = Guid.NewGuid();
+        var orgId = Guid.CreateVersion7();
         _searchProviderMock
             .Setup(p => p.IndexDocumentAsync(It.IsAny<SearchDocument>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);

@@ -54,7 +54,7 @@ public class SearchIndexRequestEventHandlerPhase4Tests
 
         var @event = new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ModuleId = "files",
             EntityId = "entity-1",
@@ -76,7 +76,7 @@ public class SearchIndexRequestEventHandlerPhase4Tests
 
         var @event = new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ModuleId = "files",
             EntityId = "entity-1",
@@ -103,7 +103,7 @@ public class SearchIndexRequestEventHandlerPhase4Tests
 
         var @event = new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ModuleId = "files",
             EntityId = "entity-1",
@@ -124,7 +124,7 @@ public class SearchIndexRequestEventHandlerPhase4Tests
 
         var @event = new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ModuleId = "files",
             EntityId = "entity-1",
@@ -147,7 +147,7 @@ public class SearchIndexRequestEventHandlerPhase4Tests
         {
             await _handler.HandleAsync(new SearchIndexRequestEvent
             {
-                EventId = Guid.NewGuid(),
+                EventId = Guid.CreateVersion7(),
                 CreatedAt = DateTime.UtcNow,
                 ModuleId = "files",
                 EntityId = $"entity-{i}",
@@ -169,7 +169,7 @@ public class SearchIndexRequestEventHandlerPhase4Tests
         // Index action
         await _handler.HandleAsync(new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ModuleId = "files",
             EntityId = "e1",
@@ -179,7 +179,7 @@ public class SearchIndexRequestEventHandlerPhase4Tests
         // Remove action
         await _handler.HandleAsync(new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ModuleId = "files",
             EntityId = "e2",
@@ -189,7 +189,7 @@ public class SearchIndexRequestEventHandlerPhase4Tests
         // Another index
         await _handler.HandleAsync(new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ModuleId = "notes",
             EntityId = "n1",

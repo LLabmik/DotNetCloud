@@ -452,7 +452,7 @@ public class SearchIndexingServicePhase4Tests
 
     private static SearchIndexRequestEvent CreateIndexEvent(string moduleId, string entityId) => new()
     {
-        EventId = Guid.NewGuid(),
+        EventId = Guid.CreateVersion7(),
         CreatedAt = DateTime.UtcNow,
         ModuleId = moduleId,
         EntityId = entityId,
@@ -461,7 +461,7 @@ public class SearchIndexingServicePhase4Tests
 
     private static SearchIndexRequestEvent CreateRemoveEvent(string moduleId, string entityId) => new()
     {
-        EventId = Guid.NewGuid(),
+        EventId = Guid.CreateVersion7(),
         CreatedAt = DateTime.UtcNow,
         ModuleId = moduleId,
         EntityId = entityId,
@@ -477,7 +477,7 @@ public class SearchIndexingServicePhase4Tests
             EntityType = entityType,
             Title = title,
             Content = content,
-            OwnerId = Guid.NewGuid(),
+            OwnerId = Guid.CreateVersion7(),
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow,
             Metadata = metadata ?? new Dictionary<string, string>()

@@ -289,7 +289,7 @@ public class SearchSortAndEdgeCaseTests
         return new SearchResultItem
         {
             ModuleId = moduleId,
-            EntityId = Guid.NewGuid().ToString(),
+            EntityId = Guid.CreateVersion7().ToString(),
             EntityType = "TestEntity",
             Title = "Test Item",
             UpdatedAt = DateTimeOffset.UtcNow

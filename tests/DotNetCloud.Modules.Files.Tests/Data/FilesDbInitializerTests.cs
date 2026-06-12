@@ -15,7 +15,7 @@ public class FilesDbInitializerTests
     private static FilesDbContext CreateContext(string? dbName = null)
     {
         var options = new DbContextOptionsBuilder<FilesDbContext>()
-            .UseInMemoryDatabase(dbName ?? Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(dbName ?? Guid.CreateVersion7().ToString())
             .Options;
         return new FilesDbContext(options);
     }
@@ -26,7 +26,7 @@ public class FilesDbInitializerTests
     public async Task WhenEnsureRootFolderCalledThenCreatesRootFolder()
     {
         using var context = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         var root = await FilesDbInitializer.EnsureRootFolderAsync(context, userId);
 
@@ -43,7 +43,7 @@ public class FilesDbInitializerTests
     public async Task WhenEnsureRootFolderCalledTwiceThenReturnsSameFolder()
     {
         using var context = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         var root1 = await FilesDbInitializer.EnsureRootFolderAsync(context, userId);
         var root2 = await FilesDbInitializer.EnsureRootFolderAsync(context, userId);
@@ -55,8 +55,8 @@ public class FilesDbInitializerTests
     public async Task WhenEnsureRootFolderCalledForDifferentUsersThenCreatesSeparateRoots()
     {
         using var context = CreateContext();
-        var user1 = Guid.NewGuid();
-        var user2 = Guid.NewGuid();
+        var user1 = Guid.CreateVersion7();
+        var user2 = Guid.CreateVersion7();
 
         var root1 = await FilesDbInitializer.EnsureRootFolderAsync(context, user1);
         var root2 = await FilesDbInitializer.EnsureRootFolderAsync(context, user2);
@@ -70,7 +70,7 @@ public class FilesDbInitializerTests
     public async Task WhenEnsureRootFolderCalledThenRootPersistedInDatabase()
     {
         using var context = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         await FilesDbInitializer.EnsureRootFolderAsync(context, userId);
 
@@ -82,7 +82,7 @@ public class FilesDbInitializerTests
     public async Task WhenNullDbPassedToEnsureRootFolderThenThrows()
     {
         await Assert.ThrowsExactlyAsync<ArgumentNullException>(
-            () => FilesDbInitializer.EnsureRootFolderAsync(null!, Guid.NewGuid()));
+            () => FilesDbInitializer.EnsureRootFolderAsync(null!, Guid.CreateVersion7()));
     }
 
     // ---- EnsureQuotaAsync ----
@@ -91,7 +91,7 @@ public class FilesDbInitializerTests
     public async Task WhenEnsureQuotaCalledThenCreatesQuota()
     {
         using var context = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         var quota = await FilesDbInitializer.EnsureQuotaAsync(context, userId);
 
@@ -105,7 +105,7 @@ public class FilesDbInitializerTests
     public async Task WhenEnsureQuotaCalledWithCustomSizeThenUsesCustomSize()
     {
         using var context = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         long customQuota = 5L * 1024 * 1024 * 1024; // 5 GB
 
         var quota = await FilesDbInitializer.EnsureQuotaAsync(context, userId, customQuota);
@@ -117,7 +117,7 @@ public class FilesDbInitializerTests
     public async Task WhenEnsureQuotaCalledTwiceThenReturnsSameQuota()
     {
         using var context = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         var quota1 = await FilesDbInitializer.EnsureQuotaAsync(context, userId);
         var quota2 = await FilesDbInitializer.EnsureQuotaAsync(context, userId);
@@ -129,7 +129,7 @@ public class FilesDbInitializerTests
     public async Task WhenEnsureQuotaCalledThenPersistedInDatabase()
     {
         using var context = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         await FilesDbInitializer.EnsureQuotaAsync(context, userId);
 
@@ -150,7 +150,7 @@ public class FilesDbInitializerTests
     public async Task WhenNullDbPassedToEnsureQuotaThenThrows()
     {
         await Assert.ThrowsExactlyAsync<ArgumentNullException>(
-            () => FilesDbInitializer.EnsureQuotaAsync(null!, Guid.NewGuid()));
+            () => FilesDbInitializer.EnsureQuotaAsync(null!, Guid.CreateVersion7()));
     }
 
     // ---- SeedDefaultTagsAsync ----
@@ -159,8 +159,8 @@ public class FilesDbInitializerTests
     public async Task WhenSeedDefaultTagsCalledThenCreatesThreeTags()
     {
         using var context = CreateContext();
-        var userId = Guid.NewGuid();
-        var rootId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var rootId = Guid.CreateVersion7();
 
         // Create a root node first so FK is valid
         context.FileNodes.Add(new FileNode
@@ -183,8 +183,8 @@ public class FilesDbInitializerTests
     public async Task WhenSeedDefaultTagsCalledThenCreatesExpectedTagNames()
     {
         using var context = CreateContext();
-        var userId = Guid.NewGuid();
-        var rootId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var rootId = Guid.CreateVersion7();
 
         context.FileNodes.Add(new FileNode
         {
@@ -208,8 +208,8 @@ public class FilesDbInitializerTests
     public async Task WhenSeedDefaultTagsCalledThenTagsHaveColors()
     {
         using var context = CreateContext();
-        var userId = Guid.NewGuid();
-        var rootId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var rootId = Guid.CreateVersion7();
 
         context.FileNodes.Add(new FileNode
         {
@@ -232,8 +232,8 @@ public class FilesDbInitializerTests
     public async Task WhenSeedDefaultTagsCalledTwiceThenDoesNotDuplicate()
     {
         using var context = CreateContext();
-        var userId = Guid.NewGuid();
-        var rootId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var rootId = Guid.CreateVersion7();
 
         context.FileNodes.Add(new FileNode
         {
@@ -256,7 +256,7 @@ public class FilesDbInitializerTests
     public async Task WhenNullDbPassedToSeedDefaultTagsThenThrows()
     {
         await Assert.ThrowsExactlyAsync<ArgumentNullException>(
-            () => FilesDbInitializer.SeedDefaultTagsAsync(null!, Guid.NewGuid(), Guid.NewGuid()));
+            () => FilesDbInitializer.SeedDefaultTagsAsync(null!, Guid.CreateVersion7(), Guid.CreateVersion7()));
     }
 
     // ---- InitializeUserAsync ----
@@ -265,7 +265,7 @@ public class FilesDbInitializerTests
     public async Task WhenInitializeUserCalledThenCreatesRootFolderQuotaAndTags()
     {
         using var context = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var logger = NullLogger.Instance;
 
         await FilesDbInitializer.InitializeUserAsync(context, userId, logger: logger);
@@ -283,7 +283,7 @@ public class FilesDbInitializerTests
     public async Task WhenInitializeUserCalledTwiceThenIsIdempotent()
     {
         using var context = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         await FilesDbInitializer.InitializeUserAsync(context, userId);
         await FilesDbInitializer.InitializeUserAsync(context, userId);
@@ -301,8 +301,8 @@ public class FilesDbInitializerTests
     public async Task WhenInitializeUserCalledForTwoUsersThenSeparateData()
     {
         using var context = CreateContext();
-        var user1 = Guid.NewGuid();
-        var user2 = Guid.NewGuid();
+        var user1 = Guid.CreateVersion7();
+        var user2 = Guid.CreateVersion7();
 
         await FilesDbInitializer.InitializeUserAsync(context, user1);
         await FilesDbInitializer.InitializeUserAsync(context, user2);
@@ -320,14 +320,14 @@ public class FilesDbInitializerTests
     public async Task WhenNullDbPassedToInitializeUserThenThrows()
     {
         await Assert.ThrowsExactlyAsync<ArgumentNullException>(
-            () => FilesDbInitializer.InitializeUserAsync(null!, Guid.NewGuid()));
+            () => FilesDbInitializer.InitializeUserAsync(null!, Guid.CreateVersion7()));
     }
 
     [TestMethod]
     public async Task WhenInitializeUserCalledWithCustomQuotaThenUsesCustomQuota()
     {
         using var context = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         long customQuota = 1L * 1024 * 1024 * 1024; // 1 GB
 
         await FilesDbInitializer.InitializeUserAsync(context, userId, customQuota);

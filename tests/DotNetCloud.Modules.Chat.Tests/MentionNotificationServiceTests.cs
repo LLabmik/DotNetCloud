@@ -29,7 +29,7 @@ public class MentionNotificationServiceTests
     public async Task Setup()
     {
         var options = new DbContextOptionsBuilder<ChatDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options;
         _db = new ChatDbContext(options);
 
@@ -45,8 +45,8 @@ public class MentionNotificationServiceTests
             NullLogger<MentionNotificationService>.Instance,
             _userDirectoryMock.Object);
 
-        _senderUserId = Guid.NewGuid();
-        _memberUserId = Guid.NewGuid();
+        _senderUserId = Guid.CreateVersion7();
+        _memberUserId = Guid.CreateVersion7();
 
         // Create a channel with sender and member
         var channel = new Channel { Name = "test-channel", CreatedByUserId = _senderUserId };
@@ -77,7 +77,7 @@ public class MentionNotificationServiceTests
     public async Task WhenNoMentionsThenNoNotificationsSent()
     {
         await _service.DispatchMentionNotificationsAsync(
-            Guid.NewGuid(), _channelId, _senderUserId, [], CancellationToken.None);
+            Guid.CreateVersion7(), _channelId, _senderUserId, [], CancellationToken.None);
 
         _realtimeMock.Verify(
             r => r.BroadcastUnreadCountAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<CancellationToken>()),
@@ -90,7 +90,7 @@ public class MentionNotificationServiceTests
     [TestMethod]
     public async Task WhenAtAllMentionThenAllMembersExceptSenderAreNotified()
     {
-        var messageId = Guid.NewGuid();
+        var messageId = Guid.CreateVersion7();
         var mentions = new List<MessageMention>
         {
             new() { MessageId = messageId, Type = MentionType.All, StartIndex = 0, Length = 4 }
@@ -111,7 +111,7 @@ public class MentionNotificationServiceTests
     [TestMethod]
     public async Task WhenAtChannelMentionThenAllMembersExceptSenderAreNotified()
     {
-        var messageId = Guid.NewGuid();
+        var messageId = Guid.CreateVersion7();
         var mentions = new List<MessageMention>
         {
             new() { MessageId = messageId, Type = MentionType.Channel, StartIndex = 0, Length = 8 }
@@ -131,7 +131,7 @@ public class MentionNotificationServiceTests
     [TestMethod]
     public async Task WhenUserMentionThenOnlyMentionedUserIsNotified()
     {
-        var messageId = Guid.NewGuid();
+        var messageId = Guid.CreateVersion7();
         var mentions = new List<MessageMention>
         {
             new() { MessageId = messageId, Type = MentionType.User, MentionedUserId = _memberUserId, StartIndex = 0, Length = 6 }
@@ -148,7 +148,7 @@ public class MentionNotificationServiceTests
     [TestMethod]
     public async Task WhenUserMentionsSenderThenSenderIsNotNotified()
     {
-        var messageId = Guid.NewGuid();
+        var messageId = Guid.CreateVersion7();
         // Sender mentions themselves
         var mentions = new List<MessageMention>
         {
@@ -175,7 +175,7 @@ public class MentionNotificationServiceTests
         membership.IsMuted = true;
         await _db.SaveChangesAsync();
 
-        var messageId = Guid.NewGuid();
+        var messageId = Guid.CreateVersion7();
         var mentions = new List<MessageMention>
         {
             new() { MessageId = messageId, Type = MentionType.All, StartIndex = 0, Length = 4 }
@@ -197,7 +197,7 @@ public class MentionNotificationServiceTests
         membership.NotificationPref = NotificationPreference.None;
         await _db.SaveChangesAsync();
 
-        var messageId = Guid.NewGuid();
+        var messageId = Guid.CreateVersion7();
         var mentions = new List<MessageMention>
         {
             new() { MessageId = messageId, Type = MentionType.User, MentionedUserId = _memberUserId, StartIndex = 0, Length = 6 }
@@ -214,7 +214,7 @@ public class MentionNotificationServiceTests
     [TestMethod]
     public async Task WhenPushNotificationSentThenCategoryIsChatMention()
     {
-        var messageId = Guid.NewGuid();
+        var messageId = Guid.CreateVersion7();
         var mentions = new List<MessageMention>
         {
             new() { MessageId = messageId, Type = MentionType.All, StartIndex = 0, Length = 4 }
@@ -234,7 +234,7 @@ public class MentionNotificationServiceTests
     [TestMethod]
     public async Task WhenPushNotificationSentThenDataContainsChannelAndMessageIds()
     {
-        var messageId = Guid.NewGuid();
+        var messageId = Guid.CreateVersion7();
         var mentions = new List<MessageMention>
         {
             new() { MessageId = messageId, Type = MentionType.All, StartIndex = 0, Length = 4 }
@@ -260,7 +260,7 @@ public class MentionNotificationServiceTests
             .Setup(ud => ud.GetDisplayNamesAsync(It.IsAny<IEnumerable<Guid>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new Dictionary<Guid, string> { [_senderUserId] = "Alice" });
 
-        var messageId = Guid.NewGuid();
+        var messageId = Guid.CreateVersion7();
         var mentions = new List<MessageMention>
         {
             new() { MessageId = messageId, Type = MentionType.All, StartIndex = 0, Length = 4 }
@@ -285,7 +285,7 @@ public class MentionNotificationServiceTests
             NullLogger<MentionNotificationService>.Instance,
             userDirectory: null);
 
-        var messageId = Guid.NewGuid();
+        var messageId = Guid.CreateVersion7();
         var mentions = new List<MessageMention>
         {
             new() { MessageId = messageId, Type = MentionType.All, StartIndex = 0, Length = 4 }
@@ -306,7 +306,7 @@ public class MentionNotificationServiceTests
     public async Task WhenMultipleMembersExistThenAllEligibleAreNotified()
     {
         // Add a third member
-        var thirdUserId = Guid.NewGuid();
+        var thirdUserId = Guid.CreateVersion7();
         _db.ChannelMembers.Add(new ChannelMember
         {
             ChannelId = _channelId,
@@ -315,7 +315,7 @@ public class MentionNotificationServiceTests
         });
         await _db.SaveChangesAsync();
 
-        var messageId = Guid.NewGuid();
+        var messageId = Guid.CreateVersion7();
         var mentions = new List<MessageMention>
         {
             new() { MessageId = messageId, Type = MentionType.All, StartIndex = 0, Length = 4 }
@@ -339,8 +339,8 @@ public class MentionNotificationServiceTests
     [TestMethod]
     public async Task WhenUserMentionedIsNotChannelMemberThenNoNotificationSent()
     {
-        var nonMemberId = Guid.NewGuid();
-        var messageId = Guid.NewGuid();
+        var nonMemberId = Guid.CreateVersion7();
+        var messageId = Guid.CreateVersion7();
         var mentions = new List<MessageMention>
         {
             new() { MessageId = messageId, Type = MentionType.User, MentionedUserId = nonMemberId, StartIndex = 0, Length = 6 }

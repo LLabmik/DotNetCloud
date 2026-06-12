@@ -11,7 +11,7 @@ public sealed class OidcKeyManagerTests
     [TestInitialize]
     public void Setup()
     {
-        _tempDir = Path.Combine(Path.GetTempPath(), "dnc-oidc-test-" + Guid.NewGuid());
+        _tempDir = Path.Combine(Path.GetTempPath(), "dnc-oidc-test-" + Guid.CreateVersion7());
         Directory.CreateDirectory(_tempDir);
     }
 

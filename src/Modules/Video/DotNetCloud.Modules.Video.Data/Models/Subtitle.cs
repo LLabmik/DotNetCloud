@@ -6,7 +6,7 @@ namespace DotNetCloud.Modules.Video.Models;
 public sealed class Subtitle
 {
     /// <summary>Unique identifier for this subtitle.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>The video this subtitle belongs to.</summary>
     public Guid VideoId { get; set; }

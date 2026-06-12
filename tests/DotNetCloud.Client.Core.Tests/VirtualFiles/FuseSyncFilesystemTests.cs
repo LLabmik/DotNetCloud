@@ -88,9 +88,9 @@ public sealed class FuseSyncFilesystemTests
 
         await noop.InitializeAsync(new DotNetCloud.Client.Core.Sync.SyncContext
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             ServerBaseUrl = "https://cloud.example.com",
-            UserId = Guid.NewGuid(),
+            UserId = Guid.CreateVersion7(),
             LocalFolderPath = "/tmp/synctray",
             StateDatabasePath = "/tmp/synctray/state.db",
             AccountKey = "test",
@@ -102,7 +102,7 @@ public sealed class FuseSyncFilesystemTests
             NodeType = "Folder",
         });
 
-        await noop.HydrateFileAsync("/tmp/synctray/file.txt", Guid.NewGuid());
+        await noop.HydrateFileAsync("/tmp/synctray/file.txt", Guid.CreateVersion7());
         await noop.DehydrateFileAsync("/tmp/synctray/file.txt");
         await noop.PinFileAsync("/tmp/synctray/file.txt");
         await noop.UnpinFileAsync("/tmp/synctray/file.txt");

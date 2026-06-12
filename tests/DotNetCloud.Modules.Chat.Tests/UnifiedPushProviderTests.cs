@@ -10,7 +10,7 @@ public class UnifiedPushProviderTests
     [TestMethod]
     public async Task SendAsync_WhenTransientFailuresThenSuccess_ThenRetriesUntilDelivered()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var endpoint = "https://up.example/device";
         var transport = new SequenceUnifiedPushTransport([
             new UnifiedPushSendResult { IsSuccess = false, IsTransientFailure = true, Error = "timeout_1" },
@@ -37,7 +37,7 @@ public class UnifiedPushProviderTests
     [TestMethod]
     public async Task SendAsync_WhenNonTransientFailure_ThenDoesNotRetry()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var endpoint = "https://up.example/device";
         var transport = new SequenceUnifiedPushTransport([
             new UnifiedPushSendResult { IsSuccess = false, IsTransientFailure = false, Error = "bad_request" },
@@ -63,7 +63,7 @@ public class UnifiedPushProviderTests
     [TestMethod]
     public async Task SendAsync_WhenMaxAttemptsConfiguredToTwo_ThenOnlyTwoAttemptsAreMade()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var endpoint = "https://up.example/device";
         var transport = new SequenceUnifiedPushTransport([
             new UnifiedPushSendResult { IsSuccess = false, IsTransientFailure = true, Error = "timeout_1" },

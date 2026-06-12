@@ -37,7 +37,7 @@ public class SearchControllerTests
             NullLogger<SearchQueryService>.Instance);
 
         var dbOptions = new DbContextOptionsBuilder<SearchDbContext>()
-            .UseInMemoryDatabase($"SearchControllerTests_{Guid.NewGuid()}")
+            .UseInMemoryDatabase($"SearchControllerTests_{Guid.CreateVersion7()}")
             .Options;
         _db = new SearchDbContext(dbOptions);
 
@@ -389,7 +389,7 @@ public class SearchControllerTests
             .Select(i => new SearchResultItem
             {
                 ModuleId = moduleId,
-                EntityId = Guid.NewGuid().ToString(),
+                EntityId = Guid.CreateVersion7().ToString(),
                 EntityType = "Document",
                 Title = $"{title} {i}",
                 Snippet = $"...{title} {i} snippet...",

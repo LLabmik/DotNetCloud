@@ -30,7 +30,7 @@ public class ChatNotificationBadgeTests
     public void WhenUnreadCountUpdatedThenTotalUnreadReflectsCount()
     {
         var badge = new TestableBadge();
-        var channelId = Guid.NewGuid();
+        var channelId = Guid.CreateVersion7();
 
         badge.ApplyUnreadCountUpdate(channelId, 5);
 
@@ -42,8 +42,8 @@ public class ChatNotificationBadgeTests
     {
         var badge = new TestableBadge();
 
-        badge.ApplyUnreadCountUpdate(Guid.NewGuid(), 3);
-        badge.ApplyUnreadCountUpdate(Guid.NewGuid(), 7);
+        badge.ApplyUnreadCountUpdate(Guid.CreateVersion7(), 3);
+        badge.ApplyUnreadCountUpdate(Guid.CreateVersion7(), 7);
 
         Assert.AreEqual(10, badge.TestTotalUnread);
     }
@@ -52,7 +52,7 @@ public class ChatNotificationBadgeTests
     public void WhenSameChannelUpdatedTwiceThenLatestCountReplacesPrevious()
     {
         var badge = new TestableBadge();
-        var channelId = Guid.NewGuid();
+        var channelId = Guid.CreateVersion7();
 
         badge.ApplyUnreadCountUpdate(channelId, 5);
         badge.ApplyUnreadCountUpdate(channelId, 2);
@@ -64,8 +64,8 @@ public class ChatNotificationBadgeTests
     public void WhenChannelResetToZeroThenTotalUnreadExcludesThatChannel()
     {
         var badge = new TestableBadge();
-        var channel1 = Guid.NewGuid();
-        var channel2 = Guid.NewGuid();
+        var channel1 = Guid.CreateVersion7();
+        var channel2 = Guid.CreateVersion7();
 
         badge.ApplyUnreadCountUpdate(channel1, 4);
         badge.ApplyUnreadCountUpdate(channel2, 6);
@@ -87,7 +87,7 @@ public class ChatNotificationBadgeTests
     {
         var badge = new TestableBadge();
 
-        badge.ApplyMentionCountUpdate(Guid.NewGuid(), 1);
+        badge.ApplyMentionCountUpdate(Guid.CreateVersion7(), 1);
 
         Assert.IsTrue(badge.TestHasMentions);
     }
@@ -97,7 +97,7 @@ public class ChatNotificationBadgeTests
     {
         var badge = new TestableBadge();
 
-        badge.ApplyMentionCountUpdate(Guid.NewGuid(), 2);
+        badge.ApplyMentionCountUpdate(Guid.CreateVersion7(), 2);
 
         Assert.IsTrue(badge.TestHasMentions);
     }
@@ -106,7 +106,7 @@ public class ChatNotificationBadgeTests
     public void WhenMentionCountResetToZeroThenHasMentionsIsFalse()
     {
         var badge = new TestableBadge();
-        var channelId = Guid.NewGuid();
+        var channelId = Guid.CreateVersion7();
 
         badge.ApplyMentionCountUpdate(channelId, 3);
         badge.ApplyMentionCountUpdate(channelId, 0);
@@ -119,7 +119,7 @@ public class ChatNotificationBadgeTests
     {
         var badge = new TestableBadge();
 
-        badge.ApplyUnreadCountUpdate(Guid.NewGuid(), 5);
+        badge.ApplyUnreadCountUpdate(Guid.CreateVersion7(), 5);
 
         Assert.IsFalse(badge.TestHasMentions);
     }
@@ -129,8 +129,8 @@ public class ChatNotificationBadgeTests
     {
         var badge = new TestableBadge();
 
-        badge.ApplyMentionCountUpdate(Guid.NewGuid(), 2);
-        badge.ApplyMentionCountUpdate(Guid.NewGuid(), 3);
+        badge.ApplyMentionCountUpdate(Guid.CreateVersion7(), 2);
+        badge.ApplyMentionCountUpdate(Guid.CreateVersion7(), 3);
 
         Assert.AreEqual(5, badge.TestTotalMentions);
     }

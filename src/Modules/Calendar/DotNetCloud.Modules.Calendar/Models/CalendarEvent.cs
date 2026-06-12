@@ -8,7 +8,7 @@ namespace DotNetCloud.Modules.Calendar.Models;
 public sealed class CalendarEvent
 {
     /// <summary>Unique identifier for this event.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>The calendar this event belongs to.</summary>
     public Guid CalendarId { get; set; }
@@ -59,7 +59,7 @@ public sealed class CalendarEvent
     public string? Url { get; set; }
 
     /// <summary>ETag for CalDAV sync / conflict detection.</summary>
-    public string ETag { get; set; } = Guid.NewGuid().ToString("N");
+    public string ETag { get; set; } = Guid.CreateVersion7().ToString("N");
 
     /// <summary>Whether this event has been soft-deleted.</summary>
     public bool IsDeleted { get; set; }

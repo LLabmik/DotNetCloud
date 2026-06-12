@@ -31,7 +31,7 @@ public class RequestCorrelationMiddleware
     public async Task InvokeAsync(HttpContext context)
     {
         var requestId = context.Request.Headers[HeaderName].FirstOrDefault()
-                        ?? Guid.NewGuid().ToString("N");
+                        ?? Guid.CreateVersion7().ToString("N");
 
         context.TraceIdentifier = requestId;
         context.Response.OnStarting(() =>

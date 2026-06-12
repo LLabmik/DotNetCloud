@@ -47,7 +47,7 @@ using Authorization;
 /// // 2. Publish event
 /// var @event = new UserCreatedEvent
 /// {
-///     EventId = Guid.NewGuid(),
+///     EventId = Guid.CreateVersion7(),
 ///     CreatedAt = DateTime.UtcNow,
 ///     UserId = newUserId
 /// };

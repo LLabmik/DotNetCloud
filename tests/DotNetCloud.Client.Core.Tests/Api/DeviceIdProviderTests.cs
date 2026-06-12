@@ -11,7 +11,7 @@ public class DeviceIdProviderTests
     [TestInitialize]
     public void Setup()
     {
-        _tempDir = Path.Combine(Path.GetTempPath(), "dnc-test-" + Guid.NewGuid().ToString("N")[..8]);
+        _tempDir = Path.Combine(Path.GetTempPath(), "dnc-test-" + Guid.CreateVersion7().ToString("N")[..8]);
         Directory.CreateDirectory(_tempDir);
     }
 

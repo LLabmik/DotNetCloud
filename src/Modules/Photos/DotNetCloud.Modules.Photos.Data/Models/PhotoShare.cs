@@ -6,7 +6,7 @@ namespace DotNetCloud.Modules.Photos.Models;
 public sealed class PhotoShare
 {
     /// <summary>Unique share identifier.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>Photo being shared (null if album share).</summary>
     public Guid? PhotoId { get; set; }

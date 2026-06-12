@@ -16,9 +16,9 @@ public class DirectMessageViewTests
         var view = CreateView();
         view.AssignUserSuggestions(
         [
-            new MemberViewModel { UserId = Guid.NewGuid(), DisplayName = "Alex Carter", Username = "acarter" },
-            new MemberViewModel { UserId = Guid.NewGuid(), DisplayName = "Beatrice Kim", Username = "bea" },
-            new MemberViewModel { UserId = Guid.NewGuid(), DisplayName = "Charlie Stone", Username = "cstone" }
+            new MemberViewModel { UserId = Guid.CreateVersion7(), DisplayName = "Alex Carter", Username = "acarter" },
+            new MemberViewModel { UserId = Guid.CreateVersion7(), DisplayName = "Beatrice Kim", Username = "bea" },
+            new MemberViewModel { UserId = Guid.CreateVersion7(), DisplayName = "Charlie Stone", Username = "cstone" }
         ]);
 
         view.SetSearchQuery("bea");
@@ -33,12 +33,12 @@ public class DirectMessageViewTests
     {
         var selectedUser = new MemberViewModel
         {
-            UserId = Guid.NewGuid(),
+            UserId = Guid.CreateVersion7(),
             DisplayName = "Beatrice Kim",
             Username = "bea"
         };
 
-        var expectedChannelId = Guid.NewGuid();
+        var expectedChannelId = Guid.CreateVersion7();
         var view = new TestableDirectMessageView(_ => Task.FromResult<ChannelViewModel?>(new ChannelViewModel
         {
             Id = expectedChannelId,
@@ -66,14 +66,14 @@ public class DirectMessageViewTests
     {
         var dmPeer = new MemberViewModel
         {
-            UserId = Guid.NewGuid(),
+            UserId = Guid.CreateVersion7(),
             DisplayName = "Alex Carter",
             Username = "acarter"
         };
 
         var newMember = new MemberViewModel
         {
-            UserId = Guid.NewGuid(),
+            UserId = Guid.CreateVersion7(),
             DisplayName = "Beatrice Kim",
             Username = "bea"
         };
@@ -90,7 +90,7 @@ public class DirectMessageViewTests
                 return Task.FromResult(true);
             });
 
-        var channelId = Guid.NewGuid();
+        var channelId = Guid.CreateVersion7();
         view.AssignActiveDm(dmPeer, channelId, 2);
         view.AssignUserSuggestions([dmPeer, newMember]);
 

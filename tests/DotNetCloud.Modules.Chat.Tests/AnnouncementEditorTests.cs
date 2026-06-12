@@ -44,7 +44,7 @@ public class AnnouncementEditorTests
     {
         var announcement = new AnnouncementViewModel
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             Title = "Release Notes",
             Content = "Version 2.0 released.",
             Priority = "Urgent",

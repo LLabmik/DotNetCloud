@@ -6,7 +6,7 @@ namespace DotNetCloud.Modules.Photos.Models;
 public sealed class Album
 {
     /// <summary>Unique identifier for this album.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>The user who owns this album.</summary>
     public Guid OwnerId { get; set; }

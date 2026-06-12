@@ -17,7 +17,7 @@ public class WopiTokenServiceTests
 {
     private static FilesDbContext CreateContext() =>
         new(new DbContextOptionsBuilder<FilesDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options);
 
     private static CallerContext UserCaller(Guid userId) =>
@@ -61,7 +61,7 @@ public class WopiTokenServiceTests
     public async Task GenerateTokenAsync_ValidFile_ReturnsToken()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = new FileNode { Name = "report.docx", NodeType = FileNodeType.File, OwnerId = userId, MimeType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document" };
         db.FileNodes.Add(node);
         await db.SaveChangesAsync();
@@ -82,14 +82,14 @@ public class WopiTokenServiceTests
         var service = CreateTokenService(db);
 
         await Assert.ThrowsExactlyAsync<Core.Errors.NotFoundException>(
-            () => service.GenerateTokenAsync(Guid.NewGuid(), UserCaller(Guid.NewGuid())));
+            () => service.GenerateTokenAsync(Guid.CreateVersion7(), UserCaller(Guid.CreateVersion7())));
     }
 
     [TestMethod]
     public async Task GenerateTokenAsync_Folder_ThrowsInvalidOperationException()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var folder = new FileNode { Name = "Documents", NodeType = FileNodeType.Folder, OwnerId = userId };
         db.FileNodes.Add(folder);
         await db.SaveChangesAsync();
@@ -104,8 +104,8 @@ public class WopiTokenServiceTests
     public async Task GenerateTokenAsync_NoAccess_ThrowsForbiddenException()
     {
         using var db = CreateContext();
-        var ownerId = Guid.NewGuid();
-        var otherId = Guid.NewGuid();
+        var ownerId = Guid.CreateVersion7();
+        var otherId = Guid.CreateVersion7();
         var node = new FileNode { Name = "secret.docx", NodeType = FileNodeType.File, OwnerId = ownerId };
         db.FileNodes.Add(node);
         await db.SaveChangesAsync();
@@ -120,7 +120,7 @@ public class WopiTokenServiceTests
     public async Task ValidateToken_ValidToken_ReturnsContext()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = new FileNode { Name = "doc.docx", NodeType = FileNodeType.File, OwnerId = userId };
         db.FileNodes.Add(node);
         await db.SaveChangesAsync();
@@ -143,7 +143,7 @@ public class WopiTokenServiceTests
         using var db = CreateContext();
         var service = CreateTokenService(db);
 
-        var result = service.ValidateToken("", Guid.NewGuid());
+        var result = service.ValidateToken("", Guid.CreateVersion7());
 
         Assert.IsNull(result);
     }
@@ -154,7 +154,7 @@ public class WopiTokenServiceTests
         using var db = CreateContext();
         var service = CreateTokenService(db);
 
-        var result = service.ValidateToken("not.a.valid.token", Guid.NewGuid());
+        var result = service.ValidateToken("not.a.valid.token", Guid.CreateVersion7());
 
         Assert.IsNull(result);
     }
@@ -163,7 +163,7 @@ public class WopiTokenServiceTests
     public async Task ValidateToken_WrongFileId_ReturnsNull()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = new FileNode { Name = "doc.docx", NodeType = FileNodeType.File, OwnerId = userId };
         db.FileNodes.Add(node);
         await db.SaveChangesAsync();
@@ -171,7 +171,7 @@ public class WopiTokenServiceTests
         var service = CreateTokenService(db);
         var token = await service.GenerateTokenAsync(node.Id, UserCaller(userId));
 
-        var result = service.ValidateToken(token.AccessToken, Guid.NewGuid());
+        var result = service.ValidateToken(token.AccessToken, Guid.CreateVersion7());
 
         Assert.IsNull(result);
     }
@@ -180,7 +180,7 @@ public class WopiTokenServiceTests
     public async Task ValidateToken_TamperedPayload_ReturnsNull()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = new FileNode { Name = "doc.docx", NodeType = FileNodeType.File, OwnerId = userId };
         db.FileNodes.Add(node);
         await db.SaveChangesAsync();
@@ -202,7 +202,7 @@ public class WopiTokenServiceTests
     public async Task GenerateTokenAsync_WopiSrcContainsBaseUrl()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = new FileNode { Name = "doc.docx", NodeType = FileNodeType.File, OwnerId = userId };
         db.FileNodes.Add(node);
         await db.SaveChangesAsync();
@@ -217,7 +217,7 @@ public class WopiTokenServiceTests
     public async Task GenerateTokenAsync_TokenIsUrlSafeBase64()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = new FileNode { Name = "doc.docx", NodeType = FileNodeType.File, OwnerId = userId };
         db.FileNodes.Add(node);
         await db.SaveChangesAsync();
@@ -238,7 +238,7 @@ public class WopiTokenServiceTests
         try
         {
             using var db = CreateContext();
-            var userId = Guid.NewGuid();
+            var userId = Guid.CreateVersion7();
             var node = new FileNode { Name = "doc.docx", NodeType = FileNodeType.File, OwnerId = userId };
             db.FileNodes.Add(node);
             await db.SaveChangesAsync();
@@ -263,7 +263,7 @@ public class WopiTokenServiceTests
     public async Task GenerateTokenAsync_DeletedFile_ThrowsNotFoundException()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = new FileNode { Name = "deleted.docx", NodeType = FileNodeType.File, OwnerId = userId, IsDeleted = true };
         db.FileNodes.Add(node);
         await db.SaveChangesAsync();
@@ -278,7 +278,7 @@ public class WopiTokenServiceTests
     public async Task GenerateTokenAsync_CollaboraUnavailable_ThrowsInvalidOperationException()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = new FileNode { Name = "doc.docx", NodeType = FileNodeType.File, OwnerId = userId };
         db.FileNodes.Add(node);
         await db.SaveChangesAsync();
@@ -296,7 +296,7 @@ public class WopiTokenServiceTests
     public async Task GenerateTokenAsync_UnsupportedExtension_ThrowsInvalidOperationException()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = new FileNode { Name = "archive.zip", NodeType = FileNodeType.File, OwnerId = userId };
         db.FileNodes.Add(node);
         await db.SaveChangesAsync();

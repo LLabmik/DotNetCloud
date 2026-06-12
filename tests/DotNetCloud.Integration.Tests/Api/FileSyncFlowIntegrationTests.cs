@@ -15,7 +15,7 @@ namespace DotNetCloud.Integration.Tests.Api;
 public sealed class FileSyncFlowIntegrationTests
 {
     private static FilesHostWebApplicationFactory _factory = null!;
-    private static readonly Guid UserId = Guid.NewGuid();
+    private static readonly Guid UserId = Guid.CreateVersion7();
 
     private static System.Text.Json.JsonElement DataOrRoot(System.Text.Json.JsonElement root)
     {

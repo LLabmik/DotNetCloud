@@ -23,7 +23,7 @@ internal static class DatabaseSeeder
         ITableNamingStrategy? namingStrategy = null)
     {
         var options = new DbContextOptionsBuilder<CoreDbContext>()
-            .UseInMemoryDatabase(databaseName ?? $"IntTest_{Guid.NewGuid():N}")
+            .UseInMemoryDatabase(databaseName ?? $"IntTest_{Guid.CreateVersion7():N}")
             .Options;
 
         return new CoreDbContext(options, namingStrategy ?? new PostgreSqlNamingStrategy());
@@ -42,39 +42,39 @@ internal static class DatabaseSeeder
             identityRoles.AddRange(
                 new ApplicationRole
                 {
-                    Id = Guid.NewGuid(),
+                    Id = Guid.CreateVersion7(),
                     Name = "Administrator",
                     NormalizedName = "ADMINISTRATOR",
                     Description = "Full system access",
                     IsSystemRole = true,
-                    ConcurrencyStamp = Guid.NewGuid().ToString(),
+                    ConcurrencyStamp = Guid.CreateVersion7().ToString(),
                 },
                 new ApplicationRole
                 {
-                    Id = Guid.NewGuid(),
+                    Id = Guid.CreateVersion7(),
                     Name = "User",
                     NormalizedName = "USER",
                     Description = "Standard user access",
                     IsSystemRole = true,
-                    ConcurrencyStamp = Guid.NewGuid().ToString(),
+                    ConcurrencyStamp = Guid.CreateVersion7().ToString(),
                 },
                 new ApplicationRole
                 {
-                    Id = Guid.NewGuid(),
+                    Id = Guid.CreateVersion7(),
                     Name = "Guest",
                     NormalizedName = "GUEST",
                     Description = "Read-only guest access",
                     IsSystemRole = true,
-                    ConcurrencyStamp = Guid.NewGuid().ToString(),
+                    ConcurrencyStamp = Guid.CreateVersion7().ToString(),
                 },
                 new ApplicationRole
                 {
-                    Id = Guid.NewGuid(),
+                    Id = Guid.CreateVersion7(),
                     Name = "Moderator",
                     NormalizedName = "MODERATOR",
                     Description = "Content moderation access",
                     IsSystemRole = true,
-                    ConcurrencyStamp = Guid.NewGuid().ToString(),
+                    ConcurrencyStamp = Guid.CreateVersion7().ToString(),
                 });
         }
 
@@ -82,13 +82,13 @@ internal static class DatabaseSeeder
         if (!await context.Permissions.AnyAsync())
         {
             context.Permissions.AddRange(
-                new Permission { Id = Guid.NewGuid(), Code = "core.admin", DisplayName = "System Administration" },
-                new Permission { Id = Guid.NewGuid(), Code = "core.users.view", DisplayName = "View Users" },
-                new Permission { Id = Guid.NewGuid(), Code = "core.users.manage", DisplayName = "Manage Users" },
-                new Permission { Id = Guid.NewGuid(), Code = "core.settings.view", DisplayName = "View Settings" },
-                new Permission { Id = Guid.NewGuid(), Code = "core.settings.manage", DisplayName = "Manage Settings" },
-                new Permission { Id = Guid.NewGuid(), Code = "core.modules.view", DisplayName = "View Modules" },
-                new Permission { Id = Guid.NewGuid(), Code = "core.modules.manage", DisplayName = "Manage Modules" });
+                new Permission { Id = Guid.CreateVersion7(), Code = "core.admin", DisplayName = "System Administration" },
+                new Permission { Id = Guid.CreateVersion7(), Code = "core.users.view", DisplayName = "View Users" },
+                new Permission { Id = Guid.CreateVersion7(), Code = "core.users.manage", DisplayName = "Manage Users" },
+                new Permission { Id = Guid.CreateVersion7(), Code = "core.settings.view", DisplayName = "View Settings" },
+                new Permission { Id = Guid.CreateVersion7(), Code = "core.settings.manage", DisplayName = "Manage Settings" },
+                new Permission { Id = Guid.CreateVersion7(), Code = "core.modules.view", DisplayName = "View Modules" },
+                new Permission { Id = Guid.CreateVersion7(), Code = "core.modules.manage", DisplayName = "Manage Modules" });
         }
 
         // Seed default system settings
@@ -118,7 +118,7 @@ internal static class DatabaseSeeder
         {
             context.Organizations.Add(new Organization
             {
-                Id = Guid.NewGuid(),
+                Id = Guid.CreateVersion7(),
                 Name = "Test Organization",
                 Description = "Default test organization",
                 CreatedAt = DateTime.UtcNow,

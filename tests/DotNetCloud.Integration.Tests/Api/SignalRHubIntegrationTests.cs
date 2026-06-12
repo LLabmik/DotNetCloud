@@ -19,8 +19,8 @@ namespace DotNetCloud.Integration.Tests.Api;
 public sealed class SignalRHubIntegrationTests
 {
     private static DotNetCloudWebApplicationFactory _factory = null!;
-    private static readonly Guid UserId1 = Guid.NewGuid();
-    private static readonly Guid UserId2 = Guid.NewGuid();
+    private static readonly Guid UserId1 = Guid.CreateVersion7();
+    private static readonly Guid UserId2 = Guid.CreateVersion7();
 
     [ClassInitialize]
     public static void ClassInit(TestContext _)
@@ -94,7 +94,7 @@ public sealed class SignalRHubIntegrationTests
         var chatDb = _factory.Services.CreateScope().ServiceProvider.GetRequiredService<ChatDbContext>();
         var channel = new DotNetCloud.Modules.Chat.Models.Channel
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             Name = name,
             Type = DotNetCloud.Modules.Chat.Models.ChannelType.Public,
             Description = $"Test {name}",
@@ -113,7 +113,7 @@ public sealed class SignalRHubIntegrationTests
         var chatDb = _factory.Services.CreateScope().ServiceProvider.GetRequiredService<ChatDbContext>();
         var member = new DotNetCloud.Modules.Chat.Models.ChannelMember
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             ChannelId = channelId,
             UserId = userId,
             Role = DotNetCloud.Modules.Chat.Models.ChannelMemberRole.Member,
@@ -130,7 +130,7 @@ public sealed class SignalRHubIntegrationTests
         var chatDb = _factory.Services.CreateScope().ServiceProvider.GetRequiredService<ChatDbContext>();
         var message = new DotNetCloud.Modules.Chat.Models.Message
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             ChannelId = channelId,
             SenderUserId = userId,
             Content = content,

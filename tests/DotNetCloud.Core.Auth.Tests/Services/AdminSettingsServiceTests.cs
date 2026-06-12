@@ -23,7 +23,7 @@ public class AdminSettingsServiceTests
     [TestInitialize]
     public void Setup()
     {
-        _databaseName = $"SettingsTests_{Guid.NewGuid()}";
+        _databaseName = $"SettingsTests_{Guid.CreateVersion7()}";
         _dbContext = CreateDbContext();
 
         _loggerMock = new Mock<ILogger<AdminSettingsService>>();

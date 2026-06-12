@@ -41,7 +41,7 @@ public class SearchReindexBackgroundServicePhase4Tests
             .Setup(m => m.GetAllSearchableDocumentsAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<SearchDocument>());
 
-        var dbName = Guid.NewGuid().ToString();
+        var dbName = Guid.CreateVersion7().ToString();
         var services = new ServiceCollection();
         services.AddDbContext<SearchDbContext>(options =>
             options.UseInMemoryDatabase(dbName));
@@ -282,7 +282,7 @@ public class SearchReindexBackgroundServicePhase4Tests
             EntityId = "e1",
             EntityType = "Widget",
             Title = "Orphan",
-            OwnerId = Guid.NewGuid(),
+            OwnerId = Guid.CreateVersion7(),
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow,
             IndexedAt = DateTimeOffset.UtcNow
@@ -295,7 +295,7 @@ public class SearchReindexBackgroundServicePhase4Tests
             EntityId = "f1",
             EntityType = "FileNode",
             Title = "Good File",
-            OwnerId = Guid.NewGuid(),
+            OwnerId = Guid.CreateVersion7(),
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow,
             IndexedAt = DateTimeOffset.UtcNow
@@ -325,7 +325,7 @@ public class SearchReindexBackgroundServicePhase4Tests
             EntityId = "f1",
             EntityType = "FileNode",
             Title = "File",
-            OwnerId = Guid.NewGuid(),
+            OwnerId = Guid.CreateVersion7(),
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow,
             IndexedAt = DateTimeOffset.UtcNow
@@ -336,7 +336,7 @@ public class SearchReindexBackgroundServicePhase4Tests
             EntityId = "n1",
             EntityType = "Note",
             Title = "Note",
-            OwnerId = Guid.NewGuid(),
+            OwnerId = Guid.CreateVersion7(),
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow,
             IndexedAt = DateTimeOffset.UtcNow
@@ -381,7 +381,7 @@ public class SearchReindexBackgroundServicePhase4Tests
                 EntityId = "o1",
                 EntityType = "Widget",
                 Title = "Orphan",
-                OwnerId = Guid.NewGuid(),
+                OwnerId = Guid.CreateVersion7(),
                 CreatedAt = DateTimeOffset.UtcNow,
                 UpdatedAt = DateTimeOffset.UtcNow,
                 IndexedAt = DateTimeOffset.UtcNow
@@ -454,7 +454,7 @@ public class SearchReindexBackgroundServicePhase4Tests
             EntityType = entityType,
             Title = $"{entityType} {i}",
             Content = $"Content for {entityType} {i}",
-            OwnerId = Guid.NewGuid(),
+            OwnerId = Guid.CreateVersion7(),
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow
         }).ToList();

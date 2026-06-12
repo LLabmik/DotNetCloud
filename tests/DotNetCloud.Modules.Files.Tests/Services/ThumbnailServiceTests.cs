@@ -12,7 +12,7 @@ public class ThumbnailServiceTests
     [TestMethod]
     public async Task GenerateThumbnailAsync_WithVideoMimeType_GeneratesThumbnailsFromExtractedFrame()
     {
-        var storageRoot = Path.Combine(Path.GetTempPath(), "dnc-thumb-tests", Guid.NewGuid().ToString("N"));
+        var storageRoot = Path.Combine(Path.GetTempPath(), "dnc-thumb-tests", Guid.CreateVersion7().ToString("N"));
         Directory.CreateDirectory(storageRoot);
 
         try
@@ -28,7 +28,7 @@ public class ThumbnailServiceTests
             var pdfRenderer = new FakePdfPageRenderer(success: true);
             var service = new ThumbnailService(config, extractor, pdfRenderer, NullLogger<ThumbnailService>.Instance);
 
-            var fileId = Guid.NewGuid();
+            var fileId = Guid.CreateVersion7();
             var fakeVideoPath = Path.Combine(storageRoot, "sample.mp4");
             await File.WriteAllTextAsync(fakeVideoPath, "video-binary-placeholder");
 
@@ -52,7 +52,7 @@ public class ThumbnailServiceTests
     [TestMethod]
     public async Task GenerateThumbnailAsync_WithVideoMimeType_WhenExtractionFails_DoesNotGenerateThumbnails()
     {
-        var storageRoot = Path.Combine(Path.GetTempPath(), "dnc-thumb-tests", Guid.NewGuid().ToString("N"));
+        var storageRoot = Path.Combine(Path.GetTempPath(), "dnc-thumb-tests", Guid.CreateVersion7().ToString("N"));
         Directory.CreateDirectory(storageRoot);
 
         try
@@ -68,7 +68,7 @@ public class ThumbnailServiceTests
             var pdfRenderer = new FakePdfPageRenderer(success: true);
             var service = new ThumbnailService(config, extractor, pdfRenderer, NullLogger<ThumbnailService>.Instance);
 
-            var fileId = Guid.NewGuid();
+            var fileId = Guid.CreateVersion7();
             var fakeVideoPath = Path.Combine(storageRoot, "sample-fail.mp4");
             await File.WriteAllTextAsync(fakeVideoPath, "video-binary-placeholder");
 
@@ -91,7 +91,7 @@ public class ThumbnailServiceTests
     [TestMethod]
     public async Task GenerateThumbnailAsync_WithPdfMimeType_GeneratesThumbnailsFromFirstPageRender()
     {
-        var storageRoot = Path.Combine(Path.GetTempPath(), "dnc-thumb-tests", Guid.NewGuid().ToString("N"));
+        var storageRoot = Path.Combine(Path.GetTempPath(), "dnc-thumb-tests", Guid.CreateVersion7().ToString("N"));
         Directory.CreateDirectory(storageRoot);
 
         try
@@ -107,7 +107,7 @@ public class ThumbnailServiceTests
             var pdfRenderer = new FakePdfPageRenderer(success: true);
             var service = new ThumbnailService(config, extractor, pdfRenderer, NullLogger<ThumbnailService>.Instance);
 
-            var fileId = Guid.NewGuid();
+            var fileId = Guid.CreateVersion7();
             var fakePdfPath = Path.Combine(storageRoot, "sample.pdf");
             await File.WriteAllTextAsync(fakePdfPath, "pdf-binary-placeholder");
 
@@ -131,7 +131,7 @@ public class ThumbnailServiceTests
     [TestMethod]
     public async Task GenerateThumbnailAsync_WithPdfMimeType_WhenRenderFails_DoesNotGenerateThumbnails()
     {
-        var storageRoot = Path.Combine(Path.GetTempPath(), "dnc-thumb-tests", Guid.NewGuid().ToString("N"));
+        var storageRoot = Path.Combine(Path.GetTempPath(), "dnc-thumb-tests", Guid.CreateVersion7().ToString("N"));
         Directory.CreateDirectory(storageRoot);
 
         try
@@ -147,7 +147,7 @@ public class ThumbnailServiceTests
             var pdfRenderer = new FakePdfPageRenderer(success: false);
             var service = new ThumbnailService(config, extractor, pdfRenderer, NullLogger<ThumbnailService>.Instance);
 
-            var fileId = Guid.NewGuid();
+            var fileId = Guid.CreateVersion7();
             var fakePdfPath = Path.Combine(storageRoot, "sample-fail.pdf");
             await File.WriteAllTextAsync(fakePdfPath, "pdf-binary-placeholder");
 

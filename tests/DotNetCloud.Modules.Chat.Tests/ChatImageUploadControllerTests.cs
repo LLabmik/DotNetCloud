@@ -28,8 +28,8 @@ public class ChatImageUploadControllerTests
     [TestInitialize]
     public void Setup()
     {
-        _userId = Guid.NewGuid();
-        _channelId = Guid.NewGuid();
+        _userId = Guid.CreateVersion7();
+        _channelId = Guid.CreateVersion7();
 
         var channelService = new Mock<IChannelService>();
         _memberService = new Mock<IChannelMemberService>();
@@ -110,7 +110,7 @@ public class ChatImageUploadControllerTests
         _memberService.Setup(s => s.ListMembersAsync(_channelId, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<ChannelMemberDto>
             {
-                new() { UserId = Guid.NewGuid(), DisplayName = "Other User", Role = "Member", JoinedAt = DateTime.UtcNow, NotificationPref = "all" }
+                new() { UserId = Guid.CreateVersion7(), DisplayName = "Other User", Role = "Member", JoinedAt = DateTime.UtcNow, NotificationPref = "all" }
             });
     }
 

@@ -54,7 +54,7 @@ public class ExampleModuleTests
 
     private CallerContext CreateUserCaller()
     {
-        return new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        return new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
     }
 
     // ---- Manifest ----
@@ -143,7 +143,7 @@ public class ExampleModuleTests
         await _module.StopAsync();
 
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(
-            () => _module.CreateNoteAsync("test", "content", Guid.NewGuid(), CreateUserCaller()));
+            () => _module.CreateNoteAsync("test", "content", Guid.CreateVersion7(), CreateUserCaller()));
     }
 
     // ---- Lifecycle: DisposeAsync ----
@@ -153,7 +153,7 @@ public class ExampleModuleTests
     {
         await _module.InitializeAsync(CreateContext());
         await _module.StartAsync();
-        await _module.CreateNoteAsync("test", "content", Guid.NewGuid(), CreateUserCaller());
+        await _module.CreateNoteAsync("test", "content", Guid.CreateVersion7(), CreateUserCaller());
 
         await ((IModuleLifecycle)_module).DisposeAsync();
 
@@ -200,7 +200,7 @@ public class ExampleModuleTests
         await _module.InitializeAsync(CreateContext());
         await _module.StartAsync();
 
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var note = await _module.CreateNoteAsync("My Note", "Content here", userId, CreateUserCaller());
 
         Assert.IsNotNull(note);
@@ -216,7 +216,7 @@ public class ExampleModuleTests
         await _module.InitializeAsync(CreateContext());
         await _module.StartAsync();
 
-        await _module.CreateNoteAsync("Test", "Body", Guid.NewGuid(), CreateUserCaller());
+        await _module.CreateNoteAsync("Test", "Body", Guid.CreateVersion7(), CreateUserCaller());
 
         _mockEventBus.Verify(
             b => b.PublishAsync(It.IsAny<NoteCreatedEvent>(), It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()),
@@ -235,7 +235,7 @@ public class ExampleModuleTests
         await _module.InitializeAsync(CreateContext());
         await _module.StartAsync();
 
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var note = await _module.CreateNoteAsync("Event Test", "Body", userId, CreateUserCaller());
 
         Assert.IsNotNull(capturedEvent);
@@ -249,7 +249,7 @@ public class ExampleModuleTests
     public async Task WhenNoteCreatedWhileNotRunningThenThrowsInvalidOperationException()
     {
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(
-            () => _module.CreateNoteAsync("Test", "Body", Guid.NewGuid(), CreateUserCaller()));
+            () => _module.CreateNoteAsync("Test", "Body", Guid.CreateVersion7(), CreateUserCaller()));
     }
 
     // ---- GetNotes ----
@@ -273,9 +273,9 @@ public class ExampleModuleTests
         await _module.StartAsync();
         var caller = CreateUserCaller();
 
-        await _module.CreateNoteAsync("Note 1", "Content 1", Guid.NewGuid(), caller);
-        await _module.CreateNoteAsync("Note 2", "Content 2", Guid.NewGuid(), caller);
-        await _module.CreateNoteAsync("Note 3", "Content 3", Guid.NewGuid(), caller);
+        await _module.CreateNoteAsync("Note 1", "Content 1", Guid.CreateVersion7(), caller);
+        await _module.CreateNoteAsync("Note 2", "Content 2", Guid.CreateVersion7(), caller);
+        await _module.CreateNoteAsync("Note 3", "Content 3", Guid.CreateVersion7(), caller);
 
         Assert.AreEqual(3, _module.GetNotes().Count);
     }
@@ -296,7 +296,7 @@ public class ExampleModuleTests
         await _module.InitializeAsync(CreateContext());
         await _module.StartAsync();
 
-        var created = await _module.CreateNoteAsync("Find Me", "Body", Guid.NewGuid(), CreateUserCaller());
+        var created = await _module.CreateNoteAsync("Find Me", "Body", Guid.CreateVersion7(), CreateUserCaller());
         var found = _module.GetNote(created.Id);
 
         Assert.IsNotNull(found);
@@ -310,7 +310,7 @@ public class ExampleModuleTests
         await _module.InitializeAsync(CreateContext());
         await _module.StartAsync();
 
-        var found = _module.GetNote(Guid.NewGuid());
+        var found = _module.GetNote(Guid.CreateVersion7());
 
         Assert.IsNull(found);
     }
@@ -320,6 +320,6 @@ public class ExampleModuleTests
     {
         await _module.InitializeAsync(CreateContext());
 
-        Assert.ThrowsExactly<InvalidOperationException>(() => _module.GetNote(Guid.NewGuid()));
+        Assert.ThrowsExactly<InvalidOperationException>(() => _module.GetNote(Guid.CreateVersion7()));
     }
 }

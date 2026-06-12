@@ -276,7 +276,7 @@ internal sealed class QuotaService : IQuotaService
         {
             await _eventBus.PublishAsync(new QuotaExceededEvent
             {
-                EventId = Guid.NewGuid(),
+                EventId = Guid.CreateVersion7(),
                 CreatedAt = DateTime.UtcNow,
                 UserId = quota.UserId,
                 UsedBytes = quota.UsedBytes,
@@ -288,7 +288,7 @@ internal sealed class QuotaService : IQuotaService
         {
             await _eventBus.PublishAsync(new QuotaCriticalEvent
             {
-                EventId = Guid.NewGuid(),
+                EventId = Guid.CreateVersion7(),
                 CreatedAt = DateTime.UtcNow,
                 UserId = quota.UserId,
                 UsedBytes = quota.UsedBytes,
@@ -300,7 +300,7 @@ internal sealed class QuotaService : IQuotaService
         {
             await _eventBus.PublishAsync(new QuotaWarningEvent
             {
-                EventId = Guid.NewGuid(),
+                EventId = Guid.CreateVersion7(),
                 CreatedAt = DateTime.UtcNow,
                 UserId = quota.UserId,
                 UsedBytes = quota.UsedBytes,

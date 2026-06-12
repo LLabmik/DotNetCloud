@@ -157,7 +157,7 @@ public class DockerDatabaseIntegrationTests
 
         var permission = new Permission
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             Code = "docker.sql.read",
             DisplayName = "Docker SQL Read",
             Description = "Docker SQL Server test permission",

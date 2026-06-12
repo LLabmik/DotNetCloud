@@ -86,7 +86,7 @@ public class SyncIgnoreParserTests
     [TestMethod]
     public async Task Initialize_LoadsSyncIgnoreFile_AppliesUserRules()
     {
-        var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        var root = Path.Combine(Path.GetTempPath(), Guid.CreateVersion7().ToString("N"));
         Directory.CreateDirectory(root);
         try
         {
@@ -110,7 +110,7 @@ public class SyncIgnoreParserTests
     [TestMethod]
     public async Task SaveAsync_WritesUserPatternsToSyncIgnoreFile()
     {
-        var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        var root = Path.Combine(Path.GetTempPath(), Guid.CreateVersion7().ToString("N"));
         Directory.CreateDirectory(root);
         try
         {

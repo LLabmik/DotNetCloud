@@ -23,8 +23,8 @@ public sealed class MediaLibraryControllerTests
     [TestMethod]
     public async Task GetLibraryPathsAsync_WithSharedMountSources_ReturnsConfiguredSources()
     {
-        var userId = Guid.NewGuid();
-        var sharedFolderId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var sharedFolderId = Guid.CreateVersion7();
         var settingsMock = new Mock<IUserSettingsService>(MockBehavior.Strict);
         SetupSources(settingsMock, userId, "photos",
         [
@@ -41,7 +41,7 @@ public sealed class MediaLibraryControllerTests
         SetupNoSources(settingsMock, userId, "music");
         SetupNoSources(settingsMock, userId, "video");
 
-        using var provider = CreateServiceProvider(Guid.NewGuid().ToString(), new Mock<IFilesApiClient>(), Mock.Of<IPhotoIndexingCallback>());
+        using var provider = CreateServiceProvider(Guid.CreateVersion7().ToString(), new Mock<IFilesApiClient>(), Mock.Of<IPhotoIndexingCallback>());
         var controller = CreateController(settingsMock.Object, CreateImportService(provider));
         SetCurrentUser(controller, userId);
 
@@ -63,9 +63,9 @@ public sealed class MediaLibraryControllerTests
     [TestMethod]
     public async Task ScanLibraryAsync_WithUnavailableSharedMount_ReturnsRemovalResult()
     {
-        var userId = Guid.NewGuid();
-        var sharedFolderId = Guid.NewGuid();
-        var stalePhotoId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var sharedFolderId = Guid.CreateVersion7();
+        var stalePhotoId = Guid.CreateVersion7();
         var settingsMock = new Mock<IUserSettingsService>(MockBehavior.Strict);
         SetupSources(settingsMock, userId, "photos",
         [
@@ -104,7 +104,7 @@ public sealed class MediaLibraryControllerTests
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(1);
 
-        using var provider = CreateServiceProvider(Guid.NewGuid().ToString(), filesApiClientMock, photoCallbackMock.Object);
+        using var provider = CreateServiceProvider(Guid.CreateVersion7().ToString(), filesApiClientMock, photoCallbackMock.Object);
         var controller = CreateController(settingsMock.Object, CreateImportService(provider));
         SetCurrentUser(controller, userId);
 

@@ -15,7 +15,7 @@ public class FilesDbContextTests
     private static FilesDbContext CreateContext(string? dbName = null)
     {
         var options = new DbContextOptionsBuilder<FilesDbContext>()
-            .UseInMemoryDatabase(dbName ?? Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(dbName ?? Guid.CreateVersion7().ToString())
             .Options;
         return new FilesDbContext(options);
     }
@@ -125,7 +125,7 @@ public class FilesDbContextTests
         var node = new FileNode
         {
             Name = "test.txt",
-            OwnerId = Guid.NewGuid(),
+            OwnerId = Guid.CreateVersion7(),
             MaterializedPath = "/root"
         };
 
@@ -142,7 +142,7 @@ public class FilesDbContextTests
     {
         using var context = CreateContext();
 
-        var node = new FileNode { Name = "test.txt", OwnerId = Guid.NewGuid(), MaterializedPath = "/" };
+        var node = new FileNode { Name = "test.txt", OwnerId = Guid.CreateVersion7(), MaterializedPath = "/" };
         context.FileNodes.Add(node);
 
         var version = new FileVersion
@@ -169,7 +169,7 @@ public class FilesDbContextTests
 
         var quota = new FileQuota
         {
-            UserId = Guid.NewGuid(),
+            UserId = Guid.CreateVersion7(),
             MaxBytes = 10737418240
         };
 
@@ -190,7 +190,7 @@ public class FilesDbContextTests
         {
             FileName = "upload.bin",
             ChunkManifest = "[\"hash1\"]",
-            UserId = Guid.NewGuid(),
+            UserId = Guid.CreateVersion7(),
             TotalSize = 4194304,
             TotalChunks = 1
         };

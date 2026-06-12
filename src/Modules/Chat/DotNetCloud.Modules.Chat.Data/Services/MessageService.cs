@@ -115,7 +115,7 @@ internal sealed class MessageService : IMessageService
 
         await _eventBus.PublishAsync(new MessageSentEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             MessageId = message.Id,
             ChannelId = channelId,
@@ -126,7 +126,7 @@ internal sealed class MessageService : IMessageService
 
         await _eventBus.PublishAsync(new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ModuleId = "chat",
             EntityId = message.Id.ToString(),
@@ -174,7 +174,7 @@ internal sealed class MessageService : IMessageService
 
         await _eventBus.PublishAsync(new MessageEditedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             MessageId = message.Id,
             ChannelId = message.ChannelId,
@@ -184,7 +184,7 @@ internal sealed class MessageService : IMessageService
 
         await _eventBus.PublishAsync(new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ModuleId = "chat",
             EntityId = message.Id.ToString(),
@@ -225,7 +225,7 @@ internal sealed class MessageService : IMessageService
 
         await _eventBus.PublishAsync(new MessageDeletedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             MessageId = message.Id,
             ChannelId = message.ChannelId,
@@ -234,7 +234,7 @@ internal sealed class MessageService : IMessageService
 
         await _eventBus.PublishAsync(new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ModuleId = "chat",
             EntityId = message.Id.ToString(),

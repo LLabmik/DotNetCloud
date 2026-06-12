@@ -7,7 +7,7 @@ namespace DotNetCloud.Modules.Tracks.Models;
 public sealed class ReviewSessionParticipant
 {
     /// <summary>Unique identifier for this participant record.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>The review session this participant belongs to.</summary>
     public Guid ReviewSessionId { get; set; }

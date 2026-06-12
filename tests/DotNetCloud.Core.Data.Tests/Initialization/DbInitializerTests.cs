@@ -23,7 +23,7 @@ public class DbInitializerTests
     {
         // Create in-memory database with unique name for each test
         var options = new DbContextOptionsBuilder<CoreDbContext>()
-            .UseInMemoryDatabase(databaseName: $"TestDb_{Guid.NewGuid()}")
+            .UseInMemoryDatabase(databaseName: $"TestDb_{Guid.CreateVersion7()}")
             .Options;
 
         // Create naming strategy (PostgreSQL for testing)
@@ -144,7 +144,7 @@ public class DbInitializerTests
     {
         _context.Organizations.Add(new Organization
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             Name = "Existing Org",
             CreatedAt = DateTime.UtcNow
         });
@@ -324,7 +324,7 @@ public class DbInitializerTests
         // Arrange - Pre-populate with one custom role (not a well-known org role)
         var existingRole = new DotNetCloud.Core.Data.Entities.Permissions.Role
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             Name = "PreExisting",
             Description = "Pre-existing role",
             IsSystemRole = false
@@ -350,7 +350,7 @@ public class DbInitializerTests
         // Arrange - Pre-populate with one permission
         var existingPermission = new DotNetCloud.Core.Data.Entities.Permissions.Permission
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             Code = "test.permission",
             DisplayName = "Test Permission",
             Description = "Pre-existing permission"

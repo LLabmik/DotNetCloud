@@ -17,7 +17,7 @@ public class SyncHardeningP0Tests
     private static FilesDbContext CreateContext(string? dbName = null)
     {
         var options = new DbContextOptionsBuilder<FilesDbContext>()
-            .UseInMemoryDatabase(dbName ?? Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(dbName ?? Guid.CreateVersion7().ToString())
             .Options;
         return new FilesDbContext(options);
     }
@@ -47,7 +47,7 @@ public class SyncHardeningP0Tests
     public async Task AssignNextSequenceAsync_SequentialCalls_ProducesDistinctMonotonicSequences()
     {
         using var context = CreateContext();
-        var ownerId = Guid.NewGuid();
+        var ownerId = Guid.CreateVersion7();
         var sequences = new List<long>();
 
         for (var i = 0; i < 10; i++)
@@ -79,8 +79,8 @@ public class SyncHardeningP0Tests
     public async Task AssignNextSequenceAsync_DifferentUsers_IndependentCounters()
     {
         using var context = CreateContext();
-        var userA = Guid.NewGuid();
-        var userB = Guid.NewGuid();
+        var userA = Guid.CreateVersion7();
+        var userB = Guid.CreateVersion7();
 
         var nodeA1 = new FileNode { Name = "a1.txt", OwnerId = userA, MaterializedPath = "/a1.txt" };
         var nodeA2 = new FileNode { Name = "a2.txt", OwnerId = userA, MaterializedPath = "/a2.txt" };
@@ -103,8 +103,8 @@ public class SyncHardeningP0Tests
     {
         // With InMemory provider, concurrent access isn't truly atomic, but this verifies
         // the code doesn't crash and all calls complete. True atomicity requires PostgreSQL.
-        var dbName = Guid.NewGuid().ToString();
-        var ownerId = Guid.NewGuid();
+        var dbName = Guid.CreateVersion7().ToString();
+        var ownerId = Guid.CreateVersion7();
         const int concurrency = 20;
         var sequences = new long[concurrency];
 
@@ -189,8 +189,8 @@ public class SyncHardeningP0Tests
         using (connection)
         using (context)
         {
-            var ownerId = Guid.NewGuid();
-            var parentId = Guid.NewGuid();
+            var ownerId = Guid.CreateVersion7();
+            var parentId = Guid.CreateVersion7();
 
             var parent = new FileNode
             {
@@ -248,7 +248,7 @@ public class SyncHardeningP0Tests
         using (connection)
         using (context)
         {
-            var ownerId = Guid.NewGuid();
+            var ownerId = Guid.CreateVersion7();
 
             var file1 = new FileNode
             {
@@ -295,9 +295,9 @@ public class SyncHardeningP0Tests
         using (connection)
         using (context)
         {
-            var ownerId = Guid.NewGuid();
-            var parent1Id = Guid.NewGuid();
-            var parent2Id = Guid.NewGuid();
+            var ownerId = Guid.CreateVersion7();
+            var parent1Id = Guid.CreateVersion7();
+            var parent2Id = Guid.CreateVersion7();
 
             context.FileNodes.AddRange(
                 new FileNode { Id = parent1Id, Name = "Folder1", NodeType = FileNodeType.Folder, OwnerId = ownerId, MaterializedPath = $"/{parent1Id}" },
@@ -326,8 +326,8 @@ public class SyncHardeningP0Tests
         using (connection)
         using (context)
         {
-            var ownerId = Guid.NewGuid();
-            var parentId = Guid.NewGuid();
+            var ownerId = Guid.CreateVersion7();
+            var parentId = Guid.CreateVersion7();
 
             var parent = new FileNode
             {
@@ -466,7 +466,7 @@ public class SyncHardeningP0Tests
         // Exercise concurrent increment paths against a shared InMemory database.
         // With PostgreSQL's row-level locking, the atomic SQL guarantees correct counts.
         // InMemory doesn't provide true atomicity — this verifies no crashes/exceptions.
-        var dbName = Guid.NewGuid().ToString();
+        var dbName = Guid.CreateVersion7().ToString();
         const int concurrency = 20;
 
         Guid chunkId;

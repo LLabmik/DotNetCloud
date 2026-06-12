@@ -16,7 +16,7 @@ public class UserConnectionTrackerTests
     [TestMethod]
     public void WhenNoConnectionsThenIsOnlineReturnsFalse()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         Assert.IsFalse(_tracker.IsOnline(userId));
     }
@@ -24,7 +24,7 @@ public class UserConnectionTrackerTests
     [TestMethod]
     public void WhenFirstConnectionAddedThenReturnsTrue()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         var isFirst = _tracker.AddConnection(userId, "conn-1");
 
@@ -34,7 +34,7 @@ public class UserConnectionTrackerTests
     [TestMethod]
     public void WhenSecondConnectionAddedThenReturnsFalse()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         _tracker.AddConnection(userId, "conn-1");
 
         var isFirst = _tracker.AddConnection(userId, "conn-2");
@@ -45,7 +45,7 @@ public class UserConnectionTrackerTests
     [TestMethod]
     public void WhenConnectionAddedThenUserIsOnline()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         _tracker.AddConnection(userId, "conn-1");
 
         Assert.IsTrue(_tracker.IsOnline(userId));
@@ -54,7 +54,7 @@ public class UserConnectionTrackerTests
     [TestMethod]
     public void WhenAllConnectionsRemovedThenUserIsOffline()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         _tracker.AddConnection(userId, "conn-1");
 
         _tracker.RemoveConnection("conn-1");
@@ -65,7 +65,7 @@ public class UserConnectionTrackerTests
     [TestMethod]
     public void WhenOneOfTwoConnectionsRemovedThenUserIsStillOnline()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         _tracker.AddConnection(userId, "conn-1");
         _tracker.AddConnection(userId, "conn-2");
 
@@ -77,7 +77,7 @@ public class UserConnectionTrackerTests
     [TestMethod]
     public void WhenLastConnectionRemovedThenIsLastConnectionIsTrue()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         _tracker.AddConnection(userId, "conn-1");
 
         var result = _tracker.RemoveConnection("conn-1");
@@ -90,7 +90,7 @@ public class UserConnectionTrackerTests
     [TestMethod]
     public void WhenNonLastConnectionRemovedThenIsLastConnectionIsFalse()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         _tracker.AddConnection(userId, "conn-1");
         _tracker.AddConnection(userId, "conn-2");
 
@@ -112,7 +112,7 @@ public class UserConnectionTrackerTests
     [TestMethod]
     public void WhenConnectionAddedThenGetConnectionsReturnsIt()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         _tracker.AddConnection(userId, "conn-1");
         _tracker.AddConnection(userId, "conn-2");
 
@@ -126,7 +126,7 @@ public class UserConnectionTrackerTests
     [TestMethod]
     public void WhenNoConnectionsThenGetConnectionsReturnsEmpty()
     {
-        var connections = _tracker.GetConnections(Guid.NewGuid());
+        var connections = _tracker.GetConnections(Guid.CreateVersion7());
 
         Assert.AreEqual(0, connections.Count);
     }
@@ -134,7 +134,7 @@ public class UserConnectionTrackerTests
     [TestMethod]
     public void WhenConnectionAddedThenGetUserIdReturnsCorrectUser()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         _tracker.AddConnection(userId, "conn-1");
 
         var result = _tracker.GetUserId("conn-1");
@@ -153,8 +153,8 @@ public class UserConnectionTrackerTests
     [TestMethod]
     public void WhenMultipleUsersOnlineThenGetOnlineUsersReturnsAll()
     {
-        var user1 = Guid.NewGuid();
-        var user2 = Guid.NewGuid();
+        var user1 = Guid.CreateVersion7();
+        var user2 = Guid.CreateVersion7();
         _tracker.AddConnection(user1, "conn-1");
         _tracker.AddConnection(user2, "conn-2");
 
@@ -168,8 +168,8 @@ public class UserConnectionTrackerTests
     [TestMethod]
     public void WhenConnectionsExistThenGetTotalConnectionCountIsCorrect()
     {
-        var user1 = Guid.NewGuid();
-        var user2 = Guid.NewGuid();
+        var user1 = Guid.CreateVersion7();
+        var user2 = Guid.CreateVersion7();
         _tracker.AddConnection(user1, "conn-1");
         _tracker.AddConnection(user1, "conn-2");
         _tracker.AddConnection(user2, "conn-3");
@@ -180,8 +180,8 @@ public class UserConnectionTrackerTests
     [TestMethod]
     public void WhenUsersOnlineThenGetOnlineUserCountIsCorrect()
     {
-        var user1 = Guid.NewGuid();
-        var user2 = Guid.NewGuid();
+        var user1 = Guid.CreateVersion7();
+        var user2 = Guid.CreateVersion7();
         _tracker.AddConnection(user1, "conn-1");
         _tracker.AddConnection(user1, "conn-2");
         _tracker.AddConnection(user2, "conn-3");
@@ -200,7 +200,7 @@ public class UserConnectionTrackerTests
     [TestMethod]
     public void WhenGroupMembershipAddedThenGetGroupsReturnsGroup()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         _tracker.AddGroupMembership(userId, "chat:channel-1");
 
@@ -212,7 +212,7 @@ public class UserConnectionTrackerTests
     [TestMethod]
     public void WhenGroupMembershipRemovedThenGetGroupsReturnsEmpty()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         _tracker.AddGroupMembership(userId, "chat:channel-1");
 
         _tracker.RemoveGroupMembership(userId, "chat:channel-1");
@@ -223,7 +223,7 @@ public class UserConnectionTrackerTests
     [TestMethod]
     public void WhenUserGoesOfflineThenGroupMembershipIsRetained()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         _tracker.AddConnection(userId, "conn-1");
         _tracker.AddGroupMembership(userId, "chat:channel-1");
 
@@ -238,7 +238,7 @@ public class UserConnectionTrackerTests
     public void WhenConnectionIdIsNullThenAddConnectionThrows()
     {
         Assert.ThrowsExactly<ArgumentNullException>(() =>
-            _tracker.AddConnection(Guid.NewGuid(), null!));
+            _tracker.AddConnection(Guid.CreateVersion7(), null!));
     }
 
     [TestMethod]
@@ -259,13 +259,13 @@ public class UserConnectionTrackerTests
     public void WhenGroupNameIsNullThenAddGroupMembershipThrows()
     {
         Assert.ThrowsExactly<ArgumentNullException>(() =>
-            _tracker.AddGroupMembership(Guid.NewGuid(), null!));
+            _tracker.AddGroupMembership(Guid.CreateVersion7(), null!));
     }
 
     [TestMethod]
     public void WhenGroupNameIsNullThenRemoveGroupMembershipThrows()
     {
         Assert.ThrowsExactly<ArgumentNullException>(() =>
-            _tracker.RemoveGroupMembership(Guid.NewGuid(), null!));
+            _tracker.RemoveGroupMembership(Guid.CreateVersion7(), null!));
     }
 }

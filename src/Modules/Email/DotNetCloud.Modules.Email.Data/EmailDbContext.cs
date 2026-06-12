@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Data.Configuration.Extensions;
 using DotNetCloud.Core.Data.Extensions;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Modules.Email.Models;
@@ -69,5 +70,6 @@ public class EmailDbContext : DbContext
         modelBuilder.ApplyConfiguration(new Configuration.EmailRuleConditionConfiguration());
         modelBuilder.ApplyConfiguration(new Configuration.EmailRuleActionConfiguration());
 
+        SequentialGuidConfigurationExtensions.ApplySequentialGuidDefaults(modelBuilder, _namingStrategy.Provider);
     }
 }

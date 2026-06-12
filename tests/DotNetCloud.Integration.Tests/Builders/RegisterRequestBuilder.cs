@@ -7,7 +7,7 @@ namespace DotNetCloud.Integration.Tests.Builders;
 /// </summary>
 internal sealed class RegisterRequestBuilder
 {
-    private string _email = $"user-{Guid.NewGuid():N}@test.local";
+    private string _email = $"user-{Guid.CreateVersion7():N}@test.local";
     private string _password = "TestP@ssw0rd!";
     private string _displayName = "Integration Test User";
     private string _locale = "en-US";

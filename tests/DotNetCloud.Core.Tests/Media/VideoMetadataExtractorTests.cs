@@ -29,7 +29,7 @@ public class VideoMetadataExtractorTests
             .Build();
         var logger = new Mock<ILogger<VideoMetadataExtractor>>();
         _extractor = new VideoMetadataExtractor(config, logger.Object);
-        _tempDir = Path.Combine(Path.GetTempPath(), "dotnetcloud-test-" + Guid.NewGuid().ToString("N")[..8]);
+        _tempDir = Path.Combine(Path.GetTempPath(), "dotnetcloud-test-" + Guid.CreateVersion7().ToString("N")[..8]);
         Directory.CreateDirectory(_tempDir);
     }
 

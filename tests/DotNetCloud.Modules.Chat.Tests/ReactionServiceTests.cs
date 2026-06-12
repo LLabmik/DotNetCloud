@@ -27,12 +27,12 @@ public class ReactionServiceTests
     public async Task Setup()
     {
         var options = new DbContextOptionsBuilder<ChatDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options;
         _db = new ChatDbContext(options);
         _eventBusMock = new Mock<IEventBus>();
         _service = new ReactionService(_db, _eventBusMock.Object, NullLogger<ReactionService>.Instance);
-        _caller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        _caller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
 
         var channel = new Channel { Name = "test", CreatedByUserId = _caller.UserId };
         _db.Channels.Add(channel);
@@ -106,7 +106,7 @@ public class ReactionServiceTests
     [TestMethod]
     public async Task WhenAddReactionAsNonMemberThenThrowsUnauthorizedAccessException()
     {
-        var nonMember = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        var nonMember = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(
             () => _service.AddReactionAsync(_messageId, "👍", nonMember));
@@ -116,7 +116,7 @@ public class ReactionServiceTests
     public async Task WhenRemoveReactionAsNonMemberThenThrowsUnauthorizedAccessException()
     {
         await _service.AddReactionAsync(_messageId, "👍", _caller);
-        var nonMember = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        var nonMember = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(
             () => _service.RemoveReactionAsync(_messageId, "👍", nonMember));
@@ -125,7 +125,7 @@ public class ReactionServiceTests
     [TestMethod]
     public async Task WhenMultipleUsersReactThenCountIsCorrect()
     {
-        var otherCaller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        var otherCaller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
         _db.ChannelMembers.Add(new ChannelMember
         {
             ChannelId = _channelId,
@@ -158,7 +158,7 @@ public class ReactionServiceTests
     public async Task WhenAddReactionToNonExistentMessageThenThrows()
     {
         await Assert.ThrowsAsync<InvalidOperationException>(
-            () => _service.AddReactionAsync(Guid.NewGuid(), "👍", _caller));
+            () => _service.AddReactionAsync(Guid.CreateVersion7(), "👍", _caller));
     }
 
     [TestMethod]

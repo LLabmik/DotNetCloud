@@ -16,10 +16,10 @@ public sealed class MediaFolderImportServiceTests
     [TestMethod]
     public async Task ScanSourcesAsync_SharedMount_EnumeratesNestedVirtualFiles()
     {
-        var sharedFolderId = Guid.NewGuid();
-        var ownerId = Guid.NewGuid();
-        var firstPhotoId = Guid.NewGuid();
-        var secondPhotoId = Guid.NewGuid();
+        var sharedFolderId = Guid.CreateVersion7();
+        var ownerId = Guid.CreateVersion7();
+        var firstPhotoId = Guid.CreateVersion7();
+        var secondPhotoId = Guid.CreateVersion7();
 
         var filesApiClientMock = new Mock<IFilesApiClient>();
         filesApiClientMock
@@ -61,7 +61,7 @@ public sealed class MediaFolderImportServiceTests
             .Setup(callback => callback.IndexPhotoAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<long>(), It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        using var provider = CreateServiceProvider(Guid.NewGuid().ToString(), filesApiClientMock, photoCallbackMock.Object);
+        using var provider = CreateServiceProvider(Guid.CreateVersion7().ToString(), filesApiClientMock, photoCallbackMock.Object);
         var service = CreateService(provider);
 
         var result = await service.ScanSourcesAsync(
@@ -100,9 +100,9 @@ public sealed class MediaFolderImportServiceTests
     [TestMethod]
     public async Task ScanSourcesAsync_SharedMountUnavailable_RemovesPreviouslyIndexedFiles()
     {
-        var sharedFolderId = Guid.NewGuid();
-        var ownerId = Guid.NewGuid();
-        var stalePhotoId = Guid.NewGuid();
+        var sharedFolderId = Guid.CreateVersion7();
+        var ownerId = Guid.CreateVersion7();
+        var stalePhotoId = Guid.CreateVersion7();
 
         var filesApiClientMock = new Mock<IFilesApiClient>();
         filesApiClientMock
@@ -129,7 +129,7 @@ public sealed class MediaFolderImportServiceTests
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(1);
 
-        using var provider = CreateServiceProvider(Guid.NewGuid().ToString(), filesApiClientMock, photoCallbackMock.Object);
+        using var provider = CreateServiceProvider(Guid.CreateVersion7().ToString(), filesApiClientMock, photoCallbackMock.Object);
         var service = CreateService(provider);
 
         var result = await service.ScanSourcesAsync(

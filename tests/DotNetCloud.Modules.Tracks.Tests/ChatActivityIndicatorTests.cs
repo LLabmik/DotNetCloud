@@ -60,8 +60,8 @@ public class ChatActivityIndicatorTests
         var service = new FakeChatActivityService(isActive: true);
         var component = CreateComponent(service);
         component.SimulateOnInitialized();
-        var channelId = Guid.NewGuid();
-        var senderId = Guid.NewGuid();
+        var channelId = Guid.CreateVersion7();
+        var senderId = Guid.CreateVersion7();
         var timestamp = DateTime.UtcNow;
 
         service.RaiseMessageReceived(channelId, senderId, timestamp);
@@ -77,7 +77,7 @@ public class ChatActivityIndicatorTests
         var service = new FakeChatActivityService(isActive: true);
         var component = CreateComponent(service);
         component.SimulateOnInitialized();
-        var channelId = Guid.NewGuid();
+        var channelId = Guid.CreateVersion7();
 
         service.RaiseChannelChanged(channelId, "created");
 
@@ -93,7 +93,7 @@ public class ChatActivityIndicatorTests
         var component = CreateComponent(service);
         component.SimulateOnInitialized();
 
-        service.RaiseChannelChanged(Guid.NewGuid(), "deleted");
+        service.RaiseChannelChanged(Guid.CreateVersion7(), "deleted");
         Assert.IsNotNull(component.TestChannelEvent);
 
         component.SimulateDismissChannelEvent();
@@ -110,8 +110,8 @@ public class ChatActivityIndicatorTests
         component.Dispose();
 
         // Fire events after disposal — should not throw or update state
-        service.RaiseMessageReceived(Guid.NewGuid(), Guid.NewGuid(), DateTime.UtcNow);
-        service.RaiseChannelChanged(Guid.NewGuid(), "created");
+        service.RaiseMessageReceived(Guid.CreateVersion7(), Guid.CreateVersion7(), DateTime.UtcNow);
+        service.RaiseChannelChanged(Guid.CreateVersion7(), "created");
 
         Assert.IsNull(component.TestLatestMessage);
         Assert.IsNull(component.TestChannelEvent);

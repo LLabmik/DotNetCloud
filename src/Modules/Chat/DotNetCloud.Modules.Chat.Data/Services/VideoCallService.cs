@@ -128,7 +128,7 @@ internal sealed class VideoCallService : IVideoCallService
 
         await _eventBus.PublishAsync(new VideoCallInitiatedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             CallId = call.Id,
             ChannelId = channelId,
@@ -299,7 +299,7 @@ internal sealed class VideoCallService : IVideoCallService
         {
             await _eventBus.PublishAsync(new VideoCallAnsweredEvent
             {
-                EventId = Guid.NewGuid(),
+                EventId = Guid.CreateVersion7(),
                 CreatedAt = DateTime.UtcNow,
                 CallId = callId,
                 ChannelId = call.ChannelId,
@@ -312,7 +312,7 @@ internal sealed class VideoCallService : IVideoCallService
 
         await _eventBus.PublishAsync(new ParticipantJoinedCallEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             CallId = callId,
             ChannelId = call.ChannelId,
@@ -354,7 +354,7 @@ internal sealed class VideoCallService : IVideoCallService
 
         await _eventBus.PublishAsync(new ParticipantLeftCallEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             CallId = callId,
             ChannelId = call.ChannelId,
@@ -467,7 +467,7 @@ internal sealed class VideoCallService : IVideoCallService
 
             await _eventBus.PublishAsync(new VideoCallEndedEvent
             {
-                EventId = Guid.NewGuid(),
+                EventId = Guid.CreateVersion7(),
                 CreatedAt = DateTime.UtcNow,
                 CallId = callId,
                 ChannelId = call.ChannelId,
@@ -753,7 +753,7 @@ internal sealed class VideoCallService : IVideoCallService
         // Publish domain event
         await _eventBus.PublishAsync(new CallParticipantInvitedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             CallId = callId,
             ChannelId = call.ChannelId,
@@ -857,7 +857,7 @@ internal sealed class VideoCallService : IVideoCallService
         // Publish domain event
         await _eventBus.PublishAsync(new CallHostTransferredEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             CallId = callId,
             ChannelId = call.ChannelId,
@@ -926,7 +926,7 @@ internal sealed class VideoCallService : IVideoCallService
         {
             await _eventBus.PublishAsync(new VideoCallMissedEvent
             {
-                EventId = Guid.NewGuid(),
+                EventId = Guid.CreateVersion7(),
                 CreatedAt = DateTime.UtcNow,
                 CallId = call.Id,
                 ChannelId = call.ChannelId,
@@ -972,7 +972,7 @@ internal sealed class VideoCallService : IVideoCallService
         // Publish domain event
         await _eventBus.PublishAsync(new CallHostTransferredEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             CallId = call.Id,
             ChannelId = call.ChannelId,
@@ -1030,7 +1030,7 @@ internal sealed class VideoCallService : IVideoCallService
 
         await _eventBus.PublishAsync(new VideoCallEndedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             CallId = call.Id,
             ChannelId = call.ChannelId,

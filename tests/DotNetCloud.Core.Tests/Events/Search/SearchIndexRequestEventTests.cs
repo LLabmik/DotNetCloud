@@ -12,7 +12,7 @@ public class SearchIndexRequestEventTests
     public void SearchIndexRequestEvent_CanBeCreated_ForIndexAction()
     {
         // Arrange
-        var eventId = Guid.NewGuid();
+        var eventId = Guid.CreateVersion7();
         var now = DateTime.UtcNow;
 
         // Act
@@ -21,7 +21,7 @@ public class SearchIndexRequestEventTests
             EventId = eventId,
             CreatedAt = now,
             ModuleId = "notes",
-            EntityId = Guid.NewGuid().ToString(),
+            EntityId = Guid.CreateVersion7().ToString(),
             Action = SearchIndexAction.Index
         };
 
@@ -38,10 +38,10 @@ public class SearchIndexRequestEventTests
         // Act
         var evt = new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ModuleId = "files",
-            EntityId = Guid.NewGuid().ToString(),
+            EntityId = Guid.CreateVersion7().ToString(),
             Action = SearchIndexAction.Remove
         };
 
@@ -56,10 +56,10 @@ public class SearchIndexRequestEventTests
         // Arrange
         var evt = new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ModuleId = "chat",
-            EntityId = Guid.NewGuid().ToString(),
+            EntityId = Guid.CreateVersion7().ToString(),
             Action = SearchIndexAction.Index
         };
 

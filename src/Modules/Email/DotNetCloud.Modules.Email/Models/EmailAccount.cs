@@ -6,7 +6,7 @@ namespace DotNetCloud.Modules.Email.Models;
 public sealed class EmailAccount
 {
     /// <summary>Unique identifier.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>The user who owns this account.</summary>
     public Guid OwnerId { get; set; }

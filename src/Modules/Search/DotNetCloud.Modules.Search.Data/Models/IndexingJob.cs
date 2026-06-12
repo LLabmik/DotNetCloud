@@ -6,7 +6,7 @@ namespace DotNetCloud.Modules.Search.Data.Models;
 public sealed class IndexingJob
 {
     /// <summary>Unique identifier for this indexing job.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>The module being indexed, or null for a global reindex.</summary>
     public string? ModuleId { get; set; }

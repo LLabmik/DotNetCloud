@@ -79,7 +79,7 @@ public sealed class CloudFilterSyncProviderTests
         await _provider.DisposeAsync();
 
         await ExceptionAssert.ThrowsAsync<ObjectDisposedException>(() =>
-            _provider.HydrateFileAsync("/path/to/file", Guid.NewGuid()));
+            _provider.HydrateFileAsync("/path/to/file", Guid.CreateVersion7()));
     }
 
     [TestMethod]

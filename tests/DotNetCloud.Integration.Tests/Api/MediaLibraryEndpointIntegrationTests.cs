@@ -24,8 +24,8 @@ public sealed class MediaLibraryEndpointIntegrationTests
     [TestMethod]
     public async Task GetLibraryPaths_WithSharedMountSources_ReturnsConfiguredSources()
     {
-        var userId = Guid.NewGuid();
-        var sharedFolderId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var sharedFolderId = Guid.CreateVersion7();
 
         using var factory = new DotNetCloudWebApplicationFactory();
         using (var scope = factory.Services.CreateScope())
@@ -33,7 +33,7 @@ public sealed class MediaLibraryEndpointIntegrationTests
             var db = scope.ServiceProvider.GetRequiredService<CoreDbContext>();
             db.UserSettings.Add(new UserSetting
             {
-                Id = Guid.NewGuid(),
+                Id = Guid.CreateVersion7(),
                 UserId = userId,
                 Module = MediaLibrarySourceSettings.SettingsModule,
                 Key = MediaLibrarySourceSettings.GetSourcesKey("photos"),
@@ -69,9 +69,9 @@ public sealed class MediaLibraryEndpointIntegrationTests
     [TestMethod]
     public async Task ScanLibrary_WithUnavailableSharedMount_ReturnsRemovalResultOverCoreHost()
     {
-        var userId = Guid.NewGuid();
-        var sharedFolderId = Guid.NewGuid();
-        var stalePhotoId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var sharedFolderId = Guid.CreateVersion7();
+        var stalePhotoId = Guid.CreateVersion7();
         var filesApiClientMock = new Mock<DotNetCloud.Core.Services.ModuleApis.IFilesApiClient>();
         var photoCallbackMock = new Mock<IPhotoIndexingCallback>();
 
@@ -113,7 +113,7 @@ public sealed class MediaLibraryEndpointIntegrationTests
             var db = scope.ServiceProvider.GetRequiredService<CoreDbContext>();
             db.UserSettings.Add(new UserSetting
             {
-                Id = Guid.NewGuid(),
+                Id = Guid.CreateVersion7(),
                 UserId = userId,
                 Module = MediaLibrarySourceSettings.SettingsModule,
                 Key = MediaLibrarySourceSettings.GetSourcesKey("photos"),

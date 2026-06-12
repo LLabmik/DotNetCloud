@@ -248,9 +248,9 @@ public class RecurrenceLogicTests
         var now = DateTime.UtcNow;
         var dto = new CalendarEventDto
         {
-            Id = Guid.NewGuid(),
-            CalendarId = Guid.NewGuid(),
-            CreatedByUserId = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
+            CalendarId = Guid.CreateVersion7(),
+            CreatedByUserId = Guid.CreateVersion7(),
             Title = "Test",
             StartUtc = now,
             EndUtc = now.AddHours(1),
@@ -278,9 +278,9 @@ public class RecurrenceLogicTests
         var now = DateTime.UtcNow;
         var dto = new CalendarEventDto
         {
-            Id = Guid.NewGuid(),
-            CalendarId = Guid.NewGuid(),
-            CreatedByUserId = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
+            CalendarId = Guid.CreateVersion7(),
+            CreatedByUserId = Guid.CreateVersion7(),
             Title = "Monthly Meeting",
             StartUtc = now,
             EndUtc = now.AddHours(1),
@@ -305,9 +305,9 @@ public class RecurrenceLogicTests
         var now = DateTime.UtcNow;
         var dto = new CalendarEventDto
         {
-            Id = Guid.NewGuid(),
-            CalendarId = Guid.NewGuid(),
-            CreatedByUserId = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
+            CalendarId = Guid.CreateVersion7(),
+            CreatedByUserId = Guid.CreateVersion7(),
             Title = "All Day Event",
             StartUtc = now.Date,
             EndUtc = now.Date.AddDays(1),

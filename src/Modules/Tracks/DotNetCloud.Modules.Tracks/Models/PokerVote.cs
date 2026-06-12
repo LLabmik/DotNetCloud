@@ -7,7 +7,7 @@ namespace DotNetCloud.Modules.Tracks.Models;
 public sealed class PokerVote
 {
     /// <summary>Unique identifier.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>The poker session this vote belongs to.</summary>
     public Guid SessionId { get; set; }

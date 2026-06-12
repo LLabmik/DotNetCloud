@@ -91,7 +91,7 @@ public class EndToEndIndexingTests
             // Simulate event from NoteService creating a note
             var indexEvent = new SearchIndexRequestEvent
             {
-                EventId = Guid.NewGuid(),
+                EventId = Guid.CreateVersion7(),
                 CreatedAt = DateTime.UtcNow,
                 ModuleId = "notes",
                 EntityId = "note-1",
@@ -143,7 +143,7 @@ public class EndToEndIndexingTests
         // Simulate delete event
         var removeEvent = new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ModuleId = "notes",
             EntityId = "note-2",
@@ -191,7 +191,7 @@ public class EndToEndIndexingTests
         {
             await handler.HandleAsync(new SearchIndexRequestEvent
             {
-                EventId = Guid.NewGuid(),
+                EventId = Guid.CreateVersion7(),
                 CreatedAt = DateTime.UtcNow,
                 ModuleId = "notes",
                 EntityId = "note-3",
@@ -425,7 +425,7 @@ public class EndToEndIndexingTests
         {
             await indexingService.EnqueueAsync(new SearchIndexRequestEvent
             {
-                EventId = Guid.NewGuid(),
+                EventId = Guid.CreateVersion7(),
                 CreatedAt = DateTime.UtcNow,
                 ModuleId = "notes",
                 EntityId = "note-5",

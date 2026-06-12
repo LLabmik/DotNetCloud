@@ -18,7 +18,7 @@ public class FilesGrpcServiceSecurityTests
     private static FilesDbContext CreateContext(string? name = null)
     {
         var options = new DbContextOptionsBuilder<FilesDbContext>()
-            .UseInMemoryDatabase(name ?? Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(name ?? Guid.CreateVersion7().ToString())
             .Options;
         return new FilesDbContext(options);
     }
@@ -32,8 +32,8 @@ public class FilesGrpcServiceSecurityTests
     public async Task GetNode_NonOwnerCaller_ReturnsNotFound()
     {
         using var db = CreateContext();
-        var ownerId = Guid.NewGuid();
-        var callerId = Guid.NewGuid();
+        var ownerId = Guid.CreateVersion7();
+        var callerId = Guid.CreateVersion7();
 
         var node = new FileNode
         {
@@ -58,8 +58,8 @@ public class FilesGrpcServiceSecurityTests
     public async Task GetNode_UserIdSpoofingAttempt_ReturnsNotFound()
     {
         using var db = CreateContext();
-        var ownerId = Guid.NewGuid();
-        var attackerId = Guid.NewGuid();
+        var ownerId = Guid.CreateVersion7();
+        var attackerId = Guid.CreateVersion7();
 
         var node = new FileNode
         {
@@ -84,8 +84,8 @@ public class FilesGrpcServiceSecurityTests
     public async Task RenameNode_NonOwnerCaller_FailsAndKeepsOriginalName()
     {
         using var db = CreateContext();
-        var ownerId = Guid.NewGuid();
-        var callerId = Guid.NewGuid();
+        var ownerId = Guid.CreateVersion7();
+        var callerId = Guid.CreateVersion7();
 
         var node = new FileNode
         {
@@ -114,8 +114,8 @@ public class FilesGrpcServiceSecurityTests
     public async Task ListShares_NonOwnerCaller_ReturnsEmpty()
     {
         using var db = CreateContext();
-        var ownerId = Guid.NewGuid();
-        var callerId = Guid.NewGuid();
+        var ownerId = Guid.CreateVersion7();
+        var callerId = Guid.CreateVersion7();
 
         var node = new FileNode
         {
@@ -149,12 +149,12 @@ public class FilesGrpcServiceSecurityTests
     public async Task UploadChunk_SessionDoesNotExist_Fails()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         var service = CreateService(db);
         var response = await service.UploadChunk(new UploadChunkRequest
         {
-            SessionId = Guid.NewGuid().ToString(),
+            SessionId = Guid.CreateVersion7().ToString(),
             ChunkHash = "deadbeef",
             ChunkData = Google.Protobuf.ByteString.CopyFrom(new byte[] { 1, 2, 3 })
         }, CreateContextWithAuthenticatedUser(userId));
@@ -167,8 +167,8 @@ public class FilesGrpcServiceSecurityTests
     public async Task UploadChunk_SessionOwnerMismatch_Fails()
     {
         using var db = CreateContext();
-        var ownerId = Guid.NewGuid();
-        var attackerId = Guid.NewGuid();
+        var ownerId = Guid.CreateVersion7();
+        var attackerId = Guid.CreateVersion7();
 
         db.UploadSessions.Add(new ChunkedUploadSession
         {
@@ -201,7 +201,7 @@ public class FilesGrpcServiceSecurityTests
     public async Task UploadChunk_HashMismatch_Fails()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         db.UploadSessions.Add(new ChunkedUploadSession
         {

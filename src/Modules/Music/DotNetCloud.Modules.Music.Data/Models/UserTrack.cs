@@ -8,7 +8,7 @@ namespace DotNetCloud.Modules.Music.Models;
 public sealed class UserTrack
 {
     /// <summary>Unique identifier for this user track record.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>The user who owns this track record.</summary>
     public Guid OwnerId { get; set; }

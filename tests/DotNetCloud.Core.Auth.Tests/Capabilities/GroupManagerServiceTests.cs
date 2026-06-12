@@ -22,7 +22,7 @@ public class GroupManagerServiceTests
     public void Setup()
     {
         var options = new DbContextOptionsBuilder<CoreDbContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(databaseName: Guid.CreateVersion7().ToString())
             .Options;
 
         _dbContext = new CoreDbContext(options, new PostgreSqlNamingStrategy());
@@ -30,14 +30,14 @@ public class GroupManagerServiceTests
 
         _organization = new Organization
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             Name = "Acme",
             CreatedAt = DateTime.UtcNow
         };
 
         _alice = new ApplicationUser
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             UserName = "alice",
             Email = "alice@example.com",
             DisplayName = "Alice",
@@ -80,7 +80,7 @@ public class GroupManagerServiceTests
     {
         _dbContext.Groups.Add(new Group
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             OrganizationId = _organization.Id,
             Name = "Editors",
             CreatedAt = DateTime.UtcNow
@@ -103,7 +103,7 @@ public class GroupManagerServiceTests
     {
         var group = new Group
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             OrganizationId = _organization.Id,
             Name = "Editors",
             CreatedAt = DateTime.UtcNow
@@ -123,7 +123,7 @@ public class GroupManagerServiceTests
     {
         var group = new Group
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             OrganizationId = _organization.Id,
             Name = "Editors",
             CreatedAt = DateTime.UtcNow
@@ -144,7 +144,7 @@ public class GroupManagerServiceTests
     {
         var group = new Group
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             OrganizationId = _organization.Id,
             Name = Group.AllUsersGroupName,
             IsAllUsersGroup = true,
@@ -162,7 +162,7 @@ public class GroupManagerServiceTests
     {
         var group = new Group
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             OrganizationId = _organization.Id,
             Name = Group.AllUsersGroupName,
             IsAllUsersGroup = true,
@@ -180,7 +180,7 @@ public class GroupManagerServiceTests
     {
         var group = new Group
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             OrganizationId = _organization.Id,
             Name = "Editors",
             CreatedAt = DateTime.UtcNow
@@ -200,7 +200,7 @@ public class GroupManagerServiceTests
     {
         var group = new Group
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             OrganizationId = _organization.Id,
             Name = Group.AllUsersGroupName,
             IsAllUsersGroup = true,
@@ -218,7 +218,7 @@ public class GroupManagerServiceTests
     {
         var group = new Group
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             OrganizationId = _organization.Id,
             Name = "Editors",
             CreatedAt = DateTime.UtcNow
@@ -242,7 +242,7 @@ public class GroupManagerServiceTests
     {
         var group = new Group
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             OrganizationId = _organization.Id,
             Name = "Editors",
             CreatedAt = DateTime.UtcNow
@@ -267,7 +267,7 @@ public class GroupManagerServiceTests
     {
         var group = new Group
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             OrganizationId = _organization.Id,
             Name = Group.AllUsersGroupName,
             IsAllUsersGroup = true,

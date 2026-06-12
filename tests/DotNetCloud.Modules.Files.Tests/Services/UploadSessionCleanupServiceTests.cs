@@ -16,7 +16,7 @@ public class UploadSessionCleanupServiceTests
 {
     private static FilesDbContext CreateContext() =>
         new(new DbContextOptionsBuilder<FilesDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options);
 
     private static UploadSessionCleanupService CreateService(FilesDbContext db, IFileStorageEngine? storageEngine = null)
@@ -46,7 +46,7 @@ public class UploadSessionCleanupServiceTests
             FileName = "expired.txt",
             TotalChunks = 1,
             ChunkManifest = "[]",
-            UserId = Guid.NewGuid(),
+            UserId = Guid.CreateVersion7(),
             Status = UploadSessionStatus.InProgress,
             ExpiresAt = DateTime.UtcNow.AddHours(-2) // expired 2 hours ago
         };
@@ -70,7 +70,7 @@ public class UploadSessionCleanupServiceTests
             FileName = "active.txt",
             TotalChunks = 1,
             ChunkManifest = "[]",
-            UserId = Guid.NewGuid(),
+            UserId = Guid.CreateVersion7(),
             Status = UploadSessionStatus.InProgress,
             ExpiresAt = DateTime.UtcNow.AddHours(23) // still valid
         };

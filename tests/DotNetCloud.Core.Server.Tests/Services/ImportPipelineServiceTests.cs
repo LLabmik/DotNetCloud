@@ -15,7 +15,7 @@ public class ImportPipelineServiceTests
     [TestInitialize]
     public void Setup()
     {
-        _caller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        _caller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
     }
 
     [TestMethod]

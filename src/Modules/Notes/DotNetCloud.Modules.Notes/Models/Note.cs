@@ -8,7 +8,7 @@ namespace DotNetCloud.Modules.Notes.Models;
 public sealed class Note
 {
     /// <summary>Unique identifier.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>Owner user ID.</summary>
     public Guid OwnerId { get; set; }
@@ -53,7 +53,7 @@ public sealed class Note
     public int Version { get; set; } = 1;
 
     /// <summary>ETag for conflict detection.</summary>
-    public string ETag { get; set; } = Guid.NewGuid().ToString("N");
+    public string ETag { get; set; } = Guid.CreateVersion7().ToString("N");
 
     /// <summary>Navigation: folder this note belongs to.</summary>
     public NoteFolder? Folder { get; set; }

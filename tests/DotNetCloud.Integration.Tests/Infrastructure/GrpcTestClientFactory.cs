@@ -49,7 +49,7 @@ internal static class GrpcTestClientFactory
     {
         return new CallerContextMessage
         {
-            UserId = (userId ?? Guid.NewGuid()).ToString(),
+            UserId = (userId ?? Guid.CreateVersion7()).ToString(),
             CallerType = "Module",
             ModuleId = moduleId,
             Roles = { "User" },

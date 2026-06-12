@@ -29,13 +29,13 @@ public class ChannelServiceTests
     public void Setup()
     {
         var options = new DbContextOptionsBuilder<ChatDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options;
         _db = new ChatDbContext(options);
         _eventBusMock = new Mock<IEventBus>();
         _realtimeMock = new Mock<IChatRealtimeService>();
         _service = new ChannelService(_db, _eventBusMock.Object, NullLogger<ChannelService>.Instance, _realtimeMock.Object);
-        _caller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        _caller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
     }
 
     [TestCleanup]
@@ -112,7 +112,7 @@ public class ChannelServiceTests
     [TestMethod]
     public async Task WhenGetNonExistentChannelThenReturnsNull()
     {
-        var result = await _service.GetChannelAsync(Guid.NewGuid(), _caller);
+        var result = await _service.GetChannelAsync(Guid.CreateVersion7(), _caller);
         Assert.IsNull(result);
     }
 
@@ -122,7 +122,7 @@ public class ChannelServiceTests
         var dto = new CreateChannelDto { Name = "mine", Type = "Public" };
         await _service.CreateChannelAsync(dto, _caller);
 
-        var otherCaller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        var otherCaller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
         var otherDto = new CreateChannelDto { Name = "other", Type = "Public" };
         await _service.CreateChannelAsync(otherDto, otherCaller);
 
@@ -152,7 +152,7 @@ public class ChannelServiceTests
     public async Task WhenDifferentUsersListChannelsThenSingleDefaultPublicChannelIsShared()
     {
         var firstUserResult = await _service.ListChannelsAsync(_caller);
-        var otherCaller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        var otherCaller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
         var secondUserResult = await _service.ListChannelsAsync(otherCaller);
 
         Assert.AreEqual(1, firstUserResult.Count);
@@ -191,7 +191,7 @@ public class ChannelServiceTests
     [TestMethod]
     public async Task WhenGetOrCreateDmThenDmIsCreated()
     {
-        var otherUserId = Guid.NewGuid();
+        var otherUserId = Guid.CreateVersion7();
 
         var result = await _service.GetOrCreateDirectMessageAsync(otherUserId, _caller);
 
@@ -203,7 +203,7 @@ public class ChannelServiceTests
     [TestMethod]
     public async Task WhenGetOrCreateDmTwiceThenSameChannelIsReturned()
     {
-        var otherUserId = Guid.NewGuid();
+        var otherUserId = Guid.CreateVersion7();
 
         var first = await _service.GetOrCreateDirectMessageAsync(otherUserId, _caller);
         var second = await _service.GetOrCreateDirectMessageAsync(otherUserId, _caller);
@@ -214,7 +214,7 @@ public class ChannelServiceTests
     [TestMethod]
     public async Task WhenCreateChannelWithMembersThenMembersAreAdded()
     {
-        var memberId = Guid.NewGuid();
+        var memberId = Guid.CreateVersion7();
         var dto = new CreateChannelDto
         {
             Name = "withmembers",
@@ -237,7 +237,7 @@ public class ChannelServiceTests
     [TestMethod]
     public async Task WhenDeleteChannelThenRealtimeGroupMembershipIsRemovedForAllMembers()
     {
-        var memberId = Guid.NewGuid();
+        var memberId = Guid.CreateVersion7();
         var dto = new CreateChannelDto
         {
             Name = "group-delete",
@@ -260,7 +260,7 @@ public class ChannelServiceTests
     [TestMethod]
     public async Task WhenCreateChannelWithDuplicateNameInSameOrgThenThrows()
     {
-        var orgId = Guid.NewGuid();
+        var orgId = Guid.CreateVersion7();
         var dto1 = new CreateChannelDto { Name = "general", Type = "Public", OrganizationId = orgId };
         await _service.CreateChannelAsync(dto1, _caller);
 
@@ -272,8 +272,8 @@ public class ChannelServiceTests
     [TestMethod]
     public async Task WhenCreateChannelWithSameNameInDifferentOrgsThenSucceeds()
     {
-        var orgId1 = Guid.NewGuid();
-        var orgId2 = Guid.NewGuid();
+        var orgId1 = Guid.CreateVersion7();
+        var orgId2 = Guid.CreateVersion7();
         var dto1 = new CreateChannelDto { Name = "general", Type = "Public", OrganizationId = orgId1 };
         var dto2 = new CreateChannelDto { Name = "general", Type = "Public", OrganizationId = orgId2 };
 
@@ -288,8 +288,8 @@ public class ChannelServiceTests
     [TestMethod]
     public async Task WhenCreateDmWithDuplicateNameThenSucceeds()
     {
-        var otherUserId1 = Guid.NewGuid();
-        var otherUserId2 = Guid.NewGuid();
+        var otherUserId1 = Guid.CreateVersion7();
+        var otherUserId2 = Guid.CreateVersion7();
 
         var result1 = await _service.GetOrCreateDirectMessageAsync(otherUserId1, _caller);
         var result2 = await _service.GetOrCreateDirectMessageAsync(otherUserId2, _caller);
@@ -300,7 +300,7 @@ public class ChannelServiceTests
     [TestMethod]
     public async Task WhenUpdateChannelNameToDuplicateInSameOrgThenThrows()
     {
-        var orgId = Guid.NewGuid();
+        var orgId = Guid.CreateVersion7();
         var dto1 = new CreateChannelDto { Name = "general", Type = "Public", OrganizationId = orgId };
         var dto2 = new CreateChannelDto { Name = "random", Type = "Public", OrganizationId = orgId };
 
@@ -315,7 +315,7 @@ public class ChannelServiceTests
     [TestMethod]
     public async Task WhenUpdateChannelNameToSameNameThenSucceeds()
     {
-        var orgId = Guid.NewGuid();
+        var orgId = Guid.CreateVersion7();
         var dto = new CreateChannelDto { Name = "general", Type = "Public", OrganizationId = orgId };
         var created = await _service.CreateChannelAsync(dto, _caller);
 
@@ -339,7 +339,7 @@ public class ChannelServiceTests
     [TestMethod]
     public async Task WhenDuplicateNameThenValidationExceptionContainsNameField()
     {
-        var orgId = Guid.NewGuid();
+        var orgId = Guid.CreateVersion7();
         var dto1 = new CreateChannelDto { Name = "general", Type = "Public", OrganizationId = orgId };
         await _service.CreateChannelAsync(dto1, _caller);
 
@@ -354,7 +354,7 @@ public class ChannelServiceTests
     [TestMethod]
     public async Task WhenUpdateToDuplicateNameThenValidationExceptionContainsNameField()
     {
-        var orgId = Guid.NewGuid();
+        var orgId = Guid.CreateVersion7();
         await _service.CreateChannelAsync(
             new CreateChannelDto { Name = "general", Type = "Public", OrganizationId = orgId }, _caller);
         var channel2 = await _service.CreateChannelAsync(

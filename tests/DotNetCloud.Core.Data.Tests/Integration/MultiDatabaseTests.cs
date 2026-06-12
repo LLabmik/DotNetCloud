@@ -122,11 +122,11 @@ public class MultiDatabaseTests
     {
         // Arrange - Create two in-memory contexts
         var options1 = new DbContextOptionsBuilder<CoreDbContext>()
-            .UseInMemoryDatabase($"TestDb1_{Guid.NewGuid()}")
+            .UseInMemoryDatabase($"TestDb1_{Guid.CreateVersion7()}")
             .Options;
 
         var options2 = new DbContextOptionsBuilder<CoreDbContext>()
-            .UseInMemoryDatabase($"TestDb2_{Guid.NewGuid()}")
+            .UseInMemoryDatabase($"TestDb2_{Guid.CreateVersion7()}")
             .Options;
 
         var context1 = new CoreDbContext(options1, new PostgreSqlNamingStrategy());

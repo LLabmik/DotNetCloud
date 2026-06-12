@@ -28,15 +28,15 @@ public class NoteSecurityTests
     public void Setup()
     {
         var options = new DbContextOptionsBuilder<NotesDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options;
         _db = new NotesDbContext(options);
         var eventBusMock = new Mock<IEventBus>();
         _noteService = new NoteService(_db, eventBusMock.Object, NullLogger<NoteService>.Instance);
         _folderService = new NoteFolderService(_db, NullLogger<NoteFolderService>.Instance);
         _shareService = new NoteShareService(_db, eventBusMock.Object, NullLogger<NoteShareService>.Instance);
-        _userA = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
-        _userB = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        _userA = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
+        _userB = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
     }
 
     [TestCleanup]
@@ -133,7 +133,7 @@ public class NoteSecurityTests
 
         await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
             () => _shareService.ShareNoteAsync(
-                note.Id, Guid.NewGuid(), NoteSharePermission.ReadOnly, _userB));
+                note.Id, Guid.CreateVersion7(), NoteSharePermission.ReadOnly, _userB));
     }
 
     [TestMethod]

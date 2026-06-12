@@ -64,7 +64,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
     // Pending image attachments (uploaded, waiting to be sent with next message)
     private readonly List<PendingAttachment> _pendingAttachments = [];
-    private readonly string _fileInputId = $"chat-file-input-{Guid.NewGuid():N}";
+    private readonly string _fileInputId = $"chat-file-input-{Guid.CreateVersion7():N}";
     private ElementReference _fileInputRef;
 
     // Member state
@@ -1520,7 +1520,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         {
             _pendingAttachments.Add(new PendingAttachment
             {
-                Id = Guid.NewGuid(),
+                Id = Guid.CreateVersion7(),
                 FileName = pastedImage.FileName,
                 MimeType = pastedImage.ContentType,
                 FileSize = pastedImage.SizeBytes,
@@ -1544,7 +1544,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
             _pendingAttachments.Add(new PendingAttachment
             {
-                Id = Guid.NewGuid(),
+                Id = Guid.CreateVersion7(),
                 FileName = pastedImage.FileName,
                 MimeType = result.ContentType,
                 FileSize = result.FileSize,
@@ -1568,7 +1568,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
         _pendingAttachments.Add(new PendingAttachment
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             FileName = fileName,
             MimeType = mimeType,
             FileSize = fileSize,
@@ -1604,7 +1604,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
             _pendingAttachments.Add(new PendingAttachment
             {
-                Id = Guid.NewGuid(),
+                Id = Guid.CreateVersion7(),
                 FileName = fileName,
                 MimeType = result.ContentType,
                 FileSize = result.FileSize,
@@ -1938,7 +1938,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         var existingIndex = _remoteParticipants.FindIndex(p => p.UserId == notification.AcceptedByUserId);
         var acceptedParticipant = new CallParticipantDto
         {
-            Id = existingIndex >= 0 ? _remoteParticipants[existingIndex].Id : Guid.NewGuid(),
+            Id = existingIndex >= 0 ? _remoteParticipants[existingIndex].Id : Guid.CreateVersion7(),
             UserId = notification.AcceptedByUserId,
             DisplayName = displayName,
             AvatarUrl = _avatarUrlCache.GetValueOrDefault(notification.AcceptedByUserId),

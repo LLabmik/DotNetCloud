@@ -43,7 +43,7 @@ public class VideoCollectionServiceTests
         var caller = TestHelpers.CreateCaller();
         await TestHelpers.SeedCollectionAsync(_db, "Collection 1", caller.UserId);
         await TestHelpers.SeedCollectionAsync(_db, "Collection 2", caller.UserId);
-        await TestHelpers.SeedCollectionAsync(_db, "Other User", Guid.NewGuid());
+        await TestHelpers.SeedCollectionAsync(_db, "Other User", Guid.CreateVersion7());
 
         var result = await _service.ListCollectionsAsync(caller);
 
@@ -66,7 +66,7 @@ public class VideoCollectionServiceTests
     public async Task GetCollectionAsync_ReturnsNull_WhenNotOwned()
     {
         var caller = TestHelpers.CreateCaller();
-        var collection = await TestHelpers.SeedCollectionAsync(_db, "NotMine", Guid.NewGuid());
+        var collection = await TestHelpers.SeedCollectionAsync(_db, "NotMine", Guid.CreateVersion7());
 
         var result = await _service.GetCollectionAsync(collection.Id, caller);
 
@@ -93,7 +93,7 @@ public class VideoCollectionServiceTests
         var dto = new Core.DTOs.UpdateVideoCollectionDto { Name = "X" };
 
         var ex = await Assert.ThrowsExactlyAsync<BusinessRuleException>(
-            () => _service.UpdateCollectionAsync(Guid.NewGuid(), dto, caller));
+            () => _service.UpdateCollectionAsync(Guid.CreateVersion7(), dto, caller));
 
         Assert.AreEqual(ErrorCodes.VideoCollectionNotFound, ex.ErrorCode);
     }
@@ -206,7 +206,7 @@ public class VideoCollectionServiceTests
     public async Task FindOrCreateByNameAsync_DoesNotReturnOtherUsersCollection()
     {
         var caller = TestHelpers.CreateCaller();
-        var otherUser = Guid.NewGuid();
+        var otherUser = Guid.CreateVersion7();
         await TestHelpers.SeedCollectionAsync(_db, "Shared", otherUser);
 
         var result = await _service.FindOrCreateByNameAsync("Shared", caller);
@@ -248,7 +248,7 @@ public class VideoCollectionServiceTests
     public async Task FindOrCreateByNameAsync_DifferentUsers_SameName_CreatesSeparateCollections()
     {
         var caller1 = TestHelpers.CreateCaller();
-        var caller2 = TestHelpers.CreateCaller(Guid.NewGuid());
+        var caller2 = TestHelpers.CreateCaller(Guid.CreateVersion7());
 
         var result1 = await _service.FindOrCreateByNameAsync("Favorites", caller1);
         var result2 = await _service.FindOrCreateByNameAsync("Favorites", caller2);

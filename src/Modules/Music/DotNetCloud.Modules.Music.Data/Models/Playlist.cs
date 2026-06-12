@@ -6,7 +6,7 @@ namespace DotNetCloud.Modules.Music.Models;
 public sealed class Playlist
 {
     /// <summary>Unique identifier for this playlist.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>The user who owns this playlist.</summary>
     public Guid OwnerId { get; set; }

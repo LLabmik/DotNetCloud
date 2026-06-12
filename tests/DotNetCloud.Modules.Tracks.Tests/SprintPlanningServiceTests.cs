@@ -23,8 +23,8 @@ public class SprintPlanningServiceTests
 
     private async Task<WorkItem> SeedTestEpic()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
-        return await TestHelpers.SeedEpicAsync(_db, product.Id, Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
+        return await TestHelpers.SeedEpicAsync(_db, product.Id, Guid.CreateVersion7());
     }
 
     [TestMethod]

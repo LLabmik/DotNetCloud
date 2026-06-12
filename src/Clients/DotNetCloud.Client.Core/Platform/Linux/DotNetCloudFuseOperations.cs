@@ -396,7 +396,7 @@ public sealed class DotNetCloudFuseOperations : IFuseOperations
             var record = new LocalFileRecord
             {
                 LocalPath = localPath,
-                NodeId = Guid.NewGuid(),
+                NodeId = Guid.CreateVersion7(),
                 SyncStateTag = "Pending",
                 HydrationState = HydrationState.Hydrated,
                 LastSyncedAt = DateTime.UtcNow,
@@ -510,7 +510,7 @@ public sealed class DotNetCloudFuseOperations : IFuseOperations
             var record = new LocalFileRecord
             {
                 LocalPath = localPath,
-                NodeId = Guid.NewGuid(),
+                NodeId = Guid.CreateVersion7(),
                 SyncStateTag = "Directory",
                 HydrationState = HydrationState.Hydrated,
                 LastSyncedAt = DateTime.UtcNow,

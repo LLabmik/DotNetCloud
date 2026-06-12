@@ -18,7 +18,7 @@ public class ShareExpiryNotificationServiceTests
     private static FilesDbContext CreateContext(string? name = null)
     {
         var options = new DbContextOptionsBuilder<FilesDbContext>()
-            .UseInMemoryDatabase(name ?? Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(name ?? Guid.CreateVersion7().ToString())
             .Options;
         return new FilesDbContext(options);
     }
@@ -26,14 +26,14 @@ public class ShareExpiryNotificationServiceTests
     [TestMethod]
     public async Task CheckExpiringSharesAsync_ExpiringWithinWindow_PublishesEvent()
     {
-        var dbName = Guid.NewGuid().ToString();
+        var dbName = Guid.CreateVersion7().ToString();
         using var setupDb = CreateContext(dbName);
 
         var node = new FileNode
         {
             Name = "expiring.txt",
             NodeType = FileNodeType.File,
-            OwnerId = Guid.NewGuid()
+            OwnerId = Guid.CreateVersion7()
         };
         setupDb.FileNodes.Add(node);
 
@@ -78,14 +78,14 @@ public class ShareExpiryNotificationServiceTests
     [TestMethod]
     public async Task CheckExpiringSharesAsync_AlreadyNotified_DoesNotPublishAgain()
     {
-        var dbName = Guid.NewGuid().ToString();
+        var dbName = Guid.CreateVersion7().ToString();
         using var setupDb = CreateContext(dbName);
 
         var node = new FileNode
         {
             Name = "already-notified.txt",
             NodeType = FileNodeType.File,
-            OwnerId = Guid.NewGuid()
+            OwnerId = Guid.CreateVersion7()
         };
         setupDb.FileNodes.Add(node);
 
@@ -123,14 +123,14 @@ public class ShareExpiryNotificationServiceTests
     [TestMethod]
     public async Task CheckExpiringSharesAsync_ShareNotExpiringSoon_DoesNotPublish()
     {
-        var dbName = Guid.NewGuid().ToString();
+        var dbName = Guid.CreateVersion7().ToString();
         using var setupDb = CreateContext(dbName);
 
         var node = new FileNode
         {
             Name = "far-future.txt",
             NodeType = FileNodeType.File,
-            OwnerId = Guid.NewGuid()
+            OwnerId = Guid.CreateVersion7()
         };
         setupDb.FileNodes.Add(node);
 
@@ -167,14 +167,14 @@ public class ShareExpiryNotificationServiceTests
     [TestMethod]
     public async Task CheckExpiringSharesAsync_AlreadyExpired_DoesNotPublish()
     {
-        var dbName = Guid.NewGuid().ToString();
+        var dbName = Guid.CreateVersion7().ToString();
         using var setupDb = CreateContext(dbName);
 
         var node = new FileNode
         {
             Name = "expired.txt",
             NodeType = FileNodeType.File,
-            OwnerId = Guid.NewGuid()
+            OwnerId = Guid.CreateVersion7()
         };
         setupDb.FileNodes.Add(node);
 

@@ -20,7 +20,7 @@ public class DownloadServiceTests
     private static FilesDbContext CreateContext(string? name = null)
     {
         var options = new DbContextOptionsBuilder<FilesDbContext>()
-            .UseInMemoryDatabase(name ?? Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(name ?? Guid.CreateVersion7().ToString())
             .Options;
         return new FilesDbContext(options);
     }
@@ -35,7 +35,7 @@ public class DownloadServiceTests
     public async Task DownloadCurrentAsync_ExistingFile_ReturnsStream()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var chunkData = Encoding.UTF8.GetBytes("hello");
 
         var node = new FileNode { Name = "file.txt", NodeType = FileNodeType.File, OwnerId = userId };
@@ -81,7 +81,7 @@ public class DownloadServiceTests
     public async Task DownloadCurrentAsync_Folder_ThrowsInvalidOperationException()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var folder = new FileNode { Name = "Folder", NodeType = FileNodeType.Folder, OwnerId = userId };
         db.FileNodes.Add(folder);
         await db.SaveChangesAsync();
@@ -99,7 +99,7 @@ public class DownloadServiceTests
         var service = CreateService(db);
 
         await Assert.ThrowsExactlyAsync<NotFoundException>(
-            () => service.DownloadCurrentAsync(Guid.NewGuid(), UserCaller(Guid.NewGuid())));
+            () => service.DownloadCurrentAsync(Guid.CreateVersion7(), UserCaller(Guid.CreateVersion7())));
     }
 
     [TestMethod]
@@ -108,7 +108,7 @@ public class DownloadServiceTests
         // 0-byte files have a single chunk with Size=0 and the SHA-256 of empty content as the hash.
         // The blob should never be read from storage; the service must return an empty stream.
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         const string emptyHash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
 
         var node = new FileNode { Name = "err.txt", NodeType = FileNodeType.File, OwnerId = userId, Size = 0 };
@@ -151,7 +151,7 @@ public class DownloadServiceTests
         // Non-empty file whose chunk blob was lost from storage must return NotFoundException (→ 404),
         // not InvalidOperationException (→ 400).
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         var node = new FileNode { Name = "create_admin.cs", NodeType = FileNodeType.File, OwnerId = userId, Size = 512 };
         db.FileNodes.Add(node);
@@ -192,10 +192,10 @@ public class DownloadServiceTests
     public async Task DownloadCurrentAsync_AdminSharedVirtualFile_ReturnsPhysicalStream()
     {
         using var db = CreateContext();
-        var callerUserId = Guid.NewGuid();
-        var ownerId = Guid.NewGuid();
-        var groupId = Guid.NewGuid();
-        var tempPath = Path.Combine(Path.GetTempPath(), $"dnc-shared-download-{Guid.NewGuid():N}");
+        var callerUserId = Guid.CreateVersion7();
+        var ownerId = Guid.CreateVersion7();
+        var groupId = Guid.CreateVersion7();
+        var tempPath = Path.Combine(Path.GetTempPath(), $"dnc-shared-download-{Guid.CreateVersion7():N}");
         Directory.CreateDirectory(tempPath);
         var filePath = Path.Combine(tempPath, "readme.txt");
         await File.WriteAllTextAsync(filePath, "mounted-content");
@@ -249,7 +249,7 @@ public class DownloadServiceTests
     public async Task DownloadVersionAsync_SpecificVersion_ReturnsStream()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var chunkData = Encoding.UTF8.GetBytes("v1 data");
 
         var node = new FileNode { Name = "versioned.txt", NodeType = FileNodeType.File, OwnerId = userId };
@@ -294,7 +294,7 @@ public class DownloadServiceTests
     public async Task GetChunkManifestAsync_ReturnsOrderedHashes()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         var node = new FileNode { Name = "file.txt", NodeType = FileNodeType.File, OwnerId = userId };
         db.FileNodes.Add(node);
@@ -330,7 +330,7 @@ public class DownloadServiceTests
     public async Task GetChunkManifestAsync_Folder_ThrowsInvalidOperationException()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var folder = new FileNode { Name = "Folder", NodeType = FileNodeType.Folder, OwnerId = userId };
         db.FileNodes.Add(folder);
         await db.SaveChangesAsync();
@@ -348,14 +348,14 @@ public class DownloadServiceTests
         var service = CreateService(db);
 
         await Assert.ThrowsExactlyAsync<NotFoundException>(
-            () => service.GetChunkManifestAsync(Guid.NewGuid(), UserCaller(Guid.NewGuid())));
+            () => service.GetChunkManifestAsync(Guid.CreateVersion7(), UserCaller(Guid.CreateVersion7())));
     }
 
     [TestMethod]
     public async Task GetChunkManifestAsync_NoVersions_ReturnsEmpty()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = new FileNode { Name = "empty.txt", NodeType = FileNodeType.File, OwnerId = userId };
         db.FileNodes.Add(node);
         await db.SaveChangesAsync();
@@ -372,7 +372,7 @@ public class DownloadServiceTests
     public async Task DownloadChunkByHashAsync_ExistingChunk_ReturnsStream()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var chunkData = Encoding.UTF8.GetBytes("chunk content");
 
         var node = new FileNode
@@ -424,7 +424,7 @@ public class DownloadServiceTests
         using var db = CreateContext();
         var service = CreateService(db);
 
-        var result = await service.DownloadChunkByHashAsync("nonexistent", UserCaller(Guid.NewGuid()));
+        var result = await service.DownloadChunkByHashAsync("nonexistent", UserCaller(Guid.CreateVersion7()));
 
         Assert.IsNull(result);
     }
@@ -562,7 +562,7 @@ public class DownloadServiceTests
         // When a chunk blob is missing from storage during ZIP assembly, the service
         // must throw NotFoundException — not silently skip the chunk and produce a truncated file.
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         var node = new FileNode { Name = "report.pdf", NodeType = FileNodeType.File, OwnerId = userId, Size = 1024 };
         db.FileNodes.Add(node);

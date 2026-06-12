@@ -24,11 +24,11 @@ public class AttachmentServiceTests
     [TestMethod]
     public async Task AddAttachmentAsync_AddsAttachmentToWorkItem()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
         var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
-        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
-        var userId = Guid.NewGuid();
-        var fileNodeId = Guid.NewGuid();
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.CreateVersion7());
+        var userId = Guid.CreateVersion7();
+        var fileNodeId = Guid.CreateVersion7();
 
         var result = await _service.AddAttachmentAsync(item.Id, userId, "report.pdf", 1024, "application/pdf", fileNodeId, null, CancellationToken.None);
 
@@ -40,11 +40,11 @@ public class AttachmentServiceTests
     [TestMethod]
     public async Task GetAttachmentsByWorkItemAsync_ReturnsAttachments()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
         var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
-        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
-        var userId = Guid.NewGuid();
-        var fileNodeId = Guid.NewGuid();
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.CreateVersion7());
+        var userId = Guid.CreateVersion7();
+        var fileNodeId = Guid.CreateVersion7();
         await _service.AddAttachmentAsync(item.Id, userId, "a.pdf", 100, "application/pdf", fileNodeId, null, CancellationToken.None);
         await _service.AddAttachmentAsync(item.Id, userId, "b.pdf", 200, "application/pdf", fileNodeId, null, CancellationToken.None);
 
@@ -56,11 +56,11 @@ public class AttachmentServiceTests
     [TestMethod]
     public async Task RemoveAttachmentAsync_DeletesAttachment()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
         var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
-        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
-        var userId = Guid.NewGuid();
-        var fileNodeId = Guid.NewGuid();
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.CreateVersion7());
+        var userId = Guid.CreateVersion7();
+        var fileNodeId = Guid.CreateVersion7();
         var attachment = await _service.AddAttachmentAsync(item.Id, userId, "tmp.pdf", 50, "application/pdf", fileNodeId, null, CancellationToken.None);
 
         await _service.RemoveAttachmentAsync(attachment.Id, CancellationToken.None);
@@ -72,9 +72,9 @@ public class AttachmentServiceTests
     [TestMethod]
     public async Task GetAttachmentsByWorkItemAsync_NoAttachments_ReturnsEmptyList()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
         var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
-        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.CreateVersion7());
 
         var result = await _service.GetAttachmentsByWorkItemAsync(item.Id, CancellationToken.None);
 

@@ -17,7 +17,7 @@ public class SoftDeleteTests
     public void Setup()
     {
         var options = new DbContextOptionsBuilder<CoreDbContext>()
-            .UseInMemoryDatabase(databaseName: $"SoftDeleteTestDb_{Guid.NewGuid()}")
+            .UseInMemoryDatabase(databaseName: $"SoftDeleteTestDb_{Guid.CreateVersion7()}")
             .Options;
 
         var namingStrategy = new PostgreSqlNamingStrategy();

@@ -6,7 +6,7 @@ namespace DotNetCloud.Modules.Chat.Models;
 public sealed class AnnouncementAcknowledgement
 {
     /// <summary>Unique identifier.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>Announcement that was acknowledged.</summary>
     public Guid AnnouncementId { get; set; }

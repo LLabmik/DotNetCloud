@@ -41,7 +41,7 @@ public partial class FileUploadComponent : ComponentBase, IDisposable
     private DotNetObjectReference<FileUploadComponent>? _jsRef;
 
     /// <summary>DOM id for the hidden file input element.</summary>
-    protected string FileInputId { get; } = $"dnc-upload-input-{Guid.NewGuid():N}";
+    protected string FileInputId { get; } = $"dnc-upload-input-{Guid.CreateVersion7():N}";
 
     /// <inheritdoc />
     protected override async Task OnAfterRenderAsync(bool firstRender)

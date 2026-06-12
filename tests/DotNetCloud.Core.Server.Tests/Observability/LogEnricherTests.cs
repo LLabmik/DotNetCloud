@@ -12,7 +12,7 @@ public class LogEnricherTests
     [TestMethod]
     public void WithUserId_ReturnsDisposable()
     {
-        using var enrichment = LogEnricher.WithUserId(Guid.NewGuid());
+        using var enrichment = LogEnricher.WithUserId(Guid.CreateVersion7());
 
         Assert.IsNotNull(enrichment);
     }
@@ -45,7 +45,7 @@ public class LogEnricherTests
     public void WithCallerContext_ReturnsDisposable()
     {
         var context = new CallerContext(
-            Guid.NewGuid(),
+            Guid.CreateVersion7(),
             ["Admin", "User"],
             CallerType.User);
 
@@ -57,7 +57,7 @@ public class LogEnricherTests
     [TestMethod]
     public void WithUserId_PushesPropertyToLogContext()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var sink = new CollectorSink();
 
         using var logger = new LoggerConfiguration()
@@ -117,7 +117,7 @@ public class LogEnricherTests
     public void WithCallerContext_PushesCallerContextPropertyToLogContext()
     {
         var context = new CallerContext(
-            Guid.NewGuid(),
+            Guid.CreateVersion7(),
             ["Admin"],
             CallerType.User);
 
@@ -147,7 +147,7 @@ public class LogEnricherTests
             .Enrich.FromLogContext()
             .CreateLogger();
 
-        using (LogEnricher.WithUserId(Guid.NewGuid()))
+        using (LogEnricher.WithUserId(Guid.CreateVersion7()))
         {
             logger.Information("Inside scope");
         }

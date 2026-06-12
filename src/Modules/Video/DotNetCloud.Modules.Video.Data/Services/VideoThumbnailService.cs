@@ -134,7 +134,7 @@ public sealed class VideoThumbnailService : IVideoThumbnailService
             }
 
             // Extract a frame at ~2 seconds (falls back to first frame for short videos)
-            tempFramePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.jpg");
+            tempFramePath = Path.Combine(Path.GetTempPath(), $"{Guid.CreateVersion7()}.jpg");
             var extracted = await ExtractFrameAsync(tempVideoPath, tempFramePath, "10%", cancellationToken);
             if (!extracted)
             {
@@ -260,7 +260,7 @@ public sealed class VideoThumbnailService : IVideoThumbnailService
             // Extract frames at multiple timestamps
             foreach (var pct in new[] { 10, 30, 50, 70, 90 })
             {
-                var frameTemp = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.jpg");
+                var frameTemp = Path.Combine(Path.GetTempPath(), $"{Guid.CreateVersion7()}.jpg");
                 try
                 {
                     var extracted = await ExtractFrameAsync(tempVideoPath, frameTemp, $"{pct}%", cancellationToken);

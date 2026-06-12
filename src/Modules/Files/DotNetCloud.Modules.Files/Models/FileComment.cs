@@ -7,7 +7,7 @@ namespace DotNetCloud.Modules.Files.Models;
 public sealed class FileComment
 {
     /// <summary>Unique identifier for this comment.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>The file or folder this comment is on.</summary>
     public Guid FileNodeId { get; set; }

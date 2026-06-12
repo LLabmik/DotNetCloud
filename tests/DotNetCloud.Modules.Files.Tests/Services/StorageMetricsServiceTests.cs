@@ -10,7 +10,7 @@ public class StorageMetricsServiceTests
 {
     private static FilesDbContext CreateContext() =>
         new(new DbContextOptionsBuilder<FilesDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options);
 
     [TestMethod]
@@ -33,7 +33,7 @@ public class StorageMetricsServiceTests
     public async Task GetDeduplicationMetricsAsync_NoDedup_SavingsIsZero()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         // One file, one version, one chunk — no duplication
         var node = new FileNode { Name = "test.txt", NodeType = FileNodeType.File, OwnerId = userId };
@@ -70,7 +70,7 @@ public class StorageMetricsServiceTests
     public async Task GetDeduplicationMetricsAsync_WithDedup_ReportsSavings()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         // Two files sharing the same chunk
         var node1 = new FileNode { Name = "file1.txt", NodeType = FileNodeType.File, OwnerId = userId };
@@ -121,7 +121,7 @@ public class StorageMetricsServiceTests
     public async Task GetDeduplicationMetricsAsync_OrphanedChunks_ExcludedFromPhysical()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         // A chunk that hasn't been referenced yet (ReferenceCount = 0)
         db.FileChunks.Add(new FileChunk

@@ -30,7 +30,7 @@ public class MfaServiceTests
             storeMock.Object, null, null, null, null, null, null, null, null);
 
         var options = new DbContextOptionsBuilder<CoreDbContext>()
-            .UseInMemoryDatabase($"MfaTests_{Guid.NewGuid()}")
+            .UseInMemoryDatabase($"MfaTests_{Guid.CreateVersion7()}")
             .Options;
         _dbContext = new CoreDbContext(options, new PostgreSqlNamingStrategy());
 
@@ -49,7 +49,7 @@ public class MfaServiceTests
     public async Task GenerateBackupCodes_Returns10Codes()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         // Act
         var response = await _service.GenerateBackupCodesAsync(userId);
@@ -63,7 +63,7 @@ public class MfaServiceTests
     public async Task GenerateBackupCodes_AllCodesAreUnique()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         // Act
         var response = await _service.GenerateBackupCodesAsync(userId);
@@ -77,7 +77,7 @@ public class MfaServiceTests
     public async Task GenerateBackupCodes_StoresHashedCodes()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         // Act
         await _service.GenerateBackupCodesAsync(userId);
@@ -95,7 +95,7 @@ public class MfaServiceTests
     public async Task GenerateBackupCodes_RegeneratingInvalidatesOldCodes()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         await _service.GenerateBackupCodesAsync(userId);
 
         // Act — regenerate
@@ -111,7 +111,7 @@ public class MfaServiceTests
     public async Task UseBackupCode_ValidCode_ReturnsTrue()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var response = await _service.GenerateBackupCodesAsync(userId);
         var validCode = response.Codes[0];
 
@@ -126,7 +126,7 @@ public class MfaServiceTests
     public async Task UseBackupCode_ValidCode_MarksCodeAsUsed()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var response = await _service.GenerateBackupCodesAsync(userId);
         var validCode = response.Codes[0];
 
@@ -145,7 +145,7 @@ public class MfaServiceTests
     public async Task UseBackupCode_AlreadyUsedCode_ReturnsFalse()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var response = await _service.GenerateBackupCodesAsync(userId);
         var validCode = response.Codes[0];
         await _service.UseBackupCodeAsync(userId, validCode);
@@ -161,7 +161,7 @@ public class MfaServiceTests
     public async Task UseBackupCode_InvalidCode_ReturnsFalse()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         await _service.GenerateBackupCodesAsync(userId);
 
         // Act
@@ -175,10 +175,10 @@ public class MfaServiceTests
     public async Task UseBackupCode_WrongUserId_ReturnsFalse()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var response = await _service.GenerateBackupCodesAsync(userId);
         var validCode = response.Codes[0];
-        var differentUserId = Guid.NewGuid();
+        var differentUserId = Guid.CreateVersion7();
 
         // Act
         var result = await _service.UseBackupCodeAsync(differentUserId, validCode);
@@ -191,7 +191,7 @@ public class MfaServiceTests
     public async Task VerifyTotp_ValidCode_ReturnsTrue()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var user = new ApplicationUser { Id = userId, DisplayName = "Test User" };
         _userManagerMock
             .Setup(m => m.FindByIdAsync(userId.ToString()))
@@ -214,7 +214,7 @@ public class MfaServiceTests
     public async Task VerifyTotp_InvalidCode_ReturnsFalse()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var user = new ApplicationUser { Id = userId, DisplayName = "Test User" };
         _userManagerMock
             .Setup(m => m.FindByIdAsync(userId.ToString()))

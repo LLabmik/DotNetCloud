@@ -33,12 +33,12 @@ public class MusicPlaybackStateTests
     {
         return new TrackDto
         {
-            Id = id ?? Guid.NewGuid(),
-            FileNodeId = Guid.NewGuid(),
+            Id = id ?? Guid.CreateVersion7(),
+            FileNodeId = Guid.CreateVersion7(),
             Title = title,
             Duration = duration ?? TimeSpan.FromSeconds(200),
             MimeType = "audio/flac",
-            ArtistId = Guid.NewGuid(),
+            ArtistId = Guid.CreateVersion7(),
             ArtistName = "Test Artist",
             AlbumId = albumId,
             AlbumTitle = albumId is not null ? "Test Album" : null,
@@ -777,7 +777,7 @@ public class MusicPlaybackStateTests
     [TestMethod]
     public void ApplyPreset_SetsBandsAndActivePresetId()
     {
-        var presetId = Guid.NewGuid();
+        var presetId = Guid.CreateVersion7();
         var bands = new Dictionary<string, double>
         {
             ["31"] = 3.0,
@@ -813,7 +813,7 @@ public class MusicPlaybackStateTests
         _state.OnChange += () => raised = true;
         var preset = new EqPresetDto
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             Name = "Test",
             Bands = Enumerable.Range(0, 10).ToDictionary(i => MusicPlaybackState.BandLabels[i], _ => 0.0)
         };
@@ -828,8 +828,8 @@ public class MusicPlaybackStateTests
     {
         var presets = new List<EqPresetDto>
         {
-            new() { Id = Guid.NewGuid(), Name = "Flat", Bands = new Dictionary<string, double>() },
-            new() { Id = Guid.NewGuid(), Name = "Rock", Bands = new Dictionary<string, double>() }
+            new() { Id = Guid.CreateVersion7(), Name = "Flat", Bands = new Dictionary<string, double>() },
+            new() { Id = Guid.CreateVersion7(), Name = "Rock", Bands = new Dictionary<string, double>() }
         };
         _eqPresetMock.Setup(s => s.ListPresetsAsync(_caller, default))
             .ReturnsAsync(presets);
@@ -868,7 +868,7 @@ public class MusicPlaybackStateTests
     {
         var createdPreset = new EqPresetDto
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             Name = "My Preset",
             Bands = new Dictionary<string, double>()
         };
@@ -890,7 +890,7 @@ public class MusicPlaybackStateTests
     {
         var createdPreset = new EqPresetDto
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             Name = "Trimmed",
             Bands = new Dictionary<string, double>()
         };
@@ -1037,7 +1037,7 @@ public class MusicPlaybackStateTests
     [TestMethod]
     public void GetAudioUrl_ReturnsCorrectPath()
     {
-        var fileNodeId = Guid.NewGuid();
+        var fileNodeId = Guid.CreateVersion7();
         var track = MakeTrack();
         var trackWithFileNode = track with { FileNodeId = fileNodeId };
 
@@ -1049,7 +1049,7 @@ public class MusicPlaybackStateTests
     [TestMethod]
     public void GetAlbumArtUrl_ReturnsCorrectPath()
     {
-        var albumId = Guid.NewGuid();
+        var albumId = Guid.CreateVersion7();
 
         var url = MusicPlaybackState.GetAlbumArtUrl(albumId);
 

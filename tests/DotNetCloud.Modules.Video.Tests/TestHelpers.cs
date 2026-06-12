@@ -16,14 +16,14 @@ internal static class TestHelpers
     public static VideoDbContext CreateDb()
     {
         var options = new DbContextOptionsBuilder<VideoDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options;
         return new VideoDbContext(options);
     }
 
     /// <summary>Creates a CallerContext for a user.</summary>
     public static CallerContext CreateCaller(Guid? userId = null)
-        => new(userId ?? Guid.NewGuid(), ["user"], CallerType.User);
+        => new(userId ?? Guid.CreateVersion7(), ["user"], CallerType.User);
 
     /// <summary>Seeds a video in the database (legacy + canonical).</summary>
     public static async Task<VideoModel> SeedVideoAsync(
@@ -33,10 +33,10 @@ internal static class TestHelpers
         long sizeBytes = 500_000_000,
         Guid? ownerId = null)
     {
-        var owner = ownerId ?? Guid.NewGuid();
+        var owner = ownerId ?? Guid.CreateVersion7();
         var video = new VideoModel
         {
-            FileNodeId = Guid.NewGuid(),
+            FileNodeId = Guid.CreateVersion7(),
             OwnerId = owner,
             Title = title,
             FileName = $"{title.Replace(' ', '_').ToLowerInvariant()}.mp4",
@@ -48,7 +48,7 @@ internal static class TestHelpers
         await db.SaveChangesAsync();
 
         // Also seed canonical data so services using the canonical path can find this video
-        var contentHash = Guid.NewGuid().ToString("N");
+        var contentHash = Guid.CreateVersion7().ToString("N");
         if (!db.CanonicalVideos.Any(cv => cv.ContentHash == contentHash))
         {
             db.CanonicalVideos.Add(new CanonicalVideoModel
@@ -86,7 +86,7 @@ internal static class TestHelpers
     {
         var collection = new UserVideoCollection
         {
-            OwnerId = ownerId ?? Guid.NewGuid(),
+            OwnerId = ownerId ?? Guid.CreateVersion7(),
             Name = name,
             Description = "A test collection"
         };
@@ -210,8 +210,8 @@ internal static class TestHelpers
 
         var userVideo = new UserVideo
         {
-            OwnerId = ownerId ?? Guid.NewGuid(),
-            FileNodeId = Guid.NewGuid(),
+            OwnerId = ownerId ?? Guid.CreateVersion7(),
+            FileNodeId = Guid.CreateVersion7(),
             CanonicalContentHash = contentHash
         };
         db.UserVideos.Add(userVideo);

@@ -65,7 +65,7 @@ public class Phase3CapabilityTests
         // Arrange & Act
         var summary = new CalendarEventSummary
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             Title = "Quick Sync",
             StartUtc = DateTime.UtcNow,
             EndUtc = DateTime.UtcNow.AddMinutes(30),

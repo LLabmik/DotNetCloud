@@ -24,14 +24,14 @@ public class NoteShareServiceTests
     public void Setup()
     {
         var options = new DbContextOptionsBuilder<NotesDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options;
         _db = new NotesDbContext(options);
         var eventBusMock = new Mock<IEventBus>();
         _noteService = new NoteService(_db, eventBusMock.Object, NullLogger<NoteService>.Instance);
         _shareService = new NoteShareService(_db, eventBusMock.Object, NullLogger<NoteShareService>.Instance);
-        _owner = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
-        _recipient = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        _owner = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
+        _recipient = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
     }
 
     [TestCleanup]
@@ -63,7 +63,7 @@ public class NoteShareServiceTests
 
         await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
             () => _shareService.ShareNoteAsync(
-                note.Id, Guid.NewGuid(), NoteSharePermission.ReadOnly, _recipient));
+                note.Id, Guid.CreateVersion7(), NoteSharePermission.ReadOnly, _recipient));
     }
 
     [TestMethod]
@@ -85,8 +85,8 @@ public class NoteShareServiceTests
     public async Task ListShares_ReturnsSharesForNote()
     {
         var note = await _noteService.CreateNoteAsync(new CreateNoteDto { Title = "Multi share" }, _owner);
-        var user2 = Guid.NewGuid();
-        var user3 = Guid.NewGuid();
+        var user2 = Guid.CreateVersion7();
+        var user3 = Guid.CreateVersion7();
 
         await _shareService.ShareNoteAsync(note.Id, user2, NoteSharePermission.ReadOnly, _owner);
         await _shareService.ShareNoteAsync(note.Id, user3, NoteSharePermission.ReadWrite, _owner);

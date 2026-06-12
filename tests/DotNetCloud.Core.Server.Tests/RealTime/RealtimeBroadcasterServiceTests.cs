@@ -68,7 +68,7 @@ public class RealtimeBroadcasterServiceTests
     [TestMethod]
     public async Task WhenSendToUserWithConnectionsThenSendsToConnections()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         _tracker.AddConnection(userId, "conn-1");
         _tracker.AddConnection(userId, "conn-2");
 
@@ -83,7 +83,7 @@ public class RealtimeBroadcasterServiceTests
     [TestMethod]
     public async Task WhenSendToUserWithNoConnectionsThenDoesNotSend()
     {
-        await _broadcaster.SendToUserAsync(Guid.NewGuid(), "TestEvent", new { Data = "hello" });
+        await _broadcaster.SendToUserAsync(Guid.CreateVersion7(), "TestEvent", new { Data = "hello" });
 
         Assert.AreEqual(0, _hubContext.StubClients.ClientsCalls.Count);
         Assert.AreEqual(0, _hubContext.StubClients.LastProxy.Invocations.Count);
@@ -93,14 +93,14 @@ public class RealtimeBroadcasterServiceTests
     public async Task WhenSendToUserWithNullEventNameThenThrows()
     {
         await Assert.ThrowsExactlyAsync<ArgumentException>(
-            () => _broadcaster.SendToUserAsync(Guid.NewGuid(), null!, new { }));
+            () => _broadcaster.SendToUserAsync(Guid.CreateVersion7(), null!, new { }));
     }
 
     [TestMethod]
     public async Task WhenSendToUserWithNullMessageThenThrows()
     {
         await Assert.ThrowsExactlyAsync<ArgumentNullException>(
-            () => _broadcaster.SendToUserAsync(Guid.NewGuid(), "event", null!));
+            () => _broadcaster.SendToUserAsync(Guid.CreateVersion7(), "event", null!));
     }
 
     // --- SendToRoleAsync ---
@@ -142,7 +142,7 @@ public class RealtimeBroadcasterServiceTests
     [TestMethod]
     public async Task WhenAddToGroupThenAddsAllUserConnections()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         _tracker.AddConnection(userId, "conn-1");
         _tracker.AddConnection(userId, "conn-2");
 
@@ -157,7 +157,7 @@ public class RealtimeBroadcasterServiceTests
     [TestMethod]
     public async Task WhenAddToGroupWithNoConnectionsThenDoesNothing()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         await _broadcaster.AddToGroupAsync(userId, "my-group");
 
@@ -169,7 +169,7 @@ public class RealtimeBroadcasterServiceTests
     public async Task WhenAddToGroupWithNullGroupThenThrows()
     {
         await Assert.ThrowsExactlyAsync<ArgumentException>(
-            () => _broadcaster.AddToGroupAsync(Guid.NewGuid(), null!));
+            () => _broadcaster.AddToGroupAsync(Guid.CreateVersion7(), null!));
     }
 
     // --- RemoveFromGroupAsync ---
@@ -177,7 +177,7 @@ public class RealtimeBroadcasterServiceTests
     [TestMethod]
     public async Task WhenRemoveFromGroupThenRemovesAllUserConnections()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         _tracker.AddConnection(userId, "conn-1");
         _tracker.AddConnection(userId, "conn-2");
 
@@ -193,13 +193,13 @@ public class RealtimeBroadcasterServiceTests
     public async Task WhenRemoveFromGroupWithNullGroupThenThrows()
     {
         await Assert.ThrowsExactlyAsync<ArgumentException>(
-            () => _broadcaster.RemoveFromGroupAsync(Guid.NewGuid(), null!));
+            () => _broadcaster.RemoveFromGroupAsync(Guid.CreateVersion7(), null!));
     }
 
     [TestMethod]
     public async Task WhenRemoveFromGroupThenTrackedMembershipIsRemoved()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         await _broadcaster.AddToGroupAsync(userId, "my-group");
         await _broadcaster.RemoveFromGroupAsync(userId, "my-group");

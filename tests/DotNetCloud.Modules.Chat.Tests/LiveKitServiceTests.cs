@@ -412,7 +412,7 @@ public class LiveKitServiceTests
             Nbf = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
             Exp = DateTimeOffset.UtcNow.AddMinutes(5).ToUnixTimeSeconds(),
             Iat = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
-            Jti = Guid.NewGuid().ToString("N"),
+            Jti = Guid.CreateVersion7().ToString("N"),
             Video = new LiveKitService.LiveKitVideoGrants { RoomList = true, RoomCreate = true, RoomAdmin = true }
         };
 

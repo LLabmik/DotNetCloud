@@ -51,7 +51,7 @@ public sealed class PlaybackService : IPlaybackService
 
         await _eventBus.PublishAsync(new TrackPlayedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             TrackId = trackId,
             UserId = caller.UserId,
@@ -89,7 +89,7 @@ public sealed class PlaybackService : IPlaybackService
 
         await _eventBus.PublishAsync(new TrackScrobbledEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             TrackId = trackId,
             UserId = caller.UserId,

@@ -36,14 +36,14 @@ public class ChatMessageTracksHandlerTests
     [TestMethod]
     public async Task HandleMessageSentEvent_BroadcastsActivityToTracks()
     {
-        var messageId = Guid.NewGuid();
-        var senderUserId = Guid.NewGuid();
+        var messageId = Guid.CreateVersion7();
+        var senderUserId = Guid.CreateVersion7();
         var evt = new MessageSentEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             MessageId = messageId,
-            ChannelId = Guid.NewGuid(),
+            ChannelId = Guid.CreateVersion7(),
             SenderUserId = senderUserId,
             Content = "Hello team!",
             MessageType = "Text"
@@ -63,11 +63,11 @@ public class ChatMessageTracksHandlerTests
     [TestMethod]
     public async Task HandleChannelCreatedEvent_BroadcastsActivityToTracks()
     {
-        var channelId = Guid.NewGuid();
-        var createdByUserId = Guid.NewGuid();
+        var channelId = Guid.CreateVersion7();
+        var createdByUserId = Guid.CreateVersion7();
         var evt = new ChannelCreatedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ChannelId = channelId,
             ChannelName = "project-alpha",
@@ -89,11 +89,11 @@ public class ChatMessageTracksHandlerTests
     [TestMethod]
     public async Task HandleChannelDeletedEvent_BroadcastsActivityToTracks()
     {
-        var channelId = Guid.NewGuid();
-        var deletedByUserId = Guid.NewGuid();
+        var channelId = Guid.CreateVersion7();
+        var deletedByUserId = Guid.CreateVersion7();
         var evt = new ChannelDeletedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ChannelId = channelId,
             ChannelName = "old-channel",
@@ -117,11 +117,11 @@ public class ChatMessageTracksHandlerTests
         using var cts = new CancellationTokenSource();
         var evt = new MessageSentEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            MessageId = Guid.NewGuid(),
-            ChannelId = Guid.NewGuid(),
-            SenderUserId = Guid.NewGuid(),
+            MessageId = Guid.CreateVersion7(),
+            ChannelId = Guid.CreateVersion7(),
+            SenderUserId = Guid.CreateVersion7(),
             Content = "test",
             MessageType = "Text"
         };
@@ -142,23 +142,23 @@ public class ChatMessageTracksHandlerTests
     {
         var msgEvt = new MessageSentEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            MessageId = Guid.NewGuid(),
-            ChannelId = Guid.NewGuid(),
-            SenderUserId = Guid.NewGuid(),
+            MessageId = Guid.CreateVersion7(),
+            ChannelId = Guid.CreateVersion7(),
+            SenderUserId = Guid.CreateVersion7(),
             Content = "Hello",
             MessageType = "Text"
         };
 
         var channelEvt = new ChannelCreatedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            ChannelId = Guid.NewGuid(),
+            ChannelId = Guid.CreateVersion7(),
             ChannelName = "test",
             ChannelType = "Public",
-            CreatedByUserId = Guid.NewGuid()
+            CreatedByUserId = Guid.CreateVersion7()
         };
 
         await _handler.HandleAsync(msgEvt);

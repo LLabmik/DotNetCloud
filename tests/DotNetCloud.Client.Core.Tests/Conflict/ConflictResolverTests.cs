@@ -46,7 +46,7 @@ public class ConflictResolverTests
         var outcome = await _resolver.ResolveAsync(new ConflictInfo
         {
             LocalPath = localPath,
-            NodeId = Guid.NewGuid(),
+            NodeId = Guid.CreateVersion7(),
             RemoteUpdatedAt = DateTime.UtcNow,
         });
 
@@ -68,7 +68,7 @@ public class ConflictResolverTests
         await _resolver.ResolveAsync(new ConflictInfo
         {
             LocalPath = localPath,
-            NodeId = Guid.NewGuid(),
+            NodeId = Guid.CreateVersion7(),
             RemoteUpdatedAt = DateTime.UtcNow,
         });
 
@@ -86,7 +86,7 @@ public class ConflictResolverTests
         var outcome = await _resolver.ResolveAsync(new ConflictInfo
         {
             LocalPath = localPath,
-            NodeId = Guid.NewGuid(),
+            NodeId = Guid.CreateVersion7(),
             RemoteUpdatedAt = DateTime.UtcNow,
         });
 
@@ -105,7 +105,7 @@ public class ConflictResolverTests
         await _resolver.ResolveAsync(new ConflictInfo
         {
             LocalPath = localPath,
-            NodeId = Guid.NewGuid(),
+            NodeId = Guid.CreateVersion7(),
             RemoteUpdatedAt = DateTime.UtcNow,
             StateDatabasePath = dbPath,
         });
@@ -127,7 +127,7 @@ public class ConflictResolverTests
         var outcome = await _resolver.ResolveAsync(new ConflictInfo
         {
             LocalPath = localPath,
-            NodeId = Guid.NewGuid(),
+            NodeId = Guid.CreateVersion7(),
             RemoteUpdatedAt = DateTime.UtcNow,
             LocalContentHash = "abc123",
             RemoteContentHash = "ABC123", // Case-insensitive comparison
@@ -150,7 +150,7 @@ public class ConflictResolverTests
         await _resolver.ResolveAsync(new ConflictInfo
         {
             LocalPath = localPath,
-            NodeId = Guid.NewGuid(),
+            NodeId = Guid.CreateVersion7(),
             RemoteUpdatedAt = DateTime.UtcNow,
             LocalContentHash = "deadbeef",
             RemoteContentHash = "DEADBEEF",
@@ -172,7 +172,7 @@ public class ConflictResolverTests
         var outcome = await _resolver.ResolveAsync(new ConflictInfo
         {
             LocalPath = localPath,
-            NodeId = Guid.NewGuid(),
+            NodeId = Guid.CreateVersion7(),
             RemoteUpdatedAt = DateTime.UtcNow,
             LocalContentHash = "basehash",
             BaseContentHash = "basehash",   // local == base → server wins
@@ -191,7 +191,7 @@ public class ConflictResolverTests
         var outcome = await _resolver.ResolveAsync(new ConflictInfo
         {
             LocalPath = localPath,
-            NodeId = Guid.NewGuid(),
+            NodeId = Guid.CreateVersion7(),
             RemoteUpdatedAt = DateTime.UtcNow,
             LocalContentHash = "localnewhash",
             BaseContentHash = "basehash",
@@ -217,7 +217,7 @@ public class ConflictResolverTests
         var outcome = await _resolver.ResolveAsync(new ConflictInfo
         {
             LocalPath = localPath,
-            NodeId = Guid.NewGuid(),
+            NodeId = Guid.CreateVersion7(),
             RemoteUpdatedAt = DateTime.UtcNow,
             LocalContentHash = "l",
             RemoteContentHash = "r",
@@ -245,7 +245,7 @@ public class ConflictResolverTests
         var outcome = await _resolver.ResolveAsync(new ConflictInfo
         {
             LocalPath = localPath,
-            NodeId = Guid.NewGuid(),
+            NodeId = Guid.CreateVersion7(),
             LocalModifiedAt = now,
             RemoteUpdatedAt = now.AddMinutes(-10), // local is 10 min newer
         });
@@ -263,7 +263,7 @@ public class ConflictResolverTests
         var outcome = await _resolver.ResolveAsync(new ConflictInfo
         {
             LocalPath = localPath,
-            NodeId = Guid.NewGuid(),
+            NodeId = Guid.CreateVersion7(),
             LocalModifiedAt = now.AddMinutes(-10), // server is 10 min newer
             RemoteUpdatedAt = now,
         });
@@ -282,7 +282,7 @@ public class ConflictResolverTests
         var outcome = await _resolver.ResolveAsync(new ConflictInfo
         {
             LocalPath = localPath,
-            NodeId = Guid.NewGuid(),
+            NodeId = Guid.CreateVersion7(),
             LocalModifiedAt = now,
             RemoteUpdatedAt = now.AddMinutes(-3),
         });
@@ -305,7 +305,7 @@ public class ConflictResolverTests
         var outcome = await _resolver.ResolveAsync(new ConflictInfo
         {
             LocalPath = localPath,
-            NodeId = Guid.NewGuid(),
+            NodeId = Guid.CreateVersion7(),
             RemoteUpdatedAt = DateTime.UtcNow,
             LocalContent = localContent,
             ServerContent = serverContent,
@@ -326,7 +326,7 @@ public class ConflictResolverTests
         await _resolver.ResolveAsync(new ConflictInfo
         {
             LocalPath = localPath,
-            NodeId = Guid.NewGuid(),
+            NodeId = Guid.CreateVersion7(),
             RemoteUpdatedAt = DateTime.UtcNow,
             LocalContentHash = "same",
             RemoteContentHash = "same",
@@ -390,7 +390,7 @@ public class ConflictResolverTests
         var outcome = await _resolver.ResolveAsync(new ConflictInfo
         {
             LocalPath = localPath,
-            NodeId = Guid.NewGuid(),
+            NodeId = Guid.CreateVersion7(),
             RemoteUpdatedAt = DateTime.UtcNow,
             LocalContentHash = "same",
             RemoteContentHash = "same", // Would be identical, but auto-resolve is off
@@ -413,7 +413,7 @@ public class ConflictResolverTests
         var outcome = await _resolver.ResolveAsync(new ConflictInfo
         {
             LocalPath = localPath,
-            NodeId = Guid.NewGuid(),
+            NodeId = Guid.CreateVersion7(),
             RemoteUpdatedAt = DateTime.UtcNow,
             LocalContentHash = "same",
             RemoteContentHash = "same",
@@ -437,7 +437,7 @@ public class ConflictResolverTests
         var outcome = await _resolver.ResolveAsync(new ConflictInfo
         {
             LocalPath = localPath,
-            NodeId = Guid.NewGuid(),
+            NodeId = Guid.CreateVersion7(),
             LocalModifiedAt = now,
             RemoteUpdatedAt = now.AddMinutes(-3),
         });

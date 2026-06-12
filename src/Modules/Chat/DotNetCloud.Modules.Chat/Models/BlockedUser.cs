@@ -8,7 +8,7 @@ namespace DotNetCloud.Modules.Chat.Models;
 public sealed class BlockedUser
 {
     /// <summary>Unique identifier.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>The user who created the block.</summary>
     public Guid UserId { get; set; }

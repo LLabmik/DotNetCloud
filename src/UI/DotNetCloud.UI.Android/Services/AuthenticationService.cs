@@ -42,7 +42,7 @@ internal sealed class AuthenticationService : IAuthenticationService
     public Task<bool> LoginAsync(string username, string password, CancellationToken cancellationToken = default)
     {
         // Stub: always succeeds with a generated user ID
-        CurrentUserId = Guid.NewGuid();
+        CurrentUserId = Guid.CreateVersion7();
         AccessToken = $"stub-token-{CurrentUserId}";
         IsAuthenticated = true;
         return Task.FromResult(true);

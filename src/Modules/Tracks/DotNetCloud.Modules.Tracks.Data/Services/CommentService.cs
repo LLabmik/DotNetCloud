@@ -105,7 +105,7 @@ public sealed class CommentService
         var caller = new CallerContext(userId, Array.Empty<string>(), CallerType.User);
         await _eventBus.PublishAsync(new WorkItemCommentDeletedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             WorkItemId = comment.WorkItemId,
             CommentId = commentId,

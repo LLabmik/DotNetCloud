@@ -5,7 +5,7 @@ namespace DotNetCloud.Modules.Tracks.Models;
 /// </summary>
 public sealed class Label
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
     public Guid ProductId { get; set; }
     public required string Title { get; set; }
     public required string Color { get; set; }

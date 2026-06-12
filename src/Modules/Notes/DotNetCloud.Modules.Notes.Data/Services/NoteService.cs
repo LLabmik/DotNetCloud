@@ -82,7 +82,7 @@ public sealed class NoteService : INoteService
 
         await _eventBus.PublishAsync(new NoteCreatedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             NoteId = note.Id,
             Title = note.Title,
@@ -92,7 +92,7 @@ public sealed class NoteService : INoteService
 
         await _eventBus.PublishAsync(new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ModuleId = "notes",
             EntityId = note.Id.ToString(),
@@ -213,7 +213,7 @@ public sealed class NoteService : INoteService
         }
 
         note.Version++;
-        note.ETag = Guid.NewGuid().ToString("N");
+        note.ETag = Guid.CreateVersion7().ToString("N");
         note.UpdatedAt = DateTime.UtcNow;
         note.UpdatedByUserId = caller.UserId;
 
@@ -224,7 +224,7 @@ public sealed class NoteService : INoteService
 
         await _eventBus.PublishAsync(new NoteUpdatedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             NoteId = noteId,
             UpdatedByUserId = caller.UserId,
@@ -233,7 +233,7 @@ public sealed class NoteService : INoteService
 
         await _eventBus.PublishAsync(new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ModuleId = "notes",
             EntityId = noteId.ToString(),
@@ -256,7 +256,7 @@ public sealed class NoteService : INoteService
         note.IsDeleted = true;
         note.DeletedAt = DateTime.UtcNow;
         note.UpdatedAt = DateTime.UtcNow;
-        note.ETag = Guid.NewGuid().ToString("N");
+        note.ETag = Guid.CreateVersion7().ToString("N");
 
         await _db.SaveChangesAsync(cancellationToken);
 
@@ -264,7 +264,7 @@ public sealed class NoteService : INoteService
 
         await _eventBus.PublishAsync(new NoteDeletedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             NoteId = noteId,
             DeletedByUserId = caller.UserId,
@@ -273,7 +273,7 @@ public sealed class NoteService : INoteService
 
         await _eventBus.PublishAsync(new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ModuleId = "notes",
             EntityId = noteId.ToString(),
@@ -366,7 +366,7 @@ public sealed class NoteService : INoteService
         note.Title = version.Title;
         note.Content = version.Content;
         note.Version++;
-        note.ETag = Guid.NewGuid().ToString("N");
+        note.ETag = Guid.CreateVersion7().ToString("N");
         note.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(cancellationToken);

@@ -18,7 +18,7 @@ public class TrashServiceTests
     private static FilesDbContext CreateContext(string? name = null)
     {
         var options = new DbContextOptionsBuilder<FilesDbContext>()
-            .UseInMemoryDatabase(name ?? Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(name ?? Guid.CreateVersion7().ToString())
             .Options;
         return new FilesDbContext(options);
     }
@@ -38,7 +38,7 @@ public class TrashServiceTests
             IsDeleted = true,
             DeletedAt = DateTime.UtcNow,
             DeletedByUserId = ownerId,
-            OriginalParentId = originalParentId ?? Guid.NewGuid()
+            OriginalParentId = originalParentId ?? Guid.CreateVersion7()
         };
         node.MaterializedPath = $"/{node.Id}";
         return node;
@@ -48,7 +48,7 @@ public class TrashServiceTests
     public async Task ListTrashAsync_ReturnsDeletedItems()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         db.FileNodes.Add(CreateDeletedNode(userId));
         db.FileNodes.Add(CreateDeletedNode(userId));
         // Active node should not appear
@@ -65,7 +65,7 @@ public class TrashServiceTests
     public async Task RestoreAsync_ExistingParent_RestoresToOriginalParent()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var parent = new FileNode { Name = "Parent", NodeType = FileNodeType.Folder, OwnerId = userId, Depth = 0 };
         parent.MaterializedPath = $"/{parent.Id}";
         db.FileNodes.Add(parent);
@@ -89,8 +89,8 @@ public class TrashServiceTests
     public async Task RestoreAsync_MissingParent_RestoresToRoot()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
-        var deleted = CreateDeletedNode(userId, Guid.NewGuid()); // Parent doesn't exist
+        var userId = Guid.CreateVersion7();
+        var deleted = CreateDeletedNode(userId, Guid.CreateVersion7()); // Parent doesn't exist
         db.FileNodes.Add(deleted);
         await db.SaveChangesAsync();
 
@@ -107,28 +107,28 @@ public class TrashServiceTests
         var service = CreateService(db);
 
         await Assert.ThrowsExactlyAsync<NotFoundException>(
-            () => service.RestoreAsync(Guid.NewGuid(), UserCaller(Guid.NewGuid())));
+            () => service.RestoreAsync(Guid.CreateVersion7(), UserCaller(Guid.CreateVersion7())));
     }
 
     [TestMethod]
     public async Task RestoreAsync_NonOwner_ThrowsForbiddenException()
     {
         using var db = CreateContext();
-        var deleted = CreateDeletedNode(Guid.NewGuid());
+        var deleted = CreateDeletedNode(Guid.CreateVersion7());
         db.FileNodes.Add(deleted);
         await db.SaveChangesAsync();
 
         var service = CreateService(db);
 
         await Assert.ThrowsExactlyAsync<ForbiddenException>(
-            () => service.RestoreAsync(deleted.Id, UserCaller(Guid.NewGuid())));
+            () => service.RestoreAsync(deleted.Id, UserCaller(Guid.CreateVersion7())));
     }
 
     [TestMethod]
     public async Task PermanentDeleteAsync_RemovesNodeAndRelatedData()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = CreateDeletedNode(userId);
         db.FileNodes.Add(node);
 
@@ -177,7 +177,7 @@ public class TrashServiceTests
     public async Task EmptyTrashAsync_DeletesAllTrashItems()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         db.FileNodes.Add(CreateDeletedNode(userId));
         db.FileNodes.Add(CreateDeletedNode(userId));
         // Active node should be preserved
@@ -198,7 +198,7 @@ public class TrashServiceTests
     public async Task GetTrashSizeAsync_ReturnsSumOfDeletedSizes()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var d1 = CreateDeletedNode(userId);
         d1.Size = 1000;
         var d2 = CreateDeletedNode(userId);
@@ -219,7 +219,7 @@ public class TrashServiceTests
     public async Task GetTrashSizeAsync_NoTrash_ReturnsZero()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         db.FileNodes.Add(new FileNode { Name = "active.txt", OwnerId = userId, Size = 500 });
         await db.SaveChangesAsync();
 
@@ -233,8 +233,8 @@ public class TrashServiceTests
     public async Task GetTrashSizeAsync_OtherUsersTrash_NotCounted()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
-        var otherId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var otherId = Guid.CreateVersion7();
         var mine = CreateDeletedNode(userId);
         mine.Size = 100;
         var theirs = CreateDeletedNode(otherId);
@@ -252,7 +252,7 @@ public class TrashServiceTests
     public async Task RestoreAsync_NameConflict_RenamesNode()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         // Active node with the same name at root
         db.FileNodes.Add(new FileNode { Name = "deleted.txt", NodeType = FileNodeType.File, OwnerId = userId });
@@ -266,7 +266,7 @@ public class TrashServiceTests
             IsDeleted = true,
             DeletedAt = DateTime.UtcNow,
             DeletedByUserId = userId,
-            OriginalParentId = Guid.NewGuid() // non-existent parent -> goes to root
+            OriginalParentId = Guid.CreateVersion7() // non-existent parent -> goes to root
         };
         deleted.MaterializedPath = $"/{deleted.Id}";
         db.FileNodes.Add(deleted);
@@ -284,8 +284,8 @@ public class TrashServiceTests
     public async Task RestoreAsync_NoNameConflict_KeepsOriginalName()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
-        var deleted = CreateDeletedNode(userId, Guid.NewGuid());
+        var userId = Guid.CreateVersion7();
+        var deleted = CreateDeletedNode(userId, Guid.CreateVersion7());
         deleted.Name = "unique-file.txt";
         db.FileNodes.Add(deleted);
         await db.SaveChangesAsync();
@@ -300,7 +300,7 @@ public class TrashServiceTests
     public async Task PermanentDeleteAsync_UpdatesUserQuota()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = CreateDeletedNode(userId);
         node.Size = 2048;
         node.NodeType = FileNodeType.File;
@@ -320,7 +320,7 @@ public class TrashServiceTests
     public async Task PermanentDeleteAsync_QuotaNotDecremented_BelowZero()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = CreateDeletedNode(userId);
         node.Size = 99999;
         node.NodeType = FileNodeType.File;
@@ -340,7 +340,7 @@ public class TrashServiceTests
     public async Task PermanentDeleteAsync_NoQuotaRecord_Succeeds()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = CreateDeletedNode(userId);
         node.Size = 1024;
         db.FileNodes.Add(node);
@@ -357,7 +357,7 @@ public class TrashServiceTests
     public async Task EmptyTrashAsync_UpdatesUserQuota()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         var d1 = CreateDeletedNode(userId);
         d1.Size = 1000;
@@ -382,10 +382,10 @@ public class TrashServiceTests
     public async Task RestoreAllAsync_RestoresAllTopLevelItems()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
-        var d1 = CreateDeletedNode(userId, Guid.NewGuid());
+        var userId = Guid.CreateVersion7();
+        var d1 = CreateDeletedNode(userId, Guid.CreateVersion7());
         d1.Name = "file1.txt";
-        var d2 = CreateDeletedNode(userId, Guid.NewGuid());
+        var d2 = CreateDeletedNode(userId, Guid.CreateVersion7());
         d2.Name = "file2.txt";
         db.FileNodes.AddRange(d1, d2);
         await db.SaveChangesAsync();

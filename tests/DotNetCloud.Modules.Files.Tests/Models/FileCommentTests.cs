@@ -61,9 +61,9 @@ public class FileCommentTests
     [TestMethod]
     public void WhenPropertiesSetThenStoresValues()
     {
-        var nodeId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
-        var parentId = Guid.NewGuid();
+        var nodeId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
+        var parentId = Guid.CreateVersion7();
 
         var comment = new FileComment
         {

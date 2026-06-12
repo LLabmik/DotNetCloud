@@ -20,7 +20,7 @@ public sealed class TempFileCleanupServiceTests : IDisposable
     [TestInitialize]
     public void Setup()
     {
-        _tmpDir = Path.Combine(Path.GetTempPath(), $"test-tmp-{Guid.NewGuid():N}");
+        _tmpDir = Path.Combine(Path.GetTempPath(), $"test-tmp-{Guid.CreateVersion7():N}");
         Directory.CreateDirectory(_tmpDir);
 
         var options = Microsoft.Extensions.Options.Options.Create(new FileUploadOptions { TmpPath = _tmpDir });

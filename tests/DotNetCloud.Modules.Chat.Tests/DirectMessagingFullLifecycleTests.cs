@@ -34,7 +34,7 @@ public class DirectMessagingFullLifecycleTests
     public void Setup()
     {
         var options = new DbContextOptionsBuilder<ChatDbContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(databaseName: Guid.CreateVersion7().ToString())
             .Options;
 
         _db = new ChatDbContext(options);
@@ -74,7 +74,7 @@ public class DirectMessagingFullLifecycleTests
     }
 
     private CallerContext CreateCaller() =>
-        new(Guid.NewGuid(), ["user"], CallerType.User);
+        new(Guid.CreateVersion7(), ["user"], CallerType.User);
 
     private Guid SeedDmChannel(Guid owner, Guid member)
     {
@@ -102,7 +102,7 @@ public class DirectMessagingFullLifecycleTests
     {
         var hostCaller = CreateCaller();
         var joinerCaller = CreateCaller();
-        var invitedUserId = Guid.NewGuid();
+        var invitedUserId = Guid.CreateVersion7();
 
         var channelId = SeedDmChannel(hostCaller.UserId, joinerCaller.UserId);
 
@@ -186,7 +186,7 @@ public class DirectMessagingFullLifecycleTests
     {
         var hostCaller = CreateCaller();
         var joinerCaller = CreateCaller();
-        var newInviteTarget = Guid.NewGuid();
+        var newInviteTarget = Guid.CreateVersion7();
 
         var channelId = SeedDmChannel(hostCaller.UserId, joinerCaller.UserId);
 
@@ -229,7 +229,7 @@ public class DirectMessagingFullLifecycleTests
         Assert.AreEqual(ParticipantState.Invited, invited.State);
 
         // Step 4: Original host (now non-host) cannot invite
-        var anotherTarget = Guid.NewGuid();
+        var anotherTarget = Guid.CreateVersion7();
 
         await Assert.ThrowsExactlyAsync<UnauthorizedAccessException>(() =>
             _videoCallService.InviteToCallAsync(call.Id, anotherTarget, hostCaller));
@@ -246,8 +246,8 @@ public class DirectMessagingFullLifecycleTests
     {
         var ownerCaller = CreateCaller();
         var member2Caller = CreateCaller();
-        var member3UserId = Guid.NewGuid();
-        var member4UserId = Guid.NewGuid();
+        var member3UserId = Guid.CreateVersion7();
+        var member4UserId = Guid.CreateVersion7();
 
         // ── Step 1: Create a 2-person DM channel ─────────────────
         var dmChannelId = SeedDmChannel(ownerCaller.UserId, member2Caller.UserId);

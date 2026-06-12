@@ -141,7 +141,7 @@ public sealed class ExampleModule : IModuleLifecycle
         {
             var @event = new Example.Events.NoteCreatedEvent
             {
-                EventId = Guid.NewGuid(),
+                EventId = Guid.CreateVersion7(),
                 CreatedAt = DateTime.UtcNow,
                 NoteId = note.Id,
                 Title = note.Title,

@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Data.Configuration.Extensions;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Modules.Notes.Data.Configuration;
 using DotNetCloud.Modules.Notes.Models;
@@ -58,5 +59,7 @@ public class NotesDbContext : DbContext
         modelBuilder.ApplyConfiguration(new NoteLinkConfiguration());
         modelBuilder.ApplyConfiguration(new NoteVersionConfiguration());
         modelBuilder.ApplyConfiguration(new NoteShareConfiguration());
+
+        SequentialGuidConfigurationExtensions.ApplySequentialGuidDefaults(modelBuilder, _namingStrategy.Provider);
     }
 }

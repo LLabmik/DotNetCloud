@@ -123,7 +123,7 @@ namespace DotNetCloud.Core.Events;
 ///         // Publish event with required properties
 ///         var @event = new UserCreatedEvent
 ///         {
-///             EventId = Guid.NewGuid(),           // Unique event ID
+///             EventId = Guid.CreateVersion7(),           // Unique event ID
 ///             CreatedAt = DateTime.UtcNow,        // Current time in UTC
 ///             UserId = user.Id,
 ///             Email = user.Email,
@@ -160,7 +160,7 @@ public interface IEvent
     /// <remarks>
     /// Typically generated when the event is created:
     /// <code>
-    /// EventId = Guid.NewGuid()
+    /// EventId = Guid.CreateVersion7()
     /// </code>
     /// 
     /// Used for:

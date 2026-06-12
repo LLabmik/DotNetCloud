@@ -79,7 +79,7 @@ public sealed class UserManagementControllerTests : IDisposable
     [TestMethod]
     public async Task GetUserAsync_CurrentUser_ReturnsOk()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         SetUser(userId);
         _serviceMock.Setup(s => s.GetUserAsync(userId))
             .ReturnsAsync(CreateUserDto(userId));
@@ -92,8 +92,8 @@ public sealed class UserManagementControllerTests : IDisposable
     [TestMethod]
     public async Task GetUserAsync_AdminViewingOtherUser_ReturnsOk()
     {
-        var adminId = Guid.NewGuid();
-        var targetId = Guid.NewGuid();
+        var adminId = Guid.CreateVersion7();
+        var targetId = Guid.CreateVersion7();
         SetAdmin(adminId);
         _serviceMock.Setup(s => s.GetUserAsync(targetId))
             .ReturnsAsync(CreateUserDto(targetId));
@@ -106,8 +106,8 @@ public sealed class UserManagementControllerTests : IDisposable
     [TestMethod]
     public async Task GetUserAsync_NonAdminViewingOtherUser_ReturnsForbid()
     {
-        var userId = Guid.NewGuid();
-        var otherId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var otherId = Guid.CreateVersion7();
         SetUser(userId);
 
         var result = await _controller.GetUserAsync(otherId);
@@ -118,7 +118,7 @@ public sealed class UserManagementControllerTests : IDisposable
     [TestMethod]
     public async Task GetUserAsync_UserNotFound_ReturnsNotFound()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         SetUser(userId);
         _serviceMock.Setup(s => s.GetUserAsync(userId))
             .ReturnsAsync((UserDto?)null);
@@ -135,7 +135,7 @@ public sealed class UserManagementControllerTests : IDisposable
     [TestMethod]
     public async Task UpdateUserAsync_CurrentUser_ReturnsOk()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         SetUser(userId);
         var dto = new UpdateUserDto { DisplayName = "New Name" };
         _serviceMock.Setup(s => s.UpdateUserAsync(userId, It.IsAny<UpdateUserDto>()))
@@ -149,7 +149,7 @@ public sealed class UserManagementControllerTests : IDisposable
     [TestMethod]
     public async Task UpdateUserAsync_NonAdminSetsIsActive_IsActiveNulled()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         SetUser(userId);
         var dto = new UpdateUserDto { DisplayName = "Name", IsActive = false };
         _serviceMock.Setup(s => s.UpdateUserAsync(userId, It.Is<UpdateUserDto>(d => d.IsActive == null)))
@@ -164,8 +164,8 @@ public sealed class UserManagementControllerTests : IDisposable
     [TestMethod]
     public async Task UpdateUserAsync_AdminSetsIsActive_IsActivePreserved()
     {
-        var adminId = Guid.NewGuid();
-        var targetId = Guid.NewGuid();
+        var adminId = Guid.CreateVersion7();
+        var targetId = Guid.CreateVersion7();
         SetAdmin(adminId);
         var dto = new UpdateUserDto { DisplayName = "Name", IsActive = false };
         _serviceMock.Setup(s => s.UpdateUserAsync(targetId, It.Is<UpdateUserDto>(d => d.IsActive == false)))
@@ -179,8 +179,8 @@ public sealed class UserManagementControllerTests : IDisposable
     [TestMethod]
     public async Task UpdateUserAsync_NonAdminUpdatingOtherUser_ReturnsForbid()
     {
-        var userId = Guid.NewGuid();
-        var otherId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var otherId = Guid.CreateVersion7();
         SetUser(userId);
 
         var result = await _controller.UpdateUserAsync(otherId, new UpdateUserDto());
@@ -191,7 +191,7 @@ public sealed class UserManagementControllerTests : IDisposable
     [TestMethod]
     public async Task UpdateUserAsync_UserNotFound_ReturnsNotFound()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         SetUser(userId);
         _serviceMock.Setup(s => s.UpdateUserAsync(userId, It.IsAny<UpdateUserDto>()))
             .ReturnsAsync((UserDto?)null);
@@ -204,7 +204,7 @@ public sealed class UserManagementControllerTests : IDisposable
     [TestMethod]
     public async Task UpdateUserAsync_ServiceThrows_ReturnsBadRequest()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         SetUser(userId);
         _serviceMock.Setup(s => s.UpdateUserAsync(userId, It.IsAny<UpdateUserDto>()))
             .ThrowsAsync(new InvalidOperationException("Update failed"));
@@ -221,7 +221,7 @@ public sealed class UserManagementControllerTests : IDisposable
     [TestMethod]
     public async Task DeleteUserAsync_SelfDeletion_ReturnsBadRequest()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         SetAdmin(userId);
 
         var result = await _controller.DeleteUserAsync(userId);
@@ -232,8 +232,8 @@ public sealed class UserManagementControllerTests : IDisposable
     [TestMethod]
     public async Task DeleteUserAsync_UserNotFound_ReturnsNotFound()
     {
-        var adminId = Guid.NewGuid();
-        var targetId = Guid.NewGuid();
+        var adminId = Guid.CreateVersion7();
+        var targetId = Guid.CreateVersion7();
         SetAdmin(adminId);
         _serviceMock.Setup(s => s.DeleteUserAsync(targetId)).ReturnsAsync(false);
 
@@ -245,8 +245,8 @@ public sealed class UserManagementControllerTests : IDisposable
     [TestMethod]
     public async Task DeleteUserAsync_Success_ReturnsOk()
     {
-        var adminId = Guid.NewGuid();
-        var targetId = Guid.NewGuid();
+        var adminId = Guid.CreateVersion7();
+        var targetId = Guid.CreateVersion7();
         SetAdmin(adminId);
         _serviceMock.Setup(s => s.DeleteUserAsync(targetId)).ReturnsAsync(true);
 
@@ -262,7 +262,7 @@ public sealed class UserManagementControllerTests : IDisposable
     [TestMethod]
     public async Task DisableUserAsync_SelfDisable_ReturnsBadRequest()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         SetAdmin(userId);
 
         var result = await _controller.DisableUserAsync(userId);
@@ -273,8 +273,8 @@ public sealed class UserManagementControllerTests : IDisposable
     [TestMethod]
     public async Task DisableUserAsync_UserNotFound_ReturnsNotFound()
     {
-        var adminId = Guid.NewGuid();
-        var targetId = Guid.NewGuid();
+        var adminId = Guid.CreateVersion7();
+        var targetId = Guid.CreateVersion7();
         SetAdmin(adminId);
         _serviceMock.Setup(s => s.DisableUserAsync(targetId)).ReturnsAsync(false);
 
@@ -286,8 +286,8 @@ public sealed class UserManagementControllerTests : IDisposable
     [TestMethod]
     public async Task DisableUserAsync_Success_ReturnsOk()
     {
-        var adminId = Guid.NewGuid();
-        var targetId = Guid.NewGuid();
+        var adminId = Guid.CreateVersion7();
+        var targetId = Guid.CreateVersion7();
         SetAdmin(adminId);
         _serviceMock.Setup(s => s.DisableUserAsync(targetId)).ReturnsAsync(true);
 
@@ -303,8 +303,8 @@ public sealed class UserManagementControllerTests : IDisposable
     [TestMethod]
     public async Task EnableUserAsync_UserNotFound_ReturnsNotFound()
     {
-        var adminId = Guid.NewGuid();
-        var targetId = Guid.NewGuid();
+        var adminId = Guid.CreateVersion7();
+        var targetId = Guid.CreateVersion7();
         SetAdmin(adminId);
         _serviceMock.Setup(s => s.EnableUserAsync(targetId)).ReturnsAsync(false);
 
@@ -316,8 +316,8 @@ public sealed class UserManagementControllerTests : IDisposable
     [TestMethod]
     public async Task EnableUserAsync_Success_ReturnsOk()
     {
-        var adminId = Guid.NewGuid();
-        var targetId = Guid.NewGuid();
+        var adminId = Guid.CreateVersion7();
+        var targetId = Guid.CreateVersion7();
         SetAdmin(adminId);
         _serviceMock.Setup(s => s.EnableUserAsync(targetId)).ReturnsAsync(true);
 
@@ -333,8 +333,8 @@ public sealed class UserManagementControllerTests : IDisposable
     [TestMethod]
     public async Task AdminResetPasswordAsync_Success_ReturnsOk()
     {
-        var adminId = Guid.NewGuid();
-        var targetId = Guid.NewGuid();
+        var adminId = Guid.CreateVersion7();
+        var targetId = Guid.CreateVersion7();
         SetAdmin(adminId);
         _serviceMock.Setup(s => s.AdminResetPasswordAsync(targetId, It.IsAny<AdminResetPasswordRequest>()))
             .ReturnsAsync(true);
@@ -347,8 +347,8 @@ public sealed class UserManagementControllerTests : IDisposable
     [TestMethod]
     public async Task AdminResetPasswordAsync_Failure_ReturnsBadRequest()
     {
-        var adminId = Guid.NewGuid();
-        var targetId = Guid.NewGuid();
+        var adminId = Guid.CreateVersion7();
+        var targetId = Guid.CreateVersion7();
         SetAdmin(adminId);
         _serviceMock.Setup(s => s.AdminResetPasswordAsync(targetId, It.IsAny<AdminResetPasswordRequest>()))
             .ReturnsAsync(false);
@@ -365,8 +365,8 @@ public sealed class UserManagementControllerTests : IDisposable
     [TestMethod]
     public async Task UploadAvatarAsync_NonAdminUploadForOtherUser_ReturnsForbid()
     {
-        var userId = Guid.NewGuid();
-        var otherId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var otherId = Guid.CreateVersion7();
         SetUser(userId);
 
         var file = CreateMockFormFile("avatar.jpg", "image/jpeg");
@@ -378,7 +378,7 @@ public sealed class UserManagementControllerTests : IDisposable
     [TestMethod]
     public async Task UploadAvatarAsync_NullFile_ReturnsBadRequest()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         SetUser(userId);
 
         var result = await _controller.UploadAvatarAsync(userId, null!);
@@ -389,7 +389,7 @@ public sealed class UserManagementControllerTests : IDisposable
     [TestMethod]
     public async Task UploadAvatarAsync_EmptyFile_ReturnsBadRequest()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         SetUser(userId);
 
         var file = CreateMockFormFile("avatar.jpg", "image/jpeg", contentSize: 0);
@@ -401,7 +401,7 @@ public sealed class UserManagementControllerTests : IDisposable
     [TestMethod]
     public async Task UploadAvatarAsync_InvalidContentType_ReturnsBadRequest()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         SetUser(userId);
 
         _fileValidationMock.Setup(v => v.Validate(It.IsAny<IFormFile>(), It.IsAny<AllowedFileTypes.FileTypeDefinition[]>(), It.IsAny<long?>()))
@@ -419,7 +419,7 @@ public sealed class UserManagementControllerTests : IDisposable
     [DataRow("image/webp", ".webp")]
     public async Task UploadAvatarAsync_ValidImage_SavesFileAndReturnsOk(string contentType, string extension)
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         SetUser(userId);
         SetupTempAvatarDir();
         _serviceMock.Setup(s => s.UpdateUserAsync(userId, It.IsAny<UpdateUserDto>()))
@@ -440,8 +440,8 @@ public sealed class UserManagementControllerTests : IDisposable
     [TestMethod]
     public async Task UploadAvatarAsync_AdminUploadForOtherUser_Succeeds()
     {
-        var adminId = Guid.NewGuid();
-        var targetId = Guid.NewGuid();
+        var adminId = Guid.CreateVersion7();
+        var targetId = Guid.CreateVersion7();
         SetAdmin(adminId);
         SetupTempAvatarDir();
         _serviceMock.Setup(s => s.UpdateUserAsync(targetId, It.IsAny<UpdateUserDto>()))
@@ -456,7 +456,7 @@ public sealed class UserManagementControllerTests : IDisposable
     [TestMethod]
     public async Task UploadAvatarAsync_ReplacesExistingAvatar()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         SetUser(userId);
         SetupTempAvatarDir();
         _serviceMock.Setup(s => s.UpdateUserAsync(userId, It.IsAny<UpdateUserDto>()))
@@ -479,7 +479,7 @@ public sealed class UserManagementControllerTests : IDisposable
     [TestMethod]
     public async Task UploadAvatarAsync_NoExtensionInFileName_InfersFromContentType()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         SetUser(userId);
         SetupTempAvatarDir();
         _serviceMock.Setup(s => s.UpdateUserAsync(userId, It.IsAny<UpdateUserDto>()))
@@ -501,7 +501,7 @@ public sealed class UserManagementControllerTests : IDisposable
     [TestMethod]
     public void GetAvatar_NoAvatarFile_ReturnsNotFound()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         SetupTempAvatarDir();
 
         var result = _controller.GetAvatar(userId);
@@ -512,9 +512,9 @@ public sealed class UserManagementControllerTests : IDisposable
     [TestMethod]
     public void GetAvatar_DirectoryDoesNotExist_ReturnsNotFound()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         // Set env to a non-existent subdirectory (creates unique path that doesn't exist)
-        var fakePath = Path.Combine(Path.GetTempPath(), $"dnc-nonexistent-{Guid.NewGuid()}");
+        var fakePath = Path.Combine(Path.GetTempPath(), $"dnc-nonexistent-{Guid.CreateVersion7()}");
         Environment.SetEnvironmentVariable("DOTNETCLOUD_DATA_DIR", fakePath);
 
         var result = _controller.GetAvatar(userId);
@@ -525,7 +525,7 @@ public sealed class UserManagementControllerTests : IDisposable
     [TestMethod]
     public void GetAvatar_JpegAvatarExists_ReturnsFileWithCorrectContentType()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         SetupTempAvatarDir();
         File.WriteAllBytes(Path.Combine(_tempAvatarDir!, $"{userId}.jpg"), new byte[] { 0xFF, 0xD8, 0xFF });
 
@@ -540,7 +540,7 @@ public sealed class UserManagementControllerTests : IDisposable
     [TestMethod]
     public void GetAvatar_PngAvatarExists_ReturnsCorrectContentType()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         SetupTempAvatarDir();
         File.WriteAllBytes(Path.Combine(_tempAvatarDir!, $"{userId}.png"), new byte[] { 0x89, 0x50, 0x4E });
 
@@ -555,7 +555,7 @@ public sealed class UserManagementControllerTests : IDisposable
     [TestMethod]
     public void GetAvatar_WebpAvatarExists_ReturnsCorrectContentType()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         SetupTempAvatarDir();
         File.WriteAllBytes(Path.Combine(_tempAvatarDir!, $"{userId}.webp"), new byte[] { 0x52, 0x49, 0x46 });
 
@@ -570,7 +570,7 @@ public sealed class UserManagementControllerTests : IDisposable
     [TestMethod]
     public void GetAvatar_GifAvatarExists_ReturnsCorrectContentType()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         SetupTempAvatarDir();
         File.WriteAllBytes(Path.Combine(_tempAvatarDir!, $"{userId}.gif"), new byte[] { 0x47, 0x49, 0x46 });
 
@@ -589,8 +589,8 @@ public sealed class UserManagementControllerTests : IDisposable
     [TestMethod]
     public async Task DeleteAvatarAsync_NonAdminDeleteOtherUser_ReturnsForbid()
     {
-        var userId = Guid.NewGuid();
-        var otherId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var otherId = Guid.CreateVersion7();
         SetUser(userId);
 
         var result = await _controller.DeleteAvatarAsync(otherId);
@@ -601,7 +601,7 @@ public sealed class UserManagementControllerTests : IDisposable
     [TestMethod]
     public async Task DeleteAvatarAsync_CurrentUser_DeletesFileAndReturnsOk()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         SetUser(userId);
         SetupTempAvatarDir();
         File.WriteAllText(Path.Combine(_tempAvatarDir!, $"{userId}.jpg"), "data");
@@ -619,7 +619,7 @@ public sealed class UserManagementControllerTests : IDisposable
     [TestMethod]
     public async Task DeleteAvatarAsync_NoExistingFile_StillSucceeds()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         SetUser(userId);
         SetupTempAvatarDir();
         _serviceMock.Setup(s => s.UpdateUserAsync(userId, It.IsAny<UpdateUserDto>()))
@@ -633,8 +633,8 @@ public sealed class UserManagementControllerTests : IDisposable
     [TestMethod]
     public async Task DeleteAvatarAsync_AdminDeleteForOtherUser_Succeeds()
     {
-        var adminId = Guid.NewGuid();
-        var targetId = Guid.NewGuid();
+        var adminId = Guid.CreateVersion7();
+        var targetId = Guid.CreateVersion7();
         SetAdmin(adminId);
         SetupTempAvatarDir();
         File.WriteAllText(Path.Combine(_tempAvatarDir!, $"{targetId}.png"), "data");
@@ -654,11 +654,11 @@ public sealed class UserManagementControllerTests : IDisposable
     [TestMethod]
     public async Task ListUsersAsync_ReturnsOkWithPagination()
     {
-        var adminId = Guid.NewGuid();
+        var adminId = Guid.CreateVersion7();
         SetAdmin(adminId);
         var result = new PaginatedResult<UserDto>
         {
-            Items = [CreateUserDto(Guid.NewGuid())],
+            Items = [CreateUserDto(Guid.CreateVersion7())],
             Page = 1,
             PageSize = 25,
             TotalCount = 1,
@@ -677,8 +677,8 @@ public sealed class UserManagementControllerTests : IDisposable
     [TestMethod]
     public async Task GetUserAsync_AdminRoleClaim_CanViewOtherUser()
     {
-        var userId = Guid.NewGuid();
-        var targetId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var targetId = Guid.CreateVersion7();
         SetUserWithClaims(userId, new Claim(ClaimTypes.Role, "Administrator"));
         _serviceMock.Setup(s => s.GetUserAsync(targetId))
             .ReturnsAsync(CreateUserDto(targetId));
@@ -691,8 +691,8 @@ public sealed class UserManagementControllerTests : IDisposable
     [TestMethod]
     public async Task GetUserAsync_AdminStringRoleClaim_CanViewOtherUser()
     {
-        var userId = Guid.NewGuid();
-        var targetId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var targetId = Guid.CreateVersion7();
         SetUserWithClaims(userId, new Claim(PermissionAuthorizationHandler.PermissionClaimType, "admin"));
         _serviceMock.Setup(s => s.GetUserAsync(targetId))
             .ReturnsAsync(CreateUserDto(targetId));
@@ -705,8 +705,8 @@ public sealed class UserManagementControllerTests : IDisposable
     [TestMethod]
     public async Task UploadAvatarAsync_PermissionClaimAdmin_CanUploadForOtherUser()
     {
-        var adminId = Guid.NewGuid();
-        var targetId = Guid.NewGuid();
+        var adminId = Guid.CreateVersion7();
+        var targetId = Guid.CreateVersion7();
         SetUserWithClaims(adminId, new Claim(PermissionAuthorizationHandler.PermissionClaimType, "admin"));
         SetupTempAvatarDir();
         _serviceMock.Setup(s => s.UpdateUserAsync(targetId, It.IsAny<UpdateUserDto>()))
@@ -749,7 +749,7 @@ public sealed class UserManagementControllerTests : IDisposable
 
     private void SetupTempAvatarDir()
     {
-        _tempAvatarDir = Path.Combine(Path.GetTempPath(), $"dnc-test-avatars-{Guid.NewGuid()}");
+        _tempAvatarDir = Path.Combine(Path.GetTempPath(), $"dnc-test-avatars-{Guid.CreateVersion7()}");
         var parentDir = Path.GetDirectoryName(_tempAvatarDir)!;
         // Set env variable so GetAvatarStoragePath() uses our temp dir
         Environment.SetEnvironmentVariable("DOTNETCLOUD_DATA_DIR", _tempAvatarDir);

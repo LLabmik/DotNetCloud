@@ -20,7 +20,7 @@ public class UserManagementServiceTests
 
     private static readonly ApplicationUser TestUser = new()
     {
-        Id = Guid.NewGuid(),
+        Id = Guid.CreateVersion7(),
         UserName = "user@example.com",
         Email = "user@example.com",
         DisplayName = "Test User",
@@ -83,7 +83,7 @@ public class UserManagementServiceTests
             .ReturnsAsync((ApplicationUser?)null);
 
         // Act
-        var result = await _service.GetUserAsync(Guid.NewGuid());
+        var result = await _service.GetUserAsync(Guid.CreateVersion7());
 
         // Assert
         Assert.IsNull(result);
@@ -126,7 +126,7 @@ public class UserManagementServiceTests
             .ReturnsAsync((ApplicationUser?)null);
 
         // Act
-        var result = await _service.UpdateUserAsync(Guid.NewGuid(), new UpdateUserDto());
+        var result = await _service.UpdateUserAsync(Guid.CreateVersion7(), new UpdateUserDto());
 
         // Assert
         Assert.IsNull(result);
@@ -186,7 +186,7 @@ public class UserManagementServiceTests
             .ReturnsAsync((ApplicationUser?)null);
 
         // Act
-        var result = await _service.DeleteUserAsync(Guid.NewGuid());
+        var result = await _service.DeleteUserAsync(Guid.CreateVersion7());
 
         // Assert
         Assert.IsFalse(result);
@@ -202,7 +202,7 @@ public class UserManagementServiceTests
         // Arrange
         var user = new ApplicationUser
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             UserName = "active@example.com",
             Email = "active@example.com",
             DisplayName = "Active User",
@@ -232,7 +232,7 @@ public class UserManagementServiceTests
             .ReturnsAsync((ApplicationUser?)null);
 
         // Act
-        var result = await _service.DisableUserAsync(Guid.NewGuid());
+        var result = await _service.DisableUserAsync(Guid.CreateVersion7());
 
         // Assert
         Assert.IsFalse(result);
@@ -248,7 +248,7 @@ public class UserManagementServiceTests
         // Arrange
         var user = new ApplicationUser
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             UserName = "disabled@example.com",
             Email = "disabled@example.com",
             DisplayName = "Disabled User",
@@ -278,7 +278,7 @@ public class UserManagementServiceTests
             .ReturnsAsync((ApplicationUser?)null);
 
         // Act
-        var result = await _service.EnableUserAsync(Guid.NewGuid());
+        var result = await _service.EnableUserAsync(Guid.CreateVersion7());
 
         // Assert
         Assert.IsFalse(result);
@@ -321,7 +321,7 @@ public class UserManagementServiceTests
 
         // Act
         var result = await _service.AdminResetPasswordAsync(
-            Guid.NewGuid(), new AdminResetPasswordRequest { NewPassword = "NewP@ss!" });
+            Guid.CreateVersion7(), new AdminResetPasswordRequest { NewPassword = "NewP@ss!" });
 
         // Assert
         Assert.IsFalse(result);

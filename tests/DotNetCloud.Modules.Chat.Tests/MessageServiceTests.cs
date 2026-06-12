@@ -30,12 +30,12 @@ public class MessageServiceTests
     public async Task Setup()
     {
         var options = new DbContextOptionsBuilder<ChatDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options;
         _db = new ChatDbContext(options);
         _eventBusMock = new Mock<IEventBus>();
         _service = new MessageService(_db, _eventBusMock.Object, NullLogger<MessageService>.Instance);
-        _caller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        _caller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
 
         // Create a channel and add caller as member
         var channel = new Channel { Name = "test", CreatedByUserId = _caller.UserId };
@@ -102,7 +102,7 @@ public class MessageServiceTests
     [TestMethod]
     public async Task WhenSendMessageAsNonMemberThenThrows()
     {
-        var nonMember = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        var nonMember = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
         var dto = new SendMessageDto { Content = "Should fail" };
         await Assert.ThrowsAsync<UnauthorizedAccessException>(
             () => _service.SendMessageAsync(_channelId, dto, nonMember));
@@ -127,7 +127,7 @@ public class MessageServiceTests
         var sendDto = new SendMessageDto { Content = "Original" };
         var msg = await _service.SendMessageAsync(_channelId, sendDto, _caller);
 
-        var otherUser = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        var otherUser = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
         var editDto = new EditMessageDto { Content = "Hacked" };
         await Assert.ThrowsAsync<UnauthorizedAccessException>(
             () => _service.EditMessageAsync(msg.Id, editDto, otherUser));
@@ -176,7 +176,7 @@ public class MessageServiceTests
     [TestMethod]
     public async Task WhenGetNonExistentMessageThenReturnsNull()
     {
-        var result = await _service.GetMessageAsync(Guid.NewGuid(), _caller);
+        var result = await _service.GetMessageAsync(Guid.CreateVersion7(), _caller);
         Assert.IsNull(result);
     }
 
@@ -257,7 +257,7 @@ public class MessageServiceTests
     [TestMethod]
     public async Task WhenSendMessageWithAtUsernameThenUserMentionIsStored()
     {
-        var targetUserId = Guid.NewGuid();
+        var targetUserId = Guid.CreateVersion7();
         var userDirectoryMock = new Mock<IUserDirectory>();
         userDirectoryMock
             .Setup(ud => ud.FindUserIdByUsernameAsync("alice", It.IsAny<CancellationToken>()))
@@ -300,7 +300,7 @@ public class MessageServiceTests
     [TestMethod]
     public async Task WhenSendMessageWithMixedMentionsThenAllTypesAreStored()
     {
-        var aliceId = Guid.NewGuid();
+        var aliceId = Guid.CreateVersion7();
         var userDirectoryMock = new Mock<IUserDirectory>();
         userDirectoryMock
             .Setup(ud => ud.FindUserIdByUsernameAsync("alice", It.IsAny<CancellationToken>()))
@@ -464,7 +464,7 @@ public class MessageServiceTests
     public async Task WhenAddAttachmentWithFileNodeIdThenFileNodeIdIsStored()
     {
         var msg = await _service.SendMessageAsync(_channelId, new SendMessageDto { Content = "linked" }, _caller);
-        var fileNodeId = Guid.NewGuid();
+        var fileNodeId = Guid.CreateVersion7();
 
         var dto = new CreateAttachmentDto { FileName = "doc.pdf", MimeType = "application/pdf", FileSize = 512, FileNodeId = fileNodeId };
         var result = await _service.AddAttachmentAsync(_channelId, msg.Id, dto, _caller);
@@ -476,7 +476,7 @@ public class MessageServiceTests
     public async Task WhenAddAttachmentByNonSenderThenThrows()
     {
         var msg = await _service.SendMessageAsync(_channelId, new SendMessageDto { Content = "mine" }, _caller);
-        var otherUser = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        var otherUser = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
 
         var dto = new CreateAttachmentDto { FileName = "hack.exe", MimeType = "application/octet-stream", FileSize = 999 };
         await Assert.ThrowsAsync<UnauthorizedAccessException>(
@@ -488,7 +488,7 @@ public class MessageServiceTests
     {
         var dto = new CreateAttachmentDto { FileName = "test.txt", MimeType = "text/plain", FileSize = 10 };
         await Assert.ThrowsAsync<InvalidOperationException>(
-            () => _service.AddAttachmentAsync(_channelId, Guid.NewGuid(), dto, _caller));
+            () => _service.AddAttachmentAsync(_channelId, Guid.CreateVersion7(), dto, _caller));
     }
 
     [TestMethod]

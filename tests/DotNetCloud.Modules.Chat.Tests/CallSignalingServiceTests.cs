@@ -34,7 +34,7 @@ public class CallSignalingServiceTests
     public void Setup()
     {
         var options = new DbContextOptionsBuilder<ChatDbContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(databaseName: Guid.CreateVersion7().ToString())
             .Options;
 
         _db = new ChatDbContext(options);
@@ -47,10 +47,10 @@ public class CallSignalingServiceTests
             NullLogger<CallSignalingService>.Instance,
             _broadcasterMock.Object);
 
-        _caller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
-        _target = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
-        _channelId = Guid.NewGuid();
-        _callId = Guid.NewGuid();
+        _caller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
+        _target = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
+        _channelId = Guid.CreateVersion7();
+        _callId = Guid.CreateVersion7();
     }
 
     [TestCleanup]
@@ -61,7 +61,7 @@ public class CallSignalingServiceTests
 
     private void SeedActiveCall(Guid callId, Guid channelId, VideoCallState state, params (Guid userId, bool active)[] participants)
     {
-        var initiatorId = participants.Length > 0 ? participants[0].userId : Guid.NewGuid();
+        var initiatorId = participants.Length > 0 ? participants[0].userId : Guid.CreateVersion7();
         _db.VideoCalls.Add(new VideoCall
         {
             Id = callId,
@@ -143,7 +143,7 @@ public class CallSignalingServiceTests
     public async Task SendOffer_CallNotFound_ThrowsInvalidOperation()
     {
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(
-            () => _service.SendOfferAsync(Guid.NewGuid(), _target.UserId, "v=0\r\n", _caller));
+            () => _service.SendOfferAsync(Guid.CreateVersion7(), _target.UserId, "v=0\r\n", _caller));
     }
 
     [TestMethod]
@@ -189,7 +189,7 @@ public class CallSignalingServiceTests
     [TestMethod]
     public async Task SendOffer_CallerNotParticipant_ThrowsUnauthorized()
     {
-        var outsider = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        var outsider = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
         SeedActiveCall(_callId, _channelId, VideoCallState.Active,
             (_caller.UserId, true), (_target.UserId, true));
 
@@ -200,7 +200,7 @@ public class CallSignalingServiceTests
     [TestMethod]
     public async Task SendOffer_TargetNotParticipant_ThrowsUnauthorized()
     {
-        var outsider = Guid.NewGuid();
+        var outsider = Guid.CreateVersion7();
         SeedActiveCall(_callId, _channelId, VideoCallState.Active,
             (_caller.UserId, true), (_target.UserId, true));
 
@@ -331,7 +331,7 @@ public class CallSignalingServiceTests
     [TestMethod]
     public async Task SendAnswer_CallerNotParticipant_ThrowsUnauthorized()
     {
-        var outsider = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        var outsider = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
         SeedActiveCall(_callId, _channelId, VideoCallState.Active,
             (_caller.UserId, true), (_target.UserId, true));
 
@@ -424,7 +424,7 @@ public class CallSignalingServiceTests
     public async Task SendIceCandidate_CallNotFound_ThrowsInvalidOperation()
     {
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(
-            () => _service.SendIceCandidateAsync(Guid.NewGuid(), _target.UserId, "{}", _caller));
+            () => _service.SendIceCandidateAsync(Guid.CreateVersion7(), _target.UserId, "{}", _caller));
     }
 
     [TestMethod]
@@ -440,7 +440,7 @@ public class CallSignalingServiceTests
     [TestMethod]
     public async Task SendIceCandidate_CallerNotParticipant_ThrowsUnauthorized()
     {
-        var outsider = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        var outsider = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
         SeedActiveCall(_callId, _channelId, VideoCallState.Active,
             (_caller.UserId, true), (_target.UserId, true));
 
@@ -451,7 +451,7 @@ public class CallSignalingServiceTests
     [TestMethod]
     public async Task SendIceCandidate_TargetNotParticipant_ThrowsUnauthorized()
     {
-        var outsider = Guid.NewGuid();
+        var outsider = Guid.CreateVersion7();
         SeedActiveCall(_callId, _channelId, VideoCallState.Active,
             (_caller.UserId, true), (_target.UserId, true));
 
@@ -627,7 +627,7 @@ public class CallSignalingServiceTests
     [TestMethod]
     public async Task SendMediaStateChange_NotParticipant_ThrowsUnauthorized()
     {
-        var outsider = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        var outsider = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
         SeedActiveCall(_callId, _channelId, VideoCallState.Active,
             (_caller.UserId, true), (_target.UserId, true));
 
@@ -678,8 +678,8 @@ public class CallSignalingServiceTests
     [TestMethod]
     public async Task AddToCallGroup_WithBroadcaster_AddsUser()
     {
-        var userId = Guid.NewGuid();
-        var callId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var callId = Guid.CreateVersion7();
 
         await _service.AddToCallGroupAsync(callId, userId);
 
@@ -692,8 +692,8 @@ public class CallSignalingServiceTests
     [TestMethod]
     public async Task RemoveFromCallGroup_WithBroadcaster_RemovesUser()
     {
-        var userId = Guid.NewGuid();
-        var callId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var callId = Guid.CreateVersion7();
 
         await _service.RemoveFromCallGroupAsync(callId, userId);
 
@@ -709,7 +709,7 @@ public class CallSignalingServiceTests
         var serviceNoBroadcaster = new CallSignalingService(
             _db, _eventBusMock.Object, NullLogger<CallSignalingService>.Instance);
 
-        await serviceNoBroadcaster.AddToCallGroupAsync(Guid.NewGuid(), Guid.NewGuid());
+        await serviceNoBroadcaster.AddToCallGroupAsync(Guid.CreateVersion7(), Guid.CreateVersion7());
         // Should complete without error
     }
 
@@ -719,7 +719,7 @@ public class CallSignalingServiceTests
         var serviceNoBroadcaster = new CallSignalingService(
             _db, _eventBusMock.Object, NullLogger<CallSignalingService>.Instance);
 
-        await serviceNoBroadcaster.RemoveFromCallGroupAsync(Guid.NewGuid(), Guid.NewGuid());
+        await serviceNoBroadcaster.RemoveFromCallGroupAsync(Guid.CreateVersion7(), Guid.CreateVersion7());
         // Should complete without error
     }
 
@@ -736,7 +736,7 @@ public class CallSignalingServiceTests
     [TestMethod]
     public async Task SendOffer_ThreeParticipants_RelaysToCorrectTarget()
     {
-        var user3 = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        var user3 = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
         SeedActiveCall(_callId, _channelId, VideoCallState.Active,
             (_caller.UserId, true), (_target.UserId, true), (user3.UserId, true));
 
@@ -759,7 +759,7 @@ public class CallSignalingServiceTests
     [TestMethod]
     public async Task SendMediaStateChange_ThreeParticipants_BroadcastsToAll()
     {
-        var user3 = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        var user3 = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
         SeedActiveCall(_callId, _channelId, VideoCallState.Active,
             (_caller.UserId, true), (_target.UserId, true), (user3.UserId, true));
 

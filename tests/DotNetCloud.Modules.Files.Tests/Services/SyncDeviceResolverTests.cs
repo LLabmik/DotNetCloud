@@ -14,7 +14,7 @@ public class SyncDeviceResolverTests
     private static FilesDbContext CreateContext(string? name = null)
     {
         var options = new DbContextOptionsBuilder<FilesDbContext>()
-            .UseInMemoryDatabase(name ?? Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(name ?? Guid.CreateVersion7().ToString())
             .Options;
         return new FilesDbContext(options);
     }
@@ -28,7 +28,7 @@ public class SyncDeviceResolverTests
         using var db = CreateContext();
         var resolver = CreateResolver(db);
 
-        var result = await resolver.ResolveAsync(null, Guid.NewGuid(), "host", "Linux", "0.1.0", CancellationToken.None);
+        var result = await resolver.ResolveAsync(null, Guid.CreateVersion7(), "host", "Linux", "0.1.0", CancellationToken.None);
 
         Assert.IsNull(result);
     }
@@ -39,7 +39,7 @@ public class SyncDeviceResolverTests
         using var db = CreateContext();
         var resolver = CreateResolver(db);
 
-        var result = await resolver.ResolveAsync(Guid.Empty, Guid.NewGuid(), "host", "Linux", "0.1.0", CancellationToken.None);
+        var result = await resolver.ResolveAsync(Guid.Empty, Guid.CreateVersion7(), "host", "Linux", "0.1.0", CancellationToken.None);
 
         Assert.IsNull(result);
     }
@@ -49,8 +49,8 @@ public class SyncDeviceResolverTests
     {
         using var db = CreateContext();
         var resolver = CreateResolver(db);
-        var deviceId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
+        var deviceId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
 
         var result = await resolver.ResolveAsync(deviceId, userId, "test-host", "Windows", "0.1.0", CancellationToken.None);
 
@@ -68,8 +68,8 @@ public class SyncDeviceResolverTests
     {
         using var db = CreateContext();
         var resolver = CreateResolver(db);
-        var deviceId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
+        var deviceId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
 
         // First contact
         var first = await resolver.ResolveAsync(deviceId, userId, "host1", "Linux", "0.1.0", CancellationToken.None);
@@ -95,9 +95,9 @@ public class SyncDeviceResolverTests
     {
         using var db = CreateContext();
         var resolver = CreateResolver(db);
-        var deviceId = Guid.NewGuid();
-        var user1 = Guid.NewGuid();
-        var user2 = Guid.NewGuid();
+        var deviceId = Guid.CreateVersion7();
+        var user1 = Guid.CreateVersion7();
+        var user2 = Guid.CreateVersion7();
 
         // Register device for user1
         var first = await resolver.ResolveAsync(deviceId, user1, "host", "Linux", "0.1.0", CancellationToken.None);
@@ -112,9 +112,9 @@ public class SyncDeviceResolverTests
     [TestMethod]
     public async Task ResolveAsync_PersistsToDatabase()
     {
-        var dbName = Guid.NewGuid().ToString();
-        var deviceId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
+        var dbName = Guid.CreateVersion7().ToString();
+        var deviceId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
 
         // Create and resolve
         using (var db = CreateContext(dbName))
@@ -137,8 +137,8 @@ public class SyncDeviceResolverTests
     {
         using var db = CreateContext();
         var resolver = CreateResolver(db);
-        var deviceId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
+        var deviceId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
 
         var result = await resolver.ResolveAsync(deviceId, userId, null, null, null, CancellationToken.None);
 
@@ -151,8 +151,8 @@ public class SyncDeviceResolverTests
     {
         using var db = CreateContext();
         var resolver = CreateResolver(db);
-        var deviceId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
+        var deviceId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
 
         // Register device, then deactivate it
         db.SyncDevices.Add(new SyncDevice
@@ -174,8 +174,8 @@ public class SyncDeviceResolverTests
     {
         using var db = CreateContext();
         var resolver = CreateResolver(db);
-        var deviceId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
+        var deviceId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
 
         // Register device as active
         db.SyncDevices.Add(new SyncDevice

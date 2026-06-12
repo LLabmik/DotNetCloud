@@ -193,8 +193,8 @@ public class FileUploadedPhotoHandlerTests
     [TestMethod]
     public async Task HandleAsync_PassesCorrectParametersToCallback()
     {
-        var fileNodeId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
+        var fileNodeId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
         var callbackMock = new Mock<IPhotoIndexingCallback>();
         var handler = new FileUploadedPhotoHandler(
             Mock.Of<ILogger<FileUploadedPhotoHandler>>(),
@@ -202,7 +202,7 @@ public class FileUploadedPhotoHandlerTests
 
         var evt = new FileUploadedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             FileNodeId = fileNodeId,
             UploadedByUserId = userId,
@@ -220,10 +220,10 @@ public class FileUploadedPhotoHandlerTests
 
     private static FileUploadedEvent CreateEvent(string fileName, string? mimeType) => new()
     {
-        EventId = Guid.NewGuid(),
+        EventId = Guid.CreateVersion7(),
         CreatedAt = DateTime.UtcNow,
-        FileNodeId = Guid.NewGuid(),
-        UploadedByUserId = Guid.NewGuid(),
+        FileNodeId = Guid.CreateVersion7(),
+        UploadedByUserId = Guid.CreateVersion7(),
         FileName = fileName,
         MimeType = mimeType,
         Size = 1024

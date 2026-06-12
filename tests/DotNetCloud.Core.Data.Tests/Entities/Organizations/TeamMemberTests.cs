@@ -27,10 +27,10 @@ public class TeamMemberTests
     public void TeamMember_SetProperties_StoresValuesCorrectly()
     {
         // Arrange
-        var teamId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
-        var roleId1 = Guid.NewGuid();
-        var roleId2 = Guid.NewGuid();
+        var teamId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
+        var roleId1 = Guid.CreateVersion7();
+        var roleId2 = Guid.CreateVersion7();
         var joinedAt = DateTime.UtcNow;
 
         // Act
@@ -55,8 +55,8 @@ public class TeamMemberTests
     public void TeamMember_CompositeKey_TeamIdAndUserId()
     {
         // Arrange
-        var teamId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
+        var teamId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
 
         // Act
         var teamMember = new TeamMember
@@ -76,8 +76,8 @@ public class TeamMemberTests
         // Arrange
         var teamMember = new TeamMember
         {
-            TeamId = Guid.NewGuid(),
-            UserId = Guid.NewGuid(),
+            TeamId = Guid.CreateVersion7(),
+            UserId = Guid.CreateVersion7(),
             JoinedAt = DateTime.UtcNow
         };
 
@@ -95,14 +95,14 @@ public class TeamMemberTests
         // Arrange
         var teamMember = new TeamMember
         {
-            TeamId = Guid.NewGuid(),
-            UserId = Guid.NewGuid()
+            TeamId = Guid.CreateVersion7(),
+            UserId = Guid.CreateVersion7()
         };
 
         // Act
-        teamMember.RoleIds.Add(Guid.NewGuid()); // TeamLead
-        teamMember.RoleIds.Add(Guid.NewGuid()); // Reviewer
-        teamMember.RoleIds.Add(Guid.NewGuid()); // Admin
+        teamMember.RoleIds.Add(Guid.CreateVersion7()); // TeamLead
+        teamMember.RoleIds.Add(Guid.CreateVersion7()); // Reviewer
+        teamMember.RoleIds.Add(Guid.CreateVersion7()); // Admin
 
         // Assert
         Assert.AreEqual(3, teamMember.RoleIds.Count);
@@ -114,15 +114,15 @@ public class TeamMemberTests
         // Arrange
         var team = new Team
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             Name = "Test Team",
-            OrganizationId = Guid.NewGuid()
+            OrganizationId = Guid.CreateVersion7()
         };
 
         var teamMember = new TeamMember
         {
             TeamId = team.Id,
-            UserId = Guid.NewGuid()
+            UserId = Guid.CreateVersion7()
         };
 
         // Act
@@ -139,7 +139,7 @@ public class TeamMemberTests
         // Arrange
         var user = new ApplicationUser
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             UserName = "testuser",
             Email = "test@example.com",
             DisplayName = "Test User"
@@ -147,7 +147,7 @@ public class TeamMemberTests
 
         var teamMember = new TeamMember
         {
-            TeamId = Guid.NewGuid(),
+            TeamId = Guid.CreateVersion7(),
             UserId = user.Id
         };
 
@@ -168,8 +168,8 @@ public class TeamMemberTests
         // Act
         var teamMember = new TeamMember
         {
-            TeamId = Guid.NewGuid(),
-            UserId = Guid.NewGuid(),
+            TeamId = Guid.CreateVersion7(),
+            UserId = Guid.CreateVersion7(),
             JoinedAt = now
         };
 
@@ -181,12 +181,12 @@ public class TeamMemberTests
     public void TeamMember_RoleIds_CanBeModified()
     {
         // Arrange
-        var roleId1 = Guid.NewGuid();
-        var roleId2 = Guid.NewGuid();
+        var roleId1 = Guid.CreateVersion7();
+        var roleId2 = Guid.CreateVersion7();
         var teamMember = new TeamMember
         {
-            TeamId = Guid.NewGuid(),
-            UserId = Guid.NewGuid(),
+            TeamId = Guid.CreateVersion7(),
+            UserId = Guid.CreateVersion7(),
             RoleIds = new List<Guid> { roleId1 }
         };
 
@@ -204,19 +204,19 @@ public class TeamMemberTests
     public void TeamMember_DifferentUsersInSameTeam()
     {
         // Arrange
-        var teamId = Guid.NewGuid();
+        var teamId = Guid.CreateVersion7();
 
         // Act
         var member1 = new TeamMember
         {
             TeamId = teamId,
-            UserId = Guid.NewGuid()
+            UserId = Guid.CreateVersion7()
         };
 
         var member2 = new TeamMember
         {
             TeamId = teamId,
-            UserId = Guid.NewGuid()
+            UserId = Guid.CreateVersion7()
         };
 
         // Assert

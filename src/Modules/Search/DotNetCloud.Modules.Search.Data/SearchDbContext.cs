@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Data.Configuration.Extensions;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Modules.Search.Data.Configuration;
 using DotNetCloud.Modules.Search.Data.Models;
@@ -56,5 +57,7 @@ public class SearchDbContext : DbContext
 
         modelBuilder.ApplyConfiguration(new SearchIndexEntryConfiguration());
         modelBuilder.ApplyConfiguration(new IndexingJobConfiguration());
+
+        SequentialGuidConfigurationExtensions.ApplySequentialGuidDefaults(modelBuilder, _namingStrategy.Provider);
     }
 }

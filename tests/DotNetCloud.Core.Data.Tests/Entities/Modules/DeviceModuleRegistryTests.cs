@@ -18,7 +18,7 @@ public class DeviceModuleRegistryTests
     public void Setup()
     {
         var options = new DbContextOptionsBuilder<CoreDbContext>()
-            .UseInMemoryDatabase(databaseName: $"DeviceModuleTestDb_{Guid.NewGuid()}")
+            .UseInMemoryDatabase(databaseName: $"DeviceModuleTestDb_{Guid.CreateVersion7()}")
             .Options;
 
         var namingStrategy = new PostgreSqlNamingStrategy();
@@ -37,7 +37,7 @@ public class DeviceModuleRegistryTests
         // Arrange
         var user = new ApplicationUser
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             UserName = "deviceuser",
             DisplayName = "Device User"
         };
@@ -70,7 +70,7 @@ public class DeviceModuleRegistryTests
         // Arrange
         var user = new ApplicationUser
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             UserName = "multidevice",
             DisplayName = "Multi Device User"
         };
@@ -109,7 +109,7 @@ public class DeviceModuleRegistryTests
         // Arrange
         var user = new ApplicationUser
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             UserName = "presenceuser",
             DisplayName = "Presence User"
         };
@@ -274,7 +274,7 @@ public class DeviceModuleRegistryTests
         // Arrange
         var admin = new ApplicationUser
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             UserName = "admin",
             DisplayName = "System Admin"
         };

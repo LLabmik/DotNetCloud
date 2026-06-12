@@ -86,7 +86,7 @@ public class WatchProgressServiceTests
     {
         var caller = TestHelpers.CreateCaller();
 
-        var result = await _service.GetProgressAsync(Guid.NewGuid(), caller);
+        var result = await _service.GetProgressAsync(Guid.CreateVersion7(), caller);
 
         Assert.IsNull(result);
     }

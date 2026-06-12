@@ -155,7 +155,7 @@ public sealed class ClientUpdateService : IClientUpdateService
             Path.GetTempPath(),
             "DotNetCloud",
             "updates",
-            "extract-" + Guid.NewGuid().ToString("N"));
+            "extract-" + Guid.CreateVersion7().ToString("N"));
         Directory.CreateDirectory(extractDir);
 
         _logger.LogInformation("Extracting tarball to {ExtractDir}...", extractDir);
@@ -196,7 +196,7 @@ public sealed class ClientUpdateService : IClientUpdateService
 
         // Stage 3: create a restart script that replaces the running binary then relaunches.
         var scriptPath = Path.Combine(Path.GetTempPath(), "DotNetCloud", "updates",
-            "apply-" + Guid.NewGuid().ToString("N") + ".sh");
+            "apply-" + Guid.CreateVersion7().ToString("N") + ".sh");
 
         var scriptContent = $"#!/usr/bin/env bash\n" +
                             $"# Auto-generated update script for DotNetCloud SyncTray\n" +

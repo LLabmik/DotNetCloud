@@ -6,7 +6,7 @@ namespace DotNetCloud.Modules.Contacts.Models;
 public sealed class ContactGroup
 {
     /// <summary>Unique identifier for this group.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>User who owns this group.</summary>
     public Guid OwnerId { get; set; }

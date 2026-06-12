@@ -357,7 +357,7 @@ public class Phase6ApiIntegrationTests
             claims.Add(new Claim(ClaimTypes.Role, role));
 
         var dbOptions = new DbContextOptionsBuilder<SearchDbContext>()
-            .UseInMemoryDatabase($"Phase6ApiTests_{Guid.NewGuid()}")
+            .UseInMemoryDatabase($"Phase6ApiTests_{Guid.CreateVersion7()}")
             .Options;
         var db = new SearchDbContext(dbOptions);
 

@@ -29,12 +29,12 @@ public class OrganizationMemberTests
     public void OrganizationMember_SetProperties_StoresValuesCorrectly()
     {
         // Arrange
-        var organizationId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
-        var roleId1 = Guid.NewGuid();
-        var roleId2 = Guid.NewGuid();
+        var organizationId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
+        var roleId1 = Guid.CreateVersion7();
+        var roleId2 = Guid.CreateVersion7();
         var joinedAt = DateTime.UtcNow;
-        var invitedByUserId = Guid.NewGuid();
+        var invitedByUserId = Guid.CreateVersion7();
 
         // Act
         var orgMember = new OrganizationMember
@@ -62,8 +62,8 @@ public class OrganizationMemberTests
     public void OrganizationMember_CompositeKey_OrganizationIdAndUserId()
     {
         // Arrange
-        var organizationId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
+        var organizationId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
 
         // Act
         var orgMember = new OrganizationMember
@@ -83,8 +83,8 @@ public class OrganizationMemberTests
         // Arrange
         var orgMember = new OrganizationMember
         {
-            OrganizationId = Guid.NewGuid(),
-            UserId = Guid.NewGuid(),
+            OrganizationId = Guid.CreateVersion7(),
+            UserId = Guid.CreateVersion7(),
             JoinedAt = DateTime.UtcNow
         };
 
@@ -102,14 +102,14 @@ public class OrganizationMemberTests
         // Arrange
         var orgMember = new OrganizationMember
         {
-            OrganizationId = Guid.NewGuid(),
-            UserId = Guid.NewGuid()
+            OrganizationId = Guid.CreateVersion7(),
+            UserId = Guid.CreateVersion7()
         };
 
         // Act
-        orgMember.RoleIds.Add(Guid.NewGuid()); // OrganizationAdmin
-        orgMember.RoleIds.Add(Guid.NewGuid()); // BillingManager
-        orgMember.RoleIds.Add(Guid.NewGuid()); // UserManager
+        orgMember.RoleIds.Add(Guid.CreateVersion7()); // OrganizationAdmin
+        orgMember.RoleIds.Add(Guid.CreateVersion7()); // BillingManager
+        orgMember.RoleIds.Add(Guid.CreateVersion7()); // UserManager
 
         // Assert
         Assert.AreEqual(3, orgMember.RoleIds.Count);
@@ -121,14 +121,14 @@ public class OrganizationMemberTests
         // Arrange
         var organization = new Organization
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             Name = "Test Org"
         };
 
         var orgMember = new OrganizationMember
         {
             OrganizationId = organization.Id,
-            UserId = Guid.NewGuid()
+            UserId = Guid.CreateVersion7()
         };
 
         // Act
@@ -145,7 +145,7 @@ public class OrganizationMemberTests
         // Arrange
         var user = new ApplicationUser
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             UserName = "testuser",
             Email = "test@example.com",
             DisplayName = "Test User"
@@ -153,7 +153,7 @@ public class OrganizationMemberTests
 
         var orgMember = new OrganizationMember
         {
-            OrganizationId = Guid.NewGuid(),
+            OrganizationId = Guid.CreateVersion7(),
             UserId = user.Id
         };
 
@@ -171,7 +171,7 @@ public class OrganizationMemberTests
         // Arrange
         var admin = new ApplicationUser
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             UserName = "admin",
             Email = "admin@example.com",
             DisplayName = "Admin User"
@@ -179,8 +179,8 @@ public class OrganizationMemberTests
 
         var orgMember = new OrganizationMember
         {
-            OrganizationId = Guid.NewGuid(),
-            UserId = Guid.NewGuid(),
+            OrganizationId = Guid.CreateVersion7(),
+            UserId = Guid.CreateVersion7(),
             InvitedByUserId = admin.Id
         };
 
@@ -208,8 +208,8 @@ public class OrganizationMemberTests
         // Arrange
         var orgMember = new OrganizationMember
         {
-            OrganizationId = Guid.NewGuid(),
-            UserId = Guid.NewGuid(),
+            OrganizationId = Guid.CreateVersion7(),
+            UserId = Guid.CreateVersion7(),
             IsActive = true
         };
 
@@ -226,8 +226,8 @@ public class OrganizationMemberTests
         // Arrange
         var orgMember = new OrganizationMember
         {
-            OrganizationId = Guid.NewGuid(),
-            UserId = Guid.NewGuid(),
+            OrganizationId = Guid.CreateVersion7(),
+            UserId = Guid.CreateVersion7(),
             JoinedAt = DateTime.UtcNow
         };
 
@@ -247,8 +247,8 @@ public class OrganizationMemberTests
         // Act
         var orgMember = new OrganizationMember
         {
-            OrganizationId = Guid.NewGuid(),
-            UserId = Guid.NewGuid(),
+            OrganizationId = Guid.CreateVersion7(),
+            UserId = Guid.CreateVersion7(),
             JoinedAt = now
         };
 
@@ -260,12 +260,12 @@ public class OrganizationMemberTests
     public void OrganizationMember_RoleIds_CanBeModified()
     {
         // Arrange
-        var roleId1 = Guid.NewGuid();
-        var roleId2 = Guid.NewGuid();
+        var roleId1 = Guid.CreateVersion7();
+        var roleId2 = Guid.CreateVersion7();
         var orgMember = new OrganizationMember
         {
-            OrganizationId = Guid.NewGuid(),
-            UserId = Guid.NewGuid(),
+            OrganizationId = Guid.CreateVersion7(),
+            UserId = Guid.CreateVersion7(),
             RoleIds = new List<Guid> { roleId1 }
         };
 
@@ -283,19 +283,19 @@ public class OrganizationMemberTests
     public void OrganizationMember_DifferentUsersInSameOrganization()
     {
         // Arrange
-        var organizationId = Guid.NewGuid();
+        var organizationId = Guid.CreateVersion7();
 
         // Act
         var member1 = new OrganizationMember
         {
             OrganizationId = organizationId,
-            UserId = Guid.NewGuid()
+            UserId = Guid.CreateVersion7()
         };
 
         var member2 = new OrganizationMember
         {
             OrganizationId = organizationId,
-            UserId = Guid.NewGuid()
+            UserId = Guid.CreateVersion7()
         };
 
         // Assert
@@ -308,14 +308,14 @@ public class OrganizationMemberTests
     public void OrganizationMember_RoleHierarchy_OrganizationWide()
     {
         // Arrange
-        var organizationAdminRoleId = Guid.NewGuid();
-        var billingManagerRoleId = Guid.NewGuid();
+        var organizationAdminRoleId = Guid.CreateVersion7();
+        var billingManagerRoleId = Guid.CreateVersion7();
 
         // Act
         var orgMember = new OrganizationMember
         {
-            OrganizationId = Guid.NewGuid(),
-            UserId = Guid.NewGuid(),
+            OrganizationId = Guid.CreateVersion7(),
+            UserId = Guid.CreateVersion7(),
             RoleIds = new List<Guid> { organizationAdminRoleId, billingManagerRoleId }
         };
 

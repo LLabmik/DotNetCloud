@@ -70,7 +70,7 @@ public class ExampleNoteTests
     [TestMethod]
     public void WhenCreatedWithUserIdThenCreatedByUserIdIsSet()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var note = new ExampleNote { Title = "Test", CreatedByUserId = userId };
 
         Assert.AreEqual(userId, note.CreatedByUserId);

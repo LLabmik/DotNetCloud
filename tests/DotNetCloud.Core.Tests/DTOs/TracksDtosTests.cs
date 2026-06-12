@@ -17,10 +17,10 @@ public class TracksDtosTests
         // Arrange & Act
         var product = new ProductDto
         {
-            Id = Guid.NewGuid(),
-            OrganizationId = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
+            OrganizationId = Guid.CreateVersion7(),
             Name = "Sprint Board",
-            OwnerId = Guid.NewGuid(),
+            OwnerId = Guid.CreateVersion7(),
             ETag = "etag-1",
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -38,10 +38,10 @@ public class TracksDtosTests
         // Arrange & Act
         var product = new ProductDto
         {
-            Id = Guid.NewGuid(),
-            OrganizationId = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
+            OrganizationId = Guid.CreateVersion7(),
             Name = "Test",
-            OwnerId = Guid.NewGuid(),
+            OwnerId = Guid.CreateVersion7(),
             ETag = "etag-1",
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -58,10 +58,10 @@ public class TracksDtosTests
         // Arrange & Act
         var product = new ProductDto
         {
-            Id = Guid.NewGuid(),
-            OrganizationId = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
+            OrganizationId = Guid.CreateVersion7(),
             Name = "Test",
-            OwnerId = Guid.NewGuid(),
+            OwnerId = Guid.CreateVersion7(),
             ETag = "etag-1",
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -90,7 +90,7 @@ public class TracksDtosTests
         // Arrange & Act
         var member = new ProductMemberDto
         {
-            UserId = Guid.NewGuid(),
+            UserId = Guid.CreateVersion7(),
             DisplayName = "Alice",
             Role = ProductMemberRole.Admin,
             JoinedAt = DateTime.UtcNow
@@ -109,9 +109,9 @@ public class TracksDtosTests
         // Arrange & Act
         var swimlane = new SwimlaneDto
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             ContainerType = SwimlaneContainerType.Product,
-            ContainerId = Guid.NewGuid(),
+            ContainerId = Guid.CreateVersion7(),
             Title = "To Do",
             Position = 0,
             CreatedAt = DateTime.UtcNow,
@@ -133,11 +133,11 @@ public class TracksDtosTests
         // Arrange & Act
         var item = new WorkItemDto
         {
-            Id = Guid.NewGuid(),
-            ProductId = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
+            ProductId = Guid.CreateVersion7(),
             ParentWorkItemId = null,
             Type = WorkItemType.Item,
-            SwimlaneId = Guid.NewGuid(),
+            SwimlaneId = Guid.CreateVersion7(),
             ItemNumber = 42,
             Title = "Implement auth",
             Position = 1000,
@@ -162,11 +162,11 @@ public class TracksDtosTests
         // Arrange & Act
         var item = new WorkItemDto
         {
-            Id = Guid.NewGuid(),
-            ProductId = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
+            ProductId = Guid.CreateVersion7(),
             ParentWorkItemId = null,
             Type = WorkItemType.Item,
-            SwimlaneId = Guid.NewGuid(),
+            SwimlaneId = Guid.CreateVersion7(),
             ItemNumber = 1,
             Title = "Test",
             Position = 0,
@@ -190,11 +190,11 @@ public class TracksDtosTests
         // Arrange & Act
         var item = new WorkItemDto
         {
-            Id = Guid.NewGuid(),
-            ProductId = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
+            ProductId = Guid.CreateVersion7(),
             ParentWorkItemId = null,
             Type = WorkItemType.Item,
-            SwimlaneId = Guid.NewGuid(),
+            SwimlaneId = Guid.CreateVersion7(),
             ItemNumber = 1,
             Title = "Test",
             Position = 0,
@@ -228,7 +228,7 @@ public class TracksDtosTests
         // Arrange & Act
         var assignment = new WorkItemAssignmentDto
         {
-            UserId = Guid.NewGuid(),
+            UserId = Guid.CreateVersion7(),
             DisplayName = "Bob",
             AssignedAt = DateTime.UtcNow
         };
@@ -243,8 +243,8 @@ public class TracksDtosTests
         // Arrange & Act
         var label = new LabelDto
         {
-            Id = Guid.NewGuid(),
-            ProductId = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
+            ProductId = Guid.CreateVersion7(),
             Title = "Bug",
             Color = "#FF0000",
             CreatedAt = DateTime.UtcNow
@@ -261,9 +261,9 @@ public class TracksDtosTests
         // Arrange & Act
         var comment = new WorkItemCommentDto
         {
-            Id = Guid.NewGuid(),
-            WorkItemId = Guid.NewGuid(),
-            UserId = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
+            WorkItemId = Guid.CreateVersion7(),
+            UserId = Guid.CreateVersion7(),
             DisplayName = "Alice",
             Content = "Looks good!",
             IsEdited = false,
@@ -283,11 +283,11 @@ public class TracksDtosTests
         // Arrange & Act
         var attachment = new WorkItemAttachmentDto
         {
-            Id = Guid.NewGuid(),
-            WorkItemId = Guid.NewGuid(),
-            FileNodeId = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
+            WorkItemId = Guid.CreateVersion7(),
+            FileNodeId = Guid.CreateVersion7(),
             FileName = "design.pdf",
-            UploadedByUserId = Guid.NewGuid(),
+            UploadedByUserId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow
         };
 
@@ -302,11 +302,11 @@ public class TracksDtosTests
         // Arrange & Act
         var attachment = new WorkItemAttachmentDto
         {
-            Id = Guid.NewGuid(),
-            WorkItemId = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
+            WorkItemId = Guid.CreateVersion7(),
             FileName = "External Link",
             Url = "https://example.com/spec.pdf",
-            UploadedByUserId = Guid.NewGuid(),
+            UploadedByUserId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow
         };
 
@@ -323,15 +323,15 @@ public class TracksDtosTests
         // Arrange & Act
         var checklist = new ChecklistDto
         {
-            Id = Guid.NewGuid(),
-            ItemId = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
+            ItemId = Guid.CreateVersion7(),
             Title = "Acceptance Criteria",
             Position = 0,
             CreatedAt = DateTime.UtcNow,
             Items =
             [
-                new ChecklistItemDto { Id = Guid.NewGuid(), ChecklistId = Guid.NewGuid(), Title = "Unit tests pass", IsCompleted = true, Position = 0, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-                new ChecklistItemDto { Id = Guid.NewGuid(), ChecklistId = Guid.NewGuid(), Title = "Code review done", IsCompleted = false, Position = 1, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow }
+                new ChecklistItemDto { Id = Guid.CreateVersion7(), ChecklistId = Guid.CreateVersion7(), Title = "Unit tests pass", IsCompleted = true, Position = 0, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+                new ChecklistItemDto { Id = Guid.CreateVersion7(), ChecklistId = Guid.CreateVersion7(), Title = "Code review done", IsCompleted = false, Position = 1, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow }
             ]
         };
 
@@ -348,8 +348,8 @@ public class TracksDtosTests
         // Arrange & Act
         var checklist = new ChecklistDto
         {
-            Id = Guid.NewGuid(),
-            ItemId = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
+            ItemId = Guid.CreateVersion7(),
             Title = "Test",
             Position = 0,
             CreatedAt = DateTime.UtcNow
@@ -377,9 +377,9 @@ public class TracksDtosTests
         // Arrange & Act
         var dep = new WorkItemDependencyDto
         {
-            Id = Guid.NewGuid(),
-            WorkItemId = Guid.NewGuid(),
-            DependsOnWorkItemId = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
+            WorkItemId = Guid.CreateVersion7(),
+            DependsOnWorkItemId = Guid.CreateVersion7(),
             DependsOnTitle = "Setup CI",
             Type = DependencyType.BlockedBy,
             CreatedAt = DateTime.UtcNow
@@ -408,8 +408,8 @@ public class TracksDtosTests
         // Arrange & Act
         var sprint = new SprintDto
         {
-            Id = Guid.NewGuid(),
-            EpicId = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
+            EpicId = Guid.CreateVersion7(),
             Title = "Sprint 1",
             Status = SprintStatus.Planning,
             CreatedAt = DateTime.UtcNow,
@@ -433,9 +433,9 @@ public class TracksDtosTests
         // Arrange & Act
         var entry = new TimeEntryDto
         {
-            Id = Guid.NewGuid(),
-            WorkItemId = Guid.NewGuid(),
-            UserId = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
+            WorkItemId = Guid.CreateVersion7(),
+            UserId = Guid.CreateVersion7(),
             StartTime = DateTime.UtcNow.AddHours(-2),
             EndTime = DateTime.UtcNow,
             DurationMinutes = 120,
@@ -455,9 +455,9 @@ public class TracksDtosTests
         // Arrange & Act
         var entry = new TimeEntryDto
         {
-            Id = Guid.NewGuid(),
-            WorkItemId = Guid.NewGuid(),
-            UserId = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
+            WorkItemId = Guid.CreateVersion7(),
+            UserId = Guid.CreateVersion7(),
             StartTime = DateTime.UtcNow,
             DurationMinutes = 0,
             CreatedAt = DateTime.UtcNow,
@@ -476,13 +476,13 @@ public class TracksDtosTests
         // Arrange & Act
         var activity = new ActivityDto
         {
-            Id = Guid.NewGuid(),
-            ProductId = Guid.NewGuid(),
-            UserId = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
+            ProductId = Guid.CreateVersion7(),
+            UserId = Guid.CreateVersion7(),
             DisplayName = "Bob",
             Action = "workitem.created",
             EntityType = "WorkItem",
-            EntityId = Guid.NewGuid(),
+            EntityId = Guid.CreateVersion7(),
             Details = "{\"title\":\"New task\"}",
             CreatedAt = DateTime.UtcNow
         };
@@ -559,7 +559,7 @@ public class TracksDtosTests
         // Arrange & Act
         var dto = new MoveWorkItemDto
         {
-            TargetSwimlaneId = Guid.NewGuid(),
+            TargetSwimlaneId = Guid.CreateVersion7(),
             Position = 2000
         };
 
@@ -607,10 +607,10 @@ public class TracksDtosTests
         // Arrange
         var product = new ProductDto
         {
-            Id = Guid.NewGuid(),
-            OrganizationId = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
+            OrganizationId = Guid.CreateVersion7(),
             Name = "Original",
-            OwnerId = Guid.NewGuid(),
+            OwnerId = Guid.CreateVersion7(),
             ETag = "etag-1",
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -631,11 +631,11 @@ public class TracksDtosTests
         // Arrange
         var item = new WorkItemDto
         {
-            Id = Guid.NewGuid(),
-            ProductId = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
+            ProductId = Guid.CreateVersion7(),
             ParentWorkItemId = null,
             Type = WorkItemType.Item,
-            SwimlaneId = Guid.NewGuid(),
+            SwimlaneId = Guid.CreateVersion7(),
             ItemNumber = 1,
             Title = "Original",
             Position = 1000,
@@ -646,7 +646,7 @@ public class TracksDtosTests
         };
 
         // Act
-        var moved = item with { SwimlaneId = Guid.NewGuid(), Position = 2000 };
+        var moved = item with { SwimlaneId = Guid.CreateVersion7(), Position = 2000 };
 
         // Assert
         Assert.AreNotEqual(item.SwimlaneId, moved.SwimlaneId);
@@ -679,10 +679,10 @@ public class TracksDtosTests
     {
         var session = new PokerSessionDto
         {
-            Id = Guid.NewGuid(),
-            EpicId = Guid.NewGuid(),
-            ItemId = Guid.NewGuid(),
-            CreatedByUserId = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
+            EpicId = Guid.CreateVersion7(),
+            ItemId = Guid.CreateVersion7(),
+            CreatedByUserId = Guid.CreateVersion7(),
             Scale = PokerScale.Fibonacci,
             Status = PokerSessionStatus.Voting,
             Round = 1,
@@ -703,9 +703,9 @@ public class TracksDtosTests
     {
         var vote = new PokerVoteDto
         {
-            Id = Guid.NewGuid(),
-            SessionId = Guid.NewGuid(),
-            UserId = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
+            SessionId = Guid.CreateVersion7(),
+            UserId = Guid.CreateVersion7(),
             Estimate = "8",
             VotedAt = DateTime.UtcNow,
             Round = 1
@@ -721,7 +721,7 @@ public class TracksDtosTests
     {
         var dto = new CreatePokerSessionDto
         {
-            ItemId = Guid.NewGuid(),
+            ItemId = Guid.CreateVersion7(),
             Scale = PokerScale.TShirt,
             CustomScaleValues = null
         };
@@ -734,7 +734,7 @@ public class TracksDtosTests
     {
         var dto = new CreatePokerSessionDto
         {
-            ItemId = Guid.NewGuid(),
+            ItemId = Guid.CreateVersion7(),
             Scale = PokerScale.Custom,
             CustomScaleValues = "[\"XS\",\"S\",\"M\",\"L\",\"XL\"]"
         };

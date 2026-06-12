@@ -23,11 +23,11 @@ public class SqlServerSearchProviderTests
     public void Setup()
     {
         var options = new DbContextOptionsBuilder<SearchDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options;
         _db = new SearchDbContext(options);
         _provider = new SqlServerSearchProvider(_db, NullLogger<SqlServerSearchProvider>.Instance);
-        _userId = Guid.NewGuid();
+        _userId = Guid.CreateVersion7();
     }
 
     [TestCleanup]
@@ -232,7 +232,7 @@ public class SqlServerSearchProviderTests
     [TestMethod]
     public async Task SearchAsync_PermissionScoped_ReturnsOnlyOwnedDocuments()
     {
-        var otherUserId = Guid.NewGuid();
+        var otherUserId = Guid.CreateVersion7();
 
         // Index docs for current user
         await _provider.IndexDocumentAsync(CreateDocument("files", "e1", "FileNode", "My File"));

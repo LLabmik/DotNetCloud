@@ -21,11 +21,11 @@ public class AnnouncementServiceTests
     public void Setup()
     {
         var options = new DbContextOptionsBuilder<ChatDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options;
         _db = new ChatDbContext(options);
         _service = new AnnouncementService(_db, NullLogger<AnnouncementService>.Instance);
-        _caller = new CallerContext(Guid.NewGuid(), ["admin"], CallerType.User);
+        _caller = new CallerContext(Guid.CreateVersion7(), ["admin"], CallerType.User);
     }
 
     [TestCleanup]
@@ -106,7 +106,7 @@ public class AnnouncementServiceTests
     [TestMethod]
     public async Task WhenGetNonExistentAnnouncementThenReturnsNull()
     {
-        var result = await _service.GetAsync(Guid.NewGuid(), _caller);
+        var result = await _service.GetAsync(Guid.CreateVersion7(), _caller);
 
         Assert.IsNull(result);
     }
@@ -157,7 +157,7 @@ public class AnnouncementServiceTests
     public async Task WhenUpdateNonExistentAnnouncementThenThrows()
     {
         await Assert.ThrowsAsync<InvalidOperationException>(
-            () => _service.UpdateAsync(Guid.NewGuid(),
+            () => _service.UpdateAsync(Guid.CreateVersion7(),
                 new UpdateAnnouncementDto { Title = "X" }, _caller));
     }
 
@@ -182,7 +182,7 @@ public class AnnouncementServiceTests
     public async Task WhenDeleteNonExistentAnnouncementThenThrows()
     {
         await Assert.ThrowsAsync<InvalidOperationException>(
-            () => _service.DeleteAsync(Guid.NewGuid(), _caller));
+            () => _service.DeleteAsync(Guid.CreateVersion7(), _caller));
     }
 
     // ── Acknowledge ─────────────────────────────────────────────────
@@ -219,7 +219,7 @@ public class AnnouncementServiceTests
         var created = await _service.CreateAsync(
             new CreateAnnouncementDto { Title = "Team ack", Content = "All ack", RequiresAcknowledgement = true }, _caller);
 
-        var user2 = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        var user2 = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
         await _service.AcknowledgeAsync(created.Id, _caller);
         await _service.AcknowledgeAsync(created.Id, user2);
 

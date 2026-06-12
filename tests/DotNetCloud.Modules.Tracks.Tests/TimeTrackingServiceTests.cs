@@ -24,10 +24,10 @@ public class TimeTrackingServiceTests
     [TestMethod]
     public async Task AddManualEntryAsync_CreatesTimeEntry()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
         var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
-        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
-        var userId = Guid.NewGuid();
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.CreateVersion7());
+        var userId = Guid.CreateVersion7();
         var dto = new CreateTimeEntryDto { DurationMinutes = 30, Description = "Development" };
 
         var result = await _service.AddManualEntryAsync(item.Id, userId, dto, CancellationToken.None);
@@ -40,10 +40,10 @@ public class TimeTrackingServiceTests
     [TestMethod]
     public async Task GetTimeEntriesByWorkItemAsync_ReturnsEntries()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
         var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
-        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
-        var userId = Guid.NewGuid();
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.CreateVersion7());
+        var userId = Guid.CreateVersion7();
         await _service.AddManualEntryAsync(item.Id, userId, new CreateTimeEntryDto { DurationMinutes = 15 }, CancellationToken.None);
         await _service.AddManualEntryAsync(item.Id, userId, new CreateTimeEntryDto { DurationMinutes = 45 }, CancellationToken.None);
 
@@ -55,10 +55,10 @@ public class TimeTrackingServiceTests
     [TestMethod]
     public async Task GetTimeEntriesByUserAsync_ReturnsUserEntries()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
         var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
-        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
-        var userId = Guid.NewGuid();
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.CreateVersion7());
+        var userId = Guid.CreateVersion7();
         await _service.AddManualEntryAsync(item.Id, userId, new CreateTimeEntryDto { DurationMinutes = 30 }, CancellationToken.None);
 
         var result = await _service.GetTimeEntriesByUserAsync(userId, CancellationToken.None);
@@ -69,10 +69,10 @@ public class TimeTrackingServiceTests
     [TestMethod]
     public async Task DeleteEntryAsync_RemovesEntry()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
         var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
-        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
-        var userId = Guid.NewGuid();
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.CreateVersion7());
+        var userId = Guid.CreateVersion7();
         var entry = await _service.AddManualEntryAsync(item.Id, userId, new CreateTimeEntryDto { DurationMinutes = 30 }, CancellationToken.None);
 
         await _service.DeleteEntryAsync(entry.Id, CancellationToken.None);
@@ -84,10 +84,10 @@ public class TimeTrackingServiceTests
     [TestMethod]
     public async Task StartTimerAsync_CreatesActiveTimer()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
         var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
-        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
-        var userId = Guid.NewGuid();
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.CreateVersion7());
+        var userId = Guid.CreateVersion7();
 
         var result = await _service.StartTimerAsync(item.Id, userId, CancellationToken.None);
 
@@ -100,10 +100,10 @@ public class TimeTrackingServiceTests
     [TestMethod]
     public async Task StopTimerAsync_StopsActiveTimer()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
         var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
-        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
-        var userId = Guid.NewGuid();
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.CreateVersion7());
+        var userId = Guid.CreateVersion7();
         await _service.StartTimerAsync(item.Id, userId, CancellationToken.None);
 
         var result = await _service.StopTimerAsync(item.Id, userId, CancellationToken.None);
@@ -115,10 +115,10 @@ public class TimeTrackingServiceTests
     [TestMethod]
     public async Task GetActiveTimerAsync_ReturnsRunningTimer()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
         var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
-        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
-        var userId = Guid.NewGuid();
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.CreateVersion7());
+        var userId = Guid.CreateVersion7();
         await _service.StartTimerAsync(item.Id, userId, CancellationToken.None);
 
         var result = await _service.GetActiveTimerAsync(userId, CancellationToken.None);
@@ -131,7 +131,7 @@ public class TimeTrackingServiceTests
     [TestMethod]
     public async Task GetActiveTimerAsync_NoActiveTimer_ReturnsNull()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         var result = await _service.GetActiveTimerAsync(userId, CancellationToken.None);
 
@@ -141,10 +141,10 @@ public class TimeTrackingServiceTests
     [TestMethod]
     public async Task GetTotalMinutesForWorkItemAsync_ReturnsTotal()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
         var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
-        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
-        var userId = Guid.NewGuid();
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.CreateVersion7());
+        var userId = Guid.CreateVersion7();
         await _service.AddManualEntryAsync(item.Id, userId, new CreateTimeEntryDto { DurationMinutes = 30 }, CancellationToken.None);
         await _service.AddManualEntryAsync(item.Id, userId, new CreateTimeEntryDto { DurationMinutes = 45 }, CancellationToken.None);
 

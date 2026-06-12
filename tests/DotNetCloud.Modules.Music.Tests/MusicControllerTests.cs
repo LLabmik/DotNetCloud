@@ -100,7 +100,7 @@ public class MusicControllerTests
 
     private async Task<CanonicalTrack> SeedTrackAsync(string title, Guid fileNodeId, int trackNum = 1)
     {
-        var hash = $"SHA256-{Guid.NewGuid():N}";
+        var hash = $"SHA256-{Guid.CreateVersion7():N}";
         var ct = new CanonicalTrack
         {
             ContentHash = hash,
@@ -134,7 +134,7 @@ public class MusicControllerTests
     {
         SetupAuthenticatedUser();
 
-        var result = await _controller.DownloadAlbumAsync(Guid.NewGuid());
+        var result = await _controller.DownloadAlbumAsync(Guid.CreateVersion7());
 
         Assert.IsInstanceOfType<NotFoundObjectResult>(result);
     }

@@ -21,12 +21,12 @@ public class NoteServiceTests
     public void Setup()
     {
         var options = new DbContextOptionsBuilder<NotesDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options;
         _db = new NotesDbContext(options);
         _eventBusMock = new Mock<IEventBus>();
         _service = new NoteService(_db, _eventBusMock.Object, NullLogger<NoteService>.Instance);
-        _caller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        _caller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
     }
 
     [TestCleanup]
@@ -91,7 +91,7 @@ public class NoteServiceTests
         var dto = new CreateNoteDto
         {
             Title = "Bad Folder",
-            FolderId = Guid.NewGuid()
+            FolderId = Guid.CreateVersion7()
         };
 
         var ex = await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
@@ -118,7 +118,7 @@ public class NoteServiceTests
     [TestMethod]
     public async Task CreateNote_WithLinks_SetsLinks()
     {
-        var targetId = Guid.NewGuid();
+        var targetId = Guid.CreateVersion7();
         var dto = new CreateNoteDto
         {
             Title = "Linked Note",
@@ -150,7 +150,7 @@ public class NoteServiceTests
     {
         var created = await _service.CreateNoteAsync(new CreateNoteDto { Title = "Private" }, _caller);
 
-        var otherCaller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        var otherCaller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
         var result = await _service.GetNoteAsync(created.Id, otherCaller);
 
         Assert.IsNull(result);
@@ -159,7 +159,7 @@ public class NoteServiceTests
     [TestMethod]
     public async Task GetNote_NonExistent_ReturnsNull()
     {
-        var result = await _service.GetNoteAsync(Guid.NewGuid(), _caller);
+        var result = await _service.GetNoteAsync(Guid.CreateVersion7(), _caller);
         Assert.IsNull(result);
     }
 
@@ -168,7 +168,7 @@ public class NoteServiceTests
     [TestMethod]
     public async Task ListNotes_ReturnsOwnNotes()
     {
-        var otherCaller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        var otherCaller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
 
         await _service.CreateNoteAsync(new CreateNoteDto { Title = "Mine" }, _caller);
         await _service.CreateNoteAsync(new CreateNoteDto { Title = "Theirs" }, otherCaller);
@@ -253,7 +253,7 @@ public class NoteServiceTests
     {
         var created = await _service.CreateNoteAsync(new CreateNoteDto { Title = "Private" }, _caller);
 
-        var otherCaller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        var otherCaller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
 
         await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
             () => _service.UpdateNoteAsync(created.Id, new UpdateNoteDto { Title = "Hacked" }, otherCaller));
@@ -321,7 +321,7 @@ public class NoteServiceTests
     {
         var created = await _service.CreateNoteAsync(new CreateNoteDto { Title = "Mine" }, _caller);
 
-        var otherCaller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        var otherCaller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
 
         await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
             () => _service.DeleteNoteAsync(created.Id, otherCaller));
@@ -358,7 +358,7 @@ public class NoteServiceTests
     [TestMethod]
     public async Task SearchNotes_OtherUserNotVisible()
     {
-        var otherCaller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        var otherCaller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
         await _service.CreateNoteAsync(new CreateNoteDto { Title = "Private Search Target" }, otherCaller);
 
         var results = await _service.SearchNotesAsync(_caller, "Search Target");
@@ -410,6 +410,6 @@ public class NoteServiceTests
         var created = await _service.CreateNoteAsync(new CreateNoteDto { Title = "V1" }, _caller);
 
         await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
-            () => _service.RestoreVersionAsync(created.Id, Guid.NewGuid(), _caller));
+            () => _service.RestoreVersionAsync(created.Id, Guid.CreateVersion7(), _caller));
     }
 }

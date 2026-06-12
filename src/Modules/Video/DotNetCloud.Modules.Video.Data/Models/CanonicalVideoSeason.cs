@@ -6,7 +6,7 @@ namespace DotNetCloud.Modules.Video.Models;
 public sealed class CanonicalVideoSeason
 {
     /// <summary>Unique identifier for this season.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>The canonical series this season belongs to.</summary>
     public Guid SeriesId { get; set; }

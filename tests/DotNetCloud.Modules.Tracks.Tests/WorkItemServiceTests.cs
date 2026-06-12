@@ -38,15 +38,15 @@ public class WorkItemServiceTests
     [TestMethod]
     public async Task CreateWorkItemAsync_CreatesItem()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
-        var epic = await TestHelpers.SeedEpicAsync(_db, product.Id, Guid.NewGuid());
-        var feature = await TestHelpers.SeedWorkItemAsync(_db, product.Id, null, Guid.NewGuid(), "Feature", WorkItemType.Feature);
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
+        var epic = await TestHelpers.SeedEpicAsync(_db, product.Id, Guid.CreateVersion7());
+        var feature = await TestHelpers.SeedWorkItemAsync(_db, product.Id, null, Guid.CreateVersion7(), "Feature", WorkItemType.Feature);
         feature.ParentWorkItemId = epic.Id;
         await _db.SaveChangesAsync();
         var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, feature.Id, SwimlaneContainerType.WorkItem);
         var dto = new CreateWorkItemDto { Title = "New Task" };
 
-        var result = await _service.CreateWorkItemAsync(product.Id, swimlane.Id, WorkItemType.Item, Guid.NewGuid(), dto, CancellationToken.None);
+        var result = await _service.CreateWorkItemAsync(product.Id, swimlane.Id, WorkItemType.Item, Guid.CreateVersion7(), dto, CancellationToken.None);
 
         Assert.AreEqual("New Task", result.Title);
         Assert.AreEqual(swimlane.Id, result.SwimlaneId);
@@ -56,11 +56,11 @@ public class WorkItemServiceTests
     [TestMethod]
     public async Task CreateWorkItemAsync_EpicType_Works()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
         var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
         var dto = new CreateWorkItemDto { Title = "Epic Goal" };
 
-        var result = await _service.CreateWorkItemAsync(product.Id, swimlane.Id, WorkItemType.Epic, Guid.NewGuid(), dto, CancellationToken.None);
+        var result = await _service.CreateWorkItemAsync(product.Id, swimlane.Id, WorkItemType.Epic, Guid.CreateVersion7(), dto, CancellationToken.None);
 
         Assert.AreEqual(WorkItemType.Epic, result.Type);
     }
@@ -68,9 +68,9 @@ public class WorkItemServiceTests
     [TestMethod]
     public async Task GetWorkItemAsync_ReturnsItem()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
         var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
-        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.CreateVersion7());
 
         var result = await _service.GetWorkItemAsync(item.Id, CancellationToken.None);
 
@@ -81,9 +81,9 @@ public class WorkItemServiceTests
     [TestMethod]
     public async Task GetWorkItemByNumberAsync_ReturnsItem()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
         var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
-        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.CreateVersion7());
 
         var result = await _service.GetWorkItemByNumberAsync(product.Id, item.ItemNumber, CancellationToken.None);
 
@@ -93,9 +93,9 @@ public class WorkItemServiceTests
     [TestMethod]
     public async Task UpdateWorkItemAsync_UpdatesTitle()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
         var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
-        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.CreateVersion7());
         var dto = new UpdateWorkItemDto { Title = "Updated Title" };
 
         var result = await _service.UpdateWorkItemAsync(item.Id, dto, CancellationToken.None);
@@ -106,11 +106,11 @@ public class WorkItemServiceTests
     [TestMethod]
     public async Task DeleteWorkItemAsync_SoftDeletes()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
         var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
-        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.CreateVersion7());
 
-        await _service.DeleteWorkItemAsync(item.Id, Guid.NewGuid(), CancellationToken.None);
+        await _service.DeleteWorkItemAsync(item.Id, Guid.CreateVersion7(), CancellationToken.None);
 
         var deleted = await _db.WorkItems.IgnoreQueryFilters().FirstOrDefaultAsync(wi => wi.Id == item.Id);
         Assert.IsNotNull(deleted);
@@ -120,10 +120,10 @@ public class WorkItemServiceTests
     [TestMethod]
     public async Task MoveWorkItemAsync_MovesBetweenSwimlanes()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
         var source = await TestHelpers.SeedSwimlaneAsync(_db, product.Id, SwimlaneContainerType.Product, "Source");
         var target = await TestHelpers.SeedSwimlaneAsync(_db, product.Id, SwimlaneContainerType.Product, "Target");
-        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, source.Id, Guid.NewGuid());
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, source.Id, Guid.CreateVersion7());
         var dto = new MoveWorkItemDto { TargetSwimlaneId = target.Id };
 
         var result = await _service.MoveWorkItemAsync(item.Id, dto, CancellationToken.None);
@@ -134,10 +134,10 @@ public class WorkItemServiceTests
     [TestMethod]
     public async Task GetWorkItemsBySwimlaneAsync_ReturnsItemsInSwimlane()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
         var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
-        await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid(), "A");
-        await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid(), "B");
+        await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.CreateVersion7(), "A");
+        await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.CreateVersion7(), "B");
 
         var result = await _service.GetWorkItemsBySwimlaneAsync(swimlane.Id, CancellationToken.None);
 
@@ -147,10 +147,10 @@ public class WorkItemServiceTests
     [TestMethod]
     public async Task GetChildWorkItemsAsync_ReturnsChildren()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
         var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
-        var parent = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid(), "Parent", WorkItemType.Feature);
-        var child = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid(), "Child", WorkItemType.Item);
+        var parent = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.CreateVersion7(), "Parent", WorkItemType.Feature);
+        var child = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.CreateVersion7(), "Child", WorkItemType.Item);
         child.ParentWorkItemId = parent.Id;
         await _db.SaveChangesAsync();
 
@@ -163,10 +163,10 @@ public class WorkItemServiceTests
     [TestMethod]
     public async Task AssignUserAsync_AddsAssignment()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
         var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
-        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
-        var userId = Guid.NewGuid();
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.CreateVersion7());
+        var userId = Guid.CreateVersion7();
 
         var result = await _service.AssignUserAsync(item.Id, userId, CancellationToken.None);
 
@@ -176,10 +176,10 @@ public class WorkItemServiceTests
     [TestMethod]
     public async Task RemoveAssignmentAsync_RemovesAssignment()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
         var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
-        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
-        var userId = Guid.NewGuid();
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.CreateVersion7());
+        var userId = Guid.CreateVersion7();
         await _service.AssignUserAsync(item.Id, userId, CancellationToken.None);
 
         await _service.RemoveAssignmentAsync(item.Id, userId, CancellationToken.None);
@@ -191,9 +191,9 @@ public class WorkItemServiceTests
     [TestMethod]
     public async Task AddLabelAsync_AddsLabelToWorkItem()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
         var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
-        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.CreateVersion7());
         var label = new Label { ProductId = product.Id, Title = "Bug", Color = "#f00" };
         _db.Labels.Add(label);
         await _db.SaveChangesAsync();
@@ -207,9 +207,9 @@ public class WorkItemServiceTests
     [TestMethod]
     public async Task RemoveLabelAsync_RemovesLabelFromWorkItem()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
         var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
-        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.CreateVersion7());
         var label = new Label { ProductId = product.Id, Title = "Bug", Color = "#f00" };
         _db.Labels.Add(label);
         await _db.SaveChangesAsync();

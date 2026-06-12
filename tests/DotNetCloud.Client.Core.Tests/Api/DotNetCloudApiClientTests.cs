@@ -39,7 +39,7 @@ public class DotNetCloudApiClientTests
     [TestMethod]
     public async Task GetNodeAsync_ValidId_ReturnsNode()
     {
-        var nodeId = Guid.NewGuid();
+        var nodeId = Guid.CreateVersion7();
         var expected = new FileNodeResponse { Id = nodeId, Name = "test.txt", NodeType = "File" };
 
         var client = CreateMockHttpClient(_ => JsonOk(expected));
@@ -72,7 +72,7 @@ public class DotNetCloudApiClientTests
     [TestMethod]
     public async Task ListChildrenAsync_WithFolderId_IncludesFolderIdInPath()
     {
-        var folderId = Guid.NewGuid();
+        var folderId = Guid.CreateVersion7();
         var capturedPath = string.Empty;
         var client = CreateMockHttpClient(req =>
         {
@@ -95,14 +95,14 @@ public class DotNetCloudApiClientTests
         var client = CreateMockHttpClient(req =>
         {
             capturedAuth = req.Headers.Authorization?.Parameter;
-            return JsonOk(new FileNodeResponse { Id = Guid.NewGuid(), Name = "f", NodeType = "File" });
+            return JsonOk(new FileNodeResponse { Id = Guid.CreateVersion7(), Name = "f", NodeType = "File" });
         });
         var apiClient = new DotNetCloudApiClient(client, NullLogger<DotNetCloudApiClient>.Instance)
         {
             AccessToken = "my-token-123",
         };
 
-        await apiClient.GetNodeAsync(Guid.NewGuid());
+        await apiClient.GetNodeAsync(Guid.CreateVersion7());
 
         Assert.AreEqual("my-token-123", capturedAuth);
     }
@@ -114,7 +114,7 @@ public class DotNetCloudApiClientTests
     {
         var changes = new List<SyncChangeResponse>
         {
-            new() { NodeId = Guid.NewGuid(), Name = "doc.txt", NodeType = "File", UpdatedAt = DateTime.UtcNow },
+            new() { NodeId = Guid.CreateVersion7(), Name = "doc.txt", NodeType = "File", UpdatedAt = DateTime.UtcNow },
         };
         var client = CreateMockHttpClient(_ => JsonOk(changes));
         var apiClient = new DotNetCloudApiClient(client, NullLogger<DotNetCloudApiClient>.Instance);
@@ -131,7 +131,7 @@ public class DotNetCloudApiClientTests
         const string cursor = "dXNlcjoxMjM=";
         var pagedResponse = new PagedSyncChangesResponse
         {
-            Changes = [new SyncChangeResponse { NodeId = Guid.NewGuid(), Name = "file.txt", NodeType = "File", UpdatedAt = DateTime.UtcNow }],
+            Changes = [new SyncChangeResponse { NodeId = Guid.CreateVersion7(), Name = "file.txt", NodeType = "File", UpdatedAt = DateTime.UtcNow }],
             NextCursor = "bmV4dEN1cnNvcg==",
             HasMore = true,
         };
@@ -187,7 +187,7 @@ public class DotNetCloudApiClientTests
     [TestMethod]
     public async Task GetQuotaAsync_ReturnsQuota()
     {
-        var quota = new QuotaResponse { UserId = Guid.NewGuid(), QuotaBytes = 10_737_418_240, UsedBytes = 1_073_741_824 };
+        var quota = new QuotaResponse { UserId = Guid.CreateVersion7(), QuotaBytes = 10_737_418_240, UsedBytes = 1_073_741_824 };
         var client = CreateMockHttpClient(_ => JsonOk(quota));
         var apiClient = new DotNetCloudApiClient(client, NullLogger<DotNetCloudApiClient>.Instance);
 
@@ -203,7 +203,7 @@ public class DotNetCloudApiClientTests
     public async Task GetNodeAsync_500ThenOk_RetriesAndSucceeds()
     {
         var callCount = 0;
-        var nodeId = Guid.NewGuid();
+        var nodeId = Guid.CreateVersion7();
         var client = CreateMockHttpClient(_ =>
         {
             callCount++;
@@ -225,7 +225,7 @@ public class DotNetCloudApiClientTests
     public async Task UploadChunkAsync_SetsContentEncodingGzip()
     {
         // Arrange
-        var sessionId = Guid.NewGuid();
+        var sessionId = Guid.CreateVersion7();
         var chunkData = new byte[] { 10, 20, 30, 40, 50, 60, 70, 80 };
         string? capturedEncoding = null;
         byte[]? capturedBody = null;
@@ -400,7 +400,7 @@ public class DotNetCloudApiClientTests
         string? capturedBody = null;
         var responseBody = JsonSerializer.Serialize(new
         {
-            data = new { sessionId = Guid.NewGuid(), expiresAt = DateTime.UtcNow, presentChunks = Array.Empty<string>() },
+            data = new { sessionId = Guid.CreateVersion7(), expiresAt = DateTime.UtcNow, presentChunks = Array.Empty<string>() },
         }, JsonOptions);
 
         var client = CreateMockHttpClient(req =>
@@ -487,7 +487,7 @@ public class DotNetCloudApiClientTests
     [TestMethod]
     public async Task UploadChunkAsync_PreCompressedExtension_SkipsGzip()
     {
-        var sessionId = Guid.NewGuid();
+        var sessionId = Guid.CreateVersion7();
         var chunkData = new byte[] { 10, 20, 30, 40, 50, 60, 70, 80 };
         string? capturedEncoding = null;
         byte[]? capturedBody = null;
@@ -510,7 +510,7 @@ public class DotNetCloudApiClientTests
     [TestMethod]
     public async Task UploadChunkAsync_NonCompressedExtension_UsesGzip()
     {
-        var sessionId = Guid.NewGuid();
+        var sessionId = Guid.CreateVersion7();
         var chunkData = new byte[] { 10, 20, 30, 40, 50, 60, 70, 80 };
         string? capturedEncoding = null;
 
@@ -529,7 +529,7 @@ public class DotNetCloudApiClientTests
     [TestMethod]
     public async Task UploadChunkAsync_NullExtension_UsesGzip()
     {
-        var sessionId = Guid.NewGuid();
+        var sessionId = Guid.CreateVersion7();
         var chunkData = new byte[] { 10, 20, 30, 40, 50 };
         string? capturedEncoding = null;
 

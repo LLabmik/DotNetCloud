@@ -17,7 +17,7 @@ public class SyncServiceTests
     private static FilesDbContext CreateContext(string? name = null)
     {
         var options = new DbContextOptionsBuilder<FilesDbContext>()
-            .UseInMemoryDatabase(name ?? Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(name ?? Guid.CreateVersion7().ToString())
             .Options;
         return new FilesDbContext(options);
     }
@@ -34,7 +34,7 @@ public class SyncServiceTests
     public async Task GetChangesSinceAsync_ReturnsActiveChanges()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var now = DateTime.UtcNow;
 
         db.FileNodes.Add(new FileNode
@@ -65,7 +65,7 @@ public class SyncServiceTests
     public async Task GetChangesSinceAsync_IncludesDeletedNodes()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var now = DateTime.UtcNow;
 
         var deleted = new FileNode
@@ -76,7 +76,7 @@ public class SyncServiceTests
             IsDeleted = true,
             DeletedAt = now,
             DeletedByUserId = userId,
-            OriginalParentId = Guid.NewGuid(),
+            OriginalParentId = Guid.CreateVersion7(),
             UpdatedAt = now.AddMinutes(-5)
         };
         deleted.MaterializedPath = $"/{deleted.Id}";
@@ -95,7 +95,7 @@ public class SyncServiceTests
     public async Task GetChangesSinceAsync_FiltersByFolder()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var now = DateTime.UtcNow;
         var folder = new FileNode { Name = "Folder", NodeType = FileNodeType.Folder, OwnerId = userId, UpdatedAt = now };
         folder.MaterializedPath = $"/{folder.Id}";
@@ -130,8 +130,8 @@ public class SyncServiceTests
     public async Task GetChangesSinceAsync_OtherUsersNodes_NotIncluded()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
-        var otherId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var otherId = Guid.CreateVersion7();
         var now = DateTime.UtcNow;
 
         db.FileNodes.Add(new FileNode { Name = "mine.txt", NodeType = FileNodeType.File, OwnerId = userId, UpdatedAt = now });
@@ -149,9 +149,9 @@ public class SyncServiceTests
     public async Task GetChangesSinceAsync_SelfOriginatedChanges_AreSuppressed()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
-        var selfDeviceId = Guid.NewGuid();
-        var otherDeviceId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var selfDeviceId = Guid.CreateVersion7();
+        var otherDeviceId = Guid.CreateVersion7();
         var now = DateTime.UtcNow;
 
         db.FileNodes.Add(new FileNode
@@ -183,7 +183,7 @@ public class SyncServiceTests
     public async Task GetFolderTreeAsync_RootLevel_ReturnsAllRootNodes()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         db.FileNodes.Add(new FileNode { Name = "file1.txt", NodeType = FileNodeType.File, OwnerId = userId });
         db.FileNodes.Add(new FileNode { Name = "Folder1", NodeType = FileNodeType.Folder, OwnerId = userId });
         await db.SaveChangesAsync();
@@ -199,7 +199,7 @@ public class SyncServiceTests
     public async Task GetFolderTreeAsync_SpecificFolder_BuildsRecursiveTree()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var parent = new FileNode { Name = "Root", NodeType = FileNodeType.Folder, OwnerId = userId };
         parent.MaterializedPath = $"/{parent.Id}";
         db.FileNodes.Add(parent);
@@ -223,14 +223,14 @@ public class SyncServiceTests
         var service = CreateService(db);
 
         await Assert.ThrowsExactlyAsync<NotFoundException>(
-            () => service.GetFolderTreeAsync(Guid.NewGuid(), UserCaller(Guid.NewGuid())));
+            () => service.GetFolderTreeAsync(Guid.CreateVersion7(), UserCaller(Guid.CreateVersion7())));
     }
 
     [TestMethod]
     public async Task ReconcileAsync_NewOnServer_ProducesDownloadAction()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var serverNode = new FileNode
         {
             Name = "server-only.txt",
@@ -256,11 +256,11 @@ public class SyncServiceTests
     public async Task ReconcileAsync_NewOnClient_ProducesUploadAction()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         // Server is empty
         await db.SaveChangesAsync();
 
-        var clientNodeId = Guid.NewGuid();
+        var clientNodeId = Guid.CreateVersion7();
         var service = CreateService(db);
         var result = await service.ReconcileAsync(new SyncReconcileRequestDto
         {
@@ -276,7 +276,7 @@ public class SyncServiceTests
     public async Task ReconcileAsync_DeletedOnServer_ProducesDeleteAction()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var deleted = new FileNode
         {
             Name = "deleted.txt",
@@ -285,7 +285,7 @@ public class SyncServiceTests
             IsDeleted = true,
             DeletedAt = DateTime.UtcNow,
             DeletedByUserId = userId,
-            OriginalParentId = Guid.NewGuid()
+            OriginalParentId = Guid.CreateVersion7()
         };
         deleted.MaterializedPath = $"/{deleted.Id}";
         db.FileNodes.Add(deleted);
@@ -304,7 +304,7 @@ public class SyncServiceTests
     public async Task ReconcileAsync_ServerNewer_ProducesDownloadAction()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var now = DateTime.UtcNow;
         var node = new FileNode
         {
@@ -332,7 +332,7 @@ public class SyncServiceTests
     public async Task ReconcileAsync_ClientNewer_ProducesUploadAction()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var now = DateTime.UtcNow;
         var node = new FileNode
         {
@@ -360,7 +360,7 @@ public class SyncServiceTests
     public async Task ReconcileAsync_SameHashAndTimestamp_NoAction()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var now = DateTime.UtcNow;
         var node = new FileNode
         {
@@ -386,7 +386,7 @@ public class SyncServiceTests
     public async Task ReconcileAsync_SameTimestampDifferentHash_ProducesConflict()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var now = DateTime.UtcNow;
         var node = new FileNode
         {
@@ -415,7 +415,7 @@ public class SyncServiceTests
     public async Task GetChangesSinceCursorAsync_NoCursor_ReturnsAllStampedChanges()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         // Node with a SyncSequence (stamped mutation)
         var stamped = new FileNode
@@ -449,7 +449,7 @@ public class SyncServiceTests
     public async Task GetChangesSinceCursorAsync_WithCursor_ReturnsOnlyNewerChanges()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         db.FileNodes.Add(new FileNode { Name = "seq1.txt", NodeType = FileNodeType.File, OwnerId = userId, SyncSequence = 1 });
         db.FileNodes.Add(new FileNode { Name = "seq2.txt", NodeType = FileNodeType.File, OwnerId = userId, SyncSequence = 2 });
@@ -469,7 +469,7 @@ public class SyncServiceTests
     public async Task GetChangesSinceCursorAsync_WithLimit_PaginatesCorrectly()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         for (long seq = 1; seq <= 5; seq++)
             db.FileNodes.Add(new FileNode { Name = $"f{seq}.txt", NodeType = FileNodeType.File, OwnerId = userId, SyncSequence = seq });
@@ -493,7 +493,7 @@ public class SyncServiceTests
     public async Task GetChangesSinceCursorAsync_InvalidCursor_StartsFromBeginning()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         db.FileNodes.Add(new FileNode { Name = "file.txt", NodeType = FileNodeType.File, OwnerId = userId, SyncSequence = 1 });
         await db.SaveChangesAsync();
@@ -509,8 +509,8 @@ public class SyncServiceTests
     public async Task GetChangesSinceCursorAsync_CursorFromDifferentUser_StartsFromBeginning()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
-        var otherUserId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var otherUserId = Guid.CreateVersion7();
 
         db.FileNodes.Add(new FileNode { Name = "mine.txt", NodeType = FileNodeType.File, OwnerId = userId, SyncSequence = 1 });
         await db.SaveChangesAsync();
@@ -530,7 +530,7 @@ public class SyncServiceTests
     public async Task GetChangesSinceCursorAsync_DeletedNodeWithSequence_IncludedInResults()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         var deleted = new FileNode
         {
@@ -540,7 +540,7 @@ public class SyncServiceTests
             IsDeleted = true,
             DeletedAt = DateTime.UtcNow,
             DeletedByUserId = userId,
-            OriginalParentId = Guid.NewGuid(),
+            OriginalParentId = Guid.CreateVersion7(),
             SyncSequence = 2
         };
         deleted.MaterializedPath = $"/{deleted.Id}";
@@ -560,7 +560,7 @@ public class SyncServiceTests
     public async Task GetChangesSinceCursorAsync_EmptyResult_NextCursorEncodesSinceSequence()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         var cursor = SyncCursorHelper.EncodeCursor(userId, 42);
         var service = CreateService(db);
@@ -578,8 +578,8 @@ public class SyncServiceTests
     public async Task GetChangesSinceCursorAsync_SelfOriginatedChange_FilteredButCursorAdvances()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
-        var selfDeviceId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var selfDeviceId = Guid.CreateVersion7();
 
         db.FileNodes.Add(new FileNode
         {
@@ -607,7 +607,7 @@ public class SyncServiceTests
     [TestMethod]
     public void SyncCursorHelper_EncodeDecode_RoundTrip()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         const long seq = 12345L;
 
         var cursor = SyncCursorHelper.EncodeCursor(userId, seq);
@@ -637,7 +637,7 @@ public class SyncServiceTests
     [TestMethod]
     public void SyncCursorHelper_DecodeNoColon_ReturnsNull()
     {
-        var raw = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(Guid.NewGuid().ToString()));
+        var raw = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(Guid.CreateVersion7().ToString()));
         var result = SyncCursorHelper.DecodeCursor(raw);
         Assert.IsNull(result);
     }
@@ -646,7 +646,7 @@ public class SyncServiceTests
     public async Task SyncCursorHelper_AssignNextSequenceAsync_CreatesCounterAndAssignsSequence()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = new FileNode { Name = "f.txt", NodeType = FileNodeType.File, OwnerId = userId };
 
         await SyncCursorHelper.AssignNextSequenceAsync(db, node, userId);
@@ -658,7 +658,7 @@ public class SyncServiceTests
     public async Task SyncCursorHelper_AssignNextSequenceAsync_IncrementsExistingCounter()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         // Pre-seed counter at 10
         db.UserSyncCounters.Add(new UserSyncCounter { UserId = userId, CurrentSequence = 10 });
@@ -674,7 +674,7 @@ public class SyncServiceTests
     public async Task SyncCursorHelper_AssignNextSequenceAsync_MultipleNodes_SequenceMonotonicallyIncreases()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node1 = new FileNode { Name = "a.txt", NodeType = FileNodeType.File, OwnerId = userId };
         var node2 = new FileNode { Name = "b.txt", NodeType = FileNodeType.File, OwnerId = userId };
         var node3 = new FileNode { Name = "c.txt", NodeType = FileNodeType.File, OwnerId = userId };
@@ -694,13 +694,13 @@ public class SyncServiceTests
     public async Task GetChangesSinceCursorAsync_IncludesOriginatingDeviceId()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
-        var deviceId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var deviceId = Guid.CreateVersion7();
         var service = CreateService(db);
 
         var node = new FileNode
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             Name = "device-file.txt",
             NodeType = FileNodeType.File,
             OwnerId = userId,
@@ -722,14 +722,14 @@ public class SyncServiceTests
     public async Task GetChangesSinceAsync_IncludesOriginatingDeviceId()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
-        var deviceId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var deviceId = Guid.CreateVersion7();
         var now = DateTime.UtcNow;
         var service = CreateService(db);
 
         var node = new FileNode
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             Name = "device-file.txt",
             NodeType = FileNodeType.File,
             OwnerId = userId,
@@ -751,12 +751,12 @@ public class SyncServiceTests
     public async Task GetChangesSinceCursorAsync_NullOriginatingDeviceId_IsPreserved()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var service = CreateService(db);
 
         var node = new FileNode
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             Name = "no-device-file.txt",
             NodeType = FileNodeType.File,
             OwnerId = userId,
@@ -780,8 +780,8 @@ public class SyncServiceTests
     public async Task AcknowledgeCursorAsync_CreatesNewCursor()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
-        var deviceId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var deviceId = Guid.CreateVersion7();
 
         db.SyncDevices.Add(new SyncDevice
         {
@@ -804,8 +804,8 @@ public class SyncServiceTests
     public async Task AcknowledgeCursorAsync_AdvancesForward()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
-        var deviceId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var deviceId = Guid.CreateVersion7();
 
         db.SyncDevices.Add(new SyncDevice { Id = deviceId, UserId = userId, DeviceName = "test" });
         await db.SaveChangesAsync();
@@ -822,8 +822,8 @@ public class SyncServiceTests
     public async Task AcknowledgeCursorAsync_DoesNotRegress()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
-        var deviceId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var deviceId = Guid.CreateVersion7();
 
         db.SyncDevices.Add(new SyncDevice { Id = deviceId, UserId = userId, DeviceName = "test" });
         await db.SaveChangesAsync();
@@ -841,9 +841,9 @@ public class SyncServiceTests
     public async Task AcknowledgeCursorAsync_WrongUser_ThrowsNotFoundException()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
-        var otherUserId = Guid.NewGuid();
-        var deviceId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var otherUserId = Guid.CreateVersion7();
+        var deviceId = Guid.CreateVersion7();
 
         db.SyncDevices.Add(new SyncDevice { Id = deviceId, UserId = userId, DeviceName = "test" });
         await db.SaveChangesAsync();
@@ -858,8 +858,8 @@ public class SyncServiceTests
     public async Task AcknowledgeCursorAsync_NegativeSequence_ThrowsValidationException()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
-        var deviceId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var deviceId = Guid.CreateVersion7();
 
         db.SyncDevices.Add(new SyncDevice { Id = deviceId, UserId = userId, DeviceName = "test" });
         await db.SaveChangesAsync();
@@ -874,8 +874,8 @@ public class SyncServiceTests
     public async Task GetDeviceCursorAsync_NoCursorYet_ReturnsNullSequence()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
-        var deviceId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var deviceId = Guid.CreateVersion7();
 
         db.SyncDevices.Add(new SyncDevice { Id = deviceId, UserId = userId, DeviceName = "test" });
         await db.SaveChangesAsync();
@@ -894,8 +894,8 @@ public class SyncServiceTests
     public async Task GetDeviceCursorAsync_WithCursor_ReturnsEncodedCursor()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
-        var deviceId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var deviceId = Guid.CreateVersion7();
 
         db.SyncDevices.Add(new SyncDevice { Id = deviceId, UserId = userId, DeviceName = "test" });
         db.SyncDeviceCursors.Add(new SyncDeviceCursor
@@ -925,9 +925,9 @@ public class SyncServiceTests
     public async Task GetDeviceCursorAsync_WrongUser_ThrowsNotFoundException()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
-        var otherUserId = Guid.NewGuid();
-        var deviceId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var otherUserId = Guid.CreateVersion7();
+        var deviceId = Guid.CreateVersion7();
 
         db.SyncDevices.Add(new SyncDevice { Id = deviceId, UserId = userId, DeviceName = "test" });
         await db.SaveChangesAsync();
@@ -942,8 +942,8 @@ public class SyncServiceTests
     public async Task AcknowledgeCursorAsync_ThenGet_RoundTrip()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
-        var deviceId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var deviceId = Guid.CreateVersion7();
 
         db.SyncDevices.Add(new SyncDevice { Id = deviceId, UserId = userId, DeviceName = "test" });
         await db.SaveChangesAsync();
@@ -961,8 +961,8 @@ public class SyncServiceTests
     public async Task AcknowledgeCursorAsync_NonExistentDevice_ThrowsNotFoundException()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
-        var nonExistentDeviceId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var nonExistentDeviceId = Guid.CreateVersion7();
 
         var service = CreateService(db);
 
@@ -976,8 +976,8 @@ public class SyncServiceTests
     public async Task SetDeviceActiveAsync_DeactivatesDevice()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
-        var deviceId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var deviceId = Guid.CreateVersion7();
 
         db.SyncDevices.Add(new SyncDevice { Id = deviceId, UserId = userId, DeviceName = "test", IsActive = true });
         await db.SaveChangesAsync();
@@ -993,8 +993,8 @@ public class SyncServiceTests
     public async Task SetDeviceActiveAsync_ReactivatesDevice()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
-        var deviceId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var deviceId = Guid.CreateVersion7();
 
         db.SyncDevices.Add(new SyncDevice { Id = deviceId, UserId = userId, DeviceName = "test", IsActive = false });
         await db.SaveChangesAsync();
@@ -1013,17 +1013,17 @@ public class SyncServiceTests
         var service = CreateService(db);
 
         await Assert.ThrowsExactlyAsync<NotFoundException>(
-            () => service.SetDeviceActiveAsync(Guid.NewGuid(), false));
+            () => service.SetDeviceActiveAsync(Guid.CreateVersion7(), false));
     }
 
     [TestMethod]
     public async Task GetAllDeviceSyncStatusAsync_IncludesIsActiveFlag()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
-        db.SyncDevices.Add(new SyncDevice { Id = Guid.NewGuid(), UserId = userId, DeviceName = "active-device", IsActive = true });
-        db.SyncDevices.Add(new SyncDevice { Id = Guid.NewGuid(), UserId = userId, DeviceName = "disabled-device", IsActive = false });
+        db.SyncDevices.Add(new SyncDevice { Id = Guid.CreateVersion7(), UserId = userId, DeviceName = "active-device", IsActive = true });
+        db.SyncDevices.Add(new SyncDevice { Id = Guid.CreateVersion7(), UserId = userId, DeviceName = "disabled-device", IsActive = false });
         await db.SaveChangesAsync();
 
         var service = CreateService(db);
@@ -1041,9 +1041,9 @@ public class SyncServiceTests
     {
         // Simulates: Device A uploads a file, then queries changes — its own upload should not appear
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
-        var deviceA = Guid.NewGuid();
-        var deviceB = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var deviceA = Guid.CreateVersion7();
+        var deviceB = Guid.CreateVersion7();
 
         // Device A uploaded file1, Device B uploaded file2
         db.FileNodes.Add(new FileNode
@@ -1081,8 +1081,8 @@ public class SyncServiceTests
         // After suppression, cursor should still advance past self-originated items
         // so the device doesn't repeatedly re-fetch them
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
-        var deviceA = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var deviceA = Guid.CreateVersion7();
 
         // Only Device A's own changes exist (sequences 1-3)
         for (long seq = 1; seq <= 3; seq++)
@@ -1115,10 +1115,10 @@ public class SyncServiceTests
     {
         // Multiple devices contribute changes; each device only sees others' changes
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
-        var deviceA = Guid.NewGuid();
-        var deviceB = Guid.NewGuid();
-        var deviceC = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var deviceA = Guid.CreateVersion7();
+        var deviceB = Guid.CreateVersion7();
+        var deviceC = Guid.CreateVersion7();
 
         db.FileNodes.Add(new FileNode { Name = "a1.txt", NodeType = FileNodeType.File, OwnerId = userId, SyncSequence = 1, OriginatingDeviceId = deviceA });
         db.FileNodes.Add(new FileNode { Name = "b1.txt", NodeType = FileNodeType.File, OwnerId = userId, SyncSequence = 2, OriginatingDeviceId = deviceB });
@@ -1145,8 +1145,8 @@ public class SyncServiceTests
     {
         // Same echo suppression test but for the legacy timestamp-based path
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
-        var deviceA = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var deviceA = Guid.CreateVersion7();
         var now = DateTime.UtcNow;
 
         db.FileNodes.Add(new FileNode
@@ -1163,7 +1163,7 @@ public class SyncServiceTests
             NodeType = FileNodeType.File,
             OwnerId = userId,
             UpdatedAt = now,
-            OriginatingDeviceId = Guid.NewGuid()
+            OriginatingDeviceId = Guid.CreateVersion7()
         });
         await db.SaveChangesAsync();
 
@@ -1179,8 +1179,8 @@ public class SyncServiceTests
     {
         // Without device context, no echo suppression happens
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
-        var deviceA = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var deviceA = Guid.CreateVersion7();
 
         db.FileNodes.Add(new FileNode { Name = "file1.txt", NodeType = FileNodeType.File, OwnerId = userId, SyncSequence = 1, OriginatingDeviceId = deviceA });
         db.FileNodes.Add(new FileNode { Name = "file2.txt", NodeType = FileNodeType.File, OwnerId = userId, SyncSequence = 2, OriginatingDeviceId = deviceA });

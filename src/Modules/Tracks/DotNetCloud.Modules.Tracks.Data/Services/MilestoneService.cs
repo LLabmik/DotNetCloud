@@ -115,7 +115,7 @@ public sealed class MilestoneService
         foreach (var item in linkedItems)
         {
             item.MilestoneId = null;
-            item.ETag = Guid.NewGuid().ToString("N");
+            item.ETag = Guid.CreateVersion7().ToString("N");
             item.UpdatedAt = DateTime.UtcNow;
         }
 

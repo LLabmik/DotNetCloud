@@ -18,7 +18,7 @@ public class VersionCleanupServiceTests
 {
     private static FilesDbContext CreateContext() =>
         new(new DbContextOptionsBuilder<FilesDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options);
 
     private static VersionCleanupService CreateService(FilesDbContext db, VersionRetentionOptions opts)
@@ -91,7 +91,7 @@ public class VersionCleanupServiceTests
     public async Task CleanupAsync_BothPoliciesDisabled_NoVersionsDeleted()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         SeedNodeWithVersions(db, userId, versionCount: 10, chunkRefCount: 10);
         await db.SaveChangesAsync();
 
@@ -105,7 +105,7 @@ public class VersionCleanupServiceTests
     public async Task CleanupAsync_MaxVersionCount_DeletesOldestUnlabeled()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         SeedNodeWithVersions(db, userId, versionCount: 10, chunkRefCount: 10);
         await db.SaveChangesAsync();
 
@@ -123,7 +123,7 @@ public class VersionCleanupServiceTests
     public async Task CleanupAsync_MaxVersionCount_NeverDeletesLabeledVersions()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var (node, _) = SeedNodeWithVersions(db, userId, versionCount: 5, chunkRefCount: 5);
         await db.SaveChangesAsync();
 
@@ -151,7 +151,7 @@ public class VersionCleanupServiceTests
     public async Task CleanupAsync_RetentionDays_DeletesExpiredUnlabeled()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = new FileNode
         {
             Name = "file.txt",
@@ -197,7 +197,7 @@ public class VersionCleanupServiceTests
     public async Task CleanupAsync_OnlyOneVersion_NeverDeleted()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         SeedNodeWithVersions(db, userId, versionCount: 1, chunkRefCount: 1);
         await db.SaveChangesAsync();
 
@@ -211,7 +211,7 @@ public class VersionCleanupServiceTests
     public async Task CleanupAsync_AllVersionsExpiredAndUnlabeled_KeepsNewestOne()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var (node, _) = SeedNodeWithVersions(db, userId, versionCount: 3, chunkRefCount: 3);
         await db.SaveChangesAsync();
 
@@ -233,7 +233,7 @@ public class VersionCleanupServiceTests
     public async Task CleanupAsync_VersionDeletion_DecrementsChunkRefcount()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         SeedNodeWithVersions(db, userId, versionCount: 5, chunkRefCount: 5);
         await db.SaveChangesAsync();
 
@@ -250,7 +250,7 @@ public class VersionCleanupServiceTests
     public async Task CleanupAsync_MultipleFiles_AppliesPolicyToEach()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         // File A: 8 versions
         SeedNodeWithVersions(db, userId, versionCount: 8, chunkRefCount: 8);

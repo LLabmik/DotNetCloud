@@ -6,7 +6,7 @@ namespace DotNetCloud.Modules.Chat.Models;
 public sealed class CallParticipant
 {
     /// <summary>Unique identifier.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>Video call this participant belongs to (FK → VideoCall).</summary>
     public Guid VideoCallId { get; set; }

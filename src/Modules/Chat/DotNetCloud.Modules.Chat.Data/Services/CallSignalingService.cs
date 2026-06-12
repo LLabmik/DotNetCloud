@@ -234,7 +234,7 @@ internal sealed class CallSignalingService : ICallSignalingService
             {
                 await _eventBus.PublishAsync(new ScreenShareStartedEvent
                 {
-                    EventId = Guid.NewGuid(),
+                    EventId = Guid.CreateVersion7(),
                     CreatedAt = DateTime.UtcNow,
                     CallId = callId,
                     ChannelId = call.ChannelId,
@@ -245,7 +245,7 @@ internal sealed class CallSignalingService : ICallSignalingService
             {
                 await _eventBus.PublishAsync(new ScreenShareEndedEvent
                 {
-                    EventId = Guid.NewGuid(),
+                    EventId = Guid.CreateVersion7(),
                     CreatedAt = DateTime.UtcNow,
                     CallId = callId,
                     ChannelId = call.ChannelId,

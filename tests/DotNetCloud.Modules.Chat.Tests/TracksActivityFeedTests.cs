@@ -65,7 +65,7 @@ public class TracksActivityFeedTests
         service.RaiseActivity(new TracksActivitySignal
         {
             Action = "card_created",
-            ProductId = Guid.NewGuid(),
+            ProductId = Guid.CreateVersion7(),
             Timestamp = DateTime.UtcNow
         });
 
@@ -83,14 +83,14 @@ public class TracksActivityFeedTests
         service.RaiseActivity(new TracksActivitySignal
         {
             Action = "card_created",
-            ProductId = Guid.NewGuid(),
+            ProductId = Guid.CreateVersion7(),
             Timestamp = DateTime.UtcNow.AddSeconds(-10)
         });
 
         service.RaiseActivity(new TracksActivitySignal
         {
             Action = "card_moved",
-            ProductId = Guid.NewGuid(),
+            ProductId = Guid.CreateVersion7(),
             Timestamp = DateTime.UtcNow
         });
 
@@ -105,9 +105,9 @@ public class TracksActivityFeedTests
         var service = new FakeTracksActivityService(isActive: true);
         var component = CreateComponent(service);
         component.SimulateOnInitialized();
-        var workItemId = Guid.NewGuid();
-        var productId = Guid.NewGuid();
-        var assignedBy = Guid.NewGuid();
+        var workItemId = Guid.CreateVersion7();
+        var productId = Guid.CreateVersion7();
+        var assignedBy = Guid.CreateVersion7();
 
         service.RaiseWorkItemAssigned(workItemId, productId, assignedBy);
 
@@ -123,7 +123,7 @@ public class TracksActivityFeedTests
         var component = CreateComponent(service);
         component.SimulateOnInitialized();
 
-        service.RaiseWorkItemAssigned(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+        service.RaiseWorkItemAssigned(Guid.CreateVersion7(), Guid.CreateVersion7(), Guid.CreateVersion7());
         Assert.IsNotNull(component.TestAssignmentAlert);
 
         component.SimulateDismissAssignment();
@@ -143,7 +143,7 @@ public class TracksActivityFeedTests
         service.RaiseActivity(new TracksActivitySignal
         {
             Action = "card_deleted",
-            ProductId = Guid.NewGuid(),
+            ProductId = Guid.CreateVersion7(),
             Timestamp = DateTime.UtcNow
         });
 

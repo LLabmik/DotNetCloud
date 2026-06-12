@@ -17,7 +17,7 @@ namespace DotNetCloud.Modules.Calendar.Data.SqlServer.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasDefaultSchema("core")
+                .HasDefaultSchema("calendar")
                 .HasAnnotation("ProductVersion", "10.0.3")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
@@ -27,7 +27,8 @@ namespace DotNetCloud.Modules.Calendar.Data.SqlServer.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
 
                     b.Property<string>("Color")
                         .HasMaxLength(20)
@@ -94,14 +95,15 @@ namespace DotNetCloud.Modules.Calendar.Data.SqlServer.Migrations
                     b.HasIndex("OwnerId", "Name")
                         .HasDatabaseName("ix_calendars_owner_name");
 
-                    b.ToTable("Calendars", "core");
+                    b.ToTable("Calendars", "calendar");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Calendar.Models.CalendarEvent", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
 
                     b.Property<Guid>("CalendarId")
                         .HasColumnType("uniqueidentifier");
@@ -199,14 +201,15 @@ namespace DotNetCloud.Modules.Calendar.Data.SqlServer.Migrations
                     b.HasIndex("StartUtc", "EndUtc")
                         .HasDatabaseName("ix_calendar_events_time_range");
 
-                    b.ToTable("CalendarEvents", "core");
+                    b.ToTable("CalendarEvents", "calendar");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Calendar.Models.CalendarShare", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
 
                     b.Property<Guid>("CalendarId")
                         .HasColumnType("uniqueidentifier");
@@ -244,14 +247,15 @@ namespace DotNetCloud.Modules.Calendar.Data.SqlServer.Migrations
                     b.HasIndex("SharedWithUserId")
                         .HasDatabaseName("ix_calendar_shares_user_id");
 
-                    b.ToTable("CalendarShares", "core");
+                    b.ToTable("CalendarShares", "calendar");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Calendar.Models.EventAttendee", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
 
                     b.Property<string>("Comment")
                         .HasMaxLength(1000)
@@ -303,14 +307,15 @@ namespace DotNetCloud.Modules.Calendar.Data.SqlServer.Migrations
                         .IsUnique()
                         .HasDatabaseName("ix_event_attendees_event_email");
 
-                    b.ToTable("EventAttendees", "core");
+                    b.ToTable("EventAttendees", "calendar");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Calendar.Models.EventReminder", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
 
                     b.Property<Guid?>("CreatedByUserId")
                         .HasColumnType("uniqueidentifier");
@@ -334,14 +339,15 @@ namespace DotNetCloud.Modules.Calendar.Data.SqlServer.Migrations
                     b.HasIndex("EventId")
                         .HasDatabaseName("ix_event_reminders_event_id");
 
-                    b.ToTable("EventReminders", "core");
+                    b.ToTable("EventReminders", "calendar");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Calendar.Models.ReminderLog", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
 
                     b.Property<string>("ErrorMessage")
                         .HasMaxLength(2000)
@@ -371,7 +377,7 @@ namespace DotNetCloud.Modules.Calendar.Data.SqlServer.Migrations
                         .IsUnique()
                         .HasDatabaseName("ix_reminder_logs_reminder_occurrence");
 
-                    b.ToTable("ReminderLogs", "core");
+                    b.ToTable("ReminderLogs", "calendar");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Calendar.Models.CalendarEvent", b =>

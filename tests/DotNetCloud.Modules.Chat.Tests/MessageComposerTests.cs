@@ -123,9 +123,9 @@ public class MessageComposerTests
         {
             MentionSuggestions =
             [
-                new MemberViewModel { UserId = Guid.NewGuid(), DisplayName = "Alex Carter", Username = "acarter" },
-                new MemberViewModel { UserId = Guid.NewGuid(), DisplayName = "Beatrice Kim", Username = "bea" },
-                new MemberViewModel { UserId = Guid.NewGuid(), DisplayName = "Charlie Stone", Username = "cstone" }
+                new MemberViewModel { UserId = Guid.CreateVersion7(), DisplayName = "Alex Carter", Username = "acarter" },
+                new MemberViewModel { UserId = Guid.CreateVersion7(), DisplayName = "Beatrice Kim", Username = "bea" },
+                new MemberViewModel { UserId = Guid.CreateVersion7(), DisplayName = "Charlie Stone", Username = "cstone" }
             ]
         };
     }

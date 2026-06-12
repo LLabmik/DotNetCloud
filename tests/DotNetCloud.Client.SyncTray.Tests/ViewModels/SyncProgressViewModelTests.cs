@@ -41,7 +41,7 @@ public sealed class SyncProgressViewModelTests
     public async Task HasActiveTransfers_WhenTransferInProgress_ReturnsTrue()
     {
         var (vm, trayVm, syncMock) = BuildVm();
-        var contextId = Guid.NewGuid();
+        var contextId = Guid.CreateVersion7();
 
         await SeedAccountAsync(trayVm, syncMock, contextId, "Syncing");
 
@@ -67,7 +67,7 @@ public sealed class SyncProgressViewModelTests
     public async Task SyncSummary_SingleFileTransfer_ReturnsSingular()
     {
         var (vm, trayVm, syncMock) = BuildVm();
-        var contextId = Guid.NewGuid();
+        var contextId = Guid.CreateVersion7();
 
         await SeedAccountAsync(trayVm, syncMock, contextId, "Syncing");
 
@@ -93,7 +93,7 @@ public sealed class SyncProgressViewModelTests
     public async Task SyncSummary_MultipleFileTransfers_ReturnsPlural()
     {
         var (vm, trayVm, syncMock) = BuildVm();
-        var contextId = Guid.NewGuid();
+        var contextId = Guid.CreateVersion7();
 
         await SeedAccountAsync(trayVm, syncMock, contextId, "Syncing");
 
@@ -134,7 +134,7 @@ public sealed class SyncProgressViewModelTests
     public async Task SyncSummary_AfterTransferCompletes_ExcludesCompletedFromCount()
     {
         var (vm, trayVm, syncMock) = BuildVm();
-        var contextId = Guid.NewGuid();
+        var contextId = Guid.CreateVersion7();
 
         await SeedAccountAsync(trayVm, syncMock, contextId, "Syncing");
 
@@ -190,7 +190,7 @@ public sealed class SyncProgressViewModelTests
     public async Task PendingCounts_ReflectAccountStatus()
     {
         var (vm, trayVm, syncMock) = BuildVm();
-        var contextId = Guid.NewGuid();
+        var contextId = Guid.CreateVersion7();
 
         await SeedAccountAsync(trayVm, syncMock, contextId, "Syncing");
 
@@ -217,8 +217,8 @@ public sealed class SyncProgressViewModelTests
     public async Task PendingCounts_AggregateAcrossMultipleAccounts()
     {
         var (vm, trayVm, syncMock) = BuildVm();
-        var id1 = Guid.NewGuid();
-        var id2 = Guid.NewGuid();
+        var id1 = Guid.CreateVersion7();
+        var id2 = Guid.CreateVersion7();
 
         await SeedAccountAsync(trayVm, syncMock, id1, "Syncing");
         await SeedAccountAsync(trayVm, syncMock, id2, "Syncing");
@@ -251,7 +251,7 @@ public sealed class SyncProgressViewModelTests
     public async Task PropertyChanged_RaisedWhenTransferAdded()
     {
         var (vm, trayVm, syncMock) = BuildVm();
-        var contextId = Guid.NewGuid();
+        var contextId = Guid.CreateVersion7();
 
         await SeedAccountAsync(trayVm, syncMock, contextId, "Syncing");
 
@@ -287,7 +287,7 @@ public sealed class SyncProgressViewModelTests
     public async Task Dispose_UnsubscribesFromEvents()
     {
         var (vm, trayVm, syncMock) = BuildVm();
-        var contextId = Guid.NewGuid();
+        var contextId = Guid.CreateVersion7();
 
         await SeedAccountAsync(trayVm, syncMock, contextId, "Syncing");
 
@@ -357,7 +357,7 @@ public sealed class SyncProgressViewModelTests
                 DisplayName = $"TestAccount-{contextId}",
                 ServerBaseUrl = "https://cloud.example.com",
                 LocalFolderPath = "/sync",
-                UserId = Guid.NewGuid(),
+                UserId = Guid.CreateVersion7(),
                 AccountKey = $"test-{contextId}",
                 OsUserName = "testuser",
                 DataDirectory = "/tmp/data",

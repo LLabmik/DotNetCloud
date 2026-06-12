@@ -6,7 +6,7 @@ namespace DotNetCloud.Modules.Files.Models;
 public sealed class FileTag
 {
     /// <summary>Unique identifier for this tag assignment.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>The file or folder this tag is applied to.</summary>
     public Guid FileNodeId { get; set; }

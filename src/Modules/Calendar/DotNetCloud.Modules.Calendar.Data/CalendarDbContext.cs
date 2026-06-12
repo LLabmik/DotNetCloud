@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Data.Configuration.Extensions;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Modules.Calendar.Data.Configuration;
 using DotNetCloud.Modules.Calendar.Models;
@@ -63,5 +64,7 @@ public class CalendarDbContext : DbContext
         modelBuilder.ApplyConfiguration(new EventReminderConfiguration());
         modelBuilder.ApplyConfiguration(new CalendarShareConfiguration());
         modelBuilder.ApplyConfiguration(new ReminderLogConfiguration());
+
+        SequentialGuidConfigurationExtensions.ApplySequentialGuidDefaults(modelBuilder, _namingStrategy.Provider);
     }
 }

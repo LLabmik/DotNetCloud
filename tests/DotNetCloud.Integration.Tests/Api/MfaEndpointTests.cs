@@ -18,7 +18,7 @@ public class MfaEndpointTests
     private static HttpClient _authClient = null!;
     private static HttpClient _anonClient = null!;
 
-    private static readonly Guid UserId = Guid.NewGuid();
+    private static readonly Guid UserId = Guid.CreateVersion7();
 
     [ClassInitialize]
     public static async Task ClassInit(TestContext _)

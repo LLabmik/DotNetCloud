@@ -14,7 +14,7 @@ public class ModuleDiscoveryServiceTests
     [TestInitialize]
     public void Setup()
     {
-        _tempDir = Path.Combine(Path.GetTempPath(), "dotnetcloud-tests", Guid.NewGuid().ToString());
+        _tempDir = Path.Combine(Path.GetTempPath(), "dotnetcloud-tests", Guid.CreateVersion7().ToString());
         Directory.CreateDirectory(_tempDir);
 
         var options = Options.Create(new ProcessSupervisorOptions

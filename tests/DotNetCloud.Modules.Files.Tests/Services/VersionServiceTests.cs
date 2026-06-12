@@ -18,7 +18,7 @@ public class VersionServiceTests
     private static FilesDbContext CreateContext(string? name = null)
     {
         var options = new DbContextOptionsBuilder<FilesDbContext>()
-            .UseInMemoryDatabase(name ?? Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(name ?? Guid.CreateVersion7().ToString())
             .Options;
         return new FilesDbContext(options);
     }
@@ -69,7 +69,7 @@ public class VersionServiceTests
     public async Task ListVersionsAsync_ReturnsVersionsDescending()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = new FileNode { Name = "file.txt", NodeType = FileNodeType.File, OwnerId = userId };
         db.FileNodes.Add(node);
         db.FileVersions.Add(new FileVersion { FileNodeId = node.Id, VersionNumber = 1, Size = 100, ContentHash = "h1", StoragePath = "p1", CreatedByUserId = userId });
@@ -88,7 +88,7 @@ public class VersionServiceTests
     public async Task GetVersionAsync_ExistingVersion_ReturnsDto()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = new FileNode
         {
             Name = "versioned.txt",
@@ -122,7 +122,7 @@ public class VersionServiceTests
         using var db = CreateContext();
         var service = CreateService(db);
 
-        var result = await service.GetVersionAsync(Guid.NewGuid(), UserCaller(Guid.NewGuid()));
+        var result = await service.GetVersionAsync(Guid.CreateVersion7(), UserCaller(Guid.CreateVersion7()));
         Assert.IsNull(result);
     }
 
@@ -130,7 +130,7 @@ public class VersionServiceTests
     public async Task RestoreVersionAsync_CreatesNewVersionFromOld()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var (node, version, chunk) = SeedFileWithVersion(db, userId);
         await db.SaveChangesAsync();
 
@@ -150,7 +150,7 @@ public class VersionServiceTests
     public async Task RestoreVersionAsync_PublishesFileVersionRestoredEvent()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var (node, version, _) = SeedFileWithVersion(db, userId);
         await db.SaveChangesAsync();
 
@@ -174,7 +174,7 @@ public class VersionServiceTests
     public async Task RestoreVersionAsync_Folder_ThrowsInvalidOperationException()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var folder = new FileNode { Name = "Folder", NodeType = FileNodeType.Folder, OwnerId = userId };
         db.FileNodes.Add(folder);
         await db.SaveChangesAsync();
@@ -182,14 +182,14 @@ public class VersionServiceTests
         var service = CreateService(db);
 
         await Assert.ThrowsExactlyAsync<Core.Errors.InvalidOperationException>(
-            () => service.RestoreVersionAsync(folder.Id, Guid.NewGuid(), UserCaller(userId)));
+            () => service.RestoreVersionAsync(folder.Id, Guid.CreateVersion7(), UserCaller(userId)));
     }
 
     [TestMethod]
     public async Task LabelVersionAsync_UpdatesLabel()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = new FileNode
         {
             Name = "labeled.txt",
@@ -219,7 +219,7 @@ public class VersionServiceTests
     public async Task DeleteVersionAsync_WithMultipleVersions_DeletesAndDecrementsRefcount()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var (node, v1, chunk) = SeedFileWithVersion(db, userId);
 
         // Add a second version
@@ -251,7 +251,7 @@ public class VersionServiceTests
     public async Task DeleteVersionAsync_OnlyVersion_ThrowsInvalidOperationException()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var (_, version, _) = SeedFileWithVersion(db, userId);
         await db.SaveChangesAsync();
 
@@ -265,7 +265,7 @@ public class VersionServiceTests
     public async Task GetVersionByNumberAsync_ExistingVersion_ReturnsDto()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = new FileNode
         {
             Name = "release.txt",
@@ -299,8 +299,8 @@ public class VersionServiceTests
     public async Task GetVersionByNumberAsync_WrongVersionNumber_ReturnsNull()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
-        var nodeId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var nodeId = Guid.CreateVersion7();
         db.FileVersions.Add(new FileVersion
         {
             FileNodeId = nodeId,
@@ -322,10 +322,10 @@ public class VersionServiceTests
     public async Task GetVersionByNumberAsync_WrongFileNode_ReturnsNull()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         db.FileVersions.Add(new FileVersion
         {
-            FileNodeId = Guid.NewGuid(),
+            FileNodeId = Guid.CreateVersion7(),
             VersionNumber = 1,
             Size = 100,
             ContentHash = "hash",
@@ -335,7 +335,7 @@ public class VersionServiceTests
         await db.SaveChangesAsync();
 
         var service = CreateService(db);
-        var result = await service.GetVersionByNumberAsync(Guid.NewGuid(), 1, UserCaller(userId));
+        var result = await service.GetVersionByNumberAsync(Guid.CreateVersion7(), 1, UserCaller(userId));
 
         Assert.IsNull(result);
     }

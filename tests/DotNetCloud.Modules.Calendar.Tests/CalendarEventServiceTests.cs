@@ -28,13 +28,13 @@ public class CalendarEventServiceTests
     public async Task Setup()
     {
         var options = new DbContextOptionsBuilder<CalendarDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options;
         _db = new CalendarDbContext(options);
         _eventBusMock = new Mock<IEventBus>();
         _eventService = new CalendarEventService(_db, _eventBusMock.Object, Mock.Of<DotNetCloud.Core.Capabilities.IOrganizationDirectory>(), NullLogger<CalendarEventService>.Instance);
         _calendarService = new CalendarService(_db, _eventBusMock.Object, Mock.Of<DotNetCloud.Core.Capabilities.IOrganizationDirectory>(), NullLogger<CalendarService>.Instance);
-        _caller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        _caller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
         _calendar = await _calendarService.CreateCalendarAsync(
             new CreateCalendarDto { Name = "Test Calendar" }, _caller);
     }
@@ -133,7 +133,7 @@ public class CalendarEventServiceTests
     {
         var dto = new CreateCalendarEventDto
         {
-            CalendarId = Guid.NewGuid(),
+            CalendarId = Guid.CreateVersion7(),
             Title = "No Calendar",
             StartUtc = DateTime.UtcNow.AddHours(1),
             EndUtc = DateTime.UtcNow.AddHours(2)
@@ -172,7 +172,7 @@ public class CalendarEventServiceTests
     [TestMethod]
     public async Task GetEvent_NotFound_ReturnsNull()
     {
-        var result = await _eventService.GetEventAsync(Guid.NewGuid(), _caller);
+        var result = await _eventService.GetEventAsync(Guid.CreateVersion7(), _caller);
 
         Assert.IsNull(result);
     }

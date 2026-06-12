@@ -24,7 +24,7 @@ internal static class TestHelpers
     /// </summary>
     public static (MusicDbContext db, IDbContextFactory<MusicDbContext> factory) CreateDbWithFactory()
     {
-        var dbName = Guid.NewGuid().ToString();
+        var dbName = Guid.CreateVersion7().ToString();
         var db = CreateDbContext(dbName);
         var factory = new TestDbContextFactory<MusicDbContext>(() => CreateDbContext(dbName));
         return (db, factory);
@@ -39,7 +39,7 @@ internal static class TestHelpers
     }
 
     public static CallerContext CreateCaller(Guid? userId = null)
-        => new(userId ?? Guid.NewGuid(), ["user"], CallerType.User);
+        => new(userId ?? Guid.CreateVersion7(), ["user"], CallerType.User);
 
     public static async Task<CanonicalArtist> SeedCanonicalArtistAsync(
         MusicDbContext db,
@@ -258,12 +258,12 @@ internal static class TestHelpers
         MusicDbContext db, string artistName = "Test Artist", string albumTitle = "Test Album",
         string trackTitle = "Test Track", string genreName = "Rock", Guid? ownerId = null)
     {
-        var owner = ownerId ?? Guid.NewGuid();
+        var owner = ownerId ?? Guid.CreateVersion7();
         var artist = await SeedCanonicalArtistAsync(db, artistName);
         await SeedUserArtistAsync(db, artist.Id, owner);
         var album = await SeedCanonicalAlbumAsync(db, albumTitle);
         await SeedUserAlbumAsync(db, album.Id, owner);
-        var contentHash = Guid.NewGuid().ToString("N");
+        var contentHash = Guid.CreateVersion7().ToString("N");
         await SeedCanonicalTrackAsync(db, contentHash, trackTitle);
         await SeedCanonicalTrackArtistAsync(db, contentHash, artist.Id);
         db.CanonicalAlbumArtists.Add(new CanonicalAlbumArtist
@@ -275,7 +275,7 @@ internal static class TestHelpers
         await db.SaveChangesAsync();
         var genre = await SeedCanonicalGenreAsync(db, genreName);
         await SeedCanonicalTrackGenreAsync(db, contentHash, genre.Id);
-        var userTrack = await SeedUserTrackAsync(db, owner, Guid.NewGuid(), contentHash, album.Id);
+        var userTrack = await SeedUserTrackAsync(db, owner, Guid.CreateVersion7(), contentHash, album.Id);
         return (artist, album, userTrack);
     }
 
@@ -308,16 +308,16 @@ internal static class TestHelpers
         int trackNumber = 1, int discNumber = 1, string mimeType = "audio/flac", long sizeBytes = 30_000_000, Guid? ownerId = null)
     {
         _ = sizeBytes; // Size is on FileNode, not tracked in canonical
-        var owner = ownerId ?? Guid.NewGuid();
-        var contentHash = Guid.NewGuid().ToString("N");
+        var owner = ownerId ?? Guid.CreateVersion7();
+        var contentHash = Guid.CreateVersion7().ToString("N");
         await SeedCanonicalTrackAsync(db, contentHash, title, trackNumber, discNumber, mimeType);
-        return await SeedUserTrackAsync(db, owner, Guid.NewGuid(), contentHash, albumId);
+        return await SeedUserTrackAsync(db, owner, Guid.CreateVersion7(), contentHash, albumId);
     }
 
     public static async Task<CanonicalTrackArtist> SeedTrackArtistAsync(MusicDbContext db, Guid trackId, Guid artistId, bool isPrimary = true)
     {
         var userTrack = await db.UserTracks.FirstOrDefaultAsync(ut => ut.Id == trackId);
-        var contentHash = userTrack?.CanonicalTrackHash ?? Guid.NewGuid().ToString("N");
+        var contentHash = userTrack?.CanonicalTrackHash ?? Guid.CreateVersion7().ToString("N");
         return await SeedCanonicalTrackArtistAsync(db, contentHash, artistId, isPrimary);
     }
 
@@ -327,7 +327,7 @@ internal static class TestHelpers
     public static async Task<CanonicalTrackGenre> SeedTrackGenreAsync(MusicDbContext db, Guid trackId, Guid genreId)
     {
         var userTrack = await db.UserTracks.FirstOrDefaultAsync(ut => ut.Id == trackId);
-        var contentHash = userTrack?.CanonicalTrackHash ?? Guid.NewGuid().ToString("N");
+        var contentHash = userTrack?.CanonicalTrackHash ?? Guid.CreateVersion7().ToString("N");
         return await SeedCanonicalTrackGenreAsync(db, contentHash, genreId);
     }
 }

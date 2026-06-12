@@ -36,7 +36,7 @@ public class InviteToCallServiceTests
     public void Setup()
     {
         var options = new DbContextOptionsBuilder<ChatDbContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(databaseName: Guid.CreateVersion7().ToString())
             .Options;
 
         _db = new ChatDbContext(options);
@@ -48,10 +48,10 @@ public class InviteToCallServiceTests
         _liveKitMock.Setup(x => x.MaxP2PParticipants).Returns(3);
         _channelMemberServiceMock = new Mock<IChannelMemberService>();
 
-        _hostCaller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
-        _participantCaller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
-        _targetUserId = Guid.NewGuid();
-        _channelId = Guid.NewGuid();
+        _hostCaller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
+        _participantCaller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
+        _targetUserId = Guid.CreateVersion7();
+        _channelId = Guid.CreateVersion7();
 
         _service = new VideoCallService(
             _db,
@@ -239,8 +239,8 @@ public class InviteToCallServiceTests
     public async Task InviteToCallAsync_MultipleInvites_AllRecorded()
     {
         var call = await CreateActiveCallAsync();
-        var user2 = Guid.NewGuid();
-        var user3 = Guid.NewGuid();
+        var user2 = Guid.CreateVersion7();
+        var user3 = Guid.CreateVersion7();
 
         SeedChannelMember(_targetUserId);
         SeedChannelMember(user2);
@@ -436,7 +436,7 @@ public class InviteToCallServiceTests
         SeedChannelMember(_targetUserId);
 
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
-            _service.InviteToCallAsync(Guid.NewGuid(), _targetUserId, _hostCaller));
+            _service.InviteToCallAsync(Guid.CreateVersion7(), _targetUserId, _hostCaller));
     }
 
     [TestMethod]
@@ -553,14 +553,14 @@ public class InviteToCallServiceTests
     [TestMethod]
     public void CallParticipantInvitedEvent_PropertiesSet()
     {
-        var callId = Guid.NewGuid();
-        var channelId = Guid.NewGuid();
-        var invitedUserId = Guid.NewGuid();
-        var invitedByUserId = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
+        var channelId = Guid.CreateVersion7();
+        var invitedUserId = Guid.CreateVersion7();
+        var invitedByUserId = Guid.CreateVersion7();
 
         var evt = new CallParticipantInvitedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             CallId = callId,
             ChannelId = channelId,
@@ -582,14 +582,14 @@ public class InviteToCallServiceTests
     public void CallInviteReceivedNotification_PropertiesSet()
     {
         var notification = new CallInviteReceivedNotification(
-            CallId: Guid.NewGuid(),
-            ChannelId: Guid.NewGuid(),
-            InvitedByUserId: Guid.NewGuid(),
+            CallId: Guid.CreateVersion7(),
+            ChannelId: Guid.CreateVersion7(),
+            InvitedByUserId: Guid.CreateVersion7(),
             InvitedByDisplayName: "Alice",
             MediaType: "Video",
             IsMidCallInvite: true,
             ParticipantCount: 3,
-            TargetUserId: Guid.NewGuid());
+            TargetUserId: Guid.CreateVersion7());
 
         Assert.IsTrue(notification.IsMidCallInvite);
         Assert.AreEqual("Video", notification.MediaType);
@@ -601,14 +601,14 @@ public class InviteToCallServiceTests
     public void CallInviteReceivedNotification_NullDisplayName_Allowed()
     {
         var notification = new CallInviteReceivedNotification(
-            CallId: Guid.NewGuid(),
-            ChannelId: Guid.NewGuid(),
-            InvitedByUserId: Guid.NewGuid(),
+            CallId: Guid.CreateVersion7(),
+            ChannelId: Guid.CreateVersion7(),
+            InvitedByUserId: Guid.CreateVersion7(),
             InvitedByDisplayName: null,
             MediaType: "Audio",
             IsMidCallInvite: false,
             ParticipantCount: 1,
-            TargetUserId: Guid.NewGuid());
+            TargetUserId: Guid.CreateVersion7());
 
         Assert.IsNull(notification.InvitedByDisplayName);
         Assert.IsFalse(notification.IsMidCallInvite);
@@ -621,7 +621,7 @@ public class InviteToCallServiceTests
     [TestMethod]
     public void InviteToCallRequest_UserId_CanBeSet()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var request = new InviteToCallRequest { UserId = userId };
         Assert.AreEqual(userId, request.UserId);
     }
@@ -646,8 +646,8 @@ public class InviteToCallServiceTests
         notifier.CallInviteReceived += n => received = n;
 
         var notification = new CallInviteReceivedNotification(
-            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
-            "Bob", "Video", true, 2, Guid.NewGuid());
+            Guid.CreateVersion7(), Guid.CreateVersion7(), Guid.CreateVersion7(),
+            "Bob", "Video", true, 2, Guid.CreateVersion7());
 
         notifier.NotifyCallInviteReceived(notification);
 
@@ -662,8 +662,8 @@ public class InviteToCallServiceTests
         var notifier = new InProcessChatMessageNotifier();
 
         var notification = new CallInviteReceivedNotification(
-            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
-            "Bob", "Video", true, 2, Guid.NewGuid());
+            Guid.CreateVersion7(), Guid.CreateVersion7(), Guid.CreateVersion7(),
+            "Bob", "Video", true, 2, Guid.CreateVersion7());
 
         // Should not throw when no subscribers
         notifier.NotifyCallInviteReceived(notification);
@@ -683,8 +683,8 @@ public class InviteToCallServiceTests
 
         // Should be a no-op without throwing
         await service.SendCallInviteAsync(
-            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
-            Guid.NewGuid(), "Alice", "Video", true, 3, CancellationToken.None);
+            Guid.CreateVersion7(), Guid.CreateVersion7(), Guid.CreateVersion7(),
+            Guid.CreateVersion7(), "Alice", "Video", true, 3, CancellationToken.None);
     }
 
     [TestMethod]
@@ -695,12 +695,12 @@ public class InviteToCallServiceTests
             NullLogger<ChatRealtimeService>.Instance,
             broadcaster: broadcasterMock.Object);
 
-        var targetUserId = Guid.NewGuid();
-        var callId = Guid.NewGuid();
+        var targetUserId = Guid.CreateVersion7();
+        var callId = Guid.CreateVersion7();
 
         await service.SendCallInviteAsync(
-            targetUserId, callId, Guid.NewGuid(),
-            Guid.NewGuid(), "Alice", "Video", true, 3, CancellationToken.None);
+            targetUserId, callId, Guid.CreateVersion7(),
+            Guid.CreateVersion7(), "Alice", "Video", true, 3, CancellationToken.None);
 
         broadcasterMock.Verify(
             b => b.SendToUserAsync(

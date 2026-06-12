@@ -20,7 +20,7 @@ public class AdminSharedFolderServiceTests
     private static FilesDbContext CreateContext(string? name = null)
     {
         var options = new DbContextOptionsBuilder<FilesDbContext>()
-            .UseInMemoryDatabase(name ?? Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(name ?? Guid.CreateVersion7().ToString())
             .Options;
         return new FilesDbContext(options);
     }
@@ -54,9 +54,9 @@ public class AdminSharedFolderServiceTests
     public async Task CreateSharedFolderAsync_ValidDefinition_PersistsCanonicalPathAndGrants()
     {
         var rootPath = CreateTempDirectory();
-        var callerId = Guid.NewGuid();
-        var organizationId = Guid.NewGuid();
-        var grantedGroupId = Guid.NewGuid();
+        var callerId = Guid.CreateVersion7();
+        var organizationId = Guid.CreateVersion7();
+        var grantedGroupId = Guid.CreateVersion7();
 
         try
         {
@@ -117,10 +117,10 @@ public class AdminSharedFolderServiceTests
     public async Task CreateSharedFolderAsync_GroupOutsideCallerOrganization_ThrowsValidationException()
     {
         var rootPath = CreateTempDirectory();
-        var callerId = Guid.NewGuid();
-        var callerOrganizationId = Guid.NewGuid();
-        var otherOrganizationId = Guid.NewGuid();
-        var grantedGroupId = Guid.NewGuid();
+        var callerId = Guid.CreateVersion7();
+        var callerOrganizationId = Guid.CreateVersion7();
+        var otherOrganizationId = Guid.CreateVersion7();
+        var grantedGroupId = Guid.CreateVersion7();
 
         try
         {
@@ -160,10 +160,10 @@ public class AdminSharedFolderServiceTests
     public async Task UpdateSharedFolderAsync_ReplacesGrantsAndMutableFields()
     {
         var rootPath = CreateTempDirectory();
-        var callerId = Guid.NewGuid();
-        var organizationId = Guid.NewGuid();
-        var existingGroupId = Guid.NewGuid();
-        var replacementGroupId = Guid.NewGuid();
+        var callerId = Guid.CreateVersion7();
+        var organizationId = Guid.CreateVersion7();
+        var existingGroupId = Guid.CreateVersion7();
+        var replacementGroupId = Guid.CreateVersion7();
 
         try
         {
@@ -239,7 +239,7 @@ public class AdminSharedFolderServiceTests
     public async Task BrowseDirectoriesAsync_ValidPath_ReturnsImmediateSubdirectories()
     {
         var rootPath = CreateTempDirectory();
-        var callerId = Guid.NewGuid();
+        var callerId = Guid.CreateVersion7();
 
         try
         {
@@ -274,7 +274,7 @@ public class AdminSharedFolderServiceTests
     {
         var rootPath = CreateTempDirectory();
         using var db = CreateContext();
-        var callerId = Guid.NewGuid();
+        var callerId = Guid.CreateVersion7();
         var scheduler = new RecordingMaintenanceScheduler();
         var definition = new AdminSharedFolderDefinition
         {
@@ -306,7 +306,7 @@ public class AdminSharedFolderServiceTests
     {
         var rootPath = CreateTempDirectory();
         using var db = CreateContext();
-        var callerId = Guid.NewGuid();
+        var callerId = Guid.CreateVersion7();
         var scheduler = new RecordingMaintenanceScheduler();
         var requestedScanAt = DateTime.UtcNow.AddMinutes(5);
         var definition = new AdminSharedFolderDefinition
@@ -338,7 +338,7 @@ public class AdminSharedFolderServiceTests
     {
         var rootPath = CreateTempDirectory();
         using var db = CreateContext();
-        var callerId = Guid.NewGuid();
+        var callerId = Guid.CreateVersion7();
         var definition = new AdminSharedFolderDefinition
         {
             DisplayName = "Media",
@@ -346,7 +346,7 @@ public class AdminSharedFolderServiceTests
             CreatedByUserId = callerId,
             Grants =
             [
-                new AdminSharedFolderGrant { GroupId = Guid.NewGuid() },
+                new AdminSharedFolderGrant { GroupId = Guid.CreateVersion7() },
             ],
         };
         db.AdminSharedFolders.Add(definition);
@@ -369,7 +369,7 @@ public class AdminSharedFolderServiceTests
 
     private static string CreateTempDirectory()
     {
-        var path = Path.Combine(Path.GetTempPath(), $"dotnetcloud-admin-service-{Guid.NewGuid():N}");
+        var path = Path.Combine(Path.GetTempPath(), $"dotnetcloud-admin-service-{Guid.CreateVersion7():N}");
         Directory.CreateDirectory(path);
         return path;
     }

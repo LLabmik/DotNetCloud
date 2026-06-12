@@ -130,7 +130,7 @@ internal sealed class VersionService : IVersionService
 
         await _eventBus.PublishAsync(new FileVersionRestoredEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             FileNodeId = fileNodeId,
             FileName = node.Name,

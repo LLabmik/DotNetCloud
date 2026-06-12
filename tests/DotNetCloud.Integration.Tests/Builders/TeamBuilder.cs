@@ -7,8 +7,8 @@ namespace DotNetCloud.Integration.Tests.Builders;
 /// </summary>
 internal sealed class TeamBuilder
 {
-    private Guid _id = Guid.NewGuid();
-    private Guid _organizationId = Guid.NewGuid();
+    private Guid _id = Guid.CreateVersion7();
+    private Guid _organizationId = Guid.CreateVersion7();
     private string _name = "Test Team";
     private string? _description;
     private DateTime _createdAt = DateTime.UtcNow;

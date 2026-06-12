@@ -40,7 +40,7 @@ public class VideoMetadataServiceTests
     [TestMethod]
     public async Task GetMetadataAsync_ReturnsNull_WhenNotExists()
     {
-        var result = await _service.GetMetadataAsync(Guid.NewGuid());
+        var result = await _service.GetMetadataAsync(Guid.CreateVersion7());
 
         Assert.IsNull(result);
     }

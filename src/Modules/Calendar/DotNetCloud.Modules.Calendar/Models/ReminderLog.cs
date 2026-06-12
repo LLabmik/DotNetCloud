@@ -7,7 +7,7 @@ namespace DotNetCloud.Modules.Calendar.Models;
 public sealed class ReminderLog
 {
     /// <summary>Unique identifier for this log entry.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>The reminder configuration that triggered this dispatch.</summary>
     public Guid ReminderId { get; set; }

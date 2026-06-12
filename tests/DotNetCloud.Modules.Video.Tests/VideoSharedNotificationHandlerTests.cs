@@ -111,13 +111,13 @@ public class VideoSharedNotificationHandlerTests
             Mock.Of<ILogger<VideoSharedNotificationHandler>>(),
             notifMock.Object);
 
-        var entityId = Guid.NewGuid();
+        var entityId = Guid.CreateVersion7();
         var evt = new ResourceSharedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            SharedByUserId = Guid.NewGuid(),
-            SharedWithUserId = Guid.NewGuid(),
+            SharedByUserId = Guid.CreateVersion7(),
+            SharedWithUserId = Guid.CreateVersion7(),
             SourceModuleId = "dotnetcloud.video",
             EntityType = "Video",
             EntityId = entityId,
@@ -141,13 +141,13 @@ public class VideoSharedNotificationHandlerTests
             Mock.Of<ILogger<VideoSharedNotificationHandler>>(),
             notifMock.Object);
 
-        var entityId = Guid.NewGuid();
+        var entityId = Guid.CreateVersion7();
         var evt = new ResourceSharedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            SharedByUserId = Guid.NewGuid(),
-            SharedWithUserId = Guid.NewGuid(),
+            SharedByUserId = Guid.CreateVersion7(),
+            SharedWithUserId = Guid.CreateVersion7(),
             SourceModuleId = "dotnetcloud.video",
             EntityType = "VideoCollection",
             EntityId = entityId,
@@ -173,13 +173,13 @@ public class VideoSharedNotificationHandlerTests
 
         var evt = new ResourceSharedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            SharedByUserId = Guid.NewGuid(),
-            SharedWithUserId = Guid.NewGuid(),
+            SharedByUserId = Guid.CreateVersion7(),
+            SharedWithUserId = Guid.CreateVersion7(),
             SourceModuleId = "dotnetcloud.video",
             EntityType = "Video",
-            EntityId = Guid.NewGuid(),
+            EntityId = Guid.CreateVersion7(),
             EntityDisplayName = "Summer Vacation",
             Permission = "ReadOnly"
         };
@@ -194,13 +194,13 @@ public class VideoSharedNotificationHandlerTests
 
     private static ResourceSharedEvent CreateEvent(string moduleId, string entityType) => new()
     {
-        EventId = Guid.NewGuid(),
+        EventId = Guid.CreateVersion7(),
         CreatedAt = DateTime.UtcNow,
-        SharedByUserId = Guid.NewGuid(),
-        SharedWithUserId = Guid.NewGuid(),
+        SharedByUserId = Guid.CreateVersion7(),
+        SharedWithUserId = Guid.CreateVersion7(),
         SourceModuleId = moduleId,
         EntityType = entityType,
-        EntityId = Guid.NewGuid(),
+        EntityId = Guid.CreateVersion7(),
         EntityDisplayName = "Test Entity",
         Permission = "ReadOnly"
     };

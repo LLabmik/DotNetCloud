@@ -28,15 +28,15 @@ public class ContactSecurityTests
     public void Setup()
     {
         var options = new DbContextOptionsBuilder<ContactsDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options;
         _db = new ContactsDbContext(options);
         _eventBusMock = new Mock<IEventBus>();
         _contactService = new ContactService(_db, _eventBusMock.Object, NullLogger<ContactService>.Instance);
         _groupService = new ContactGroupService(_db, NullLogger<ContactGroupService>.Instance);
         _shareService = new ContactShareService(_db, _eventBusMock.Object, NullLogger<ContactShareService>.Instance);
-        _userA = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
-        _userB = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        _userA = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
+        _userB = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
     }
 
     [TestCleanup]
@@ -135,7 +135,7 @@ public class ContactSecurityTests
 
         await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
             () => _shareService.ShareContactAsync(
-                contact.Id, Guid.NewGuid(), null, ContactSharePermission.ReadOnly, _userB));
+                contact.Id, Guid.CreateVersion7(), null, ContactSharePermission.ReadOnly, _userB));
     }
 
     [TestMethod]

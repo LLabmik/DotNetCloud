@@ -14,7 +14,7 @@ public class DeviceEndpointTests
     private static HttpClient _authClient = null!;
     private static HttpClient _anonClient = null!;
 
-    private static readonly Guid UserId = Guid.NewGuid();
+    private static readonly Guid UserId = Guid.CreateVersion7();
 
     [ClassInitialize]
     public static void ClassInit(TestContext _)
@@ -55,7 +55,7 @@ public class DeviceEndpointTests
     public async Task DeleteDevice_NonExistent_ReturnsNotFound()
     {
         // Act
-        var fakeDeviceId = Guid.NewGuid();
+        var fakeDeviceId = Guid.CreateVersion7();
         var response = await _authClient.DeleteAsync(
             $"/api/v1/core/auth/devices/{fakeDeviceId}");
 
@@ -84,7 +84,7 @@ public class DeviceEndpointTests
     {
         // Act
         var response = await _anonClient.DeleteAsync(
-            $"/api/v1/core/auth/devices/{Guid.NewGuid()}");
+            $"/api/v1/core/auth/devices/{Guid.CreateVersion7()}");
 
         // Assert
         Assert.AreNotEqual(HttpStatusCode.OK, response.StatusCode,

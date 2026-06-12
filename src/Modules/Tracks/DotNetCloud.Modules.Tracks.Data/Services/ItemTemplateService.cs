@@ -117,7 +117,7 @@ public sealed class ItemTemplateService
             throw new InvalidOperationException($"ItemTemplate with ID {templateId} not found.");
 
         var now = DateTime.UtcNow;
-        var etag = Guid.NewGuid().ToString("N");
+        var etag = Guid.CreateVersion7().ToString("N");
 
         var workItem = new WorkItem
         {

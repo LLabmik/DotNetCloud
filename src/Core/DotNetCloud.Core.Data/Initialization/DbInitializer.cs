@@ -301,72 +301,72 @@ public class DbInitializer
         // Core module permissions
         defaultPermissions.AddRange(new[]
         {
-            new Permission { Id = Guid.NewGuid(), Code = "core.admin", DisplayName = "System Administration", Description = "Full administrative access to system configuration and settings." },
-            new Permission { Id = Guid.NewGuid(), Code = "core.users.view", DisplayName = "View Users", Description = "View user accounts and profiles." },
-            new Permission { Id = Guid.NewGuid(), Code = "core.users.create", DisplayName = "Create Users", Description = "Create new user accounts." },
-            new Permission { Id = Guid.NewGuid(), Code = "core.users.edit", DisplayName = "Edit Users", Description = "Modify existing user accounts and profiles." },
-            new Permission { Id = Guid.NewGuid(), Code = "core.users.delete", DisplayName = "Delete Users", Description = "Delete user accounts." },
-            new Permission { Id = Guid.NewGuid(), Code = "core.roles.view", DisplayName = "View Roles", Description = "View role definitions and assignments." },
-            new Permission { Id = Guid.NewGuid(), Code = "core.roles.create", DisplayName = "Create Roles", Description = "Create new custom roles." },
-            new Permission { Id = Guid.NewGuid(), Code = "core.roles.edit", DisplayName = "Edit Roles", Description = "Modify existing custom roles." },
-            new Permission { Id = Guid.NewGuid(), Code = "core.roles.delete", DisplayName = "Delete Roles", Description = "Delete custom roles." },
-            new Permission { Id = Guid.NewGuid(), Code = "core.settings.view", DisplayName = "View Settings", Description = "View system and module settings." },
-            new Permission { Id = Guid.NewGuid(), Code = "core.settings.edit", DisplayName = "Edit Settings", Description = "Modify system and module settings." },
-            new Permission { Id = Guid.NewGuid(), Code = "core.modules.view", DisplayName = "View Modules", Description = "View installed modules and their status." },
-            new Permission { Id = Guid.NewGuid(), Code = "core.modules.manage", DisplayName = "Manage Modules", Description = "Install, uninstall, start, and stop modules." }
+            new Permission { Id = Guid.CreateVersion7(), Code = "core.admin", DisplayName = "System Administration", Description = "Full administrative access to system configuration and settings." },
+            new Permission { Id = Guid.CreateVersion7(), Code = "core.users.view", DisplayName = "View Users", Description = "View user accounts and profiles." },
+            new Permission { Id = Guid.CreateVersion7(), Code = "core.users.create", DisplayName = "Create Users", Description = "Create new user accounts." },
+            new Permission { Id = Guid.CreateVersion7(), Code = "core.users.edit", DisplayName = "Edit Users", Description = "Modify existing user accounts and profiles." },
+            new Permission { Id = Guid.CreateVersion7(), Code = "core.users.delete", DisplayName = "Delete Users", Description = "Delete user accounts." },
+            new Permission { Id = Guid.CreateVersion7(), Code = "core.roles.view", DisplayName = "View Roles", Description = "View role definitions and assignments." },
+            new Permission { Id = Guid.CreateVersion7(), Code = "core.roles.create", DisplayName = "Create Roles", Description = "Create new custom roles." },
+            new Permission { Id = Guid.CreateVersion7(), Code = "core.roles.edit", DisplayName = "Edit Roles", Description = "Modify existing custom roles." },
+            new Permission { Id = Guid.CreateVersion7(), Code = "core.roles.delete", DisplayName = "Delete Roles", Description = "Delete custom roles." },
+            new Permission { Id = Guid.CreateVersion7(), Code = "core.settings.view", DisplayName = "View Settings", Description = "View system and module settings." },
+            new Permission { Id = Guid.CreateVersion7(), Code = "core.settings.edit", DisplayName = "Edit Settings", Description = "Modify system and module settings." },
+            new Permission { Id = Guid.CreateVersion7(), Code = "core.modules.view", DisplayName = "View Modules", Description = "View installed modules and their status." },
+            new Permission { Id = Guid.CreateVersion7(), Code = "core.modules.manage", DisplayName = "Manage Modules", Description = "Install, uninstall, start, and stop modules." }
         });
 
         // Files module permissions
         defaultPermissions.AddRange(new[]
         {
-            new Permission { Id = Guid.NewGuid(), Code = "files.view", DisplayName = "View Files", Description = "View files and folders." },
-            new Permission { Id = Guid.NewGuid(), Code = "files.upload", DisplayName = "Upload Files", Description = "Upload new files." },
-            new Permission { Id = Guid.NewGuid(), Code = "files.download", DisplayName = "Download Files", Description = "Download files." },
-            new Permission { Id = Guid.NewGuid(), Code = "files.edit", DisplayName = "Edit Files", Description = "Edit file content and metadata." },
-            new Permission { Id = Guid.NewGuid(), Code = "files.delete", DisplayName = "Delete Files", Description = "Delete files and folders." },
-            new Permission { Id = Guid.NewGuid(), Code = "files.share", DisplayName = "Share Files", Description = "Share files with other users or publicly." },
-            new Permission { Id = Guid.NewGuid(), Code = "files.versions", DisplayName = "Manage File Versions", Description = "View and restore file versions." }
+            new Permission { Id = Guid.CreateVersion7(), Code = "files.view", DisplayName = "View Files", Description = "View files and folders." },
+            new Permission { Id = Guid.CreateVersion7(), Code = "files.upload", DisplayName = "Upload Files", Description = "Upload new files." },
+            new Permission { Id = Guid.CreateVersion7(), Code = "files.download", DisplayName = "Download Files", Description = "Download files." },
+            new Permission { Id = Guid.CreateVersion7(), Code = "files.edit", DisplayName = "Edit Files", Description = "Edit file content and metadata." },
+            new Permission { Id = Guid.CreateVersion7(), Code = "files.delete", DisplayName = "Delete Files", Description = "Delete files and folders." },
+            new Permission { Id = Guid.CreateVersion7(), Code = "files.share", DisplayName = "Share Files", Description = "Share files with other users or publicly." },
+            new Permission { Id = Guid.CreateVersion7(), Code = "files.versions", DisplayName = "Manage File Versions", Description = "View and restore file versions." }
         });
 
         // Chat module permissions
         defaultPermissions.AddRange(new[]
         {
-            new Permission { Id = Guid.NewGuid(), Code = "chat.send", DisplayName = "Send Messages", Description = "Send messages in channels and direct messages." },
-            new Permission { Id = Guid.NewGuid(), Code = "chat.read", DisplayName = "Read Messages", Description = "Read messages in channels and direct messages." },
-            new Permission { Id = Guid.NewGuid(), Code = "chat.channels.create", DisplayName = "Create Channels", Description = "Create new chat channels." },
-            new Permission { Id = Guid.NewGuid(), Code = "chat.channels.edit", DisplayName = "Edit Channels", Description = "Modify channel settings and members." },
-            new Permission { Id = Guid.NewGuid(), Code = "chat.channels.delete", DisplayName = "Delete Channels", Description = "Delete chat channels." },
-            new Permission { Id = Guid.NewGuid(), Code = "chat.moderate", DisplayName = "Moderate Chat", Description = "Delete messages and manage channel behavior." }
+            new Permission { Id = Guid.CreateVersion7(), Code = "chat.send", DisplayName = "Send Messages", Description = "Send messages in channels and direct messages." },
+            new Permission { Id = Guid.CreateVersion7(), Code = "chat.read", DisplayName = "Read Messages", Description = "Read messages in channels and direct messages." },
+            new Permission { Id = Guid.CreateVersion7(), Code = "chat.channels.create", DisplayName = "Create Channels", Description = "Create new chat channels." },
+            new Permission { Id = Guid.CreateVersion7(), Code = "chat.channels.edit", DisplayName = "Edit Channels", Description = "Modify channel settings and members." },
+            new Permission { Id = Guid.CreateVersion7(), Code = "chat.channels.delete", DisplayName = "Delete Channels", Description = "Delete chat channels." },
+            new Permission { Id = Guid.CreateVersion7(), Code = "chat.moderate", DisplayName = "Moderate Chat", Description = "Delete messages and manage channel behavior." }
         });
 
         // Calendar module permissions
         defaultPermissions.AddRange(new[]
         {
-            new Permission { Id = Guid.NewGuid(), Code = "calendar.view", DisplayName = "View Calendar", Description = "View calendar events." },
-            new Permission { Id = Guid.NewGuid(), Code = "calendar.create", DisplayName = "Create Events", Description = "Create new calendar events." },
-            new Permission { Id = Guid.NewGuid(), Code = "calendar.edit", DisplayName = "Edit Events", Description = "Modify existing calendar events." },
-            new Permission { Id = Guid.NewGuid(), Code = "calendar.delete", DisplayName = "Delete Events", Description = "Delete calendar events." },
-            new Permission { Id = Guid.NewGuid(), Code = "calendar.share", DisplayName = "Share Calendar", Description = "Share calendar with other users." }
+            new Permission { Id = Guid.CreateVersion7(), Code = "calendar.view", DisplayName = "View Calendar", Description = "View calendar events." },
+            new Permission { Id = Guid.CreateVersion7(), Code = "calendar.create", DisplayName = "Create Events", Description = "Create new calendar events." },
+            new Permission { Id = Guid.CreateVersion7(), Code = "calendar.edit", DisplayName = "Edit Events", Description = "Modify existing calendar events." },
+            new Permission { Id = Guid.CreateVersion7(), Code = "calendar.delete", DisplayName = "Delete Events", Description = "Delete calendar events." },
+            new Permission { Id = Guid.CreateVersion7(), Code = "calendar.share", DisplayName = "Share Calendar", Description = "Share calendar with other users." }
         });
 
         // Contacts module permissions
         defaultPermissions.AddRange(new[]
         {
-            new Permission { Id = Guid.NewGuid(), Code = "contacts.view", DisplayName = "View Contacts", Description = "View contact information." },
-            new Permission { Id = Guid.NewGuid(), Code = "contacts.create", DisplayName = "Create Contacts", Description = "Create new contacts." },
-            new Permission { Id = Guid.NewGuid(), Code = "contacts.edit", DisplayName = "Edit Contacts", Description = "Modify existing contacts." },
-            new Permission { Id = Guid.NewGuid(), Code = "contacts.delete", DisplayName = "Delete Contacts", Description = "Delete contacts." },
-            new Permission { Id = Guid.NewGuid(), Code = "contacts.share", DisplayName = "Share Contacts", Description = "Share contacts with other users." }
+            new Permission { Id = Guid.CreateVersion7(), Code = "contacts.view", DisplayName = "View Contacts", Description = "View contact information." },
+            new Permission { Id = Guid.CreateVersion7(), Code = "contacts.create", DisplayName = "Create Contacts", Description = "Create new contacts." },
+            new Permission { Id = Guid.CreateVersion7(), Code = "contacts.edit", DisplayName = "Edit Contacts", Description = "Modify existing contacts." },
+            new Permission { Id = Guid.CreateVersion7(), Code = "contacts.delete", DisplayName = "Delete Contacts", Description = "Delete contacts." },
+            new Permission { Id = Guid.CreateVersion7(), Code = "contacts.share", DisplayName = "Share Contacts", Description = "Share contacts with other users." }
         });
 
         // Notes module permissions
         defaultPermissions.AddRange(new[]
         {
-            new Permission { Id = Guid.NewGuid(), Code = "notes.view", DisplayName = "View Notes", Description = "View notes and documents." },
-            new Permission { Id = Guid.NewGuid(), Code = "notes.create", DisplayName = "Create Notes", Description = "Create new notes." },
-            new Permission { Id = Guid.NewGuid(), Code = "notes.edit", DisplayName = "Edit Notes", Description = "Modify existing notes." },
-            new Permission { Id = Guid.NewGuid(), Code = "notes.delete", DisplayName = "Delete Notes", Description = "Delete notes." },
-            new Permission { Id = Guid.NewGuid(), Code = "notes.share", DisplayName = "Share Notes", Description = "Share notes with other users." }
+            new Permission { Id = Guid.CreateVersion7(), Code = "notes.view", DisplayName = "View Notes", Description = "View notes and documents." },
+            new Permission { Id = Guid.CreateVersion7(), Code = "notes.create", DisplayName = "Create Notes", Description = "Create new notes." },
+            new Permission { Id = Guid.CreateVersion7(), Code = "notes.edit", DisplayName = "Edit Notes", Description = "Modify existing notes." },
+            new Permission { Id = Guid.CreateVersion7(), Code = "notes.delete", DisplayName = "Delete Notes", Description = "Delete notes." },
+            new Permission { Id = Guid.CreateVersion7(), Code = "notes.share", DisplayName = "Share Notes", Description = "Share notes with other users." }
         });
 
         await _context.Permissions.AddRangeAsync(defaultPermissions, cancellationToken);
@@ -731,7 +731,7 @@ public class DbInitializer
 
             var builtInGroup = new Group
             {
-                Id = Guid.NewGuid(),
+                Id = Guid.CreateVersion7(),
                 OrganizationId = organization.Id,
                 Name = Group.AllUsersGroupName,
                 Description = "Built-in group containing all active organization members.",

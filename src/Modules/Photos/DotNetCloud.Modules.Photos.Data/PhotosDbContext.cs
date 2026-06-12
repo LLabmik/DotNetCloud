@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Data.Configuration.Extensions;
 using DotNetCloud.Core.Data.Extensions;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Modules.Photos.Data.Configuration;
@@ -82,5 +83,7 @@ public class PhotosDbContext : DbContext
         {
             modelBuilder.FixColumnTypesForSqlServer();
         }
+
+        SequentialGuidConfigurationExtensions.ApplySequentialGuidDefaults(modelBuilder, _namingStrategy.Provider);
     }
 }

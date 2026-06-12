@@ -18,11 +18,11 @@ public class NoteFolderServiceTests
     public void Setup()
     {
         var options = new DbContextOptionsBuilder<NotesDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options;
         _db = new NotesDbContext(options);
         _service = new NoteFolderService(_db, NullLogger<NoteFolderService>.Instance);
-        _caller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        _caller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
     }
 
     [TestCleanup]
@@ -90,7 +90,7 @@ public class NoteFolderServiceTests
     [TestMethod]
     public async Task ListFolders_ReturnsOwnFolders()
     {
-        var otherCaller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        var otherCaller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
 
         await _service.CreateFolderAsync(new CreateNoteFolderDto { Name = "Mine" }, _caller);
         await _service.CreateFolderAsync(new CreateNoteFolderDto { Name = "Theirs" }, otherCaller);
@@ -151,7 +151,7 @@ public class NoteFolderServiceTests
         var created = await _service.CreateFolderAsync(
             new CreateNoteFolderDto { Name = "Protected" }, _caller);
 
-        var otherCaller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        var otherCaller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
 
         await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
             () => _service.DeleteFolderAsync(created.Id, otherCaller));

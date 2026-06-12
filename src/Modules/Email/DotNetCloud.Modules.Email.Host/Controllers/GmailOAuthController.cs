@@ -68,7 +68,7 @@ public class GmailOAuthController : EmailControllerBase
             return Redirect("/apps/email?gmail=error&reason=not_configured");
         }
 
-        var state = Guid.NewGuid().ToString("N");
+        var state = Guid.CreateVersion7().ToString("N");
         var scope = "https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/gmail.send";
         var authUrl = "https://accounts.google.com/o/oauth2/v2/auth"
             + $"?client_id={Uri.EscapeDataString(clientId)}"

@@ -7,7 +7,7 @@ namespace DotNetCloud.Integration.Tests.Builders;
 /// </summary>
 internal sealed class CallerContextBuilder
 {
-    private Guid _userId = Guid.NewGuid();
+    private Guid _userId = Guid.CreateVersion7();
     private IReadOnlyList<string> _roles = ["User"];
     private CallerType _type = CallerType.User;
 
@@ -31,7 +31,7 @@ internal sealed class CallerContextBuilder
     public static CallerContext CreateAdmin(Guid? userId = null)
     {
         return new CallerContext(
-            userId ?? Guid.NewGuid(),
+            userId ?? Guid.CreateVersion7(),
             ["Administrator", "User"],
             CallerType.User);
     }

@@ -85,7 +85,7 @@ public sealed class EmailSendService : IEmailSendService
             {
                 AccountId = account.Id,
                 Subject = request.Subject,
-                ProviderThreadId = $"sent-{Guid.NewGuid():N}",
+                ProviderThreadId = $"sent-{Guid.CreateVersion7():N}",
                 ParticipantsJson = "[]",
                 MessageCount = 0,
                 CreatedAt = now,
@@ -98,7 +98,7 @@ public sealed class EmailSendService : IEmailSendService
         {
             AccountId = account.Id,
             ThreadId = thread.Id,
-            ProviderMessageId = $"sent-{Guid.NewGuid():N}",
+            ProviderMessageId = $"sent-{Guid.CreateVersion7():N}",
             Subject = request.Subject,
             BodyPreview = bodyText.Length > 0 ? bodyText[..Math.Min(500, bodyText.Length)] : null,
             FromJson = System.Text.Json.JsonSerializer.Serialize(
@@ -170,7 +170,7 @@ public sealed class EmailSendService : IEmailSendService
 
         await _eventBus.PublishAsync(new EmailSentEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             AccountId = accountId,
             OwnerId = caller.UserId,

@@ -182,7 +182,7 @@ public sealed class UserManagementService : IUserManagementService
         {
             await _eventBus.PublishAsync(new UserDeletedEvent
             {
-                EventId = Guid.NewGuid(),
+                EventId = Guid.CreateVersion7(),
                 CreatedAt = DateTime.UtcNow,
                 UserId = userId,
                 DeletedAt = DateTime.UtcNow

@@ -157,7 +157,7 @@ public sealed class ChatRestApiIntegrationTests
     [TestMethod]
     public async Task GetChannel_NonExistent_Returns404()
     {
-        var response = await _client.GetAsync($"/api/v1/chat/channels/{Guid.NewGuid()}");
+        var response = await _client.GetAsync($"/api/v1/chat/channels/{Guid.CreateVersion7()}");
 
         Assert.AreEqual(HttpStatusCode.NotFound, response.StatusCode);
     }
@@ -363,7 +363,7 @@ public sealed class ChatRestApiIntegrationTests
     {
         var channelId = await CreateChannelAsync("int-msg-del-404");
 
-        var response = await _client.DeleteAsync($"/api/v1/chat/channels/{channelId}/messages/{Guid.NewGuid()}");
+        var response = await _client.DeleteAsync($"/api/v1/chat/channels/{channelId}/messages/{Guid.CreateVersion7()}");
 
         Assert.AreEqual(HttpStatusCode.NotFound, response.StatusCode);
     }
@@ -559,7 +559,7 @@ public sealed class ChatRestApiIntegrationTests
     [TestMethod]
     public async Task GetAnnouncement_NonExistent_Returns404()
     {
-        var response = await _client.GetAsync($"/api/v1/announcements/{Guid.NewGuid()}");
+        var response = await _client.GetAsync($"/api/v1/announcements/{Guid.CreateVersion7()}");
 
         Assert.AreEqual(HttpStatusCode.NotFound, response.StatusCode);
     }

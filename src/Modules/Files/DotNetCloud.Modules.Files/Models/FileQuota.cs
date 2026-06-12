@@ -7,7 +7,7 @@ namespace DotNetCloud.Modules.Files.Models;
 public sealed class FileQuota
 {
     /// <summary>Unique identifier for this quota record.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>User this quota applies to.</summary>
     public Guid UserId { get; set; }

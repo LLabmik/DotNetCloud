@@ -6,7 +6,7 @@ namespace DotNetCloud.Modules.Contacts.Models;
 public sealed class ContactEmail
 {
     /// <summary>Unique identifier.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>Parent contact ID.</summary>
     public Guid ContactId { get; set; }

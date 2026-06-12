@@ -17,11 +17,11 @@ public class TracksEventTests
     {
         var e = new ProductCreatedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            ProductId = Guid.NewGuid(),
-            OrganizationId = Guid.NewGuid(),
-            OwnerId = Guid.NewGuid()
+            ProductId = Guid.CreateVersion7(),
+            OrganizationId = Guid.CreateVersion7(),
+            OwnerId = Guid.CreateVersion7()
         };
 
         Assert.IsInstanceOfType(e, typeof(IEvent));
@@ -34,9 +34,9 @@ public class TracksEventTests
     {
         var e = new ProductDeletedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            ProductId = Guid.NewGuid()
+            ProductId = Guid.CreateVersion7()
         };
 
         Assert.IsInstanceOfType(e, typeof(IEvent));
@@ -50,10 +50,10 @@ public class TracksEventTests
     {
         var e = new WorkItemCreatedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            WorkItemId = Guid.NewGuid(),
-            ProductId = Guid.NewGuid(),
+            WorkItemId = Guid.CreateVersion7(),
+            ProductId = Guid.CreateVersion7(),
             Type = WorkItemType.Item
         };
 
@@ -64,13 +64,13 @@ public class TracksEventTests
     [TestMethod]
     public void WorkItemMovedEvent_ImplementsIEvent()
     {
-        var fromSwimlane = Guid.NewGuid();
-        var toSwimlane = Guid.NewGuid();
+        var fromSwimlane = Guid.CreateVersion7();
+        var toSwimlane = Guid.CreateVersion7();
         var e = new WorkItemMovedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            WorkItemId = Guid.NewGuid(),
+            WorkItemId = Guid.CreateVersion7(),
             Type = WorkItemType.Item,
             FromSwimlaneId = fromSwimlane,
             ToSwimlaneId = toSwimlane
@@ -85,9 +85,9 @@ public class TracksEventTests
     {
         var e = new WorkItemUpdatedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            WorkItemId = Guid.NewGuid(),
+            WorkItemId = Guid.CreateVersion7(),
             Type = WorkItemType.Item
         };
 
@@ -99,9 +99,9 @@ public class TracksEventTests
     {
         var e = new WorkItemDeletedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            WorkItemId = Guid.NewGuid(),
+            WorkItemId = Guid.CreateVersion7(),
             Type = WorkItemType.Item
         };
 
@@ -115,10 +115,10 @@ public class TracksEventTests
     {
         var e = new WorkItemAssignedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            WorkItemId = Guid.NewGuid(),
-            UserId = Guid.NewGuid()
+            WorkItemId = Guid.CreateVersion7(),
+            UserId = Guid.CreateVersion7()
         };
 
         Assert.IsInstanceOfType(e, typeof(IEvent));
@@ -130,11 +130,11 @@ public class TracksEventTests
     {
         var e = new WorkItemCommentAddedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            CommentId = Guid.NewGuid(),
-            WorkItemId = Guid.NewGuid(),
-            UserId = Guid.NewGuid()
+            CommentId = Guid.CreateVersion7(),
+            WorkItemId = Guid.CreateVersion7(),
+            UserId = Guid.CreateVersion7()
         };
 
         Assert.IsInstanceOfType(e, typeof(IEvent));
@@ -148,10 +148,10 @@ public class TracksEventTests
     {
         var e = new SprintStartedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            SprintId = Guid.NewGuid(),
-            EpicId = Guid.NewGuid()
+            SprintId = Guid.CreateVersion7(),
+            EpicId = Guid.CreateVersion7()
         };
 
         Assert.IsInstanceOfType(e, typeof(IEvent));
@@ -163,10 +163,10 @@ public class TracksEventTests
     {
         var e = new SprintCompletedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            SprintId = Guid.NewGuid(),
-            EpicId = Guid.NewGuid()
+            SprintId = Guid.CreateVersion7(),
+            EpicId = Guid.CreateVersion7()
         };
 
         Assert.IsInstanceOfType(e, typeof(IEvent));
@@ -180,9 +180,9 @@ public class TracksEventTests
     {
         var events = new IEvent[]
         {
-            new ProductCreatedEvent { EventId = Guid.NewGuid(), CreatedAt = DateTime.UtcNow, ProductId = Guid.NewGuid(), OrganizationId = Guid.NewGuid(), OwnerId = Guid.NewGuid() },
-            new WorkItemCreatedEvent { EventId = Guid.NewGuid(), CreatedAt = DateTime.UtcNow, WorkItemId = Guid.NewGuid(), ProductId = Guid.NewGuid(), Type = WorkItemType.Item },
-            new SprintStartedEvent { EventId = Guid.NewGuid(), CreatedAt = DateTime.UtcNow, SprintId = Guid.NewGuid(), EpicId = Guid.NewGuid() }
+            new ProductCreatedEvent { EventId = Guid.CreateVersion7(), CreatedAt = DateTime.UtcNow, ProductId = Guid.CreateVersion7(), OrganizationId = Guid.CreateVersion7(), OwnerId = Guid.CreateVersion7() },
+            new WorkItemCreatedEvent { EventId = Guid.CreateVersion7(), CreatedAt = DateTime.UtcNow, WorkItemId = Guid.CreateVersion7(), ProductId = Guid.CreateVersion7(), Type = WorkItemType.Item },
+            new SprintStartedEvent { EventId = Guid.CreateVersion7(), CreatedAt = DateTime.UtcNow, SprintId = Guid.CreateVersion7(), EpicId = Guid.CreateVersion7() }
         };
 
         var ids = events.Select(e => e.EventId).ToHashSet();
@@ -196,11 +196,11 @@ public class TracksEventTests
     {
         var e = new PokerSessionStartedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            SessionId = Guid.NewGuid(),
-            EpicId = Guid.NewGuid(),
-            ItemId = Guid.NewGuid()
+            SessionId = Guid.CreateVersion7(),
+            EpicId = Guid.CreateVersion7(),
+            ItemId = Guid.CreateVersion7()
         };
 
         Assert.IsInstanceOfType(e, typeof(IEvent));
@@ -213,10 +213,10 @@ public class TracksEventTests
     {
         var e = new PokerSessionRevealedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            SessionId = Guid.NewGuid(),
-            EpicId = Guid.NewGuid()
+            SessionId = Guid.CreateVersion7(),
+            EpicId = Guid.CreateVersion7()
         };
 
         Assert.IsInstanceOfType(e, typeof(IEvent));
@@ -228,10 +228,10 @@ public class TracksEventTests
     {
         var e = new PokerSessionCompletedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            SessionId = Guid.NewGuid(),
-            EpicId = Guid.NewGuid()
+            SessionId = Guid.CreateVersion7(),
+            EpicId = Guid.CreateVersion7()
         };
 
         Assert.IsInstanceOfType(e, typeof(IEvent));

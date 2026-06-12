@@ -12,14 +12,14 @@ public class SearchDocumentTests
     public void SearchDocument_CanBeCreated_WithRequiredProperties()
     {
         // Arrange
-        var ownerId = Guid.NewGuid();
+        var ownerId = Guid.CreateVersion7();
         var now = DateTimeOffset.UtcNow;
 
         // Act
         var doc = new SearchDocument
         {
             ModuleId = "notes",
-            EntityId = Guid.NewGuid().ToString(),
+            EntityId = Guid.CreateVersion7().ToString(),
             EntityType = "Note",
             Title = "Quarterly Report",
             OwnerId = ownerId,
@@ -42,8 +42,8 @@ public class SearchDocumentTests
     public void SearchDocument_CanBeCreated_WithAllProperties()
     {
         // Arrange
-        var ownerId = Guid.NewGuid();
-        var orgId = Guid.NewGuid();
+        var ownerId = Guid.CreateVersion7();
+        var orgId = Guid.CreateVersion7();
         var now = DateTimeOffset.UtcNow;
         var metadata = new Dictionary<string, string> { ["MimeType"] = "application/pdf", ["Path"] = "/docs" };
 
@@ -51,7 +51,7 @@ public class SearchDocumentTests
         var doc = new SearchDocument
         {
             ModuleId = "files",
-            EntityId = Guid.NewGuid().ToString(),
+            EntityId = Guid.CreateVersion7().ToString(),
             EntityType = "FileNode",
             Title = "Report.pdf",
             Content = "Extracted PDF text content here",
@@ -76,8 +76,8 @@ public class SearchDocumentTests
     public void SearchDocument_RecordEquality_WorksCorrectly()
     {
         // Arrange
-        var entityId = Guid.NewGuid().ToString();
-        var ownerId = Guid.NewGuid();
+        var entityId = Guid.CreateVersion7().ToString();
+        var ownerId = Guid.CreateVersion7();
         var now = DateTimeOffset.UtcNow;
         var sharedMetadata = (IReadOnlyDictionary<string, string>)new Dictionary<string, string>();
 

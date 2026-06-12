@@ -15,7 +15,7 @@ public class TagServiceTests
     private static FilesDbContext CreateContext(string? name = null)
     {
         var options = new DbContextOptionsBuilder<FilesDbContext>()
-            .UseInMemoryDatabase(name ?? Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(name ?? Guid.CreateVersion7().ToString())
             .Options;
         return new FilesDbContext(options);
     }
@@ -43,7 +43,7 @@ public class TagServiceTests
     public async Task AddTagAsync_ValidInput_CreatesTag()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = CreateFileNode(userId);
         db.FileNodes.Add(node);
         await db.SaveChangesAsync();
@@ -59,7 +59,7 @@ public class TagServiceTests
     public async Task AddTagAsync_DuplicateTag_ThrowsValidationException()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = CreateFileNode(userId);
         db.FileNodes.Add(node);
         db.FileTags.Add(new FileTag { FileNodeId = node.Id, Name = "Work", CreatedByUserId = userId });
@@ -75,8 +75,8 @@ public class TagServiceTests
     public async Task AddTagAsync_NonOwner_ThrowsForbiddenException()
     {
         using var db = CreateContext();
-        var ownerId = Guid.NewGuid();
-        var otherId = Guid.NewGuid();
+        var ownerId = Guid.CreateVersion7();
+        var otherId = Guid.CreateVersion7();
         var node = CreateFileNode(ownerId);
         db.FileNodes.Add(node);
         await db.SaveChangesAsync();
@@ -91,13 +91,13 @@ public class TagServiceTests
     public async Task AddTagAsync_MountedAdminSharedFile_ThrowsInvalidOperationException()
     {
         using var db = CreateContext();
-        var sharedFolderId = Guid.NewGuid();
+        var sharedFolderId = Guid.CreateVersion7();
         db.AdminSharedFolders.Add(new AdminSharedFolderDefinition
         {
             Id = sharedFolderId,
             DisplayName = "Mounted",
             SourcePath = Path.GetTempPath(),
-            CreatedByUserId = Guid.NewGuid(),
+            CreatedByUserId = Guid.CreateVersion7(),
         });
         await db.SaveChangesAsync();
 
@@ -105,14 +105,14 @@ public class TagServiceTests
         var mountedFileId = RegisterMountedFile(sharedFolderId);
 
         await Assert.ThrowsExactlyAsync<Core.Errors.InvalidOperationException>(
-            () => service.AddTagAsync(mountedFileId, "Important", null, UserCaller(Guid.NewGuid())));
+            () => service.AddTagAsync(mountedFileId, "Important", null, UserCaller(Guid.CreateVersion7())));
     }
 
     [TestMethod]
     public async Task RemoveTagAsync_ValidInput_RemovesTag()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = CreateFileNode(userId);
         db.FileNodes.Add(node);
         var tag = new FileTag { FileNodeId = node.Id, Name = "ToRemove", CreatedByUserId = userId };
@@ -129,7 +129,7 @@ public class TagServiceTests
     public async Task GetTagsAsync_ReturnsAllTagsOnNode()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = CreateFileNode(userId);
         db.FileNodes.Add(node);
         db.FileTags.Add(new FileTag { FileNodeId = node.Id, Name = "A", CreatedByUserId = userId });
@@ -146,7 +146,7 @@ public class TagServiceTests
     public async Task GetNodesByTagAsync_ReturnsMatchingNodes()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node1 = CreateFileNode(userId);
         var node2 = CreateFileNode(userId);
         node2.Name = "other.txt";
@@ -165,7 +165,7 @@ public class TagServiceTests
     public async Task RemoveTagByNameAsync_ExistingTag_RemovesIt()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = CreateFileNode(userId);
         db.FileNodes.Add(node);
         db.FileTags.Add(new FileTag { FileNodeId = node.Id, Name = "Work", CreatedByUserId = userId });
@@ -183,7 +183,7 @@ public class TagServiceTests
     public async Task RemoveTagByNameAsync_NonExistentTag_ThrowsNotFoundException()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = CreateFileNode(userId);
         db.FileNodes.Add(node);
         await db.SaveChangesAsync();
@@ -198,7 +198,7 @@ public class TagServiceTests
     public async Task GetAllUserTagsAsync_ReturnsDistinctTagNames()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node1 = CreateFileNode(userId);
         var node2 = CreateFileNode(userId);
         node2.Name = "other.txt";
@@ -220,7 +220,7 @@ public class TagServiceTests
     public async Task GetAllUserTagsAsync_NoTags_ReturnsEmpty()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         var service = CreateService(db);
         var tags = await service.GetAllUserTagsAsync(UserCaller(userId));
@@ -232,8 +232,8 @@ public class TagServiceTests
     public async Task GetAllUserTagsAsync_OtherUsersTags_NotIncluded()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
-        var otherId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var otherId = Guid.CreateVersion7();
         var myNode = CreateFileNode(userId);
         var theirNode = CreateFileNode(otherId);
         theirNode.Name = "other.txt";
@@ -253,7 +253,7 @@ public class TagServiceTests
     public async Task GetUserTagSummariesAsync_ReturnsSummariesWithCounts()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node1 = CreateFileNode(userId);
         var node2 = CreateFileNode(userId);
         node2.Name = "other.txt";
@@ -278,7 +278,7 @@ public class TagServiceTests
     public async Task GetUserTagSummariesAsync_NoTags_ReturnsEmpty()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         var service = CreateService(db);
         var summaries = await service.GetUserTagSummariesAsync(UserCaller(userId));
@@ -290,7 +290,7 @@ public class TagServiceTests
     public async Task BulkAddTagAsync_ValidNodes_AddsTagToAll()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node1 = CreateFileNode(userId);
         var node2 = CreateFileNode(userId);
         node2.Name = "other.txt";
@@ -310,12 +310,12 @@ public class TagServiceTests
     public async Task BulkAddTagAsync_SomeNodesMissing_PartialSuccess()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = CreateFileNode(userId);
         db.FileNodes.Add(node);
         await db.SaveChangesAsync();
 
-        var missingId = Guid.NewGuid();
+        var missingId = Guid.CreateVersion7();
         var service = CreateService(db);
         var result = await service.BulkAddTagAsync([node.Id, missingId], "Work", null, UserCaller(userId));
 
@@ -328,7 +328,7 @@ public class TagServiceTests
     public async Task BulkRemoveTagByNameAsync_ValidNodes_RemovesTagFromAll()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node1 = CreateFileNode(userId);
         var node2 = CreateFileNode(userId);
         node2.Name = "other.txt";
@@ -349,7 +349,7 @@ public class TagServiceTests
     public async Task BulkRemoveTagByNameAsync_TagMissingOnSomeNodes_PartialSuccess()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node1 = CreateFileNode(userId);
         var node2 = CreateFileNode(userId);
         node2.Name = "other.txt";

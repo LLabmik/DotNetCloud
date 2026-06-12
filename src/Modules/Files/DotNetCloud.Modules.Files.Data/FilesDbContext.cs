@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Data.Configuration.Extensions;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Modules.Files.Data.Configuration;
 using DotNetCloud.Modules.Files.Models;
@@ -107,5 +108,7 @@ public class FilesDbContext : DbContext
         modelBuilder.ApplyConfiguration(new SyncDeviceConfiguration());
         modelBuilder.ApplyConfiguration(new SyncDeviceCursorConfiguration());
         modelBuilder.ApplyConfiguration(new MountedNodeEntryConfiguration());
+
+        SequentialGuidConfigurationExtensions.ApplySequentialGuidDefaults(modelBuilder, _namingStrategy.Provider);
     }
 }

@@ -61,7 +61,7 @@ public class CoreHubSecurityTests
     public async Task JoinGroupAsync_NonMember_ThrowsHubException()
     {
         var hub = CreateHubWithMembershipCheck(isMember: false);
-        var channelId = Guid.NewGuid().ToString();
+        var channelId = Guid.CreateVersion7().ToString();
 
         var ex = await Assert.ThrowsExactlyAsync<HubException>(
             () => hub.JoinGroupAsync(channelId));
@@ -74,7 +74,7 @@ public class CoreHubSecurityTests
     {
         var groups = new StubGroupManager();
         var hub = CreateHubWithMembershipCheck(isMember: true, groups: groups);
-        var channelId = Guid.NewGuid().ToString();
+        var channelId = Guid.CreateVersion7().ToString();
 
         await hub.JoinGroupAsync(channelId);
 
@@ -94,10 +94,10 @@ public class CoreHubSecurityTests
             .ReturnsAsync(true);
 
         var hub = CreateHub(
-            userId: Guid.NewGuid(),
+            userId: Guid.CreateVersion7(),
             chatApiClientMock: chatApiClientMock,
             groups: groups);
-        var channelId = Guid.NewGuid().ToString();
+        var channelId = Guid.CreateVersion7().ToString();
 
         await hub.JoinGroupAsync(channelId);
 
@@ -111,7 +111,7 @@ public class CoreHubSecurityTests
         bool isMember,
         StubGroupManager? groups = null)
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var chatApiClientMock = new Mock<IChatApiClient>();
         chatApiClientMock
             .Setup(s => s.IsChannelMemberAsync(

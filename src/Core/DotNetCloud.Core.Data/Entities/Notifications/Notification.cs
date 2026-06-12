@@ -8,7 +8,7 @@ namespace DotNetCloud.Core.Data.Entities.Notifications;
 public sealed class Notification
 {
     /// <summary>Unique identifier for this notification.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>The user ID this notification targets.</summary>
     public Guid UserId { get; set; }

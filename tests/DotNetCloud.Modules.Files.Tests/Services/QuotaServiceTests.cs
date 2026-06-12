@@ -21,7 +21,7 @@ public class QuotaServiceTests
     private static FilesDbContext CreateContext(string? name = null)
     {
         var options = new DbContextOptionsBuilder<FilesDbContext>()
-            .UseInMemoryDatabase(name ?? Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(name ?? Guid.CreateVersion7().ToString())
             .Options;
         return new FilesDbContext(options);
     }
@@ -42,7 +42,7 @@ public class QuotaServiceTests
     public async Task GetQuotaAsync_ExistingQuota_ReturnsDto()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         db.FileQuotas.Add(new FileQuota { UserId = userId, MaxBytes = 1000, UsedBytes = 200 });
         await db.SaveChangesAsync();
 
@@ -62,7 +62,7 @@ public class QuotaServiceTests
         var service = CreateService(db);
 
         await Assert.ThrowsExactlyAsync<NotFoundException>(
-            () => service.GetQuotaAsync(Guid.NewGuid(), SystemCaller));
+            () => service.GetQuotaAsync(Guid.CreateVersion7(), SystemCaller));
     }
 
     // ─── GetOrCreateQuotaAsync ─────────────────────────────────────────────────
@@ -71,7 +71,7 @@ public class QuotaServiceTests
     public async Task GetOrCreateQuotaAsync_ExistingQuota_ReturnsExisting()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         db.FileQuotas.Add(new FileQuota { UserId = userId, MaxBytes = 5000, UsedBytes = 100 });
         await db.SaveChangesAsync();
 
@@ -87,7 +87,7 @@ public class QuotaServiceTests
     public async Task GetOrCreateQuotaAsync_NoQuota_CreatesWithDefault()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var opts = new QuotaOptions { DefaultQuotaBytes = 2000 };
 
         var service = CreateService(db, opts);
@@ -105,9 +105,9 @@ public class QuotaServiceTests
     public async Task GetAllQuotasAsync_MultipleUsers_ReturnsAll()
     {
         using var db = CreateContext();
-        db.FileQuotas.Add(new FileQuota { UserId = Guid.NewGuid(), MaxBytes = 1000 });
-        db.FileQuotas.Add(new FileQuota { UserId = Guid.NewGuid(), MaxBytes = 2000 });
-        db.FileQuotas.Add(new FileQuota { UserId = Guid.NewGuid(), MaxBytes = 3000 });
+        db.FileQuotas.Add(new FileQuota { UserId = Guid.CreateVersion7(), MaxBytes = 1000 });
+        db.FileQuotas.Add(new FileQuota { UserId = Guid.CreateVersion7(), MaxBytes = 2000 });
+        db.FileQuotas.Add(new FileQuota { UserId = Guid.CreateVersion7(), MaxBytes = 3000 });
         await db.SaveChangesAsync();
 
         var service = CreateService(db);
@@ -132,7 +132,7 @@ public class QuotaServiceTests
     {
         using var db = CreateContext();
         var service = CreateService(db);
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         var result = await service.SetQuotaAsync(userId, 5000, SystemCaller);
 
@@ -145,7 +145,7 @@ public class QuotaServiceTests
     public async Task SetQuotaAsync_ExistingUser_UpdatesQuota()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         db.FileQuotas.Add(new FileQuota { UserId = userId, MaxBytes = 1000 });
         await db.SaveChangesAsync();
 
@@ -161,7 +161,7 @@ public class QuotaServiceTests
     public async Task HasSufficientQuotaAsync_WithinLimits_ReturnsTrue()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         db.FileQuotas.Add(new FileQuota { UserId = userId, MaxBytes = 1000, UsedBytes = 200 });
         await db.SaveChangesAsync();
 
@@ -173,7 +173,7 @@ public class QuotaServiceTests
     public async Task HasSufficientQuotaAsync_ExceedsLimit_ReturnsFalse()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         db.FileQuotas.Add(new FileQuota { UserId = userId, MaxBytes = 1000, UsedBytes = 800 });
         await db.SaveChangesAsync();
 
@@ -185,7 +185,7 @@ public class QuotaServiceTests
     public async Task HasSufficientQuotaAsync_UnlimitedQuota_ReturnsTrue()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         db.FileQuotas.Add(new FileQuota { UserId = userId, MaxBytes = 0, UsedBytes = 999999 });
         await db.SaveChangesAsync();
 
@@ -199,7 +199,7 @@ public class QuotaServiceTests
     public async Task AdjustUsedBytesAsync_PositiveDelta_IncrementsUsedBytes()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         db.FileQuotas.Add(new FileQuota { UserId = userId, MaxBytes = 10000, UsedBytes = 500 });
         await db.SaveChangesAsync();
 
@@ -214,7 +214,7 @@ public class QuotaServiceTests
     public async Task AdjustUsedBytesAsync_NegativeDelta_DecrementsUsedBytes()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         db.FileQuotas.Add(new FileQuota { UserId = userId, MaxBytes = 10000, UsedBytes = 500 });
         await db.SaveChangesAsync();
 
@@ -229,7 +229,7 @@ public class QuotaServiceTests
     public async Task AdjustUsedBytesAsync_WouldGoBelowZero_ClampsToZero()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         db.FileQuotas.Add(new FileQuota { UserId = userId, MaxBytes = 1000, UsedBytes = 100 });
         await db.SaveChangesAsync();
 
@@ -246,7 +246,7 @@ public class QuotaServiceTests
         using var db = CreateContext();
         var service = CreateService(db);
         // Should silently no-op when quota record does not exist
-        await service.AdjustUsedBytesAsync(Guid.NewGuid(), 100);
+        await service.AdjustUsedBytesAsync(Guid.CreateVersion7(), 100);
     }
 
     // ─── Quota notifications ───────────────────────────────────────────────────
@@ -255,7 +255,7 @@ public class QuotaServiceTests
     public async Task AdjustUsedBytesAsync_CrossesWarnThreshold_PublishesWarningEvent()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         db.FileQuotas.Add(new FileQuota { UserId = userId, MaxBytes = 1000, UsedBytes = 790 });
         await db.SaveChangesAsync();
 
@@ -277,7 +277,7 @@ public class QuotaServiceTests
     public async Task AdjustUsedBytesAsync_CrossesCriticalThreshold_PublishesCriticalEvent()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         db.FileQuotas.Add(new FileQuota { UserId = userId, MaxBytes = 1000, UsedBytes = 940 });
         await db.SaveChangesAsync();
 
@@ -298,7 +298,7 @@ public class QuotaServiceTests
     public async Task AdjustUsedBytesAsync_ExceedsQuota_PublishesExceededEvent()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         db.FileQuotas.Add(new FileQuota { UserId = userId, MaxBytes = 1000, UsedBytes = 990 });
         await db.SaveChangesAsync();
 
@@ -321,7 +321,7 @@ public class QuotaServiceTests
     public async Task AdjustUsedBytesAsync_UnlimitedQuota_DoesNotPublishAnyEvent()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         db.FileQuotas.Add(new FileQuota { UserId = userId, MaxBytes = 0, UsedBytes = 0 });
         await db.SaveChangesAsync();
 
@@ -340,7 +340,7 @@ public class QuotaServiceTests
     public async Task RecalculateAsync_SumsFileSizes()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         db.FileQuotas.Add(new FileQuota { UserId = userId, MaxBytes = 10000, UsedBytes = 0 });
         db.FileNodes.Add(new FileNode { Name = "a.txt", NodeType = FileNodeType.File, OwnerId = userId, Size = 100 });
         db.FileNodes.Add(new FileNode { Name = "b.txt", NodeType = FileNodeType.File, OwnerId = userId, Size = 250 });
@@ -358,7 +358,7 @@ public class QuotaServiceTests
     public async Task RecalculateAsync_ExcludeTrashedEnabled_ExcludesSoftDeletedFiles()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         db.FileQuotas.Add(new FileQuota { UserId = userId, MaxBytes = 10000, UsedBytes = 0 });
         db.FileNodes.Add(new FileNode { Name = "active.txt", NodeType = FileNodeType.File, OwnerId = userId, Size = 100, IsDeleted = false });
         db.FileNodes.Add(new FileNode { Name = "trashed.txt", NodeType = FileNodeType.File, OwnerId = userId, Size = 500, IsDeleted = true });
@@ -376,7 +376,7 @@ public class QuotaServiceTests
     public async Task RecalculateAsync_ExcludeTrashedDisabled_IncludesSoftDeletedFiles()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         db.FileQuotas.Add(new FileQuota { UserId = userId, MaxBytes = 10000, UsedBytes = 0 });
         db.FileNodes.Add(new FileNode { Name = "active.txt", NodeType = FileNodeType.File, OwnerId = userId, Size = 100, IsDeleted = false });
         db.FileNodes.Add(new FileNode { Name = "trashed.txt", NodeType = FileNodeType.File, OwnerId = userId, Size = 500, IsDeleted = true });
@@ -396,7 +396,7 @@ public class QuotaServiceTests
     public async Task TryReserveQuotaAsync_WithinLimits_ReservesAndReturnsTrue()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         db.FileQuotas.Add(new FileQuota { UserId = userId, MaxBytes = 1000, UsedBytes = 200 });
         await db.SaveChangesAsync();
 
@@ -412,7 +412,7 @@ public class QuotaServiceTests
     public async Task TryReserveQuotaAsync_ExceedsLimit_ReturnsFalseAndDoesNotReserve()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         db.FileQuotas.Add(new FileQuota { UserId = userId, MaxBytes = 1000, UsedBytes = 800 });
         await db.SaveChangesAsync();
 
@@ -428,7 +428,7 @@ public class QuotaServiceTests
     public async Task TryReserveQuotaAsync_ExactlyAtLimit_ReservesAndReturnsTrue()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         db.FileQuotas.Add(new FileQuota { UserId = userId, MaxBytes = 1000, UsedBytes = 500 });
         await db.SaveChangesAsync();
 
@@ -444,7 +444,7 @@ public class QuotaServiceTests
     public async Task TryReserveQuotaAsync_OneByteOverLimit_ReturnsFalse()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         db.FileQuotas.Add(new FileQuota { UserId = userId, MaxBytes = 1000, UsedBytes = 500 });
         await db.SaveChangesAsync();
 
@@ -458,7 +458,7 @@ public class QuotaServiceTests
     public async Task TryReserveQuotaAsync_UnlimitedQuota_AlwaysSucceeds()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         db.FileQuotas.Add(new FileQuota { UserId = userId, MaxBytes = 0, UsedBytes = 0 });
         await db.SaveChangesAsync();
 
@@ -472,7 +472,7 @@ public class QuotaServiceTests
     public async Task TryReserveQuotaAsync_ZeroOrNegativeBytes_ReturnsTrue()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         db.FileQuotas.Add(new FileQuota { UserId = userId, MaxBytes = 1000, UsedBytes = 999 });
         await db.SaveChangesAsync();
 
@@ -492,7 +492,7 @@ public class QuotaServiceTests
         using var db = CreateContext();
         var service = CreateService(db);
 
-        var result = await service.TryReserveQuotaAsync(Guid.NewGuid(), 100);
+        var result = await service.TryReserveQuotaAsync(Guid.CreateVersion7(), 100);
 
         Assert.IsFalse(result, "Must return false when no quota record exists for user");
     }

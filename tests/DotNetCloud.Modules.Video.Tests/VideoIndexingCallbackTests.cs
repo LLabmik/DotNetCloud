@@ -35,7 +35,7 @@ public class VideoIndexingCallbackTests
             .ReturnsAsync((string name, CallerContext caller, CancellationToken _) =>
                 new VideoCollectionDto
                 {
-                    Id = Guid.NewGuid(),
+                    Id = Guid.CreateVersion7(),
                     Name = name,
                     CreatedAt = DateTime.UtcNow
                 });
@@ -52,8 +52,8 @@ public class VideoIndexingCallbackTests
     [TestMethod]
     public async Task IndexVideoAsync_CreatesVideoInDatabase()
     {
-        var fileNodeId = Guid.NewGuid();
-        var ownerId = Guid.NewGuid();
+        var fileNodeId = Guid.CreateVersion7();
+        var ownerId = Guid.CreateVersion7();
 
         await _callback.IndexVideoAsync(fileNodeId, "movie.mp4", "video/mp4", 500_000_000, ownerId);
 
@@ -64,8 +64,8 @@ public class VideoIndexingCallbackTests
     [TestMethod]
     public async Task IndexVideoAsync_SetsCorrectTitle()
     {
-        var fileNodeId = Guid.NewGuid();
-        var ownerId = Guid.NewGuid();
+        var fileNodeId = Guid.CreateVersion7();
+        var ownerId = Guid.CreateVersion7();
 
         await _callback.IndexVideoAsync(fileNodeId, "family-vacation.mkv", "video/x-matroska", 1024, ownerId);
 
@@ -77,8 +77,8 @@ public class VideoIndexingCallbackTests
     [TestMethod]
     public async Task IndexVideoAsync_SetsCorrectOwner()
     {
-        var fileNodeId = Guid.NewGuid();
-        var ownerId = Guid.NewGuid();
+        var fileNodeId = Guid.CreateVersion7();
+        var ownerId = Guid.CreateVersion7();
 
         await _callback.IndexVideoAsync(fileNodeId, "test.mp4", "video/mp4", 1024, ownerId);
 
@@ -89,8 +89,8 @@ public class VideoIndexingCallbackTests
     [TestMethod]
     public async Task IndexVideoAsync_DuplicateFileNode_DoesNotCreateSecond()
     {
-        var fileNodeId = Guid.NewGuid();
-        var ownerId = Guid.NewGuid();
+        var fileNodeId = Guid.CreateVersion7();
+        var ownerId = Guid.CreateVersion7();
 
         await _callback.IndexVideoAsync(fileNodeId, "first.mp4", "video/mp4", 1024, ownerId);
         await _callback.IndexVideoAsync(fileNodeId, "second.mp4", "video/mp4", 2048, ownerId);
@@ -102,11 +102,11 @@ public class VideoIndexingCallbackTests
     [TestMethod]
     public async Task IndexVideoAsync_MultipleUniqueFiles_CreatesAll()
     {
-        var ownerId = Guid.NewGuid();
+        var ownerId = Guid.CreateVersion7();
 
-        await _callback.IndexVideoAsync(Guid.NewGuid(), "vid1.mp4", "video/mp4", 1024, ownerId);
-        await _callback.IndexVideoAsync(Guid.NewGuid(), "vid2.mkv", "video/x-matroska", 2048, ownerId);
-        await _callback.IndexVideoAsync(Guid.NewGuid(), "vid3.webm", "video/webm", 512, ownerId);
+        await _callback.IndexVideoAsync(Guid.CreateVersion7(), "vid1.mp4", "video/mp4", 1024, ownerId);
+        await _callback.IndexVideoAsync(Guid.CreateVersion7(), "vid2.mkv", "video/x-matroska", 2048, ownerId);
+        await _callback.IndexVideoAsync(Guid.CreateVersion7(), "vid3.webm", "video/webm", 512, ownerId);
 
         Assert.AreEqual(3, _db.UserVideos.Count());
     }
@@ -114,8 +114,8 @@ public class VideoIndexingCallbackTests
     [TestMethod]
     public async Task IndexVideoAsync_WithSourceName_CreatesCollectionAndAddsVideo()
     {
-        var fileNodeId = Guid.NewGuid();
-        var ownerId = Guid.NewGuid();
+        var fileNodeId = Guid.CreateVersion7();
+        var ownerId = Guid.CreateVersion7();
 
         await _callback.IndexVideoAsync(fileNodeId, "episode.mp4", "video/mp4", 1024, ownerId, sourceName: "TV Shows");
 
@@ -130,9 +130,9 @@ public class VideoIndexingCallbackTests
     [TestMethod]
     public async Task IndexVideoAsync_WithNullSourceName_DoesNotCreateCollection()
     {
-        var fileNodeId = Guid.NewGuid();
+        var fileNodeId = Guid.CreateVersion7();
 
-        await _callback.IndexVideoAsync(fileNodeId, "movie.mp4", "video/mp4", 1024, Guid.NewGuid(), sourceName: null);
+        await _callback.IndexVideoAsync(fileNodeId, "movie.mp4", "video/mp4", 1024, Guid.CreateVersion7(), sourceName: null);
 
         _collectionServiceMock.Verify(
             x => x.FindOrCreateByNameAsync(It.IsAny<string>(), It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()),
@@ -145,9 +145,9 @@ public class VideoIndexingCallbackTests
     [TestMethod]
     public async Task IndexVideoAsync_WithEmptySourceName_DoesNotCreateCollection()
     {
-        var fileNodeId = Guid.NewGuid();
+        var fileNodeId = Guid.CreateVersion7();
 
-        await _callback.IndexVideoAsync(fileNodeId, "movie.mp4", "video/mp4", 1024, Guid.NewGuid(), sourceName: "");
+        await _callback.IndexVideoAsync(fileNodeId, "movie.mp4", "video/mp4", 1024, Guid.CreateVersion7(), sourceName: "");
 
         _collectionServiceMock.Verify(
             x => x.FindOrCreateByNameAsync(It.IsAny<string>(), It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()),
@@ -160,8 +160,8 @@ public class VideoIndexingCallbackTests
     [TestMethod]
     public async Task IndexVideoAsync_WithSourceName_FindOrCreateFails_VideoStillIndexed()
     {
-        var fileNodeId = Guid.NewGuid();
-        var ownerId = Guid.NewGuid();
+        var fileNodeId = Guid.CreateVersion7();
+        var ownerId = Guid.CreateVersion7();
 
         _collectionServiceMock
             .Setup(x => x.FindOrCreateByNameAsync(It.IsAny<string>(), It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
@@ -177,9 +177,9 @@ public class VideoIndexingCallbackTests
     [TestMethod]
     public async Task IndexVideoAsync_MultipleSourceNames_UsesEachCorrectly()
     {
-        var ownerId = Guid.NewGuid();
-        var file1 = Guid.NewGuid();
-        var file2 = Guid.NewGuid();
+        var ownerId = Guid.CreateVersion7();
+        var file1 = Guid.CreateVersion7();
+        var file2 = Guid.CreateVersion7();
 
         await _callback.IndexVideoAsync(file1, "ep1.mp4", "video/mp4", 1024, ownerId, sourceName: "TV Shows");
         await _callback.IndexVideoAsync(file2, "movie.mp4", "video/mp4", 2048, ownerId, sourceName: "Movies");

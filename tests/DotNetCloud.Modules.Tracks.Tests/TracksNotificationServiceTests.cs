@@ -29,10 +29,10 @@ public class TracksNotificationServiceTests
     [TestMethod]
     public async Task NotifyCardAssigned_SendsToAssignedUser()
     {
-        var boardId = Guid.NewGuid();
-        var cardId = Guid.NewGuid();
-        var assignedUserId = Guid.NewGuid();
-        var assignedByUserId = Guid.NewGuid();
+        var boardId = Guid.CreateVersion7();
+        var cardId = Guid.CreateVersion7();
+        var assignedUserId = Guid.CreateVersion7();
+        var assignedByUserId = Guid.CreateVersion7();
 
         await _service.NotifyCardAssignedAsync(boardId, cardId, "Test Card", assignedUserId, assignedByUserId);
 
@@ -48,9 +48,9 @@ public class TracksNotificationServiceTests
     [TestMethod]
     public async Task NotifyCardAssigned_SelfAssignment_NoNotification()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
-        await _service.NotifyCardAssignedAsync(Guid.NewGuid(), Guid.NewGuid(), "Card", userId, userId);
+        await _service.NotifyCardAssignedAsync(Guid.CreateVersion7(), Guid.CreateVersion7(), "Card", userId, userId);
 
         _notificationService.Verify(n => n.SendAsync(
             It.IsAny<Guid>(),
@@ -63,10 +63,10 @@ public class TracksNotificationServiceTests
     [TestMethod]
     public async Task NotifyMentions_ResolvesUsernameAndSends()
     {
-        var boardId = Guid.NewGuid();
-        var cardId = Guid.NewGuid();
-        var authorId = Guid.NewGuid();
-        var mentionedUserId = Guid.NewGuid();
+        var boardId = Guid.CreateVersion7();
+        var cardId = Guid.CreateVersion7();
+        var authorId = Guid.CreateVersion7();
+        var mentionedUserId = Guid.CreateVersion7();
 
         _userDirectory.Setup(u => u.FindUserIdByUsernameAsync("alice", It.IsAny<CancellationToken>()))
             .ReturnsAsync(mentionedUserId);
@@ -84,12 +84,12 @@ public class TracksNotificationServiceTests
     [TestMethod]
     public async Task NotifyMentions_AuthorMentionsSelf_NoNotification()
     {
-        var authorId = Guid.NewGuid();
+        var authorId = Guid.CreateVersion7();
 
         _userDirectory.Setup(u => u.FindUserIdByUsernameAsync("me", It.IsAny<CancellationToken>()))
             .ReturnsAsync(authorId);
 
-        await _service.NotifyMentionsAsync(Guid.NewGuid(), Guid.NewGuid(), "Card", authorId, "Hey @me check this");
+        await _service.NotifyMentionsAsync(Guid.CreateVersion7(), Guid.CreateVersion7(), "Card", authorId, "Hey @me check this");
 
         _notificationService.Verify(n => n.SendAsync(
             It.IsAny<Guid>(),
@@ -103,7 +103,7 @@ public class TracksNotificationServiceTests
         _userDirectory.Setup(u => u.FindUserIdByUsernameAsync("unknown", It.IsAny<CancellationToken>()))
             .ReturnsAsync((Guid?)null);
 
-        await _service.NotifyMentionsAsync(Guid.NewGuid(), Guid.NewGuid(), "Card", Guid.NewGuid(), "Hey @unknown");
+        await _service.NotifyMentionsAsync(Guid.CreateVersion7(), Guid.CreateVersion7(), "Card", Guid.CreateVersion7(), "Hey @unknown");
 
         _notificationService.Verify(n => n.SendAsync(
             It.IsAny<Guid>(),
@@ -114,7 +114,7 @@ public class TracksNotificationServiceTests
     [TestMethod]
     public async Task NotifyMentions_NoMentions_NoNotification()
     {
-        await _service.NotifyMentionsAsync(Guid.NewGuid(), Guid.NewGuid(), "Card", Guid.NewGuid(), "No mentions here");
+        await _service.NotifyMentionsAsync(Guid.CreateVersion7(), Guid.CreateVersion7(), "Card", Guid.CreateVersion7(), "No mentions here");
 
         _userDirectory.Verify(u => u.FindUserIdByUsernameAsync(
             It.IsAny<string>(),
@@ -126,10 +126,10 @@ public class TracksNotificationServiceTests
     [TestMethod]
     public async Task NotifySprintStarted_SendsToAllExceptStarter()
     {
-        var startedBy = Guid.NewGuid();
-        var members = new List<Guid> { startedBy, Guid.NewGuid(), Guid.NewGuid() };
+        var startedBy = Guid.CreateVersion7();
+        var members = new List<Guid> { startedBy, Guid.CreateVersion7(), Guid.CreateVersion7() };
 
-        await _service.NotifySprintStartedAsync(Guid.NewGuid(), "Sprint 1", startedBy, members);
+        await _service.NotifySprintStartedAsync(Guid.CreateVersion7(), "Sprint 1", startedBy, members);
 
         _notificationService.Verify(n => n.SendToManyAsync(
             It.Is<IEnumerable<Guid>>(ids => ids.Count() == 2 && !ids.Contains(startedBy)),
@@ -140,10 +140,10 @@ public class TracksNotificationServiceTests
     [TestMethod]
     public async Task NotifySprintCompleted_SendsToAllExceptCompleter()
     {
-        var completedBy = Guid.NewGuid();
-        var members = new List<Guid> { completedBy, Guid.NewGuid() };
+        var completedBy = Guid.CreateVersion7();
+        var members = new List<Guid> { completedBy, Guid.CreateVersion7() };
 
-        await _service.NotifySprintCompletedAsync(Guid.NewGuid(), "Sprint 1", completedBy, members);
+        await _service.NotifySprintCompletedAsync(Guid.CreateVersion7(), "Sprint 1", completedBy, members);
 
         _notificationService.Verify(n => n.SendToManyAsync(
             It.Is<IEnumerable<Guid>>(ids => ids.Count() == 1 && !ids.Contains(completedBy)),
@@ -159,9 +159,9 @@ public class TracksNotificationServiceTests
         ITracksNotificationService service = new TracksNotificationService(NullLogger<TracksNotificationService>.Instance);
 
         // All should complete without throwing
-        await service.NotifyCardAssignedAsync(Guid.NewGuid(), Guid.NewGuid(), "Card", Guid.NewGuid(), Guid.NewGuid());
-        await service.NotifyMentionsAsync(Guid.NewGuid(), Guid.NewGuid(), "Card", Guid.NewGuid(), "@alice test");
-        await service.NotifySprintStartedAsync(Guid.NewGuid(), "Sprint", Guid.NewGuid(), [Guid.NewGuid()]);
-        await service.NotifySprintCompletedAsync(Guid.NewGuid(), "Sprint", Guid.NewGuid(), [Guid.NewGuid()]);
+        await service.NotifyCardAssignedAsync(Guid.CreateVersion7(), Guid.CreateVersion7(), "Card", Guid.CreateVersion7(), Guid.CreateVersion7());
+        await service.NotifyMentionsAsync(Guid.CreateVersion7(), Guid.CreateVersion7(), "Card", Guid.CreateVersion7(), "@alice test");
+        await service.NotifySprintStartedAsync(Guid.CreateVersion7(), "Sprint", Guid.CreateVersion7(), [Guid.CreateVersion7()]);
+        await service.NotifySprintCompletedAsync(Guid.CreateVersion7(), "Sprint", Guid.CreateVersion7(), [Guid.CreateVersion7()]);
     }
 }

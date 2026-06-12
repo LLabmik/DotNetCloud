@@ -70,8 +70,8 @@ public class FileVersionTests
     [TestMethod]
     public void WhenPropertiesSetThenStoresValues()
     {
-        var nodeId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
+        var nodeId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
 
         var version = new FileVersion
         {

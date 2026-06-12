@@ -136,8 +136,8 @@ public class VideoCallModelTests
     [TestMethod]
     public void WhenPropertiesSetThenValuesArePersisted()
     {
-        var channelId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
+        var channelId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
         var now = DateTime.UtcNow;
 
         var call = new VideoCall
@@ -281,8 +281,8 @@ public class CallParticipantModelTests
     [TestMethod]
     public void WhenPropertiesSetThenValuesArePersisted()
     {
-        var callId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
         var now = DateTime.UtcNow;
 
         var participant = new CallParticipant
@@ -329,7 +329,7 @@ public class VideoCallDbTests
     public void Setup()
     {
         var options = new DbContextOptionsBuilder<ChatDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options;
         _db = new ChatDbContext(options);
     }
@@ -346,7 +346,7 @@ public class VideoCallDbTests
         {
             Name = "test-channel",
             Type = ChannelType.Public,
-            CreatedByUserId = Guid.NewGuid()
+            CreatedByUserId = Guid.CreateVersion7()
         };
         _db.Channels.Add(channel);
         _db.SaveChanges();
@@ -355,7 +355,7 @@ public class VideoCallDbTests
 
     private VideoCall CreateTestVideoCall(Guid channelId, Guid? initiatorId = null)
     {
-        var userId = initiatorId ?? Guid.NewGuid();
+        var userId = initiatorId ?? Guid.CreateVersion7();
         var call = new VideoCall
         {
             ChannelId = channelId,
@@ -373,7 +373,7 @@ public class VideoCallDbTests
     public async Task WhenVideoCallSavedThenCanBeRetrieved()
     {
         var channel = CreateTestChannel();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         var call = new VideoCall
         {
@@ -412,7 +412,7 @@ public class VideoCallDbTests
         var call = new VideoCall
         {
             ChannelId = channel.Id,
-            InitiatorUserId = Guid.NewGuid(),
+            InitiatorUserId = Guid.CreateVersion7(),
             MediaType = CallMediaType.Audio
         };
         _db.VideoCalls.Add(call);
@@ -473,7 +473,7 @@ public class VideoCallDbTests
     {
         var channel = CreateTestChannel();
         var call = CreateTestVideoCall(channel.Id);
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         var participant = new CallParticipant
         {
@@ -504,7 +504,7 @@ public class VideoCallDbTests
         var p1 = new CallParticipant
         {
             VideoCallId = call.Id,
-            UserId = Guid.NewGuid(),
+            UserId = Guid.CreateVersion7(),
             Role = CallParticipantRole.Host,
             HasAudio = true,
             HasVideo = true
@@ -512,7 +512,7 @@ public class VideoCallDbTests
         var p2 = new CallParticipant
         {
             VideoCallId = call.Id,
-            UserId = Guid.NewGuid(),
+            UserId = Guid.CreateVersion7(),
             Role = CallParticipantRole.Participant,
             HasAudio = true,
             HasVideo = false
@@ -535,13 +535,13 @@ public class VideoCallDbTests
         _db.CallParticipants.Add(new CallParticipant
         {
             VideoCallId = call.Id,
-            UserId = Guid.NewGuid(),
+            UserId = Guid.CreateVersion7(),
             Role = CallParticipantRole.Host
         });
         _db.CallParticipants.Add(new CallParticipant
         {
             VideoCallId = call.Id,
-            UserId = Guid.NewGuid(),
+            UserId = Guid.CreateVersion7(),
             Role = CallParticipantRole.Participant
         });
         await _db.SaveChangesAsync();
@@ -564,7 +564,7 @@ public class VideoCallDbTests
         var participant = new CallParticipant
         {
             VideoCallId = call.Id,
-            UserId = Guid.NewGuid(),
+            UserId = Guid.CreateVersion7(),
             Role = CallParticipantRole.Host
         };
         _db.CallParticipants.Add(participant);
@@ -587,13 +587,13 @@ public class VideoCallDbTests
         _db.CallParticipants.Add(new CallParticipant
         {
             VideoCallId = call.Id,
-            UserId = Guid.NewGuid(),
+            UserId = Guid.CreateVersion7(),
             Role = CallParticipantRole.Host
         });
         _db.CallParticipants.Add(new CallParticipant
         {
             VideoCallId = call.Id,
-            UserId = Guid.NewGuid(),
+            UserId = Guid.CreateVersion7(),
             Role = CallParticipantRole.Participant
         });
         await _db.SaveChangesAsync();
@@ -629,13 +629,13 @@ public class VideoCallDbTests
         var activeCall = new VideoCall
         {
             ChannelId = channel.Id,
-            InitiatorUserId = Guid.NewGuid(),
+            InitiatorUserId = Guid.CreateVersion7(),
             State = VideoCallState.Active
         };
         var endedCall = new VideoCall
         {
             ChannelId = channel.Id,
-            InitiatorUserId = Guid.NewGuid(),
+            InitiatorUserId = Guid.CreateVersion7(),
             State = VideoCallState.Ended,
             EndReason = VideoCallEndReason.Normal,
             EndedAtUtc = DateTime.UtcNow
@@ -643,7 +643,7 @@ public class VideoCallDbTests
         var otherChannelCall = new VideoCall
         {
             ChannelId = otherChannel.Id,
-            InitiatorUserId = Guid.NewGuid(),
+            InitiatorUserId = Guid.CreateVersion7(),
             State = VideoCallState.Active
         };
 
@@ -666,19 +666,19 @@ public class VideoCallDbTests
         var call1 = new VideoCall
         {
             ChannelId = channel.Id,
-            InitiatorUserId = Guid.NewGuid(),
+            InitiatorUserId = Guid.CreateVersion7(),
             CreatedAtUtc = DateTime.UtcNow.AddHours(-2)
         };
         var call2 = new VideoCall
         {
             ChannelId = channel.Id,
-            InitiatorUserId = Guid.NewGuid(),
+            InitiatorUserId = Guid.CreateVersion7(),
             CreatedAtUtc = DateTime.UtcNow.AddHours(-1)
         };
         var call3 = new VideoCall
         {
             ChannelId = channel.Id,
-            InitiatorUserId = Guid.NewGuid(),
+            InitiatorUserId = Guid.CreateVersion7(),
             CreatedAtUtc = DateTime.UtcNow
         };
 
@@ -702,8 +702,8 @@ public class VideoCallDbTests
         var channel = CreateTestChannel();
         var call1 = CreateTestVideoCall(channel.Id);
         var call2 = CreateTestVideoCall(channel.Id);
-        var userId = Guid.NewGuid();
-        var otherUserId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var otherUserId = Guid.CreateVersion7();
 
         _db.CallParticipants.AddRange(
             new CallParticipant { VideoCallId = call1.Id, UserId = userId, Role = CallParticipantRole.Host },
@@ -730,7 +730,7 @@ public class VideoCallDbTests
             var call = new VideoCall
             {
                 ChannelId = channel.Id,
-                InitiatorUserId = Guid.NewGuid(),
+                InitiatorUserId = Guid.CreateVersion7(),
                 State = VideoCallState.Ended,
                 EndReason = reason,
                 EndedAtUtc = DateTime.UtcNow
@@ -758,7 +758,7 @@ public class VideoCallDbTests
             var call = new VideoCall
             {
                 ChannelId = channel.Id,
-                InitiatorUserId = Guid.NewGuid(),
+                InitiatorUserId = Guid.CreateVersion7(),
                 State = state
             };
             _db.VideoCalls.Add(call);
@@ -781,7 +781,7 @@ public class VideoCallDbTests
             var call = new VideoCall
             {
                 ChannelId = channel.Id,
-                InitiatorUserId = Guid.NewGuid(),
+                InitiatorUserId = Guid.CreateVersion7(),
                 MediaType = mediaType
             };
             _db.VideoCalls.Add(call);
@@ -808,7 +808,7 @@ public class VideoCallDbTests
             _db.CallParticipants.Add(new CallParticipant
             {
                 VideoCallId = call.Id,
-                UserId = Guid.NewGuid(),
+                UserId = Guid.CreateVersion7(),
                 Role = role
             });
         }
@@ -831,7 +831,7 @@ public class VideoCallDbTests
         var call = new VideoCall
         {
             ChannelId = channel.Id,
-            InitiatorUserId = Guid.NewGuid(),
+            InitiatorUserId = Guid.CreateVersion7(),
             State = VideoCallState.Active,
             IsGroupCall = true,
             LiveKitRoomId = "livekit-room-abc-123"
@@ -853,7 +853,7 @@ public class VideoCallDbTests
         var participant = new CallParticipant
         {
             VideoCallId = call.Id,
-            UserId = Guid.NewGuid(),
+            UserId = Guid.CreateVersion7(),
             Role = CallParticipantRole.Host,
             HasAudio = true,
             HasVideo = true,
@@ -884,7 +884,7 @@ public class VideoCallDbTests
         var participant = new CallParticipant
         {
             VideoCallId = call.Id,
-            UserId = Guid.NewGuid(),
+            UserId = Guid.CreateVersion7(),
             Role = CallParticipantRole.Participant
         };
         _db.CallParticipants.Add(participant);
@@ -947,7 +947,7 @@ public class VideoCallDbTests
     public async Task WhenVideoCallQueryByInitiatorThenFiltered()
     {
         var channel = CreateTestChannel();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         var myCall = new VideoCall
         {
@@ -958,7 +958,7 @@ public class VideoCallDbTests
         var otherCall = new VideoCall
         {
             ChannelId = channel.Id,
-            InitiatorUserId = Guid.NewGuid(),
+            InitiatorUserId = Guid.CreateVersion7(),
             State = VideoCallState.Ringing
         };
         _db.VideoCalls.AddRange(myCall, otherCall);
@@ -1006,7 +1006,7 @@ public class VideoCallDbTests
         var call = new VideoCall
         {
             ChannelId = channel.Id,
-            InitiatorUserId = Guid.NewGuid(),
+            InitiatorUserId = Guid.CreateVersion7(),
             State = VideoCallState.Active,
             IsGroupCall = true,
             MaxParticipants = 5,

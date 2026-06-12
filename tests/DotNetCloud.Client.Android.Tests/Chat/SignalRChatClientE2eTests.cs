@@ -212,7 +212,7 @@ public sealed class SignalRChatClientE2eTests
             string.Empty,
             string.Empty,
             payload.Message,
-            Guid.NewGuid(),
+            Guid.CreateVersion7(),
             DateTime.UtcNow,
             false);
 

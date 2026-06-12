@@ -81,9 +81,9 @@ public class ChunkedUploadSessionTests
     [TestMethod]
     public void WhenPropertiesSetThenStoresValues()
     {
-        var fileNodeId = Guid.NewGuid();
-        var parentId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
+        var fileNodeId = Guid.CreateVersion7();
+        var parentId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
 
         var session = new ChunkedUploadSession
         {

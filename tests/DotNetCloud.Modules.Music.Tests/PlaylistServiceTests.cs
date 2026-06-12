@@ -93,7 +93,7 @@ public class PlaylistServiceTests
     [TestMethod]
     public async Task GetPlaylist_PublicPlaylist_OtherUser_Returns()
     {
-        var other = Guid.NewGuid();
+        var other = Guid.CreateVersion7();
         var pl = await TestHelpers.SeedPlaylistAsync(_db, other, "Public PL", isPublic: true);
 
         var result = await _service.GetPlaylistAsync(pl.Id, _caller);
@@ -104,7 +104,7 @@ public class PlaylistServiceTests
     [TestMethod]
     public async Task GetPlaylist_PrivatePlaylist_OtherUser_ReturnsNull()
     {
-        var other = Guid.NewGuid();
+        var other = Guid.CreateVersion7();
         var pl = await TestHelpers.SeedPlaylistAsync(_db, other, "Private PL");
 
         var result = await _service.GetPlaylistAsync(pl.Id, _caller);
@@ -115,7 +115,7 @@ public class PlaylistServiceTests
     [TestMethod]
     public async Task GetPlaylist_NonExistent_ReturnsNull()
     {
-        var result = await _service.GetPlaylistAsync(Guid.NewGuid(), _caller);
+        var result = await _service.GetPlaylistAsync(Guid.CreateVersion7(), _caller);
         Assert.IsNull(result);
     }
 
@@ -125,8 +125,8 @@ public class PlaylistServiceTests
     public async Task ListPlaylists_ReturnsOwnPlaylists()
     {
         await TestHelpers.SeedPlaylistAsync(_db, _caller.UserId, "Mine");
-        await TestHelpers.SeedPlaylistAsync(_db, Guid.NewGuid(), "Other Public", isPublic: true);
-        await TestHelpers.SeedPlaylistAsync(_db, Guid.NewGuid(), "Other Private", isPublic: false);
+        await TestHelpers.SeedPlaylistAsync(_db, Guid.CreateVersion7(), "Other Public", isPublic: true);
+        await TestHelpers.SeedPlaylistAsync(_db, Guid.CreateVersion7(), "Other Private", isPublic: false);
 
         var result = await _service.ListPlaylistsAsync(_caller);
 
@@ -151,7 +151,7 @@ public class PlaylistServiceTests
     [TestMethod]
     public async Task UpdatePlaylist_NonOwner_Throws()
     {
-        var pl = await TestHelpers.SeedPlaylistAsync(_db, Guid.NewGuid(), "Other's PL");
+        var pl = await TestHelpers.SeedPlaylistAsync(_db, Guid.CreateVersion7(), "Other's PL");
 
         await Assert.ThrowsExactlyAsync<DotNetCloud.Core.Errors.BusinessRuleException>(
             () => _service.UpdatePlaylistAsync(pl.Id, new UpdatePlaylistDto { Name = "Hack" }, _caller));
@@ -175,7 +175,7 @@ public class PlaylistServiceTests
     public async Task DeletePlaylist_NonExistent_Throws()
     {
         await Assert.ThrowsExactlyAsync<DotNetCloud.Core.Errors.BusinessRuleException>(
-            () => _service.DeletePlaylistAsync(Guid.NewGuid(), _caller));
+            () => _service.DeletePlaylistAsync(Guid.CreateVersion7(), _caller));
     }
 
     // ─── AddTrack / RemoveTrack ───────────────────────────────────────
@@ -263,7 +263,7 @@ public class PlaylistServiceTests
     {
         var pl = await TestHelpers.SeedPlaylistAsync(_db, _caller.UserId);
         var (_, _, t1) = await TestHelpers.SeedCompleteTrackAsync(_db, trackTitle: "Exists", ownerId: _caller.UserId);
-        var nonExistentId = Guid.NewGuid();
+        var nonExistentId = Guid.CreateVersion7();
 
         await _service.AddTrackRangeAsync(pl.Id, [t1.Id, nonExistentId], _caller);
 
@@ -286,7 +286,7 @@ public class PlaylistServiceTests
     [TestMethod]
     public async Task AddTrackRange_NonOwner_Throws()
     {
-        var pl = await TestHelpers.SeedPlaylistAsync(_db, Guid.NewGuid());
+        var pl = await TestHelpers.SeedPlaylistAsync(_db, Guid.CreateVersion7());
         var (_, _, t1) = await TestHelpers.SeedCompleteTrackAsync(_db, trackTitle: "Track", ownerId: _caller.UserId);
 
         await Assert.ThrowsExactlyAsync<DotNetCloud.Core.Errors.BusinessRuleException>(

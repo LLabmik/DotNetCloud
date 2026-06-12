@@ -142,7 +142,7 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
             : Path.GetTempPath();
         var remuxDir = Path.Combine(tempDir, "dotnetcloud-remux");
         Directory.CreateDirectory(remuxDir);
-        var outputPath = Path.Combine(remuxDir, $"remux-{Guid.NewGuid():N}.mp4");
+        var outputPath = Path.Combine(remuxDir, $"remux-{Guid.CreateVersion7():N}.mp4");
 
         var args = _argBuilder.GetStreamCopyToFileArgs(sourceFilePath, outputPath, videoCodec, audioCodec);
 

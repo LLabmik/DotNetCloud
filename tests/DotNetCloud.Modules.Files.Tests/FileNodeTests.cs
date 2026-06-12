@@ -154,8 +154,8 @@ public class FileNodeTests
     [TestMethod]
     public void WhenDeletedFieldsSetThenSoftDeleteTracked()
     {
-        var userId = Guid.NewGuid();
-        var parentId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var parentId = Guid.CreateVersion7();
         var node = new FileNode { Name = "test.txt", ParentId = parentId };
 
         node.IsDeleted = true;

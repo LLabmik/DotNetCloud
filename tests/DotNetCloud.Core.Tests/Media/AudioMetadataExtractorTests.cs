@@ -23,7 +23,7 @@ public class AudioMetadataExtractorTests
     {
         var logger = new Mock<ILogger<AudioMetadataExtractor>>();
         _extractor = new AudioMetadataExtractor(logger.Object);
-        _tempDir = Path.Combine(Path.GetTempPath(), "dotnetcloud-test-" + Guid.NewGuid().ToString("N")[..8]);
+        _tempDir = Path.Combine(Path.GetTempPath(), "dotnetcloud-test-" + Guid.CreateVersion7().ToString("N")[..8]);
         Directory.CreateDirectory(_tempDir);
     }
 

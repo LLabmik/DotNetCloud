@@ -13,7 +13,7 @@ public sealed class MergeEditorViewModelTests
     [TestInitialize]
     public void Setup()
     {
-        _tempDir = Path.Combine(Path.GetTempPath(), "DncMergeTest_" + Guid.NewGuid().ToString("N")[..8]);
+        _tempDir = Path.Combine(Path.GetTempPath(), "DncMergeTest_" + Guid.CreateVersion7().ToString("N")[..8]);
         Directory.CreateDirectory(_tempDir);
         _localFile = Path.Combine(_tempDir, "file (conflict - user - 2026-03-09).txt");
         _serverFile = Path.Combine(_tempDir, "file.txt");

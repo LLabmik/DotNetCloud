@@ -199,7 +199,7 @@ public class PhotoEditServiceTests
         };
 
         await Assert.ThrowsExactlyAsync<BusinessRuleException>(
-            () => _service.ApplyEditAsync(Guid.NewGuid(), op, _caller));
+            () => _service.ApplyEditAsync(Guid.CreateVersion7(), op, _caller));
     }
 
     [TestMethod]
@@ -276,7 +276,7 @@ public class PhotoEditServiceTests
     public async Task UndoLastEdit_NonExistentPhoto_ThrowsBusinessRuleException()
     {
         await Assert.ThrowsExactlyAsync<BusinessRuleException>(
-            () => _service.UndoLastEditAsync(Guid.NewGuid(), _caller));
+            () => _service.UndoLastEditAsync(Guid.CreateVersion7(), _caller));
     }
 
     // ─── RevertAll ────────────────────────────────────────────────────
@@ -304,6 +304,6 @@ public class PhotoEditServiceTests
     public async Task RevertAll_NonExistentPhoto_ThrowsBusinessRuleException()
     {
         await Assert.ThrowsExactlyAsync<BusinessRuleException>(
-            () => _service.RevertAllAsync(Guid.NewGuid(), _caller));
+            () => _service.RevertAllAsync(Guid.CreateVersion7(), _caller));
     }
 }

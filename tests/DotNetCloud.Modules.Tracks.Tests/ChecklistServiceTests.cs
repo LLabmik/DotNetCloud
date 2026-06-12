@@ -24,9 +24,9 @@ public class ChecklistServiceTests
     [TestMethod]
     public async Task CreateChecklistAsync_CreatesChecklist()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
         var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
-        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.CreateVersion7());
         var dto = new CreateChecklistDto { Title = "Acceptance Criteria" };
 
         var result = await _service.CreateChecklistAsync(item.Id, dto, CancellationToken.None);
@@ -38,9 +38,9 @@ public class ChecklistServiceTests
     [TestMethod]
     public async Task GetChecklistsByItemAsync_ReturnsChecklists()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
         var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
-        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.CreateVersion7());
         await _service.CreateChecklistAsync(item.Id, new CreateChecklistDto { Title = "Checklist A" }, CancellationToken.None);
         await _service.CreateChecklistAsync(item.Id, new CreateChecklistDto { Title = "Checklist B" }, CancellationToken.None);
 
@@ -52,9 +52,9 @@ public class ChecklistServiceTests
     [TestMethod]
     public async Task DeleteChecklistAsync_RemovesChecklist()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
         var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
-        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.CreateVersion7());
         var checklist = await _service.CreateChecklistAsync(item.Id, new CreateChecklistDto { Title = "To Delete" }, CancellationToken.None);
 
         await _service.DeleteChecklistAsync(checklist.Id, CancellationToken.None);
@@ -66,9 +66,9 @@ public class ChecklistServiceTests
     [TestMethod]
     public async Task AddChecklistItemAsync_AddsItemToChecklist()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
         var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
-        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.CreateVersion7());
         var checklist = await _service.CreateChecklistAsync(item.Id, new CreateChecklistDto { Title = "Tasks" }, CancellationToken.None);
 
         var result = await _service.AddChecklistItemAsync(checklist.Id, new AddChecklistItemDto { Title = "Do the thing" }, CancellationToken.None);
@@ -80,9 +80,9 @@ public class ChecklistServiceTests
     [TestMethod]
     public async Task ToggleChecklistItemAsync_TogglesCompletion()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
         var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
-        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.CreateVersion7());
         var checklist = await _service.CreateChecklistAsync(item.Id, new CreateChecklistDto { Title = "Tasks" }, CancellationToken.None);
         var checkItem = await _service.AddChecklistItemAsync(checklist.Id, new AddChecklistItemDto { Title = "Step 1" }, CancellationToken.None);
 
@@ -95,9 +95,9 @@ public class ChecklistServiceTests
     [TestMethod]
     public async Task ToggleChecklistItemAsync_Twice_ReturnsToUnchecked()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
         var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
-        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.CreateVersion7());
         var checklist = await _service.CreateChecklistAsync(item.Id, new CreateChecklistDto { Title = "Tasks" }, CancellationToken.None);
         var checkItem = await _service.AddChecklistItemAsync(checklist.Id, new AddChecklistItemDto { Title = "Step 1" }, CancellationToken.None);
         await _service.ToggleChecklistItemAsync(checkItem.Id, CancellationToken.None);
@@ -111,9 +111,9 @@ public class ChecklistServiceTests
     [TestMethod]
     public async Task DeleteChecklistItemAsync_RemovesItem()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
         var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
-        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.NewGuid());
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, swimlane.Id, Guid.CreateVersion7());
         var checklist = await _service.CreateChecklistAsync(item.Id, new CreateChecklistDto { Title = "Tasks" }, CancellationToken.None);
         var checkItem = await _service.AddChecklistItemAsync(checklist.Id, new AddChecklistItemDto { Title = "Step 1" }, CancellationToken.None);
 

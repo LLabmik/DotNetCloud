@@ -27,14 +27,14 @@ public class ContactShareServiceTests
     public void Setup()
     {
         var options = new DbContextOptionsBuilder<ContactsDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options;
         _db = new ContactsDbContext(options);
         _eventBusMock = new Mock<IEventBus>();
         _contactService = new ContactService(_db, _eventBusMock.Object, NullLogger<ContactService>.Instance);
         _shareService = new ContactShareService(_db, _eventBusMock.Object, NullLogger<ContactShareService>.Instance);
-        _owner = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
-        _otherUser = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        _owner = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
+        _otherUser = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
     }
 
     [TestCleanup]
@@ -62,7 +62,7 @@ public class ContactShareServiceTests
     {
         var contact = await _contactService.CreateContactAsync(
             new CreateContactDto { ContactType = ContactType.Person, DisplayName = "Bob" }, _owner);
-        var teamId = Guid.NewGuid();
+        var teamId = Guid.CreateVersion7();
 
         var share = await _shareService.ShareContactAsync(
             contact.Id, null, teamId, ContactSharePermission.ReadWrite, _owner);
@@ -78,7 +78,7 @@ public class ContactShareServiceTests
     {
         await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
             () => _shareService.ShareContactAsync(
-                Guid.NewGuid(), _otherUser.UserId, null, ContactSharePermission.ReadOnly, _owner));
+                Guid.CreateVersion7(), _otherUser.UserId, null, ContactSharePermission.ReadOnly, _owner));
     }
 
     [TestMethod]
@@ -89,7 +89,7 @@ public class ContactShareServiceTests
 
         await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
             () => _shareService.ShareContactAsync(
-                contact.Id, Guid.NewGuid(), null, ContactSharePermission.ReadOnly, _otherUser));
+                contact.Id, Guid.CreateVersion7(), null, ContactSharePermission.ReadOnly, _otherUser));
     }
 
     [TestMethod]
@@ -139,7 +139,7 @@ public class ContactShareServiceTests
         await _shareService.ShareContactAsync(
             contact.Id, _otherUser.UserId, null, ContactSharePermission.ReadOnly, _owner);
         await _shareService.ShareContactAsync(
-            contact.Id, null, Guid.NewGuid(), ContactSharePermission.ReadWrite, _owner);
+            contact.Id, null, Guid.CreateVersion7(), ContactSharePermission.ReadWrite, _owner);
 
         var shares = await _shareService.ListSharesAsync(contact.Id, _owner);
 

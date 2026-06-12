@@ -42,7 +42,7 @@ public class LocalStateDbTests
     [TestMethod]
     public async Task UpsertAndGetFileRecord_RoundTrips()
     {
-        var nodeId = Guid.NewGuid();
+        var nodeId = Guid.CreateVersion7();
         var record = new LocalFileRecord
         {
             LocalPath = "/home/user/docs/report.docx",
@@ -70,7 +70,7 @@ public class LocalStateDbTests
     [TestMethod]
     public async Task GetFileRecordByNodeIdAsync_FindsRecord()
     {
-        var nodeId = Guid.NewGuid();
+        var nodeId = Guid.CreateVersion7();
         await _db.UpsertFileRecordAsync(_dbPath, new LocalFileRecord
         {
             LocalPath = "/docs/file.txt",
@@ -88,7 +88,7 @@ public class LocalStateDbTests
     [TestMethod]
     public async Task UpsertFileRecordAsync_UpdatesExistingRecord()
     {
-        var nodeId = Guid.NewGuid();
+        var nodeId = Guid.CreateVersion7();
         var path = "/docs/update.txt";
         await _db.UpsertFileRecordAsync(_dbPath, new LocalFileRecord
         {
@@ -119,7 +119,7 @@ public class LocalStateDbTests
         await _db.UpsertFileRecordAsync(_dbPath, new LocalFileRecord
         {
             LocalPath = path,
-            NodeId = Guid.NewGuid(),
+            NodeId = Guid.CreateVersion7(),
             LastSyncedAt = DateTime.UtcNow,
             LocalModifiedAt = DateTime.UtcNow,
         });
@@ -136,7 +136,7 @@ public class LocalStateDbTests
     public async Task QueueAndGetPendingOperations_RoundTrips()
     {
         await _db.QueueOperationAsync(_dbPath, new PendingUpload { LocalPath = "/docs/upload.txt" });
-        await _db.QueueOperationAsync(_dbPath, new PendingDownload { NodeId = Guid.NewGuid(), LocalPath = "/docs/download.txt" });
+        await _db.QueueOperationAsync(_dbPath, new PendingDownload { NodeId = Guid.CreateVersion7(), LocalPath = "/docs/download.txt" });
 
         var ops = await _db.GetPendingOperationsAsync(_dbPath);
 
@@ -163,7 +163,7 @@ public class LocalStateDbTests
     {
         await _db.QueueOperationAsync(_dbPath, new PendingUpload { LocalPath = "/a.txt" });
         await _db.QueueOperationAsync(_dbPath, new PendingUpload { LocalPath = "/b.txt" });
-        await _db.QueueOperationAsync(_dbPath, new PendingDownload { NodeId = Guid.NewGuid(), LocalPath = "/c.txt" });
+        await _db.QueueOperationAsync(_dbPath, new PendingDownload { NodeId = Guid.CreateVersion7(), LocalPath = "/c.txt" });
 
         var counts = await _db.GetPendingOperationCountAsync(_dbPath);
 
@@ -328,7 +328,7 @@ public class LocalStateDbTests
     [TestMethod]
     public async Task HasRecentTerminalDownloadFailureAsync_When404FailedDownloadExists_ReturnsTrue()
     {
-        var nodeId = Guid.NewGuid();
+        var nodeId = Guid.CreateVersion7();
         const string localPath = "/docs/missing.txt";
 
         await _db.QueueOperationAsync(_dbPath, new PendingDownload { LocalPath = localPath, NodeId = nodeId });
@@ -343,7 +343,7 @@ public class LocalStateDbTests
     [TestMethod]
     public async Task HasRecentTerminalDownloadFailureAsync_WhenOnlyNon404FailureExists_ReturnsFalse()
     {
-        var nodeId = Guid.NewGuid();
+        var nodeId = Guid.CreateVersion7();
         const string localPath = "/docs/transient.txt";
 
         await _db.QueueOperationAsync(_dbPath, new PendingDownload { LocalPath = localPath, NodeId = nodeId });
@@ -422,7 +422,7 @@ public class LocalStateDbTests
     [TestMethod]
     public async Task QueueOperationAsync_DuplicateDownload_SkipsSecondQueue()
     {
-        var nodeId = Guid.NewGuid();
+        var nodeId = Guid.CreateVersion7();
         await _db.QueueOperationAsync(_dbPath, new PendingDownload { NodeId = nodeId, LocalPath = "/docs/dl.txt" });
         await _db.QueueOperationAsync(_dbPath, new PendingDownload { NodeId = nodeId, LocalPath = "/docs/dl.txt" });
 
@@ -448,7 +448,7 @@ public class LocalStateDbTests
     [TestMethod]
     public async Task QueueOperationAsync_PendingDelete_RoundTrips()
     {
-        var nodeId = Guid.NewGuid();
+        var nodeId = Guid.CreateVersion7();
         await _db.QueueOperationAsync(_dbPath, new PendingDelete { NodeId = nodeId, LocalPath = "/docs/deleted.txt" });
 
         var ops = await _db.GetPendingOperationsAsync(_dbPath);
@@ -462,7 +462,7 @@ public class LocalStateDbTests
     [TestMethod]
     public async Task QueueOperationAsync_DuplicateDelete_SkipsSecondQueue()
     {
-        var nodeId = Guid.NewGuid();
+        var nodeId = Guid.CreateVersion7();
         await _db.QueueOperationAsync(_dbPath, new PendingDelete { NodeId = nodeId, LocalPath = "/docs/del.txt" });
         await _db.QueueOperationAsync(_dbPath, new PendingDelete { NodeId = nodeId, LocalPath = "/docs/del.txt" });
 
@@ -473,8 +473,8 @@ public class LocalStateDbTests
     [TestMethod]
     public async Task GetPendingDeleteNodeIdsAsync_ReturnsQueuedDeletes()
     {
-        var nodeId1 = Guid.NewGuid();
-        var nodeId2 = Guid.NewGuid();
+        var nodeId1 = Guid.CreateVersion7();
+        var nodeId2 = Guid.CreateVersion7();
         await _db.QueueOperationAsync(_dbPath, new PendingDelete { NodeId = nodeId1, LocalPath = "/a.txt" });
         await _db.QueueOperationAsync(_dbPath, new PendingDelete { NodeId = nodeId2, LocalPath = "/b.txt" });
         // Also queue an upload — should not appear in delete IDs.
@@ -490,8 +490,8 @@ public class LocalStateDbTests
     public async Task GetPendingOperationCountAsync_IncludesDeletes()
     {
         await _db.QueueOperationAsync(_dbPath, new PendingUpload { LocalPath = "/u.txt" });
-        await _db.QueueOperationAsync(_dbPath, new PendingDownload { NodeId = Guid.NewGuid(), LocalPath = "/d.txt" });
-        await _db.QueueOperationAsync(_dbPath, new PendingDelete { NodeId = Guid.NewGuid(), LocalPath = "/del.txt" });
+        await _db.QueueOperationAsync(_dbPath, new PendingDownload { NodeId = Guid.CreateVersion7(), LocalPath = "/d.txt" });
+        await _db.QueueOperationAsync(_dbPath, new PendingDelete { NodeId = Guid.CreateVersion7(), LocalPath = "/del.txt" });
 
         var counts = await _db.GetPendingOperationCountAsync(_dbPath);
         Assert.AreEqual(1, counts.Uploads);
@@ -508,21 +508,21 @@ public class LocalStateDbTests
         await _db.UpsertFileRecordAsync(_dbPath, new LocalFileRecord
         {
             LocalPath = "/sync/photos/a.jpg",
-            NodeId = Guid.NewGuid(),
+            NodeId = Guid.CreateVersion7(),
             LastSyncedAt = DateTime.UtcNow,
             LocalModifiedAt = DateTime.UtcNow,
         });
         await _db.UpsertFileRecordAsync(_dbPath, new LocalFileRecord
         {
             LocalPath = "/sync/photos/sub/b.jpg",
-            NodeId = Guid.NewGuid(),
+            NodeId = Guid.CreateVersion7(),
             LastSyncedAt = DateTime.UtcNow,
             LocalModifiedAt = DateTime.UtcNow,
         });
         await _db.UpsertFileRecordAsync(_dbPath, new LocalFileRecord
         {
             LocalPath = "/sync/docs/readme.md",
-            NodeId = Guid.NewGuid(),
+            NodeId = Guid.CreateVersion7(),
             LastSyncedAt = DateTime.UtcNow,
             LocalModifiedAt = DateTime.UtcNow,
         });
@@ -542,7 +542,7 @@ public class LocalStateDbTests
         await _db.UpsertFileRecordAsync(_dbPath, new LocalFileRecord
         {
             LocalPath = "/sync/docs/file.txt",
-            NodeId = Guid.NewGuid(),
+            NodeId = Guid.CreateVersion7(),
             LastSyncedAt = DateTime.UtcNow,
             LocalModifiedAt = DateTime.UtcNow,
         });

@@ -39,14 +39,14 @@ internal static class TestHelpers
     public static TracksDbContext CreateDb()
     {
         var options = new DbContextOptionsBuilder<TracksDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options;
         return new TracksDbContext(options);
     }
 
     /// <summary>Creates a CallerContext for a user.</summary>
     public static CallerContext CreateCaller(Guid? userId = null)
-        => new(userId ?? Guid.NewGuid(), ["user"], CallerType.User);
+        => new(userId ?? Guid.CreateVersion7(), ["user"], CallerType.User);
 
     /// <summary>Seeds a Product with the given owner as Owner member.</summary>
     public static async Task<Product> SeedProductAsync(TracksDbContext db, Guid organizationId, Guid ownerId, string name = "Test Product")

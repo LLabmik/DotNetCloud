@@ -14,7 +14,7 @@ public class AdminSharedFolderPathValidatorTests
     private static FilesDbContext CreateContext(string? name = null)
     {
         var options = new DbContextOptionsBuilder<FilesDbContext>()
-            .UseInMemoryDatabase(name ?? Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(name ?? Guid.CreateVersion7().ToString())
             .Options;
         return new FilesDbContext(options);
     }
@@ -113,7 +113,7 @@ public class AdminSharedFolderPathValidatorTests
             {
                 DisplayName = "Media",
                 SourcePath = Path.GetFullPath(existingFolderPath),
-                CreatedByUserId = Guid.NewGuid(),
+                CreatedByUserId = Guid.CreateVersion7(),
             });
             await db.SaveChangesAsync();
 
@@ -149,7 +149,7 @@ public class AdminSharedFolderPathValidatorTests
 
     private static string CreateTempDirectory()
     {
-        var path = Path.Combine(Path.GetTempPath(), $"dotnetcloud-admin-share-{Guid.NewGuid():N}");
+        var path = Path.Combine(Path.GetTempPath(), $"dotnetcloud-admin-share-{Guid.CreateVersion7():N}");
         Directory.CreateDirectory(path);
         return path;
     }

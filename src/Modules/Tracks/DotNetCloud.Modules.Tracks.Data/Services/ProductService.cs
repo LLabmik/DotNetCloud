@@ -112,7 +112,7 @@ public sealed class ProductService
         if (dto.SubItemsEnabled.HasValue)
             product.SubItemsEnabled = dto.SubItemsEnabled.Value;
 
-        product.ETag = Guid.NewGuid().ToString("N");
+        product.ETag = Guid.CreateVersion7().ToString("N");
         product.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(ct);
@@ -129,7 +129,7 @@ public sealed class ProductService
         product.IsDeleted = true;
         product.DeletedAt = DateTime.UtcNow;
         product.DeletedByUserId = deletedByUserId;
-        product.ETag = Guid.NewGuid().ToString("N");
+        product.ETag = Guid.CreateVersion7().ToString("N");
         product.UpdatedAt = DateTime.UtcNow;
 
         // Cascade soft-delete: mark all work items in the product as deleted
@@ -155,7 +155,7 @@ public sealed class ProductService
         product.IsDeleted = false;
         product.DeletedAt = null;
         product.DeletedByUserId = null;
-        product.ETag = Guid.NewGuid().ToString("N");
+        product.ETag = Guid.CreateVersion7().ToString("N");
         product.UpdatedAt = DateTime.UtcNow;
 
         // Restore all soft-deleted work items in the product

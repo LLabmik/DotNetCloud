@@ -27,15 +27,15 @@ public class ContactAvatarServiceTests
     public void Setup()
     {
         var options = new DbContextOptionsBuilder<ContactsDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options;
         _db = new ContactsDbContext(options);
         _eventBusMock = new Mock<IEventBus>();
         _contactService = new ContactService(_db, _eventBusMock.Object, NullLogger<ContactService>.Instance);
-        _tempStoragePath = Path.Combine(Path.GetTempPath(), "dnc-avatar-tests", Guid.NewGuid().ToString("N"));
+        _tempStoragePath = Path.Combine(Path.GetTempPath(), "dnc-avatar-tests", Guid.CreateVersion7().ToString("N"));
         Directory.CreateDirectory(_tempStoragePath);
         _avatarService = new ContactAvatarService(_db, NullLogger<ContactAvatarService>.Instance, _tempStoragePath);
-        _caller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        _caller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
     }
 
     [TestCleanup]
@@ -127,7 +127,7 @@ public class ContactAvatarServiceTests
     {
         using var stream = CreateFakeImageStream();
         await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
-            () => _avatarService.UploadAvatarAsync(Guid.NewGuid(), stream, "photo.jpg", "image/jpeg", _caller));
+            () => _avatarService.UploadAvatarAsync(Guid.CreateVersion7(), stream, "photo.jpg", "image/jpeg", _caller));
     }
 
     [TestMethod]
@@ -135,7 +135,7 @@ public class ContactAvatarServiceTests
     {
         var contact = await CreateTestContactAsync();
 
-        var otherCaller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        var otherCaller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
         using var stream = CreateFakeImageStream();
         await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
             () => _avatarService.UploadAvatarAsync(contact.Id, stream, "photo.jpg", "image/jpeg", otherCaller));
@@ -309,7 +309,7 @@ public class ContactAvatarServiceTests
     [TestMethod]
     public async Task GetAttachment_NonexistentId_ReturnsNull()
     {
-        var result = await _avatarService.GetAttachmentAsync(Guid.NewGuid(), _caller);
+        var result = await _avatarService.GetAttachmentAsync(Guid.CreateVersion7(), _caller);
         Assert.IsNull(result);
     }
 
@@ -335,7 +335,7 @@ public class ContactAvatarServiceTests
     public async Task DeleteAttachment_NonexistentId_Throws()
     {
         await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
-            () => _avatarService.DeleteAttachmentAsync(Guid.NewGuid(), _caller));
+            () => _avatarService.DeleteAttachmentAsync(Guid.CreateVersion7(), _caller));
     }
 
     [TestMethod]
@@ -346,7 +346,7 @@ public class ContactAvatarServiceTests
         var attachment = await _avatarService.AddAttachmentAsync(
             contact.Id, stream, "file.txt", "text/plain", null, _caller);
 
-        var otherCaller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        var otherCaller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
         await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
             () => _avatarService.DeleteAttachmentAsync(attachment.Id, otherCaller));
     }

@@ -13,7 +13,7 @@ public class CallerContextTests
     public void Constructor_WithValidParameters_CreatesContext()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var roles = new[] { "Admin", "User" };
 
         // Act
@@ -44,7 +44,7 @@ public class CallerContextTests
     public void Constructor_WithEmptyRolesArray_CreatesContext()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         // Act
         var context = new CallerContext(userId, Array.Empty<string>(), CallerType.User);
@@ -57,7 +57,7 @@ public class CallerContextTests
     public void HasRole_WithExistingRole_ReturnsTrue()
     {
         // Arrange
-        var context = new CallerContext(Guid.NewGuid(), new[] { "Admin", "User" }, CallerType.User);
+        var context = new CallerContext(Guid.CreateVersion7(), new[] { "Admin", "User" }, CallerType.User);
 
         // Act
         var result = context.HasRole("Admin");
@@ -70,7 +70,7 @@ public class CallerContextTests
     public void HasRole_WithNonExistingRole_ReturnsFalse()
     {
         // Arrange
-        var context = new CallerContext(Guid.NewGuid(), new[] { "Admin" }, CallerType.User);
+        var context = new CallerContext(Guid.CreateVersion7(), new[] { "Admin" }, CallerType.User);
 
         // Act
         var result = context.HasRole("SuperAdmin");
@@ -83,7 +83,7 @@ public class CallerContextTests
     public void HasRole_WithNullRole_ReturnsFalse()
     {
         // Arrange
-        var context = new CallerContext(Guid.NewGuid(), new[] { "Admin" }, CallerType.User);
+        var context = new CallerContext(Guid.CreateVersion7(), new[] { "Admin" }, CallerType.User);
 
         // Act
         var result = context.HasRole(null!);
@@ -96,7 +96,7 @@ public class CallerContextTests
     public void HasRole_WithEmptyRole_ReturnsFalse()
     {
         // Arrange
-        var context = new CallerContext(Guid.NewGuid(), new[] { "Admin" }, CallerType.User);
+        var context = new CallerContext(Guid.CreateVersion7(), new[] { "Admin" }, CallerType.User);
 
         // Act
         var result = context.HasRole(string.Empty);
@@ -109,7 +109,7 @@ public class CallerContextTests
     public void HasRole_IsCaseInsensitive()
     {
         // Arrange
-        var context = new CallerContext(Guid.NewGuid(), new[] { "Admin" }, CallerType.User);
+        var context = new CallerContext(Guid.CreateVersion7(), new[] { "Admin" }, CallerType.User);
 
         // Act
         var result1 = context.HasRole("admin");
@@ -126,7 +126,7 @@ public class CallerContextTests
     public void HasAnyRole_WithOneMatchingRole_ReturnsTrue()
     {
         // Arrange
-        var context = new CallerContext(Guid.NewGuid(), new[] { "User" }, CallerType.User);
+        var context = new CallerContext(Guid.CreateVersion7(), new[] { "User" }, CallerType.User);
 
         // Act
         var result = context.HasAnyRole("Admin", "User", "Moderator");
@@ -139,7 +139,7 @@ public class CallerContextTests
     public void HasAnyRole_WithNoMatchingRoles_ReturnsFalse()
     {
         // Arrange
-        var context = new CallerContext(Guid.NewGuid(), new[] { "User" }, CallerType.User);
+        var context = new CallerContext(Guid.CreateVersion7(), new[] { "User" }, CallerType.User);
 
         // Act
         var result = context.HasAnyRole("Admin", "Moderator", "SuperAdmin");
@@ -152,7 +152,7 @@ public class CallerContextTests
     public void HasAnyRole_WithNullRoles_ReturnsFalse()
     {
         // Arrange
-        var context = new CallerContext(Guid.NewGuid(), new[] { "User" }, CallerType.User);
+        var context = new CallerContext(Guid.CreateVersion7(), new[] { "User" }, CallerType.User);
 
         // Act
         var result = context.HasAnyRole(null!);
@@ -165,7 +165,7 @@ public class CallerContextTests
     public void HasAnyRole_WithEmptyRolesArray_ReturnsFalse()
     {
         // Arrange
-        var context = new CallerContext(Guid.NewGuid(), new[] { "User" }, CallerType.User);
+        var context = new CallerContext(Guid.CreateVersion7(), new[] { "User" }, CallerType.User);
 
         // Act
         var result = context.HasAnyRole();
@@ -178,7 +178,7 @@ public class CallerContextTests
     public void HasAllRoles_WithAllRolesPresent_ReturnsTrue()
     {
         // Arrange
-        var context = new CallerContext(Guid.NewGuid(), new[] { "Admin", "Moderator", "User" }, CallerType.User);
+        var context = new CallerContext(Guid.CreateVersion7(), new[] { "Admin", "Moderator", "User" }, CallerType.User);
 
         // Act
         var result = context.HasAllRoles("Admin", "User");
@@ -191,7 +191,7 @@ public class CallerContextTests
     public void HasAllRoles_WithMissingRole_ReturnsFalse()
     {
         // Arrange
-        var context = new CallerContext(Guid.NewGuid(), new[] { "Admin", "User" }, CallerType.User);
+        var context = new CallerContext(Guid.CreateVersion7(), new[] { "Admin", "User" }, CallerType.User);
 
         // Act
         var result = context.HasAllRoles("Admin", "User", "SuperAdmin");
@@ -204,7 +204,7 @@ public class CallerContextTests
     public void HasAllRoles_WithNullRoles_ReturnsTrue()
     {
         // Arrange
-        var context = new CallerContext(Guid.NewGuid(), new[] { "User" }, CallerType.User);
+        var context = new CallerContext(Guid.CreateVersion7(), new[] { "User" }, CallerType.User);
 
         // Act
         var result = context.HasAllRoles(null!);
@@ -217,7 +217,7 @@ public class CallerContextTests
     public void HasAllRoles_WithEmptyRolesArray_ReturnsTrue()
     {
         // Arrange
-        var context = new CallerContext(Guid.NewGuid(), new[] { "User" }, CallerType.User);
+        var context = new CallerContext(Guid.CreateVersion7(), new[] { "User" }, CallerType.User);
 
         // Act
         var result = context.HasAllRoles();
@@ -242,7 +242,7 @@ public class CallerContextTests
     public void CreateModuleContext_WithValidModuleId_CreatesContext()
     {
         // Arrange
-        var moduleId = Guid.NewGuid();
+        var moduleId = Guid.CreateVersion7();
 
         // Act
         var context = CallerContext.CreateModuleContext(moduleId);
@@ -257,7 +257,7 @@ public class CallerContextTests
     public void CreateModuleContext_WithRoles_CreatesContextWithRoles()
     {
         // Arrange
-        var moduleId = Guid.NewGuid();
+        var moduleId = Guid.CreateVersion7();
         var roles = new[] { "ModuleRole1", "ModuleRole2" };
 
         // Act
@@ -288,7 +288,7 @@ public class CallerContextTests
     public void CallerContext_IsRecord_SupportsEquality()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var roles = new[] { "Admin" };
         var context1 = new CallerContext(userId, roles, CallerType.User);
         var context2 = new CallerContext(userId, roles, CallerType.User);
@@ -302,8 +302,8 @@ public class CallerContextTests
     {
         // Arrange
         var roles = new[] { "Admin" };
-        var context1 = new CallerContext(Guid.NewGuid(), roles, CallerType.User);
-        var context2 = new CallerContext(Guid.NewGuid(), roles, CallerType.User);
+        var context1 = new CallerContext(Guid.CreateVersion7(), roles, CallerType.User);
+        var context2 = new CallerContext(Guid.CreateVersion7(), roles, CallerType.User);
 
         // Act & Assert
         Assert.AreNotEqual(context1, context2);

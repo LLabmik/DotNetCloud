@@ -24,12 +24,12 @@ public class AiChatServiceTests
     public void Setup()
     {
         var options = new DbContextOptionsBuilder<AiDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options;
         _db = new AiDbContext(options);
         _ollamaMock = new Mock<IOllamaClient>();
         _service = new AiChatService(_db, _ollamaMock.Object, NullLogger<AiChatService>.Instance);
-        _caller = new CallerContext(Guid.NewGuid(), new[] { "user" }, CallerType.User);
+        _caller = new CallerContext(Guid.CreateVersion7(), new[] { "user" }, CallerType.User);
     }
 
     [TestCleanup]
@@ -82,7 +82,7 @@ public class AiChatServiceTests
     {
         var created = await _service.CreateConversationAsync(_caller, "Test", "gpt-oss:20b", null);
 
-        var otherCaller = new CallerContext(Guid.NewGuid(), new[] { "user" }, CallerType.User);
+        var otherCaller = new CallerContext(Guid.CreateVersion7(), new[] { "user" }, CallerType.User);
         var result = await _service.GetConversationAsync(otherCaller, created.Id);
 
         Assert.IsNull(result);
@@ -94,7 +94,7 @@ public class AiChatServiceTests
         await _service.CreateConversationAsync(_caller, "Chat 1", "gpt-oss:20b", null);
         await _service.CreateConversationAsync(_caller, "Chat 2", "gpt-oss:20b", null);
 
-        var otherCaller = new CallerContext(Guid.NewGuid(), new[] { "user" }, CallerType.User);
+        var otherCaller = new CallerContext(Guid.CreateVersion7(), new[] { "user" }, CallerType.User);
         await _service.CreateConversationAsync(otherCaller, "Other Chat", "gpt-oss:20b", null);
 
         var conversations = await _service.ListConversationsAsync(_caller);
@@ -126,7 +126,7 @@ public class AiChatServiceTests
     [TestMethod]
     public async Task DeleteConversation_NonExistent_ReturnsFalse()
     {
-        var result = await _service.DeleteConversationAsync(_caller, Guid.NewGuid());
+        var result = await _service.DeleteConversationAsync(_caller, Guid.CreateVersion7());
         Assert.IsFalse(result);
     }
 
@@ -159,7 +159,7 @@ public class AiChatServiceTests
     public async Task SendMessage_NonExistentConversation_ThrowsInvalidOperation()
     {
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(
-            () => _service.SendMessageAsync(_caller, Guid.NewGuid(), "Hello"));
+            () => _service.SendMessageAsync(_caller, Guid.CreateVersion7(), "Hello"));
     }
 
     [TestMethod]

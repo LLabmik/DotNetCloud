@@ -30,7 +30,7 @@ public sealed record AuditEntry
     /// <summary>
     /// Unique ID for this audit entry.
     /// </summary>
-    public Guid Id { get; init; } = Guid.NewGuid();
+    public Guid Id { get; init; } = Guid.CreateVersion7();
 
     /// <summary>
     /// When the action occurred (UTC).

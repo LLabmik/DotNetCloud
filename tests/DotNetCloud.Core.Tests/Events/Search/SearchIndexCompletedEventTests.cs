@@ -12,7 +12,7 @@ public class SearchIndexCompletedEventTests
     public void SearchIndexCompletedEvent_CanBeCreated_ForSuccess()
     {
         // Arrange
-        var eventId = Guid.NewGuid();
+        var eventId = Guid.CreateVersion7();
         var now = DateTime.UtcNow;
 
         // Act
@@ -38,7 +38,7 @@ public class SearchIndexCompletedEventTests
         // Act
         var evt = new SearchIndexCompletedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             Status = IndexCompletionStatus.PartialSuccess,
             DocumentsProcessed = 42,
@@ -57,7 +57,7 @@ public class SearchIndexCompletedEventTests
         // Arrange
         var evt = new SearchIndexCompletedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             Status = IndexCompletionStatus.Failed,
             DocumentsProcessed = 0

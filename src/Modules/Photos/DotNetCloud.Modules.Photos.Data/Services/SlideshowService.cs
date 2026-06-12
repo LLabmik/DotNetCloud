@@ -36,7 +36,7 @@ public sealed class SlideshowService : ISlideshowService
 
         return new SlideshowDto
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             AlbumId = albumId,
             PhotoIds = photoIds,
             IntervalSeconds = intervalSeconds,
@@ -51,7 +51,7 @@ public sealed class SlideshowService : ISlideshowService
     {
         return Task.FromResult(new SlideshowDto
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             PhotoIds = photoIds,
             IntervalSeconds = intervalSeconds,
             Transition = transition

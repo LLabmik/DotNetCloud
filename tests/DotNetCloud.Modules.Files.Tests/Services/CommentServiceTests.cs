@@ -15,7 +15,7 @@ public class CommentServiceTests
     private static FilesDbContext CreateContext(string? name = null)
     {
         var options = new DbContextOptionsBuilder<FilesDbContext>()
-            .UseInMemoryDatabase(name ?? Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(name ?? Guid.CreateVersion7().ToString())
             .Options;
         return new FilesDbContext(options);
     }
@@ -43,7 +43,7 @@ public class CommentServiceTests
     public async Task AddCommentAsync_ValidInput_CreatesComment()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = CreateFileNode(userId);
         db.FileNodes.Add(node);
         await db.SaveChangesAsync();
@@ -60,7 +60,7 @@ public class CommentServiceTests
     public async Task AddCommentAsync_WithParent_CreatesReply()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = CreateFileNode(userId);
         db.FileNodes.Add(node);
         var parent = new FileComment { FileNodeId = node.Id, Content = "Parent", CreatedByUserId = userId };
@@ -80,20 +80,20 @@ public class CommentServiceTests
         var service = CreateService(db);
 
         await Assert.ThrowsExactlyAsync<NotFoundException>(
-            () => service.AddCommentAsync(Guid.NewGuid(), "text", null, UserCaller(Guid.NewGuid())));
+            () => service.AddCommentAsync(Guid.CreateVersion7(), "text", null, UserCaller(Guid.CreateVersion7())));
     }
 
     [TestMethod]
     public async Task AddCommentAsync_MountedAdminSharedFile_ThrowsInvalidOperationException()
     {
         using var db = CreateContext();
-        var sharedFolderId = Guid.NewGuid();
+        var sharedFolderId = Guid.CreateVersion7();
         db.AdminSharedFolders.Add(new AdminSharedFolderDefinition
         {
             Id = sharedFolderId,
             DisplayName = "Mounted",
             SourcePath = Path.GetTempPath(),
-            CreatedByUserId = Guid.NewGuid(),
+            CreatedByUserId = Guid.CreateVersion7(),
         });
         await db.SaveChangesAsync();
 
@@ -101,14 +101,14 @@ public class CommentServiceTests
         var mountedFileId = RegisterMountedFile(sharedFolderId);
 
         await Assert.ThrowsExactlyAsync<Core.Errors.InvalidOperationException>(
-            () => service.AddCommentAsync(mountedFileId, "hello", null, UserCaller(Guid.NewGuid())));
+            () => service.AddCommentAsync(mountedFileId, "hello", null, UserCaller(Guid.CreateVersion7())));
     }
 
     [TestMethod]
     public async Task EditCommentAsync_Author_UpdatesContent()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = CreateFileNode(userId);
         db.FileNodes.Add(node);
         var comment = new FileComment { FileNodeId = node.Id, Content = "Original", CreatedByUserId = userId };
@@ -126,8 +126,8 @@ public class CommentServiceTests
     public async Task EditCommentAsync_NonAuthor_ThrowsForbiddenException()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
-        var otherId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var otherId = Guid.CreateVersion7();
         var node = CreateFileNode(userId);
         db.FileNodes.Add(node);
         var comment = new FileComment { FileNodeId = node.Id, Content = "Original", CreatedByUserId = userId };
@@ -144,7 +144,7 @@ public class CommentServiceTests
     public async Task DeleteCommentAsync_Author_SoftDeletes()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = CreateFileNode(userId);
         db.FileNodes.Add(node);
         var comment = new FileComment { FileNodeId = node.Id, Content = "ToDelete", CreatedByUserId = userId };
@@ -167,7 +167,7 @@ public class CommentServiceTests
     public async Task GetCommentsAsync_ReturnsTopLevelWithReplyCounts()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = CreateFileNode(userId);
         db.FileNodes.Add(node);
 
@@ -190,7 +190,7 @@ public class CommentServiceTests
     public async Task GetCommentAsync_ExistingComment_ReturnsDto()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = CreateFileNode(userId);
         db.FileNodes.Add(node);
         var comment = new FileComment { FileNodeId = node.Id, Content = "Hello", CreatedByUserId = userId };
@@ -210,7 +210,7 @@ public class CommentServiceTests
         using var db = CreateContext();
         var service = CreateService(db);
 
-        var result = await service.GetCommentAsync(Guid.NewGuid(), UserCaller(Guid.NewGuid()));
+        var result = await service.GetCommentAsync(Guid.CreateVersion7(), UserCaller(Guid.CreateVersion7()));
 
         Assert.IsNull(result);
     }

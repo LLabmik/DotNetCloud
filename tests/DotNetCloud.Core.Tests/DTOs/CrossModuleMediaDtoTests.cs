@@ -52,7 +52,7 @@ public class CrossModuleMediaDtoTests
     {
         var dto = new VideoContinueWatchingDto
         {
-            VideoId = Guid.NewGuid(),
+            VideoId = Guid.CreateVersion7(),
             Title = "Test",
             FileName = "test.mp4",
             Duration = TimeSpan.FromMinutes(100),
@@ -68,7 +68,7 @@ public class CrossModuleMediaDtoTests
     {
         var dto = new VideoContinueWatchingDto
         {
-            VideoId = Guid.NewGuid(),
+            VideoId = Guid.CreateVersion7(),
             Title = "Test",
             FileName = "test.mp4",
             Duration = TimeSpan.FromMinutes(10),
@@ -84,7 +84,7 @@ public class CrossModuleMediaDtoTests
     {
         var dto = new VideoContinueWatchingDto
         {
-            VideoId = Guid.NewGuid(),
+            VideoId = Guid.CreateVersion7(),
             Title = "Test",
             FileName = "test.mp4",
             Duration = TimeSpan.Zero,
@@ -100,7 +100,7 @@ public class CrossModuleMediaDtoTests
     {
         var dto = new VideoContinueWatchingDto
         {
-            VideoId = Guid.NewGuid(),
+            VideoId = Guid.CreateVersion7(),
             Title = "Test",
             FileName = "test.mp4",
             Duration = TimeSpan.FromMinutes(90),
@@ -116,7 +116,7 @@ public class CrossModuleMediaDtoTests
     {
         var dto = new VideoContinueWatchingDto
         {
-            VideoId = Guid.NewGuid(),
+            VideoId = Guid.CreateVersion7(),
             Title = "Test",
             FileName = "test.mp4",
             Duration = TimeSpan.FromSeconds(100),
@@ -130,7 +130,7 @@ public class CrossModuleMediaDtoTests
     [TestMethod]
     public void RecentMediaItemDto_RequiredProperties_AreInitialized()
     {
-        var id = Guid.NewGuid();
+        var id = Guid.CreateVersion7();
         var now = DateTime.UtcNow;
 
         var dto = new RecentMediaItemDto
@@ -193,7 +193,7 @@ public class CrossModuleMediaDtoTests
         var dto = new CrossModuleLinkDto
         {
             LinkType = CrossModuleLinkType.MusicTrack,
-            TargetId = Guid.NewGuid(),
+            TargetId = Guid.CreateVersion7(),
             DisplayLabel = "Bohemian Rhapsody",
             Href = "/music/tracks/abc123"
         };
@@ -206,7 +206,7 @@ public class CrossModuleMediaDtoTests
     [TestMethod]
     public void CrossModuleLinkRequest_WithVideoType_Constructs()
     {
-        var targetId = Guid.NewGuid();
+        var targetId = Guid.CreateVersion7();
         var request = new CrossModuleLinkRequest
         {
             LinkType = CrossModuleLinkType.VideoCollection,
@@ -234,9 +234,9 @@ public class CrossModuleMediaDtoTests
 
     private static PhotoDto CreatePhoto() => new()
     {
-        Id = Guid.NewGuid(),
-        FileNodeId = Guid.NewGuid(),
-        OwnerId = Guid.NewGuid(),
+        Id = Guid.CreateVersion7(),
+        FileNodeId = Guid.CreateVersion7(),
+        OwnerId = Guid.CreateVersion7(),
         FileName = "photo.jpg",
         MimeType = "image/jpeg",
         TakenAt = DateTime.UtcNow,
@@ -245,36 +245,36 @@ public class CrossModuleMediaDtoTests
 
     private static TrackDto CreateTrack() => new()
     {
-        Id = Guid.NewGuid(),
-        FileNodeId = Guid.NewGuid(),
+        Id = Guid.CreateVersion7(),
+        FileNodeId = Guid.CreateVersion7(),
         Title = "Track",
         MimeType = "audio/mpeg",
         TrackNumber = 1,
-        ArtistId = Guid.NewGuid(),
+        ArtistId = Guid.CreateVersion7(),
         ArtistName = "Test Artist",
         CreatedAt = DateTime.UtcNow
     };
 
     private static MusicAlbumDto CreateMusicAlbum() => new()
     {
-        Id = Guid.NewGuid(),
+        Id = Guid.CreateVersion7(),
         Title = "Album",
-        ArtistId = Guid.NewGuid(),
+        ArtistId = Guid.CreateVersion7(),
         ArtistName = "Artist",
         CreatedAt = DateTime.UtcNow
     };
 
     private static ArtistDto CreateArtist() => new()
     {
-        Id = Guid.NewGuid(),
+        Id = Guid.CreateVersion7(),
         Name = "Artist",
         CreatedAt = DateTime.UtcNow
     };
 
     private static VideoDto CreateVideo() => new()
     {
-        Id = Guid.NewGuid(),
-        FileNodeId = Guid.NewGuid(),
+        Id = Guid.CreateVersion7(),
+        FileNodeId = Guid.CreateVersion7(),
         Title = "Video",
         FileName = "video.mp4",
         MimeType = "video/mp4",

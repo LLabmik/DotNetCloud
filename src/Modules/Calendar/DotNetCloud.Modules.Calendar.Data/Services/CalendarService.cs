@@ -133,7 +133,7 @@ public sealed class CalendarService : ICalendarService
         if (dto.IsVisible is not null)
             calendar.IsVisible = dto.IsVisible.Value;
 
-        calendar.SyncToken = Guid.NewGuid().ToString("N");
+        calendar.SyncToken = Guid.CreateVersion7().ToString("N");
         calendar.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(cancellationToken);

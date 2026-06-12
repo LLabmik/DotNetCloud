@@ -5,7 +5,7 @@ namespace DotNetCloud.Modules.Tracks.Models;
 /// </summary>
 public sealed class WorkItemFieldValue
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
     public Guid WorkItemId { get; set; }
     public Guid CustomFieldId { get; set; }
     /// <summary>The field value stored as a string (parsed/validated by the service layer).</summary>

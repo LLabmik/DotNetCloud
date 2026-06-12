@@ -40,7 +40,7 @@ public class MusicStreamingServiceTests
     [TestMethod]
     public async Task GetTrackForStreaming_NonExistent_ReturnsNull()
     {
-        var result = await _service.GetTrackForStreamingAsync(Guid.NewGuid(), _caller.UserId);
+        var result = await _service.GetTrackForStreamingAsync(Guid.CreateVersion7(), _caller.UserId);
         Assert.IsNull(result);
     }
 
@@ -49,7 +49,7 @@ public class MusicStreamingServiceTests
     [TestMethod]
     public void GenerateStreamToken_ReturnsNonEmptyToken()
     {
-        var token = _service.GenerateStreamToken(Guid.NewGuid(), _caller.UserId);
+        var token = _service.GenerateStreamToken(Guid.CreateVersion7(), _caller.UserId);
 
         Assert.IsNotNull(token);
         Assert.IsTrue(token.Length > 10);
@@ -58,7 +58,7 @@ public class MusicStreamingServiceTests
     [TestMethod]
     public void GenerateStreamToken_UniqueTokensPerCall()
     {
-        var trackId = Guid.NewGuid();
+        var trackId = Guid.CreateVersion7();
         var token1 = _service.GenerateStreamToken(trackId, _caller.UserId);
         var token2 = _service.GenerateStreamToken(trackId, _caller.UserId);
 
@@ -70,7 +70,7 @@ public class MusicStreamingServiceTests
     [TestMethod]
     public void ValidateStreamToken_ValidToken_ReturnsTrackIdAndUserId()
     {
-        var trackId = Guid.NewGuid();
+        var trackId = Guid.CreateVersion7();
         var token = _service.GenerateStreamToken(trackId, _caller.UserId);
 
         var result = _service.ValidateStreamToken(token);
@@ -141,7 +141,7 @@ public class MusicStreamingServiceTests
     [TestMethod]
     public void AcquireStreamSlot_DifferentUsers_IndependentSlots()
     {
-        var user2 = Guid.NewGuid();
+        var user2 = Guid.CreateVersion7();
 
         // Fill user1 slots
         _service.AcquireStreamSlot(_caller.UserId);

@@ -84,7 +84,7 @@ public class ApiErrorResponseTests
     public void ApiErrorResponse_FromException_ConvertsCapabilityNotGrantedException()
     {
         // Arrange
-        var context = new CallerContext(Guid.NewGuid(), Array.Empty<string>(), CallerType.User);
+        var context = new CallerContext(Guid.CreateVersion7(), Array.Empty<string>(), CallerType.User);
         var exception = new CapabilityNotGrantedException("TestCapability", context);
         var traceId = "trace-456";
 

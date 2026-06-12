@@ -28,7 +28,7 @@ public class MusicPageTrackIdTests
         SetPrivateProperty(_page, "TrackService", _trackServiceMock.Object);
         SetPrivateProperty(_page, "Logger", loggerMock.Object);
 
-        _caller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        _caller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
     }
 
     private static void SetPrivateProperty(object target, string name, object value)
@@ -52,7 +52,7 @@ public class MusicPageTrackIdTests
     [TestMethod]
     public async Task TryNavigateToTrackAlbumAsync_TrackHasAlbum_NavigatesToAlbum()
     {
-        var albumId = Guid.NewGuid();
+        var albumId = Guid.CreateVersion7();
         var track = MakeTrack(albumId: albumId);
         _trackServiceMock
             .Setup(s => s.GetTrackAsync(track.Id, _caller, It.IsAny<CancellationToken>()))
@@ -82,7 +82,7 @@ public class MusicPageTrackIdTests
     [TestMethod]
     public async Task TryNavigateToTrackAlbumAsync_TrackNotFound_NoAction()
     {
-        var trackId = Guid.NewGuid();
+        var trackId = Guid.CreateVersion7();
         _trackServiceMock
             .Setup(s => s.GetTrackAsync(trackId, _caller, It.IsAny<CancellationToken>()))
             .ReturnsAsync((TrackDto?)null);
@@ -96,7 +96,7 @@ public class MusicPageTrackIdTests
     [TestMethod]
     public async Task TryNavigateToTrackAlbumAsync_ServiceThrows_DoesNotCrash()
     {
-        var trackId = Guid.NewGuid();
+        var trackId = Guid.CreateVersion7();
         _trackServiceMock
             .Setup(s => s.GetTrackAsync(trackId, _caller, It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("DB down"));
@@ -128,12 +128,12 @@ public class MusicPageTrackIdTests
     {
         return new TrackDto
         {
-            Id = Guid.NewGuid(),
-            FileNodeId = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
+            FileNodeId = Guid.CreateVersion7(),
             Title = title,
             Duration = TimeSpan.FromMinutes(4),
             MimeType = "audio/flac",
-            ArtistId = Guid.NewGuid(),
+            ArtistId = Guid.CreateVersion7(),
             ArtistName = "Test Artist",
             AlbumId = albumId,
             AlbumTitle = albumId is not null ? "Test Album" : null,

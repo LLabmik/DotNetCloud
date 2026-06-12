@@ -29,8 +29,8 @@ public class TeamTests
     public void Team_SetProperties_StoresValuesCorrectly()
     {
         // Arrange
-        var id = Guid.NewGuid();
-        var organizationId = Guid.NewGuid();
+        var id = Guid.CreateVersion7();
+        var organizationId = Guid.CreateVersion7();
         var name = "Engineering Team";
         var description = "Software development team";
         var createdAt = DateTime.UtcNow;
@@ -59,8 +59,8 @@ public class TeamTests
         // Arrange
         var team = new Team
         {
-            Id = Guid.NewGuid(),
-            OrganizationId = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
+            OrganizationId = Guid.CreateVersion7(),
             Name = "Test Team",
             CreatedAt = DateTime.UtcNow
         };
@@ -81,15 +81,15 @@ public class TeamTests
         // Arrange
         var team = new Team
         {
-            Id = Guid.NewGuid(),
-            OrganizationId = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
+            OrganizationId = Guid.CreateVersion7(),
             Name = "Test Team"
         };
 
         // Act
         team.Members = new List<TeamMember>
         {
-            new TeamMember { TeamId = team.Id, UserId = Guid.NewGuid() }
+            new TeamMember { TeamId = team.Id, UserId = Guid.CreateVersion7() }
         };
 
         // Assert
@@ -100,7 +100,7 @@ public class TeamTests
     public void Team_OrganizationId_RequiredForeignKey()
     {
         // Arrange
-        var organizationId = Guid.NewGuid();
+        var organizationId = Guid.CreateVersion7();
 
         // Act
         var team = new Team
@@ -134,7 +134,7 @@ public class TeamTests
         var team = new Team
         {
             Name = "Test Team",
-            OrganizationId = Guid.NewGuid()
+            OrganizationId = Guid.CreateVersion7()
         };
 
         // Act
@@ -148,18 +148,18 @@ public class TeamTests
     public void Team_MultipleMembers_CanBeAdded()
     {
         // Arrange
-        var teamId = Guid.NewGuid();
+        var teamId = Guid.CreateVersion7();
         var team = new Team
         {
             Id = teamId,
-            OrganizationId = Guid.NewGuid(),
+            OrganizationId = Guid.CreateVersion7(),
             Name = "Large Team"
         };
 
         // Act
-        team.Members.Add(new TeamMember { TeamId = teamId, UserId = Guid.NewGuid() });
-        team.Members.Add(new TeamMember { TeamId = teamId, UserId = Guid.NewGuid() });
-        team.Members.Add(new TeamMember { TeamId = teamId, UserId = Guid.NewGuid() });
+        team.Members.Add(new TeamMember { TeamId = teamId, UserId = Guid.CreateVersion7() });
+        team.Members.Add(new TeamMember { TeamId = teamId, UserId = Guid.CreateVersion7() });
+        team.Members.Add(new TeamMember { TeamId = teamId, UserId = Guid.CreateVersion7() });
 
         // Assert
         Assert.AreEqual(3, team.Members.Count);
@@ -181,13 +181,13 @@ public class TeamTests
         // Arrange
         var organization = new Organization
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             Name = "Test Org"
         };
 
         var team = new Team
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             OrganizationId = organization.Id,
             Name = "Test Team"
         };

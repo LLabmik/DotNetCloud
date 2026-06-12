@@ -22,7 +22,7 @@ public class PresenceServiceTests
     [TestMethod]
     public async Task WhenUserNotConnectedThenIsOnlineReturnsFalse()
     {
-        var result = await _presenceService.IsOnlineAsync(Guid.NewGuid());
+        var result = await _presenceService.IsOnlineAsync(Guid.CreateVersion7());
 
         Assert.IsFalse(result);
     }
@@ -30,7 +30,7 @@ public class PresenceServiceTests
     [TestMethod]
     public async Task WhenUserConnectedThenIsOnlineReturnsTrue()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         _tracker.AddConnection(userId, "conn-1");
 
         var result = await _presenceService.IsOnlineAsync(userId);
@@ -41,7 +41,7 @@ public class PresenceServiceTests
     [TestMethod]
     public async Task WhenUserConnectedThenLastSeenIsUpdated()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var before = DateTime.UtcNow;
 
         await _presenceService.UserConnectedAsync(userId, "conn-1");
@@ -54,7 +54,7 @@ public class PresenceServiceTests
     [TestMethod]
     public async Task WhenUserDisconnectedThenLastSeenIsUpdated()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         await _presenceService.UserConnectedAsync(userId, "conn-1");
 
         var before = DateTime.UtcNow;
@@ -68,7 +68,7 @@ public class PresenceServiceTests
     [TestMethod]
     public async Task WhenPingReceivedThenLastSeenIsUpdated()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var before = DateTime.UtcNow;
 
         await _presenceService.UpdateLastSeenAsync(userId);
@@ -81,7 +81,7 @@ public class PresenceServiceTests
     [TestMethod]
     public async Task WhenUserNeverSeenThenGetLastSeenReturnsNull()
     {
-        var lastSeen = await _presenceService.GetLastSeenAsync(Guid.NewGuid());
+        var lastSeen = await _presenceService.GetLastSeenAsync(Guid.CreateVersion7());
 
         Assert.IsNull(lastSeen);
     }
@@ -89,9 +89,9 @@ public class PresenceServiceTests
     [TestMethod]
     public async Task WhenMultipleUsersOnlineThenGetOnlineStatusReturnsCorrectMap()
     {
-        var user1 = Guid.NewGuid();
-        var user2 = Guid.NewGuid();
-        var user3 = Guid.NewGuid();
+        var user1 = Guid.CreateVersion7();
+        var user2 = Guid.CreateVersion7();
+        var user3 = Guid.CreateVersion7();
         _tracker.AddConnection(user1, "conn-1");
         _tracker.AddConnection(user2, "conn-2");
 
@@ -106,8 +106,8 @@ public class PresenceServiceTests
     [TestMethod]
     public async Task WhenUsersOnlineThenGetOnlineUsersReturnsAll()
     {
-        var user1 = Guid.NewGuid();
-        var user2 = Guid.NewGuid();
+        var user1 = Guid.CreateVersion7();
+        var user2 = Guid.CreateVersion7();
         _tracker.AddConnection(user1, "conn-1");
         _tracker.AddConnection(user2, "conn-2");
 
@@ -121,9 +121,9 @@ public class PresenceServiceTests
     [TestMethod]
     public async Task WhenConnectionsExistThenGetActiveConnectionCountIsCorrect()
     {
-        _tracker.AddConnection(Guid.NewGuid(), "conn-1");
-        _tracker.AddConnection(Guid.NewGuid(), "conn-2");
-        _tracker.AddConnection(Guid.NewGuid(), "conn-3");
+        _tracker.AddConnection(Guid.CreateVersion7(), "conn-1");
+        _tracker.AddConnection(Guid.CreateVersion7(), "conn-2");
+        _tracker.AddConnection(Guid.CreateVersion7(), "conn-3");
 
         var count = await _presenceService.GetActiveConnectionCountAsync();
 
@@ -148,7 +148,7 @@ public class PresenceServiceTests
     [TestMethod]
     public async Task WhenSetPresenceThenCustomStatusMessageIsPersisted()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         var presence = await _presenceService.SetPresenceAsync(userId, "Away", "At lunch");
         var fetched = await _presenceService.GetPresenceAsync(userId);
@@ -163,6 +163,6 @@ public class PresenceServiceTests
     public async Task WhenSetPresenceWithInvalidStatusThenThrows()
     {
         await Assert.ThrowsExactlyAsync<ArgumentException>(
-            () => _presenceService.SetPresenceAsync(Guid.NewGuid(), "Invisible", "testing"));
+            () => _presenceService.SetPresenceAsync(Guid.CreateVersion7(), "Invisible", "testing"));
     }
 }

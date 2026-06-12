@@ -7,7 +7,7 @@ namespace DotNetCloud.Modules.Tracks.Models;
 /// </summary>
 public sealed class Sprint
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
     public Guid EpicId { get; set; }
     public required string Title { get; set; }
     public string? Goal { get; set; }

@@ -16,7 +16,7 @@ public class SearchDbContextTests
     public void Setup()
     {
         var options = new DbContextOptionsBuilder<SearchDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options;
         _db = new SearchDbContext(options);
     }
@@ -37,7 +37,7 @@ public class SearchDbContextTests
             EntityType = "FileNode",
             Title = "Test File",
             Content = "content",
-            OwnerId = Guid.NewGuid(),
+            OwnerId = Guid.CreateVersion7(),
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow,
             IndexedAt = DateTimeOffset.UtcNow
@@ -61,7 +61,7 @@ public class SearchDbContextTests
             EntityId = "e1",
             EntityType = "FileNode",
             Title = "Test",
-            OwnerId = Guid.NewGuid(),
+            OwnerId = Guid.CreateVersion7(),
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow,
             IndexedAt = DateTimeOffset.UtcNow
@@ -141,8 +141,8 @@ public class SearchDbContextTests
     [TestMethod]
     public async Task SearchIndexEntry_AllFieldsPersisted()
     {
-        var ownerId = Guid.NewGuid();
-        var orgId = Guid.NewGuid();
+        var ownerId = Guid.CreateVersion7();
+        var orgId = Guid.CreateVersion7();
         var createdAt = DateTimeOffset.UtcNow.AddDays(-1);
         var updatedAt = DateTimeOffset.UtcNow;
         var indexedAt = DateTimeOffset.UtcNow;
@@ -188,7 +188,7 @@ public class SearchDbContextTests
             EntityId = "e1",
             EntityType = "FileNode",
             Title = "Test",
-            OwnerId = Guid.NewGuid(),
+            OwnerId = Guid.CreateVersion7(),
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow,
             IndexedAt = DateTimeOffset.UtcNow,

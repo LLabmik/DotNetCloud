@@ -30,7 +30,7 @@ public class VideoServiceTests
         var caller = TestHelpers.CreateCaller();
         await TestHelpers.SeedCanonicalVideoAsync(_db, "Video 1", contentHash: "hash1", ownerId: caller.UserId);
         await TestHelpers.SeedCanonicalVideoAsync(_db, "Video 2", contentHash: "hash2", ownerId: caller.UserId);
-        await TestHelpers.SeedCanonicalVideoAsync(_db, "Other User Video", contentHash: "hash3", ownerId: Guid.NewGuid());
+        await TestHelpers.SeedCanonicalVideoAsync(_db, "Other User Video", contentHash: "hash3", ownerId: Guid.CreateVersion7());
 
         var result = await _service.ListVideosAsync(caller, 0, 50);
 
@@ -65,7 +65,7 @@ public class VideoServiceTests
     public async Task GetVideoAsync_ReturnsNull_WhenNotOwned()
     {
         var caller = TestHelpers.CreateCaller();
-        var video = await TestHelpers.SeedVideoAsync(_db, "Not Mine", ownerId: Guid.NewGuid());
+        var video = await TestHelpers.SeedVideoAsync(_db, "Not Mine", ownerId: Guid.CreateVersion7());
 
         var result = await _service.GetVideoAsync(video.Id, caller);
 
@@ -118,7 +118,7 @@ public class VideoServiceTests
         var caller = TestHelpers.CreateCaller();
 
         var ex = await Assert.ThrowsExactlyAsync<BusinessRuleException>(
-            () => _service.ToggleFavoriteAsync(Guid.NewGuid(), caller));
+            () => _service.ToggleFavoriteAsync(Guid.CreateVersion7(), caller));
 
         Assert.AreEqual(ErrorCodes.VideoNotFound, ex.ErrorCode);
     }
@@ -156,7 +156,7 @@ public class VideoServiceTests
         var caller = TestHelpers.CreateCaller();
 
         var ex = await Assert.ThrowsExactlyAsync<BusinessRuleException>(
-            () => _service.DeleteVideoAsync(Guid.NewGuid(), caller));
+            () => _service.DeleteVideoAsync(Guid.CreateVersion7(), caller));
 
         Assert.AreEqual(ErrorCodes.VideoNotFound, ex.ErrorCode);
     }

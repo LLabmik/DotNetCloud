@@ -114,7 +114,7 @@ internal sealed class TrashService : ITrashService
 
         await _eventBus.PublishAsync(new FileRestoredEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             FileNodeId = nodeId,
             FileName = node.Name,
@@ -197,7 +197,7 @@ internal sealed class TrashService : ITrashService
 
         await _eventBus.PublishAsync(new FileDeletedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             FileNodeId = nodeId,
             FileName = node.Name,

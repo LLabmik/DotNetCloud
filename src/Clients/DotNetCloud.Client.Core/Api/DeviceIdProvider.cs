@@ -44,7 +44,7 @@ public sealed class DeviceIdProvider
             _logger.LogWarning("Invalid device ID file at {Path} (content: '{Content}'). Regenerating.", filePath, content);
         }
 
-        var newId = Guid.NewGuid();
+        var newId = Guid.CreateVersion7();
         Directory.CreateDirectory(dataDirectory);
         File.WriteAllText(filePath, newId.ToString("D"));
 

@@ -12,7 +12,7 @@ public class NotificationRouterTests
     [TestMethod]
     public async Task SendAsync_WhenPushDisabled_ThenNotificationIsSuppressed()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var fcmProvider = new TestPushProvider(PushProvider.FCM);
         var queue = new TestNotificationDeliveryQueue();
         var prefs = new InMemoryNotificationPreferenceStore();
@@ -34,7 +34,7 @@ public class NotificationRouterTests
     [TestMethod]
     public async Task SendAsync_WhenUserIsOnline_ThenNotificationIsSuppressed()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var fcmProvider = new TestPushProvider(PushProvider.FCM);
         var queue = new TestNotificationDeliveryQueue();
         var presence = new Mock<IPresenceTracker>();
@@ -57,8 +57,8 @@ public class NotificationRouterTests
     [TestMethod]
     public async Task SendAsync_WhenChannelMuted_ThenNotificationIsSuppressed()
     {
-        var userId = Guid.NewGuid();
-        var channelId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var channelId = Guid.CreateVersion7();
         var fcmProvider = new TestPushProvider(PushProvider.FCM);
         var queue = new TestNotificationDeliveryQueue();
         var prefs = new InMemoryNotificationPreferenceStore();
@@ -91,7 +91,7 @@ public class NotificationRouterTests
     [TestMethod]
     public async Task SendAsync_WhenEligible_ThenRoutesToRegisteredProviders()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var fcmProvider = new TestPushProvider(PushProvider.FCM);
         var unifiedProvider = new TestPushProvider(PushProvider.UnifiedPush);
         var queue = new TestNotificationDeliveryQueue();
@@ -115,7 +115,7 @@ public class NotificationRouterTests
     [TestMethod]
     public async Task SendAsync_WhenAllProvidersFail_ThenNotificationIsQueued()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var queue = new TestNotificationDeliveryQueue();
         var failingProvider = new TestPushProvider(PushProvider.FCM)
         {
@@ -137,7 +137,7 @@ public class NotificationRouterTests
     [TestMethod]
     public async Task DispatchQueuedAsync_WhenProviderRecovers_ThenReturnsTrue()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var queue = new TestNotificationDeliveryQueue();
         var provider = new TestPushProvider(PushProvider.FCM);
 

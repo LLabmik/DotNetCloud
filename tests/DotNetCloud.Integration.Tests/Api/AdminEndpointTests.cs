@@ -16,8 +16,8 @@ public class AdminEndpointTests
     private static HttpClient _userClient = null!;
     private static HttpClient _anonClient = null!;
 
-    private static readonly Guid AdminUserId = Guid.NewGuid();
-    private static readonly Guid RegularUserId = Guid.NewGuid();
+    private static readonly Guid AdminUserId = Guid.CreateVersion7();
+    private static readonly Guid RegularUserId = Guid.CreateVersion7();
 
     [ClassInitialize]
     public static void ClassInit(TestContext _)

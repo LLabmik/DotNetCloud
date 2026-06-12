@@ -10,7 +10,7 @@ public class FcmPushProviderTests
     [TestMethod]
     public async Task SendAsync_WhenTransportMarksInvalidToken_ThenTokenIsCleanedUp()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var badToken = "bad-token";
         var goodToken = "good-token";
         var transport = new TestFcmTransport(token =>
@@ -36,7 +36,7 @@ public class FcmPushProviderTests
     [TestMethod]
     public async Task SendAsync_WhenProviderDisabled_ThenTransportIsNotCalled()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var transport = new TestFcmTransport(_ => FcmSendResult.Success);
         var provider = new FcmPushProvider(
             transport,

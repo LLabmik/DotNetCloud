@@ -43,7 +43,7 @@ public static class FilesDbInitializer
             return existing;
         }
 
-        var rootId = Guid.NewGuid();
+        var rootId = Guid.CreateVersion7();
         var root = new FileNode
         {
             Id = rootId,

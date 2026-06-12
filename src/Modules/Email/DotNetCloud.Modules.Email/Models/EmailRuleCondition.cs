@@ -6,7 +6,7 @@ namespace DotNetCloud.Modules.Email.Models;
 public sealed class EmailRuleCondition
 {
     /// <summary>Unique identifier.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>The parent condition group.</summary>
     public Guid ConditionGroupId { get; set; }

@@ -23,15 +23,15 @@ public class ReviewSessionServiceTests
 
     private async Task<WorkItem> SeedTestEpic()
     {
-        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), Guid.NewGuid());
-        return await TestHelpers.SeedEpicAsync(_db, product.Id, Guid.NewGuid());
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
+        return await TestHelpers.SeedEpicAsync(_db, product.Id, Guid.CreateVersion7());
     }
 
     [TestMethod]
     public async Task StartReviewSessionAsync_CreatesSession()
     {
         var epic = await SeedTestEpic();
-        var hostId = Guid.NewGuid();
+        var hostId = Guid.CreateVersion7();
 
         var result = await _service.StartReviewSessionAsync(epic.Id, hostId, CancellationToken.None);
 
@@ -43,7 +43,7 @@ public class ReviewSessionServiceTests
     public async Task GetReviewSessionAsync_ReturnsSession()
     {
         var epic = await SeedTestEpic();
-        var hostId = Guid.NewGuid();
+        var hostId = Guid.CreateVersion7();
         var created = await _service.StartReviewSessionAsync(epic.Id, hostId, CancellationToken.None);
 
         var result = await _service.GetReviewSessionAsync(created.Id, CancellationToken.None);
@@ -56,8 +56,8 @@ public class ReviewSessionServiceTests
     public async Task JoinSessionAsync_AddsParticipant()
     {
         var epic = await SeedTestEpic();
-        var hostId = Guid.NewGuid();
-        var memberId = Guid.NewGuid();
+        var hostId = Guid.CreateVersion7();
+        var memberId = Guid.CreateVersion7();
         var session = await _service.StartReviewSessionAsync(epic.Id, hostId, CancellationToken.None);
 
         var result = await _service.JoinSessionAsync(session.Id, memberId, CancellationToken.None);
@@ -69,8 +69,8 @@ public class ReviewSessionServiceTests
     public async Task LeaveSessionAsync_DisconnectsParticipant()
     {
         var epic = await SeedTestEpic();
-        var hostId = Guid.NewGuid();
-        var memberId = Guid.NewGuid();
+        var hostId = Guid.CreateVersion7();
+        var memberId = Guid.CreateVersion7();
         var session = await _service.StartReviewSessionAsync(epic.Id, hostId, CancellationToken.None);
         await _service.JoinSessionAsync(session.Id, memberId, CancellationToken.None);
 
@@ -85,7 +85,7 @@ public class ReviewSessionServiceTests
     public async Task SetCurrentItemAsync_SetsCurrentWorkItem()
     {
         var epic = await SeedTestEpic();
-        var hostId = Guid.NewGuid();
+        var hostId = Guid.CreateVersion7();
         var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, epic.ProductId);
         var item = await TestHelpers.SeedWorkItemAsync(_db, epic.ProductId, swimlane.Id, hostId);
         var session = await _service.StartReviewSessionAsync(epic.Id, hostId, CancellationToken.None);
@@ -99,7 +99,7 @@ public class ReviewSessionServiceTests
     public async Task EndSessionAsync_EndsSession()
     {
         var epic = await SeedTestEpic();
-        var hostId = Guid.NewGuid();
+        var hostId = Guid.CreateVersion7();
         var session = await _service.StartReviewSessionAsync(epic.Id, hostId, CancellationToken.None);
 
         var result = await _service.EndSessionAsync(session.Id, CancellationToken.None);
@@ -111,10 +111,10 @@ public class ReviewSessionServiceTests
     public async Task GetParticipantsAsync_ReturnsAllParticipants()
     {
         var epic = await SeedTestEpic();
-        var hostId = Guid.NewGuid();
+        var hostId = Guid.CreateVersion7();
         var session = await _service.StartReviewSessionAsync(epic.Id, hostId, CancellationToken.None);
-        await _service.JoinSessionAsync(session.Id, Guid.NewGuid(), CancellationToken.None);
-        await _service.JoinSessionAsync(session.Id, Guid.NewGuid(), CancellationToken.None);
+        await _service.JoinSessionAsync(session.Id, Guid.CreateVersion7(), CancellationToken.None);
+        await _service.JoinSessionAsync(session.Id, Guid.CreateVersion7(), CancellationToken.None);
 
         var result = await _service.GetParticipantsAsync(session.Id, CancellationToken.None);
 

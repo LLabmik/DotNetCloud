@@ -88,7 +88,7 @@ public class WopiTokenServiceSecurityTests
         string environmentName, string? signingKey)
     {
         var db = new FilesDbContext(new DbContextOptionsBuilder<FilesDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options);
 
         var options = Microsoft.Extensions.Options.Options.Create(new Files.Options.CollaboraOptions

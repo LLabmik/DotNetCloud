@@ -83,7 +83,7 @@ public class PhotoThumbnailServiceSaveEditsTests
     [TestMethod]
     public async Task SaveEditsAsync_PhotoNotFound_ReturnsFalse()
     {
-        var result = await _service.SaveEditsAsync(Guid.NewGuid());
+        var result = await _service.SaveEditsAsync(Guid.CreateVersion7());
 
         Assert.IsFalse(result);
     }

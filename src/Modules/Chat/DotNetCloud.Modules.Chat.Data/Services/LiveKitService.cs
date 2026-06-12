@@ -102,7 +102,7 @@ internal sealed class LiveKitService : ILiveKitService
             Nbf = now.ToUnixTimeSeconds(),
             Exp = exp.ToUnixTimeSeconds(),
             Iat = now.ToUnixTimeSeconds(),
-            Jti = Guid.NewGuid().ToString("N"),
+            Jti = Guid.CreateVersion7().ToString("N"),
             Video = grants
         };
 
@@ -172,7 +172,7 @@ internal sealed class LiveKitService : ILiveKitService
             Nbf = now.ToUnixTimeSeconds(),
             Exp = now.AddMinutes(5).ToUnixTimeSeconds(),
             Iat = now.ToUnixTimeSeconds(),
-            Jti = Guid.NewGuid().ToString("N"),
+            Jti = Guid.CreateVersion7().ToString("N"),
             Video = new LiveKitVideoGrants { RoomList = true, RoomCreate = true, RoomAdmin = true }
         };
 

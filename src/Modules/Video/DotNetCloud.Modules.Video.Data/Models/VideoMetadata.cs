@@ -6,7 +6,7 @@ namespace DotNetCloud.Modules.Video.Models;
 public sealed class VideoMetadata
 {
     /// <summary>Unique identifier for this metadata record.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>The video this metadata belongs to.</summary>
     public Guid VideoId { get; set; }

@@ -87,7 +87,7 @@ public class AlbumServiceTests
     [TestMethod]
     public async Task GetAlbum_NonOwner_ReturnsNull()
     {
-        var album = await TestHelpers.SeedAlbumAsync(_db, Guid.NewGuid());
+        var album = await TestHelpers.SeedAlbumAsync(_db, Guid.CreateVersion7());
 
         var result = await _service.GetAlbumAsync(album.Id, _caller);
 
@@ -97,7 +97,7 @@ public class AlbumServiceTests
     [TestMethod]
     public async Task GetAlbum_NonExistent_ReturnsNull()
     {
-        var result = await _service.GetAlbumAsync(Guid.NewGuid(), _caller);
+        var result = await _service.GetAlbumAsync(Guid.CreateVersion7(), _caller);
         Assert.IsNull(result);
     }
 
@@ -107,7 +107,7 @@ public class AlbumServiceTests
     public async Task ListAlbums_ReturnsOnlyOwnAlbums()
     {
         await TestHelpers.SeedAlbumAsync(_db, _caller.UserId, "Mine");
-        await TestHelpers.SeedAlbumAsync(_db, Guid.NewGuid(), "Theirs");
+        await TestHelpers.SeedAlbumAsync(_db, Guid.CreateVersion7(), "Theirs");
 
         var result = await _service.ListAlbumsAsync(_caller);
 
@@ -141,7 +141,7 @@ public class AlbumServiceTests
         var dto = new UpdateAlbumDto { Title = "X" };
 
         await Assert.ThrowsExactlyAsync<BusinessRuleException>(
-            () => _service.UpdateAlbumAsync(Guid.NewGuid(), dto, _caller));
+            () => _service.UpdateAlbumAsync(Guid.CreateVersion7(), dto, _caller));
     }
 
     // ─── Delete ───────────────────────────────────────────────────────
@@ -161,7 +161,7 @@ public class AlbumServiceTests
     public async Task DeleteAlbum_NonExistent_ThrowsBusinessRuleException()
     {
         await Assert.ThrowsExactlyAsync<BusinessRuleException>(
-            () => _service.DeleteAlbumAsync(Guid.NewGuid(), _caller));
+            () => _service.DeleteAlbumAsync(Guid.CreateVersion7(), _caller));
     }
 
     // ─── AddPhoto / RemovePhoto ───────────────────────────────────────
@@ -207,7 +207,7 @@ public class AlbumServiceTests
         var photo = await TestHelpers.SeedPhotoAsync(_db, _caller.UserId);
 
         await Assert.ThrowsExactlyAsync<BusinessRuleException>(
-            () => _service.AddPhotoToAlbumAsync(Guid.NewGuid(), photo.Id, _caller));
+            () => _service.AddPhotoToAlbumAsync(Guid.CreateVersion7(), photo.Id, _caller));
     }
 
     // ─── GetAlbumPhotos ───────────────────────────────────────────────

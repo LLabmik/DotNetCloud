@@ -6,7 +6,7 @@ namespace DotNetCloud.Modules.Notes.Models;
 public sealed class NoteFolder
 {
     /// <summary>Unique identifier.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>Owner user ID.</summary>
     public Guid OwnerId { get; set; }

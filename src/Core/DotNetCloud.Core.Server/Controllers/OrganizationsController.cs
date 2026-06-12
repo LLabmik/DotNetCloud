@@ -94,7 +94,7 @@ public class OrganizationsController : ControllerBase
 
         var org = new Organization
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             Name = dto.Name.Trim(),
             Description = dto.Description?.Trim(),
             CreatedAt = DateTime.UtcNow

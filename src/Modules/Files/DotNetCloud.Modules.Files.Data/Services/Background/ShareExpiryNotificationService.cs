@@ -107,7 +107,7 @@ internal sealed class ShareExpiryNotificationService : BackgroundService
         {
             await eventBus.PublishAsync(new ShareExpiringEvent
             {
-                EventId = Guid.NewGuid(),
+                EventId = Guid.CreateVersion7(),
                 CreatedAt = now,
                 FileNodeId = share.FileNodeId,
                 FileName = share.FileNode?.Name ?? "Unknown",

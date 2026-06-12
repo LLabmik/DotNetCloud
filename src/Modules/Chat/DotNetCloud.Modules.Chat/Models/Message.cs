@@ -6,7 +6,7 @@ namespace DotNetCloud.Modules.Chat.Models;
 public sealed class Message
 {
     /// <summary>Unique identifier for this message.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>Channel this message was sent to.</summary>
     public Guid ChannelId { get; set; }

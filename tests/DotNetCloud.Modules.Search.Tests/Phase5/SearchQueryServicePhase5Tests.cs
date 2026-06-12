@@ -33,7 +33,7 @@ public class SearchQueryServicePhase5Tests
         var query = new SearchQuery
         {
             QueryText = "in:notes budget",
-            UserId = Guid.NewGuid()
+            UserId = Guid.CreateVersion7()
         };
 
         _searchProviderMock
@@ -61,7 +61,7 @@ public class SearchQueryServicePhase5Tests
         var query = new SearchQuery
         {
             QueryText = "type:pdf annual report",
-            UserId = Guid.NewGuid()
+            UserId = Guid.CreateVersion7()
         };
 
         _searchProviderMock
@@ -88,7 +88,7 @@ public class SearchQueryServicePhase5Tests
         var query = new SearchQuery
         {
             QueryText = "in:files type:pdf annual",
-            UserId = Guid.NewGuid()
+            UserId = Guid.CreateVersion7()
         };
 
         _searchProviderMock
@@ -115,7 +115,7 @@ public class SearchQueryServicePhase5Tests
         var query = new SearchQuery
         {
             QueryText = "in:chat budget",
-            UserId = Guid.NewGuid(),
+            UserId = Guid.CreateVersion7(),
             ModuleFilter = "files" // explicit filter
         };
 
@@ -144,7 +144,7 @@ public class SearchQueryServicePhase5Tests
         var query = new SearchQuery
         {
             QueryText = "budget",
-            UserId = Guid.NewGuid(),
+            UserId = Guid.CreateVersion7(),
             ModuleFilter = "files"
         };
 
@@ -176,7 +176,7 @@ public class SearchQueryServicePhase5Tests
         var query = new SearchQuery
         {
             QueryText = "   ",
-            UserId = Guid.NewGuid()
+            UserId = Guid.CreateVersion7()
         };
 
         var result = await _service.SearchAsync(query);
@@ -194,7 +194,7 @@ public class SearchQueryServicePhase5Tests
         var query = new SearchQuery
         {
             QueryText = "in:notes",
-            UserId = Guid.NewGuid()
+            UserId = Guid.CreateVersion7()
         };
 
         var result = await _service.SearchAsync(query);
@@ -212,7 +212,7 @@ public class SearchQueryServicePhase5Tests
         var query = new SearchQuery
         {
             QueryText = "-draft -old",
-            UserId = Guid.NewGuid()
+            UserId = Guid.CreateVersion7()
         };
 
         var result = await _service.SearchAsync(query);
@@ -237,7 +237,7 @@ public class SearchQueryServicePhase5Tests
         var query = new SearchQuery
         {
             QueryText = "\"quarterly report\"",
-            UserId = Guid.NewGuid()
+            UserId = Guid.CreateVersion7()
         };
 
         _searchProviderMock
@@ -271,7 +271,7 @@ public class SearchQueryServicePhase5Tests
         var query = new SearchQuery
         {
             QueryText = "\"quarterly report\" in:files type:pdf budget -draft",
-            UserId = Guid.NewGuid()
+            UserId = Guid.CreateVersion7()
         };
 
         _searchProviderMock
@@ -301,7 +301,7 @@ public class SearchQueryServicePhase5Tests
     [TestMethod]
     public async Task SearchAsync_ReturnsProviderResultsUnmodified()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var query = new SearchQuery { QueryText = "test", UserId = userId };
 
         var expected = new SearchResultDto

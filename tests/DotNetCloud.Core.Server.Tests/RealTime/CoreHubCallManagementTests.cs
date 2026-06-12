@@ -23,7 +23,7 @@ public class CoreHubCallManagementTests
     {
         _chatApiClientMock = new Mock<IChatApiClient>();
         _groups = new StubGroupManager();
-        _userId = Guid.NewGuid();
+        _userId = Guid.CreateVersion7();
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -34,8 +34,8 @@ public class CoreHubCallManagementTests
     public async Task InviteToCallAsync_DelegatesToChatApiClient()
     {
         var hub = CreateHub();
-        var callId = Guid.NewGuid();
-        var targetUserId = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
+        var targetUserId = Guid.CreateVersion7();
 
         await hub.InviteToCallAsync(callId, targetUserId);
 
@@ -48,8 +48,8 @@ public class CoreHubCallManagementTests
     public async Task InviteToCallAsync_PassesCorrectUserId()
     {
         var hub = CreateHub();
-        var callId = Guid.NewGuid();
-        var targetUserId = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
+        var targetUserId = Guid.CreateVersion7();
         Guid? capturedUserId = null;
 
         _chatApiClientMock
@@ -69,9 +69,9 @@ public class CoreHubCallManagementTests
     public async Task InviteToCallAsync_WithDifferentCallIds_DelegatesEach()
     {
         var hub = CreateHub();
-        var callId1 = Guid.NewGuid();
-        var callId2 = Guid.NewGuid();
-        var targetUserId = Guid.NewGuid();
+        var callId1 = Guid.CreateVersion7();
+        var callId2 = Guid.CreateVersion7();
+        var targetUserId = Guid.CreateVersion7();
 
         await hub.InviteToCallAsync(callId1, targetUserId);
         await hub.InviteToCallAsync(callId2, targetUserId);
@@ -100,7 +100,7 @@ public class CoreHubCallManagementTests
         var hub = CreateHub();
 
         var ex = await Assert.ThrowsExactlyAsync<HubException>(
-            () => hub.InviteToCallAsync(Guid.NewGuid(), Guid.NewGuid()));
+            () => hub.InviteToCallAsync(Guid.CreateVersion7(), Guid.CreateVersion7()));
 
         Assert.AreEqual("Access denied.", ex.Message);
     }
@@ -117,7 +117,7 @@ public class CoreHubCallManagementTests
         var hub = CreateHub();
 
         var ex = await Assert.ThrowsExactlyAsync<HubException>(
-            () => hub.InviteToCallAsync(Guid.NewGuid(), Guid.NewGuid()));
+            () => hub.InviteToCallAsync(Guid.CreateVersion7(), Guid.CreateVersion7()));
 
         Assert.AreEqual("The requested operation could not be completed.", ex.Message);
     }
@@ -134,7 +134,7 @@ public class CoreHubCallManagementTests
         var hub = CreateHub();
 
         var ex = await Assert.ThrowsExactlyAsync<HubException>(
-            () => hub.InviteToCallAsync(Guid.NewGuid(), Guid.NewGuid()));
+            () => hub.InviteToCallAsync(Guid.CreateVersion7(), Guid.CreateVersion7()));
 
         Assert.AreEqual("Invalid request parameters.", ex.Message);
     }
@@ -151,7 +151,7 @@ public class CoreHubCallManagementTests
         var hub = CreateHub();
 
         var ex = await Assert.ThrowsExactlyAsync<HubException>(
-            () => hub.InviteToCallAsync(Guid.NewGuid(), Guid.NewGuid()));
+            () => hub.InviteToCallAsync(Guid.CreateVersion7(), Guid.CreateVersion7()));
 
         Assert.AreEqual("Access denied.", ex.Message);
     }
@@ -168,7 +168,7 @@ public class CoreHubCallManagementTests
         var hub = CreateHub();
 
         var ex = await Assert.ThrowsExactlyAsync<HubException>(
-            () => hub.InviteToCallAsync(Guid.NewGuid(), Guid.NewGuid()));
+            () => hub.InviteToCallAsync(Guid.CreateVersion7(), Guid.CreateVersion7()));
 
         Assert.AreEqual("The requested operation could not be completed.", ex.Message);
     }
@@ -181,8 +181,8 @@ public class CoreHubCallManagementTests
     public async Task TransferHostAsync_DelegatesToChatApiClient()
     {
         var hub = CreateHub();
-        var callId = Guid.NewGuid();
-        var newHostUserId = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
+        var newHostUserId = Guid.CreateVersion7();
 
         await hub.TransferHostAsync(callId, newHostUserId);
 
@@ -195,8 +195,8 @@ public class CoreHubCallManagementTests
     public async Task TransferHostAsync_PassesCorrectUserId()
     {
         var hub = CreateHub();
-        var callId = Guid.NewGuid();
-        var newHostUserId = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
+        var newHostUserId = Guid.CreateVersion7();
         Guid? capturedUserId = null;
 
         _chatApiClientMock
@@ -216,9 +216,9 @@ public class CoreHubCallManagementTests
     public async Task TransferHostAsync_WithDifferentTargets_DelegatesCorrectly()
     {
         var hub = CreateHub();
-        var callId = Guid.NewGuid();
-        var newHost1 = Guid.NewGuid();
-        var newHost2 = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
+        var newHost1 = Guid.CreateVersion7();
+        var newHost2 = Guid.CreateVersion7();
 
         await hub.TransferHostAsync(callId, newHost1);
         await hub.TransferHostAsync(callId, newHost2);
@@ -247,7 +247,7 @@ public class CoreHubCallManagementTests
         var hub = CreateHub();
 
         var ex = await Assert.ThrowsExactlyAsync<HubException>(
-            () => hub.TransferHostAsync(Guid.NewGuid(), Guid.NewGuid()));
+            () => hub.TransferHostAsync(Guid.CreateVersion7(), Guid.CreateVersion7()));
 
         Assert.AreEqual("Access denied.", ex.Message);
     }
@@ -264,7 +264,7 @@ public class CoreHubCallManagementTests
         var hub = CreateHub();
 
         var ex = await Assert.ThrowsExactlyAsync<HubException>(
-            () => hub.TransferHostAsync(Guid.NewGuid(), Guid.NewGuid()));
+            () => hub.TransferHostAsync(Guid.CreateVersion7(), Guid.CreateVersion7()));
 
         Assert.AreEqual("The requested operation could not be completed.", ex.Message);
     }
@@ -281,7 +281,7 @@ public class CoreHubCallManagementTests
         var hub = CreateHub();
 
         var ex = await Assert.ThrowsExactlyAsync<HubException>(
-            () => hub.TransferHostAsync(Guid.NewGuid(), Guid.NewGuid()));
+            () => hub.TransferHostAsync(Guid.CreateVersion7(), Guid.CreateVersion7()));
 
         Assert.AreEqual("Invalid request parameters.", ex.Message);
     }
@@ -298,7 +298,7 @@ public class CoreHubCallManagementTests
         var hub = CreateHub();
 
         var ex = await Assert.ThrowsExactlyAsync<HubException>(
-            () => hub.TransferHostAsync(Guid.NewGuid(), Guid.NewGuid()));
+            () => hub.TransferHostAsync(Guid.CreateVersion7(), Guid.CreateVersion7()));
 
         Assert.AreEqual("Access denied.", ex.Message);
     }
@@ -315,7 +315,7 @@ public class CoreHubCallManagementTests
         var hub = CreateHub();
 
         var ex = await Assert.ThrowsExactlyAsync<HubException>(
-            () => hub.TransferHostAsync(Guid.NewGuid(), Guid.NewGuid()));
+            () => hub.TransferHostAsync(Guid.CreateVersion7(), Guid.CreateVersion7()));
 
         Assert.AreEqual("The requested operation could not be completed.", ex.Message);
     }
@@ -332,7 +332,7 @@ public class CoreHubCallManagementTests
         var hub = CreateHub();
 
         var ex = await Assert.ThrowsExactlyAsync<HubException>(
-            () => hub.TransferHostAsync(Guid.NewGuid(), Guid.NewGuid()));
+            () => hub.TransferHostAsync(Guid.CreateVersion7(), Guid.CreateVersion7()));
 
         Assert.AreEqual("The requested operation could not be completed.", ex.Message);
     }
@@ -345,8 +345,8 @@ public class CoreHubCallManagementTests
     public async Task InviteThenTransfer_BothDelegateCorrectly()
     {
         var hub = CreateHub();
-        var callId = Guid.NewGuid();
-        var invitedUser = Guid.NewGuid();
+        var callId = Guid.CreateVersion7();
+        var invitedUser = Guid.CreateVersion7();
 
         await hub.InviteToCallAsync(callId, invitedUser);
         await hub.TransferHostAsync(callId, invitedUser);

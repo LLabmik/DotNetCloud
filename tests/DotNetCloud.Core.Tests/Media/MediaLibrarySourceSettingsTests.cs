@@ -15,8 +15,8 @@ public sealed class MediaLibrarySourceSettingsTests
     [TestMethod]
     public void Normalize_DuplicateOwnedAndSharedSources_DeduplicatesAndNormalizesValues()
     {
-        var ownedFolderId = Guid.NewGuid();
-        var sharedFolderId = Guid.NewGuid();
+        var ownedFolderId = Guid.CreateVersion7();
+        var sharedFolderId = Guid.CreateVersion7();
 
         var normalized = MediaLibrarySourceSettings.Normalize(
         [
@@ -65,8 +65,8 @@ public sealed class MediaLibrarySourceSettingsTests
     [TestMethod]
     public async Task LoadSourcesAsync_LegacyFolderSettings_ReturnsOwnedSource()
     {
-        var userId = Guid.NewGuid();
-        var folderId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var folderId = Guid.CreateVersion7();
         var settingsService = new Mock<IUserSettingsService>(MockBehavior.Strict);
 
         settingsService
@@ -91,7 +91,7 @@ public sealed class MediaLibrarySourceSettingsTests
     [TestMethod]
     public async Task SaveSourcesAsync_ValidSources_PersistsJsonToModuleSourcesKey()
     {
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var settingsService = new Mock<IUserSettingsService>(MockBehavior.Strict);
         UpsertUserSettingDto? capturedDto = null;
 
@@ -108,7 +108,7 @@ public sealed class MediaLibrarySourceSettingsTests
                 new MediaLibrarySource
                 {
                     SourceKind = MediaLibrarySourceKind.SharedMount,
-                    SharedFolderId = Guid.NewGuid(),
+                    SharedFolderId = Guid.CreateVersion7(),
                     RelativePath = "gallery",
                     DisplayPath = "/_DotNetCloud/Gallery",
                     DisplayName = "Gallery",

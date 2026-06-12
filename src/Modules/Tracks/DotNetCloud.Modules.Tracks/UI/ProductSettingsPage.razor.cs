@@ -242,7 +242,7 @@ public partial class ProductSettingsPage : ComponentBase
     {
         _swimlanes.Add(new SettingsSwimlane
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             Title = "New Swimlane",
             IsDone = false,
             Position = _swimlanes.Count,

@@ -59,7 +59,7 @@ public class ClaimsTransformationTests
     public async Task TransformAsync_UserNotInDb_ReturnsPrincipalUnchanged()
     {
         // Arrange
-        var userId = Guid.NewGuid().ToString();
+        var userId = Guid.CreateVersion7().ToString();
         var claims = new[] { new Claim(ClaimTypes.NameIdentifier, userId) };
         var identity = new ClaimsIdentity(claims, "TestAuth");
         var principal = new ClaimsPrincipal(identity);
@@ -80,7 +80,7 @@ public class ClaimsTransformationTests
     public async Task TransformAsync_AddsRoleClaims_WhenUserFound()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var user = new ApplicationUser
         {
             Id = userId,
@@ -112,7 +112,7 @@ public class ClaimsTransformationTests
     public async Task TransformAsync_AddsDncLocaleClaim_WhenUserFound()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var user = new ApplicationUser
         {
             Id = userId,
@@ -139,7 +139,7 @@ public class ClaimsTransformationTests
     public async Task TransformAsync_SecondCall_UsesCachedClaims()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var user = new ApplicationUser { Id = userId, DisplayName = "Cache User", Locale = "en-US", Timezone = "UTC" };
         var claims = new[] { new Claim(ClaimTypes.NameIdentifier, userId.ToString()) };
 

@@ -336,7 +336,7 @@ public class VideoCallDialogTests
     public void IsCurrentUserHost_WhenHostMatchesCurrentUser_ReturnsTrue()
     {
         var dialog = new TestableVideoCallDialog();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         dialog.SetCurrentUserAndHost(userId, userId);
 
@@ -348,7 +348,7 @@ public class VideoCallDialogTests
     {
         var dialog = new TestableVideoCallDialog();
 
-        dialog.SetCurrentUserAndHost(Guid.NewGuid(), Guid.NewGuid());
+        dialog.SetCurrentUserAndHost(Guid.CreateVersion7(), Guid.CreateVersion7());
 
         Assert.IsFalse(dialog.TestIsCurrentUserHost);
     }
@@ -370,7 +370,7 @@ public class VideoCallDialogTests
     public async Task HandleTransferHost_InvokesOnTransferHostWithTargetUserId()
     {
         var dialog = new TestableVideoCallDialog();
-        var targetUserId = Guid.NewGuid();
+        var targetUserId = Guid.CreateVersion7();
         Guid? receivedUserId = null;
         var receiver = new object();
         dialog.OnTransferHost = EventCallback.Factory.Create<Guid>(receiver, id => receivedUserId = id);
@@ -384,7 +384,7 @@ public class VideoCallDialogTests
     public async Task HandleInviteToCall_InvokesOnInviteToCallWithTargetUserId()
     {
         var dialog = new TestableVideoCallDialog();
-        var targetUserId = Guid.NewGuid();
+        var targetUserId = Guid.CreateVersion7();
         Guid? receivedUserId = null;
         var receiver = new object();
         dialog.OnInviteToCall = EventCallback.Factory.Create<Guid>(receiver, id => receivedUserId = id);
@@ -455,9 +455,9 @@ public class VideoCallDialogTests
     {
         return new CallParticipantDto
         {
-            Id = Guid.NewGuid(),
-            UserId = Guid.NewGuid(),
-            DisplayName = name ?? $"User-{Guid.NewGuid().ToString()[..6]}",
+            Id = Guid.CreateVersion7(),
+            UserId = Guid.CreateVersion7(),
+            DisplayName = name ?? $"User-{Guid.CreateVersion7().ToString()[..6]}",
             Role = "Participant",
             HasAudio = true,
             HasVideo = true

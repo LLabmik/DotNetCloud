@@ -16,7 +16,7 @@ public class EntityConfigurationTests
     private static FilesDbContext CreateContext(string? dbName = null)
     {
         var options = new DbContextOptionsBuilder<FilesDbContext>()
-            .UseInMemoryDatabase(dbName ?? Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(dbName ?? Guid.CreateVersion7().ToString())
             .Options;
         return new FilesDbContext(options);
     }
@@ -32,7 +32,7 @@ public class EntityConfigurationTests
         {
             Name = "Documents",
             NodeType = FileNodeType.Folder,
-            OwnerId = Guid.NewGuid(),
+            OwnerId = Guid.CreateVersion7(),
             MaterializedPath = "/root"
         };
         var child = new FileNode
@@ -61,7 +61,7 @@ public class EntityConfigurationTests
     public async Task WhenFileNodeIsSoftDeletedThenFilteredOutByDefault()
     {
         using var context = CreateContext();
-        var ownerId = Guid.NewGuid();
+        var ownerId = Guid.CreateVersion7();
 
         var active = new FileNode { Name = "active.txt", OwnerId = ownerId, MaterializedPath = "/" };
         var deleted = new FileNode
@@ -86,7 +86,7 @@ public class EntityConfigurationTests
     public async Task WhenFileNodeIsSoftDeletedThenVisibleWithIgnoreQueryFilters()
     {
         using var context = CreateContext();
-        var ownerId = Guid.NewGuid();
+        var ownerId = Guid.CreateVersion7();
 
         var active = new FileNode { Name = "active.txt", OwnerId = ownerId, MaterializedPath = "/" };
         var deleted = new FileNode
@@ -112,20 +112,20 @@ public class EntityConfigurationTests
     {
         using var context = CreateContext();
 
-        var node = new FileNode { Name = "test.txt", OwnerId = Guid.NewGuid(), MaterializedPath = "/" };
+        var node = new FileNode { Name = "test.txt", OwnerId = Guid.CreateVersion7(), MaterializedPath = "/" };
         context.FileNodes.Add(node);
 
         var active = new FileComment
         {
             FileNodeId = node.Id,
             Content = "Visible comment",
-            CreatedByUserId = Guid.NewGuid()
+            CreatedByUserId = Guid.CreateVersion7()
         };
         var deleted = new FileComment
         {
             FileNodeId = node.Id,
             Content = "Deleted comment",
-            CreatedByUserId = Guid.NewGuid(),
+            CreatedByUserId = Guid.CreateVersion7(),
             IsDeleted = true
         };
 
@@ -143,20 +143,20 @@ public class EntityConfigurationTests
     {
         using var context = CreateContext();
 
-        var node = new FileNode { Name = "test.txt", OwnerId = Guid.NewGuid(), MaterializedPath = "/" };
+        var node = new FileNode { Name = "test.txt", OwnerId = Guid.CreateVersion7(), MaterializedPath = "/" };
         context.FileNodes.Add(node);
 
         var active = new FileComment
         {
             FileNodeId = node.Id,
             Content = "Active",
-            CreatedByUserId = Guid.NewGuid()
+            CreatedByUserId = Guid.CreateVersion7()
         };
         var deleted = new FileComment
         {
             FileNodeId = node.Id,
             Content = "Deleted",
-            CreatedByUserId = Guid.NewGuid(),
+            CreatedByUserId = Guid.CreateVersion7(),
             IsDeleted = true
         };
 
@@ -175,21 +175,21 @@ public class EntityConfigurationTests
     {
         using var context = CreateContext();
 
-        var node = new FileNode { Name = "test.txt", OwnerId = Guid.NewGuid(), MaterializedPath = "/" };
+        var node = new FileNode { Name = "test.txt", OwnerId = Guid.CreateVersion7(), MaterializedPath = "/" };
         context.FileNodes.Add(node);
 
         var parent = new FileComment
         {
             FileNodeId = node.Id,
             Content = "Parent comment",
-            CreatedByUserId = Guid.NewGuid()
+            CreatedByUserId = Guid.CreateVersion7()
         };
         var reply = new FileComment
         {
             FileNodeId = node.Id,
             Content = "Reply",
             ParentCommentId = parent.Id,
-            CreatedByUserId = Guid.NewGuid()
+            CreatedByUserId = Guid.CreateVersion7()
         };
 
         context.FileComments.AddRange(parent, reply);
@@ -210,7 +210,7 @@ public class EntityConfigurationTests
     {
         using var context = CreateContext();
 
-        var node = new FileNode { Name = "doc.txt", OwnerId = Guid.NewGuid(), MaterializedPath = "/" };
+        var node = new FileNode { Name = "doc.txt", OwnerId = Guid.CreateVersion7(), MaterializedPath = "/" };
         context.FileNodes.Add(node);
 
         var version = new FileVersion
@@ -239,7 +239,7 @@ public class EntityConfigurationTests
     {
         using var context = CreateContext();
 
-        var node = new FileNode { Name = "test.txt", OwnerId = Guid.NewGuid(), MaterializedPath = "/" };
+        var node = new FileNode { Name = "test.txt", OwnerId = Guid.CreateVersion7(), MaterializedPath = "/" };
         context.FileNodes.Add(node);
 
         var version = new FileVersion
@@ -283,7 +283,7 @@ public class EntityConfigurationTests
     {
         using var context = CreateContext();
 
-        var node = new FileNode { Name = "shared.pdf", OwnerId = Guid.NewGuid(), MaterializedPath = "/" };
+        var node = new FileNode { Name = "shared.pdf", OwnerId = Guid.CreateVersion7(), MaterializedPath = "/" };
         context.FileNodes.Add(node);
 
         var share = new FileShare
@@ -312,7 +312,7 @@ public class EntityConfigurationTests
     {
         using var context = CreateContext();
 
-        var node = new FileNode { Name = "important.doc", OwnerId = Guid.NewGuid(), MaterializedPath = "/" };
+        var node = new FileNode { Name = "important.doc", OwnerId = Guid.CreateVersion7(), MaterializedPath = "/" };
         context.FileNodes.Add(node);
 
         var tag = new FileTag
@@ -339,7 +339,7 @@ public class EntityConfigurationTests
     public async Task WhenFileNodeHasVersionsSharesTagsCommentsThenAllLoadable()
     {
         using var context = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         var node = new FileNode { Name = "multi.txt", OwnerId = userId, MaterializedPath = "/" };
         context.FileNodes.Add(node);
@@ -356,7 +356,7 @@ public class EntityConfigurationTests
         {
             FileNodeId = node.Id,
             ShareType = ShareType.User,
-            SharedWithUserId = Guid.NewGuid(),
+            SharedWithUserId = Guid.CreateVersion7(),
             CreatedByUserId = userId
         });
         context.FileTags.Add(new FileTag
@@ -392,7 +392,7 @@ public class EntityConfigurationTests
     public async Task WhenFileQuotaAddedThenCanQueryByUserId()
     {
         using var context = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         context.FileQuotas.Add(new FileQuota { UserId = userId, MaxBytes = 10737418240 });
         await context.SaveChangesAsync();
@@ -414,7 +414,7 @@ public class EntityConfigurationTests
         {
             FileName = "test.bin",
             ChunkManifest = "[]",
-            UserId = Guid.NewGuid(),
+            UserId = Guid.CreateVersion7(),
             Status = UploadSessionStatus.Completed
         };
 

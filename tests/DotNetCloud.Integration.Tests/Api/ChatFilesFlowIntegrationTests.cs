@@ -220,7 +220,7 @@ public sealed class ChatFilesFlowIntegrationTests
         var messageId = await SendMessageAsync(client, channelId, "Message with linked file");
 
         // Simulate attaching a file that was uploaded to Files module
-        var fileNodeId = Guid.NewGuid(); // Would be a real file node ID from Files module
+        var fileNodeId = Guid.CreateVersion7(); // Would be a real file node ID from Files module
         var response = await AttachFileToMessageAsync(
             client,
             channelId,

@@ -17,13 +17,13 @@ public class EmailRuleServiceTests
     private EmailRuleService _service;
     private Mock<IEventBus> _eventBusMock;
     private CallerContext _caller;
-    private static readonly Guid UserId = Guid.NewGuid();
+    private static readonly Guid UserId = Guid.CreateVersion7();
 
     [TestInitialize]
     public void Setup()
     {
         var options = new DbContextOptionsBuilder<EmailDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options;
         _db = new EmailDbContext(options);
         _eventBusMock = new Mock<IEventBus>();
@@ -48,7 +48,7 @@ public class EmailRuleServiceTests
     [TestMethod]
     public async Task GetAsync_NonExistentRule_ReturnsNull()
     {
-        var result = await _service.GetAsync(Guid.NewGuid(), _caller);
+        var result = await _service.GetAsync(Guid.CreateVersion7(), _caller);
         Assert.IsNull(result);
     }
 }

@@ -6,7 +6,7 @@ namespace DotNetCloud.Modules.Chat.Models;
 public sealed class VideoCall
 {
     /// <summary>Unique identifier for this call.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>Channel this call belongs to (FK → Channel).</summary>
     public Guid ChannelId { get; set; }

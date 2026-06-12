@@ -210,7 +210,7 @@ public class SearchQueryUrlBuilderTests
         var query = new SearchQuery
         {
             QueryText = "test",
-            UserId = Guid.NewGuid()
+            UserId = Guid.CreateVersion7()
         };
 
         Assert.AreEqual("test", query.QueryText);

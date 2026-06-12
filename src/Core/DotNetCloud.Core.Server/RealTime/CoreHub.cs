@@ -239,7 +239,7 @@ internal sealed class CoreHub : Hub
             {
                 await _eventBus.PublishAsync(new PresenceChangedEvent
                 {
-                    EventId = Guid.NewGuid(),
+                    EventId = Guid.CreateVersion7(),
                     CreatedAt = DateTime.UtcNow,
                     UserId = presence.UserId,
                     Status = presence.Status,

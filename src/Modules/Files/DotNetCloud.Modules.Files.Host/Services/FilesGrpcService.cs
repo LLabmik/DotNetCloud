@@ -798,7 +798,7 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
             userId, [], DotNetCloud.Core.Authorization.CallerType.User);
         await _eventBus.PublishAsync(new FileUploadedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             FileNodeId = fileNode.Id,
             FileName = session.FileName,

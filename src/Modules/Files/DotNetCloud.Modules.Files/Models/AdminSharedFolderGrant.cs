@@ -6,7 +6,7 @@ namespace DotNetCloud.Modules.Files.Models;
 public sealed class AdminSharedFolderGrant
 {
     /// <summary>Unique identifier for the grant.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>Shared-folder definition that owns this grant.</summary>
     public Guid AdminSharedFolderId { get; set; }

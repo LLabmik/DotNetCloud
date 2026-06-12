@@ -28,8 +28,8 @@ public class FileVersionChunkTests
     [TestMethod]
     public void WhenPropertiesSetThenStoresValues()
     {
-        var versionId = Guid.NewGuid();
-        var chunkId = Guid.NewGuid();
+        var versionId = Guid.CreateVersion7();
+        var chunkId = Guid.CreateVersion7();
 
         var mapping = new FileVersionChunk
         {

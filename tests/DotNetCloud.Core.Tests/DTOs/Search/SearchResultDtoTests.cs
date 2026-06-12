@@ -37,7 +37,7 @@ public class SearchResultDtoTests
             new()
             {
                 ModuleId = "notes",
-                EntityId = Guid.NewGuid().ToString(),
+                EntityId = Guid.CreateVersion7().ToString(),
                 EntityType = "Note",
                 Title = "Quarterly Report",
                 Snippet = "...the <mark>quarterly</mark> <mark>report</mark> shows...",
@@ -47,7 +47,7 @@ public class SearchResultDtoTests
             new()
             {
                 ModuleId = "files",
-                EntityId = Guid.NewGuid().ToString(),
+                EntityId = Guid.CreateVersion7().ToString(),
                 EntityType = "FileNode",
                 Title = "Report.pdf",
                 RelevanceScore = 0.8,
@@ -82,7 +82,7 @@ public class SearchResultDtoTests
         var item = new SearchResultItem
         {
             ModuleId = "chat",
-            EntityId = Guid.NewGuid().ToString(),
+            EntityId = Guid.CreateVersion7().ToString(),
             EntityType = "Message",
             Title = "#general",
             UpdatedAt = DateTimeOffset.UtcNow
@@ -110,7 +110,7 @@ public class SearchResultDtoTests
         var item = new SearchResultItem
         {
             ModuleId = "files",
-            EntityId = Guid.NewGuid().ToString(),
+            EntityId = Guid.CreateVersion7().ToString(),
             EntityType = "FileNode",
             Title = "Report.pdf",
             Snippet = "...extracted <mark>content</mark>...",

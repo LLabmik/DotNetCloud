@@ -234,7 +234,7 @@ public class PlaybackServiceTests
     public async Task GetStarred_OtherUser_ReturnsEmpty()
     {
         var (_, _, track) = await TestHelpers.SeedCompleteTrackAsync(_db, ownerId: _caller.UserId);
-        await TestHelpers.SeedStarredItemAsync(_db, Guid.NewGuid(), track.Id, StarredItemType.Track);
+        await TestHelpers.SeedStarredItemAsync(_db, Guid.CreateVersion7(), track.Id, StarredItemType.Track);
 
         var result = await _service.GetStarredAsync(_caller.UserId, StarredItemType.Track);
 

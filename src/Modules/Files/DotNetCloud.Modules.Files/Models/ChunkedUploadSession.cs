@@ -8,7 +8,7 @@ namespace DotNetCloud.Modules.Files.Models;
 public sealed class ChunkedUploadSession
 {
     /// <summary>Unique identifier for this upload session.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>Target file node ID (null if creating a new file).</summary>
     public Guid? TargetFileNodeId { get; set; }

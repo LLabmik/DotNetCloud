@@ -86,7 +86,7 @@ internal sealed class ChannelMemberService : IChannelMemberService
 
         await _eventBus.PublishAsync(new UserJoinedChannelEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ChannelId = channelId,
             UserId = userId,
@@ -147,7 +147,7 @@ internal sealed class ChannelMemberService : IChannelMemberService
 
             await _eventBus.PublishAsync(new ChannelDeletedEvent
             {
-                EventId = Guid.NewGuid(),
+                EventId = Guid.CreateVersion7(),
                 CreatedAt = DateTime.UtcNow,
                 ChannelId = channelId,
                 ChannelName = channel.Name,
@@ -168,7 +168,7 @@ internal sealed class ChannelMemberService : IChannelMemberService
 
         await _eventBus.PublishAsync(new UserLeftChannelEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ChannelId = channelId,
             UserId = userId,

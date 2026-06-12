@@ -31,12 +31,12 @@ public class FileUploadedEventHandlerTests
     {
         var evt = new FileUploadedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            FileNodeId = Guid.NewGuid(),
+            FileNodeId = Guid.CreateVersion7(),
             FileName = "test.txt",
             Size = 1024,
-            UploadedByUserId = Guid.NewGuid()
+            UploadedByUserId = Guid.CreateVersion7()
         };
 
         await _handler.HandleAsync(evt);
@@ -48,11 +48,11 @@ public class FileUploadedEventHandlerTests
         var cts = new CancellationTokenSource();
         var evt = new FileUploadedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            FileNodeId = Guid.NewGuid(),
+            FileNodeId = Guid.CreateVersion7(),
             FileName = "test.txt",
-            UploadedByUserId = Guid.NewGuid()
+            UploadedByUserId = Guid.CreateVersion7()
         };
 
         await _handler.HandleAsync(evt, cts.Token);
@@ -63,11 +63,11 @@ public class FileUploadedEventHandlerTests
     {
         var evt = new FileUploadedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            FileNodeId = Guid.NewGuid(),
+            FileNodeId = Guid.CreateVersion7(),
             FileName = "test.txt",
-            UploadedByUserId = Guid.NewGuid()
+            UploadedByUserId = Guid.CreateVersion7()
         };
 
         var task = _handler.HandleAsync(evt);

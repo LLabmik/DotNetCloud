@@ -28,8 +28,8 @@ public class PhotoIndexingCallbackTests
     [TestMethod]
     public async Task IndexPhotoAsync_CreatesPhotoInDatabase()
     {
-        var fileNodeId = Guid.NewGuid();
-        var ownerId = Guid.NewGuid();
+        var fileNodeId = Guid.CreateVersion7();
+        var ownerId = Guid.CreateVersion7();
 
         await _callback.IndexPhotoAsync(fileNodeId, "sunset.jpg", "image/jpeg", 2_000_000, ownerId);
 
@@ -40,8 +40,8 @@ public class PhotoIndexingCallbackTests
     [TestMethod]
     public async Task IndexPhotoAsync_SetsCorrectOwner()
     {
-        var fileNodeId = Guid.NewGuid();
-        var ownerId = Guid.NewGuid();
+        var fileNodeId = Guid.CreateVersion7();
+        var ownerId = Guid.CreateVersion7();
 
         await _callback.IndexPhotoAsync(fileNodeId, "photo.png", "image/png", 1024, ownerId);
 
@@ -52,9 +52,9 @@ public class PhotoIndexingCallbackTests
     [TestMethod]
     public async Task IndexPhotoAsync_SetsCorrectFileName()
     {
-        var fileNodeId = Guid.NewGuid();
+        var fileNodeId = Guid.CreateVersion7();
 
-        await _callback.IndexPhotoAsync(fileNodeId, "vacation.heic", "image/heic", 5_000_000, Guid.NewGuid());
+        await _callback.IndexPhotoAsync(fileNodeId, "vacation.heic", "image/heic", 5_000_000, Guid.CreateVersion7());
 
         var photo = _db.Photos.First(p => p.FileNodeId == fileNodeId);
         Assert.AreEqual("vacation.heic", photo.FileName);
@@ -63,9 +63,9 @@ public class PhotoIndexingCallbackTests
     [TestMethod]
     public async Task IndexPhotoAsync_SetsCorrectMimeType()
     {
-        var fileNodeId = Guid.NewGuid();
+        var fileNodeId = Guid.CreateVersion7();
 
-        await _callback.IndexPhotoAsync(fileNodeId, "photo.webp", "image/webp", 1024, Guid.NewGuid());
+        await _callback.IndexPhotoAsync(fileNodeId, "photo.webp", "image/webp", 1024, Guid.CreateVersion7());
 
         var photo = _db.Photos.First(p => p.FileNodeId == fileNodeId);
         Assert.AreEqual("image/webp", photo.MimeType);
@@ -74,9 +74,9 @@ public class PhotoIndexingCallbackTests
     [TestMethod]
     public async Task IndexPhotoAsync_SetsCorrectSizeBytes()
     {
-        var fileNodeId = Guid.NewGuid();
+        var fileNodeId = Guid.CreateVersion7();
 
-        await _callback.IndexPhotoAsync(fileNodeId, "large.jpg", "image/jpeg", 15_000_000, Guid.NewGuid());
+        await _callback.IndexPhotoAsync(fileNodeId, "large.jpg", "image/jpeg", 15_000_000, Guid.CreateVersion7());
 
         var photo = _db.Photos.First(p => p.FileNodeId == fileNodeId);
         Assert.AreEqual(15_000_000, photo.SizeBytes);
@@ -85,11 +85,11 @@ public class PhotoIndexingCallbackTests
     [TestMethod]
     public async Task IndexPhotoAsync_MultipleFiles_CreatesAll()
     {
-        var ownerId = Guid.NewGuid();
+        var ownerId = Guid.CreateVersion7();
 
-        await _callback.IndexPhotoAsync(Guid.NewGuid(), "a.jpg", "image/jpeg", 1024, ownerId);
-        await _callback.IndexPhotoAsync(Guid.NewGuid(), "b.png", "image/png", 2048, ownerId);
-        await _callback.IndexPhotoAsync(Guid.NewGuid(), "c.gif", "image/gif", 512, ownerId);
+        await _callback.IndexPhotoAsync(Guid.CreateVersion7(), "a.jpg", "image/jpeg", 1024, ownerId);
+        await _callback.IndexPhotoAsync(Guid.CreateVersion7(), "b.png", "image/png", 2048, ownerId);
+        await _callback.IndexPhotoAsync(Guid.CreateVersion7(), "c.gif", "image/gif", 512, ownerId);
 
         Assert.AreEqual(3, _db.Photos.Count());
     }
@@ -97,8 +97,8 @@ public class PhotoIndexingCallbackTests
     [TestMethod]
     public async Task IndexPhotoAsync_DuplicateFileNodeId_SkipsInsert()
     {
-        var fileNodeId = Guid.NewGuid();
-        var ownerId = Guid.NewGuid();
+        var fileNodeId = Guid.CreateVersion7();
+        var ownerId = Guid.CreateVersion7();
 
         await _callback.IndexPhotoAsync(fileNodeId, "sunset.jpg", "image/jpeg", 2_000_000, ownerId);
         await _callback.IndexPhotoAsync(fileNodeId, "sunset.jpg", "image/jpeg", 2_000_000, ownerId);

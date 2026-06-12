@@ -130,7 +130,7 @@ public class SubtitleServiceTests
     [TestMethod]
     public async Task GetSubtitleContentAsync_ReturnsNull_WhenNotFound()
     {
-        var result = await _service.GetSubtitleContentAsync(Guid.NewGuid());
+        var result = await _service.GetSubtitleContentAsync(Guid.CreateVersion7());
 
         Assert.IsNull(result);
     }
@@ -161,7 +161,7 @@ public class SubtitleServiceTests
         var caller = TestHelpers.CreateCaller();
 
         var ex = await Assert.ThrowsExactlyAsync<BusinessRuleException>(
-            () => _service.DeleteSubtitleAsync(Guid.NewGuid(), caller));
+            () => _service.DeleteSubtitleAsync(Guid.CreateVersion7(), caller));
 
         Assert.AreEqual(ErrorCodes.SubtitleNotFound, ex.ErrorCode);
     }

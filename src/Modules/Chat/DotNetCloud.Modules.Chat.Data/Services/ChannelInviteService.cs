@@ -83,7 +83,7 @@ internal sealed class ChannelInviteService : IChannelInviteService
 
         await _eventBus.PublishAsync(new ChannelInviteCreatedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             InviteId = invite.Id,
             ChannelId = channelId,
@@ -132,7 +132,7 @@ internal sealed class ChannelInviteService : IChannelInviteService
 
         await _eventBus.PublishAsync(new ChannelInviteRespondedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             InviteId = invite.Id,
             ChannelId = invite.ChannelId,
@@ -165,7 +165,7 @@ internal sealed class ChannelInviteService : IChannelInviteService
 
         await _eventBus.PublishAsync(new ChannelInviteRespondedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             InviteId = invite.Id,
             ChannelId = invite.ChannelId,

@@ -41,7 +41,7 @@ public class ArtistServiceTests
     [TestMethod]
     public async Task GetArtist_NonExistent_ReturnsNull()
     {
-        var result = await _service.GetArtistAsync(Guid.NewGuid(), _caller);
+        var result = await _service.GetArtistAsync(Guid.CreateVersion7(), _caller);
         Assert.IsNull(result);
     }
 
@@ -179,7 +179,7 @@ public class ArtistServiceTests
     public async Task DeleteArtist_NonExistent_ThrowsBusinessRuleException()
     {
         await Assert.ThrowsExactlyAsync<DotNetCloud.Core.Errors.BusinessRuleException>(
-            () => _service.DeleteArtistAsync(Guid.NewGuid(), _caller));
+            () => _service.DeleteArtistAsync(Guid.CreateVersion7(), _caller));
     }
 
     // ─── GetCount ─────────────────────────────────────────────────────

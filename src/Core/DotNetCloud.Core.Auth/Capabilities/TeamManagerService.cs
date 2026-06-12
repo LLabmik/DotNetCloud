@@ -40,7 +40,7 @@ public sealed class TeamManagerService : ITeamManager
 
         var team = new Team
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             OrganizationId = organizationId,
             Name = name,
             Description = description,

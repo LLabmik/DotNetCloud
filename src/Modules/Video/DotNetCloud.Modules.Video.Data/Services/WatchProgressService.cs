@@ -121,7 +121,7 @@ public sealed class WatchProgressService : IWatchProgressService
 
         await _eventBus.PublishAsync(new VideoWatchedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             VideoId = videoId,
             UserId = caller.UserId,

@@ -60,7 +60,7 @@ public class PermissionScopingTests
             {
                 [SearchVisibilityMetadata.VisibilityScopeKey] = SearchVisibilityMetadata.VisibilityScopeGroupMembers,
                 [SearchVisibilityMetadata.GroupScopeKey] = SearchVisibilityMetadata.BuildGroupScopeKey([groupId]),
-                [SearchVisibilityMetadata.SharedFolderIdKey] = Guid.NewGuid().ToString("D"),
+                [SearchVisibilityMetadata.SharedFolderIdKey] = Guid.CreateVersion7().ToString("D"),
                 [SearchVisibilityMetadata.RelativePathKey] = "shared/report.txt",
             }
         };
@@ -113,7 +113,7 @@ public class PermissionScopingTests
     {
         using var db = CreateDbContext(nameof(PermissionScoping_GroupScopedDocument_VisibleToMatchingGroup));
         var provider = new SqlServerSearchProvider(db, NullLogger<SqlServerSearchProvider>.Instance);
-        var sharedGroupId = Guid.NewGuid();
+        var sharedGroupId = Guid.CreateVersion7();
 
         await provider.IndexDocumentAsync(CreateGroupScopedDoc("shared-1", "Shared Report", "quarterly mounted data", UserB, sharedGroupId));
 
@@ -135,7 +135,7 @@ public class PermissionScopingTests
     {
         using var db = CreateDbContext(nameof(PermissionScoping_GroupScopedDocument_HiddenWithoutMatchingGroup));
         var provider = new SqlServerSearchProvider(db, NullLogger<SqlServerSearchProvider>.Instance);
-        var sharedGroupId = Guid.NewGuid();
+        var sharedGroupId = Guid.CreateVersion7();
 
         await provider.IndexDocumentAsync(CreateGroupScopedDoc("shared-2", "Shared Report", "quarterly mounted data", UserB, sharedGroupId));
 
@@ -143,7 +143,7 @@ public class PermissionScopingTests
         {
             QueryText = "mounted",
             UserId = UserA,
-            GroupIds = [Guid.NewGuid()],
+            GroupIds = [Guid.CreateVersion7()],
             Page = 1,
             PageSize = 20,
         });

@@ -6,7 +6,7 @@ namespace DotNetCloud.Modules.Contacts.Models;
 public sealed class Contact
 {
     /// <summary>Unique identifier for this contact.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>User who owns this contact.</summary>
     public Guid OwnerId { get; set; }
@@ -63,7 +63,7 @@ public sealed class Contact
     public string? WebsiteUrl { get; set; }
 
     /// <summary>ETag for CardDAV sync-token / conflict detection.</summary>
-    public string ETag { get; set; } = Guid.NewGuid().ToString("N");
+    public string ETag { get; set; } = Guid.CreateVersion7().ToString("N");
 
     /// <summary>Whether this contact has been soft-deleted.</summary>
     public bool IsDeleted { get; set; }

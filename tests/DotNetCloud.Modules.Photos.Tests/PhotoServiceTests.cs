@@ -36,7 +36,7 @@ public class PhotoServiceTests
     [TestMethod]
     public async Task CreatePhoto_ValidInput_ReturnsPhotoDto()
     {
-        var fileNodeId = Guid.NewGuid();
+        var fileNodeId = Guid.CreateVersion7();
 
         var result = await _service.CreatePhotoAsync(fileNodeId, "photo.jpg", "image/jpeg", 2048, _caller.UserId, _caller);
 
@@ -51,7 +51,7 @@ public class PhotoServiceTests
     [TestMethod]
     public async Task CreatePhoto_PublishesPhotoUploadedEvent()
     {
-        var fileNodeId = Guid.NewGuid();
+        var fileNodeId = Guid.CreateVersion7();
 
         await _service.CreatePhotoAsync(fileNodeId, "event.jpg", "image/jpeg", 1024, _caller.UserId, _caller);
 
@@ -66,7 +66,7 @@ public class PhotoServiceTests
     [TestMethod]
     public async Task CreatePhoto_PersistedToDatabase()
     {
-        var fileNodeId = Guid.NewGuid();
+        var fileNodeId = Guid.CreateVersion7();
 
         var result = await _service.CreatePhotoAsync(fileNodeId, "db.jpg", "image/jpeg", 512, _caller.UserId, _caller);
 
@@ -90,7 +90,7 @@ public class PhotoServiceTests
     [TestMethod]
     public async Task GetPhoto_NonOwnerNoShare_ReturnsNull()
     {
-        var photo = await TestHelpers.SeedPhotoAsync(_db, Guid.NewGuid());
+        var photo = await TestHelpers.SeedPhotoAsync(_db, Guid.CreateVersion7());
 
         var result = await _service.GetPhotoAsync(photo.Id, _caller);
 
@@ -100,7 +100,7 @@ public class PhotoServiceTests
     [TestMethod]
     public async Task GetPhoto_NonOwnerWithShare_ReturnsPhoto()
     {
-        var ownerId = Guid.NewGuid();
+        var ownerId = Guid.CreateVersion7();
         var photo = await TestHelpers.SeedPhotoAsync(_db, ownerId);
         await TestHelpers.SeedPhotoShareAsync(_db, photo.Id, ownerId, _caller.UserId);
 
@@ -112,7 +112,7 @@ public class PhotoServiceTests
     [TestMethod]
     public async Task GetPhoto_NonExistent_ReturnsNull()
     {
-        var result = await _service.GetPhotoAsync(Guid.NewGuid(), _caller);
+        var result = await _service.GetPhotoAsync(Guid.CreateVersion7(), _caller);
         Assert.IsNull(result);
     }
 
@@ -122,7 +122,7 @@ public class PhotoServiceTests
     public async Task ListPhotos_ReturnsOnlyOwnPhotos()
     {
         await TestHelpers.SeedPhotoAsync(_db, _caller.UserId, "mine.jpg");
-        await TestHelpers.SeedPhotoAsync(_db, Guid.NewGuid(), "other.jpg");
+        await TestHelpers.SeedPhotoAsync(_db, Guid.CreateVersion7(), "other.jpg");
 
         var result = await _service.ListPhotosAsync(_caller);
 
@@ -202,7 +202,7 @@ public class PhotoServiceTests
     public async Task ToggleFavorite_NonExistent_ThrowsBusinessRuleException()
     {
         await Assert.ThrowsExactlyAsync<BusinessRuleException>(
-            () => _service.ToggleFavoriteAsync(Guid.NewGuid(), _caller));
+            () => _service.ToggleFavoriteAsync(Guid.CreateVersion7(), _caller));
     }
 
     [TestMethod]
@@ -237,7 +237,7 @@ public class PhotoServiceTests
     public async Task DeletePhoto_NonExistent_ThrowsBusinessRuleException()
     {
         await Assert.ThrowsExactlyAsync<BusinessRuleException>(
-            () => _service.DeletePhotoAsync(Guid.NewGuid(), _caller));
+            () => _service.DeletePhotoAsync(Guid.CreateVersion7(), _caller));
     }
 
     // ─── Search ───────────────────────────────────────────────────────

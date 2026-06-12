@@ -7,7 +7,7 @@ namespace DotNetCloud.Modules.Tracks.Models;
 /// </summary>
 public sealed class TeamRole
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
     public Guid TeamId { get; set; }
     public Guid UserId { get; set; }
     public TracksTeamMemberRole Role { get; set; } = TracksTeamMemberRole.Member;

@@ -17,13 +17,13 @@ public class BookmarkServiceTests
     private BookmarkService _service;
     private Mock<IEventBus> _eventBusMock;
     private CallerContext _caller;
-    private static readonly Guid UserId = Guid.NewGuid();
+    private static readonly Guid UserId = Guid.CreateVersion7();
 
     [TestInitialize]
     public void Setup()
     {
         var options = new DbContextOptionsBuilder<BookmarksDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options;
         _db = new BookmarksDbContext(options);
         _eventBusMock = new Mock<IEventBus>();
@@ -97,7 +97,7 @@ public class BookmarkServiceTests
     public async Task ListAsync_OtherUsersBookmarks_NotReturned()
     {
         await _service.CreateAsync(new CreateBookmarkRequest { Url = "https://a.com", Title = "A" }, _caller);
-        var otherCaller = new CallerContext(Guid.NewGuid(), new[] { "user" }, CallerType.User);
+        var otherCaller = new CallerContext(Guid.CreateVersion7(), new[] { "user" }, CallerType.User);
         await _service.CreateAsync(new CreateBookmarkRequest { Url = "https://b.com", Title = "B" }, otherCaller);
 
         var results = await _service.ListAsync(_caller, null, 0, 50);
@@ -121,7 +121,7 @@ public class BookmarkServiceTests
     [TestMethod]
     public async Task GetAsync_NonExistentBookmark_ReturnsNull()
     {
-        var result = await _service.GetAsync(Guid.NewGuid(), _caller);
+        var result = await _service.GetAsync(Guid.CreateVersion7(), _caller);
 
         Assert.IsNull(result);
     }

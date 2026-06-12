@@ -61,14 +61,14 @@ public class NullLiveKitServiceTests
     public async Task CreateRoomAsync_ThrowsInvalidOperationException()
     {
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
-            _service.CreateRoomAsync(Guid.NewGuid(), 10));
+            _service.CreateRoomAsync(Guid.CreateVersion7(), 10));
     }
 
     [TestMethod]
     public async Task CreateRoomAsync_ExceptionMessageContainsMaxParticipants()
     {
         var ex = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
-            _service.CreateRoomAsync(Guid.NewGuid(), 10));
+            _service.CreateRoomAsync(Guid.CreateVersion7(), 10));
 
         Assert.IsTrue(ex.Message.Contains("3"), "Exception message should mention the P2P participant limit.");
     }
@@ -77,7 +77,7 @@ public class NullLiveKitServiceTests
     public async Task CreateRoomAsync_ExceptionMessageMentionsLiveKitConfiguration()
     {
         var ex = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
-            _service.CreateRoomAsync(Guid.NewGuid(), 10));
+            _service.CreateRoomAsync(Guid.CreateVersion7(), 10));
 
         Assert.IsTrue(ex.Message.Contains("LiveKit"), "Exception message should mention LiveKit.");
         Assert.IsTrue(ex.Message.Contains("appsettings.json") || ex.Message.Contains("Chat:LiveKit"),
@@ -154,7 +154,7 @@ public class NullLiveKitServiceTests
         var service = new NullLiveKitService(loggerMock);
 
         try
-        { await service.CreateRoomAsync(Guid.NewGuid(), 10); }
+        { await service.CreateRoomAsync(Guid.CreateVersion7(), 10); }
         catch (InvalidOperationException) { }
 
         Assert.IsTrue(loggerMock.LogEntries.Any(e => e.LogLevel == LogLevel.Warning),

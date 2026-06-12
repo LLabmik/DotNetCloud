@@ -7,8 +7,8 @@ namespace DotNetCloud.Integration.Tests.Builders;
 /// </summary>
 internal sealed class ApplicationUserBuilder
 {
-    private Guid _id = Guid.NewGuid();
-    private string _email = $"user-{Guid.NewGuid():N}@test.local";
+    private Guid _id = Guid.CreateVersion7();
+    private string _email = $"user-{Guid.CreateVersion7():N}@test.local";
     private string _displayName = "Test User";
     private string _locale = "en-US";
     private string _timezone = "UTC";
@@ -46,8 +46,8 @@ internal sealed class ApplicationUserBuilder
             CreatedAt = _createdAt,
             LastLoginAt = _lastLoginAt,
             AvatarUrl = _avatarUrl,
-            SecurityStamp = Guid.NewGuid().ToString(),
-            ConcurrencyStamp = Guid.NewGuid().ToString(),
+            SecurityStamp = Guid.CreateVersion7().ToString(),
+            ConcurrencyStamp = Guid.CreateVersion7().ToString(),
         };
     }
 

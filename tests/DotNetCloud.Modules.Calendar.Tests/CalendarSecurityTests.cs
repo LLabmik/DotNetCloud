@@ -28,15 +28,15 @@ public class CalendarSecurityTests
     public void Setup()
     {
         var options = new DbContextOptionsBuilder<CalendarDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options;
         _db = new CalendarDbContext(options);
         _eventBusMock = new Mock<IEventBus>();
         _calendarService = new CalendarService(_db, _eventBusMock.Object, Mock.Of<DotNetCloud.Core.Capabilities.IOrganizationDirectory>(), NullLogger<CalendarService>.Instance);
         _eventService = new CalendarEventService(_db, _eventBusMock.Object, Mock.Of<DotNetCloud.Core.Capabilities.IOrganizationDirectory>(), NullLogger<CalendarEventService>.Instance);
         _shareService = new CalendarShareService(_db, _eventBusMock.Object, NullLogger<CalendarShareService>.Instance);
-        _userA = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
-        _userB = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        _userA = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
+        _userB = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
     }
 
     [TestCleanup]
@@ -181,7 +181,7 @@ public class CalendarSecurityTests
 
         await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
             () => _shareService.ShareCalendarAsync(
-                calendar.Id, Guid.NewGuid(), null, CalendarSharePermission.ReadOnly, _userB));
+                calendar.Id, Guid.CreateVersion7(), null, CalendarSharePermission.ReadOnly, _userB));
     }
 
     [TestMethod]

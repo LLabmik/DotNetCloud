@@ -20,7 +20,7 @@ public sealed class CorrelationIdHandler : DelegatingHandler
     protected override async Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request, CancellationToken cancellationToken)
     {
-        var requestId = Guid.NewGuid().ToString("N");
+        var requestId = Guid.CreateVersion7().ToString("N");
         request.Headers.TryAddWithoutValidation("X-Request-ID", requestId);
         request.Headers.TryAddWithoutValidation("X-Sync-Capabilities", "cdc");
 

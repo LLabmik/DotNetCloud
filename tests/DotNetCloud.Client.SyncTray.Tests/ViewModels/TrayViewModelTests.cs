@@ -34,7 +34,7 @@ public sealed class TrayViewModelTests
     public async Task OnSyncProgress_ForKnownContext_UpdatesAccountState()
     {
         var (vm, syncMock, _, _) = BuildVm();
-        var contextId = Guid.NewGuid();
+        var contextId = Guid.CreateVersion7();
 
         await SeedAccountAsync(vm, syncMock, contextId, "Idle");
 
@@ -56,7 +56,7 @@ public sealed class TrayViewModelTests
     public async Task OnSyncComplete_ResetsAccountToIdle()
     {
         var (vm, syncMock, _, _) = BuildVm();
-        var contextId = Guid.NewGuid();
+        var contextId = Guid.CreateVersion7();
 
         await SeedAccountAsync(vm, syncMock, contextId, "Syncing");
 
@@ -73,7 +73,7 @@ public sealed class TrayViewModelTests
     public async Task OnSyncComplete_WithConflicts_ShowsNotification()
     {
         var (vm, syncMock, _, notifMock) = BuildVm();
-        var contextId = Guid.NewGuid();
+        var contextId = Guid.CreateVersion7();
 
         await SeedAccountAsync(vm, syncMock, contextId, "Syncing");
 
@@ -99,7 +99,7 @@ public sealed class TrayViewModelTests
     public async Task OnSyncError_SetsErrorState_AndBuffersError_NoImmediateToast()
     {
         var (vm, syncMock, _, notifMock) = BuildVm();
-        var contextId = Guid.NewGuid();
+        var contextId = Guid.CreateVersion7();
 
         await SeedAccountAsync(vm, syncMock, contextId, "Syncing");
 
@@ -130,7 +130,7 @@ public sealed class TrayViewModelTests
     public async Task OnSyncComplete_WithPriorError_ShowsSingleAggregatedErrorToast()
     {
         var (vm, syncMock, _, notifMock) = BuildVm();
-        var contextId = Guid.NewGuid();
+        var contextId = Guid.CreateVersion7();
 
         await SeedAccountAsync(vm, syncMock, contextId, "Syncing");
 
@@ -170,7 +170,7 @@ public sealed class TrayViewModelTests
     public async Task OnSyncComplete_WithMultipleErrors_ShowsSingleToastWithSummary()
     {
         var (vm, syncMock, _, notifMock) = BuildVm();
-        var contextId = Guid.NewGuid();
+        var contextId = Guid.CreateVersion7();
 
         await SeedAccountAsync(vm, syncMock, contextId, "Syncing");
 
@@ -202,7 +202,7 @@ public sealed class TrayViewModelTests
     public async Task OnSyncComplete_WithTransfersNoErrors_ShowsSuccessToast()
     {
         var (vm, syncMock, _, notifMock) = BuildVm();
-        var contextId = Guid.NewGuid();
+        var contextId = Guid.CreateVersion7();
 
         await SeedAccountAsync(vm, syncMock, contextId, "Syncing");
 
@@ -234,7 +234,7 @@ public sealed class TrayViewModelTests
     public async Task OnSyncComplete_WithNoActivityNoErrors_ShowsNoToast()
     {
         var (vm, syncMock, _, notifMock) = BuildVm();
-        var contextId = Guid.NewGuid();
+        var contextId = Guid.CreateVersion7();
 
         await SeedAccountAsync(vm, syncMock, contextId, "Syncing");
 
@@ -259,7 +259,7 @@ public sealed class TrayViewModelTests
     public async Task OnSyncComplete_MixedSuccessAndErrors_ShowsOnlyErrorToast()
     {
         var (vm, syncMock, _, notifMock) = BuildVm();
-        var contextId = Guid.NewGuid();
+        var contextId = Guid.CreateVersion7();
 
         await SeedAccountAsync(vm, syncMock, contextId, "Syncing");
 
@@ -298,7 +298,7 @@ public sealed class TrayViewModelTests
     public async Task NewSyncCycle_ResetsPriorCycleErrors()
     {
         var (vm, syncMock, _, notifMock) = BuildVm();
-        var contextId = Guid.NewGuid();
+        var contextId = Guid.CreateVersion7();
 
         await SeedAccountAsync(vm, syncMock, contextId, "Idle");
 
@@ -338,8 +338,8 @@ public sealed class TrayViewModelTests
     public async Task OverallState_IsIdle_WhenAllAccountsIdle()
     {
         var (vm, syncMock, _, _) = BuildVm();
-        var id1 = Guid.NewGuid();
-        var id2 = Guid.NewGuid();
+        var id1 = Guid.CreateVersion7();
+        var id2 = Guid.CreateVersion7();
 
         await SeedAccountAsync(vm, syncMock, id1, "Idle");
         await SeedAccountAsync(vm, syncMock, id2, "Idle");
@@ -351,8 +351,8 @@ public sealed class TrayViewModelTests
     public async Task OverallState_IsSyncing_WhenAnyAccountSyncing()
     {
         var (vm, syncMock, _, _) = BuildVm();
-        var id1 = Guid.NewGuid();
-        var id2 = Guid.NewGuid();
+        var id1 = Guid.CreateVersion7();
+        var id2 = Guid.CreateVersion7();
 
         await SeedAccountAsync(vm, syncMock, id1, "Idle");
         await SeedAccountAsync(vm, syncMock, id2, "Syncing");
@@ -370,7 +370,7 @@ public sealed class TrayViewModelTests
     public async Task OverallState_IsError_WhenAnyAccountInError()
     {
         var (vm, syncMock, _, _) = BuildVm();
-        var id = Guid.NewGuid();
+        var id = Guid.CreateVersion7();
 
         await SeedAccountAsync(vm, syncMock, id, "Idle");
 
@@ -387,7 +387,7 @@ public sealed class TrayViewModelTests
     public async Task OverallState_IsPaused_WhenAllAccountsPaused()
     {
         var (vm, syncMock, _, _) = BuildVm();
-        var id = Guid.NewGuid();
+        var id = Guid.CreateVersion7();
 
         await SeedAccountAsync(vm, syncMock, id, "Idle");
 
@@ -406,7 +406,7 @@ public sealed class TrayViewModelTests
     public async Task OnUnreadCountUpdated_AggregatesAcrossChannels_AndTracksMentions()
     {
         var (vm, syncMock, chatMock, _) = BuildVm();
-        var contextId = Guid.NewGuid();
+        var contextId = Guid.CreateVersion7();
 
         await SeedAccountAsync(vm, syncMock, contextId, "Idle");
 
@@ -427,7 +427,7 @@ public sealed class TrayViewModelTests
     public async Task Tooltip_IncludesChatUnreadSummary_WhenUnreadExists()
     {
         var (vm, syncMock, chatMock, _) = BuildVm();
-        var contextId = Guid.NewGuid();
+        var contextId = Guid.CreateVersion7();
 
         await SeedAccountAsync(vm, syncMock, contextId, "Idle");
 
@@ -453,7 +453,7 @@ public sealed class TrayViewModelTests
                 "General",
                 "Alice",
                 "Hello from chat",
-                Guid.NewGuid(),
+                Guid.CreateVersion7(),
                 DateTime.UtcNow,
                 false));
 
@@ -481,7 +481,7 @@ public sealed class TrayViewModelTests
                 "Engineering",
                 "Bob",
                 "@you please check this",
-                Guid.NewGuid(),
+                Guid.CreateVersion7(),
                 DateTime.UtcNow,
                 true));
 
@@ -510,7 +510,7 @@ public sealed class TrayViewModelTests
                 "General",
                 "Carol",
                 "Muted message",
-                Guid.NewGuid(),
+                Guid.CreateVersion7(),
                 DateTime.UtcNow,
                 false));
 
@@ -529,7 +529,7 @@ public sealed class TrayViewModelTests
     public async Task OnNewChatMessage_WithKnownAccount_PassesChatAppActionUrl()
     {
         var (vm, syncMock, chatMock, notifMock) = BuildVm();
-        var contextId = Guid.NewGuid();
+        var contextId = Guid.CreateVersion7();
 
         await SeedAccountAsync(vm, syncMock, contextId, "Idle");
 
@@ -541,7 +541,7 @@ public sealed class TrayViewModelTests
                 "General",
                 "Dana",
                 "Click me",
-                Guid.NewGuid(),
+                Guid.CreateVersion7(),
                 DateTime.UtcNow,
                 false));
 
@@ -596,7 +596,7 @@ public sealed class TrayViewModelTests
                 DisplayName = $"TestAccount-{contextId}",
                 ServerBaseUrl = "https://cloud.example.com",
                 LocalFolderPath = "/sync",
-                UserId = Guid.NewGuid(),
+                UserId = Guid.CreateVersion7(),
                 AccountKey = $"test-{contextId}",
                 OsUserName = "testuser",
                 DataDirectory = "/tmp/data",

@@ -25,12 +25,12 @@ public class MessageServiceInlineAttachmentTests
     public async Task Setup()
     {
         var options = new DbContextOptionsBuilder<ChatDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options;
         _db = new ChatDbContext(options);
         var eventBus = new Mock<IEventBus>();
         _service = new MessageService(_db, eventBus.Object, NullLogger<MessageService>.Instance);
-        _caller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        _caller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
 
         var channel = new Channel { Name = "test", CreatedByUserId = _caller.UserId };
         _db.Channels.Add(channel);
@@ -207,7 +207,7 @@ public class MessageServiceInlineAttachmentTests
     [TestMethod]
     public async Task SendMessage_Attachment_AllFieldsMapped()
     {
-        var fileNodeId = Guid.NewGuid();
+        var fileNodeId = Guid.CreateVersion7();
         var dto = new SendMessageDto
         {
             Content = "File attached",

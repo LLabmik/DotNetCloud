@@ -7,7 +7,7 @@ namespace DotNetCloud.Modules.Music.Models;
 public sealed class CanonicalAlbum
 {
     /// <summary>Unique identifier for this canonical album.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>Album title.</summary>
     public required string Title { get; set; }

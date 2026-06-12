@@ -28,16 +28,16 @@ public class VCardServiceTests
     public void Setup()
     {
         var options = new DbContextOptionsBuilder<ContactsDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options;
         _db = new ContactsDbContext(options);
         _eventBusMock = new Mock<IEventBus>();
         _contactService = new ContactService(_db, _eventBusMock.Object, NullLogger<ContactService>.Instance);
-        _tempStoragePath = Path.Combine(Path.GetTempPath(), "dnc-vcard-tests", Guid.NewGuid().ToString("N"));
+        _tempStoragePath = Path.Combine(Path.GetTempPath(), "dnc-vcard-tests", Guid.CreateVersion7().ToString("N"));
         Directory.CreateDirectory(_tempStoragePath);
         _avatarService = new ContactAvatarService(_db, NullLogger<ContactAvatarService>.Instance, _tempStoragePath);
         _vcardService = new VCardService(_db, _contactService, _avatarService, NullLogger<VCardService>.Instance);
-        _caller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        _caller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
     }
 
     [TestCleanup]

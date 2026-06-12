@@ -18,11 +18,11 @@ public class EventTests
     {
         var @event = new NoteCreatedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            NoteId = Guid.NewGuid(),
+            NoteId = Guid.CreateVersion7(),
             Title = "Test",
-            CreatedByUserId = Guid.NewGuid()
+            CreatedByUserId = Guid.CreateVersion7()
         };
 
         Assert.IsInstanceOfType<IEvent>(@event);
@@ -31,9 +31,9 @@ public class EventTests
     [TestMethod]
     public void WhenNoteCreatedEventCreatedThenPropertiesAreSet()
     {
-        var eventId = Guid.NewGuid();
-        var noteId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
+        var eventId = Guid.CreateVersion7();
+        var noteId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
         var now = DateTime.UtcNow;
 
         var @event = new NoteCreatedEvent
@@ -57,11 +57,11 @@ public class EventTests
     {
         var original = new NoteCreatedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            NoteId = Guid.NewGuid(),
+            NoteId = Guid.CreateVersion7(),
             Title = "Original",
-            CreatedByUserId = Guid.NewGuid()
+            CreatedByUserId = Guid.CreateVersion7()
         };
 
         var copy = original with { Title = "Copy" };
@@ -78,10 +78,10 @@ public class EventTests
     {
         var @event = new NoteDeletedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            NoteId = Guid.NewGuid(),
-            DeletedByUserId = Guid.NewGuid()
+            NoteId = Guid.CreateVersion7(),
+            DeletedByUserId = Guid.CreateVersion7()
         };
 
         Assert.IsInstanceOfType<IEvent>(@event);
@@ -90,9 +90,9 @@ public class EventTests
     [TestMethod]
     public void WhenNoteDeletedEventCreatedThenPropertiesAreSet()
     {
-        var eventId = Guid.NewGuid();
-        var noteId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
+        var eventId = Guid.CreateVersion7();
+        var noteId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
         var now = DateTime.UtcNow;
 
         var @event = new NoteDeletedEvent

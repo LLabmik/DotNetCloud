@@ -23,7 +23,7 @@ namespace DotNetCloud.Integration.Tests.Infrastructure;
 /// </summary>
 internal sealed class ChatHostWebApplicationFactory : WebApplicationFactory<ChatHost::Program>
 {
-    private readonly string _databaseName = $"ChatHostInt_{Guid.NewGuid():N}";
+    private readonly string _databaseName = $"ChatHostInt_{Guid.CreateVersion7():N}";
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {

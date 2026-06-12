@@ -133,7 +133,7 @@ internal sealed class FileService : IFileService
 
         await _eventBus.PublishAsync(new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ModuleId = "files",
             EntityId = folder.Id.ToString(),
@@ -327,7 +327,7 @@ internal sealed class FileService : IFileService
 
         await _eventBus.PublishAsync(new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ModuleId = "files",
             EntityId = nodeId.ToString(),
@@ -413,7 +413,7 @@ internal sealed class FileService : IFileService
 
         await _eventBus.PublishAsync(new FileMovedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             FileNodeId = nodeId,
             FileName = node.Name,
@@ -424,7 +424,7 @@ internal sealed class FileService : IFileService
 
         await _eventBus.PublishAsync(new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ModuleId = "files",
             EntityId = nodeId.ToString(),
@@ -558,7 +558,7 @@ internal sealed class FileService : IFileService
 
         await _eventBus.PublishAsync(new FileDeletedEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             FileNodeId = nodeId,
             FileName = node.Name,
@@ -568,7 +568,7 @@ internal sealed class FileService : IFileService
 
         await _eventBus.PublishAsync(new SearchIndexRequestEvent
         {
-            EventId = Guid.NewGuid(),
+            EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
             ModuleId = "files",
             EntityId = nodeId.ToString(),

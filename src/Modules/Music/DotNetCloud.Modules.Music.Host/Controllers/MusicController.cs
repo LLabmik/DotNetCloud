@@ -200,7 +200,7 @@ public class MusicController : MusicControllerBase
             return NotFound(ErrorEnvelope(ErrorCodes.TrackNotFound, "Album has no downloadable tracks."));
 
         var timestamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
-        var randomToken = Guid.NewGuid().ToString("N")[..8];
+        var randomToken = Guid.CreateVersion7().ToString("N")[..8];
         var safeArtistName = string.Join("_", album.ArtistName.Split(Path.GetInvalidFileNameChars())).Replace(' ', '_');
         var safeAlbumName = string.Join("_", album.Title.Split(Path.GetInvalidFileNameChars())).Replace(' ', '_');
         var tempPath = Path.Combine(Path.GetTempPath(), $"dotnetcloud-album-{albumId:N}-{timestamp}-{randomToken}.zip");

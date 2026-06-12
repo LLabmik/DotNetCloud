@@ -17,7 +17,7 @@ public class RolePermissionTests
     public void Setup()
     {
         var options = new DbContextOptionsBuilder<CoreDbContext>()
-            .UseInMemoryDatabase(databaseName: $"PermissionTestDb_{Guid.NewGuid()}")
+            .UseInMemoryDatabase(databaseName: $"PermissionTestDb_{Guid.CreateVersion7()}")
             .Options;
 
         var namingStrategy = new PostgreSqlNamingStrategy();

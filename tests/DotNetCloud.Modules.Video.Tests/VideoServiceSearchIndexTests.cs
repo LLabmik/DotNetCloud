@@ -37,7 +37,7 @@ public class VideoServiceSearchIndexTests
     [TestMethod]
     public async Task CreateVideo_PublishesSearchIndexRequestEvent_WithIndexAction()
     {
-        var fileNodeId = Guid.NewGuid();
+        var fileNodeId = Guid.CreateVersion7();
         var result = await _service.CreateVideoAsync(
             fileNodeId, "video.mp4", "video/mp4", 10240, _caller.UserId, _caller);
 
@@ -55,7 +55,7 @@ public class VideoServiceSearchIndexTests
     [TestMethod]
     public async Task DeleteVideo_PublishesSearchIndexRequestEvent_WithRemoveAction()
     {
-        var fileNodeId = Guid.NewGuid();
+        var fileNodeId = Guid.CreateVersion7();
         var created = await _service.CreateVideoAsync(
             fileNodeId, "video.mp4", "video/mp4", 10240, _caller.UserId, _caller);
         _eventBusMock.Invocations.Clear();

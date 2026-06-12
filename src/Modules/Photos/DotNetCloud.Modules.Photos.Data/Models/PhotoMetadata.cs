@@ -6,7 +6,7 @@ namespace DotNetCloud.Modules.Photos.Models;
 public sealed class PhotoMetadata
 {
     /// <summary>Unique identifier.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>The photo this metadata belongs to.</summary>
     public Guid PhotoId { get; set; }

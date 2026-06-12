@@ -35,7 +35,7 @@ public sealed class AlbumSharedNotificationHandler : IEventHandler<AlbumSharedEv
         {
             var notification = new NotificationDto
             {
-                Id = Guid.NewGuid(),
+                Id = Guid.CreateVersion7(),
                 UserId = @event.SharedWithUserId,
                 SourceModuleId = "dotnetcloud.photos",
                 Type = NotificationType.Share,

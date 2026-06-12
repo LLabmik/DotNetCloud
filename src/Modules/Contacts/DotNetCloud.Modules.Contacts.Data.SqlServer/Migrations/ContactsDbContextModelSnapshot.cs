@@ -17,7 +17,7 @@ namespace DotNetCloud.Modules.Contacts.Data.SqlServer.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasDefaultSchema("contacts")
+                .HasDefaultSchema("core")
                 .HasAnnotation("ProductVersion", "10.0.3")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
@@ -27,7 +27,8 @@ namespace DotNetCloud.Modules.Contacts.Data.SqlServer.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
 
                     b.Property<DateOnly?>("Anniversary")
                         .HasColumnType("date");
@@ -148,14 +149,15 @@ namespace DotNetCloud.Modules.Contacts.Data.SqlServer.Migrations
                     b.HasIndex("OwnerId", "LastName", "FirstName")
                         .HasDatabaseName("ix_contacts_owner_name");
 
-                    b.ToTable("Contacts", "contacts");
+                    b.ToTable("Contacts", "core");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Contacts.Models.ContactAddress", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
 
                     b.Property<string>("City")
                         .HasMaxLength(200)
@@ -196,14 +198,15 @@ namespace DotNetCloud.Modules.Contacts.Data.SqlServer.Migrations
                     b.HasIndex("ContactId")
                         .HasDatabaseName("ix_contact_addresses_contact_id");
 
-                    b.ToTable("ContactAddresses", "contacts");
+                    b.ToTable("ContactAddresses", "core");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Contacts.Models.ContactAttachment", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
 
                     b.Property<Guid>("ContactId")
                         .HasColumnType("uniqueidentifier");
@@ -251,14 +254,15 @@ namespace DotNetCloud.Modules.Contacts.Data.SqlServer.Migrations
                     b.HasIndex("ContactId", "IsAvatar")
                         .HasDatabaseName("ix_contact_attachments_contact_avatar");
 
-                    b.ToTable("ContactAttachments", "contacts");
+                    b.ToTable("ContactAttachments", "core");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Contacts.Models.ContactCustomField", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
 
                     b.Property<Guid>("ContactId")
                         .HasColumnType("uniqueidentifier");
@@ -282,14 +286,15 @@ namespace DotNetCloud.Modules.Contacts.Data.SqlServer.Migrations
                         .IsUnique()
                         .HasDatabaseName("uq_contact_custom_fields_contact_key");
 
-                    b.ToTable("ContactCustomFields", "contacts");
+                    b.ToTable("ContactCustomFields", "core");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Contacts.Models.ContactEmail", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
 
                     b.Property<string>("Address")
                         .IsRequired()
@@ -318,14 +323,15 @@ namespace DotNetCloud.Modules.Contacts.Data.SqlServer.Migrations
                     b.HasIndex("ContactId")
                         .HasDatabaseName("ix_contact_emails_contact_id");
 
-                    b.ToTable("ContactEmails", "contacts");
+                    b.ToTable("ContactEmails", "core");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Contacts.Models.ContactGroup", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
 
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
@@ -360,7 +366,7 @@ namespace DotNetCloud.Modules.Contacts.Data.SqlServer.Migrations
                         .IsUnique()
                         .HasDatabaseName("uq_contact_groups_owner_name");
 
-                    b.ToTable("ContactGroups", "contacts");
+                    b.ToTable("ContactGroups", "core");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Contacts.Models.ContactGroupMember", b =>
@@ -381,14 +387,15 @@ namespace DotNetCloud.Modules.Contacts.Data.SqlServer.Migrations
                     b.HasIndex("ContactId")
                         .HasDatabaseName("ix_contact_group_members_contact_id");
 
-                    b.ToTable("ContactGroupMembers", "contacts");
+                    b.ToTable("ContactGroupMembers", "core");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Contacts.Models.ContactPhone", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
 
                     b.Property<Guid>("ContactId")
                         .HasColumnType("uniqueidentifier");
@@ -414,14 +421,15 @@ namespace DotNetCloud.Modules.Contacts.Data.SqlServer.Migrations
                     b.HasIndex("ContactId")
                         .HasDatabaseName("ix_contact_phones_contact_id");
 
-                    b.ToTable("ContactPhones", "contacts");
+                    b.ToTable("ContactPhones", "core");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Contacts.Models.ContactShare", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
 
                     b.Property<Guid>("ContactId")
                         .HasColumnType("uniqueidentifier");
@@ -462,7 +470,7 @@ namespace DotNetCloud.Modules.Contacts.Data.SqlServer.Migrations
                     b.HasIndex("SharedWithUserId")
                         .HasDatabaseName("ix_contact_shares_shared_with_user");
 
-                    b.ToTable("ContactShares", "contacts");
+                    b.ToTable("ContactShares", "core");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Contacts.Models.ContactAddress", b =>

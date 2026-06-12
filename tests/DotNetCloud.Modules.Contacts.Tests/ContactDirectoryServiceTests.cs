@@ -23,17 +23,17 @@ public class ContactDirectoryServiceTests
     public void Setup()
     {
         var options = new DbContextOptionsBuilder<ContactsDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options;
         _db = new ContactsDbContext(options);
         _service = new ContactDirectoryService(_db);
-        _userId = Guid.NewGuid();
-        _otherUserId = Guid.NewGuid();
+        _userId = Guid.CreateVersion7();
+        _otherUserId = Guid.CreateVersion7();
 
         // Seed: contact "Alice Johnson" with work/home emails
         var alice = new Contact
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             OwnerId = _userId,
             DisplayName = "Alice Johnson",
             FirstName = "Alice",
@@ -49,7 +49,7 @@ public class ContactDirectoryServiceTests
         // Seed: contact "Bob Smith" with only work email
         var bob = new Contact
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             OwnerId = _userId,
             DisplayName = "Bob Smith",
             FirstName = "Bob",
@@ -64,7 +64,7 @@ public class ContactDirectoryServiceTests
         // Seed: contact owned by another user (should not appear in results)
         var otherUserContact = new Contact
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             OwnerId = _otherUserId,
             DisplayName = "Charlie Brown",
             FirstName = "Charlie",
@@ -79,7 +79,7 @@ public class ContactDirectoryServiceTests
         // Seed: contact "Fonda Kimball" with display name containing last name
         var fonda = new Contact
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             OwnerId = _userId,
             DisplayName = "Fonda Kimball",
             FirstName = "Fonda",
@@ -94,7 +94,7 @@ public class ContactDirectoryServiceTests
         // Seed: soft-deleted contact (should not appear in results)
         var deletedContact = new Contact
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             OwnerId = _userId,
             DisplayName = "Deleted User",
             IsDeleted = true,
@@ -257,7 +257,7 @@ public class ContactDirectoryServiceTests
         {
             _db.Contacts.Add(new Contact
             {
-                Id = Guid.NewGuid(),
+                Id = Guid.CreateVersion7(),
                 OwnerId = _userId,
                 DisplayName = $"Zoe Test Contact {i:D2}",
                 ContactType = Core.DTOs.ContactType.Person,
@@ -338,7 +338,7 @@ public class ContactDirectoryServiceTests
     [TestMethod]
     public async Task GetContactDisplayNameAsync_UnknownContact_ReturnsNull()
     {
-        var name = await _service.GetContactDisplayNameAsync(Guid.NewGuid());
+        var name = await _service.GetContactDisplayNameAsync(Guid.CreateVersion7());
 
         Assert.IsNull(name);
     }

@@ -22,7 +22,7 @@ public class DeviceServiceTests
     public void Setup()
     {
         var options = new DbContextOptionsBuilder<CoreDbContext>()
-            .UseInMemoryDatabase($"DeviceTests_{Guid.NewGuid()}")
+            .UseInMemoryDatabase($"DeviceTests_{Guid.CreateVersion7()}")
             .Options;
         _dbContext = new CoreDbContext(options, new PostgreSqlNamingStrategy());
 
@@ -45,7 +45,7 @@ public class DeviceServiceTests
     public async Task WhenUserHasNoDevicesThenReturnsEmptyList()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
 
         // Act
         var devices = await _service.GetDevicesAsync(userId);
@@ -58,11 +58,11 @@ public class DeviceServiceTests
     public async Task WhenUserHasDevicesThenReturnsAllDevices()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         _dbContext.UserDevices.AddRange(
             new UserDevice
             {
-                Id = Guid.NewGuid(),
+                Id = Guid.CreateVersion7(),
                 UserId = userId,
                 Name = "Windows Laptop",
                 DeviceType = "Desktop",
@@ -71,7 +71,7 @@ public class DeviceServiceTests
             },
             new UserDevice
             {
-                Id = Guid.NewGuid(),
+                Id = Guid.CreateVersion7(),
                 UserId = userId,
                 Name = "Android Phone",
                 DeviceType = "Mobile",
@@ -91,14 +91,14 @@ public class DeviceServiceTests
     public async Task WhenUserHasDevicesThenDevicesAreOrderedByLastSeenDescending()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var older = DateTime.UtcNow.AddHours(-2);
         var newer = DateTime.UtcNow;
 
         _dbContext.UserDevices.AddRange(
             new UserDevice
             {
-                Id = Guid.NewGuid(),
+                Id = Guid.CreateVersion7(),
                 UserId = userId,
                 Name = "Old Device",
                 DeviceType = "Desktop",
@@ -107,7 +107,7 @@ public class DeviceServiceTests
             },
             new UserDevice
             {
-                Id = Guid.NewGuid(),
+                Id = Guid.CreateVersion7(),
                 UserId = userId,
                 Name = "New Device",
                 DeviceType = "Mobile",
@@ -128,13 +128,13 @@ public class DeviceServiceTests
     public async Task WhenOtherUserHasDevicesThenOnlyCurrentUserDevicesReturned()
     {
         // Arrange
-        var userId = Guid.NewGuid();
-        var otherUserId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var otherUserId = Guid.CreateVersion7();
 
         _dbContext.UserDevices.AddRange(
             new UserDevice
             {
-                Id = Guid.NewGuid(),
+                Id = Guid.CreateVersion7(),
                 UserId = userId,
                 Name = "My Device",
                 DeviceType = "Desktop",
@@ -143,7 +143,7 @@ public class DeviceServiceTests
             },
             new UserDevice
             {
-                Id = Guid.NewGuid(),
+                Id = Guid.CreateVersion7(),
                 UserId = otherUserId,
                 Name = "Other User Device",
                 DeviceType = "Mobile",
@@ -164,8 +164,8 @@ public class DeviceServiceTests
     public async Task WhenDeviceReturnedThenFieldsMappedCorrectly()
     {
         // Arrange
-        var userId = Guid.NewGuid();
-        var deviceId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var deviceId = Guid.CreateVersion7();
         var created = DateTime.UtcNow.AddDays(-3);
         var lastSeen = DateTime.UtcNow;
 
@@ -201,8 +201,8 @@ public class DeviceServiceTests
     public async Task WhenDeviceExistsThenRemoveReturnsTrue()
     {
         // Arrange
-        var userId = Guid.NewGuid();
-        var deviceId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var deviceId = Guid.CreateVersion7();
 
         _dbContext.UserDevices.Add(new UserDevice
         {
@@ -228,8 +228,8 @@ public class DeviceServiceTests
     public async Task WhenDeviceDoesNotExistThenRemoveReturnsFalse()
     {
         // Arrange
-        var userId = Guid.NewGuid();
-        var nonExistentDeviceId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var nonExistentDeviceId = Guid.CreateVersion7();
 
         // Act
         var result = await _service.RemoveDeviceAsync(userId, nonExistentDeviceId);
@@ -242,9 +242,9 @@ public class DeviceServiceTests
     public async Task WhenDeviceBelongsToOtherUserThenRemoveReturnsFalse()
     {
         // Arrange
-        var userId = Guid.NewGuid();
-        var otherUserId = Guid.NewGuid();
-        var deviceId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var otherUserId = Guid.CreateVersion7();
+        var deviceId = Guid.CreateVersion7();
 
         _dbContext.UserDevices.Add(new UserDevice
         {
@@ -270,9 +270,9 @@ public class DeviceServiceTests
     public async Task WhenRemovingDeviceThenOtherDevicesUnaffected()
     {
         // Arrange
-        var userId = Guid.NewGuid();
-        var deviceToRemove = Guid.NewGuid();
-        var deviceToKeep = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
+        var deviceToRemove = Guid.CreateVersion7();
+        var deviceToKeep = Guid.CreateVersion7();
 
         _dbContext.UserDevices.AddRange(
             new UserDevice

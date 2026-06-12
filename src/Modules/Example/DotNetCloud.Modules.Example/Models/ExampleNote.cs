@@ -6,7 +6,7 @@ namespace DotNetCloud.Modules.Example.Models;
 public sealed record ExampleNote
 {
     /// <summary>Unique identifier for the note.</summary>
-    public Guid Id { get; init; } = Guid.NewGuid();
+    public Guid Id { get; init; } = Guid.CreateVersion7();
 
     /// <summary>Title of the note.</summary>
     public required string Title { get; init; }

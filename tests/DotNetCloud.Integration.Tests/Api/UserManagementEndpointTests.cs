@@ -20,8 +20,8 @@ public class UserManagementEndpointTests
     private static HttpClient _userClient = null!;
     private static HttpClient _anonClient = null!;
 
-    private static readonly Guid AdminUserId = Guid.NewGuid();
-    private static readonly Guid RegularUserId = Guid.NewGuid();
+    private static readonly Guid AdminUserId = Guid.CreateVersion7();
+    private static readonly Guid RegularUserId = Guid.CreateVersion7();
 
     [ClassInitialize]
     public static async Task ClassInit(TestContext _)
@@ -151,7 +151,7 @@ public class UserManagementEndpointTests
         // Arrange — create a disposable user
         using var scope = _factory.Services.CreateScope();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-        var disposableId = Guid.NewGuid();
+        var disposableId = Guid.CreateVersion7();
         var disposableUser = new ApplicationUserBuilder()
             .WithId(disposableId)
             .WithEmail($"disposable-{disposableId:N}@test.local")
@@ -187,7 +187,7 @@ public class UserManagementEndpointTests
         // Arrange — create a user to disable
         using var scope = _factory.Services.CreateScope();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-        var targetId = Guid.NewGuid();
+        var targetId = Guid.CreateVersion7();
         var targetUser = new ApplicationUserBuilder()
             .WithId(targetId)
             .WithEmail($"disable-target-{targetId:N}@test.local")
@@ -209,7 +209,7 @@ public class UserManagementEndpointTests
         // Arrange — create a disabled user
         using var scope = _factory.Services.CreateScope();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-        var targetId = Guid.NewGuid();
+        var targetId = Guid.CreateVersion7();
         var targetUser = new ApplicationUserBuilder()
             .WithId(targetId)
             .WithEmail($"enable-target-{targetId:N}@test.local")

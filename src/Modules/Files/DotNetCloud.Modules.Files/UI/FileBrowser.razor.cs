@@ -168,7 +168,7 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
 
     // Drag-and-drop: use a counter to handle bubbling (child elements fire enter/leave too).
     private int _dragEnterCount;
-    private readonly string _browserDropInputId = $"files-drop-input-{Guid.NewGuid():N}";
+    private readonly string _browserDropInputId = $"files-drop-input-{Guid.CreateVersion7():N}";
     private bool _hasDroppedFiles;
     private DotNetObjectReference<FileBrowser>? _dropBridgeRef;
     private DotNetObjectReference<FileBrowser>? _pasteRef;

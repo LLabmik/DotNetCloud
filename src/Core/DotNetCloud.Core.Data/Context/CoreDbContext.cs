@@ -14,6 +14,7 @@ using DotNetCloud.Core.Data.Configuration.Auth;
 using DotNetCloud.Core.Data.Configuration.Notifications;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Data.Interceptors;
+using DotNetCloud.Core.Data.Configuration.Extensions;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using OpenIddict.EntityFrameworkCore;
@@ -285,6 +286,10 @@ public class CoreDbContext : IdentityDbContext<ApplicationUser, ApplicationRole,
         // PostgreSQL uses native 'jsonb'; SQL Server uses 'nvarchar(max)';
         // emit the wrong DDL type for non-PostgreSQL providers.
         ApplyJsonColumnTypes(modelBuilder);
+
+        // Apply UUIDv7 value generation to all Guid primary key properties,
+        // and add NEWSEQUENTIALID() defaults for SQL Server.
+        SequentialGuidConfigurationExtensions.ApplySequentialGuidDefaults(modelBuilder, _namingStrategy.Provider);
     }
 
     /// <summary>

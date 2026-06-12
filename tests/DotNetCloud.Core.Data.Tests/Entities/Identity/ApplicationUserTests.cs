@@ -32,7 +32,7 @@ public class ApplicationUserTests
     public void ApplicationUser_PrimaryKey_IsGuid()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var user = new ApplicationUser
         {
             Id = userId,
@@ -186,7 +186,7 @@ public class ApplicationUserTests
     public void ApplicationUser_AllProperties_CanBeRoundTripped()
     {
         // Arrange
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var displayName = "John Doe";
         var avatarUrl = "https://example.com/avatar.jpg";
         var locale = "de-DE";

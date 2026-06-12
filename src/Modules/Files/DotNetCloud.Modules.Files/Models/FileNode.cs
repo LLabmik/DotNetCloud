@@ -8,7 +8,7 @@ namespace DotNetCloud.Modules.Files.Models;
 public sealed class FileNode
 {
     /// <summary>Unique identifier for this node.</summary>
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>Display name of the file or folder (e.g., "report.docx", "Photos").</summary>
     public required string Name { get; set; }

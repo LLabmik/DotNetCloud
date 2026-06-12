@@ -14,7 +14,7 @@ public class NotificationsEndpointTests
     private static HttpClient _authClient = null!;
     private static HttpClient _anonClient = null!;
 
-    private static readonly Guid UserId = Guid.NewGuid();
+    private static readonly Guid UserId = Guid.CreateVersion7();
 
     [ClassInitialize]
     public static void ClassInit(TestContext _)
@@ -78,7 +78,7 @@ public class NotificationsEndpointTests
     public async Task MarkRead_NonExistentNotification_ReturnsNotFoundOrBadRequest()
     {
         // Act
-        var fakeId = Guid.NewGuid();
+        var fakeId = Guid.CreateVersion7();
         var response = await _authClient.PostAsync(
             $"/api/v1/notifications/{fakeId}/mark-read", null);
 

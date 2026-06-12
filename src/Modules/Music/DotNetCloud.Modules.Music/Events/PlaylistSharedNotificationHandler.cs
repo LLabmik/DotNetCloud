@@ -45,7 +45,7 @@ public sealed class PlaylistSharedNotificationHandler : IEventHandler<ResourceSh
         {
             var notification = new NotificationDto
             {
-                Id = Guid.NewGuid(),
+                Id = Guid.CreateVersion7(),
                 UserId = @event.SharedWithUserId,
                 SourceModuleId = "dotnetcloud.music",
                 Type = NotificationType.Share,

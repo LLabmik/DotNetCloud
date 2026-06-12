@@ -17,7 +17,7 @@ public class FilesSearchableModuleTests
     private static FilesDbContext CreateContext(string? name = null)
     {
         var options = new DbContextOptionsBuilder<FilesDbContext>()
-            .UseInMemoryDatabase(name ?? Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(name ?? Guid.CreateVersion7().ToString())
             .Options;
         return new FilesDbContext(options);
     }
@@ -26,7 +26,7 @@ public class FilesSearchableModuleTests
     public async Task GetSearchableDocumentAsync_TextFile_IncludesExtractedBodyContent()
     {
         using var db = CreateContext();
-        var ownerId = Guid.NewGuid();
+        var ownerId = Guid.CreateVersion7();
         var node = new FileNode
         {
             Name = "TestFile.txt",
@@ -86,7 +86,7 @@ public class FilesSearchableModuleTests
     public async Task GetSearchableDocumentAsync_BinaryFile_DoesNotAttemptBodyExtraction()
     {
         using var db = CreateContext();
-        var ownerId = Guid.NewGuid();
+        var ownerId = Guid.CreateVersion7();
         var node = new FileNode
         {
             Name = "Photo.png",
@@ -139,9 +139,9 @@ public class FilesSearchableModuleTests
     public async Task GetAllSearchableDocumentsAsync_AdminSharedFolder_IncludesMountedFilesWithGroupVisibilityMetadata()
     {
         using var db = CreateContext();
-        var ownerId = Guid.NewGuid();
-        var groupId = Guid.NewGuid();
-        var tempPath = Path.Combine(Path.GetTempPath(), $"dnc-search-mounted-{Guid.NewGuid():N}");
+        var ownerId = Guid.CreateVersion7();
+        var groupId = Guid.CreateVersion7();
+        var tempPath = Path.Combine(Path.GetTempPath(), $"dnc-search-mounted-{Guid.CreateVersion7():N}");
 
         Directory.CreateDirectory(tempPath);
         try

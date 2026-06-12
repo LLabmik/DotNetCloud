@@ -17,7 +17,7 @@ public class WopiServiceTests
 {
     private static FilesDbContext CreateContext() =>
         new(new DbContextOptionsBuilder<FilesDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options);
 
     private static CallerContext UserCaller(Guid userId) =>
@@ -52,7 +52,7 @@ public class WopiServiceTests
     public async Task CheckFileInfoAsync_ExistingFile_ReturnsInfo()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = new FileNode
         {
             Name = "report.docx",
@@ -82,7 +82,7 @@ public class WopiServiceTests
         using var db = CreateContext();
         var service = CreateService(db);
 
-        var result = await service.CheckFileInfoAsync(Guid.NewGuid(), UserCaller(Guid.NewGuid()));
+        var result = await service.CheckFileInfoAsync(Guid.CreateVersion7(), UserCaller(Guid.CreateVersion7()));
 
         Assert.IsNull(result);
     }
@@ -91,7 +91,7 @@ public class WopiServiceTests
     public async Task CheckFileInfoAsync_DeletedFile_ReturnsNull()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = new FileNode { Name = "deleted.docx", NodeType = FileNodeType.File, OwnerId = userId, IsDeleted = true };
         db.FileNodes.Add(node);
         await db.SaveChangesAsync();
@@ -106,8 +106,8 @@ public class WopiServiceTests
     public async Task CheckFileInfoAsync_NoPermission_ReturnsNull()
     {
         using var db = CreateContext();
-        var ownerId = Guid.NewGuid();
-        var otherId = Guid.NewGuid();
+        var ownerId = Guid.CreateVersion7();
+        var otherId = Guid.CreateVersion7();
         var node = new FileNode { Name = "private.docx", NodeType = FileNodeType.File, OwnerId = ownerId };
         db.FileNodes.Add(node);
         await db.SaveChangesAsync();
@@ -122,8 +122,8 @@ public class WopiServiceTests
     public async Task CheckFileInfoAsync_ReadOnlyShare_UserCanWriteIsFalse()
     {
         using var db = CreateContext();
-        var ownerId = Guid.NewGuid();
-        var viewerId = Guid.NewGuid();
+        var ownerId = Guid.CreateVersion7();
+        var viewerId = Guid.CreateVersion7();
         var node = new FileNode { Name = "shared.docx", NodeType = FileNodeType.File, OwnerId = ownerId };
         db.FileNodes.Add(node);
         db.FileShares.Add(new FileShare
@@ -149,7 +149,7 @@ public class WopiServiceTests
     public async Task GetFileAsync_ExistingFile_ReturnsStreamAndMime()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = new FileNode { Name = "test.txt", NodeType = FileNodeType.File, OwnerId = userId, MimeType = "text/plain" };
         db.FileNodes.Add(node);
         await db.SaveChangesAsync();
@@ -169,7 +169,7 @@ public class WopiServiceTests
         using var db = CreateContext();
         var service = CreateService(db);
 
-        var result = await service.GetFileAsync(Guid.NewGuid(), UserCaller(Guid.NewGuid()));
+        var result = await service.GetFileAsync(Guid.CreateVersion7(), UserCaller(Guid.CreateVersion7()));
 
         Assert.IsNull(result);
     }
@@ -178,7 +178,7 @@ public class WopiServiceTests
     public async Task GetFileAsync_NullMimeType_DefaultsToOctetStream()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = new FileNode { Name = "unknown.bin", NodeType = FileNodeType.File, OwnerId = userId, MimeType = null };
         db.FileNodes.Add(node);
         await db.SaveChangesAsync();
@@ -196,7 +196,7 @@ public class WopiServiceTests
     public async Task PutFileAsync_ValidFile_CreatesNewVersion()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = new FileNode
         {
             Name = "editable.docx",
@@ -246,14 +246,14 @@ public class WopiServiceTests
         using var content = new MemoryStream(Encoding.UTF8.GetBytes("data"));
 
         await Assert.ThrowsExactlyAsync<Core.Errors.NotFoundException>(
-            () => service.PutFileAsync(Guid.NewGuid(), content, UserCaller(Guid.NewGuid())));
+            () => service.PutFileAsync(Guid.CreateVersion7(), content, UserCaller(Guid.CreateVersion7())));
     }
 
     [TestMethod]
     public async Task PutFileAsync_Folder_ThrowsInvalidOperationException()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var folder = new FileNode { Name = "Folder", NodeType = FileNodeType.Folder, OwnerId = userId };
         db.FileNodes.Add(folder);
         await db.SaveChangesAsync();
@@ -269,8 +269,8 @@ public class WopiServiceTests
     public async Task PutFileAsync_NoWritePermission_ThrowsForbiddenException()
     {
         using var db = CreateContext();
-        var ownerId = Guid.NewGuid();
-        var viewerId = Guid.NewGuid();
+        var ownerId = Guid.CreateVersion7();
+        var viewerId = Guid.CreateVersion7();
         var node = new FileNode { Name = "readonly.docx", NodeType = FileNodeType.File, OwnerId = ownerId };
         db.FileNodes.Add(node);
         db.FileShares.Add(new FileShare
@@ -294,7 +294,7 @@ public class WopiServiceTests
     public async Task PutFileAsync_ChunkDeduplication_ReusesExistingChunk()
     {
         using var db = CreateContext();
-        var userId = Guid.NewGuid();
+        var userId = Guid.CreateVersion7();
         var node = new FileNode { Name = "dedup.docx", NodeType = FileNodeType.File, OwnerId = userId, CurrentVersion = 1 };
         db.FileNodes.Add(node);
 
