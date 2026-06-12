@@ -118,7 +118,7 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
         var discovered = _discoveryService.DiscoverModule(moduleId);
         if (discovered is null)
         {
-            _logger.LogWarning("Cannot start module {ModuleId}: not found on filesystem", moduleId);
+            _logger.LogWarning("Cannot start module {ModuleId}: not found on filesystem", SanitizeForLog(moduleId));
             return;
         }
 
@@ -222,11 +222,11 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
 
         if (_modules.TryGetValue(moduleId, out var existing) && existing.IsRunning)
         {
-            _logger.LogWarning("Module {ModuleId} is already running (PID {Pid})", moduleId, existing.ProcessId);
+            _logger.LogWarning("Module {ModuleId} is already running (PID {Pid})", SanitizeForLog(moduleId), existing.ProcessId);
             return;
         }
 
-        _logger.LogInformation("Starting module {ModuleId} from {Path}", moduleId, discovered.ExecutablePath);
+        _logger.LogInformation("Starting module {ModuleId} from {Path}", SanitizeForLog(moduleId), discovered.ExecutablePath);
 
         var manifest = LoadManifest(discovered);
         var restartPolicy = ParseRestartPolicy(manifest.RestartPolicy);
@@ -263,14 +263,14 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
             var applied = _resourceLimiter.ApplyLimits(moduleId, process, limitBytes, cpuPercent: null);
             if (!applied)
             {
-                _logger.LogWarning("Could not apply resource limits for module {ModuleId}", moduleId);
+                _logger.LogWarning("Could not apply resource limits for module {ModuleId}", SanitizeForLog(moduleId));
             }
         }
 
         var healthy = await WaitForModuleHealthyAsync(moduleId, grpcEndpoint, cancellationToken);
         if (!healthy)
         {
-            _logger.LogWarning("Module {ModuleId} did not become healthy within startup timeout", moduleId);
+            _logger.LogWarning("Module {ModuleId} did not become healthy within startup timeout", SanitizeForLog(moduleId));
             handle.SetStatus(ModuleProcessStatus.Degraded, "Startup health check timed out");
         }
         else
@@ -278,7 +278,7 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
             handle.RecordHealthCheck();
             _logger.LogInformation(
                 "Module {ModuleId} is running (PID {Pid}, endpoint {Endpoint})",
-                moduleId, handle.ProcessId, grpcEndpoint);
+                SanitizeForLog(moduleId), handle.ProcessId, grpcEndpoint);
         }
     }
 
@@ -419,12 +419,12 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
 
-            _logger.LogInformation("Spawned module {ModuleId} as PID {Pid}", discovered.ModuleId, process.Id);
+            _logger.LogInformation("Spawned module {ModuleId} as PID {Pid}", SanitizeForLog(discovered.ModuleId), process.Id);
             return process;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to spawn process for module {ModuleId}", discovered.ModuleId);
+            _logger.LogError(ex, "Failed to spawn process for module {ModuleId}", SanitizeForLog(discovered.ModuleId));
             return null;
         }
     }
