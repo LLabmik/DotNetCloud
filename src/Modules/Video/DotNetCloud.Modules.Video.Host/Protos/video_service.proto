@@ -45,6 +45,17 @@ service VideoGrpcService {
 
   // Returns a single searchable document by entity ID.
   rpc GetSearchableDocument (GetSearchableDocumentRequest) returns (SearchableDocumentResponse);
+
+  // ── Transcoding ────────────────────────────────────────────────
+
+  // Gets stream info (can direct play, available transcode formats).
+  rpc GetStreamInfo (GetStreamInfoRequest) returns (StreamInfoResponse);
+
+  // Requests a transcode and returns stream URL + job ID for progress tracking.
+  rpc RequestTranscode (RequestTranscodeRequest) returns (RequestTranscodeResponse);
+
+  // Gets progress/status of a transcode job.
+  rpc GetTranscodeProgress (GetTranscodeProgressRequest) returns (TranscodeProgressResponse);
 }
 
 // ── Video Messages ──────────────────────────────────────────────
@@ -196,6 +207,48 @@ message GetSearchableDocumentsRequest {
 
 message GetSearchableDocumentRequest {
   string entity_id = 1;
+}
+
+// ── Transcoding Messages ────────────────────────────────────────
+
+message GetStreamInfoRequest {
+  string video_id = 1;
+  string user_id = 2;
+}
+
+message StreamInfoResponse {
+  bool success = 1;
+  string error_message = 2;
+  bool can_direct_play = 3;
+  string stream_url = 4;
+  string mime_type = 5;
+}
+
+message RequestTranscodeRequest {
+  string video_id = 1;
+  string user_id = 2;
+  bool force_transcode = 3;
+}
+
+message RequestTranscodeResponse {
+  bool success = 1;
+  string error_message = 2;
+  string job_id = 3;
+  string stream_url = 4;
+}
+
+message GetTranscodeProgressRequest {
+  string job_id = 1;
+}
+
+message TranscodeProgressResponse {
+  bool success = 1;
+  string error_message = 2;
+  string job_id = 3;
+  string status = 4;
+  double progress_percent = 5;
+  string current_time = 6;
+  double speed = 7;
 }
 
 message SearchableDocumentResponse {

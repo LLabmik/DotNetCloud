@@ -1255,7 +1255,6 @@
                     <div id="player-container" class="player-container">
                         <video id="video-player"
                                class="video-player"
-                               src="@GetStreamUrl(_playerVideo.FileNodeId)"
                                poster="@(_playerVideo.HasExternalPoster ? GetThumbnailUrl(_playerVideo.Id) : null)"
                                controls
                                autoplay
@@ -1291,7 +1290,7 @@
                                                 from the Microsoft Store for H.265 video support</li>
                                         </ul>
                                     </div>
-                                    <p class="codec-error-alt">Server-side transcoding is planned for a future release.</p>
+                                    <p class="codec-error-alt">Server-side transcoding is in progress — if this message persists, try refreshing the page.</p>
                                 </div>
                             </div>
                         }
@@ -1301,10 +1300,8 @@
                             <div class="no-audio-banner">
                                 <span class="no-audio-icon">🔇</span>
                                 <span>
-                                    <strong>No audio:</strong> This video uses a Dolby Digital (AC-3/EAC-3) audio track
-                                    that your browser cannot decode. For full audio support, open this page in
-                                    <strong>Microsoft Edge</strong>.
-                                    Server-side audio transcoding is planned for a future release.
+                                    <strong>No audio:</strong> This video may have an audio codec your browser cannot decode.
+                                    Server-side transcoding should handle this — try refreshing if audio doesn't start within a few seconds.
                                 </span>
                             </div>
                         }
@@ -1314,6 +1311,18 @@
                         <div class="player-info-header">
                             <div class="player-title-section">
                                 <h3>@_playerVideo.Title</h3>
+                                @if (_streamStrategy is not null)
+                                {
+                                    <span class="stream-strategy-badge stream-strategy-@_streamStrategy">
+                                        @(_streamStrategy switch
+                                        {
+                                            "direct" => "Direct Play",
+                                            "remux" => "Remuxing",
+                                            "transcode" => "Transcoding",
+                                            _ => _streamStrategy
+                                        })
+                                    </span>
+                                }
                                 @if (_playerSeriesContext is not null)
                                 {
                                     <div class="player-series-context">

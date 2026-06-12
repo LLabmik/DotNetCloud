@@ -87,13 +87,11 @@ public partial class VideoPage : IAsyncDisposable
     private string? _codecErrorMessage;
     private string? _codecErrorGuidance;
     private bool _noAudioDetected;
-    private IJSObjectReference? _jsModule;
-    private IJSObjectReference? _idleAutoHideHandle;
-    private IJSObjectReference? _keyboardShortcutsHandle;
     private DotNetObjectReference<VideoPage>? _dotNetRef;
     private bool _videoErrorListenerAttached;
+    private bool _scriptsLoaded;
+    private string? _streamStrategy; // "direct", "remux", or "transcode"
 
-    // ── Page-load semaphore (serializes DbContext access to prevent concurrency on rapid clicks) ──
     private readonly SemaphoreSlim _pageLoadSemaphore = new(1, 1);
 
     // ── Library paging spinner ──
@@ -119,7 +117,7 @@ public partial class VideoPage : IAsyncDisposable
     private PlayerSeriesContext? _playerSeriesContext;
 
     // ── Breadcrumbs ──
-    private record BreadcrumbItem(string Label, Action Action);
+    private record BreadcrumbItem(string Label, Func<Task> Action);
     private List<BreadcrumbItem> _breadcrumb = [];
 
     // ── Timer for progress saving ──
@@ -183,18 +181,45 @@ public partial class VideoPage : IAsyncDisposable
             _videoErrorListenerAttached = true;
             try
             {
-                _jsModule ??= await Js.InvokeAsync<IJSObjectReference>(
-                    "import", "./_content/DotNetCloud.Modules.Video/video-player.js");
                 _dotNetRef ??= DotNetObjectReference.Create(this);
-                await _jsModule.InvokeVoidAsync("attachVideoErrorListener", "video-player", _dotNetRef);
-                _idleAutoHideHandle = await _jsModule.InvokeAsync<IJSObjectReference>("attachIdleAutoHide", "player-container", 3000);
-                _keyboardShortcutsHandle = await _jsModule.InvokeAsync<IJSObjectReference>("attachKeyboardShortcuts", "video-player");
+
+                // Load scripts via JS interop (script tags in Blazor components don't execute).
+                // Dynamic script tags load in parallel, so chain hls.js → video-player.js via onload.
+                if (!_scriptsLoaded)
+                {
+                    // Load hls.js normally (not affected by the static assets bug)
+                    await Js.InvokeVoidAsync("eval",
+                        "(function(){if(document.getElementById('dnc-hls'))return;var s=document.createElement('script');s.src='/_content/DotNetCloud.Modules.Video/hls.min.js';s.id='dnc-hls';s.onload=function(){var s2=document.createElement('script');s2.src='/api/v1/videos/video-player-js';s2.id='dnc-vp';document.head.appendChild(s2);};document.head.appendChild(s);})();");
+                    await Task.Delay(500);
+                    _scriptsLoaded = true;
+                }
+
+                // Start the stream pipeline first (triggers chunk reconstruction on server),
+                // then show progress overlay and attach the player once ready.
+                var streamUrl = GetStreamUrl(_playerVideo!.Id);
+
+                // attachHlsPlayer with 4 args enables progress overlay + polling
+                // With 2 args (legacy), plays immediately without progress
+                await Js.InvokeVoidAsync("DotNetCloudVideo.attachHlsPlayer",
+                    "video-player", streamUrl, _playerVideo!.Id.ToString(), _dotNetRef);
+
+                await Js.InvokeVoidAsync("DotNetCloudVideo.attachVideoErrorListener", "video-player", _dotNetRef);
+                await Js.InvokeVoidAsync("DotNetCloudVideo.attachIdleAutoHide", "player-container", 3000);
+                await Js.InvokeVoidAsync("DotNetCloudVideo.attachKeyboardShortcuts", "video-player");
             }
             catch (Exception ex)
             {
-                Logger.LogWarning(ex, "Failed to attach video error listener");
+                Logger.LogWarning(ex, "Failed to initialize video player");
             }
         }
+    }
+
+    /// <summary>Called from JS when the stream strategy is determined (via X-Stream-Strategy header).</summary>
+    [JSInvokable]
+    public void OnStreamStrategy(string strategy)
+    {
+        _streamStrategy = strategy;
+        InvokeAsync(StateHasChanged);
     }
 
     /// <summary>Called from JS when the video element fires an error event.</summary>
@@ -424,6 +449,10 @@ public partial class VideoPage : IAsyncDisposable
 
     private async Task SwitchSection(Section section)
     {
+        // Properly tear down player if open (cleans up JS, resets scriptsLoaded, etc.)
+        if (_playerOpen)
+            await ClosePlayer();
+
         _section = section;
         _selectedCollection = null;
         _selectedCollectionId = null;
@@ -669,22 +698,27 @@ public partial class VideoPage : IAsyncDisposable
     {
         try
         {
+            // Tear down previous player state (without JS interop — old <video>
+            // element is removed from DOM by Blazor re-render, JS GC handles the rest)
+            _codecErrorMessage = null;
+            _codecErrorGuidance = null;
+            _noAudioDetected = false;
+            _videoErrorListenerAttached = false;
+            _scriptsLoaded = false; // force fresh script load with DOM-settle delay
+            _streamStrategy = null;
+            _playerOpen = true;
+
             var caller = await GetCallerAsync();
             _playerVideo = video;
             _playerSubtitles = (await SubtitleService.GetSubtitlesAsync(video.Id, caller)).ToList();
             _playerMetadata = await MetadataService.GetMetadataAsync(video.Id);
 
-            _codecErrorMessage = null;
-            _codecErrorGuidance = null;
-            _noAudioDetected = false;
-            _videoErrorListenerAttached = false;
-            _playerOpen = true;
             await WatchProgressService.RecordViewAsync(video.Id, caller);
             await StartProgressTimerAsync(video.Id);
 
             _breadcrumb =
             [
-                new BreadcrumbItem(GetSectionLabel(), () => { ClosePlayer(); StateHasChanged(); })
+                new BreadcrumbItem(GetSectionLabel(), async () => { await ClosePlayer(); StateHasChanged(); })
             ];
         }
         catch (Exception ex)
@@ -710,7 +744,7 @@ public partial class VideoPage : IAsyncDisposable
         }
     }
 
-    private void ClosePlayer()
+    private async Task ClosePlayer()
     {
         _playerOpen = false;
         _playerVideo = null;
@@ -721,6 +755,27 @@ public partial class VideoPage : IAsyncDisposable
         _noAudioDetected = false;
         _videoErrorListenerAttached = false;
         _playerSeriesContext = null;
+        _streamStrategy = null;
+
+        // Tear down HLS player and UI handlers
+        try
+        {
+            await Js.InvokeVoidAsync("DotNetCloudVideo.cancelStreamProgress", "player-container");
+            await Js.InvokeVoidAsync("DotNetCloudVideo.destroyHlsPlayer", "video-player");
+            await Js.InvokeVoidAsync("DotNetCloudVideo.disposeIdleAutoHide", "player-container");
+            await Js.InvokeVoidAsync("DotNetCloudVideo.disposeKeyboardShortcuts", "video-player");
+
+            // Remove cached script tags so next open loads fresh versions
+            await Js.InvokeVoidAsync("eval",
+                "(function(){var e=document.getElementById('dnc-hls');if(e)e.remove();e=document.getElementById('dnc-vp');if(e)e.remove();})();");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogDebug(ex, "Error tearing down video player JS");
+        }
+
+        _scriptsLoaded = false;
+
         _breadcrumb.Clear();
         StopProgressTimer();
     }
@@ -758,7 +813,7 @@ public partial class VideoPage : IAsyncDisposable
 
         _breadcrumb =
         [
-            new BreadcrumbItem("Collections", () => { _selectedCollection = null; _selectedCollectionId = null; _breadcrumb.Clear(); StateHasChanged(); })
+            new BreadcrumbItem("Collections", async () => { _selectedCollection = null; _selectedCollectionId = null; _breadcrumb.Clear(); StateHasChanged(); })
         ];
 
         try
@@ -787,7 +842,7 @@ public partial class VideoPage : IAsyncDisposable
 
         _breadcrumb =
         [
-            new BreadcrumbItem("Series", () => { _selectedSeries = null; _selectedSeason = null; _seriesSeasons.Clear(); _seasonEpisodes.Clear(); _seriesVideos.Clear(); _breadcrumb.Clear(); StateHasChanged(); })
+            new BreadcrumbItem("Series", async () => { _selectedSeries = null; _selectedSeason = null; _seriesSeasons.Clear(); _seasonEpisodes.Clear(); _seriesVideos.Clear(); _breadcrumb.Clear(); StateHasChanged(); })
         ];
 
         try
@@ -817,7 +872,7 @@ public partial class VideoPage : IAsyncDisposable
         _breadcrumb =
         [
             new BreadcrumbItem("Series", async () => { _selectedSeason = null; _seasonEpisodes.Clear(); await OpenSeriesDetailAsync(_selectedSeries!); }),
-            new BreadcrumbItem(season.Name ?? $"Season {season.SeasonNumber}", () => { /* current view */ })
+            new BreadcrumbItem(season.Name ?? $"Season {season.SeasonNumber}", async () => { /* current view */ })
         ];
 
         try
@@ -1118,8 +1173,8 @@ public partial class VideoPage : IAsyncDisposable
         };
     }
 
-    private static string GetStreamUrl(Guid fileNodeId) =>
-        $"/api/v1/files/{fileNodeId}/content";
+    private static string GetStreamUrl(Guid videoId) =>
+        $"/api/v1/videos/{videoId}/stream";
 
     private static string GetSubtitleUrl(Guid subtitleId) => $"/api/v1/videos/subtitles/{subtitleId}";
 
@@ -1732,24 +1787,14 @@ public partial class VideoPage : IAsyncDisposable
         StopProgressTimer();
         ScanProgress.OnProgressChanged -= OnScanProgressChanged;
         _dotNetRef?.Dispose();
-        if (_idleAutoHideHandle is not null)
+
+        try
         {
-            try
-            { await _idleAutoHideHandle.InvokeVoidAsync("dispose"); await _idleAutoHideHandle.DisposeAsync(); }
-            catch { /* circuit may be gone */ }
+            await Js.InvokeVoidAsync("DotNetCloudVideo.destroyHlsPlayer", "video-player");
+            await Js.InvokeVoidAsync("DotNetCloudVideo.disposeIdleAutoHide", "player-container");
+            await Js.InvokeVoidAsync("DotNetCloudVideo.disposeKeyboardShortcuts", "video-player");
         }
-        if (_keyboardShortcutsHandle is not null)
-        {
-            try
-            { await _keyboardShortcutsHandle.InvokeVoidAsync("dispose"); await _keyboardShortcutsHandle.DisposeAsync(); }
-            catch { /* circuit may be gone */ }
-        }
-        if (_jsModule is not null)
-        {
-            try
-            { await _jsModule.DisposeAsync(); }
-            catch { /* circuit may be gone */ }
-        }
+        catch { /* circuit may be gone */ }
 
         _pageLoadSemaphore.Dispose();
     }

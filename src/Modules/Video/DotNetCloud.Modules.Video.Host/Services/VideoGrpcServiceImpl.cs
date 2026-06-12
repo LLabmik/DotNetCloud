@@ -2,6 +2,7 @@ using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Modules.Video.Data.Services;
 using DotNetCloud.Modules.Video.Host.Protos;
+using DotNetCloud.Modules.Video.Services;
 using Grpc.Core;
 
 namespace DotNetCloud.Modules.Video.Host.Services;
@@ -16,6 +17,7 @@ public sealed class VideoGrpcServiceImpl : VideoGrpcService.VideoGrpcServiceBase
     private readonly VideoCollectionService _collectionService;
     private readonly WatchProgressService _watchProgressService;
     private readonly VideoStreamingService _streamingService;
+    private readonly IVideoTranscodingService _transcodingService;
     private readonly ILogger<VideoGrpcServiceImpl> _logger;
 
     /// <summary>
@@ -26,12 +28,14 @@ public sealed class VideoGrpcServiceImpl : VideoGrpcService.VideoGrpcServiceBase
         VideoCollectionService collectionService,
         WatchProgressService watchProgressService,
         VideoStreamingService streamingService,
+        IVideoTranscodingService transcodingService,
         ILogger<VideoGrpcServiceImpl> logger)
     {
         _videoService = videoService;
         _collectionService = collectionService;
         _watchProgressService = watchProgressService;
         _streamingService = streamingService;
+        _transcodingService = transcodingService;
         _logger = logger;
     }
 
@@ -237,6 +241,99 @@ public sealed class VideoGrpcServiceImpl : VideoGrpcService.VideoGrpcServiceBase
         {
             _logger.LogError(ex, "GenerateStreamToken failed");
             return Task.FromResult(new StreamTokenResponse { Success = false, ErrorMessage = ex.Message });
+        }
+    }
+
+    // ── Transcoding RPCs ─────────────────────────────────────────────
+
+    /// <inheritdoc />
+    public override async Task<StreamInfoResponse> GetStreamInfo(GetStreamInfoRequest request, ServerCallContext context)
+    {
+        try
+        {
+            if (!Guid.TryParse(request.VideoId, out var videoId) || !Guid.TryParse(request.UserId, out var userId))
+                return new StreamInfoResponse { Success = false, ErrorMessage = "Invalid GUID format." };
+
+            var caller = ParseCaller(request.UserId);
+            var video = await _videoService.GetVideoAsync(videoId, caller);
+            if (video is null)
+                return new StreamInfoResponse { Success = false, ErrorMessage = "Video not found." };
+
+            var token = _streamingService.GenerateStreamToken(videoId, userId);
+            var canDirectPlay = await _transcodingService.CanDirectPlayAsync(
+                video.FileName, video.MimeType, context.CancellationToken);
+
+            return new StreamInfoResponse
+            {
+                Success = true,
+                CanDirectPlay = canDirectPlay,
+                StreamUrl = $"/api/v1/videos/{videoId}/stream?token={Uri.EscapeDataString(token)}" +
+                            (canDirectPlay ? "" : "&forceTranscode=true"),
+                MimeType = canDirectPlay ? video.MimeType : "video/mp4"
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "GetStreamInfo failed");
+            return new StreamInfoResponse { Success = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    /// <inheritdoc />
+    public override async Task<RequestTranscodeResponse> RequestTranscode(RequestTranscodeRequest request, ServerCallContext context)
+    {
+        try
+        {
+            if (!Guid.TryParse(request.VideoId, out var videoId) || !Guid.TryParse(request.UserId, out var userId))
+                return new RequestTranscodeResponse { Success = false, ErrorMessage = "Invalid GUID format." };
+
+            var caller = ParseCaller(request.UserId);
+            var token = _streamingService.GenerateStreamToken(videoId, userId);
+            var video = await _videoService.GetVideoAsync(videoId, caller);
+            if (video is null)
+                return new RequestTranscodeResponse { Success = false, ErrorMessage = "Video not found." };
+
+            var (jobId, _) = await _transcodingService.TranscodeAsync(
+                videoId, userId, video.FileName, video.MimeType,
+                ct: context.CancellationToken);
+
+            return new RequestTranscodeResponse
+            {
+                Success = true,
+                JobId = jobId,
+                StreamUrl = $"/api/v1/videos/{videoId}/stream?token={Uri.EscapeDataString(token)}&forceTranscode=true"
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "RequestTranscode failed");
+            return new RequestTranscodeResponse { Success = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    /// <inheritdoc />
+    public override Task<TranscodeProgressResponse> GetTranscodeProgress(GetTranscodeProgressRequest request, ServerCallContext context)
+    {
+        try
+        {
+            var job = _transcodingService.GetProgress(request.JobId);
+            if (job is null)
+                return Task.FromResult(new TranscodeProgressResponse { Success = false, ErrorMessage = "Job not found." });
+
+            return Task.FromResult(new TranscodeProgressResponse
+            {
+                Success = true,
+                JobId = job.Id,
+                Status = job.Status.ToString(),
+                ProgressPercent = job.ProgressPercent,
+                CurrentTime = job.CurrentTime.ToString(@"hh\:mm\:ss"),
+                Speed = job.Speed
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "GetTranscodeProgress failed");
+            return Task.FromResult(new TranscodeProgressResponse { Success = false, ErrorMessage = ex.Message });
         }
     }
 

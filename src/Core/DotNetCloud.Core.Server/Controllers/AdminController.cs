@@ -166,7 +166,8 @@ public class AdminController : ControllerBase
             return NotFound(new { success = false, error = new { code = "MODULE_NOT_FOUND", message = $"Module '{moduleId}' not found." } });
         }
 
-        _logger.LogInformation("Module {ModuleId} started by admin", moduleId);
+        var sanitizedModuleId = SanitizeForLog(moduleId);
+        _logger.LogInformation("Module {ModuleId} started by admin", sanitizedModuleId);
         return Ok(new { success = true, message = $"Module '{moduleId}' started successfully." });
     }
 
@@ -187,7 +188,8 @@ public class AdminController : ControllerBase
                 return NotFound(new { success = false, error = new { code = "MODULE_NOT_FOUND", message = $"Module '{moduleId}' not found." } });
             }
 
-            _logger.LogInformation("Module {ModuleId} stopped by admin", moduleId);
+            var sanitizedModuleId = SanitizeForLog(moduleId);
+            _logger.LogInformation("Module {ModuleId} stopped by admin", sanitizedModuleId);
             return Ok(new { success = true, message = $"Module '{moduleId}' stopped successfully." });
         }
         catch (InvalidOperationException ex)
@@ -211,8 +213,20 @@ public class AdminController : ControllerBase
             return NotFound(new { success = false, error = new { code = "MODULE_NOT_FOUND", message = $"Module '{moduleId}' not found." } });
         }
 
-        _logger.LogInformation("Module {ModuleId} restarted by admin", moduleId);
+        var sanitizedModuleId = SanitizeForLog(moduleId);
+        _logger.LogInformation("Module {ModuleId} restarted by admin", sanitizedModuleId);
         return Ok(new { success = true, message = $"Module '{moduleId}' restarted successfully." });
+    }
+
+    private static string SanitizeForLog(string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return string.Empty;
+        }
+
+        return value.Replace("\r", "\\r", StringComparison.Ordinal)
+            .Replace("\n", "\\n", StringComparison.Ordinal);
     }
 
     /// <summary>
