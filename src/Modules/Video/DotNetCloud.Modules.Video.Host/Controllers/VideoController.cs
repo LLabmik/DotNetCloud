@@ -814,6 +814,12 @@ public class VideoController : VideoControllerBase
         string filename,
         [FromQuery] string? token)
     {
+        if (!IsSafeHlsRelativePath(filename))
+        {
+            _logger.LogWarning("Invalid HLS segment filename: {Filename}", filename);
+            return BadRequest(ErrorEnvelope("invalid_segment", "Invalid segment filename."));
+        }
+
         Guid userId;
 
         if (!string.IsNullOrWhiteSpace(token))
@@ -919,6 +925,20 @@ public class VideoController : VideoControllerBase
     {
         _transcodingService.CancelTranscode(jobId);
         return Ok(Envelope(new { cancelled = true }));
+    }
+
+    private static bool IsSafeHlsRelativePath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return false;
+
+        if (Path.IsPathRooted(path))
+            return false;
+
+        var normalized = path.Replace('\\', '/');
+        var segments = normalized.Split('/', StringSplitOptions.RemoveEmptyEntries);
+
+        return segments.All(segment => segment != "..");
     }
 
     /// <summary>Fallback route for HLS segments requested at the video level
