@@ -29,11 +29,31 @@ public sealed class FfmpegArgumentBuilder
     /// <summary>
     /// Returns true if the video can be played directly in HTML5 browsers
     /// without transcoding. Legacy method — prefer <see cref="DecideStrategy"/>.
-    /// Must be H.264 or H.265 video + AAC or MP3 audio + MP4 container.
+    /// Must be H.264 or AVC1 video + AAC/MP3/no audio + MP4 container + video/mp4 MIME type.
+    /// HEVC, VP9, WebM, and all other codecs/containers will return false.
     /// </summary>
     public bool CanDirectPlay(string mimeType, string? videoCodec, string? audioCodec, string container)
     {
-        return _compat.DecideStrategy(mimeType, videoCodec, audioCodec, container) == StreamingStrategy.DirectPlay;
+        // Only support MP4 container with video/mp4 MIME type
+        if (!string.Equals(mimeType, "video/mp4", StringComparison.OrdinalIgnoreCase))
+            return false;
+        if (!string.Equals(container, "mp4", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        // Only support H264 and AVC1 video codecs
+        if (videoCodec is null)
+            return false;
+        if (!string.Equals(videoCodec, "h264", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(videoCodec, "avc1", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        // Support AAC, MP3, or no audio
+        if (!string.IsNullOrEmpty(audioCodec) &&
+            !string.Equals(audioCodec, "aac", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(audioCodec, "mp3", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        return true;
     }
 
     /// <summary>
