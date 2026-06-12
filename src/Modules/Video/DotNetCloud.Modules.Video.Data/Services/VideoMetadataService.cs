@@ -113,7 +113,16 @@ public sealed class VideoMetadataService : IVideoMetadataService
 
         await _db.SaveChangesAsync(cancellationToken);
 
+        var safeCodecForLog = SanitizeForLog(metadata.VideoCodec);
         _logger.LogInformation("Metadata saved for video {VideoId} (contentHash={ContentHash}): {Width}x{Height} {Codec}",
-            videoId, contentHash, metadata.Width, metadata.Height, metadata.VideoCodec);
+            videoId, contentHash, metadata.Width, metadata.Height, safeCodecForLog);
+    }
+
+    private static string SanitizeForLog(string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+            return string.Empty;
+        return value.Replace("\r", "", StringComparison.Ordinal)
+            .Replace("\n", "", StringComparison.Ordinal);
     }
 }

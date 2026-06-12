@@ -100,7 +100,8 @@ public sealed class AuthSessionController : ControllerBase
 
             if (result.RequiresTwoFactor)
             {
-                _logger.LogInformation("Login requires 2FA for {Email}, redirecting to MFA verify", email);
+                var safeEmailForLog = SanitizeForLog(email);
+                _logger.LogInformation("Login requires 2FA for {Email}, redirecting to MFA verify", safeEmailForLog);
                 var mfaReturnUrl = IsSafeLocalReturnUrl(returnUrl) ? returnUrl! : "/";
                 return LocalRedirect($"/auth/mfa-verify?returnUrl={Uri.EscapeDataString(mfaReturnUrl)}");
             }
@@ -313,5 +314,13 @@ public sealed class AuthSessionController : ControllerBase
             .ExecuteUpdateAsync(s => s.SetProperty(u => u.LastLoginAt, now));
         if (updated == 0)
             _logger.LogWarning("Could not persist LastLoginAt: user not found");
+    }
+
+    private static string SanitizeForLog(string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+            return string.Empty;
+        return value.Replace("\r", "", StringComparison.Ordinal)
+            .Replace("\n", "", StringComparison.Ordinal);
     }
 }

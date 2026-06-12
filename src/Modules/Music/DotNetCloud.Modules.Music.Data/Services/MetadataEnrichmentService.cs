@@ -313,6 +313,11 @@ public sealed class MetadataEnrichmentService : IMetadataEnrichmentService
             return new ApplyArtResult { Success = false, ErrorMessage = "Album not found." };
         }
 
+        var safeSourceForLog = (request.Source ?? string.Empty)
+            .Replace("\r", "", StringComparison.Ordinal)
+            .Replace("\n", "", StringComparison.Ordinal)
+            .Replace("\t", "", StringComparison.Ordinal);
+
         try
         {
             switch (request.Source)
@@ -324,13 +329,13 @@ public sealed class MetadataEnrichmentService : IMetadataEnrichmentService
                     return await ApplyAudioDbArtAsync(canonicalAlbum, request.SourceId, request.ThumbnailUrl, cancellationToken);
 
                 default:
-                    _logger.LogWarning("Unknown art source '{Source}' for album {AlbumId}", request.Source, albumId);
+                    _logger.LogWarning("Unknown art source '{Source}' for album {AlbumId}", safeSourceForLog, albumId);
                     return new ApplyArtResult { Success = false, ErrorMessage = $"Unknown art source: {request.Source}." };
             }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.LogError(ex, "Failed to apply art from {Source} for album {AlbumId}", request.Source, albumId);
+            _logger.LogError(ex, "Failed to apply art from {Source} for album {AlbumId}", safeSourceForLog, albumId);
             return new ApplyArtResult { Success = false, ErrorMessage = ex.Message };
         }
     }

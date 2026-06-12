@@ -62,8 +62,9 @@ public sealed class VideoSeriesService : IVideoSeriesService
 
         await _db.SaveChangesAsync(cancellationToken);
 
+        var safeNameForLog = SanitizeForLog(normalizedName);
         _logger.LogInformation("CanonicalSeries {SeriesId} '{Name}' ({Type}) created",
-            canonicalSeries.Id, normalizedName, canonicalSeries.Type);
+            canonicalSeries.Id, safeNameForLog, canonicalSeries.Type);
 
         return MapCanonicalToDto(canonicalSeries);
     }
@@ -206,9 +207,18 @@ public sealed class VideoSeriesService : IVideoSeriesService
 
         await _db.SaveChangesAsync(cancellationToken);
 
-        _logger.LogInformation("CanonicalSeries {SeriesId} '{Name}' auto-created", canonical.Id, normalizedName);
+        var safeNameForLog = SanitizeForLog(normalizedName);
+        _logger.LogInformation("CanonicalSeries {SeriesId} '{Name}' auto-created", canonical.Id, safeNameForLog);
 
         return MapCanonicalToDto(canonical);
+    }
+
+    private static string SanitizeForLog(string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+            return string.Empty;
+        return value.Replace("\r", "", StringComparison.Ordinal)
+            .Replace("\n", "", StringComparison.Ordinal);
     }
 
     // ─── Franchise Items ─────────────────────────────────────────────

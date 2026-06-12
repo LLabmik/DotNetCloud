@@ -27,6 +27,9 @@ public sealed class AudioDbClient : IAudioDbClient
     /// <inheritdoc/>
     public async Task<IReadOnlyList<AudioDbAlbumResult>?> SearchAlbumAsync(string albumTitle, string artistName, CancellationToken cancellationToken = default)
     {
+        var safeTitleForLog = SanitizeForLog(albumTitle);
+        var safeArtistForLog = SanitizeForLog(artistName);
+
         try
         {
             var encodedArtist = Uri.EscapeDataString(artistName);
@@ -38,7 +41,7 @@ public sealed class AudioDbClient : IAudioDbClient
             var results = response?.Album;
             if (results is null || results.Count == 0)
             {
-                _logger.LogDebug("No TheAudioDB album found for '{AlbumTitle}' by '{ArtistName}'", albumTitle, artistName);
+                _logger.LogDebug("No TheAudioDB album found for '{AlbumTitle}' by '{ArtistName}'", safeTitleForLog, safeArtistForLog);
                 return [];
             }
 
@@ -54,12 +57,12 @@ public sealed class AudioDbClient : IAudioDbClient
         }
         catch (HttpRequestException ex)
         {
-            _logger.LogWarning(ex, "TheAudioDB album search failed for '{AlbumTitle}' by '{ArtistName}'", albumTitle, artistName);
+            _logger.LogWarning(ex, "TheAudioDB album search failed for '{AlbumTitle}' by '{ArtistName}'", safeTitleForLog, safeArtistForLog);
             return null;
         }
         catch (System.Text.Json.JsonException ex)
         {
-            _logger.LogWarning(ex, "Failed to deserialize TheAudioDB album search response for '{AlbumTitle}' by '{ArtistName}'", albumTitle, artistName);
+            _logger.LogWarning(ex, "Failed to deserialize TheAudioDB album search response for '{AlbumTitle}' by '{ArtistName}'", safeTitleForLog, safeArtistForLog);
             return null;
         }
     }
@@ -121,6 +124,14 @@ public sealed class AudioDbClient : IAudioDbClient
 
         [JsonPropertyName("strArtistFanart")]
         public string? StrArtistFanart { get; init; }
+    }
+
+    private static string SanitizeForLog(string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+            return string.Empty;
+        return value.Replace("\r", "", StringComparison.Ordinal)
+            .Replace("\n", "", StringComparison.Ordinal);
     }
 
     // ── Album search JSON response DTOs ─────────────────────────

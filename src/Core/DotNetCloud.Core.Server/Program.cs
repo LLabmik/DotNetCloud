@@ -1084,9 +1084,12 @@ public class Program
 
                 if (error != ForwarderError.None && !httpContext.Response.HasStarted)
                 {
+                    var sanitizedPath = httpContext.Request.Path.ToString()
+                        .Replace("\r", " ", StringComparison.Ordinal)
+                        .Replace("\n", " ", StringComparison.Ordinal);
                     logger.LogWarning(
                         "Module API proxy failure for {Path} → {Module} ({Destination}): {Error}",
-                        httpContext.Request.Path, moduleId, destinationPrefix, error);
+                        sanitizedPath, moduleId, destinationPrefix, error);
                     httpContext.Response.StatusCode = StatusCodes.Status502BadGateway;
                 }
             });

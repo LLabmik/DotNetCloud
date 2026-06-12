@@ -267,7 +267,8 @@ public sealed class MusicBrainzClient : IMusicBrainzClient
                             foreach (var release in fallbackResponse.Releases)
                             {
                                 var rg = release.ReleaseGroup;
-                                if (rg is null) continue;
+                                if (rg is null)
+                                    continue;
                                 if (!fallbackSeen.TryGetValue(rg.Id, out var fexisting) || release.Score > fexisting.Score)
                                     fallbackSeen[rg.Id] = new MusicBrainzReleaseGroupResult { Id = rg.Id, Title = rg.Title, Score = release.Score, PrimaryType = rg.PrimaryType };
                             }
@@ -476,6 +477,10 @@ public sealed class MusicBrainzClient : IMusicBrainzClient
     /// </summary>
     private async Task<string?> GetJsonAsync(string relativeUrl, CancellationToken cancellationToken)
     {
+        var sanitizedUrlForLog = (relativeUrl ?? string.Empty)
+            .Replace("\r", string.Empty, StringComparison.Ordinal)
+            .Replace("\n", string.Empty, StringComparison.Ordinal);
+
         await _rateLimiter.WaitAsync(cancellationToken);
         try
         {
@@ -483,13 +488,13 @@ public sealed class MusicBrainzClient : IMusicBrainzClient
 
             if (response.StatusCode is HttpStatusCode.ServiceUnavailable or HttpStatusCode.TooManyRequests)
             {
-                _logger.LogWarning("MusicBrainz returned {StatusCode} for {Url}", response.StatusCode, relativeUrl);
+                _logger.LogWarning("MusicBrainz returned {StatusCode} for {Url}", response.StatusCode, sanitizedUrlForLog);
                 return null;
             }
 
             if (!response.IsSuccessStatusCode)
             {
-                _logger.LogWarning("MusicBrainz returned {StatusCode} for {Url}", response.StatusCode, relativeUrl);
+                _logger.LogWarning("MusicBrainz returned {StatusCode} for {Url}", response.StatusCode, sanitizedUrlForLog);
                 return null;
             }
 
@@ -497,12 +502,12 @@ public sealed class MusicBrainzClient : IMusicBrainzClient
         }
         catch (HttpRequestException ex)
         {
-            _logger.LogWarning(ex, "Network error calling MusicBrainz for {Url}", relativeUrl);
+            _logger.LogWarning(ex, "Network error calling MusicBrainz for {Url}", sanitizedUrlForLog);
             return null;
         }
         catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
         {
-            _logger.LogWarning(ex, "Timeout calling MusicBrainz for {Url}", relativeUrl);
+            _logger.LogWarning(ex, "Timeout calling MusicBrainz for {Url}", sanitizedUrlForLog);
             return null;
         }
         finally

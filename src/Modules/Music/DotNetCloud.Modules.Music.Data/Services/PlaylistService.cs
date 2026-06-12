@@ -38,7 +38,7 @@ public sealed class PlaylistService : Music.Services.IPlaylistService
         _db.Playlists.Add(playlist);
         await _db.SaveChangesAsync(cancellationToken);
 
-        _logger.LogInformation("Playlist {PlaylistId} '{Name}' created by user {UserId}", playlist.Id, playlist.Name, caller.UserId);
+        _logger.LogInformation("Playlist {PlaylistId} '{Name}' created by user {UserId}", playlist.Id, SanitizeForLog(playlist.Name), caller.UserId);
         await _eventBus.PublishAsync(new PlaylistCreatedEvent
         {
             EventId = Guid.NewGuid(),
@@ -248,5 +248,13 @@ public sealed class PlaylistService : Music.Services.IPlaylistService
             IsStarred = isStarred,
             CreatedAt = userTrack.CreatedAt
         };
+    }
+
+    private static string SanitizeForLog(string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+            return string.Empty;
+        return value.Replace("\r", "", StringComparison.Ordinal)
+            .Replace("\n", "", StringComparison.Ordinal);
     }
 }

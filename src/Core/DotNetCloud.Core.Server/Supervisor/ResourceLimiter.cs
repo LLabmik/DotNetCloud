@@ -68,13 +68,13 @@ internal sealed partial class ResourceLimiter : IDisposable
 
         if (process is null || process.HasExited)
         {
-            _logger.LogWarning("Cannot apply limits to null or exited process for module {ModuleId}", moduleId);
+            _logger.LogWarning("Cannot apply limits to null or exited process for module {ModuleId}", SanitizeForLog(moduleId));
             return false;
         }
 
         if (!memoryLimitBytes.HasValue && !cpuPercent.HasValue)
         {
-            _logger.LogDebug("No resource limits configured for module {ModuleId}", moduleId);
+            _logger.LogDebug("No resource limits configured for module {ModuleId}", SanitizeForLog(moduleId));
             return true;
         }
 
@@ -126,7 +126,7 @@ internal sealed partial class ResourceLimiter : IDisposable
             if (!Directory.Exists(cgroupPath))
             {
                 Directory.CreateDirectory(cgroupPath);
-                _logger.LogDebug("Created cgroup directory {Path}", cgroupPath);
+                _logger.LogDebug("Created cgroup directory {Path}", SanitizeForLog(cgroupPath));
             }
 
             // Apply memory limit: write to memory.max
@@ -136,7 +136,7 @@ internal sealed partial class ResourceLimiter : IDisposable
                 File.WriteAllText(memoryMaxPath, memoryLimitBytes.Value.ToString());
                 _logger.LogInformation(
                     "Set memory limit for module {ModuleId} (PID {ProcessId}): {MemoryMb}MB",
-                    moduleId, process.Id, memoryLimitBytes.Value / 1024 / 1024);
+                    SanitizeForLog(moduleId), process.Id, memoryLimitBytes.Value / 1024 / 1024);
 
                 // Also set memory.swap.max to 0 to prevent swap usage
                 var swapMaxPath = Path.Combine(cgroupPath, "memory.swap.max");
@@ -148,7 +148,7 @@ internal sealed partial class ResourceLimiter : IDisposable
                     }
                     catch (IOException)
                     {
-                        _logger.LogDebug("Swap limit not available for cgroup {ModuleId}", moduleId);
+                        _logger.LogDebug("Swap limit not available for cgroup {ModuleId}", SanitizeForLog(moduleId));
                     }
                 }
             }
@@ -163,7 +163,7 @@ internal sealed partial class ResourceLimiter : IDisposable
                 File.WriteAllText(cpuMaxPath, $"{quota} {period}");
                 _logger.LogInformation(
                     "Set CPU limit for module {ModuleId} (PID {ProcessId}): {CpuPercent}",
-                    moduleId, process.Id, cpuPercent.Value);
+                    SanitizeForLog(moduleId), process.Id, cpuPercent.Value);
             }
 
             // Assign process to cgroup by writing PID to cgroup.procs
@@ -171,7 +171,7 @@ internal sealed partial class ResourceLimiter : IDisposable
             File.WriteAllText(procsPath, process.Id.ToString());
             _logger.LogInformation(
                 "Assigned PID {ProcessId} to cgroup {CgroupPath}",
-                process.Id, cgroupPath);
+                process.Id, SanitizeForLog(cgroupPath));
 
             return true;
         }
@@ -181,7 +181,7 @@ internal sealed partial class ResourceLimiter : IDisposable
                 "Cannot apply cgroup limits for module {ModuleId} — " +
                 "controller files not available (cgroup.subtree_control may be busy). " +
                 "Limits will not be enforced for this module. Path: {CgroupPath}",
-                moduleId, cgroupPath);
+                SanitizeForLog(moduleId), SanitizeForLog(cgroupPath));
             return false;
         }
         catch (IOException ex)
@@ -189,7 +189,7 @@ internal sealed partial class ResourceLimiter : IDisposable
             _logger.LogWarning(ex,
                 "Cannot apply cgroup limits for module {ModuleId} — " +
                 "I/O error accessing cgroup filesystem. Path: {CgroupPath}",
-                moduleId, cgroupPath);
+                SanitizeForLog(moduleId), SanitizeForLog(cgroupPath));
             return false;
         }
     }
@@ -205,12 +205,12 @@ internal sealed partial class ResourceLimiter : IDisposable
             {
                 // cgroup directories can only be removed when empty (no processes)
                 Directory.Delete(cgroupPath, recursive: false);
-                _logger.LogDebug("Removed cgroup directory {Path}", cgroupPath);
+                _logger.LogDebug("Removed cgroup directory {Path}", SanitizeForLog(cgroupPath));
             }
         }
         catch (IOException ex)
         {
-            _logger.LogWarning(ex, "Could not remove cgroup directory {Path} (may still have processes)", cgroupPath);
+            _logger.LogWarning(ex, "Could not remove cgroup directory {Path} (may still have processes)", SanitizeForLog(cgroupPath));
         }
     }
 
@@ -283,7 +283,7 @@ internal sealed partial class ResourceLimiter : IDisposable
             if (jobHandle == nint.Zero)
             {
                 var error = Marshal.GetLastPInvokeError();
-                _logger.LogError("CreateJobObject failed for module {ModuleId}: Win32 error {Error}", moduleId, error);
+                _logger.LogError("CreateJobObject failed for module {ModuleId}: Win32 error {Error}", SanitizeForLog(moduleId), error);
                 return false;
             }
 
@@ -297,7 +297,7 @@ internal sealed partial class ResourceLimiter : IDisposable
 
                 _logger.LogInformation(
                     "Set Job Object memory limit for module {ModuleId} (PID {ProcessId}): {MemoryMb}MB",
-                    moduleId, process.Id, memoryLimitBytes.Value / 1024 / 1024);
+                    SanitizeForLog(moduleId), process.Id, memoryLimitBytes.Value / 1024 / 1024);
             }
 
             // CPU rate control (Windows 8+)
@@ -325,13 +325,13 @@ internal sealed partial class ResourceLimiter : IDisposable
                     {
                         _logger.LogWarning(
                             "Failed to set CPU rate limit for module {ModuleId}: Win32 error {Error}",
-                            moduleId, Marshal.GetLastPInvokeError());
+                        SanitizeForLog(moduleId), Marshal.GetLastPInvokeError());
                     }
                     else
                     {
                         _logger.LogInformation(
                             "Set Job Object CPU limit for module {ModuleId} (PID {ProcessId}): {CpuPercent}%",
-                            moduleId, process.Id, cpuPercent.Value);
+                            SanitizeForLog(moduleId), process.Id, cpuPercent.Value);
                     }
                 }
                 finally
@@ -373,7 +373,7 @@ internal sealed partial class ResourceLimiter : IDisposable
                 var error = Marshal.GetLastPInvokeError();
                 _logger.LogError(
                     "AssignProcessToJobObject failed for module {ModuleId} (PID {ProcessId}): Win32 error {Error}",
-                    moduleId, process.Id, error);
+                    SanitizeForLog(moduleId), process.Id, error);
                 NativeMethods.CloseHandle(jobHandle);
                 return false;
             }
@@ -383,13 +383,13 @@ internal sealed partial class ResourceLimiter : IDisposable
 
             _logger.LogInformation(
                 "Assigned PID {ProcessId} to Job Object for module {ModuleId}",
-                process.Id, moduleId);
+                process.Id, SanitizeForLog(moduleId));
 
             return true;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to apply Windows Job Object limits for module {ModuleId}", moduleId);
+            _logger.LogError(ex, "Failed to apply Windows Job Object limits for module {ModuleId}", SanitizeForLog(moduleId));
             return false;
         }
     }
@@ -403,6 +403,14 @@ internal sealed partial class ResourceLimiter : IDisposable
             _jobHandles.Remove(processId);
             _logger.LogDebug("Closed Job Object handle for PID {ProcessId}", processId);
         }
+    }
+
+    private static string SanitizeForLog(string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+            return string.Empty;
+        return value.Replace("\r", "\\r", StringComparison.Ordinal)
+            .Replace("\n", "\\n", StringComparison.Ordinal);
     }
 
     public void Dispose()

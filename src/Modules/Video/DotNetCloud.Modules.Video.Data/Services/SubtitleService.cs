@@ -68,8 +68,10 @@ public sealed class SubtitleService : ISubtitleService
 
         await _db.SaveChangesAsync(cancellationToken);
 
+        var safeLanguage = SanitizeForLog(dto.Language);
+        var safeFormat = SanitizeForLog(dto.Format);
         _logger.LogInformation("CanonicalSubtitle {SubtitleId} ({Language}/{Format}) for video {VideoId} (contentHash={ContentHash})",
-            canonicalSubtitle.Id, dto.Language, dto.Format, videoId, contentHash);
+            canonicalSubtitle.Id, safeLanguage, safeFormat, videoId, contentHash);
 
         return MapCanonicalToDto(canonicalSubtitle);
     }
@@ -143,5 +145,13 @@ public sealed class SubtitleService : ISubtitleService
             IsDefault = subtitle.IsDefault,
             CreatedAt = subtitle.CreatedAt
         };
+    }
+
+    private static string SanitizeForLog(string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+            return string.Empty;
+        return value.Replace("\r", "", StringComparison.Ordinal)
+            .Replace("\n", "", StringComparison.Ordinal);
     }
 }
