@@ -202,7 +202,16 @@
    */
   videoPlayer.attachHlsPlayer = function (elementId, streamUrl, videoId, dotNetRef) {
     var video = document.getElementById(elementId);
-    if (!video) return;
+    if (!video) {
+      // DOM may not have rendered yet (race with Blazor render) — retry once
+      if (videoPlayer._attachRetry) return; // already retrying
+      videoPlayer._attachRetry = true;
+      setTimeout(function () {
+        videoPlayer._attachRetry = false;
+        videoPlayer.attachHlsPlayer(elementId, streamUrl, videoId, dotNetRef);
+      }, 200);
+      return;
+    }
 
     // If videoId is provided, show progress overlay and poll for readiness
     if (videoId) {

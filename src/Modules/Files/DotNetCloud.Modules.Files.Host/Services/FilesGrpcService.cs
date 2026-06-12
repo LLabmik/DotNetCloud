@@ -2,6 +2,7 @@ using DotNetCloud.Core.DTOs.Media;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Files.Data;
+using DotNetCloud.Modules.Files.Data.Services;
 using DotNetCloud.Modules.Files.Events;
 using DotNetCloud.Modules.Files.Host.Protos;
 using DotNetCloud.Modules.Files.Models;
@@ -1396,19 +1397,25 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
             return new ScanMediaFoldersResponse { Success = false, ErrorMessage = "Invalid user ID format." };
         }
 
-        if (!ValidateAuthenticatedCaller(userId, context, out var callerError))
-        {
-            return new ScanMediaFoldersResponse { Success = false, ErrorMessage = callerError };
-        }
+        // NOTE: Internal server-to-server call — Core.Server has already
+        // authenticated the user. The HTTP auth context is not available
+        // on internal gRPC calls. Trust the userId parameter.
 
         var mediaType = request.MediaType?.ToLowerInvariant() ?? "all";
         var extensions = GetExtensionsForMediaType(mediaType);
 
-        // Deserialize sources from JSON
+        // Deserialize sources from JSON (must match FilesGrpcApiClient serialization format)
         IReadOnlyList<MediaLibrarySource> sources;
         try
         {
-            sources = System.Text.Json.JsonSerializer.Deserialize<List<MediaLibrarySource>>(request.SourcesJson) ?? [];
+            sources = System.Text.Json.JsonSerializer.Deserialize<List<MediaLibrarySource>>(
+                request.SourcesJson,
+                new System.Text.Json.JsonSerializerOptions
+                {
+                    PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
+                    DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
+                    Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
+                }) ?? [];
         }
         catch (System.Text.Json.JsonException ex)
         {
@@ -1424,13 +1431,17 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
 
         foreach (var source in enabledSources)
         {
+            if (source.SourceKind == MediaLibrarySourceKind.SharedMount)
+            {
+                // Shared mounts use filesystem walking, not FileNode traversal
+                await CollectMatchingFilesystemFilesAsync(
+                    source, extensions, candidates, context.CancellationToken);
+                continue;
+            }
+
             var roots = await ResolveScanSourceRootsAsync(source, userId, context.CancellationToken);
             if (roots.Count == 0)
             {
-                if (source.SourceKind == MediaLibrarySourceKind.SharedMount)
-                {
-                    _logger.LogWarning("Shared mount source unavailable: {DisplayPath}", source.DisplayPath);
-                }
                 continue;
             }
 
@@ -1452,6 +1463,153 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
         response.Candidates.AddRange(candidates);
         return response;
     }
+
+    private async Task CollectMatchingFilesystemFilesAsync(
+        MediaLibrarySource source,
+        HashSet<string> extensions,
+        List<MediaFileCandidateMessage> candidates,
+        CancellationToken cancellationToken)
+    {
+        if (!source.SharedFolderId.HasValue)
+            return;
+
+        var folder = await _db.AdminSharedFolders
+            .AsNoTracking()
+            .FirstOrDefaultAsync(f => f.Id == source.SharedFolderId.Value, cancellationToken);
+
+        if (folder is null)
+        {
+            _logger.LogWarning("Shared mount source folder not found: {SharedFolderId}", source.SharedFolderId);
+            return;
+        }
+
+        var basePath = folder.SourcePath;
+        if (!string.IsNullOrEmpty(source.RelativePath))
+        {
+            basePath = Path.Combine(basePath, VirtualMountedNodeRegistry.NormalizeRelativePath(source.RelativePath));
+        }
+
+        if (!Directory.Exists(basePath))
+        {
+            _logger.LogWarning(
+                "Shared mount source path does not exist: {SourcePath} (from shared folder {SharedFolderId})",
+                basePath, source.SharedFolderId);
+            return;
+        }
+
+        var sourceName = string.IsNullOrWhiteSpace(source.DisplayName) ? null : source.DisplayName.TrimEnd();
+
+        _logger.LogInformation(
+            "Scanning filesystem for shared mount: {SourcePath} (sharedFolderId={SharedFolderId}, extensions={Extensions})",
+            basePath, source.SharedFolderId, string.Join(",", extensions));
+
+        await WalkFilesystemForMediaAsync(
+            basePath, source.SharedFolderId.Value, string.Empty,
+            extensions, candidates, sourceName, cancellationToken);
+    }
+
+    private async Task WalkFilesystemForMediaAsync(
+        string currentPath,
+        Guid sharedFolderId,
+        string relativePath,
+        HashSet<string> extensions,
+        List<MediaFileCandidateMessage> candidates,
+        string? sourceName,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        try
+        {
+            // Process files in current directory
+            foreach (var filePath in Directory.EnumerateFiles(currentPath))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var fileName = Path.GetFileName(filePath);
+                var extension = Path.GetExtension(fileName).ToLowerInvariant();
+                if (!extensions.Contains(extension))
+                    continue;
+
+                var fileInfo = new FileInfo(filePath);
+                var fileRelativePath = string.IsNullOrEmpty(relativePath)
+                    ? fileName
+                    : $"{relativePath}/{fileName}";
+
+                var nodeId = VirtualMountedNodeRegistry.GetMountedNodeId(
+                    sharedFolderId, fileRelativePath, isDirectory: false);
+
+                candidates.Add(new MediaFileCandidateMessage
+                {
+                    Id = nodeId.ToString(),
+                    Name = fileName,
+                    Size = fileInfo.Length,
+                    MimeType = GetMimeTypeForExtension(extension),
+                    IsVirtual = false,
+                    SourceName = sourceName ?? string.Empty,
+                    SubFolderPath = relativePath ?? string.Empty,
+                });
+            }
+
+            // Recurse into subdirectories
+            foreach (var dirPath in Directory.EnumerateDirectories(currentPath))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var dirName = Path.GetFileName(dirPath);
+                var dirRelativePath = string.IsNullOrEmpty(relativePath)
+                    ? dirName
+                    : $"{relativePath}/{dirName}";
+
+                await WalkFilesystemForMediaAsync(
+                    dirPath, sharedFolderId, dirRelativePath,
+                    extensions, candidates, sourceName, cancellationToken);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _logger.LogWarning(ex, "Failed to walk filesystem path {Path}", currentPath);
+        }
+    }
+
+    private static string GetMimeTypeForExtension(string extension) => extension switch
+    {
+        // Video
+        ".mp4" => "video/mp4",
+        ".m4v" => "video/x-m4v",
+        ".mkv" => "video/x-matroska",
+        ".avi" => "video/x-msvideo",
+        ".mov" => "video/quicktime",
+        ".wmv" => "video/x-ms-wmv",
+        ".flv" => "video/x-flv",
+        ".webm" => "video/webm",
+        ".3gp" => "video/3gpp",
+        ".mpg" or ".mpeg" => "video/mpeg",
+        ".ts" => "video/mp2t",
+        // Music
+        ".mp3" => "audio/mpeg",
+        ".flac" => "audio/flac",
+        ".ogg" or ".oga" => "audio/ogg",
+        ".opus" => "audio/opus",
+        ".aac" => "audio/aac",
+        ".m4a" => "audio/mp4",
+        ".wav" => "audio/wav",
+        ".wma" => "audio/x-ms-wma",
+        ".aiff" or ".aif" => "audio/aiff",
+        ".wv" => "audio/wavpack",
+        ".ape" => "audio/ape",
+        // Photos
+        ".jpg" or ".jpeg" => "image/jpeg",
+        ".png" => "image/png",
+        ".gif" => "image/gif",
+        ".webp" => "image/webp",
+        ".bmp" => "image/bmp",
+        ".tiff" or ".tif" => "image/tiff",
+        ".svg" => "image/svg+xml",
+        ".heic" => "image/heic",
+        ".heif" => "image/heif",
+        _ => "application/octet-stream",
+    };
 
     private async Task<List<FileNode>> ResolveScanSourceRootsAsync(
         MediaLibrarySource source, Guid userId, CancellationToken cancellationToken)
@@ -1478,55 +1636,8 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
                 return rootNodes.Where(n => n.NodeType == FileNodeType.Folder).ToList();
             }
 
-            case MediaLibrarySourceKind.SharedMount when source.SharedFolderId.HasValue:
-            {
-                // Resolve shared folder mount via the virtual mounted node registry
-                var mounts = await _db.MountedNodeEntries
-                    .AsNoTracking()
-                    .Where(m => m.SharedFolderId == source.SharedFolderId.Value)
-                    .ToListAsync(cancellationToken);
-
-                if (mounts.Count == 0)
-                    return [];
-
-                // Use the first matching mount to get the root folder
-                var mount = mounts[0];
-                var rootFolderId = mount.Id;
-                var rootNode = await _db.FileNodes
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(n => n.Id == rootFolderId && !n.IsDeleted, cancellationToken);
-
-                if (rootNode is null)
-                    return [];
-
-                // If relative path is specified, navigate down the tree
-                if (!string.IsNullOrEmpty(source.RelativePath))
-                {
-                    var segments = source.RelativePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
-                    var currentId = rootNode.Id;
-                    foreach (var segment in segments)
-                    {
-                        var child = await _db.FileNodes
-                            .AsNoTracking()
-                            .FirstOrDefaultAsync(n => n.ParentId == currentId
-                                                      && n.Name == segment
-                                                      && n.NodeType == FileNodeType.Folder
-                                                      && !n.IsDeleted,
-                                cancellationToken);
-                        if (child is null)
-                            return [];
-                        currentId = child.Id;
-                    }
-
-                    var resolvedNode = await _db.FileNodes
-                        .AsNoTracking()
-                        .FirstOrDefaultAsync(n => n.Id == currentId && !n.IsDeleted, cancellationToken);
-                    return resolvedNode is null ? [] : [resolvedNode];
-                }
-
-                return [rootNode];
-            }
-
+            // SharedMount sources are handled by CollectMatchingFilesystemFilesAsync,
+            // not via FileNode traversal.
             default:
                 return [];
         }

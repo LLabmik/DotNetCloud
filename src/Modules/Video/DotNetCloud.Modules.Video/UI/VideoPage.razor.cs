@@ -117,7 +117,7 @@ public partial class VideoPage : IAsyncDisposable
     private PlayerSeriesContext? _playerSeriesContext;
 
     // ── Breadcrumbs ──
-    private record BreadcrumbItem(string Label, Action Action);
+    private record BreadcrumbItem(string Label, Func<Task> Action);
     private List<BreadcrumbItem> _breadcrumb = [];
 
     // ── Timer for progress saving ──
@@ -449,6 +449,10 @@ public partial class VideoPage : IAsyncDisposable
 
     private async Task SwitchSection(Section section)
     {
+        // Properly tear down player if open (cleans up JS, resets scriptsLoaded, etc.)
+        if (_playerOpen)
+            await ClosePlayer();
+
         _section = section;
         _selectedCollection = null;
         _selectedCollectionId = null;
@@ -694,23 +698,27 @@ public partial class VideoPage : IAsyncDisposable
     {
         try
         {
+            // Tear down previous player state (without JS interop — old <video>
+            // element is removed from DOM by Blazor re-render, JS GC handles the rest)
+            _codecErrorMessage = null;
+            _codecErrorGuidance = null;
+            _noAudioDetected = false;
+            _videoErrorListenerAttached = false;
+            _scriptsLoaded = false; // force fresh script load with DOM-settle delay
+            _streamStrategy = null;
+            _playerOpen = true;
+
             var caller = await GetCallerAsync();
             _playerVideo = video;
             _playerSubtitles = (await SubtitleService.GetSubtitlesAsync(video.Id, caller)).ToList();
             _playerMetadata = await MetadataService.GetMetadataAsync(video.Id);
 
-            _codecErrorMessage = null;
-            _codecErrorGuidance = null;
-            _noAudioDetected = false;
-            _videoErrorListenerAttached = false;
-            _playerOpen = true;
-            _streamStrategy = null; // populated when stream starts via response header
             await WatchProgressService.RecordViewAsync(video.Id, caller);
             await StartProgressTimerAsync(video.Id);
 
             _breadcrumb =
             [
-                new BreadcrumbItem(GetSectionLabel(), () => { ClosePlayer(); StateHasChanged(); })
+                new BreadcrumbItem(GetSectionLabel(), async () => { await ClosePlayer(); StateHasChanged(); })
             ];
         }
         catch (Exception ex)
@@ -736,7 +744,7 @@ public partial class VideoPage : IAsyncDisposable
         }
     }
 
-    private async void ClosePlayer()
+    private async Task ClosePlayer()
     {
         _playerOpen = false;
         _playerVideo = null;
@@ -805,7 +813,7 @@ public partial class VideoPage : IAsyncDisposable
 
         _breadcrumb =
         [
-            new BreadcrumbItem("Collections", () => { _selectedCollection = null; _selectedCollectionId = null; _breadcrumb.Clear(); StateHasChanged(); })
+            new BreadcrumbItem("Collections", async () => { _selectedCollection = null; _selectedCollectionId = null; _breadcrumb.Clear(); StateHasChanged(); })
         ];
 
         try
@@ -834,7 +842,7 @@ public partial class VideoPage : IAsyncDisposable
 
         _breadcrumb =
         [
-            new BreadcrumbItem("Series", () => { _selectedSeries = null; _selectedSeason = null; _seriesSeasons.Clear(); _seasonEpisodes.Clear(); _seriesVideos.Clear(); _breadcrumb.Clear(); StateHasChanged(); })
+            new BreadcrumbItem("Series", async () => { _selectedSeries = null; _selectedSeason = null; _seriesSeasons.Clear(); _seasonEpisodes.Clear(); _seriesVideos.Clear(); _breadcrumb.Clear(); StateHasChanged(); })
         ];
 
         try
@@ -864,7 +872,7 @@ public partial class VideoPage : IAsyncDisposable
         _breadcrumb =
         [
             new BreadcrumbItem("Series", async () => { _selectedSeason = null; _seasonEpisodes.Clear(); await OpenSeriesDetailAsync(_selectedSeries!); }),
-            new BreadcrumbItem(season.Name ?? $"Season {season.SeasonNumber}", () => { /* current view */ })
+            new BreadcrumbItem(season.Name ?? $"Season {season.SeasonNumber}", async () => { /* current view */ })
         ];
 
         try
