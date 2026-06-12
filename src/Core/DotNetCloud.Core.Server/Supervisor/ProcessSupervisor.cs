@@ -226,7 +226,7 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
             return;
         }
 
-        _logger.LogInformation("Starting module {ModuleId} from {Path}", SanitizeForLog(moduleId), discovered.ExecutablePath);
+        _logger.LogInformation("Starting module {ModuleId} from {Path}", SanitizeForLog(moduleId), SanitizeForLog(discovered.ExecutablePath));
 
         var manifest = LoadManifest(discovered);
         var restartPolicy = ParseRestartPolicy(manifest.RestartPolicy);
