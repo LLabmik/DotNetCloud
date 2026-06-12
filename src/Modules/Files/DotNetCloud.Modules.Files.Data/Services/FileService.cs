@@ -865,6 +865,14 @@ internal sealed class FileService : IFileService
         var (found, desc) = await VirtualMountedNodeRegistry.TryGetOrLoadAsync(nodeId, _db, cancellationToken);
         if (!found || desc is null)
         {
+            // Quick check: if this node exists in the regular FileNodes table,
+            // it's not a virtual mounted node — skip the expensive recovery.
+            var isRegularNode = await _db.FileNodes.AnyAsync(n => n.Id == nodeId, cancellationToken);
+            if (isRegularNode)
+            {
+                return null;
+            }
+
             _logger.LogWarning("VIRTUAL_DEBUG: GUID {NodeId} not in registry, attempting recovery", nodeId);
             // GUID not in registry — walk accessible admin shared folders to
             // re-discover the file by recomputing its deterministic GUID.

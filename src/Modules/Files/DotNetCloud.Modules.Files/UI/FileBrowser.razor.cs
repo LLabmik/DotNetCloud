@@ -106,9 +106,7 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     private ViewMode _viewMode = ViewMode.Grid;
     private string _sortColumn = "Name";
     private bool _sortAscending = true;
-#pragma warning disable CS0649 // Fields assigned at runtime via future API integration
     private bool _isLoading;
-#pragma warning restore CS0649
     private bool _showCreateFolder;
     private bool _showUploadDialog;
     private bool _showShareDialog;
@@ -209,7 +207,10 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     {
         var caller = await GetCallerContextAsync();
         _currentUserId = caller.UserId;
-        await LoadCollaboraCapabilitiesAsync();
+
+        // Load folder contents first — the most visible operation.
+        // Defer Collabora discovery (has a 10-second HTTP timeout) to
+        // avoid blocking the initial file browser rendering.
         await LoadCurrentFolderAsync();
         await LoadTrashCountAsync();
         await LoadQuotaAsync();
@@ -221,6 +222,10 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
             _lastHandledNav = FileIdNav;
             await NavigateToFileAsync(fileId);
         }
+
+        // Collabora discovery runs last — it contacts the Collabora server
+        // and can take up to 10 seconds on timeout.
+        await LoadCollaboraCapabilitiesAsync();
     }
 
     /// <inheritdoc />
@@ -276,6 +281,7 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         _activeSection = FileSidebarSection.Tags;
         _activeTag = tag;
         _taggedNodes = [];
+        _isLoading = true;
         StateHasChanged();
 
         try
@@ -297,6 +303,10 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         catch
         {
             _taggedNodes = [];
+        }
+        finally
+        {
+            _isLoading = false;
         }
 
         StateHasChanged();
@@ -2060,46 +2070,87 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
 
     private async Task LoadCurrentFolderAsync()
     {
-        var caller = await GetCallerContextAsync();
+        _isLoading = true;
+        StateHasChanged();
 
-        _currentFolderIsReadOnly = _currentFolderId.HasValue
-            && (await FileService.GetNodeAsync(_currentFolderId.Value, caller))?.IsReadOnly == true;
-
-        var nodes = _currentFolderId.HasValue
-            ? await FileService.ListChildrenAsync(_currentFolderId.Value, caller)
-            : await FileService.ListRootAsync(caller);
-
-        _nodes = nodes.Select(ToViewModel).ToList();
-
-        // Fetch comment counts for all visible nodes in a single query
-        var nodeIds = _nodes.Select(n => n.Id).ToList();
-        if (nodeIds.Count > 0)
+        try
         {
-            var counts = await CommentService.GetCommentCountsAsync(nodeIds, caller);
-            foreach (var node in _nodes)
+            var caller = await GetCallerContextAsync();
+
+            _currentFolderIsReadOnly = _currentFolderId.HasValue
+                && (await FileService.GetNodeAsync(_currentFolderId.Value, caller))?.IsReadOnly == true;
+
+            var nodes = _currentFolderId.HasValue
+                ? await FileService.ListChildrenAsync(_currentFolderId.Value, caller)
+                : await FileService.ListRootAsync(caller);
+
+            _nodes = nodes.Select(ToViewModel).ToList();
+
+            // Fetch comment counts for all visible nodes in a single query
+            var nodeIds = _nodes.Select(n => n.Id).ToList();
+            if (nodeIds.Count > 0)
             {
-                if (counts.TryGetValue(node.Id, out var count))
-                    node.CommentCount = count;
+                var counts = await CommentService.GetCommentCountsAsync(nodeIds, caller);
+                foreach (var node in _nodes)
+                {
+                    if (counts.TryGetValue(node.Id, out var count))
+                        node.CommentCount = count;
+                }
             }
         }
-
-        StateHasChanged();
+        catch
+        {
+            _nodes = [];
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
     }
 
     private async Task LoadFavoritesAsync()
     {
-        var caller = await GetCallerContextAsync();
-        var nodes = await FileService.ListFavoritesAsync(caller);
-        _nodes = nodes.Select(ToViewModel).ToList();
+        _isLoading = true;
         StateHasChanged();
+
+        try
+        {
+            var caller = await GetCallerContextAsync();
+            var nodes = await FileService.ListFavoritesAsync(caller);
+            _nodes = nodes.Select(ToViewModel).ToList();
+        }
+        catch
+        {
+            _nodes = [];
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
     }
 
     private async Task LoadRecentAsync()
     {
-        var caller = await GetCallerContextAsync();
-        var nodes = await FileService.ListRecentAsync(50, caller);
-        _nodes = nodes.Select(ToViewModel).ToList();
+        _isLoading = true;
         StateHasChanged();
+
+        try
+        {
+            var caller = await GetCallerContextAsync();
+            var nodes = await FileService.ListRecentAsync(50, caller);
+            _nodes = nodes.Select(ToViewModel).ToList();
+        }
+        catch
+        {
+            _nodes = [];
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
     }
 
     private async Task LoadSharedWithMeAsync()

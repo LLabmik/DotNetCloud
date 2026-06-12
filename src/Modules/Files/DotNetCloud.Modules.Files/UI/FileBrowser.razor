@@ -60,7 +60,22 @@ else if (_activeSection == FileSidebarSection.Tags && ActiveTag is not null)
             <span class="files-header-subtitle">@TaggedNodes.Count @(TaggedNodes.Count == 1 ? "file" : "files")</span>
         </div>
 
-        @if (TaggedNodes.Count == 0)
+        @if (IsLoading)
+        {
+            <div class="loading-state" aria-live="polite">
+                <div class="loading-skeleton">
+                    @for (var i = 0; i < 5; i++)
+                    {
+                        <div class="skeleton-row">
+                            <div class="skeleton-icon"></div>
+                            <div class="skeleton-name"></div>
+                            <div class="skeleton-meta"></div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+        else if (TaggedNodes.Count == 0)
         {
             <div class="empty-state" role="status">
                 <p class="empty-state-title">No files with this tag</p>
