@@ -76,7 +76,7 @@ public sealed class GroupsController : ControllerBase
         {
             var group = await _groupManager.CreateGroupAsync(dto.OrganizationId, dto.Name, dto.Description, ct);
 
-            _logger.LogInformation("Group '{Name}' ({Id}) created by admin", group.Name, group.Id);
+            _logger.LogInformation("Group '{Name}' ({Id}) created by admin", SanitizeForLog(group.Name), group.Id);
 
             return Created($"api/v1/core/admin/groups/{group.Id}", new
             {
@@ -106,7 +106,7 @@ public sealed class GroupsController : ControllerBase
             if (group is null)
                 return NotFound(new { success = false, error = new { code = "NOT_FOUND", message = "Group not found." } });
 
-            _logger.LogInformation("Group '{Name}' ({Id}) updated by admin", group.Name, group.Id);
+            _logger.LogInformation("Group '{Name}' ({Id}) updated by admin", SanitizeForLog(group.Name), group.Id);
 
             return Ok(new { success = true, data = MapGroup(group) });
         }
@@ -287,5 +287,13 @@ public sealed class GroupsController : ControllerBase
             AddedAt = member.AddedAt,
             AddedByUserId = member.AddedByUserId,
         };
+    }
+
+    private static string SanitizeForLog(string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+            return string.Empty;
+        return value.Replace("\r", "\\r", StringComparison.Ordinal)
+            .Replace("\n", "\\n", StringComparison.Ordinal);
     }
 }

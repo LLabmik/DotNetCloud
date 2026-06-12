@@ -59,7 +59,7 @@ public sealed class UserSettingsController : ControllerBase
 
         var setting = await _userSettingsService.UpsertSettingAsync(userId, module, key, dto);
 
-        _logger.LogInformation("User setting {Module}:{Key} updated for user {UserId}", module, key, userId);
+        _logger.LogInformation("User setting {Module}:{Key} updated for user {UserId}", SanitizeForLog(module), SanitizeForLog(key), userId);
         return Ok(new { success = true, data = setting });
     }
 
@@ -71,5 +71,13 @@ public sealed class UserSettingsController : ControllerBase
             ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
 
         return claimValue is not null && Guid.TryParse(claimValue, out userId);
+    }
+
+    private static string SanitizeForLog(string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+            return string.Empty;
+        return value.Replace("\r", "\\r", StringComparison.Ordinal)
+            .Replace("\n", "\\n", StringComparison.Ordinal);
     }
 }

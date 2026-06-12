@@ -103,7 +103,7 @@ public class OrganizationsController : ControllerBase
         _db.Organizations.Add(org);
         await _db.SaveChangesAsync(ct);
 
-        _logger.LogInformation("Organization '{Name}' ({Id}) created by admin", org.Name, org.Id);
+        _logger.LogInformation("Organization '{Name}' ({Id}) created by admin", SanitizeForLog(org.Name), org.Id);
 
         return Created($"api/v1/core/admin/organizations/{org.Id}", new
         {
@@ -135,7 +135,7 @@ public class OrganizationsController : ControllerBase
 
         await _db.SaveChangesAsync(ct);
 
-        _logger.LogInformation("Organization '{Name}' ({Id}) updated by admin", org.Name, org.Id);
+        _logger.LogInformation("Organization '{Name}' ({Id}) updated by admin", SanitizeForLog(org.Name), org.Id);
 
         return Ok(new
         {
@@ -169,7 +169,7 @@ public class OrganizationsController : ControllerBase
         org.DeletedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
 
-        _logger.LogInformation("Organization '{Name}' ({Id}) deleted by admin", org.Name, org.Id);
+        _logger.LogInformation("Organization '{Name}' ({Id}) deleted by admin", SanitizeForLog(org.Name), org.Id);
 
         return Ok(new { success = true, message = "Organization deleted." });
     }
@@ -392,5 +392,13 @@ public class OrganizationsController : ControllerBase
         }).ToList();
 
         return Ok(new { success = true, data = users });
+    }
+
+    private static string SanitizeForLog(string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+            return string.Empty;
+        return value.Replace("\r", "\\r", StringComparison.Ordinal)
+            .Replace("\n", "\\n", StringComparison.Ordinal);
     }
 }

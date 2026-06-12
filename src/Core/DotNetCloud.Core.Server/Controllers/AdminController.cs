@@ -96,7 +96,7 @@ public class AdminController : ControllerBase
     {
         var setting = await _settingsService.UpsertSettingAsync(module, key, dto);
 
-        _logger.LogInformation("Setting {Module}:{Key} updated by admin", module, key);
+        _logger.LogInformation("Setting {Module}:{Key} updated by admin", SanitizeForLog(module), SanitizeForLog(key));
         return Ok(new { success = true, data = setting });
     }
 
@@ -115,7 +115,7 @@ public class AdminController : ControllerBase
             return NotFound(new { success = false, error = new { code = "SETTING_NOT_FOUND", message = $"Setting '{module}:{key}' not found." } });
         }
 
-        _logger.LogInformation("Setting {Module}:{Key} deleted by admin", module, key);
+        _logger.LogInformation("Setting {Module}:{Key} deleted by admin", SanitizeForLog(module), SanitizeForLog(key));
         return Ok(new { success = true, message = "Setting deleted successfully." });
     }
 
@@ -339,7 +339,7 @@ public class AdminController : ControllerBase
             return BadRequest(new { success = false, error = new { code = "INVALID_FILE", message = "File path is required." } });
         }
 
-        _logger.LogWarning("Restore from backup triggered by admin: {FilePath}", filePath);
+        _logger.LogWarning("Restore from backup triggered by admin: {FilePath}", SanitizeForLog(filePath));
 
         var options = new RestoreOptions { RestoreDatabase = restoreDatabase };
         var result = await _backupService.RestoreBackupAsync(filePath, options, cancellationToken);
