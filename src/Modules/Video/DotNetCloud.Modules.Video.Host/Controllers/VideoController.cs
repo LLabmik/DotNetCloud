@@ -816,7 +816,7 @@ public class VideoController : VideoControllerBase
     {
         if (!IsSafeHlsRelativePath(filename))
         {
-            _logger.LogWarning("Invalid HLS segment filename: {Filename}", filename);
+            _logger.LogWarning("Invalid HLS segment filename: {Filename}", SanitizeForLog(filename));
             return BadRequest(ErrorEnvelope("invalid_segment", "Invalid segment filename."));
         }
 
