@@ -39,22 +39,155 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
     }
 
     /// <inheritdoc />
+    public async Task<(StreamingStrategy Strategy, string? VideoCodec, string? AudioCodec, string? Container)> DecideStreamingStrategyAsync(
+        string videoFilePath,
+        string mimeType,
+        CancellationToken ct = default)
+    {
+        // Run ffprobe to get codec info
+        var probeJson = await RunFfprobeAsync(videoFilePath, ct);
+        if (probeJson is null)
+        {
+            // Can't probe — assume transcode needed
+            _logger.LogWarning("ffprobe failed for {Path}, falling back to transcode", videoFilePath);
+            Console.Error.WriteLine($"[VIDEO-STRATEGY] FFPROBE_FAILED path={videoFilePath} → fallback to Transcode");
+            return (StreamingStrategy.Transcode, null, null, null);
+        }
+
+        var (videoCodec, audioCodec, container) = ParseCodecInfo(probeJson);
+        var strategy = _argBuilder.DecideStrategy(mimeType, videoCodec, audioCodec, container);
+
+        _logger.LogInformation(
+            "Streaming strategy for {Path}: {Strategy} (mime={Mime}, vcodec={VCodec}, acodec={ACodec}, container={Container})",
+            videoFilePath, strategy, mimeType, videoCodec, audioCodec, container);
+
+        Console.Error.WriteLine($"[VIDEO-STRATEGY] path={videoFilePath} strategy={strategy} mime={mimeType} vcodec={videoCodec} acodec={audioCodec} container={container}");
+
+        return (strategy, videoCodec, audioCodec, container);
+    }
+
+    /// <inheritdoc />
     public async Task<bool> CanDirectPlayAsync(
         string videoFilePath,
         string mimeType,
         CancellationToken ct = default)
     {
-        // Fast check: MIME type must be video/mp4
-        if (!string.Equals(mimeType, "video/mp4", StringComparison.OrdinalIgnoreCase))
-            return false;
+        var (strategy, _, _, _) = await DecideStreamingStrategyAsync(videoFilePath, mimeType, ct);
+        return strategy == StreamingStrategy.DirectPlay;
+    }
 
-        // Run ffprobe to get codec info
-        var probeJson = await RunFfprobeAsync(videoFilePath, ct);
-        if (probeJson is null)
-            return false;
+    /// <inheritdoc />
+    public async Task<(Process Process, string Args)> StreamCopyAsync(
+        string sourceFilePath,
+        string? videoCodec,
+        string? audioCodec,
+        CancellationToken ct = default)
+    {
+        var args = _argBuilder.GetStreamCopyArgs(sourceFilePath, videoCodec, audioCodec);
 
-        var (videoCodec, audioCodec, container) = ParseCodecInfo(probeJson);
-        return _argBuilder.CanDirectPlay(mimeType, videoCodec, audioCodec, container ?? string.Empty);
+        _logger.LogInformation(
+            "Starting stream copy (remux): source={Source}, vcodec={VCodec}, acodec={ACodec}, args={Args}",
+            sourceFilePath, videoCodec, audioCodec, args);
+
+        var psi = new ProcessStartInfo
+        {
+            FileName = _options.FfmpegPath,
+            Arguments = args,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            RedirectStandardInput = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+
+        var process = new Process { StartInfo = psi, EnableRaisingEvents = true };
+
+        // Capture stderr for error logging
+        var stderrCapture = new System.Text.StringBuilder();
+        process.ErrorDataReceived += (_, e) =>
+        {
+            if (e.Data is not null)
+            {
+                stderrCapture.AppendLine(e.Data);
+                _logger.LogDebug("ffmpeg(remux): {Line}", e.Data);
+            }
+        };
+
+        process.Start();
+        process.BeginErrorReadLine();
+
+        // Store stderr capture for error handling
+        process.Exited += (_, _) =>
+        {
+            if (process.ExitCode != 0)
+            {
+                var error = stderrCapture.ToString();
+                _logger.LogError("ffmpeg stream copy failed (exit={ExitCode}): {Error}", process.ExitCode, error);
+            }
+        };
+
+        return (process, args);
+    }
+
+    /// <inheritdoc />
+    public async Task<string> StreamCopyToFileAsync(
+        string sourceFilePath,
+        string? videoCodec,
+        string? audioCodec,
+        CancellationToken ct = default)
+    {
+        // Create a temp output path for the remuxed file
+        var tempDir = !string.IsNullOrWhiteSpace(_options.TempDirectory)
+            ? _options.TempDirectory
+            : Path.GetTempPath();
+        var remuxDir = Path.Combine(tempDir, "dotnetcloud-remux");
+        Directory.CreateDirectory(remuxDir);
+        var outputPath = Path.Combine(remuxDir, $"remux-{Guid.NewGuid():N}.mp4");
+
+        var args = _argBuilder.GetStreamCopyToFileArgs(sourceFilePath, outputPath, videoCodec, audioCodec);
+
+        _logger.LogInformation(
+            "Starting stream copy to file: source={Source}, output={Output}, vcodec={VCodec}, acodec={ACodec}",
+            sourceFilePath, outputPath, videoCodec, audioCodec);
+
+        var psi = new ProcessStartInfo
+        {
+            FileName = _options.FfmpegPath,
+            Arguments = args,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+
+        using var process = new Process { StartInfo = psi, EnableRaisingEvents = true };
+        var stderrCapture = new System.Text.StringBuilder();
+        process.ErrorDataReceived += (_, e) =>
+        {
+            if (e.Data is not null)
+            {
+                stderrCapture.AppendLine(e.Data);
+                _logger.LogDebug("ffmpeg(remux-file): {Line}", e.Data);
+            }
+        };
+
+        process.Start();
+        process.BeginErrorReadLine();
+        await process.WaitForExitAsync(ct);
+        process.CancelErrorRead();
+
+        if (process.ExitCode != 0)
+        {
+            var error = stderrCapture.ToString();
+            _logger.LogError("ffmpeg stream copy to file failed (exit={ExitCode}): {Error}", process.ExitCode, error);
+            throw new FfmpegException(
+                $"ffmpeg stream copy failed with exit code {process.ExitCode}",
+                process.ExitCode,
+                error);
+        }
+
+        _logger.LogInformation("Stream copy to file completed: {Output}", outputPath);
+        return outputPath;
     }
 
     /// <inheritdoc />
@@ -186,6 +319,8 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
         Guid userId,
         string sourceFilePath,
         string mimeType,
+        string? sourceVideoCodec = null,
+        string? sourceAudioCodec = null,
         CancellationToken ct = default)
     {
         // Acquire per-video lock to prevent duplicate ffmpeg processes
@@ -205,7 +340,7 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
 
             // Lock timed out (30s) — extremely rare, fall back to lock-free creation
             _logger.LogWarning("HLS lock acquire timed out for video {VideoId}; proceeding without lock", videoId);
-            return await CreateHlsJobUnlocked(videoId, userId, sourceFilePath, mimeType, ct);
+            return await CreateHlsJobUnlocked(videoId, userId, sourceFilePath, mimeType, sourceVideoCodec, sourceAudioCodec, ct);
         }
 
         // Variables captured outside the lock for return
@@ -254,7 +389,7 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
         }
 
         // Launch ffmpeg (outside lock, fire-and-forget)
-        await LaunchFfmpegAsync(activeJob, sourceFilePath, actualOutputDir, actualPlaylistPath, ct);
+        await LaunchFfmpegAsync(activeJob, sourceFilePath, actualOutputDir, actualPlaylistPath, sourceVideoCodec, sourceAudioCodec, ct);
 
         return (activeJob.Id, actualOutputDir, actualPlaylistPath);
     }
@@ -274,6 +409,8 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
         Guid userId,
         string sourceFilePath,
         string mimeType,
+        string? sourceVideoCodec,
+        string? sourceAudioCodec,
         CancellationToken ct)
     {
         // Create fresh HLS output directory
@@ -293,7 +430,7 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
         job.IsHls = true;
 
         // Launch ffmpeg
-        await LaunchFfmpegAsync(job, sourceFilePath, actualOutputDir, actualPlaylistPath, ct);
+        await LaunchFfmpegAsync(job, sourceFilePath, actualOutputDir, actualPlaylistPath, sourceVideoCodec, sourceAudioCodec, ct);
 
         return (job.Id, actualOutputDir, actualPlaylistPath);
     }
@@ -306,13 +443,15 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
         string sourceFilePath,
         string outputDir,
         string playlistPath,
+        string? sourceVideoCodec,
+        string? sourceAudioCodec,
         CancellationToken ct)
     {
         var duration = await GetVideoDurationAsync(sourceFilePath, ct);
         _logger.LogInformation("HLS transcode starting: job={JobId}, source={Source}, outputDir={OutputDir}, duration={Duration}",
             job.Id, sourceFilePath, outputDir, duration);
 
-        var args = _argBuilder.BuildHlsArgs(sourceFilePath, outputDir, _options);
+        var args = _argBuilder.BuildHlsArgs(sourceFilePath, outputDir, _options, sourceVideoCodec, sourceAudioCodec);
 
         _ = Task.Run(async () =>
         {
@@ -340,7 +479,7 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
 
                 _ = Task.Run(async () =>
                 {
-                    await Task.Delay(TimeSpan.FromHours(24));
+                    await Task.Delay(TimeSpan.FromHours(1));
                     CleanupHlsDirectory(outputDir, job.Id);
                     TryDeleteFile(sourceFilePath);
                 });
@@ -405,6 +544,7 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "ffprobe failed for {Path}", filePath);
+            Console.Error.WriteLine($"[VIDEO-FFPROBE-FAIL] path={filePath} error={ex.GetType().Name}: {ex.Message}");
             return null;
         }
     }
@@ -414,7 +554,8 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
         var ffmpegPath = _options.FfmpegPath;
         if (ffmpegPath.EndsWith("ffmpeg", StringComparison.OrdinalIgnoreCase))
         {
-            return ffmpegPath[..^6] + "ffprobe" + ffmpegPath[^6..].Replace("ffmpeg", "ffprobe");
+            // Replace the "ffmpeg" suffix with "ffprobe" — e.g. /usr/bin/ffmpeg → /usr/bin/ffprobe
+            return ffmpegPath[..^6] + "ffprobe";
         }
 
         if (ffmpegPath.EndsWith("ffmpeg.exe", StringComparison.OrdinalIgnoreCase))

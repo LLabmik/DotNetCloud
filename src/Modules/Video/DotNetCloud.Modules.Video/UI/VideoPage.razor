@@ -1311,6 +1311,18 @@
                         <div class="player-info-header">
                             <div class="player-title-section">
                                 <h3>@_playerVideo.Title</h3>
+                                @if (_streamStrategy is not null)
+                                {
+                                    <span class="stream-strategy-badge stream-strategy-@_streamStrategy">
+                                        @(_streamStrategy switch
+                                        {
+                                            "direct" => "Direct Play",
+                                            "remux" => "Remuxing",
+                                            "transcode" => "Transcoding",
+                                            _ => _streamStrategy
+                                        })
+                                    </span>
+                                }
                                 @if (_playerSeriesContext is not null)
                                 {
                                     <div class="player-series-context">

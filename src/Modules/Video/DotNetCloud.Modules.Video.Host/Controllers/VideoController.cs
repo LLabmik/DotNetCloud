@@ -7,6 +7,7 @@ using DotNetCloud.Modules.Video.Host.Services;
 using DotNetCloud.Modules.Video.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Linq;
 
 namespace DotNetCloud.Modules.Video.Host.Controllers;
 
@@ -26,6 +27,7 @@ public class VideoController : VideoControllerBase
     private readonly IVideoThumbnailService _thumbnailService;
     private readonly IVideoEnrichmentService _enrichmentService;
     private readonly IVideoTranscodingService _transcodingService;
+    private readonly StreamProgressState _streamProgress;
     private readonly ILogger<VideoController> _logger;
 
     /// <summary>
@@ -42,6 +44,7 @@ public class VideoController : VideoControllerBase
         IVideoThumbnailService thumbnailService,
         IVideoEnrichmentService enrichmentService,
         IVideoTranscodingService transcodingService,
+        StreamProgressState streamProgress,
         ILogger<VideoController> logger)
     {
         _videoService = videoService;
@@ -54,10 +57,35 @@ public class VideoController : VideoControllerBase
         _thumbnailService = thumbnailService;
         _enrichmentService = enrichmentService;
         _transcodingService = transcodingService;
+        _streamProgress = streamProgress;
         _logger = logger;
     }
 
     // ─── Videos ───────────────────────────────────────────────────────
+
+    /// <summary>Serves video-player.js directly from disk,
+    /// bypassing the static web assets middleware which has a bug on .NET 10.</summary>
+    [AllowAnonymous]
+    [HttpGet("video-player-js")]
+    public IActionResult GetVideoPlayerJs()
+    {
+        // The file is at wwwroot/_content/DotNetCloud.Modules.Video/video-player.js
+        // relative to the module host's working directory
+        var path = Path.Combine(
+            Directory.GetCurrentDirectory(),
+            "wwwroot", "_content", "DotNetCloud.Modules.Video", "video-player.js");
+
+        if (!System.IO.File.Exists(path))
+        {
+            // Fallback: try the root wwwroot
+            path = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "video-player.js");
+        }
+
+        if (!System.IO.File.Exists(path))
+            return NotFound();
+
+        return PhysicalFile(path, "application/javascript");
+    }
 
     /// <summary>Lists videos in the library.</summary>
     [HttpGet]
@@ -429,6 +457,35 @@ public class VideoController : VideoControllerBase
         return Ok(Envelope(new { activeStreams = count, maxStreams = _streamingService.MaxConcurrentStreams }));
     }
 
+    /// <summary>Polls the current progress of stream preparation for a video.
+    /// The frontend calls this every 500ms while showing a loading overlay.
+    /// Returns the pipeline stage, percent complete, and a human-readable message.
+    /// Placed BEFORE stream-level routes to avoid catch-all (*filename) conflicts.</summary>
+    [AllowAnonymous]
+    [HttpGet("{videoId:guid}/stream-progress")]
+    public IActionResult GetStreamProgress(Guid videoId)
+    {
+        var entry = _streamProgress.Get(videoId);
+        if (entry is null)
+        {
+            // No progress entry — stream hasn't been requested yet or already started
+            return Ok(Envelope(new
+            {
+                stage = "unknown",
+                percent = 0.0,
+                message = "Waiting for stream request…"
+            }));
+        }
+
+        return Ok(Envelope(new
+        {
+            stage = entry.Stage.ToString().ToLowerInvariant(),
+            percent = entry.Percent,
+            message = entry.Message,
+            strategy = entry.Strategy
+        }));
+    }
+
     /// <summary>Probes a video to determine if it can be direct-played or needs transcoding.</summary>
     [HttpGet("{videoId:guid}/stream-probe")]
     public async Task<IActionResult> ProbeStream(Guid videoId)
@@ -445,16 +502,20 @@ public class VideoController : VideoControllerBase
 
         try
         {
-            var canDirectPlay = await _transcodingService.CanDirectPlayAsync(filePath, video.MimeType);
+            var (strategy, videoCodec, audioCodec, container) = await _transcodingService.DecideStreamingStrategyAsync(filePath, video.MimeType);
             var token = _streamingService.GenerateStreamToken(videoId, caller.UserId);
 
             return Ok(Envelope(new
             {
                 videoId = video.Id,
-                canDirectPlay,
+                canDirectPlay = strategy == StreamingStrategy.DirectPlay,
+                strategy = strategy.ToString(),
+                videoCodec,
+                audioCodec,
+                container,
                 mimeType = video.MimeType,
                 streamUrl = $"/api/v1/videos/{videoId}/stream?token={Uri.EscapeDataString(token)}" +
-                            (canDirectPlay ? "" : "&forceTranscode=true")
+                            (strategy == StreamingStrategy.DirectPlay ? "" : "&forceTranscode=true")
             }));
         }
         finally
@@ -518,10 +579,35 @@ public class VideoController : VideoControllerBase
         Stream fileStream;
         try
         {
+            // ── Report reconstruction progress ──────────────────────
+            var progress = _streamProgress.GetOrCreate(videoId);
+            progress.Stage = StreamProgressStage.Reconstructing;
+            progress.Message = "Assembling video file…";
+            progress.Percent = 0;
+            progress.LastUpdated = DateTime.UtcNow;
+
             fileStream = await _downloadService.DownloadCurrentAsync(video.FileNodeId, caller);
+
+            // Estimate total size from the canonical video record
+            var totalBytes = video.CanonicalVideo?.SizeBytes > 0
+                ? video.CanonicalVideo.SizeBytes
+                : fileStream.CanSeek ? fileStream.Length : 0;
+
+            if (totalBytes > 0)
+            {
+                // Create a progress-reporting wrapper around the download stream
+                fileStream = new ProgressReportingStream(fileStream, videoId, totalBytes, _streamProgress, _logger);
+            }
+            else
+            {
+                progress.Stage = StreamProgressStage.Reconstructing;
+                progress.Message = "Assembling video file… (unknown size)";
+                progress.Percent = 50; // indeterminate
+            }
         }
         catch (Exception ex)
         {
+            _streamProgress.Remove(videoId);
             _logger.LogWarning(ex, "Failed to reconstruct video file for {VideoId} (FileNodeId={FileNodeId})", videoId, video.FileNodeId);
             return NotFound(ErrorEnvelope("file_not_found", "Video file not found in storage."));
         }
@@ -529,6 +615,10 @@ public class VideoController : VideoControllerBase
         // Save to a persistent temp path so ffprobe and ffmpeg can access it
         var tempSourceDir = Path.Combine(Path.GetTempPath(), "dotnetcloud-stream-source");
         Directory.CreateDirectory(tempSourceDir);
+
+        // Background cleanup of temp files older than 24 hours
+        _ = Task.Run(() => CleanupOldTempFiles(tempSourceDir, TimeSpan.FromHours(24)));
+
         var sourcePath = Path.Combine(tempSourceDir, $"source-{videoId:N}");
 
         try
@@ -542,7 +632,7 @@ public class VideoController : VideoControllerBase
             {
                 await using var sourceStream = new FileStream(
                     sourcePath, FileMode.Create, FileAccess.Write,
-                    FileShare.Read, 65536, FileOptions.Asynchronous | FileOptions.DeleteOnClose);
+                    FileShare.Read, 65536, FileOptions.Asynchronous);
                 await fileStream.CopyToAsync(sourceStream);
             }
 
@@ -550,30 +640,42 @@ public class VideoController : VideoControllerBase
             var mimeType = video.CanonicalVideo?.MimeType ?? "application/octet-stream";
             _logger.LogInformation("StreamVideo: videoId={VideoId}, mimeType={MimeType}, forceTranscode={Force}",
                 videoId, mimeType, forceTranscode);
+            Console.Error.WriteLine($"[VIDEO-STREAM] videoId={videoId} mimeType={mimeType} forceTranscode={forceTranscode} sourcePath={sourcePath}");
 
-            // Check if direct play is possible (skip check when forceTranscode)
-            bool needsTranscode = forceTranscode;
-            if (!needsTranscode)
-            {
-                needsTranscode = !await _transcodingService.CanDirectPlayAsync(sourcePath, mimeType, HttpContext.RequestAborted);
-                _logger.LogInformation("StreamVideo: CanDirectPlay={Result}, needsTranscode={Needs}",
-                    !needsTranscode, needsTranscode);
-            }
+            // ── Decide streaming strategy ──────────────────────────
+            var (strategy, videoCodec, audioCodec, container) = forceTranscode
+                ? (StreamingStrategy.Transcode, null, null, null)
+                : await _transcodingService.DecideStreamingStrategyAsync(sourcePath, mimeType, HttpContext.RequestAborted);
 
-            if (!needsTranscode)
+            // Update progress with strategy info
+            var progress = _streamProgress.GetOrCreate(videoId);
+            progress.Strategy = strategy.ToString();
+
+            _logger.LogInformation("StreamVideo: videoId={VideoId}, strategy={Strategy}, vcodec={VCodec}, acodec={ACodec}, container={Container}",
+                videoId, strategy, videoCodec, audioCodec, container);
+            Console.Error.WriteLine($"[VIDEO-STREAM] videoId={videoId} decided={strategy} vcodec={videoCodec} acodec={audioCodec} container={container}");
+
+            // ── Strategy: Direct Play ──────────────────────────────
+            if (strategy == StreamingStrategy.DirectPlay)
             {
-                _logger.LogInformation("StreamVideo: Serving direct for video {VideoId}", videoId);
-                // Serve directly with full HTTP range support
+                _logger.LogInformation("StreamVideo: Direct play for video {VideoId}", videoId);
+                Console.Error.WriteLine($"[VIDEO-STREAM] videoId={videoId} → DIRECT_PLAY sourcePath={sourcePath}");
                 var contentType = VideoStreamingService.GetContentType(mimeType);
+
+                progress.Stage = StreamProgressStage.Streaming;
+                progress.Message = "Starting playback…";
+                progress.Percent = 100;
 
                 HttpContext.Response.OnStarting(() =>
                 {
                     HttpContext.Response.Headers.Remove("X-Content-Type-Options");
+                    HttpContext.Response.Headers["X-Stream-Strategy"] = "direct";
                     return Task.CompletedTask;
                 });
 
                 HttpContext.Response.OnCompleted(async () =>
                 {
+                    _streamProgress.Remove(videoId);
                     if (fileStream is FileStream fs)
                         await fs.DisposeAsync();
                 });
@@ -581,45 +683,102 @@ public class VideoController : VideoControllerBase
                 return PhysicalFile(sourcePath, contentType, enableRangeProcessing: true);
             }
 
-            // ── Transcode needed (HLS) ──────────────────────────────
+            // ── Strategy: Stream Copy (Remux) ─────────────────────
+            if (strategy == StreamingStrategy.StreamCopy)
+            {
+                _logger.LogInformation("StreamVideo: Stream copy (remux) for video {VideoId}, vcodec={VCodec}, acodec={ACodec}",
+                    videoId, videoCodec, audioCodec);
+                Console.Error.WriteLine($"[VIDEO-STREAM] videoId={videoId} → STREAM_COPY/REMUX vcodec={videoCodec} acodec={audioCodec}");
+
+                progress.Stage = StreamProgressStage.Remuxing;
+                progress.Message = "Preparing stream (remux)…";
+                progress.Percent = 80;
+
+                // Stream copy to a temp file — ffmpeg remuxes near-instantly
+                var remuxPath = await _transcodingService.StreamCopyToFileAsync(
+                    sourcePath, videoCodec, audioCodec, HttpContext.RequestAborted);
+
+                progress.Stage = StreamProgressStage.Streaming;
+                progress.Message = "Starting playback…";
+                progress.Percent = 100;
+
+                HttpContext.Response.OnStarting(() =>
+                {
+                    HttpContext.Response.Headers.Remove("X-Content-Type-Options");
+                    HttpContext.Response.Headers["X-Stream-Strategy"] = "remux";
+                    return Task.CompletedTask;
+                });
+
+                // Clean up the remuxed file after the response completes
+                HttpContext.Response.OnCompleted(() =>
+                {
+                    _streamProgress.Remove(videoId);
+                    TryDeleteTempFile(remuxPath);
+                    return Task.CompletedTask;
+                });
+
+                return PhysicalFile(remuxPath, "video/mp4", enableRangeProcessing: true);
+            }
+
+            // ── Strategy: Transcode (HLS) ──────────────────────────
             _logger.LogInformation("StreamVideo: Starting HLS transcode for video {VideoId}", videoId);
+            Console.Error.WriteLine($"[VIDEO-STREAM] videoId={videoId} → TRANSCODE/HLS (WARNING: unexpected for MOV+H.264+AAC)");
+
+            progress.Stage = StreamProgressStage.Transcoding;
+            progress.Message = "Preparing stream (transcoding)…";
+            progress.Percent = 90;
+
             var (jobId, outputDir, playlistPath) = await _transcodingService.TranscodeHlsAsync(
                 videoId, userId, sourcePath, mimeType,
+                sourceVideoCodec: videoCodec,
+                sourceAudioCodec: audioCodec,
                 ct: HttpContext.RequestAborted);
 
             _logger.LogInformation("StreamVideo: HLS transcode job {JobId} started, playlist={PlaylistPath}",
                 jobId, playlistPath);
 
-            // Wait for the playlist file to be written by ffmpeg.
-            // ffmpeg writes the playlist after the first segment is complete (~6 seconds).
-            var waitStart = DateTime.UtcNow;
-            while (!System.IO.File.Exists(playlistPath))
+            HttpContext.Response.Headers["X-Stream-Strategy"] = "transcode";
+
+            // Wait for the playlist file + at least 2 segments using FileSystemWatcher.
+            // This is event-driven — no polling loop. ffmpeg writes the playlist after
+            // the first segment is complete (~6 seconds).
+            var waitResult = await WaitForHlsReadyAsync(playlistPath, outputDir, jobId,
+                HttpContext.RequestAborted);
+
+            if (waitResult == HlsWaitResult.Cancelled)
             {
-                if (HttpContext.RequestAborted.IsCancellationRequested)
-                {
-                    _transcodingService.CancelTranscode(jobId);
-                    return StatusCode(499, ErrorEnvelope("cancelled", "Client disconnected."));
-                }
-
-                // Check if the job has already failed
-                var checkJob = _transcodingService.GetProgress(jobId);
-                if (checkJob?.Status == TranscodingJobStatus.Failed)
-                {
-                    _logger.LogError("HLS transcode job {JobId} failed: {Error}", jobId, checkJob.ErrorMessage);
-                    return StatusCode(500, ErrorEnvelope("TRANSCODE_FAILED",
-                        checkJob.ErrorMessage ?? "HLS transcoding failed."));
-                }
-
-                if ((DateTime.UtcNow - waitStart).TotalSeconds > 30)
-                {
-                    _transcodingService.CancelTranscode(jobId);
-                    _logger.LogError("HLS transcode job {JobId} timed out waiting for playlist", jobId);
-                    return StatusCode(504, ErrorEnvelope("TRANSCODE_TIMEOUT",
-                        "HLS transcode did not produce a playlist within 30 seconds."));
-                }
-
-                await Task.Delay(200, HttpContext.RequestAborted);
+                _streamProgress.Remove(videoId);
+                _transcodingService.CancelTranscode(jobId);
+                return StatusCode(499, ErrorEnvelope("cancelled", "Client disconnected."));
             }
+
+            if (waitResult == HlsWaitResult.Failed)
+            {
+                _streamProgress.Remove(videoId);
+                var checkJob = _transcodingService.GetProgress(jobId);
+                _logger.LogError("HLS transcode job {JobId} failed: {Error}", jobId, checkJob?.ErrorMessage);
+                return StatusCode(500, ErrorEnvelope("TRANSCODE_FAILED",
+                    checkJob?.ErrorMessage ?? "HLS transcoding failed."));
+            }
+
+            if (waitResult == HlsWaitResult.Timeout)
+            {
+                _streamProgress.Remove(videoId);
+                _transcodingService.CancelTranscode(jobId);
+                _logger.LogError("HLS transcode job {JobId} timed out waiting for segments", jobId);
+                return StatusCode(504, ErrorEnvelope("TRANSCODE_TIMEOUT",
+                    "HLS transcode did not produce segments within 30 seconds."));
+            }
+
+            progress.Stage = StreamProgressStage.Streaming;
+            progress.Message = "Starting playback…";
+            progress.Percent = 100;
+
+            HttpContext.Response.OnCompleted(() =>
+            {
+                _streamProgress.Remove(videoId);
+                return Task.CompletedTask;
+            });
 
             _logger.LogInformation("StreamVideo: HLS playlist ready for {VideoId}, serving {PlaylistPath}",
                 videoId, playlistPath);
@@ -629,7 +788,9 @@ public class VideoController : VideoControllerBase
         }
         catch (Exception ex)
         {
+            _streamProgress.Remove(videoId);
             _logger.LogError(ex, "StreamVideo failed for video {VideoId}", videoId);
+            Console.Error.WriteLine($"[VIDEO-STREAM-FAIL] videoId={videoId} error={ex.GetType().Name}: {ex.Message}");
             return StatusCode(500, ErrorEnvelope("TRANSCODE_ERROR",
                 $"Video streaming failed: {ex.GetType().Name} — {ex.Message}"));
         }
@@ -800,5 +961,111 @@ public class VideoController : VideoControllerBase
         try
         { if (System.IO.File.Exists(path)) System.IO.File.Delete(path); }
         catch { /* best effort */ }
+    }
+
+    /// <summary>
+    /// Deletes files in the given directory older than the specified age.
+    /// Best-effort — failures are silently ignored.
+    /// </summary>
+    private static void CleanupOldTempFiles(string directory, TimeSpan maxAge)
+    {
+        try
+        {
+            if (!Directory.Exists(directory))
+                return;
+
+            var cutoff = DateTime.UtcNow - maxAge;
+            foreach (var file in Directory.GetFiles(directory))
+            {
+                try
+                {
+                    if (System.IO.File.GetLastWriteTimeUtc(file) < cutoff)
+                        System.IO.File.Delete(file);
+                }
+                catch { /* best effort per file */ }
+            }
+        }
+        catch { /* best effort */ }
+    }
+
+    // ─── HLS Wait Helper (FileSystemWatcher-based) ──────────────────
+
+    private enum HlsWaitResult { Ready, Cancelled, Failed, Timeout }
+
+    /// <summary>
+    /// Waits for the HLS playlist and at least 2 .ts segments to appear using
+    /// FileSystemWatcher (event-driven, no polling). Times out after 30 seconds.
+    /// Also polls the transcode job for failure every 500ms.
+    /// </summary>
+    private async Task<HlsWaitResult> WaitForHlsReadyAsync(
+        string playlistPath,
+        string outputDir,
+        string jobId,
+        CancellationToken ct)
+    {
+        var tcs = new TaskCompletionSource<HlsWaitResult>();
+        using var ctr = ct.Register(() => tcs.TrySetResult(HlsWaitResult.Cancelled));
+        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        using var timeoutCtr = timeoutCts.Token.Register(() => tcs.TrySetResult(HlsWaitResult.Timeout));
+        var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
+
+        // Background poller: checks job status (ffmpeg may fail silently)
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                while (!linkedCts.IsCancellationRequested)
+                {
+                    await Task.Delay(500, linkedCts.Token);
+                    var job = _transcodingService.GetProgress(jobId);
+                    if (job?.Status == TranscodingJobStatus.Failed)
+                        tcs.TrySetResult(HlsWaitResult.Failed);
+                }
+            }
+            catch (OperationCanceledException) { /* Expected */ }
+        }, linkedCts.Token);
+
+        // Use FileSystemWatcher to detect when playlist.m3u8 appears
+        using var watcher = new FileSystemWatcher(outputDir, "playlist.m3u8")
+        {
+            NotifyFilter = NotifyFilters.FileName | NotifyFilters.CreationTime,
+            EnableRaisingEvents = false
+        };
+
+        try
+        {
+            // If playlist already exists, check segments immediately
+            if (System.IO.File.Exists(playlistPath) && HasMinSegments(outputDir))
+                return HlsWaitResult.Ready;
+
+            watcher.Created += (_, _) =>
+            {
+                if (HasMinSegments(outputDir))
+                    tcs.TrySetResult(HlsWaitResult.Ready);
+            };
+            watcher.EnableRaisingEvents = true;
+
+            return await tcs.Task;
+        }
+        finally
+        {
+            linkedCts.Cancel();
+            linkedCts.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// Returns true if the output directory contains at least 2 .ts segment files.
+    /// </summary>
+    private static bool HasMinSegments(string outputDir)
+    {
+        try
+        {
+            return Directory.EnumerateFiles(outputDir, "segment_*.ts").Take(2).Count() >= 2;
+        }
+        catch
+        {
+            return false;
+        }
     }
 }

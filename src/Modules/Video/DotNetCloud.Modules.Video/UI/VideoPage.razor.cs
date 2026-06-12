@@ -90,6 +90,7 @@ public partial class VideoPage : IAsyncDisposable
     private DotNetObjectReference<VideoPage>? _dotNetRef;
     private bool _videoErrorListenerAttached;
     private bool _scriptsLoaded;
+    private string? _streamStrategy; // "direct", "remux", or "transcode"
 
     private readonly SemaphoreSlim _pageLoadSemaphore = new(1, 1);
 
@@ -186,15 +187,22 @@ public partial class VideoPage : IAsyncDisposable
                 // Dynamic script tags load in parallel, so chain hls.js → video-player.js via onload.
                 if (!_scriptsLoaded)
                 {
+                    // Load hls.js normally (not affected by the static assets bug)
                     await Js.InvokeVoidAsync("eval",
-                        "(function(){if(document.getElementById('dnc-hls'))return;var s=document.createElement('script');s.src='/_content/DotNetCloud.Modules.Video/hls.min.js';s.id='dnc-hls';s.onload=function(){var s2=document.createElement('script');s2.src='/_content/DotNetCloud.Modules.Video/video-player.js';s2.id='dnc-vp';document.head.appendChild(s2);};document.head.appendChild(s);})();");
+                        "(function(){if(document.getElementById('dnc-hls'))return;var s=document.createElement('script');s.src='/_content/DotNetCloud.Modules.Video/hls.min.js';s.id='dnc-hls';s.onload=function(){var s2=document.createElement('script');s2.src='/api/v1/videos/video-player-js';s2.id='dnc-vp';document.head.appendChild(s2);};document.head.appendChild(s);})();");
                     await Task.Delay(500);
                     _scriptsLoaded = true;
                 }
 
-                // Use dotted-path JS interop (no eval, no string escaping issues)
+                // Start the stream pipeline first (triggers chunk reconstruction on server),
+                // then show progress overlay and attach the player once ready.
                 var streamUrl = GetStreamUrl(_playerVideo!.Id);
-                await Js.InvokeVoidAsync("DotNetCloudVideo.attachHlsPlayer", "video-player", streamUrl);
+
+                // attachHlsPlayer with 4 args enables progress overlay + polling
+                // With 2 args (legacy), plays immediately without progress
+                await Js.InvokeVoidAsync("DotNetCloudVideo.attachHlsPlayer",
+                    "video-player", streamUrl, _playerVideo!.Id.ToString(), _dotNetRef);
+
                 await Js.InvokeVoidAsync("DotNetCloudVideo.attachVideoErrorListener", "video-player", _dotNetRef);
                 await Js.InvokeVoidAsync("DotNetCloudVideo.attachIdleAutoHide", "player-container", 3000);
                 await Js.InvokeVoidAsync("DotNetCloudVideo.attachKeyboardShortcuts", "video-player");
@@ -204,6 +212,14 @@ public partial class VideoPage : IAsyncDisposable
                 Logger.LogWarning(ex, "Failed to initialize video player");
             }
         }
+    }
+
+    /// <summary>Called from JS when the stream strategy is determined (via X-Stream-Strategy header).</summary>
+    [JSInvokable]
+    public void OnStreamStrategy(string strategy)
+    {
+        _streamStrategy = strategy;
+        InvokeAsync(StateHasChanged);
     }
 
     /// <summary>Called from JS when the video element fires an error event.</summary>
@@ -688,6 +704,7 @@ public partial class VideoPage : IAsyncDisposable
             _noAudioDetected = false;
             _videoErrorListenerAttached = false;
             _playerOpen = true;
+            _streamStrategy = null; // populated when stream starts via response header
             await WatchProgressService.RecordViewAsync(video.Id, caller);
             await StartProgressTimerAsync(video.Id);
 
@@ -730,18 +747,26 @@ public partial class VideoPage : IAsyncDisposable
         _noAudioDetected = false;
         _videoErrorListenerAttached = false;
         _playerSeriesContext = null;
+        _streamStrategy = null;
 
         // Tear down HLS player and UI handlers
         try
         {
+            await Js.InvokeVoidAsync("DotNetCloudVideo.cancelStreamProgress", "player-container");
             await Js.InvokeVoidAsync("DotNetCloudVideo.destroyHlsPlayer", "video-player");
             await Js.InvokeVoidAsync("DotNetCloudVideo.disposeIdleAutoHide", "player-container");
             await Js.InvokeVoidAsync("DotNetCloudVideo.disposeKeyboardShortcuts", "video-player");
+
+            // Remove cached script tags so next open loads fresh versions
+            await Js.InvokeVoidAsync("eval",
+                "(function(){var e=document.getElementById('dnc-hls');if(e)e.remove();e=document.getElementById('dnc-vp');if(e)e.remove();})();");
         }
         catch (Exception ex)
         {
             Logger.LogDebug(ex, "Error tearing down video player JS");
         }
+
+        _scriptsLoaded = false;
 
         _breadcrumb.Clear();
         StopProgressTimer();
@@ -1141,7 +1166,7 @@ public partial class VideoPage : IAsyncDisposable
     }
 
     private static string GetStreamUrl(Guid videoId) =>
-        $"/api/v1/videos/{videoId}/stream?forceTranscode=true";
+        $"/api/v1/videos/{videoId}/stream";
 
     private static string GetSubtitleUrl(Guid subtitleId) => $"/api/v1/videos/subtitles/{subtitleId}";
 

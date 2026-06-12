@@ -153,27 +153,40 @@ public sealed class VideoStreamingService : IVideoStreamingService
 
     /// <summary>
     /// Gets the content type for a video MIME type, with browser compatibility mapping.
+    /// Maps non-standard and deprecated MIME types to their browser-compatible equivalents.
     /// </summary>
     public static string GetContentType(string mimeType)
     {
         return mimeType.ToLowerInvariant() switch
         {
-            // Explicitly mapped types
+            // ── Standard MP4 family ──
             "video/mp4" => "video/mp4",
-            "video/webm" => "video/webm",
-            "video/ogg" => "video/ogg",
-            "video/x-matroska" => "video/x-matroska",
-            "video/quicktime" => "video/mp4", // Browsers handle QT as MP4
+            "video/quicktime" => "video/mp4",
             "video/x-m4v" => "video/mp4",
 
-            // Additional scanner-produced types — keep as-is so browsers can attempt playback
+            // ── WebM family ──
+            "video/webm" => "video/webm",
+
+            // ── Matroska / MKV ── Chrome and Firefox support direct MKV playback ──
+            "video/x-matroska" => "video/x-matroska",
+            "video/x-mkv" => "video/x-matroska",
+
+            // ── Ogg family ──
+            "video/ogg" => "video/ogg",
+            "video/ogv" => "video/ogg",
+
+            // ── Legacy / scanner-produced types ──
             "video/mpeg" => "video/mpeg",
-            "video/x-msvideo" => "video/x-msvideo",
-            "video/x-ms-wmv" => "video/x-ms-wmv",
-            "video/x-flv" => "video/x-flv",
+            "video/x-msvideo" => "video/x-msvideo",   // AVI
+            "video/x-ms-wmv" => "video/x-ms-wmv",     // WMV
+            "video/x-flv" => "video/x-flv",           // Flash video
             "video/3gpp" => "video/3gpp",
             "video/3gpp2" => "video/3gpp2",
-            "video/mp2t" => "video/mp2t",
+            "video/mp2t" => "video/mp2t",             // MPEG-TS (HLS segments)
+
+            // ── HEVC / H.265 ──
+            "video/hevc" => "video/mp4",
+            "video/h265" => "video/mp4",
 
             // Preserve any unrecognised video/* or audio/* MIME type so browsers
             // get a valid media Content-Type instead of application/octet-stream,

@@ -10,34 +10,153 @@ namespace DotNetCloud.Modules.Video.Services;
 /// </summary>
 public sealed class FfmpegArgumentBuilder
 {
+    private static readonly StreamCompatibilityMatrix _compat = new();
+
+    /// <summary>
+    /// Returns the recommended streaming strategy for a video given its codec and container info.
+    /// Delegates to <see cref="StreamCompatibilityMatrix"/> for the full browser compatibility matrix.
+    /// Supersedes the old CanDirectPlay() method.
+    /// </summary>
+    public StreamingStrategy DecideStrategy(
+        string? mimeType,
+        string? videoCodec,
+        string? audioCodec,
+        string? container)
+    {
+        return _compat.DecideStrategy(mimeType, videoCodec, audioCodec, container);
+    }
+
     /// <summary>
     /// Returns true if the video can be played directly in HTML5 browsers
-    /// without transcoding.
+    /// without transcoding. Legacy method — prefer <see cref="DecideStrategy"/>.
     /// Must be H.264 or H.265 video + AAC or MP3 audio + MP4 container.
     /// </summary>
     public bool CanDirectPlay(string mimeType, string? videoCodec, string? audioCodec, string container)
     {
-        // MIME must be video/mp4
-        if (!string.Equals(mimeType, "video/mp4", StringComparison.OrdinalIgnoreCase))
-            return false;
+        return _compat.DecideStrategy(mimeType, videoCodec, audioCodec, container) == StreamingStrategy.DirectPlay;
+    }
 
-        // Container must be mp4
-        if (!string.Equals(container, "mp4", StringComparison.OrdinalIgnoreCase) &&
-            !string.Equals(container, "mov", StringComparison.OrdinalIgnoreCase))
-            return false;
+    /// <summary>
+    /// Builds ffmpeg arguments for stream copy (remux) — changes the container without re-encoding.
+    /// Near-instant and lossless. Use when source codecs are browser-compatible but the
+    /// container is not (e.g., H.264+AAC in MKV → MP4).
+    /// Output goes to stdout (pipe:1) for direct HTTP response streaming.
+    /// </summary>
+    /// <param name="inputPath">Absolute path to the source video file.</param>
+    /// <param name="videoCodec">Source video codec (e.g. "h264"). Used to decide bitstream filter.</param>
+    /// <param name="audioCodec">Source audio codec (e.g. "aac"). If not browser-compatible, audio is re-encoded.</param>
+    /// <param name="outputContainer">Target container: "mp4" or "webm". MP4 is the default.</param>
+    /// <returns>Full ffmpeg argument string (does NOT include the "ffmpeg" binary name).</returns>
+    public string GetStreamCopyArgs(
+        string inputPath,
+        string? videoCodec,
+        string? audioCodec,
+        string outputContainer = "mp4")
+    {
+        var sb = new StringBuilder();
+        sb.Append("-hide_banner -loglevel warning ");
+        sb.Append("-fflags +genpts ");  // Generate PTS if missing (common in MKV/AVI)
+        sb.AppendFormat(CultureInfo.InvariantCulture, "-i \"{0}\" ", EscapePath(inputPath));
 
-        // Video codec must be H.264 (avc1) or H.265 (hevc/hvc1)
-        // H.265 has partial browser support; H.264 is universal
-        bool videoOk = videoCodec is not null && (
-            videoCodec.Contains("h264", StringComparison.OrdinalIgnoreCase) ||
-            videoCodec.Contains("avc", StringComparison.OrdinalIgnoreCase));
+        // Map streams
+        sb.Append("-map 0:v:0? -map 0:a:0? ");
 
-        // Audio must be AAC or MP3
-        bool audioOk = audioCodec is null || audioCodec.Length == 0 || (
-            audioCodec.Contains("aac", StringComparison.OrdinalIgnoreCase) ||
-            audioCodec.Contains("mp3", StringComparison.OrdinalIgnoreCase));
+        // Video: stream copy
+        sb.Append("-c:v copy ");
 
-        return videoOk && audioOk;
+        // Bitstream filter for H.264 in MPEG-TS → MP4: convert annex-b to avcC
+        if (videoCodec is not null
+            && (videoCodec.Contains("h264", StringComparison.OrdinalIgnoreCase)
+                || videoCodec.Contains("avc", StringComparison.OrdinalIgnoreCase)))
+        {
+            sb.Append("-bsf:v h264_mp4toannexb=disable ");
+        }
+
+        // Bitstream filter for H.265/HEVC
+        if (videoCodec is not null
+            && (videoCodec.Contains("hevc", StringComparison.OrdinalIgnoreCase)
+                || videoCodec.Contains("h265", StringComparison.OrdinalIgnoreCase)))
+        {
+            sb.Append("-bsf:v hevc_mp4toannexb=disable ");
+        }
+
+        // Audio: stream copy if compatible, otherwise transcode to AAC
+        if (audioCodec is not null && StreamCompatibilityMatrix.IsUniversalAudioCodec(audioCodec))
+        {
+            sb.Append("-c:a copy ");
+        }
+        else
+        {
+            sb.Append("-c:a aac -b:a 128k -ac 2 -strict -2 ");
+        }
+
+        // Remove metadata (cleaner output)
+        sb.Append("-map_metadata -1 ");
+
+        // Faststart for web streaming + fragmented for progressive download
+        sb.Append("-movflags +faststart+frag_keyframe+empty_moov ");
+
+        // Output format
+        sb.AppendFormat(CultureInfo.InvariantCulture, "-f {0} ", outputContainer);
+
+        // Overwrite
+        sb.Append("-y ");
+
+        // Output to stdout (pipe to HTTP response)
+        sb.Append("-frag_duration 10000000 "); // ~10ms fragment duration for low-latency streaming
+        sb.Append("pipe:1");
+
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Builds ffmpeg arguments for stream copy that writes to a file (not stdout).
+    /// Used when the output file is needed for subsequent serving (e.g., direct play from remuxed file).
+    /// </summary>
+    public string GetStreamCopyToFileArgs(
+        string inputPath,
+        string outputPath,
+        string? videoCodec,
+        string? audioCodec,
+        string outputContainer = "mp4")
+    {
+        var sb = new StringBuilder();
+        sb.Append("-hide_banner -loglevel warning ");
+        sb.Append("-fflags +genpts ");
+        sb.AppendFormat(CultureInfo.InvariantCulture, "-i \"{0}\" ", EscapePath(inputPath));
+        sb.Append("-map 0:v:0? -map 0:a:0? ");
+        sb.Append("-c:v copy ");
+
+        if (videoCodec is not null
+            && (videoCodec.Contains("h264", StringComparison.OrdinalIgnoreCase)
+                || videoCodec.Contains("avc", StringComparison.OrdinalIgnoreCase)))
+        {
+            sb.Append("-bsf:v h264_mp4toannexb=disable ");
+        }
+
+        if (videoCodec is not null
+            && (videoCodec.Contains("hevc", StringComparison.OrdinalIgnoreCase)
+                || videoCodec.Contains("h265", StringComparison.OrdinalIgnoreCase)))
+        {
+            sb.Append("-bsf:v hevc_mp4toannexb=disable ");
+        }
+
+        if (audioCodec is not null && StreamCompatibilityMatrix.IsUniversalAudioCodec(audioCodec))
+        {
+            sb.Append("-c:a copy ");
+        }
+        else
+        {
+            sb.Append("-c:a aac -b:a 128k -ac 2 -strict -2 ");
+        }
+
+        sb.Append("-map_metadata -1 ");
+        sb.Append("-movflags +faststart ");
+        sb.AppendFormat(CultureInfo.InvariantCulture, "-f {0} ", outputContainer);
+        sb.Append("-y ");
+        sb.AppendFormat(CultureInfo.InvariantCulture, "\"{0}\"", EscapePath(outputPath));
+
+        return sb.ToString();
     }
 
     /// <summary>
@@ -148,6 +267,8 @@ public sealed class FfmpegArgumentBuilder
     /// Output: H.264 + AAC segmented into .ts files with an .m3u8 playlist.
     /// ffmpeg writes self-contained 6-second segments that are playable immediately,
     /// so the browser can start playback before transcoding finishes.
+    ///
+    /// This is the universal fallback — works in all browsers via hls.js or native HLS.
     /// </summary>
     /// <param name="inputPath">Absolute path to the source video file.</param>
     /// <param name="outputDir">Absolute path to the directory where segments and playlist are written.</param>
@@ -159,6 +280,31 @@ public sealed class FfmpegArgumentBuilder
         string inputPath,
         string outputDir,
         VideoTranscodingOptions options,
+        TimeSpan? seekStart = null,
+        TimeSpan? seekDuration = null)
+    {
+        return BuildHlsArgs(inputPath, outputDir, options, sourceVideoCodec: null, sourceAudioCodec: null, seekStart, seekDuration);
+    }
+
+    /// <summary>
+    /// Builds HLS transcoding arguments with source-codec-aware optimization.
+    /// When audio is browser-compatible but video isn't, only the video is re-encoded
+    /// and audio is stream-copied (saves CPU and preserves quality).
+    /// </summary>
+    /// <param name="inputPath">Absolute path to the source video file.</param>
+    /// <param name="outputDir">Absolute path to the directory where segments and playlist are written.</param>
+    /// <param name="options">Transcoding options (codec, CRF, preset, bitrate, etc.).</param>
+    /// <param name="sourceVideoCodec">Source video codec from ffprobe (e.g. "h264"). Only used for bitstream filter.</param>
+    /// <param name="sourceAudioCodec">Source audio codec from ffprobe (e.g. "aac", "ac3"). If browser-compatible, audio is stream-copied instead of re-encoded.</param>
+    /// <param name="seekStart">Optional start time for seeking.</param>
+    /// <param name="seekDuration">Optional duration to transcode (TimeSpan or null = full file).</param>
+    /// <returns>Full ffmpeg argument string (does NOT include the "ffmpeg" binary name).</returns>
+    public string BuildHlsArgs(
+        string inputPath,
+        string outputDir,
+        VideoTranscodingOptions options,
+        string? sourceVideoCodec,
+        string? sourceAudioCodec,
         TimeSpan? seekStart = null,
         TimeSpan? seekDuration = null)
     {
@@ -214,13 +360,24 @@ public sealed class FfmpegArgumentBuilder
         sb.Append("-g:v:0 150 -keyint_min:v:0 150 ");
         sb.Append("-force_key_frames:0 \"expr:gte(t,n_forced*6)\" ");
 
-        // --- Audio codec + settings ---
-        sb.AppendFormat(CultureInfo.InvariantCulture, "-c:a:0 {0} ", options.AudioCodec);
-        sb.AppendFormat(CultureInfo.InvariantCulture, "-b:a {0}k ", options.AudioBitrateKbps);
-        sb.Append("-ac 2 ");
+        // --- Audio codec + settings (smart: copy if compatible, transcode otherwise) ---
+        var shouldCopyAudio = sourceAudioCodec is not null
+            && StreamCompatibilityMatrix.IsCopyableAudioCodec(sourceAudioCodec);
+
+        if (shouldCopyAudio)
+        {
+            sb.Append("-c:a:0 copy ");
+        }
+        else
+        {
+            sb.AppendFormat(CultureInfo.InvariantCulture, "-c:a:0 {0} ", MapAudioCodec(sourceAudioCodec, options.AudioCodec));
+            sb.AppendFormat(CultureInfo.InvariantCulture, "-b:a {0}k ", options.AudioBitrateKbps);
+            sb.Append("-ac 2 ");
+        }
 
         // --- AAC compatibility: enable experimental features for browser support ---
-        sb.Append("-strict -2 ");
+        if (!shouldCopyAudio)
+            sb.Append("-strict -2 ");
 
         // --- Remove metadata ---
         sb.Append("-map_metadata -1 -map_chapters -1 ");
@@ -256,6 +413,48 @@ public sealed class FfmpegArgumentBuilder
             CultureInfo.InvariantCulture,
             "-v quiet -print_format json -show_format -show_streams \"{0}\"",
             EscapePath(inputPath));
+    }
+
+    /// <summary>
+    /// Maps a source audio codec to the best ffmpeg output codec for web playback.
+    /// Preserves codec when browser-compatible, falls back to AAC otherwise.
+    /// </summary>
+    /// <param name="sourceCodec">Source audio codec from ffprobe (e.g. "ac3", "dts", "flac").</param>
+    /// <param name="defaultCodec">The configured default audio codec (from VideoTranscodingOptions).</param>
+    /// <returns>ffmpeg codec name (e.g. "aac", "libmp3lame", "copy").</returns>
+    public static string MapAudioCodec(string? sourceCodec, string defaultCodec)
+    {
+        if (sourceCodec is null)
+            return defaultCodec;
+
+        // AC3 / E-AC3 → copy if supported (Edge), otherwise no browser supports → transcode
+        if (sourceCodec.Contains("ac3", StringComparison.OrdinalIgnoreCase) ||
+            sourceCodec.Contains("eac3", StringComparison.OrdinalIgnoreCase))
+            return "aac";
+
+        // DTS, TrueHD, DTS-HD → no browser supports → transcode to AAC
+        if (sourceCodec.Contains("dts", StringComparison.OrdinalIgnoreCase) ||
+            sourceCodec.Contains("truehd", StringComparison.OrdinalIgnoreCase))
+            return "aac";
+
+        // FLAC → copy (Chrome, Firefox, Edge support it)
+        if (sourceCodec.Contains("flac", StringComparison.OrdinalIgnoreCase))
+            return "copy";
+
+        // Opus → copy in WebM container (Chrome, Firefox support it)
+        if (sourceCodec.Contains("opus", StringComparison.OrdinalIgnoreCase))
+            return "copy";
+
+        // Vorbis → copy in WebM/OGG (Chrome, Firefox support it)
+        if (sourceCodec.Contains("vorbis", StringComparison.OrdinalIgnoreCase))
+            return "copy";
+
+        // MP2 → transcode to AAC
+        if (sourceCodec.Contains("mp2", StringComparison.OrdinalIgnoreCase))
+            return "aac";
+
+        // Unknown → use configured default (usually AAC)
+        return defaultCodec;
     }
 
     /// <summary>

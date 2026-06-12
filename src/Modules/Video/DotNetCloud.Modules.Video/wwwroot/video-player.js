@@ -188,68 +188,124 @@
   };
 
   /**
-   * Attaches HLS playback to a video element.
-   * Safari (native HLS): sets src directly.
-   * Other browsers: uses hls.js.
+   * Attaches video playback with progress overlay support.
+   *
+   * When called with 2 args (elementId, streamUrl): legacy mode, plays immediately.
+   * When called with 4 args (elementId, streamUrl, videoId, dotNetRef):
+   *   shows progress overlay, triggers server-side stream preparation,
+   *   polls for readiness, then plays when ready.
+   *
+   * @param {string} elementId - The video element ID.
+   * @param {string} streamUrl - The stream endpoint URL.
+   * @param {string=} videoId - Optional video GUID for progress polling.
+   * @param {object=} dotNetRef - Optional .NET reference for callbacks.
    */
-  videoPlayer.attachHlsPlayer = function (elementId, streamUrl) {
+  videoPlayer.attachHlsPlayer = function (elementId, streamUrl, videoId, dotNetRef) {
     var video = document.getElementById(elementId);
     if (!video) return;
 
-    // Native HLS (Safari)
-    if (
-      video.canPlayType &&
-      video.canPlayType("application/vnd.apple.mpegurl")
-    ) {
-      video.src = streamUrl;
-      video.play().catch(function () {});
+    // If videoId is provided, show progress overlay and poll for readiness
+    if (videoId) {
+      // Trigger the stream pipeline first
+      video.preload = "auto";
+
+      // Show progress overlay (starts polling immediately)
+      videoPlayer.showStreamProgress("player-container", videoId)
+        .then(function () {
+          // Server says stream is ready
+          playStream(video, streamUrl, dotNetRef);
+        })
+        .catch(function (err) {
+          console.error("DotNetCloud Video: Stream preparation failed", err);
+        });
+
+      // Trigger GET request after a short delay (lets progress poll start first)
+      setTimeout(function () {
+        video.src = streamUrl;
+      }, 100);
       return;
     }
 
-    // hls.js for Chrome/Firefox/Edge — Jellyfin-style configuration
-    if (typeof Hls !== "undefined" && Hls.isSupported()) {
-      // Jellyfin's default config for reliable VOD playback
+    // Legacy mode: no progress polling, play immediately
+    playStream(video, streamUrl, dotNetRef);
+
+    function playStream(video, streamUrl, dotNetRef) {
+      // Native HLS (Safari)
+      if (
+        video.canPlayType &&
+        video.canPlayType("application/vnd.apple.mpegurl")
+      ) {
+        video.src = streamUrl;
+        video.play().catch(function () {});
+        return;
+      }
+
+      // Try HEAD to detect strategy
+      fetch(streamUrl, { method: "HEAD" })
+        .then(function (resp) {
+          var contentType = resp.headers.get("Content-Type") || "";
+          var strategy = resp.headers.get("X-Stream-Strategy") || "";
+
+          if (dotNetRef && strategy) {
+            dotNetRef.invokeMethodAsync("OnStreamStrategy", strategy).catch(function() {});
+          }
+
+          // Direct play or remuxed MP4 — native video
+          if (
+            contentType.indexOf("video/mp4") !== -1 ||
+            strategy === "direct" ||
+            strategy === "remux"
+          ) {
+            video.play().catch(function () {});
+            return;
+          }
+
+          // HLS
+          useHls(video, streamUrl);
+        })
+        .catch(function () {
+          // HEAD failed — try HLS.js
+          if (typeof Hls !== "undefined" && Hls.isSupported()) {
+            useHls(video, streamUrl);
+          } else {
+            video.play().catch(function () {});
+          }
+        });
+    }
+
+    function useHls(video, streamUrl) {
+      if (typeof Hls === "undefined" || !Hls.isSupported()) {
+        video.play().catch(function () {});
+        return;
+      }
       if (!Hls.DefaultConfig._dncConfigured) {
         Hls.DefaultConfig.lowLatencyMode = false;
         Hls.DefaultConfig.backBufferLength = Infinity;
         Hls.DefaultConfig._dncConfigured = true;
       }
-
-      var hls = new Hls({
-        manifestLoadingTimeOut: 20000,
-      });
+      var hls = new Hls({ manifestLoadingTimeOut: 20000 });
       hls.loadSource(streamUrl);
       hls.attachMedia(video);
-
       hls.on(Hls.Events.MANIFEST_PARSED, function () {
         video.play().catch(function () {});
       });
-
       hls.on(Hls.Events.ERROR, function (event, data) {
         if (data.fatal) {
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
-              console.error("HLS: Fatal network error", data);
               hls.startLoad();
               break;
             case Hls.ErrorTypes.MEDIA_ERROR:
-              console.error("HLS: Fatal media error", data);
               hls.recoverMediaError();
               break;
             default:
-              console.error("HLS: Fatal error", data);
               hls.destroy();
               break;
           }
         }
       });
-
       video._hls = hls;
       videoPlayer._hls = hls;
-    } else {
-      console.warn("HLS.js not available, setting src directly");
-      video.src = streamUrl;
-      video.play().catch(function () {});
     }
   };
 
@@ -265,6 +321,106 @@
     }
     if (videoPlayer._hls) {
       delete videoPlayer._hls;
+    }
+  };
+
+  /**
+   * Shows a loading overlay with a progress bar, polling the server for stream
+   * preparation progress. Resolves when the stream is ready (stage=streaming).
+   *
+   * @param {string} containerId - The player container element ID.
+   * @param {string} videoId - The video GUID (e.g. "a1b2c3d4-...").
+   * @returns {Promise} Resolves when ready, rejects on failure.
+   */
+  videoPlayer.showStreamProgress = function (containerId, videoId) {
+    var container = document.getElementById(containerId);
+    if (!container) return Promise.reject(new Error("Container not found"));
+
+    // Find or create the progress overlay
+    var overlay = container.querySelector(".dnc-stream-progress");
+    if (!overlay) {
+      overlay = document.createElement("div");
+      overlay.className = "dnc-stream-progress";
+      overlay.innerHTML =
+        '<div class="dnc-stream-progress-inner">' +
+        '<div class="dnc-stream-spinner"></div>' +
+        '<div class="dnc-stream-message">Assembling video file…</div>' +
+        '<div class="dnc-stream-bar-track">' +
+        '<div class="dnc-stream-bar-fill"></div>' +
+        "</div>" +
+        "</div>";
+      container.appendChild(overlay);
+    }
+
+    var messageEl = overlay.querySelector(".dnc-stream-message");
+    var barFill = overlay.querySelector(".dnc-stream-bar-fill");
+    var cancelled = false;
+
+    // Store cancellation handle
+    overlay._cancel = function () {
+      cancelled = true;
+    };
+
+    return new Promise(function (resolve, reject) {
+      var poll = function () {
+        if (cancelled) {
+          overlay.remove();
+          reject(new Error("Cancelled"));
+          return;
+        }
+
+        fetch("/api/v1/videos/" + videoId + "/stream-progress")
+          .then(function (resp) {
+            if (!resp.ok) throw new Error("HTTP " + resp.status);
+            return resp.json();
+          })
+          .then(function (data) {
+            var d = data.data || data;
+            var stage = d.stage || "unknown";
+            var message = d.message || "";
+            var percent = d.percent || 0;
+
+            if (messageEl) messageEl.textContent = message;
+            if (barFill) barFill.style.width = Math.min(100, percent) + "%";
+
+            if (stage === "streaming") {
+              // Remove overlay after a brief moment so the player is visible
+              setTimeout(function () {
+                if (overlay.parentNode) overlay.remove();
+              }, 300);
+              resolve();
+            } else if (stage === "failed") {
+              if (messageEl)
+                messageEl.textContent = "Failed: " + (message || "Unknown error");
+              if (barFill) barFill.style.background = "#e74c3c";
+              reject(new Error(message || "Stream preparation failed"));
+            } else {
+              // Still preparing — poll again
+              setTimeout(poll, 500);
+            }
+          })
+          .catch(function (err) {
+            if (cancelled) return;
+            // Network error — retry a few times then give up
+            if (messageEl)
+              messageEl.textContent = "Connecting to server…";
+            setTimeout(poll, 1000);
+          });
+      };
+
+      poll();
+    });
+  };
+
+  /**
+   * Cancels the stream progress overlay for a container.
+   */
+  videoPlayer.cancelStreamProgress = function (containerId) {
+    var container = document.getElementById(containerId);
+    if (!container) return;
+    var overlay = container.querySelector(".dnc-stream-progress");
+    if (overlay && overlay._cancel) {
+      overlay._cancel();
     }
   };
 })();

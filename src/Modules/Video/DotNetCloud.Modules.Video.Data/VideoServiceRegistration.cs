@@ -71,6 +71,9 @@ public static class VideoServiceRegistration
         // Scan progress state (singleton — shared across all video page sessions)
         services.AddSingleton<VideoScanProgressState>();
 
+        // Stream preparation progress state (singleton — tracks chunk reconstruction / probing / remux)
+        services.AddSingleton<StreamProgressState>();
+
         // Indexing callback (bridges Module → Data for FileUploadedEvent handling)
         services.AddScoped<IVideoIndexingCallback, VideoIndexingCallback>();
 

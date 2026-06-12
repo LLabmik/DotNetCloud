@@ -145,7 +145,9 @@ public sealed class FfmpegProcessManager : IDisposable
                 _logger.LogError(
                     "ffmpeg exited with code {ExitCode} for job {JobId}. Stderr:\n{Stderr}",
                     process.ExitCode, job.Id, error);
-                Console.Error.WriteLine($"[VIDEO] ffmpeg exit={process.ExitCode}: {error}");
+                // Also write to stderr so the process supervisor captures it at Error level
+                Console.Error.WriteLine($"[VIDEO-FFMPEG-FAIL] exit={process.ExitCode} job={job.Id}");
+                Console.Error.WriteLine(error);
                 throw new FfmpegException(
                     $"ffmpeg exited with code {process.ExitCode}",
                     process.ExitCode,

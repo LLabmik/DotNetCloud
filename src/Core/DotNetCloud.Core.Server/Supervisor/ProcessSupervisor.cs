@@ -404,12 +404,17 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
             process.OutputDataReceived += (_, args) =>
             {
                 if (args.Data is not null)
-                    _logger.LogDebug("[{ModuleId}] {Line}", discovered.ModuleId, args.Data);
+                    _logger.LogInformation($"[{discovered.ModuleId}] {args.Data}");
             };
             process.ErrorDataReceived += (_, args) =>
             {
                 if (args.Data is not null)
-                    _logger.LogWarning("[{ModuleId}] STDERR: {Line}", discovered.ModuleId, args.Data);
+                    _logger.LogError($"[{discovered.ModuleId}] STDERR: {args.Data}");
+            };
+            process.ErrorDataReceived += (_, args) =>
+            {
+                if (args.Data is not null)
+                    _logger.LogError("[{ModuleId}] STDERR: {Line}", discovered.ModuleId, args.Data);
             };
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
