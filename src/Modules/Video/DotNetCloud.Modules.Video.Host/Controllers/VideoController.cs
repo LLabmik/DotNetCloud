@@ -882,7 +882,7 @@ public class VideoController : VideoControllerBase
         if (!fullSegmentPath.StartsWith(fullOutputDir + Path.DirectorySeparatorChar) &&
             fullSegmentPath != fullOutputDir)
         {
-            _logger.LogWarning("HLS segment path traversal attempt: {Path}", segmentPath);
+            _logger.LogWarning("HLS segment path traversal attempt: {Path}", SanitizeForLog(segmentPath));
             return BadRequest(ErrorEnvelope("invalid_segment", "Invalid segment filename."));
         }
 
@@ -961,6 +961,16 @@ public class VideoController : VideoControllerBase
         }
 
         return GetHlsSegment(videoId, filename, token);
+    }
+
+    private static string SanitizeForLog(string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+            return string.Empty;
+
+        return value
+            .Replace("\r", " ")
+            .Replace("\n", " ");
     }
 
     // ─── Private Helpers ─────────────────────────────────────────────
