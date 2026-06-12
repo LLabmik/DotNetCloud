@@ -691,33 +691,39 @@ public class VideoController : VideoControllerBase
                 Console.Error.WriteLine($"[VIDEO-STREAM] videoId={videoId} → STREAM_COPY/REMUX vcodec={videoCodec} acodec={audioCodec}");
 
                 progress.Stage = StreamProgressStage.Remuxing;
-                progress.Message = "Preparing stream (remux)…";
-                progress.Percent = 80;
+                progress.Message = "Starting stream…";
+                progress.Percent = 50;
 
-                // Stream copy to a temp file — ffmpeg remuxes near-instantly
-                var remuxPath = await _transcodingService.StreamCopyToFileAsync(
+                // Start ffmpeg remux with stdout piped for progressive streaming
+                var (ffmpegProcess, _) = await _transcodingService.StreamCopyAsync(
                     sourcePath, videoCodec, audioCodec, HttpContext.RequestAborted);
 
                 progress.Stage = StreamProgressStage.Streaming;
-                progress.Message = "Starting playback…";
+                progress.Message = "Streaming…";
                 progress.Percent = 100;
 
-                HttpContext.Response.OnStarting(() =>
-                {
-                    HttpContext.Response.Headers.Remove("X-Content-Type-Options");
-                    HttpContext.Response.Headers["X-Stream-Strategy"] = "remux";
-                    return Task.CompletedTask;
-                });
+                var response = HttpContext.Response;
+                response.ContentType = "video/mp4";
+                response.Headers.Remove("X-Content-Type-Options");
+                response.Headers["X-Stream-Strategy"] = "remux";
 
-                // Clean up the remuxed file after the response completes
-                HttpContext.Response.OnCompleted(() =>
+                // Stream ffmpeg stdout directly to the HTTP response
+                try
+                {
+                    await ffmpegProcess.StandardOutput.BaseStream.CopyToAsync(
+                        response.Body, HttpContext.RequestAborted);
+                }
+                finally
                 {
                     _streamProgress.Remove(videoId);
-                    TryDeleteTempFile(remuxPath);
-                    return Task.CompletedTask;
-                });
+                    if (!ffmpegProcess.HasExited)
+                    {
+                        try { ffmpegProcess.Kill(entireProcessTree: true); } catch { /* best effort */ }
+                    }
+                    ffmpegProcess.Dispose();
+                }
 
-                return PhysicalFile(remuxPath, "video/mp4", enableRangeProcessing: true);
+                return new EmptyResult();
             }
 
             // ── Strategy: Transcode (HLS) ──────────────────────────
