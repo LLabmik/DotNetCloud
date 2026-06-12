@@ -172,8 +172,16 @@ public sealed class FfmpegProcessManager : IDisposable
         if (_activeJobs.TryGetValue(jobId, out var job))
         {
             job.Status = TranscodingJobStatus.Cancelled;
-            _logger.LogInformation("Transcode job {JobId} marked as cancelled", jobId);
+            _logger.LogInformation("Transcode job {JobId} marked as cancelled", SanitizeForLog(jobId));
         }
+    }
+
+    private static string SanitizeForLog(string value)
+    {
+        return value
+            .Replace("\r", string.Empty, StringComparison.Ordinal)
+            .Replace("\n", string.Empty, StringComparison.Ordinal)
+            .Replace("\0", string.Empty, StringComparison.Ordinal);
     }
 
     /// <summary>
