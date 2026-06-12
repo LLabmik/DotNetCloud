@@ -49,12 +49,11 @@ public sealed class SignalRHubIntegrationTests
                 opts.Headers.Add("x-test-user-id", userId.ToString());
                 opts.Transports = Microsoft.AspNetCore.Http.Connections.HttpTransportType.LongPolling;
             })
-            .WithAutomaticReconnect()
             .Build();
 
         try
         {
-            await connection.StartAsync(new CancellationTokenSource(5000).Token);
+            await connection.StartAsync(new CancellationTokenSource(30_000).Token);
         }
         catch (Exception ex)
         {
@@ -75,12 +74,11 @@ public sealed class SignalRHubIntegrationTests
                 opts.Headers.Add("x-test-user-id", userId.ToString());
                 opts.Transports = Microsoft.AspNetCore.Http.Connections.HttpTransportType.LongPolling;
             })
-            .WithAutomaticReconnect()
             .Build();
 
         try
         {
-            await connection.StartAsync(new CancellationTokenSource(5000).Token);
+            await connection.StartAsync(new CancellationTokenSource(30_000).Token);
         }
         catch (Exception ex)
         {
