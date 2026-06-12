@@ -718,7 +718,9 @@ public class VideoController : VideoControllerBase
                     _streamProgress.Remove(videoId);
                     if (!ffmpegProcess.HasExited)
                     {
-                        try { ffmpegProcess.Kill(entireProcessTree: true); } catch { /* best effort */ }
+                        try
+                        { ffmpegProcess.Kill(entireProcessTree: true); }
+                        catch { /* best effort */ }
                     }
                     ffmpegProcess.Dispose();
                 }
@@ -898,11 +900,6 @@ public class VideoController : VideoControllerBase
             : "video/mp4";
 
         return PhysicalFile(fullSegmentPath, contentType);
-    }
-
-    private static string SanitizeForLog(string value)
-    {
-        return value.Replace("\r", string.Empty).Replace("\n", string.Empty);
     }
 
     /// <summary>Gets the progress of a transcode job.</summary>
