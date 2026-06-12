@@ -888,7 +888,7 @@ public class VideoController : VideoControllerBase
 
         if (!System.IO.File.Exists(fullSegmentPath))
         {
-            _logger.LogDebug("HLS segment not yet available: {Path}", fullSegmentPath);
+            _logger.LogDebug("HLS segment not yet available: {Path}", SanitizeForLog(fullSegmentPath));
             return NotFound(ErrorEnvelope("segment_not_found", "Segment not yet available."));
         }
 
@@ -898,6 +898,11 @@ public class VideoController : VideoControllerBase
             : "video/mp4";
 
         return PhysicalFile(fullSegmentPath, contentType);
+    }
+
+    private static string SanitizeForLog(string value)
+    {
+        return value.Replace("\r", string.Empty).Replace("\n", string.Empty);
     }
 
     /// <summary>Gets the progress of a transcode job.</summary>
