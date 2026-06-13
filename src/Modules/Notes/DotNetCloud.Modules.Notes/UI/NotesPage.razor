@@ -14,7 +14,8 @@
             {
                 <h3 class="notes-sidebar-title">Notes</h3>
             }
-            <button class="notes-sidebar-toggle" @onclick="ToggleSidebar" title="@(_sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar")">
+            <button class="notes-sidebar-toggle" @onclick="ToggleSidebar"
+                    title="@(_sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar")">
                 <span>@(_sidebarCollapsed ? "▶" : "◀")</span>
             </button>
             @if (!_sidebarCollapsed)
@@ -27,42 +28,45 @@
         @if (!_sidebarCollapsed)
         {
             <div class="notes-search">
-                <input type="text" class="form-control form-control-sm"
-                       placeholder="Search notes..."
-                       @bind="_searchQuery"
+                <input type="text" class="form-control form-control-sm" placeholder="Search notes..." @bind="_searchQuery"
                        @bind:event="oninput" />
             </div>
         }
         <nav class="notes-nav">
-            <a class="notes-nav-item @(_activeSection == "all" ? "active" : "")" @onclick='() => _activeSection = "all"' title="All Notes">
+            <a class="notes-nav-item @(_activeSection == "all" ? "active" : "")" @onclick='() => _activeSection = "all"'
+               title="All Notes">
                 <span class="notes-nav-icon">📝</span>
                 @if (!_sidebarCollapsed)
                 {
                     <span class="notes-nav-label">All Notes</span>
                 }
             </a>
-            <a class="notes-nav-item @(_activeSection == "folders" ? "active" : "")" @onclick='() => _activeSection = "folders"' title="Folders">
+            <a class="notes-nav-item @(_activeSection == "folders" ? "active" : "")"
+               @onclick='() => _activeSection = "folders"' title="Folders">
                 <span class="notes-nav-icon">📁</span>
                 @if (!_sidebarCollapsed)
                 {
                     <span class="notes-nav-label">Folders</span>
                 }
             </a>
-            <a class="notes-nav-item @(_activeSection == "tags" ? "active" : "")" @onclick='() => _activeSection = "tags"' title="Tags">
+            <a class="notes-nav-item @(_activeSection == "tags" ? "active" : "")"
+               @onclick='() => _activeSection = "tags"' title="Tags">
                 <span class="notes-nav-icon">🏷️</span>
                 @if (!_sidebarCollapsed)
                 {
                     <span class="notes-nav-label">Tags</span>
                 }
             </a>
-            <a class="notes-nav-item @(_activeSection == "favorites" ? "active" : "")" @onclick='() => _activeSection = "favorites"' title="Favorites">
+            <a class="notes-nav-item @(_activeSection == "favorites" ? "active" : "")"
+               @onclick='() => _activeSection = "favorites"' title="Favorites">
                 <span class="notes-nav-icon">⭐</span>
                 @if (!_sidebarCollapsed)
                 {
                     <span class="notes-nav-label">Favorites</span>
                 }
             </a>
-            <a class="notes-nav-item @(_activeSection == "shared" ? "active" : "")" @onclick='() => _activeSection = "shared"' title="Shared with Me">
+            <a class="notes-nav-item @(_activeSection == "shared" ? "active" : "")"
+               @onclick='() => _activeSection = "shared"' title="Shared with Me">
                 <span class="notes-nav-icon">🤝</span>
                 @if (!_sidebarCollapsed)
                 {
@@ -81,8 +85,10 @@
                                 @onclick="() => SelectFolderAsync(folder.Id)">
                             @folder.Name
                         </button>
-                        <button class="btn btn-sm btn-outline-secondary" title="Rename" @onclick="() => BeginRenameFolder(folder)">✏</button>
-                        <button class="btn btn-sm btn-outline-danger" title="Delete" @onclick="() => DeleteFolderAsync(folder.Id)">×</button>
+                        <button class="btn btn-sm btn-outline-secondary" title="Rename"
+                                @onclick="() => BeginRenameFolder(folder)">✏</button>
+                        <button class="btn btn-sm btn-outline-danger" title="Delete"
+                                @onclick="() => DeleteFolderAsync(folder.Id)">×</button>
                     </div>
                 }
                 <div class="notes-folder-actions">
@@ -129,7 +135,9 @@
         <DotNetCloud.UI.Shared.Components.Navigation.ModuleHelpLink ModuleId="notes" Collapsed="_sidebarCollapsed" />
     </div>
     <div class="notes-main">
-        @if (_editingNote is not null)
+        <DncLoadingIndicator Visible="_isLoading" Message="Loading notes..." />
+
+        @if (!_isLoading && _editingNote is not null)
         {
             <EditForm Model="_editingNote" OnValidSubmit="SaveNoteAsync">
                 <div class="notes-form-actions">
@@ -142,9 +150,11 @@
                 </div>
                 <div class="notes-form-grid">
                     <InputText class="form-control" @bind-Value="_editingNote.Title" placeholder="Note title" />
-                    <InputText class="form-control" @bind-Value="_editingNote.TagCsv" placeholder="Tags (comma separated)" />
+                    <InputText class="form-control" @bind-Value="_editingNote.TagCsv"
+                               placeholder="Tags (comma separated)" />
                 </div>
-                <MarkdownEditor Content="@_editingNote.Content" ContentChanged="HandleEditorChanged" Renderer="MarkdownRenderer" />
+                <MarkdownEditor Content="@_editingNote.Content" ContentChanged="HandleEditorChanged"
+                                Renderer="MarkdownRenderer" />
             </EditForm>
         }
         else if (_selectedNote is not null)
@@ -154,80 +164,86 @@
                 <p><strong>Tags:</strong> @string.Join(", ", _selectedNote.Tags)</p>
                 <div class="notes-detail-actions">
                     <button class="btn btn-primary" @onclick="BeginEditSelected">Edit</button>
-                    <button class="btn btn-outline-warning" @onclick="ToggleFavoriteAsync">@(_selectedNote.IsFavorite ? "Unfavorite" : "Favorite")</button>
-                    <button class="btn btn-outline-secondary" @onclick="ToggleSharePanel">
-                        @(_showSharePanel ? "Hide Shares" : "Share")
-                    </button>
-                    <button class="btn btn-outline-secondary" @onclick="ToggleVersionPanel">
-                        @(_showVersionPanel ? "Hide History" : "History")
-                    </button>
-                </div>
+                    <button class="btn btn-outline-warning" @onclick="ToggleFavoriteAsync">@(_selectedNote.IsFavorite ?
+                                "Unfavorite" : "Favorite")</button>
+                        <button class="btn btn-outline-secondary" @onclick="ToggleSharePanel">
+                            @(_showSharePanel ? "Hide Shares" : "Share")
+                        </button>
+                        <button class="btn btn-outline-secondary" @onclick="ToggleVersionPanel">
+                            @(_showVersionPanel ? "Hide History" : "History")
+                        </button>
+                    </div>
 
-                @if (_showSharePanel)
-                {
-                    <div class="notes-share-panel">
-                        <h4>Shares</h4>
-                        @if (_noteShares.Count == 0)
-                        {
-                            <p>Not shared.</p>
-                        }
-                        else
-                        {
-                            @foreach (var share in _noteShares)
+                    @if (_showSharePanel)
+                    {
+                        <div class="notes-share-panel">
+                            <h4>Shares</h4>
+                            @if (_noteShares.Count == 0)
                             {
-                                <div class="share-item">
-                                    <span>User: @share.SharedWithUserId.ToString("N")[..8]… — @share.Permission</span>
-                                    <button class="btn btn-sm btn-outline-danger" @onclick="() => RevokeShareAsync(share.Id)">Revoke</button>
-                                </div>
+                                <p>Not shared.</p>
                             }
-                        }
-                        <div class="share-form">
-                            <input type="text" class="form-control form-control-sm" placeholder="User ID" @bind="_shareUserId" />
-                            <select class="form-select form-select-sm" @bind="_sharePermission" style="max-width:140px;">
-                                <option value="ReadOnly">Read Only</option>
-                                <option value="ReadWrite">Read/Write</option>
-                            </select>
-                            <button class="btn btn-sm btn-primary" @onclick="AddShareAsync">Share</button>
+                            else
+                            {
+                                @foreach (var share in _noteShares)
+                                {
+                                    <div class="share-item">
+                                        <span>User: @share.SharedWithUserId.ToString("N")[..8]… — @share.Permission</span>
+                                        <button class="btn btn-sm btn-outline-danger"
+                                                @onclick="() => RevokeShareAsync(share.Id)">Revoke</button>
+                                    </div>
+                                }
+                            }
+                            <div class="share-form">
+                                <input type="text" class="form-control form-control-sm" placeholder="User ID"
+                                       @bind="_shareUserId" />
+                                <select class="form-select form-select-sm" @bind="_sharePermission" style="max-width:140px;">
+                                    <option value="ReadOnly">Read Only</option>
+                                    <option value="ReadWrite">Read/Write</option>
+                                </select>
+                                <button class="btn btn-sm btn-primary" @onclick="AddShareAsync">Share</button>
+                            </div>
                         </div>
-                    </div>
-                }
+                    }
 
-                @if (_showVersionPanel)
-                {
-                    <div class="notes-version-panel">
-                        <h4>Version History</h4>
-                        @if (_versions.Count == 0)
-                        {
-                            <p>No previous versions.</p>
-                        }
-                        else
-                        {
-                            @foreach (var version in _versions.OrderByDescending(v => v.VersionNumber))
+                    @if (_showVersionPanel)
+                    {
+                        <div class="notes-version-panel">
+                            <h4>Version History</h4>
+                            @if (_versions.Count == 0)
                             {
-                                <div class="version-item">
-                                    <span>v@(version.VersionNumber) — @version.CreatedAt.ToLocalTime():g</span>
-                                    <button class="btn btn-sm btn-outline-primary" @onclick="() => RestoreVersionAsync(version.Id)">Restore</button>
-                                </div>
+                                <p>No previous versions.</p>
                             }
-                        }
+                            else
+                            {
+                                @foreach (var version in _versions.OrderByDescending(v => v.VersionNumber))
+                                {
+                                    <div class="version-item">
+                                        <span>v@(version.VersionNumber) — @version.CreatedAt.ToLocalTime():g</span>
+                                        <button class="btn btn-sm btn-outline-primary"
+                                                @onclick="() => RestoreVersionAsync(version.Id)">Restore</button>
+                                    </div>
+                                }
+                            }
+                        </div>
+                    }
+                    <div class="notes-cross-module-links">
+                        <CrossModuleLinkList Requests="BuildNoteLinkRequests(_selectedNote)" />
                     </div>
-                }
-                <div class="notes-cross-module-links">
-                    <CrossModuleLinkList Requests="BuildNoteLinkRequests(_selectedNote)" />
+                    <MarkdownEditor Content="@_selectedNote.Content" Renderer="MarkdownRenderer" PreviewOnly="true" />
                 </div>
-                <MarkdownEditor Content="@_selectedNote.Content" Renderer="MarkdownRenderer" PreviewOnly="true" />
-            </div>
-        }
-        else
-        {
-            <div class="notes-placeholder">
-                <p>Select a note or create a new one to get started.</p>
-            </div>
-        }
+            }
+        else if (!_isLoading)
+            {
+                <div class="notes-placeholder">
+                    <p>Select a note or create a new one to get started.</p>
+                </div>
+            }
+        </div>
     </div>
-</div>
 
 @code {
+    private bool _isLoading;
+
     private readonly List<NoteDto> _notes = [];
     private readonly List<NoteFolderDto> _folders = [];
     private readonly List<NoteShareDto> _noteShares = [];
@@ -298,7 +314,8 @@
     {
         try
         {
-            await JSRuntime.InvokeAsync<object?>("localStorage.setItem", new object?[] { "dotnetcloud.sidebar:notes", _sidebarCollapsed.ToString().ToLowerInvariant() });
+            await JSRuntime.InvokeAsync<object?>("localStorage.setItem", new object?[] { "dotnetcloud.sidebar:notes",
+_sidebarCollapsed.ToString().ToLowerInvariant() });
         }
         catch
         {
@@ -308,22 +325,42 @@
 
     private async Task ReloadAsync()
     {
-        _folders.Clear();
-        _folders.AddRange(await ApiClient.ListFoldersAsync());
+        _isLoading = true;
+        StateHasChanged();
 
-        _notes.Clear();
-        _notes.AddRange(await ApiClient.ListNotesAsync(_selectedFolderId));
-
-        if (_selectedNote is not null)
+        try
         {
-            _selectedNote = _notes.FirstOrDefault(n => n.Id == _selectedNote.Id);
+            _folders.Clear();
+            _folders.AddRange(await ApiClient.ListFoldersAsync());
+
+            _notes.Clear();
+            _notes.AddRange(await ApiClient.ListNotesAsync(_selectedFolderId));
+
+            if (_selectedNote is not null)
+            {
+                _selectedNote = _notes.FirstOrDefault(n => n.Id == _selectedNote.Id);
+            }
+        }
+        finally
+        {
+            _isLoading = false;
         }
     }
 
     private async Task SelectNoteAsync(Guid noteId)
     {
-        _selectedNote = await ApiClient.GetNoteAsync(noteId);
-        _editingNote = null;
+        _isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            _selectedNote = await ApiClient.GetNoteAsync(noteId);
+            _editingNote = null;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void BeginCreateNote()

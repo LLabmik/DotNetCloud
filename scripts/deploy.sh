@@ -141,14 +141,16 @@ get_changed_files() {
     local last_deploy
     last_deploy=$(get_last_deployed_commit)
 
-    if [ -z "$last_deploy" ]; then
-        # No state file → unknown state → force full build
-        echo ""
-        return
-    fi
-
     cd "$REPO_ROOT"
-    git diff --name-only "$last_deploy..HEAD" 2>/dev/null || true
+    {
+        if [ -n "$last_deploy" ]; then
+            # Committed changes since last deploy
+            git diff --name-only "$last_deploy..HEAD" 2>/dev/null || true
+        fi
+        # Uncommitted working-tree changes (unstaged modifications, new files)
+        git diff --name-only HEAD 2>/dev/null || true
+        git ls-files --others --exclude-standard 2>/dev/null || true
+    } | sort -u
 }
 
 # Check whether a directory path has any changed files
@@ -442,6 +444,7 @@ if $FULL_BUILD; then
 else
     BUILD_TARGETS=()
     HAS_DATA_CHANGES=false
+    HAS_MODULE_LIB_CHANGES=false
 
     for module in "${CHANGED_MODULES[@]}"; do
         if [ -n "${SKIP_MODULE_LOOKUP[$module]:-}" ]; then
@@ -455,10 +458,20 @@ else
         if [ -f "$_host_csproj" ]; then
             BUILD_TARGETS+=("$_host_csproj")
         fi
+        # If module has changes outside Host/Data/Client (i.e. its Razor class
+        # library referenced by Core.Server), build it so publish picks up the
+        # new assembly, and flag Core.Server for rebuild.
+        if ! module_host_changed "$module" && ! module_data_changed "$module" && ! module_client_changed "$module"; then
+            _module_csproj="$REPO_ROOT/src/Modules/$module/DotNetCloud.Modules.$module/DotNetCloud.Modules.$module.csproj"
+            if [ -f "$_module_csproj" ]; then
+                BUILD_TARGETS+=("$_module_csproj")
+                HAS_MODULE_LIB_CHANGES=true
+            fi
+        fi
     done
 
     # If data projects changed, also build Core.Server so its publish picks up new data DLLs
-    if $HAS_DATA_CHANGES; then
+    if $HAS_DATA_CHANGES || $HAS_MODULE_LIB_CHANGES; then
         BUILD_TARGETS+=("$REPO_ROOT/src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj")
     fi
 
