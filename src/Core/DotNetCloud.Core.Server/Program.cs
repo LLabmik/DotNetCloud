@@ -345,6 +345,7 @@ public class Program
         builder.Services.AddSingleton<IModuleSearchDocumentClient, CalendarModuleSearchClient>();
         builder.Services.AddSingleton<IModuleSearchDocumentClient, BookmarksModuleSearchClient>();
         builder.Services.AddSingleton<IModuleSearchDocumentClient, EmailModuleSearchClient>();
+        builder.Services.AddSingleton<IModuleSearchDocumentClient, MusicModuleSearchClient>();
         builder.Services.AddSingleton<IEventBus, InProcessEventBus>();
         // LegacyFilesMigrationService moved to Files.Host (runs in that process)
         builder.Services.AddScoped<DotNetCloud.Core.Capabilities.ICrossModuleLinkResolver, CrossModuleLinkResolver>();

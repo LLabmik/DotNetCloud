@@ -282,8 +282,11 @@ public sealed class SearchReindexBackgroundService : BackgroundService
                 }
             }
 
-            // Clean up stale entries from modules that are no longer registered
-            await CleanupOrphanedEntriesAsync(db, searchableModules, cancellationToken);
+            // Clean up stale entries from modules that are no longer registered.
+            // Skip if no modules are registered (e.g., after process isolation split)
+            // to avoid deleting all indexed data.
+            if (searchableModules.Any())
+                await CleanupOrphanedEntriesAsync(db, searchableModules, cancellationToken);
 
             job.Status = IndexJobStatus.Completed;
             job.CompletedAt = DateTimeOffset.UtcNow;

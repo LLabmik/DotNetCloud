@@ -3,6 +3,7 @@ using DotNetCloud.Core.DTOs.Search;
 using DotNetCloud.Modules.Search.Host.Protos;
 using DotNetCloud.Modules.Search.Services;
 using Grpc.Core;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace DotNetCloud.Modules.Search.Host.Services;
@@ -10,21 +11,23 @@ namespace DotNetCloud.Modules.Search.Host.Services;
 /// <summary>
 /// gRPC service implementation for the Search module.
 /// Delegates to <see cref="SearchQueryService"/> and <see cref="ISearchProvider"/>.
+/// Uses <see cref="IServiceScopeFactory"/> for data-mutating operations to ensure
+/// a fresh scope with a properly committed DbContext.
 /// </summary>
 public sealed class SearchGrpcService : Protos.SearchService.SearchServiceBase
 {
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly SearchQueryService _queryService;
-    private readonly ISearchProvider _searchProvider;
     private readonly ILogger<SearchGrpcService> _logger;
 
     /// <summary>Initializes a new instance of the <see cref="SearchGrpcService"/> class.</summary>
     public SearchGrpcService(
+        IServiceScopeFactory scopeFactory,
         SearchQueryService queryService,
-        ISearchProvider searchProvider,
         ILogger<SearchGrpcService> logger)
     {
+        _scopeFactory = scopeFactory;
         _queryService = queryService;
-        _searchProvider = searchProvider;
         _logger = logger;
     }
 
@@ -128,7 +131,10 @@ public sealed class SearchGrpcService : Protos.SearchService.SearchServiceBase
                 Metadata = request.Metadata.ToDictionary(kvp => kvp.Key, kvp => kvp.Value)
             };
 
-            await _searchProvider.IndexDocumentAsync(document, context.CancellationToken);
+            // Use a fresh scope so the DbContext commits properly.
+            using var scope = _scopeFactory.CreateScope();
+            var searchProvider = scope.ServiceProvider.GetRequiredService<ISearchProvider>();
+            await searchProvider.IndexDocumentAsync(document, context.CancellationToken);
 
             return new IndexDocumentResponse { Success = true };
         }
@@ -144,7 +150,9 @@ public sealed class SearchGrpcService : Protos.SearchService.SearchServiceBase
     {
         try
         {
-            await _searchProvider.RemoveDocumentAsync(request.ModuleId, request.EntityId, context.CancellationToken);
+            using var scope = _scopeFactory.CreateScope();
+            var searchProvider = scope.ServiceProvider.GetRequiredService<ISearchProvider>();
+            await searchProvider.RemoveDocumentAsync(request.ModuleId, request.EntityId, context.CancellationToken);
             return new RemoveDocumentResponse { Success = true };
         }
         catch (Exception ex)

@@ -30,6 +30,8 @@ public sealed class SqlServerSearchProvider : ISearchProvider
     {
         ArgumentNullException.ThrowIfNull(document);
 
+        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
+
         var existing = await _db.SearchIndexEntries
             .FirstOrDefaultAsync(e => e.ModuleId == document.ModuleId && e.EntityId == document.EntityId, cancellationToken);
 
@@ -72,12 +74,14 @@ public sealed class SqlServerSearchProvider : ISearchProvider
         }
 
         await _db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
         _logger.LogDebug("Indexed document {ModuleId}/{EntityId}", document.ModuleId, document.EntityId);
     }
 
     /// <inheritdoc />
     public async Task RemoveDocumentAsync(string moduleId, string entityId, CancellationToken cancellationToken = default)
     {
+        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
         var entry = await _db.SearchIndexEntries
             .FirstOrDefaultAsync(e => e.ModuleId == moduleId && e.EntityId == entityId, cancellationToken);
 
@@ -85,6 +89,7 @@ public sealed class SqlServerSearchProvider : ISearchProvider
         {
             _db.SearchIndexEntries.Remove(entry);
             await _db.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
             _logger.LogDebug("Removed document {ModuleId}/{EntityId} from index", moduleId, entityId);
         }
     }
@@ -178,12 +183,14 @@ public sealed class SqlServerSearchProvider : ISearchProvider
     /// <inheritdoc />
     public async Task ReindexModuleAsync(string moduleId, CancellationToken cancellationToken = default)
     {
+        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
         var entries = await _db.SearchIndexEntries
             .Where(e => e.ModuleId == moduleId)
             .ToListAsync(cancellationToken);
 
         _db.SearchIndexEntries.RemoveRange(entries);
         await _db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         _logger.LogInformation("Cleared {Count} index entries for module {ModuleId}", entries.Count, moduleId);
     }
