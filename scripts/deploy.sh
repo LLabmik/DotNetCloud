@@ -200,7 +200,9 @@ do_publish() {
         echo "    [DRY-RUN] dotnet publish $(basename "$csproj") → $out_dir"
         return 0
     fi
-    dotnet publish "$csproj" "${BUILD_FLAGS[@]}" -o "$out_dir" --no-self-contained --no-build
+    # --no-restore is safe because build step (if any) already restored everything.
+    # Prevents implicit restore failures (e.g. browser-wasm RID not in cache).
+    dotnet publish "$csproj" "${BUILD_FLAGS[@]}" -o "$out_dir" --no-self-contained --no-build --no-restore
 }
 
 # Print the deploy summary
@@ -473,6 +475,14 @@ fi
 # Phase 4: Publish
 # ============================================================================
 step "Publishing Core.Server..."
+
+# Ensure the CI solution filter is restored (including browser-wasm RID for
+# Web.Client) before any publish step. Without this, implicit restore during
+# publish can fail with NETSDK1112 on incremental/no-build deploys.
+if ! $FULL_BUILD; then
+    dotnet restore "$REPO_ROOT/DotNetCloud.CI.slnf" -r browser-wasm --no-dependencies 2>/dev/null || true
+fi
+
 CORE_SERVER_CSPROJ="$REPO_ROOT/src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj"
 if $FULL_BUILD || $CORE_CHANGED || $UI_CHANGED || [ "${#CHANGED_DATA_MODULES[@]}" -gt 0 ]; then
     do_publish "$CORE_SERVER_CSPROJ" "$DEPLOY_DIR"
@@ -524,7 +534,7 @@ else
             if $DRY_RUN; then
                 echo "    [DRY-RUN] publish $module → $out_dir"
             else
-                dotnet publish "$host_csproj" "${BUILD_FLAGS[@]}" -o "$out_dir" --no-self-contained --no-build 2>&1 | sed "s/^/[$module] /"
+                dotnet publish "$host_csproj" "${BUILD_FLAGS[@]}" -o "$out_dir" --no-self-contained --no-build --no-restore 2>&1 | sed "s/^/[$module] /"
             fi
         ) &
         pids+=($!)

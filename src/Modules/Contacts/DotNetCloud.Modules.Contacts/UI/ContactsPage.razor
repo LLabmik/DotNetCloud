@@ -2,6 +2,7 @@
 
 @using DotNetCloud.Core.DTOs
 @using DotNetCloud.Modules.Contacts.Services
+@using DotNetCloud.UI.Shared.Components.Notifications
 @inject IContactsApiClient ApiClient
 @inject Microsoft.JSInterop.IJSRuntime JSRuntime
 
@@ -71,7 +72,7 @@
             <div class="contacts-list">
                 @if (_isLoading)
                 {
-                    <p>Loading contacts...</p>
+                    <DncLoadingIndicator Message="Loading contacts..." />
                 }
                 else if (_contacts.Count == 0)
                 {
