@@ -10,6 +10,7 @@ using CalendarProto = DotNetCloud.Modules.Calendar.Host.Protos;
 using BookmarksProto = DotNetCloud.Modules.Bookmarks.Host.Protos;
 using EmailProto = DotNetCloud.Modules.Email.Host.Protos;
 using MusicProto = DotNetCloud.Modules.Music.Host.Protos;
+using VideoProto = DotNetCloud.Modules.Video.Host.Protos;
 
 namespace DotNetCloud.Core.Server.Services;
 
@@ -466,6 +467,74 @@ internal sealed class MusicModuleSearchClient : IModuleSearchDocumentClient
         catch (RpcException ex)
         {
             _logger.LogError(ex, "MusicModuleSearchClient.GetSearchableDocumentAsync({EntityId}) failed", entityId);
+            return null;
+        }
+    }
+}
+
+// ─── Video Module ────────────────────────────────────────────────────────────
+
+internal sealed class VideoModuleSearchClient : IModuleSearchDocumentClient
+{
+    public string ModuleId => "video";
+
+    private readonly Lazy<VideoProto.VideoGrpcService.VideoGrpcServiceClient> _client;
+    private readonly ILogger<VideoModuleSearchClient> _logger;
+
+    public VideoModuleSearchClient(ModuleEndpointProvider endpointProvider, ILogger<VideoModuleSearchClient> logger)
+    {
+        _logger = logger;
+        _client = new Lazy<VideoProto.VideoGrpcService.VideoGrpcServiceClient>(() =>
+        {
+            var address = endpointProvider.GetEndpoint("dotnetcloud.video");
+            _logger.LogInformation("VideoModuleSearchClient connecting to {Address}", address);
+            var channel = GrpcChannel.ForAddress(address, new GrpcChannelOptions
+            {
+                HttpHandler = new SocketsHttpHandler { EnableMultipleHttp2Connections = true, ConnectTimeout = TimeSpan.FromSeconds(5) }
+            });
+            return new VideoProto.VideoGrpcService.VideoGrpcServiceClient(channel);
+        });
+    }
+
+    public async Task<IReadOnlyList<SearchDocument>> GetAllSearchableDocumentsAsync(CancellationToken ct)
+    {
+        var request = new VideoProto.GetSearchableDocumentsRequest();
+        var results = new List<SearchDocument>();
+        try
+        {
+            var call = _client.Value.GetSearchableDocuments(request, deadline: DateTime.UtcNow.AddSeconds(30), cancellationToken: ct);
+            await foreach (var doc in call.ResponseStream.ReadAllAsync(ct))
+            {
+                results.Add(SearchDocumentMapper.ToSearchDocument(
+                    doc.ModuleId, doc.EntityId, doc.EntityType, doc.Title,
+                    doc.Content, doc.Summary, doc.OwnerId,
+                    doc.CreatedAt, doc.UpdatedAt, doc.Metadata));
+            }
+        }
+        catch (RpcException ex)
+        {
+            _logger.LogError(ex, "VideoModuleSearchClient.GetAllSearchableDocumentsAsync failed");
+        }
+        return results;
+    }
+
+    public async Task<SearchDocument?> GetSearchableDocumentAsync(string entityId, CancellationToken ct)
+    {
+        var request = new VideoProto.GetSearchableDocumentRequest { EntityId = entityId };
+        try
+        {
+            var response = await _client.Value.GetSearchableDocumentAsync(request, deadline: DateTime.UtcNow.AddSeconds(30), cancellationToken: ct);
+            if (!response.Found || response.Document is null)
+                return null;
+            var d = response.Document;
+            return SearchDocumentMapper.ToSearchDocument(
+                d.ModuleId, d.EntityId, d.EntityType, d.Title,
+                d.Content, d.Summary, d.OwnerId,
+                d.CreatedAt, d.UpdatedAt, d.Metadata);
+        }
+        catch (RpcException ex)
+        {
+            _logger.LogError(ex, "VideoModuleSearchClient.GetSearchableDocumentAsync({EntityId}) failed", entityId);
             return null;
         }
     }

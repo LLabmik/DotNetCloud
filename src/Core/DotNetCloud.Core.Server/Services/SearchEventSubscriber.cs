@@ -72,26 +72,19 @@ internal sealed class SearchEventSubscriber : IHostedService
         {
             try
             {
-                // Check if the index already has data — skip if so
-                var stats = await _searchClient.GetIndexStatsAsync(cancellationToken);
-                if (stats.TotalDocuments > 0)
-                {
-                    _logger.LogInformation("Search index already contains {Count} documents, skipping initial index build",
-                        stats.TotalDocuments);
-                    return;
-                }
-
                 var clientList = _documentClients.ToList();
                 _logger.LogInformation("Performing initial search index build for {Count} modules via gRPC (attempt {Attempt}/{MaxRetries})",
                     clientList.Count, attempt, maxRetries);
 
                 int totalIndexed = 0;
+                bool anyModuleResponded = false;
 
                 foreach (var client in clientList)
                 {
                     try
                     {
                         var docs = await client.GetAllSearchableDocumentsAsync(cancellationToken);
+                        anyModuleResponded = true;
                         _logger.LogInformation("Indexing {Count} documents from module {ModuleId} via gRPC",
                             docs.Count, client.ModuleId);
 
@@ -107,24 +100,24 @@ internal sealed class SearchEventSubscriber : IHostedService
                     }
                 }
 
-                if (totalIndexed > 0)
+                if (anyModuleResponded && attempt >= 3)
                 {
+                    // After 3 attempts with at least one module responding, consider the build complete.
                     var finalStats = await _searchClient.GetIndexStatsAsync(cancellationToken);
                     _logger.LogInformation("Initial search index build complete — {Count} documents indexed via gRPC",
                         finalStats.TotalDocuments);
                     return;
                 }
 
-                // If we got here, no documents were indexed — modules may not be ready yet
                 if (attempt < maxRetries)
                 {
-                    _logger.LogWarning("No documents indexed on attempt {Attempt}/{MaxRetries}, retrying in {Delay}s",
+                    _logger.LogWarning("No modules responded on attempt {Attempt}/{MaxRetries}, retrying in {Delay}s",
                         attempt, maxRetries, retryDelaySeconds);
                     await Task.Delay(TimeSpan.FromSeconds(retryDelaySeconds), cancellationToken);
                 }
                 else
                 {
-                    _logger.LogError("Initial search index build failed after {MaxRetries} attempts — no documents indexed",
+                    _logger.LogError("Initial search index build failed after {MaxRetries} attempts",
                         maxRetries);
                 }
             }

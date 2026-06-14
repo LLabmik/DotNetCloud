@@ -485,11 +485,13 @@ public sealed class NotesGrpcService : Protos.NotesGrpcService.NotesGrpcServiceB
         IServerStreamWriter<SearchableDocument> responseStream,
         ServerCallContext context)
     {
-        if (!Guid.TryParse(request.UserId, out var userId))
-            return;
+        // Use system context when no UserId provided (called by search indexer)
+        var caller = Guid.TryParse(request.UserId, out var userId)
+            ? new CallerContext(userId, ["user"], CallerType.User)
+            : CallerContext.CreateSystemContext();
 
         var notes = await _noteService.ListNotesAsync(
-            new CallerContext(userId, ["user"], CallerType.User),
+            caller,
             folderId: null, skip: 0, take: int.MaxValue,
             context.CancellationToken);
 

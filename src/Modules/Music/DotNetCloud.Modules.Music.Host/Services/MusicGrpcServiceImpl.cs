@@ -405,10 +405,10 @@ public sealed class MusicGrpcServiceImpl : MusicGrpcService.MusicGrpcServiceBase
         IServerStreamWriter<MusicSearchableDocument> responseStream,
         ServerCallContext context)
     {
-        if (!Guid.TryParse(request.UserId, out var userId))
-            return;
-
-        var caller = new CallerContext(userId, ["user"], CallerType.User);
+        // Use system context when no UserId provided (called by search indexer)
+        var caller = Guid.TryParse(request.UserId, out var userId)
+            ? new CallerContext(userId, ["user"], CallerType.User)
+            : CallerContext.CreateSystemContext();
 
         // Index tracks (they reference artist + album)
         var tracks = await _trackService.ListTracksAsync(caller, skip: 0, take: int.MaxValue,

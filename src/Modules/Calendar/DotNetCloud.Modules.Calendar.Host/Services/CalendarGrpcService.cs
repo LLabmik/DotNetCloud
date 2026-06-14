@@ -388,9 +388,7 @@ public sealed class CalendarGrpcService : Protos.CalendarGrpcService.CalendarGrp
         IServerStreamWriter<SearchableDocument> responseStream,
         ServerCallContext context)
     {
-        if (!Guid.TryParse(request.UserId, out var userId))
-            return;
-
+        // Use system context for indexing (called by search indexer, no UserId)
         var caller = CallerContext.CreateSystemContext();
 
         var calendars = await _calendarService.ListCalendarsAsync(caller, context.CancellationToken);
