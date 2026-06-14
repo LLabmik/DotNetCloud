@@ -231,6 +231,7 @@ public sealed class PlaylistService : Music.Services.IPlaylistService
         return new TrackDto
         {
             Id = userTrack.Id,
+            OwnerId = userTrack.OwnerId,
             FileNodeId = userTrack.FileNodeId,
             Title = ct?.Title ?? "Unknown",
             TrackNumber = ct?.TrackNumber,

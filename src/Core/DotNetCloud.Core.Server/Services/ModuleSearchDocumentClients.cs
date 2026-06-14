@@ -70,22 +70,23 @@ internal sealed class FilesModuleSearchClient : IModuleSearchDocumentClient
 {
     public string ModuleId => "files";
 
-    private readonly Lazy<FilesProto.FilesService.FilesServiceClient> _client;
+    private readonly ModuleEndpointProvider _endpointProvider;
     private readonly ILogger<FilesModuleSearchClient> _logger;
 
     public FilesModuleSearchClient(ModuleEndpointProvider endpointProvider, ILogger<FilesModuleSearchClient> logger)
     {
+        _endpointProvider = endpointProvider;
         _logger = logger;
-        _client = new Lazy<FilesProto.FilesService.FilesServiceClient>(() =>
+    }
+
+    private FilesProto.FilesService.FilesServiceClient CreateClient()
+    {
+        var address = _endpointProvider.GetEndpoint("dotnetcloud.files");
+        var channel = GrpcChannel.ForAddress(address, new GrpcChannelOptions
         {
-            var address = endpointProvider.GetEndpoint("dotnetcloud.files");
-            _logger.LogInformation("FilesModuleSearchClient connecting to {Address}", address);
-            var channel = GrpcChannel.ForAddress(address, new GrpcChannelOptions
-            {
-                HttpHandler = new SocketsHttpHandler { EnableMultipleHttp2Connections = true, ConnectTimeout = TimeSpan.FromSeconds(5) }
-            });
-            return new FilesProto.FilesService.FilesServiceClient(channel);
+            HttpHandler = new SocketsHttpHandler { EnableMultipleHttp2Connections = true, ConnectTimeout = TimeSpan.FromSeconds(5) }
         });
+        return new FilesProto.FilesService.FilesServiceClient(channel);
     }
 
     public async Task<IReadOnlyList<SearchDocument>> GetAllSearchableDocumentsAsync(CancellationToken ct)
@@ -94,7 +95,7 @@ internal sealed class FilesModuleSearchClient : IModuleSearchDocumentClient
         var results = new List<SearchDocument>();
         try
         {
-            var call = _client.Value.GetSearchableDocuments(request, deadline: DateTime.UtcNow.AddSeconds(30), cancellationToken: ct);
+            var call = CreateClient().GetSearchableDocuments(request, deadline: DateTime.UtcNow.AddSeconds(30), cancellationToken: ct);
             await foreach (var doc in call.ResponseStream.ReadAllAsync(ct))
             {
                 results.Add(SearchDocumentMapper.ToSearchDocument(
@@ -115,7 +116,7 @@ internal sealed class FilesModuleSearchClient : IModuleSearchDocumentClient
         var request = new FilesProto.GetSearchableDocumentRequest { EntityId = entityId };
         try
         {
-            var response = await _client.Value.GetSearchableDocumentAsync(request, deadline: DateTime.UtcNow.AddSeconds(30), cancellationToken: ct);
+            var response = await CreateClient().GetSearchableDocumentAsync(request, deadline: DateTime.UtcNow.AddSeconds(30), cancellationToken: ct);
             if (!response.Found || response.Document is null)
                 return null;
             var d = response.Document;
@@ -138,22 +139,23 @@ internal sealed class NotesModuleSearchClient : IModuleSearchDocumentClient
 {
     public string ModuleId => "notes";
 
-    private readonly Lazy<NotesProto.NotesGrpcService.NotesGrpcServiceClient> _client;
+    private readonly ModuleEndpointProvider _endpointProvider;
     private readonly ILogger<NotesModuleSearchClient> _logger;
 
     public NotesModuleSearchClient(ModuleEndpointProvider endpointProvider, ILogger<NotesModuleSearchClient> logger)
     {
+        _endpointProvider = endpointProvider;
         _logger = logger;
-        _client = new Lazy<NotesProto.NotesGrpcService.NotesGrpcServiceClient>(() =>
+    }
+
+    private NotesProto.NotesGrpcService.NotesGrpcServiceClient CreateClient()
+    {
+        var address = _endpointProvider.GetEndpoint("dotnetcloud.notes");
+        var channel = GrpcChannel.ForAddress(address, new GrpcChannelOptions
         {
-            var address = endpointProvider.GetEndpoint("dotnetcloud.notes");
-            _logger.LogInformation("NotesModuleSearchClient connecting to {Address}", address);
-            var channel = GrpcChannel.ForAddress(address, new GrpcChannelOptions
-            {
-                HttpHandler = new SocketsHttpHandler { EnableMultipleHttp2Connections = true, ConnectTimeout = TimeSpan.FromSeconds(5) }
-            });
-            return new NotesProto.NotesGrpcService.NotesGrpcServiceClient(channel);
+            HttpHandler = new SocketsHttpHandler { EnableMultipleHttp2Connections = true, ConnectTimeout = TimeSpan.FromSeconds(5) }
         });
+        return new NotesProto.NotesGrpcService.NotesGrpcServiceClient(channel);
     }
 
     public async Task<IReadOnlyList<SearchDocument>> GetAllSearchableDocumentsAsync(CancellationToken ct)
@@ -162,7 +164,7 @@ internal sealed class NotesModuleSearchClient : IModuleSearchDocumentClient
         var results = new List<SearchDocument>();
         try
         {
-            var call = _client.Value.GetSearchableDocuments(request, deadline: DateTime.UtcNow.AddSeconds(30), cancellationToken: ct);
+            var call = CreateClient().GetSearchableDocuments(request, deadline: DateTime.UtcNow.AddSeconds(30), cancellationToken: ct);
             await foreach (var doc in call.ResponseStream.ReadAllAsync(ct))
             {
                 results.Add(SearchDocumentMapper.ToSearchDocument(
@@ -183,7 +185,7 @@ internal sealed class NotesModuleSearchClient : IModuleSearchDocumentClient
         var request = new NotesProto.GetSearchableDocumentRequest { EntityId = entityId };
         try
         {
-            var response = await _client.Value.GetSearchableDocumentAsync(request, deadline: DateTime.UtcNow.AddSeconds(30), cancellationToken: ct);
+            var response = await CreateClient().GetSearchableDocumentAsync(request, deadline: DateTime.UtcNow.AddSeconds(30), cancellationToken: ct);
             if (!response.Found || response.Document is null)
                 return null;
             var d = response.Document;
@@ -206,22 +208,23 @@ internal sealed class CalendarModuleSearchClient : IModuleSearchDocumentClient
 {
     public string ModuleId => "calendar";
 
-    private readonly Lazy<CalendarProto.CalendarGrpcService.CalendarGrpcServiceClient> _client;
+    private readonly ModuleEndpointProvider _endpointProvider;
     private readonly ILogger<CalendarModuleSearchClient> _logger;
 
     public CalendarModuleSearchClient(ModuleEndpointProvider endpointProvider, ILogger<CalendarModuleSearchClient> logger)
     {
+        _endpointProvider = endpointProvider;
         _logger = logger;
-        _client = new Lazy<CalendarProto.CalendarGrpcService.CalendarGrpcServiceClient>(() =>
+    }
+
+    private CalendarProto.CalendarGrpcService.CalendarGrpcServiceClient CreateClient()
+    {
+        var address = _endpointProvider.GetEndpoint("dotnetcloud.calendar");
+        var channel = GrpcChannel.ForAddress(address, new GrpcChannelOptions
         {
-            var address = endpointProvider.GetEndpoint("dotnetcloud.calendar");
-            _logger.LogInformation("CalendarModuleSearchClient connecting to {Address}", address);
-            var channel = GrpcChannel.ForAddress(address, new GrpcChannelOptions
-            {
-                HttpHandler = new SocketsHttpHandler { EnableMultipleHttp2Connections = true, ConnectTimeout = TimeSpan.FromSeconds(5) }
-            });
-            return new CalendarProto.CalendarGrpcService.CalendarGrpcServiceClient(channel);
+            HttpHandler = new SocketsHttpHandler { EnableMultipleHttp2Connections = true, ConnectTimeout = TimeSpan.FromSeconds(5) }
         });
+        return new CalendarProto.CalendarGrpcService.CalendarGrpcServiceClient(channel);
     }
 
     public async Task<IReadOnlyList<SearchDocument>> GetAllSearchableDocumentsAsync(CancellationToken ct)
@@ -230,7 +233,7 @@ internal sealed class CalendarModuleSearchClient : IModuleSearchDocumentClient
         var results = new List<SearchDocument>();
         try
         {
-            var call = _client.Value.GetSearchableDocuments(request, deadline: DateTime.UtcNow.AddSeconds(30), cancellationToken: ct);
+            var call = CreateClient().GetSearchableDocuments(request, deadline: DateTime.UtcNow.AddSeconds(30), cancellationToken: ct);
             await foreach (var doc in call.ResponseStream.ReadAllAsync(ct))
             {
                 results.Add(SearchDocumentMapper.ToSearchDocument(
@@ -251,7 +254,7 @@ internal sealed class CalendarModuleSearchClient : IModuleSearchDocumentClient
         var request = new CalendarProto.GetSearchableDocumentRequest { EntityId = entityId };
         try
         {
-            var response = await _client.Value.GetSearchableDocumentAsync(request, deadline: DateTime.UtcNow.AddSeconds(30), cancellationToken: ct);
+            var response = await CreateClient().GetSearchableDocumentAsync(request, deadline: DateTime.UtcNow.AddSeconds(30), cancellationToken: ct);
             if (!response.Found || response.Document is null)
                 return null;
             var d = response.Document;
@@ -274,22 +277,23 @@ internal sealed class BookmarksModuleSearchClient : IModuleSearchDocumentClient
 {
     public string ModuleId => "bookmarks";
 
-    private readonly Lazy<BookmarksProto.BookmarksService.BookmarksServiceClient> _client;
+    private readonly ModuleEndpointProvider _endpointProvider;
     private readonly ILogger<BookmarksModuleSearchClient> _logger;
 
     public BookmarksModuleSearchClient(ModuleEndpointProvider endpointProvider, ILogger<BookmarksModuleSearchClient> logger)
     {
+        _endpointProvider = endpointProvider;
         _logger = logger;
-        _client = new Lazy<BookmarksProto.BookmarksService.BookmarksServiceClient>(() =>
+    }
+
+    private BookmarksProto.BookmarksService.BookmarksServiceClient CreateClient()
+    {
+        var address = _endpointProvider.GetEndpoint("dotnetcloud.bookmarks");
+        var channel = GrpcChannel.ForAddress(address, new GrpcChannelOptions
         {
-            var address = endpointProvider.GetEndpoint("dotnetcloud.bookmarks");
-            _logger.LogInformation("BookmarksModuleSearchClient connecting to {Address}", address);
-            var channel = GrpcChannel.ForAddress(address, new GrpcChannelOptions
-            {
-                HttpHandler = new SocketsHttpHandler { EnableMultipleHttp2Connections = true, ConnectTimeout = TimeSpan.FromSeconds(5) }
-            });
-            return new BookmarksProto.BookmarksService.BookmarksServiceClient(channel);
+            HttpHandler = new SocketsHttpHandler { EnableMultipleHttp2Connections = true, ConnectTimeout = TimeSpan.FromSeconds(5) }
         });
+        return new BookmarksProto.BookmarksService.BookmarksServiceClient(channel);
     }
 
     public async Task<IReadOnlyList<SearchDocument>> GetAllSearchableDocumentsAsync(CancellationToken ct)
@@ -298,7 +302,7 @@ internal sealed class BookmarksModuleSearchClient : IModuleSearchDocumentClient
         var results = new List<SearchDocument>();
         try
         {
-            var call = _client.Value.GetSearchableDocuments(request, deadline: DateTime.UtcNow.AddSeconds(30), cancellationToken: ct);
+            var call = CreateClient().GetSearchableDocuments(request, deadline: DateTime.UtcNow.AddSeconds(30), cancellationToken: ct);
             await foreach (var doc in call.ResponseStream.ReadAllAsync(ct))
             {
                 results.Add(SearchDocumentMapper.ToSearchDocument(
@@ -319,7 +323,7 @@ internal sealed class BookmarksModuleSearchClient : IModuleSearchDocumentClient
         var request = new BookmarksProto.GetSearchableDocumentRequest { EntityId = entityId };
         try
         {
-            var response = await _client.Value.GetSearchableDocumentAsync(request, deadline: DateTime.UtcNow.AddSeconds(30), cancellationToken: ct);
+            var response = await CreateClient().GetSearchableDocumentAsync(request, deadline: DateTime.UtcNow.AddSeconds(30), cancellationToken: ct);
             if (!response.Found || response.Document is null)
                 return null;
             var d = response.Document;
@@ -342,22 +346,23 @@ internal sealed class EmailModuleSearchClient : IModuleSearchDocumentClient
 {
     public string ModuleId => "email";
 
-    private readonly Lazy<EmailProto.EmailService.EmailServiceClient> _client;
+    private readonly ModuleEndpointProvider _endpointProvider;
     private readonly ILogger<EmailModuleSearchClient> _logger;
 
     public EmailModuleSearchClient(ModuleEndpointProvider endpointProvider, ILogger<EmailModuleSearchClient> logger)
     {
+        _endpointProvider = endpointProvider;
         _logger = logger;
-        _client = new Lazy<EmailProto.EmailService.EmailServiceClient>(() =>
+    }
+
+    private EmailProto.EmailService.EmailServiceClient CreateClient()
+    {
+        var address = _endpointProvider.GetEndpoint("dotnetcloud.email");
+        var channel = GrpcChannel.ForAddress(address, new GrpcChannelOptions
         {
-            var address = endpointProvider.GetEndpoint("dotnetcloud.email");
-            _logger.LogInformation("EmailModuleSearchClient connecting to {Address}", address);
-            var channel = GrpcChannel.ForAddress(address, new GrpcChannelOptions
-            {
-                HttpHandler = new SocketsHttpHandler { EnableMultipleHttp2Connections = true, ConnectTimeout = TimeSpan.FromSeconds(5) }
-            });
-            return new EmailProto.EmailService.EmailServiceClient(channel);
+            HttpHandler = new SocketsHttpHandler { EnableMultipleHttp2Connections = true, ConnectTimeout = TimeSpan.FromSeconds(5) }
         });
+        return new EmailProto.EmailService.EmailServiceClient(channel);
     }
 
     public async Task<IReadOnlyList<SearchDocument>> GetAllSearchableDocumentsAsync(CancellationToken ct)
@@ -366,7 +371,7 @@ internal sealed class EmailModuleSearchClient : IModuleSearchDocumentClient
         var results = new List<SearchDocument>();
         try
         {
-            var call = _client.Value.GetSearchableDocuments(request, deadline: DateTime.UtcNow.AddSeconds(30), cancellationToken: ct);
+            var call = CreateClient().GetSearchableDocuments(request, deadline: DateTime.UtcNow.AddSeconds(30), cancellationToken: ct);
             await foreach (var doc in call.ResponseStream.ReadAllAsync(ct))
             {
                 results.Add(SearchDocumentMapper.ToSearchDocument(
@@ -387,7 +392,7 @@ internal sealed class EmailModuleSearchClient : IModuleSearchDocumentClient
         var request = new EmailProto.GetSearchableDocumentRequest { EntityId = entityId };
         try
         {
-            var response = await _client.Value.GetSearchableDocumentAsync(request, deadline: DateTime.UtcNow.AddSeconds(30), cancellationToken: ct);
+            var response = await CreateClient().GetSearchableDocumentAsync(request, deadline: DateTime.UtcNow.AddSeconds(30), cancellationToken: ct);
             if (!response.Found || response.Document is null)
                 return null;
             var d = response.Document;
@@ -410,22 +415,23 @@ internal sealed class MusicModuleSearchClient : IModuleSearchDocumentClient
 {
     public string ModuleId => "music";
 
-    private readonly Lazy<MusicProto.MusicGrpcService.MusicGrpcServiceClient> _client;
+    private readonly ModuleEndpointProvider _endpointProvider;
     private readonly ILogger<MusicModuleSearchClient> _logger;
 
     public MusicModuleSearchClient(ModuleEndpointProvider endpointProvider, ILogger<MusicModuleSearchClient> logger)
     {
+        _endpointProvider = endpointProvider;
         _logger = logger;
-        _client = new Lazy<MusicProto.MusicGrpcService.MusicGrpcServiceClient>(() =>
+    }
+
+    private MusicProto.MusicGrpcService.MusicGrpcServiceClient CreateClient()
+    {
+        var address = _endpointProvider.GetEndpoint("dotnetcloud.music");
+        var channel = GrpcChannel.ForAddress(address, new GrpcChannelOptions
         {
-            var address = endpointProvider.GetEndpoint("dotnetcloud.music");
-            _logger.LogInformation("MusicModuleSearchClient connecting to {Address}", address);
-            var channel = GrpcChannel.ForAddress(address, new GrpcChannelOptions
-            {
-                HttpHandler = new SocketsHttpHandler { EnableMultipleHttp2Connections = true, ConnectTimeout = TimeSpan.FromSeconds(5) }
-            });
-            return new MusicProto.MusicGrpcService.MusicGrpcServiceClient(channel);
+            HttpHandler = new SocketsHttpHandler { EnableMultipleHttp2Connections = true, ConnectTimeout = TimeSpan.FromSeconds(5) }
         });
+        return new MusicProto.MusicGrpcService.MusicGrpcServiceClient(channel);
     }
 
     public async Task<IReadOnlyList<SearchDocument>> GetAllSearchableDocumentsAsync(CancellationToken ct)
@@ -434,7 +440,7 @@ internal sealed class MusicModuleSearchClient : IModuleSearchDocumentClient
         var results = new List<SearchDocument>();
         try
         {
-            var call = _client.Value.GetSearchableDocuments(request, deadline: DateTime.UtcNow.AddSeconds(30), cancellationToken: ct);
+            var call = CreateClient().GetSearchableDocuments(request, deadline: DateTime.UtcNow.AddSeconds(30), cancellationToken: ct);
             await foreach (var doc in call.ResponseStream.ReadAllAsync(ct))
             {
                 results.Add(SearchDocumentMapper.ToSearchDocument(
@@ -455,7 +461,7 @@ internal sealed class MusicModuleSearchClient : IModuleSearchDocumentClient
         var request = new MusicProto.GetSearchableDocumentRequest { EntityId = entityId };
         try
         {
-            var response = await _client.Value.GetSearchableDocumentAsync(request, deadline: DateTime.UtcNow.AddSeconds(30), cancellationToken: ct);
+            var response = await CreateClient().GetSearchableDocumentAsync(request, deadline: DateTime.UtcNow.AddSeconds(30), cancellationToken: ct);
             if (!response.Found || response.Document is null)
                 return null;
             var d = response.Document;
@@ -478,22 +484,23 @@ internal sealed class VideoModuleSearchClient : IModuleSearchDocumentClient
 {
     public string ModuleId => "video";
 
-    private readonly Lazy<VideoProto.VideoGrpcService.VideoGrpcServiceClient> _client;
+    private readonly ModuleEndpointProvider _endpointProvider;
     private readonly ILogger<VideoModuleSearchClient> _logger;
 
     public VideoModuleSearchClient(ModuleEndpointProvider endpointProvider, ILogger<VideoModuleSearchClient> logger)
     {
+        _endpointProvider = endpointProvider;
         _logger = logger;
-        _client = new Lazy<VideoProto.VideoGrpcService.VideoGrpcServiceClient>(() =>
+    }
+
+    private VideoProto.VideoGrpcService.VideoGrpcServiceClient CreateClient()
+    {
+        var address = _endpointProvider.GetEndpoint("dotnetcloud.video");
+        var channel = GrpcChannel.ForAddress(address, new GrpcChannelOptions
         {
-            var address = endpointProvider.GetEndpoint("dotnetcloud.video");
-            _logger.LogInformation("VideoModuleSearchClient connecting to {Address}", address);
-            var channel = GrpcChannel.ForAddress(address, new GrpcChannelOptions
-            {
-                HttpHandler = new SocketsHttpHandler { EnableMultipleHttp2Connections = true, ConnectTimeout = TimeSpan.FromSeconds(5) }
-            });
-            return new VideoProto.VideoGrpcService.VideoGrpcServiceClient(channel);
+            HttpHandler = new SocketsHttpHandler { EnableMultipleHttp2Connections = true, ConnectTimeout = TimeSpan.FromSeconds(5) }
         });
+        return new VideoProto.VideoGrpcService.VideoGrpcServiceClient(channel);
     }
 
     public async Task<IReadOnlyList<SearchDocument>> GetAllSearchableDocumentsAsync(CancellationToken ct)
@@ -502,7 +509,7 @@ internal sealed class VideoModuleSearchClient : IModuleSearchDocumentClient
         var results = new List<SearchDocument>();
         try
         {
-            var call = _client.Value.GetSearchableDocuments(request, deadline: DateTime.UtcNow.AddSeconds(30), cancellationToken: ct);
+            var call = CreateClient().GetSearchableDocuments(request, deadline: DateTime.UtcNow.AddSeconds(30), cancellationToken: ct);
             await foreach (var doc in call.ResponseStream.ReadAllAsync(ct))
             {
                 results.Add(SearchDocumentMapper.ToSearchDocument(
@@ -523,7 +530,7 @@ internal sealed class VideoModuleSearchClient : IModuleSearchDocumentClient
         var request = new VideoProto.GetSearchableDocumentRequest { EntityId = entityId };
         try
         {
-            var response = await _client.Value.GetSearchableDocumentAsync(request, deadline: DateTime.UtcNow.AddSeconds(30), cancellationToken: ct);
+            var response = await CreateClient().GetSearchableDocumentAsync(request, deadline: DateTime.UtcNow.AddSeconds(30), cancellationToken: ct);
             if (!response.Found || response.Document is null)
                 return null;
             var d = response.Document;

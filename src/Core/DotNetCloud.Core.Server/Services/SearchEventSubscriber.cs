@@ -68,6 +68,11 @@ internal sealed class SearchEventSubscriber : IHostedService
         const int maxRetries = 10;
         const int retryDelaySeconds = 15;
 
+        // Wait for all module hosts to start their gRPC servers before attempting connections.
+        // Module process spawns take 30-90 seconds depending on system load.
+        _logger.LogInformation("Waiting 90s for module hosts to start before initial search index build");
+        await Task.Delay(TimeSpan.FromSeconds(90), cancellationToken);
+
         for (int attempt = 1; attempt <= maxRetries; attempt++)
         {
             try

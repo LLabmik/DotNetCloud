@@ -34,6 +34,7 @@ public class MusicPlaybackStateTests
         return new TrackDto
         {
             Id = id ?? Guid.CreateVersion7(),
+            OwnerId = Guid.CreateVersion7(),
             FileNodeId = Guid.CreateVersion7(),
             Title = title,
             Duration = duration ?? TimeSpan.FromSeconds(200),

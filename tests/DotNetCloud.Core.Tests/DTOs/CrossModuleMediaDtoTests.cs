@@ -252,6 +252,7 @@ public class CrossModuleMediaDtoTests
         TrackNumber = 1,
         ArtistId = Guid.CreateVersion7(),
         ArtistName = "Test Artist",
+        OwnerId = Guid.CreateVersion7(),
         CreatedAt = DateTime.UtcNow
     };
 
@@ -278,6 +279,7 @@ public class CrossModuleMediaDtoTests
         Title = "Video",
         FileName = "video.mp4",
         MimeType = "video/mp4",
+        OwnerId = Guid.CreateVersion7(),
         CreatedAt = DateTime.UtcNow
     };
 }

@@ -388,22 +388,14 @@ public sealed class CalendarGrpcService : Protos.CalendarGrpcService.CalendarGrp
         IServerStreamWriter<SearchableDocument> responseStream,
         ServerCallContext context)
     {
-        // Use system context for indexing (called by search indexer, no UserId)
-        var caller = CallerContext.CreateSystemContext();
+        // Index ALL events across all users — each tagged with correct OwnerId
+        var events = await _eventService.ListAllEventsAsync(
+            skip: 0, take: int.MaxValue, cancellationToken: context.CancellationToken);
 
-        var calendars = await _calendarService.ListCalendarsAsync(caller, context.CancellationToken);
-
-        foreach (var calendar in calendars)
+        foreach (var evt in events)
         {
-            var events = await _eventService.ListEventsAsync(
-                calendar.Id, caller, from: null, to: null, skip: 0, take: int.MaxValue,
-                context.CancellationToken);
-
-            foreach (var evt in events)
-            {
-                var doc = MapEventToSearchableDocument(evt, calendar.Name);
-                await responseStream.WriteAsync(doc, context.CancellationToken);
-            }
+            var doc = MapEventToSearchableDocument(evt, null);
+            await responseStream.WriteAsync(doc, context.CancellationToken);
         }
     }
 

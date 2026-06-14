@@ -386,6 +386,18 @@ public sealed class CalendarEventService : ICalendarEventService
         return events.Select(MapToDto).ToList();
     }
 
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<CalendarEventDto>> ListAllEventsAsync(int skip = 0, int take = int.MaxValue, CancellationToken cancellationToken = default)
+    {
+        var events = await QueryEvents()
+            .OrderBy(e => e.StartUtc)
+            .Skip(skip)
+            .Take(take)
+            .ToListAsync(cancellationToken);
+
+        return events.Select(MapToDto).ToList();
+    }
+
     private IQueryable<CalendarEvent> QueryEvents()
     {
         return _db.CalendarEvents

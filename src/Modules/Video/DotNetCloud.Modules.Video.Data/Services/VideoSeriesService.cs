@@ -373,6 +373,7 @@ public sealed class VideoSeriesService : IVideoSeriesService
         return new VideoDto
         {
             Id = uv.Id,
+            OwnerId = uv.OwnerId,
             FileNodeId = uv.FileNodeId,
             Title = canonical.Title,
             FileName = canonical.FileName,
@@ -913,6 +914,7 @@ public sealed class VideoSeriesService : IVideoSeriesService
                     videoDto = new VideoDto
                     {
                         Id = uv.Id,
+                        OwnerId = uv.OwnerId,
                         FileNodeId = uv.FileNodeId,
                         Title = uv.CanonicalVideo.Title,
                         FileName = uv.CanonicalVideo.FileName,
@@ -1433,6 +1435,7 @@ public sealed class VideoSeriesService : IVideoSeriesService
         return new VideoDto
         {
             Id = video.Id,
+            OwnerId = video.OwnerId,
             FileNodeId = video.FileNodeId,
             Title = video.Title,
             FileName = video.FileName,

@@ -129,6 +129,7 @@ public class MusicPageTrackIdTests
         return new TrackDto
         {
             Id = Guid.CreateVersion7(),
+            OwnerId = Guid.CreateVersion7(),
             FileNodeId = Guid.CreateVersion7(),
             Title = title,
             Duration = TimeSpan.FromMinutes(4),

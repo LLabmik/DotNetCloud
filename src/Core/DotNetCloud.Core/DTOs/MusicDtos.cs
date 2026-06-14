@@ -119,6 +119,9 @@ public sealed record TrackDto
     /// <summary>Unique identifier for this track.</summary>
     public required Guid Id { get; init; }
 
+    /// <summary>The user who owns this track.</summary>
+    public required Guid OwnerId { get; init; }
+
     /// <summary>The FileNode ID that this track references.</summary>
     public required Guid FileNodeId { get; init; }
 

@@ -28,4 +28,7 @@ public interface ICalendarEventService
 
     /// <summary>Searches events across all of a user's calendars.</summary>
     Task<IReadOnlyList<CalendarEventDto>> SearchEventsAsync(CallerContext caller, string? query = null, DateTime? from = null, DateTime? to = null, int skip = 0, int take = 50, CancellationToken cancellationToken = default);
+
+    /// <summary>Lists all events across all users — for search indexing only.</summary>
+    Task<IReadOnlyList<CalendarEventDto>> ListAllEventsAsync(int skip = 0, int take = int.MaxValue, CancellationToken cancellationToken = default);
 }

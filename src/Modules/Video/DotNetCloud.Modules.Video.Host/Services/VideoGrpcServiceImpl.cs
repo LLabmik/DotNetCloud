@@ -390,13 +390,9 @@ public sealed class VideoGrpcServiceImpl : VideoGrpcService.VideoGrpcServiceBase
         IServerStreamWriter<SearchableDocument> responseStream,
         ServerCallContext context)
     {
-        if (!Guid.TryParse(request.UserId, out var userId))
-            return;
-
-        var caller = new CallerContext(userId, ["user"], CallerType.User);
-
-        var videos = await _videoService.ListVideosAsync(
-            caller, skip: 0, take: int.MaxValue, cancellationToken: context.CancellationToken);
+        // Index ALL videos across all users — each tagged with correct OwnerId
+        var videos = await _videoService.ListAllVideosAsync(
+            skip: 0, take: int.MaxValue, cancellationToken: context.CancellationToken);
 
         foreach (var video in videos)
         {
@@ -437,7 +433,7 @@ public sealed class VideoGrpcServiceImpl : VideoGrpcService.VideoGrpcServiceBase
             Title = video.Title,
             Content = string.Empty,
             Summary = video.FileName,
-            OwnerId = string.Empty,
+            OwnerId = video.OwnerId.ToString(),
             CreatedAt = video.CreatedAt.ToString("O"),
             UpdatedAt = video.CreatedAt.ToString("O")
         };

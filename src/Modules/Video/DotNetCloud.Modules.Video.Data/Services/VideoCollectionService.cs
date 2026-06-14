@@ -401,6 +401,7 @@ public sealed class VideoCollectionService : IVideoCollectionService
         return new VideoDto
         {
             Id = userVideo.Id,
+            OwnerId = userVideo.OwnerId,
             FileNodeId = userVideo.FileNodeId,
             Title = canonical.Title,
             FileName = canonical.FileName,

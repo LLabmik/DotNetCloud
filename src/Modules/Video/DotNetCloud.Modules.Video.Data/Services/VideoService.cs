@@ -212,6 +212,26 @@ public sealed class VideoService : IVideoService
     }
 
     /// <summary>
+    /// Lists all videos across all users — for search indexing only.
+    /// Does not filter by OwnerId; each result includes the owning user's ID.
+    /// </summary>
+    public async Task<IReadOnlyList<VideoDto>> ListAllVideosAsync(int skip = 0, int take = int.MaxValue, CancellationToken cancellationToken = default)
+    {
+        var userVideos = await _db.UserVideos
+            .Include(uv => uv.CanonicalVideo).ThenInclude(cv => cv!.Metadata)
+            .Where(uv => !uv.IsDeleted)
+            .OrderBy(uv => uv.CreatedAt)
+            .Skip(skip)
+            .Take(take)
+            .ToListAsync(cancellationToken);
+
+        return userVideos
+            .Where(uv => uv.CanonicalVideo is not null)
+            .Select(uv => MapFromCanonical(uv, uv.CanonicalVideo!))
+            .ToList();
+    }
+
+    /// <summary>
     /// Searches videos and series by title. Returns series matches + standalone video matches.
     /// </summary>
     public async Task<VideoSearchResultDto> SearchAsync(CallerContext caller, string query, int maxResults = 20, CancellationToken cancellationToken = default)
@@ -415,6 +435,7 @@ public sealed class VideoService : IVideoService
         return new VideoDto
         {
             Id = userVideo.Id,
+            OwnerId = userVideo.OwnerId,
             FileNodeId = userVideo.FileNodeId,
             Title = canonical.Title,
             FileName = canonical.FileName,

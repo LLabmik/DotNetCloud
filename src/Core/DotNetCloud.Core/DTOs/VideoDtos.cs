@@ -10,6 +10,9 @@ public sealed record VideoDto
     /// <summary>Unique identifier for this video.</summary>
     public required Guid Id { get; init; }
 
+    /// <summary>The user who owns this video.</summary>
+    public required Guid OwnerId { get; init; }
+
     /// <summary>The FileNode ID that this video references.</summary>
     public required Guid FileNodeId { get; init; }
 

@@ -51,6 +51,22 @@ public sealed class TrackService : ITrackService
     }
 
     /// <summary>
+    /// Lists all tracks across all users — for search indexing only.
+    /// Does not filter by OwnerId; each result includes the owning user's ID.
+    /// </summary>
+    public async Task<IReadOnlyList<TrackDto>> ListAllTracksAsync(int skip = 0, int take = int.MaxValue, CancellationToken cancellationToken = default)
+    {
+        var userTracks = await BaseTrackQuery()
+            .OrderBy(ut => ut.CanonicalTrack!.Title)
+            .Skip(skip)
+            .Take(take)
+            .ToListAsync(cancellationToken);
+
+        // Use lightweight mapping — do NOT check IsStarred per track (N+1 queries would timeout for large datasets)
+        return userTracks.Select(ut => MapToDtoLightweight(ut)).ToList();
+    }
+
+    /// <summary>
     /// Lists tracks for the authenticated user.
     /// </summary>
     public async Task<IReadOnlyList<TrackDto>> ListTracksAsync(CallerContext caller, int skip = 0, int take = 50, CancellationToken cancellationToken = default)
@@ -206,6 +222,42 @@ public sealed class TrackService : ITrackService
             .ToList();
     }
 
+    /// <summary>
+    /// Lightweight mapping for search indexing — skips the per-track IsStarred DB query
+    /// to avoid N+1 timeouts with large datasets (21K+ tracks).
+    /// </summary>
+    private static TrackDto MapToDtoLightweight(UserTrack userTrack)
+    {
+        var canonicalTrack = userTrack.CanonicalTrack;
+        var primaryArtist = canonicalTrack?.TrackArtists
+            .FirstOrDefault(cta => cta.IsPrimary)?.Artist
+            ?? canonicalTrack?.TrackArtists.FirstOrDefault()?.Artist;
+
+        var primaryGenre = canonicalTrack?.TrackGenres.FirstOrDefault()?.Genre?.Name;
+
+        return new TrackDto
+        {
+            Id = userTrack.Id,
+            OwnerId = userTrack.OwnerId,
+            FileNodeId = userTrack.FileNodeId,
+            Title = canonicalTrack?.Title ?? "Unknown",
+            TrackNumber = canonicalTrack?.TrackNumber,
+            DiscNumber = canonicalTrack?.DiscNumber,
+            Duration = TimeSpan.FromTicks(canonicalTrack?.DurationTicks ?? 0),
+            SizeBytes = 0,
+            Bitrate = canonicalTrack?.Bitrate,
+            MimeType = canonicalTrack?.MimeType ?? "audio/mpeg",
+            AlbumId = userTrack.CanonicalAlbumId,
+            AlbumTitle = userTrack.CanonicalAlbum?.Title,
+            ArtistId = primaryArtist?.Id ?? Guid.Empty,
+            ArtistName = primaryArtist?.Name ?? "Unknown Artist",
+            Genre = primaryGenre,
+            Year = canonicalTrack?.Year,
+            IsStarred = false, // Not computed for indexing
+            CreatedAt = userTrack.CreatedAt
+        };
+    }
+
     internal TrackDto MapToDto(UserTrack userTrack, Guid userId)
     {
         var canonicalTrack = userTrack.CanonicalTrack;
@@ -221,6 +273,7 @@ public sealed class TrackService : ITrackService
         return new TrackDto
         {
             Id = userTrack.Id,
+            OwnerId = userTrack.OwnerId,
             FileNodeId = userTrack.FileNodeId,
             Title = canonicalTrack?.Title ?? "Unknown",
             TrackNumber = canonicalTrack?.TrackNumber,

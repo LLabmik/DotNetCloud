@@ -405,14 +405,9 @@ public sealed class MusicGrpcServiceImpl : MusicGrpcService.MusicGrpcServiceBase
         IServerStreamWriter<MusicSearchableDocument> responseStream,
         ServerCallContext context)
     {
-        // Use system context when no UserId provided (called by search indexer)
-        var caller = Guid.TryParse(request.UserId, out var userId)
-            ? new CallerContext(userId, ["user"], CallerType.User)
-            : CallerContext.CreateSystemContext();
-
-        // Index tracks (they reference artist + album)
-        var tracks = await _trackService.ListTracksAsync(caller, skip: 0, take: int.MaxValue,
-            context.CancellationToken);
+        // Index ALL tracks across all users — each tagged with correct OwnerId
+        var tracks = await _trackService.ListAllTracksAsync(
+            skip: 0, take: int.MaxValue, cancellationToken: context.CancellationToken);
 
         foreach (var track in tracks)
         {
@@ -461,7 +456,7 @@ public sealed class MusicGrpcServiceImpl : MusicGrpcService.MusicGrpcServiceBase
             Title = track.Title,
             Content = string.Join(" ", contentParts),
             Summary = $"{track.ArtistName} - {track.AlbumTitle}",
-            OwnerId = string.Empty,
+            OwnerId = track.OwnerId.ToString(),
             CreatedAt = track.CreatedAt.ToString("O"),
             UpdatedAt = track.CreatedAt.ToString("O")
         };
