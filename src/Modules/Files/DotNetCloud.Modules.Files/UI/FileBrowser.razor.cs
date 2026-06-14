@@ -555,8 +555,8 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
             await LoadCurrentFolderAsync();
         }
 
+        // Navigate to the directory containing the file — do not open preview/editor for search result clicks.
         var vm = ToViewModel(node);
-        await HandleNodeDoubleClick(vm);
         StateHasChanged();
     }
 

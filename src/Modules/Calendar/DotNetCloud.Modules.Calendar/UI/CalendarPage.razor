@@ -876,8 +876,7 @@
                 await ReloadEventsAsync();
             }
 
-            // Open the event editor
-            BeginEditEvent(evt);
+            // Navigate to month view only — do not open the edit modal for search result clicks.
         }
         catch
         {
