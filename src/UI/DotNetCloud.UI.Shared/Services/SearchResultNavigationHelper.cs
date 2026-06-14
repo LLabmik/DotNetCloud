@@ -64,7 +64,7 @@ public static class SearchResultNavigationHelper
             "calendar" => $"/apps/calendar?eventId={item.EntityId}",
             "photos" => $"/apps/photos?photoId={item.EntityId}",
             "music" => $"/apps/music?trackId={item.EntityId}",
-            "video" => $"/apps/video?videoId={item.EntityId}",
+            "video" => $"/apps/video?videoId={item.EntityId}&_nav={navToken}",
             "tracks" => $"/apps/tracks?cardId={item.EntityId}",
             "ai" => $"/apps/ai?conversationId={item.EntityId}",
             _ => $"/search?q={item.Title}"

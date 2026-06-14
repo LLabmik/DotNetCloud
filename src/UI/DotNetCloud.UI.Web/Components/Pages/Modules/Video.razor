@@ -11,9 +11,6 @@
     [SupplyParameterFromQuery(Name = "fileId")]
     public string? FileId { get; set; }
 
-    [SupplyParameterFromQuery(Name = "videoId")]
-    public string? VideoId { get; set; }
-
     [SupplyParameterFromQuery(Name = "_nav")]
     public string? Nav { get; set; }
 
@@ -31,11 +28,7 @@
             hasParams = true;
         }
 
-        if (!string.IsNullOrEmpty(VideoId))
-        {
-            _parameters["VideoId"] = VideoId;
-            hasParams = true;
-        }
+        // videoId is handled directly by VideoPage via TryOpenVideoFromQueryAsync (reads query string)
 
         if (!hasParams)
         {

@@ -7,6 +7,7 @@ using DotNetCloud.Modules.Video.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Web;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Logging;
 using Microsoft.JSInterop;
 
@@ -373,6 +374,11 @@ public partial class VideoPage : IAsyncDisposable
                 await TryAutoPlayFileAsync(fileId, _caller);
             }
 
+            // Deep-link: auto-open from search results — read videoId directly from query string
+            Logger.LogInformation("VideoPage deep-link check: Uri={Uri}, FileId={FileId}, VideoId param unused (reading from query)",
+                Navigation.Uri, FileId);
+            await TryOpenVideoFromQueryAsync(_caller);
+
             _collections = (await CollectionService.ListCollectionsAsync(_caller)).ToList();
             await LoadLibraryPathAsync();
             await LoadEnrichmentSettingsAsync();
@@ -428,6 +434,10 @@ public partial class VideoPage : IAsyncDisposable
             _lastHandledNav = FileIdNav;
             await TryAutoPlayFileAsync(fileId, _caller);
         }
+
+        // Handle videoId changes when already on the page (same-page navigation via search results).
+        // Read directly from query string to bypass ModulePageHost/DynamicComponent parameter chain.
+        await TryOpenVideoFromQueryAsync(_caller);
     }
 
     private async Task ToggleSidebar()
@@ -1187,24 +1197,62 @@ public partial class VideoPage : IAsyncDisposable
 
     /// <summary>
     /// Looks up a video by its Files-module FileNodeId and opens it in the player.
+    /// Falls back to direct video ID lookup (for search result deep-links).
     /// </summary>
-    private async Task TryAutoPlayFileAsync(Guid fileNodeId, CallerContext caller)
+    private async Task TryAutoPlayFileAsync(Guid id, CallerContext caller)
     {
         try
         {
-            var video = await VideoService.GetVideoByFileNodeIdAsync(fileNodeId, caller);
+            // First try file node ID lookup (deep-link from Files module)
+            var video = await VideoService.GetVideoByFileNodeIdAsync(id, caller);
+            if (video is null)
+            {
+                // Fallback: try direct video ID lookup (deep-link from search results)
+                video = await VideoService.GetVideoAsync(id, caller);
+            }
+
             if (video is not null)
             {
                 await OpenVideoDetailAsync(video);
             }
             else
             {
-                Logger.LogWarning("No video found for FileNodeId {FileNodeId}", fileNodeId);
+                Logger.LogWarning("No video found for Id {Id}", id);
             }
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Failed to auto-open video for FileNodeId {FileNodeId}", fileNodeId);
+            Logger.LogError(ex, "Failed to auto-open video for Id {Id}", id);
+        }
+    }
+
+    /// <summary>
+    /// Reads the videoId query parameter directly (bypasses the ModulePageHost/DynamicComponent chain)
+    /// and opens the video if found.
+    /// </summary>
+    private async Task TryOpenVideoFromQueryAsync(CallerContext caller)
+    {
+        try
+        {
+            var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+            if (!QueryHelpers.ParseQuery(uri.Query).TryGetValue("videoId", out var videoIdValue))
+                return;
+            if (!Guid.TryParse(videoIdValue, out var videoId))
+                return;
+
+            var video = await VideoService.GetVideoAsync(videoId, caller);
+            if (video is not null)
+            {
+                await OpenVideoDetailAsync(video);
+            }
+            else
+            {
+                Logger.LogWarning("No video found for VideoId {VideoId} from query string", videoId);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to auto-open video from query string");
         }
     }
 
