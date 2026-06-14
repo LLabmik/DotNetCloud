@@ -200,7 +200,12 @@
    * @param {string=} videoId - Optional video GUID for progress polling.
    * @param {object=} dotNetRef - Optional .NET reference for callbacks.
    */
-  videoPlayer.attachHlsPlayer = function (elementId, streamUrl, videoId, dotNetRef) {
+  videoPlayer.attachHlsPlayer = function (
+    elementId,
+    streamUrl,
+    videoId,
+    dotNetRef,
+  ) {
     var video = document.getElementById(elementId);
     if (!video) {
       // DOM may not have rendered yet (race with Blazor render) — retry once
@@ -219,7 +224,8 @@
       video.preload = "auto";
 
       // Show progress overlay (starts polling immediately)
-      videoPlayer.showStreamProgress("player-container", videoId)
+      videoPlayer
+        .showStreamProgress("player-stream-progress-area", videoId)
         .then(function () {
           // Server says stream is ready
           playStream(video, streamUrl, dotNetRef);
@@ -256,7 +262,9 @@
           var strategy = resp.headers.get("X-Stream-Strategy") || "";
 
           if (dotNetRef && strategy) {
-            dotNetRef.invokeMethodAsync("OnStreamStrategy", strategy).catch(function() {});
+            dotNetRef
+              .invokeMethodAsync("OnStreamStrategy", strategy)
+              .catch(function () {});
           }
 
           // Direct play or remuxed MP4 — native video
@@ -341,39 +349,55 @@
    * @param {string} videoId - The video GUID (e.g. "a1b2c3d4-...").
    * @returns {Promise} Resolves when ready, rejects on failure.
    */
-  videoPlayer.showStreamProgress = function (containerId, videoId) {
-    var container = document.getElementById(containerId);
-    if (!container) return Promise.reject(new Error("Container not found"));
+  /**
+   * Uses Blazor-rendered inline elements in #player-stream-progress-area.
+   * Polls /api/v1/videos/{videoId}/stream-progress.
+   * Resolves when stage=streaming, rejects on stage=failed.
+   */
+  videoPlayer.showStreamProgress = function (ignored, videoId) {
+    // Find the player container and insert progress bar directly after it
+    var playerContainer = document.getElementById("player-container");
+    if (!playerContainer)
+      return Promise.reject(new Error("Player container not found"));
 
-    // Find or create the progress overlay
-    var overlay = container.querySelector(".dnc-stream-progress");
-    if (!overlay) {
-      overlay = document.createElement("div");
-      overlay.className = "dnc-stream-progress";
-      overlay.innerHTML =
-        '<div class="dnc-stream-progress-inner">' +
-        '<div class="dnc-stream-spinner"></div>' +
-        '<div class="dnc-stream-message">Assembling video file…</div>' +
-        '<div class="dnc-stream-bar-track">' +
-        '<div class="dnc-stream-bar-fill"></div>' +
-        "</div>" +
-        "</div>";
-      container.appendChild(overlay);
+    // Remove any existing progress bar
+    var existing = document.getElementById("dnc-progress-bar");
+    if (existing) existing.remove();
+
+    // Create progress bar after the player container
+    var bar = document.createElement("div");
+    bar.id = "dnc-progress-bar";
+    bar.innerHTML =
+      '<div style="background:#0f172a;border-top:1px solid rgba(255,255,255,0.08);min-height:44px;display:flex;align-items:center;padding:6px 24px;font-size:13px;color:rgba(255,255,255,0.7);gap:10px;">' +
+      '<div class="dnc-spinner" style="width:16px;height:16px;border:2px solid rgba(255,255,255,0.2);border-top-color:#3b82f6;border-radius:50%;flex-shrink:0;animation:dncSpin 0.8s linear infinite;"></div>' +
+      '<span class="dnc-msg" style="white-space:nowrap;">Assembling video file\u2026</span>' +
+      '<div style="flex:0 1 140px;height:4px;min-width:60px;background:rgba(255,255,255,0.12);border-radius:2px;overflow:hidden;">' +
+      '<div class="dnc-fill" style="height:100%;background:#3b82f6;border-radius:2px;width:0%;transition:width .3s ease;"></div>' +
+      "</div></div>";
+    playerContainer.insertAdjacentElement("afterend", bar);
+    bar._videoId = videoId;
+    playerContainer._videoId = videoId;
+
+    // Add keyframes for spinner if not already present
+    if (!document.getElementById("dnc-spin-keyframes")) {
+      var style = document.createElement("style");
+      style.id = "dnc-spin-keyframes";
+      style.textContent = "@keyframes dncSpin{to{transform:rotate(360deg)}}";
+      document.head.appendChild(style);
     }
 
-    var messageEl = overlay.querySelector(".dnc-stream-message");
-    var barFill = overlay.querySelector(".dnc-stream-bar-fill");
+    var messageEl = bar.querySelector(".dnc-msg");
+    var barFill = bar.querySelector(".dnc-fill");
     var cancelled = false;
 
-    // Store cancellation handle
-    overlay._cancel = function () {
+    bar._cancel = function () {
       cancelled = true;
     };
 
     return new Promise(function (resolve, reject) {
       var poll = function () {
         if (cancelled) {
-          overlay.remove();
+          bar.remove();
           reject(new Error("Cancelled"));
           return;
         }
@@ -393,26 +417,26 @@
             if (barFill) barFill.style.width = Math.min(100, percent) + "%";
 
             if (stage === "streaming") {
-              // Remove overlay after a brief moment so the player is visible
               setTimeout(function () {
-                if (overlay.parentNode) overlay.remove();
+                bar.remove();
               }, 300);
               resolve();
             } else if (stage === "failed") {
               if (messageEl)
-                messageEl.textContent = "Failed: " + (message || "Unknown error");
-              if (barFill) barFill.style.background = "#e74c3c";
+                messageEl.textContent =
+                  "Failed: " + (message || "Unknown error");
+              if (barFill) {
+                barFill.style.background = "#e74c3c";
+                barFill.style.width = "100%";
+              }
               reject(new Error(message || "Stream preparation failed"));
             } else {
-              // Still preparing — poll again
               setTimeout(poll, 500);
             }
           })
           .catch(function (err) {
             if (cancelled) return;
-            // Network error — retry a few times then give up
-            if (messageEl)
-              messageEl.textContent = "Connecting to server…";
+            if (messageEl) messageEl.textContent = "Connecting to server\u2026";
             setTimeout(poll, 1000);
           });
       };
@@ -424,12 +448,37 @@
   /**
    * Cancels the stream progress overlay for a container.
    */
-  videoPlayer.cancelStreamProgress = function (containerId) {
-    var container = document.getElementById(containerId);
-    if (!container) return;
-    var overlay = container.querySelector(".dnc-stream-progress");
-    if (overlay && overlay._cancel) {
-      overlay._cancel();
+  videoPlayer.cancelStreamProgress = function (videoId) {
+    var bar = document.getElementById("dnc-progress-bar");
+    var playerContainer = document.getElementById("player-container");
+    var vid =
+      videoId ||
+      (bar && bar._videoId) ||
+      (playerContainer && playerContainer._videoId);
+    console.log(
+      "DNC CANCEL: videoId=",
+      videoId,
+      "barVid=",
+      bar && bar._videoId,
+      "pcVid=",
+      playerContainer && playerContainer._videoId,
+      "final=",
+      vid,
+    );
+    if (bar && bar._cancel) bar._cancel();
+    if (bar) bar.remove();
+    if (vid) {
+      var url = "/api/v1/videos/cancel-stream/" + vid;
+      console.log("DNC CANCEL: fetching", url);
+      fetch(url, { method: "POST", credentials: "include" })
+        .then(function (r) {
+          console.log("DNC CANCEL: response", r.status);
+        })
+        .catch(function (e) {
+          console.error("DNC CANCEL: fetch error", e);
+        });
+    } else {
+      console.log("DNC CANCEL: no videoId, skipping DELETE");
     }
   };
 })();

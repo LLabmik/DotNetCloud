@@ -314,6 +314,18 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
     }
 
     /// <inheritdoc />
+    public void CancelTranscode(Guid videoId, Guid userId)
+    {
+        var job = _jobTracker.GetActiveJob(videoId, userId);
+        _logger.LogInformation("CancelTranscode(video={VideoId}, user={UserId}) — job found: {Found}", videoId, userId, job is not null);
+        if (job is not null)
+        {
+            _logger.LogInformation("Cancelling job {JobId} for video {VideoId}", job.Id, videoId);
+            _processManager.CancelJob(job.Id);
+        }
+    }
+
+    /// <inheritdoc />
     public async Task<(string JobId, string OutputDir, string PlaylistPath)> TranscodeHlsAsync(
         Guid videoId,
         Guid userId,

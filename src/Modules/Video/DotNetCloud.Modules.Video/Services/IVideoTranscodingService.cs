@@ -93,6 +93,11 @@ public interface IVideoTranscodingService
     void CancelTranscode(string jobId);
 
     /// <summary>
+    /// Cancels the active transcode job for the given video and user, if any.
+    /// </summary>
+    void CancelTranscode(Guid videoId, Guid userId);
+
+    /// <summary>
     /// Starts an HLS (HTTP Live Streaming) transcode for a video file.
     /// Transcodes to H.264/AAC segmented into .ts files with an .m3u8 playlist.
     /// ffmpeg writes self-contained 6-second segments immediately, so the caller

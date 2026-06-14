@@ -190,7 +190,7 @@ public partial class VideoPage : IAsyncDisposable
                 {
                     // Load hls.js normally (not affected by the static assets bug)
                     await Js.InvokeVoidAsync("eval",
-                        "(function(){if(document.getElementById('dnc-hls'))return;var s=document.createElement('script');s.src='/_content/DotNetCloud.Modules.Video/hls.min.js';s.id='dnc-hls';s.onload=function(){var s2=document.createElement('script');s2.src='/api/v1/videos/video-player-js';s2.id='dnc-vp';document.head.appendChild(s2);};document.head.appendChild(s);})();");
+                        "(function(){var e=document.getElementById('dnc-hls');if(e)e.remove();e=document.getElementById('dnc-vp');if(e)e.remove();var s=document.createElement('script');s.src='/_content/DotNetCloud.Modules.Video/hls.min.js';s.id='dnc-hls';s.onload=function(){var s2=document.createElement('script');s2.src='/api/v1/videos/video-player-js?_='+Date.now();s2.id='dnc-vp';document.head.appendChild(s2);};document.head.appendChild(s);})();");
                     await Task.Delay(500);
                     _scriptsLoaded = true;
                 }
@@ -756,6 +756,7 @@ public partial class VideoPage : IAsyncDisposable
 
     private async Task ClosePlayer()
     {
+        var closingVideoId = _playerVideo?.Id;
         _playerOpen = false;
         _playerVideo = null;
         _playerMetadata = null;
@@ -770,7 +771,7 @@ public partial class VideoPage : IAsyncDisposable
         // Tear down HLS player and UI handlers
         try
         {
-            await Js.InvokeVoidAsync("DotNetCloudVideo.cancelStreamProgress", "player-container");
+            await Js.InvokeVoidAsync("DotNetCloudVideo.cancelStreamProgress", closingVideoId?.ToString());
             await Js.InvokeVoidAsync("DotNetCloudVideo.destroyHlsPlayer", "video-player");
             await Js.InvokeVoidAsync("DotNetCloudVideo.disposeIdleAutoHide", "player-container");
             await Js.InvokeVoidAsync("DotNetCloudVideo.disposeKeyboardShortcuts", "video-player");
@@ -1838,6 +1839,7 @@ public partial class VideoPage : IAsyncDisposable
 
         try
         {
+            await Js.InvokeVoidAsync("DotNetCloudVideo.cancelStreamProgress", _playerVideo?.Id.ToString());
             await Js.InvokeVoidAsync("DotNetCloudVideo.destroyHlsPlayer", "video-player");
             await Js.InvokeVoidAsync("DotNetCloudVideo.disposeIdleAutoHide", "player-container");
             await Js.InvokeVoidAsync("DotNetCloudVideo.disposeKeyboardShortcuts", "video-player");

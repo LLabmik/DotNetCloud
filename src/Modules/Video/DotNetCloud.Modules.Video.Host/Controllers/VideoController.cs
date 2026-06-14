@@ -929,6 +929,24 @@ public class VideoController : VideoControllerBase
         return Ok(Envelope(new { cancelled = true }));
     }
 
+    /// <summary>Cancels any active stream preparation for a video (e.g. when user closes player).</summary>
+    [HttpPost("cancel-stream/{videoId:guid}")]
+    public IActionResult CancelStreamPrep(Guid videoId)
+    {
+        try
+        {
+            var caller = GetAuthenticatedCaller();
+            _transcodingService.CancelTranscode(videoId, caller.UserId);
+            _streamProgress.Remove(videoId);
+            return Ok(Envelope(new { cancelled = true }));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "CancelStreamPrep failed for video {VideoId}", videoId);
+            return StatusCode(500, ErrorEnvelope("CANCEL_FAILED", ex.Message));
+        }
+    }
+
     private static bool IsSafeHlsRelativePath(string path)
     {
         if (string.IsNullOrWhiteSpace(path))
