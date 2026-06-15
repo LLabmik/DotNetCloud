@@ -772,7 +772,8 @@ public class VideoController : VideoControllerBase
             if (waitResult == HlsWaitResult.Timeout)
             {
                 _streamProgress.Remove(videoId);
-                _transcodingService.CancelTranscode(jobId);
+                // Do NOT cancel the transcode — ffmpeg is still producing segments.
+                // On retry, the existing job is reused and segments are ready.
                 _logger.LogError("HLS transcode job {JobId} timed out waiting for segments", jobId);
                 return StatusCode(504, ErrorEnvelope("TRANSCODE_TIMEOUT",
                     "HLS transcode did not produce segments within 30 seconds."));
@@ -791,7 +792,9 @@ public class VideoController : VideoControllerBase
             _logger.LogInformation("StreamVideo: HLS playlist ready for {VideoId}, serving {PlaylistPath}",
                 videoId, playlistPath);
 
-            // Serve the .m3u8 playlist — browser/HLS player will request segments
+            // Serve the .m3u8 playlist — browser/HLS player will request segments.
+            // no-cache is critical: hls.js must re-fetch the playlist as new segments appear.
+            HttpContext.Response.Headers["Cache-Control"] = "no-cache";
             return PhysicalFile(playlistPath, "application/vnd.apple.mpegurl");
         }
         catch (Exception ex)

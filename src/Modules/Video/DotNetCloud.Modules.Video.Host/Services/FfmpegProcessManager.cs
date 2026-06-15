@@ -21,6 +21,7 @@ public sealed class FfmpegProcessManager : IDisposable
     private readonly ILogger<FfmpegProcessManager> _logger;
     private readonly SemaphoreSlim _concurrencyGate;
     private readonly ConcurrentDictionary<string, TranscodingJob> _activeJobs = new();
+    private readonly ConcurrentDictionary<string, CancellationTokenSource> _jobCts = new();
 
     // Regex to parse "time=HH:MM:SS.MS" from ffmpeg stderr
     private static readonly Regex TimeRegex = new(
@@ -62,10 +63,19 @@ public sealed class FfmpegProcessManager : IDisposable
         TimeSpan totalDuration,
         CancellationToken cancellationToken = default)
     {
-        await _concurrencyGate.WaitAsync(cancellationToken);
+        // Create a per-job CTS so CancelJob() can unblock us.
+        // Linked token combines the caller's token + the per-job token.
+        var perJobCts = new CancellationTokenSource();
+        _jobCts[job.Id] = perJobCts;
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken, perJobCts.Token);
 
+        bool semaphoreAcquired = false;
         try
         {
+            await _concurrencyGate.WaitAsync(linkedCts.Token);
+            semaphoreAcquired = true;
+
             _activeJobs[job.Id] = job;
             job.Status = TranscodingJobStatus.Running;
 
@@ -107,8 +117,8 @@ public sealed class FfmpegProcessManager : IDisposable
             // Read stdout to prevent buffer deadlock (ffmpeg may write to stdout)
             _ = ConsumeStdoutAsync(process);
 
-            // Wait for exit or cancellation
-            using var ctr = cancellationToken.Register(() =>
+            // Wait for exit or cancellation (from either the caller's token or CancelJob)
+            using var ctr = linkedCts.Token.Register(() =>
             {
                 _logger.LogInformation("Cancelling ffmpeg job {JobId}", job.Id);
                 SendGracefulQuit(process);
@@ -116,7 +126,7 @@ public sealed class FfmpegProcessManager : IDisposable
 
             try
             {
-                await process.WaitForExitAsync(cancellationToken);
+                await process.WaitForExitAsync(linkedCts.Token);
             }
             catch (OperationCanceledException)
             {
@@ -158,21 +168,77 @@ public sealed class FfmpegProcessManager : IDisposable
         }
         finally
         {
+            _jobCts.TryRemove(job.Id, out _);
             _activeJobs.TryRemove(job.Id, out _);
-            _concurrencyGate.Release();
+            if (semaphoreAcquired)
+                _concurrencyGate.Release();
         }
     }
 
     /// <summary>
-    /// Cancels a running transcode job by marking it cancelled.
-    /// The next ffmpeg process exit check will handle the actual process.
+    /// Cancels a running transcode job by cancelling its CTS (which triggers
+    /// graceful quit → force kill inside RunAsync) AND directly killing the
+    /// ffmpeg process by PID as a belt-and-suspenders fallback.
     /// </summary>
     public void CancelJob(string jobId)
     {
+        var sanitizedId = SanitizeForLog(jobId);
+
+        // 1. Cancel the per-job CTS — unblocks RunAsync which sends 'q' + force-kills
+        if (_jobCts.TryRemove(jobId, out var cts))
+        {
+            try
+            {
+                cts.Cancel();
+                _logger.LogInformation("Transcode job {JobId}: CTS cancelled for graceful shutdown", sanitizedId);
+            }
+            catch (ObjectDisposedException)
+            {
+                // CTS already disposed (RunAsync completed) — no action needed
+            }
+        }
+
+        // 2. Direct kill by PID (belt-and-suspenders — catches any edge case
+        //    where the CTS didn't propagate, e.g. process stuck in D state)
         if (_activeJobs.TryGetValue(jobId, out var job))
         {
             job.Status = TranscodingJobStatus.Cancelled;
-            _logger.LogInformation("Transcode job {JobId} marked as cancelled", SanitizeForLog(jobId));
+            KillProcessByPid(job.ProcessId, jobId);
+        }
+    }
+
+    /// <summary>
+    /// Kills a process by PID. Handles all common failure modes silently
+    /// (process already exited, PID recycled, permission denied).
+    /// </summary>
+    private void KillProcessByPid(int pid, string jobId)
+    {
+        if (pid <= 0)
+            return;
+
+        try
+        {
+            var process = Process.GetProcessById(pid);
+            if (!process.HasExited)
+            {
+                _logger.LogWarning("Direct-killing ffmpeg process pid={Pid} for job {JobId}", pid, jobId);
+                process.Kill(entireProcessTree: true);
+                _logger.LogInformation("Direct-killed ffmpeg process pid={Pid} for job {JobId}", pid, jobId);
+            }
+        }
+        catch (ArgumentException)
+        {
+            // Process already exited (PID no longer exists)
+            _logger.LogDebug("ffmpeg process pid={Pid} already exited (job {JobId})", pid, jobId);
+        }
+        catch (InvalidOperationException)
+        {
+            // Process already exited (HasExited would be true, or can't access)
+            _logger.LogDebug("ffmpeg process pid={Pid} already exited (job {JobId})", pid, jobId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to kill ffmpeg process pid={Pid} for job {JobId}", pid, jobId);
         }
     }
 
