@@ -32,7 +32,7 @@ public sealed class StreamCompatibilityMatrix
     /// </summary>
     private static readonly HashSet<string> UniversalAudioCodecs = new(StringComparer.OrdinalIgnoreCase)
     {
-        "aac", "mp3", "mp4a"
+        "aac", "mp4a"
     };
 
     /// <summary>

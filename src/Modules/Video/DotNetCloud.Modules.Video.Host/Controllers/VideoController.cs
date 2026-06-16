@@ -1064,11 +1064,13 @@ public class VideoController : VideoControllerBase
     {
         var tcs = new TaskCompletionSource<HlsWaitResult>();
         using var ctr = ct.Register(() => tcs.TrySetResult(HlsWaitResult.Cancelled));
-        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(90));
         using var timeoutCtr = timeoutCts.Token.Register(() => tcs.TrySetResult(HlsWaitResult.Timeout));
         var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
 
-        // Background poller: checks job status (ffmpeg may fail silently)
+        // Background poller: checks job status (ffmpeg may fail silently) and segment readiness.
+        // FileSystemWatcher only fires on playlist Created, which can happen before segments appear.
+        // The poller catches the gap when playlist exists but < 2 segments exist yet.
         _ = Task.Run(async () =>
         {
             try
@@ -1078,7 +1080,12 @@ public class VideoController : VideoControllerBase
                     await Task.Delay(500, linkedCts.Token);
                     var job = _transcodingService.GetProgress(jobId);
                     if (job?.Status == TranscodingJobStatus.Failed)
+                    {
                         tcs.TrySetResult(HlsWaitResult.Failed);
+                        return;
+                    }
+                    if (HasMinSegments(outputDir))
+                        tcs.TrySetResult(HlsWaitResult.Ready);
                 }
             }
             catch (OperationCanceledException) { /* Expected */ }

@@ -339,15 +339,23 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
         var hlsLock = await _jobTracker.AcquireHlsLockAsync(videoId);
         if (hlsLock is null)
         {
-            // Another request beat us to creating the job — use theirs
+            // Another request beat us to creating the job — use theirs if still viable
             var existingJob = _jobTracker.GetActiveHlsJob(videoId);
-            if (existingJob is not null)
+            if (existingJob is not null && IsJobReusable(existingJob, videoId))
             {
                 _logger.LogDebug("Reusing HLS transcode job {JobId} created by concurrent request for video {VideoId}", existingJob.Id, videoId);
                 var existingDir = Path.GetDirectoryName(existingJob.OutputPath)
                                   ?? Path.Combine(GetHlsRootDir(), $"hls-{videoId:N}");
                 var existingPlaylist = Path.Combine(existingDir, "playlist.m3u8");
                 return (existingJob.Id, existingDir, existingPlaylist);
+            }
+
+            // Existing job is dead or missing — clean up and create a new one
+            if (existingJob is not null)
+            {
+                _logger.LogWarning("HLS transcode job {JobId} for video {VideoId} is stale (status={Status}), replacing",
+                    existingJob.Id, videoId, existingJob.Status);
+                StaleJobCleanup(existingJob, videoId);
             }
 
             // Lock timed out (30s) — extremely rare, fall back to lock-free creation
@@ -363,13 +371,21 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
         {
             // Double-check inside the lock
             var existingJob = _jobTracker.GetActiveHlsJob(videoId);
-            if (existingJob is not null)
+            if (existingJob is not null && IsJobReusable(existingJob, videoId))
             {
                 _logger.LogDebug("Reusing existing HLS transcode job {JobId} for video {VideoId}", existingJob.Id, videoId);
                 var existingDir = Path.GetDirectoryName(existingJob.OutputPath)
                                   ?? Path.Combine(GetHlsRootDir(), $"hls-{videoId:N}");
                 var existingPlaylist = Path.Combine(existingDir, "playlist.m3u8");
                 return (existingJob.Id, existingDir, existingPlaylist);
+            }
+
+            // Existing job is dead — clean it up before creating a new one
+            if (existingJob is not null)
+            {
+                _logger.LogWarning("HLS transcode job {JobId} for video {VideoId} is stale (status={Status}), replacing",
+                    existingJob.Id, videoId, existingJob.Status);
+                StaleJobCleanup(existingJob, videoId);
             }
 
             // Create fresh HLS output directory (delete stale files from previous transcode)
@@ -445,6 +461,82 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
         await LaunchFfmpegAsync(job, sourceFilePath, actualOutputDir, actualPlaylistPath, sourceVideoCodec, sourceAudioCodec, ct);
 
         return (job.Id, actualOutputDir, actualPlaylistPath);
+    }
+
+    /// <summary>
+    /// Determines whether an existing HLS transcode job is still viable for reuse.
+    /// A job is reusable if it is still running and has produced at least one .ts segment file.
+    /// Dead (Failed/Completed/Cancelled) jobs and jobs with empty output directories are treated as stale.
+    /// </summary>
+    private bool IsJobReusable(TranscodingJob job, Guid videoId)
+    {
+        if (job.Status != TranscodingJobStatus.Running)
+        {
+            _logger.LogDebug("HLS job {JobId} for video {VideoId} not reusable: status={Status}",
+                job.Id, videoId, job.Status);
+            return false;
+        }
+
+        if (string.IsNullOrEmpty(job.OutputPath))
+        {
+            _logger.LogDebug("HLS job {JobId} for video {VideoId} not reusable: no output path",
+                job.Id, videoId);
+            return false;
+        }
+
+        var outputDir = Path.GetDirectoryName(job.OutputPath);
+        if (string.IsNullOrEmpty(outputDir) || !Directory.Exists(outputDir))
+        {
+            _logger.LogDebug("HLS job {JobId} for video {VideoId} not reusable: output dir missing",
+                job.Id, videoId);
+            return false;
+        }
+
+        // At least one .ts segment must exist — an empty dir means ffmpeg never produced output
+        var hasSegments = Directory.EnumerateFiles(outputDir, "*.ts").Any();
+        if (!hasSegments)
+        {
+            _logger.LogDebug("HLS job {JobId} for video {VideoId} not reusable: no .ts segments in output dir",
+                job.Id, videoId);
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Cleans up a stale HLS transcode job and its output directory.
+    /// Called when a retry discovers a dead/empty job that must be replaced.
+    /// </summary>
+    private void StaleJobCleanup(TranscodingJob job, Guid videoId)
+    {
+        // Cancel the ffmpeg process if it's still running (unlikely but safe)
+        try
+        {
+            _processManager.CancelJob(job.Id);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Error cancelling stale HLS job {JobId} for video {VideoId}", job.Id, videoId);
+        }
+
+        // Clean up the output directory
+        if (!string.IsNullOrEmpty(job.OutputPath))
+        {
+            var outputDir = Path.GetDirectoryName(job.OutputPath);
+            if (!string.IsNullOrEmpty(outputDir) && Directory.Exists(outputDir))
+            {
+                try
+                {
+                    Directory.Delete(outputDir, recursive: true);
+                    _logger.LogDebug("Cleaned up stale HLS output dir {Dir} for job {JobId}", outputDir, job.Id);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to clean stale HLS dir {Dir} for job {JobId}", outputDir, job.Id);
+                }
+            }
+        }
     }
 
     /// <summary>
