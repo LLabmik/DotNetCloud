@@ -7,6 +7,7 @@
 #   sudo ./scripts/deploy.sh --config Debug      # Build configuration
 #   sudo ./scripts/deploy.sh --skip-modules "About,AI"    # Skip specific modules
 #   sudo ./scripts/deploy.sh --skip-stop         # Don't restart the service
+#   sudo ./scripts/deploy.sh --skip-build        # Skip build step (publish existing build output)
 #   sudo ./scripts/deploy.sh --dry-run           # Show what would happen
 #   sudo ./scripts/deploy.sh --verify            # Hash-check assemblies after deploy
 #   sudo ./scripts/deploy.sh --help              # This help
@@ -64,6 +65,7 @@ CONFIG="Release"
 FORCE=false
 SKIP_MODULES=""
 SKIP_STOP=false
+SKIP_BUILD=false
 DRY_RUN=false
 VERIFY=false
 
@@ -79,6 +81,7 @@ while [ $# -gt 0 ]; do
         --skip-modules) SKIP_MODULES="$2"; shift 2 ;;
         --skip-modules=*) SKIP_MODULES="${1#*=}"; shift ;;
         --skip-stop)   SKIP_STOP=true; shift ;;
+        --skip-build)  SKIP_BUILD=true; shift ;;
         --dry-run)     DRY_RUN=true; shift ;;
         --verify)      VERIFY=true; shift ;;
         --help|-h)     head -30 "$0" | grep '^#' | sed 's/^# \?//'; exit 0 ;;
@@ -289,6 +292,7 @@ echo "╚═══════════════════════�
 echo "  Config:   $CONFIG"
 echo "  Mode:     $([ "$FORCE" = true ] && echo 'FULL (--force)' || echo 'Incremental')"
 $DRY_RUN && echo "  DRY RUN:  No changes will be applied"
+$SKIP_BUILD && echo "  Build:    skipped (--skip-build)"
 [ -n "$SKIP_MODULES" ] && echo "  Skip:     $SKIP_MODULES"
 echo ""
 
@@ -437,11 +441,17 @@ fi
 # ============================================================================
 START_TIME=$(date +%s)
 
-step "Building..."
-if $FULL_BUILD; then
+if $SKIP_BUILD; then
+    log "  (--skip-build, using existing build output)"
+    # When skipping the build, force full publish of all modules (we can't
+    # determine what changed without diffing build timestamps).
+    FULL_BUILD=true
+elif $FULL_BUILD; then
+    step "Building..."
     log "  Building solution filter (full)..."
     do_build "$REPO_ROOT/DotNetCloud.CI.slnf"
 else
+    step "Building..."
     BUILD_TARGETS=()
     HAS_DATA_CHANGES=false
     HAS_MODULE_LIB_CHANGES=false

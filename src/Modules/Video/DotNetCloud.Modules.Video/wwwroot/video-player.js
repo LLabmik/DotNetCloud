@@ -30,52 +30,15 @@
         var err = video.error;
         if (!err) return;
 
-        var httpStatus = null;
-        var httpStatusText = "";
-        try {
-          fetch(video.src, { method: "GET" })
-            .then(function (resp) {
-              httpStatus = resp.status;
-              // Try to read the response body for server error details
-              return resp
-                .text()
-                .then(function (body) {
-                  httpStatusText = body || resp.statusText || "";
-                  // Truncate long bodies
-                  if (httpStatusText.length > 500)
-                    httpStatusText = httpStatusText.substring(0, 500) + "...";
-                  dotNetRef.invokeMethodAsync(
-                    "OnVideoError",
-                    err.code,
-                    err.message || "",
-                    httpStatus,
-                    httpStatusText,
-                  );
-                })
-                .catch(function () {
-                  httpStatusText = resp.statusText || "";
-                  dotNetRef.invokeMethodAsync(
-                    "OnVideoError",
-                    err.code,
-                    err.message || "",
-                    httpStatus,
-                    httpStatusText,
-                  );
-                });
-            })
-            .catch(function (fetchErr) {
-              dotNetRef.invokeMethodAsync(
-                "OnVideoError",
-                err.code,
-                err.message || "",
-                0,
-                fetchErr.message || "fetch failed",
-              );
-            });
-          return;
-        } catch (e) {
-          /* ignore */
-        }
+        // MEDIA_ERR_SRC_NOT_SUPPORTED is expected when the stream URL returns
+        // an .m3u8 playlist (HLS strategy). The browser can't play it natively,
+        // but hls.js will handle it as soon as the stream is ready. Don't
+        // report this error — it's not a real failure.
+        if (videoPlayer._expectingHlsResponse) return;
+        if (video._hls) return;
+
+        // Report the error directly without fetching the stream URL.
+        // The fetch would start an unnecessary duplicate server pipeline.
         dotNetRef.invokeMethodAsync(
           "OnVideoError",
           err.code,
@@ -220,32 +183,107 @@
 
     // If videoId is provided, show progress overlay and poll for readiness
     if (videoId) {
-      // Trigger the stream pipeline first
       video.preload = "auto";
 
-      // Show progress overlay (starts polling immediately)
+      // Show progress overlay (starts polling immediately).
+      // The progress JSON includes the "strategy" field, so when the stream
+      // is ready we already know whether to use native <video> or hls.js.
+      // This eliminates the wasteful HEAD request that used to start a
+      // second server-side pipeline.
       videoPlayer
         .showStreamProgress("player-stream-progress-area", videoId)
-        .then(function () {
-          // Server says stream is ready
-          playStream(video, streamUrl, dotNetRef);
+        .then(function (strategy) {
+          console.log(
+            "DNC: stream ready, strategy=" +
+              strategy +
+              ", video=" +
+              (video ? "found" : "null"),
+          );
+          try {
+            playStream(video, streamUrl, dotNetRef, strategy);
+          } catch (e) {
+            console.error("DNC: playStream threw", e);
+          }
         })
         .catch(function (err) {
           console.error("DotNetCloud Video: Stream preparation failed", err);
         });
 
-      // Trigger GET request after a short delay (lets progress poll start first)
-      setTimeout(function () {
-        video.src = streamUrl;
-      }, 100);
+      // The Razor markup already sets video.src on the <video> element
+      // via the src attribute, so the pipeline is already started.
+      // Just set the guard flag for expected HLS errors.
+      videoPlayer._expectingHlsResponse = true;
       return;
     }
 
     // Legacy mode: no progress polling, play immediately
     playStream(video, streamUrl, dotNetRef);
 
-    function playStream(video, streamUrl, dotNetRef) {
-      // Native HLS (Safari)
+    /**
+     * Sets up playback once the stream strategy is known.
+     * @param {HTMLElement} video - The <video> element.
+     * @param {string} streamUrl - The stream endpoint URL.
+     * @param {object=} dotNetRef - Optional .NET reference for callbacks.
+     * @param {string=} strategy - "direct", "remux", or "transcode". When
+     *   provided (4-arg mode), skips the wasteful HEAD request. In legacy
+     *   2-arg mode, strategy is undefined and we fall back to a HEAD fetch.
+     */
+    function playStream(video, streamUrl, dotNetRef, strategy) {
+      // If strategy is known (4-arg mode from progress polling), handle it
+      // directly. MUST clear the HLS guard flag BEFORE any early return.
+      if (strategy) {
+        // We now know the actual strategy — clear the HLS guard flag
+        videoPlayer._expectingHlsResponse = false;
+
+        if (dotNetRef) {
+          dotNetRef
+            .invokeMethodAsync("OnStreamStrategy", strategy)
+            .catch(function () {});
+        }
+
+        var stratLower = strategy.toLowerCase();
+        if (stratLower === "direct" || stratLower === "remux") {
+          // video.src was already set by the Razor markup.
+          // The response is a playable MP4 — just start playback.
+          video.play().catch(function () {});
+          return;
+        }
+
+        if (stratLower === "transcode") {
+          // The existing <video> element is in error state from trying to
+          // play the .m3u8 natively. Create a fresh <video> element to
+          // replace it, avoiding the persistent MSE/blob error state.
+          var oldVideo = video;
+          var parent = oldVideo.parentNode;
+          if (parent) {
+            var newVideo = document.createElement("video");
+            newVideo.id = oldVideo.id;
+            newVideo.className = oldVideo.className;
+            newVideo.controls = oldVideo.controls;
+            newVideo.autoplay = oldVideo.autoplay;
+            newVideo.preload = oldVideo.preload;
+            newVideo.poster = oldVideo.poster;
+            // Copy any track elements
+            var tracks = oldVideo.querySelectorAll("track");
+            for (var t = 0; t < tracks.length; t++) {
+              newVideo.appendChild(tracks[t].cloneNode());
+            }
+            parent.replaceChild(newVideo, oldVideo);
+            video = newVideo;
+          }
+          useHls(video, streamUrl);
+          return;
+        }
+
+        // Unknown strategy — fall through to fallback path
+      }
+
+      // Legacy / fallback: HEAD fetch to detect strategy.
+      // Only reaches here in 2-arg (legacy) mode or if strategy is unknown.
+      videoPlayer._expectingHlsResponse = false;
+
+      // Native HLS (Safari) — only reachable in legacy/fallback mode since
+      // the 4-arg mode with a known strategy is handled above.
       if (
         video.canPlayType &&
         video.canPlayType("application/vnd.apple.mpegurl")
@@ -255,24 +293,23 @@
         return;
       }
 
-      // Try HEAD to detect strategy
       fetch(streamUrl, { method: "HEAD" })
         .then(function (resp) {
           var contentType = resp.headers.get("Content-Type") || "";
-          var strategy = resp.headers.get("X-Stream-Strategy") || "";
+          var detected = resp.headers.get("X-Stream-Strategy") || "";
 
-          if (dotNetRef && strategy) {
+          if (dotNetRef && detected) {
             dotNetRef
-              .invokeMethodAsync("OnStreamStrategy", strategy)
+              .invokeMethodAsync("OnStreamStrategy", detected)
               .catch(function () {});
           }
 
-          // Direct play or remuxed MP4 — native video
           if (
             contentType.indexOf("video/mp4") !== -1 ||
-            strategy === "direct" ||
-            strategy === "remux"
+            detected === "direct" ||
+            detected === "remux"
           ) {
+            video.src = streamUrl;
             video.play().catch(function () {});
             return;
           }
@@ -281,7 +318,6 @@
           useHls(video, streamUrl);
         })
         .catch(function () {
-          // HEAD failed — try HLS.js
           if (typeof Hls !== "undefined" && Hls.isSupported()) {
             useHls(video, streamUrl);
           } else {
@@ -395,8 +431,20 @@
     };
 
     return new Promise(function (resolve, reject) {
+      // Safety timeout: if stream preparation doesn't complete within 60 seconds,
+      // try playing anyway. The stream may have completed and the progress entry
+      // was already cleaned up (e.g. pre-existing HLS found by FindExistingHlsOutput).
+      var timeoutId = setTimeout(function () {
+        cancelled = true;
+        bar.remove();
+        // Try resolving with "transcode" as a guess — if it's wrong, the
+        // playStream fallback will handle it.
+        resolve("transcode");
+      }, 60000);
+
       var poll = function () {
         if (cancelled) {
+          clearTimeout(timeoutId);
           bar.remove();
           reject(new Error("Cancelled"));
           return;
@@ -417,11 +465,13 @@
             if (barFill) barFill.style.width = Math.min(100, percent) + "%";
 
             if (stage === "streaming") {
+              clearTimeout(timeoutId);
               setTimeout(function () {
                 bar.remove();
               }, 300);
-              resolve();
+              resolve(d.strategy || "direct");
             } else if (stage === "failed") {
+              clearTimeout(timeoutId);
               if (messageEl)
                 messageEl.textContent =
                   "Failed: " + (message || "Unknown error");
@@ -435,6 +485,10 @@
             }
           })
           .catch(function (err) {
+            // Don't clear timeout here — the safety timeout is our only
+            // fallback if the progress endpoint returns "unknown" forever
+            // (e.g. the pipeline completed before the first poll and the
+            // progress entry was cleaned up). Just retry.
             if (cancelled) return;
             if (messageEl) messageEl.textContent = "Connecting to server\u2026";
             setTimeout(poll, 1000);

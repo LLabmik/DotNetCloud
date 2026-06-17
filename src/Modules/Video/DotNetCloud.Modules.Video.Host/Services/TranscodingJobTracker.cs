@@ -71,13 +71,15 @@ public sealed class TranscodingJobTracker
     /// <summary>
     /// Gets an active (running or queued) HLS transcode job for a video, regardless of user.
     /// Used by the HLS segment endpoint to find the output directory.
+    /// Also returns completed jobs so that subsequent requests can reuse them
+    /// instead of starting a redundant transcode.
     /// </summary>
     public TranscodingJob? GetActiveHlsJob(Guid videoId)
     {
         return _jobs.Values.FirstOrDefault(j =>
             j.VideoId == videoId &&
             j.IsHls &&
-            (j.Status == TranscodingJobStatus.Queued || j.Status == TranscodingJobStatus.Running));
+            (j.Status == TranscodingJobStatus.Queued || j.Status == TranscodingJobStatus.Running || j.Status == TranscodingJobStatus.Completed));
     }
 
     /// <summary>
@@ -97,11 +99,12 @@ public sealed class TranscodingJobTracker
             return null;
         }
 
-        // Double-check: another request might have created a job while we were waiting
+        // Double-check: another request might have created a job while we were waiting.
+        // Also check for completed jobs to avoid re-transcoding already-done work.
         var existing = _jobs.Values.FirstOrDefault(j =>
             j.VideoId == videoId &&
             j.IsHls &&
-            (j.Status == TranscodingJobStatus.Queued || j.Status == TranscodingJobStatus.Running));
+            (j.Status == TranscodingJobStatus.Queued || j.Status == TranscodingJobStatus.Running || j.Status == TranscodingJobStatus.Completed));
 
         if (existing is not null)
         {

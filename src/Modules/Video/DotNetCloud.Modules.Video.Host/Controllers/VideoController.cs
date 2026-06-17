@@ -465,6 +465,11 @@ public class VideoController : VideoControllerBase
     [HttpGet("{videoId:guid}/stream-progress")]
     public IActionResult GetStreamProgress(Guid videoId)
     {
+        // Periodically clean up stale entries (entries > 5 minutes old).
+        // These accumulate when we intentionally skip removal on Response.OnCompleted
+        // so the JS polling can still find them after a fast pipeline completes.
+        _streamProgress.RemoveStaleEntries(TimeSpan.FromMinutes(5));
+
         var entry = _streamProgress.Get(videoId);
         if (entry is null)
         {
@@ -617,7 +622,7 @@ public class VideoController : VideoControllerBase
         Directory.CreateDirectory(tempSourceDir);
 
         // Background cleanup of temp files older than 24 hours
-        _ = Task.Run(() => CleanupOldTempFiles(tempSourceDir, TimeSpan.FromHours(24)));
+        _ = Task.Run(() => CleanupOldTempFiles(tempSourceDir, Path.Combine(Path.GetTempPath(), "dotnetcloud-hls"), TimeSpan.FromHours(24), _logger));
 
         var sourcePath = Path.Combine(tempSourceDir, $"source-{videoId:N}");
 
@@ -673,9 +678,13 @@ public class VideoController : VideoControllerBase
                     return Task.CompletedTask;
                 });
 
+                // NOTE: Do NOT remove progress entry here. The JS showStreamProgress()
+                // polls this endpoint and needs to find the entry with stage=Streaming.
+                // If the pipeline completes before the first poll, the entry is gone and
+                // the loading overlay stays forever. Let RemoveStaleEntries handle cleanup.
+
                 HttpContext.Response.OnCompleted(async () =>
                 {
-                    _streamProgress.Remove(videoId);
                     if (fileStream is FileStream fs)
                         await fs.DisposeAsync();
                 });
@@ -736,11 +745,24 @@ public class VideoController : VideoControllerBase
             progress.Message = "Preparing stream (transcoding)…";
             progress.Percent = 90;
 
+            // Use CancellationToken.None for the ffmpeg transcode so it survives
+            // past the HTTP response. Do NOT create a CTS here — C# 'using' disposes
+            // the CTS when StreamVideo returns (after sending the playlist), which
+            // calls Cancel() on the token. That sends 'q' to ffmpeg's stdin via the
+            // registered callback in FfmpegProcessManager.RunAsync, causing ffmpeg
+            // to gracefully stop after only a few segments. ffmpeg must run to
+            // completion independently of the HTTP request lifetime.
+            // We still use a CTS for error-path cancellation (client disconnect
+            // before playlist is ready), but it's NOT disposed here — it's captured
+            // by the error handlers and allowed to be GC'd naturally.
+            var transcodeCts = new CancellationTokenSource();
+            var transcodeCt = transcodeCts.Token;
+
             var (jobId, outputDir, playlistPath) = await _transcodingService.TranscodeHlsAsync(
                 videoId, userId, sourcePath, mimeType,
                 sourceVideoCodec: videoCodec,
                 sourceAudioCodec: audioCodec,
-                ct: HttpContext.RequestAborted);
+                ct: transcodeCt);
 
             _logger.LogInformation("StreamVideo: HLS transcode job {JobId} started, playlist={PlaylistPath}",
                 jobId, playlistPath);
@@ -755,6 +777,7 @@ public class VideoController : VideoControllerBase
 
             if (waitResult == HlsWaitResult.Cancelled)
             {
+                transcodeCts.Cancel();
                 _streamProgress.Remove(videoId);
                 _transcodingService.CancelTranscode(jobId);
                 return StatusCode(499, ErrorEnvelope("cancelled", "Client disconnected."));
@@ -762,6 +785,7 @@ public class VideoController : VideoControllerBase
 
             if (waitResult == HlsWaitResult.Failed)
             {
+                transcodeCts.Cancel();
                 _streamProgress.Remove(videoId);
                 var checkJob = _transcodingService.GetProgress(jobId);
                 _logger.LogError("HLS transcode job {JobId} failed: {Error}", jobId, checkJob?.ErrorMessage);
@@ -771,6 +795,7 @@ public class VideoController : VideoControllerBase
 
             if (waitResult == HlsWaitResult.Timeout)
             {
+                transcodeCts.Cancel();
                 _streamProgress.Remove(videoId);
                 // Do NOT cancel the transcode — ffmpeg is still producing segments.
                 // On retry, the existing job is reused and segments are ready.
@@ -779,23 +804,45 @@ public class VideoController : VideoControllerBase
                     "HLS transcode did not produce segments within 30 seconds."));
             }
 
+            // ffmpeg is now running and producing segments — do NOT cancel it.
+            // The transcodeCts is intentionally not disposed here (no 'using') so
+            // the token stays uncancelled. C# disposing a CancellationTokenSource
+            // calls Cancel(), which sends 'q' to ffmpeg's stdin via the registered
+            // callback in FfmpegProcessManager — causing ffmpeg to write ENDLIST
+            // and exit after only a few segments. The transcodeCts will be GC'd
+            // naturally when no longer referenced. ffmpeg's background task in
+            // LaunchFfmpegAsync handles cleanup after completion.
+
             progress.Stage = StreamProgressStage.Streaming;
             progress.Message = "Starting playback…";
             progress.Percent = 100;
 
-            HttpContext.Response.OnCompleted(() =>
-            {
-                _streamProgress.Remove(videoId);
-                return Task.CompletedTask;
-            });
+            // IMPORTANT: Do NOT remove the progress entry on Response.OnCompleted.
+            // The JS showStreamProgress() polls this endpoint, and when the pipeline
+            // completes instantly (e.g. FindExistingHlsOutput finds pre-completed HLS),
+            // OnCompleted fires BEFORE the JS polling even begins. Removing the entry
+            // causes the poll to always return {stage:"unknown"} — the promise never
+            // resolves, playStream() is never called, and hls.js is never initialized.
+            // The entry will be cleaned up when a new stream request overwrites it.
+            // A background cleanup runs periodically to remove stale entries.
 
             _logger.LogInformation("StreamVideo: HLS playlist ready for {VideoId}, serving {PlaylistPath}",
                 videoId, playlistPath);
 
+            // Read the playlist and rewrite segment paths to use the /stream/ prefix
+            // so hls.js resolves segments to the primary route:
+            //   /api/v1/videos/{id}/stream/segment_00000.ts
+            // instead of the fallback:
+            //   /api/v1/videos/{id}/segment_00000.ts
+            var playlistContent = await System.IO.File.ReadAllTextAsync(playlistPath, HttpContext.RequestAborted);
+            var rewrittenPlaylist = playlistContent.Replace(
+                "segment_",
+                "stream/segment_");
+
             // Serve the .m3u8 playlist — browser/HLS player will request segments.
             // no-cache is critical: hls.js must re-fetch the playlist as new segments appear.
             HttpContext.Response.Headers["Cache-Control"] = "no-cache";
-            return PhysicalFile(playlistPath, "application/vnd.apple.mpegurl");
+            return Content(rewrittenPlaylist, "application/vnd.apple.mpegurl");
         }
         catch (Exception ex)
         {
@@ -1023,25 +1070,50 @@ public class VideoController : VideoControllerBase
     }
 
     /// <summary>
-    /// Deletes files in the given directory older than the specified age.
-    /// Best-effort — failures are silently ignored.
+    /// Deletes files in the given directory and old HLS output directories
+    /// older than the specified age. Best-effort — failures are silently ignored.
     /// </summary>
-    private static void CleanupOldTempFiles(string directory, TimeSpan maxAge)
+    /// <param name="directory">Temp source file directory to clean.</param>
+    /// <param name="hlsRoot">HLS output root directory (may be null).</param>
+    /// <param name="maxAge">Maximum age before deletion.</param>
+    /// <param name="logger">Optional logger for diagnostics.</param>
+    private static void CleanupOldTempFiles(string directory, string? hlsRoot, TimeSpan maxAge, ILogger? logger = null)
     {
         try
         {
-            if (!Directory.Exists(directory))
-                return;
-
-            var cutoff = DateTime.UtcNow - maxAge;
-            foreach (var file in Directory.GetFiles(directory))
+            if (!string.IsNullOrEmpty(directory) && Directory.Exists(directory))
             {
-                try
+                var cutoff = DateTime.UtcNow - maxAge;
+                foreach (var file in Directory.GetFiles(directory))
                 {
-                    if (System.IO.File.GetLastWriteTimeUtc(file) < cutoff)
-                        System.IO.File.Delete(file);
+                    try
+                    {
+                        if (System.IO.File.GetLastWriteTimeUtc(file) < cutoff)
+                            System.IO.File.Delete(file);
+                    }
+                    catch { /* best effort per file */ }
                 }
-                catch { /* best effort per file */ }
+            }
+
+            // Clean old HLS output directories (completed transcodes). These
+            // accumulate over time and should be removed to free disk space.
+            if (!string.IsNullOrEmpty(hlsRoot) && Directory.Exists(hlsRoot))
+            {
+                var cutoff = DateTime.UtcNow - maxAge;
+                foreach (var dir in Directory.EnumerateDirectories(hlsRoot, "hls-*"))
+                {
+                    try
+                    {
+                        var lastWrite = Directory.GetLastWriteTimeUtc(dir);
+                        if (lastWrite < cutoff)
+                        {
+                            Directory.Delete(dir, recursive: true);
+                            logger?.LogDebug("Cleaned up old HLS directory: {Dir} (last modified {LastWrite})",
+                                dir, lastWrite);
+                        }
+                    }
+                    catch { /* best effort per directory */ }
+                }
             }
         }
         catch { /* best effort */ }

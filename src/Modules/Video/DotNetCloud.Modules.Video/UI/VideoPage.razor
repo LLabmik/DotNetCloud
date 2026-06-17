@@ -1258,7 +1258,8 @@
                                poster="@(_playerVideo.HasExternalPoster ? GetThumbnailUrl(_playerVideo.Id) : null)"
                                controls
                                autoplay
-                               preload="auto">
+                               preload="auto"
+                               src="@GetStreamUrl(_playerVideo!.Id)">
                             @if (_playerSubtitles.Count > 0)
                             {
                                 @foreach (var sub in _playerSubtitles)
