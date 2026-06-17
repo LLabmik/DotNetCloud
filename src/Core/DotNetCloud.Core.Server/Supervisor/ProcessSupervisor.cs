@@ -411,11 +411,6 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
                 if (args.Data is not null)
                     _logger.LogError("[{ModuleId}] STDERR: {Line}", SanitizeForLog(discovered.ModuleId), SanitizeForLog(args.Data));
             };
-            process.ErrorDataReceived += (_, args) =>
-            {
-                if (args.Data is not null)
-                    _logger.LogError("[{ModuleId}] STDERR: {Line}", SanitizeForLog(discovered.ModuleId), SanitizeForLog(args.Data));
-            };
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
 
