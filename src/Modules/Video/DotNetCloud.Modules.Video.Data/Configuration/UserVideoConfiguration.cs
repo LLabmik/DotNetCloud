@@ -16,6 +16,7 @@ public sealed class UserVideoConfiguration : IEntityTypeConfiguration<UserVideo>
         builder.HasKey(v => v.Id);
 
         builder.Property(v => v.CanonicalContentHash).IsRequired().HasMaxLength(64);
+        builder.Property(v => v.WatchPositionTicks).HasColumnName("watch_position_ticks");
         builder.Property(v => v.CreatedAt).IsRequired().HasDefaultValueSql("CURRENT_TIMESTAMP");
         builder.Property(v => v.UpdatedAt).IsRequired().HasDefaultValueSql("CURRENT_TIMESTAMP");
 

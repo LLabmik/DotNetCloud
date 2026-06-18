@@ -17,6 +17,7 @@ public sealed class VideoGrpcServiceImpl : VideoGrpcService.VideoGrpcServiceBase
     private readonly VideoCollectionService _collectionService;
     private readonly VideoStreamingService _streamingService;
     private readonly IVideoTranscodingService _transcodingService;
+    private readonly IWatchProgressService _watchProgressService;
     private readonly ILogger<VideoGrpcServiceImpl> _logger;
 
     /// <summary>
@@ -27,12 +28,14 @@ public sealed class VideoGrpcServiceImpl : VideoGrpcService.VideoGrpcServiceBase
         VideoCollectionService collectionService,
         VideoStreamingService streamingService,
         IVideoTranscodingService transcodingService,
+        IWatchProgressService watchProgressService,
         ILogger<VideoGrpcServiceImpl> logger)
     {
         _videoService = videoService;
         _collectionService = collectionService;
         _streamingService = streamingService;
         _transcodingService = transcodingService;
+        _watchProgressService = watchProgressService;
         _logger = logger;
     }
 
@@ -280,6 +283,61 @@ public sealed class VideoGrpcServiceImpl : VideoGrpcService.VideoGrpcServiceBase
     }
 
     // ── Mapping helpers ─────────────────────────────────────────────
+
+    // ── Watch Progress RPCs ──────────────────────────────────────────
+
+    /// <inheritdoc />
+    public override async Task<WatchProgressResponse> GetWatchProgress(GetWatchProgressRequest request, ServerCallContext context)
+    {
+        try
+        {
+            if (!Guid.TryParse(request.VideoId, out var videoId) || !Guid.TryParse(request.UserId, out var userId))
+                return new WatchProgressResponse { Success = false, ErrorMessage = "Invalid GUID format." };
+
+            var caller = ParseCaller(request.UserId);
+            var progress = await _watchProgressService.GetProgressAsync(videoId, caller, context.CancellationToken);
+
+            if (progress is null)
+                return new WatchProgressResponse { Success = true, Progress = null };
+
+            return new WatchProgressResponse
+            {
+                Success = true,
+                Progress = new WatchProgressMessage
+                {
+                    VideoId = progress.VideoId.ToString(),
+                    PositionTicks = progress.PositionTicks,
+                    UpdatedAt = progress.LastWatchedAt.ToString("O")
+                }
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "GetWatchProgress failed");
+            return new WatchProgressResponse { Success = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    /// <inheritdoc />
+    public override async Task<GenericResponse> UpdateWatchProgress(UpdateWatchProgressRequest request, ServerCallContext context)
+    {
+        try
+        {
+            if (!Guid.TryParse(request.VideoId, out var videoId) || !Guid.TryParse(request.UserId, out var userId))
+                return new GenericResponse { Success = false, ErrorMessage = "Invalid GUID format." };
+
+            var caller = ParseCaller(request.UserId);
+            var dto = new UpdateWatchProgressDto { PositionTicks = request.PositionTicks };
+            await _watchProgressService.UpdateProgressAsync(videoId, dto, caller, context.CancellationToken);
+
+            return new GenericResponse { Success = true };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "UpdateWatchProgress failed");
+            return new GenericResponse { Success = false, ErrorMessage = ex.Message };
+        }
+    }
 
     private static CallerContext ParseCaller(string userId)
     {

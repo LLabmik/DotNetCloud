@@ -535,4 +535,121 @@
       console.log("DNC CANCEL: no videoId, skipping DELETE");
     }
   };
+
+  /**
+   * Watch progress tracking state, keyed by elementId.
+   * @type {Object<string, {lastReportedAt: number, intervalId: number|null}>}
+   */
+  var progressTracking = {};
+
+  /**
+   * Attaches progress tracking to a <video> element.
+   * Reports the current playback position every ~60 seconds while playing,
+   * plus a final report on pause.
+   *
+   * @param {string} elementId - The video element ID.
+   * @param {string} videoId - The video GUID.
+   */
+  videoPlayer.attachProgressTracking = function (elementId, videoId) {
+    var video = document.getElementById(elementId);
+    if (!video) return;
+
+    // Clean up any existing tracking for this element
+    videoPlayer.disposeProgressTracking(elementId);
+
+    var state = {
+      lastReportedAt: 0,
+      lastPositionTicks: 0,
+      intervalId: null,
+    };
+    progressTracking[elementId] = state;
+
+    // Constants (in seconds): 60s between reports
+    var REPORT_INTERVAL_MS = 60 * 1000;
+
+    function reportProgress() {
+      if (!video || video.paused || !videoId) return;
+
+      var currentTime = video.currentTime || 0;
+      var now = Date.now();
+
+      // Throttle: only report if >= 60s since last report
+      if (now - state.lastReportedAt < REPORT_INTERVAL_MS) return;
+
+      var positionTicks = Math.round(currentTime * 10000); // 1 tick = 100ns, TimeSpan.TicksPerSecond = 10,000,000
+
+      state.lastReportedAt = now;
+      state.lastPositionTicks = positionTicks;
+
+      fetch("/api/v1/videos/" + videoId + "/progress", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ positionTicks: positionTicks }),
+      }).catch(function (err) {
+        console.error("DNC: failed to report watch progress", err);
+      });
+    }
+
+    // Report on 'timeupdate' (fires frequently — throttled by reportProgress)
+    video.addEventListener("timeupdate", reportProgress);
+
+    // Final report on pause (saves the last known position)
+    function onPause() {
+      if (!video || !videoId) return;
+      var currentTime = video.currentTime || 0;
+      var positionTicks = Math.round(currentTime * 10000);
+      state.lastPositionTicks = positionTicks;
+
+      fetch("/api/v1/videos/" + videoId + "/progress", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ positionTicks: positionTicks }),
+      }).catch(function (err) {
+        console.error("DNC: failed to report watch progress on pause", err);
+      });
+    }
+    video.addEventListener("pause", onPause);
+
+    // Cleanup function stored on state
+    state.dispose = function () {
+      video.removeEventListener("timeupdate", reportProgress);
+      video.removeEventListener("pause", onPause);
+    };
+  };
+
+  /**
+   * Sets the initial playback position for resume playback.
+   * Called when opening a video that has watch progress.
+   *
+   * @param {string} elementId - The video element ID.
+   * @param {number} positionSeconds - The position in seconds to seek to.
+   */
+  videoPlayer.setInitialPosition = function (elementId, positionSeconds) {
+    var video = document.getElementById(elementId);
+    if (!video) return;
+
+    if (positionSeconds > 0 && video.readyState >= 1) {
+      video.currentTime = positionSeconds;
+    } else if (positionSeconds > 0) {
+      // Not loaded yet — wait for loadedmetadata
+      var onLoaded = function () {
+        video.currentTime = positionSeconds;
+        video.removeEventListener("loadedmetadata", onLoaded);
+      };
+      video.addEventListener("loadedmetadata", onLoaded);
+    }
+  };
+
+  /**
+   * Disposes progress tracking for a video element.
+   */
+  videoPlayer.disposeProgressTracking = function (elementId) {
+    var state = progressTracking[elementId];
+    if (state) {
+      if (state.dispose) state.dispose();
+      delete progressTracking[elementId];
+    }
+  };
 })();

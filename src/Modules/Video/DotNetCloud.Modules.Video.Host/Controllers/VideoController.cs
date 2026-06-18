@@ -26,6 +26,7 @@ public class VideoController : VideoControllerBase
     private readonly IVideoThumbnailService _thumbnailService;
     private readonly IVideoEnrichmentService _enrichmentService;
     private readonly IVideoTranscodingService _transcodingService;
+    private readonly IWatchProgressService _watchProgressService;
     private readonly StreamProgressState _streamProgress;
     private readonly ILogger<VideoController> _logger;
 
@@ -42,6 +43,7 @@ public class VideoController : VideoControllerBase
         IVideoThumbnailService thumbnailService,
         IVideoEnrichmentService enrichmentService,
         IVideoTranscodingService transcodingService,
+        IWatchProgressService watchProgressService,
         StreamProgressState streamProgress,
         ILogger<VideoController> logger)
     {
@@ -54,6 +56,7 @@ public class VideoController : VideoControllerBase
         _thumbnailService = thumbnailService;
         _enrichmentService = enrichmentService;
         _transcodingService = transcodingService;
+        _watchProgressService = watchProgressService;
         _streamProgress = streamProgress;
         _logger = logger;
     }
@@ -176,6 +179,28 @@ public class VideoController : VideoControllerBase
         {
             return NotFound(ErrorEnvelope(ErrorCodes.VideoNotFound, ex.Message));
         }
+    }
+
+    // ─── Watch Progress ──────────────────────────────────────────────
+
+    /// <summary>Gets the current watch progress for a video (for resume playback).</summary>
+    [HttpGet("{videoId:guid}/progress")]
+    public async Task<IActionResult> GetWatchProgress(Guid videoId)
+    {
+        var caller = GetAuthenticatedCaller();
+        var progress = await _watchProgressService.GetProgressAsync(videoId, caller);
+        return progress is null
+            ? Ok(Envelope(new { hasProgress = false }))
+            : Ok(Envelope(progress));
+    }
+
+    /// <summary>Updates watch progress for a video (called periodically during playback).</summary>
+    [HttpPut("{videoId:guid}/progress")]
+    public async Task<IActionResult> UpdateWatchProgress(Guid videoId, [FromBody] UpdateWatchProgressDto dto)
+    {
+        var caller = GetAuthenticatedCaller();
+        await _watchProgressService.UpdateProgressAsync(videoId, dto, caller);
+        return Ok(Envelope(new { saved = true }));
     }
 
     /// <summary>Deletes a video (soft delete).</summary>

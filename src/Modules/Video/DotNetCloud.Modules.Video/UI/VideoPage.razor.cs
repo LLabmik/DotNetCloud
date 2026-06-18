@@ -202,6 +202,18 @@ public partial class VideoPage : IAsyncDisposable
                 await Js.InvokeVoidAsync("DotNetCloudVideo.attachVideoErrorListener", "video-player", _dotNetRef);
                 await Js.InvokeVoidAsync("DotNetCloudVideo.attachIdleAutoHide", "player-container", 3000);
                 await Js.InvokeVoidAsync("DotNetCloudVideo.attachKeyboardShortcuts", "video-player");
+
+                // Attach watch progress tracking (reports position every ~60s while playing)
+                await Js.InvokeVoidAsync("DotNetCloudVideo.attachProgressTracking",
+                    "video-player", _playerVideo!.Id.ToString());
+
+                // Resume playback at previous position if available
+                if (_playerVideo!.WatchPositionTicks.HasValue && _playerVideo.WatchPositionTicks.Value > 0)
+                {
+                    var resumeSeconds = TimeSpan.FromTicks(_playerVideo.WatchPositionTicks.Value).TotalSeconds;
+                    await Js.InvokeVoidAsync("DotNetCloudVideo.setInitialPosition",
+                        "video-player", resumeSeconds);
+                }
             }
             catch (Exception ex)
             {
@@ -745,6 +757,7 @@ public partial class VideoPage : IAsyncDisposable
         // Tear down HLS player and UI handlers
         try
         {
+            await Js.InvokeVoidAsync("DotNetCloudVideo.disposeProgressTracking", "video-player");
             await Js.InvokeVoidAsync("DotNetCloudVideo.cancelStreamProgress", closingVideoId?.ToString());
             await Js.InvokeVoidAsync("DotNetCloudVideo.destroyHlsPlayer", "video-player");
             await Js.InvokeVoidAsync("DotNetCloudVideo.disposeIdleAutoHide", "player-container");
@@ -1780,6 +1793,7 @@ public partial class VideoPage : IAsyncDisposable
 
         try
         {
+            await Js.InvokeVoidAsync("DotNetCloudVideo.disposeProgressTracking", "video-player");
             await Js.InvokeVoidAsync("DotNetCloudVideo.cancelStreamProgress", _playerVideo?.Id.ToString());
             await Js.InvokeVoidAsync("DotNetCloudVideo.destroyHlsPlayer", "video-player");
             await Js.InvokeVoidAsync("DotNetCloudVideo.disposeIdleAutoHide", "player-container");

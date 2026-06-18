@@ -1,4 +1,6 @@
+using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Services.ModuleApis;
+using DotNetCloud.Modules.Video.Host.Protos;
 using Grpc.Core;
 using Grpc.Net.Client;
 using Microsoft.Extensions.Logging;
@@ -54,6 +56,78 @@ public sealed class VideoGrpcApiClient : IVideoApiClient, IDisposable
                 ConnectTimeout = TimeSpan.FromSeconds(5)
             }
         });
+    }
+
+    /// <inheritdoc />
+    public async Task<WatchProgressDto?> GetWatchProgressAsync(Guid videoId, Guid userId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var client = new VideoGrpcService.VideoGrpcServiceClient(_channel.Value);
+            var request = new GetWatchProgressRequest
+            {
+                VideoId = videoId.ToString(),
+                UserId = userId.ToString()
+            };
+
+            var response = await client.GetWatchProgressAsync(request,
+                deadline: DateTime.UtcNow.Add(_options.Timeout),
+                cancellationToken: cancellationToken);
+
+            if (!response.Success || response.Progress is null)
+                return null;
+
+            return new WatchProgressDto
+            {
+                VideoId = Guid.Parse(response.Progress.VideoId),
+                VideoTitle = string.Empty,
+                PositionTicks = response.Progress.PositionTicks,
+                DurationTicks = 0,
+                ProgressPercent = 0,
+                LastWatchedAt = DateTime.TryParse(response.Progress.UpdatedAt, out var dt) ? dt : DateTime.UtcNow
+            };
+        }
+        catch (RpcException ex) when (ex.StatusCode == StatusCode.Unavailable)
+        {
+            _logger.LogWarning(ex, "Video module is not available for GetWatchProgress");
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get watch progress via gRPC");
+            return null;
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> UpdateWatchProgressAsync(Guid videoId, long positionTicks, Guid userId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var client = new VideoGrpcService.VideoGrpcServiceClient(_channel.Value);
+            var request = new UpdateWatchProgressRequest
+            {
+                VideoId = videoId.ToString(),
+                UserId = userId.ToString(),
+                PositionTicks = positionTicks
+            };
+
+            var response = await client.UpdateWatchProgressAsync(request,
+                deadline: DateTime.UtcNow.Add(_options.Timeout),
+                cancellationToken: cancellationToken);
+
+            return response.Success;
+        }
+        catch (RpcException ex) when (ex.StatusCode == StatusCode.Unavailable)
+        {
+            _logger.LogWarning(ex, "Video module is not available for UpdateWatchProgress");
+            return false;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to update watch progress via gRPC");
+            return false;
+        }
     }
 
     /// <inheritdoc />

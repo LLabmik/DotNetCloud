@@ -69,6 +69,10 @@ public static class VideoServiceRegistration
         // Scan progress state (singleton — shared across all video page sessions)
         services.AddSingleton<VideoScanProgressState>();
 
+        // Watch progress service
+        services.AddScoped<WatchProgressService>();
+        services.AddScoped<IWatchProgressService>(sp => sp.GetRequiredService<WatchProgressService>());
+
         // Stream preparation progress state (singleton — tracks chunk reconstruction / probing / remux)
         services.AddSingleton<StreamProgressState>();
 

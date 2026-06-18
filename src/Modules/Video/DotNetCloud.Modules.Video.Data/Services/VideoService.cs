@@ -8,6 +8,7 @@ using DotNetCloud.Modules.Video.Models;
 using DotNetCloud.Modules.Video.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using static DotNetCloud.Modules.Video.Data.Services.WatchProgressService;
 
 namespace DotNetCloud.Modules.Video.Data.Services;
 
@@ -443,7 +444,7 @@ public sealed class VideoService : IVideoService
             Height = canonical.Metadata?.Height,
             IsFavorite = userVideo.IsFavorite,
             ViewCount = userVideo.ViewCount,
-            WatchPositionTicks = null,
+            WatchPositionTicks = WatchProgressService.ApplyResumeLogic(userVideo.WatchPositionTicks, canonical.DurationTicks),
             CreatedAt = userVideo.CreatedAt,
             HasExternalPoster = hasExternalPoster,
             Overview = overview,
