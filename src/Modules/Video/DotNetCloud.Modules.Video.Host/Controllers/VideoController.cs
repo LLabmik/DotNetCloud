@@ -582,6 +582,7 @@ public class VideoController : VideoControllerBase
 
         // Reconstruct file from chunks via the Files download service.
         Stream fileStream;
+        long totalBytes = 0;
         try
         {
             // ── Report reconstruction progress ──────────────────────
@@ -594,7 +595,7 @@ public class VideoController : VideoControllerBase
             fileStream = await _downloadService.DownloadCurrentAsync(video.FileNodeId, caller);
 
             // Estimate total size from the canonical video record
-            var totalBytes = video.CanonicalVideo?.SizeBytes > 0
+            totalBytes = video.CanonicalVideo?.SizeBytes > 0
                 ? video.CanonicalVideo.SizeBytes
                 : fileStream.CanSeek ? fileStream.Length : 0;
 
@@ -628,17 +629,48 @@ public class VideoController : VideoControllerBase
 
         try
         {
-            // Write the temp file from the download stream (unless it already is a FileStream)
+            // Write the temp file from the download stream (unless it already is a FileStream).
+            //
+            // IMPORTANT: never use FileMode.Create directly on `sourcePath` while a background
+            // ffmpeg process might be reading it. FileMode.Create truncates the inode in-place
+            // (O_TRUNC), which causes ffmpeg to hit EOF mid-encode even though it already has
+            // the file open. Instead:
+            //   1. If the file already exists with the expected size, reuse it (no copy needed).
+            //   2. Otherwise write to a unique .tmp file, then atomically rename into place.
+            //      File.Move with overwrite=true is a rename(2) on Linux — atomic, and any
+            //      ffmpeg process with the old inode open is completely unaffected.
             if (fileStream is FileStream existingFs)
             {
                 sourcePath = existingFs.Name;
             }
             else
             {
-                await using var sourceStream = new FileStream(
-                    sourcePath, FileMode.Create, FileAccess.Write,
-                    FileShare.Read, 65536, FileOptions.Asynchronous);
-                await fileStream.CopyToAsync(sourceStream);
+                // Reuse the cached file if it's already complete (avoids re-copying on retries).
+                var existingSize = System.IO.File.Exists(sourcePath) ? new System.IO.FileInfo(sourcePath).Length : 0L;
+                var needsCopy = existingSize == 0 || (totalBytes > 0 && existingSize < totalBytes);
+
+                if (needsCopy)
+                {
+                    // Write to a unique temp path to avoid truncating sourcePath in-place.
+                    var tmpPath = sourcePath + $".{Guid.NewGuid():N}.tmp";
+                    try
+                    {
+                        await using var sourceStream = new FileStream(
+                            tmpPath, FileMode.Create, FileAccess.Write,
+                            FileShare.Read, 65536, FileOptions.Asynchronous);
+                        await fileStream.CopyToAsync(sourceStream);
+                    }
+                    catch
+                    {
+                        try
+                        { System.IO.File.Delete(tmpPath); }
+                        catch { /* best-effort */ }
+                        throw;
+                    }
+
+                    // Atomic rename: replaces the directory entry without touching the old inode.
+                    System.IO.File.Move(tmpPath, sourcePath, overwrite: true);
+                }
             }
 
             // Determine MIME type for context
@@ -777,9 +809,12 @@ public class VideoController : VideoControllerBase
 
             if (waitResult == HlsWaitResult.Cancelled)
             {
-                transcodeCts.Cancel();
+                // Do NOT cancel the transcode — the background ffmpeg job keeps running.
+                // The browser often disconnects immediately after receiving the response
+                // headers (or during navigation), which fires RequestAborted. If we killed
+                // ffmpeg here, every retry would restart from scratch. Instead, keep the
+                // job running so the next request reuses it via IsJobReusable.
                 _streamProgress.Remove(videoId);
-                _transcodingService.CancelTranscode(jobId);
                 return StatusCode(499, ErrorEnvelope("cancelled", "Client disconnected."));
             }
 
@@ -795,10 +830,9 @@ public class VideoController : VideoControllerBase
 
             if (waitResult == HlsWaitResult.Timeout)
             {
-                transcodeCts.Cancel();
-                _streamProgress.Remove(videoId);
                 // Do NOT cancel the transcode — ffmpeg is still producing segments.
                 // On retry, the existing job is reused and segments are ready.
+                _streamProgress.Remove(videoId);
                 _logger.LogError("HLS transcode job {JobId} timed out waiting for segments", jobId);
                 return StatusCode(504, ErrorEnvelope("TRANSCODE_TIMEOUT",
                     "HLS transcode did not produce segments within 30 seconds."));
