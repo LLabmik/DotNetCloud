@@ -3228,6 +3228,15 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Add `_DotNetCloud` browsing and mounted read-only integration coverage
 - ✓ Live-verify admin shared-folder creation on mint22 and confirm non-admin mounted access in a separate browser session
 - ✓ Keep sync clients ignoring `_DotNetCloud` admin shares in v1
+- ☐ Delete cleanup: remove search documents, media sources, and indexed media entities
+  - ✓ Add `ISearchFtsClient.RemoveDocumentAsync` for targeted document removal
+  - ✓ Gather `MountedNodeEntry` data before cascade delete for deterministic GUID computation
+  - ✓ Remove search index documents for all mounted files/folders
+  - ✓ Create `AdminSharedFolderDeletedEvent` for cross-module cleanup notification
+  - ✓ Add `AdminSharedFolderCleanupStatus` model for progress tracking
+  - ☐ Remove orphaned `MediaLibrarySource` entries referencing deleted shares
+  - ☐ Remove indexed `UserTrack`/`UserVideo`/`Photo` entities from deleted shares
+  - ☐ Add cleanup status endpoint and admin UI progress panel
   - ✓ `Guid UserId` FK
   - ✓ `DateTime AcknowledgedAt` property
   - ✓ Unique constraint: (`AnnouncementId`, `UserId`)

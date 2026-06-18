@@ -42,4 +42,13 @@ public interface ISearchFtsClient
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns><see langword="true"/> when the Search module accepted the request; otherwise <see langword="false"/>.</returns>
     Task<bool> RequestModuleReindexAsync(string moduleId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Removes a single document from the full-text search index.
+    /// </summary>
+    /// <param name="moduleId">The module that owns the document (e.g., "files").</param>
+    /// <param name="entityId">The entity identifier used when the document was indexed.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns><see langword="true"/> if the document was removed; <see langword="false"/> if it was not found or the service is unavailable.</returns>
+    Task<bool> RemoveDocumentAsync(string moduleId, string entityId, CancellationToken cancellationToken = default);
 }

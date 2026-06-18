@@ -165,6 +165,56 @@ public sealed class SearchFtsClient : ISearchFtsClient, IDisposable
     }
 
     /// <inheritdoc />
+    public async Task<bool> RemoveDocumentAsync(string moduleId, string entityId, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(moduleId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(entityId);
+
+        if (!IsAvailable)
+        {
+            _logger.LogDebug("Search FTS client unavailable — Search module address not configured");
+            return false;
+        }
+
+        try
+        {
+            var request = new RemoveDocumentRequest
+            {
+                ModuleId = moduleId,
+                EntityId = entityId,
+            };
+
+            var response = await _client.Value.RemoveDocumentAsync(
+                request, CreateCallOptions(cancellationToken));
+
+            if (!response.Success)
+            {
+                _logger.LogWarning("Search RemoveDocument gRPC call failed for module {ModuleId}, entity {EntityId}: {Error}",
+                    moduleId, entityId, response.ErrorMessage);
+                return false;
+            }
+
+            return true;
+        }
+        catch (RpcException ex) when (ex.StatusCode == StatusCode.Unavailable)
+        {
+            _logger.LogDebug("Search module gRPC service unavailable at {Address}", _options.SearchModuleAddress);
+            return false;
+        }
+        catch (RpcException ex) when (ex.StatusCode == StatusCode.DeadlineExceeded)
+        {
+            _logger.LogWarning("Search RemoveDocument request for {ModuleId}/{EntityId} timed out after {Timeout}",
+                moduleId, entityId, _options.Timeout);
+            return false;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error calling Search RemoveDocument for {ModuleId}/{EntityId}", moduleId, entityId);
+            return false;
+        }
+    }
+
+    /// <inheritdoc />
     public void Dispose()
     {
         if (_disposed)

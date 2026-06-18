@@ -1,6 +1,7 @@
 @page "/admin/files/shared-folders"
 @rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveAutoRenderMode(prerender: false))
 @attribute [Authorize(Policy = "RequireAdmin")]
+@implements IDisposable
 
 <PageTitle>Shared Folders - DotNetCloud</PageTitle>
 
@@ -18,6 +19,81 @@
 @if (!string.IsNullOrWhiteSpace(_error))
 {
     <div class="alert alert-danger">@_error</div>
+}
+
+@if (_cleanupJob is not null)
+{
+    <div class="cleanup-progress-panel">
+        <div class="cleanup-progress-panel__header">
+            <h4>Cleaning up "<strong>@_cleanupJob.DisplayName</strong>"…</h4>
+            @if (_cleanupJob.IsComplete)
+            {
+                <button class="btn btn-sm btn-outline" @onclick="DismissCleanup">Dismiss</button>
+            }
+        </div>
+        <div class="cleanup-progress-steps">
+            <div class="cleanup-step @GetStepClass("DeletingDefinition")">
+                <span class="cleanup-step-icon">@GetStepIcon("DeletingDefinition")</span>
+                <span class="cleanup-step-label">Deleting definition</span>
+                @if (_cleanupJob.Phase == "DeletingDefinition")
+                {
+                    <span class="cleanup-step-spinner"></span>
+                }
+            </div>
+            <div class="cleanup-step @GetStepClass("RemovingSearchDocs")">
+                <span class="cleanup-step-icon">@GetStepIcon("RemovingSearchDocs")</span>
+                <span class="cleanup-step-label">Removing search documents</span>
+                @if (_cleanupJob.Phase == "RemovingSearchDocs")
+                {
+                    <span class="cleanup-step-spinner"></span>
+                    <span class="cleanup-step-progress">@_cleanupJob.SearchDocsRemoved / @_cleanupJob.SearchDocsTotal</span>
+                }
+                else if (HasStepCompleted("RemovingSearchDocs"))
+                {
+                    <span class="cleanup-step-progress">@_cleanupJob.SearchDocsRemoved / @_cleanupJob.SearchDocsTotal</span>
+                }
+            </div>
+            <div class="cleanup-step @GetStepClass("CleaningMediaSources")">
+                <span class="cleanup-step-icon">@GetStepIcon("CleaningMediaSources")</span>
+                <span class="cleanup-step-label">Cleaning media sources</span>
+                @if (_cleanupJob.Phase == "CleaningMediaSources")
+                {
+                    <span class="cleanup-step-spinner"></span>
+                    <span class="cleanup-step-progress">@_cleanupJob.UsersCleaned / @_cleanupJob.AffectedUsers users</span>
+                }
+                else if (HasStepCompleted("CleaningMediaSources"))
+                {
+                    <span class="cleanup-step-progress">@_cleanupJob.UsersCleaned users</span>
+                }
+            </div>
+            <div class="cleanup-step @GetStepClass("CleaningMediaEntities")">
+                <span class="cleanup-step-icon">@GetStepIcon("CleaningMediaEntities")</span>
+                <span class="cleanup-step-label">Cleaning indexed media files</span>
+                @if (_cleanupJob.Phase == "CleaningMediaEntities")
+                {
+                    <span class="cleanup-step-spinner"></span>
+                    <span class="cleanup-step-progress">@_cleanupJob.MediaEntitiesRemoved items</span>
+                }
+                else if (HasStepCompleted("CleaningMediaEntities"))
+                {
+                    <span class="cleanup-step-progress">@_cleanupJob.MediaEntitiesRemoved items</span>
+                }
+            </div>
+            <div class="cleanup-step cleanup-step--final">
+                @if (_cleanupJob.Phase == "Complete")
+                {
+                    <span class="cleanup-step-icon cleanup-step-icon--success">✓</span>
+                    <span class="cleanup-step-label cleanup-step-label--complete">Cleanup complete</span>
+                }
+                else if (_cleanupJob.Phase == "Failed")
+                {
+                    <span class="cleanup-step-icon cleanup-step-icon--failed">✕</span>
+                    <span class="cleanup-step-label cleanup-step-label--failed">Cleanup failed</span>
+                    <span class="cleanup-step-error">@_cleanupJob.ErrorMessage</span>
+                }
+            </div>
+        </div>
+    </div>
 }
 
 @if (_loading)
@@ -367,6 +443,9 @@ else
     private IReadOnlyList<GroupDto> _availableGroups = [];
     private IReadOnlyList<AdminSharedFolderResponse> _sharedFolders = [];
     private ConfirmDialog _confirmDialog = default!;
+
+    private AdminSharedFolderCleanupStatusResponse? _cleanupJob;
+    private System.Threading.Timer? _pollTimer;
 
     private bool IsEditorScheduleDisabled => string.Equals(_editor.CrawlMode, "Manual", StringComparison.OrdinalIgnoreCase);
     private bool CanSourcePickerGoUp => _sourcePicker is not null && !string.IsNullOrWhiteSpace(_sourcePicker.RelativePath);
@@ -768,9 +847,35 @@ else
         _actionInProgress = true;
         try
         {
-            await Api.DeleteAdminSharedFolderAsync(folder.Id);
-            Toast.ShowSuccess($"Shared folder '{folder.DisplayName}' deleted.");
-            await RefreshAsync();
+            var result = await Api.DeleteAdminSharedFolderAsync(folder.Id);
+            if (result is not null)
+            {
+                _cleanupJob = new AdminSharedFolderCleanupStatusResponse
+                {
+                    CleanupJobId = result.CleanupJobId,
+                    SharedFolderId = folder.Id,
+                    DisplayName = folder.DisplayName,
+                    Phase = "DeletingDefinition",
+                    SearchDocsTotal = result.PendingSearchRemovals,
+                    SearchDocsRemoved = result.SearchDocsRemoved,
+                };
+
+                Toast.ShowSuccess($"Shared folder '{folder.DisplayName}' deleted. Cleanup started.");
+                await RefreshAsync();
+
+                // Start polling for cleanup progress
+                _pollTimer?.Dispose();
+                _pollTimer = new System.Threading.Timer(
+                    async _ => await PollCleanupStatusAsync(),
+                    null,
+                    TimeSpan.FromSeconds(1),
+                    TimeSpan.FromSeconds(2));
+            }
+            else
+            {
+                Toast.ShowSuccess($"Shared folder '{folder.DisplayName}' deleted.");
+                await RefreshAsync();
+            }
         }
         catch (Exception ex)
         {
@@ -780,6 +885,74 @@ else
         {
             _actionInProgress = false;
         }
+    }
+
+    private async Task PollCleanupStatusAsync()
+    {
+        if (_cleanupJob is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var status = await Api.GetAdminSharedFolderCleanupStatusAsync(_cleanupJob.CleanupJobId);
+            if (status is not null)
+            {
+                _cleanupJob = status;
+                await InvokeAsync(StateHasChanged);
+
+                if (status.IsComplete)
+                {
+                    _pollTimer?.Dispose();
+                    _pollTimer = null;
+                    if (status.Phase == "Complete")
+                    {
+                        await InvokeAsync(RefreshAsync);
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // Swallow polling errors — will retry on next interval
+        }
+    }
+
+    private void DismissCleanup()
+    {
+        _pollTimer?.Dispose();
+        _pollTimer = null;
+        _cleanupJob = null;
+    }
+
+    private static string GetStepClass(string phase)
+    {
+        return "cleanup-step";
+    }
+
+    private static string GetStepIcon(string phase)
+    {
+        return "☐";
+    }
+
+    private bool HasStepCompleted(string phase)
+    {
+        if (_cleanupJob is null)
+        {
+            return false;
+        }
+
+        var phases = new[] { "DeletingDefinition", "RemovingSearchDocs", "CleaningMediaSources", "CleaningMediaEntities", "Complete", "Failed" };
+        var currentIndex = Array.IndexOf(phases, _cleanupJob.Phase);
+        var phaseIndex = Array.IndexOf(phases, phase);
+        return phaseIndex >= 0 && currentIndex >= 0 && phaseIndex < currentIndex;
+    }
+
+    public void Dispose()
+    {
+        _pollTimer?.Dispose();
+        _pollTimer = null;
     }
 
     private bool ValidateEditor()

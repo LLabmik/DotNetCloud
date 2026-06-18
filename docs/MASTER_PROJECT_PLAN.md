@@ -3778,6 +3778,28 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 
 **Notes:** The search and media integration step is now complete. Mounted search indexing/navigation remains in place, 4.6 media integration persists per-user per-module source lists for owned folders plus `_DotNetCloud` admin shared mounts, and the client selective-sync layer now canonicalizes root-relative paths, hard-excludes `_DotNetCloud` from sync decisions, and locks that virtual root as unchecked in the SyncTray folder browser so users cannot opt it back in. The admin shared-folder page now adds a server-constrained folder picker backed by a dedicated browse endpoint, suggests a display name from the selected path's final segment when the name is still unset or auto-suggested, and seeds Scheduled crawl mode with a next scan 24 hours ahead while clearing that field for Manual mode. The browse flow now defaults to the platform filesystem root for interactive picking while still resolving relative source paths against an optional configured base when present, which removed the live 409 on mint22 where no Files admin root was configured. Manual Rescan Now and Reindex actions are now executed by a Files maintenance worker that probes due shared folders, updates scan state, and dispatches Files-module reindex requests through the Search pipeline, so the admin controls no longer stall in a requested-only state. Focused validation passed via `dotnet test DotNetCloud.CI.slnf --filter "FullyQualifiedName~AdminSharedFolder" --no-restore` (22 tests) and `dotnet test tests/DotNetCloud.Modules.Files.Tests/DotNetCloud.Modules.Files.Tests.csproj --filter "FullyQualifiedName~AdminSharedFolderServiceTests|FullyQualifiedName~AdminSharedFolderMaintenanceServiceTests" --no-restore` (10 tests), then live verification passed on mint22: `ben.kimball@llabmik.net` created a shared folder from the admin UI and `testdude@llabmik.net` could see and access the mounted share in a separate browser session. Remaining work still moves to 4.5 search indexing/navigation and 4.6 media scan-source selection.
 
+#### Step: shared-file-folders-7 — Admin Share Deletion Cleanup
+
+**Status:** in-progress 🔄
+**Duration:** ~3 hours
+**Deliverables:**
+
+- ✓ Add `ISearchFtsClient.RemoveDocumentAsync` method and gRPC implementation
+- ✓ Gather `MountedNodeEntry` data before cascade delete for deterministic GUID computation
+- ✓ Remove search index documents for all mounted files/folders on share deletion
+- ✓ Create `AdminSharedFolderDeletedEvent` for cross-module cleanup notification
+- ✓ Add `AdminSharedFolderCleanupStatus` model, EF configuration, and DbSet for progress tracking
+- ✓ Add cleanup status API endpoint (`GET .../cleanup-status/{cleanupJobId}`)
+- ✓ Create `DeleteAdminSharedFolderResult` DTO returned from delete API
+- ✓ Create `AdminSharedFolderCleanupService` event handler in Core.Server (media source + entity cleanup)
+- ✓ Create `ICleanupStatusReporter` interface for progress reporting across modules
+- ☐ Wire Core.Server's `AdminSharedFolderCleanupService` to update cleanup status records via gRPC
+- ☐ Add cleanup status polling in admin shared-folder UI (Blazor progress panel)
+- ☐ Remove orphaned `MediaLibrarySource` entries via Core.Server cleanup service
+- ☐ Add unit tests for cleanup service and enhanced delete flow
+
+**Notes:** The admin share deletion now performs search document cleanup in the Files module directly (gRPC calls to Search module's `RemoveDocument` RPC). An `AdminSharedFolderCleanupStatus` record tracks progress through cleanup phases, and a status endpoint allows the admin UI to poll for updates. Core.Server's `AdminSharedFolderCleanupService` handles media source and entity cleanup when the event bus is wired across process boundaries. The delete API now returns a `DeleteAdminSharedFolderResult` with the `CleanupJobId` for progress tracking. A pre-existing Video module migration corruption prevents full solution build verification — modified projects build individually.
+
 ---
 
 ## Required Modules & Schema Separation

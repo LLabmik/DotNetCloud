@@ -110,7 +110,17 @@ else
 builder.Services.AddSingleton<IEventBus, InProcessEventBus>();
 
 // Search FTS client for full-text search via Search module gRPC
-builder.Services.AddSearchFtsClient(builder.Configuration);
+// DOTNETCLOUD_SEARCH_MODULE_ENDPOINT is set by ProcessSupervisor to the Search module's
+// dynamically-allocated gRPC address. Falls back to config for local development.
+var searchModuleAddress = Environment.GetEnvironmentVariable("DOTNETCLOUD_SEARCH_MODULE_ENDPOINT");
+if (!string.IsNullOrWhiteSpace(searchModuleAddress))
+{
+    builder.Services.AddSearchFtsClient(searchModuleAddress);
+}
+else
+{
+    builder.Services.AddSearchFtsClient(builder.Configuration);
+}
 
 // Register all chat business-logic services (Channel, Message, Reaction, Pin, Typing)
 builder.Services.AddChatServices(builder.Configuration);

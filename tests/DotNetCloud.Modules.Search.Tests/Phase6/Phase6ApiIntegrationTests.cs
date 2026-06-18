@@ -12,6 +12,7 @@ using Grpc.Core;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using System.Security.Claims;
@@ -128,9 +129,12 @@ public class Phase6ApiIntegrationTests
             .Callback<SearchQuery, CancellationToken>((q, _) => capturedQuery = q)
             .ReturnsAsync(new SearchResultDto { Items = [], TotalCount = 0, Page = 1, PageSize = 20 });
 
+        var sc = new ServiceCollection();
+        sc.AddScoped(_ => _searchProviderMock.Object);
+        var sp = sc.BuildServiceProvider();
         var grpcService = new SearchGrpcService(
+            sp.GetRequiredService<IServiceScopeFactory>(),
             _queryService,
-            _searchProviderMock.Object,
             NullLogger<SearchGrpcService>.Instance);
 
         var request = new SearchRequest
@@ -168,9 +172,12 @@ public class Phase6ApiIntegrationTests
             .Setup(p => p.RemoveDocumentAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
+        var sc2 = new ServiceCollection();
+        sc2.AddScoped(_ => _searchProviderMock.Object);
+        var sp2 = sc2.BuildServiceProvider();
         var grpcService = new SearchGrpcService(
+            sp2.GetRequiredService<IServiceScopeFactory>(),
             _queryService,
-            _searchProviderMock.Object,
             NullLogger<SearchGrpcService>.Instance);
 
         // Index a document

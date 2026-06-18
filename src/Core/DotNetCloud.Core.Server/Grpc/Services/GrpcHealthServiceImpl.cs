@@ -1,5 +1,7 @@
+using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Grpc.Capabilities;
 using DotNetCloud.Core.Modules.Supervisor;
+using DotNetCloud.Core.Server.Services;
 using Grpc.Core;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
@@ -115,6 +117,62 @@ internal sealed class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabil
             request.ModuleId, request.Key, GetModuleId(context));
 
         return Task.FromResult(new SetSettingResponse { Success = true });
+    }
+
+    /// <summary>
+    /// Triggers cleanup of orphaned media sources and entities after an
+    /// admin shared folder is deleted. Called by the Files module host.
+    /// </summary>
+    public override async Task<CleanupAdminSharedFolderResponse> CleanupAdminSharedFolder(
+        CleanupAdminSharedFolderRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.SharedFolderId, out var sharedFolderId))
+        {
+            return new CleanupAdminSharedFolderResponse
+            {
+                Success = false,
+                ErrorMessage = "Invalid shared_folder_id"
+            };
+        }
+
+        _logger.LogInformation(
+            "CleanupAdminSharedFolder called for {SharedFolderId} ('{DisplayName}') by module {ModuleId}",
+            sharedFolderId, request.DisplayName, GetModuleId(context));
+
+        try
+        {
+            // Resolve the cleanup service from DI
+            var cleanupService = _serviceProvider.GetRequiredService<AdminSharedFolderCleanupService>();
+
+            // Build the event from the gRPC request
+            var evt = new AdminSharedFolderDeletedEvent
+            {
+                EventId = Guid.CreateVersion7(),
+                CreatedAt = DateTime.UtcNow,
+                SharedFolderId = sharedFolderId,
+                DisplayName = request.DisplayName,
+                MountedEntries = request.MountedEntries
+                    .Select(e => new MountedEntryInfo
+                    {
+                        RelativePath = e.RelativePath,
+                        IsDirectory = e.IsDirectory,
+                    })
+                    .ToList(),
+            };
+
+            await cleanupService.HandleAsync(evt, context.CancellationToken);
+
+            return new CleanupAdminSharedFolderResponse { Success = true };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "CleanupAdminSharedFolder failed for {SharedFolderId}", sharedFolderId);
+            return new CleanupAdminSharedFolderResponse
+            {
+                Success = false,
+                ErrorMessage = ex.Message
+            };
+        }
     }
 
     private static string GetModuleId(ServerCallContext context)

@@ -28,6 +28,10 @@ service CoreCapabilities {
 
   // Writes a module-specific setting value.
   rpc SetSetting (SetSettingRequest) returns (SetSettingResponse);
+
+  // Triggers cleanup of orphaned media sources and entities when an admin
+  // shared folder is deleted. Called by the Files module host.
+  rpc CleanupAdminSharedFolder (CleanupAdminSharedFolderRequest) returns (CleanupAdminSharedFolderResponse);
 }
 
 // Caller context passed with every capability request for authorization.
@@ -136,4 +140,23 @@ message SetSettingRequest {
 
 message SetSettingResponse {
   bool success = 1;
+}
+
+// --- AdminSharedFolder Cleanup ---
+
+message CleanupAdminSharedFolderRequest {
+  CallerContextMessage caller = 1;
+  string shared_folder_id = 2;
+  string display_name = 3;
+  repeated MountedEntryMessage mounted_entries = 4;
+}
+
+message MountedEntryMessage {
+  string relative_path = 1;
+  bool is_directory = 2;
+}
+
+message CleanupAdminSharedFolderResponse {
+  bool success = 1;
+  string error_message = 2;
 }

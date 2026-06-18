@@ -653,12 +653,24 @@ public sealed class DotNetCloudApiClient
     }
 
     /// <summary>
-    /// Deletes a Files admin shared folder.
+    /// Deletes a Files admin shared folder and returns cleanup job info.
     /// </summary>
-    public async Task DeleteAdminSharedFolderAsync(Guid sharedFolderId, CancellationToken ct = default)
+    public async Task<DeleteAdminSharedFolderResult?> DeleteAdminSharedFolderAsync(Guid sharedFolderId, CancellationToken ct = default)
     {
         var response = await _http.DeleteAsync($"api/v1/files/admin/shared-folders/{sharedFolderId}", ct);
         await EnsureSuccessStatusAsync(response, ct);
+        var envelope = await response.Content.ReadFromJsonAsync<ApiEnvelope<DeleteAdminSharedFolderResult>>(JsonOptions, ct);
+        return envelope?.Data;
+    }
+
+    /// <summary>
+    /// Gets the cleanup status for a deleted admin shared folder.
+    /// </summary>
+    public async Task<AdminSharedFolderCleanupStatusResponse?> GetAdminSharedFolderCleanupStatusAsync(Guid cleanupJobId, CancellationToken ct = default)
+    {
+        var envelope = await _http.GetFromJsonAsync<ApiEnvelope<AdminSharedFolderCleanupStatusResponse>>(
+            $"api/v1/files/admin/shared-folders/cleanup-status/{cleanupJobId}", JsonOptions, ct);
+        return envelope?.Data;
     }
 
     /// <summary>

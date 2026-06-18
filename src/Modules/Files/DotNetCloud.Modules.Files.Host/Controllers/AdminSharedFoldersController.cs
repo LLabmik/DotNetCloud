@@ -1,7 +1,10 @@
+using DotNetCloud.Modules.Files.Data;
 using DotNetCloud.Modules.Files.DTOs;
+using DotNetCloud.Modules.Files.Models;
 using DotNetCloud.Modules.Files.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace DotNetCloud.Modules.Files.Host.Controllers;
 
@@ -13,13 +16,17 @@ namespace DotNetCloud.Modules.Files.Host.Controllers;
 public sealed class AdminSharedFoldersController : FilesControllerBase
 {
     private readonly IAdminSharedFolderService _adminSharedFolderService;
+    private readonly FilesDbContext _db;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AdminSharedFoldersController"/> class.
     /// </summary>
-    public AdminSharedFoldersController(IAdminSharedFolderService adminSharedFolderService)
+    public AdminSharedFoldersController(
+        IAdminSharedFolderService adminSharedFolderService,
+        FilesDbContext db)
     {
         _adminSharedFolderService = adminSharedFolderService;
+        _db = db;
     }
 
     /// <summary>
@@ -78,14 +85,47 @@ public sealed class AdminSharedFoldersController : FilesControllerBase
     });
 
     /// <summary>
-    /// Deletes an admin shared folder definition.
+    /// Deletes an admin shared folder definition and initiates cleanup of search documents
+    /// and orphaned media entities.
     /// </summary>
     [HttpDelete("{sharedFolderId:guid}")]
     public Task<IActionResult> DeleteAsync(Guid sharedFolderId) => ExecuteAsync(async () =>
     {
         var caller = GetAuthenticatedCaller();
-        await _adminSharedFolderService.DeleteSharedFolderAsync(sharedFolderId, caller, HttpContext.RequestAborted);
-        return Ok(Envelope(new { deleted = true }));
+        var result = await _adminSharedFolderService.DeleteSharedFolderAsync(sharedFolderId, caller, HttpContext.RequestAborted);
+        return Ok(Envelope(result));
+    });
+
+    /// <summary>
+    /// Gets the cleanup status for a deleted admin shared folder.
+    /// </summary>
+    [HttpGet("cleanup-status/{cleanupJobId:guid}")]
+    public Task<IActionResult> GetCleanupStatusAsync(Guid cleanupJobId) => ExecuteAsync(async () =>
+    {
+        var status = await _db.AdminSharedFolderCleanupStatuses
+            .AsNoTracking()
+            .FirstOrDefaultAsync(s => s.CleanupJobId == cleanupJobId,
+                HttpContext.RequestAborted);
+
+        if (status is null)
+            return NotFound(ErrorEnvelope("CleanupJobNotFound", "Cleanup job not found."));
+
+        return Ok(Envelope(new
+        {
+            status.CleanupJobId,
+            status.SharedFolderId,
+            status.DisplayName,
+            Phase = status.Phase.ToString(),
+            status.SearchDocsRemoved,
+            status.SearchDocsTotal,
+            status.AffectedUsers,
+            status.UsersCleaned,
+            status.MediaEntitiesRemoved,
+            status.StartedAt,
+            status.CompletedAt,
+            status.ErrorMessage,
+            status.IsComplete,
+        }));
     });
 
     /// <summary>

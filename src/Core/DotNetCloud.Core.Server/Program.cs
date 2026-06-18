@@ -682,6 +682,10 @@ public class Program
         builder.Services.AddHostedService<NotificationEventSubscriber>();
         builder.Services.AddHostedService<SearchEventSubscriber>();
 
+        // Register admin shared folder cleanup handler
+        builder.Services.AddSingleton<AdminSharedFolderCleanupService>();
+        builder.Services.AddHostedService<AdminSharedFolderCleanupSubscriber>();
+
         // Register backup services
         builder.Services.AddDotNetCloudBackupServices();
 

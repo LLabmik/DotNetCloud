@@ -23,8 +23,8 @@ public interface IAdminSharedFolderService
     /// <summary>Updates an existing admin shared folder definition and its grants.</summary>
     Task<AdminSharedFolderDto> UpdateSharedFolderAsync(Guid sharedFolderId, UpdateAdminSharedFolderDto dto, CallerContext caller, CancellationToken cancellationToken = default);
 
-    /// <summary>Deletes an existing admin shared folder definition.</summary>
-    Task DeleteSharedFolderAsync(Guid sharedFolderId, CallerContext caller, CancellationToken cancellationToken = default);
+    /// <summary>Deletes an existing admin shared folder definition and initiates cleanup.</summary>
+    Task<DeleteAdminSharedFolderResult> DeleteSharedFolderAsync(Guid sharedFolderId, CallerContext caller, CancellationToken cancellationToken = default);
 
     /// <summary>Requests a full reindex for a shared folder.</summary>
     Task<AdminSharedFolderDto> RequestReindexAsync(Guid sharedFolderId, CallerContext caller, CancellationToken cancellationToken = default);

@@ -1,11 +1,18 @@
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.Errors;
+using DotNetCloud.Core.Models;
+using AdminSharedFolderDeletedEvent = DotNetCloud.Core.Events.AdminSharedFolderDeletedEvent;
+using IEventBus = DotNetCloud.Core.Events.IEventBus;
+using MountedEntryInfo = DotNetCloud.Core.Events.MountedEntryInfo;
+using ICoreCapabilitiesClient = DotNetCloud.Modules.Files.Services.ICoreCapabilitiesClient;
 using DotNetCloud.Modules.Files.Data.Services.Background;
 using DotNetCloud.Modules.Files.DTOs;
 using DotNetCloud.Modules.Files.Models;
 using DotNetCloud.Modules.Files.Services;
+using DotNetCloud.Modules.Search.Client;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace DotNetCloud.Modules.Files.Data.Services;
 
@@ -14,11 +21,17 @@ namespace DotNetCloud.Modules.Files.Data.Services;
 /// </summary>
 internal sealed class AdminSharedFolderService : IAdminSharedFolderService
 {
+    private const string FilesModuleId = "files";
+
     private readonly FilesDbContext _db;
     private readonly IAdminSharedFolderPathValidator _pathValidator;
     private readonly IUserOrganizationResolver? _userOrganizationResolver;
     private readonly IGroupDirectory? _groupDirectory;
     private readonly IAdminSharedFolderMaintenanceScheduler? _maintenanceScheduler;
+    private readonly ISearchFtsClient? _searchClient;
+    private readonly IEventBus? _eventBus;
+    private readonly ICoreCapabilitiesClient? _coreClient;
+    private readonly ILogger<AdminSharedFolderService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AdminSharedFolderService"/> class.
@@ -28,13 +41,21 @@ internal sealed class AdminSharedFolderService : IAdminSharedFolderService
         IAdminSharedFolderPathValidator pathValidator,
         IUserOrganizationResolver? userOrganizationResolver = null,
         IGroupDirectory? groupDirectory = null,
-        IAdminSharedFolderMaintenanceScheduler? maintenanceScheduler = null)
+        IAdminSharedFolderMaintenanceScheduler? maintenanceScheduler = null,
+        ISearchFtsClient? searchClient = null,
+        IEventBus? eventBus = null,
+        ICoreCapabilitiesClient? coreClient = null,
+        ILogger<AdminSharedFolderService>? logger = null)
     {
         _db = db;
         _pathValidator = pathValidator;
         _userOrganizationResolver = userOrganizationResolver;
         _groupDirectory = groupDirectory;
         _maintenanceScheduler = maintenanceScheduler;
+        _searchClient = searchClient;
+        _eventBus = eventBus;
+        _coreClient = coreClient;
+        _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<AdminSharedFolderService>.Instance;
     }
 
     /// <inheritdoc />
@@ -194,13 +215,151 @@ internal sealed class AdminSharedFolderService : IAdminSharedFolderService
     }
 
     /// <inheritdoc />
-    public async Task DeleteSharedFolderAsync(Guid sharedFolderId, CallerContext caller, CancellationToken cancellationToken = default)
+    public async Task<DeleteAdminSharedFolderResult> DeleteSharedFolderAsync(Guid sharedFolderId, CallerContext caller, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(caller);
 
         var folder = await LoadDefinitionAsync(sharedFolderId, asNoTracking: false, cancellationToken);
+
+        // ── Gather mounted entries BEFORE cascade delete ──
+        var mountedEntries = await _db.MountedNodeEntries
+            .Where(e => e.SharedFolderId == sharedFolderId)
+            .Select(e => new { e.RelativePath, e.IsDirectory })
+            .ToListAsync(cancellationToken);
+
+        var displayName = folder.DisplayName;
+        var searchEntityIds = new List<string>(mountedEntries.Count + 1);
+
+        // Root folder entity ID
+        searchEntityIds.Add(VirtualMountedNodeRegistry.GetAdminSharedFolderRootId(sharedFolderId).ToString());
+
+        // Each mounted entry entity ID
+        foreach (var entry in mountedEntries)
+        {
+            var id = VirtualMountedNodeRegistry.GetMountedNodeId(
+                sharedFolderId, entry.RelativePath, entry.IsDirectory);
+            searchEntityIds.Add(id.ToString());
+        }
+
+        // ── Create cleanup status record ──
+        var cleanupJobId = Guid.CreateVersion7();
+        var status = new AdminSharedFolderCleanupStatus
+        {
+            CleanupJobId = cleanupJobId,
+            SharedFolderId = sharedFolderId,
+            DisplayName = displayName,
+            Phase = CleanupPhase.DeletingDefinition,
+            SearchDocsTotal = searchEntityIds.Count,
+            StartedAt = DateTime.UtcNow,
+        };
+        _db.AdminSharedFolderCleanupStatuses.Add(status);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        // ── Delete definition (cascade deletes grants + mounted entries) ──
         _db.AdminSharedFolders.Remove(folder);
         await _db.SaveChangesAsync(cancellationToken);
+
+        // ── Update status: removing search docs ──
+        status.Phase = CleanupPhase.RemovingSearchDocs;
+        await _db.SaveChangesAsync(cancellationToken);
+
+        // ── Remove search documents ──
+        var searchRemoved = 0;
+        if (_searchClient is { IsAvailable: true })
+        {
+            foreach (var entityId in searchEntityIds)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (await _searchClient.RemoveDocumentAsync(FilesModuleId, entityId, cancellationToken))
+                {
+                    searchRemoved++;
+                }
+            }
+        }
+
+        _logger.LogInformation(
+            "Admin shared folder {SharedFolderId} ('{DisplayName}') deleted. " +
+            "Removed {SearchRemoved}/{SearchTotal} search documents.",
+            sharedFolderId, displayName, searchRemoved, searchEntityIds.Count);
+
+        // ── Update status: search cleanup done, ready for media cleanup ──
+        status.SearchDocsRemoved = searchRemoved;
+        status.Phase = CleanupPhase.CleaningMediaSources;
+        await _db.SaveChangesAsync(cancellationToken);
+
+        // ── Trigger media cleanup via Core.Server gRPC ──
+        var deleteEvent = new AdminSharedFolderDeletedEvent
+        {
+            EventId = Guid.CreateVersion7(),
+            CreatedAt = DateTime.UtcNow,
+            SharedFolderId = sharedFolderId,
+            DisplayName = displayName,
+            MountedEntries = mountedEntries
+                .Select(e => new MountedEntryInfo
+                {
+                    RelativePath = e.RelativePath,
+                    IsDirectory = e.IsDirectory,
+                })
+                .ToList(),
+        };
+
+        // Prefer cross-process gRPC call to Core.Server
+        if (_coreClient is { IsAvailable: true })
+        {
+            try
+            {
+                var coreResult = await _coreClient.CleanupAdminSharedFolderAsync(deleteEvent, cancellationToken);
+                if (coreResult)
+                {
+                    _logger.LogInformation(
+                        "Core.Server media cleanup triggered for shared folder {SharedFolderId}",
+                        sharedFolderId);
+                }
+                else
+                {
+                    _logger.LogWarning(
+                        "Core.Server media cleanup returned false for shared folder {SharedFolderId}",
+                        sharedFolderId);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex,
+                    "Failed to call Core.Server cleanup for {SharedFolderId}",
+                    sharedFolderId);
+            }
+        }
+        // Fallback: publish event for in-process subscribers (standalone/testing)
+        else if (_eventBus is not null && caller is not null)
+        {
+            try
+            {
+                await _eventBus.PublishAsync(deleteEvent, caller, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex,
+                    "Failed to publish AdminSharedFolderDeletedEvent for {SharedFolderId}. " +
+                    "Media cleanup will need to be triggered manually.",
+                    sharedFolderId);
+            }
+        }
+
+        return new DeleteAdminSharedFolderResult
+        {
+            Deleted = true,
+            CleanupJobId = cleanupJobId,
+            PendingSearchRemovals = searchEntityIds.Count,
+            SearchDocsRemoved = searchRemoved,
+            PendingMediaCleanup = true,
+            MountedEntries = mountedEntries
+                .Select(e => new MountedEntryInfo
+                {
+                    RelativePath = e.RelativePath,
+                    IsDirectory = e.IsDirectory,
+                })
+                .ToList(),
+        };
     }
 
     /// <inheritdoc />
