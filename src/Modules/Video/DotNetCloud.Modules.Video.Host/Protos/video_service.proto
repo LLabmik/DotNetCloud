@@ -28,15 +28,6 @@ service VideoGrpcService {
   // Deletes a collection.
   rpc DeleteCollection (DeleteCollectionRequest) returns (GenericResponse);
 
-  // Gets watch progress for a video.
-  rpc GetWatchProgress (GetWatchProgressRequest) returns (WatchProgressResponse);
-
-  // Updates watch progress.
-  rpc UpdateWatchProgress (UpdateWatchProgressRequest) returns (WatchProgressResponse);
-
-  // Records a video view.
-  rpc RecordView (RecordViewRequest) returns (GenericResponse);
-
   // Generates a stream token.
   rpc GenerateStreamToken (GenerateStreamTokenRequest) returns (StreamTokenResponse);
 
@@ -144,32 +135,6 @@ message CollectionMessage {
   string created_at = 5;
 }
 
-// ── Watch Progress Messages ─────────────────────────────────────
-
-message GetWatchProgressRequest {
-  string video_id = 1;
-  string user_id = 2;
-}
-
-message UpdateWatchProgressRequest {
-  string video_id = 1;
-  string user_id = 2;
-  int64 position_ticks = 3;
-}
-
-message WatchProgressResponse {
-  bool success = 1;
-  string error_message = 2;
-  WatchProgressMessage progress = 3;
-}
-
-message WatchProgressMessage {
-  string video_id = 1;
-  int64 position_ticks = 2;
-  bool is_completed = 3;
-  string updated_at = 4;
-}
-
 // ── Streaming Messages ──────────────────────────────────────────
 
 message GenerateStreamTokenRequest {
@@ -182,14 +147,6 @@ message StreamTokenResponse {
   string error_message = 2;
   string token = 3;
   int32 expires_in_minutes = 4;
-}
-
-// ── View Messages ───────────────────────────────────────────────
-
-message RecordViewRequest {
-  string video_id = 1;
-  string user_id = 2;
-  int32 duration_seconds = 3;
 }
 
 // ── Common Messages ─────────────────────────────────────────────

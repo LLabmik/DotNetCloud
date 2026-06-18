@@ -428,163 +428,76 @@ public sealed class VideoSeriesService : IVideoSeriesService
     /// <inheritdoc />
     public async Task<VideoSeasonDto?> GetSeasonAsync(Guid seasonId, CallerContext caller, CancellationToken cancellationToken = default)
     {
-        // Try canonical
         var canonical = await _db.CanonicalVideoSeasons
             .Include(s => s.Episodes)
             .FirstOrDefaultAsync(s => s.Id == seasonId, cancellationToken);
 
-        if (canonical is not null)
-            return MapCanonicalSeasonToDto(canonical);
-
-        // Fallback: old per-user
-        var old = await _db.VideoSeasons
-            .Include(s => s.Episodes)
-            .FirstOrDefaultAsync(s => s.Id == seasonId && s.Series!.OwnerId == caller.UserId, cancellationToken);
-
-        return old is null ? null : MapSeasonToDto(old);
+        return canonical is not null ? MapCanonicalSeasonToDto(canonical) : null;
     }
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<VideoSeasonDto>> GetSeriesSeasonsAsync(Guid seriesId, CallerContext caller, CancellationToken cancellationToken = default)
     {
-        // Try canonical
-        var canonicalSeries = await _db.CanonicalVideoSeries
-            .FirstOrDefaultAsync(s => s.Id == seriesId, cancellationToken);
-
-        if (canonicalSeries is not null)
-        {
-            var seasons = await _db.CanonicalVideoSeasons
-                .Include(s => s.Episodes)
-                .Where(s => s.SeriesId == seriesId)
-                .OrderBy(s => s.SeasonNumber)
-                .ToListAsync(cancellationToken);
-
-            return seasons.Select(MapCanonicalSeasonToDto).ToList();
-        }
-
-        // Fallback: old per-user
-        var oldSeries = await _db.VideoSeries
-            .FirstOrDefaultAsync(s => s.Id == seriesId && s.OwnerId == caller.UserId, cancellationToken);
-
-        if (oldSeries is null)
-            return [];
-
-        var oldSeasons = await _db.VideoSeasons
+        var seasons = await _db.CanonicalVideoSeasons
             .Include(s => s.Episodes)
             .Where(s => s.SeriesId == seriesId)
             .OrderBy(s => s.SeasonNumber)
             .ToListAsync(cancellationToken);
 
-        return oldSeasons.Select(MapSeasonToDto).ToList();
+        return seasons.Select(MapCanonicalSeasonToDto).ToList();
     }
 
     /// <inheritdoc />
     public async Task<VideoSeasonDto> UpdateSeasonAsync(Guid seasonId, UpdateVideoSeasonDto dto, CallerContext caller, CancellationToken cancellationToken = default)
     {
-        // Try canonical
         var canonical = await _db.CanonicalVideoSeasons
             .Include(s => s.Episodes)
-            .FirstOrDefaultAsync(s => s.Id == seasonId, cancellationToken);
-
-        if (canonical is not null)
-        {
-            if (dto.SeasonNumber.HasValue)
-                canonical.SeasonNumber = dto.SeasonNumber.Value;
-            if (dto.Name is not null)
-                canonical.Name = dto.Name;
-            if (dto.Overview is not null)
-                canonical.Overview = dto.Overview;
-
-            canonical.UpdatedAt = DateTime.UtcNow;
-            await _db.SaveChangesAsync(cancellationToken);
-
-            return MapCanonicalSeasonToDto(canonical);
-        }
-
-        // Fallback: old per-user
-        var old = await _db.VideoSeasons
-            .Include(s => s.Episodes)
-            .FirstOrDefaultAsync(s => s.Id == seasonId && s.Series!.OwnerId == caller.UserId, cancellationToken)
+            .FirstOrDefaultAsync(s => s.Id == seasonId, cancellationToken)
             ?? throw new BusinessRuleException(ErrorCodes.VideoSeasonNotFound, "Season not found.");
 
         if (dto.SeasonNumber.HasValue)
-            old.SeasonNumber = dto.SeasonNumber.Value;
+            canonical.SeasonNumber = dto.SeasonNumber.Value;
         if (dto.Name is not null)
-            old.Name = dto.Name;
+            canonical.Name = dto.Name;
         if (dto.Overview is not null)
-            old.Overview = dto.Overview;
+            canonical.Overview = dto.Overview;
 
-        old.UpdatedAt = DateTime.UtcNow;
+        canonical.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
 
-        return MapSeasonToDto(old);
+        return MapCanonicalSeasonToDto(canonical);
     }
 
     /// <inheritdoc />
     public async Task DeleteSeasonAsync(Guid seasonId, CallerContext caller, CancellationToken cancellationToken = default)
     {
-        // Try canonical
         var canonical = await _db.CanonicalVideoSeasons
-            .FirstOrDefaultAsync(s => s.Id == seasonId, cancellationToken);
-
-        if (canonical is not null)
-        {
-            // Remove related episodes
-            var episodes = await _db.CanonicalVideoEpisodes
-                .Where(e => e.SeasonId == seasonId).ToListAsync(cancellationToken);
-            _db.CanonicalVideoEpisodes.RemoveRange(episodes);
-            _db.CanonicalVideoSeasons.Remove(canonical);
-
-            // Update canonical series count
-            var series = await _db.CanonicalVideoSeries.FindAsync(new object[] { canonical.SeriesId }, cancellationToken);
-            if (series is not null)
-            {
-                series.TotalSeasons = await _db.CanonicalVideoSeasons
-                    .CountAsync(s => s.SeriesId == canonical.SeriesId, cancellationToken);
-                series.UpdatedAt = DateTime.UtcNow;
-            }
-
-            // Dual-write: soft-delete old season
-            var oldSeason = await _db.VideoSeasons
-                .FirstOrDefaultAsync(s => s.Id == seasonId, cancellationToken);
-            if (oldSeason is not null)
-            {
-                oldSeason.IsDeleted = true;
-                oldSeason.DeletedAt = DateTime.UtcNow;
-                oldSeason.UpdatedAt = DateTime.UtcNow;
-            }
-
-            await _db.SaveChangesAsync(cancellationToken);
-
-            _logger.LogInformation("CanonicalSeason {SeasonId} in series {SeriesId} deleted", seasonId, canonical.SeriesId);
-            return;
-        }
-
-        // Fallback: old per-user
-        var old = await _db.VideoSeasons
-            .FirstOrDefaultAsync(s => s.Id == seasonId && s.Series!.OwnerId == caller.UserId, cancellationToken)
+            .FirstOrDefaultAsync(s => s.Id == seasonId, cancellationToken)
             ?? throw new BusinessRuleException(ErrorCodes.VideoSeasonNotFound, "Season not found.");
 
-        old.IsDeleted = true;
-        old.DeletedAt = DateTime.UtcNow;
-        old.UpdatedAt = DateTime.UtcNow;
-        await _db.SaveChangesAsync(cancellationToken);
+        // Remove related episodes
+        var episodes = await _db.CanonicalVideoEpisodes
+            .Where(e => e.SeasonId == seasonId).ToListAsync(cancellationToken);
+        _db.CanonicalVideoEpisodes.RemoveRange(episodes);
+        _db.CanonicalVideoSeasons.Remove(canonical);
 
-        var oldSeries = await _db.VideoSeries.FindAsync(new object[] { old.SeriesId }, cancellationToken);
-        if (oldSeries is not null)
+        // Update canonical series count
+        var series = await _db.CanonicalVideoSeries.FindAsync(new object[] { canonical.SeriesId }, cancellationToken);
+        if (series is not null)
         {
-            oldSeries.TotalSeasons = await _db.VideoSeasons.CountAsync(s => s.SeriesId == old.SeriesId, cancellationToken);
-            oldSeries.UpdatedAt = DateTime.UtcNow;
-            await _db.SaveChangesAsync(cancellationToken);
+            series.TotalSeasons = await _db.CanonicalVideoSeasons
+                .CountAsync(s => s.SeriesId == canonical.SeriesId, cancellationToken);
+            series.UpdatedAt = DateTime.UtcNow;
         }
 
-        _logger.LogInformation("Season {SeasonId} in series {SeriesId} soft-deleted", seasonId, old.SeriesId);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("CanonicalSeason {SeasonId} in series {SeriesId} deleted", seasonId, canonical.SeriesId);
     }
 
     /// <inheritdoc />
     public async Task<VideoSeasonDto> FindOrCreateSeasonAsync(Guid seriesId, int seasonNumber, string? name, CallerContext caller, CancellationToken cancellationToken = default)
     {
-        // Try canonical
         var canonical = await _db.CanonicalVideoSeasons
             .Include(s => s.Episodes)
             .FirstOrDefaultAsync(s => s.SeriesId == seriesId && s.SeasonNumber == seasonNumber, cancellationToken);
@@ -600,26 +513,6 @@ public sealed class VideoSeriesService : IVideoSeriesService
         };
 
         _db.CanonicalVideoSeasons.Add(canonical);
-
-        // ── Dual-write: old per-user season ──
-        var oldSeries = await _db.VideoSeries
-            .FirstOrDefaultAsync(s => s.Id == seriesId && s.OwnerId == caller.UserId, cancellationToken);
-        if (oldSeries is not null)
-        {
-            var oldSeason = await _db.VideoSeasons
-                .FirstOrDefaultAsync(s => s.SeriesId == seriesId && s.SeasonNumber == seasonNumber, cancellationToken);
-
-            if (oldSeason is null)
-            {
-                oldSeason = new VideoSeason
-                {
-                    SeriesId = seriesId,
-                    SeasonNumber = seasonNumber,
-                    Name = name ?? $"Season {seasonNumber}"
-                };
-                _db.VideoSeasons.Add(oldSeason);
-            }
-        }
 
         await _db.SaveChangesAsync(cancellationToken);
 
@@ -638,170 +531,74 @@ public sealed class VideoSeriesService : IVideoSeriesService
             .FirstOrDefaultAsync(cancellationToken);
 
         if (string.IsNullOrEmpty(contentHash))
-        {
-            var oldVideo = await _db.Videos
-                .FirstOrDefaultAsync(v => v.Id == videoId, cancellationToken);
-            if (oldVideo is null)
-                throw new BusinessRuleException(ErrorCodes.VideoNotFound, "Video not found.");
-            contentHash = oldVideo.ContentHash ?? oldVideo.Id.ToString();
-        }
-
-        // Try canonical season
-        var canonicalSeason = await _db.CanonicalVideoSeasons
-            .Include(s => s.Series)
-            .FirstOrDefaultAsync(s => s.Id == seasonId, cancellationToken);
-
-        if (canonicalSeason is not null)
-        {
-            // Check if video is already in this season by content hash
-            var alreadyInSeason = await _db.CanonicalVideoEpisodes
-                .AnyAsync(e => e.SeasonId == seasonId && e.VideoContentHash == contentHash, cancellationToken);
-            if (alreadyInSeason)
-                throw new BusinessRuleException(ErrorCodes.VideoAlreadyInSeason, "Video is already an episode in this season.");
-
-            // Avoid unique constraint violation on (SeasonId, EpisodeNumber) — auto-increment if taken
-            var finalEpisodeNumber = episodeNumber;
-            var episodeNumberExists = await _db.CanonicalVideoEpisodes
-                .AnyAsync(e => e.SeasonId == seasonId && e.EpisodeNumber == finalEpisodeNumber, cancellationToken);
-            if (episodeNumberExists)
-            {
-                finalEpisodeNumber = (await _db.CanonicalVideoEpisodes
-                    .Where(e => e.SeasonId == seasonId)
-                    .MaxAsync(e => (int?)e.EpisodeNumber, cancellationToken) ?? 0) + 1;
-            }
-
-            var maxOrder = await _db.CanonicalVideoEpisodes
-                .Where(e => e.SeasonId == seasonId)
-                .MaxAsync(e => (int?)e.SortOrder, cancellationToken) ?? 0;
-
-            var episode = new CanonicalVideoEpisode
-            {
-                SeasonId = seasonId,
-                VideoContentHash = contentHash,
-                EpisodeNumber = finalEpisodeNumber,
-                Title = title,
-                Overview = overview,
-                SortOrder = maxOrder + 1
-            };
-
-            _db.CanonicalVideoEpisodes.Add(episode);
-
-            // ── Dual-write: old per-user episode ──
-            var oldSeason = await _db.VideoSeasons
-                .Include(s => s.Series)
-                .FirstOrDefaultAsync(s => s.Id == seasonId, cancellationToken);
-            if (oldSeason is not null)
-            {
-                var newOldEpisode = new VideoEpisode
-                {
-                    SeasonId = seasonId,
-                    VideoId = videoId,
-                    EpisodeNumber = finalEpisodeNumber,
-                    Title = title,
-                    Overview = overview,
-                    SortOrder = maxOrder + 1
-                };
-                _db.VideoEpisodes.Add(newOldEpisode);
-            }
-
-            // Save changes first so counts reflect database reality (Bug 10 fix)
-            await _db.SaveChangesAsync(cancellationToken);
-
-            // Update canonical season count after save
-            canonicalSeason.EpisodeCount = await _db.CanonicalVideoEpisodes
-                .CountAsync(e => e.SeasonId == seasonId, cancellationToken);
-            canonicalSeason.UpdatedAt = DateTime.UtcNow;
-
-            // Update canonical series totals after save
-            var series = canonicalSeason.Series!;
-            series.TotalEpisodes = await _db.CanonicalVideoEpisodes
-                .CountAsync(e => e.Season!.SeriesId == series.Id, cancellationToken);
-            series.UpdatedAt = DateTime.UtcNow;
-
-            // Update old-per-user counts after save
-            if (oldSeason is not null)
-            {
-                oldSeason.EpisodeCount = await _db.VideoEpisodes
-                    .CountAsync(e => e.SeasonId == seasonId, cancellationToken);
-                oldSeason.UpdatedAt = DateTime.UtcNow;
-
-                if (oldSeason.Series is not null)
-                {
-                    oldSeason.Series.TotalEpisodes = await _db.VideoEpisodes
-                        .CountAsync(e => e.Season!.SeriesId == oldSeason.Series.Id, cancellationToken);
-                    oldSeason.Series.UpdatedAt = DateTime.UtcNow;
-                }
-            }
-
-            await _db.SaveChangesAsync(cancellationToken);
-
-            _logger.LogInformation("Video {VideoId} added as episode {EpisodeNumber} to canonical season {SeasonId}",
-                videoId, episodeNumber, seasonId);
-
-            return new VideoEpisodeDto
-            {
-                Id = episode.Id,
-                SeasonId = episode.SeasonId,
-                VideoId = videoId,
-                EpisodeNumber = episode.EpisodeNumber,
-                Title = episode.Title,
-                Overview = episode.Overview,
-                SortOrder = episode.SortOrder
-            };
-        }
-
-        // Fallback: old per-user tables
-        var oldSeasonOnly = await _db.VideoSeasons
-            .Include(s => s.Series)
-            .FirstOrDefaultAsync(s => s.Id == seasonId && s.Series!.OwnerId == caller.UserId, cancellationToken)
-            ?? throw new BusinessRuleException(ErrorCodes.VideoSeasonNotFound, "Season not found.");
-
-        var videoExists = await _db.Videos.AnyAsync(v => v.Id == videoId, cancellationToken);
-        if (!videoExists)
             throw new BusinessRuleException(ErrorCodes.VideoNotFound, "Video not found.");
 
-        var alreadyInOldSeason = await _db.VideoEpisodes
-            .AnyAsync(e => e.SeasonId == seasonId && e.VideoId == videoId, cancellationToken);
-        if (alreadyInOldSeason)
+        var canonicalSeason = await _db.CanonicalVideoSeasons
+            .Include(s => s.Series)
+            .FirstOrDefaultAsync(s => s.Id == seasonId, cancellationToken)
+            ?? throw new BusinessRuleException(ErrorCodes.VideoSeasonNotFound, "Season not found.");
+
+        // Check if video is already in this season by content hash
+        var alreadyInSeason = await _db.CanonicalVideoEpisodes
+            .AnyAsync(e => e.SeasonId == seasonId && e.VideoContentHash == contentHash, cancellationToken);
+        if (alreadyInSeason)
             throw new BusinessRuleException(ErrorCodes.VideoAlreadyInSeason, "Video is already an episode in this season.");
 
-        var maxOrderOld = await _db.VideoEpisodes
+        // Avoid unique constraint violation on (SeasonId, EpisodeNumber) — auto-increment if taken
+        var finalEpisodeNumber = episodeNumber;
+        var episodeNumberExists = await _db.CanonicalVideoEpisodes
+            .AnyAsync(e => e.SeasonId == seasonId && e.EpisodeNumber == finalEpisodeNumber, cancellationToken);
+        if (episodeNumberExists)
+        {
+            finalEpisodeNumber = (await _db.CanonicalVideoEpisodes
+                .Where(e => e.SeasonId == seasonId)
+                .MaxAsync(e => (int?)e.EpisodeNumber, cancellationToken) ?? 0) + 1;
+        }
+
+        var maxOrder = await _db.CanonicalVideoEpisodes
             .Where(e => e.SeasonId == seasonId)
             .MaxAsync(e => (int?)e.SortOrder, cancellationToken) ?? 0;
 
-        var oldEpisode = new VideoEpisode
+        var episode = new CanonicalVideoEpisode
         {
             SeasonId = seasonId,
-            VideoId = videoId,
-            EpisodeNumber = episodeNumber,
+            VideoContentHash = contentHash,
+            EpisodeNumber = finalEpisodeNumber,
             Title = title,
             Overview = overview,
-            SortOrder = maxOrderOld + 1
+            SortOrder = maxOrder + 1
         };
 
-        _db.VideoEpisodes.Add(oldEpisode);
-        oldSeasonOnly.EpisodeCount = await _db.VideoEpisodes.CountAsync(e => e.SeasonId == seasonId, cancellationToken);
-        oldSeasonOnly.UpdatedAt = DateTime.UtcNow;
+        _db.CanonicalVideoEpisodes.Add(episode);
 
-        var oldSeriesOnly = oldSeasonOnly.Series!;
-        oldSeriesOnly.TotalEpisodes = await _db.VideoEpisodes
-            .CountAsync(e => e.Season!.SeriesId == oldSeriesOnly.Id, cancellationToken);
-        oldSeriesOnly.UpdatedAt = DateTime.UtcNow;
+        // Save changes first so counts reflect database reality (Bug 10 fix)
+        await _db.SaveChangesAsync(cancellationToken);
+
+        // Update canonical season count after save
+        canonicalSeason.EpisodeCount = await _db.CanonicalVideoEpisodes
+            .CountAsync(e => e.SeasonId == seasonId, cancellationToken);
+        canonicalSeason.UpdatedAt = DateTime.UtcNow;
+
+        // Update canonical series totals after save
+        var series = canonicalSeason.Series!;
+        series.TotalEpisodes = await _db.CanonicalVideoEpisodes
+            .CountAsync(e => e.Season!.SeriesId == series.Id, cancellationToken);
+        series.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(cancellationToken);
 
-        _logger.LogInformation("Video {VideoId} added as episode {EpisodeNumber} to season {SeasonId} (old)",
+        _logger.LogInformation("Video {VideoId} added as episode {EpisodeNumber} to canonical season {SeasonId}",
             videoId, episodeNumber, seasonId);
 
         return new VideoEpisodeDto
         {
-            Id = oldEpisode.Id,
-            SeasonId = oldEpisode.SeasonId,
-            VideoId = oldEpisode.VideoId,
-            EpisodeNumber = oldEpisode.EpisodeNumber,
-            Title = oldEpisode.Title,
-            Overview = oldEpisode.Overview,
-            SortOrder = oldEpisode.SortOrder
+            Id = episode.Id,
+            SeasonId = episode.SeasonId,
+            VideoId = videoId,
+            EpisodeNumber = episode.EpisodeNumber,
+            Title = episode.Title,
+            Overview = episode.Overview,
+            SortOrder = episode.SortOrder
         };
     }
 
@@ -814,70 +611,38 @@ public sealed class VideoSeriesService : IVideoSeriesService
             .Select(uv => uv.CanonicalContentHash)
             .FirstOrDefaultAsync(cancellationToken);
 
-        // Try canonical — find episode by season AND content hash (Bug 9 fix)
-        CanonicalVideoEpisode? canonicalEpisode = null;
-        if (!string.IsNullOrEmpty(contentHash))
-        {
-            canonicalEpisode = await _db.CanonicalVideoEpisodes
-                .FirstOrDefaultAsync(e => e.SeasonId == seasonId && e.VideoContentHash == contentHash, cancellationToken);
-        }
+        if (string.IsNullOrEmpty(contentHash))
+            throw new BusinessRuleException(ErrorCodes.VideoNotFound, "Video not found.");
 
-        if (canonicalEpisode is not null)
-        {
-            _db.CanonicalVideoEpisodes.Remove(canonicalEpisode);
-
-            // Dual-write: remove old episode
-            var oldEpisode = await _db.VideoEpisodes
-                .FirstOrDefaultAsync(e => e.SeasonId == seasonId && e.VideoId == videoId, cancellationToken);
-            if (oldEpisode is not null)
-                _db.VideoEpisodes.Remove(oldEpisode);
-
-            // Save changes first so counts reflect database reality (Bug 10 fix)
-            await _db.SaveChangesAsync(cancellationToken);
-
-            // Update canonical season count after save
-            var canonicalSeason = await _db.CanonicalVideoSeasons
-                .Include(s => s.Series)
-                .FirstOrDefaultAsync(s => s.Id == seasonId, cancellationToken);
-            if (canonicalSeason is not null)
-            {
-                canonicalSeason.EpisodeCount = await _db.CanonicalVideoEpisodes
-                    .CountAsync(e => e.SeasonId == seasonId, cancellationToken);
-                canonicalSeason.UpdatedAt = DateTime.UtcNow;
-
-                if (canonicalSeason.Series is not null)
-                {
-                    canonicalSeason.Series.TotalEpisodes = await _db.CanonicalVideoEpisodes
-                        .CountAsync(e => e.Season!.SeriesId == canonicalSeason.Series.Id, cancellationToken);
-                    canonicalSeason.Series.UpdatedAt = DateTime.UtcNow;
-                }
-
-                await _db.SaveChangesAsync(cancellationToken);
-            }
-            return;
-        }
-
-        // Fallback: old per-user tables
-        var season = await _db.VideoSeasons
-            .Include(s => s.Series)
-            .FirstOrDefaultAsync(s => s.Id == seasonId && s.Series!.OwnerId == caller.UserId, cancellationToken)
-            ?? throw new BusinessRuleException(ErrorCodes.VideoSeasonNotFound, "Season not found.");
-
-        var episode = await _db.VideoEpisodes
-            .FirstOrDefaultAsync(e => e.SeasonId == seasonId && e.VideoId == videoId, cancellationToken)
+        // Find canonical episode by season AND content hash (Bug 9 fix)
+        var canonicalEpisode = await _db.CanonicalVideoEpisodes
+            .FirstOrDefaultAsync(e => e.SeasonId == seasonId && e.VideoContentHash == contentHash, cancellationToken)
             ?? throw new BusinessRuleException(ErrorCodes.VideoEpisodeNotFound, "Episode not found.");
 
-        _db.VideoEpisodes.Remove(episode);
+        _db.CanonicalVideoEpisodes.Remove(canonicalEpisode);
 
-        season.EpisodeCount = await _db.VideoEpisodes.CountAsync(e => e.SeasonId == seasonId, cancellationToken);
-        season.UpdatedAt = DateTime.UtcNow;
-
-        var series = season.Series!;
-        series.TotalEpisodes = await _db.VideoEpisodes
-            .CountAsync(e => e.Season!.SeriesId == series.Id, cancellationToken);
-        series.UpdatedAt = DateTime.UtcNow;
-
+        // Save changes first so counts reflect database reality (Bug 10 fix)
         await _db.SaveChangesAsync(cancellationToken);
+
+        // Update canonical season count after save
+        var canonicalSeason = await _db.CanonicalVideoSeasons
+            .Include(s => s.Series)
+            .FirstOrDefaultAsync(s => s.Id == seasonId, cancellationToken);
+        if (canonicalSeason is not null)
+        {
+            canonicalSeason.EpisodeCount = await _db.CanonicalVideoEpisodes
+                .CountAsync(e => e.SeasonId == seasonId, cancellationToken);
+            canonicalSeason.UpdatedAt = DateTime.UtcNow;
+
+            if (canonicalSeason.Series is not null)
+            {
+                canonicalSeason.Series.TotalEpisodes = await _db.CanonicalVideoEpisodes
+                    .CountAsync(e => e.Season!.SeriesId == canonicalSeason.Series.Id, cancellationToken);
+                canonicalSeason.Series.UpdatedAt = DateTime.UtcNow;
+            }
+
+            await _db.SaveChangesAsync(cancellationToken);
+        }
     }
 
     /// <inheritdoc />
@@ -943,31 +708,9 @@ public sealed class VideoSeriesService : IVideoSeriesService
             }).ToList();
         }
 
-        // Fallback: old per-user
-        var oldSeason = await _db.VideoSeasons
-            .FirstOrDefaultAsync(s => s.Id == seasonId && s.Series!.OwnerId == caller.UserId, cancellationToken);
+        return [];
 
-        if (oldSeason is null)
-            return [];
 
-        var oldEpisodes = await _db.VideoEpisodes
-            .Include(e => e.Video).ThenInclude(v => v!.Metadata)
-            .Where(e => e.SeasonId == seasonId)
-            .OrderBy(e => e.EpisodeNumber)
-            .ThenBy(e => e.SortOrder)
-            .ToListAsync(cancellationToken);
-
-        return oldEpisodes.Select(e => new VideoEpisodeDto
-        {
-            Id = e.Id,
-            SeasonId = e.SeasonId,
-            VideoId = e.VideoId,
-            EpisodeNumber = e.EpisodeNumber,
-            Title = e.Title,
-            Overview = e.Overview,
-            SortOrder = e.SortOrder,
-            Video = MapVideoToDto(e.Video!, caller.UserId)
-        }).ToList();
     }
 
     // ─── Thumbnail ──────────────────────────────────────────────────
@@ -1004,31 +747,6 @@ public sealed class VideoSeriesService : IVideoSeriesService
             }
 
             return null;
-        }
-
-        // Fallback: old per-user series
-        var oldSeries = await _db.VideoSeries
-            .Where(s => s.Id == seriesId && s.OwnerId == caller.UserId && !s.IsDeleted)
-            .Select(s => new { s.ThumbnailPoster, s.HasExternalPoster, s.ExternalPosterPath })
-            .FirstOrDefaultAsync(cancellationToken);
-
-        if (oldSeries is null)
-            return null;
-
-        if (oldSeries.ThumbnailPoster is { Length: > 0 })
-            return oldSeries.ThumbnailPoster;
-
-        if (oldSeries.HasExternalPoster && !string.IsNullOrWhiteSpace(oldSeries.ExternalPosterPath))
-        {
-            try
-            {
-                if (File.Exists(oldSeries.ExternalPosterPath))
-                    return await File.ReadAllBytesAsync(oldSeries.ExternalPosterPath, cancellationToken);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to read cached poster for series {SeriesId}", seriesId);
-            }
         }
 
         return null;
@@ -1231,25 +949,6 @@ public sealed class VideoSeriesService : IVideoSeriesService
                 return MapCanonicalToDto(canonicalItemSeries);
         }
 
-        // Fallback: old per-user tables
-        var episodeSeries = await _db.VideoEpisodes
-            .Include(e => e.Season).ThenInclude(s => s!.Series)
-            .Where(e => e.VideoId == videoId && e.Season!.Series!.OwnerId == caller.UserId)
-            .Select(e => e.Season!.Series)
-            .FirstOrDefaultAsync(cancellationToken);
-
-        if (episodeSeries is not null)
-            return MapToDto(episodeSeries);
-
-        var itemSeries = await _db.VideoSeriesItems
-            .Include(i => i.Series)
-            .Where(i => i.VideoId == videoId && i.Series!.OwnerId == caller.UserId)
-            .Select(i => i.Series)
-            .FirstOrDefaultAsync(cancellationToken);
-
-        if (itemSeries is not null)
-            return MapToDto(itemSeries);
-
         return null;
     }
 
@@ -1278,23 +977,6 @@ public sealed class VideoSeriesService : IVideoSeriesService
                 seriesGroups[seriesName] = (new List<Guid>(), seriesType);
 
             seriesGroups[seriesName].VideoIds.Add(uv.Id);
-        }
-
-        // Also check old Videos table for migration compatibility
-        var oldVideos = await _db.Videos
-            .Where(v => v.OwnerId == caller.UserId && !v.IsDeleted)
-            .ToListAsync(cancellationToken);
-
-        foreach (var video in oldVideos)
-        {
-            var (seriesName, seriesType) = DetectSeriesFromVideo(video.FileName, video.Title);
-            if (seriesName is null)
-                continue;
-
-            if (!seriesGroups.ContainsKey(seriesName))
-                seriesGroups[seriesName] = (new List<Guid>(), seriesType);
-
-            seriesGroups[seriesName].VideoIds.Add(video.Id);
         }
 
         var results = new List<VideoSeriesDto>();
@@ -1353,26 +1035,6 @@ public sealed class VideoSeriesService : IVideoSeriesService
 
     // ─── Mapping Helpers ─────────────────────────────────────────────
 
-    private VideoSeriesDto MapToDto(VideoSeries series)
-    {
-        return new VideoSeriesDto
-        {
-            Id = series.Id,
-            Name = series.Name,
-            Description = series.Description,
-            Type = series.Type.ToString(),
-            Year = series.Year,
-            TmdbRating = series.TmdbRating,
-            Genres = series.Genres,
-            Status = series.Status,
-            TotalSeasons = series.Seasons?.Count ?? 0,
-            TotalEpisodes = series.TotalEpisodes,
-            HasExternalPoster = series.HasExternalPoster,
-            CreatedAt = series.CreatedAt,
-            UpdatedAt = series.UpdatedAt
-        };
-    }
-
     private static VideoSeriesDto MapCanonicalToDto(CanonicalVideoSeries series)
     {
         return new VideoSeriesDto
@@ -1392,22 +1054,6 @@ public sealed class VideoSeriesService : IVideoSeriesService
         };
     }
 
-    private static VideoSeasonDto MapSeasonToDto(VideoSeason season)
-    {
-        return new VideoSeasonDto
-        {
-            Id = season.Id,
-            SeriesId = season.SeriesId,
-            SeasonNumber = season.SeasonNumber,
-            Name = season.Name,
-            Overview = season.Overview,
-            EpisodeCount = season.Episodes?.Count ?? 0,
-            HasExternalPoster = season.HasExternalPoster,
-            AirDate = season.AirDate,
-            CreatedAt = season.CreatedAt
-        };
-    }
-
     private static VideoSeasonDto MapCanonicalSeasonToDto(CanonicalVideoSeason season)
     {
         return new VideoSeasonDto
@@ -1421,38 +1067,6 @@ public sealed class VideoSeriesService : IVideoSeriesService
             HasExternalPoster = !string.IsNullOrEmpty(season.PosterHash),
             AirDate = season.AirDate,
             CreatedAt = season.CreatedAt
-        };
-    }
-
-    private VideoDto? MapVideoToDto(Models.Video? video, Guid userId)
-    {
-        if (video is null)
-            return null;
-
-        var watchProgress = _db.WatchProgresses
-            .FirstOrDefault(wp => wp.VideoId == video.Id && wp.UserId == userId);
-
-        return new VideoDto
-        {
-            Id = video.Id,
-            OwnerId = video.OwnerId,
-            FileNodeId = video.FileNodeId,
-            Title = video.Title,
-            FileName = video.FileName,
-            MimeType = video.MimeType,
-            SizeBytes = video.SizeBytes,
-            Duration = TimeSpan.FromTicks(video.DurationTicks),
-            Width = video.Metadata?.Width,
-            Height = video.Metadata?.Height,
-            IsFavorite = video.IsFavorite,
-            ViewCount = video.ViewCount,
-            WatchPositionTicks = watchProgress?.PositionTicks,
-            CreatedAt = video.CreatedAt,
-            HasExternalPoster = video.HasExternalPoster,
-            Overview = video.Overview,
-            TmdbRating = video.TmdbRating,
-            Genres = video.Genres,
-            ReleaseDate = video.ReleaseDate
         };
     }
 

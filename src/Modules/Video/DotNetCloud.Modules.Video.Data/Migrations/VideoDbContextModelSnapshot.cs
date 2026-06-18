@@ -722,66 +722,6 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
                     b.ToTable("Videos", "video");
                 });
 
-            modelBuilder.Entity("DotNetCloud.Modules.Video.Models.VideoCollection", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Description")
-                        .HasColumnType("text");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("OwnerId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("VideoCollections", "video");
-                });
-
-            modelBuilder.Entity("DotNetCloud.Modules.Video.Models.VideoCollectionItem", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("AddedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("CollectionId")
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid>("VideoId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CollectionId");
-
-                    b.HasIndex("VideoId");
-
-                    b.ToTable("VideoCollectionItems", "video");
-                });
-
             modelBuilder.Entity("DotNetCloud.Modules.Video.Models.VideoEpisode", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1204,24 +1144,7 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
                     b.Navigation("Collection");
                 });
 
-            modelBuilder.Entity("DotNetCloud.Modules.Video.Models.VideoCollectionItem", b =>
-                {
-                    b.HasOne("DotNetCloud.Modules.Video.Models.VideoCollection", "Collection")
-                        .WithMany("Items")
-                        .HasForeignKey("CollectionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
 
-                    b.HasOne("DotNetCloud.Modules.Video.Models.Video", "Video")
-                        .WithMany("CollectionItems")
-                        .HasForeignKey("VideoId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Collection");
-
-                    b.Navigation("Video");
-                });
 
             modelBuilder.Entity("DotNetCloud.Modules.Video.Models.VideoEpisode", b =>
                 {
@@ -1344,8 +1267,6 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
 
             modelBuilder.Entity("DotNetCloud.Modules.Video.Models.Video", b =>
                 {
-                    b.Navigation("CollectionItems");
-
                     b.Navigation("Metadata");
 
                     b.Navigation("Shares");
@@ -1355,11 +1276,6 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
                     b.Navigation("WatchHistories");
 
                     b.Navigation("WatchProgresses");
-                });
-
-            modelBuilder.Entity("DotNetCloud.Modules.Video.Models.VideoCollection", b =>
-                {
-                    b.Navigation("Items");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Video.Models.VideoSeason", b =>

@@ -33,7 +33,6 @@ public partial class VideoPage : IAsyncDisposable
     private List<VideoDto> _favoriteVideos = [];
     private VideoCollectionContentDto? _collectionContent;
     private VideoSearchResultDto? _searchResults;
-    private List<WatchProgressDto> _continueWatching = [];
     private List<VideoCollectionDto> _collections = [];
 
     // ── Series / Seasons ──
@@ -120,10 +119,6 @@ public partial class VideoPage : IAsyncDisposable
     // ── Breadcrumbs ──
     private record BreadcrumbItem(string Label, Func<Task> Action);
     private List<BreadcrumbItem> _breadcrumb = [];
-
-    // ── Timer for progress saving ──
-    private PeriodicTimer? _progressTimer;
-    private CancellationTokenSource? _timerCts;
 
     // ── Auth ──
     private CallerContext? _caller;
@@ -510,7 +505,6 @@ public partial class VideoPage : IAsyncDisposable
             switch (_section)
             {
                 case Section.Home:
-                    _continueWatching = (await WatchProgressService.GetContinueWatchingAsync(_caller, 10)).ToList();
                     await LoadRecentPageAsync();
                     break;
 
@@ -723,9 +717,6 @@ public partial class VideoPage : IAsyncDisposable
             _playerSubtitles = (await SubtitleService.GetSubtitlesAsync(video.Id, caller)).ToList();
             _playerMetadata = await MetadataService.GetMetadataAsync(video.Id);
 
-            await WatchProgressService.RecordViewAsync(video.Id, caller);
-            await StartProgressTimerAsync(video.Id);
-
             _breadcrumb =
             [
                 new BreadcrumbItem(GetSectionLabel(), async () => { await ClosePlayer(); StateHasChanged(); })
@@ -734,23 +725,6 @@ public partial class VideoPage : IAsyncDisposable
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error opening video player");
-        }
-    }
-
-    private async Task OpenPlayerForContinueAsync(WatchProgressDto wp)
-    {
-        try
-        {
-            var caller = await GetCallerAsync();
-            var video = await VideoService.GetVideoAsync(wp.VideoId, caller);
-            if (video is not null)
-            {
-                await OpenVideoDetailAsync(video);
-            }
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Error resuming video");
         }
     }
 
@@ -788,7 +762,6 @@ public partial class VideoPage : IAsyncDisposable
         _scriptsLoaded = false;
 
         _breadcrumb.Clear();
-        StopProgressTimer();
     }
 
     // ────────────────────────────────────────────────────────
@@ -1270,36 +1243,6 @@ public partial class VideoPage : IAsyncDisposable
     //  Progress saving timer
     // ────────────────────────────────────────────────────────
 
-    private async Task StartProgressTimerAsync(Guid videoId)
-    {
-        StopProgressTimer();
-        _timerCts = new CancellationTokenSource();
-        _progressTimer = new PeriodicTimer(TimeSpan.FromSeconds(15));
-
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                while (await _progressTimer.WaitForNextTickAsync(_timerCts.Token))
-                {
-                    // In a real implementation, JS interop would report currentTime
-                }
-            }
-            catch (OperationCanceledException) { }
-        });
-
-        await Task.CompletedTask;
-    }
-
-    private void StopProgressTimer()
-    {
-        _timerCts?.Cancel();
-        _progressTimer?.Dispose();
-        _progressTimer = null;
-        _timerCts?.Dispose();
-        _timerCts = null;
-    }
-
     // ── Library Settings Methods ─────────────────────────────
 
     private async Task LoadLibraryPathAsync()
@@ -1445,7 +1388,6 @@ public partial class VideoPage : IAsyncDisposable
             _recentVideos.Clear();
             _favoriteVideos.Clear();
             _collectionContent = null;
-            _continueWatching.Clear();
             _collections.Clear();
             _seriesList.Clear();
             _selectedSeries = null;
@@ -1833,7 +1775,6 @@ public partial class VideoPage : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        StopProgressTimer();
         ScanProgress.OnProgressChanged -= OnScanProgressChanged;
         _dotNetRef?.Dispose();
 

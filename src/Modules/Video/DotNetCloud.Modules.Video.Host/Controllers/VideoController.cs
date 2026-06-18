@@ -20,7 +20,6 @@ public class VideoController : VideoControllerBase
     private readonly VideoService _videoService;
     private readonly VideoCollectionService _collectionService;
     private readonly SubtitleService _subtitleService;
-    private readonly WatchProgressService _watchProgressService;
     private readonly VideoStreamingService _streamingService;
     private readonly VideoMetadataService _metadataService;
     private readonly IDownloadService _downloadService;
@@ -37,7 +36,6 @@ public class VideoController : VideoControllerBase
         VideoService videoService,
         VideoCollectionService collectionService,
         SubtitleService subtitleService,
-        WatchProgressService watchProgressService,
         VideoStreamingService streamingService,
         VideoMetadataService metadataService,
         IDownloadService downloadService,
@@ -50,7 +48,6 @@ public class VideoController : VideoControllerBase
         _videoService = videoService;
         _collectionService = collectionService;
         _subtitleService = subtitleService;
-        _watchProgressService = watchProgressService;
         _streamingService = streamingService;
         _metadataService = metadataService;
         _downloadService = downloadService;
@@ -353,46 +350,6 @@ public class VideoController : VideoControllerBase
         }
     }
 
-    // ─── Watch Progress ───────────────────────────────────────────────
-
-    /// <summary>Gets the watch progress for a specific video.</summary>
-    [HttpGet("{videoId:guid}/progress")]
-    public async Task<IActionResult> GetWatchProgress(Guid videoId)
-    {
-        var caller = GetAuthenticatedCaller();
-        var progress = await _watchProgressService.GetProgressAsync(videoId, caller);
-        return progress is null
-            ? NotFound(ErrorEnvelope(ErrorCodes.VideoNotFound, "No progress found."))
-            : Ok(Envelope(progress));
-    }
-
-    /// <summary>Updates the watch progress for a video.</summary>
-    [HttpPut("{videoId:guid}/progress")]
-    public async Task<IActionResult> UpdateWatchProgress(Guid videoId, [FromBody] UpdateWatchProgressDto dto)
-    {
-        var caller = GetAuthenticatedCaller();
-        await _watchProgressService.UpdateProgressAsync(videoId, dto, caller);
-        return Ok(Envelope(new { updated = true }));
-    }
-
-    /// <summary>Gets "continue watching" videos.</summary>
-    [HttpGet("continue-watching")]
-    public async Task<IActionResult> GetContinueWatching([FromQuery] int take = 20)
-    {
-        var caller = GetAuthenticatedCaller();
-        var progress = await _watchProgressService.GetContinueWatchingAsync(caller, take);
-        return Ok(Envelope(progress));
-    }
-
-    /// <summary>Records a view for a video.</summary>
-    [HttpPost("{videoId:guid}/view")]
-    public async Task<IActionResult> RecordView(Guid videoId, [FromQuery] int durationSeconds = 0)
-    {
-        var caller = GetAuthenticatedCaller();
-        await _watchProgressService.RecordViewAsync(videoId, caller, durationSeconds);
-        return Ok(Envelope(new { recorded = true }));
-    }
-
     // ─── Metadata ─────────────────────────────────────────────────────
 
     /// <summary>Gets metadata for a video.</summary>
@@ -411,20 +368,7 @@ public class VideoController : VideoControllerBase
     {
         try
         {
-            var metadata = new DotNetCloud.Modules.Video.Models.VideoMetadata
-            {
-                VideoId = videoId,
-                Width = dto.Width,
-                Height = dto.Height,
-                FrameRate = dto.FrameRate,
-                VideoCodec = dto.VideoCodec,
-                AudioCodec = dto.AudioCodec,
-                Bitrate = dto.Bitrate,
-                AudioTrackCount = dto.AudioTrackCount,
-                SubtitleTrackCount = dto.SubtitleTrackCount,
-                ContainerFormat = dto.ContainerFormat
-            };
-            await _metadataService.SaveMetadataAsync(videoId, metadata);
+            await _metadataService.SaveMetadataAsync(videoId, dto);
             return Ok(Envelope(new { saved = true }));
         }
         catch (BusinessRuleException ex) when (ex.ErrorCode == ErrorCodes.VideoNotFound)

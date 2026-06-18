@@ -15,7 +15,6 @@ public sealed class VideoGrpcServiceImpl : VideoGrpcService.VideoGrpcServiceBase
 {
     private readonly VideoService _videoService;
     private readonly VideoCollectionService _collectionService;
-    private readonly WatchProgressService _watchProgressService;
     private readonly VideoStreamingService _streamingService;
     private readonly IVideoTranscodingService _transcodingService;
     private readonly ILogger<VideoGrpcServiceImpl> _logger;
@@ -26,14 +25,12 @@ public sealed class VideoGrpcServiceImpl : VideoGrpcService.VideoGrpcServiceBase
     public VideoGrpcServiceImpl(
         VideoService videoService,
         VideoCollectionService collectionService,
-        WatchProgressService watchProgressService,
         VideoStreamingService streamingService,
         IVideoTranscodingService transcodingService,
         ILogger<VideoGrpcServiceImpl> logger)
     {
         _videoService = videoService;
         _collectionService = collectionService;
-        _watchProgressService = watchProgressService;
         _streamingService = streamingService;
         _transcodingService = transcodingService;
         _logger = logger;
@@ -165,61 +162,6 @@ public sealed class VideoGrpcServiceImpl : VideoGrpcService.VideoGrpcServiceBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "DeleteCollection failed");
-            return new GenericResponse { Success = false, ErrorMessage = ex.Message };
-        }
-    }
-
-    /// <inheritdoc />
-    public override async Task<WatchProgressResponse> GetWatchProgress(GetWatchProgressRequest request, ServerCallContext context)
-    {
-        try
-        {
-            var caller = ParseCaller(request.UserId);
-            var progress = await _watchProgressService.GetProgressAsync(Guid.Parse(request.VideoId), caller);
-            if (progress is null)
-                return new WatchProgressResponse { Success = false, ErrorMessage = "No progress found." };
-            return new WatchProgressResponse { Success = true, Progress = MapWatchProgress(progress) };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "GetWatchProgress failed");
-            return new WatchProgressResponse { Success = false, ErrorMessage = ex.Message };
-        }
-    }
-
-    /// <inheritdoc />
-    public override async Task<WatchProgressResponse> UpdateWatchProgress(UpdateWatchProgressRequest request, ServerCallContext context)
-    {
-        try
-        {
-            var caller = ParseCaller(request.UserId);
-            var dto = new UpdateWatchProgressDto { PositionTicks = request.PositionTicks };
-            await _watchProgressService.UpdateProgressAsync(Guid.Parse(request.VideoId), dto, caller);
-            // Re-fetch the progress to return
-            var progress = await _watchProgressService.GetProgressAsync(Guid.Parse(request.VideoId), caller);
-            if (progress is null)
-                return new WatchProgressResponse { Success = false, ErrorMessage = "Progress not found after update." };
-            return new WatchProgressResponse { Success = true, Progress = MapWatchProgress(progress) };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "UpdateWatchProgress failed");
-            return new WatchProgressResponse { Success = false, ErrorMessage = ex.Message };
-        }
-    }
-
-    /// <inheritdoc />
-    public override async Task<GenericResponse> RecordView(RecordViewRequest request, ServerCallContext context)
-    {
-        try
-        {
-            var caller = ParseCaller(request.UserId);
-            await _watchProgressService.RecordViewAsync(Guid.Parse(request.VideoId), caller, request.DurationSeconds);
-            return new GenericResponse { Success = true };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "RecordView failed");
             return new GenericResponse { Success = false, ErrorMessage = ex.Message };
         }
     }
@@ -370,17 +312,6 @@ public sealed class VideoGrpcServiceImpl : VideoGrpcService.VideoGrpcServiceBase
             Description = dto.Description ?? "",
             VideoCount = dto.VideoCount,
             CreatedAt = dto.CreatedAt.ToString("O")
-        };
-    }
-
-    private static WatchProgressMessage MapWatchProgress(WatchProgressDto dto)
-    {
-        return new WatchProgressMessage
-        {
-            VideoId = dto.VideoId.ToString(),
-            PositionTicks = dto.PositionTicks,
-            IsCompleted = dto.ProgressPercent >= 90,
-            UpdatedAt = dto.LastWatchedAt.ToString("O")
         };
     }
 

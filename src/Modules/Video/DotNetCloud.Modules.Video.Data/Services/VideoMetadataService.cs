@@ -64,7 +64,7 @@ public sealed class VideoMetadataService : IVideoMetadataService
     /// Saves or updates metadata for a video.
     /// Stores on CanonicalVideoMetadata keyed by content hash.
     /// </summary>
-    public async Task SaveMetadataAsync(Guid videoId, VideoMetadata metadata, CancellationToken cancellationToken = default)
+    public async Task SaveMetadataAsync(Guid videoId, VideoMetadataDto dto, CancellationToken cancellationToken = default)
     {
         var contentHash = await _db.UserVideos
             .Where(uv => uv.Id == videoId)
@@ -82,15 +82,15 @@ public sealed class VideoMetadataService : IVideoMetadataService
 
         if (existing is not null)
         {
-            existing.Width = metadata.Width;
-            existing.Height = metadata.Height;
-            existing.FrameRate = metadata.FrameRate;
-            existing.VideoCodec = metadata.VideoCodec;
-            existing.AudioCodec = metadata.AudioCodec;
-            existing.Bitrate = metadata.Bitrate;
-            existing.AudioTrackCount = metadata.AudioTrackCount;
-            existing.SubtitleTrackCount = metadata.SubtitleTrackCount;
-            existing.ContainerFormat = metadata.ContainerFormat;
+            existing.Width = dto.Width;
+            existing.Height = dto.Height;
+            existing.FrameRate = dto.FrameRate;
+            existing.VideoCodec = dto.VideoCodec;
+            existing.AudioCodec = dto.AudioCodec;
+            existing.Bitrate = dto.Bitrate;
+            existing.AudioTrackCount = dto.AudioTrackCount;
+            existing.SubtitleTrackCount = dto.SubtitleTrackCount;
+            existing.ContainerFormat = dto.ContainerFormat;
             existing.ExtractedAt = DateTime.UtcNow;
         }
         else
@@ -98,24 +98,24 @@ public sealed class VideoMetadataService : IVideoMetadataService
             _db.CanonicalVideoMetadata.Add(new CanonicalVideoMetadata
             {
                 VideoContentHash = contentHash,
-                Width = metadata.Width,
-                Height = metadata.Height,
-                FrameRate = metadata.FrameRate,
-                VideoCodec = metadata.VideoCodec,
-                AudioCodec = metadata.AudioCodec,
-                Bitrate = metadata.Bitrate,
-                AudioTrackCount = metadata.AudioTrackCount,
-                SubtitleTrackCount = metadata.SubtitleTrackCount,
-                ContainerFormat = metadata.ContainerFormat,
+                Width = dto.Width,
+                Height = dto.Height,
+                FrameRate = dto.FrameRate,
+                VideoCodec = dto.VideoCodec,
+                AudioCodec = dto.AudioCodec,
+                Bitrate = dto.Bitrate,
+                AudioTrackCount = dto.AudioTrackCount,
+                SubtitleTrackCount = dto.SubtitleTrackCount,
+                ContainerFormat = dto.ContainerFormat,
                 ExtractedAt = DateTime.UtcNow
             });
         }
 
         await _db.SaveChangesAsync(cancellationToken);
 
-        var safeCodecForLog = SanitizeForLog(metadata.VideoCodec);
+        var safeCodecForLog = SanitizeForLog(dto.VideoCodec);
         _logger.LogInformation("Metadata saved for video {VideoId} (contentHash={ContentHash}): {Width}x{Height} {Codec}",
-            videoId, contentHash, metadata.Width, metadata.Height, safeCodecForLog);
+            videoId, contentHash, dto.Width, dto.Height, safeCodecForLog);
     }
 
     private static string SanitizeForLog(string? value)

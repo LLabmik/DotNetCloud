@@ -2,8 +2,6 @@ using DotNetCloud.Core.Authorization;
 using DotNetCloud.Modules.Video.Data;
 using DotNetCloud.Modules.Video.Models;
 using Microsoft.EntityFrameworkCore;
-using VideoModel = DotNetCloud.Modules.Video.Models.Video;
-using CanonicalVideoModel = DotNetCloud.Modules.Video.Models.CanonicalVideo;
 
 namespace DotNetCloud.Modules.Video.Tests;
 
@@ -25,8 +23,8 @@ internal static class TestHelpers
     public static CallerContext CreateCaller(Guid? userId = null)
         => new(userId ?? Guid.CreateVersion7(), ["user"], CallerType.User);
 
-    /// <summary>Seeds a video in the database (legacy + canonical).</summary>
-    public static async Task<VideoModel> SeedVideoAsync(
+    /// <summary>Seeds a video in the database (canonical + user junction).</summary>
+    public static async Task<UserVideo> SeedVideoAsync(
         VideoDbContext db,
         string title = "Test Video",
         string mimeType = "video/mp4",
@@ -34,48 +32,30 @@ internal static class TestHelpers
         Guid? ownerId = null)
     {
         var owner = ownerId ?? Guid.CreateVersion7();
-        var video = new VideoModel
+        var contentHash = Guid.CreateVersion7().ToString("N");
+
+        var canonical = new CanonicalVideo
         {
-            FileNodeId = Guid.CreateVersion7(),
-            OwnerId = owner,
+            ContentHash = contentHash,
             Title = title,
             FileName = $"{title.Replace(' ', '_').ToLowerInvariant()}.mp4",
             MimeType = mimeType,
             SizeBytes = sizeBytes,
             DurationTicks = TimeSpan.FromMinutes(90).Ticks
         };
-        db.Videos.Add(video);
+        db.CanonicalVideos.Add(canonical);
         await db.SaveChangesAsync();
 
-        // Also seed canonical data so services using the canonical path can find this video
-        var contentHash = Guid.CreateVersion7().ToString("N");
-        if (!db.CanonicalVideos.Any(cv => cv.ContentHash == contentHash))
+        var userVideo = new UserVideo
         {
-            db.CanonicalVideos.Add(new CanonicalVideoModel
-            {
-                ContentHash = contentHash,
-                Title = title,
-                FileName = video.FileName,
-                MimeType = mimeType,
-                SizeBytes = sizeBytes,
-                DurationTicks = video.DurationTicks
-            });
-            await db.SaveChangesAsync();
-        }
+            OwnerId = owner,
+            FileNodeId = Guid.CreateVersion7(),
+            CanonicalContentHash = contentHash
+        };
+        db.UserVideos.Add(userVideo);
+        await db.SaveChangesAsync();
 
-        if (!db.UserVideos.Any(uv => uv.Id == video.Id))
-        {
-            db.UserVideos.Add(new UserVideo
-            {
-                Id = video.Id,
-                OwnerId = owner,
-                FileNodeId = video.FileNodeId,
-                CanonicalContentHash = contentHash
-            });
-            await db.SaveChangesAsync();
-        }
-
-        return video;
+        return userVideo;
     }
 
     /// <summary>Seeds a video collection in the database (new per-user model).</summary>
@@ -95,57 +75,38 @@ internal static class TestHelpers
         return collection;
     }
 
-    /// <summary>Seeds a subtitle for a video.</summary>
-    public static async Task<Subtitle> SeedSubtitleAsync(
+    /// <summary>Seeds a canonical subtitle for a video content hash.</summary>
+    public static async Task<CanonicalSubtitle> SeedSubtitleAsync(
         VideoDbContext db,
-        Guid videoId,
+        string contentHash,
         string language = "en",
-        string format = "srt",
-        Guid? ownerId = null)
+        string format = "srt")
     {
-        var subtitle = new Subtitle
+        var subtitle = new CanonicalSubtitle
         {
-            VideoId = videoId,
+            VideoContentHash = contentHash,
             Language = language,
             Label = $"{language} subtitle",
             Format = format,
             Content = "1\n00:00:01,000 --> 00:00:04,000\nHello World\n"
         };
-        db.Subtitles.Add(subtitle);
+        db.CanonicalSubtitles.Add(subtitle);
         await db.SaveChangesAsync();
         return subtitle;
     }
 
-    /// <summary>Seeds a watch progress entry.</summary>
-    public static async Task<WatchProgress> SeedWatchProgressAsync(
-        VideoDbContext db,
-        Guid videoId,
-        Guid userId,
-        long positionTicks = 0,
-        bool isCompleted = false)
-    {
-        var progress = new WatchProgress
-        {
-            VideoId = videoId,
-            UserId = userId,
-            PositionTicks = positionTicks,
-            IsCompleted = isCompleted
-        };
-        db.WatchProgresses.Add(progress);
-        await db.SaveChangesAsync();
-        return progress;
-    }
-
-    /// <summary>Seeds a video with metadata for complete testing (legacy + canonical).</summary>
-    public static async Task<(VideoModel Video, VideoMetadata Metadata)> SeedCompleteVideoAsync(
+    /// <summary>Seeds a video with metadata for complete testing (canonical).</summary>
+    public static async Task<(UserVideo Video, CanonicalVideoMetadata Metadata)> SeedCompleteVideoAsync(
         VideoDbContext db,
         string title = "Complete Video",
         Guid? ownerId = null)
     {
         var video = await SeedVideoAsync(db, title, ownerId: ownerId);
-        var metadata = new VideoMetadata
+        var contentHash = video.CanonicalContentHash;
+
+        var metadata = new CanonicalVideoMetadata
         {
-            VideoId = video.Id,
+            VideoContentHash = contentHash,
             Width = 1920,
             Height = 1080,
             FrameRate = 24.0,
@@ -154,40 +115,17 @@ internal static class TestHelpers
             Bitrate = 8_000_000,
             AudioTrackCount = 2,
             SubtitleTrackCount = 1,
-            ContainerFormat = "MP4"
+            ContainerFormat = "MP4",
+            ExtractedAt = DateTime.UtcNow
         };
-        db.VideoMetadata.Add(metadata);
-
-        // Also seed canonical metadata so services using the canonical path can find it
-        var userVideo = await db.UserVideos.FirstOrDefaultAsync(uv => uv.Id == video.Id);
-        if (userVideo is not null)
-        {
-            var contentHash = userVideo.CanonicalContentHash;
-            if (!db.CanonicalVideoMetadata.Any(cm => cm.VideoContentHash == contentHash))
-            {
-                db.CanonicalVideoMetadata.Add(new CanonicalVideoMetadata
-                {
-                    VideoContentHash = contentHash,
-                    Width = 1920,
-                    Height = 1080,
-                    FrameRate = 24.0,
-                    VideoCodec = "H.264",
-                    AudioCodec = "AAC",
-                    Bitrate = 8_000_000,
-                    AudioTrackCount = 2,
-                    SubtitleTrackCount = 1,
-                    ContainerFormat = "MP4",
-                    ExtractedAt = DateTime.UtcNow
-                });
-            }
-        }
-
+        db.CanonicalVideoMetadata.Add(metadata);
         await db.SaveChangesAsync();
+
         return (video, metadata);
     }
 
     /// <summary>Seeds a canonical video + user video junction.</summary>
-    public static async Task<(CanonicalVideoModel Canonical, UserVideo UserVideo)> SeedCanonicalVideoAsync(
+    public static async Task<(CanonicalVideo Canonical, UserVideo UserVideo)> SeedCanonicalVideoAsync(
         VideoDbContext db,
         string title = "Canonical Video",
         string contentHash = "abc123def456",
@@ -195,7 +133,7 @@ internal static class TestHelpers
         long sizeBytes = 500_000_000,
         TimeSpan? duration = null)
     {
-        var canonical = new CanonicalVideoModel
+        var canonical = new CanonicalVideo
         {
             ContentHash = contentHash,
             Title = title,

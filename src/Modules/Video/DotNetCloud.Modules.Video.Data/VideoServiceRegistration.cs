@@ -34,8 +34,6 @@ public static class VideoServiceRegistration
         services.AddScoped<IVideoCollectionService>(sp => sp.GetRequiredService<VideoCollectionService>());
         services.AddScoped<SubtitleService>();
         services.AddScoped<ISubtitleService>(sp => sp.GetRequiredService<SubtitleService>());
-        services.AddScoped<WatchProgressService>();
-        services.AddScoped<IWatchProgressService>(sp => sp.GetRequiredService<WatchProgressService>());
         services.AddScoped<VideoMetadataService>();
         services.AddScoped<IVideoMetadataService>(sp => sp.GetRequiredService<VideoMetadataService>());
         services.AddScoped<VideoStreamingService>();
@@ -115,8 +113,6 @@ public static class VideoServiceRegistration
         services.AddScoped<IVideoCollectionService>(sp => sp.GetRequiredService<VideoCollectionService>());
         services.AddScoped<SubtitleService>();
         services.AddScoped<ISubtitleService>(sp => sp.GetRequiredService<SubtitleService>());
-        services.AddScoped<WatchProgressService>();
-        services.AddScoped<IWatchProgressService>(sp => sp.GetRequiredService<WatchProgressService>());
         services.AddScoped<VideoMetadataService>();
         services.AddScoped<IVideoMetadataService>(sp => sp.GetRequiredService<VideoMetadataService>());
         services.AddScoped<VideoStreamingService>();

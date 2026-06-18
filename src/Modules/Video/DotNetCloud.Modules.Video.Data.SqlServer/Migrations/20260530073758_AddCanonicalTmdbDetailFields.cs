@@ -107,21 +107,6 @@ namespace DotNetCloud.Modules.Video.Data.SqlServer.Migrations
                 table: "VideoEpisodes");
 
             migrationBuilder.DropIndex(
-                name: "ix_video_collections_name",
-                schema: "video",
-                table: "VideoCollections");
-
-            migrationBuilder.DropIndex(
-                name: "ix_video_collections_owner_id",
-                schema: "video",
-                table: "VideoCollections");
-
-            migrationBuilder.DropIndex(
-                name: "uq_collection_items_collection_video",
-                schema: "video",
-                table: "VideoCollectionItems");
-
-            migrationBuilder.DropIndex(
                 name: "ix_subtitles_video_language",
                 schema: "video",
                 table: "Subtitles");
@@ -179,18 +164,6 @@ namespace DotNetCloud.Modules.Video.Data.SqlServer.Migrations
                 schema: "video",
                 table: "VideoEpisodes",
                 newName: "IX_VideoEpisodes_SeasonId");
-
-            migrationBuilder.RenameIndex(
-                name: "ix_collection_items_video_id",
-                schema: "video",
-                table: "VideoCollectionItems",
-                newName: "IX_VideoCollectionItems_VideoId");
-
-            migrationBuilder.RenameIndex(
-                name: "ix_collection_items_collection_id",
-                schema: "video",
-                table: "VideoCollectionItems",
-                newName: "IX_VideoCollectionItems_CollectionId");
 
             migrationBuilder.RenameIndex(
                 name: "ix_subtitles_video_id",
@@ -556,57 +529,6 @@ namespace DotNetCloud.Modules.Video.Data.SqlServer.Migrations
                 oldType: "datetime2",
                 oldDefaultValueSql: "CURRENT_TIMESTAMP");
 
-            migrationBuilder.AlterColumn<DateTime>(
-                name: "UpdatedAt",
-                schema: "video",
-                table: "VideoCollections",
-                type: "datetime2",
-                nullable: false,
-                oldClrType: typeof(DateTime),
-                oldType: "datetime2",
-                oldDefaultValueSql: "CURRENT_TIMESTAMP");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "Name",
-                schema: "video",
-                table: "VideoCollections",
-                type: "nvarchar(max)",
-                nullable: false,
-                oldClrType: typeof(string),
-                oldType: "nvarchar(200)",
-                oldMaxLength: 200);
-
-            migrationBuilder.AlterColumn<string>(
-                name: "Description",
-                schema: "video",
-                table: "VideoCollections",
-                type: "nvarchar(max)",
-                nullable: true,
-                oldClrType: typeof(string),
-                oldType: "nvarchar(2000)",
-                oldMaxLength: 2000,
-                oldNullable: true);
-
-            migrationBuilder.AlterColumn<DateTime>(
-                name: "CreatedAt",
-                schema: "video",
-                table: "VideoCollections",
-                type: "datetime2",
-                nullable: false,
-                oldClrType: typeof(DateTime),
-                oldType: "datetime2",
-                oldDefaultValueSql: "CURRENT_TIMESTAMP");
-
-            migrationBuilder.AlterColumn<DateTime>(
-                name: "AddedAt",
-                schema: "video",
-                table: "VideoCollectionItems",
-                type: "datetime2",
-                nullable: false,
-                oldClrType: typeof(DateTime),
-                oldType: "datetime2",
-                oldDefaultValueSql: "CURRENT_TIMESTAMP");
-
             migrationBuilder.AlterColumn<string>(
                 name: "Language",
                 schema: "video",
@@ -842,18 +764,6 @@ namespace DotNetCloud.Modules.Video.Data.SqlServer.Migrations
                 schema: "video",
                 table: "VideoEpisodes",
                 newName: "ix_video_episodes_season_id");
-
-            migrationBuilder.RenameIndex(
-                name: "IX_VideoCollectionItems_VideoId",
-                schema: "video",
-                table: "VideoCollectionItems",
-                newName: "ix_collection_items_video_id");
-
-            migrationBuilder.RenameIndex(
-                name: "IX_VideoCollectionItems_CollectionId",
-                schema: "video",
-                table: "VideoCollectionItems",
-                newName: "ix_collection_items_collection_id");
 
             migrationBuilder.RenameIndex(
                 name: "IX_Subtitles_VideoId",
@@ -1219,57 +1129,6 @@ namespace DotNetCloud.Modules.Video.Data.SqlServer.Migrations
                 oldClrType: typeof(DateTime),
                 oldType: "datetime2");
 
-            migrationBuilder.AlterColumn<DateTime>(
-                name: "UpdatedAt",
-                schema: "video",
-                table: "VideoCollections",
-                type: "datetime2",
-                nullable: false,
-                defaultValueSql: "CURRENT_TIMESTAMP",
-                oldClrType: typeof(DateTime),
-                oldType: "datetime2");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "Name",
-                schema: "video",
-                table: "VideoCollections",
-                type: "nvarchar(200)",
-                maxLength: 200,
-                nullable: false,
-                oldClrType: typeof(string),
-                oldType: "nvarchar(max)");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "Description",
-                schema: "video",
-                table: "VideoCollections",
-                type: "nvarchar(2000)",
-                maxLength: 2000,
-                nullable: true,
-                oldClrType: typeof(string),
-                oldType: "nvarchar(max)",
-                oldNullable: true);
-
-            migrationBuilder.AlterColumn<DateTime>(
-                name: "CreatedAt",
-                schema: "video",
-                table: "VideoCollections",
-                type: "datetime2",
-                nullable: false,
-                defaultValueSql: "CURRENT_TIMESTAMP",
-                oldClrType: typeof(DateTime),
-                oldType: "datetime2");
-
-            migrationBuilder.AlterColumn<DateTime>(
-                name: "AddedAt",
-                schema: "video",
-                table: "VideoCollectionItems",
-                type: "datetime2",
-                nullable: false,
-                defaultValueSql: "CURRENT_TIMESTAMP",
-                oldClrType: typeof(DateTime),
-                oldType: "datetime2");
-
             migrationBuilder.AlterColumn<string>(
                 name: "Language",
                 schema: "video",
@@ -1437,25 +1296,6 @@ namespace DotNetCloud.Modules.Video.Data.SqlServer.Migrations
                 schema: "video",
                 table: "VideoEpisodes",
                 columns: new[] { "SeasonId", "VideoId" },
-                unique: true);
-
-            migrationBuilder.CreateIndex(
-                name: "ix_video_collections_name",
-                schema: "video",
-                table: "VideoCollections",
-                column: "Name");
-
-            migrationBuilder.CreateIndex(
-                name: "ix_video_collections_owner_id",
-                schema: "video",
-                table: "VideoCollections",
-                column: "OwnerId");
-
-            migrationBuilder.CreateIndex(
-                name: "uq_collection_items_collection_video",
-                schema: "video",
-                table: "VideoCollectionItems",
-                columns: new[] { "CollectionId", "VideoId" },
                 unique: true);
 
             migrationBuilder.CreateIndex(

@@ -31,9 +31,6 @@ public class VideoDbContext : DbContext
         _namingStrategy = namingStrategy;
     }
 
-    /// <summary>Watch progress (resume position) records.</summary>
-    public DbSet<WatchProgress> WatchProgresses => Set<WatchProgress>();
-
     // ── Canonical (shared) tables ──
 
     /// <summary>Canonical videos — shared video metadata, keyed by ContentHash.</summary>
@@ -71,40 +68,8 @@ public class VideoDbContext : DbContext
     /// <summary>Junction linking user video collections to canonical videos via content hash.</summary>
     public DbSet<UserVideoCollectionItem> UserVideoCollectionItems => Set<UserVideoCollectionItem>();
 
-    // ── Legacy tables (transitional, being migrated to canonical) ──
-
-    /// <summary>Legacy videos table.</summary>
-    public DbSet<Models.Video> Videos => Set<Models.Video>();
-
-    /// <summary>Legacy video metadata.</summary>
-    public DbSet<VideoMetadata> VideoMetadata => Set<VideoMetadata>();
-
-    /// <summary>Legacy subtitles.</summary>
-    public DbSet<Subtitle> Subtitles => Set<Subtitle>();
-
-    /// <summary>Legacy video series.</summary>
-    public DbSet<VideoSeries> VideoSeries => Set<VideoSeries>();
-
-    /// <summary>Legacy video seasons.</summary>
-    public DbSet<VideoSeason> VideoSeasons => Set<VideoSeason>();
-
-    /// <summary>Legacy video episodes.</summary>
-    public DbSet<VideoEpisode> VideoEpisodes => Set<VideoEpisode>();
-
-    /// <summary>Legacy video series items.</summary>
-    public DbSet<VideoSeriesItem> VideoSeriesItems => Set<VideoSeriesItem>();
-
-    /// <summary>Legacy video collections.</summary>
-    public DbSet<VideoCollection> VideoCollections => Set<VideoCollection>();
-
-    /// <summary>Legacy video collection items.</summary>
-    public DbSet<VideoCollectionItem> VideoCollectionItems => Set<VideoCollectionItem>();
-
-    /// <summary>Legacy video shares.</summary>
-    public DbSet<VideoShare> VideoShares => Set<VideoShare>();
-
-    /// <summary>Legacy watch history.</summary>
-    public DbSet<WatchHistory> WatchHistories => Set<WatchHistory>();
+    // Note: WatchHistory, VideoShare, and WatchProgress entities have been removed.
+    // VideoId columns in any remaining tables now point to UserVideo.Id.
 
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -113,7 +78,6 @@ public class VideoDbContext : DbContext
         base.OnModelCreating(modelBuilder);
 
         // Canonical (shared) tables
-        modelBuilder.ApplyConfiguration(new WatchProgressConfiguration());
         modelBuilder.ApplyConfiguration(new CanonicalVideoConfiguration());
         modelBuilder.ApplyConfiguration(new CanonicalVideoMetadataConfiguration());
         modelBuilder.ApplyConfiguration(new CanonicalTmdbDataConfiguration());

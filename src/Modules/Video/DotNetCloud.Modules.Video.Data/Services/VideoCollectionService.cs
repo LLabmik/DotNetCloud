@@ -365,9 +365,6 @@ public sealed class VideoCollectionService : IVideoCollectionService
 
     private VideoDto MapFromCanonical(UserVideo userVideo, CanonicalVideo canonical)
     {
-        var watchProgress = _db.WatchProgresses
-            .FirstOrDefault(wp => wp.VideoId == userVideo.Id && wp.UserId == userVideo.OwnerId);
-
         // Load TMDB data from canonical enrichment — check both enrichment TmdbId and embedded TmdbId
         string? overview = null;
         double? tmdbRating = null;
@@ -412,7 +409,7 @@ public sealed class VideoCollectionService : IVideoCollectionService
             Height = canonical.Metadata?.Height,
             IsFavorite = userVideo.IsFavorite,
             ViewCount = userVideo.ViewCount,
-            WatchPositionTicks = watchProgress?.PositionTicks,
+            WatchPositionTicks = null,
             CreatedAt = userVideo.CreatedAt,
             HasExternalPoster = hasExternalPoster,
             Overview = overview,
