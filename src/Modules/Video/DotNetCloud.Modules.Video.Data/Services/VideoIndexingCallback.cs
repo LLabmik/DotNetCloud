@@ -125,39 +125,11 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
         var userVideoIds = userVideos.Select(uv => uv.Id).ToList();
         _db.UserVideos.RemoveRange(userVideos);
 
-        // ── Clear watch progress and history for this user ──
-        var watchProgress = await _db.WatchProgresses
-            .Where(wp => wp.UserId == ownerId).ToListAsync(cancellationToken);
-        _db.WatchProgresses.RemoveRange(watchProgress);
-
-        var watchHistory = await _db.WatchHistories
-            .Where(wh => wh.UserId == ownerId).ToListAsync(cancellationToken);
-        _db.WatchHistories.RemoveRange(watchHistory);
-
-        // ── Clear video shares by this user ──
-        var shares = await _db.VideoShares
-            .Where(vs => vs.SharedByUserId == ownerId).ToListAsync(cancellationToken);
-        _db.VideoShares.RemoveRange(shares);
-
-        // ── Clear legacy per-user data ──
-        var legacyVideos = await _db.Videos
-            .Where(v => v.OwnerId == ownerId).ToListAsync(cancellationToken);
-        _db.Videos.RemoveRange(legacyVideos);
-
-        var legacyCollections = await _db.VideoCollections
-            .Where(vc => vc.OwnerId == ownerId).ToListAsync(cancellationToken);
-        var legacyCollectionIds = legacyCollections.Select(c => c.Id).ToList();
-        var legacyCollectionItems = await _db.VideoCollectionItems
-            .Where(ci => legacyCollectionIds.Contains(ci.CollectionId)).ToListAsync(cancellationToken);
-        _db.VideoCollectionItems.RemoveRange(legacyCollectionItems);
-        _db.VideoCollections.RemoveRange(legacyCollections);
-
         await _db.SaveChangesAsync(cancellationToken);
 
         _logger.LogWarning(
-            "RESET complete for owner {OwnerId}: {UserVideoCount} user videos, {CollectionCount} collections, " +
-            "{ProgressCount} watch progress, {HistoryCount} watch history, {ShareCount} shares cleared",
-            ownerId, userVideos.Count, collections.Count, watchProgress.Count, watchHistory.Count, shares.Count);
+            "RESET complete for owner {OwnerId}: {UserVideoCount} user videos, {CollectionCount} collections cleared",
+            ownerId, userVideos.Count, collections.Count);
     }
 
     /// <inheritdoc />

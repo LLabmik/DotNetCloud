@@ -68,51 +68,18 @@ internal sealed class GrpcChannelManager : IDisposable
 
     private GrpcChannel CreateChannel(string endpoint)
     {
-        // Configure channel options
-        var channelOptions = new GrpcChannelOptions
+        // All internal gRPC is cleartext HTTP/2 over TCP — never use TLS.
+        return GrpcChannel.ForAddress(endpoint, new GrpcChannelOptions
         {
-            // Disable TLS for local IPC (Unix sockets, Named Pipes)
-            UnsafeUseInsecureChannelCallCredentials = endpoint.StartsWith("unix://") ||
-                                                        endpoint.StartsWith("net.pipe://"),
-
-            // Connection settings
-            MaxReceiveMessageSize = 16 * 1024 * 1024, // 16 MB
-            MaxSendMessageSize = 16 * 1024 * 1024, // 16 MB
-
-            // HTTP/2 settings
+            UnsafeUseInsecureChannelCallCredentials = true,
+            MaxReceiveMessageSize = 16 * 1024 * 1024,
+            MaxSendMessageSize = 16 * 1024 * 1024,
             HttpHandler = new SocketsHttpHandler
             {
-                PooledConnectionIdleTimeout = TimeSpan.FromMinutes(5),
-                KeepAlivePingDelay = TimeSpan.FromSeconds(30),
-                KeepAlivePingTimeout = TimeSpan.FromSeconds(10),
-                EnableMultipleHttp2Connections = false
+                EnableMultipleHttp2Connections = true,
+                ConnectTimeout = TimeSpan.FromSeconds(5),
             }
-        };
-
-        // Handle Unix domain socket connections
-        if (endpoint.StartsWith("unix://"))
-        {
-            var socketPath = endpoint.Substring("unix://".Length);
-            channelOptions.HttpHandler = new SocketsHttpHandler
-            {
-                ConnectCallback = async (context, cancellationToken) =>
-                {
-                    var socket = new System.Net.Sockets.Socket(
-                        System.Net.Sockets.AddressFamily.Unix,
-                        System.Net.Sockets.SocketType.Stream,
-                        System.Net.Sockets.ProtocolType.Unspecified);
-
-                    var endPoint = new System.Net.Sockets.UnixDomainSocketEndPoint(socketPath);
-                    await socket.ConnectAsync(endPoint, cancellationToken);
-                    return new System.Net.Sockets.NetworkStream(socket, ownsSocket: true);
-                }
-            };
-
-            // Use a placeholder URL for Unix sockets (actual connection via ConnectCallback)
-            endpoint = "http://localhost";
-        }
-
-        return GrpcChannel.ForAddress(endpoint, channelOptions);
+        });
     }
 
     public void Dispose()

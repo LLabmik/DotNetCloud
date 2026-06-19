@@ -123,6 +123,8 @@ public static class FilesServiceRegistration
 
         services.AddSingleton<IAdminSharedFolderReindexDispatcher>(sp =>
             new SearchClientAdminSharedFolderReindexDispatcher(sp.GetService<ISearchFtsClient>()));
+        services.AddSingleton<ICoreCapabilitiesClient, CoreCapabilitiesClient>();
+        services.AddSingleton<IGroupDirectory, GrpcGroupDirectory>();
         services.AddSingleton<AdminSharedFolderMaintenanceService>();
         services.AddSingleton<IAdminSharedFolderMaintenanceScheduler>(sp => sp.GetRequiredService<AdminSharedFolderMaintenanceService>());
         services.AddHostedService(sp => sp.GetRequiredService<AdminSharedFolderMaintenanceService>());

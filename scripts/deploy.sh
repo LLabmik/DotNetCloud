@@ -7,6 +7,7 @@
 #   sudo ./scripts/deploy.sh --config Debug      # Build configuration
 #   sudo ./scripts/deploy.sh --skip-modules "About,AI"    # Skip specific modules
 #   sudo ./scripts/deploy.sh --skip-stop         # Don't restart the service
+#   sudo ./scripts/deploy.sh --skip-build        # Skip build step (publish existing build output)
 #   sudo ./scripts/deploy.sh --dry-run           # Show what would happen
 #   sudo ./scripts/deploy.sh --verify            # Hash-check assemblies after deploy
 #   sudo ./scripts/deploy.sh --help              # This help
@@ -64,6 +65,7 @@ CONFIG="Release"
 FORCE=false
 SKIP_MODULES=""
 SKIP_STOP=false
+SKIP_BUILD=false
 DRY_RUN=false
 VERIFY=false
 
@@ -79,6 +81,7 @@ while [ $# -gt 0 ]; do
         --skip-modules) SKIP_MODULES="$2"; shift 2 ;;
         --skip-modules=*) SKIP_MODULES="${1#*=}"; shift ;;
         --skip-stop)   SKIP_STOP=true; shift ;;
+        --skip-build)  SKIP_BUILD=true; shift ;;
         --dry-run)     DRY_RUN=true; shift ;;
         --verify)      VERIFY=true; shift ;;
         --help|-h)     head -30 "$0" | grep '^#' | sed 's/^# \?//'; exit 0 ;;
@@ -100,6 +103,10 @@ fi
 
 # Rebuild BUILD_FLAGS now that CONFIG is known
 BUILD_FLAGS=(-c "$CONFIG" -p:DebugType=None -p:DebugSymbols=false)
+
+# Temp deploy solution filter (generated for full builds); cleaned up on exit.
+DEPLOY_SLNF=""
+trap '[ -n "${DEPLOY_SLNF:-}" ] && rm -f "$DEPLOY_SLNF"' EXIT
 
 # Parse --skip-modules into an array for fast lookup
 declare -A SKIP_MODULE_LOOKUP
@@ -192,6 +199,46 @@ do_build() {
     fi
     log "Building $target..."
     dotnet build "$target" "${BUILD_FLAGS[@]}"
+}
+
+# Generate a deploy-scoped solution filter from the CI filter by removing
+# projects that never ship to this server: the CLI, the desktop/mobile clients,
+# the Example module, and all test projects. Their transitive server-side deps
+# are still built because the kept projects reference them. Emits the temp file
+# path on stdout. Self-maintaining — derived from DotNetCloud.CI.slnf each run.
+generate_deploy_slnf() {
+    local src="$REPO_ROOT/DotNetCloud.CI.slnf"
+    # Must live in REPO_ROOT: the .slnf's solution/project paths are relative and
+    # MSBuild resolves them against the filter file's own directory. Writing to
+    # /tmp would make it look for /tmp/DotNetCloud.sln. Removed via the EXIT trap.
+    local out="$REPO_ROOT/.deploy-generated.slnf"
+    local exclude='DotNetCloud\.CLI|DotNetCloud\.Client|Modules\.Example|\.Tests\.|Benchmark'
+    local -a kept=()
+    local line
+    while IFS= read -r line; do
+        line="${line#"${line%%[![:space:]]*}"}"   # strip leading whitespace
+        line="${line%,}"                            # strip trailing comma
+        kept+=("$line")
+    done < <(grep -E '\.csproj"' "$src" | grep -vE "$exclude")
+
+    {
+        echo '{'
+        echo '  "solution": {'
+        echo '    "path": "DotNetCloud.sln",'
+        echo '    "projects": ['
+        local n=${#kept[@]} i
+        for i in "${!kept[@]}"; do
+            if [ "$i" -lt "$((n - 1))" ]; then
+                echo "      ${kept[$i]},"
+            else
+                echo "      ${kept[$i]}"
+            fi
+        done
+        echo '    ]'
+        echo '  }'
+        echo '}'
+    } > "$out"
+    echo "$out"
 }
 
 # Publish a project to a target directory
@@ -289,6 +336,7 @@ echo "╚═══════════════════════�
 echo "  Config:   $CONFIG"
 echo "  Mode:     $([ "$FORCE" = true ] && echo 'FULL (--force)' || echo 'Incremental')"
 $DRY_RUN && echo "  DRY RUN:  No changes will be applied"
+$SKIP_BUILD && echo "  Build:    skipped (--skip-build)"
 [ -n "$SKIP_MODULES" ] && echo "  Skip:     $SKIP_MODULES"
 echo ""
 
@@ -401,14 +449,15 @@ if $DRY_RUN; then
     fi
     echo ""
     echo "  Steps:"
-    if ! $SKIP_STOP; then echo "    [stop]  dotnetcloud service"; fi
-    echo "    [build] $($FULL_BUILD && echo 'DotNetCloud.CI.slnf' || echo "${#CHANGED_MODULES[@]} module(s)")"
+    echo "    [build] $($FULL_BUILD && echo 'deploy.slnf (server + module hosts)' || echo "${#CHANGED_MODULES[@]} module(s)")"
+    if ! $SKIP_STOP; then echo "    [stop]  dotnetcloud service (after build succeeds)"; fi
     if $FULL_BUILD; then
         echo "    [publish] Core.Server + all ${#MODULES[@]} module hosts"
     else
         _publish_count=${#CHANGED_MODULES[@]}
         [ "$_publish_count" -eq 0 ] && _publish_count="${#MODULES[@]}"
-        echo "    [publish] Core.Server + $_publish_count module host(s)"
+        _core_note=$( { $CORE_CHANGED || $UI_CHANGED || [ "${#CHANGED_DATA_MODULES[@]}" -gt 0 ]; } && echo "Core.Server + " || echo "(Core.Server unchanged, skipped) ")
+        echo "    [publish] ${_core_note}$_publish_count module host(s)"
     fi
     if ! $SKIP_STOP; then echo "    [start]  dotnetcloud service"; fi
     if [ -n "$LAST_DEPLOYED" ]; then echo "    [save]   .last-deploy-commit = ${CURRENT_HEAD:0:12}"; fi
@@ -419,29 +468,40 @@ if $DRY_RUN; then
 fi
 
 # ============================================================================
-# Phase 2: Stop service
+# Phase 2: Build (BEFORE stopping the service)
+#
+# Building is the long pole. Doing it while the old version still serves traffic
+# means downtime is only the publish + restart window (seconds), not the whole
+# compile. With `set -e`, a failed build exits here — the live service is left
+# running untouched.
 # ============================================================================
-TOTAL_STEPS=5
+TOTAL_STEPS=6
 if $VERIFY; then ((TOTAL_STEPS++)); fi
 
-step "Stopping service..."
-if $SKIP_STOP; then
-    log "  (--skip-stop, leaving service running)"
-else
-    systemctl stop dotnetcloud 2>/dev/null || true
-    log "  Service stopped."
-fi
-
-# ============================================================================
-# Phase 3: Build
-# ============================================================================
 START_TIME=$(date +%s)
 
-step "Building..."
-if $FULL_BUILD; then
-    log "  Building solution filter (full)..."
-    do_build "$REPO_ROOT/DotNetCloud.CI.slnf"
+# Decide whether Core.Server's publish output needs refreshing. It only changes
+# when its own inputs change (core/UI/data/module-library code) or on a full
+# build; a module-host-only change leaves the deployed Core.Server copy current.
+CORE_NEEDS_PUBLISH=false
+if $FULL_BUILD || $CORE_CHANGED || $UI_CHANGED || [ "${#CHANGED_DATA_MODULES[@]}" -gt 0 ]; then
+    CORE_NEEDS_PUBLISH=true
+fi
+
+if $SKIP_BUILD; then
+    step "Building..."
+    log "  (--skip-build, using existing build output)"
+    # When skipping the build, force full publish of all modules (we can't
+    # determine what changed without diffing build timestamps).
+    FULL_BUILD=true
+    CORE_NEEDS_PUBLISH=true
+elif $FULL_BUILD; then
+    step "Building..."
+    DEPLOY_SLNF="$(generate_deploy_slnf)"
+    log "  Building deploy solution filter (server + module hosts; CLI/clients/tests/Example excluded)..."
+    do_build "$DEPLOY_SLNF"
 else
+    step "Building..."
     BUILD_TARGETS=()
     HAS_DATA_CHANGES=false
     HAS_MODULE_LIB_CHANGES=false
@@ -470,9 +530,11 @@ else
         fi
     done
 
-    # If data projects changed, also build Core.Server so its publish picks up new data DLLs
+    # If data or module-library projects changed, also rebuild Core.Server so its
+    # publish picks up the new DLLs — and flag it for republish in Phase 4.
     if $HAS_DATA_CHANGES || $HAS_MODULE_LIB_CHANGES; then
         BUILD_TARGETS+=("$REPO_ROOT/src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj")
+        CORE_NEEDS_PUBLISH=true
     fi
 
     if [ "${#BUILD_TARGETS[@]}" -eq 0 ]; then
@@ -482,6 +544,17 @@ else
             do_build "$target"
         done
     fi
+fi
+
+# ============================================================================
+# Phase 3: Stop service (only now that the build has succeeded)
+# ============================================================================
+step "Stopping service..."
+if $SKIP_STOP; then
+    log "  (--skip-stop, leaving service running)"
+else
+    systemctl stop dotnetcloud 2>/dev/null || true
+    log "  Service stopped."
 fi
 
 # ============================================================================
@@ -497,11 +570,14 @@ if ! $FULL_BUILD; then
 fi
 
 CORE_SERVER_CSPROJ="$REPO_ROOT/src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj"
-if $FULL_BUILD || $CORE_CHANGED || $UI_CHANGED || [ "${#CHANGED_DATA_MODULES[@]}" -gt 0 ]; then
+CORE_PUBLISHED=false
+if $CORE_NEEDS_PUBLISH || [ ! -f "$DEPLOY_DIR/DotNetCloud.Core.Server.dll" ]; then
     do_publish "$CORE_SERVER_CSPROJ" "$DEPLOY_DIR"
+    CORE_PUBLISHED=true
 else
-    log "  Core.Server unchanged — publishing anyway (required for startup)."
-    do_publish "$CORE_SERVER_CSPROJ" "$DEPLOY_DIR"
+    # Core.Server's inputs are unchanged, so the deployed copy is already current.
+    # Skipping the republish avoids re-copying its full (~hundreds of MB) closure.
+    log "  Core.Server unchanged — skipping republish (deployed copy is current)."
 fi
 
 # Determine which module hosts to publish
@@ -563,10 +639,10 @@ else
         wait "${pids[$i]}" || exit_code=$?
         if [ "$exit_code" -eq 0 ]; then
             echo "  ✓ ${module_names[$i]}.Host"
-            ((publish_success++))
+            publish_success=$((publish_success + 1))
         else
             echo "  ✗ ${module_names[$i]}.Host FAILED (exit code $exit_code)"
-            ((publish_failures++))
+            publish_failures=$((publish_failures + 1))
         fi
     done
 
@@ -577,7 +653,21 @@ fi
 # Phase 5: Fix permissions
 # ============================================================================
 step "Fixing permissions..."
-chown -R "$SERVICE_USER:$SERVICE_USER" "$DEPLOY_DIR" 2>/dev/null || log "  ⚠ Some permissions could not be set (non-critical)."
+# Only chown what we actually wrote this run, rather than recursively re-owning
+# the whole multi-GB deploy tree every time. Core output lives at the top level
+# of DEPLOY_DIR (everything except modules/); each module host lives in its own
+# dir. A module-only deploy thus chowns one ~50 MB dir instead of ~3 GB.
+if $CORE_PUBLISHED; then
+    find "$DEPLOY_DIR" -maxdepth 1 -mindepth 1 ! -name modules \
+        -exec chown -R "$SERVICE_USER:$SERVICE_USER" {} + 2>/dev/null \
+        || log "  ⚠ Some core permissions could not be set (non-critical)."
+fi
+for module in "${PUBLISHED_MODULES[@]}"; do
+    module_lower=$(echo "$module" | tr '[:upper:]' '[:lower:]')
+    chown -R "$SERVICE_USER:$SERVICE_USER" "$MODULES_DIR/dotnetcloud.$module_lower" 2>/dev/null || true
+done
+# Ensure the container dirs themselves are owned correctly (cheap, non-recursive).
+chown "$SERVICE_USER:$SERVICE_USER" "$DEPLOY_DIR" "$MODULES_DIR" 2>/dev/null || true
 # Revert repo build artifacts back to the original user
 ORIGINAL_USER="${SUDO_USER:-$(who am i | awk '{print $1}')}"
 if [ -n "$ORIGINAL_USER" ] && [ "$ORIGINAL_USER" != "root" ]; then

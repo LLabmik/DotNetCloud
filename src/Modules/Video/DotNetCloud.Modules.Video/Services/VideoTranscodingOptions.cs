@@ -19,16 +19,16 @@ public sealed class VideoTranscodingOptions
     public int CacheTtlHours { get; set; } = 168; // 7 days
 
     /// <summary>Maximum total size of the transcode cache in bytes. 0 = unlimited.</summary>
-    public long MaxCacheSizeBytes { get; set; } = 10L * 1024 * 1024 * 1024; // 10 GB
+    public long MaxCacheSizeBytes { get; set; } = 25L * 1024 * 1024 * 1024; // 25 GB
 
     /// <summary>Video codec: "libx264" (default), "libx265", "libvpx-vp9".</summary>
     public string VideoCodec { get; set; } = "libx264";
 
     /// <summary>CRF value for video quality. Lower = better. 23 is default for x264.</summary>
-    public int VideoCrf { get; set; } = 23;
+    public int VideoCrf { get; set; } = 20;
 
     /// <summary>Encoder preset: "ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow".</summary>
-    public string EncoderPreset { get; set; } = "veryfast";
+    public string EncoderPreset { get; set; } = "fast";
 
     /// <summary>Maximum output video width. Source is scaled down if wider. 0 = no limit.</summary>
     public int MaxWidth { get; set; } = 1920;
@@ -40,7 +40,7 @@ public sealed class VideoTranscodingOptions
     public string AudioCodec { get; set; } = "aac";
 
     /// <summary>Audio bitrate in kbps. Default 128.</summary>
-    public int AudioBitrateKbps { get; set; } = 128;
+    public int AudioBitrateKbps { get; set; } = 256;
 
     /// <summary>ffmpeg thread count. 0 = auto.</summary>
     public int ThreadCount { get; set; } = 0;

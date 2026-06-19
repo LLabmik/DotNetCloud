@@ -314,6 +314,18 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
     }
 
     /// <inheritdoc />
+    public void CancelTranscode(Guid videoId, Guid userId)
+    {
+        var job = _jobTracker.GetActiveJob(videoId, userId);
+        _logger.LogInformation("CancelTranscode(video={VideoId}, user={UserId}) — job found: {Found}", videoId, userId, job is not null);
+        if (job is not null)
+        {
+            _logger.LogInformation("Cancelling job {JobId} for video {VideoId}", job.Id, videoId);
+            _processManager.CancelJob(job.Id);
+        }
+    }
+
+    /// <inheritdoc />
     public async Task<(string JobId, string OutputDir, string PlaylistPath)> TranscodeHlsAsync(
         Guid videoId,
         Guid userId,
@@ -323,19 +335,45 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
         string? sourceAudioCodec = null,
         CancellationToken ct = default)
     {
+        // ═══ Check for pre-existing HLS output on disk ═══
+        // This handles the case where a transcode was completed manually or by a
+        // previous service instance. If a complete HLS playlist already exists,
+        // we register it as a completed job and return immediately — no ffmpeg needed.
+        var existingOnDisk = FindExistingHlsOutput(videoId, userId);
+        if (existingOnDisk is not null)
+        {
+            var (existingDir, existingPlaylist) = existingOnDisk.Value;
+            _logger.LogInformation("Found pre-existing HLS output for video {VideoId} at {Dir}, reusing", videoId, existingDir);
+            var job = _jobTracker.CreateJob(videoId, userId, $"hls-{videoId:N}");
+            job.OutputPath = existingPlaylist;
+            job.IsHls = true;
+            job.Status = TranscodingJobStatus.Completed;
+            job.CompletedAt = DateTime.UtcNow;
+            job.ProgressPercent = 100.0;
+            return (job.Id, existingDir, existingPlaylist);
+        }
+
         // Acquire per-video lock to prevent duplicate ffmpeg processes
         var hlsLock = await _jobTracker.AcquireHlsLockAsync(videoId);
         if (hlsLock is null)
         {
-            // Another request beat us to creating the job — use theirs
+            // Another request beat us to creating the job — use theirs if still viable
             var existingJob = _jobTracker.GetActiveHlsJob(videoId);
-            if (existingJob is not null)
+            if (existingJob is not null && IsJobReusable(existingJob, videoId))
             {
                 _logger.LogDebug("Reusing HLS transcode job {JobId} created by concurrent request for video {VideoId}", existingJob.Id, videoId);
                 var existingDir = Path.GetDirectoryName(existingJob.OutputPath)
                                   ?? Path.Combine(GetHlsRootDir(), $"hls-{videoId:N}");
                 var existingPlaylist = Path.Combine(existingDir, "playlist.m3u8");
                 return (existingJob.Id, existingDir, existingPlaylist);
+            }
+
+            // Existing job is dead or missing — clean up and create a new one
+            if (existingJob is not null)
+            {
+                _logger.LogWarning("HLS transcode job {JobId} for video {VideoId} is stale (status={Status}), replacing",
+                    existingJob.Id, videoId, existingJob.Status);
+                StaleJobCleanup(existingJob, videoId);
             }
 
             // Lock timed out (30s) — extremely rare, fall back to lock-free creation
@@ -351,13 +389,21 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
         {
             // Double-check inside the lock
             var existingJob = _jobTracker.GetActiveHlsJob(videoId);
-            if (existingJob is not null)
+            if (existingJob is not null && IsJobReusable(existingJob, videoId))
             {
                 _logger.LogDebug("Reusing existing HLS transcode job {JobId} for video {VideoId}", existingJob.Id, videoId);
                 var existingDir = Path.GetDirectoryName(existingJob.OutputPath)
                                   ?? Path.Combine(GetHlsRootDir(), $"hls-{videoId:N}");
                 var existingPlaylist = Path.Combine(existingDir, "playlist.m3u8");
                 return (existingJob.Id, existingDir, existingPlaylist);
+            }
+
+            // Existing job is dead — clean it up before creating a new one
+            if (existingJob is not null)
+            {
+                _logger.LogWarning("HLS transcode job {JobId} for video {VideoId} is stale (status={Status}), replacing",
+                    existingJob.Id, videoId, existingJob.Status);
+                StaleJobCleanup(existingJob, videoId);
             }
 
             // Create fresh HLS output directory (delete stale files from previous transcode)
@@ -433,6 +479,82 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
         await LaunchFfmpegAsync(job, sourceFilePath, actualOutputDir, actualPlaylistPath, sourceVideoCodec, sourceAudioCodec, ct);
 
         return (job.Id, actualOutputDir, actualPlaylistPath);
+    }
+
+    /// <summary>
+    /// Determines whether an existing HLS transcode job is still viable for reuse.
+    /// A job is reusable if it is still running and has produced at least one .ts segment file.
+    /// Dead (Failed/Completed/Cancelled) jobs and jobs with empty output directories are treated as stale.
+    /// </summary>
+    private bool IsJobReusable(TranscodingJob job, Guid videoId)
+    {
+        if (job.Status != TranscodingJobStatus.Running && job.Status != TranscodingJobStatus.Completed)
+        {
+            _logger.LogDebug("HLS job {JobId} for video {VideoId} not reusable: status={Status}",
+                job.Id, videoId, job.Status);
+            return false;
+        }
+
+        if (string.IsNullOrEmpty(job.OutputPath))
+        {
+            _logger.LogDebug("HLS job {JobId} for video {VideoId} not reusable: no output path",
+                job.Id, videoId);
+            return false;
+        }
+
+        var outputDir = Path.GetDirectoryName(job.OutputPath);
+        if (string.IsNullOrEmpty(outputDir) || !Directory.Exists(outputDir))
+        {
+            _logger.LogDebug("HLS job {JobId} for video {VideoId} not reusable: output dir missing",
+                job.Id, videoId);
+            return false;
+        }
+
+        // At least one .ts segment must exist — an empty dir means ffmpeg never produced output
+        var hasSegments = Directory.EnumerateFiles(outputDir, "*.ts").Any();
+        if (!hasSegments)
+        {
+            _logger.LogDebug("HLS job {JobId} for video {VideoId} not reusable: no .ts segments in output dir",
+                job.Id, videoId);
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Cleans up a stale HLS transcode job and its output directory.
+    /// Called when a retry discovers a dead/empty job that must be replaced.
+    /// </summary>
+    private void StaleJobCleanup(TranscodingJob job, Guid videoId)
+    {
+        // Cancel the ffmpeg process if it's still running (unlikely but safe)
+        try
+        {
+            _processManager.CancelJob(job.Id);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Error cancelling stale HLS job {JobId} for video {VideoId}", job.Id, videoId);
+        }
+
+        // Clean up the output directory
+        if (!string.IsNullOrEmpty(job.OutputPath))
+        {
+            var outputDir = Path.GetDirectoryName(job.OutputPath);
+            if (!string.IsNullOrEmpty(outputDir) && Directory.Exists(outputDir))
+            {
+                try
+                {
+                    Directory.Delete(outputDir, recursive: true);
+                    _logger.LogDebug("Cleaned up stale HLS output dir {Dir} for job {JobId}", outputDir, job.Id);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to clean stale HLS dir {Dir} for job {JobId}", outputDir, job.Id);
+                }
+            }
+        }
     }
 
     /// <summary>
@@ -633,6 +755,56 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
         return !string.IsNullOrWhiteSpace(_options.TempDirectory)
             ? Path.Combine(_options.TempDirectory, "hls")
             : Path.Combine(Path.GetTempPath(), "dotnetcloud-hls");
+    }
+
+    /// <summary>
+    /// Scans the HLS output directory for a pre-existing completed transcode
+    /// for the given videoId. Returns (outputDir, playlistPath) if found,
+    /// or null if no usable output exists.
+    /// This handles the case where a transcode was completed by a previous
+    /// service instance or manually — avoiding the need to re-transcode.
+    /// </summary>
+    private (string OutputDir, string PlaylistPath)? FindExistingHlsOutput(Guid videoId, Guid userId)
+    {
+        var rootDir = GetHlsRootDir();
+        if (!Directory.Exists(rootDir))
+            return null;
+
+        // Scan all subdirectories matching this videoId with any userId suffix
+        var prefix = $"hls-{videoId:N}-";
+        foreach (var dir in Directory.EnumerateDirectories(rootDir, $"{prefix}*"))
+        {
+            var playlistPath = Path.Combine(dir, "playlist.m3u8");
+            if (!File.Exists(playlistPath))
+                continue;
+
+            // Check for at least one .ts segment and #EXT-X-ENDLIST marker
+            var content = File.ReadAllText(playlistPath);
+            if (!content.Contains("#EXT-X-ENDLIST"))
+                continue;
+
+            var segmentCount = Directory.EnumerateFiles(dir, "*.ts").Count();
+            if (segmentCount == 0)
+                continue;
+
+            // Require a minimum number of segments to avoid reusing incomplete
+            // transcodes (e.g. from a cancelled process that wrote ENDLIST
+            // prematurely). 10 segments ≈ 60 seconds at 6s/segment.
+            const int MinSegments = 10;
+            if (segmentCount < MinSegments)
+            {
+                _logger.LogWarning(
+                    "FindExistingHlsOutput: Ignoring HLS output at {Dir} — only {Count} segments (minimum {Min})",
+                    dir, segmentCount, MinSegments);
+                continue;
+            }
+
+            _logger.LogInformation("FindExistingHlsOutput: Found usable HLS output at {Dir} (segments: {Count})",
+                dir, segmentCount);
+            return (dir, playlistPath);
+        }
+
+        return null;
     }
 
     /// <summary>

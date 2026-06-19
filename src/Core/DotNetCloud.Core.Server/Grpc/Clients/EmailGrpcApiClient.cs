@@ -66,6 +66,7 @@ public sealed class EmailGrpcApiClient : IEmailApiClient, IDisposable
         _logger.LogInformation("EmailGrpcApiClient connecting to {Address}", address);
         return GrpcChannel.ForAddress(address, new GrpcChannelOptions
         {
+            UnsafeUseInsecureChannelCallCredentials = true,
             HttpHandler = new SocketsHttpHandler
             {
                 EnableMultipleHttp2Connections = true,

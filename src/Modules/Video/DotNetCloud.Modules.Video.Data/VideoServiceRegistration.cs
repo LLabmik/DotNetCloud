@@ -34,8 +34,6 @@ public static class VideoServiceRegistration
         services.AddScoped<IVideoCollectionService>(sp => sp.GetRequiredService<VideoCollectionService>());
         services.AddScoped<SubtitleService>();
         services.AddScoped<ISubtitleService>(sp => sp.GetRequiredService<SubtitleService>());
-        services.AddScoped<WatchProgressService>();
-        services.AddScoped<IWatchProgressService>(sp => sp.GetRequiredService<WatchProgressService>());
         services.AddScoped<VideoMetadataService>();
         services.AddScoped<IVideoMetadataService>(sp => sp.GetRequiredService<VideoMetadataService>());
         services.AddScoped<VideoStreamingService>();
@@ -70,6 +68,10 @@ public static class VideoServiceRegistration
 
         // Scan progress state (singleton — shared across all video page sessions)
         services.AddSingleton<VideoScanProgressState>();
+
+        // Watch progress service
+        services.AddScoped<WatchProgressService>();
+        services.AddScoped<IWatchProgressService>(sp => sp.GetRequiredService<WatchProgressService>());
 
         // Stream preparation progress state (singleton — tracks chunk reconstruction / probing / remux)
         services.AddSingleton<StreamProgressState>();
@@ -115,8 +117,6 @@ public static class VideoServiceRegistration
         services.AddScoped<IVideoCollectionService>(sp => sp.GetRequiredService<VideoCollectionService>());
         services.AddScoped<SubtitleService>();
         services.AddScoped<ISubtitleService>(sp => sp.GetRequiredService<SubtitleService>());
-        services.AddScoped<WatchProgressService>();
-        services.AddScoped<IWatchProgressService>(sp => sp.GetRequiredService<WatchProgressService>());
         services.AddScoped<VideoMetadataService>();
         services.AddScoped<IVideoMetadataService>(sp => sp.GetRequiredService<VideoMetadataService>());
         services.AddScoped<VideoStreamingService>();

@@ -271,6 +271,7 @@ public sealed class AiGrpcApiClient : IAiApiClient, IDisposable
         _logger.LogInformation("AiGrpcApiClient connecting to {Address}", address);
         return GrpcChannel.ForAddress(address, new GrpcChannelOptions
         {
+            UnsafeUseInsecureChannelCallCredentials = true,
             HttpHandler = new SocketsHttpHandler
             {
                 EnableMultipleHttp2Connections = true,

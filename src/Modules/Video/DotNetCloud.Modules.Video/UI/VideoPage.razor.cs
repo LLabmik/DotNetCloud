@@ -33,7 +33,6 @@ public partial class VideoPage : IAsyncDisposable
     private List<VideoDto> _favoriteVideos = [];
     private VideoCollectionContentDto? _collectionContent;
     private VideoSearchResultDto? _searchResults;
-    private List<WatchProgressDto> _continueWatching = [];
     private List<VideoCollectionDto> _collections = [];
 
     // ── Series / Seasons ──
@@ -121,10 +120,6 @@ public partial class VideoPage : IAsyncDisposable
     private record BreadcrumbItem(string Label, Func<Task> Action);
     private List<BreadcrumbItem> _breadcrumb = [];
 
-    // ── Timer for progress saving ──
-    private PeriodicTimer? _progressTimer;
-    private CancellationTokenSource? _timerCts;
-
     // ── Auth ──
     private CallerContext? _caller;
 
@@ -190,7 +185,7 @@ public partial class VideoPage : IAsyncDisposable
                 {
                     // Load hls.js normally (not affected by the static assets bug)
                     await Js.InvokeVoidAsync("eval",
-                        "(function(){if(document.getElementById('dnc-hls'))return;var s=document.createElement('script');s.src='/_content/DotNetCloud.Modules.Video/hls.min.js';s.id='dnc-hls';s.onload=function(){var s2=document.createElement('script');s2.src='/api/v1/videos/video-player-js';s2.id='dnc-vp';document.head.appendChild(s2);};document.head.appendChild(s);})();");
+                        "(function(){var e=document.getElementById('dnc-hls');if(e)e.remove();e=document.getElementById('dnc-vp');if(e)e.remove();var s=document.createElement('script');s.src='/_content/DotNetCloud.Modules.Video/hls.min.js';s.id='dnc-hls';s.onload=function(){var s2=document.createElement('script');s2.src='/api/v1/videos/video-player-js?_='+Date.now();s2.id='dnc-vp';document.head.appendChild(s2);};document.head.appendChild(s);})();");
                     await Task.Delay(500);
                     _scriptsLoaded = true;
                 }
@@ -207,6 +202,18 @@ public partial class VideoPage : IAsyncDisposable
                 await Js.InvokeVoidAsync("DotNetCloudVideo.attachVideoErrorListener", "video-player", _dotNetRef);
                 await Js.InvokeVoidAsync("DotNetCloudVideo.attachIdleAutoHide", "player-container", 3000);
                 await Js.InvokeVoidAsync("DotNetCloudVideo.attachKeyboardShortcuts", "video-player");
+
+                // Attach watch progress tracking (reports position every ~60s while playing)
+                await Js.InvokeVoidAsync("DotNetCloudVideo.attachProgressTracking",
+                    "video-player", _playerVideo!.Id.ToString());
+
+                // Resume playback at previous position if available
+                if (_playerVideo!.WatchPositionTicks.HasValue && _playerVideo.WatchPositionTicks.Value > 0)
+                {
+                    var resumeSeconds = TimeSpan.FromTicks(_playerVideo.WatchPositionTicks.Value).TotalSeconds;
+                    await Js.InvokeVoidAsync("DotNetCloudVideo.setInitialPosition",
+                        "video-player", resumeSeconds);
+                }
             }
             catch (Exception ex)
             {
@@ -510,7 +517,6 @@ public partial class VideoPage : IAsyncDisposable
             switch (_section)
             {
                 case Section.Home:
-                    _continueWatching = (await WatchProgressService.GetContinueWatchingAsync(_caller, 10)).ToList();
                     await LoadRecentPageAsync();
                     break;
 
@@ -723,9 +729,6 @@ public partial class VideoPage : IAsyncDisposable
             _playerSubtitles = (await SubtitleService.GetSubtitlesAsync(video.Id, caller)).ToList();
             _playerMetadata = await MetadataService.GetMetadataAsync(video.Id);
 
-            await WatchProgressService.RecordViewAsync(video.Id, caller);
-            await StartProgressTimerAsync(video.Id);
-
             _breadcrumb =
             [
                 new BreadcrumbItem(GetSectionLabel(), async () => { await ClosePlayer(); StateHasChanged(); })
@@ -737,25 +740,9 @@ public partial class VideoPage : IAsyncDisposable
         }
     }
 
-    private async Task OpenPlayerForContinueAsync(WatchProgressDto wp)
-    {
-        try
-        {
-            var caller = await GetCallerAsync();
-            var video = await VideoService.GetVideoAsync(wp.VideoId, caller);
-            if (video is not null)
-            {
-                await OpenVideoDetailAsync(video);
-            }
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Error resuming video");
-        }
-    }
-
     private async Task ClosePlayer()
     {
+        var closingVideoId = _playerVideo?.Id;
         _playerOpen = false;
         _playerVideo = null;
         _playerMetadata = null;
@@ -770,7 +757,8 @@ public partial class VideoPage : IAsyncDisposable
         // Tear down HLS player and UI handlers
         try
         {
-            await Js.InvokeVoidAsync("DotNetCloudVideo.cancelStreamProgress", "player-container");
+            await Js.InvokeVoidAsync("DotNetCloudVideo.disposeProgressTracking", "video-player");
+            await Js.InvokeVoidAsync("DotNetCloudVideo.cancelStreamProgress", closingVideoId?.ToString());
             await Js.InvokeVoidAsync("DotNetCloudVideo.destroyHlsPlayer", "video-player");
             await Js.InvokeVoidAsync("DotNetCloudVideo.disposeIdleAutoHide", "player-container");
             await Js.InvokeVoidAsync("DotNetCloudVideo.disposeKeyboardShortcuts", "video-player");
@@ -787,7 +775,6 @@ public partial class VideoPage : IAsyncDisposable
         _scriptsLoaded = false;
 
         _breadcrumb.Clear();
-        StopProgressTimer();
     }
 
     // ────────────────────────────────────────────────────────
@@ -1269,36 +1256,6 @@ public partial class VideoPage : IAsyncDisposable
     //  Progress saving timer
     // ────────────────────────────────────────────────────────
 
-    private async Task StartProgressTimerAsync(Guid videoId)
-    {
-        StopProgressTimer();
-        _timerCts = new CancellationTokenSource();
-        _progressTimer = new PeriodicTimer(TimeSpan.FromSeconds(15));
-
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                while (await _progressTimer.WaitForNextTickAsync(_timerCts.Token))
-                {
-                    // In a real implementation, JS interop would report currentTime
-                }
-            }
-            catch (OperationCanceledException) { }
-        });
-
-        await Task.CompletedTask;
-    }
-
-    private void StopProgressTimer()
-    {
-        _timerCts?.Cancel();
-        _progressTimer?.Dispose();
-        _progressTimer = null;
-        _timerCts?.Dispose();
-        _timerCts = null;
-    }
-
     // ── Library Settings Methods ─────────────────────────────
 
     private async Task LoadLibraryPathAsync()
@@ -1444,7 +1401,6 @@ public partial class VideoPage : IAsyncDisposable
             _recentVideos.Clear();
             _favoriteVideos.Clear();
             _collectionContent = null;
-            _continueWatching.Clear();
             _collections.Clear();
             _seriesList.Clear();
             _selectedSeries = null;
@@ -1832,12 +1788,13 @@ public partial class VideoPage : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        StopProgressTimer();
         ScanProgress.OnProgressChanged -= OnScanProgressChanged;
         _dotNetRef?.Dispose();
 
         try
         {
+            await Js.InvokeVoidAsync("DotNetCloudVideo.disposeProgressTracking", "video-player");
+            await Js.InvokeVoidAsync("DotNetCloudVideo.cancelStreamProgress", _playerVideo?.Id.ToString());
             await Js.InvokeVoidAsync("DotNetCloudVideo.destroyHlsPlayer", "video-player");
             await Js.InvokeVoidAsync("DotNetCloudVideo.disposeIdleAutoHide", "player-container");
             await Js.InvokeVoidAsync("DotNetCloudVideo.disposeKeyboardShortcuts", "video-player");

@@ -104,26 +104,6 @@ namespace DotNetCloud.Modules.Video.Data.SqlServer.Migrations
             migrationBuilder.AlterColumn<Guid>(
                 name: "Id",
                 schema: "video",
-                table: "VideoCollections",
-                type: "uniqueidentifier",
-                nullable: false,
-                defaultValueSql: "NEWSEQUENTIALID()",
-                oldClrType: typeof(Guid),
-                oldType: "uniqueidentifier");
-
-            migrationBuilder.AlterColumn<Guid>(
-                name: "Id",
-                schema: "video",
-                table: "VideoCollectionItems",
-                type: "uniqueidentifier",
-                nullable: false,
-                defaultValueSql: "NEWSEQUENTIALID()",
-                oldClrType: typeof(Guid),
-                oldType: "uniqueidentifier");
-
-            migrationBuilder.AlterColumn<Guid>(
-                name: "Id",
-                schema: "video",
                 table: "user_videos",
                 type: "uniqueidentifier",
                 nullable: false,
@@ -299,26 +279,6 @@ namespace DotNetCloud.Modules.Video.Data.SqlServer.Migrations
                 name: "Id",
                 schema: "video",
                 table: "VideoEpisodes",
-                type: "uniqueidentifier",
-                nullable: false,
-                oldClrType: typeof(Guid),
-                oldType: "uniqueidentifier",
-                oldDefaultValueSql: "NEWSEQUENTIALID()");
-
-            migrationBuilder.AlterColumn<Guid>(
-                name: "Id",
-                schema: "video",
-                table: "VideoCollections",
-                type: "uniqueidentifier",
-                nullable: false,
-                oldClrType: typeof(Guid),
-                oldType: "uniqueidentifier",
-                oldDefaultValueSql: "NEWSEQUENTIALID()");
-
-            migrationBuilder.AlterColumn<Guid>(
-                name: "Id",
-                schema: "video",
-                table: "VideoCollectionItems",
                 type: "uniqueidentifier",
                 nullable: false,
                 oldClrType: typeof(Guid),

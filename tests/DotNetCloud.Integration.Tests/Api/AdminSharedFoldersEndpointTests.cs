@@ -161,6 +161,116 @@ public sealed class AdminSharedFoldersEndpointTests
         }
     }
 
+    [TestMethod]
+    public async Task DeleteSharedFolder_ReturnsCleanupJobId_AndCleanupStatusEndpointWorks()
+    {
+        var adminUserId = Guid.CreateVersion7();
+        var sharedRoot = Path.Combine(Path.GetTempPath(), $"dnc-cleanup-status-{Guid.CreateVersion7():N}");
+        var sourceDirectory = Path.Combine(sharedRoot, "to-delete");
+        Directory.CreateDirectory(sourceDirectory);
+
+        using var baseFactory = new FilesHostWebApplicationFactory();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureAppConfiguration((_, config) =>
+            {
+                config.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Files:AdminSharedFolders:RootPath"] = sharedRoot,
+                });
+            });
+        });
+        using var adminClient = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+        });
+        adminClient.DefaultRequestHeaders.Add("Accept", "application/json");
+        adminClient.DefaultRequestHeaders.Add("x-test-user-id", adminUserId.ToString());
+        adminClient.DefaultRequestHeaders.Add("x-test-user-roles", "Administrator");
+
+        try
+        {
+            // ── Create a shared folder ──
+            var createResponse = await adminClient.PostAsJsonAsync(
+                "/api/v1/files/admin/shared-folders",
+                new CreateAdminSharedFolderDto
+                {
+                    DisplayName = "Cleanup Test",
+                    SourcePath = "to-delete",
+                    IsEnabled = true,
+                    AccessMode = "ReadOnly",
+                    CrawlMode = "Manual",
+                    GroupIds = [],
+                });
+
+            var createRoot = await ApiAssert.SuccessAsync(createResponse, HttpStatusCode.Created);
+            var created = DataOrRoot(createRoot);
+            var sharedFolderId = created.GetProperty("id").GetGuid();
+            Assert.AreEqual("Cleanup Test", created.GetProperty("displayName").GetString());
+
+            // ── Delete the shared folder and capture cleanup job ID ──
+            var deleteResponse = await adminClient.DeleteAsync(
+                $"/api/v1/files/admin/shared-folders/{sharedFolderId}");
+            var deleteRoot = await ApiAssert.SuccessAsync(deleteResponse, HttpStatusCode.OK);
+            var deleteData = DataOrRoot(deleteRoot);
+            var cleanupJobId = deleteData.GetProperty("cleanupJobId").GetGuid();
+
+            Assert.IsTrue(deleteData.GetProperty("deleted").GetBoolean());
+            Assert.AreNotEqual(Guid.Empty, cleanupJobId);
+            Assert.AreEqual(1, deleteData.GetProperty("pendingSearchRemovals").GetInt32()); // Just root
+
+            // ── Poll cleanup status endpoint ──
+            var statusResponse = await adminClient.GetAsync(
+                $"/api/v1/files/admin/shared-folders/cleanup-status/{cleanupJobId}");
+            var statusRoot = await ApiAssert.SuccessAsync(statusResponse, HttpStatusCode.OK);
+            var status = DataOrRoot(statusRoot);
+
+            Assert.AreEqual(cleanupJobId, status.GetProperty("cleanupJobId").GetGuid());
+            Assert.AreEqual(sharedFolderId, status.GetProperty("sharedFolderId").GetGuid());
+            Assert.AreEqual("Cleanup Test", status.GetProperty("displayName").GetString());
+            Assert.IsNotNull(status.GetProperty("phase").GetString());
+            Assert.IsTrue(status.GetProperty("isComplete") is { ValueKind: JsonValueKind.False or JsonValueKind.True });
+            Assert.IsTrue(status.GetProperty("startedAt").ValueKind == JsonValueKind.String);
+
+            // Verify the shared folder is actually gone
+            var listResponse = await adminClient.GetAsync("/api/v1/files/admin/shared-folders");
+            var listRoot = await ApiAssert.SuccessAsync(listResponse, HttpStatusCode.OK);
+            var list = DataOrRoot(listRoot);
+            Assert.AreEqual(0, list.GetArrayLength());
+        }
+        finally
+        {
+            if (Directory.Exists(sharedRoot))
+            {
+                Directory.Delete(sharedRoot, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
+    public async Task GetCleanupStatus_NonExistentJobId_ReturnsNotFound()
+    {
+        var adminUserId = Guid.CreateVersion7();
+
+        using var factory = new FilesHostWebApplicationFactory();
+        using var adminClient = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+        });
+        adminClient.DefaultRequestHeaders.Add("Accept", "application/json");
+        adminClient.DefaultRequestHeaders.Add("x-test-user-id", adminUserId.ToString());
+        adminClient.DefaultRequestHeaders.Add("x-test-user-roles", "Administrator");
+
+        var nonExistentJobId = Guid.CreateVersion7();
+        var response = await adminClient.GetAsync(
+            $"/api/v1/files/admin/shared-folders/cleanup-status/{nonExistentJobId}");
+
+        var errorRoot = await ApiAssert.ErrorAsync(response, HttpStatusCode.NotFound, "CleanupJobNotFound");
+        Assert.AreEqual(
+            "Cleanup job not found.",
+            errorRoot.GetProperty("error").GetProperty("message").GetString());
+    }
+
     private static string GetPlatformRootPath()
     {
         return Path.TrimEndingDirectorySeparator(

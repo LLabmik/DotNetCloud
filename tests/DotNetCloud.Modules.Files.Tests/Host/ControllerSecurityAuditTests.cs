@@ -1,5 +1,7 @@
 using System.Security.Claims;
+using DotNetCloud.Modules.Files.Data;
 using DotNetCloud.Modules.Files.Host.Controllers;
+using Microsoft.EntityFrameworkCore;
 using DotNetCloud.Modules.Files.Options;
 using DotNetCloud.Modules.Files.Services;
 using Microsoft.AspNetCore.Http;
@@ -360,7 +362,12 @@ public class ControllerSecurityAuditTests
 
     private static AdminSharedFoldersController CreateAdminSharedFoldersController(Mock<IAdminSharedFolderService>? serviceMock = null)
     {
-        return new AdminSharedFoldersController(serviceMock?.Object ?? Mock.Of<IAdminSharedFolderService>());
+        var dbOptions = new DbContextOptionsBuilder<FilesDbContext>()
+            .UseInMemoryDatabase($"test-{Guid.NewGuid()}")
+            .Options;
+        return new AdminSharedFoldersController(
+            serviceMock?.Object ?? Mock.Of<IAdminSharedFolderService>(),
+            new FilesDbContext(dbOptions));
     }
 
     private static void SetAuthenticatedUser(ControllerBase controller, Guid userId)

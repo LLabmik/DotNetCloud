@@ -4,6 +4,7 @@ using DotNetCloud.Modules.Search.Host.Protos;
 using DotNetCloud.Modules.Search.Host.Services;
 using DotNetCloud.Modules.Search.Services;
 using Grpc.Core;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
@@ -32,9 +33,12 @@ public class SearchGrpcServiceTests
             _searchProviderMock.Object,
             NullLogger<SearchQueryService>.Instance);
 
+        var serviceCollection = new ServiceCollection();
+        serviceCollection.AddScoped(_ => _searchProviderMock.Object);
+        var serviceProvider = serviceCollection.BuildServiceProvider();
         _grpcService = new SearchGrpcService(
+            serviceProvider.GetRequiredService<IServiceScopeFactory>(),
             _queryService,
-            _searchProviderMock.Object,
             NullLogger<SearchGrpcService>.Instance);
 
         _callContext = new TestServerCallContext();

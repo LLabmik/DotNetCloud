@@ -664,7 +664,7 @@ internal sealed class DownloadService : IDownloadService
                 FileAccess.Read,
                 System.IO.FileShare.Read,
                 bufferSize: 81920,
-                options: FileOptions.Asynchronous | FileOptions.SequentialScan | FileOptions.DeleteOnClose);
+                options: FileOptions.Asynchronous | FileOptions.SequentialScan);
         }
         catch
         {

@@ -165,6 +165,56 @@ public sealed class SearchFtsClient : ISearchFtsClient, IDisposable
     }
 
     /// <inheritdoc />
+    public async Task<bool> RemoveDocumentAsync(string moduleId, string entityId, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(moduleId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(entityId);
+
+        if (!IsAvailable)
+        {
+            _logger.LogDebug("Search FTS client unavailable — Search module address not configured");
+            return false;
+        }
+
+        try
+        {
+            var request = new RemoveDocumentRequest
+            {
+                ModuleId = moduleId,
+                EntityId = entityId,
+            };
+
+            var response = await _client.Value.RemoveDocumentAsync(
+                request, CreateCallOptions(cancellationToken));
+
+            if (!response.Success)
+            {
+                _logger.LogWarning("Search RemoveDocument gRPC call failed for module {ModuleId}, entity {EntityId}: {Error}",
+                    moduleId, entityId, response.ErrorMessage);
+                return false;
+            }
+
+            return true;
+        }
+        catch (RpcException ex) when (ex.StatusCode == StatusCode.Unavailable)
+        {
+            _logger.LogDebug("Search module gRPC service unavailable at {Address}", _options.SearchModuleAddress);
+            return false;
+        }
+        catch (RpcException ex) when (ex.StatusCode == StatusCode.DeadlineExceeded)
+        {
+            _logger.LogWarning("Search RemoveDocument request for {ModuleId}/{EntityId} timed out after {Timeout}",
+                moduleId, entityId, _options.Timeout);
+            return false;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error calling Search RemoveDocument for {ModuleId}/{EntityId}", moduleId, entityId);
+            return false;
+        }
+    }
+
+    /// <inheritdoc />
     public void Dispose()
     {
         if (_disposed)
@@ -179,35 +229,26 @@ public sealed class SearchFtsClient : ISearchFtsClient, IDisposable
 
     private GrpcChannel CreateChannel()
     {
-        var channelOptions = new GrpcChannelOptions
-        {
-            MaxReceiveMessageSize = 16 * 1024 * 1024,
-            MaxSendMessageSize = 16 * 1024 * 1024,
-        };
-
         var address = _options.SearchModuleAddress!;
 
-        // Support Unix socket addresses
-        if (address.StartsWith("unix://", StringComparison.OrdinalIgnoreCase))
+        // All internal gRPC is cleartext HTTP/2 — never use TLS.
+        // Coerce https:// to http:// so the transport matches the server.
+        if (address.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
         {
-            var socketPath = address["unix://".Length..];
-            channelOptions.HttpHandler = new SocketsHttpHandler
-            {
-                ConnectCallback = async (_, cancellationToken) =>
-                {
-                    var socket = new System.Net.Sockets.Socket(
-                        System.Net.Sockets.AddressFamily.Unix,
-                        System.Net.Sockets.SocketType.Stream,
-                        System.Net.Sockets.ProtocolType.Unspecified);
-                    var endPoint = new System.Net.Sockets.UnixDomainSocketEndPoint(socketPath);
-                    await socket.ConnectAsync(endPoint, cancellationToken);
-                    return new System.Net.Sockets.NetworkStream(socket, ownsSocket: true);
-                }
-            };
-            address = "http://localhost";
+            address = "http://" + address["https://".Length..];
         }
 
-        return GrpcChannel.ForAddress(address, channelOptions);
+        return GrpcChannel.ForAddress(address, new GrpcChannelOptions
+        {
+            UnsafeUseInsecureChannelCallCredentials = true,
+            MaxReceiveMessageSize = 16 * 1024 * 1024,
+            MaxSendMessageSize = 16 * 1024 * 1024,
+            HttpHandler = new SocketsHttpHandler
+            {
+                EnableMultipleHttp2Connections = true,
+                ConnectTimeout = TimeSpan.FromSeconds(5),
+            }
+        });
     }
 
     private CallOptions CreateCallOptions(CancellationToken cancellationToken)

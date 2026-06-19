@@ -20,13 +20,13 @@ public class VideoController : VideoControllerBase
     private readonly VideoService _videoService;
     private readonly VideoCollectionService _collectionService;
     private readonly SubtitleService _subtitleService;
-    private readonly WatchProgressService _watchProgressService;
     private readonly VideoStreamingService _streamingService;
     private readonly VideoMetadataService _metadataService;
     private readonly IDownloadService _downloadService;
     private readonly IVideoThumbnailService _thumbnailService;
     private readonly IVideoEnrichmentService _enrichmentService;
     private readonly IVideoTranscodingService _transcodingService;
+    private readonly IWatchProgressService _watchProgressService;
     private readonly StreamProgressState _streamProgress;
     private readonly ILogger<VideoController> _logger;
 
@@ -37,26 +37,26 @@ public class VideoController : VideoControllerBase
         VideoService videoService,
         VideoCollectionService collectionService,
         SubtitleService subtitleService,
-        WatchProgressService watchProgressService,
         VideoStreamingService streamingService,
         VideoMetadataService metadataService,
         IDownloadService downloadService,
         IVideoThumbnailService thumbnailService,
         IVideoEnrichmentService enrichmentService,
         IVideoTranscodingService transcodingService,
+        IWatchProgressService watchProgressService,
         StreamProgressState streamProgress,
         ILogger<VideoController> logger)
     {
         _videoService = videoService;
         _collectionService = collectionService;
         _subtitleService = subtitleService;
-        _watchProgressService = watchProgressService;
         _streamingService = streamingService;
         _metadataService = metadataService;
         _downloadService = downloadService;
         _thumbnailService = thumbnailService;
         _enrichmentService = enrichmentService;
         _transcodingService = transcodingService;
+        _watchProgressService = watchProgressService;
         _streamProgress = streamProgress;
         _logger = logger;
     }
@@ -179,6 +179,28 @@ public class VideoController : VideoControllerBase
         {
             return NotFound(ErrorEnvelope(ErrorCodes.VideoNotFound, ex.Message));
         }
+    }
+
+    // ─── Watch Progress ──────────────────────────────────────────────
+
+    /// <summary>Gets the current watch progress for a video (for resume playback).</summary>
+    [HttpGet("{videoId:guid}/progress")]
+    public async Task<IActionResult> GetWatchProgress(Guid videoId)
+    {
+        var caller = GetAuthenticatedCaller();
+        var progress = await _watchProgressService.GetProgressAsync(videoId, caller);
+        return progress is null
+            ? Ok(Envelope(new { hasProgress = false }))
+            : Ok(Envelope(progress));
+    }
+
+    /// <summary>Updates watch progress for a video (called periodically during playback).</summary>
+    [HttpPut("{videoId:guid}/progress")]
+    public async Task<IActionResult> UpdateWatchProgress(Guid videoId, [FromBody] UpdateWatchProgressDto dto)
+    {
+        var caller = GetAuthenticatedCaller();
+        await _watchProgressService.UpdateProgressAsync(videoId, dto, caller);
+        return Ok(Envelope(new { saved = true }));
     }
 
     /// <summary>Deletes a video (soft delete).</summary>
@@ -353,46 +375,6 @@ public class VideoController : VideoControllerBase
         }
     }
 
-    // ─── Watch Progress ───────────────────────────────────────────────
-
-    /// <summary>Gets the watch progress for a specific video.</summary>
-    [HttpGet("{videoId:guid}/progress")]
-    public async Task<IActionResult> GetWatchProgress(Guid videoId)
-    {
-        var caller = GetAuthenticatedCaller();
-        var progress = await _watchProgressService.GetProgressAsync(videoId, caller);
-        return progress is null
-            ? NotFound(ErrorEnvelope(ErrorCodes.VideoNotFound, "No progress found."))
-            : Ok(Envelope(progress));
-    }
-
-    /// <summary>Updates the watch progress for a video.</summary>
-    [HttpPut("{videoId:guid}/progress")]
-    public async Task<IActionResult> UpdateWatchProgress(Guid videoId, [FromBody] UpdateWatchProgressDto dto)
-    {
-        var caller = GetAuthenticatedCaller();
-        await _watchProgressService.UpdateProgressAsync(videoId, dto, caller);
-        return Ok(Envelope(new { updated = true }));
-    }
-
-    /// <summary>Gets "continue watching" videos.</summary>
-    [HttpGet("continue-watching")]
-    public async Task<IActionResult> GetContinueWatching([FromQuery] int take = 20)
-    {
-        var caller = GetAuthenticatedCaller();
-        var progress = await _watchProgressService.GetContinueWatchingAsync(caller, take);
-        return Ok(Envelope(progress));
-    }
-
-    /// <summary>Records a view for a video.</summary>
-    [HttpPost("{videoId:guid}/view")]
-    public async Task<IActionResult> RecordView(Guid videoId, [FromQuery] int durationSeconds = 0)
-    {
-        var caller = GetAuthenticatedCaller();
-        await _watchProgressService.RecordViewAsync(videoId, caller, durationSeconds);
-        return Ok(Envelope(new { recorded = true }));
-    }
-
     // ─── Metadata ─────────────────────────────────────────────────────
 
     /// <summary>Gets metadata for a video.</summary>
@@ -411,20 +393,7 @@ public class VideoController : VideoControllerBase
     {
         try
         {
-            var metadata = new DotNetCloud.Modules.Video.Models.VideoMetadata
-            {
-                VideoId = videoId,
-                Width = dto.Width,
-                Height = dto.Height,
-                FrameRate = dto.FrameRate,
-                VideoCodec = dto.VideoCodec,
-                AudioCodec = dto.AudioCodec,
-                Bitrate = dto.Bitrate,
-                AudioTrackCount = dto.AudioTrackCount,
-                SubtitleTrackCount = dto.SubtitleTrackCount,
-                ContainerFormat = dto.ContainerFormat
-            };
-            await _metadataService.SaveMetadataAsync(videoId, metadata);
+            await _metadataService.SaveMetadataAsync(videoId, dto);
             return Ok(Envelope(new { saved = true }));
         }
         catch (BusinessRuleException ex) when (ex.ErrorCode == ErrorCodes.VideoNotFound)
@@ -465,6 +434,11 @@ public class VideoController : VideoControllerBase
     [HttpGet("{videoId:guid}/stream-progress")]
     public IActionResult GetStreamProgress(Guid videoId)
     {
+        // Periodically clean up stale entries (entries > 5 minutes old).
+        // These accumulate when we intentionally skip removal on Response.OnCompleted
+        // so the JS polling can still find them after a fast pipeline completes.
+        _streamProgress.RemoveStaleEntries(TimeSpan.FromMinutes(5));
+
         var entry = _streamProgress.Get(videoId);
         if (entry is null)
         {
@@ -577,6 +551,7 @@ public class VideoController : VideoControllerBase
 
         // Reconstruct file from chunks via the Files download service.
         Stream fileStream;
+        long totalBytes = 0;
         try
         {
             // ── Report reconstruction progress ──────────────────────
@@ -589,7 +564,7 @@ public class VideoController : VideoControllerBase
             fileStream = await _downloadService.DownloadCurrentAsync(video.FileNodeId, caller);
 
             // Estimate total size from the canonical video record
-            var totalBytes = video.CanonicalVideo?.SizeBytes > 0
+            totalBytes = video.CanonicalVideo?.SizeBytes > 0
                 ? video.CanonicalVideo.SizeBytes
                 : fileStream.CanSeek ? fileStream.Length : 0;
 
@@ -617,23 +592,54 @@ public class VideoController : VideoControllerBase
         Directory.CreateDirectory(tempSourceDir);
 
         // Background cleanup of temp files older than 24 hours
-        _ = Task.Run(() => CleanupOldTempFiles(tempSourceDir, TimeSpan.FromHours(24)));
+        _ = Task.Run(() => CleanupOldTempFiles(tempSourceDir, Path.Combine(Path.GetTempPath(), "dotnetcloud-hls"), TimeSpan.FromHours(24), _logger));
 
         var sourcePath = Path.Combine(tempSourceDir, $"source-{videoId:N}");
 
         try
         {
-            // Write the temp file from the download stream (unless it already is a FileStream)
+            // Write the temp file from the download stream (unless it already is a FileStream).
+            //
+            // IMPORTANT: never use FileMode.Create directly on `sourcePath` while a background
+            // ffmpeg process might be reading it. FileMode.Create truncates the inode in-place
+            // (O_TRUNC), which causes ffmpeg to hit EOF mid-encode even though it already has
+            // the file open. Instead:
+            //   1. If the file already exists with the expected size, reuse it (no copy needed).
+            //   2. Otherwise write to a unique .tmp file, then atomically rename into place.
+            //      File.Move with overwrite=true is a rename(2) on Linux — atomic, and any
+            //      ffmpeg process with the old inode open is completely unaffected.
             if (fileStream is FileStream existingFs)
             {
                 sourcePath = existingFs.Name;
             }
             else
             {
-                await using var sourceStream = new FileStream(
-                    sourcePath, FileMode.Create, FileAccess.Write,
-                    FileShare.Read, 65536, FileOptions.Asynchronous);
-                await fileStream.CopyToAsync(sourceStream);
+                // Reuse the cached file if it's already complete (avoids re-copying on retries).
+                var existingSize = System.IO.File.Exists(sourcePath) ? new System.IO.FileInfo(sourcePath).Length : 0L;
+                var needsCopy = existingSize == 0 || (totalBytes > 0 && existingSize < totalBytes);
+
+                if (needsCopy)
+                {
+                    // Write to a unique temp path to avoid truncating sourcePath in-place.
+                    var tmpPath = sourcePath + $".{Guid.NewGuid():N}.tmp";
+                    try
+                    {
+                        await using var sourceStream = new FileStream(
+                            tmpPath, FileMode.Create, FileAccess.Write,
+                            FileShare.Read, 65536, FileOptions.Asynchronous);
+                        await fileStream.CopyToAsync(sourceStream);
+                    }
+                    catch
+                    {
+                        try
+                        { System.IO.File.Delete(tmpPath); }
+                        catch { /* best-effort */ }
+                        throw;
+                    }
+
+                    // Atomic rename: replaces the directory entry without touching the old inode.
+                    System.IO.File.Move(tmpPath, sourcePath, overwrite: true);
+                }
             }
 
             // Determine MIME type for context
@@ -673,9 +679,13 @@ public class VideoController : VideoControllerBase
                     return Task.CompletedTask;
                 });
 
+                // NOTE: Do NOT remove progress entry here. The JS showStreamProgress()
+                // polls this endpoint and needs to find the entry with stage=Streaming.
+                // If the pipeline completes before the first poll, the entry is gone and
+                // the loading overlay stays forever. Let RemoveStaleEntries handle cleanup.
+
                 HttpContext.Response.OnCompleted(async () =>
                 {
-                    _streamProgress.Remove(videoId);
                     if (fileStream is FileStream fs)
                         await fs.DisposeAsync();
                 });
@@ -736,11 +746,24 @@ public class VideoController : VideoControllerBase
             progress.Message = "Preparing stream (transcoding)…";
             progress.Percent = 90;
 
+            // Use CancellationToken.None for the ffmpeg transcode so it survives
+            // past the HTTP response. Do NOT create a CTS here — C# 'using' disposes
+            // the CTS when StreamVideo returns (after sending the playlist), which
+            // calls Cancel() on the token. That sends 'q' to ffmpeg's stdin via the
+            // registered callback in FfmpegProcessManager.RunAsync, causing ffmpeg
+            // to gracefully stop after only a few segments. ffmpeg must run to
+            // completion independently of the HTTP request lifetime.
+            // We still use a CTS for error-path cancellation (client disconnect
+            // before playlist is ready), but it's NOT disposed here — it's captured
+            // by the error handlers and allowed to be GC'd naturally.
+            var transcodeCts = new CancellationTokenSource();
+            var transcodeCt = transcodeCts.Token;
+
             var (jobId, outputDir, playlistPath) = await _transcodingService.TranscodeHlsAsync(
                 videoId, userId, sourcePath, mimeType,
                 sourceVideoCodec: videoCodec,
                 sourceAudioCodec: audioCodec,
-                ct: HttpContext.RequestAborted);
+                ct: transcodeCt);
 
             _logger.LogInformation("StreamVideo: HLS transcode job {JobId} started, playlist={PlaylistPath}",
                 jobId, playlistPath);
@@ -755,13 +778,18 @@ public class VideoController : VideoControllerBase
 
             if (waitResult == HlsWaitResult.Cancelled)
             {
+                // Do NOT cancel the transcode — the background ffmpeg job keeps running.
+                // The browser often disconnects immediately after receiving the response
+                // headers (or during navigation), which fires RequestAborted. If we killed
+                // ffmpeg here, every retry would restart from scratch. Instead, keep the
+                // job running so the next request reuses it via IsJobReusable.
                 _streamProgress.Remove(videoId);
-                _transcodingService.CancelTranscode(jobId);
                 return StatusCode(499, ErrorEnvelope("cancelled", "Client disconnected."));
             }
 
             if (waitResult == HlsWaitResult.Failed)
             {
+                transcodeCts.Cancel();
                 _streamProgress.Remove(videoId);
                 var checkJob = _transcodingService.GetProgress(jobId);
                 _logger.LogError("HLS transcode job {JobId} failed: {Error}", jobId, checkJob?.ErrorMessage);
@@ -771,28 +799,53 @@ public class VideoController : VideoControllerBase
 
             if (waitResult == HlsWaitResult.Timeout)
             {
+                // Do NOT cancel the transcode — ffmpeg is still producing segments.
+                // On retry, the existing job is reused and segments are ready.
                 _streamProgress.Remove(videoId);
-                _transcodingService.CancelTranscode(jobId);
                 _logger.LogError("HLS transcode job {JobId} timed out waiting for segments", jobId);
                 return StatusCode(504, ErrorEnvelope("TRANSCODE_TIMEOUT",
                     "HLS transcode did not produce segments within 30 seconds."));
             }
 
+            // ffmpeg is now running and producing segments — do NOT cancel it.
+            // The transcodeCts is intentionally not disposed here (no 'using') so
+            // the token stays uncancelled. C# disposing a CancellationTokenSource
+            // calls Cancel(), which sends 'q' to ffmpeg's stdin via the registered
+            // callback in FfmpegProcessManager — causing ffmpeg to write ENDLIST
+            // and exit after only a few segments. The transcodeCts will be GC'd
+            // naturally when no longer referenced. ffmpeg's background task in
+            // LaunchFfmpegAsync handles cleanup after completion.
+
             progress.Stage = StreamProgressStage.Streaming;
             progress.Message = "Starting playback…";
             progress.Percent = 100;
 
-            HttpContext.Response.OnCompleted(() =>
-            {
-                _streamProgress.Remove(videoId);
-                return Task.CompletedTask;
-            });
+            // IMPORTANT: Do NOT remove the progress entry on Response.OnCompleted.
+            // The JS showStreamProgress() polls this endpoint, and when the pipeline
+            // completes instantly (e.g. FindExistingHlsOutput finds pre-completed HLS),
+            // OnCompleted fires BEFORE the JS polling even begins. Removing the entry
+            // causes the poll to always return {stage:"unknown"} — the promise never
+            // resolves, playStream() is never called, and hls.js is never initialized.
+            // The entry will be cleaned up when a new stream request overwrites it.
+            // A background cleanup runs periodically to remove stale entries.
 
             _logger.LogInformation("StreamVideo: HLS playlist ready for {VideoId}, serving {PlaylistPath}",
                 videoId, playlistPath);
 
-            // Serve the .m3u8 playlist — browser/HLS player will request segments
-            return PhysicalFile(playlistPath, "application/vnd.apple.mpegurl");
+            // Read the playlist and rewrite segment paths to use the /stream/ prefix
+            // so hls.js resolves segments to the primary route:
+            //   /api/v1/videos/{id}/stream/segment_00000.ts
+            // instead of the fallback:
+            //   /api/v1/videos/{id}/segment_00000.ts
+            var playlistContent = await System.IO.File.ReadAllTextAsync(playlistPath, HttpContext.RequestAborted);
+            var rewrittenPlaylist = playlistContent.Replace(
+                "segment_",
+                "stream/segment_");
+
+            // Serve the .m3u8 playlist — browser/HLS player will request segments.
+            // no-cache is critical: hls.js must re-fetch the playlist as new segments appear.
+            HttpContext.Response.Headers["Cache-Control"] = "no-cache";
+            return Content(rewrittenPlaylist, "application/vnd.apple.mpegurl");
         }
         catch (Exception ex)
         {
@@ -929,6 +982,24 @@ public class VideoController : VideoControllerBase
         return Ok(Envelope(new { cancelled = true }));
     }
 
+    /// <summary>Cancels any active stream preparation for a video (e.g. when user closes player).</summary>
+    [HttpPost("cancel-stream/{videoId:guid}")]
+    public IActionResult CancelStreamPrep(Guid videoId)
+    {
+        try
+        {
+            var caller = GetAuthenticatedCaller();
+            _transcodingService.CancelTranscode(videoId, caller.UserId);
+            _streamProgress.Remove(videoId);
+            return Ok(Envelope(new { cancelled = true }));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "CancelStreamPrep failed for video {VideoId}", videoId);
+            return StatusCode(500, ErrorEnvelope("CANCEL_FAILED", ex.Message));
+        }
+    }
+
     private static bool IsSafeHlsRelativePath(string path)
     {
         if (string.IsNullOrWhiteSpace(path))
@@ -1002,25 +1073,50 @@ public class VideoController : VideoControllerBase
     }
 
     /// <summary>
-    /// Deletes files in the given directory older than the specified age.
-    /// Best-effort — failures are silently ignored.
+    /// Deletes files in the given directory and old HLS output directories
+    /// older than the specified age. Best-effort — failures are silently ignored.
     /// </summary>
-    private static void CleanupOldTempFiles(string directory, TimeSpan maxAge)
+    /// <param name="directory">Temp source file directory to clean.</param>
+    /// <param name="hlsRoot">HLS output root directory (may be null).</param>
+    /// <param name="maxAge">Maximum age before deletion.</param>
+    /// <param name="logger">Optional logger for diagnostics.</param>
+    private static void CleanupOldTempFiles(string directory, string? hlsRoot, TimeSpan maxAge, ILogger? logger = null)
     {
         try
         {
-            if (!Directory.Exists(directory))
-                return;
-
-            var cutoff = DateTime.UtcNow - maxAge;
-            foreach (var file in Directory.GetFiles(directory))
+            if (!string.IsNullOrEmpty(directory) && Directory.Exists(directory))
             {
-                try
+                var cutoff = DateTime.UtcNow - maxAge;
+                foreach (var file in Directory.GetFiles(directory))
                 {
-                    if (System.IO.File.GetLastWriteTimeUtc(file) < cutoff)
-                        System.IO.File.Delete(file);
+                    try
+                    {
+                        if (System.IO.File.GetLastWriteTimeUtc(file) < cutoff)
+                            System.IO.File.Delete(file);
+                    }
+                    catch { /* best effort per file */ }
                 }
-                catch { /* best effort per file */ }
+            }
+
+            // Clean old HLS output directories (completed transcodes). These
+            // accumulate over time and should be removed to free disk space.
+            if (!string.IsNullOrEmpty(hlsRoot) && Directory.Exists(hlsRoot))
+            {
+                var cutoff = DateTime.UtcNow - maxAge;
+                foreach (var dir in Directory.EnumerateDirectories(hlsRoot, "hls-*"))
+                {
+                    try
+                    {
+                        var lastWrite = Directory.GetLastWriteTimeUtc(dir);
+                        if (lastWrite < cutoff)
+                        {
+                            Directory.Delete(dir, recursive: true);
+                            logger?.LogDebug("Cleaned up old HLS directory: {Dir} (last modified {LastWrite})",
+                                dir, lastWrite);
+                        }
+                    }
+                    catch { /* best effort per directory */ }
+                }
             }
         }
         catch { /* best effort */ }
@@ -1043,11 +1139,13 @@ public class VideoController : VideoControllerBase
     {
         var tcs = new TaskCompletionSource<HlsWaitResult>();
         using var ctr = ct.Register(() => tcs.TrySetResult(HlsWaitResult.Cancelled));
-        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(90));
         using var timeoutCtr = timeoutCts.Token.Register(() => tcs.TrySetResult(HlsWaitResult.Timeout));
         var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
 
-        // Background poller: checks job status (ffmpeg may fail silently)
+        // Background poller: checks job status (ffmpeg may fail silently) and segment readiness.
+        // FileSystemWatcher only fires on playlist Created, which can happen before segments appear.
+        // The poller catches the gap when playlist exists but < 2 segments exist yet.
         _ = Task.Run(async () =>
         {
             try
@@ -1057,7 +1155,12 @@ public class VideoController : VideoControllerBase
                     await Task.Delay(500, linkedCts.Token);
                     var job = _transcodingService.GetProgress(jobId);
                     if (job?.Status == TranscodingJobStatus.Failed)
+                    {
                         tcs.TrySetResult(HlsWaitResult.Failed);
+                        return;
+                    }
+                    if (HasMinSegments(outputDir))
+                        tcs.TrySetResult(HlsWaitResult.Ready);
                 }
             }
             catch (OperationCanceledException) { /* Expected */ }

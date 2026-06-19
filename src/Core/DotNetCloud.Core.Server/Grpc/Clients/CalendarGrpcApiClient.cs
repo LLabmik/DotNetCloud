@@ -376,6 +376,7 @@ public sealed class CalendarGrpcApiClient : ICalendarApiClient, IDisposable
         _logger.LogInformation("CalendarGrpcApiClient channel to {ModuleId} at {Address}", moduleId, address);
         return GrpcChannel.ForAddress(address, new GrpcChannelOptions
         {
+            UnsafeUseInsecureChannelCallCredentials = true,
             HttpHandler = new SocketsHttpHandler
             {
                 EnableMultipleHttp2Connections = true,

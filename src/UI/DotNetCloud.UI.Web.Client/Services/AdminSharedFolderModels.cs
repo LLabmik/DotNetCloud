@@ -137,3 +137,70 @@ public sealed record ScheduleAdminSharedFolderScanRequest
     /// <summary>Optional next scheduled scan time. Null means run now.</summary>
     public DateTime? NextScheduledScanAt { get; init; }
 }
+
+/// <summary>
+/// Client-side result returned when an admin shared folder is deleted.
+/// Contains the cleanup job ID for progress polling.
+/// </summary>
+public sealed record DeleteAdminSharedFolderResult
+{
+    /// <summary>Whether the definition was successfully deleted.</summary>
+    public bool Deleted { get; init; }
+
+    /// <summary>Unique job ID for tracking cleanup progress.</summary>
+    public Guid CleanupJobId { get; init; }
+
+    /// <summary>Total number of search documents that need removal.</summary>
+    public int PendingSearchRemovals { get; init; }
+
+    /// <summary>Number of search documents successfully removed so far.</summary>
+    public int SearchDocsRemoved { get; init; }
+
+    /// <summary>Whether media cleanup is pending.</summary>
+    public bool PendingMediaCleanup { get; init; }
+}
+
+/// <summary>
+/// Client-side response for admin shared folder cleanup status.
+/// </summary>
+public sealed record AdminSharedFolderCleanupStatusResponse
+{
+    /// <summary>Unique cleanup job ID.</summary>
+    public Guid CleanupJobId { get; init; }
+
+    /// <summary>The deleted shared folder definition ID.</summary>
+    public Guid SharedFolderId { get; init; }
+
+    /// <summary>Display name of the deleted folder.</summary>
+    public string DisplayName { get; init; } = string.Empty;
+
+    /// <summary>Current cleanup phase name.</summary>
+    public string Phase { get; init; } = string.Empty;
+
+    /// <summary>Number of search documents removed.</summary>
+    public int SearchDocsRemoved { get; init; }
+
+    /// <summary>Total search documents to remove.</summary>
+    public int SearchDocsTotal { get; init; }
+
+    /// <summary>Number of affected users.</summary>
+    public int AffectedUsers { get; init; }
+
+    /// <summary>Number of users cleaned so far.</summary>
+    public int UsersCleaned { get; init; }
+
+    /// <summary>Number of media entities removed.</summary>
+    public int MediaEntitiesRemoved { get; init; }
+
+    /// <summary>When cleanup started.</summary>
+    public DateTime StartedAt { get; init; }
+
+    /// <summary>When cleanup completed (null if still running).</summary>
+    public DateTime? CompletedAt { get; init; }
+
+    /// <summary>Error message if cleanup failed.</summary>
+    public string? ErrorMessage { get; init; }
+
+    /// <summary>Whether cleanup is complete (success or failure).</summary>
+    public bool IsComplete { get; init; }
+}

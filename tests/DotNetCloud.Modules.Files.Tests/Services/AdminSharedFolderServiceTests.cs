@@ -1,14 +1,20 @@
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.Errors;
+using DotNetCloud.Core.Models;
+using AdminSharedFolderDeletedEvent = DotNetCloud.Core.Events.AdminSharedFolderDeletedEvent;
+using IEventBus = DotNetCloud.Core.Events.IEventBus;
 using DotNetCloud.Modules.Files.Data;
-using DotNetCloud.Modules.Files.Data.Services.Background;
 using DotNetCloud.Modules.Files.Data.Services;
+using DotNetCloud.Modules.Files.Data.Services.Background;
 using DotNetCloud.Modules.Files.DTOs;
 using DotNetCloud.Modules.Files.Models;
+using DotNetCloud.Modules.Files.Services;
 using DotNetCloud.Modules.Files.Options;
 using DotNetCloud.Modules.Files.Services;
+using DotNetCloud.Modules.Search.Client;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
 
@@ -33,7 +39,10 @@ public class AdminSharedFolderServiceTests
         string rootPath,
         Mock<IUserOrganizationResolver>? userOrganizationResolver = null,
         Mock<IGroupDirectory>? groupDirectory = null,
-        IAdminSharedFolderMaintenanceScheduler? maintenanceScheduler = null)
+        IAdminSharedFolderMaintenanceScheduler? maintenanceScheduler = null,
+        Mock<ISearchFtsClient>? searchClient = null,
+        Mock<IEventBus>? eventBus = null,
+        Mock<ICoreCapabilitiesClient>? coreClient = null)
     {
         var validator = new AdminSharedFolderPathValidator(
             db,
@@ -45,9 +54,14 @@ public class AdminSharedFolderServiceTests
         return new AdminSharedFolderService(
             db,
             validator,
+            coreDb: null,
             userOrganizationResolver?.Object,
             groupDirectory?.Object,
-            maintenanceScheduler);
+            maintenanceScheduler,
+            searchClient?.Object,
+            eventBus?.Object,
+            coreClient?.Object,
+            NullLogger<AdminSharedFolderService>.Instance);
     }
 
     [TestMethod]
@@ -356,10 +370,217 @@ public class AdminSharedFolderServiceTests
         {
             var service = CreateService(db, rootPath);
 
-            await service.DeleteSharedFolderAsync(definition.Id, AdminCaller(callerId));
+            var result = await service.DeleteSharedFolderAsync(definition.Id, AdminCaller(callerId));
 
+            Assert.IsTrue(result.Deleted);
+            Assert.AreNotEqual(Guid.Empty, result.CleanupJobId);
             Assert.AreEqual(0, await db.AdminSharedFolders.CountAsync());
             Assert.AreEqual(0, await db.AdminSharedFolderGrants.CountAsync());
+        }
+        finally
+        {
+            Directory.Delete(rootPath, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public async Task DeleteSharedFolderAsync_WithMountedEntries_GathersEntriesBeforeDelete()
+    {
+        var rootPath = CreateTempDirectory();
+        using var db = CreateContext();
+        var callerId = Guid.CreateVersion7();
+        var sharedFolderId = Guid.CreateVersion7();
+        var definition = new AdminSharedFolderDefinition
+        {
+            Id = sharedFolderId,
+            DisplayName = "Media",
+            SourcePath = "/mnt/media",
+            CreatedByUserId = callerId,
+            Grants =
+            [
+                new AdminSharedFolderGrant { GroupId = Guid.CreateVersion7() },
+            ],
+        };
+        db.AdminSharedFolders.Add(definition);
+
+        // Add mounted node entries (these will be cascade-deleted)
+        db.MountedNodeEntries.AddRange(
+            new MountedNodeEntry
+            {
+                Id = VirtualMountedNodeRegistry.GetMountedNodeId(sharedFolderId, "file1.txt", isDirectory: false),
+                SharedFolderId = sharedFolderId,
+                RelativePath = "file1.txt",
+                IsDirectory = false,
+            },
+            new MountedNodeEntry
+            {
+                Id = VirtualMountedNodeRegistry.GetMountedNodeId(sharedFolderId, "subdir", isDirectory: true),
+                SharedFolderId = sharedFolderId,
+                RelativePath = "subdir",
+                IsDirectory = true,
+            },
+            new MountedNodeEntry
+            {
+                Id = VirtualMountedNodeRegistry.GetMountedNodeId(sharedFolderId, "subdir/file2.txt", isDirectory: false),
+                SharedFolderId = sharedFolderId,
+                RelativePath = "subdir/file2.txt",
+                IsDirectory = false,
+            });
+        await db.SaveChangesAsync();
+
+        try
+        {
+            var searchClientMock = new Mock<ISearchFtsClient>();
+            searchClientMock.Setup(client => client.IsAvailable).Returns(true);
+            searchClientMock
+                .Setup(client => client.RemoveDocumentAsync("files", It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(true);
+
+            var service = CreateService(db, rootPath, searchClient: searchClientMock);
+
+            var result = await service.DeleteSharedFolderAsync(sharedFolderId, AdminCaller(callerId));
+
+            Assert.IsTrue(result.Deleted);
+            Assert.AreEqual(4, result.PendingSearchRemovals); // Root + 3 mounted entries
+
+            // Verify search client was called for each entity ID
+            searchClientMock.Verify(
+                client => client.RemoveDocumentAsync("files", It.IsAny<string>(), It.IsAny<CancellationToken>()),
+                Times.Exactly(4));
+
+            // Verify cleanup status record reflects search removals
+            var status = await db.AdminSharedFolderCleanupStatuses
+                .FirstOrDefaultAsync(s => s.CleanupJobId == result.CleanupJobId);
+            Assert.IsNotNull(status);
+            Assert.AreEqual(sharedFolderId, status.SharedFolderId);
+            Assert.AreEqual("Media", status.DisplayName);
+            Assert.AreEqual(4, status.SearchDocsRemoved); // All 4 removals succeeded
+            Assert.AreEqual(4, status.SearchDocsTotal);
+            Assert.IsTrue(status.Phase == CleanupPhase.CleaningMediaSources
+                       || status.Phase == CleanupPhase.RemovingSearchDocs); // Depending on timing
+
+            // Verify definition and mounted entries are deleted
+            Assert.AreEqual(0, await db.AdminSharedFolders.CountAsync());
+            Assert.AreEqual(0, await db.MountedNodeEntries.CountAsync());
+        }
+        finally
+        {
+            Directory.Delete(rootPath, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public async Task DeleteSharedFolderAsync_WithoutSearchClient_StillDeletesDefinition()
+    {
+        var rootPath = CreateTempDirectory();
+        using var db = CreateContext();
+        var callerId = Guid.CreateVersion7();
+        var definition = new AdminSharedFolderDefinition
+        {
+            DisplayName = "Media",
+            SourcePath = "/mnt/media",
+            CreatedByUserId = callerId,
+        };
+        db.AdminSharedFolders.Add(definition);
+        await db.SaveChangesAsync();
+
+        try
+        {
+            var service = CreateService(db, rootPath);
+
+            var result = await service.DeleteSharedFolderAsync(definition.Id, AdminCaller(callerId));
+
+            Assert.IsTrue(result.Deleted);
+            Assert.AreEqual(1, result.PendingSearchRemovals); // Just the root folder
+            Assert.AreEqual(0, result.SearchDocsRemoved); // No search client available
+            Assert.AreEqual(0, await db.AdminSharedFolders.CountAsync());
+        }
+        finally
+        {
+            Directory.Delete(rootPath, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public async Task DeleteSharedFolderAsync_CreatesCleanupStatusRecord()
+    {
+        var rootPath = CreateTempDirectory();
+        using var db = CreateContext();
+        var callerId = Guid.CreateVersion7();
+        var definition = new AdminSharedFolderDefinition
+        {
+            DisplayName = "Media",
+            SourcePath = "/mnt/media",
+            CreatedByUserId = callerId,
+        };
+        db.AdminSharedFolders.Add(definition);
+        await db.SaveChangesAsync();
+
+        try
+        {
+            var service = CreateService(db, rootPath);
+
+            var result = await service.DeleteSharedFolderAsync(definition.Id, AdminCaller(callerId));
+
+            // Verify cleanup status record was created
+            var status = await db.AdminSharedFolderCleanupStatuses
+                .FirstOrDefaultAsync(s => s.CleanupJobId == result.CleanupJobId);
+
+            Assert.IsNotNull(status);
+            Assert.AreEqual(definition.Id, status.SharedFolderId);
+            Assert.AreEqual("Media", status.DisplayName);
+            Assert.AreEqual(CleanupPhase.CleaningMediaSources, status.Phase); // Past search cleanup
+            Assert.IsTrue(status.StartedAt <= DateTime.UtcNow);
+            Assert.AreEqual(1, status.SearchDocsTotal);
+            Assert.AreEqual(0, status.SearchDocsRemoved);
+        }
+        finally
+        {
+            Directory.Delete(rootPath, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public async Task DeleteSharedFolderAsync_PublishesEvent()
+    {
+        var rootPath = CreateTempDirectory();
+        using var db = CreateContext();
+        var callerId = Guid.CreateVersion7();
+        var definition = new AdminSharedFolderDefinition
+        {
+            DisplayName = "Media",
+            SourcePath = "/mnt/media",
+            CreatedByUserId = callerId,
+            Grants =
+            [
+                new AdminSharedFolderGrant { GroupId = Guid.CreateVersion7() },
+            ],
+        };
+        db.AdminSharedFolders.Add(definition);
+        await db.SaveChangesAsync();
+
+        AdminSharedFolderDeletedEvent? publishedEvent = null;
+        var eventBusMock = new Mock<IEventBus>();
+        eventBusMock
+            .Setup(bus => bus.PublishAsync(It.IsAny<AdminSharedFolderDeletedEvent>(), It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
+            .Callback<AdminSharedFolderDeletedEvent, CallerContext, CancellationToken>((evt, _, _) => publishedEvent = evt)
+            .Returns(Task.CompletedTask);
+
+        try
+        {
+            var service = CreateService(db, rootPath, eventBus: eventBusMock);
+
+            var result = await service.DeleteSharedFolderAsync(definition.Id, AdminCaller(callerId));
+
+            Assert.IsTrue(result.Deleted);
+            Assert.IsNotNull(publishedEvent);
+            Assert.AreEqual(definition.Id, publishedEvent.SharedFolderId);
+            Assert.AreEqual("Media", publishedEvent.DisplayName);
+            Assert.AreEqual(0, publishedEvent.MountedEntries.Count); // No mounted entries
+
+            eventBusMock.Verify(
+                bus => bus.PublishAsync(It.IsAny<AdminSharedFolderDeletedEvent>(), It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()),
+                Times.Once);
         }
         finally
         {

@@ -84,6 +84,7 @@ internal sealed class FilesModuleSearchClient : IModuleSearchDocumentClient
         var address = _endpointProvider.GetEndpoint("dotnetcloud.files");
         var channel = GrpcChannel.ForAddress(address, new GrpcChannelOptions
         {
+            UnsafeUseInsecureChannelCallCredentials = true,
             HttpHandler = new SocketsHttpHandler { EnableMultipleHttp2Connections = true, ConnectTimeout = TimeSpan.FromSeconds(5) }
         });
         return new FilesProto.FilesService.FilesServiceClient(channel);
@@ -153,6 +154,7 @@ internal sealed class NotesModuleSearchClient : IModuleSearchDocumentClient
         var address = _endpointProvider.GetEndpoint("dotnetcloud.notes");
         var channel = GrpcChannel.ForAddress(address, new GrpcChannelOptions
         {
+            UnsafeUseInsecureChannelCallCredentials = true,
             HttpHandler = new SocketsHttpHandler { EnableMultipleHttp2Connections = true, ConnectTimeout = TimeSpan.FromSeconds(5) }
         });
         return new NotesProto.NotesGrpcService.NotesGrpcServiceClient(channel);
@@ -222,6 +224,7 @@ internal sealed class CalendarModuleSearchClient : IModuleSearchDocumentClient
         var address = _endpointProvider.GetEndpoint("dotnetcloud.calendar");
         var channel = GrpcChannel.ForAddress(address, new GrpcChannelOptions
         {
+            UnsafeUseInsecureChannelCallCredentials = true,
             HttpHandler = new SocketsHttpHandler { EnableMultipleHttp2Connections = true, ConnectTimeout = TimeSpan.FromSeconds(5) }
         });
         return new CalendarProto.CalendarGrpcService.CalendarGrpcServiceClient(channel);
@@ -291,6 +294,7 @@ internal sealed class BookmarksModuleSearchClient : IModuleSearchDocumentClient
         var address = _endpointProvider.GetEndpoint("dotnetcloud.bookmarks");
         var channel = GrpcChannel.ForAddress(address, new GrpcChannelOptions
         {
+            UnsafeUseInsecureChannelCallCredentials = true,
             HttpHandler = new SocketsHttpHandler { EnableMultipleHttp2Connections = true, ConnectTimeout = TimeSpan.FromSeconds(5) }
         });
         return new BookmarksProto.BookmarksService.BookmarksServiceClient(channel);
@@ -360,6 +364,7 @@ internal sealed class EmailModuleSearchClient : IModuleSearchDocumentClient
         var address = _endpointProvider.GetEndpoint("dotnetcloud.email");
         var channel = GrpcChannel.ForAddress(address, new GrpcChannelOptions
         {
+            UnsafeUseInsecureChannelCallCredentials = true,
             HttpHandler = new SocketsHttpHandler { EnableMultipleHttp2Connections = true, ConnectTimeout = TimeSpan.FromSeconds(5) }
         });
         return new EmailProto.EmailService.EmailServiceClient(channel);
@@ -429,6 +434,7 @@ internal sealed class MusicModuleSearchClient : IModuleSearchDocumentClient
         var address = _endpointProvider.GetEndpoint("dotnetcloud.music");
         var channel = GrpcChannel.ForAddress(address, new GrpcChannelOptions
         {
+            UnsafeUseInsecureChannelCallCredentials = true,
             HttpHandler = new SocketsHttpHandler { EnableMultipleHttp2Connections = true, ConnectTimeout = TimeSpan.FromSeconds(5) }
         });
         return new MusicProto.MusicGrpcService.MusicGrpcServiceClient(channel);
@@ -498,6 +504,7 @@ internal sealed class VideoModuleSearchClient : IModuleSearchDocumentClient
         var address = _endpointProvider.GetEndpoint("dotnetcloud.video");
         var channel = GrpcChannel.ForAddress(address, new GrpcChannelOptions
         {
+            UnsafeUseInsecureChannelCallCredentials = true,
             HttpHandler = new SocketsHttpHandler { EnableMultipleHttp2Connections = true, ConnectTimeout = TimeSpan.FromSeconds(5) }
         });
         return new VideoProto.VideoGrpcService.VideoGrpcServiceClient(channel);

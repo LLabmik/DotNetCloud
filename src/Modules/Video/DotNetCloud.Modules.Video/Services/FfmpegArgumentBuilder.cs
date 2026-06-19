@@ -74,7 +74,7 @@ public sealed class FfmpegArgumentBuilder
         string outputContainer = "mp4")
     {
         var sb = new StringBuilder();
-        sb.Append("-hide_banner -loglevel warning ");
+        sb.Append("-nostdin -hide_banner -loglevel warning ");
         sb.Append("-fflags +genpts ");  // Generate PTS if missing (common in MKV/AVI)
         sb.AppendFormat(CultureInfo.InvariantCulture, "-i \"{0}\" ", EscapePath(inputPath));
 
@@ -107,7 +107,7 @@ public sealed class FfmpegArgumentBuilder
         }
         else
         {
-            sb.Append("-c:a aac -b:a 128k -ac 2 -strict -2 ");
+            sb.Append("-strict -2 -c:a aac -b:a 128k -ac 2 ");
         }
 
         // Remove metadata (cleaner output)
@@ -141,7 +141,7 @@ public sealed class FfmpegArgumentBuilder
         string outputContainer = "mp4")
     {
         var sb = new StringBuilder();
-        sb.Append("-hide_banner -loglevel warning ");
+        sb.Append("-nostdin -hide_banner -loglevel warning ");
         sb.Append("-fflags +genpts ");
         sb.AppendFormat(CultureInfo.InvariantCulture, "-i \"{0}\" ", EscapePath(inputPath));
         sb.Append("-map 0:v:0? -map 0:a:0? ");
@@ -167,7 +167,7 @@ public sealed class FfmpegArgumentBuilder
         }
         else
         {
-            sb.Append("-c:a aac -b:a 128k -ac 2 -strict -2 ");
+            sb.Append("-strict -2 -c:a aac -b:a 128k -ac 2 ");
         }
 
         sb.Append("-map_metadata -1 ");
@@ -199,7 +199,10 @@ public sealed class FfmpegArgumentBuilder
         var sb = new StringBuilder();
 
         // --- Hide banner and set log level ---
-        sb.Append("-hide_banner -loglevel warning ");
+        // -nostdin: prevents ffmpeg from reading stdin for keyboard shortcuts.
+        // In a systemd service, stdin is /dev/null — reading it returns EOF immediately,
+        // which causes some ffmpeg builds to quit after only a few segments.
+        sb.Append("-nostdin -hide_banner -loglevel warning ");
 
         // --- Thread count ---
         if (options.ThreadCount > 0)
@@ -331,7 +334,10 @@ public sealed class FfmpegArgumentBuilder
         var sb = new StringBuilder();
 
         // --- Hide banner and set log level ---
-        sb.Append("-hide_banner -loglevel warning ");
+        // -nostdin: prevents ffmpeg from reading stdin for keyboard shortcuts.
+        // In a systemd service, stdin is /dev/null — reading it returns EOF immediately,
+        // which causes some ffmpeg builds to quit after only a few segments.
+        sb.Append("-nostdin -hide_banner -loglevel warning ");
 
         // --- Thread count ---
         if (options.ThreadCount > 0)
@@ -390,14 +396,12 @@ public sealed class FfmpegArgumentBuilder
         }
         else
         {
+            // -strict -2 MUST come before codec selection to enable AAC encoder
+            sb.Append("-strict -2 ");
             sb.AppendFormat(CultureInfo.InvariantCulture, "-c:a:0 {0} ", MapAudioCodec(sourceAudioCodec, options.AudioCodec));
             sb.AppendFormat(CultureInfo.InvariantCulture, "-b:a {0}k ", options.AudioBitrateKbps);
             sb.Append("-ac 2 ");
         }
-
-        // --- AAC compatibility: enable experimental features for browser support ---
-        if (!shouldCopyAudio)
-            sb.Append("-strict -2 ");
 
         // --- Remove metadata ---
         sb.Append("-map_metadata -1 -map_chapters -1 ");
@@ -469,8 +473,9 @@ public sealed class FfmpegArgumentBuilder
         if (sourceCodec.Contains("vorbis", StringComparison.OrdinalIgnoreCase))
             return "copy";
 
-        // MP2 → transcode to AAC
-        if (sourceCodec.Contains("mp2", StringComparison.OrdinalIgnoreCase))
+        // MP2 / MP3 → transcode to AAC (MP3 in MPEG-TS not supported by Chrome MSE)
+        if (sourceCodec.Contains("mp2", StringComparison.OrdinalIgnoreCase) ||
+            sourceCodec.Contains("mp3", StringComparison.OrdinalIgnoreCase))
             return "aac";
 
         // Unknown → use configured default (usually AAC)

@@ -59,6 +59,7 @@ Before every commit:
 
 1. Run `git status --short`.
 2. **Delete ALL unexpected untracked files/directories** — including gitignored runtime data (e.g., `storage/`, `bin/`, temp files). Only intentional tracked changes should remain.
+   - ⚠️ **NEVER delete untracked `.cs` files.** C# source files are never junk — they are work-in-progress code that should be committed, not discarded.
 3. Verify clean state, THEN commit.
 
 ### Post-Push Relay (MANDATORY)

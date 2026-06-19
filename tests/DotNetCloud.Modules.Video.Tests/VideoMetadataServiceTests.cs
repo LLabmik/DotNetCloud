@@ -1,6 +1,6 @@
+using DotNetCloud.Core.DTOs;
 using DotNetCloud.Modules.Video.Data;
 using DotNetCloud.Modules.Video.Data.Services;
-using DotNetCloud.Modules.Video.Models;
 using Microsoft.Extensions.Logging;
 using Moq;
 
@@ -50,7 +50,7 @@ public class VideoMetadataServiceTests
     {
         var caller = TestHelpers.CreateCaller();
         var video = await TestHelpers.SeedVideoAsync(_db, ownerId: caller.UserId);
-        var metadata = new VideoMetadata
+        var dto = new VideoMetadataDto
         {
             VideoId = video.Id,
             Width = 3840,
@@ -64,7 +64,7 @@ public class VideoMetadataServiceTests
             ContainerFormat = "MKV"
         };
 
-        await _service.SaveMetadataAsync(video.Id, metadata);
+        await _service.SaveMetadataAsync(video.Id, dto);
 
         var result = await _service.GetMetadataAsync(video.Id);
         Assert.IsNotNull(result);
@@ -78,7 +78,7 @@ public class VideoMetadataServiceTests
     {
         var caller = TestHelpers.CreateCaller();
         var (video, _) = await TestHelpers.SeedCompleteVideoAsync(_db, ownerId: caller.UserId);
-        var metadata = new VideoMetadata
+        var dto = new VideoMetadataDto
         {
             VideoId = video.Id,
             Width = 3840,
@@ -92,7 +92,7 @@ public class VideoMetadataServiceTests
             ContainerFormat = "WebM"
         };
 
-        await _service.SaveMetadataAsync(video.Id, metadata);
+        await _service.SaveMetadataAsync(video.Id, dto);
 
         var result = await _service.GetMetadataAsync(video.Id);
         Assert.IsNotNull(result);
@@ -107,14 +107,14 @@ public class VideoMetadataServiceTests
         var caller = TestHelpers.CreateCaller();
         // Seed a video so the service can resolve the content hash from UserVideo
         var video = await TestHelpers.SeedVideoAsync(_db, "Test", ownerId: caller.UserId);
-        var metadata = new VideoMetadata
+        var dto = new VideoMetadataDto
         {
             VideoId = video.Id,
             Width = 1280,
             Height = 720
         };
 
-        await _service.SaveMetadataAsync(video.Id, metadata);
+        await _service.SaveMetadataAsync(video.Id, dto);
 
         var result = await _service.GetMetadataAsync(video.Id);
         Assert.IsNotNull(result);

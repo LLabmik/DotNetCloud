@@ -34,6 +34,23 @@ public sealed class StreamProgressState
     {
         _entries.TryRemove(videoId, out _);
     }
+
+    /// <summary>
+    /// Removes all stale entries that haven't been updated in the specified time span.
+    /// Prevents memory leaks from entries that were intentionally kept after stream
+    /// completion so the JS progress polling can still find them.
+    /// </summary>
+    public void RemoveStaleEntries(TimeSpan maxAge)
+    {
+        var cutoff = DateTime.UtcNow - maxAge;
+        foreach (var kvp in _entries)
+        {
+            if (kvp.Value.LastUpdated < cutoff)
+            {
+                _entries.TryRemove(kvp.Key, out _);
+            }
+        }
+    }
 }
 
 /// <summary>

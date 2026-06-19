@@ -87,6 +87,10 @@ public class FilesDbContext : DbContext
     /// <summary>Persisted virtual mounted node descriptors for admin shared folders.</summary>
     public DbSet<MountedNodeEntry> MountedNodeEntries => Set<MountedNodeEntry>();
 
+    /// <summary>Cleanup job status tracking for deleted admin shared folders.</summary>
+    public DbSet<AdminSharedFolderCleanupStatus> AdminSharedFolderCleanupStatuses
+        => Set<AdminSharedFolderCleanupStatus>();
+
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -108,6 +112,7 @@ public class FilesDbContext : DbContext
         modelBuilder.ApplyConfiguration(new SyncDeviceConfiguration());
         modelBuilder.ApplyConfiguration(new SyncDeviceCursorConfiguration());
         modelBuilder.ApplyConfiguration(new MountedNodeEntryConfiguration());
+        modelBuilder.ApplyConfiguration(new AdminSharedFolderCleanupStatusConfiguration());
 
         SequentialGuidConfigurationExtensions.ApplySequentialGuidDefaults(modelBuilder, _namingStrategy.Provider);
     }

@@ -682,6 +682,10 @@ public class Program
         builder.Services.AddHostedService<NotificationEventSubscriber>();
         builder.Services.AddHostedService<SearchEventSubscriber>();
 
+        // Register admin shared folder cleanup handler
+        builder.Services.AddSingleton<AdminSharedFolderCleanupService>();
+        builder.Services.AddHostedService<AdminSharedFolderCleanupSubscriber>();
+
         // Register backup services
         builder.Services.AddDotNetCloudBackupServices();
 
@@ -784,7 +788,7 @@ public class Program
 
             var collaboraOrigin = collaboraUri.GetLeftPart(UriPartial.Authority);
             headers.ContentSecurityPolicy =
-                $"default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' ws: wss:; frame-src 'self' {collaboraOrigin}; child-src 'self' {collaboraOrigin}; frame-ancestors 'self';";
+                $"default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' ws: wss:; media-src 'self' blob:; worker-src 'self' blob:; frame-src 'self' {collaboraOrigin}; child-src 'self' {collaboraOrigin}; frame-ancestors 'self';";
         });
 
         // Map health checks
@@ -820,7 +824,11 @@ public class Program
         // CORS
         app.UseCors(CorsConfiguration.PolicyName);
 
-        app.UseHttpsRedirection();
+        // Redirect HTTP→HTTPS for browser traffic, but NOT for internal gRPC
+        // calls (modules use cleartext HTTP/2 on the gRPC port).
+        app.UseWhen(
+            ctx => !ctx.Request.ContentType?.StartsWith("application/grpc", StringComparison.OrdinalIgnoreCase) is true,
+            then => then.UseHttpsRedirection());
 
         // Capture the auth cookie from the initial HTTP request into a scoped store
         // so Blazor Server components can forward it to module API calls later.

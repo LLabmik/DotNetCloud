@@ -39,6 +39,7 @@ public sealed class VideoStreamingService : IVideoStreamingService
     public async Task<UserVideo?> GetVideoForStreamingAsync(Guid videoId, Guid userId, CancellationToken cancellationToken = default)
     {
         return await _db.UserVideos
+            .Include(uv => uv.CanonicalVideo)
             .FirstOrDefaultAsync(uv => uv.Id == videoId && uv.OwnerId == userId, cancellationToken);
     }
 

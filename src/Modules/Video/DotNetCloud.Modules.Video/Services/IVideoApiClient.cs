@@ -1,3 +1,5 @@
+using DotNetCloud.Core.DTOs;
+
 namespace DotNetCloud.Modules.Video.Services;
 
 /// <summary>
@@ -5,5 +7,9 @@ namespace DotNetCloud.Modules.Video.Services;
 /// </summary>
 public interface IVideoApiClient
 {
-    // Video module API surface — extend as needed for video CRUD, collections, streaming, etc.
+    /// <summary>Gets the current watch progress for a video (for resume playback).</summary>
+    Task<WatchProgressDto?> GetWatchProgressAsync(Guid videoId, Guid userId, CancellationToken cancellationToken = default);
+
+    /// <summary>Updates watch progress for a video during playback.</summary>
+    Task<bool> UpdateWatchProgressAsync(Guid videoId, long positionTicks, Guid userId, CancellationToken cancellationToken = default);
 }

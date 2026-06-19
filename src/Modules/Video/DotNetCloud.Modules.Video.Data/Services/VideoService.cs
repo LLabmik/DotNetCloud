@@ -8,6 +8,7 @@ using DotNetCloud.Modules.Video.Models;
 using DotNetCloud.Modules.Video.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using static DotNetCloud.Modules.Video.Data.Services.WatchProgressService;
 
 namespace DotNetCloud.Modules.Video.Data.Services;
 
@@ -398,9 +399,6 @@ public sealed class VideoService : IVideoService
     /// </summary>
     private VideoDto MapFromCanonical(UserVideo userVideo, CanonicalVideo canonical)
     {
-        var watchProgress = _db.WatchProgresses
-            .FirstOrDefault(wp => wp.VideoId == userVideo.Id && wp.UserId == userVideo.OwnerId);
-
         // Check for TMDB enrichment on CanonicalTmdbData
         string? overview = null;
         double? tmdbRating = null;
@@ -446,7 +444,7 @@ public sealed class VideoService : IVideoService
             Height = canonical.Metadata?.Height,
             IsFavorite = userVideo.IsFavorite,
             ViewCount = userVideo.ViewCount,
-            WatchPositionTicks = watchProgress?.PositionTicks,
+            WatchPositionTicks = WatchProgressService.ApplyResumeLogic(userVideo.WatchPositionTicks, canonical.DurationTicks),
             CreatedAt = userVideo.CreatedAt,
             HasExternalPoster = hasExternalPoster,
             Overview = overview,
@@ -546,34 +544,6 @@ public sealed class VideoService : IVideoService
             TotalSeasons = totalSeasons,
             TotalEpisodes = totalEpisodes,
             HasExternalPoster = !string.IsNullOrEmpty(series.PosterHash),
-            CreatedAt = series.CreatedAt,
-            UpdatedAt = series.UpdatedAt
-        };
-    }
-
-    /// <summary>
-    /// Maps a VideoSeries entity to a VideoSeriesDto.
-    /// </summary>
-    private static VideoSeriesDto MapSeriesToDto(VideoSeries series)
-    {
-        var totalSeasons = series.Seasons?.Count ?? 0;
-        var totalEpisodes = series.TotalEpisodes > 0
-            ? series.TotalEpisodes
-            : series.Items?.Count ?? 0;
-
-        return new VideoSeriesDto
-        {
-            Id = series.Id,
-            Name = series.Name,
-            Description = series.Description,
-            Type = series.Type.ToString(),
-            Year = series.Year,
-            TmdbRating = series.TmdbRating,
-            Genres = series.Genres,
-            Status = series.Status,
-            TotalSeasons = totalSeasons,
-            TotalEpisodes = totalEpisodes,
-            HasExternalPoster = series.HasExternalPoster,
             CreatedAt = series.CreatedAt,
             UpdatedAt = series.UpdatedAt
         };

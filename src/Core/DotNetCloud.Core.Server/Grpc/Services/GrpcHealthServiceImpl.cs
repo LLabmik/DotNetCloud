@@ -1,5 +1,8 @@
+using DotNetCloud.Core.Capabilities;
+using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Grpc.Capabilities;
 using DotNetCloud.Core.Modules.Supervisor;
+using DotNetCloud.Core.Server.Services;
 using Grpc.Core;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
@@ -115,6 +118,116 @@ internal sealed class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabil
             request.ModuleId, request.Key, GetModuleId(context));
 
         return Task.FromResult(new SetSettingResponse { Success = true });
+    }
+
+    /// <summary>
+    /// Gets basic group information by ID (IGroupDirectory capability).
+    /// </summary>
+    public override async Task<GetGroupResponse> GetGroup(GetGroupRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.GroupId, out var groupId))
+        {
+            _logger.LogWarning("GetGroup called with invalid GroupId '{RawId}'", request.GroupId);
+            return new GetGroupResponse { Found = false };
+        }
+
+        _logger.LogInformation("GetGroup called for {GroupId} by module {ModuleId}",
+            groupId, GetModuleId(context));
+
+        try
+        {
+            // IGroupDirectory is scoped (it depends on the scoped CoreDbContext), but this
+            // gRPC service is a singleton holding the root provider. Create a scope so the
+            // scoped service can be resolved — resolving it from the root provider throws.
+            using var scope = _serviceProvider.CreateScope();
+            var groupDirectory = scope.ServiceProvider.GetRequiredService<IGroupDirectory>();
+            var group = await groupDirectory.GetGroupAsync(groupId, context.CancellationToken);
+
+            if (group is null)
+            {
+                _logger.LogInformation("GetGroup: group {GroupId} not found in database", groupId);
+                return new GetGroupResponse { Found = false };
+            }
+
+            _logger.LogInformation("GetGroup: found group {GroupId} ('{GroupName}') for org {OrgId}",
+                groupId, group.Name, group.OrganizationId);
+
+            return new GetGroupResponse
+            {
+                Found = true,
+                Group = new GroupInfoMessage
+                {
+                    Id = group.Id.ToString(),
+                    OrganizationId = group.OrganizationId.ToString(),
+                    Name = group.Name,
+                    Description = group.Description ?? string.Empty,
+                    IsAllUsersGroup = group.IsAllUsersGroup,
+                    MemberCount = group.MemberCount,
+                    CreatedAt = group.CreatedAt.ToString("O"),
+                }
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "GetGroup failed for {GroupId}", groupId);
+            return new GetGroupResponse { Found = false };
+        }
+    }
+
+    /// <summary>
+    /// Triggers cleanup of orphaned media sources and entities after an
+    /// admin shared folder is deleted. Called by the Files module host.
+    /// </summary>
+    public override async Task<CleanupAdminSharedFolderResponse> CleanupAdminSharedFolder(
+        CleanupAdminSharedFolderRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.SharedFolderId, out var sharedFolderId))
+        {
+            return new CleanupAdminSharedFolderResponse
+            {
+                Success = false,
+                ErrorMessage = "Invalid shared_folder_id"
+            };
+        }
+
+        _logger.LogInformation(
+            "CleanupAdminSharedFolder called for {SharedFolderId} ('{DisplayName}') by module {ModuleId}",
+            sharedFolderId, request.DisplayName, GetModuleId(context));
+
+        try
+        {
+            // Resolve the cleanup service from DI
+            var cleanupService = _serviceProvider.GetRequiredService<AdminSharedFolderCleanupService>();
+
+            // Build the event from the gRPC request
+            var evt = new AdminSharedFolderDeletedEvent
+            {
+                EventId = Guid.CreateVersion7(),
+                CreatedAt = DateTime.UtcNow,
+                SharedFolderId = sharedFolderId,
+                DisplayName = request.DisplayName,
+                MountedEntries = request.MountedEntries
+                    .Select(e => new MountedEntryInfo
+                    {
+                        RelativePath = e.RelativePath,
+                        IsDirectory = e.IsDirectory,
+                    })
+                    .ToList(),
+            };
+
+            await cleanupService.HandleAsync(evt, context.CancellationToken);
+
+            return new CleanupAdminSharedFolderResponse { Success = true };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "CleanupAdminSharedFolder failed for {SharedFolderId}", sharedFolderId);
+            return new CleanupAdminSharedFolderResponse
+            {
+                Success = false,
+                ErrorMessage = ex.Message
+            };
+        }
     }
 
     private static string GetModuleId(ServerCallContext context)

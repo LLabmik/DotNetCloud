@@ -64,6 +64,7 @@ public sealed class BookmarksGrpcApiClient : IBookmarksApiClient, IDisposable
         _logger.LogInformation("BookmarksGrpcApiClient connecting to {Address}", address);
         return GrpcChannel.ForAddress(address, new GrpcChannelOptions
         {
+            UnsafeUseInsecureChannelCallCredentials = true,
             HttpHandler = new SocketsHttpHandler
             {
                 EnableMultipleHttp2Connections = true,

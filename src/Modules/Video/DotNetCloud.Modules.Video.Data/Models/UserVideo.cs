@@ -24,6 +24,9 @@ public sealed class UserVideo
     /// <summary>View count (user-specific).</summary>
     public int ViewCount { get; set; }
 
+    /// <summary>Watch position in ticks for resume playback. Null = never watched or reset.</summary>
+    public long? WatchPositionTicks { get; set; }
+
     /// <summary>Whether the video has been soft-deleted.</summary>
     public bool IsDeleted { get; set; }
 

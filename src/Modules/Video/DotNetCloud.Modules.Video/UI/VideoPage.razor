@@ -8,7 +8,6 @@
 @inject IVideoService VideoService
 @inject IVideoCollectionService CollectionService
 @inject ISubtitleService SubtitleService
-@inject IWatchProgressService WatchProgressService
 @inject IVideoMetadataService MetadataService
 @inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthenticationStateProvider
 @inject DotNetCloud.Core.Services.IUserSettingsService UserSettingsService
@@ -162,32 +161,7 @@
             @if (_section == Section.Home && !_playerOpen && _searchResults is null)
             {
                 <div class="home-content">
-                    @if (_continueWatching.Count > 0)
-                    {
-                        <section class="video-section">
-                            <h4>Continue Watching</h4>
-                            <div class="video-carousel">
-                                @foreach (var wp in _continueWatching)
-                                {
-                                    var capturedWp = wp;
-                                    <div class="video-card continue-card"
-                                         @onclick="() => OpenPlayerForContinueAsync(capturedWp)">
-                                        <div class="video-thumb">
-                                            <img src="@GetThumbnailUrl(capturedWp.VideoId)" alt="@capturedWp.VideoTitle" loading="lazy" />
-                                            <div class="video-progress-bar">
-                                                <div class="video-progress-fill" style="width: @capturedWp.ProgressPercent%"></div>
-                                            </div>
-                                            <span class="thumb-overlay-play">▶</span>
-                                        </div>
-                                        <div class="video-card-info">
-                                            <span class="video-card-title">@capturedWp.VideoTitle</span>
-                                            <span class="video-card-meta">@((int)capturedWp.ProgressPercent)% watched</span>
-                                        </div>
-                                    </div>
-                                }
-                            </div>
-                        </section>
-                    }
+
 
                     @if (_recentVideos.Count > 0)
                     {
@@ -233,7 +207,7 @@
                         </section>
                     }
 
-                    @if (_continueWatching.Count == 0 && _recentVideos.Count == 0)
+                    @if (_recentVideos.Count == 0)
                     {
                         <div class="video-empty">
                             <div class="empty-icon">🎬</div>
@@ -1258,7 +1232,8 @@
                                poster="@(_playerVideo.HasExternalPoster ? GetThumbnailUrl(_playerVideo.Id) : null)"
                                controls
                                autoplay
-                               preload="auto">
+                               preload="auto"
+                               src="@GetStreamUrl(_playerVideo!.Id)">
                             @if (_playerSubtitles.Count > 0)
                             {
                                 @foreach (var sub in _playerSubtitles)
@@ -1356,6 +1331,7 @@
                                     @_playerVideo.ViewCount views
                                 </span>
                             </div>
+
                             <div class="player-actions">
                                 <button type="button" class="btn-icon-action" @onclick="ToggleFavoriteAsync"
                                         title="@(_playerVideo.IsFavorite ? "Remove from favorites" : "Add to favorites")">

@@ -53,6 +53,7 @@ public sealed class SearchGrpcApiClient : ISearchApiClient, IDisposable
         _logger.LogInformation("SearchGrpcApiClient connecting to {Address}", address);
         return GrpcChannel.ForAddress(address, new GrpcChannelOptions
         {
+            UnsafeUseInsecureChannelCallCredentials = true,
             HttpHandler = new SocketsHttpHandler
             {
                 EnableMultipleHttp2Connections = true,
