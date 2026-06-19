@@ -272,6 +272,7 @@ public sealed class ContactsGrpcApiClient : IContactsApiClient, IDisposable
         _logger.LogInformation("ContactsGrpcApiClient connecting to {Address}", address);
         return GrpcChannel.ForAddress(address, new GrpcChannelOptions
         {
+            UnsafeUseInsecureChannelCallCredentials = true,
             HttpHandler = new SocketsHttpHandler
             {
                 EnableMultipleHttp2Connections = true,

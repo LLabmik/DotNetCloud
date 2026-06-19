@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Grpc.Capabilities;
 using DotNetCloud.Core.Modules.Supervisor;
@@ -117,6 +118,60 @@ internal sealed class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabil
             request.ModuleId, request.Key, GetModuleId(context));
 
         return Task.FromResult(new SetSettingResponse { Success = true });
+    }
+
+    /// <summary>
+    /// Gets basic group information by ID (IGroupDirectory capability).
+    /// </summary>
+    public override async Task<GetGroupResponse> GetGroup(GetGroupRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.GroupId, out var groupId))
+        {
+            _logger.LogWarning("GetGroup called with invalid GroupId '{RawId}'", request.GroupId);
+            return new GetGroupResponse { Found = false };
+        }
+
+        _logger.LogInformation("GetGroup called for {GroupId} by module {ModuleId}",
+            groupId, GetModuleId(context));
+
+        try
+        {
+            // IGroupDirectory is scoped (it depends on the scoped CoreDbContext), but this
+            // gRPC service is a singleton holding the root provider. Create a scope so the
+            // scoped service can be resolved — resolving it from the root provider throws.
+            using var scope = _serviceProvider.CreateScope();
+            var groupDirectory = scope.ServiceProvider.GetRequiredService<IGroupDirectory>();
+            var group = await groupDirectory.GetGroupAsync(groupId, context.CancellationToken);
+
+            if (group is null)
+            {
+                _logger.LogInformation("GetGroup: group {GroupId} not found in database", groupId);
+                return new GetGroupResponse { Found = false };
+            }
+
+            _logger.LogInformation("GetGroup: found group {GroupId} ('{GroupName}') for org {OrgId}",
+                groupId, group.Name, group.OrganizationId);
+
+            return new GetGroupResponse
+            {
+                Found = true,
+                Group = new GroupInfoMessage
+                {
+                    Id = group.Id.ToString(),
+                    OrganizationId = group.OrganizationId.ToString(),
+                    Name = group.Name,
+                    Description = group.Description ?? string.Empty,
+                    IsAllUsersGroup = group.IsAllUsersGroup,
+                    MemberCount = group.MemberCount,
+                    CreatedAt = group.CreatedAt.ToString("O"),
+                }
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "GetGroup failed for {GroupId}", groupId);
+            return new GetGroupResponse { Found = false };
+        }
     }
 
     /// <summary>

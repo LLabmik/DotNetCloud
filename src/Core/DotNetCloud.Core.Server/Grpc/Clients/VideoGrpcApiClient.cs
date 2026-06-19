@@ -50,6 +50,7 @@ public sealed class VideoGrpcApiClient : IVideoApiClient, IDisposable
         _logger.LogInformation("VideoGrpcApiClient connecting to {Address}", address);
         return GrpcChannel.ForAddress(address, new GrpcChannelOptions
         {
+            UnsafeUseInsecureChannelCallCredentials = true,
             HttpHandler = new SocketsHttpHandler
             {
                 EnableMultipleHttp2Connections = true,

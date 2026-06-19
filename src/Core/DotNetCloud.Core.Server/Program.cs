@@ -824,7 +824,11 @@ public class Program
         // CORS
         app.UseCors(CorsConfiguration.PolicyName);
 
-        app.UseHttpsRedirection();
+        // Redirect HTTP→HTTPS for browser traffic, but NOT for internal gRPC
+        // calls (modules use cleartext HTTP/2 on the gRPC port).
+        app.UseWhen(
+            ctx => !ctx.Request.ContentType?.StartsWith("application/grpc", StringComparison.OrdinalIgnoreCase) is true,
+            then => then.UseHttpsRedirection());
 
         // Capture the auth cookie from the initial HTTP request into a scoped store
         // so Blazor Server components can forward it to module API calls later.

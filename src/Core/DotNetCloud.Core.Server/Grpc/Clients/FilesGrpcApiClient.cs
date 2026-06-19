@@ -51,6 +51,7 @@ public sealed class FilesGrpcApiClient : IFilesApiClient, IDisposable
         _logger.LogInformation("FilesGrpcApiClient connecting to {Address}", address);
         return GrpcChannel.ForAddress(address, new GrpcChannelOptions
         {
+            UnsafeUseInsecureChannelCallCredentials = true,
             HttpHandler = new SocketsHttpHandler
             {
                 EnableMultipleHttp2Connections = true,

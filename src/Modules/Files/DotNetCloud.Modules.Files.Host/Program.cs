@@ -1,4 +1,6 @@
 using DotNetCloud.Core.Auth.Authorization;
+using DotNetCloud.Core.Data.Context;
+using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Files;
 using DotNetCloud.Modules.Files.Data;
@@ -103,11 +105,28 @@ if (!string.IsNullOrEmpty(connectionString) && !string.IsNullOrEmpty(dbProvider)
         else
             options.UseSqlServer(connectionString);
     });
+
+    // Register a read-only CoreDbContext for querying identity tables (dbo.Groups)
+    // directly from the Files module, avoiding gRPC round-trips for group validation.
+    builder.Services.AddDbContext<CoreDbContext>(options =>
+    {
+        if (string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
+            options.UseNpgsql(connectionString);
+        else
+            options.UseSqlServer(connectionString);
+    }, ServiceLifetime.Transient);
+
+    builder.Services.AddSingleton<ITableNamingStrategy>(string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase)
+        ? new PostgreSqlNamingStrategy()
+        : new SqlServerNamingStrategy());
 }
 else
 {
     builder.Services.AddDbContext<FilesDbContext>(options =>
         options.UseInMemoryDatabase("FilesModule"));
+    builder.Services.AddDbContext<CoreDbContext>(options =>
+        options.UseInMemoryDatabase("FilesModule"), ServiceLifetime.Transient);
+    builder.Services.AddSingleton<ITableNamingStrategy>(new PostgreSqlNamingStrategy());
 }
 
 // Files module business logic services

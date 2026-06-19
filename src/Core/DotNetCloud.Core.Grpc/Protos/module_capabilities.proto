@@ -32,6 +32,9 @@ service CoreCapabilities {
   // Triggers cleanup of orphaned media sources and entities when an admin
   // shared folder is deleted. Called by the Files module host.
   rpc CleanupAdminSharedFolder (CleanupAdminSharedFolderRequest) returns (CleanupAdminSharedFolderResponse);
+
+  // Gets basic group information by ID (IGroupDirectory capability).
+  rpc GetGroup (GetGroupRequest) returns (GetGroupResponse);
 }
 
 // Caller context passed with every capability request for authorization.
@@ -159,4 +162,26 @@ message MountedEntryMessage {
 message CleanupAdminSharedFolderResponse {
   bool success = 1;
   string error_message = 2;
+}
+
+// --- IGroupDirectory ---
+
+message GetGroupRequest {
+  CallerContextMessage caller = 1;
+  string group_id = 2;
+}
+
+message GetGroupResponse {
+  bool found = 1;
+  GroupInfoMessage group = 2;
+}
+
+message GroupInfoMessage {
+  string id = 1;
+  string organization_id = 2;
+  string name = 3;
+  string description = 4;
+  bool is_all_users_group = 5;
+  int32 member_count = 6;
+  string created_at = 7;
 }

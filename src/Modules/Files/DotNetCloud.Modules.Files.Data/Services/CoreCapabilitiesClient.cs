@@ -116,50 +116,33 @@ internal sealed class CoreCapabilitiesClient : ICoreCapabilitiesClient, IDisposa
 
     private GrpcChannel CreateChannel()
     {
-        var address = Environment.GetEnvironmentVariable("DOTNETCLOUD_CORE_ENDPOINT");
+        var endpoint = Environment.GetEnvironmentVariable("DOTNETCLOUD_CORE_ENDPOINT");
 
+        // All internal gRPC is cleartext HTTP/2 — never use TLS.
+        // Coerce https:// to http:// so the transport matches the server.
+        var address = endpoint;
+        if (!string.IsNullOrWhiteSpace(address) &&
+            address.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            address = "http://" + address["https://".Length..];
+        }
+
+        // If no endpoint configured, use a placeholder that will fail gracefully
         if (string.IsNullOrWhiteSpace(address))
         {
-            // Return a null-like channel — calls will fail gracefully via IsAvailable check
-            return GrpcChannel.ForAddress("http://localhost:0", new GrpcChannelOptions
-            {
-                HttpHandler = new SocketsHttpHandler
-                {
-                    ConnectCallback = static (_, _) =>
-                        ValueTask.FromException<System.IO.Stream>(
-                            new InvalidOperationException("Core endpoint not configured"))
-                }
-            });
+            address = "http://localhost:0";
         }
 
-        var channelOptions = new GrpcChannelOptions
+        return GrpcChannel.ForAddress(address, new GrpcChannelOptions
         {
+            UnsafeUseInsecureChannelCallCredentials = true,
             MaxReceiveMessageSize = 16 * 1024 * 1024,
             MaxSendMessageSize = 16 * 1024 * 1024,
-        };
-
-        // Support Unix socket addresses (unix:///path/to/socket)
-        if (address.StartsWith("unix://", StringComparison.OrdinalIgnoreCase))
-        {
-            var socketPath = address["unix://".Length..];
-            var endpoint = new System.Net.Sockets.UnixDomainSocketEndPoint(socketPath);
-            channelOptions.HttpHandler = new SocketsHttpHandler
+            HttpHandler = new SocketsHttpHandler
             {
-                ConnectCallback = async (_, cancellationToken) =>
-                {
-                    var socket = new System.Net.Sockets.Socket(
-                        System.Net.Sockets.AddressFamily.Unix,
-                        System.Net.Sockets.SocketType.Stream,
-                        System.Net.Sockets.ProtocolType.Unspecified);
-                    await socket.ConnectAsync(endpoint, cancellationToken);
-                    return new System.Net.Sockets.NetworkStream(socket, ownsSocket: true);
-                }
-            };
-            // Replace address with http://localhost so GrpcChannel.ForAddress
-            // doesn't fail on the unix:// scheme (which it can't resolve).
-            address = "http://localhost";
-        }
-
-        return GrpcChannel.ForAddress(address, channelOptions);
+                EnableMultipleHttp2Connections = true,
+                ConnectTimeout = TimeSpan.FromSeconds(5),
+            }
+        });
     }
 }

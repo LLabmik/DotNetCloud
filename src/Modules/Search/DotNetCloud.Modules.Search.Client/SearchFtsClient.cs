@@ -229,35 +229,26 @@ public sealed class SearchFtsClient : ISearchFtsClient, IDisposable
 
     private GrpcChannel CreateChannel()
     {
-        var channelOptions = new GrpcChannelOptions
-        {
-            MaxReceiveMessageSize = 16 * 1024 * 1024,
-            MaxSendMessageSize = 16 * 1024 * 1024,
-        };
-
         var address = _options.SearchModuleAddress!;
 
-        // Support Unix socket addresses
-        if (address.StartsWith("unix://", StringComparison.OrdinalIgnoreCase))
+        // All internal gRPC is cleartext HTTP/2 — never use TLS.
+        // Coerce https:// to http:// so the transport matches the server.
+        if (address.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
         {
-            var socketPath = address["unix://".Length..];
-            channelOptions.HttpHandler = new SocketsHttpHandler
-            {
-                ConnectCallback = async (_, cancellationToken) =>
-                {
-                    var socket = new System.Net.Sockets.Socket(
-                        System.Net.Sockets.AddressFamily.Unix,
-                        System.Net.Sockets.SocketType.Stream,
-                        System.Net.Sockets.ProtocolType.Unspecified);
-                    var endPoint = new System.Net.Sockets.UnixDomainSocketEndPoint(socketPath);
-                    await socket.ConnectAsync(endPoint, cancellationToken);
-                    return new System.Net.Sockets.NetworkStream(socket, ownsSocket: true);
-                }
-            };
-            address = "http://localhost";
+            address = "http://" + address["https://".Length..];
         }
 
-        return GrpcChannel.ForAddress(address, channelOptions);
+        return GrpcChannel.ForAddress(address, new GrpcChannelOptions
+        {
+            UnsafeUseInsecureChannelCallCredentials = true,
+            MaxReceiveMessageSize = 16 * 1024 * 1024,
+            MaxSendMessageSize = 16 * 1024 * 1024,
+            HttpHandler = new SocketsHttpHandler
+            {
+                EnableMultipleHttp2Connections = true,
+                ConnectTimeout = TimeSpan.FromSeconds(5),
+            }
+        });
     }
 
     private CallOptions CreateCallOptions(CancellationToken cancellationToken)

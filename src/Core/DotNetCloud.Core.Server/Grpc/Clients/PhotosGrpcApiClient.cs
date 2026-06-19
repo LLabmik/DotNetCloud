@@ -48,6 +48,7 @@ public sealed class PhotosGrpcApiClient : IPhotosApiClient, IDisposable
         _logger.LogInformation("PhotosGrpcApiClient connecting to {Address}", address);
         return GrpcChannel.ForAddress(address, new GrpcChannelOptions
         {
+            UnsafeUseInsecureChannelCallCredentials = true,
             HttpHandler = new SocketsHttpHandler
             {
                 EnableMultipleHttp2Connections = true,

@@ -48,6 +48,7 @@ public sealed class MusicGrpcApiClient : IMusicApiClient, IDisposable
         _logger.LogInformation("MusicGrpcApiClient connecting to {Address}", address);
         return GrpcChannel.ForAddress(address, new GrpcChannelOptions
         {
+            UnsafeUseInsecureChannelCallCredentials = true,
             HttpHandler = new SocketsHttpHandler
             {
                 EnableMultipleHttp2Connections = true,

@@ -384,12 +384,12 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
             }
 
             startInfo.Environment["DOTNETCLOUD_MODULE_ID"] = discovered.ModuleId;
-            startInfo.Environment["DOTNETCLOUD_GRPC_ENDPOINT"] = grpcEndpoint;
-            startInfo.Environment["DOTNETCLOUD_CORE_ENDPOINT"] = BuildCoreEndpoint();
+            startInfo.Environment["DOTNETCLOUD_GRPC_ENDPOINT"] = ForceHttpForInternalGrpc(grpcEndpoint);
+            startInfo.Environment["DOTNETCLOUD_CORE_ENDPOINT"] = ForceHttpForInternalGrpc(BuildCoreEndpoint());
 
             // Pass the Search module's gRPC endpoint so module hosts (e.g., Files)
             // can call SearchService RPCs (RemoveDocument, Search, etc.).
-            startInfo.Environment["DOTNETCLOUD_SEARCH_MODULE_ENDPOINT"] = ResolveSearchModuleEndpoint();
+            startInfo.Environment["DOTNETCLOUD_SEARCH_MODULE_ENDPOINT"] = ForceHttpForInternalGrpc(ResolveSearchModuleEndpoint());
 
             // Forward shared config and data directory env vars so modules can
             // load config.json and find DataProtection keys / file storage.
@@ -710,41 +710,37 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
 
     private string BuildGrpcEndpoint(string moduleId)
     {
-        if (_options.PreferTcpTransport)
+        var port = AllocateTcpPort(moduleId);
+        return $"http://localhost:{port}";
+    }
+
+    /// <summary>
+    /// Normalizes an internal module↔core gRPC endpoint to cleartext HTTP.
+    /// All internal gRPC is plaintext HTTP/2 (h2c) — never TLS.
+    /// </summary>
+    private string ForceHttpForInternalGrpc(string endpoint)
+    {
+        if (string.IsNullOrWhiteSpace(endpoint))
         {
-            var port = AllocateTcpPort(moduleId);
-            return $"http://localhost:{port}";
+            return endpoint;
         }
 
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+        if (endpoint.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
         {
-            var safeName = moduleId.Replace('.', '-');
-            return $"unix://{Path.Combine(_options.UnixSocketDirectory, $"{safeName}.sock")}";
+            var coerced = "http://" + endpoint["https://".Length..];
+            _logger.LogWarning(
+                "Internal gRPC endpoint '{Original}' used an https scheme; coercing to cleartext '{Coerced}' " +
+                "(module↔core gRPC is plaintext HTTP/2 and never uses TLS).",
+                endpoint, coerced);
+            return coerced;
         }
 
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-        {
-            var safeName = moduleId.Replace('.', '-');
-            return $"net.pipe://{_options.NamedPipePrefix}-{safeName}";
-        }
-
-        var fallbackPort = AllocateTcpPort(moduleId);
-        return $"http://localhost:{fallbackPort}";
+        return endpoint;
     }
 
     private string BuildCoreEndpoint()
     {
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-        {
-            return $"unix://{Path.Combine(_options.UnixSocketDirectory, "core.sock")}";
-        }
-
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-        {
-            return $"net.pipe://{_options.NamedPipePrefix}-core";
-        }
-
-        return "http://localhost:50100";
+        return $"http://localhost:{_options.TcpPortRangeStart}";
     }
 
     /// <summary>

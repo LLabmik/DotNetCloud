@@ -209,6 +209,6 @@ internal sealed class ModuleConfigurationLoader
         }
 
         // Default: will be set by GrpcServerConfiguration
-        return "unix:///run/dotnetcloud/core.sock";
+        return "http://localhost:5000";
     }
 }

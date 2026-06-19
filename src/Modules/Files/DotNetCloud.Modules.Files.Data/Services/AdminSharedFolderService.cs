@@ -1,5 +1,6 @@
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Capabilities;
+using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Core.Models;
 using AdminSharedFolderDeletedEvent = DotNetCloud.Core.Events.AdminSharedFolderDeletedEvent;
@@ -24,6 +25,7 @@ internal sealed class AdminSharedFolderService : IAdminSharedFolderService
     private const string FilesModuleId = "files";
 
     private readonly FilesDbContext _db;
+    private readonly CoreDbContext? _coreDb;
     private readonly IAdminSharedFolderPathValidator _pathValidator;
     private readonly IUserOrganizationResolver? _userOrganizationResolver;
     private readonly IGroupDirectory? _groupDirectory;
@@ -39,6 +41,7 @@ internal sealed class AdminSharedFolderService : IAdminSharedFolderService
     public AdminSharedFolderService(
         FilesDbContext db,
         IAdminSharedFolderPathValidator pathValidator,
+        CoreDbContext? coreDb = null,
         IUserOrganizationResolver? userOrganizationResolver = null,
         IGroupDirectory? groupDirectory = null,
         IAdminSharedFolderMaintenanceScheduler? maintenanceScheduler = null,
@@ -48,6 +51,7 @@ internal sealed class AdminSharedFolderService : IAdminSharedFolderService
         ILogger<AdminSharedFolderService>? logger = null)
     {
         _db = db;
+        _coreDb = coreDb;
         _pathValidator = pathValidator;
         _userOrganizationResolver = userOrganizationResolver;
         _groupDirectory = groupDirectory;
@@ -456,21 +460,18 @@ internal sealed class AdminSharedFolderService : IAdminSharedFolderService
             };
         }
 
-        if (_groupDirectory is null)
-        {
-            throw new Core.Errors.InvalidOperationException("Group directory capability is required to validate shared-folder grants.");
-        }
+        // Query the Groups table directly via the Files module's own DB connection,
+        // bypassing gRPC entirely. The Core identity tables (dbo.Groups) live in the
+        // same database and are accessible from any module's DbContext.
+        var groups = await QueryGroupsDirectAsync(normalizedGroupIds, cancellationToken);
 
-        var groups = new List<GroupInfo>(normalizedGroupIds.Length);
+        var foundIds = groups.Select(g => g.Id).ToHashSet();
         foreach (var groupId in normalizedGroupIds)
         {
-            var group = await _groupDirectory.GetGroupAsync(groupId, cancellationToken);
-            if (group is null)
+            if (!foundIds.Contains(groupId))
             {
                 throw new ValidationException(nameof(CreateAdminSharedFolderDto.GroupIds), $"Granted group '{groupId}' was not found.");
             }
-
-            groups.Add(group);
         }
 
         var groupOrganizationIds = groups
@@ -495,13 +496,42 @@ internal sealed class AdminSharedFolderService : IAdminSharedFolderService
         };
     }
 
-    private async Task<IReadOnlyDictionary<Guid, GroupInfo>> LoadGroupMetadataAsync(IEnumerable<Guid> groupIds, CancellationToken cancellationToken)
+    /// <summary>
+    /// Queries the core identity Groups table via CoreDbContext using proper EF LINQ.
+    /// The CoreDbContext is registered as a read-only transient context in the Files module
+    /// to avoid gRPC round-trips for group validation.
+    /// </summary>
+    private async Task<List<GroupInfo>> QueryGroupsDirectAsync(Guid[] groupIds, CancellationToken ct)
     {
-        if (_groupDirectory is null)
+        if (_coreDb is null)
         {
-            return new Dictionary<Guid, GroupInfo>();
+            _logger.LogWarning("CoreDbContext not available for group query");
+            return [];
         }
 
+        _logger.LogWarning("[DIAG] QueryGroupsDirectAsync: querying {Count} groups via CoreDbContext LINQ", groupIds.Length);
+
+        var groups = await _coreDb.Groups
+            .AsNoTracking()
+            .Where(g => groupIds.Contains(g.Id))
+            .Select(g => new GroupInfo
+            {
+                Id = g.Id,
+                Name = g.Name,
+                OrganizationId = g.OrganizationId,
+                IsAllUsersGroup = g.IsAllUsersGroup,
+                CreatedAt = g.CreatedAt,
+            })
+            .ToListAsync(ct);
+
+        _logger.LogWarning("[DIAG] QueryGroupsDirectAsync: found {Count} of {Total} groups",
+            groups.Count, groupIds.Length);
+
+        return groups;
+    }
+
+    private async Task<IReadOnlyDictionary<Guid, GroupInfo>> LoadGroupMetadataAsync(IEnumerable<Guid> groupIds, CancellationToken cancellationToken)
+    {
         var distinctIds = groupIds
             .Distinct()
             .ToArray();
@@ -511,17 +541,8 @@ internal sealed class AdminSharedFolderService : IAdminSharedFolderService
             return new Dictionary<Guid, GroupInfo>();
         }
 
-        var groups = new Dictionary<Guid, GroupInfo>(distinctIds.Length);
-        foreach (var groupId in distinctIds)
-        {
-            var group = await _groupDirectory.GetGroupAsync(groupId, cancellationToken);
-            if (group is not null)
-            {
-                groups[groupId] = group;
-            }
-        }
-
-        return groups;
+        var rows = await QueryGroupsDirectAsync(distinctIds, cancellationToken);
+        return rows.ToDictionary(g => g.Id);
     }
 
     private static AdminSharedFolderDto ToDto(AdminSharedFolderDefinition folder, IReadOnlyDictionary<Guid, GroupInfo> groups)

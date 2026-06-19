@@ -66,6 +66,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         _logger.LogInformation("TracksGrpcApiClient connecting to {Address}", address);
         return GrpcChannel.ForAddress(address, new GrpcChannelOptions
         {
+            UnsafeUseInsecureChannelCallCredentials = true,
             HttpHandler = new SocketsHttpHandler
             {
                 EnableMultipleHttp2Connections = true,
