@@ -54,6 +54,7 @@ public class AdminSharedFolderServiceTests
         return new AdminSharedFolderService(
             db,
             validator,
+            coreDb: null,
             userOrganizationResolver?.Object,
             groupDirectory?.Object,
             maintenanceScheduler,
