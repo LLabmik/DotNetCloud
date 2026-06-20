@@ -116,6 +116,11 @@
     <PackageVersion Include="SixLabors.ImageSharp" Version="3.1.12" />
     <!-- SQLite (mobile) -->
     <PackageVersion Include="sqlite-net-pcl" Version="1.9.172" />
+    <!-- Security: override vulnerable transitive dependency (CVE-2025-6965, SQLite < 3.50.2)
+         EF Core Sqlite 10.x pins SQLitePCLRaw.bundle_e_sqlite3 2.1.11 which bundles vulnerable
+         SQLite. Override both bundle and lib to 3.x which bundles SQLite >= 3.50.2. -->
+    <PackageVersion Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.3" />
+    <PackageVersion Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.50.3" />
     <!-- CLI -->
     <PackageVersion Include="System.CommandLine" Version="2.0.3" />
     <!-- Windows / platform -->

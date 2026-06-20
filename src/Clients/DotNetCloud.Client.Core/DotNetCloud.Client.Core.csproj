@@ -34,6 +34,9 @@
   <ItemGroup>
     <PackageReference Include="DiffPlex" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <!-- Security: override vulnerable transitive deps (CVE-2025-6965, SQLite < 3.50.2) -->
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" VersionOverride="3.0.3" />
+    <PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" VersionOverride="3.50.3" />
     <PackageReference Include="Microsoft.Extensions.FileSystemGlobbing" />
     <PackageReference Include="Microsoft.Extensions.Http" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />

@@ -228,7 +228,7 @@ public sealed class ApiVersionMiddleware
                     _logger.LogWarning(
                         "Deprecated API version {Version} requested: {Path}",
                         version,
-                        path);
+                        LogSanitizer.Sanitize(path));
                 }
 
                 // Check if version is below minimum supported
@@ -240,7 +240,7 @@ public sealed class ApiVersionMiddleware
                         "Unsupported API version {Version} requested (minimum: {MinVersion}): {Path}",
                         version,
                         _options.MinimumVersion,
-                        path);
+                        LogSanitizer.Sanitize(path));
 
                     context.Response.StatusCode = StatusCodes.Status400BadRequest;
                     context.Response.ContentType = "application/json";

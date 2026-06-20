@@ -127,7 +127,7 @@ internal sealed class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabil
     {
         if (!Guid.TryParse(request.GroupId, out var groupId))
         {
-            _logger.LogWarning("GetGroup called with invalid GroupId '{RawId}'", request.GroupId);
+            _logger.LogWarning("GetGroup called with invalid GroupId '{RawId}'", LogSanitizer.Sanitize(request.GroupId));
             return new GetGroupResponse { Found = false };
         }
 

@@ -112,7 +112,7 @@ public sealed class AuthService : IAuthService
         if (!result.Succeeded)
         {
             var errors = string.Join(", ", result.Errors.Select(e => $"{e.Code}: {e.Description}"));
-            _logger.LogWarning("Registration failed for {Email}: {Errors}", request.Email, errors);
+            _logger.LogWarning("Registration failed for {Email}: {Errors}", LogSanitizer.Sanitize(request.Email), errors);
             throw new InvalidOperationException($"Registration failed: {errors}");
         }
 
@@ -231,7 +231,7 @@ public sealed class AuthService : IAuthService
         var user = await _userManager.FindByEmailAsync(request.Email);
         if (user is null)
         {
-            _logger.LogWarning("Login failed: user not found for email {Email}", request.Email);
+            _logger.LogWarning("Login failed: user not found for email {Email}", LogSanitizer.Sanitize(request.Email));
             throw new UnauthorizedAccessException("Invalid credentials.");
         }
 

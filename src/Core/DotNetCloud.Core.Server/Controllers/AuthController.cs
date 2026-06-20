@@ -43,7 +43,7 @@ public class AuthController : ControllerBase
         {
             var caller = BuildCallerContext();
             var response = await _authService.RegisterAsync(request, caller);
-            _logger.LogInformation("User registered: {Email} ({UserId})", request.Email, response.UserId);
+            _logger.LogInformation("User registered: {Email} ({UserId})", LogSanitizer.Sanitize(request.Email), response.UserId);
             return Ok(new { success = true, data = response });
         }
         catch (Errors.ValidationException ex)
@@ -75,7 +75,7 @@ public class AuthController : ControllerBase
         {
             var caller = BuildCallerContext();
             var response = await _authService.LoginAsync(request, caller);
-            _logger.LogInformation("User logged in: {Email}", request.Email);
+            _logger.LogInformation("User logged in: {Email}", LogSanitizer.Sanitize(request.Email));
             return Ok(new { success = true, data = response });
         }
         catch (UnauthorizedAccessException)
@@ -84,12 +84,12 @@ public class AuthController : ControllerBase
         }
         catch (InvalidOperationException ex) when (ex.Message.Contains("MFA"))
         {
-            _logger.LogInformation("MFA required for {Email}", request.Email);
+            _logger.LogInformation("MFA required for {Email}", LogSanitizer.Sanitize(request.Email));
             return Accepted(new { success = false, error = new { code = "MFA_REQUIRED", message = "Multi-factor authentication required" } });
         }
         catch (InvalidOperationException ex) when (ex.Message.Contains("PASSWORD_CHANGE_REQUIRED"))
         {
-            _logger.LogWarning("Login blocked for {Email}: password change required (closed system mode)", request.Email);
+            _logger.LogWarning("Login blocked for {Email}: password change required (closed system mode)", LogSanitizer.Sanitize(request.Email));
             return StatusCode(403, new { success = false, error = new { code = "PASSWORD_CHANGE_REQUIRED", message = "You must change your password before continuing." } });
         }
     }
@@ -246,11 +246,11 @@ public class AuthController : ControllerBase
         try
         {
             await _authService.InitiatePasswordResetAsync(request.Email);
-            _logger.LogInformation("Password reset requested for {Email}", request.Email);
+            _logger.LogInformation("Password reset requested for {Email}", LogSanitizer.Sanitize(request.Email));
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Password reset initiation error for {Email} (suppressed)", request.Email);
+            _logger.LogWarning(ex, "Password reset initiation error for {Email} (suppressed)", LogSanitizer.Sanitize(request.Email));
         }
 
         return Ok(new { success = true, message = "If the account exists, a password reset email has been sent." });
@@ -272,7 +272,7 @@ public class AuthController : ControllerBase
             return BadRequest(new { success = false, error = new { code = "RESET_FAILED", message = "Invalid or expired reset token." } });
         }
 
-        _logger.LogInformation("Password reset for {Email}", request.Email);
+        _logger.LogInformation("Password reset for {Email}", LogSanitizer.Sanitize(request.Email));
         return Ok(new { success = true, message = "Password has been reset successfully." });
     }
 

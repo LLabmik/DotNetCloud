@@ -19,6 +19,9 @@
       <PrivateAssets>All</PrivateAssets>
     </PackageReference>
     <PackageReference Include="DiffPlex" />
+    <!-- Security: override vulnerable transitive deps from DotNetCloud.Client.Core (CVE-2025-6965) -->
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" VersionOverride="3.0.3" />
+    <PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" VersionOverride="3.50.3" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <PackageReference Include="Microsoft.Extensions.Logging.Console" />

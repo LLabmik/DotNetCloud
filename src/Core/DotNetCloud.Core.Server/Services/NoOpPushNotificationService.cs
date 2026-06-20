@@ -19,7 +19,7 @@ internal sealed class NoOpPushNotificationService : IPushNotificationService
     /// <inheritdoc />
     public Task SendAsync(Guid userId, PushNotification notification, CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("Push notification to user {UserId}: {Title}", userId, notification.Title);
+        _logger.LogDebug("Push notification to user {UserId}: {Title}", userId, LogSanitizer.Sanitize(notification.Title));
         return Task.CompletedTask;
     }
 }

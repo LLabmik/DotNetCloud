@@ -156,7 +156,7 @@ public sealed class AuthSessionController : ControllerBase
         if (!changeResult.Succeeded)
         {
             var errors = string.Join(" ", changeResult.Errors.Select(e => e.Description));
-            _logger.LogWarning("Password change failed: {Errors}", errors);
+            _logger.LogWarning("Password change failed: {Errors}", LogSanitizer.Sanitize(errors));
             return RedirectToChangePassword(errors, safeReturn);
         }
 
