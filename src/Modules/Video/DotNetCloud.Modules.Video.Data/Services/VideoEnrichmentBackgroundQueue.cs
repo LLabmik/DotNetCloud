@@ -75,15 +75,18 @@ internal sealed class VideoEnrichmentBackgroundService : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly InMemoryVideoEnrichmentBackgroundQueue _queue;
+    private readonly VideoScanProgressState _scanProgress;
     private readonly ILogger<VideoEnrichmentBackgroundService> _logger;
 
     public VideoEnrichmentBackgroundService(
         IServiceScopeFactory scopeFactory,
         InMemoryVideoEnrichmentBackgroundQueue queue,
+        VideoScanProgressState scanProgress,
         ILogger<VideoEnrichmentBackgroundService> logger)
     {
         _scopeFactory = scopeFactory;
         _queue = queue;
+        _scanProgress = scanProgress;
         _logger = logger;
     }
 
@@ -97,11 +100,13 @@ internal sealed class VideoEnrichmentBackgroundService : BackgroundService
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
+                _scanProgress.CompleteScan(job.OwnerId);
                 break;
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Background video enrichment failed for user {UserId}", job.OwnerId);
+                _scanProgress.CompleteScan(job.OwnerId);
             }
             finally
             {
@@ -121,6 +126,12 @@ internal sealed class VideoEnrichmentBackgroundService : BackgroundService
 
         var caller = new CallerContext(job.OwnerId, ["user"], CallerType.System);
         var elapsedStopwatch = Stopwatch.StartNew();
+
+        // Start a scan session so VideoScanProgressState tracks IsScanning = true
+        // and provides a CancellationTokenSource that the UI's StopScan button can cancel.
+        // CompleteScan (called below) owns disposal of this CTS — do NOT dispose it here.
+        scanProgress.StartScan(job.OwnerId);
+        var enrichmentToken = scanProgress.GetCancellationToken(job.OwnerId);
 
         // ── Find all videos that still need TMDB enrichment ──
         // Any video without TMDB poster data qualifies — this includes videos that
@@ -177,7 +188,7 @@ internal sealed class VideoEnrichmentBackgroundService : BackgroundService
 
         for (var i = 0; i < pendingVideos.Count; i++)
         {
-            if (stoppingToken.IsCancellationRequested)
+            if (stoppingToken.IsCancellationRequested || enrichmentToken.IsCancellationRequested)
                 break;
 
             var userVideo = pendingVideos[i];

@@ -69,13 +69,14 @@ public sealed class VideoScanProgressState
 
     /// <summary>
     /// Updates the current progress snapshot for a user's operation.
+    /// Does NOT change <see cref="UserScanState.IsScanning"/> — that is managed
+    /// solely by <see cref="StartScan"/> and <see cref="CompleteScan"/>.
     /// </summary>
     public void UpdateProgress(Guid userId, LibraryScanProgress progress)
     {
         var state = _states.GetOrAdd(userId, _ => new UserScanState());
         lock (state.SyncRoot)
         {
-            state.IsScanning = true;
             state.CurrentProgress = progress;
         }
 

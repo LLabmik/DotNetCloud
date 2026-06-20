@@ -312,8 +312,16 @@ verify_assemblies() {
     for module in "${PUBLISHED_MODULES[@]}"; do
         local module_lower
         module_lower=$(echo "$module" | tr '[:upper:]' '[:lower:]')
-        verify_file "$MODULES_DIR/dotnetcloud.$module_lower/DotNetCloud.Modules.$module.Host.dll" \
-            "$REPO_ROOT/src/Modules/$module/DotNetCloud.Modules.$module.Host/bin/$CONFIG/net10.0/DotNetCloud.Modules.$module.Host.dll"
+        # Read the AssemblyName from the .csproj (defaults to project filename if not set)
+        local csproj="$REPO_ROOT/src/Modules/$module/DotNetCloud.Modules.$module.Host/DotNetCloud.Modules.$module.Host.csproj"
+        local assembly_name
+        if [ -f "$csproj" ]; then
+            assembly_name=$(grep -oP '<AssemblyName>\K[^<]+' "$csproj" || echo "DotNetCloud.Modules.$module.Host")
+        else
+            assembly_name="DotNetCloud.Modules.$module.Host"
+        fi
+        verify_file "$MODULES_DIR/dotnetcloud.$module_lower/$assembly_name.dll" \
+            "$REPO_ROOT/src/Modules/$module/DotNetCloud.Modules.$module.Host/bin/$CONFIG/net10.0/$assembly_name.dll"
     done
 
     if [ "$verify_failures" -gt 0 ]; then

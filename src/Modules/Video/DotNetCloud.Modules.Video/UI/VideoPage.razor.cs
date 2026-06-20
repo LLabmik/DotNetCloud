@@ -1378,6 +1378,8 @@ public partial class VideoPage : IAsyncDisposable
     private void StopScan()
     {
         _scanCts?.Cancel();
+        if (_caller is not null)
+            ScanProgress.Cancel(_caller.UserId);
     }
 
     private async Task ResetCollectionAsync()
