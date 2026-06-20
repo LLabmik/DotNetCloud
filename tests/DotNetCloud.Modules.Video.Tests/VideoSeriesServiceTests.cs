@@ -108,10 +108,8 @@ public class VideoSeriesServiceTests
         // Act
         var episodes = await _service.GetSeasonEpisodesAsync(season.Id, caller);
 
-        // Assert
-        var episode = episodes[0];
-        Assert.IsNull(episode.Video, "Video DTO should be null when owned by another user");
-        Assert.AreEqual(Guid.Empty, episode.VideoId, "VideoId should be Guid.Empty when not owned by caller");
+        // Assert — episodes without a matching UserVideo for the caller are now filtered out
+        Assert.AreEqual(0, episodes.Count, "Episodes without a matching UserVideo should be excluded");
     }
 
     [TestMethod]

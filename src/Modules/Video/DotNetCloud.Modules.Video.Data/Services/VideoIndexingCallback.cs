@@ -127,6 +127,47 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
 
         await _db.SaveChangesAsync(cancellationToken);
 
+        // ── Clean up orphaned canonical series items/episodes ──
+        // After removing the user's videos, delete series items/episodes whose
+        // VideoContentHash no longer has ANY UserVideo across all users.
+        if (userVideos.Count > 0)
+        {
+            var deletedContentHashes = userVideos
+                .Select(uv => uv.CanonicalContentHash)
+                .Distinct()
+                .ToList();
+
+            var hashesWithRemainingUsers = await _db.UserVideos
+                .IgnoreQueryFilters()
+                .Where(uv => deletedContentHashes.Contains(uv.CanonicalContentHash))
+                .Select(uv => uv.CanonicalContentHash)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+
+            var orphanedHashes = deletedContentHashes
+                .Except(hashesWithRemainingUsers)
+                .ToList();
+
+            if (orphanedHashes.Count > 0)
+            {
+                var orphanedSeriesItems = await _db.CanonicalVideoSeriesItems
+                    .Where(i => orphanedHashes.Contains(i.VideoContentHash))
+                    .ToListAsync(cancellationToken);
+                _db.CanonicalVideoSeriesItems.RemoveRange(orphanedSeriesItems);
+
+                var orphanedEpisodes = await _db.CanonicalVideoEpisodes
+                    .Where(e => orphanedHashes.Contains(e.VideoContentHash))
+                    .ToListAsync(cancellationToken);
+                _db.CanonicalVideoEpisodes.RemoveRange(orphanedEpisodes);
+
+                await _db.SaveChangesAsync(cancellationToken);
+
+                _logger.LogInformation(
+                    "Cleaned up {SeriesItemCount} orphaned series items and {EpisodeCount} orphaned episodes",
+                    orphanedSeriesItems.Count, orphanedEpisodes.Count);
+            }
+        }
+
         _logger.LogWarning(
             "RESET complete for owner {OwnerId}: {UserVideoCount} user videos, {CollectionCount} collections cleared",
             ownerId, userVideos.Count, collections.Count);

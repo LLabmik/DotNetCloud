@@ -335,21 +335,28 @@ public sealed class VideoSeriesService : IVideoSeriesService
         if (canonicalSeries is null)
             return [];
 
+        // Scope to only content hashes this user actually owns — avoids loading
+        // stale/orphaned series items from other users into memory.
+        var userContentHashes = await _db.UserVideos
+            .Where(uv => uv.OwnerId == caller.UserId && !uv.IsDeleted)
+            .Select(uv => uv.CanonicalContentHash)
+            .ToListAsync(cancellationToken);
+
+        if (userContentHashes.Count == 0)
+            return [];
+
         var items = await _db.CanonicalVideoSeriesItems
-            .Where(i => i.SeriesId == seriesId)
+            .Where(i => i.SeriesId == seriesId && userContentHashes.Contains(i.VideoContentHash))
             .OrderBy(i => i.SortOrder)
             .ToListAsync(cancellationToken);
 
         if (items.Count == 0)
             return [];
 
-        // Look up UserVideos for this user by content hash to include
-        // the actual video details (Id, FileNodeId, etc.) so the player
-        // can stream the content when a series item is clicked.
-        var contentHashes = items.Select(i => i.VideoContentHash).Distinct().ToList();
+        // Load the full UserVideo + CanonicalVideo data for mapped results
         var userVideos = await _db.UserVideos
             .Include(uv => uv.CanonicalVideo).ThenInclude(cv => cv!.Metadata)
-            .Where(uv => uv.OwnerId == caller.UserId && !uv.IsDeleted && contentHashes.Contains(uv.CanonicalContentHash))
+            .Where(uv => uv.OwnerId == caller.UserId && !uv.IsDeleted && userContentHashes.Contains(uv.CanonicalContentHash))
             .ToListAsync(cancellationToken);
 
         var videoByHash = userVideos
@@ -654,11 +661,24 @@ public sealed class VideoSeriesService : IVideoSeriesService
 
         if (canonicalSeason is not null)
         {
+            // Scope to only content hashes this user actually owns — avoids loading
+            // stale/orphaned episodes from other users into memory.
+            var userContentHashes = await _db.UserVideos
+                .Where(uv => uv.OwnerId == caller.UserId && !uv.IsDeleted)
+                .Select(uv => uv.CanonicalContentHash)
+                .ToListAsync(cancellationToken);
+
+            if (userContentHashes.Count == 0)
+                return [];
+
             var episodes = await _db.CanonicalVideoEpisodes
-                .Where(e => e.SeasonId == seasonId)
+                .Where(e => e.SeasonId == seasonId && userContentHashes.Contains(e.VideoContentHash))
                 .OrderBy(e => e.EpisodeNumber)
                 .ThenBy(e => e.SortOrder)
                 .ToListAsync(cancellationToken);
+
+            if (episodes.Count == 0)
+                return [];
 
             // Resolve user's videos by content hash
             var contentHashes = episodes.Select(e => e.VideoContentHash).ToHashSet();
