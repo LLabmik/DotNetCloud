@@ -640,6 +640,25 @@ public class VideoController : VideoControllerBase
                     // Atomic rename: replaces the directory entry without touching the old inode.
                     System.IO.File.Move(tmpPath, sourcePath, overwrite: true);
                 }
+
+                // Verify the file was written successfully before probing.
+                // Prevents ffprobe from reading a partial/corrupt file and
+                // falling back to an unnecessary HLS transcode.
+                var writtenSize = new System.IO.FileInfo(sourcePath).Length;
+                if (writtenSize == 0)
+                {
+                    _logger.LogError("StreamVideo: temp file is empty after write for {VideoId}", videoId);
+                    Console.Error.WriteLine($"[VIDEO-STREAM] videoId={videoId} → ERROR: temp file is empty");
+                    _streamProgress.Remove(videoId);
+                    return StatusCode(500, ErrorEnvelope("file_write_failed", "Failed to write video file to temp storage."));
+                }
+
+                if (totalBytes > 0 && writtenSize < totalBytes)
+                {
+                    _logger.LogWarning(
+                        "StreamVideo: temp file size mismatch for {VideoId}: expected {Expected}, got {Actual}",
+                        videoId, totalBytes, writtenSize);
+                }
             }
 
             // Determine MIME type for context

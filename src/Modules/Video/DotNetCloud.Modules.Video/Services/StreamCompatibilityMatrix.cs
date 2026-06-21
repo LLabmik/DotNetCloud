@@ -132,6 +132,13 @@ public sealed class StreamCompatibilityMatrix
         if (videoIsBroad && isRemuxableContainer)
             return StreamingStrategy.StreamCopy;
 
+        // Stream Copy: universal/broad video in a direct-play container with non-universal audio
+        // (e.g., H.264+AC3 in MP4, HEVC+AC3 in MP4 — copy video, transcode audio to AAC).
+        // The video stream is browser-friendly, only the audio needs re-encoding.
+        // This avoids a full video transcode just to fix the audio.
+        if ((videoIsUniversal || videoIsBroad) && isDirectPlayContainer && !audioIsUniversal)
+            return StreamingStrategy.StreamCopy;
+
         // Everything else: must transcode
         return StreamingStrategy.Transcode;
     }

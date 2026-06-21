@@ -639,36 +639,62 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
 
     private async Task<string?> RunFfprobeAsync(string filePath, CancellationToken ct)
     {
-        try
-        {
-            var ffprobePath = ResolveFfprobePath();
-            var args = _argBuilder.BuildFfprobeArgs(filePath);
+        // Retry once on failure to handle transient filesystem delays
+        // (e.g. NFS caching, competing writes, or antivirus scanning).
+        const int maxAttempts = 2;
 
-            var psi = new ProcessStartInfo
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            try
             {
-                FileName = ffprobePath,
-                Arguments = args,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
+                var ffprobePath = ResolveFfprobePath();
+                var args = _argBuilder.BuildFfprobeArgs(filePath);
 
-            using var process = Process.Start(psi);
-            if (process is null)
+                var psi = new ProcessStartInfo
+                {
+                    FileName = ffprobePath,
+                    Arguments = args,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                using var process = Process.Start(psi);
+                if (process is null)
+                    return null;
+
+                var output = await process.StandardOutput.ReadToEndAsync(ct);
+                await process.WaitForExitAsync(ct);
+
+                if (process.ExitCode == 0)
+                    return output;
+
+                // ffprobe returned non-zero — if we have a retry left, wait and try again
+                if (attempt < maxAttempts)
+                {
+                    _logger.LogDebug("ffprobe attempt {Attempt} failed (exit code {Code}) for {Path}, retrying…",
+                        attempt, process.ExitCode, filePath);
+                    await Task.Delay(500, ct);
+                    continue;
+                }
+
                 return null;
-
-            var output = await process.StandardOutput.ReadToEndAsync(ct);
-            await process.WaitForExitAsync(ct);
-
-            return process.ExitCode == 0 ? output : null;
+            }
+            catch (Exception ex) when (attempt < maxAttempts)
+            {
+                _logger.LogDebug(ex, "ffprobe attempt {Attempt} threw for {Path}, retrying…", attempt, filePath);
+                await Task.Delay(500, ct);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "ffprobe failed for {Path}", filePath);
+                Console.Error.WriteLine($"[VIDEO-FFPROBE-FAIL] path={filePath} error={ex.GetType().Name}: {ex.Message}");
+                return null;
+            }
         }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "ffprobe failed for {Path}", filePath);
-            Console.Error.WriteLine($"[VIDEO-FFPROBE-FAIL] path={filePath} error={ex.GetType().Name}: {ex.Message}");
-            return null;
-        }
+
+        return null;
     }
 
     private string ResolveFfprobePath()
@@ -714,7 +740,19 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
         if (root.TryGetProperty("format", out var format) &&
             format.TryGetProperty("format_name", out var fmtName))
         {
-            container = fmtName.GetString()?.Split(',').FirstOrDefault();
+            var raw = fmtName.GetString();
+            if (raw is not null)
+            {
+                // ffprobe reports MP4's format_name as "mov,mp4,m4a,3gp,3g2,mj2".
+                // We check all comma-separated names and prefer "mp4" over "mov"
+                // for clarity in logs and strategy decisions.
+                var names = raw.Split(',');
+                container = names.Contains("mp4", StringComparer.OrdinalIgnoreCase)
+                    ? "mp4"
+                    : names.Contains("mov", StringComparer.OrdinalIgnoreCase)
+                        ? "mov"
+                        : names.FirstOrDefault();
+            }
         }
 
         return (videoCodec, audioCodec, container);
