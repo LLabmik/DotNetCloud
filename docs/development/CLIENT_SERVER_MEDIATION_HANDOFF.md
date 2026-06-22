@@ -90,105 +90,23 @@ Archived context:
 - **Controller discovery:** Core.Server references Files.Host and Chat.Host via `ProjectReference`. ASP.NET Core auto-discovers controllers from referenced assemblies. Do NOT create duplicate controllers in Core.Server for routes already served by module Host assemblies.
 
 ## Active Handoff
+**Status:** ✅ DEPLOYED — Token introspection auth (commit `65bfdac1`), ready for client test
 
-**Status:** ✅ DEPLOYED — Token introspection architecture (commit `65bfdac1`)
+**Deploy results (on `cloud.kimball.home`):**
 
-### What changed (architectural)
+- ✅ Build: 252.5s, 15/15 targets succeeded
+- ✅ 14/14 module hosts published
+- ✅ Health: 200, Files module running on port 50393
+- ⚠️ No introspection logs yet — expected: `TokenIntrospectionServiceImpl` is lazily instantiated on first gRPC call
 
-Replaced the broken JwtBearer local-key-validation on Files.Host with OAuth2-standard **token introspection**:
-
-```
-Client ──JWT──▶ Core.Server (YARP) ──JWT──▶ Files.Host
-                      ▲                        │
-                      │   gRPC introspection    │
-                      └────────────────────────┘
-```
-
-**Before:** Files.Host loaded PEM signing keys and tried to validate JWT signatures locally. This never worked — 4 different JwtBearer configurations (kid matching, deterministic KeyId, IssuerSigningKeyResolver, ValidateIssuerSigningKey=false) all returned `invalid_token`.
-
-**After:** Files.Host extracts the Bearer token, calls Core.Server's new `TokenIntrospection` gRPC service over the existing inter-module channel, gets back validated claims. No key sharing. No kid matching. No RSA concerns.
-
-### New files (8)
-
-- `src/Core/DotNetCloud.Core.Grpc/Protos/token_introspection.proto` — gRPC contract
-- `src/Core/DotNetCloud.Core.Server/Grpc/Services/TokenIntrospectionServiceImpl.cs` — validates tokens via OpenIddict signing keys
-- `src/Core/DotNetCloud.Core.Auth/Introspection/ITokenIntrospectionClient.cs` — interface
-- `src/Core/DotNetCloud.Core.Auth/Introspection/TokenIntrospectionClient.cs` — gRPC client
-- `src/Core/DotNetCloud.Core.Auth/Introspection/IntrospectionAuthenticationHandler.cs` — ASP.NET Core auth handler
-- `src/Core/DotNetCloud.Core.Auth/Introspection/IntrospectionAuthenticationOptions.cs` — options (1-min cache, module ID, audience)
-- `src/Core/DotNetCloud.Core.Auth/Introspection/IntrospectionAuthenticationExtensions.cs` — `.AddIntrospection()` extension
-- `src/Core/DotNetCloud.Core.Auth/Introspection/IntrospectionServiceCollectionExtensions.cs` — DI registration
-- `src/Core/DotNetCloud.Core.Auth/Introspection/IntrospectionResult.cs` — DTO
-
-### Modified files (6)
-
-- `src/Core/DotNetCloud.Core.Auth/DotNetCloud.Core.Auth.csproj` — added `Grpc.Net.Client` + `Grpc.Tools` packages
-- `src/Core/DotNetCloud.Core.Grpc/DotNetCloud.Core.Grpc.csproj` — added proto
-- `src/Core/DotNetCloud.Core.Server/Extensions/SupervisorServiceExtensions.cs` — register introspection gRPC service + client DI
-- `src/Modules/Files/DotNetCloud.Modules.Files.Host/Program.cs` — **removed JwtBearer + key-loading**, replaced with introspection handler
-- `src/Modules/Files/DotNetCloud.Modules.Files.Data/Services/AdminSharedFolderService.cs` — fallback to `IGroupDirectory` when `_coreDb` is null (fixes 2 tests)
-- `src/Modules/Search/DotNetCloud.Modules.Search/Services/SqlServerSearchProvider.cs` — handle in-memory DB transactions (fixes 103 tests)
-- `src/Clients/DotNetCloud.Client.SyncTray/Startup/DesktopStartupManager.cs` — injectable system desktop dir (fixes 1 test)
-- `src/Modules/Music/DotNetCloud.Modules.Music.Host/Controllers/MusicController.cs` — unique temp filenames (fixes 1 flaky test)
-
-### New tests (20)
-
-- `tests/DotNetCloud.Core.Auth.Tests/Introspection/IntrospectionAuthenticationHandlerTests.cs` — **12 tests**: valid/invalid token, cache hit/miss, pass-through, challenge 401, forbidden 403, module ID forwarding, transport errors not cached
-- `tests/DotNetCloud.Client.Core.Tests/Sync/SyncStreamListenerTests.cs` — **8 tests**: Bearer header, no-token, 401 triggers refresh, refresh fails disables SSE, SSE event parsing, non-sync events ignored, connection lifecycle
-
-### Security hardening
-
-- `TokenIntrospectionServiceImpl` rejects requests when gRPC auth interceptor didn't set ModuleId (defense in depth)
-- Introspection handler caches results by SHA256(token), TTL = 1 minute
-- Transport errors NOT cached (retried on next request)
-- `WWW-Authenticate: Bearer error="invalid_token"` on challenge
-- Audience validation: module host passes `required_audience`, service verifies JWT contains it
-
-### Test results (all suites, zero failures)
-
-| Suite                     | Count      |
-| ------------------------- | ---------- |
-| Files                     | 734/734 ✅ |
-| Auth (incl. 12 new)       | 85/85 ✅   |
-| Core.Server               | 575/575 ✅ |
-| Search                    | 664/664 ✅ |
-| Client.Core (incl. 8 new) | 264/264 ✅ |
-| SyncTray                  | 106/106 ✅ |
-| Music                     | 379/379 ✅ |
-
-### Deploy results (on `cloud.kimball.home`, 2026-06-22 03:35 UTC)
+**Next (on `mint-OptiPlex-7010`):**
 
 ```bash
-git checkout fix/files-module-bearer-auth && git pull  # 65bfdac1
-sudo ./scripts/deploy.sh --force
-```
-
-- ✅ Build: 252.5s, all targets succeeded
-- ✅ Publish: Core.Server (4.8s), 14/14 module hosts
-- ✅ Health: 200
-- ✅ Files module: running on port 50393
-- ⚠️ No introspection logs yet — expected: `TokenIntrospectionServiceImpl` is lazily instantiated on first gRPC call. Introspection pipeline is dormant until a client sends a Bearer token.
-
-### Verify (on `cloud.kimball.home`)
-
-- Files API (no auth): 401 ✅ (expected)
-- Core.Server log `TokenIntrospectionService: loaded N signing key(s)` — will appear on first introspection gRPC call
-- Files module log `TokenIntrospectionClient: connected` — will appear on first introspection gRPC call
-
-### Then (on `mint-OptiPlex-7010`)
-
-```bash
-git pull
+git checkout fix/files-module-bearer-auth && git pull
 dotnet run --project src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj
 ```
 
 Expected: `"SSE stream connected."`
-
-### Known remaining work (future)
-
-- SignalR push for cache invalidation (revoked tokens accepted for up to 1 min)
-- Other module hosts (Music, Chat, etc.) should adopt introspection pattern
-- Scope filtering per module's declared capabilities (currently returns all token scopes)
 
 **Client version:** 0.3.9-alpha
 **Server build:** 0.3.12
