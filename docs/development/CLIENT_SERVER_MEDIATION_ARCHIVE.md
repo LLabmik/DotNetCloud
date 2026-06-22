@@ -1738,6 +1738,34 @@ Do not modify server projects.
 - `dotnet test tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj` — all pass, 0 failed.
 - `dotnet build` — succeeded.
 - `HasMentions` on badge is `false` when there are unread messages but zero mentions.
+
+---
+
+## Archived: Files Module Host OpenIddict Validation Deploy (2026-06-21)
+
+**Target:** cloud.dotnetcloud.net (production)
+
+**Problem:** Desktop sync client (`SyncStreamListener`) sent `Authorization: Bearer <jwt>` to Files module REST APIs, but the Files module host only had `Identity.Application` cookie auth registered.
+
+**Fix on `fix/files-module-bearer-auth` (commits `b45b1691` + `9387eb2d`):**
+- Replaced JwtBearer with `OpenIddict.Validation.AspNetCore` (v7.2.0)
+- Added `OpenIddict.Validation.SystemNetHttp` package + `.UseSystemNetHttp()` — `SetIssuer()` triggers server discovery, needs HTTP client
+- Policy scheme (`DotNetCloud.Module`) routes Bearer → `OpenIddict.Validation.AspNetCore`, cookie → `Identity.Application`
+- 13 controllers changed from `[Authorize(AuthenticationSchemes = "Identity.Application")]` → `[Authorize]`
+- Added post-publish dependency sync to `deploy.sh`
+
+**Deploy execution (cloud.dotnetcloud.net, 2026-06-21):**
+1. ✅ Full `--force` deploy — 14/14 module hosts published
+2. ✅ Dependency sync ran — all transitive NuGet assemblies copied
+3. ✅ Service restarted, health 200
+
+**Verification:**
+- Health: 200 ✅
+- Files module health check: **200** ✅ (was 500)
+- Files API (no auth): 401 (expected) ✅
+- SSE with `Bearer test`: **401** ✅ (was 500)
+
+**Key lesson:** Module hosts using `SetIssuer()` with OpenIddict validation must also call `.UseSystemNetHttp()` and reference the `OpenIddict.Validation.SystemNetHttp` package.
 - `HasMentions` on badge is `true` only when mention count > 0.
 
 **Request back (strict format):**

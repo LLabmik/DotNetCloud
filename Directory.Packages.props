@@ -88,6 +88,7 @@
     <PackageVersion Include="OpenIddict.EntityFrameworkCore" Version="7.2.0" />
     <PackageVersion Include="OpenIddict.Server.AspNetCore" Version="7.2.0" />
     <PackageVersion Include="OpenIddict.Validation.AspNetCore" Version="7.2.0" />
+    <PackageVersion Include="OpenIddict.Validation.SystemNetHttp" Version="7.2.0" />
     <PackageVersion Include="Otp.NET" Version="1.4.1" />
     <!-- OpenTelemetry -->
     <PackageVersion Include="OpenTelemetry.Exporter.Console" Version="1.15.0" />

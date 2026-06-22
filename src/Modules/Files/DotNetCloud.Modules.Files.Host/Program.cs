@@ -80,6 +80,7 @@ builder.Services.AddOpenIddict()
             options.AddSigningKey(key);
         }
 
+        options.UseSystemNetHttp();
         options.UseAspNetCore();
     });
 

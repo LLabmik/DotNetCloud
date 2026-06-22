@@ -91,45 +91,36 @@ Archived context:
 
 ## Active Handoff
 
-**Status:** 🔴 RE-DEPLOY REQUIRED — Switched from JwtBearer to OpenIddict validation
+**Status:** ✅ DEPLOY COMPLETE — Files module Bearer auth fix deployed to `cloud.dotnetcloud.net`
 
-**⚠️ JwtBearer approach failed — version conflict identified.**
+**Deploy summary:**
+- Switched from JwtBearer to OpenIddict validation (commit `b45b1691`)
+- Added `OpenIddict.Validation.SystemNetHttp` package + `.UseSystemNetHttp()` call — required because `SetIssuer()` triggers server discovery
+- Added post-publish dependency sync to `deploy.sh`
+- Full `--force` deploy with 14/14 module hosts published
 
-The initial deploy (JwtBearer 10.0.3) had two issues:
-1. `System.IdentityModel.Tokens.Jwt` v8.0.1 NuGet package ships assembly version **0.96.1.0**, but deps.json declares **8.0.1.0** — caused `FileNotFoundException` on module startup (500 error).
-2. After manually copying assemblies, JwtBearer validated tokens but rejected them (`invalid_token` — signing key mismatch).
+**Verification (on `cloud.dotnetcloud.net`):**
+- Health: 200 ✅
+- Files module health check: **200** ✅ (was 500)
+- Files API: 401 (expected for unauthenticated) ✅
+- SSE with Bearer token: **401** ✅ (was 500 — OpenIddict now loads)
 
-**Fix (commit `b45b1691` on `fix/files-module-bearer-auth`):**
+**Next steps (on `mint-OptiPlex-7010`):**
 
-Replaced `Microsoft.AspNetCore.Authentication.JwtBearer` with **`OpenIddict.Validation.AspNetCore`** (already installed v7.2.0). No new NuGet packages needed — avoids the version conflict entirely.
-
-| Before (broken) | After (fixed) |
-|----------------|---------------|
-| `AddJwtBearer("Bearer", ...)` with `TokenValidationParameters` + local signing key | `AddOpenIddict().AddValidation()` with shared RSA signing keys from `oidc-keys/` |
-| `"Bearer"` in policy scheme selector | `"OpenIddict.Validation.AspNetCore"` in policy scheme selector |
-| JwtBearer package reference + deps.json mismatch | Zero new dependencies — uses OpenIddict's built-in JWT handler |
-
-**Deploy steps (on `cloud.kimball.home`):**
+Pull latest from `fix/files-module-bearer-auth` and restart the SyncTray client to verify SSE stream connects:
 
 ```bash
-git checkout main && git pull
-git merge fix/files-module-bearer-auth
-sudo ./scripts/deploy.sh --force
-sudo systemctl restart dotnetcloud
-```
-
-**Verification after deploy:**
-
-1. `curl -sk https://cloud.dotnetcloud.net/api/v1/files/` → should return 200 JSON, not 401
-2. `curl -sk -H "Authorization: Bearer $(curl -sk -d 'grant_type=refresh_token&refresh_token=...&client_id=dotnetcloud-desktop' https://cloud.dotnetcloud.net/connect/token | python3 -c 'import json,sys;print(json.load(sys.stdin)[\"access_token\"])')" https://cloud.dotnetcloud.net/api/v1/files/` → should return 200 (token validated by OpenIddict)
-
-**On `mint-OptiPlex-7010` (after deploy):**
-
-```bash
+git checkout fix/files-module-bearer-auth
+git pull
 dotnet run --project src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj
 ```
 
-Expected log: `"SSE stream connected."` (was previously falling back to polling with 401).
+Check logs for: `"SSE stream connected."` (was previously getting 401 and falling back to polling).
+
+If SSE still fails, check:
+1. Client's OAuth token is valid (re-auth if needed)
+2. Client version: 0.3.9-alpha (local build)
+3. Server build: 0.3.12
 
 **Client version:** 0.3.9-alpha
 **Server build:** 0.3.12
