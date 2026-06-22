@@ -121,11 +121,10 @@ public static class ServiceDefaultsExtensions
         // CORS
         app.UseCors();
 
-        // HTTPS redirection
-        if (!app.Environment.IsDevelopment())
-        {
-            app.UseHttpsRedirection();
-        }
+        // HTTPS redirection is configured by the server's ConfigurePipeline,
+        // not here. The server may need to exclude internal gRPC ports from
+        // HTTPS redirect — applying it unconditionally in this shared middleware
+        // would break gRPC introspection on dedicated cleartext HTTP/2 ports.
 
         return app;
     }
