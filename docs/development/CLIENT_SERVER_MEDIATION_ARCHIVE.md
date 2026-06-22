@@ -4269,3 +4269,29 @@ Expected: `"SSE stream connected."`
 **Client version:** 0.3.9-alpha
 **Server build:** 0.3.12
 
+---
+
+## 2026-06-22: Token introspection deployed, 307 redirect found (commit `2ad939c7`)
+
+### Summary
+
+Token introspection auth (`65bfdac1`) was deployed to `cloud.kimball.home`. Client SyncTray on `mint-OptiPlex-7010` tested — token refresh succeeded but Files module endpoints returned 401.
+
+### Investigation
+
+- `journalctl -u dotnetcloud.service` confirmed new code deployed: `IntrospectionAuthenticationHandler` was invoked (not JwtBearer)
+- But gRPC introspection call to Core.Server failed: `"Bad gRPC response. HTTP status code: 307"`
+- Root cause: Core.Server's `UseHttpsRedirection` middleware was intercepting internal gRPC calls on port 50100
+- The existing `UseWhen` check on `Content-Type: application/grpc` did not prevent the redirect
+- Fixed in commit `435a03da`: `MapWhen` branch for gRPC requests placed before HTTPS redirect
+
+### Deploy results (on `cloud.kimball.home`)
+
+- ✅ Build: 252.5s, 15/15 targets succeeded
+- ✅ 14/14 module hosts published
+- ✅ Health: 200, Files module running on port 50393
+- ❌ gRPC introspection calls returned HTTP 307 (redirect) — fixed in `435a03da`
+
+**Client version:** 0.3.9-alpha
+**Server build:** 0.3.12
+

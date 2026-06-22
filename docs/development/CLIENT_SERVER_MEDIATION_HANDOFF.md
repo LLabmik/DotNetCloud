@@ -90,19 +90,28 @@ Archived context:
 - **Controller discovery:** Core.Server references Files.Host and Chat.Host via `ProjectReference`. ASP.NET Core auto-discovers controllers from referenced assemblies. Do NOT create duplicate controllers in Core.Server for routes already served by module Host assemblies.
 
 ## Active Handoff
-**Status:** ✅ DEPLOYED — Token introspection auth (commit `65bfdac1`), ready for client test
+**Status:** 🔧 FIX PUSHED — gRPC introspection 307 redirect fixed (commit `435a03da`), ready for deploy
 
-**Deploy results (on `cloud.kimball.home`):**
+**Root cause found (on `cloud.kimball.home`, `mint-OptiPlex-7010`):**
+- Introspection code deployed and running (confirmed via `journalctl`)
+- Files.Host's `IntrospectionAuthenticationHandler` correctly invoked for Bearer tokens
+- gRPC call to Core.Server's `TokenIntrospectionServiceImpl` failing with: `Status(StatusCode="Unknown", Detail="Bad gRPC response. HTTP status code: 307")`
+- Core.Server's `UseHttpsRedirection` middleware was intercepting internal gRPC calls on port 50100 despite `UseWhen` content-type check
 
-- ✅ Build: 252.5s, 15/15 targets succeeded
-- ✅ 14/14 module hosts published
-- ✅ Health: 200, Files module running on port 50393
-- ⚠️ No introspection logs yet — expected: `TokenIntrospectionServiceImpl` is lazily instantiated on first gRPC call
+**Fix (commit `435a03da`):**
+- Added `MapWhen` branch before HTTPS redirect that routes gRPC requests (`Content-Type: application/grpc`) to a dedicated pipeline
+- gRPC branch maps `MapModuleGrpcServices()` directly, bypassing all HTTP-specific middleware
+- 1 file changed (`Program.cs`), 7 insertions
+- All 575 Core.Server tests pass
 
-**Next (on `mint-OptiPlex-7010`):**
-
+**Next (on `cloud.kimball.home`):**
 ```bash
 git checkout fix/files-module-bearer-auth && git pull
+sudo ./scripts/deploy.sh --force
+```
+
+**Verify (on `mint-OptiPlex-7010`):**
+```bash
 dotnet run --project src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj
 ```
 
