@@ -82,7 +82,7 @@ Archived context:
 
 ## Key Carry-Forward Contracts
 
-- Auth: Files module host now uses a policy scheme (`DotNetCloud.Module`) that auto-selects between `Bearer` (JWT) and `Identity.Application` (cookie) based on the `Authorization` header. Controllers use plain `[Authorize]` — no explicit scheme. All module hosts must follow this pattern.
+- Auth: Files module host uses a policy scheme (`DotNetCloud.Module`) that auto-selects between `OpenIddict.Validation.AspNetCore` (JWT Bearer) and `Identity.Application` (cookie) based on the `Authorization` header. Controllers use plain `[Authorize]`. All module hosts must follow this pattern.
 - API envelope: middleware wraps responses; clients should unwrap via envelope helpers.
 - Sync flow: changes -> tree -> reconcile -> chunk manifest -> chunk download -> file assembly.
 - Desktop OAuth constant: `OAuthConstants.ClientId = "dotnetcloud-desktop"`.
@@ -91,28 +91,45 @@ Archived context:
 
 ## Active Handoff
 
-**Status:** ✅ DEPLOY COMPLETE — Files module Bearer auth fix deployed to `cloud.dotnetcloud.net`
+**Status:** 🔴 RE-DEPLOY REQUIRED — Switched from JwtBearer to OpenIddict validation
 
-**Summary:**
+**⚠️ JwtBearer approach failed — version conflict identified.**
 
-1. ✅ `dotnet build` — 0 errors
-2. ✅ `sudo ./scripts/deploy.sh` — All 3 targets succeeded
-3. ⚠️ Incremental publish missed transitive JWT dependencies — manually copied `Microsoft.IdentityModel.*` + `System.IdentityModel.*` assemblies to module directory
-4. ✅ Service restarted and healthy (health: 200)
-5. ✅ Files module: no-auth returns 401 (expected), SSE with `Bearer test` returns 401 (was 500 — JWT handler now loads correctly)
+The initial deploy (JwtBearer 10.0.3) had two issues:
+1. `System.IdentityModel.Tokens.Jwt` v8.0.1 NuGet package ships assembly version **0.96.1.0**, but deps.json declares **8.0.1.0** — caused `FileNotFoundException` on module startup (500 error).
+2. After manually copying assemblies, JwtBearer validated tokens but rejected them (`invalid_token` — signing key mismatch).
 
-**Next steps (on `mint-OptiPlex-7010`):**
+**Fix (commit `b45b1691` on `fix/files-module-bearer-auth`):**
 
-Restart the SyncTray client to verify SSE stream connects:
+Replaced `Microsoft.AspNetCore.Authentication.JwtBearer` with **`OpenIddict.Validation.AspNetCore`** (already installed v7.2.0). No new NuGet packages needed — avoids the version conflict entirely.
+
+| Before (broken) | After (fixed) |
+|----------------|---------------|
+| `AddJwtBearer("Bearer", ...)` with `TokenValidationParameters` + local signing key | `AddOpenIddict().AddValidation()` with shared RSA signing keys from `oidc-keys/` |
+| `"Bearer"` in policy scheme selector | `"OpenIddict.Validation.AspNetCore"` in policy scheme selector |
+| JwtBearer package reference + deps.json mismatch | Zero new dependencies — uses OpenIddict's built-in JWT handler |
+
+**Deploy steps (on `cloud.kimball.home`):**
 
 ```bash
-cd /home/benk/Repos/DotNetCloud
+git checkout main && git pull
+git merge fix/files-module-bearer-auth
+sudo ./scripts/deploy.sh --force
+sudo systemctl restart dotnetcloud
+```
+
+**Verification after deploy:**
+
+1. `curl -sk https://cloud.dotnetcloud.net/api/v1/files/` → should return 200 JSON, not 401
+2. `curl -sk -H "Authorization: Bearer $(curl -sk -d 'grant_type=refresh_token&refresh_token=...&client_id=dotnetcloud-desktop' https://cloud.dotnetcloud.net/connect/token | python3 -c 'import json,sys;print(json.load(sys.stdin)[\"access_token\"])')" https://cloud.dotnetcloud.net/api/v1/files/` → should return 200 (token validated by OpenIddict)
+
+**On `mint-OptiPlex-7010` (after deploy):**
+
+```bash
 dotnet run --project src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj
 ```
 
-Check logs for: `"SSE stream connected."` (previously getting 401 and falling back to polling).
+Expected log: `"SSE stream connected."` (was previously falling back to polling with 401).
 
 **Client version:** 0.3.9-alpha
 **Server build:** 0.3.12
-
-**Note:** Module host deploy script does not update transitive dependency assemblies. Future NuGet dependency additions to module hosts may require manual assembly copy to the module directory if not handled by the publish step.
