@@ -90,32 +90,41 @@ Archived context:
 - **Controller discovery:** Core.Server references Files.Host and Chat.Host via `ProjectReference`. ASP.NET Core auto-discovers controllers from referenced assemblies. Do NOT create duplicate controllers in Core.Server for routes already served by module Host assemblies.
 
 ## Active Handoff
-**Status:** 🔧 FIX PUSHED — missing `module-id` gRPC header (commit `40042937`), ready for deploy
+**Status:** 🔧 FIX APPLIED (needs deploy) — Token introspection audience check removed
 
-**Root cause found (on `mint-OptiPlex-7010`):**
-- MapWhen fix deployed (`396cc450`) but SyncTray still 401
-- `TokenIntrospectionClient` was NOT sending `module-id` metadata header
-- Core.Server's `AuthenticationInterceptor` requires this header on all gRPC calls
-- Interceptor rejected introspection calls with `Unauthenticated` before reaching `TokenIntrospectionServiceImpl`
-- journald rate-limiting suppressed the error logs (41,991 messages dropped)
+**What happened:**
 
-**Fix (commit `40042937`):**
-- Added `using Grpc.Core;` and `new Metadata { { "module-id", moduleId } }` to `TokenIntrospectionClient.IntrospectAsync()`
-- Passes metadata headers to `IntrospectTokenAsync()` gRPC call
-- 1 file changed, 8 insertions
-- All 12 introspection tests pass
+1. Previous handoff (`eb09a730`): gRPC `MapWhen` cast crash fixed and deployed. SyncTray SSE expected to connect.
+2. `mint-OptiPlex-7010` test: SyncTray SSE still returned 401 after successful token refresh.
+3. Root cause traced to `TokenIntrospectionServiceImpl.IntrospectToken()`:
+   - The method performed an explicit audience check: `jwtToken.Audiences.Contains("dotnetcloud.files")`
+   - OpenIddict sets token `aud` to the issuer URL or client ID (`"dotnetcloud-desktop"`), NOT module IDs
+   - JWT-level audience validation was already disabled (`ValidateAudience = false`)
+   - The explicit check rejected every valid bearer token, causing the `WWW-Authenticate: Bearer error="invalid_token"` response
+
+**Fix applied (this commit):**
+
+- `src/Core/DotNetCloud.Core.Server/Grpc/Services/TokenIntrospectionServiceImpl.cs`:
+  - Removed the explicit audience mismatch check block (was lines ~98-116)
+  - Replaced with explanatory comment noting that scope-based authorization provides sufficient access control
+
+**Test results (on `mint-OptiPlex-7010`):**
+- ✅ Build: 0 errors, 0 warnings
+- ✅ Full test suite: 0 failures across all projects
 
 **Next (on `cloud.kimball.home`):**
+
 ```bash
 git checkout fix/files-module-bearer-auth && git pull
-sudo ./scripts/deploy.sh --force
+dotnet build && dotnet publish -c Release
+# restart service
 ```
 
-**Verify (on `mint-OptiPlex-7010`):**
+Then test from `mint-OptiPlex-7010`:
 ```bash
 dotnet run --project src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj
 ```
+
 Expected: `"SSE stream connected."`
 
-**Client version:** 0.3.9-alpha
-**Server build:** 0.3.12
+**Server build:** 0.3.12 → should bump to 0.3.13

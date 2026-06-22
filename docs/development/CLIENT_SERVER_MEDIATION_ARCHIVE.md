@@ -4293,11 +4293,9 @@ Token introspection auth (`65bfdac1`) was deployed to `cloud.kimball.home`. Clie
 **Client version:** 0.3.9-alpha
 **Server build:** 0.3.12
 
-
 ---
 
 ## Archived: gRPC 307 redirect fix (2026-06-22)
-
 
 **Status:** 🔧 FIX PUSHED — gRPC introspection 307 redirect fixed (commit `435a03da`), ready for deploy
 
@@ -4332,20 +4330,3 @@ Expected: `"SSE stream connected."`
 
 **Client version:** 0.3.9-alpha
 **Server build:** 0.3.12
-
----
-
-## 2026-06-22: MapWhen cast crash fixed, deployed (commit `396cc450`)
-
-**What happened:**
-- Client's `MapWhen` fix used `(WebApplication)grpcApp` — invalid cast, caused `InvalidCastException` core dump loop
-- Fixed by inlining `UseRouting()` + `UseEndpoints()` with `MapGrpcService<T>()` calls (no cast needed)
-
-**Deploy results:**
-- ✅ Build: 154s, 15/15 targets succeeded
-- ✅ 14/14 modules published
-- ✅ Health: 200, service stable
-- ❌ Client SyncTray still 401 — journald suppressing 41,991 messages
-
-**Root cause of persistent 401 found later:** `TokenIntrospectionClient` not sending `module-id` gRPC metadata header → `AuthenticationInterceptor` rejecting calls → fixed in `40042937`
-

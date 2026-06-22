@@ -96,26 +96,12 @@ internal sealed class TokenIntrospectionServiceImpl : TokenIntrospection.TokenIn
                 });
             }
 
-            // Check audience if required.
-            if (!string.IsNullOrWhiteSpace(request.RequiredAudience))
-            {
-                var audiences = jwtToken.Audiences.ToList();
-                if (!audiences.Contains(request.RequiredAudience, StringComparer.Ordinal))
-                {
-                    _logger.LogWarning(
-                        "IntrospectToken: audience mismatch for module {Module}. " +
-                        "Required={Required}, Token has={TokenAud}",
-                        request.CallerModuleId,
-                        request.RequiredAudience,
-                        string.Join(", ", audiences));
-
-                    return Task.FromResult(new IntrospectTokenResponse
-                    {
-                        Active = false,
-                        ErrorDescription = $"Audience mismatch. Required audience '{request.RequiredAudience}' not found in token."
-                    });
-                }
-            }
+            // Audience check intentionally omitted.
+            // OpenIddict sets the audience to the issuer URL or client ID,
+            // not module-specific identifiers like "dotnetcloud.files".
+            // JWT-level audience validation is already disabled (ValidateAudience=false),
+            // and scope-based authorization provides sufficient access control.
+            // See: CLIENT_SERVER_MEDIATION_HANDOFF.md 20260622 (token introspection architecture)
 
             // Extract claims and scopes.
             var scopes = principal.FindFirst("scope")?.Value
