@@ -104,16 +104,19 @@ Archived context:
 ### YOUR ACTIONS (do these now, in order):
 
 **1. Checkout and pull:**
+
 ```bash
 git checkout fix/files-module-bearer-auth && git pull
 ```
 
 **2. Build:**
+
 ```bash
 dotnet build
 ```
 
 **3. Publish:**
+
 ```bash
 dotnet publish -c Release
 ```
@@ -121,9 +124,11 @@ dotnet publish -c Release
 **4. Restart the DotNetCloud service** using your normal procedure.
 
 **5. Verify health:**
+
 ```bash
 curl -sk https://localhost:5443/health
 ```
+
 Must return HTTP 200.
 
 **6. Update this handoff** with your results and push.
