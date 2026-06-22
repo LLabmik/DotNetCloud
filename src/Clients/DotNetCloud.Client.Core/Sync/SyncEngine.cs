@@ -115,9 +115,6 @@ public sealed class SyncEngine : ISyncEngine
         await _stateDb.DeleteStaleActiveUploadSessionsAsync(
             context.StateDatabasePath, DateTime.UtcNow.AddHours(-48), cancellationToken);
 
-        // Attempt server-side cursor recovery if local cursor is missing (e.g. after reinstall).
-        await RecoverCursorFromServerAsync(context, cancellationToken);
-
         _syncIgnore.Initialize(context.LocalFolderPath);
 
         // Issue #44: check inotify watch limit on Linux before creating the watcher.
@@ -172,6 +169,10 @@ public sealed class SyncEngine : ISyncEngine
         // RefreshAccessTokenAsync reads from the token store and refreshes if expired,
         // ensuring both _api.AccessToken and _streamListener.AccessToken are valid.
         await RefreshAccessTokenAsync(context, cancellationToken);
+
+        // Attempt server-side cursor recovery if local cursor is missing (e.g. after reinstall).
+        // Must run AFTER RefreshAccessTokenAsync so the API client has a valid Bearer token.
+        await RecoverCursorFromServerAsync(context, cancellationToken);
 
         _periodicScanTask = RunPeriodicScanAsync(context, _cts.Token);
 

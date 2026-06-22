@@ -91,36 +91,38 @@ Archived context:
 
 ## Active Handoff
 
-**Status:** ✅ DEPLOY COMPLETE — Files module Bearer auth fix deployed to `cloud.dotnetcloud.net`
+**Status:** 🔴 RE-DEPLOY REQUIRED — JwtBearer with all signing keys
 
-**Deploy summary:**
-- Switched from JwtBearer to OpenIddict validation (commit `b45b1691`)
-- Added `OpenIddict.Validation.SystemNetHttp` package + `.UseSystemNetHttp()` call — required because `SetIssuer()` triggers server discovery
-- Added post-publish dependency sync to `deploy.sh`
-- Full `--force` deploy with 14/14 module hosts published
+**OpenIddict validation failed** — `SetIssuer()` + `UseSystemNetHttp()` forces HTTPS discovery requests to `cloud.dotnetcloud.net` from the module host process. In a process-isolated setup, the module host cannot reach itself for key discovery, causing ALL tokens to be rejected.
 
-**Verification (on `cloud.dotnetcloud.net`):**
-- Health: 200 ✅
-- Files module health check: **200** ✅ (was 500)
-- Files API: 401 (expected for unauthenticated) ✅
-- SSE with Bearer token: **401** ✅ (was 500 — OpenIddict now loads)
+**Fix (current branch `fix/files-module-bearer-auth`):**
 
-**Next steps (on `mint-OptiPlex-7010`):**
+Reverted to `Microsoft.AspNetCore.Authentication.JwtBearer` with the critical fix: **`IssuerSigningKeys`** (plural) registers ALL shared RSA signing keys from `oidc-keys/`, so tokens signed with any rotated key are accepted for validation. No remote discovery calls — purely local key validation.
 
-Pull latest from `fix/files-module-bearer-auth` and restart the SyncTray client to verify SSE stream connects:
+| Before (broken)                                               | After (fixed)                                |
+| ------------------------------------------------------------- | -------------------------------------------- |
+| `IssuerSigningKey = signingKeys[0]` (single key)              | `IssuerSigningKeys = signingKeys` (all keys) |
+| `SetIssuer()` + `UseSystemNetHttp()` (remote discovery fails) | No remote discovery — local PEM keys only    |
+| OpenIddict validation (needs network)                         | JwtBearer validation (local only)            |
+
+Also confirmed: inter-module gRPC uses `module-id` metadata header auth, not JWT — no OpenIddict validation handler needed on module host.
+
+**Deploy steps (on `cloud.kimball.home`):**
 
 ```bash
-git checkout fix/files-module-bearer-auth
-git pull
+git checkout main && git pull
+git merge fix/files-module-bearer-auth
+sudo ./scripts/deploy.sh --force
+sudo systemctl restart dotnetcloud
+```
+
+**Verification after deploy (on `mint-OptiPlex-7010`):**
+
+```bash
 dotnet run --project src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj
 ```
 
-Check logs for: `"SSE stream connected."` (was previously getting 401 and falling back to polling).
-
-If SSE still fails, check:
-1. Client's OAuth token is valid (re-auth if needed)
-2. Client version: 0.3.9-alpha (local build)
-3. Server build: 0.3.12
+Expected log: `"SSE stream connected."` (previously got 401 and fell back to polling).
 
 **Client version:** 0.3.9-alpha
 **Server build:** 0.3.12

@@ -28,25 +28,67 @@ Only consult this if you encounter a regression or need to understand a past fix
 
 **Fix applied on branch `fix/files-module-bearer-auth`:**
 
-- Added JWT Bearer auth + policy scheme (auto-selects Bearer vs Cookie based on `Authorization` header)
-- Changed 13 controllers from `[Authorize(AuthenticationSchemes = "Identity.Application")]` → `[Authorize]`
-- Added `Microsoft.AspNetCore.Authentication.JwtBearer` NuGet package
+### Attempt 1: JwtBearer (commit `2d0de3b2`)
+
+Added JWT Bearer auth + policy scheme using `Microsoft.AspNetCore.Authentication.JwtBearer` NuGet package.
 
 **Deploy execution (2026-06-21):**
 
-1. ✅ `git pull` — already up to date
-2. ✅ `dotnet build` — 0 errors
-3. ✅ `sudo ./scripts/deploy.sh` — All 3 targets succeeded
-4. ⚠️ **Issue found:** Incremental deploy only copied module host DLLs, not transitive JWT dependencies (`System.IdentityModel.Tokens.Jwt` v8.0.1.0, `Microsoft.IdentityModel.Protocols.OpenIdConnect`, etc.)
-5. ✅ **Fix:** Manually copied all `Microsoft.IdentityModel.*` + `System.IdentityModel.*` + `Microsoft.AspNetCore.Authentication.JwtBearer.dll` to `/opt/dotnetcloud/server/modules/dotnetcloud.files/`
-6. ✅ Service restarted
+1. ✅ `dotnet build` — 0 errors
+2. ✅ `sudo ./scripts/deploy.sh` — All 3 targets succeeded
+3. ⚠️ **Issue:** Incremental deploy only copied module host DLLs, not transitive JWT dependencies
+4. ✅ Manually copied `Microsoft.IdentityModel.*` + `System.IdentityModel.*` + `JwtBearer.dll` to module directory
+5. ✅ Service restarted
 
-**Verification:**
+**Verification (JwtBearer):**
 
 - Health: 200 ✅
-- Files API (no auth): 401 (expected — requires authentication) ✅
-- SSE with `Bearer test`: **401** (was 500 — JWT handler now loads correctly, properly rejects invalid tokens) ✅
-- No exceptions in Files module logs ✅
+- Files API (no auth): 401 ✅
+- SSE with `Bearer test`: **401** (was 500 — JWT handler loads correctly now) ✅
+- **But:** Client's valid tokens also returned 401 — `IssuerSigningKey` used only `signingKeys[0]` which didn't match OpenIddict's signing key after rotation
+
+### Attempt 2: OpenIddict Validation (commits `b45b1691` + `e2896d99`)
+
+**Root cause of JwtBearer failure:**
+
+- `System.IdentityModel.Tokens.Jwt` v8.0.1 NuGet ships assembly version **0.96.1.0** but deps.json declares **8.0.1.0** → `FileNotFoundException` at module startup
+- Even after manual assembly copy, `TokenValidationParameters.IssuerSigningKey` only accepted one signing key — if key rotation created a newer key than `signing-key.pem`, validation failed
+
+**Fix:** Replaced `Microsoft.AspNetCore.Authentication.JwtBearer` with `OpenIddict.Validation.AspNetCore` (already installed v7.2.0):
+
+- `AddOpenIddict().AddValidation()` with all RSA signing keys from `oidc-keys/` → OpenIddict handles key resolution natively
+- Policy scheme forwards to `"OpenIddict.Validation.AspNetCore"` instead of `"Bearer"`
+- Added `OpenIddict.Validation.SystemNetHttp` package (commit `e2896d99`) — `SetIssuer()` triggers server discovery, needs HTTP client
+- Added post-publish dependency sync to `deploy.sh` (commit `9387eb2d`)
+- Zero new NuGet dependency version conflicts — OpenIddict already installed
+
+**Deploy execution (2026-06-21, second deploy):**
+
+1. ✅ Force deploy — all 14 modules published
+2. ✅ Post-publish dependency sync copies transitive assemblies
+3. ✅ Service restarted
+
+**Verification (OpenIddict):**
+
+- Health: 200 ✅
+- Files API (no auth): 401 (expected) ✅
+- Files API with invalid Bearer: returns OpenIddict-specific `WWW-Authenticate: Bearer error="invalid_token", error_description="..."` ✅
+- **But:** Real valid tokens also returned 401 — `SetIssuer()` + `UseSystemNetHttp()` forces OpenIddict to make HTTPS discovery requests to `cloud.dotnetcloud.net` for JWKS resolution. In a process-isolated module host, this fails (network isolation/DNS loopback), causing ALL tokens to be rejected regardless of validity.
+
+### Attempt 3: JwtBearer with all signing keys (current, commit pending)
+
+**Root cause of OpenIddict failure:**
+
+`SetIssuer("https://cloud.dotnetcloud.net/")` + `UseSystemNetHttp()` — module host tries to fetch OIDC configuration from the issuer URL via HTTPS. The process-isolated module host cannot reliably reach `cloud.dotnetcloud.net` (split DNS, hairpin NAT, or firewall rules), causing key discovery to fail and token validation to reject all tokens.
+
+**Fix:** Reverted to `Microsoft.AspNetCore.Authentication.JwtBearer` with two corrections:
+
+1. **`IssuerSigningKeys` (plural)** instead of `IssuerSigningKey` — registers ALL shared RSA signing keys from `oidc-keys/`, so tokens signed with any rotated key are accepted
+2. No remote discovery calls — validates purely locally using the shared PEM keys
+3. Post-publish dependency sync in `deploy.sh` (from Attempt 1) handles transitive JWT assemblies
+4. Inter-module gRPC communication confirmed to use `module-id` metadata header (not JWT), so no OpenIddict validation needed on module host
+
+**Verification:** Pending deploy to `cloud.dotnetcloud.net`
 
 ## Archived: SyncTray Icon Enhancement — Linux Verification (2026-03-29)
 
@@ -1748,6 +1790,7 @@ Do not modify server projects.
 **Problem:** Desktop sync client (`SyncStreamListener`) sent `Authorization: Bearer <jwt>` to Files module REST APIs, but the Files module host only had `Identity.Application` cookie auth registered.
 
 **Fix on `fix/files-module-bearer-auth` (commits `b45b1691` + `9387eb2d`):**
+
 - Replaced JwtBearer with `OpenIddict.Validation.AspNetCore` (v7.2.0)
 - Added `OpenIddict.Validation.SystemNetHttp` package + `.UseSystemNetHttp()` — `SetIssuer()` triggers server discovery, needs HTTP client
 - Policy scheme (`DotNetCloud.Module`) routes Bearer → `OpenIddict.Validation.AspNetCore`, cookie → `Identity.Application`
@@ -1755,17 +1798,20 @@ Do not modify server projects.
 - Added post-publish dependency sync to `deploy.sh`
 
 **Deploy execution (cloud.dotnetcloud.net, 2026-06-21):**
+
 1. ✅ Full `--force` deploy — 14/14 module hosts published
 2. ✅ Dependency sync ran — all transitive NuGet assemblies copied
 3. ✅ Service restarted, health 200
 
 **Verification:**
+
 - Health: 200 ✅
 - Files module health check: **200** ✅ (was 500)
 - Files API (no auth): 401 (expected) ✅
 - SSE with `Bearer test`: **401** ✅ (was 500)
 
 **Key lesson:** Module hosts using `SetIssuer()` with OpenIddict validation must also call `.UseSystemNetHttp()` and reference the `OpenIddict.Validation.SystemNetHttp` package.
+
 - `HasMentions` on badge is `true` only when mention count > 0.
 
 **Request back (strict format):**
