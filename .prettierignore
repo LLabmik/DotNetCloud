@@ -1,0 +1,4 @@
+# Skip handoff docs from auto-formatting — Prettier's markdown formatting
+# interferes with the structured checklist/table format used here.
+docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md
+docs/development/CLIENT_SERVER_MEDIATION_ARCHIVE.md
