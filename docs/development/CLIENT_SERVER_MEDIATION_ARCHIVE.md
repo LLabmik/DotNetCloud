@@ -1,6 +1,6 @@
 # Client/Server Mediation — Archived Context
 
-Archived: 2026-06-21. Full git history preserved in commits up to `846031cc`.
+Archived: 2026-06-22. Full git history preserved in commits up to `2bd07dc8`.
 
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
@@ -4353,3 +4353,22 @@ Expected: `"SSE stream connected."`
 
 **Client version:** 0.3.9-alpha
 **Server build:** 0.3.12
+
+---
+
+## Archived: Duplicate UseHttpsRedirection Fix — Deployed (2026-06-22)
+
+**Target:** `cloud.kimball.home` (production)
+**Commit:** `806d0716`
+**Status:** DEPLOYED — but client test shows 401 persists (see next handoff)
+
+**Root cause of 401 on Files module (2026-06-22):**
+
+`UseDotNetCloudMiddleware()` in `ServiceDefaultsExtensions.cs` unconditionally added `UseHttpsRedirection()` for non-dev environments. This ran BEFORE the `MapWhen` gRPC branch in `ConfigurePipeline`, causing all gRPC introspection calls (`TokenIntrospectionClient` from module hosts) to receive HTTP 307 redirects. The gRPC client interpreted 307 as "Bad gRPC response", resulting in "Introspection service unavailable" and 401.
+
+**Fix:** Removed `UseHttpsRedirection()` from `UseDotNetCloudMiddleware()`. `ConfigurePipeline` already handles HTTPS redirect correctly with gRPC exclusion via `UseWhen`.
+
+**Deploy results (on `cloud.kimball.home`):**
+- Full deploy, 15/15 targets succeeded, 308s elapsed
+- Health: Healthy
+- Zero introspection 307 errors since deploy

@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 20260622 (Fixed duplicate UseHttpsRedirection — gRPC introspection 307 error resolved; handoff to client for SyncTray test)
+Last updated: 20260622 (Client test: 401 persists despite server deploy — token rejected as invalid_token)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -130,28 +130,59 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Status:** ✅ FIXED & DEPLOYED — duplicate `UseHttpsRedirection()` removed from `UseDotNetCloudMiddleware` (commit `806d0716`)
+**Status:** ❌ 401 PERSISTS — client test on `mint-OptiPlex-7010` still gets `invalid_token` after server deploy
 
-**Root cause of 401 on Files module (2026-06-22):**
+**What the server deployed (commit `806d0716`):**
+- Removed duplicate `UseHttpsRedirection()` from `UseDotNetCloudMiddleware()`
+- gRPC introspection now works (no more 307 redirects)
 
-`UseDotNetCloudMiddleware()` in `ServiceDefaultsExtensions.cs` unconditionally added `UseHttpsRedirection()` for non-dev environments. This ran BEFORE the `MapWhen` gRPC branch in `ConfigurePipeline`, causing all gRPC introspection calls (`TokenIntrospectionClient` from module hosts) to receive HTTP 307 redirects. The gRPC client interpreted 307 as "Bad gRPC response", resulting in "Introspection service unavailable" and 401.
+**Client test results (`mint-OptiPlex-7010`, 2026-06-22):**
+- Branch: `fix/files-module-bearer-auth` at `2bd07dc8`
+- Build: 0 errors ✅
+- Token refresh: `POST /connect/token` → **200 OK** ✅
+- API call: `GET api/v1/files/sync/device-cursor` → **401 `error="invalid_token"`** ❌
+- SSE stream: **401 on 3 consecutive attempts**, fell back to polling ❌
+- Token is NOT expired: `ExpiresAt=06/23/2026 00:36:43 +00:00`
 
-**Fix:** Removed `UseHttpsRedirection()` from `UseDotNetCloudMiddleware()`. `ConfigurePipeline` already handles HTTPS redirect correctly with gRPC exclusion via `UseWhen`.
-
-**Deploy results (on `cloud.kimball.home`):**
-- Full deploy, 15/15 targets succeeded, 308s elapsed
-- Health: Healthy ✅
-- Zero introspection 307 errors since deploy ✅
+**Key observation:** The 307 redirect issue IS fixed (no more "Bad gRPC response"). But the server is still rejecting tokens as `invalid_token` even immediately after a successful refresh. This suggests the token introspection itself is returning "inactive" or there's another validation layer rejecting the token.
 
 ---
 
-### Next: Client Test — `mint-OptiPlex-7010`
+### Server Actions — `cloud.kimball.home`
 
-Test SyncTray against this server to confirm the 401 is resolved:
-
-```bash
-git checkout fix/files-module-bearer-auth && git pull
-dotnet run --project src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj
-```
-
-**Server build:** 0.3.12 (commit `806d0716`)
+- [ ] **Pull latest and check server logs for introspection results:**
+  ```bash
+  git checkout fix/files-module-bearer-auth && git pull
+  journalctl -u dotnetcloud --since "10 minutes ago" | grep -i "introspect\|invalid_token\|audience\|claims\|inactive" | tail -40
+  ```
+- [ ] **Verify the deployed binary IS commit `806d0716`:**
+  ```bash
+  strings /opt/dotnetcloud/publish/DotNetCloud.Core.ServiceDefaults.dll | grep -i "UseHttpsRedirection" | head -5
+  # Should return ZERO results — if it finds UseHttpsRedirection, old binary is live
+  ```
+- [ ] **Check if service was restarted AFTER deploy:**
+  ```bash
+  systemctl show dotnetcloud --property=ActiveEnterTimestamp
+  stat /opt/dotnetcloud/publish/DotNetCloud.Core.ServiceDefaults.dll | grep Modify
+  # ActiveEnterTimestamp MUST be AFTER Modify timestamp
+  ```
+- [ ] **Test introspection directly on the server:**
+  ```bash
+  # Get a token using the desktop client credentials
+  curl -sk -X POST https://localhost:5443/connect/token \
+    -d "grant_type=password&username=<test-user>&password=<password>&client_id=dotnetcloud-desktop&scope=api offline_access"
+  # Copy the access_token from the response, then introspect it
+  # Check if the Files module's introspection endpoint returns active=true
+  ```
+- [ ] **Check the Files module host logs** for token validation errors:
+  ```bash
+  journalctl -u dotnetcloud --since "10 minutes ago" | grep -i "files.*auth\|files.*401\|files.*token" | tail -20
+  ```
+- [ ] **If binary is stale:** rebuild, republish, and redeploy:
+  ```bash
+  dotnet build -c Release
+  dotnet publish -c Release
+  sudo ./scripts/deploy.sh
+  systemctl restart dotnetcloud
+  ```
+- [ ] **Update this handoff** with findings and push.
