@@ -90,6 +90,25 @@ Added JWT Bearer auth + policy scheme using `Microsoft.AspNetCore.Authentication
 
 **Verification:** Pending deploy to `cloud.dotnetcloud.net`
 
+### Attempt 3: JwtBearer + ValidateIssuerSigningKey = false (commit `d6bb6fce`)
+
+Deployed to `cloud.dotnetcloud.net` on 2026-06-22.
+
+**Fix:** Re-added JwtBearer with `IssuerSigningKeys` (plural, all rotated keys) + `ValidateIssuerSigningKey = false` to work around `RsaSecurityKey.KeyId` mismatch (PEM-loaded keys get random `KeyId`, don't match OpenIddict's JWT `kid`).
+
+**Deploy:** Force deploy ran, 14/14 modules published, dependency sync ran, service restarted.
+
+**Verification:**
+
+- Health: 200 ✅
+- Files API (no auth): 401 ✅
+- SSE with Bearer (invalid token): 401 ✅ (was 500 — auth middleware loading)
+- **Result: FAILED** — Client valid tokens still returned `invalid_token`. `ValidateIssuerSigningKey = false` alone does not fix it; `JsonWebTokenHandler` cannot find a key by `kid` match and fails before attempting signature verification.
+
+**Root cause discovered on `mint-OptiPlex-7010`:** `RsaSecurityKey.KeyId` is randomly generated each time `new RsaSecurityKey(rsa)` is called. Core.Server's `OidcKeyManager.LoadOrCreateKey` generates `KeyId` "A", OpenIddict puts it in JWT `kid` header. Files.Host's `OidcKeyManager.LoadAllKeys` generates `KeyId` "B" from the same PEM — mismatch, handler rejects.
+
+**Final fix (commit pending):** `OidcKeyManager.SetDeterministicKeyId()` — compute `KeyId = Base64UrlEncode(SHA256(RSA modulus))` so same PEM → same `KeyId` across all processes.
+
 ## Archived: SyncTray Icon Enhancement — Linux Verification (2026-03-29)
 
 **Original target:** mint-dnc-client

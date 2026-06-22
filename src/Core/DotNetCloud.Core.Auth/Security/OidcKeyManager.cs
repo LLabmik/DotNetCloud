@@ -51,7 +51,9 @@ public static class OidcKeyManager
             logger?.LogInformation("Generated new OpenIddict RSA key at {KeyFile}.", filePath);
         }
 
-        return new RsaSecurityKey(rsa);
+        var key = new RsaSecurityKey(rsa);
+        SetDeterministicKeyId(key);
+        return key;
     }
 
     /// <summary>
@@ -79,7 +81,9 @@ public static class OidcKeyManager
                 var pem = File.ReadAllText(file);
                 var rsa = RSA.Create();
                 rsa.ImportFromPem(pem);
-                keys.Add(new RsaSecurityKey(rsa));
+                var key = new RsaSecurityKey(rsa);
+                SetDeterministicKeyId(key);
+                keys.Add(key);
                 logger?.LogTrace("Loaded OpenIddict key from {KeyFile}.", file);
             }
             catch (Exception ex)
@@ -121,7 +125,9 @@ public static class OidcKeyManager
         SetSecureFilePermissions(filePath);
 
         logger?.LogInformation("Generated rotated OpenIddict key at {KeyFile}.", filePath);
-        return new RsaSecurityKey(rsa);
+        var rotatedKey = new RsaSecurityKey(rsa);
+        SetDeterministicKeyId(rotatedKey);
+        return rotatedKey;
     }
 
     /// <summary>
@@ -200,6 +206,30 @@ public static class OidcKeyManager
 
         var age = DateTime.UtcNow - File.GetLastWriteTimeUtc(newest);
         return age >= rotationInterval;
+    }
+
+    /// <summary>
+    /// Sets a deterministic <see cref="SecurityKey.KeyId"/> on the <see cref="RsaSecurityKey"/>
+    /// based on a SHA-256 hash of the RSA public modulus. This ensures the <c>kid</c> value
+    /// is consistent across processes loading the same PEM file, which is essential for
+    /// JWT Bearer token validation in process-isolated module hosts that load signing keys
+    /// independently from the same shared key directory.
+    /// </summary>
+    /// <param name="key">The RSA security key to set a deterministic KeyId on.</param>
+    private static void SetDeterministicKeyId(RsaSecurityKey key)
+    {
+        try
+        {
+            var modulus = key.Parameters.Modulus;
+            if (modulus is { Length: > 0 })
+            {
+                key.KeyId = Base64UrlEncoder.Encode(SHA256.HashData(modulus));
+            }
+        }
+        catch
+        {
+            // If we can't compute a deterministic KeyId, leave the auto-generated one.
+        }
     }
 
     private static void SetSecureFilePermissions(string filePath)

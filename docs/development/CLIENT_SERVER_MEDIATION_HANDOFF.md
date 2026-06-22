@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 20260621 (Files module host Bearer auth fix — deploy required)
+Last updated: 20260622 (Deterministic `RsaSecurityKey.KeyId` — root cause of persistent 401s)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -91,19 +91,35 @@ Archived context:
 
 ## Active Handoff
 
-**Status:** ✅ DEPLOY COMPLETE — `ValidateIssuerSigningKey = false` deployed to `cloud.dotnetcloud.net`
+**Status:** 🔴 ROOT CAUSE FOUND — Deterministic `RsaSecurityKey.KeyId` needed. Fix committed, `cloud.kimball.home` must pull and re-deploy.
 
-**Deploy results (commit `d6bb6fce`):**
+**Problem (discovered on `mint-OptiPlex-7010`, 2026-06-22):**
 
-- Full `--force` deploy with 14/14 module hosts published
-- Dependency sync ran
-- Health: 200 ✅
-- Files API (no auth): 401 ✅
-- SSE with Bearer (invalid token): 401 ✅ (was 500 — now properly rejects)
+The `ValidateIssuerSigningKey = false` deploy (commit `d6bb6fce`) did NOT fix the 401s. Client tokens are still rejected as `invalid_token` by the Files module host, even though OpenIddict token refresh succeeds on Core.Server.
 
-**Next steps (on `mint-OptiPlex-7010`):**
+**Root Cause:**
 
-Pull latest from `fix/files-module-bearer-auth` and restart SyncTray:
+`OidcKeyManager.LoadAllKeys()` creates `new RsaSecurityKey(rsa)` for each PEM file — each call generates a **random** `SecurityKey.KeyId`. OpenIddict sets the JWT `kid` header to the `KeyId` of the key it signed with (from `LoadOrCreateKey`/`AddSigningKey`). The module host's `LoadAllKeys` produces different random `KeyId`s, so the JWT `kid` never matches any key in `IssuerSigningKeys`. The `JsonWebTokenHandler` then cannot find the correct key for signature verification, rejecting all tokens.
+
+**Fix (commit pending):**
+
+Added `OidcKeyManager.SetDeterministicKeyId()` — computes `KeyId = Base64UrlEncode(SHA256(RSAModulus))`. Since the modulus is deterministic for the same PEM file, both `LoadOrCreateKey` (Core.Server) and `LoadAllKeys` (module hosts) now produce identical `KeyId` values for the same RSA key, allowing `JsonWebTokenHandler` to match by `kid`.
+
+**Deploy required (on `cloud.kimball.home`):**
+
+Checkout/merge latest `fix/files-module-bearer-auth`, run:
+
+```bash
+sudo ./scripts/deploy.sh --force
+```
+
+**Verification (on `cloud.kimball.home`):**
+
+1. Health: `curl -k https://cloud.dotnetcloud.net/health` → 200
+2. Files API with valid Bearer token: `curl -k -H "Authorization: Bearer $(TOKEN)" https://cloud.dotnetcloud.net/api/v1/files/sync/tree` → 200 (not 401)
+3. SSE with valid Bearer: connect and verify `"SSE stream connected."`
+
+**Then (on `mint-OptiPlex-7010`):**
 
 ```bash
 git checkout fix/files-module-bearer-auth
