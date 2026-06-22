@@ -120,7 +120,11 @@ builder.Services.AddAuthentication(options =>
             ValidateIssuer = false,
             ValidateAudience = false,
             ValidateLifetime = true,
-            ValidateIssuerSigningKey = signingKeys.Count > 0,
+            // Don't validate IssuerSigningKey by kid match — RsaSecurityKey.KeyId
+            // auto-generated from PEM files doesn't match OpenIddict's kid format.
+            // With IssuerSigningKeys containing all keys, the handler will try each
+            // key's RSA public key for signature verification directly.
+            ValidateIssuerSigningKey = false,
             IssuerSigningKeys = signingKeys.Count > 0 ? signingKeys : null,
         };
         // Preserve original JWT claim names (e.g., "sub" instead of ClaimTypes.NameIdentifier)

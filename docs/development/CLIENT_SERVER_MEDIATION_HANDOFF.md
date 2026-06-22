@@ -91,27 +91,29 @@ Archived context:
 
 ## Active Handoff
 
-**Status:** ✅ DEPLOY COMPLETE — JwtBearer with all signing keys deployed to `cloud.dotnetcloud.net`
+**Status:** 🔴 RE-DEPLOY REQUIRED — `ValidateIssuerSigningKey = false`
 
-**Deploy results:**
+**JwtBearer with `IssuerSigningKeys` deployed but still rejecting tokens.** Root cause: `RsaSecurityKey.KeyId` auto-generated from PEM files does not match the `kid` format OpenIddict uses in JWT headers. With `ValidateIssuerSigningKey = true`, the handler requires a `kid` match and rejects all tokens.
 
-- Full `--force` deploy with 14/14 module hosts published
-- Dependency sync ran
-- Health: 200 ✅
-- Files module: **200** (health), 401 (no auth — expected) ✅
-- SSE with Bearer: **401** ✅ (was 500 — JwtBearer now loads all signing keys, no crash)
+**Fix (latest commit on `fix/files-module-bearer-auth`):**
+- Set `ValidateIssuerSigningKey = false` — with ALL signing keys registered via `IssuerSigningKeys`, the JwtBearer handler tries each key's RSA public key for signature verification directly, without requiring a `kid` match.
 
-**Next steps (on `mint-OptiPlex-7010`):**
-
-Pull latest from `fix/files-module-bearer-auth` and restart SyncTray:
+**Deploy steps (on `cloud.kimball.home`):**
 
 ```bash
-git checkout fix/files-module-bearer-auth
-git pull
+git checkout main && git pull
+git merge fix/files-module-bearer-auth
+sudo ./scripts/deploy.sh --force
+sudo systemctl restart dotnetcloud
+```
+
+**Verification after deploy (on `mint-OptiPlex-7010`):**
+
+```bash
 dotnet run --project src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj
 ```
 
-Check logs for: `"SSE stream connected."` (previously got 401 and fell back to polling).
+Expected log: `"SSE stream connected."`
 
 **Client version:** 0.3.9-alpha
 **Server build:** 0.3.12
