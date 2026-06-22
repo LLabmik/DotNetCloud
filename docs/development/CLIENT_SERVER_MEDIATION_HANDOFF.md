@@ -90,27 +90,31 @@ Archived context:
 - **Controller discovery:** Core.Server references Files.Host and Chat.Host via `ProjectReference`. ASP.NET Core auto-discovers controllers from referenced assemblies. Do NOT create duplicate controllers in Core.Server for routes already served by module Host assemblies.
 
 ## Active Handoff
-**Status:** ✅ FIXED & DEPLOYED — gRPC MapWhen cast crash, service running (commit `eb09a730` + local fix)
+**Status:** 🔧 FIX PUSHED — missing `module-id` gRPC header (commit `40042937`), ready for deploy
 
-**What happened:**
+**Root cause found (on `mint-OptiPlex-7010`):**
+- MapWhen fix deployed (`396cc450`) but SyncTray still 401
+- `TokenIntrospectionClient` was NOT sending `module-id` metadata header
+- Core.Server's `AuthenticationInterceptor` requires this header on all gRPC calls
+- Interceptor rejected introspection calls with `Unauthenticated` before reaching `TokenIntrospectionServiceImpl`
+- journald rate-limiting suppressed the error logs (41,991 messages dropped)
 
-- Client's `MapWhen` fix used `(WebApplication)grpcApp` — invalid cast, caused `InvalidCastException` core dump loop
-- Fixed by inlining `UseRouting()` + `UseEndpoints()` with `MapGrpcService<T>()` calls (no cast needed)
-- Added `using DotNetCloud.Core.Server.Grpc.Services;`
+**Fix (commit `40042937`):**
+- Added `using Grpc.Core;` and `new Metadata { { "module-id", moduleId } }` to `TokenIntrospectionClient.IntrospectAsync()`
+- Passes metadata headers to `IntrospectTokenAsync()` gRPC call
+- 1 file changed, 8 insertions
+- All 12 introspection tests pass
 
-**Deploy results (on `cloud.kimball.home`):**
-
-- ✅ Build: 154s, Core.Server 62.8s
-- ✅ 14/14 modules published, 15/15 targets succeeded
-- ✅ Health: 200, service stable (no core dumps)
-
-**Next (on `mint-OptiPlex-7010`):**
-
+**Next (on `cloud.kimball.home`):**
 ```bash
 git checkout fix/files-module-bearer-auth && git pull
-dotnet run --project src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj
+sudo ./scripts/deploy.sh --force
 ```
 
+**Verify (on `mint-OptiPlex-7010`):**
+```bash
+dotnet run --project src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj
+```
 Expected: `"SSE stream connected."`
 
 **Client version:** 0.3.9-alpha
