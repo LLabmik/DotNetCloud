@@ -94,6 +94,7 @@ Archived context:
 **Status:** ✅ DEPLOY COMPLETE — Files module Bearer auth fix deployed to `cloud.dotnetcloud.net`
 
 **Summary:**
+
 1. ✅ `dotnet build` — 0 errors
 2. ✅ `sudo ./scripts/deploy.sh` — All 3 targets succeeded
 3. ⚠️ Incremental publish missed transitive JWT dependencies — manually copied `Microsoft.IdentityModel.*` + `System.IdentityModel.*` assemblies to module directory
