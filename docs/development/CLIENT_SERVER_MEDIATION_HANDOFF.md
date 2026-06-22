@@ -71,14 +71,14 @@ Archived context:
 
 ## Environment
 
-| Role           | Machine             | Detail                                                                             |
-| -------------- | ------------------- | ---------------------------------------------------------------------------------- |
-| Server         | `cloud.kimball.home`| `https://cloud.dotnetcloud.net/` (production)                                      |
-| Server         | `mint22`            | `https://mint22:5443/` (dev)                                                       |
-| Client         | `Windows11-TestDNC` | Sync dir: `C:\Users\benk\Documents\synctray`                                       |
-| Client         | `mint-dnc-client`   | Linux Mint 22 validation host for desktop sync client implementation + E2E testing |
-| Client         | `mint-OptiPlex-7010`| This machine — production client connected to `cloud.dotnetcloud.net`              |
-| Android Client | `monolith`          | Android MAUI app development + emulator testing (Windows 11)                       |
+| Role           | Machine              | Detail                                                                             |
+| -------------- | -------------------- | ---------------------------------------------------------------------------------- |
+| Server         | `cloud.kimball.home` | `https://cloud.dotnetcloud.net/` (production)                                      |
+| Server         | `mint22`             | `https://mint22:5443/` (dev)                                                       |
+| Client         | `Windows11-TestDNC`  | Sync dir: `C:\Users\benk\Documents\synctray`                                       |
+| Client         | `mint-dnc-client`    | Linux Mint 22 validation host for desktop sync client implementation + E2E testing |
+| Client         | `mint-OptiPlex-7010` | This machine — production client connected to `cloud.dotnetcloud.net`              |
+| Android Client | `monolith`           | Android MAUI app development + emulator testing (Windows 11)                       |
 
 ## Key Carry-Forward Contracts
 
@@ -99,12 +99,12 @@ Archived context:
 
 **Files changed (14 files):**
 
-| File | Change |
-|------|--------|
-| `Directory.Packages.props` | Added `Microsoft.AspNetCore.Authentication.JwtBearer` 10.0.3 |
-| `src/Modules/Files/DotNetCloud.Modules.Files.Host/DotNetCloud.Modules.Files.Host.csproj` | Added `PackageReference` for JwtBearer |
-| `src/Modules/Files/DotNetCloud.Modules.Files.Host/Program.cs` | Added JWT Bearer auth + policy scheme (auto-selects Bearer vs Cookie based on `Authorization` header) |
-| 13 controller files in `.../Controllers/*.cs` | Changed `[Authorize(AuthenticationSchemes = "Identity.Application")]` → `[Authorize]` (uses new policy scheme) |
+| File                                                                                     | Change                                                                                                         |
+| ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `Directory.Packages.props`                                                               | Added `Microsoft.AspNetCore.Authentication.JwtBearer` 10.0.3                                                   |
+| `src/Modules/Files/DotNetCloud.Modules.Files.Host/DotNetCloud.Modules.Files.Host.csproj` | Added `PackageReference` for JwtBearer                                                                         |
+| `src/Modules/Files/DotNetCloud.Modules.Files.Host/Program.cs`                            | Added JWT Bearer auth + policy scheme (auto-selects Bearer vs Cookie based on `Authorization` header)          |
+| 13 controller files in `.../Controllers/*.cs`                                            | Changed `[Authorize(AuthenticationSchemes = "Identity.Application")]` → `[Authorize]` (uses new policy scheme) |
 
 **Deploy steps (on `cloud.kimball.home`):**
 
@@ -118,10 +118,12 @@ Archived context:
 **Verification on client side (`mint-OptiPlex-7010`):**
 
 After deploy completes, restart the SyncTray client on this machine:
+
 ```bash
 cd /home/benk/Repos/DotNetCloud
 dotnet run --project src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj
 ```
+
 Check logs for: `"SSE stream connected."` (was previously getting 401 and falling back to polling).
 
 **Client version:** 0.3.9-alpha (built locally, connects to `https://cloud.dotnetcloud.net`)
