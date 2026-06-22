@@ -91,35 +91,20 @@ Archived context:
 
 ## Active Handoff
 
-**Status:** 🔴 ROOT CAUSE FOUND — Deterministic `RsaSecurityKey.KeyId` needed. Fix committed, `cloud.kimball.home` must pull and re-deploy.
+**Status:** ✅ DEPLOYED — Deterministic `RsaSecurityKey.KeyId` (commit `c1025e75`) deployed to `cloud.dotnetcloud.net`
 
-**Problem (discovered on `mint-OptiPlex-7010`, 2026-06-22):**
+**Deploy results (on `cloud.kimball.home`):**
 
-The `ValidateIssuerSigningKey = false` deploy (commit `d6bb6fce`) did NOT fix the 401s. Client tokens are still rejected as `invalid_token` by the Files module host, even though OpenIddict token refresh succeeds on Core.Server.
+- Full `--force` deploy, 14/14 modules, dependency sync
+- Health: 200 ✅
+- Files API (no auth): 401 ✅ (expected)
+- Core.Server logs: `Loaded 1 signing key(s) and 1 encryption key(s)` ✅
 
-**Root Cause:**
+**Cloud server cannot verify with a valid token** — no refresh token is available on this machine. The client (`mint-OptiPlex-7010`) has the token and must verify.
 
-`OidcKeyManager.LoadAllKeys()` creates `new RsaSecurityKey(rsa)` for each PEM file — each call generates a **random** `SecurityKey.KeyId`. OpenIddict sets the JWT `kid` header to the `KeyId` of the key it signed with (from `LoadOrCreateKey`/`AddSigningKey`). The module host's `LoadAllKeys` produces different random `KeyId`s, so the JWT `kid` never matches any key in `IssuerSigningKeys`. The `JsonWebTokenHandler` then cannot find the correct key for signature verification, rejecting all tokens.
+**Next steps (on `mint-OptiPlex-7010`):**
 
-**Fix (commit pending):**
-
-Added `OidcKeyManager.SetDeterministicKeyId()` — computes `KeyId = Base64UrlEncode(SHA256(RSAModulus))`. Since the modulus is deterministic for the same PEM file, both `LoadOrCreateKey` (Core.Server) and `LoadAllKeys` (module hosts) now produce identical `KeyId` values for the same RSA key, allowing `JsonWebTokenHandler` to match by `kid`.
-
-**Deploy required (on `cloud.kimball.home`):**
-
-Checkout/merge latest `fix/files-module-bearer-auth`, run:
-
-```bash
-sudo ./scripts/deploy.sh --force
-```
-
-**Verification (on `cloud.kimball.home`):**
-
-1. Health: `curl -k https://cloud.dotnetcloud.net/health` → 200
-2. Files API with valid Bearer token: `curl -k -H "Authorization: Bearer $(TOKEN)" https://cloud.dotnetcloud.net/api/v1/files/sync/tree` → 200 (not 401)
-3. SSE with valid Bearer: connect and verify `"SSE stream connected."`
-
-**Then (on `mint-OptiPlex-7010`):**
+Verify the fix works end-to-end:
 
 ```bash
 git checkout fix/files-module-bearer-auth
@@ -127,7 +112,9 @@ git pull
 dotnet run --project src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj
 ```
 
-Check logs for: `"SSE stream connected."`
+Expected log: `"SSE stream connected."` (previously got 401 → fell back to polling).
+
+If it works, this issue is resolved. If not, more investigation needed.
 
 **Client version:** 0.3.9-alpha
 **Server build:** 0.3.12
