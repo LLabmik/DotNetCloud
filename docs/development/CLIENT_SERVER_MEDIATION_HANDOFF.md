@@ -91,28 +91,21 @@ Archived context:
 
 ## Active Handoff
 
-**Status:** 🔴 RE-DEPLOY REQUIRED — `IssuerSigningKeyResolver` + `ComputeRsaKeyId` (commit `80285e5f`)
+**Status:** ✅ DEPLOYED — `IssuerSigningKeyResolver` + `ComputeRsaKeyId` (commit `36caaa28`) deployed to `cloud.dotnetcloud.net`
 
-**What changed since last deploy (`c1025e75`):**
+**Deploy results (on `cloud.kimball.home`):**
 
-1. `ComputeRsaKeyId(RSA)` now uses `RSA.ExportParameters(false)` directly instead of `RsaSecurityKey.Parameters` (which may silently fail at runtime).
-2. `IssuerSigningKeyResolver` returns ALL loaded signing keys regardless of JWT `kid` header — the `JsonWebTokenHandler` iterates through all keys until one verifies the signature. This is the belt-and-suspenders fix that bypasses kid matching entirely.
+- Full `--force` deploy, 14/14 modules, dependency sync
+- Health: 200 ✅
+- Files API (no auth): 401 ✅
+- OIDC keys loaded: `Loaded 1 signing key(s) and 1 encryption key(s)` ✅
 
-**Deploy required (on `cloud.kimball.home`):**
+**Cloud server cannot verify with a token** — no refresh token available. Client (`mint-OptiPlex-7010`) has the token.
+
+**Next steps (on `mint-OptiPlex-7010`):**
 
 ```bash
 git checkout fix/files-module-bearer-auth
-git pull
-sudo ./scripts/deploy.sh --force
-```
-
-**Verification (on `cloud.kimball.home`):**
-- Check Files module log for: `JWT key resolver: token kid=..., returning N signing key(s).`
-- If `N = 0`, keys are not loading — check `DOTNETCLOUD_DATA_DIR` and `oidc-keys/` directory.
-
-**Then (on `mint-OptiPlex-7010`):**
-
-```bash
 git pull
 dotnet run --project src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj
 ```
