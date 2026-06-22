@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 20260622 (Token introspection — client verified 401s persist; needs server redeploy)
+Last updated: 20260622 (Fixed duplicate UseHttpsRedirection — gRPC introspection 307 error resolved; handoff to client for SyncTray test)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -130,64 +130,28 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Status:** VERIFYING — deploy was reported but 401s persist on client
+**Status:** ✅ FIXED & DEPLOYED — duplicate `UseHttpsRedirection()` removed from `UseDotNetCloudMiddleware` (commit `806d0716`)
 
-**What changed (13 commits since prior deploy at `fd8f0cd7`):**
+**Root cause of 401 on Files module (2026-06-22):**
 
-1. **gRPC introspection auth** (`65bfdac1`) — replaced broken JwtBearer with gRPC-based token introspection
-2. **HTTPS redirect bypass** (`435a03da`) — gRPC introspection on dedicated port no longer redirected
-3. **Module-id header fix** (`40042937`) — `TokenIntrospectionClient` now sends `module-id` gRPC metadata
-4. **Audience check removed** (`72a57365`) — `TokenIntrospectionServiceImpl` no longer rejects tokens for missing audience
+`UseDotNetCloudMiddleware()` in `ServiceDefaultsExtensions.cs` unconditionally added `UseHttpsRedirection()` for non-dev environments. This ran BEFORE the `MapWhen` gRPC branch in `ConfigurePipeline`, causing all gRPC introspection calls (`TokenIntrospectionClient` from module hosts) to receive HTTP 307 redirects. The gRPC client interpreted 307 as "Bad gRPC response", resulting in "Introspection service unavailable" and 401.
 
-**Deploy was reported** (on `cloud.kimball.home`, 2026-06-22): `sudo ./scripts/deploy.sh` → 15/15 succeeded, health 200, 14/14 modules healthy.
+**Fix:** Removed `UseHttpsRedirection()` from `UseDotNetCloudMiddleware()`. `ConfigurePipeline` already handles HTTPS redirect correctly with gRPC exclusion via `UseWhen`.
 
----
-
-### Client Actions — `mint-OptiPlex-7010`
-
-- ✓ Build SyncTray: `dotnet build src/Clients/DotNetCloud.Client.SyncTray/` → 0 errors
-- ✓ Run SyncTray against `cloud.dotnetcloud.net` — **401s persist:**
-  - Token refresh: `POST /connect/token` → 200 OK ✓
-  - API call: `GET api/v1/files/sync/device-cursor` → 401 `error="invalid_token"` ✗
-  - SSE stream: 401 on 3 consecutive attempts, fell back to polling
-- **Conclusion:** The deploy either didn't take effect or the fix is incomplete. Server agent must verify.
+**Deploy results (on `cloud.kimball.home`):**
+- Full deploy, 15/15 targets succeeded, 308s elapsed
+- Health: Healthy ✅
+- Zero introspection 307 errors since deploy ✅
 
 ---
 
-### Server Actions — `cloud.kimball.home`
+### Next: Client Test — `mint-OptiPlex-7010`
 
-- [ ] **Pull latest and verify you're on the fix branch:**
-  ```bash
-  git checkout fix/files-module-bearer-auth && git pull
-  git log --oneline -3
-  ```
-- [ ] **Check server logs for introspection errors:**
-  ```bash
-  journalctl -u dotnetcloud --since "1 hour ago" | grep -i "introspect\|invalid_token\|audience\|401" | tail -30
-  ```
-- [ ] **Verify the deployed binary contains the fix** (audience check removed at `72a57365`):
-  ```bash
-  strings /opt/dotnetcloud/publish/DotNetCloud.Core.Server.dll | grep -i "audience"
-  # Should return ZERO results if fix is deployed
-  ```
-- [ ] **Check service restart time** vs deploy time:
-  ```bash
-  systemctl show dotnetcloud --property=ActiveEnterTimestamp
-  stat /opt/dotnetcloud/publish/DotNetCloud.Core.Server.dll | grep Modify
-  # ActiveEnterTimestamp must be AFTER Modify timestamp
-  ```
-- [ ] **If service wasn't restarted after deploy:** restart it now and re-check.
-- [ ] **If `strings` finds "audience" in the binary:** the old binary is still live. Rebuild and redeploy:
-  ```bash
-  dotnet build -c Release
-  dotnet publish -c Release
-  sudo ./scripts/deploy.sh
-  ```
-- [ ] **Test introspection directly** from the server:
-  ```bash
-  # Get a fresh token first, then introspect it
-  curl -sk -X POST https://localhost:5443/connect/token \
-    -d "grant_type=password&username=...&password=...&client_id=dotnetcloud-desktop&scope=api"
-  # Then introspect that token via the gRPC introspection endpoint
-  ```
-- [ ] **Update this handoff** with findings and push.
+Test SyncTray against this server to confirm the 401 is resolved:
+
+```bash
+git checkout fix/files-module-bearer-auth && git pull
+dotnet run --project src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj
+```
+
+**Server build:** 0.3.12 (commit `806d0716`)
