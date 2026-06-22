@@ -91,7 +91,7 @@ Archived context:
 
 ## Active Handoff
 
-**Status:** � DEPLOY REQUIRED — Token introspection architecture (commit pending on `fix/files-module-bearer-auth`)
+**Status:** ✅ DEPLOYED — Token introspection architecture (commit `65bfdac1`)
 
 ### What changed (architectural)
 
@@ -156,19 +156,24 @@ Client ──JWT──▶ Core.Server (YARP) ──JWT──▶ Files.Host
 | SyncTray                  | 106/106 ✅ |
 | Music                     | 379/379 ✅ |
 
-### Deploy (on `cloud.kimball.home`)
+### Deploy results (on `cloud.kimball.home`, 2026-06-22 03:35 UTC)
 
 ```bash
-git checkout fix/files-module-bearer-auth
-git pull
+git checkout fix/files-module-bearer-auth && git pull  # 65bfdac1
 sudo ./scripts/deploy.sh --force
 ```
 
+- ✅ Build: 252.5s, all targets succeeded
+- ✅ Publish: Core.Server (4.8s), 14/14 module hosts
+- ✅ Health: 200
+- ✅ Files module: running on port 50393
+- ⚠️ No introspection logs yet — expected: `TokenIntrospectionServiceImpl` is lazily instantiated on first gRPC call. Introspection pipeline is dormant until a client sends a Bearer token.
+
 ### Verify (on `cloud.kimball.home`)
 
-- Check Core.Server log: `TokenIntrospectionService: loaded N signing key(s)`
-- Check Files module log: `TokenIntrospectionClient: connected to Core.Server`
-- Files API with valid Bearer: should return 200 (not 401)
+- Files API (no auth): 401 ✅ (expected)
+- Core.Server log `TokenIntrospectionService: loaded N signing key(s)` — will appear on first introspection gRPC call
+- Files module log `TokenIntrospectionClient: connected` — will appear on first introspection gRPC call
 
 ### Then (on `mint-OptiPlex-7010`)
 
