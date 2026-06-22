@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 20260622 (Deterministic `RsaSecurityKey.KeyId` — root cause of persistent 401s)
+Last updated: 20260622 (IssuerSigningKeyResolver + ComputeRsaKeyId — new deploy needed)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -91,30 +91,33 @@ Archived context:
 
 ## Active Handoff
 
-**Status:** ✅ DEPLOYED — Deterministic `RsaSecurityKey.KeyId` (commit `c1025e75`) deployed to `cloud.dotnetcloud.net`
+**Status:** 🔴 RE-DEPLOY REQUIRED — `IssuerSigningKeyResolver` + `ComputeRsaKeyId` (commit `80285e5f`)
 
-**Deploy results (on `cloud.kimball.home`):**
+**What changed since last deploy (`c1025e75`):**
 
-- Full `--force` deploy, 14/14 modules, dependency sync
-- Health: 200 ✅
-- Files API (no auth): 401 ✅ (expected)
-- Core.Server logs: `Loaded 1 signing key(s) and 1 encryption key(s)` ✅
+1. `ComputeRsaKeyId(RSA)` now uses `RSA.ExportParameters(false)` directly instead of `RsaSecurityKey.Parameters` (which may silently fail at runtime).
+2. `IssuerSigningKeyResolver` returns ALL loaded signing keys regardless of JWT `kid` header — the `JsonWebTokenHandler` iterates through all keys until one verifies the signature. This is the belt-and-suspenders fix that bypasses kid matching entirely.
 
-**Cloud server cannot verify with a valid token** — no refresh token is available on this machine. The client (`mint-OptiPlex-7010`) has the token and must verify.
-
-**Next steps (on `mint-OptiPlex-7010`):**
-
-Verify the fix works end-to-end:
+**Deploy required (on `cloud.kimball.home`):**
 
 ```bash
 git checkout fix/files-module-bearer-auth
 git pull
+sudo ./scripts/deploy.sh --force
+```
+
+**Verification (on `cloud.kimball.home`):**
+- Check Files module log for: `JWT key resolver: token kid=..., returning N signing key(s).`
+- If `N = 0`, keys are not loading — check `DOTNETCLOUD_DATA_DIR` and `oidc-keys/` directory.
+
+**Then (on `mint-OptiPlex-7010`):**
+
+```bash
+git pull
 dotnet run --project src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj
 ```
 
-Expected log: `"SSE stream connected."` (previously got 401 → fell back to polling).
-
-If it works, this issue is resolved. If not, more investigation needed.
+Expected: `"SSE stream connected."`
 
 **Client version:** 0.3.9-alpha
 **Server build:** 0.3.12
