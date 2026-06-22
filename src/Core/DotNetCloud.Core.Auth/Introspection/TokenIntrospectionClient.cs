@@ -1,6 +1,5 @@
 using System.Security.Claims;
 using DotNetCloud.Core.Grpc.TokenIntrospection;
-using Grpc.Core;
 using Grpc.Net.Client;
 using Microsoft.Extensions.Logging;
 
@@ -71,15 +70,8 @@ internal sealed class TokenIntrospectionClient : ITokenIntrospectionClient, IDis
 
         try
         {
-            // Attach module-id header required by Core.Server's AuthenticationInterceptor.
-            var headers = new Metadata
-            {
-                { "module-id", moduleId }
-            };
-
             var response = await _client.IntrospectTokenAsync(
                 request,
-                headers,
                 cancellationToken: cancellationToken);
 
             var result = new IntrospectionResult

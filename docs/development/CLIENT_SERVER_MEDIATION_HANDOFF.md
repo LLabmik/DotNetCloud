@@ -90,6 +90,7 @@ Archived context:
 - **Controller discovery:** Core.Server references Files.Host and Chat.Host via `ProjectReference`. ASP.NET Core auto-discovers controllers from referenced assemblies. Do NOT create duplicate controllers in Core.Server for routes already served by module Host assemblies.
 
 ## Active Handoff
+
 **Status:** 🔧 FIX APPLIED (needs deploy) — Token introspection audience check removed
 
 **Root cause:** `TokenIntrospectionServiceImpl.IntrospectToken()` rejected all bearer tokens because OpenIddict sets `aud` to the issuer URL, not module IDs like `"dotnetcloud.files"`.
@@ -103,27 +104,32 @@ Archived context:
 ### ACTIONS FOR `cloud.kimball.home` (DO THESE NOW):
 
 **Step 1 — Checkout and pull:**
+
 ```bash
 git checkout fix/files-module-bearer-auth && git pull
 ```
 
 **Step 2 — Build (verify it compiles):**
+
 ```bash
 dotnet build
 ```
 
 **Step 3 — Publish:**
+
 ```bash
 dotnet publish -c Release
 ```
 
 **Step 4 — Restart the DotNetCloud service:**
-*(use your normal restart procedure — systemctl, supervisorctl, or whatever manages the dotnet process)*
+_(use your normal restart procedure — systemctl, supervisorctl, or whatever manages the dotnet process)_
 
 **Step 5 — Verify health:**
+
 ```bash
 curl -sk https://localhost:5443/health
 ```
+
 Expected: HTTP 200
 
 **Step 6 — Report back** so `mint-OptiPlex-7010` can test SSE.
@@ -131,7 +137,9 @@ Expected: HTTP 200
 ---
 
 **Post-deploy test (mint-OptiPlex-7010, AFTER server confirms restart):**
+
 ```bash
 dotnet run --project src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj
 ```
+
 Expected: `"SSE stream connected."`
