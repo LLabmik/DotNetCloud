@@ -4161,11 +4161,9 @@ Replaced all JwtBearer local-key-validation with OAuth2-standard token introspec
 - No key sharing, no kid matching, no RSA concerns
 - See current `CLIENT_SERVER_MEDIATION_HANDOFF.md` Active Handoff for deploy instructions
 
-
 ---
 
 ## Archived: Token Introspection Architecture Deploy (2026-06-22)
-
 
 **Status:** ✅ DEPLOYED — Token introspection architecture (commit `65bfdac1`)
 
@@ -4294,4 +4292,3 @@ Token introspection auth (`65bfdac1`) was deployed to `cloud.kimball.home`. Clie
 
 **Client version:** 0.3.9-alpha
 **Server build:** 0.3.12
-
