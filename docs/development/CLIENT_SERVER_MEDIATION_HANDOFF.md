@@ -92,39 +92,46 @@ Archived context:
 ## Active Handoff
 **Status:** 🔧 FIX APPLIED (needs deploy) — Token introspection audience check removed
 
-**What happened:**
+**Root cause:** `TokenIntrospectionServiceImpl.IntrospectToken()` rejected all bearer tokens because OpenIddict sets `aud` to the issuer URL, not module IDs like `"dotnetcloud.files"`.
 
-1. Previous handoff (`eb09a730`): gRPC `MapWhen` cast crash fixed and deployed. SyncTray SSE expected to connect.
-2. `mint-OptiPlex-7010` test: SyncTray SSE still returned 401 after successful token refresh.
-3. Root cause traced to `TokenIntrospectionServiceImpl.IntrospectToken()`:
-   - The method performed an explicit audience check: `jwtToken.Audiences.Contains("dotnetcloud.files")`
-   - OpenIddict sets token `aud` to the issuer URL or client ID (`"dotnetcloud-desktop"`), NOT module IDs
-   - JWT-level audience validation was already disabled (`ValidateAudience = false`)
-   - The explicit check rejected every valid bearer token, causing the `WWW-Authenticate: Bearer error="invalid_token"` response
+**Fix:** Removed the explicit audience check in `src/Core/DotNetCloud.Core.Server/Grpc/Services/TokenIntrospectionServiceImpl.cs`. JWT-level audience validation was already disabled. Scope-based auth suffices.
 
-**Fix applied (this commit):**
+**Tests (mint-OptiPlex-7010):** Build 0 errors, full suite 0 failures.
 
-- `src/Core/DotNetCloud.Core.Server/Grpc/Services/TokenIntrospectionServiceImpl.cs`:
-  - Removed the explicit audience mismatch check block (was lines ~98-116)
-  - Replaced with explanatory comment noting that scope-based authorization provides sufficient access control
+---
 
-**Test results (on `mint-OptiPlex-7010`):**
-- ✅ Build: 0 errors, 0 warnings
-- ✅ Full test suite: 0 failures across all projects
+### ACTIONS FOR `cloud.kimball.home` (DO THESE NOW):
 
-**Next (on `cloud.kimball.home`):**
-
+**Step 1 — Checkout and pull:**
 ```bash
 git checkout fix/files-module-bearer-auth && git pull
-dotnet build && dotnet publish -c Release
-# restart service
 ```
 
-Then test from `mint-OptiPlex-7010`:
+**Step 2 — Build (verify it compiles):**
+```bash
+dotnet build
+```
+
+**Step 3 — Publish:**
+```bash
+dotnet publish -c Release
+```
+
+**Step 4 — Restart the DotNetCloud service:**
+*(use your normal restart procedure — systemctl, supervisorctl, or whatever manages the dotnet process)*
+
+**Step 5 — Verify health:**
+```bash
+curl -sk https://localhost:5443/health
+```
+Expected: HTTP 200
+
+**Step 6 — Report back** so `mint-OptiPlex-7010` can test SSE.
+
+---
+
+**Post-deploy test (mint-OptiPlex-7010, AFTER server confirms restart):**
 ```bash
 dotnet run --project src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj
 ```
-
 Expected: `"SSE stream connected."`
-
-**Server build:** 0.3.12 → should bump to 0.3.13
