@@ -118,6 +118,29 @@ Verification summary:
 
 - Build: 0 warnings, 0 errors on Linux (.NET 10)
 - Tests: 85/85 pass (76 original + 9 new symbol rendering tests added)
+
+---
+
+## Archived: Introspection Auth — Diagnostics Complete, Deploy Latest Fixes (2026-06-22)
+
+**Target:** `cloud.kimball.home` (production)
+**Previous handoff:** Diagnostics complete — keys loading, 401 root cause unknown.
+
+**Summary:** Switched from JwtBearer to gRPC introspection pattern (commit `65bfdac1`). Module hosts validate bearer tokens by calling Core.Server's `TokenIntrospectionServiceImpl` via gRPC instead of validating JWT signatures locally. This eliminates key ID mismatch issues entirely.
+
+**Fixes deployed in this batch (commit `57d4ffc4`, 13 commits since `fd8f0cd7`):**
+
+- `65bfdac1` — feat: token introspection auth (replace broken JwtBearer with gRPC introspection)
+- `435a03da` — fix: gRPC introspection bypasses HTTPS redirect on dedicated port
+- `40042937` — fix: introspection client missing module-id gRPC header
+- `72a57365` — fix: remove audience check from TokenIntrospectionServiceImpl
+- `012d407f` — fix: update handoff docs for audience check removal
+
+**Verification:**
+
+- Health: 200 ✅ → all 14/14 modules healthy
+- Audience check string: 0 occurrences in deployed binary ✓
+- Hash changed: binary updated
 - Programmatic verification: all 6 states produce ≥20 white symbol pixels, no bleed outside circle
 - Visual verification: user confirmed tray icons look good on Linux Mint 22
 - Paused color confirmed RebeccaPurple `#663399` (not amber)
