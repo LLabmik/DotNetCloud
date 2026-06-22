@@ -51,8 +51,7 @@ public static class OidcKeyManager
             logger?.LogInformation("Generated new OpenIddict RSA key at {KeyFile}.", filePath);
         }
 
-        var key = new RsaSecurityKey(rsa);
-        SetDeterministicKeyId(key);
+        var key = new RsaSecurityKey(rsa) { KeyId = ComputeRsaKeyId(rsa) };
         return key;
     }
 
@@ -81,8 +80,7 @@ public static class OidcKeyManager
                 var pem = File.ReadAllText(file);
                 var rsa = RSA.Create();
                 rsa.ImportFromPem(pem);
-                var key = new RsaSecurityKey(rsa);
-                SetDeterministicKeyId(key);
+                var key = new RsaSecurityKey(rsa) { KeyId = ComputeRsaKeyId(rsa) };
                 keys.Add(key);
                 logger?.LogTrace("Loaded OpenIddict key from {KeyFile}.", file);
             }
@@ -125,8 +123,7 @@ public static class OidcKeyManager
         SetSecureFilePermissions(filePath);
 
         logger?.LogInformation("Generated rotated OpenIddict key at {KeyFile}.", filePath);
-        var rotatedKey = new RsaSecurityKey(rsa);
-        SetDeterministicKeyId(rotatedKey);
+        var rotatedKey = new RsaSecurityKey(rsa) { KeyId = ComputeRsaKeyId(rsa) };
         return rotatedKey;
     }
 
@@ -209,27 +206,17 @@ public static class OidcKeyManager
     }
 
     /// <summary>
-    /// Sets a deterministic <see cref="SecurityKey.KeyId"/> on the <see cref="RsaSecurityKey"/>
-    /// based on a SHA-256 hash of the RSA public modulus. This ensures the <c>kid</c> value
-    /// is consistent across processes loading the same PEM file, which is essential for
-    /// JWT Bearer token validation in process-isolated module hosts that load signing keys
-    /// independently from the same shared key directory.
+    /// Computes a deterministic <see cref="SecurityKey.KeyId"/> from an <see cref="RSA"/> key's
+    /// public modulus. Same RSA key → same modulus → same KeyId across all processes.
+    /// This allows process-isolated module hosts to match the JWT <c>kid</c> header set by
+    /// OpenIddict on Core.Server, which uses the <c>SecurityKey.KeyId</c> as the <c>kid</c>.
     /// </summary>
-    /// <param name="key">The RSA security key to set a deterministic KeyId on.</param>
-    private static void SetDeterministicKeyId(RsaSecurityKey key)
+    private static string ComputeRsaKeyId(RSA rsa)
     {
-        try
-        {
-            var modulus = key.Parameters.Modulus;
-            if (modulus is { Length: > 0 })
-            {
-                key.KeyId = Base64UrlEncoder.Encode(SHA256.HashData(modulus));
-            }
-        }
-        catch
-        {
-            // If we can't compute a deterministic KeyId, leave the auto-generated one.
-        }
+        var parameters = rsa.ExportParameters(false);
+        return parameters.Modulus is { Length: > 0 } modulus
+            ? Base64UrlEncoder.Encode(SHA256.HashData(modulus))
+            : Guid.NewGuid().ToString("N"); // fallback — shouldn't happen
     }
 
     private static void SetSecureFilePermissions(string filePath)

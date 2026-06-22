@@ -112,23 +112,25 @@ builder.Services.AddAuthentication(options =>
     })
     .AddJwtBearer("Bearer", options =>
     {
-        // Register ALL shared signing keys for JWT validation.
-        // Using IssuerSigningKeys (plural) ensures tokens signed with any
-        // signing key — original or rotated — are accepted for validation.
+        // Using IssuerSigningKeyResolver (not IssuerSigningKeys) so the handler
+        // receives all loaded keys regardless of JWT kid header match. Each key
+        // is tried in order until one successfully verifies the token signature.
+        // This avoids the kid-matching problem where RsaSecurityKey.KeyId from
+        // PEM loading differs from OpenIddict's kid in the JWT header.
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = false,
             ValidateAudience = false,
             ValidateLifetime = true,
-            // Don't validate IssuerSigningKey by kid match — RsaSecurityKey.KeyId
-            // auto-generated from PEM files doesn't match OpenIddict's kid format.
-            // With IssuerSigningKeys containing all keys, the handler will try each
-            // key's RSA public key for signature verification directly.
             ValidateIssuerSigningKey = false,
-            IssuerSigningKeys = signingKeys.Count > 0 ? signingKeys : null,
+            IssuerSigningKeyResolver = (token, securityToken, kid, parameters) =>
+            {
+                keyLogger.LogInformation(
+                    "JWT key resolver: token kid={Kid}, returning {Count} signing key(s).",
+                    kid ?? "(none)", signingKeys.Count);
+                return signingKeys;
+            },
         };
-        // Preserve original JWT claim names (e.g., "sub" instead of ClaimTypes.NameIdentifier)
-        // so GetAuthenticatedCaller() can find claims via either name.
         options.MapInboundClaims = false;
     })
     .AddPolicyScheme("DotNetCloud.Module", "DotNetCloud.Module", options =>
