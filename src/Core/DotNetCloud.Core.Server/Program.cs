@@ -11,6 +11,7 @@ using DotNetCloud.Core.Security;
 using DotNetCloud.Core.Schema.Services;
 using DotNetCloud.Core.Server.Configuration;
 using DotNetCloud.Core.Server.Extensions;
+using DotNetCloud.Core.Server.Grpc.Services;
 using DotNetCloud.Core.Server.HealthChecks;
 using DotNetCloud.Core.Server.Initialization;
 using DotNetCloud.Core.Server.Middleware;
@@ -829,7 +830,15 @@ public class Program
         // HTTP/2 on a dedicated port and must NOT be redirected to HTTPS.
         app.MapWhen(
             ctx => ctx.Request.ContentType?.StartsWith("application/grpc", StringComparison.OrdinalIgnoreCase) == true,
-            grpcApp => ((WebApplication)grpcApp).MapModuleGrpcServices());
+            grpcApp =>
+            {
+                grpcApp.UseRouting();
+                grpcApp.UseEndpoints(endpoints =>
+                {
+                    endpoints.MapGrpcService<CoreCapabilitiesServiceImpl>();
+                    endpoints.MapGrpcService<TokenIntrospectionServiceImpl>();
+                });
+            });
 
         // Redirect HTTP→HTTPS for browser traffic, but NOT for internal gRPC
         // calls (modules use cleartext HTTP/2 on the gRPC port).

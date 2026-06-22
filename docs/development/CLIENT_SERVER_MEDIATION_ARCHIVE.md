@@ -4292,3 +4292,44 @@ Token introspection auth (`65bfdac1`) was deployed to `cloud.kimball.home`. Clie
 
 **Client version:** 0.3.9-alpha
 **Server build:** 0.3.12
+
+
+---
+
+## Archived: gRPC 307 redirect fix (2026-06-22)
+
+
+**Status:** 🔧 FIX PUSHED — gRPC introspection 307 redirect fixed (commit `435a03da`), ready for deploy
+
+**Root cause found (on `cloud.kimball.home`, `mint-OptiPlex-7010`):**
+
+- Introspection code deployed and running (confirmed via `journalctl`)
+- Files.Host's `IntrospectionAuthenticationHandler` correctly invoked for Bearer tokens
+- gRPC call to Core.Server's `TokenIntrospectionServiceImpl` failing with: `Status(StatusCode="Unknown", Detail="Bad gRPC response. HTTP status code: 307")`
+- Core.Server's `UseHttpsRedirection` middleware was intercepting internal gRPC calls on port 50100 despite `UseWhen` content-type check
+
+**Fix (commit `435a03da`):**
+
+- Added `MapWhen` branch before HTTPS redirect that routes gRPC requests (`Content-Type: application/grpc`) to a dedicated pipeline
+- gRPC branch maps `MapModuleGrpcServices()` directly, bypassing all HTTP-specific middleware
+- 1 file changed (`Program.cs`), 7 insertions
+- All 575 Core.Server tests pass
+
+**Next (on `cloud.kimball.home`):**
+
+```bash
+git checkout fix/files-module-bearer-auth && git pull
+sudo ./scripts/deploy.sh --force
+```
+
+**Verify (on `mint-OptiPlex-7010`):**
+
+```bash
+dotnet run --project src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj
+```
+
+Expected: `"SSE stream connected."`
+
+**Client version:** 0.3.9-alpha
+**Server build:** 0.3.12
+

@@ -90,33 +90,24 @@ Archived context:
 - **Controller discovery:** Core.Server references Files.Host and Chat.Host via `ProjectReference`. ASP.NET Core auto-discovers controllers from referenced assemblies. Do NOT create duplicate controllers in Core.Server for routes already served by module Host assemblies.
 
 ## Active Handoff
+**Status:** ✅ FIXED & DEPLOYED — gRPC MapWhen cast crash, service running (commit `eb09a730` + local fix)
 
-**Status:** 🔧 FIX PUSHED — gRPC introspection 307 redirect fixed (commit `435a03da`), ready for deploy
+**What happened:**
 
-**Root cause found (on `cloud.kimball.home`, `mint-OptiPlex-7010`):**
+- Client's `MapWhen` fix used `(WebApplication)grpcApp` — invalid cast, caused `InvalidCastException` core dump loop
+- Fixed by inlining `UseRouting()` + `UseEndpoints()` with `MapGrpcService<T>()` calls (no cast needed)
+- Added `using DotNetCloud.Core.Server.Grpc.Services;`
 
-- Introspection code deployed and running (confirmed via `journalctl`)
-- Files.Host's `IntrospectionAuthenticationHandler` correctly invoked for Bearer tokens
-- gRPC call to Core.Server's `TokenIntrospectionServiceImpl` failing with: `Status(StatusCode="Unknown", Detail="Bad gRPC response. HTTP status code: 307")`
-- Core.Server's `UseHttpsRedirection` middleware was intercepting internal gRPC calls on port 50100 despite `UseWhen` content-type check
+**Deploy results (on `cloud.kimball.home`):**
 
-**Fix (commit `435a03da`):**
+- ✅ Build: 154s, Core.Server 62.8s
+- ✅ 14/14 modules published, 15/15 targets succeeded
+- ✅ Health: 200, service stable (no core dumps)
 
-- Added `MapWhen` branch before HTTPS redirect that routes gRPC requests (`Content-Type: application/grpc`) to a dedicated pipeline
-- gRPC branch maps `MapModuleGrpcServices()` directly, bypassing all HTTP-specific middleware
-- 1 file changed (`Program.cs`), 7 insertions
-- All 575 Core.Server tests pass
-
-**Next (on `cloud.kimball.home`):**
+**Next (on `mint-OptiPlex-7010`):**
 
 ```bash
 git checkout fix/files-module-bearer-auth && git pull
-sudo ./scripts/deploy.sh --force
-```
-
-**Verify (on `mint-OptiPlex-7010`):**
-
-```bash
 dotnet run --project src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj
 ```
 
