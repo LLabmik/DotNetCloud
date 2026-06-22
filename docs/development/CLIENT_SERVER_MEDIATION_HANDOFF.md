@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 20260622 (Token introspection architecture — ready for deploy)
+Last updated: 20260622 (Token introspection — client verified 401s persist; needs server redeploy)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -19,6 +19,45 @@ Archived context:
 - Agents pull the latest `main`, read the **Active Handoff** section, and execute the work described there independently.
 - All actionable items, blockers, and technical details go directly in this document (committed to `main`).
 - No moderator involvement in technical decisions, code reviews, or work coordination.
+
+**Role separation (MANDATORY):**
+
+- **Client code** (`src/Clients/`, `src/UI/`) is handled ONLY by client machines (`mint-OptiPlex-7010`, `Windows11-TestDNC`, `mint-dnc-client`, `monolith`).
+- **Server code** (`src/Core/`, `src/Modules/`) is handled ONLY by server machines (`cloud.kimball.home`, `mint22`).
+- Each agent ONLY executes actions in the block matching their machine name (from the Environment table).
+- If no action block matches your machine, the handoff is not for you — relay it to the moderator.
+- Never cross role boundaries: a client agent never deploys server code, a server agent never builds client apps.
+
+**Active Handoff format (MANDATORY):**
+
+Every Active Handoff MUST use per-machine action blocks. Actions are grouped by the machine that executes them, using the exact machine names from the Environment table.
+
+```markdown
+## Active Handoff
+
+**Summary:** [one-line description of what's happening]
+
+[Context/background — what changed, why, relevant commits]
+
+---
+
+### Server Actions — `cloud.kimball.home`
+
+- [ ] Action 1 with exact commands
+- [ ] Action 2
+
+### Client Actions — `mint-OptiPlex-7010`
+
+- [ ] Action 1 with exact commands
+- [ ] Action 2
+```
+
+**Critical rules:**
+- Each agent ONLY executes actions in the block matching their machine name (from the Environment table).
+- If no action block matches your machine, the handoff is not for you — relay it to the moderator.
+- Always include exact commands (ready to copy-paste).
+- Mark blocks with `✓` when complete; update status inline.
+- One handoff may have 1 or 2 action blocks depending on workflow stage.
 
 **Handoff management:**
 
@@ -91,7 +130,7 @@ Archived context:
 
 ## Active Handoff
 
-**Status:** DEPLOYED — introspection auth fixes live on `cloud.kimball.home` (commit `57d4ffc4`)
+**Status:** VERIFYING — deploy was reported but 401s persist on client
 
 **What changed (13 commits since prior deploy at `fd8f0cd7`):**
 
@@ -100,20 +139,55 @@ Archived context:
 3. **Module-id header fix** (`40042937`) — `TokenIntrospectionClient` now sends `module-id` gRPC metadata
 4. **Audience check removed** (`72a57365`) — `TokenIntrospectionServiceImpl` no longer rejects tokens for missing audience
 
-**Deploy results (on `cloud.kimball.home`, 2026-06-22):**
+**Deploy was reported** (on `cloud.kimball.home`, 2026-06-22): `sudo ./scripts/deploy.sh` → 15/15 succeeded, health 200, 14/14 modules healthy.
 
-- `sudo ./scripts/deploy.sh` → 15/15 targets succeeded, 343s elapsed
-- Health: 200 OK → all 14/14 modules healthy
-- Audience check strings: 0 occurrences in deployed binary
-- Hash verification: deployed DLL matches build output
+---
 
-**Client-side verification (mint-OptiPlex-7010, 2026-06-22, prior to deploy):** SyncTray confirmed token refresh 200 but API calls returned 401 — confirming the fix wasn’t deployed yet at that point.
+### Client Actions — `mint-OptiPlex-7010`
 
-**Next:** Test SyncTray from `mint-OptiPlex-7010` against the currently deployed server to confirm the auth fix resolves the 401.
+- ✓ Build SyncTray: `dotnet build src/Clients/DotNetCloud.Client.SyncTray/` → 0 errors
+- ✓ Run SyncTray against `cloud.dotnetcloud.net` — **401s persist:**
+  - Token refresh: `POST /connect/token` → 200 OK ✓
+  - API call: `GET api/v1/files/sync/device-cursor` → 401 `error="invalid_token"` ✗
+  - SSE stream: 401 on 3 consecutive attempts, fell back to polling
+- **Conclusion:** The deploy either didn't take effect or the fix is incomplete. Server agent must verify.
 
-```bash
-git checkout fix/files-module-bearer-auth && git pull
-dotnet run --project src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj
-```
+---
 
-**Server build:** 0.3.12 (commit 57d4ffc4)
+### Server Actions — `cloud.kimball.home`
+
+- [ ] **Pull latest and verify you're on the fix branch:**
+  ```bash
+  git checkout fix/files-module-bearer-auth && git pull
+  git log --oneline -3
+  ```
+- [ ] **Check server logs for introspection errors:**
+  ```bash
+  journalctl -u dotnetcloud --since "1 hour ago" | grep -i "introspect\|invalid_token\|audience\|401" | tail -30
+  ```
+- [ ] **Verify the deployed binary contains the fix** (audience check removed at `72a57365`):
+  ```bash
+  strings /opt/dotnetcloud/publish/DotNetCloud.Core.Server.dll | grep -i "audience"
+  # Should return ZERO results if fix is deployed
+  ```
+- [ ] **Check service restart time** vs deploy time:
+  ```bash
+  systemctl show dotnetcloud --property=ActiveEnterTimestamp
+  stat /opt/dotnetcloud/publish/DotNetCloud.Core.Server.dll | grep Modify
+  # ActiveEnterTimestamp must be AFTER Modify timestamp
+  ```
+- [ ] **If service wasn't restarted after deploy:** restart it now and re-check.
+- [ ] **If `strings` finds "audience" in the binary:** the old binary is still live. Rebuild and redeploy:
+  ```bash
+  dotnet build -c Release
+  dotnet publish -c Release
+  sudo ./scripts/deploy.sh
+  ```
+- [ ] **Test introspection directly** from the server:
+  ```bash
+  # Get a fresh token first, then introspect it
+  curl -sk -X POST https://localhost:5443/connect/token \
+    -d "grant_type=password&username=...&password=...&client_id=dotnetcloud-desktop&scope=api"
+  # Then introspect that token via the gRPC introspection endpoint
+  ```
+- [ ] **Update this handoff** with findings and push.
