@@ -91,50 +91,29 @@ Archived context:
 
 ## Active Handoff
 
-**Target machine:** `cloud.kimball.home` (production server — `https://cloud.dotnetcloud.net/`)
+**Status:** DEPLOYED — introspection auth fixes live on `cloud.kimball.home` (commit `57d4ffc4`)
 
-**Status:** 🔧 FIX APPLIED (needs deploy) — Token introspection audience check removed
+**What changed (13 commits since prior deploy at `fd8f0cd7`):**
 
-**Root cause:** `TokenIntrospectionServiceImpl.IntrospectToken()` rejected all bearer tokens because OpenIddict sets `aud` to the issuer URL, not module IDs like `"dotnetcloud.files"`.
+1. **gRPC introspection auth** (`65bfdac1`) — replaced broken JwtBearer with gRPC-based token introspection
+2. **HTTPS redirect bypass** (`435a03da`) — gRPC introspection on dedicated port no longer redirected
+3. **Module-id header fix** (`40042937`) — `TokenIntrospectionClient` now sends `module-id` gRPC metadata
+4. **Audience check removed** (`72a57365`) — `TokenIntrospectionServiceImpl` no longer rejects tokens for missing audience
 
-**Fix:** Removed the explicit audience check in `src/Core/DotNetCloud.Core.Server/Grpc/Services/TokenIntrospectionServiceImpl.cs`. JWT-level audience validation was already disabled. Scope-based auth suffices.
+**Deploy results (on `cloud.kimball.home`, 2026-06-22):**
 
-**Pre-merge validation:** Build 0 errors. Full test suite 0 failures.
+- `sudo ./scripts/deploy.sh` → 15/15 targets succeeded, 343s elapsed
+- Health: 200 OK → all 14/14 modules healthy
+- Audience check strings: 0 occurrences in deployed binary
+- Hash verification: deployed DLL matches build output
 
-**Client-side verification (mint-OptiPlex-7010, 2026-06-22):** SyncTray client built and ran against `cloud.dotnetcloud.net`. Token refresh succeeds (`POST /connect/token` → 200), but API calls return 401 (`error="invalid_token"`) — confirming the fix has NOT been deployed yet. Client itself operates correctly (token refresh, tray icon, sync engine init, graceful SSE→polling fallback).
+**Client-side verification (mint-OptiPlex-7010, 2026-06-22, prior to deploy):** SyncTray confirmed token refresh 200 but API calls returned 401 — confirming the fix wasn’t deployed yet at that point.
 
----
-
-### YOUR ACTIONS (do these now, in order, on `cloud.kimball.home`):
-
-**1. Checkout and pull:**
+**Next:** Test SyncTray from `mint-OptiPlex-7010` against the currently deployed server to confirm the auth fix resolves the 401.
 
 ```bash
 git checkout fix/files-module-bearer-auth && git pull
+dotnet run --project src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj
 ```
 
-**2. Build:**
-
-```bash
-dotnet build
-```
-
-**3. Publish:**
-
-```bash
-dotnet publish -c Release
-```
-
-**4. Restart the DotNetCloud service** using your normal procedure.
-
-**5. Verify health:**
-
-```bash
-curl -sk https://localhost:5443/health
-```
-
-Must return HTTP 200.
-
-**6. Verify the fix:** On `mint-OptiPlex-7010`, restart the SyncTray client and confirm API calls no longer return 401.
-
-**7. Update this handoff** with your results and push.
+**Server build:** 0.3.12 (commit 57d4ffc4)

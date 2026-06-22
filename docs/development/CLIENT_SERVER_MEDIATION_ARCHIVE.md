@@ -34,17 +34,17 @@ Added JWT Bearer auth + policy scheme using `Microsoft.AspNetCore.Authentication
 
 **Deploy execution (2026-06-21):**
 
-1. ✅ `dotnet build` — 0 errors
-2. ✅ `sudo ./scripts/deploy.sh` — All 3 targets succeeded
+1. [OK] `dotnet build` — 0 errors
+2. [OK] `sudo ./scripts/deploy.sh` — All 3 targets succeeded
 3. ⚠️ **Issue:** Incremental deploy only copied module host DLLs, not transitive JWT dependencies
-4. ✅ Manually copied `Microsoft.IdentityModel.*` + `System.IdentityModel.*` + `JwtBearer.dll` to module directory
-5. ✅ Service restarted
+4. [OK] Manually copied `Microsoft.IdentityModel.*` + `System.IdentityModel.*` + `JwtBearer.dll` to module directory
+5. [OK] Service restarted
 
 **Verification (JwtBearer):**
 
-- Health: 200 ✅
-- Files API (no auth): 401 ✅
-- SSE with `Bearer test`: **401** (was 500 — JWT handler loads correctly now) ✅
+- Health: 200 [OK]
+- Files API (no auth): 401 [OK]
+- SSE with `Bearer test`: **401** (was 500 — JWT handler loads correctly now) [OK]
 - **But:** Client's valid tokens also returned 401 — `IssuerSigningKey` used only `signingKeys[0]` which didn't match OpenIddict's signing key after rotation
 
 ### Attempt 2: OpenIddict Validation (commits `b45b1691` + `e2896d99`)
@@ -64,15 +64,15 @@ Added JWT Bearer auth + policy scheme using `Microsoft.AspNetCore.Authentication
 
 **Deploy execution (2026-06-21, second deploy):**
 
-1. ✅ Force deploy — all 14 modules published
-2. ✅ Post-publish dependency sync copies transitive assemblies
-3. ✅ Service restarted
+1. [OK] Force deploy — all 14 modules published
+2. [OK] Post-publish dependency sync copies transitive assemblies
+3. [OK] Service restarted
 
 **Verification (OpenIddict):**
 
-- Health: 200 ✅
-- Files API (no auth): 401 (expected) ✅
-- Files API with invalid Bearer: returns OpenIddict-specific `WWW-Authenticate: Bearer error="invalid_token", error_description="..."` ✅
+- Health: 200 [OK]
+- Files API (no auth): 401 (expected) [OK]
+- Files API with invalid Bearer: returns OpenIddict-specific `WWW-Authenticate: Bearer error="invalid_token", error_description="..."` [OK]
 - **But:** Real valid tokens also returned 401 — `SetIssuer()` + `UseSystemNetHttp()` forces OpenIddict to make HTTPS discovery requests to `cloud.dotnetcloud.net` for JWKS resolution. In a process-isolated module host, this fails (network isolation/DNS loopback), causing ALL tokens to be rejected regardless of validity.
 
 ### Attempt 3: JwtBearer with all signing keys (current, commit pending)
@@ -100,9 +100,9 @@ Deployed to `cloud.dotnetcloud.net` on 2026-06-22.
 
 **Verification:**
 
-- Health: 200 ✅
-- Files API (no auth): 401 ✅
-- SSE with Bearer (invalid token): 401 ✅ (was 500 — auth middleware loading)
+- Health: 200 [OK]
+- Files API (no auth): 401 [OK]
+- SSE with Bearer (invalid token): 401 [OK] (was 500 — auth middleware loading)
 - **Result: FAILED** — Client valid tokens still returned `invalid_token`. `ValidateIssuerSigningKey = false` alone does not fix it; `JsonWebTokenHandler` cannot find a key by `kid` match and fails before attempting signature verification.
 
 **Root cause discovered on `mint-OptiPlex-7010`:** `RsaSecurityKey.KeyId` is randomly generated each time `new RsaSecurityKey(rsa)` is called. Core.Server's `OidcKeyManager.LoadOrCreateKey` generates `KeyId` "A", OpenIddict puts it in JWT `kid` header. Files.Host's `OidcKeyManager.LoadAllKeys` generates `KeyId` "B" from the same PEM — mismatch, handler rejects.
@@ -138,8 +138,8 @@ Verification summary:
 
 **Verification:**
 
-- Health: 200 ✅ → all 14/14 modules healthy
-- Audience check string: 0 occurrences in deployed binary ✓
+- Health: 200 [OK] → all 14/14 modules healthy
+- Audience check string: 0 occurrences in deployed binary [x]
 - Hash changed: binary updated
 - Programmatic verification: all 6 states produce ≥20 white symbol pixels, no bleed outside circle
 - Visual verification: user confirmed tray icons look good on Linux Mint 22
@@ -260,7 +260,7 @@ The `/api/v1/core/auth/login` endpoint returns placeholder token fields by desig
 ## Archived: Phase 3.8 Documentation And Release Readiness COMPLETE on mint22 (2026-03-23)
 
 **Original target:** mint22
-**Original status:** COMPLETE ✅
+**Original status:** COMPLETE [OK]
 
 All Phase 3.8 documentation deliverables created. 8 new doc files, 5 existing files updated.
 
@@ -279,14 +279,14 @@ All Phase 3.8 documentation deliverables created. 8 new doc files, 5 existing fi
 
 - `docs/api/README.md` — added module API reference links
 - `README.md` — updated Phase 3 status, added PIM doc links (admin, user guides, release notes)
-- `docs/IMPLEMENTATION_CHECKLIST.md` — marked Phase 3.8 items ✓
-- `docs/MASTER_PROJECT_PLAN.md` — Phase 3.8 status completed, deliverables marked ✓
-- `docs/PHASE_3_IMPLEMENTATION_PLAN.md` — Phase 3.8 deliverables/exit criteria marked ✓, Milestone D complete
+- `docs/IMPLEMENTATION_CHECKLIST.md` — marked Phase 3.8 items [x]
+- `docs/MASTER_PROJECT_PLAN.md` — Phase 3.8 status completed, deliverables marked [x]
+- `docs/PHASE_3_IMPLEMENTATION_PLAN.md` — Phase 3.8 deliverables/exit criteria marked [x], Milestone D complete
 
 ## Archived: Phase 3.7 Testing And Quality Gates COMPLETE on mint22 (2026-03-25)
 
 **Original target:** mint22
-**Original status:** COMPLETE ✅
+**Original status:** COMPLETE [OK]
 
 Comprehensive test suite for all three PIM modules. 224 new tests across 8 new test files. All 2,700 CI tests pass.
 
@@ -306,7 +306,7 @@ Comprehensive test suite for all three PIM modules. 224 new tests across 8 new t
 ## Archived: Phase 3.6 Migration Foundation COMPLETE on mint22 (2026-03-24)
 
 **Original target:** mint22
-**Original status:** COMPLETE ✅
+**Original status:** COMPLETE [OK]
 
 Import infrastructure for NextCloud migration paths. Contracts, pipeline, 3 module providers, dry-run mode. 51 new tests, 2,476 total CI tests pass.
 
@@ -325,7 +325,7 @@ Import infrastructure for NextCloud migration paths. Contracts, pipeline, 3 modu
 ## Archived: Phase 3.5 Cross-Module Integration COMPLETE on mint22 (2026-03-24)
 
 **Original target:** mint22
-**Original status:** COMPLETE ✅
+**Original status:** COMPLETE [OK]
 
 Cross-module integration implemented for Contacts, Calendar, and Notes PIM modules. 30 new tests, all 2,500+ solution tests pass.
 
@@ -342,14 +342,14 @@ Cross-module integration implemented for Contacts, Calendar, and Notes PIM modul
 ## Archived: Phase 3.4 Notes Module COMPLETE on mint22 (2026-03-24)
 
 **Original target:** mint22
-**Original status:** COMPLETE ✅
+**Original status:** COMPLETE [OK]
 
 Full Notes module implemented (3-tier: Main/Data/Host). 50/50 tests pass.
 
 ## Archived: Phase 3.3 Calendar Module COMPLETE on mint22 (2026-03-24)
 
 **Original target:** mint22
-**Original status:** COMPLETE ✅
+**Original status:** COMPLETE [OK]
 
 Full Calendar module implemented (3-tier: Main/Data/Host). 39/39 tests pass.
 
@@ -367,7 +367,7 @@ Full Calendar module implemented (3-tier: Main/Data/Host). 39/39 tests pass.
 Archived from Active Handoff on 2026-03-23 after post-closeout Windows runtime smoke validation on `Windows11-TestDNC`.
 
 **Original target:** `Windows11-TestDNC`
-**Original status:** COMPLETE ✅
+**Original status:** COMPLETE [OK]
 
 ### Pull latest
 
@@ -400,7 +400,7 @@ Archived from Active Handoff on 2026-03-23 after post-closeout Windows runtime s
 Archived from Active Handoff on 2026-03-23 after server-side release-confidence validation on `mint22`.
 
 **Original target:** `mint22`
-**Original status:** COMPLETE ✅
+**Original status:** COMPLETE [OK]
 
 ### Validation evidence
 
@@ -429,7 +429,7 @@ Archived from Active Handoff on 2026-03-23 after server-side release-confidence 
 Archived from Active Handoff on 2026-03-23 after Windows validation on `Windows11-TestDNC`.
 
 **Original target:** `Windows11-TestDNC`
-**Original status:** COMPLETE ✅
+**Original status:** COMPLETE [OK]
 
 ### Additional fix required on Windows test host
 
@@ -463,7 +463,7 @@ Archived from Active Handoff on 2026-03-23 after Windows validation on `Windows1
 Archived from Active Handoff on 2026-03-23 after implementing and validating all four client-side security findings on `mint-dnc-client`.
 
 **Original target:** `mint-dnc-client`
-**Original status:** COMPLETE ✅
+**Original status:** COMPLETE [OK]
 
 ### Delivered fixes
 
@@ -498,7 +498,7 @@ Archived from Active Handoff on 2026-03-23 after implementing and validating all
 Archived from Active Handoff on 2026-03-22 after successful interactive verification on `Windows11-TestDNC`.
 
 **Target:** `Windows11-TestDNC`
-**Status:** COMPLETE ✅
+**Status:** COMPLETE [OK]
 **MSIX version:** `0.27.0-alpha`
 
 ### Verification Results
@@ -512,10 +512,10 @@ Archived from Active Handoff on 2026-03-22 after successful interactive verifica
 
 ### Acceptance Criteria — All Met
 
-- ✓ Add Account default URL uses `https://mint22.kimball.home:5443/` without manual correction.
-- ✓ Authorize URL targets `https://mint22.kimball.home:5443/connect/authorize?...`.
-- ✓ Login page reached on Windows flow without connection-refused.
-- ✓ No stale `:15443` source in desktop client code.
+- [x] Add Account default URL uses `https://mint22.kimball.home:5443/` without manual correction.
+- [x] Authorize URL targets `https://mint22.kimball.home:5443/connect/authorize?...`.
+- [x] Login page reached on Windows flow without connection-refused.
+- [x] No stale `:15443` source in desktop client code.
 
 ---
 
@@ -524,7 +524,7 @@ Archived from Active Handoff on 2026-03-22 after successful interactive verifica
 Archived from Active Handoff on 2026-03-22 when the active slot was reassigned to server connectivity diagnostics for `mint22`.
 
 **Original target:** `mint-dnc-client`
-**Original status:** COMPLETE ✅
+**Original status:** COMPLETE [OK]
 **Commit:** `a725206`
 
 ### Files changed
@@ -549,7 +549,7 @@ Archived from Active Handoff on 2026-03-22 when the active slot was reassigned t
 Archived from Active Handoff on 2026-03-22 when the active slot was reassigned to Linux client toast consolidation work.
 
 **Original target:** none (verification complete)
-**Original status:** COMPLETE ✅
+**Original status:** COMPLETE [OK]
 
 ### Results (2026-03-21, mint22)
 
@@ -574,7 +574,7 @@ Archived from Active Handoff on 2026-03-22 when the active slot was reassigned t
 Archived from Active Handoff on 2026-03-21. Server redeployed with child count fix; service stable.
 
 **Original target:** `mint22`
-**Original status:** COMPLETE ✅
+**Original status:** COMPLETE [OK]
 
 ### What was deployed
 
@@ -1143,12 +1143,12 @@ Client agent verified the server-side sync fixes (cursor path + rate limit raise
 
 **Results (4 sync passes observed: 16:12, 16:17, 16:17:47, 16:18:09 UTC):**
 
-- `GET /api/v1/files/sync/changes?limit=500` → **200 OK** (6ms). Client received cursor-based Object format (proven by subsequent pass using `cursor=MDE5Y2MxYWMtZGE0Mi03MzdjLWIwYWItZDBmMmVjY2E4MDE5OjA%3D`). ✅
-- `GET /api/v1/files/sync/tree` → **200 OK** (8–25ms). ✅
-- `POST /connect/token` (refresh) → **200 OK** (209ms). ✅
-- **Zero 429 errors** across all 4 passes. ✅
-- **Zero 404 errors.** ✅
-- **Zero Error-level log entries.** ✅
+- `GET /api/v1/files/sync/changes?limit=500` → **200 OK** (6ms). Client received cursor-based Object format (proven by subsequent pass using `cursor=MDE5Y2MxYWMtZGE0Mi03MzdjLWIwYWItZDBmMmVjY2E4MDE5OjA%3D`). [OK]
+- `GET /api/v1/files/sync/tree` → **200 OK** (8–25ms). [OK]
+- `POST /connect/token` (refresh) → **200 OK** (209ms). [OK]
+- **Zero 429 errors** across all 4 passes. [OK]
+- **Zero 404 errors.** [OK]
+- **Zero Error-level log entries.** [OK]
 - Files on disk: 8 files synced (from prior download), local state.db cursor persisted correctly.
 - FileSystemWatcher reactive sync working — file creation/rename triggers immediate sync passes.
 
@@ -1312,14 +1312,14 @@ Required coverage:
 
 ### Server Progress Checklist
 
-- ✓ Test-gap inventory posted
-- ✓ New REST integration tests added
-- ✓ New chunked upload E2E tests added
-- ✓ New version/share/trash E2E tests added
-- ✓ WOPI + sync smoke tests added
+- [x] Test-gap inventory posted
+- [x] New REST integration tests added
+- [x] New chunked upload E2E tests added
+- [x] New version/share/trash E2E tests added
+- [x] WOPI + sync smoke tests added
 - ☐ PostgreSQL run completed
-- ✓ SQL Server run attempted/documented
-- ✓ Evidence returned (commit/tests/logs)
+- [x] SQL Server run attempted/documented
+- [x] Evidence returned (commit/tests/logs)
 
 ### Build/Test Commands (run from repo root on `mint22`)
 
@@ -1472,7 +1472,7 @@ Required coverage:
 
 **Date:** 2026-03-10  
 **Owner:** Server (`Linux workspace`)  
-**Status at time of update:** completed ✅
+**Status at time of update:** completed [OK]
 
 **Key points:**
 
@@ -1486,7 +1486,7 @@ Required coverage:
 
 **Date:** 2026-03-10  
 **Owner:** Server (`Windows workspace`)  
-**Status at time of update:** completed ✅
+**Status at time of update:** completed [OK]
 
 **Command executed:**
 
@@ -1503,7 +1503,7 @@ Required coverage:
 ### Issue #46: Batch 5 Task 5.1 - Bandwidth Throttling
 
 **Side:** Client-only  
-**Status:** completed ✅
+**Status:** completed [OK]
 
 **Archived implementation summary:**
 
@@ -1517,7 +1517,7 @@ Required coverage:
 ### Issue #47: Batch 5 Task 5.2 - Selective Sync Folder Browser
 
 **Side:** Client-only  
-**Status:** completed ✅
+**Status:** completed [OK]
 
 **Archived implementation summary:**
 
@@ -1599,14 +1599,14 @@ Purpose: Shared handoff between client-side and server-side agents, mediated by 
 
 **Batch 4 — ALL ISSUES RESOLVED:**
 
-- Issue #43 (Task 4.3): Symbolic link policy — server ✅ `d3a6422`, client ✅ `1cd594a`
-- Issue #44 (Task 4.4): inotify/inode health monitoring — server ✅ `d3a6422`, client ✅ `1cd594a`
-- Issue #45 (Task 4.5): Path length/filename validation — server ✅ `d3a6422`, client ✅ `1cd594a`
+- Issue #43 (Task 4.3): Symbolic link policy — server [OK] `d3a6422`, client [OK] `1cd594a`
+- Issue #44 (Task 4.4): inotify/inode health monitoring — server [OK] `d3a6422`, client [OK] `1cd594a`
+- Issue #45 (Task 4.5): Path length/filename validation — server [OK] `d3a6422`, client [OK] `1cd594a`
 
 **Batch 5 — ALL ISSUES RESOLVED:**
 
-- Issue #46 (Task 5.1): Bandwidth throttling — client ✅ complete
-- Issue #47 (Task 5.2): Selective sync folder browser — client ✅ complete
+- Issue #46 (Task 5.1): Bandwidth throttling — client [OK] complete
+- Issue #47 (Task 5.2): Selective sync folder browser — client [OK] complete
 
 **All sync improvement batches (1–5) are now complete.** The sync improvement plan is closed.
 See [SYNC_IMPROVEMENT_PLAN.md](SYNC_IMPROVEMENT_PLAN.md) for full history.
@@ -1695,7 +1695,7 @@ New client contract-alignment patch is on `main`. Please pull and continue with 
 
 **Date:** 2026-03-10  
 **Owner:** Client (`Windows workspace`)  
-**Status:** completed and pushed ✅
+**Status:** completed and pushed [OK]
 
 **Commit hash:** `ed2a000`
 
@@ -1742,7 +1742,7 @@ New commit on main (`ed2a000`) with completed client Phase 2.9 regression pass a
 
 **Date:** 2026-03-10
 **Owner:** Client (`Windows workspace`)
-**Status:** completed and pushed ✅
+**Status:** completed and pushed [OK]
 
 **Baseline commit:** `95a4e2b`
 
@@ -1841,16 +1841,16 @@ Do not modify server projects.
 
 **Deploy execution (cloud.dotnetcloud.net, 2026-06-21):**
 
-1. ✅ Full `--force` deploy — 14/14 module hosts published
-2. ✅ Dependency sync ran — all transitive NuGet assemblies copied
-3. ✅ Service restarted, health 200
+1. [OK] Full `--force` deploy — 14/14 module hosts published
+2. [OK] Dependency sync ran — all transitive NuGet assemblies copied
+3. [OK] Service restarted, health 200
 
 **Verification:**
 
-- Health: 200 ✅
-- Files module health check: **200** ✅ (was 500)
-- Files API (no auth): 401 (expected) ✅
-- SSE with `Bearer test`: **401** ✅ (was 500)
+- Health: 200 [OK]
+- Files module health check: **200** [OK] (was 500)
+- Files API (no auth): 401 (expected) [OK]
+- SSE with `Bearer test`: **401** [OK] (was 500)
 
 **Key lesson:** Module hosts using `SetIssuer()` with OpenIddict validation must also call `.UseSystemNetHttp()` and reference the `OpenIddict.Validation.SystemNetHttp` package.
 
@@ -1917,7 +1917,7 @@ Blockers (if any): none
 
 **Date:** 2026-03-10
 **Owner:** Client (`Windows workspace`)
-**Status:** ready for handoff ✅
+**Status:** ready for handoff [OK]
 
 **Baseline commit:** `67d4559`
 
@@ -2105,17 +2105,17 @@ Blockers (if any):
 
 Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER_PROJECT_PLAN.md` (`phase-2.4`).
 
-- ✓ Sprint A kickoff sent
-- ✓ Sprint A complete (`phase-1.19.2`)
-- ✓ Sprint B kickoff sent (`phase-1.15` deferred hardening)
-- ✓ Sprint B complete (`phase-1.15` deferred hardening)
-- ✓ Sprint C complete (`phase-1.12` deferred UX/media)
+- [x] Sprint A kickoff sent
+- [x] Sprint A complete (`phase-1.19.2`)
+- [x] Sprint B kickoff sent (`phase-1.15` deferred hardening)
+- [x] Sprint B complete (`phase-1.15` deferred hardening)
+- [x] Sprint C complete (`phase-1.12` deferred UX/media)
 
 ### Phase 2.3 Update #1 - Service Hardening + Verification (Server, Linux workspace)
 
 **Date:** 2026-03-10  
 **Owner:** Server (`Linux workspace`)  
-**Status:** completed ✅
+**Status:** completed [OK]
 
 **Commit hash:** `260199c`
 
@@ -2183,7 +2183,7 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 
 **Date:** 2026-03-10  
 **Owner:** Client (`Windows workspace`)  
-**Status:** completed ✅
+**Status:** completed [OK]
 
 **Commit hash:** `9bcbcbf`
 
@@ -2235,7 +2235,7 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 
 **Date:** 2026-03-10  
 **Owner:** Server (`Linux workspace`)  
-**Status:** completed ✅ (incremental phase-2.4 scope)
+**Status:** completed [OK] (incremental phase-2.4 scope)
 
 **Commit hash:** `7ccc3d1`
 
@@ -2289,7 +2289,7 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 
 **Date:** 2026-03-10  
 **Owner:** Server (`Linux workspace`)  
-**Status:** completed ✅
+**Status:** completed [OK]
 
 **Commit hash:** `5a6563c`
 
@@ -2337,7 +2337,7 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 
 **Date:** 2026-03-10  
 **Owner:** Server (`mint22`)  
-**Status:** completed ✅ (incremental phase-2.5 scope)
+**Status:** completed [OK] (incremental phase-2.5 scope)
 
 **Commit hash:** `f9e5453`
 
@@ -2415,7 +2415,7 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 
 **Date:** 2026-03-10  
 **Owner:** Server (`mint22`)  
-**Status:** completed ✅ (incremental phase-2.5 scope)
+**Status:** completed [OK] (incremental phase-2.5 scope)
 
 **Commit hash:** `a10f382`
 
@@ -2466,7 +2466,7 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 
 **Date:** 2026-03-10  
 **Owner:** Server (`mint22`)  
-**Status:** completed ✅ (finishes remaining phase-2.5 scope)
+**Status:** completed [OK] (finishes remaining phase-2.5 scope)
 
 **Commit hash:** `56fbe8c`
 
@@ -2520,7 +2520,7 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 
 **Date:** 2026-03-10  
 **Owner:** Server (`mint22`)  
-**Status:** completed ✅
+**Status:** completed [OK]
 
 **Commit hash:** `b987643`
 
@@ -2584,7 +2584,7 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 
 **Date:** 2026-03-10  
 **Owner:** Server (`mint22`)  
-**Status:** completed ✅ (incremental phase-2.7 scope)
+**Status:** completed [OK] (incremental phase-2.7 scope)
 
 **Commit hash:** `092dfd9`
 
@@ -2638,7 +2638,7 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 
 **Date:** 2026-03-10  
 **Owner:** Server (`mint22`)  
-**Status:** completed ✅ (incremental phase-2.7 scope)
+**Status:** completed [OK] (incremental phase-2.7 scope)
 
 **Commit hash:** `042a12b`
 
@@ -2709,7 +2709,7 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 
 **Date:** 2026-03-10  
 **Owner:** Server (`mint22`)  
-**Status:** completed ✅ (incremental phase-2.7 scope)
+**Status:** completed [OK] (incremental phase-2.7 scope)
 
 **Commit hash:** `0703bf4`
 
@@ -2769,7 +2769,7 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 
 **Date:** 2026-03-10  
 **Owner:** Server (`mint22`)  
-**Status:** completed ✅ (final phase-2.7 scope)
+**Status:** completed [OK] (final phase-2.7 scope)
 
 **Commit hash:** `42aa009`
 
@@ -2824,7 +2824,7 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 
 **Date:** 2026-03-10  
 **Owner:** Server (`mint22`)  
-**Status:** completed ✅ (incremental phase-2.8 scope)
+**Status:** completed [OK] (incremental phase-2.8 scope)
 
 **Commit hash:** `0f7ca2b`
 
@@ -2873,7 +2873,7 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 
 **Date:** 2026-03-10  
 **Owner:** Server (`mint22`)  
-**Status:** completed ✅ (incremental phase-2.8 scope)
+**Status:** completed [OK] (incremental phase-2.8 scope)
 
 **Commit hash:** `1ce0326`
 
@@ -2922,7 +2922,7 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 
 **Date:** 2026-03-10  
 **Owner:** Server (`mint22`)  
-**Status:** completed ✅ (incremental phase-2.8 scope)
+**Status:** completed [OK] (incremental phase-2.8 scope)
 
 **Commit hash:** `e0dc999`
 
@@ -2970,7 +2970,7 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 
 **Date:** 2026-03-10  
 **Owner:** Server (`mint22`)  
-**Status:** completed ✅ (incremental phase-2.8 scope)
+**Status:** completed [OK] (incremental phase-2.8 scope)
 
 **Commit hash:** `2c86a4a`
 
@@ -3021,7 +3021,7 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 
 **Date:** 2026-03-10  
 **Owner:** Server (`mint22`)  
-**Status:** completed ✅ (server-only hardening scope)
+**Status:** completed [OK] (server-only hardening scope)
 
 **Commit hash:** `1d5730b`
 
@@ -3079,7 +3079,7 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 
 **Target machine:** `Windows11-TestDNC` (client workspace)  
 **Owner:** Client agent  
-**Status:** ready for handoff ✅
+**Status:** ready for handoff [OK]
 
 **Objective:** bring client/UI implementation to parity with completed server phases without modifying server contracts.
 
@@ -3192,7 +3192,7 @@ Required evidence in return:
 
 **Date:** 2026-03-12
 **Owner:** Server agent (`mint22`)
-**Status:** COMPLETE ✅
+**Status:** COMPLETE [OK]
 
 **What was completed:**
 
@@ -3219,10 +3219,10 @@ Required evidence in return:
 
 **Kickoff checklist:**
 
-- ✓ Scope confirmed: CRUD/tree/search/favorites, chunked upload E2E, version/share/trash flows, WOPI+sync smoke
-- ✓ Mediator workflow confirmed: relay via this handoff doc
-- ✓ Server kickoff message sent
-- ✓ Client validation message sent
+- [x] Scope confirmed: CRUD/tree/search/favorites, chunked upload E2E, version/share/trash flows, WOPI+sync smoke
+- [x] Mediator workflow confirmed: relay via this handoff doc
+- [x] Server kickoff message sent
+- [x] Client validation message sent
 
 ### Send to Server Agent
 
@@ -3308,10 +3308,10 @@ Completed Sprint A updates `#1` through `#9` are archived in
 
 **Kickoff checklist:**
 
-- ✓ Scope confirmed: Linux privilege dropping, Windows impersonation, IPC identity verification, trigger debounce, disk-full surfacing.
-- ✓ Expected identity semantics posted in handoff (this update).
-- ✓ Expected failure semantics posted in handoff (this update).
-- ✓ Client implementation kickoff message sent.
+- [x] Scope confirmed: Linux privilege dropping, Windows impersonation, IPC identity verification, trigger debounce, disk-full surfacing.
+- [x] Expected identity semantics posted in handoff (this update).
+- [x] Expected failure semantics posted in handoff (this update).
+- [x] Client implementation kickoff message sent.
 
 ### Sprint B - Expected Caller Identity (IPC/SyncService)
 
@@ -3367,7 +3367,7 @@ Completed Sprint B updates `#1` and `#2` are archived in
 
 **Date:** 2026-03-10  
 **Owner:** Server (`Windows workspace`)  
-**Status:** completed ✅
+**Status:** completed [OK]
 
 **Files added/updated:**
 
@@ -3401,7 +3401,7 @@ Completed Sprint B updates `#1` and `#2` are archived in
 
 **Date:** 2026-03-10  
 **Owner:** Server (`Linux workspace`)  
-**Status:** completed ✅
+**Status:** completed [OK]
 
 **Files added/updated:**
 
@@ -3434,7 +3434,7 @@ Completed Sprint B updates `#1` and `#2` are archived in
 
 **Date:** 2026-03-10  
 **Owner:** Server (`Linux workspace`)  
-**Status:** completed ✅
+**Status:** completed [OK]
 
 **Files added/updated:**
 
@@ -3474,7 +3474,7 @@ Completed Sprint B updates `#1` and `#2` are archived in
 
 **Date:** 2026-03-10  
 **Owner:** Server (`Windows workspace`)  
-**Status:** completed ✅
+**Status:** completed [OK]
 
 **Files added/updated:**
 
@@ -3512,7 +3512,7 @@ Completed Sprint B updates `#1` and `#2` are archived in
 
 **Date:** 2026-03-10  
 **Owner:** Server (`Windows workspace`)  
-**Status:** completed ✅
+**Status:** completed [OK]
 
 **Files added/updated:**
 
@@ -3560,17 +3560,17 @@ Full plan: [SYNC_REMEDIATION_PLAN.md](SYNC_REMEDIATION_PLAN.md)
 
 | Issue | Task | Owner  | Complexity | Description                                                   |
 | ----- | ---- | ------ | ---------- | ------------------------------------------------------------- |
-| #49   | 2.6  | BOTH   | LOW        | Client ETag/If-None-Match for chunk downloads — ✅ `158ebdc`  |
-| #50   | 2.3  | CLIENT | LOW        | Compression skip for pre-compressed MIME types — ✅ `158ebdc` |
-| #52   | 1.2  | SERVER | LOW        | RequestId in Serilog LogContext — ✅ `0a0ab19`                |
-| #54   | 1.9  | SERVER | LOW        | Content-Disposition on versioned downloads — ✅ `0a0ab19`     |
-| #59   | 1.5  | CLIENT | LOW        | TaskCanceledException retry in chunk transfers — ✅ `158ebdc` |
-| #61   | 3.2  | CLIENT | LOW        | Session resume window 18h → 48h — ✅ `158ebdc`                |
+| #49   | 2.6  | BOTH   | LOW        | Client ETag/If-None-Match for chunk downloads — [OK] `158ebdc`  |
+| #50   | 2.3  | CLIENT | LOW        | Compression skip for pre-compressed MIME types — [OK] `158ebdc` |
+| #52   | 1.2  | SERVER | LOW        | RequestId in Serilog LogContext — [OK] `0a0ab19`                |
+| #54   | 1.9  | SERVER | LOW        | Content-Disposition on versioned downloads — [OK] `0a0ab19`     |
+| #59   | 1.5  | CLIENT | LOW        | TaskCanceledException retry in chunk transfers — [OK] `158ebdc` |
+| #61   | 3.2  | CLIENT | LOW        | Session resume window 18h → 48h — [OK] `158ebdc`                |
 
-**Server issues (#52, #54):** ✅ COMPLETE — commit `0a0ab19`  
-**Client issues (#49, #50, #59, #61):** ✅ COMPLETE — commit `158ebdc`
+**Server issues (#52, #54):** [OK] COMPLETE — commit `0a0ab19`  
+**Client issues (#49, #50, #59, #61):** [OK] COMPLETE — commit `158ebdc`
 
-### Status: ✅ Batch A fully resolved.
+### Status: [OK] Batch A fully resolved.
 
 ---
 
@@ -3578,10 +3578,10 @@ Full plan: [SYNC_REMEDIATION_PLAN.md](SYNC_REMEDIATION_PLAN.md)
 
 | Issue | Task    | Owner  | Complexity | Description                                        | Status |
 | ----- | ------- | ------ | ---------- | -------------------------------------------------- | ------ |
-| #51   | 4.1     | CLIENT | MEDIUM     | Case-sensitivity handling in SyncEngine            | ✅     |
-| #55   | 3.5b    | CLIENT | MEDIUM     | Conflict resolution settings in sync-settings.json | ✅     |
-| #57   | 4.3/4.4 | CLIENT | LOW        | FSW.Error event + symlink config                   | ✅     |
-| #58   | 5.2     | CLIENT | MEDIUM     | Selective sync cleanup + lazy load                 | ✅     |
+| #51   | 4.1     | CLIENT | MEDIUM     | Case-sensitivity handling in SyncEngine            | [OK]     |
+| #55   | 3.5b    | CLIENT | MEDIUM     | Conflict resolution settings in sync-settings.json | [OK]     |
+| #57   | 4.3/4.4 | CLIENT | LOW        | FSW.Error event + symlink config                   | [OK]     |
+| #58   | 5.2     | CLIENT | MEDIUM     | Selective sync cleanup + lazy load                 | [OK]     |
 
 **All client-side. No server work in this batch.**
 
@@ -3615,9 +3615,9 @@ Full plan: [SYNC_REMEDIATION_PLAN.md](SYNC_REMEDIATION_PLAN.md)
 
 #### After completing all four
 
-Update `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md` — mark all four issues in the Batch B table with ✅ and commit hashes. Update `docs/development/SYNC_REMEDIATION_PLAN.md` to mark #51, #55, #57, and #58 as ✓.
+Update `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md` — mark all four issues in the Batch B table with [OK] and commit hashes. Update `docs/development/SYNC_REMEDIATION_PLAN.md` to mark #51, #55, #57, and #58 as [x].
 
-### Status: ✅ Batch B fully resolved.
+### Status: [OK] Batch B fully resolved.
 
 ---
 
@@ -3713,7 +3713,7 @@ Archived from `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md` when enforci
 
 **Date:** 2026-03-12
 **Owner:** Server agent (`mint22`)
-**Status:** COMPLETE ✅
+**Status:** COMPLETE [OK]
 
 **Problem:** Web UI at `https://mint22:15443/` failed with `42703: column f.PosixMode does not exist`. All 6 Files module migrations were pending against the production `dotnetcloud` database. The design-time factory targeted `dotnetcloud_files_dev` (non-existent), so migrations had never been applied to the actual database.
 
@@ -4077,16 +4077,16 @@ Pivoted to `WebApplicationFactory<Program>` in-process integration tests:
 
 | Test ID | Test Name                 | Result   | Notes                                                                                                                                 |
 | ------- | ------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| TC-1.46 | FSW debounce              | ✅ PASS  | 20 FSW events from 10 rapid saves coalesced into 1 sync pass (500ms debounce timer added in 0.27.7)                                   |
-| TC-1.47 | Launch SyncTray Windows   | ✅ PASS  | Tray icon visible, single-instance lock active, menu responsive                                                                       |
-| TC-1.49 | OAuth2 account add        | ✅ PASS  | OAuth2 PKCE flow completes, account connected, green icon                                                                             |
-| TC-1.50 | Server → local sync       | ✅ PASS  | NotificationsController.cs downloaded via chunk 304 fallback (fixed in 0.27.3)                                                        |
-| TC-1.51 | Local → server sync       | ✅ PASS  | File created locally, FSW detected, uploaded in 92ms, server acknowledged                                                             |
+| TC-1.46 | FSW debounce              | [OK] PASS  | 20 FSW events from 10 rapid saves coalesced into 1 sync pass (500ms debounce timer added in 0.27.7)                                   |
+| TC-1.47 | Launch SyncTray Windows   | [OK] PASS  | Tray icon visible, single-instance lock active, menu responsive                                                                       |
+| TC-1.49 | OAuth2 account add        | [OK] PASS  | OAuth2 PKCE flow completes, account connected, green icon                                                                             |
+| TC-1.50 | Server → local sync       | [OK] PASS  | NotificationsController.cs downloaded via chunk 304 fallback (fixed in 0.27.3)                                                        |
+| TC-1.51 | Local → server sync       | [OK] PASS  | File created locally, FSW detected, uploaded in 92ms, server acknowledged                                                             |
 | TC-1.52 | Conflict copy             | DEFERRED | Server PUT + local edit race didn't trigger conflict — sync engine uploads local version as new version. Needs manual two-client test |
 | TC-1.53 | Offline queue + reconnect | DEFERRED | VM environment — cannot disable network adapter                                                                                       |
-| TC-1.54 | 100MB+ file upload        | ✅ PASS  | 105MB file uploaded via chunked transfer in 13.9s, parallel chunk uploads confirmed                                                   |
-| TC-1.55 | Status indicators         | ✅ PASS  | Idle/syncing states observed in logs and tray icon color changes                                                                      |
-| TC-1.56 | Selective sync exclusion  | ✅ PASS  | `.syncignore` rule `test/` prevented server file `test/excluded.txt` from syncing locally. Hot-reload fix added in 0.27.8             |
+| TC-1.54 | 100MB+ file upload        | [OK] PASS  | 105MB file uploaded via chunked transfer in 13.9s, parallel chunk uploads confirmed                                                   |
+| TC-1.55 | Status indicators         | [OK] PASS  | Idle/syncing states observed in logs and tray icon color changes                                                                      |
+| TC-1.56 | Selective sync exclusion  | [OK] PASS  | `.syncignore` rule `test/` prevented server file `test/excluded.txt` from syncing locally. Hot-reload fix added in 0.27.8             |
 | TC-1.57 | Multi-account sync        | SKIP     | Environment-gated — only one account/server available                                                                                 |
 
 **Code fixes made during testing:**
@@ -4188,7 +4188,7 @@ Replaced all JwtBearer local-key-validation with OAuth2-standard token introspec
 
 ## Archived: Token Introspection Architecture Deploy (2026-06-22)
 
-**Status:** ✅ DEPLOYED — Token introspection architecture (commit `65bfdac1`)
+**Status:** [OK] DEPLOYED — Token introspection architecture (commit `65bfdac1`)
 
 ### What changed (architectural)
 
@@ -4245,13 +4245,13 @@ Client ──JWT──▶ Core.Server (YARP) ──JWT──▶ Files.Host
 
 | Suite                     | Count      |
 | ------------------------- | ---------- |
-| Files                     | 734/734 ✅ |
-| Auth (incl. 12 new)       | 85/85 ✅   |
-| Core.Server               | 575/575 ✅ |
-| Search                    | 664/664 ✅ |
-| Client.Core (incl. 8 new) | 264/264 ✅ |
-| SyncTray                  | 106/106 ✅ |
-| Music                     | 379/379 ✅ |
+| Files                     | 734/734 [OK] |
+| Auth (incl. 12 new)       | 85/85 [OK]   |
+| Core.Server               | 575/575 [OK] |
+| Search                    | 664/664 [OK] |
+| Client.Core (incl. 8 new) | 264/264 [OK] |
+| SyncTray                  | 106/106 [OK] |
+| Music                     | 379/379 [OK] |
 
 ### Deploy results (on `cloud.kimball.home`, 2026-06-22 03:35 UTC)
 
@@ -4260,15 +4260,15 @@ git checkout fix/files-module-bearer-auth && git pull  # 65bfdac1
 sudo ./scripts/deploy.sh --force
 ```
 
-- ✅ Build: 252.5s, all targets succeeded
-- ✅ Publish: Core.Server (4.8s), 14/14 module hosts
-- ✅ Health: 200
-- ✅ Files module: running on port 50393
+- [OK] Build: 252.5s, all targets succeeded
+- [OK] Publish: Core.Server (4.8s), 14/14 module hosts
+- [OK] Health: 200
+- [OK] Files module: running on port 50393
 - ⚠️ No introspection logs yet — expected: `TokenIntrospectionServiceImpl` is lazily instantiated on first gRPC call. Introspection pipeline is dormant until a client sends a Bearer token.
 
 ### Verify (on `cloud.kimball.home`)
 
-- Files API (no auth): 401 ✅ (expected)
+- Files API (no auth): 401 [OK] (expected)
 - Core.Server log `TokenIntrospectionService: loaded N signing key(s)` — will appear on first introspection gRPC call
 - Files module log `TokenIntrospectionClient: connected` — will appear on first introspection gRPC call
 
@@ -4308,9 +4308,9 @@ Token introspection auth (`65bfdac1`) was deployed to `cloud.kimball.home`. Clie
 
 ### Deploy results (on `cloud.kimball.home`)
 
-- ✅ Build: 252.5s, 15/15 targets succeeded
-- ✅ 14/14 module hosts published
-- ✅ Health: 200, Files module running on port 50393
+- [OK] Build: 252.5s, 15/15 targets succeeded
+- [OK] 14/14 module hosts published
+- [OK] Health: 200, Files module running on port 50393
 - ❌ gRPC introspection calls returned HTTP 307 (redirect) — fixed in `435a03da`
 
 **Client version:** 0.3.9-alpha
@@ -4320,7 +4320,7 @@ Token introspection auth (`65bfdac1`) was deployed to `cloud.kimball.home`. Clie
 
 ## Archived: gRPC 307 redirect fix (2026-06-22)
 
-**Status:** 🔧 FIX PUSHED — gRPC introspection 307 redirect fixed (commit `435a03da`), ready for deploy
+**Status:** [fix] FIX PUSHED — gRPC introspection 307 redirect fixed (commit `435a03da`), ready for deploy
 
 **Root cause found (on `cloud.kimball.home`, `mint-OptiPlex-7010`):**
 
