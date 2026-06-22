@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Auth.Authorization;
+using DotNetCloud.Core.Auth.Security;
 using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Events;
@@ -12,9 +13,11 @@ using Microsoft.EntityFrameworkCore;
 using Scalar.AspNetCore;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -46,9 +49,31 @@ builder.Services.AddDataProtection()
     .SetApplicationName("DotNetCloud")
     .PersistKeysToFileSystem(new DirectoryInfo(dpKeysPath));
 
-// Cookie auth — same cookie name as Core.Server. SecurePolicy=Always because
-// the YARP proxy sets X-Forwarded-Proto, so UseForwardedHeaders() enables Secure.
-builder.Services.AddAuthentication("Identity.Application")
+// Load shared OpenIddict signing keys for JWT Bearer token validation.
+// These keys are the same ones used by Core.Server to sign access tokens,
+// stored in the shared oidc-keys directory.
+var dataRoot = Environment.GetEnvironmentVariable("DOTNETCLOUD_DATA_DIR");
+var oidcKeysDir = Path.Combine(
+    !string.IsNullOrWhiteSpace(dataRoot) ? dataRoot : AppContext.BaseDirectory,
+    "oidc-keys");
+using var keyLoggerFactory = LoggerFactory.Create(b => b.AddConsole());
+var keyLogger = keyLoggerFactory.CreateLogger("DotNetCloud.OidcKeys");
+var signingKeys = OidcKeyManager.LoadAllKeys(oidcKeysDir, OidcKeyManager.SigningKeyPrefix, keyLogger);
+
+if (signingKeys.Count == 0)
+{
+    keyLogger.LogWarning("No OpenIddict signing keys found in {OidcKeysDir}. " +
+        "JWT Bearer authentication will not be available for this module.", oidcKeysDir);
+}
+
+// Authentication: supports both cookie (browser/Blazor) and Bearer JWT (desktop/mobile).
+// A policy scheme automatically routes to the correct handler based on the request.
+builder.Services.AddAuthentication(options =>
+    {
+        options.DefaultScheme = "DotNetCloud.Module";
+        options.DefaultAuthenticateScheme = "DotNetCloud.Module";
+        options.DefaultChallengeScheme = "DotNetCloud.Module";
+    })
     .AddCookie("Identity.Application", options =>
     {
         options.Cookie.Name = ".AspNetCore.Identity.Application";
@@ -79,6 +104,35 @@ builder.Services.AddAuthentication("Identity.Application")
         {
             context.Response.StatusCode = StatusCodes.Status403Forbidden;
             return Task.CompletedTask;
+        };
+    })
+    .AddJwtBearer("Bearer", options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = false,
+            ValidateAudience = false,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = signingKeys.Count > 0,
+            IssuerSigningKey = signingKeys.Count > 0 ? signingKeys[0] : null,
+        };
+        // Preserve original JWT claim names (e.g., "sub" instead of ClaimTypes.NameIdentifier)
+        // so GetAuthenticatedCaller() can find claims via either name.
+        options.MapInboundClaims = false;
+    })
+    .AddPolicyScheme("DotNetCloud.Module", "DotNetCloud.Module", options =>
+    {
+        // Route to Bearer handler for requests with Authorization header (desktop/mobile clients).
+        // Route to Cookie handler for browser/Blazor requests.
+        options.ForwardDefaultSelector = context =>
+        {
+            if (context.Request.Headers.TryGetValue("Authorization", out var auth)
+                && auth.Count > 0
+                && auth[0]?.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                return "Bearer";
+            }
+            return "Identity.Application";
         };
     });
 

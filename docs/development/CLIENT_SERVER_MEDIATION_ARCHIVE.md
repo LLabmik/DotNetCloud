@@ -1,6 +1,19 @@
 # Client/Server Mediation — Archived Context
 
-Archived: 2026-03-08. Full git history preserved in commits up to `8e02b52`.
+Archived: 2026-06-21. Full git history preserved in commits up to `846031cc`.
+
+This file contains historical reference from the client/server mediation sessions.
+Only consult this if you encounter a regression or need to understand a past fix.
+
+## Archived: VFS Implementation — All Phases Complete (2026-05-12)
+
+**Original target:** mint22, Windows11-TestDNC, mint-dnc-client
+
+VFS Phase 1–6 completed across all three environments (see `CLIENT_SERVER_MEDIATION_HANDOFF.md` commit `846031cc` for original Active Handoff content).
+
+---
+
+## Archived: SyncTray Icon Enhancement — Linux Verification (2026-03-29)
 
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.

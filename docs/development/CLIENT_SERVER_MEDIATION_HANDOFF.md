@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 20260512 (VFS all phases complete — IDLE; manual E2E testing remains)
+Last updated: 20260621 (Files module host Bearer auth fix — deploy required)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -73,14 +73,16 @@ Archived context:
 
 | Role           | Machine             | Detail                                                                             |
 | -------------- | ------------------- | ---------------------------------------------------------------------------------- |
-| Server         | `mint22`            | `https://mint22:5443/`                                                             |
+| Server         | `cloud.kimball.home`| `https://cloud.dotnetcloud.net/` (production)                                      |
+| Server         | `mint22`            | `https://mint22:5443/` (dev)                                                       |
 | Client         | `Windows11-TestDNC` | Sync dir: `C:\Users\benk\Documents\synctray`                                       |
 | Client         | `mint-dnc-client`   | Linux Mint 22 validation host for desktop sync client implementation + E2E testing |
+| Client         | `mint-OptiPlex-7010`| This machine — production client connected to `cloud.dotnetcloud.net`              |
 | Android Client | `monolith`          | Android MAUI app development + emulator testing (Windows 11)                       |
 
 ## Key Carry-Forward Contracts
 
-- Auth: OpenIddict bearer on files/sync endpoints via `FilesControllerBase` `[Authorize(AuthenticationSchemes = "OpenIddict.Validation.AspNetCore")]`.
+- Auth: Files module host now uses a policy scheme (`DotNetCloud.Module`) that auto-selects between `Bearer` (JWT) and `Identity.Application` (cookie) based on the `Authorization` header. Controllers use plain `[Authorize]` — no explicit scheme. All module hosts must follow this pattern.
 - API envelope: middleware wraps responses; clients should unwrap via envelope helpers.
 - Sync flow: changes -> tree -> reconcile -> chunk manifest -> chunk download -> file assembly.
 - Desktop OAuth constant: `OAuthConstants.ClientId = "dotnetcloud-desktop"`.
@@ -89,39 +91,38 @@ Archived context:
 
 ## Active Handoff
 
-**Status:** IDLE — all VFS implementation phases complete (2026-05-12)
+**Status:** 🔴 SERVER-SIDE DEPLOY REQUIRED — deploy `main` to `cloud.kimball.home`
 
-**Completed phases:**
+**Problem:** Desktop sync client (`SyncStreamListener`) sends `Authorization: Bearer <jwt>` to SSE endpoint `api/v1/files/sync/stream` and all other Files module REST APIs. The Files module host only had `Identity.Application` cookie auth registered — no Bearer token handler. Result: 401 on every desktop client API call to the Files module (SSE, device-cursor, changes, etc.). Client falls back to polling but push-based sync is broken.
 
-- VFS Phase 1 (server-side prerequisites) — `mint22`
-- VFS Phase 2 (core abstraction layer) — `Windows11-TestDNC`
-- VFS Phase 3 (Windows Cloud Filter API) — `Windows11-TestDNC`
-- VFS Phase 4 (Linux FUSE filesystem) — `mint-dnc-client`
-- VFS Phase 5 (SyncTray UI integration) — `Windows11-TestDNC`
-- VFS Phase 6 (testing & validation) — `Windows11-TestDNC`
+**Fix applied on branch `fix/files-module-bearer-auth` (commit pending):**
 
-**Remaining work:** Manual E2E tests (Steps 6.2-6.4 in `docs/VIRTUAL_FILE_SYNCING_PLAN.md`) require cross-machine coordination. Not yet scheduled.
+**Files changed (14 files):**
 
-- Update `scripts/install.sh` with FUSE dependency
+| File | Change |
+|------|--------|
+| `Directory.Packages.props` | Added `Microsoft.AspNetCore.Authentication.JwtBearer` 10.0.3 |
+| `src/Modules/Files/DotNetCloud.Modules.Files.Host/DotNetCloud.Modules.Files.Host.csproj` | Added `PackageReference` for JwtBearer |
+| `src/Modules/Files/DotNetCloud.Modules.Files.Host/Program.cs` | Added JWT Bearer auth + policy scheme (auto-selects Bearer vs Cookie based on `Authorization` header) |
+| 13 controller files in `.../Controllers/*.cs` | Changed `[Authorize(AuthenticationSchemes = "Identity.Application")]` → `[Authorize]` (uses new policy scheme) |
 
-**Reference files (already on main):**
+**Deploy steps (on `cloud.kimball.home`):**
 
-- `src/Clients/DotNetCloud.Client.Core/VirtualFiles/IVirtualFileProvider.cs` — interface
-- `src/Clients/DotNetCloud.Client.Core/VirtualFiles/VirtualFileSyncEngine.cs` — engine wrapper
-- `src/Clients/DotNetCloud.Client.Core/VirtualFiles/VirtualFileSettings.cs` — settings
-- `src/Clients/DotNetCloud.Client.Core/VirtualFiles/LruCacheManager.cs` — cache (created in Phase 6)
-- `src/Clients/DotNetCloud.Client.Core/Platform/Windows/CloudFilterSyncProvider.cs` — reference implementation
-- `tests/DotNetCloud.Client.Core.Tests/VirtualFiles/FuseSyncFilesystemTests.cs` — contract tests
+1. `git pull` on `main`
+2. `dotnet build src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj -c Release`
+3. `sudo ./scripts/deploy.sh` (rebuilds and deploys all modules including the Files module host)
+4. Restart the service: `sudo systemctl restart dotnetcloud`
+5. Verify the Files module is running: `curl -sk https://cloud.dotnetcloud.net/api/v1/files/` (should return 200, not 401)
+6. Verify SSE stream accepts Bearer tokens: `curl -sk -H "Authorization: Bearer <token>" https://cloud.dotnetcloud.net/api/v1/files/sync/stream` (should return `text/event-stream`, not 401)
 
-**Pre-commit checklist:**
+**Verification on client side (`mint-OptiPlex-7010`):**
 
-- Run `dotnet build` — must succeed with 0 errors
-- Run `dotnet test tests/DotNetCloud.Client.Core.Tests/` — all tests must pass
-- Run `dotnet test tests/DotNetCloud.Client.Client.SyncTray.Tests/` — all tests must pass
-- Delete any unexpected untracked files before committing
+After deploy completes, restart the SyncTray client on this machine:
+```bash
+cd /home/benk/Repos/DotNetCloud
+dotnet run --project src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj
+```
+Check logs for: `"SSE stream connected."` (was previously getting 401 and falling back to polling).
 
-**Post-completion:**
-
-- Update `docs/VIRTUAL_FILE_SYNCING_PLAN.md` — mark Phase 4 deliverables ✓
-- Update `docs/IMPLEMENTATION_CHECKLIST.md` — mark Phase 4 checkboxes ✓
-- Update `docs/MASTER_PROJECT_PLAN.md` — update VFS Phase 4 status + deliverables
+**Client version:** 0.3.9-alpha (built locally, connects to `https://cloud.dotnetcloud.net`)
+**Server update available:** Client auto-detected 0.3.12 — deploy will also push the latest server build.

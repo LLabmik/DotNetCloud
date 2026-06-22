@@ -8,7 +8,7 @@ namespace DotNetCloud.Modules.Files.Host.Controllers;
 /// REST API controller for trash bin operations.
 /// </summary>
 [Route("api/v1/files/trash")]
-[Authorize(AuthenticationSchemes = "Identity.Application")]
+[Authorize]
 public class TrashController : FilesControllerBase
 {
     private readonly ITrashService _trashService;

@@ -9,7 +9,7 @@ namespace DotNetCloud.Modules.Files.Host.Controllers;
 /// REST API controller for user storage quota management.
 /// </summary>
 [Route("api/v1/files/quota")]
-[Authorize(AuthenticationSchemes = "Identity.Application")]
+[Authorize]
 public class QuotaController : FilesControllerBase
 {
     private readonly IQuotaService _quotaService;

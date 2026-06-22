@@ -9,7 +9,7 @@ namespace DotNetCloud.Modules.Files.Host.Controllers;
 /// REST API controller for file/folder tag operations.
 /// </summary>
 [Route("api/v1/files")]
-[Authorize(AuthenticationSchemes = "Identity.Application")]
+[Authorize]
 public class TagController : FilesControllerBase
 {
     private readonly ITagService _tagService;
