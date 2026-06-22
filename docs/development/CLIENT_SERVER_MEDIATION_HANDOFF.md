@@ -32,7 +32,7 @@ Archived context:
 - OAuth contract check (MANDATORY when auth is involved): verify `client_id`, `redirect_uri`, and requested scopes exactly match server-registered OpenIddict client permissions before requesting cross-machine retries.
 - Secret handling rule (MANDATORY): never commit raw bearer tokens/refresh tokens; share token acquisition steps and sanitized outputs only.
 - Moderator relays a short "check for updates" message to the other machine.
-- Moderator handoff prompt rule (MANDATORY): every ready-to-relay message must explicitly state the target machine name (for example: `mint22`, `mint-dnc-client`, `Windows11-TestDNC`).
+- Moderator handoff prompt rule (MANDATORY): every ready-to-relay message must explicitly state the target machine name (for example: `cloud.kimball.home`, `mint-dnc-client`, `Windows11-TestDNC`).
 - Other agent pulls latest, reads the handoff, and takes action without asking questions.
 
 **Document maintenance:**
@@ -53,7 +53,7 @@ Archived context:
 ## Current Status
 
 - All prior Phase 2, chat, pre-Linux sync remediation, SyncTray icon enhancement work is complete and archived.
-- VFS Phase 1 (server-side prerequisites) complete on `mint22`.
+- VFS Phase 1 (server-side prerequisites) complete on `cloud.kimball.home`.
 - VFS Phase 2 (core abstraction layer) complete on `Windows11-TestDNC`.
 - VFS Phase 3 (Windows Cloud Filter API) complete on `Windows11-TestDNC`.
 - VFS Phase 4 (Linux FUSE) complete on `mint-dnc-client`:
